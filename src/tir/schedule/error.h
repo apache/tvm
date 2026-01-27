@@ -57,7 +57,7 @@ class ScheduleError : public tvm::runtime::Error {
 
 class LoopPositionError : public ScheduleError {
  public:
-  explicit LoopPositionError(IRModule mod, For loop, Block block, const std::string& primitive)
+  explicit LoopPositionError(IRModule mod, For loop, SBlock block, const std::string& primitive)
       : mod_(std::move(mod)),
         loop_(std::move(loop)),
         block_(std::move(block)),
@@ -79,7 +79,7 @@ class LoopPositionError : public ScheduleError {
 
   IRModule mod_;
   For loop_;
-  Block block_;
+  SBlock block_;
   std::string primitive_;
 };
 

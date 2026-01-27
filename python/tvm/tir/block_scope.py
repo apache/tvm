@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Definition of two pillar data structure for TensorIR scheduling: StmtSRef, BlockScope."""
+"""Definition of two pillar data structure for TensorIR scheduling: StmtSRef, SBlockScope."""
 from enum import IntEnum
 from typing import List, Optional, Union
 
 from tvm_ffi import register_object
 from tvm.runtime import Object
-from tvm.tir import Block, For
+from tvm.tir import SBlock, For
 
 from . import _ffi_api
 
@@ -30,7 +30,7 @@ class StmtSRef(Object):
     """An object that refers to schedulable elements in the TensorIR, aka "sref".
 
     Glossary
-    - Block sref: An StmtSref that points to a TensorIR block.
+    - SBlock sref: An StmtSref that points to a TensorIR block.
     - Loop sref: An StmtSRef that points to a TensorIR for loop.
     - Parent sref: The parent sref of an sref is the block/loop sref that points to its closest
     schedulable statement of its ancestors on the TensorIR AST.
@@ -43,7 +43,7 @@ class StmtSRef(Object):
     seq_index: int
 
     @property
-    def stmt(self) -> Optional[Union[Block, For]]:
+    def stmt(self) -> Optional[Union[SBlock, For]]:
         """The block/for stmt the object refers to"""
         return _ffi_api.StmtSRefStmt(self)  # type: ignore # pylint: disable=no-member
 
@@ -107,21 +107,21 @@ class Dependency(Object):
     kind: DepKind
 
 
-@register_object("tir.BlockScope")
-class BlockScope(Object):
+@register_object("tir.SBlockScope")
+class SBlockScope(Object):
     """An object corresponds to each block sref in the sref tree, which
     tracks the producer-consumer dependency between blocks.
 
     Glossary:
 
-    - Block scope: A contiguous subtree of the sref tree, rooted at
-      each block sref, whose components are:
+    - SBlock scope: A contiguous subtree of the sref tree, rooted at
+      each SBlock sref, whose components are:
 
-      - scope root: a block sref
+      - scope root: a SBlock sref
       - internal srefs: loop srefs
-      - scope leaves: block srefs
+      - scope leaves: SBlock srefs
 
-    - Child block: The scope leaf blocks under the scope root or a specific internal sref
+    - Child SBlock: The scope leaf SBlocks under the scope root or a specific internal sref
     """
 
     def get_deps_by_src(self, block: StmtSRef) -> List[Dependency]:
@@ -137,7 +137,7 @@ class BlockScope(Object):
         blocks: List[Dependency]
             The dependencies
         """
-        return _ffi_api.BlockScopeGetDepsBySrc(self, block)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.SBlockScopeGetDepsBySrc(self, block)  # type: ignore # pylint: disable=no-member
 
     def get_deps_by_dst(self, block: StmtSRef) -> List[Dependency]:
         """Get all dependencies whose `dst` is the target `block`.
@@ -152,4 +152,4 @@ class BlockScope(Object):
         blocks: List[Dependency]
             The dependencies
         """
-        return _ffi_api.BlockScopeGetDepsByDst(self, block)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.SBlockScopeGetDepsByDst(self, block)  # type: ignore # pylint: disable=no-member

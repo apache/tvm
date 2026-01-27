@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-""" Pool schedule rule for Adreno operators."""
+"""Pool schedule rule for Adreno operators."""
 
 from tvm import tir
 from tvm.target import Target
@@ -41,7 +41,7 @@ class Pool2D(AdrenoScheduleRule):
         if not "adaptive_pool_sum" in blocks_names and not "pool_max" in blocks_names:
             return None
 
-        def schedule_pad(blk: tir.schedule.BlockRV):
+        def schedule_pad(blk: tir.schedule.SBlockRV):
             lps, veclp = sch.get_loops(blk)[:-1], sch.get_loops(blk)[-1]
             sch.vectorize(veclp)
             b = sch.fuse(*lps)
@@ -50,7 +50,7 @@ class Pool2D(AdrenoScheduleRule):
             sch.bind(bx, "blockIdx.x")
             sch.bind(tx, "threadIdx.x")
 
-        def schedule_max_pool(blk: tir.schedule.BlockRV):
+        def schedule_max_pool(blk: tir.schedule.SBlockRV):
             block_info = analysis.get_block_info(sch, blk)
             iters_kind = "".join([_iter.kind for _iter in block_info.iters])
             if iters_kind != "SSSSSRR":

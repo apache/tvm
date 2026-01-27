@@ -79,7 +79,7 @@ class Var2BufferCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     for (const Buffer& buffer : op->alloc_buffers) {
       var2buffer_[buffer->data].insert(buffer);
     }
@@ -224,7 +224,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     // Step 0. Check there is no init part and block is opaque
     ICHECK(!op->init.defined());
     ICHECK_EQ(op->iter_vars.size(), 0) << "CompactBufferRegion only works on opaque blocks";
@@ -291,7 +291,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const BlockRealizeNode* op) final {
+  void VisitStmt_(const SBlockRealizeNode* op) final {
     With<ConditionalBoundsContext> ctx(op->predicate, &dom_map_, &hint_map_, &pending_conditions_);
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -562,16 +562,16 @@ class BufferCompactor : public StmtExprMutator {
     return load;
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     // Step 0. Check there is no Init part.
     ICHECK(!op->init.defined());
     // Step 1. Reallocate and rewrite alloc_buffers, also update BufferAllocInfo.
     ffi::Array<Buffer> alloc_buffers =
         op->alloc_buffers.Map([this](const Buffer& buf) { return RewriteAllocBuffer(buf); });
     // Step 2. Recursively rewrite BufferLoad/BufferStore.
-    Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
+    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
     // Step 3. Update block signature.
-    BlockNode* n = block.CopyOnWrite();
+    SBlockNode* n = block.CopyOnWrite();
     RewriteBufferRegions(&n->reads);
     RewriteBufferRegions(&n->writes);
     RewriteMatchBuffers(&n->match_buffers);

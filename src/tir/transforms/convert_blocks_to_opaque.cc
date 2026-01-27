@@ -57,17 +57,17 @@ class OpaqueBlockConverter : public StmtExprMutator {
     return ffi::GetRef<Var>(var);
   }
 
-  Stmt VisitStmt_(const BlockNode* block) final {
+  Stmt VisitStmt_(const SBlockNode* block) final {
     ICHECK(!block->init.defined())
         << "Block Init part is not allowed in pass ConvertBlocksToOpaque";
-    Block new_block = Downcast<Block>(StmtExprMutator::VisitStmt_(block));
+    SBlock new_block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(block));
     if (!new_block->iter_vars.empty()) {
       new_block.CopyOnWrite()->iter_vars.clear();
     }
     return new_block;
   }
 
-  Stmt VisitStmt_(const BlockRealizeNode* realize) final {
+  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
     const auto* block_op = realize->block.get();
     ICHECK(!block_op->init.defined());
 
@@ -86,7 +86,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
       var_substitutes_.emplace(block_var->var.get(), v);
     }
     // Step 3. Visit recursively.
-    Block new_block = Downcast<Block>(VisitStmt(realize->block));
+    SBlock new_block = Downcast<SBlock>(VisitStmt(realize->block));
 
     // Step 4. Clear the variable bindings
     for (const auto& block_var : block_op->iter_vars) {
@@ -96,9 +96,9 @@ class OpaqueBlockConverter : public StmtExprMutator {
     // Step 5. Return
     if (predicate.same_as(realize->predicate) && iter_values.same_as(realize->iter_values) &&
         new_block.same_as(realize->block) && realize->iter_values.size() == 0) {
-      return ffi::GetRef<BlockRealize>(realize);
+      return ffi::GetRef<SBlockRealize>(realize);
     } else {
-      return BlockRealize({}, predicate, new_block);
+      return SBlockRealize({}, predicate, new_block);
     }
   }
 

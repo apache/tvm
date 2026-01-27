@@ -170,7 +170,7 @@ class BlockFrameNode : public TIRFrameNode {
         .def_ro("predicate", &BlockFrameNode::predicate)
         .def_ro("no_realize", &BlockFrameNode::no_realize);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.BlockFrame", BlockFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.SBlockFrame", BlockFrameNode,
                                     TIRFrameNode);
 
  public:
@@ -207,7 +207,7 @@ class BlockInitFrameNode : public TIRFrameNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BlockInitFrameNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.BlockInitFrame", BlockInitFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.SBlockInitFrame", BlockInitFrameNode,
                                     TIRFrameNode);
 
  public:

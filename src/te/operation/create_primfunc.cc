@@ -149,9 +149,9 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
     return WithAttr(std::move(func), tir::attr::layout_free_buffers, indices);
   }
 
-  Stmt VisitStmt_(const BlockNode* _block) final {
-    Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
-    BlockNode* n = block.CopyOnWrite();
+  Stmt VisitStmt_(const SBlockNode* _block) final {
+    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(_block));
+    SBlockNode* n = block.CopyOnWrite();
     if (auto opt_ann = n->annotations.Get(topi_attr)) {
       ffi::Array<Buffer> new_buffers;
       for (Buffer buffer : Downcast<ffi::Array<Buffer>>(opt_ann.value())) {
@@ -541,18 +541,18 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     Stmt init = GenerateInitStmt(leaf.store_indices, buffers, reduce, leaf.axes_remap, info);
     Stmt body =
         GenerateBodyStmt(leaf.store_indices, buffers, leaf.axes_remap, expr_body, info, analyzer);
-    seq_stmt.push_back(BlockRealize(/*iter_values=*/leaf.bindings,
-                                    /*predicate=*/Bool(true),
-                                    /*block=*/
-                                    Block(/*iter_vars=*/leaf.block_iters,
-                                          /*reads=*/{},
-                                          /*writes=*/{},
-                                          /*name_hint=*/info->FreshName(compute_op->name),
-                                          /*body=*/body,
-                                          /*init=*/init,
-                                          /*alloc_buffers=*/{},
-                                          /*match_buffers=*/{},
-                                          /*annotations=*/annotations)));
+    seq_stmt.push_back(SBlockRealize(/*iter_values=*/leaf.bindings,
+                                     /*predicate=*/Bool(true),
+                                     /*block=*/
+                                     SBlock(/*iter_vars=*/leaf.block_iters,
+                                            /*reads=*/{},
+                                            /*writes=*/{},
+                                            /*name_hint=*/info->FreshName(compute_op->name),
+                                            /*body=*/body,
+                                            /*init=*/init,
+                                            /*alloc_buffers=*/{},
+                                            /*match_buffers=*/{},
+                                            /*annotations=*/annotations)));
 
   } else {
     for (int i = 0; i < compute_op->num_outputs(); ++i) {
@@ -563,18 +563,18 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       PrimExpr expr_body = compute_op->body[i];
       Stmt body = GenerateBodyStmt(leaf.store_indices, {buffers[i]}, leaf.axes_remap, expr_body,
                                    info, analyzer);
-      seq_stmt.push_back(BlockRealize(/*iter_values=*/leaf.bindings,
-                                      /*predicate=*/Bool(true),
-                                      /*block=*/
-                                      Block(/*iter_vars=*/leaf.block_iters,
-                                            /*reads=*/{},
-                                            /*writes=*/{},
-                                            /*name_hint=*/info->FreshName(buffers[i]->name),
-                                            /*body=*/body,
-                                            /*init=*/std::nullopt,
-                                            /*alloc_buffers=*/{},
-                                            /*match_buffers=*/{},
-                                            /*annotations=*/annotations)));
+      seq_stmt.push_back(SBlockRealize(/*iter_values=*/leaf.bindings,
+                                       /*predicate=*/Bool(true),
+                                       /*block=*/
+                                       SBlock(/*iter_vars=*/leaf.block_iters,
+                                              /*reads=*/{},
+                                              /*writes=*/{},
+                                              /*name_hint=*/info->FreshName(buffers[i]->name),
+                                              /*body=*/body,
+                                              /*init=*/std::nullopt,
+                                              /*alloc_buffers=*/{},
+                                              /*match_buffers=*/{},
+                                              /*annotations=*/annotations)));
     }
   }
   Stmt body = SeqStmt::Flatten(seq_stmt);
@@ -596,18 +596,18 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       }
 
       // wrap nested block
-      body = BlockRealize(/*iter_values=*/cur.bindings,
-                          /*predicate=*/Bool(true),
-                          /*block=*/
-                          Block(/*iter_vars=*/block_iters,
-                                /*reads=*/{},
-                                /*writes=*/{},
-                                /*name_hint=*/block_name,
-                                /*body=*/body,
-                                /*init=*/init,
-                                /*alloc_buffers=*/{},
-                                /*match_buffers=*/{},
-                                /*annotations=*/annotations));
+      body = SBlockRealize(/*iter_values=*/cur.bindings,
+                           /*predicate=*/Bool(true),
+                           /*block=*/
+                           SBlock(/*iter_vars=*/block_iters,
+                                  /*reads=*/{},
+                                  /*writes=*/{},
+                                  /*name_hint=*/block_name,
+                                  /*body=*/body,
+                                  /*init=*/init,
+                                  /*alloc_buffers=*/{},
+                                  /*match_buffers=*/{},
+                                  /*annotations=*/annotations));
     }
     for (size_t j = cur.loop_vars.size(); j > 0; --j) {
       const auto& [loop_var, dom] = cur.loop_vars[j - 1];
@@ -646,7 +646,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   // be generated with the later application of "script.Complete" in
   // GenerateAndCompletePrimFunc.  Waiting until later also handles
   // the case where there is only a single BlockNode, which then
-  // becomes the root Block of the function, and should not have
+  // becomes the root SBlock of the function, and should not have
   // reads/writes filled in.
 
   BufferSubstituter substituter(var_map, input_buffer_map);
@@ -656,18 +656,18 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   Stmt body = transformer(substituted_body);
 
   // Step 4. Generate opaque block as body.
-  return BlockRealize(/*iter_values=*/{},
-                      /*predicate=*/Bool(true),
-                      /*block=*/
-                      Block(/*iter_vars=*/{},
-                            /*reads=*/{},
-                            /*writes=*/{},
-                            /*name_hint=*/info->FreshName(extern_op->name),
-                            /*body=*/std::move(body),
-                            /*init=*/std::nullopt,
-                            /*alloc_buffers=*/{},
-                            /*match_buffers=*/{},
-                            /*annotations=*/extern_op->attrs));
+  return SBlockRealize(/*iter_values=*/{},
+                       /*predicate=*/Bool(true),
+                       /*block=*/
+                       SBlock(/*iter_vars=*/{},
+                              /*reads=*/{},
+                              /*writes=*/{},
+                              /*name_hint=*/info->FreshName(extern_op->name),
+                              /*body=*/std::move(body),
+                              /*init=*/std::nullopt,
+                              /*alloc_buffers=*/{},
+                              /*match_buffers=*/{},
+                              /*annotations=*/extern_op->attrs));
 }
 
 ffi::Array<te::Operation> CollectOrderedOps(const ffi::Array<te::Tensor>& arg_list) {

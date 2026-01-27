@@ -149,7 +149,7 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
     return true;
   }
 
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     if (op->name_hint == "root") {
       StmtExprVisitor::VisitStmt_(op);
       return;

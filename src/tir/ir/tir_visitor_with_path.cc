@@ -277,7 +277,7 @@ void TIRVisitorWithPath::VisitStmt_(const EvaluateNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const BlockNode* op, AccessPath path) {
+void TIRVisitorWithPath::VisitStmt_(const SBlockNode* op, AccessPath path) {
   std::vector<std::variant<DefContext<Var>, DefContext<IterVar>, DefContext<Buffer>>> context;
 
   {
@@ -319,7 +319,7 @@ void TIRVisitorWithPath::VisitStmt_(const BlockNode* op, AccessPath path) {
   while (context.size()) context.pop_back();
 }
 
-void TIRVisitorWithPath::VisitStmt_(const BlockRealizeNode* op, AccessPath path) {
+void TIRVisitorWithPath::VisitStmt_(const SBlockRealizeNode* op, AccessPath path) {
   Visit(op->iter_values, path->Attr("iter_values"));
   Visit(op->predicate, path->Attr("predicate"));
   Visit(op->block, path->Attr("block"));

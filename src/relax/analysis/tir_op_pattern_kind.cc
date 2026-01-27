@@ -43,7 +43,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
   }
 
  private:
-  bool IsOutputBlock(const BlockNode* block) {
+  bool IsOutputBlock(const SBlockNode* block) {
     for (const BufferRegion& write_region : block->writes) {
       if (param_buffers_.count(write_region->buffer)) {
         return true;
@@ -68,7 +68,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     if (op->name_hint == "root") {
       // Skip the root block
       StmtVisitor::VisitStmt(op->body);
@@ -369,17 +369,17 @@ bool HasReshapePattern(const PrimFunc& func) {
       ana_.Bind(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
       // To detect the reshape pattern, we require each For to have
       // either another For or a BlockRealize as body.
-      if (!(loop->body->IsInstance<ForNode>() || loop->body->IsInstance<BlockRealizeNode>())) {
+      if (!(loop->body->IsInstance<ForNode>() || loop->body->IsInstance<SBlockRealizeNode>())) {
         return;
       }
       this->VisitStmt(loop->body);
     }
 
-    void VisitStmt_(const BlockRealizeNode* block_realize) final {
+    void VisitStmt_(const SBlockRealizeNode* block_realize) final {
       // Constructing the mapping from block iterators to iterator
       // binding values. The mapping will be used in the substitution of
       // the flattened buffer access index.
-      const Block& block = block_realize->block;
+      const SBlock& block = block_realize->block;
       const ffi::Array<IterVar>& block_iter = block->iter_vars;
       const ffi::Array<PrimExpr>& iter_values = block_realize->iter_values;
       ICHECK_EQ(block_iter.size(), iter_values.size());
@@ -395,7 +395,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       this->VisitStmt(block);
     }
 
-    void VisitStmt_(const BlockNode* block) final {
+    void VisitStmt_(const SBlockNode* block) final {
       // Step 0. If the block body is a ForNode, recurse into it.
       if (block->body->IsInstance<ForNode>()) {
         this->VisitStmt(block->body);
@@ -535,7 +535,7 @@ bool HasReshapePattern(const PrimFunc& func) {
 
   // To detect the reshape pattern, we require each For to have
   // either another For or a BlockRealize as body.
-  ICHECK(func->body->IsInstance<BlockRealizeNode>());
+  ICHECK(func->body->IsInstance<SBlockRealizeNode>());
   return ReshapeDetector::Detect(src_buffer, dst_buffer, func->body);
 }
 

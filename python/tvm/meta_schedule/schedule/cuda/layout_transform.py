@@ -22,7 +22,7 @@ from typing import List, Optional, Tuple, Union
 
 import tvm
 from tvm import meta_schedule
-from tvm.tir.schedule import BlockRV, ExprRV, LoopRV
+from tvm.tir.schedule import SBlockRV, ExprRV, LoopRV
 
 ## Tiling layout transforms:
 # Assume we have an input shape of [A, B, C, D] and want to layout transform
@@ -85,13 +85,13 @@ from tvm.tir.schedule import BlockRV, ExprRV, LoopRV
 
 def tile_layout_transform(
     sch: tvm.tir.Schedule,
-    block_read: BlockRV,
-    block_write: BlockRV,
+    block_read: SBlockRV,
+    block_write: SBlockRV,
     src_layout: str,
     dst_layout: str,
     input_shape: List[int],
     tile_size: ExprRV,
-) -> Tuple[BlockRV, BlockRV]:
+) -> Tuple[SBlockRV, SBlockRV]:
     """
     High level tiling for layout transform block. Mutates sch in place.
 
@@ -237,7 +237,7 @@ def tile_layout_transform(
         return loops, cur_loop_extants
 
     def get_high_level_loop_structure(
-        block_read: BlockRV, input_shape: List[int], src_layout: str, dst_layout: str
+        block_read: SBlockRV, input_shape: List[int], src_layout: str, dst_layout: str
     ):
         """Runs the factorization described above."""
         # index 0 ... rank - 1 will always correspond to original loops
@@ -329,11 +329,11 @@ def tile_layout_transform(
 
 def create_cached_read(
     sch: tvm.tir.Schedule,
-    block_write: BlockRV,
+    block_write: SBlockRV,
     orig_input_shape: List[int],
     orig_src_layout: str,
     orig_dst_layout: str,
-) -> Tuple[BlockRV, List[int], str, str]:
+) -> Tuple[SBlockRV, List[int], str, str]:
     """
     Creates the cached read block with expected structure.
 
@@ -446,7 +446,7 @@ def create_cached_read(
     return block_read, unpack_list(input_shape), new_src_layout_str, new_dst_layout_str
 
 
-def auto_inline_into(sch: tvm.tir.Schedule, start_block: BlockRV) -> BlockRV:
+def auto_inline_into(sch: tvm.tir.Schedule, start_block: SBlockRV) -> SBlockRV:
     """
     Inlines given start_block's consumers and future dependencies into start_block.
 
@@ -503,7 +503,7 @@ def get_max_tile_size() -> int:
 
 @tvm.register_global_func("meta_schedule.cuda.layout_transform")
 def cuda_layout_transform_schedule_rule(
-    sch: tvm.tir.Schedule, block: BlockRV, testing_tile_sizes: Optional[List[int]] = None
+    sch: tvm.tir.Schedule, block: SBlockRV, testing_tile_sizes: Optional[List[int]] = None
 ) -> List[tvm.tir.Schedule]:
     """
     Applies tiling scheme to layout transform task (potentially fused with other injective funcs).

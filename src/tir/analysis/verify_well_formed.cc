@@ -176,7 +176,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
     loop_vars_.erase(op->loop_var.get());
   }
 
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     // Do not check boundary if it's a opaque block.
     bool is_non_opaque = op->iter_vars.size();
     if (is_non_opaque) {
@@ -218,7 +218,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
   /*! \brief Whether it's in assert mode. */
   bool assert_mode_;
   /*! \brief Current nested block stack level. */
-  std::vector<const BlockNode*> block_stack_;
+  std::vector<const SBlockNode*> block_stack_;
   /*! \brief Whether there is error. */
   bool has_error_{false};
 };

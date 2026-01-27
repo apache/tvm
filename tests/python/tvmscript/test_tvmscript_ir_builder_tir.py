@@ -97,7 +97,7 @@ def test_ir_builder_tir_block_base():
     block_realize_actual = ib.get()
 
     # the expected block
-    block_expected = tir.Block(
+    block_expected = tir.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
@@ -107,7 +107,7 @@ def test_ir_builder_tir_block_base():
         match_buffers=None,
         annotations={"tir.script_parsing_detect_access": tir.IntImm("int64", 3)},
     )
-    block_realize_expected = tir.BlockRealize(
+    block_realize_expected = tir.SBlockRealize(
         iter_values=[],
         predicate=True,
         block=block_expected,
@@ -145,7 +145,7 @@ def test_ir_builder_tir_block_complete():
     var_d = tir.Var("d", "int32")
     buffer_e = tir.decl_buffer((128, 128), "float32", name="c")
     var_f = tir.Var("f", "int32")
-    block_expected = tir.Block(
+    block_expected = tir.SBlock(
         iter_vars=[tir.IterVar((0, 128), tir.Var("", "int32"), iter_type=tir.IterVar.DataPar)],
         reads=[buffer_b[0:16, 0:16]],
         writes=[buffer_c[var_d:128, var_d:128]],
@@ -157,7 +157,7 @@ def test_ir_builder_tir_block_complete():
         ],
         annotations={"key": "value"},
     )
-    block_realize_expected = tir.BlockRealize(
+    block_realize_expected = tir.SBlockRealize(
         iter_values=[var_f],
         predicate=var_a > 1,
         block=block_expected,
@@ -188,7 +188,7 @@ def test_ir_builder_tir_axis():
     var_b = tir.Var("b", "int32")
     var_c = tir.Var("c", "int32")
     var_d = tir.Var("d", "int32")
-    block_expected = tir.Block(
+    block_expected = tir.SBlock(
         iter_vars=[
             tir.IterVar((0, 8), tir.Var("", "int32"), iter_type=tir.IterVar.DataPar),
             tir.IterVar((0, 16), tir.Var("", "int32"), iter_type=tir.IterVar.CommReduce),
@@ -201,7 +201,7 @@ def test_ir_builder_tir_axis():
         body=tir.Evaluate(0),
         annotations={"tir.script_parsing_detect_access": tir.IntImm("int64", 3)},
     )
-    block_realize_expected = tir.BlockRealize(
+    block_realize_expected = tir.SBlockRealize(
         iter_values=[var_a, var_b, var_c, var_d],
         predicate=True,
         block=block_expected,

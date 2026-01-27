@@ -19,25 +19,25 @@ from typing import Callable, List
 
 from tvm import tir
 
-from ..analysis import BlockInfo
+from ..analysis import SBlockInfo
 
 
 def try_inline(
     sch: tir.Schedule,
-    blocks: List[BlockInfo],
-) -> List[BlockInfo]:
+    blocks: List[SBlockInfo],
+) -> List[SBlockInfo]:
     """Try to inline as many blocks as possible, and return the remaining blocks.
 
     Parameters
     ----------
     sch : tir.Schedule
         The TIR schedule used to inline blocks.
-    blocks : List[BlockInfo]
+    blocks : List[SBlockInfo]
         The blocks to be inlined.
 
     Returns
     -------
-    remaining : List[BlockInfo]
+    remaining : List[SBlockInfo]
         The remaining blocks that cannot be inlined.
     """
 
@@ -62,20 +62,20 @@ def try_inline(
 
 def try_inline_contiguous_spatial(
     sch: tir.Schedule,
-    block_infos: List[BlockInfo],
-) -> List[BlockInfo]:
+    block_infos: List[SBlockInfo],
+) -> List[SBlockInfo]:
     """Try to inline contiguous spatial blocks in a schedule
 
     Parameters
     ----------
     sch : tir.Schedule
         The TIR schedule used to inline blocks.
-    block_infos : List[BlockInfo]
+    block_infos : List[SBlockInfo]
         The blocks to be try.
 
     Returns
     -------
-    remaining : List[BlockInfo]
+    remaining : List[SBlockInfo]
         The remaining blocks that cannot be inlined.
     """
 
@@ -83,7 +83,7 @@ def try_inline_contiguous_spatial(
         return None
     results = []
     spatial_blocks = []
-    block: BlockInfo
+    block: SBlockInfo
     for block in block_infos:
         if block.is_injective():
             spatial_blocks.append(block)

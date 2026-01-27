@@ -17,12 +17,12 @@
 """Transformation on TIR schedule."""
 from typing import Optional
 
-from tvm.tir.schedule import Schedule, BlockRV, LoopRV
+from tvm.tir.schedule import Schedule, SBlockRV, LoopRV
 from . import _ffi_api
 
 
 def tile_with_tensor_intrin(
-    sch: Schedule, block: BlockRV, intrin_name: str, allow_padding: bool = False
+    sch: Schedule, block: SBlockRV, intrin_name: str, allow_padding: bool = False
 ) -> Optional[LoopRV]:
     """Tile a subset of loops in the block according to the given tensor intrinsic.
 
@@ -30,7 +30,7 @@ def tile_with_tensor_intrin(
     ----------
     sch : Schedule
         The schedule to which tiling is applied
-    block : BlockRV
+    block : SBlockRV
         The block whose subset of loops will be tiled
     intrin_name : str
         The name of a tensor intrinsic, must be registerd via TensorIntrin.register(...) beforehand

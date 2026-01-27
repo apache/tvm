@@ -23,7 +23,7 @@ namespace tir {
 
 class WrongBlockIterTypeError : public ScheduleError {
  public:
-  explicit WrongBlockIterTypeError(IRModule mod, ForKind for_kind, Var loop_var, Block block)
+  explicit WrongBlockIterTypeError(IRModule mod, ForKind for_kind, Var loop_var, SBlock block)
       : mod_(std::move(mod)), loop_var_(std::move(loop_var)), block_(std::move(block)) {
     op_str_ = for_kind == ForKind::kParallel
                   ? "parallel"
@@ -56,7 +56,7 @@ class WrongBlockIterTypeError : public ScheduleError {
   IRModule mod_;
   std::string op_str_;
   Var loop_var_;
-  Block block_;
+  SBlock block_;
 };
 
 /*!
@@ -78,9 +78,9 @@ class WrongBlockIterTypeError : public ScheduleError {
  * the input block
  */
 void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
-                                    const Var& loop_var, const BlockRealize& block_realize,
+                                    const Var& loop_var, const SBlockRealize& block_realize,
                                     runtime::ThreadScope thread_scope) {
-  const Block& block = block_realize->block;
+  const SBlock& block = block_realize->block;
 
   // Cond 1. The block is required to have affine bindings.
   // TODO(@automation): fix the check
@@ -121,14 +121,14 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
 void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind for_kind,
                             runtime::ThreadScope thread_scope) {
   PreOrderVisit(loop, [&](const ObjectRef& node) {
-    if (const auto* realize = node.as<BlockRealizeNode>()) {
+    if (const auto* realize = node.as<SBlockRealizeNode>()) {
       // If this block doesn't have corresponding StmtSRef in the schedule state, it must be a block
       // inside `tir.init()`. We don't check the condition for such blocks.
       if (!self->stmt2ref.count(realize->block.get())) {
         return false;
       }
       CheckLoopParallelizableInBlock(self, for_kind, loop->loop_var,
-                                     ffi::GetRef<BlockRealize>(realize), thread_scope);
+                                     ffi::GetRef<SBlockRealize>(realize), thread_scope);
     }
     return true;
   });

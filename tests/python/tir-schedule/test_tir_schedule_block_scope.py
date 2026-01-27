@@ -83,12 +83,12 @@ def _get_block(s: tir.ScheduleState, name_hint: str) -> tir.StmtSRef:
 
     def f_visit(node):
         nonlocal result
-        if isinstance(node, tvm.tir.Block) and node.name_hint == name_hint:
+        if isinstance(node, tvm.tir.SBlock) and node.name_hint == name_hint:
             result = node
 
     func = s.mod["main"]
     post_order_visit(func.body, f_visit)
-    assert result is not None and isinstance(result, tvm.tir.Block)
+    assert result is not None and isinstance(result, tvm.tir.SBlock)
     return s.get_sref(result)
 
 
@@ -98,12 +98,12 @@ def test_elementwise_dependency():
     block_b = _get_block(s, "B")
     block_c = _get_block(s, "C")
     # Check get_deps_by_src
-    (dep,) = s.get_block_scope(root).get_deps_by_src(block_b)
+    (dep,) = s.get_sblock_scope(root).get_deps_by_src(block_b)
     assert dep.src.same_as(block_b)
     assert dep.dst.same_as(block_c)
     assert dep.kind == DepKind.RAW
     # Check get_deps_by_dst
-    (dep,) = s.get_block_scope(root).get_deps_by_dst(block_c)
+    (dep,) = s.get_sblock_scope(root).get_deps_by_dst(block_c)
     assert dep.src.same_as(block_b)
     assert dep.dst.same_as(block_c)
     assert dep.kind == DepKind.RAW
@@ -115,7 +115,7 @@ def test_matmul_dependency():
     init = _get_block(s, "init")
     update = _get_block(s, "update")
     # Check get_deps_by_src
-    p0, p1 = s.get_block_scope(root).get_deps_by_src(init)
+    p0, p1 = s.get_sblock_scope(root).get_deps_by_src(init)
     assert p0.src.same_as(init)
     assert p0.dst.same_as(update)
     assert p1.src.same_as(init)
@@ -124,7 +124,7 @@ def test_matmul_dependency():
         p0.kind == DepKind.WAW and p1.kind == DepKind.RAW
     )
     # Check get_deps_by_dst
-    p0, p1 = s.get_block_scope(root).get_deps_by_dst(update)
+    p0, p1 = s.get_sblock_scope(root).get_deps_by_dst(update)
     assert p0.src.same_as(init)
     assert p0.dst.same_as(update)
     assert p1.src.same_as(init)
@@ -140,12 +140,12 @@ def test_war_dependency():
     block_c = _get_block(s, "C")
     block_b = _get_block(s, "B")
     # Check get_deps_by_src
-    (dep,) = s.get_block_scope(root).get_deps_by_src(block_c)
+    (dep,) = s.get_sblock_scope(root).get_deps_by_src(block_c)
     assert dep.src.same_as(block_c)
     assert dep.dst.same_as(block_b)
     assert dep.kind == DepKind.WAR
     # Check get_deps_by_dst
-    (dep,) = s.get_block_scope(root).get_deps_by_dst(block_b)
+    (dep,) = s.get_sblock_scope(root).get_deps_by_dst(block_b)
     assert dep.src.same_as(block_c)
     assert dep.dst.same_as(block_b)
     assert dep.kind == DepKind.WAR

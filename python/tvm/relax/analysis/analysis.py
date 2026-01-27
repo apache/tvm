@@ -30,7 +30,7 @@ from tvm import IRModule
 from tvm.relax.ty import Type
 from tvm.relax.struct_info import StructInfo, FuncStructInfo
 from tvm.relax.expr import DataflowBlock, Var, GlobalVar, Expr, Function, Call, Binding
-from tvm.tir import IndexMap, PrimFunc, Block, Buffer
+from tvm.tir import IndexMap, PrimFunc, SBlock, Buffer
 from . import _ffi_api
 
 
@@ -517,7 +517,7 @@ def _get_prim_func_default_dtype(func: PrimFunc):
 
 def suggest_layout_transforms(
     func: PrimFunc, write_buffer_transforms: List[Union[IndexMap, Callable]]
-) -> Dict[Block, Dict[Union[Block, Buffer], IndexMap]]:
+) -> Dict[SBlock, Dict[Union[SBlock, Buffer], IndexMap]]:
     """Suggest Layout transformations of blocks and buffers in a PrimFunc.
 
     Parameters
@@ -531,7 +531,7 @@ def suggest_layout_transforms(
 
     Returns
     -------
-    ret: Dict[Block, Dict[Union[Block, Buffer], IndexMap]]
+    ret: Dict[SBlock, Dict[Union[SBlock, Buffer], IndexMap]]
          Suggested transforms per block in `func`. For each block the returned value is a map
          from the object (block or buffer) to it's index map transformation.
     """

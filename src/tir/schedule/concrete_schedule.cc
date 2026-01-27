@@ -139,17 +139,17 @@ class ScheduleCopier {
   }
 
   /*! \brief Copy SMap<StmtSRef, Scope> */
-  SMap<StmtSRef, BlockInfo> Copy(const SMap<StmtSRef, BlockInfo>& scopes) {
-    SMap<StmtSRef, BlockInfo> result;
+  SMap<StmtSRef, SBlockInfo> Copy(const SMap<StmtSRef, SBlockInfo>& scopes) {
+    SMap<StmtSRef, SBlockInfo> result;
     for (const auto& kv : scopes) {
       const StmtSRef& old_sref = kv.first;
-      const BlockInfo& old_info = kv.second;
-      BlockInfo new_info = old_info;
-      ObjectPtr<BlockScopeNode> scope = ffi::make_object<BlockScopeNode>();
+      const SBlockInfo& old_info = kv.second;
+      SBlockInfo new_info = old_info;
+      ObjectPtr<SBlockScopeNode> scope = ffi::make_object<SBlockScopeNode>();
       scope->src2deps = Copy(old_info.scope->src2deps);
       scope->dst2deps = Copy(old_info.scope->dst2deps);
       scope->buffer_writers = Copy(old_info.scope->buffer_writers);
-      new_info.scope = BlockScope(std::move(scope));
+      new_info.scope = SBlockScope(std::move(scope));
       result[Copy(old_sref)] = std::move(new_info);
     }
     return result;
@@ -264,7 +264,7 @@ ffi::Array<ExprRV> ConcreteScheduleNode::SamplePartitionedTile(
   throw;
 }
 
-LoopRV ConcreteScheduleNode::SampleComputeLocation(const BlockRV& block_rv,
+LoopRV ConcreteScheduleNode::SampleComputeLocation(const SBlockRV& block_rv,
                                                    ffi::Optional<Integer> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   return CreateRV<LoopRV>(
@@ -275,16 +275,16 @@ LoopRV ConcreteScheduleNode::SampleComputeLocation(const BlockRV& block_rv,
 
 /******** Schedule: Get blocks & loops ********/
 
-BlockRV ConcreteScheduleNode::GetBlock(const ffi::String& name,
-                                       const ffi::Optional<ffi::String>& func_name) {
+SBlockRV ConcreteScheduleNode::GetSBlock(const ffi::String& name,
+                                         const ffi::Optional<ffi::String>& func_name) {
   class NotSingleResult : public ScheduleError {
    public:
     explicit NotSingleResult(ffi::String name, IRModule mod, const ffi::Array<StmtSRef>& blocks)
         : name_(name), mod_(mod), blocks_{} {
       blocks_.reserve(blocks.size());
       for (const StmtSRef& block_sref : blocks) {
-        const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-        blocks_.push_back(ffi::GetRef<Block>(block));
+        const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+        blocks_.push_back(ffi::GetRef<SBlock>(block));
       }
     }
 
@@ -311,7 +311,7 @@ BlockRV ConcreteScheduleNode::GetBlock(const ffi::String& name,
 
     ffi::String name_;
     IRModule mod_;
-    ffi::Array<Block> blocks_;
+    ffi::Array<SBlock> blocks_;
   };
   GlobalVar gv = NullValue<GlobalVar>();
   if (func_name.has_value()) {
@@ -323,54 +323,54 @@ BlockRV ConcreteScheduleNode::GetBlock(const ffi::String& name,
                   "specify the function name explicitly, or call `work_on` to specify the function "
                   "before using `get_block`.";
   }
-  ffi::Array<StmtSRef> blocks = tir::GetBlocks(this->state_, name, gv);
+  ffi::Array<StmtSRef> blocks = tir::GetSBlocks(this->state_, name, gv);
   if (blocks.size() != 1) {
     TVM_TIR_SCHEDULE_BEGIN();
     throw NotSingleResult(name, this->state_->mod, blocks);
     TVM_TIR_SCHEDULE_END("get-block", this->error_render_level_);
   }
-  return CreateRV<BlockRV>(blocks[0]);
+  return CreateRV<SBlockRV>(blocks[0]);
 }
 
-ffi::Array<LoopRV> ConcreteScheduleNode::GetLoops(const BlockRV& block_rv) {
+ffi::Array<LoopRV> ConcreteScheduleNode::GetLoops(const SBlockRV& block_rv) {
   return CreateRV<LoopRV>(tir::GetLoops(this->GetSRef(block_rv)));
 }
 
-ffi::Array<BlockRV> ConcreteScheduleNode::GetChildBlocks(const BlockRV& block_rv) {
-  ffi::Array<BlockRV> result;
+ffi::Array<SBlockRV> ConcreteScheduleNode::GetChildBlocks(const SBlockRV& block_rv) {
+  ffi::Array<SBlockRV> result;
   TVM_TIR_SCHEDULE_BEGIN();
-  result = CreateRV<BlockRV>(tir::GetChildBlocks(state_, this->GetSRef(block_rv)));
+  result = CreateRV<SBlockRV>(tir::GetChildBlocks(state_, this->GetSRef(block_rv)));
   TVM_TIR_SCHEDULE_END("get-child-blocks", this->error_render_level_);
   this->state_->DebugVerify();
   return result;
 }
 
-ffi::Array<BlockRV> ConcreteScheduleNode::GetChildBlocks(const LoopRV& loop_rv) {
-  ffi::Array<BlockRV> result;
+ffi::Array<SBlockRV> ConcreteScheduleNode::GetChildBlocks(const LoopRV& loop_rv) {
+  ffi::Array<SBlockRV> result;
   TVM_TIR_SCHEDULE_BEGIN();
-  result = CreateRV<BlockRV>(tir::GetChildBlocks(state_, this->GetSRef(loop_rv)));
+  result = CreateRV<SBlockRV>(tir::GetChildBlocks(state_, this->GetSRef(loop_rv)));
   TVM_TIR_SCHEDULE_END("get-child-blocks", this->error_render_level_);
   this->state_->DebugVerify();
   return result;
 }
 
-ffi::Array<BlockRV> ConcreteScheduleNode::GetProducers(const BlockRV& block_rv) {
+ffi::Array<SBlockRV> ConcreteScheduleNode::GetProducers(const SBlockRV& block_rv) {
   TVM_TIR_SCHEDULE_BEGIN();
-  return CreateRV<BlockRV>(tir::GetProducers(state_, this->GetSRef(block_rv)));
+  return CreateRV<SBlockRV>(tir::GetProducers(state_, this->GetSRef(block_rv)));
   TVM_TIR_SCHEDULE_END("get-producers", this->error_render_level_);
   throw;
 }
 
-ffi::Array<BlockRV> ConcreteScheduleNode::GetConsumers(const BlockRV& block_rv) {
+ffi::Array<SBlockRV> ConcreteScheduleNode::GetConsumers(const SBlockRV& block_rv) {
   TVM_TIR_SCHEDULE_BEGIN();
-  return CreateRV<BlockRV>(tir::GetConsumers(state_, this->GetSRef(block_rv)));
+  return CreateRV<SBlockRV>(tir::GetConsumers(state_, this->GetSRef(block_rv)));
   TVM_TIR_SCHEDULE_END("get-consumers", this->error_render_level_);
   throw;
 }
 
-ffi::Array<BlockRV> ConcreteScheduleNode::GetOutputBlocks(const BlockRV& scope_block_rv) {
+ffi::Array<SBlockRV> ConcreteScheduleNode::GetOutputBlocks(const SBlockRV& scope_block_rv) {
   TVM_TIR_SCHEDULE_BEGIN();
-  return CreateRV<BlockRV>(tir::GetOutputBlocks(state_, this->GetSRef(scope_block_rv)));
+  return CreateRV<SBlockRV>(tir::GetOutputBlocks(state_, this->GetSRef(scope_block_rv)));
   TVM_TIR_SCHEDULE_END("get-output-blocks", this->error_render_level_);
   throw;
 }
@@ -595,7 +595,7 @@ void ConcreteScheduleNode::Reorder(const ffi::Array<LoopRV>& ordered_loop_rvs) {
   this->state_->DebugVerify();
 }
 
-void ConcreteScheduleNode::ReorderBlockIterVar(const BlockRV& block_rv,
+void ConcreteScheduleNode::ReorderBlockIterVar(const SBlockRV& block_rv,
                                                const ffi::Array<Integer> new_order) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::ReorderBlockIterVar(state_, GetSRef(block_rv), new_order);
@@ -603,7 +603,7 @@ void ConcreteScheduleNode::ReorderBlockIterVar(const BlockRV& block_rv,
   this->state_->DebugVerify();
 }
 
-LoopRV ConcreteScheduleNode::AddUnitLoop(const BlockRV& block_rv) {
+LoopRV ConcreteScheduleNode::AddUnitLoop(const SBlockRV& block_rv) {
   LoopRV result{ffi::UnsafeInit()};
   TVM_TIR_SCHEDULE_BEGIN();
   result = CreateRV<LoopRV>(tir::AddUnitLoop(state_, GetSRef(block_rv)));
@@ -657,13 +657,13 @@ void ConcreteScheduleNode::Unroll(const LoopRV& loop_rv) {
 
 /******** Schedule: Insert cache stages ********/
 
-BlockRV ConcreteScheduleNode::CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                                        const ffi::String& storage_scope,
-                                        const ffi::Array<BlockRV> consumer_blocks) {
+SBlockRV ConcreteScheduleNode::CacheRead(const SBlockRV& block_rv, int read_buffer_index,
+                                         const ffi::String& storage_scope,
+                                         const ffi::Array<SBlockRV> consumer_blocks) {
   StmtSRef result{nullptr};
   // Create a new array of SRefs from the consumer block list.
   ffi::Array<StmtSRef> consumer_block_refs = {};
-  for (BlockRV block : consumer_blocks) {
+  for (SBlockRV block : consumer_blocks) {
     consumer_block_refs.push_back(this->GetSRef(block));
   }
   TVM_TIR_SCHEDULE_BEGIN();
@@ -671,16 +671,16 @@ BlockRV ConcreteScheduleNode::CacheRead(const BlockRV& block_rv, int read_buffer
                           consumer_block_refs);
   TVM_TIR_SCHEDULE_END("cache-read", this->error_render_level_);
   this->state_->DebugVerify();
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
-BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                                         const ffi::String& storage_scope,
-                                         const ffi::Array<BlockRV> consumer_blocks) {
+SBlockRV ConcreteScheduleNode::CacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+                                          const ffi::String& storage_scope,
+                                          const ffi::Array<SBlockRV> consumer_blocks) {
   StmtSRef result{nullptr};
   // Create a new array of SRefs from the consumer block list.
   ffi::Array<StmtSRef> consumer_block_refs = {};
-  for (BlockRV block : consumer_blocks) {
+  for (SBlockRV block : consumer_blocks) {
     consumer_block_refs.push_back(this->GetSRef(block));
   }
   TVM_TIR_SCHEDULE_BEGIN();
@@ -688,99 +688,99 @@ BlockRV ConcreteScheduleNode::CacheWrite(const BlockRV& block_rv, int write_buff
                            consumer_block_refs);
   TVM_TIR_SCHEDULE_END("cache-write", this->error_render_level_);
   this->state_->DebugVerify();
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
-BlockRV ConcreteScheduleNode::ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
-                                               const ffi::String& storage_scope,
-                                               const IndexMap& index_map) {
+SBlockRV ConcreteScheduleNode::ReindexCacheRead(const SBlockRV& block_rv, int read_buffer_index,
+                                                const ffi::String& storage_scope,
+                                                const IndexMap& index_map) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::ReindexCacheRead(state_, this->GetSRef(block_rv), read_buffer_index, storage_scope,
                                  index_map);
   TVM_TIR_SCHEDULE_END("reverse-cache-read", this->error_render_level_);
   this->state_->DebugVerify();
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
-BlockRV ConcreteScheduleNode::ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                                                const ffi::String& storage_scope,
-                                                const IndexMap& index_map) {
+SBlockRV ConcreteScheduleNode::ReindexCacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+                                                 const ffi::String& storage_scope,
+                                                 const IndexMap& index_map) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::ReindexCacheWrite(state_, this->GetSRef(block_rv), write_buffer_index,
                                   storage_scope, index_map);
   TVM_TIR_SCHEDULE_END("reverse-cache-write", this->error_render_level_);
   this->state_->DebugVerify();
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
-ffi::Array<BlockRV> ConcreteScheduleNode::CacheInplace(const BlockRV& block_rv,
-                                                       int write_buffer_index,
-                                                       const ffi::String& storage_scope) {
+ffi::Array<SBlockRV> ConcreteScheduleNode::CacheInplace(const SBlockRV& block_rv,
+                                                        int write_buffer_index,
+                                                        const ffi::String& storage_scope) {
   ffi::Array<StmtSRef> results;
   TVM_TIR_SCHEDULE_BEGIN();
   results = tir::CacheInplace(state_, this->GetSRef(block_rv), write_buffer_index, storage_scope);
   TVM_TIR_SCHEDULE_END("cache-buffer", this->error_render_level_);
   this->state_->DebugVerify();
-  ffi::Array<BlockRV> return_blocks;
-  return_blocks.push_back(CreateRV<BlockRV>(results[0]));
-  return_blocks.push_back(CreateRV<BlockRV>(results[1]));
+  ffi::Array<SBlockRV> return_blocks;
+  return_blocks.push_back(CreateRV<SBlockRV>(results[0]));
+  return_blocks.push_back(CreateRV<SBlockRV>(results[1]));
   return return_blocks;
 }
 
-ffi::Array<BlockRV> ConcreteScheduleNode::CacheIndex(const BlockRV& block_rv,
-                                                     const ffi::String& storage_scope,
-                                                     int cse_thresh) {
+ffi::Array<SBlockRV> ConcreteScheduleNode::CacheIndex(const SBlockRV& block_rv,
+                                                      const ffi::String& storage_scope,
+                                                      int cse_thresh) {
   ffi::Array<StmtSRef> result;
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::CacheIndex(state_, this->GetSRef(block_rv), storage_scope, cse_thresh);
   TVM_TIR_SCHEDULE_END("cache-index", this->error_render_level_);
   this->state_->DebugVerify();
-  ffi::Array<BlockRV> return_blocks;
+  ffi::Array<SBlockRV> return_blocks;
   for (const StmtSRef& blockrv : result) {
-    return_blocks.push_back(CreateRV<BlockRV>(blockrv));
+    return_blocks.push_back(CreateRV<SBlockRV>(blockrv));
   }
   return return_blocks;
 }
 
-BlockRV ConcreteScheduleNode::ReIndex(const BlockRV& block_rv, int buffer_index,
-                                      BufferIndexType buffer_index_type) {
+SBlockRV ConcreteScheduleNode::ReIndex(const SBlockRV& block_rv, int buffer_index,
+                                       BufferIndexType buffer_index_type) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::ReIndex(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type);
   TVM_TIR_SCHEDULE_END("reindex", this->error_render_level_);
   this->state_->DebugVerify();
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
 /******** Schedule: Data movement ********/
 
-BlockRV ConcreteScheduleNode::ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv,
-                                     int read_buffer_index, const ffi::String& storage_scope) {
+SBlockRV ConcreteScheduleNode::ReadAt(const LoopRV& loop_rv, const SBlockRV& block_rv,
+                                      int read_buffer_index, const ffi::String& storage_scope) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::ReadAt(state_, this->GetSRef(loop_rv), this->GetSRef(block_rv), read_buffer_index,
                        storage_scope);
   TVM_TIR_SCHEDULE_END("read-at", this->error_render_level_);
   this->state_->DebugVerify();
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
-BlockRV ConcreteScheduleNode::WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv,
-                                      int write_buffer_index, const ffi::String& storage_scope) {
+SBlockRV ConcreteScheduleNode::WriteAt(const LoopRV& loop_rv, const SBlockRV& block_rv,
+                                       int write_buffer_index, const ffi::String& storage_scope) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::WriteAt(state_, this->GetSRef(loop_rv), this->GetSRef(block_rv), write_buffer_index,
                         storage_scope);
   TVM_TIR_SCHEDULE_END("write-at", this->error_render_level_);
   this->state_->DebugVerify();
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
 /******** Schedule: Compute location ********/
 
-void ConcreteScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+void ConcreteScheduleNode::ComputeAt(const SBlockRV& block_rv, const LoopRV& loop_rv,
                                      bool preserve_unit_loops, int index) {
   static StmtSRef inline_mark = StmtSRef::InlineMark();
   static StmtSRef root_mark = StmtSRef::RootMark();
@@ -799,7 +799,7 @@ void ConcreteScheduleNode::ComputeAt(const BlockRV& block_rv, const LoopRV& loop
   this->state_->DebugVerify();
 }
 
-void ConcreteScheduleNode::ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+void ConcreteScheduleNode::ReverseComputeAt(const SBlockRV& block_rv, const LoopRV& loop_rv,
                                             bool preserve_unit_loops, int index) {
   static StmtSRef inline_mark = StmtSRef::InlineMark();
   static StmtSRef root_mark = StmtSRef::RootMark();
@@ -818,22 +818,22 @@ void ConcreteScheduleNode::ReverseComputeAt(const BlockRV& block_rv, const LoopR
   this->state_->DebugVerify();
 }
 
-void ConcreteScheduleNode::ComputeInline(const BlockRV& block_rv) {
+void ConcreteScheduleNode::ComputeInline(const SBlockRV& block_rv) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::ComputeInline(state_, this->GetSRef(block_rv));
   TVM_TIR_SCHEDULE_END("compute-inline", this->error_render_level_);
   this->state_->DebugVerify();
 }
 
-void ConcreteScheduleNode::ReverseComputeInline(const BlockRV& block_rv) {
+void ConcreteScheduleNode::ReverseComputeInline(const SBlockRV& block_rv) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::ReverseComputeInline(state_, this->GetSRef(block_rv));
   TVM_TIR_SCHEDULE_END("reverse-compute-inline", this->error_render_level_);
   this->state_->DebugVerify();
 }
 
-void ConcreteScheduleNode::FuseReductionEpilogue(const BlockRV& reduction_block_rv,
-                                                 const BlockRV& epilogue_block_rv) {
+void ConcreteScheduleNode::FuseReductionEpilogue(const SBlockRV& reduction_block_rv,
+                                                 const SBlockRV& epilogue_block_rv) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::FuseReductionEpilogue(state_, this->GetSRef(reduction_block_rv),
                              this->GetSRef(epilogue_block_rv));
@@ -841,9 +841,9 @@ void ConcreteScheduleNode::FuseReductionEpilogue(const BlockRV& reduction_block_
   this->state_->DebugVerify();
 }
 
-/******** Schedule: Block Annotation ********/
+/******** Schedule: SBlock Annotation ********/
 
-void ConcreteScheduleNode::StorageAlign(const BlockRV& block_rv, int buffer_index, int axis,
+void ConcreteScheduleNode::StorageAlign(const SBlockRV& block_rv, int buffer_index, int axis,
                                         int factor, int offset) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::StorageAlign(state_, this->GetSRef(block_rv), buffer_index, axis, factor, offset);
@@ -851,7 +851,7 @@ void ConcreteScheduleNode::StorageAlign(const BlockRV& block_rv, int buffer_inde
   this->state_->DebugVerify();
 }
 
-void ConcreteScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
+void ConcreteScheduleNode::SetScope(const SBlockRV& block_rv, int buffer_index,
                                     const ffi::String& storage_scope) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::SetScope(state_, this->GetSRef(block_rv), buffer_index, storage_scope);
@@ -859,7 +859,7 @@ void ConcreteScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
   this->state_->DebugVerify();
 }
 
-void ConcreteScheduleNode::UnsafeSetDType(const BlockRV& block_rv, int buffer_index,
+void ConcreteScheduleNode::UnsafeSetDType(const SBlockRV& block_rv, int buffer_index,
                                           const ffi::String& dtype) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::UnsafeSetDType(state_, this->GetSRef(block_rv), buffer_index, dtype);
@@ -869,42 +869,42 @@ void ConcreteScheduleNode::UnsafeSetDType(const BlockRV& block_rv, int buffer_in
 
 /******** Schedule: Reduction ********/
 
-BlockRV ConcreteScheduleNode::DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) {
+SBlockRV ConcreteScheduleNode::DecomposeReduction(const SBlockRV& block_rv, const LoopRV& loop_rv) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::DecomposeReduction(state_, this->GetSRef(block_rv), this->GetSRef(loop_rv));
   TVM_TIR_SCHEDULE_END("decompose-reduction", this->error_render_level_);
   this->state_->DebugVerify();
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
-BlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
+SBlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::RFactor(state_, this->GetSRef(loop_rv), factor_axis);
   TVM_TIR_SCHEDULE_END("rfactor", this->error_render_level_);
   this->state_->DebugVerify();
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
 /******** Schedule: Blockize & Tensorize ********/
-BlockRV ConcreteScheduleNode::Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) {
+SBlockRV ConcreteScheduleNode::Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::Blockize(state_, this->GetSRef(loop_rv), preserve_unit_iters);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("blockize", this->error_render_level_);
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
-BlockRV ConcreteScheduleNode::Blockize(const ffi::Array<BlockRV>& blocks,
-                                       bool preserve_unit_iters) {
+SBlockRV ConcreteScheduleNode::Blockize(const ffi::Array<SBlockRV>& blocks,
+                                        bool preserve_unit_iters) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::Blockize(state_, this->GetSRefs(blocks), preserve_unit_iters);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("blockize", this->error_render_level_);
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
 void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const ffi::String& intrin,
@@ -916,7 +916,7 @@ void ConcreteScheduleNode::Tensorize(const LoopRV& loop_rv, const ffi::String& i
   TVM_TIR_SCHEDULE_END("tensorize", this->error_render_level_);
 }
 
-void ConcreteScheduleNode::Tensorize(const BlockRV& block_rv, const ffi::String& intrin,
+void ConcreteScheduleNode::Tensorize(const SBlockRV& block_rv, const ffi::String& intrin,
                                      bool preserve_unit_iters) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::Tensorize(state_, this->GetSRef(block_rv), tir::TensorIntrin::Get(intrin).value(),
@@ -999,7 +999,7 @@ void ConcreteScheduleNode::Unannotate(const LoopRV& loop_rv, const ffi::String& 
   TVM_TIR_SCHEDULE_END("unannotate", this->error_render_level_);
 }
 
-void ConcreteScheduleNode::Annotate(const BlockRV& block_rv, const ffi::String& ann_key,
+void ConcreteScheduleNode::Annotate(const SBlockRV& block_rv, const ffi::String& ann_key,
                                     const Any& ann_val) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::Annotate(state_, this->GetSRef(block_rv), ann_key,
@@ -1008,7 +1008,7 @@ void ConcreteScheduleNode::Annotate(const BlockRV& block_rv, const ffi::String& 
   TVM_TIR_SCHEDULE_END("annotate", this->error_render_level_);
 }
 
-void ConcreteScheduleNode::Unannotate(const BlockRV& block_rv, const ffi::String& ann_key) {
+void ConcreteScheduleNode::Unannotate(const SBlockRV& block_rv, const ffi::String& ann_key) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::Unannotate(state_, this->GetSRef(block_rv), ann_key);
   this->state_->DebugVerify();
@@ -1016,7 +1016,7 @@ void ConcreteScheduleNode::Unannotate(const BlockRV& block_rv, const ffi::String
 }
 
 /******** Schedule: Layout transformation ********/
-void ConcreteScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_index,
+void ConcreteScheduleNode::TransformLayout(const SBlockRV& block_rv, int buffer_index,
                                            BufferIndexType buffer_index_type,
                                            const IndexMap& index_map,
                                            const ffi::Optional<IndexMap>& pad_value,
@@ -1036,7 +1036,7 @@ void ConcreteScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_i
   TVM_TIR_SCHEDULE_END("transform_layout", this->error_render_level_);
 }
 
-void ConcreteScheduleNode::TransformBlockLayout(const BlockRV& block_rv,
+void ConcreteScheduleNode::TransformBlockLayout(const SBlockRV& block_rv,
                                                 const IndexMap& index_map) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::TransformBlockLayout(state_, this->GetSRef(block_rv), index_map);
@@ -1044,7 +1044,7 @@ void ConcreteScheduleNode::TransformBlockLayout(const BlockRV& block_rv,
   TVM_TIR_SCHEDULE_END("transform_block_layout", this->error_render_level_);
 }
 
-void ConcreteScheduleNode::SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
+void ConcreteScheduleNode::SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
                                             BufferIndexType buffer_index_type,
                                             const ffi::Array<IntImm>& axis_separators) {
   TVM_TIR_SCHEDULE_BEGIN();
@@ -1056,16 +1056,16 @@ void ConcreteScheduleNode::SetAxisSeparator(const BlockRV& block_rv, int buffer_
 
 /******** Schedule: Padding ********/
 
-BlockRV ConcreteScheduleNode::DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) {
+SBlockRV ConcreteScheduleNode::DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) {
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
   result = tir::DecomposePadding(state_, this->GetSRef(block_rv), this->GetSRef(loop_rv));
   TVM_TIR_SCHEDULE_END("decompose-padding", this->error_render_level_);
   this->state_->DebugVerify();
-  return CreateRV<BlockRV>(result);
+  return CreateRV<SBlockRV>(result);
 }
 
-void ConcreteScheduleNode::PadEinsum(const BlockRV& block_rv, const ffi::Array<Integer>& padding) {
+void ConcreteScheduleNode::PadEinsum(const SBlockRV& block_rv, const ffi::Array<Integer>& padding) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::PadEinsum(state_, this->GetSRef(block_rv), padding);
   TVM_TIR_SCHEDULE_END("pad-einsum", this->error_render_level_);
@@ -1074,7 +1074,7 @@ void ConcreteScheduleNode::PadEinsum(const BlockRV& block_rv, const ffi::Array<I
 
 /******** Schedule: Buffer Transformation ********/
 
-void ConcreteScheduleNode::RollingBuffer(const BlockRV& block_rv, int write_buffer_index) {
+void ConcreteScheduleNode::RollingBuffer(const SBlockRV& block_rv, int write_buffer_index) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::RollingBuffer(state_, this->GetSRef(block_rv), write_buffer_index);
   TVM_TIR_SCHEDULE_END("rolling-buffer", this->error_render_level_);
@@ -1083,7 +1083,7 @@ void ConcreteScheduleNode::RollingBuffer(const BlockRV& block_rv, int write_buff
 
 /******** Schedule: Misc ********/
 
-void ConcreteScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv,
+void ConcreteScheduleNode::UnsafeHideBufferAccess(const SBlockRV& block_rv,
                                                   const ffi::String& buf_type,
                                                   const ffi::Array<IntImm>& buf_index_array) {
   TVM_TIR_SCHEDULE_BEGIN();
@@ -1092,7 +1092,7 @@ void ConcreteScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv,
   this->state_->DebugVerify();
 }
 
-void ConcreteScheduleNode::AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+void ConcreteScheduleNode::AnnotateBufferAccess(const SBlockRV& block_rv, int buffer_index,
                                                 BufferIndexType buffer_index_type,
                                                 const IndexMap& index_map) {
   TVM_TIR_SCHEDULE_BEGIN();

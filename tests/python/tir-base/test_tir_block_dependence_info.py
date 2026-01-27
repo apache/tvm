@@ -87,10 +87,10 @@ def get_blocks(func: PrimFunc):
     blocks = {}
 
     def update_blocks(node):
-        if isinstance(node, tvm.tir.Block):
+        if isinstance(node, tvm.tir.SBlock):
             blocks[node.name_hint] = node
 
-    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.tir.Block) else None)
+    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.tir.SBlock) else None)
     post_order_visit(func.body, update_blocks)
     return blocks
 
@@ -98,7 +98,7 @@ def get_blocks(func: PrimFunc):
 def _verify_dependence(dependence_info, src_block, dst_block, kind):
     src_sref = dependence_info.get_sref(src_block)
     dst_sref = dependence_info.get_sref(dst_block)
-    scope = dependence_info.get_block_scope(src_sref.parent)
+    scope = dependence_info.get_sblock_scope(src_sref.parent)
 
     def _find_dependence(deps):
         for dep in deps:

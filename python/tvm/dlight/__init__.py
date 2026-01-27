@@ -19,7 +19,7 @@ from . import gpu
 from . import adreno
 from . import cpu
 from .analysis import (
-    BlockInfo,
+    SBlockInfo,
     IterInfo,
     normalize_prim_func,
 )

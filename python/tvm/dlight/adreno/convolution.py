@@ -30,7 +30,7 @@ class Conv2d(AdrenoScheduleRule):
     """The schedule rule for convolution computation"""
 
     @staticmethod
-    def schedule_conv2d(sch: tir.Schedule, blk: tir.schedule.BlockRV):
+    def schedule_conv2d(sch: tir.Schedule, blk: tir.schedule.SBlockRV):
         n, oc, oh, ow, ob, ic, kh, kw = sch.get_loops(blk)
 
         bz, vz, tz = sch.split(oc, [None, 8, 1], preserve_unit_iters=True)

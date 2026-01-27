@@ -38,7 +38,7 @@ namespace meta_schedule {
 using namespace tir;
 
 // Returns true if b1 is an ancestor of b2
-bool IsAncestor(BlockRV b1, BlockRV b2, Schedule sch) {
+bool IsAncestor(SBlockRV b1, SBlockRV b2, Schedule sch) {
   if (sch->Get(b1)->name_hint == sch->Get(b2)->name_hint) {
     return true;
   }
@@ -50,7 +50,7 @@ bool IsAncestor(BlockRV b1, BlockRV b2, Schedule sch) {
 
 // Inline or reverse inline spatial blocks after the anchor block
 void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
-  static auto kind_get_block = InstructionKind::Get("GetBlock");
+  static auto kind_get_block = InstructionKind::Get("GetSBlock");
   // We let blocks whose names are referenced in the anchor trace be scheduled by the anchor trace.
   // We record such block names to avoid inlining them here.
   std::unordered_set<std::string> get_block_names;
@@ -66,10 +66,10 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
   std::vector<std::string> inline_todos;
   std::optional<int> last_block_idx{std::nullopt};
 
-  for (auto name : GetBlockNames(sch->mod())) {
-    auto block = sch->GetBlock(name);
+  for (auto name : GetSBlockNames(sch->mod())) {
+    auto block = sch->GetSBlock(name);
     if (anchor_block) {
-      auto anchor_block_rv = sch->GetBlock(anchor_block->name_hint);
+      auto anchor_block_rv = sch->GetSBlock(anchor_block->name_hint);
       if (IsAncestor(block, anchor_block_rv, sch)) continue;
     }
     // Spatial blocks which are not referenced in the anchor trace will be inlined here.
@@ -93,24 +93,24 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
   auto inline_rule = GetDefaultAutoInline(target->kind->name);
 
   for (auto name : inline_todos) {
-    inline_rule->Apply(sch, sch->GetBlock(name));
+    inline_rule->Apply(sch, sch->GetSBlock(name));
   }
 }
 
 // Apply instructions from the anchor trace to the target schedule, and returns blocks
 // that remain unscheduled.
-std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
+std::vector<SBlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
   static auto kind_get_child_blocks = InstructionKind::Get("GetChildBlocks");
-  static auto kind_get_block = InstructionKind::Get("GetBlock");
+  static auto kind_get_block = InstructionKind::Get("GetSBlock");
   static auto kind_compute_inline = InstructionKind::Get("ComputeInline");
   static auto kind_reverse_compute_inline = InstructionKind::Get("ReverseComputeInline");
 
-  const auto block_names_orig = GetBlockNames(sch->mod());
+  const auto block_names_orig = GetSBlockNames(sch->mod());
   const auto sch_orig = sch->Copy();
 
   std::unordered_map<const Object*, const Object*> rv_map;
   // Blocks and loops that appear in the anchor trace but are not part of the target schedule.
-  std::unordered_set<BlockRV, ObjectPtrHash, ObjectPtrEqual> foreign_blocks;
+  std::unordered_set<SBlockRV, ObjectPtrHash, ObjectPtrEqual> foreign_blocks;
   std::unordered_set<LoopRV, ObjectPtrHash, ObjectPtrEqual> foreign_loops;
 
   // Instructions in the anchor trace can be applied only if all inputs are part of the target
@@ -118,7 +118,7 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
   auto is_inst_applicable = [&foreign_blocks, &foreign_loops](Instruction inst) {
     for (auto input : inst->inputs) {
       if (input == nullptr) continue;
-      if ((input.as<BlockRVNode>() && foreign_blocks.count(Downcast<BlockRV>(input))) ||
+      if ((input.as<SBlockRVNode>() && foreign_blocks.count(Downcast<SBlockRV>(input))) ||
           (input.as<LoopRVNode>() && foreign_loops.count(Downcast<LoopRV>(input)))) {
         return false;
       }
@@ -131,8 +131,8 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       // If we find an instruction that is not applicable, its outputs are recorded as "foreign"
       // to the target schedule.
       for (auto output : inst->outputs) {
-        if (output.as<BlockRVNode>()) {
-          foreign_blocks.insert(Downcast<BlockRV>(output));
+        if (output.as<SBlockRVNode>()) {
+          foreign_blocks.insert(Downcast<SBlockRV>(output));
         } else if (output.as<LoopRVNode>()) {
           foreign_loops.insert(Downcast<LoopRV>(output));
         }
@@ -145,14 +145,14 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
     if (inst->kind.same_as(kind_get_block) &&
         !HasBlock(sch, Downcast<ffi::String>(inst->attrs[0]))) {
       // The anchor trace does get_block on a block that is not part of the target schedule.
-      auto block = Downcast<BlockRV>(inst->outputs[0]);
+      auto block = Downcast<SBlockRV>(inst->outputs[0]);
       foreign_blocks.insert(block);
       continue;
     } else if (inst->kind.same_as(kind_reverse_compute_inline)) {
       // The anchor trace does reverse_compute_inline on a block, but the block with the same name
       // in the target schedule cannot be reverse compute inline-ed.
       // In such cases, it should be possible to apply compute_inline instead.
-      auto block = Downcast<BlockRV>(inputs[0]);
+      auto block = Downcast<SBlockRV>(inputs[0]);
       auto block_sref = sch->GetSRef(block);
       if (!CanReverseComputeInline(sch->state(), block_sref)) {
         ICHECK(CanComputeInline(sch->state(), block_sref));
@@ -161,7 +161,7 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       }
     } else if (inst->kind.same_as(kind_compute_inline)) {
       // Similar to the reverse_compute_inline case above.
-      auto block = Downcast<BlockRV>(inputs[0]);
+      auto block = Downcast<SBlockRV>(inputs[0]);
       auto block_sref = sch->GetSRef(block);
       auto state = sch->state();
       if (!CanComputeInline(state, block_sref)) {
@@ -194,8 +194,8 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
   }
 
   auto is_scheduled = [=](const std::string& block_name) {
-    auto loops = sch->GetLoops(sch->GetBlock(block_name));
-    auto loops_orig = sch_orig->GetLoops(sch_orig->GetBlock(block_name));
+    auto loops = sch->GetLoops(sch->GetSBlock(block_name));
+    auto loops_orig = sch_orig->GetLoops(sch_orig->GetSBlock(block_name));
     if (loops.size() != loops_orig.size()) {
       return true;
     }
@@ -209,12 +209,12 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
     return false;
   };
 
-  const auto block_names_now = GetBlockNames(sch->mod());
-  std::vector<BlockRV> unscheduled_blocks;
+  const auto block_names_now = GetSBlockNames(sch->mod());
+  std::vector<SBlockRV> unscheduled_blocks;
 
   for (auto name : block_names_orig) {
     if (block_names_now.count(name) && name != "root" && !is_scheduled(name)) {
-      unscheduled_blocks.push_back(sch->GetBlock(name));
+      unscheduled_blocks.push_back(sch->GetSBlock(name));
     }
   }
 

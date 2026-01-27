@@ -33,7 +33,7 @@ from tvm.meta_schedule.space_generator import PostOrderApply
 from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.tir.schedule import BlockRV, Schedule
+from tvm.tir.schedule import SBlockRV, Schedule
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off
@@ -145,7 +145,7 @@ class TrinityMatmulProcessedForReference:
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
-def _is_root(sch: Schedule, block: BlockRV) -> bool:
+def _is_root(sch: Schedule, block: SBlockRV) -> bool:
     return sch.get_sref(block).parent is None
 
 
@@ -160,7 +160,7 @@ class WowSoFancyScheduleRule(PyScheduleRule):
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
-    def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -177,7 +177,7 @@ class DoubleScheduleRule(PyScheduleRule):
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
-    def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -202,7 +202,7 @@ class TrinityDoubleRule(PyScheduleRule):
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
-    def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -225,7 +225,7 @@ class ReorderScheduleRule(PyScheduleRule):
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
-    def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -324,7 +324,7 @@ def test_meta_schedule_post_order_apply_remove_block():
         def _initialize_with_tune_context(self, context: "TuneContext") -> None:
             pass
 
-        def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
+        def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
             if _is_root(sch, block):
                 return [sch]
             sch = sch.copy()

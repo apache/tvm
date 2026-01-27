@@ -113,14 +113,14 @@ class PrimFuncSpecializer : public StmtExprMutator {
   }
 
  private:
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     // Step.0. Define buffer mappings which is allocated inside the block
     ffi::Array<Buffer> alloc_buffers =
         op->alloc_buffers.Map([this](const auto& buf) { return MutateAllocBuffer(buf); });
 
     // Step.1. Recursively visit block body
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BlockNode>();
+    op = stmt.as<SBlockNode>();
     ICHECK(op != nullptr);
 
     ffi::Array<BufferRegion> reads =
@@ -130,9 +130,9 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
     if (alloc_buffers.same_as(op->alloc_buffers) && reads.same_as(op->reads) &&
         writes.same_as(op->writes)) {
-      return ffi::GetRef<Block>(op);
+      return ffi::GetRef<SBlock>(op);
     } else {
-      ObjectPtr<BlockNode> n = CopyOnWrite(op);
+      ObjectPtr<SBlockNode> n = CopyOnWrite(op);
       n->alloc_buffers = std::move(alloc_buffers);
       n->reads = std::move(reads);
       n->writes = std::move(writes);
@@ -296,7 +296,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
         << "(see discussion on https://github.com/apache/tvm/pull/14565 for more details).  "
         << "Please add a definition for this buffer, "
         << "either in the PrimFunc's buffer_map, "
-        << "in a tir::Block's alloc_buffer, "
+        << "in a tir::SBlock's alloc_buffer, "
         << "or in a DeclBuffer statement.";
 
     return old_buffer;

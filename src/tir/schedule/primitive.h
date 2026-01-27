@@ -158,8 +158,8 @@ TVM_DLL tir::StmtSRef SampleComputeLocation(
  * \param gvar The function to be retrieved
  * \return A list of blocks with the specific name
  */
-ffi::Array<StmtSRef> GetBlocks(const ScheduleState& self, const ffi::String& name,
-                               const GlobalVar& gv);
+ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& name,
+                                const GlobalVar& gv);
 /*!
  * \brief Gets the parent loops of the block in its scope, from outer to inner
  * \param self The schedule state
@@ -547,7 +547,7 @@ TVM_DLL StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sr
  * \return The sref of the rfactor block
  */
 TVM_DLL StmtSRef RFactor(ScheduleState self, const StmtSRef& loop_sref, int factor_axis);
-/******** Schedule: Block annotation ********/
+/******** Schedule: SBlock annotation ********/
 
 /*!
  * \brief Set alignment requirement for specific dimension such that

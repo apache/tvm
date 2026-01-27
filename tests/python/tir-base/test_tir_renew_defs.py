@@ -35,7 +35,7 @@ def _check_buffer_decl(lhs: Buffer, rhs: Buffer):
     assert lhs.data != rhs.data
 
 
-def _check_block_signature_remap(lhs: Block, rhs: Block):
+def _check_block_signature_remap(lhs: SBlock, rhs: SBlock):
     assert lhs != rhs
     for x, y in zip(lhs.iter_vars, rhs.iter_vars):
         assert x != y

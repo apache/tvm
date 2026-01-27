@@ -27,7 +27,7 @@ from typing_extensions import Literal
 
 from tvm_ffi import register_object
 from tvm.runtime import Object
-from tvm.tir.schedule import BlockRV, Schedule
+from tvm.tir.schedule import SBlockRV, Schedule
 
 from .. import _ffi_api
 from ..utils import _get_default_str
@@ -52,14 +52,14 @@ class ScheduleRule(Object):
             self, context
         )
 
-    def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
         """Apply a schedule rule to the specific block in the given schedule.
 
         Parameters
         ----------
         sch : tvm.tir.Schedule
             The schedule to be modified.
-        block : BlockRV
+        block : SBlockRV
             The specific block to apply the schedule rule.
 
         Returns
@@ -162,14 +162,14 @@ class PyScheduleRule:
         """
         raise NotImplementedError
 
-    def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
         """Apply a schedule rule to the specific block in the given schedule.
 
         Parameters
         ----------
         sch : Schedule
             The schedule to be modified.
-        block : BlockRV
+        block : SBlockRV
             The specific block to apply the schedule rule.
 
         Returns

@@ -73,7 +73,7 @@ TEST(DataTypeLegalizer, IfThenElse) {
 }
 
 TEST(DataTypeLegalizer, Block) {
-  auto block_node = ffi::make_object<BlockNode>();
+  auto block_node = ffi::make_object<SBlockNode>();
   auto iter_var_node = ffi::make_object<IterVarNode>();
   iter_var_node->var = Var("i", DataType::Int(32));
   iter_var_node->dom =
@@ -84,17 +84,17 @@ TEST(DataTypeLegalizer, Block) {
   block_node->writes = {};
   block_node->name_hint = "block";
   block_node->body = Evaluate(Integer(0));
-  auto block_realize_node = ffi::make_object<BlockRealizeNode>();
+  auto block_realize_node = ffi::make_object<SBlockRealizeNode>();
   auto loop_var = Var("i", DataType::Int(32));
   block_realize_node->iter_values = {loop_var};
   block_realize_node->predicate = const_true();
-  block_realize_node->block = Block(block_node);
+  block_realize_node->block = SBlock(block_node);
   auto for_node = ffi::make_object<ForNode>();
   for_node->loop_var = loop_var;
   for_node->min = IntImm(DataType::Int(64), 0);
   for_node->extent = IntImm(DataType::Int(64), 10);
   for_node->kind = ForKind::kSerial;
-  for_node->body = BlockRealize(block_realize_node);
+  for_node->body = SBlockRealize(block_realize_node);
   Stmt stmt = For(for_node);
 
   DataTypeLegalizer legalizer;
@@ -104,9 +104,9 @@ TEST(DataTypeLegalizer, Block) {
   ASSERT_EQ(new_for->loop_var.dtype(), target_dtype);
   ASSERT_EQ(new_for->min.dtype(), target_dtype);
   ASSERT_EQ(new_for->extent.dtype(), target_dtype);
-  const BlockRealizeNode* new_block_realize = new_for->body.as<BlockRealizeNode>();
+  const SBlockRealizeNode* new_block_realize = new_for->body.as<SBlockRealizeNode>();
   ASSERT_EQ(new_block_realize->iter_values[0].dtype(), target_dtype);
-  const BlockNode* new_block = new_block_realize->block.as<BlockNode>();
+  const SBlockNode* new_block = new_block_realize->block.as<SBlockNode>();
   ASSERT_EQ(new_block->iter_vars[0]->dom->min.dtype(), target_dtype);
   ASSERT_EQ(new_block->iter_vars[0]->dom->extent.dtype(), target_dtype);
   ASSERT_EQ(new_block->iter_vars[0]->var.dtype(), target_dtype);

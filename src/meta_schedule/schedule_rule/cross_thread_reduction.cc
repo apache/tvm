@@ -49,7 +49,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) final {
     // Step 0. Check the conditions of this rule.
     if (max_threads_per_block == -1 || warp_size == -1) {
       return {sch};
@@ -130,7 +130,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    * \param block The block to be checked
    * \return A boolean indicating whether the block is in thread scope.
    */
-  bool InThreadScope(const tir::Schedule& sch, const tir::BlockRV& block) {
+  bool InThreadScope(const tir::Schedule& sch, const tir::SBlockRV& block) {
     const ffi::Array<tir::LoopRV>& axes = sch->GetLoops(block);
     for (const tir::LoopRV& loop_rv : axes) {
       const tir::For& loop = sch->Get(loop_rv);
@@ -193,23 +193,23 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    * 3. the first block under the target loop when fusible, or a null block random variable;
    * 4. the innermost loop outside the target block when fusible, or a null block random variable.
    */
-  std::tuple<bool, tir::LoopRV, tir::BlockRV, tir::LoopRV> GetComputeTargetLoopAndBlock(
-      const tir::Schedule& sch, const tir::BlockRV& block_rv) {
+  std::tuple<bool, tir::LoopRV, tir::SBlockRV, tir::LoopRV> GetComputeTargetLoopAndBlock(
+      const tir::Schedule& sch, const tir::SBlockRV& block_rv) {
     // Step 0. Due to technical reason of some primitives (e.g., compute-at), if the block is doing
     // a tuple reduction, fusion is temporarily not supported.
     if (sch->Get(block_rv)->writes.size() != 1) {
-      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()}, tir::BlockRV{ffi::UnsafeInit()},
-                             tir::LoopRV{ffi::UnsafeInit()});
+      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()},
+                             tir::SBlockRV{ffi::UnsafeInit()}, tir::LoopRV{ffi::UnsafeInit()});
     }
 
     // Step 1. Get all the consumers of the input block.
-    ffi::Array<tir::BlockRV> consumers = sch->GetConsumers(block_rv);
+    ffi::Array<tir::SBlockRV> consumers = sch->GetConsumers(block_rv);
 
     // Step 2. If the block has no consumer or the first consumer needs multi-level tiling, it is
     // not fusible.
     if (consumers.empty() || tir::NeedsMultiLevelTiling(sch->state(), sch->GetSRef(consumers[0]))) {
-      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()}, tir::BlockRV{ffi::UnsafeInit()},
-                             tir::LoopRV{ffi::UnsafeInit()});
+      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()},
+                             tir::SBlockRV{ffi::UnsafeInit()}, tir::LoopRV{ffi::UnsafeInit()});
     }
 
     // Step 3. Calculate the lowest common ancestor of all the consumers.
@@ -219,10 +219,10 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     //     fusible;
     // - If the lowest common ancestor is a loop, the target block is also the first consumer.
     const tir::StmtSRef& lca_sref =
-        tir::GetSRefLowestCommonAncestor(tir::BlockRVs2StmtSRefs(sch, consumers));
-    if (consumers.size() > 1 && lca_sref->StmtAs<tir::BlockNode>() != nullptr) {
-      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()}, tir::BlockRV{ffi::UnsafeInit()},
-                             tir::LoopRV{ffi::UnsafeInit()});
+        tir::GetSRefLowestCommonAncestor(tir::SBlockRVs2StmtSRefs(sch, consumers));
+    if (consumers.size() > 1 && lca_sref->StmtAs<tir::SBlockNode>() != nullptr) {
+      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()},
+                             tir::SBlockRV{ffi::UnsafeInit()}, tir::LoopRV{ffi::UnsafeInit()});
     }
 
     // Step 4. Get the outer loops of the target block, and get the compute-at position index.
@@ -231,8 +231,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
 
     // Step 5. A negative position index means not fusible, and vice-versa.
     if (pos < 0) {
-      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()}, tir::BlockRV{ffi::UnsafeInit()},
-                             tir::LoopRV{ffi::UnsafeInit()});
+      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()},
+                             tir::SBlockRV{ffi::UnsafeInit()}, tir::LoopRV{ffi::UnsafeInit()});
     } else {
       return std::make_tuple(true, tgt_block_loops[pos], consumers[0], tgt_block_loops.back());
     }

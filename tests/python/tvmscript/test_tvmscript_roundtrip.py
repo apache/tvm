@@ -2585,13 +2585,13 @@ def test_matmul_original():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block, tir.stmt.SBlock)
     assert isinstance(rt_func.body.block.body, tir.stmt.For)
     assert isinstance(rt_func.body.block.body.body, tir.stmt.For)
     assert isinstance(rt_func.body.block.body.body.body, tir.stmt.SeqStmt)
-    assert isinstance(rt_func.body.block.body.body.body[0].block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block.body.body.body[0].block, tir.stmt.SBlock)
     assert isinstance(rt_func.body.block.body.body.body[1], tir.stmt.For)
-    assert isinstance(rt_func.body.block.body.body.body[1].body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block.body.body.body[1].body.block, tir.stmt.SBlock)
 
 
 def test_element_wise():
@@ -2599,15 +2599,15 @@ def test_element_wise():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block, tir.stmt.SBlock)
     assert isinstance(rt_func.body.block.body, tir.stmt.SeqStmt)
     assert isinstance(rt_func.body.block.body[0], tir.stmt.For)
     assert isinstance(rt_func.body.block.body[0].body, tir.stmt.For)
-    assert isinstance(rt_func.body.block.body[0].body.body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block.body[0].body.body.block, tir.stmt.SBlock)
 
     assert isinstance(rt_func.body.block.body[1], tir.stmt.For)
     assert isinstance(rt_func.body.block.body[1].body, tir.stmt.For)
-    assert isinstance(rt_func.body.block.body[1].body.body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block.body[1].body.body.block, tir.stmt.SBlock)
 
 
 def test_predicate():
@@ -2615,11 +2615,11 @@ def test_predicate():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block, tir.stmt.SBlock)
     assert isinstance(rt_func.body.block.body, tir.stmt.For)
     assert isinstance(rt_func.body.block.body.body, tir.stmt.For)
     assert isinstance(rt_func.body.block.body.body.body, tir.stmt.For)
-    assert isinstance(rt_func.body.block.body.body.body.body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block.body.body.body.body.block, tir.stmt.SBlock)
 
 
 def for_thread_binding():
@@ -2676,19 +2676,19 @@ def test_match_buffer_region():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body, tir.stmt.BlockRealize)
+    assert isinstance(rt_func.body, tir.stmt.SBlockRealize)
     root = rt_func.body.block
 
     assert isinstance(root.body, tir.stmt.For)
     assert isinstance(root.body.body, tir.stmt.For)
-    assert isinstance(root.body.body.body, tir.stmt.BlockRealize)
+    assert isinstance(root.body.body.body, tir.stmt.SBlockRealize)
     outer_block = root.body.body.body.block
     assert len(outer_block.match_buffers) == 1
     buffer_C = outer_block.match_buffers[0].buffer
     tvm.ir.assert_structural_equal(buffer_C.shape, [T.int32(16), T.int32(1), T.int32(4)])
 
     assert isinstance(outer_block.body, tir.stmt.For)
-    assert isinstance(outer_block.body.body, tir.stmt.BlockRealize)
+    assert isinstance(outer_block.body.body, tir.stmt.SBlockRealize)
     inner_block = outer_block.body.body.block
     assert len(inner_block.match_buffers) == 1
     buffer_D = inner_block.match_buffers[0].buffer
@@ -2721,9 +2721,9 @@ def test_block_elements():
     rt_func = tvm.script.from_source(func.script())
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert isinstance(rt_func.body.block, tir.stmt.Block)
-    assert isinstance(rt_func.body.block.body, tir.stmt.BlockRealize)
-    assert isinstance(rt_func.body.block.body.block, tir.stmt.Block)
+    assert isinstance(rt_func.body.block, tir.stmt.SBlock)
+    assert isinstance(rt_func.body.block.body, tir.stmt.SBlockRealize)
+    assert isinstance(rt_func.body.block.body.block, tir.stmt.SBlock)
     block = rt_func.body.block.body.block
     assert isinstance(block.body, tir.stmt.BufferStore)
     assert isinstance(block.init, tir.stmt.BufferStore)
@@ -2758,14 +2758,14 @@ def test_opaque_block():
     tvm.ir.assert_structural_equal(func, rt_func)
 
     root_block = rt_func.body.block
-    assert isinstance(root_block, tir.stmt.Block)
+    assert isinstance(root_block, tir.stmt.SBlock)
     assert isinstance(root_block.body, tir.stmt.For)
     assert isinstance(root_block.body.body[0], tir.stmt.For)
-    assert isinstance(root_block.body.body[0].body, tir.stmt.BlockRealize)
-    assert isinstance(root_block.body.body[0].body.block, tir.stmt.Block)
+    assert isinstance(root_block.body.body[0].body, tir.stmt.SBlockRealize)
+    assert isinstance(root_block.body.body[0].body.block, tir.stmt.SBlock)
     assert len(root_block.body.body[0].body.block.iter_vars) == 0
-    assert isinstance(root_block.body.body[1], tir.stmt.BlockRealize)
-    assert isinstance(root_block.body.body[1].block, tir.stmt.Block)
+    assert isinstance(root_block.body.body[1], tir.stmt.SBlockRealize)
+    assert isinstance(root_block.body.body[1].block, tir.stmt.SBlock)
     assert len(root_block.body.body[1].block.iter_vars) == 0
 
 

@@ -247,8 +247,8 @@ class IRConvertSSA final : public StmtExprMutator {
     return decl;
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
-    Block block = ffi::GetRef<Block>(op);
+  Stmt VisitStmt_(const SBlockNode* op) final {
+    SBlock block = ffi::GetRef<SBlock>(op);
 
     // The BlockNode is the point of definition for the IterVar
     // instances.  These re-defines must be present before visiting
@@ -276,7 +276,7 @@ class IRConvertSSA final : public StmtExprMutator {
       write_ptr->iter_vars = iter_vars;
     }
 
-    Stmt output = Downcast<Block>(StmtExprMutator::VisitStmt_(block.get()));
+    Stmt output = Downcast<SBlock>(StmtExprMutator::VisitStmt_(block.get()));
 
     while (redefines.size()) redefines.pop_back();
 
@@ -748,7 +748,7 @@ class StorageAlignCollector : public StmtVisitor {
       const Stmt& body);
 
   /*! \brief For s-stir, the alignment annotations reside in block annotations. */
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     auto it = op->annotations.find(attr::buffer_dim_align);
     if (it != op->annotations.end()) {
       auto storage_align_annotation = Downcast<StorageAlignAnnotation>((*it).second);

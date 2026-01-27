@@ -94,16 +94,16 @@ void BlockFrameNode::ExitWithScope() {
   if (int detect_access = (!reads.defined()) | (!writes.defined() << 1)) {
     attrs.Set("tir.script_parsing_detect_access", tvm::IntImm(DataType::Int(64), detect_access));
   }
-  tvm::tir::Block block(iter_vars, reads.value_or(ffi::Array<tvm::tir::BufferRegion>()),
-                        writes.value_or(ffi::Array<tvm::tir::BufferRegion>()), name, AsStmt(stmts),
-                        init, tir_alloc_buffers, match_buffers, attrs);
+  tvm::tir::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::tir::BufferRegion>()),
+                         writes.value_or(ffi::Array<tvm::tir::BufferRegion>()), name, AsStmt(stmts),
+                         init, tir_alloc_buffers, match_buffers, attrs);
   if (no_realize) {
     CHECK(iter_values.empty())
         << "ValueError: Block bindings are not allowed when `no_realize=True`";
     CHECK(!predicate.defined()) << "ValueError: `T.where` is not allowed when `no_realize=True`";
     AddToParent(block);
   } else {
-    AddToParent(tvm::tir::BlockRealize(iter_values, predicate.value_or(Bool(true)), block));
+    AddToParent(tvm::tir::SBlockRealize(iter_values, predicate.value_or(Bool(true)), block));
   }
 }
 

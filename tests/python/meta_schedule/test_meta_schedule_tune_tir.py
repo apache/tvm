@@ -28,7 +28,7 @@ from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.tir.schedule import BlockRV, Schedule
+from tvm.tir.schedule import SBlockRV, Schedule
 
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
@@ -152,7 +152,7 @@ def test_tune_block_cpu():
         def _initialize_with_tune_context(self, context: ms.TuneContext) -> None:
             pass
 
-        def apply(self, sch: Schedule, block: BlockRV):
+        def apply(self, sch: Schedule, block: SBlockRV):
             if sch.get(block).name_hint == "root":
                 return [sch]
             sch = sch.copy()

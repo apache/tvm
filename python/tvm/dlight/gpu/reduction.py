@@ -22,7 +22,7 @@ from tvm import arith, ir, tir
 from tvm.target import Target
 
 from ..analysis import (
-    BlockInfo,
+    SBlockInfo,
     detect_dominant_read,
     is_broadcast_epilogue,
     normalize_prim_func,
@@ -31,7 +31,7 @@ from ..base import suggest_threads_per_block, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
+def _get_reduction_expr(block: tir.SBlock) -> Optional[tir.PrimExpr]:
     # Detect and return `Y` in `X[...] = X[...] + Y`
     buffer_store = block.body
     if not isinstance(buffer_store, tir.BufferStore):
@@ -113,7 +113,7 @@ class Reduction(GPUScheduleRule):
     def _normalize(  # pylint: disable=too-many-branches
         self,
         sch: tir.Schedule,
-        block_info: BlockInfo,
+        block_info: SBlockInfo,
         access: arith.IterSumExpr,
     ) -> Tuple[Optional[bool], Optional[int], Optional[Mapping[int, int]], Optional[int]]:
         if access.base != 0:
@@ -177,9 +177,9 @@ class Reduction(GPUScheduleRule):
         self,
         sch: tir.Schedule,
         target: Target,
-        block: tir.schedule.BlockRV,
+        block: tir.schedule.SBlockRV,
         unroll_spatial_factor: Optional[int],
-        epilogue_info: Optional[BlockInfo],
+        epilogue_info: Optional[SBlockInfo],
         loop_order,
         s_split_index,
     ):
@@ -235,10 +235,10 @@ class Reduction(GPUScheduleRule):
         self,
         sch: tir.Schedule,
         _: Target,
-        block: tir.schedule.BlockRV,
-        block_info: BlockInfo,
+        block: tir.schedule.SBlockRV,
+        block_info: SBlockInfo,
         unroll_spatial_factor: Optional[int],
-        epilogue_info: Optional[BlockInfo],
+        epilogue_info: Optional[SBlockInfo],
         loop_order,
         s_split_index,
     ):

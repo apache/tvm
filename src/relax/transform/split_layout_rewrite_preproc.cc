@@ -36,8 +36,9 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
  public:
   explicit SplitPrimFuncLayoutRewrite(const PrimFunc& func) : original_func_(func) {}
   std::tuple<ffi::Optional<PrimFunc>, PrimFunc> Transform(const PrimFunc& func) {
-    ICHECK(func->body.as<BlockRealizeNode>()) << "The body of the primfunc should be a root block.";
-    const auto& block = func->body.as<BlockRealizeNode>()->block;
+    ICHECK(func->body.as<SBlockRealizeNode>())
+        << "The body of the primfunc should be a root block.";
+    const auto& block = func->body.as<SBlockRealizeNode>()->block;
     visit_root_block(block.get());
     if (layout_rewrite_preproc_stmts_.size() > 0) {
       return std::make_tuple(create_layout_rewrite_preproc_func(), create_compute_func());
@@ -75,12 +76,12 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
         << "There should be at least one layout rewrite preproc stmt.";
     Stmt body = layout_rewrite_preproc_stmts_.size() == 1 ? layout_rewrite_preproc_stmts_[0]
                                                           : SeqStmt(layout_rewrite_preproc_stmts_);
-    body = BlockRealize(
+    body = SBlockRealize(
         /*iter_values=*/ffi::Array<PrimExpr>(),
         /*predicate=*/const_true(),
         /*block=*/
-        Block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
-              /*name_hint=*/"root", body));
+        SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
+               /*name_hint=*/"root", body));
 
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
@@ -108,7 +109,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
 
     // Step 2: Create the body for the new PrimFunc
     Stmt body = compute_stmts_.size() == 1 ? compute_stmts_[0] : SeqStmt(compute_stmts_);
-    Block original_block = original_func_->body.as<BlockRealizeNode>()->block;
+    SBlock original_block = original_func_->body.as<SBlockRealizeNode>()->block;
     ffi::Array<Buffer> alloc_buffers;
     for (const auto& buffer : original_block->alloc_buffers) {
       auto it =
@@ -119,14 +120,14 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
       }
     }
 
-    body = BlockRealize(
+    body = SBlockRealize(
         /*iter_values=*/ffi::Array<PrimExpr>(),
         /*predicate=*/const_true(),
         /*block=*/
-        Block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
-              /*name_hint=*/"root", body,
-              /*init=*/std::nullopt,
-              /*alloc_buffers=*/alloc_buffers));
+        SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
+               /*name_hint=*/"root", body,
+               /*init=*/std::nullopt,
+               /*alloc_buffers=*/alloc_buffers));
 
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
@@ -142,7 +143,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     return RenewDefs(func);
   }
 
-  void visit_root_block(const BlockNode* op) {
+  void visit_root_block(const SBlockNode* op) {
     Stmt body = op->body;
     if (const auto* seq_stmt = body.as<SeqStmtNode>()) {
       for (const auto& stmt : seq_stmt->seq) {
@@ -162,8 +163,8 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
           << "There should be a compute block if there is only one subtree under the root.";
     }
   }
-  Stmt VisitStmt_(const BlockNode* op) final {
-    Block block = Downcast<Block>(StmtMutator::VisitStmt_(op));
+  Stmt VisitStmt_(const SBlockNode* op) final {
+    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
     auto it = op->annotations.find(attr::meta_schedule_layout_rewrite_preproc);
     bool is_layout_rewrite_preproc =
         it != op->annotations.end() && is_one(Downcast<PrimExpr>((*it).second));
@@ -199,9 +200,9 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
 
       auto new_annotations = op->annotations;
       new_annotations.erase(attr::meta_schedule_layout_rewrite_preproc);
-      auto n = ffi::make_object<BlockNode>(*block.get());
+      auto n = ffi::make_object<SBlockNode>(*block.get());
       n->annotations = new_annotations;
-      return Block(n);
+      return SBlock(n);
     }
     return block;
   }

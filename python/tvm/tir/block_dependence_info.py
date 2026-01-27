@@ -14,28 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Define BlockDependenceInfoNode that uses the BlockScope and StmtSRef objects
+"""Define BlockDependenceInfoNode that uses the SBlockScope and StmtSRef objects
 to store the block level dependences"""
 
 from typing import Union, Optional
 from tvm_ffi import register_object
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
-from tvm.tir import Block, PrimFunc
+from tvm.tir import SBlock, PrimFunc
 
-from .block_scope import BlockScope, StmtSRef
+from .block_scope import SBlockScope, StmtSRef
 from . import _ffi_api
 
 
-@register_object("tir.BlockDependenceInfo")
-class BlockDependenceInfo(Object):
+@register_object("tir.SBlockDependenceInfo")
+class SBlockDependenceInfo(Object):
     """
-    BlockDependenceInfo
+    SBlockDependenceInfo
     An object that helps build and query block level dependences using the 2 core objects
-    BlockScope and StmtSRef
+    SBlockScope and StmtSRef
 
     The data structures exposed are:
-    1) sref2scope: Mapping from the srefs to its corresponding BlockScope
+    1) sref2scope: Mapping from the srefs to its corresponding SBlockScope
     2) stmt2ref: Mapping from blocks to corresponding StmtSRefs
 
     Note that this object does not store SRefs to loops as the purpose is only to expose block level
@@ -55,7 +55,7 @@ class BlockDependenceInfo(Object):
             mod,
         )
 
-    def get_sref(self, block: Block) -> Optional[StmtSRef]:
+    def get_sref(self, block: SBlock) -> Optional[StmtSRef]:
         """Return the corresponding sref that points to the block
 
         Parameters
@@ -70,8 +70,8 @@ class BlockDependenceInfo(Object):
         """
         return _ffi_api.BlockDependenceInfoGetSRef(self, block)  # type: ignore # pylint: disable=no-member
 
-    def get_block_scope(self, block_sref: StmtSRef) -> BlockScope:
-        """Get the BlockScope correpsonding to the block sref
+    def get_sblock_scope(self, block_sref: StmtSRef) -> SBlockScope:
+        """Get the SBlockScope correpsonding to the block sref
 
         Parameters
         ----------
@@ -81,8 +81,8 @@ class BlockDependenceInfo(Object):
         Returns
         -------
         scope : StmtSRef
-            The corresponding BlockScope
+            The corresponding SBlockScope
         """
-        return _ffi_api.BlockDependenceInfoGetBlockScope(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.BlockDependenceInfoGetSBlockScope(  # type: ignore # pylint: disable=no-member
             self, block_sref
         )

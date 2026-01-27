@@ -18,9 +18,9 @@
  */
 /*!
  * \file tvm/tir/block_scope.h
- * \brief Definition of two pillar data structure for TensorIR scheduling: StmtSRef, BlockScope.
+ * \brief Definition of two pillar data structure for TensorIR scheduling: StmtSRef, SBlockScope.
  * \sa StmtSRefNode
- * \sa BlockScopeNode
+ * \sa SBlockScopeNode
  */
 #ifndef TVM_TIR_BLOCK_SCOPE_H_
 #define TVM_TIR_BLOCK_SCOPE_H_
@@ -41,7 +41,7 @@ namespace tir {
  * \brief An object that refers to schedulable elements (block/for-loop) in TensorIR, aka "sref".
  *
  * Glossary
- * - Block sref: A StmtSRef that points to a TensorIR block.
+ * - SBlock sref: A StmtSRef that points to a TensorIR SBlock.
  * - Loop sref: A StmtSRef that points to a TensorIR for loop.
  * - Parent sref: The parent reference of an sref is the block or loop reference to the closest
  schedulable statement. We define closest to be the nearest schedulable statement of an ancestor in
@@ -86,7 +86,7 @@ class StmtSRefNode : public Object {
    * \brief Get the referenced statement with proper type checking.
    * It serves the same purpose as `ObjectRef::as`, but does not acquire strong reference to `stmt`
    * \tparam StmtType The type that `this->stmt` to be downcasted to. Presumably
-   * tvm::tir::BlockNode or tvm::tir::ForNode
+   * tvm::tir::SBlockNode or tvm::tir::ForNode
    * \return nullptr if type check fails, otherwise the casted result for `this->stmt`
    */
   template <typename StmtType>
@@ -177,7 +177,7 @@ class SRefTreeCreator : private StmtVisitor {
 
   void VisitStmt_(const ForNode* loop) final;
 
-  void VisitStmt_(const BlockRealizeNode* realize) final;
+  void VisitStmt_(const SBlockRealizeNode* realize) final;
 
   void VisitStmt_(const SeqStmtNode* seq_stmt) final;
 
@@ -243,14 +243,14 @@ class Dependency : public ObjectRef {
  * For example even leaf nodes have a scope node, even though they have no dependencies.
  *
  * Glossary:
- * - Block scope: A contiguous subtree of the sref tree, rooted at each block sref,
+ * - SBlock scope: A contiguous subtree of the sref tree, rooted at each SBlock sref,
  * whose components are:
  *   - scope root: a block sref
  *   - internal srefs: loop srefs
  *   - scope leaves: block srefs
  * - Child block: The scope leaf blocks under the scope root or a specific internal sref
  */
-class BlockScopeNode : public Object {
+class SBlockScopeNode : public Object {
  public:
   /*!
    * \brief Lookup table for the `src` of dependencies
@@ -265,9 +265,9 @@ class BlockScopeNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BlockScopeNode>();
+    refl::ObjectDef<SBlockScopeNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockScope", BlockScopeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SBlockScope", SBlockScopeNode, Object);
 
  public:
   /******** Dependency ********/
@@ -286,29 +286,29 @@ class BlockScopeNode : public Object {
 };
 
 /*!
- * \brief Managed reference to BlockScopeNode
- * \sa BlockScopeNode
+ * \brief Managed reference to SBlockScopeNode
+ * \sa SBlockScopeNode
  */
-class BlockScope : public ObjectRef {
+class SBlockScope : public ObjectRef {
  public:
   /*!
-   * \brief Constructor from ObjectPtr<BlockScopeNode>.
+   * \brief Constructor from ObjectPtr<SBlockScopeNode>.
    * \param data The object pointer.
    */
-  explicit BlockScope(ObjectPtr<BlockScopeNode> data) : ObjectRef(data) {
+  explicit SBlockScope(ObjectPtr<SBlockScopeNode> data) : ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
   /*! \brief The constructor creating an empty block scope with on dependency information */
-  TVM_DLL BlockScope();
+  TVM_DLL SBlockScope();
   /*!
    * \brief Create the object with the specific leaf blocks, and compute the dependency information
    * between the leaf blocks.
    * \param child_block_srefs The srefs to the leaf blocks
    * \note We assume the leaf blocks are given in pre-DFS order
    */
-  TVM_DLL explicit BlockScope(const ffi::Array<StmtSRef>& child_block_srefs);
+  TVM_DLL explicit SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockScope, ObjectRef, BlockScopeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockScope, ObjectRef, SBlockScopeNode);
 };
 
 }  // namespace tir

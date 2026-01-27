@@ -68,7 +68,7 @@ class ThreadExtentChecker : private StmtVisitor {
     StmtVisitor::VisitStmt_(loop);
   }
 
-  void VisitStmt_(const BlockNode* block) {
+  void VisitStmt_(const SBlockNode* block) {
     int old_thread_idx_x = thread_idx_x;
     if (block->annotations.count(attr::warp_execution)) {
       thread_idx_x = thread_warp_size_;

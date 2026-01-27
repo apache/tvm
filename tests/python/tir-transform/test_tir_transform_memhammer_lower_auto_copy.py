@@ -1133,7 +1133,7 @@ def verify_single_allocation(stmt, alloc_size=None):
 
     def verify(n):
         if (
-            isinstance(n, tvm.tir.Block)
+            isinstance(n, tvm.tir.SBlock)
             and n.alloc_buffers is not None
             and (True in ((buf.scope() == "shared.dyn") for buf in n.alloc_buffers))
         ):

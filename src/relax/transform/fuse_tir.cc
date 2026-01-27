@@ -226,8 +226,8 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const BlockNode* _op) final {
-    Block block = Downcast<Block>(StmtMutator::VisitStmt_(_op));
+  Stmt VisitStmt_(const SBlockNode* _op) final {
+    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(_op));
 
     // Define the mutation functions.
 
@@ -283,7 +283,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
       n->writes = std::move(writes);
       n->match_buffers = std::move(match_buffers);
       n->alloc_buffers = std::move(alloc_buffers);
-      return Block(n);
+      return SBlock(n);
     }
   }
 
@@ -339,10 +339,10 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 };
 
 /*! \brief A mutator which detect block name duplication and deduplicate the names. */
-class BlockNameDeduplicator : public tir::StmtMutator {
+class SBlockNameDeduplicator : public tir::StmtMutator {
  private:
-  Stmt VisitStmt_(const BlockNode* op) final {
-    Block block = Downcast<Block>(tir::StmtMutator::VisitStmt_(op));
+  Stmt VisitStmt_(const SBlockNode* op) final {
+    SBlock block = Downcast<SBlock>(tir::StmtMutator::VisitStmt_(op));
 
     ffi::String name = GetUniqueName(block->name_hint);
 
@@ -350,7 +350,7 @@ class BlockNameDeduplicator : public tir::StmtMutator {
       return block;
 
     } else {
-      ObjectPtr<BlockNode> n = CopyOnWrite(block.get());
+      ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
       n->name_hint = std::move(name);
       return Stmt(n);
     }
@@ -683,10 +683,10 @@ class FusedTIRConstructor : public ExprVisitor {
 
     // Step 3. Check functions are all schedulable funcs. i.e. the body of func is root block
     // TODO(Siyuan): support un-schedulable functions.
-    ICHECK(prim_func->body->IsInstance<tir::BlockRealizeNode>())
+    ICHECK(prim_func->body->IsInstance<tir::SBlockRealizeNode>())
         << "Only schedulable functions (whose body is the root block) can be fused";
-    const tir::BlockRealize& root_realize = Downcast<tir::BlockRealize>(prim_func->body);
-    const tir::Block& root_block = root_realize->block;
+    const tir::SBlockRealize& root_realize = Downcast<tir::SBlockRealize>(prim_func->body);
+    const tir::SBlock& root_block = root_realize->block;
 
     // Step 4. Add all the original alloc_buffers and body to the fused function.
     func_info_.alloc_buffers.insert(func_info_.alloc_buffers.end(),
@@ -1003,11 +1003,11 @@ class FusedTIRConstructor : public ExprVisitor {
         alloc_buffers.push_back(subst.SubstituteAllocatedBuffer(buf));
       }
     }
-    tir::Stmt body = tir::BlockNameDeduplicator()(tir::SeqStmt::Flatten(func_info_.bodies));
+    tir::Stmt body = tir::SBlockNameDeduplicator()(tir::SeqStmt::Flatten(func_info_.bodies));
 
     body = subst.Substitute(body);
-    body = tir::Block({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
-    body = tir::BlockRealize({}, Bool(true), Downcast<tir::Block>(body));
+    body = tir::SBlock({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
+    body = tir::SBlockRealize({}, Bool(true), Downcast<tir::SBlock>(body));
     tir::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
                        DictAttrs(attr_map));
     // Renew function defs to prevent using the same symbolic vars in different functions

@@ -556,8 +556,8 @@ struct SampleComputeLocationTraits : public UnpackedInstTraits<SampleComputeLoca
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 1;
 
-  static LoopRV UnpackedApplyToSchedule(Schedule sch,      //
-                                        BlockRV block_rv,  //
+  static LoopRV UnpackedApplyToSchedule(Schedule sch,       //
+                                        SBlockRV block_rv,  //
                                         ffi::Optional<Integer> decision) {
     return sch->SampleComputeLocation(block_rv, decision);
   }

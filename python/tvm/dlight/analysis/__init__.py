@@ -16,7 +16,7 @@
 # under the License.
 """Base infra"""
 from .common_analysis import (
-    BlockInfo,
+    SBlockInfo,
     IterInfo,
     collect_block_iter_vars_used_in_access_region,
     collect_vars_used_in_prim_expr,

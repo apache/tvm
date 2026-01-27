@@ -23,10 +23,10 @@ from typing import Dict, Optional, Union
 from tvm_ffi import register_object
 from tvm.ir import IRModule
 from tvm.runtime import Object
-from tvm.tir import Block, BlockRealize, For, PrimFunc
+from tvm.tir import SBlock, SBlockRealize, For, PrimFunc
 
 from . import _ffi_api
-from ..block_scope import BlockScope, StmtSRef
+from ..block_scope import SBlockScope, StmtSRef
 
 CachedFlags = namedtuple("CachedFlags", ["affine_binding", "region_cover", "stage_pipeline"])
 
@@ -133,7 +133,7 @@ class ScheduleState(Object):
             _parse_enable_checks(enable_check),
         )
 
-    def get_sref(self, stmt: Union[Block, For]) -> Optional[StmtSRef]:
+    def get_sref(self, stmt: Union[SBlock, For]) -> Optional[StmtSRef]:
         """Return the corresponding sref that points to the stmt
 
         Parameters
@@ -148,8 +148,8 @@ class ScheduleState(Object):
         """
         return _ffi_api.ScheduleStateGetSRef(self, stmt)  # type: ignore # pylint: disable=no-member
 
-    def get_block_scope(self, block_sref: StmtSRef) -> BlockScope:
-        """Get the BlockScope correpsonding to the block sref
+    def get_sblock_scope(self, block_sref: StmtSRef) -> SBlockScope:
+        """Get the SBlockScope correpsonding to the block sref
 
         Parameters
         ----------
@@ -161,7 +161,7 @@ class ScheduleState(Object):
         sref : StmtSRef
             The corresponding sref
         """
-        return _ffi_api.ScheduleStateGetBlockScope(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleStateGetSBlockScope(  # type: ignore # pylint: disable=no-member
             self, block_sref
         )
 
@@ -198,8 +198,8 @@ class ScheduleState(Object):
     def replace(
         self,
         src_sref: StmtSRef,
-        tgt_stmt: Union[Block, For, BlockRealize],
-        block_sref_reuse: Optional[Dict[Block, Block]] = None,
+        tgt_stmt: Union[SBlock, For, SBlockRealize],
+        block_sref_reuse: Optional[Dict[SBlock, SBlock]] = None,
     ) -> None:
         """
         Replace the part of the AST, as being pointed to by `src_sref`,
@@ -208,7 +208,7 @@ class ScheduleState(Object):
         the only copy to the IRModule and IR nodes.
 
         Only 3 types of replacements are allowed: from `src_sref->stmt` to `tgt_stmt`.
-        1) Block -> Block
+        1) SBlock -> SBlock
         2) Loop -> Loop
         3) Loop -> BlockRealize
 

@@ -580,8 +580,8 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  * are overlapped with the information provided in loop annotations, which enables optimization
  * techniques like prefetching and pipeline parallelism.
  *
- * The pipeline scope consists of the direct children of the annotated loop (ignoring BlockRealize,
- * Block, SeqStmt), and the number of children is denoted by `n` in the documentation.
+ * The pipeline scope consists of the direct children of the annotated loop (ignoring SBlockRealize,
+ * SBlock, SeqStmt), and the number of children is denoted by `n` in the documentation.
  *
  * The following annotations are used to guide the loop transformation:
  *
@@ -590,7 +590,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  * where max_stage is the maximum (inclusive) stage.
  * 2) Loop annotation `software_pipeline_order` defines the pipeline order.
  * An array of `n` integers, a permutation of [0, 1, ..., num_components - 1];
- * 3) Block annotation `double_buffer_scope` controls certain buffer sizes to allow decoupling of
+ * 3) SBlock annotation `double_buffer_scope` controls certain buffer sizes to allow decoupling of
  * read/write dependency. It's an integer index of the write regions of the block.
  *
  * Every annotated loop is transformed into a loop with three blocks as its direct children:

@@ -341,7 +341,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   }
 
   void VisitBindingBlock_(const BindingBlockNode* binding_block) final {
-    BindingBlockScope new_scope;
+    BindingSBlockScope new_scope;
     std::swap(new_scope, current_block_scope_);
     for (const auto& binding : binding_block->bindings) {
       VisitBinding(binding);
@@ -597,7 +597,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
    * lifting. They are initialized lazily when a binding that can be lifted is encountered.
    * They are reset to nullptr when an unsupported operation is encountered.
    */
-  struct BindingBlockScope {
+  struct BindingSBlockScope {
     FuncBuilder* capture_builder = nullptr;  // The builder for the capture function
   };
 
@@ -611,7 +611,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   // The IRModule
   IRModule mod_;
   // States of the current block scope
-  BindingBlockScope current_block_scope_;
+  BindingSBlockScope current_block_scope_;
   // States of the current function scope
   FunctionScope current_function_scope_;
   // Variables whose buffer address is fixed

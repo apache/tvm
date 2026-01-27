@@ -86,7 +86,7 @@ void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
    *   - validity of buf_index_array
    *   - validity of buf_type
    */
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   int num_access_regions = 0;
   if (buf_type == "read") {
     num_access_regions = block->reads.size();
@@ -130,12 +130,12 @@ void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
 
   /* Step 1: Replace old block with the new block */
 
-  auto n = ffi::make_object<BlockNode>(*block);
+  auto n = ffi::make_object<SBlockNode>(*block);
   n->reads = reads;
   n->writes = writes;
-  Block new_block = Block(n);
-  ffi::Map<Block, Block> blk_map;
-  blk_map.Set(ffi::GetRef<Block>(block), new_block);
+  SBlock new_block = SBlock(n);
+  ffi::Map<SBlock, SBlock> blk_map;
+  blk_map.Set(ffi::GetRef<SBlock>(block), new_block);
   self->Replace(block_sref, new_block, blk_map);
 }
 
@@ -148,7 +148,7 @@ struct UnsafeHideBufferAccessTraits : public UnpackedInstTraits<UnsafeHideBuffer
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, ffi::String buf_type,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, ffi::String buf_type,
                                       ffi::Array<IntImm> buf_index_array) {
     sch->UnsafeHideBufferAccess(block, buf_type, buf_index_array);
   }

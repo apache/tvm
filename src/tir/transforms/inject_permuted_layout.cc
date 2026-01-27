@@ -116,7 +116,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     // Record the mapping from buffer data var to buffer for later lookup
     for (auto buffer : op->alloc_buffers) {
       buffer_map_.insert({buffer->data, buffer});
@@ -133,7 +133,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     auto prev_permute = permute_;
     permute_ = true;
 
-    Block block = Downcast<Block>(IRMutatorWithAnalyzer::VisitStmt_(op));
+    SBlock block = Downcast<SBlock>(IRMutatorWithAnalyzer::VisitStmt_(op));
 
     permute_ = prev_permute;
 

@@ -47,8 +47,8 @@ class Fallback(AdrenoScheduleRule):
 
     @staticmethod
     def schedule_inline_blocks(
-        sch: tir.Schedule, blocks: List[tir.schedule.BlockRV]
-    ) -> List[tir.schedule.BlockRV]:
+        sch: tir.Schedule, blocks: List[tir.schedule.SBlockRV]
+    ) -> List[tir.schedule.SBlockRV]:
         """
         Auto Inlines Injective and Element-wise Operations while trying to omit data pad blocks...
         """
@@ -87,7 +87,7 @@ class Fallback(AdrenoScheduleRule):
         return remaining_blocks
 
     @staticmethod
-    def schedule_default(sch: tir.Schedule, blk: tir.schedule.BlockRV):
+    def schedule_default(sch: tir.Schedule, blk: tir.schedule.SBlockRV):
         block_info = analysis.get_block_info(sch, blk)
 
         s_loops, r_loops, o_loops = [], [], []

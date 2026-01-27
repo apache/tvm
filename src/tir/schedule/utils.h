@@ -72,11 +72,11 @@ inline ffi::Array<For> LoopSRefs2Loops(const ffi::Array<StmtSRef>& loop_srefs) {
  * \param block_rvs The random variables to be converted
  * \return The conversion result srefs
  */
-inline ffi::Array<StmtSRef> BlockRVs2StmtSRefs(const Schedule& sch,
-                                               const ffi::Array<BlockRV>& block_rvs) {
+inline ffi::Array<StmtSRef> SBlockRVs2StmtSRefs(const Schedule& sch,
+                                                const ffi::Array<SBlockRV>& block_rvs) {
   ffi::Array<StmtSRef> block_srefs;
   block_srefs.reserve(block_rvs.size());
-  for (const BlockRV& block_rv : block_rvs) {
+  for (const SBlockRV& block_rv : block_rvs) {
     block_srefs.push_back(sch->GetSRef(block_rv));
   }
   return block_srefs;
@@ -117,7 +117,7 @@ inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
     if (to_remove.same_as(stmt)) {
       continue;
     }
-    if (const auto* realize = stmt.as<BlockRealizeNode>()) {
+    if (const auto* realize = stmt.as<SBlockRealizeNode>()) {
       if (to_remove.same_as(realize->block)) {
         continue;
       }
@@ -275,8 +275,8 @@ template <class TObjectRef>
 inline ffi::Optional<TObjectRef> GetAnn(const StmtSRef& sref, const ffi::String& ann_key) {
   if (const auto* loop = sref->StmtAs<ForNode>()) {
     return GetAnn<TObjectRef, ForNode>(loop, ann_key);
-  } else if (const auto* block = sref->StmtAs<BlockNode>()) {
-    return GetAnn<TObjectRef, BlockNode>(block, ann_key);
+  } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
+    return GetAnn<TObjectRef, SBlockNode>(block, ann_key);
   } else {
     LOG(FATAL) << "TypeError: Unknown type of sref: " << sref->stmt->GetTypeKey();
     throw;
@@ -318,7 +318,7 @@ inline bool HasAnn(const StmtSRef& sref, const ffi::String& ann_key, bool ann_va
  * \note Before invoking this helper function, make sure that the block has only spatial and
  *       reduction loop axes.
  */
-inline void ReorderAndFuseReductionLoops(const tir::Schedule& sch, const tir::BlockRV& block_rv,
+inline void ReorderAndFuseReductionLoops(const tir::Schedule& sch, const tir::SBlockRV& block_rv,
                                          tir::LoopRV* fused_reduce_loop,
                                          size_t* num_spatial_loops) {
   ffi::Array<tir::LoopRV> loops = sch->GetLoops(block_rv);
@@ -380,9 +380,9 @@ inline ffi::String BufferIndexType2Str(BufferIndexType buffer_index_type) {
 /******** Utilities for retrieving information about blocks ********/
 
 /*! \brief Returns the names of the blocks in the provided module. */
-inline std::unordered_set<std::string> GetBlockNames(const IRModule& mod) {
+inline std::unordered_set<std::string> GetSBlockNames(const IRModule& mod) {
   struct BlockNameCollector : public tir::StmtVisitor {
-    void VisitStmt_(const tir::BlockNode* block) override {
+    void VisitStmt_(const tir::SBlockNode* block) override {
       block_names.insert(block->name_hint);
       StmtVisitor::VisitStmt(block->body);
     }
@@ -399,7 +399,7 @@ inline std::unordered_set<std::string> GetBlockNames(const IRModule& mod) {
 
 /*! \brief Query if the given block name exists in the module associated with the schedule */
 inline bool HasBlock(const Schedule& sch, const std::string& block_name) {
-  auto block_names = GetBlockNames(sch->mod());
+  auto block_names = GetSBlockNames(sch->mod());
   return block_names.count(block_name);
 }
 

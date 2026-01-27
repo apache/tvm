@@ -92,7 +92,7 @@ std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::Fin
     if (inst->kind.same_as(inst_sample_compute_location)) {
       // Step 1. Extract the instruction input and the old decision.
       ICHECK_EQ(inputs.size(), 1);
-      tir::StmtSRef block_sref = sch->GetSRef(Downcast<tir::BlockRV>(inputs[0]));
+      tir::StmtSRef block_sref = sch->GetSRef(Downcast<tir::SBlockRV>(inputs[0]));
       int old_decision = Downcast<Integer>(decision)->value;
 
       // Step 2. Collect all the compute_at locations.

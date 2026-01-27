@@ -26,7 +26,7 @@ namespace tir {
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtSRefNode::RegisterReflection();
   DependencyNode::RegisterReflection();
-  BlockScopeNode::RegisterReflection();
+  SBlockScopeNode::RegisterReflection();
 }
 
 /******** Utility functions ********/
@@ -41,7 +41,7 @@ using SMap = std::unordered_map<K, V, ObjectPtrHash, ObjectPtrEqual>;
  * \param kind Type of the dependency
  * \note This method is effectively NOP on self-loops
  */
-void AddDependency(BlockScopeNode* self, const StmtSRef& src, const StmtSRef& dst, DepKind kind) {
+void AddDependency(SBlockScopeNode* self, const StmtSRef& src, const StmtSRef& dst, DepKind kind) {
   if (!src.same_as(dst)) {
     Dependency dep(src, dst, kind);
     self->src2deps[src].push_back(dep);
@@ -77,14 +77,14 @@ Dependency::Dependency(StmtSRef src, StmtSRef dst, DepKind kind) {
   data_ = std::move(node);
 }
 
-BlockScope::BlockScope() { data_ = ffi::make_object<BlockScopeNode>(); }
+SBlockScope::SBlockScope() { data_ = ffi::make_object<SBlockScopeNode>(); }
 
-BlockScope::BlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
-  ObjectPtr<BlockScopeNode> n = ffi::make_object<BlockScopeNode>();
+SBlockScope::SBlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
+  ObjectPtr<SBlockScopeNode> n = ffi::make_object<SBlockScopeNode>();
   SMap<Buffer, ffi::Array<StmtSRef>> buffer_readers;
   SMap<Buffer, ffi::Array<StmtSRef>>& buffer_writers = n->buffer_writers;
   for (const StmtSRef& child_block_sref : child_block_srefs) {
-    const BlockNode* child_block = TVM_SREF_TO_BLOCK(child_block_sref);
+    const SBlockNode* child_block = TVM_SREF_TO_SBLOCK(child_block_sref);
     // Step 1. Update `buffer_readers` and `buffer_writers` for each buffer
     for (const BufferRegion& region : child_block->reads) {
       buffer_readers[region->buffer].push_back(child_block_sref);
@@ -125,7 +125,7 @@ BlockScope::BlockScope(const ffi::Array<StmtSRef>& child_block_srefs) {
 
 /******** Dependency ********/
 
-ffi::Array<Dependency> BlockScopeNode::GetDepsBySrc(const StmtSRef& block_sref) const {
+ffi::Array<Dependency> SBlockScopeNode::GetDepsBySrc(const StmtSRef& block_sref) const {
   auto iter = this->src2deps.find(block_sref);
   if (iter != this->src2deps.end()) {
     return iter->second;
@@ -134,7 +134,7 @@ ffi::Array<Dependency> BlockScopeNode::GetDepsBySrc(const StmtSRef& block_sref) 
   }
 }
 
-ffi::Array<Dependency> BlockScopeNode::GetDepsByDst(const StmtSRef& block_sref) const {
+ffi::Array<Dependency> SBlockScopeNode::GetDepsByDst(const StmtSRef& block_sref) const {
   auto iter = this->dst2deps.find(block_sref);
   if (iter != this->dst2deps.end()) {
     return iter->second;
@@ -178,8 +178,8 @@ void SRefTreeCreator::VisitStmt_(const ForNode* loop) {
   }
 }
 
-void SRefTreeCreator::VisitStmt_(const BlockRealizeNode* realize) {
-  const BlockNode* block = realize->block.get();
+void SRefTreeCreator::VisitStmt_(const SBlockRealizeNode* realize) {
+  const SBlockNode* block = realize->block.get();
   PushSRef(block);
   VisitStmt(block->body);  // `block->init` is not visited
   PopAndRecordSRef();
@@ -206,8 +206,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("tir.StmtSRefRootMark", StmtSRef::RootMark)
       .def("tir.StmtSRefInlineMark", StmtSRef::InlineMark)
-      .def_method("tir.BlockScopeGetDepsBySrc", &BlockScopeNode::GetDepsBySrc)
-      .def_method("tir.BlockScopeGetDepsByDst", &BlockScopeNode::GetDepsByDst);
+      .def_method("tir.SBlockScopeGetDepsBySrc", &SBlockScopeNode::GetDepsBySrc)
+      .def_method("tir.SBlockScopeGetDepsByDst", &SBlockScopeNode::GetDepsByDst);
 }
 
 }  // namespace tir

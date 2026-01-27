@@ -84,7 +84,7 @@ ffi::Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_thread
   }
 }
 
-void BindBlockThreadIdx(tir::Schedule sch, tir::BlockRV block_rv,  //
+void BindBlockThreadIdx(tir::Schedule sch, tir::SBlockRV block_rv,  //
                         int64_t max_threadblocks, int64_t max_threads_per_block,
                         std::function<tir::ExprRV(int64_t)> get_factor) {
   using namespace tvm::tir;

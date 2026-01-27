@@ -63,8 +63,8 @@ from .stmt import (
     AllocateConst,
     AssertStmt,
     AttrStmt,
-    Block,
-    BlockRealize,
+    SBlock,
+    SBlockRealize,
     BufferRealize,
     BufferStore,
     DeclBuffer,
@@ -173,7 +173,7 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
         f_visit_seq_stmt: Callable = None,
         f_visit_evaluate: Callable = None,
         f_visit_block: Callable = None,
-        f_visit_block_realize: Callable = None,
+        f_visit_sblock_realize: Callable = None,
         # PrimExpr
         f_visit_var: Callable = None,
         f_visit_size_var: Callable = None,
@@ -229,7 +229,7 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
             f_visit_seq_stmt,
             f_visit_evaluate,
             f_visit_block,
-            f_visit_block_realize,
+            f_visit_sblock_realize,
             # PrimExpr
             f_visit_var,
             f_visit_size_var,
@@ -293,8 +293,8 @@ class PyStmtExprVisitor:
             "visit_assert_stmt_",
             "visit_seq_stmt_",
             "visit_evaluate_",
-            "visit_block_",
-            "visit_block_realize_",
+            "visit_sblock_",
+            "visit_sblock_realize_",
             # PrimExpr
             "visit_var_",
             "visit_size_var_",
@@ -521,7 +521,7 @@ class PyStmtExprVisitor:
         print("visit_evaluate_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_block_(self, op: Block) -> None:
+    def visit_sblock_(self, op: SBlock) -> None:
         """Visit Block.
         Users can customize this function to overwrite VisitStmt_(const BlockNode* op)
         on the C++ side.
@@ -529,12 +529,12 @@ class PyStmtExprVisitor:
         Parameters
         ----------
         op : Block
-            The Block to be visited.
+            The SBlock to be visited.
         """
-        print("visit_block_", op)
+        print("visit_sblock_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_block_realize_(self, op: BlockRealize) -> None:
+    def visit_sblock_realize_(self, op: SBlockRealize) -> None:
         """Visit BlockRealize.
         Users can customize this function to overwrite VisitStmt_(const BlockRealizeNode* op)
         on the C++ side.
@@ -544,7 +544,7 @@ class PyStmtExprVisitor:
         op : BlockRealize
             The BlockRealize to be visited.
         """
-        print("visit_block_realize_", op)
+        print("visit_sblock_realize_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_var_(self, op: Var) -> None:
@@ -1007,7 +1007,7 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
         f_visit_seq_stmt: Callable = None,
         f_visit_evaluate: Callable = None,
         f_visit_block: Callable = None,
-        f_visit_block_realize: Callable = None,
+        f_visit_sblock_realize: Callable = None,
         # PrimExpr
         f_visit_var: Callable = None,
         f_visit_size_var: Callable = None,
@@ -1063,7 +1063,7 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
             f_visit_seq_stmt,
             f_visit_evaluate,
             f_visit_block,
-            f_visit_block_realize,
+            f_visit_sblock_realize,
             # PrimExpr
             f_visit_var,
             f_visit_size_var,
@@ -1127,8 +1127,8 @@ class PyStmtExprMutator:
             "visit_assert_stmt_",
             "visit_seq_stmt_",
             "visit_evaluate_",
-            "visit_block_",
-            "visit_block_realize_",
+            "visit_sblock_",
+            "visit_sblock_realize_",
             # PrimExpr
             "visit_var_",
             "visit_size_var_",
@@ -1421,15 +1421,15 @@ class PyStmtExprMutator:
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_block_(self, op: Block) -> Stmt:
-        """Visit Block.
+    def visit_sblock_(self, op: SBlock) -> Stmt:
+        """Visit SBlock.
         Users can customize this function to overwrite VisitStmt_(const BlockNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : Block
-            The Block to be visited.
+        op : SBlock
+            The SBlock to be visited.
 
         Returns
         -------
@@ -1438,15 +1438,15 @@ class PyStmtExprMutator:
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_block_realize_(self, op: BlockRealize) -> Stmt:
+    def visit_sblock_realize_(self, op: SBlockRealize) -> Stmt:
         """Visit BlockRealize.
         Users can customize this function to overwrite VisitStmt_(const BlockRealizeNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : BlockRealize
-            The BlockRealize to be visited.
+        op : SBlockRealize
+            The SBlockRealize to be visited.
 
         Returns
         -------

@@ -466,12 +466,12 @@ def _get_block(s: tir.ScheduleState, name_hint: str) -> tir.StmtSRef:
 
     def f_visit(node):
         nonlocal result
-        if isinstance(node, tvm.tir.Block) and node.name_hint == name_hint:
+        if isinstance(node, tvm.tir.SBlock) and node.name_hint == name_hint:
             result = node
 
     func = s.mod["main"]
     post_order_visit(func.body, f_visit)
-    assert result is not None and isinstance(result, tvm.tir.Block)
+    assert result is not None and isinstance(result, tvm.tir.SBlock)
     return s.get_sref(result)
 
 

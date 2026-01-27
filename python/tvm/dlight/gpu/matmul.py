@@ -26,13 +26,13 @@ from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import IterVar, PrimExpr, Var
 from tvm.tir.analysis import undefined_vars
-from tvm.tir.schedule.schedule import BlockRV
+from tvm.tir.schedule.schedule import SBlockRV
 
-from ..analysis import BlockInfo, IterInfo, get_root_block
+from ..analysis import SBlockInfo, IterInfo, get_root_block
 from .base import GPUScheduleRule
 
 
-def _collect_producers(sch: tir.Schedule, block: tir.schedule.BlockRV):
+def _collect_producers(sch: tir.Schedule, block: tir.schedule.SBlockRV):
     result = []
     for producer in sch.get_producers(block):
         result.append(producer)
@@ -40,7 +40,7 @@ def _collect_producers(sch: tir.Schedule, block: tir.schedule.BlockRV):
     return result
 
 
-def _collect_consumers(sch: tir.Schedule, block: tir.schedule.BlockRV):
+def _collect_consumers(sch: tir.Schedule, block: tir.schedule.SBlockRV):
     result = []
     for consumer in sch.get_consumers(block):
         result.append(consumer)
@@ -50,7 +50,7 @@ def _collect_consumers(sch: tir.Schedule, block: tir.schedule.BlockRV):
 
 def auto_inline_producers(
     sch: tir.Schedule,
-    block: tir.schedule.BlockRV,
+    block: tir.schedule.SBlockRV,
 ):
     while True:
         inlined_cnt = 0
@@ -67,7 +67,7 @@ def auto_inline_producers(
 
 def auto_inline_consumers(
     sch: tir.Schedule,
-    block: tir.schedule.BlockRV,
+    block: tir.schedule.SBlockRV,
 ):
     while True:
         inlined_cnt = 0
@@ -90,7 +90,7 @@ def auto_inline_consumers(
 
 def auto_inline_consumer_chain(
     sch: tir.Schedule,
-    block: tir.schedule.BlockRV,
+    block: tir.schedule.SBlockRV,
 ):
     auto_inline_consumers(sch, block)
     remaining_consumers = sch.get_consumers(block)
@@ -165,12 +165,12 @@ def make_iter_fusion_index_map(
     return tir.IndexMap(input_iters, final_indices, None)
 
 
-def detect_iter_traits(block: tir.Block) -> Optional[Tuple[List[IterTrait]]]:
+def detect_iter_traits(block: tir.SBlock) -> Optional[Tuple[List[IterTrait]]]:
     """Detect iter traits based on the pattern C[S, I, J] += A[S, I, K] * B[S, J, K]
 
     Parameters
     ----------
-    block : tir.Block
+    block : tir.SBlock
         The block to be analyzed
 
     Returns
@@ -235,12 +235,12 @@ def detect_iter_traits(block: tir.Block) -> Optional[Tuple[List[IterTrait]]]:
     return A_traits, B_traits, C_traits, block_traits
 
 
-def get_index_map(block: tir.Block) -> Optional[Tuple[tir.IndexMap, ...]]:
+def get_index_map(block: tir.SBlock) -> Optional[Tuple[tir.IndexMap, ...]]:
     """Get index maps for the block
 
     Parameters
     ----------
-    block : tir.Block
+    block : tir.SBlock
         The block to be analyzed
 
     Returns
@@ -274,17 +274,17 @@ def get_index_map(block: tir.Block) -> Optional[Tuple[tir.IndexMap, ...]]:
     )
 
 
-def get_block_info(sch: tir.Schedule, block: tir.schedule.BlockRV) -> BlockInfo:
+def get_block_info(sch: tir.Schedule, block: tir.schedule.SBlockRV) -> SBlockInfo:
     def _iter_kind(loop: tir.IterVar) -> str:
         return {tir.IterVar.DataPar: "S", tir.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
 
-    def _is_reduction_block(block: tir.schedule.BlockRV):
+    def _is_reduction_block(block: tir.schedule.SBlockRV):
         for iter_var in sch.get(block).iter_vars:
             if _iter_kind(iter_var) == "R":
                 return True
         return False
 
-    return BlockInfo(
+    return SBlockInfo(
         name=sch.get(block).name_hint,
         iters=[
             IterInfo(
@@ -302,12 +302,12 @@ def get_block_info(sch: tir.Schedule, block: tir.schedule.BlockRV) -> BlockInfo:
 
 def get_reduction_blocks(sch, blocks) -> bool:
     # Get the main computation block
-    def is_reduction(block: BlockRV) -> bool:
+    def is_reduction(block: SBlockRV) -> bool:
         block_stmt = sch.get(block)
         iter_types = {iter_var.iter_type for iter_var in block_stmt.iter_vars}
         return iter_types == {IterVar.CommReduce, IterVar.DataPar}
 
-    def is_spatial(block: BlockRV) -> bool:
+    def is_spatial(block: SBlockRV) -> bool:
         block_stmt = sch.get(block)
         iter_types = {iter_var.iter_type for iter_var in block_stmt.iter_vars}
         return iter_types == {IterVar.DataPar}
@@ -325,7 +325,7 @@ def get_reduction_blocks(sch, blocks) -> bool:
     return reduction_blocks
 
 
-def get_in_out_dtypes(block: tir.Block) -> Tuple[str]:
+def get_in_out_dtypes(block: tir.SBlock) -> Tuple[str]:
     """
     Detect In/Out data types for the given block based on the analysis if read/write buffers.
     """
@@ -453,7 +453,7 @@ class MetalMatmul(GPUScheduleRule):
         )
         sch.transform_layout(B_simdgroup, ("write", 0), lambda s, i, j: (s, j, i))
 
-        def tensorize_block(block: tir.schedule.BlockRV, intrin: str):
+        def tensorize_block(block: tir.schedule.SBlockRV, intrin: str):
             *_, i, j = sch.get_loops(block)
             io, ii = sch.split(i, [None, micro_size])
             jo, ji = sch.split(j, [None, micro_size])
@@ -1127,8 +1127,8 @@ class Matmul(GPUScheduleRule):
         self,
         sch: tir.Schedule,
         config: Config,
-        reduction_block: tir.schedule.BlockRV,
-        blocks: List[tir.schedule.BlockRV],
+        reduction_block: tir.schedule.SBlockRV,
+        blocks: List[tir.schedule.SBlockRV],
     ) -> Optional[tir.Schedule]:
         """Get vectorization factor"""
 

@@ -41,7 +41,7 @@ class ScriptCompleter : public StmtMutator {
 
  private:
   ffi::Map<Var, Buffer>* buffer_var_map_;
-  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     for (const PrimExpr& value : op->iter_values) {
       CHECK(value.dtype().is_int())
           << "BlockRealize iter_value expected a IntImm, but got " << value.dtype();
@@ -49,7 +49,7 @@ class ScriptCompleter : public StmtMutator {
     return StmtMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     // Buffers allocated in the block can be accessed by its body.
     for (const auto& alloc_buffer : op->alloc_buffers) {
       buffer_var_map_->Set(alloc_buffer->data, alloc_buffer);
@@ -61,7 +61,7 @@ class ScriptCompleter : public StmtMutator {
 
     bool is_root_block = this->is_root_block_;
     this->is_root_block_ = false;
-    Block block = Downcast<Block>(StmtMutator::VisitStmt_(op));
+    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
     this->is_root_block_ = is_root_block;
 
     // Remove buffers allocated inside block to detect its access region
@@ -81,7 +81,7 @@ class ScriptCompleter : public StmtMutator {
     }
     // ignore root block or blocks which already has reads/writes regions
     if (mask != 0) {
-      auto access_region = GetBlockAccessRegion(block, *buffer_var_map_);
+      auto access_region = GetSBlockAccessRegion(block, *buffer_var_map_);
       const ffi::Array<BufferRegion>& reads = access_region[0];
       const ffi::Array<BufferRegion>& writes = access_region[1];
       const ffi::Array<BufferRegion>& opaque = access_region[2];
@@ -95,7 +95,7 @@ class ScriptCompleter : public StmtMutator {
       }
       n->annotations = op->annotations;
       n->annotations.erase(attr::script_parsing_detect_access);
-      return Block(n);
+      return SBlock(n);
     } else {
       return block;
     }
@@ -134,19 +134,19 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<Buffer>& root_allocates)
     if (root_allocates.size()) {
       return true;
     }
-    auto* block_realize = func->body.as<BlockRealizeNode>();
+    auto* block_realize = func->body.as<SBlockRealizeNode>();
     if (block_realize && block_realize->block->iter_vars.size()) {
       return true;
     }
-    if (!block_realize && ContainsNode<BlockRealizeNode>(func->body)) {
+    if (!block_realize && ContainsNode<SBlockRealizeNode>(func->body)) {
       return true;
     }
     return false;
   }();
 
   if (should_insert_root) {
-    Block root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates);
-    res = BlockRealize({}, Bool(true), std::move(root_block));
+    SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates);
+    res = SBlockRealize({}, Bool(true), std::move(root_block));
   }
 
   // generate surrounding loops automatically

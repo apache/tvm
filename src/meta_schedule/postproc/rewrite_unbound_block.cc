@@ -34,7 +34,7 @@ class UnboundBlockFinder : private StmtVisitor {
       BaseFunc base_func = kv.second;
       if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
         finder.global_var_name_ = g_var->name_hint;
-        finder(Downcast<BlockRealize>(prim_func->body)->block->body);
+        finder(Downcast<SBlockRealize>(prim_func->body)->block->body);
       }
     }
     return std::move(finder.blocks_);
@@ -58,7 +58,7 @@ class UnboundBlockFinder : private StmtVisitor {
     }
   }
 
-  void VisitStmt_(const BlockNode* block) final {
+  void VisitStmt_(const SBlockNode* block) final {
     blocks_.emplace_back(self_->stmt2ref.at(block), global_var_name_);
   }
 
@@ -119,9 +119,9 @@ class RewriteUnboundBlockNode : public PostprocNode {
 };
 
 bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
-  using tir::BlockRV;
   using tir::ExprRV;
   using tir::LoopRV;
+  using tir::SBlockRV;
   using tir::Schedule;
   ICHECK_NE(this->max_threads_per_block_, -1);
   auto get_factor = [t = this->max_threads_per_block_](int max_extent) -> ExprRV {
@@ -132,7 +132,7 @@ bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
   for (const auto& kv : unbound_blocks) {
     tir::StmtSRef block_sref = kv.first;
     ffi::String global_var_name = kv.second;
-    BlockRV block_rv = GetRVFromSRef(sch, block_sref, global_var_name);
+    SBlockRV block_rv = GetRVFromSRef(sch, block_sref, global_var_name);
     BindBlockThreadIdx(sch, block_rv, max_threadblocks_, max_threads_per_block_, get_factor);
   }
   return true;

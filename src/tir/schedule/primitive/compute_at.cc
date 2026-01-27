@@ -37,8 +37,8 @@ class NotAllRequiredBlocksAreVisitedError : public ScheduleError {
       : mod_(mod), num_not_visited_(num_not_visited) {
     required_.reserve(required.size());
     for (const StmtSRef& block_sref : required) {
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-      required_.push_back(ffi::GetRef<Block>(block));
+      const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+      required_.push_back(ffi::GetRef<SBlock>(block));
     }
   }
 
@@ -68,7 +68,7 @@ class NotAllRequiredBlocksAreVisitedError : public ScheduleError {
  private:
   IRModule mod_;
   int num_not_visited_;
-  ffi::Array<Block> required_;
+  ffi::Array<SBlock> required_;
 };
 
 /*!
@@ -110,11 +110,11 @@ class NotInSameScopeError : public ScheduleError {
  private:
   explicit NotInSameScopeError(IRModule mod, const StmtSRef& block_sref, const StmtSRef& loop_sref)
       : mod_(mod),
-        block_(ffi::GetRef<Block>(block_sref->StmtAs<BlockNode>())),
+        block_(ffi::GetRef<SBlock>(block_sref->StmtAs<SBlockNode>())),
         loop_(ffi::GetRef<For>(loop_sref->StmtAs<ForNode>())) {}
 
   IRModule mod_;
-  Block block_;
+  SBlock block_;
   For loop_;
 };
 
@@ -138,11 +138,10 @@ class NotInSameScopeError : public ScheduleError {
  * \throws ScheduleError if there is no such insertion point found
  */
 template <bool require_all_producers_visited, bool require_all_consumers_visited>
-int FindInsertionPoint(const ScheduleState& self, const ffi::Array<Stmt>& subtrees,
-                       const ffi::Array<StmtSRef>& producer_srefs,
-                       const ffi::Array<StmtSRef>& consumer_srefs,
-                       std::unordered_map<const BlockNode*, const BlockRealizeNode*>* block2realize,
-                       int index) {
+int FindInsertionPoint(
+    const ScheduleState& self, const ffi::Array<Stmt>& subtrees,
+    const ffi::Array<StmtSRef>& producer_srefs, const ffi::Array<StmtSRef>& consumer_srefs,
+    std::unordered_map<const SBlockNode*, const SBlockRealizeNode*>* block2realize, int index) {
   ProducerConsumerSplit split =
       ProducerConsumerSplit::Find(self, subtrees, producer_srefs, consumer_srefs, block2realize);
   // Step 1. Check if all the producers are visited in the subtrees, if required to
@@ -239,7 +238,7 @@ struct BlockVarDomainInfo {
  */
 class ScopeReconstructor : private StmtMutator {
  public:
-  explicit ScopeReconstructor(Block scope_root, Block block, For loop)
+  explicit ScopeReconstructor(SBlock scope_root, SBlock block, For loop)
       : scope_root_(scope_root), block_(block), loop_(loop) {}
 
   using StmtMutator::operator();
@@ -292,7 +291,7 @@ class ScopeReconstructor : private StmtMutator {
       }
     }
     this->new_block_realize_ =
-        BlockRealize(std::move(iter_values), analyzer->Simplify(predicate), std::move(block_));
+        SBlockRealize(std::move(iter_values), analyzer->Simplify(predicate), std::move(block_));
     Stmt new_subtree = this->new_block_realize_;
     for (int i = static_cast<int>(loop_vars.size()) - 1; i >= 0; --i) {
       const Var& loop_var = loop_vars[i];
@@ -311,12 +310,12 @@ class ScopeReconstructor : private StmtMutator {
   }
 
  private:
-  Stmt VisitStmt_(const BlockNode* block) final {
+  Stmt VisitStmt_(const SBlockNode* block) final {
     if (block != scope_root_.get()) {
-      return ffi::GetRef<Block>(block);
+      return ffi::GetRef<SBlock>(block);
     }
     if (block == rm_src_stmt_.get()) {
-      block = TVM_TYPE_AS(rm_tgt_stmt_, BlockNode);
+      block = TVM_TYPE_AS(rm_tgt_stmt_, SBlockNode);
     }
     return StmtMutator::VisitStmt_(block);
   }
@@ -333,15 +332,15 @@ class ScopeReconstructor : private StmtMutator {
 
  public:
   /*! \brief The root block of the block scope */
-  Block scope_root_;
+  SBlock scope_root_;
   /*! \brief The given block to be moved */
-  Block block_;
+  SBlock block_;
   /*! \brief The given loop the block and its loop nest to be put under */
   For loop_;
   /*! \brief The new loop to replace the original loop */
   For new_loop_{nullptr};
   /*! \brief The new block realize to the moved block */
-  BlockRealize new_block_realize_{nullptr};
+  SBlockRealize new_block_realize_{nullptr};
   /*! \brief The plan to remove the given block by replacing this loop/block in the AST */
   Stmt rm_src_stmt_{nullptr};
   /*! \brief The plan to remove the given block by replacing to this loop/block in the AST */
@@ -659,8 +658,8 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
  */
 template <bool is_compute_at>
 void CalculateProvidedRequiredRegions(
-    const BlockNode* block, const StmtSRef& loop_sref,
-    std::unordered_map<const BlockNode*, const BlockRealizeNode*> block2realize,
+    const SBlockNode* block, const StmtSRef& loop_sref,
+    std::unordered_map<const SBlockNode*, const SBlockRealizeNode*> block2realize,
     ffi::Array<StmtSRef> producer_srefs, ffi::Array<StmtSRef> consumer_srefs,
     std::unordered_map<const BufferNode*, std::vector<NDIntSet>>* provided_regions,
     std::unordered_map<const BufferNode*, std::vector<NDIntSet>>* required_regions) {
@@ -676,10 +675,10 @@ void CalculateProvidedRequiredRegions(
   }
   // Step 2. Calculate the region required by dependent blocks under `loop`
   for (const StmtSRef& required_block_sref : is_compute_at ? consumer_srefs : producer_srefs) {
-    const BlockNode* required_block = TVM_SREF_TO_BLOCK(required_block_sref);
+    const SBlockNode* required_block = TVM_SREF_TO_SBLOCK(required_block_sref);
     ICHECK(block2realize.count(required_block));
     RelaxBufferRegions</*relax_storage_scope=*/is_compute_at>(
-        /*binding=*/GetBindings(ffi::GetRef<BlockRealize>(block2realize.at(required_block))),
+        /*binding=*/GetBindings(ffi::GetRef<SBlockRealize>(block2realize.at(required_block))),
         /*buffer_regions=*/is_compute_at ? required_block->reads : required_block->writes,
         /*relax_path_low_inclusive=*/ffi::GetRef<StmtSRef>(required_block_sref->parent),
         /*relax_path_high_exclusive=*/loop_sref, /*relaxed=*/required_regions);
@@ -693,15 +692,15 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
                                      const StmtSRef& loop_sref, bool preserve_unit_loops,
                                      arith::Analyzer* analyzer, bool check_only = false,
                                      int index = -1) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   // Step 1. Bunch of checks
   // Check condition 1) : scope stage pipeline
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
                                           /*require_stage_pipeline=*/true);
-  Block scope_root = ffi::GetRef<Block>(scope_root_sref->StmtAs<BlockNode>());
+  SBlock scope_root = ffi::GetRef<SBlock>(scope_root_sref->StmtAs<SBlockNode>());
   AddShapeVarBounds(self, scope_root_sref.get(), analyzer);
-  BlockScope scope = self->GetBlockScope(scope_root_sref);
+  SBlockScope scope = self->GetSBlockScope(scope_root_sref);
   ffi::Array<StmtSRef> producer_srefs = GetProducers(block_sref, scope);
   ffi::Array<StmtSRef> consumer_srefs = GetConsumers(block_sref, scope);
   // Check condition 2) : `block` is a complete or reduction block
@@ -715,11 +714,11 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
     CheckNotOutputBlock(self, block_sref, scope_root_sref);
   }
   // Step 2. Plan for the removal of `block`
-  ScopeReconstructor reconstructor(scope_root, ffi::GetRef<Block>(block), ffi::GetRef<For>(loop));
+  ScopeReconstructor reconstructor(scope_root, ffi::GetRef<SBlock>(block), ffi::GetRef<For>(loop));
   LeafBlockRemovalPlan(self, block_sref, &reconstructor.rm_src_stmt_, &reconstructor.rm_tgt_stmt_);
   // Step 3. Find the insertion point under `loop`
   // Check condition 5): all the required block are under the given loop
-  std::unordered_map<const BlockNode*, const BlockRealizeNode*> block2realize;
+  std::unordered_map<const SBlockNode*, const SBlockRealizeNode*> block2realize;
   block2realize.reserve(self->block_info.size());
   int insert_position = FindInsertionPoint<!is_compute_at, is_compute_at>(
       /*self=*/self,
@@ -748,7 +747,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   // Step 6. Create the new scope according to the iteration domain
   reconstructor.MakeNewLoop(/*insert_position=*/insert_position, /*iter_doms=*/std::move(iter_doms),
                             /*analyzer=*/analyzer, /*preserve_unit_loops=*/preserve_unit_loops);
-  Block new_scope_root = Downcast<Block>(reconstructor(scope_root));
+  SBlock new_scope_root = Downcast<SBlock>(reconstructor(scope_root));
 
   // Step 7. Do the actual replacement
   if (check_only) {
@@ -756,7 +755,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   }
   self->Replace(scope_root_sref, new_scope_root, {{scope_root, new_scope_root}});
   // Step 8. Update the cached flags
-  BlockInfo& block_info = self->block_info[block_sref];
+  SBlockInfo& block_info = self->block_info[block_sref];
   block_info.affine_binding = IsAffineBinding(
       /*realize=*/reconstructor.new_block_realize_,
       /*loop_var_ranges=*/LoopDomainOfSRefTreePath(ffi::GetRef<StmtSRef>(block_sref->parent)),
@@ -812,7 +811,7 @@ struct ComputeAtTraits : public UnpackedInstTraits<ComputeAtTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, LoopRV loop_rv,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, LoopRV loop_rv,
                                       Bool preserve_unit_loops, IntImm index) {
     return sch->ComputeAt(block_rv, loop_rv, preserve_unit_loops.operator bool(), index->value);
   }
@@ -840,7 +839,7 @@ struct ReverseComputeAtTraits : public UnpackedInstTraits<ReverseComputeAtTraits
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, LoopRV loop_rv,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, LoopRV loop_rv,
                                       Bool preserve_unit_loops, IntImm index) {
     return sch->ReverseComputeAt(block_rv, loop_rv, preserve_unit_loops.operator bool(),
                                  index->value);

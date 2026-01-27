@@ -31,14 +31,14 @@ namespace meta_schedule {
  * \brief Tile a subset of loops in the block according to the given tensor intrinsic, and annotate
  * the tiled block for tensorization by postproc rewrite.
  */
-ffi::Optional<tir::BlockRV> TileForIntrin(tir::Schedule sch, tir::BlockRV block,
-                                          const std::string& intrin_name) {
+ffi::Optional<tir::SBlockRV> TileForIntrin(tir::Schedule sch, tir::SBlockRV block,
+                                           const std::string& intrin_name) {
   ffi::Optional<tir::LoopRV> tiled_loop_rv = TileWithTensorIntrin(sch, block, intrin_name);
   if (!tiled_loop_rv) {
     return std::nullopt;
   }
   ICHECK(tiled_loop_rv.defined());
-  tir::BlockRV outer_block = sch->Blockize(tiled_loop_rv.value());
+  tir::SBlockRV outer_block = sch->Blockize(tiled_loop_rv.value());
   sch->Annotate(outer_block, tir::attr::meta_schedule_auto_tensorize, ffi::String(intrin_name));
   return outer_block;
 }
@@ -48,7 +48,7 @@ ffi::Optional<tir::BlockRV> TileForIntrin(tir::Schedule sch, tir::BlockRV block,
  */
 class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
  protected:
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) final {
     auto desc_func = tir::TensorIntrin::Get(intrin_name).value()->desc;
     if (!CheckAutoTensorizeApplicable(sch, block_rv, desc_func)) {
       TVM_PY_LOG(INFO, logger) << "The workload cannot be tensorized.";

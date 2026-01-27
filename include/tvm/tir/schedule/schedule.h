@@ -45,27 +45,27 @@ enum class BufferIndexType : int32_t {
   kWrite = 1,
 };
 
-/**************** Random variable: BlockRV ****************/
+/**************** Random variable: SBlockRV ****************/
 
 /*! \brief A random variable that evaluates to a TensorIR block */
-class BlockRVNode : public runtime::Object {
+class SBlockRVNode : public runtime::Object {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BlockRVNode>();
+    refl::ObjectDef<SBlockRVNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockRV", BlockRVNode, runtime::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SBlockRV", SBlockRVNode, runtime::Object);
 };
 
 /*!
- * \brief Managed reference to BlockRVNode
- * \sa BlockRVNode
+ * \brief Managed reference to SBlockRVNode
+ * \sa SBlockRVNode
  */
-class BlockRV : public runtime::ObjectRef {
+class SBlockRV : public runtime::ObjectRef {
  public:
   /*! \brief Constructor */
-  TVM_DLL BlockRV();
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockRV, runtime::ObjectRef, BlockRVNode);
+  TVM_DLL SBlockRV();
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockRV, runtime::ObjectRef, SBlockRVNode);
 };
 
 /**************** Random variable: LoopRV ****************/
@@ -129,11 +129,11 @@ class ScheduleNode : public runtime::Object {
    * their names are "main", users will have to call this method to explicitly specify which
    * function to work on.
    *
-   * This sugar function will guide the `GetBlock` method if its `func_name` is not specified.
+   * This sugar function will guide the `GetSBlock` method if its `func_name` is not specified.
    *
    * \param func_name The name of the function to be working on
    *
-   * \sa GetBlock
+   * \sa GetSBlock
    */
   virtual void WorkOn(const ffi::String& func_name) = 0;
   /*!
@@ -156,11 +156,11 @@ class ScheduleNode : public runtime::Object {
  public:
   /******** Lookup/Remove random variables ********/
   /*!
-   * \brief Get the block corresponding to the specific BlockRV
-   * \param block_rv The BlockRV to be looked up
+   * \brief Get the block corresponding to the specific SBlockRV
+   * \param block_rv The SBlockRV to be looked up
    * \return The corresponding block
    */
-  virtual Block Get(const BlockRV& block_rv) const = 0;
+  virtual SBlock Get(const SBlockRV& block_rv) const = 0;
   /*!
    * \brief Get the for loop corresponding to the specific LoopRV
    * \param loop_rv The LoopRV to be looked up
@@ -174,11 +174,11 @@ class ScheduleNode : public runtime::Object {
    */
   virtual PrimExpr Get(const ExprRV& expr_rv) const = 0;
   /*!
-   * \brief Get the block sref corresponding to the specific BlockRV
-   * \param block_rv The BlockRV to be looked up
+   * \brief Get the block sref corresponding to the specific SBlockRV
+   * \param block_rv The SBlockRV to be looked up
    * \return The corresponding block sref
    */
-  virtual StmtSRef GetSRef(const BlockRV& block_rv) const = 0;
+  virtual StmtSRef GetSRef(const SBlockRV& block_rv) const = 0;
   /*!
    * \brief Get the loop sref corresponding to the specific LoopRV
    * \param loop_rv The LoopRV to be looked up
@@ -186,11 +186,11 @@ class ScheduleNode : public runtime::Object {
    */
   virtual StmtSRef GetSRef(const LoopRV& loop_rv) const = 0;
   /*!
-   * \brief Check the existance of a specific BlockRV
-   * \param block_rv The BlockRV to be looked up
+   * \brief Check the existance of a specific SBlockRV
+   * \param block_rv The SBlockRV to be looked up
    * \return Whether the corresponding block exists
    */
-  virtual bool HasBlock(const BlockRV& block_rv) const = 0;
+  virtual bool HasBlock(const SBlockRV& block_rv) const = 0;
   /*!
    * \brief Get the block/loop sref corresponding to the specific statement
    * \param stmt The statement to be looked up
@@ -207,7 +207,7 @@ class ScheduleNode : public runtime::Object {
    * \brief Remove a block random variable from the symbol table
    * \param block_rv The random variable to be removed
    */
-  virtual void RemoveRV(const BlockRV& block_rv) = 0;
+  virtual void RemoveRV(const SBlockRV& block_rv) = 0;
   /*!
    * \brief Remove a loop random variable from the symbol table
    * \param loop_rv The random variable to be removed
@@ -266,7 +266,7 @@ class ScheduleNode : public runtime::Object {
    * \param decision The sampling decision
    * \return The sampled loop where the input block is to be computed at
    */
-  virtual LoopRV SampleComputeLocation(const BlockRV& block_rv,
+  virtual LoopRV SampleComputeLocation(const SBlockRV& block_rv,
                                        ffi::Optional<Integer> decision = std::nullopt) = 0;
 
   /******** Schedule: Get blocks & loops ********/
@@ -284,40 +284,40 @@ class ScheduleNode : public runtime::Object {
    *
    * \sa WorkOn
    */
-  virtual BlockRV GetBlock(const ffi::String& name,
-                           const ffi::Optional<ffi::String>& func_name = std::nullopt) = 0;
+  virtual SBlockRV GetSBlock(const ffi::String& name,
+                             const ffi::Optional<ffi::String>& func_name = std::nullopt) = 0;
   /*!
    * \brief Get the parent loops of the block in its scope, from outer to inner
    * \param block_rv The query block
    * \return A list of loops above the given block in its scope, from outer to inner
    */
-  virtual ffi::Array<LoopRV> GetLoops(const BlockRV& block_rv) = 0;
+  virtual ffi::Array<LoopRV> GetLoops(const SBlockRV& block_rv) = 0;
   /*!
    * \brief Get the leaf blocks of a specific scope
    * \param block_rv The block where the scope is rooted
    * \return A list of child blocks
    */
-  virtual ffi::Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) = 0;
+  virtual ffi::Array<SBlockRV> GetChildBlocks(const SBlockRV& block_rv) = 0;
   /*!
    * \brief Get the leaf blocks of under a specific loop
    * \param loop_rv The loop under which collecting is conducted
    * \return A list of child blocks
    */
-  virtual ffi::Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) = 0;
+  virtual ffi::Array<SBlockRV> GetChildBlocks(const LoopRV& loop_rv) = 0;
   /*!
    * \brief Get the producer of a specific block, under the same block scope
    * \param block_rv The block in the query
    * \return A list of blocks, the producers of the given block under the same scope of the given
    * block
    */
-  virtual ffi::Array<BlockRV> GetProducers(const BlockRV& block_rv) = 0;
+  virtual ffi::Array<SBlockRV> GetProducers(const SBlockRV& block_rv) = 0;
   /*!
    * \brief Get the consumers of a specific block, under the same block scope
    * \param block_rv The block to be queried
    * \return A list of blocks, the consumers of the given block under the same scope of the given
    * block
    */
-  virtual ffi::Array<BlockRV> GetConsumers(const BlockRV& block_rv) = 0;
+  virtual ffi::Array<SBlockRV> GetConsumers(const SBlockRV& block_rv) = 0;
   /*!
    * \brief Get the list of output blocks within the given scope
    * An output block is a block which has atleast one buffer being written
@@ -326,7 +326,7 @@ class ScheduleNode : public runtime::Object {
    * \return A list of all blocks that write to some output buffer
    * block
    */
-  virtual ffi::Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) = 0;
+  virtual ffi::Array<SBlockRV> GetOutputBlocks(const SBlockRV& scope_block_rv) = 0;
   /******** Schedule: Transform loops ********/
   /*!
    * \brief Merge a list of loops into one. The loops under their LCA requires:
@@ -395,14 +395,14 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The block to be transformed.
    * \param new_order The new itervar order.
    */
-  virtual void ReorderBlockIterVar(const BlockRV& block_rv,
+  virtual void ReorderBlockIterVar(const SBlockRV& block_rv,
                                    const ffi::Array<Integer> new_order) = 0;
   /*!
    * \brief Create a new unit loop on top of the specific block.
    * \param block_rv The block above which the new loop is created
    * \return The new loop created
    */
-  virtual LoopRV AddUnitLoop(const BlockRV& block_rv) = 0;
+  virtual LoopRV AddUnitLoop(const SBlockRV& block_rv) = 0;
   /*!
    * \brief Create a new unit loop on top of the specific loop.
    * \param loop_rv The loop above which the new loop is created
@@ -458,9 +458,9 @@ class ScheduleNode : public runtime::Object {
    * \param consumer_blocks An optional list of consumers of the cache to rewrite.
    * \return The cache stage block.
    */
-  virtual BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                            const ffi::String& storage_scope,
-                            const ffi::Array<BlockRV> consumer_blocks = {}) = 0;
+  virtual SBlockRV CacheRead(const SBlockRV& block_rv, int read_buffer_index,
+                             const ffi::String& storage_scope,
+                             const ffi::Array<SBlockRV> consumer_blocks = {}) = 0;
   /*!
    * \brief Create a block that writes a buffer region into a write cache. It requires:
    * 1) There is only one block who writes the target buffer.
@@ -471,9 +471,9 @@ class ScheduleNode : public runtime::Object {
    * \param consumer_blocks An optional list of consumers to read from cache directly.
    * \return The cache stage block.
    */
-  virtual BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                             const ffi::String& storage_scope,
-                             const ffi::Array<BlockRV> consumer_blocks = {}) = 0;
+  virtual SBlockRV CacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+                              const ffi::String& storage_scope,
+                              const ffi::Array<SBlockRV> consumer_blocks = {}) = 0;
   /*!
    * \brief Create a block that reads a buffer region into a read cache. It requires:
    * 1) There is at most one block who writes the buffer in the scope.
@@ -486,8 +486,9 @@ class ScheduleNode : public runtime::Object {
    * vars.
    * \return The cache stage block.
    */
-  virtual BlockRV ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
-                                   const ffi::String& storage_scope, const IndexMap& index_map) = 0;
+  virtual SBlockRV ReindexCacheRead(const SBlockRV& block_rv, int read_buffer_index,
+                                    const ffi::String& storage_scope,
+                                    const IndexMap& index_map) = 0;
   /*!
    * \brief Create a block that writes a buffer region into a write cache. It requires:
    * 1) There is only one block who writes the target buffer.
@@ -500,9 +501,9 @@ class ScheduleNode : public runtime::Object {
    * vars.
    * \return The cache stage block.
    */
-  virtual BlockRV ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
-                                    const ffi::String& storage_scope,
-                                    const IndexMap& index_map) = 0;
+  virtual SBlockRV ReindexCacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+                                     const ffi::String& storage_scope,
+                                     const IndexMap& index_map) = 0;
   /*!
    * \brief Create 2 blocks that read&write a buffer region into a read/write cache.
    * It requires the target block both read & write the target buffer.
@@ -511,8 +512,8 @@ class ScheduleNode : public runtime::Object {
    * \param storage_scope The target storage scope
    * \return The cache stage blocks, cache read block together with cache write block.
    */
-  virtual ffi::Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
-                                           const ffi::String& storage_scope) = 0;
+  virtual ffi::Array<SBlockRV> CacheInplace(const SBlockRV& block_rv, int read_buffer_index,
+                                            const ffi::String& storage_scope) = 0;
   /*!
    * \brief Create a block to cache precomputed index for later use.
    * if there is no index computation, keep unchanged.
@@ -521,8 +522,8 @@ class ScheduleNode : public runtime::Object {
    * \param cse_thresh The repeat threshold that determines a common sub expr
    * \return The cache stage blocks.
    */
-  virtual ffi::Array<BlockRV> CacheIndex(const BlockRV& block_rv, const ffi::String& storage_scope,
-                                         int cse_thresh) = 0;
+  virtual ffi::Array<SBlockRV> CacheIndex(const SBlockRV& block_rv,
+                                          const ffi::String& storage_scope, int cse_thresh) = 0;
   /*!
    * \brief Create a block that read/write a buffer region into a read/write cache with reindexing.
    * The layout of the cache will be the same as by the iterators of the block that reads/writes the
@@ -534,13 +535,13 @@ class ScheduleNode : public runtime::Object {
    * \param buffer_index_type The type of the buffer index, kRead or kWrite.
    * \return The reindex stage block.
    */
-  virtual BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
-                          BufferIndexType buffer_index_type) = 0;
+  virtual SBlockRV ReIndex(const SBlockRV& block_rv, int buffer_index,
+                           BufferIndexType buffer_index_type) = 0;
   /******** Schedule: Data movement ********/
-  virtual BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,
-                         const ffi::String& storage_scope) = 0;
-  virtual BlockRV WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv, int write_buffer_index,
+  virtual SBlockRV ReadAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int read_buffer_index,
                           const ffi::String& storage_scope) = 0;
+  virtual SBlockRV WriteAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int write_buffer_index,
+                           const ffi::String& storage_scope) = 0;
   /******** Schedule: Compute location ********/
   /*!
    * \brief Move a producer block under the specific loop, and regenerate the
@@ -562,7 +563,7 @@ class ScheduleNode : public runtime::Object {
    * - `index = -2` means inserted into the first possible insertion point;
    * - Otherwise, `index` is a nonnegative number that indicates the insertion point
    */
-  virtual void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+  virtual void ComputeAt(const SBlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
                          int index = -1) = 0;
   /*!
    * \brief Move a consumer block under the specific loop, and regenerate the
@@ -583,7 +584,7 @@ class ScheduleNode : public runtime::Object {
    * - `index = -2` means inserted into the first possible insertion point;
    * - Otherwise, `index` is a nonnegative number that indicates the insertion point
    */
-  virtual void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv,
+  virtual void ReverseComputeAt(const SBlockRV& block_rv, const LoopRV& loop_rv,
                                 bool preserve_unit_loops, int index = -1) = 0;
   /*!
    * \brief Inline a block into its consumer(s). It requires:
@@ -595,7 +596,7 @@ class ScheduleNode : public runtime::Object {
    * and no variables other than those indexing variables are allowed in the statement.
    * \param block The block to be inlined to its consumer(s)
    */
-  virtual void ComputeInline(const BlockRV& block) = 0;
+  virtual void ComputeInline(const SBlockRV& block) = 0;
   /*!
    * \brief Inline a block into its only producer. It requires:
    * 1) The block is a complete non-root block, which only produces and consumers one buffer
@@ -607,14 +608,14 @@ class ScheduleNode : public runtime::Object {
    * and no variables other than those indexing variables are allowed in the statement.
    * \param block The block to be inlined to its producer
    */
-  virtual void ReverseComputeInline(const BlockRV& block) = 0;
+  virtual void ReverseComputeInline(const SBlockRV& block) = 0;
   /*!
    * \brief Fuse an epilogue block into a reduction block
    * \param reduction_block The reduction block (e.g., matmul)
    * \param epilogue_block The epilogue block to be fused (e.g., bias add)
    */
-  virtual void FuseReductionEpilogue(const BlockRV& reduction_block,
-                                     const BlockRV& epilogue_block) = 0;
+  virtual void FuseReductionEpilogue(const SBlockRV& reduction_block,
+                                     const SBlockRV& epilogue_block) = 0;
   /******** Schedule: Reduction ********/
   /*!
    * \brief Decompose a reduction block into two separate blocks.
@@ -631,7 +632,7 @@ class ScheduleNode : public runtime::Object {
    * \param loop_rv The loop above which the init block is inserted before.
    * \return The init block
    */
-  virtual BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) = 0;
+  virtual SBlockRV DecomposeReduction(const SBlockRV& block_rv, const LoopRV& loop_rv) = 0;
   /*!
    * \brief Factorize an associative reduction block by the specified loop.
    * \details An associative reduction cannot be parallelized directly,
@@ -649,8 +650,8 @@ class ScheduleNode : public runtime::Object {
    *                    ndim(B)]`, and the negative index will be normalized to a non-negative one
    * \return The rfactor block
    */
-  virtual BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) = 0;
-  /******** Schedule: Block annotation ********/
+  virtual SBlockRV RFactor(const LoopRV& loop_rv, int factor_axis) = 0;
+  /******** Schedule: SBlock annotation ********/
   /*!
    * \brief Set alignment requirement for specific dimension such that
    *        stride[axis] == k * factor + offset for some k. This is useful to set memory layout for
@@ -663,7 +664,7 @@ class ScheduleNode : public runtime::Object {
    * \param factor The factor multiple of alignment
    * \param offset The required offset factor
    */
-  virtual void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
+  virtual void StorageAlign(const SBlockRV& block_rv, int buffer_index, int axis, int factor,
                             int offset) = 0;
   /*!
    * \brief Set the storage scope of a buffer, where the buffer is specified by a block and a
@@ -672,7 +673,7 @@ class ScheduleNode : public runtime::Object {
    * \param buffer_index The index of the buffer in block's write region
    * \param storage_scope The storage scope to be set
    */
-  virtual void SetScope(const BlockRV& block_rv, int buffer_index,
+  virtual void SetScope(const SBlockRV& block_rv, int buffer_index,
                         const ffi::String& storage_scope) = 0;
   /*!
    * \brief Set the data type of a buffer, where the buffer is specified by a block and a
@@ -683,7 +684,7 @@ class ScheduleNode : public runtime::Object {
    * \param buffer_index the index of the buffer in block's write region
    * \param dtype The data type to be set
    */
-  virtual void UnsafeSetDType(const BlockRV& block_rv, int buffer_index,
+  virtual void UnsafeSetDType(const SBlockRV& block_rv, int buffer_index,
                               const ffi::String& dtype) = 0;
   /******** Schedule: Blockize & Tensorize ********/
   /*!
@@ -692,14 +693,15 @@ class ScheduleNode : public runtime::Object {
    * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return the new block
    */
-  virtual BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters = true) = 0;
+  virtual SBlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Convert specified blocks into a nested block.
    * \param blocks the specified block to construct the new block
    * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return the new block
    */
-  virtual BlockRV Blockize(const ffi::Array<BlockRV>& blocks, bool preserve_unit_iters = true) = 0;
+  virtual SBlockRV Blockize(const ffi::Array<SBlockRV>& blocks,
+                            bool preserve_unit_iters = true) = 0;
   /*!
    * \brief Tensorize the computation enclosed by loop with the tensor intrin.
    * \param loop_rv The loop to be tensorized
@@ -714,7 +716,7 @@ class ScheduleNode : public runtime::Object {
    * \param intrin Name of the tensor intrinsic
    * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    */
-  virtual void Tensorize(const BlockRV& block_rv, const ffi::String& intrin,
+  virtual void Tensorize(const SBlockRV& block_rv, const ffi::String& intrin,
                          bool preserve_unit_iters = true) = 0;
 
   /******** Schedule: Annotation ********/
@@ -731,7 +733,7 @@ class ScheduleNode : public runtime::Object {
    * \param ann_key The annotation key
    * \param ann_val The annotation value, a string or a ExprRV
    */
-  virtual void Annotate(const BlockRV& block_rv, const ffi::String& ann_key,
+  virtual void Annotate(const SBlockRV& block_rv, const ffi::String& ann_key,
                         const Any& ann_val) = 0;
   /*!
    * \brief Unannotate a loop's annotation with key ann_key
@@ -744,7 +746,7 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The block to be unannotated
    * \param ann_key The annotation key
    */
-  virtual void Unannotate(const BlockRV& block_rv, const ffi::String& ann_key) = 0;
+  virtual void Unannotate(const SBlockRV& block_rv, const ffi::String& ann_key) = 0;
 
   /******** Schedule: Layout transformation ********/
   /*!
@@ -778,7 +780,7 @@ class ScheduleNode : public runtime::Object {
    * to ensure the index map is injective, otherwise, the correctness of the schedule is not
    * guaranteed.
    */
-  virtual void TransformLayout(const BlockRV& block_rv, int buffer_index,
+  virtual void TransformLayout(const SBlockRV& block_rv, int buffer_index,
                                BufferIndexType buffer_index_type, const IndexMap& index_map,
                                const ffi::Optional<IndexMap>& pad_value = std::nullopt,
                                bool assume_injective_transform = false) = 0;
@@ -791,7 +793,7 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The block to be transformed
    * \param index_map The transformation to apply.
    */
-  virtual void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) = 0;
+  virtual void TransformBlockLayout(const SBlockRV& block_rv, const IndexMap& index_map) = 0;
 
   /*!
    * \brief Set the axis separator of a buffer, where the buffer is specified by a block and a read
@@ -801,7 +803,7 @@ class ScheduleNode : public runtime::Object {
    * \param buffer_index_type The type of the buffer index, kRead or kWrite.
    * \param axis_separators The axis separator of the buffer
    */
-  virtual void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
+  virtual void SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
                                 BufferIndexType buffer_index_type,
                                 const ffi::Array<IntImm>& axis_separators) = 0;
 
@@ -813,7 +815,7 @@ class ScheduleNode : public runtime::Object {
    * \param loop_rv The loop above which the const filling block is inserted before.
    * \return The const pad value filling block.
    */
-  virtual BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) = 0;
+  virtual SBlockRV DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) = 0;
 
   /*!
    * \brief Pad the computation of Einsum.
@@ -832,7 +834,7 @@ class ScheduleNode : public runtime::Object {
    * The size of the producer buffers are infered from the padding size of the Einsum computation.
    * The producer buffers are padded by the initial value of the corresponding reduction.
    */
-  virtual void PadEinsum(const BlockRV& block_rv, const ffi::Array<Integer>& padding) = 0;
+  virtual void PadEinsum(const SBlockRV& block_rv, const ffi::Array<Integer>& padding) = 0;
 
   /******** Schedule: Buffer transformation ********/
   /*!
@@ -849,7 +851,7 @@ class ScheduleNode : public runtime::Object {
    * \param block_rv The producer block of the buffer.
    * \param write_buffer_index The index of the buffer in block's write region.
    */
-  virtual void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) = 0;
+  virtual void RollingBuffer(const SBlockRV& block_rv, int write_buffer_index) = 0;
 
   /*!
    * \brief Annotate the buffer access of a block
@@ -858,7 +860,7 @@ class ScheduleNode : public runtime::Object {
    * \param buffer_index_type The type of the buffer index, kRead or kWrite.
    * \param index_map The index map that defines the new read or write region
    */
-  virtual void AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+  virtual void AnnotateBufferAccess(const SBlockRV& block_rv, int buffer_index,
                                     BufferIndexType buffer_index_type,
                                     const IndexMap& index_map) = 0;
 
@@ -872,7 +874,7 @@ class ScheduleNode : public runtime::Object {
    * \param buf_type The buffer type: read/write
    * \param buf_index_array The array of buffer indices we hide access.
    */
-  virtual void UnsafeHideBufferAccess(const BlockRV& block_rv, const ffi::String& buf_type,
+  virtual void UnsafeHideBufferAccess(const SBlockRV& block_rv, const ffi::String& buf_type,
                                       const ffi::Array<IntImm>& buf_index_array) = 0;
 };
 

@@ -60,9 +60,9 @@ TEST(IRF, PreOrderVisit) {
   using namespace tvm::tir;
   Stmt init = IfThenElse(const_true(), Evaluate(Integer(0)), Evaluate(Integer(0)));
   Stmt body = Evaluate(Integer(1));
-  Block block(/*iter_vars=*/{}, /*reads=*/{},
-              /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
-              /*init=*/init);
+  SBlock block(/*iter_vars=*/{}, /*reads=*/{},
+               /*writes=*/{}, /*name_hint=*/"block", /*body=*/body,
+               /*init=*/init);
   bool init_visited = false;
   bool stopped_at_if = true;
   bool body_visited = false;
@@ -169,9 +169,9 @@ TEST(IRF, StmtVisitor) {
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
 
     // construct block and block_realize
-    Block block =
+    SBlock block =
         Block({}, {buffer_region}, {buffer_region}, "block", body, body, {}, {match_buffer_region});
-    Stmt block_realize = BlockRealize({}, const_true(), block);
+    Stmt block_realize = SBlockRealize({}, const_true(), block);
 
     v.count = 0;
     v(block_realize);
@@ -296,9 +296,9 @@ TEST(IRF, StmtMutator) {
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
     // construct block and block_realize
-    Block block =
+    SBlock block =
         Block({}, {buffer_region}, {buffer_region}, "block", body, body, {}, {match_buffer_region});
-    Stmt block_realize = BlockRealize({}, const_true(), block);
+    Stmt block_realize = SBlockRealize({}, const_true(), block);
     body = v(std::move(block_realize));
     // the body should be changed
     Block new_block = body.as<BlockRealizeNode>()->block;
