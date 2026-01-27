@@ -20,7 +20,7 @@ import tvm.testing
 from tvm.script import tir as T
 from tvm.tir.buffer import Buffer
 from tvm.tir.function import PrimFunc
-from tvm.tir.stmt import Block
+from tvm.tir.stmt import SBlock
 
 
 def _check_func_signature_remap(lhs: PrimFunc, rhs: PrimFunc):

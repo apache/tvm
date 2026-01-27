@@ -24,7 +24,7 @@ import tvm.testing
 from tvm import tir
 from tvm.ir import IRModule
 from tvm.script import tir as T
-from tvm.tir import PrimFunc, BlockDependenceInfo
+from tvm.tir import PrimFunc, SBlockDependenceInfo
 from tvm.tir.stmt_functor import post_order_visit
 from tvm.tir.block_scope import DepKind
 
@@ -128,21 +128,21 @@ def _verify_dependence(dependence_info, src_block, dst_block, kind):
 
 def test_RAW_dependences():
     func = elementwise
-    dependence_info = BlockDependenceInfo(func)
+    dependence_info = SBlockDependenceInfo(func)
     blocks = get_sblocks(func)
     _verify_dependence(dependence_info, blocks["B"], blocks["C"], DepKind.RAW)
 
 
 def test_WAR_dependences():
     func = war_dependency
-    dependence_info = BlockDependenceInfo(func)
+    dependence_info = SBlockDependenceInfo(func)
     blocks = get_sblocks(func)
     _verify_dependence(dependence_info, blocks["C"], blocks["B"], DepKind.WAR)
 
 
 def test_RAW_and_WAW_dependences():
     func = matmul
-    dependence_info = BlockDependenceInfo(func)
+    dependence_info = SBlockDependenceInfo(func)
     blocks = get_sblocks(func)
     _verify_dependence(dependence_info, blocks["init"], blocks["update"], DepKind.RAW)
     _verify_dependence(dependence_info, blocks["init"], blocks["update"], DepKind.WAW)
