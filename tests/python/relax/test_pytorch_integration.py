@@ -71,7 +71,7 @@ class PyTorchIntegrationModule(BasePyModule):
         C = T.match_buffer(var_C, (n, 20), "float32")
 
         for i, j, k in T.grid(n, 20, 16):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = T.float32(0)

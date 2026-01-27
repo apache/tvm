@@ -50,7 +50,7 @@ def test_emit_te_with_symbolic_arg():
         ):
             T.func_attr({"tir.noalias": True})
             for i in range(T.int64(10)):
-                with T.block("B"):
+                with T.sblock("B"):
                     v_i = T.axis.spatial(T.int64(10), i)
                     T.writes(B[v_i])
                     B[v_i] = A[v_i + m]
@@ -101,7 +101,7 @@ def test_symbolic_shape_in_prim_value():
             T.func_attr({"tir.noalias": True})
 
             for i in range(A.shape[1]):
-                with T.block("slice"):
+                with T.sblock("slice"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = A[row_index, vi]
 

@@ -50,14 +50,14 @@ bool IsAncestor(SBlockRV b1, SBlockRV b2, Schedule sch) {
 
 // Inline or reverse inline spatial blocks after the anchor block
 void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
-  static auto kind_get_block = InstructionKind::Get("GetSBlock");
+  static auto kind_get_sblock = InstructionKind::Get("GetSBlock");
   // We let blocks whose names are referenced in the anchor trace be scheduled by the anchor trace.
   // We record such block names to avoid inlining them here.
-  std::unordered_set<std::string> get_block_names;
+  std::unordered_set<std::string> get_sblock_names;
   for (const auto& inst : anchor_trace->insts) {
-    if (inst->kind.same_as(kind_get_block)) {
+    if (inst->kind.same_as(kind_get_sblock)) {
       auto block_name = Downcast<ffi::String>(inst->attrs[0]);
-      get_block_names.insert(block_name);
+      get_sblock_names.insert(block_name);
     }
   }
 
@@ -74,7 +74,7 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
     }
     // Spatial blocks which are not referenced in the anchor trace will be inlined here.
     auto block_sref = sch->GetSRef(block);
-    if (IsSpatial(block_sref) && !get_block_names.count(name)) {
+    if (IsSpatial(block_sref) && !get_sblock_names.count(name)) {
       StmtSRef scopeRoot =
           (name != "root") ? GetScopeRoot(sch->state(), block_sref, false) : block_sref;
       if (IsOutputBlock(sch->state(), block_sref, scopeRoot)) {
@@ -101,7 +101,7 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
 // that remain unscheduled.
 std::vector<SBlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
   static auto kind_get_child_blocks = InstructionKind::Get("GetChildBlocks");
-  static auto kind_get_block = InstructionKind::Get("GetSBlock");
+  static auto kind_get_sblock = InstructionKind::Get("GetSBlock");
   static auto kind_compute_inline = InstructionKind::Get("ComputeInline");
   static auto kind_reverse_compute_inline = InstructionKind::Get("ReverseComputeInline");
 
@@ -142,9 +142,9 @@ std::vector<SBlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
 
     ffi::Array<Any> inputs = TranslateInputRVs(inst->inputs, rv_map);
 
-    if (inst->kind.same_as(kind_get_block) &&
+    if (inst->kind.same_as(kind_get_sblock) &&
         !HasBlock(sch, Downcast<ffi::String>(inst->attrs[0]))) {
-      // The anchor trace does get_block on a block that is not part of the target schedule.
+      // The anchor trace does get_sblock on a block that is not part of the target schedule.
       auto block = Downcast<SBlockRV>(inst->outputs[0]);
       foreign_blocks.insert(block);
       continue;

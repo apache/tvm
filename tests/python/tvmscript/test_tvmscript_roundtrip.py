@@ -2507,7 +2507,7 @@ def matmul():
         C = T.match_buffer(c, [128, 128])
 
         for i, j, k in T.grid(128, 128, 128):
-            with T.block("update"):
+            with T.sblock("update"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = T.float32(0)
@@ -2524,12 +2524,12 @@ def matmul_original():
         C = T.match_buffer(c, [128, 128])
 
         for i, j in T.grid(128, 128):
-            with T.block("init"):
+            with T.sblock("init"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = T.float32(0)
 
             for k in range(128):
-                with T.block("update"):
+                with T.sblock("update"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -2544,11 +2544,11 @@ def element_wise():
         B = T.alloc_buffer((128, 128), "float32")
 
         for i, j in T.grid(128, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * T.float32(2)
         for i, j in T.grid(128, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + T.float32(1)
 
@@ -2562,7 +2562,7 @@ def predicate():
         C = T.match_buffer(c, (16, 16), "float32")
 
         for i, jo, ji in T.grid(16, 4, 5):
-            with T.block("update"):
+            with T.sblock("update"):
                 vi = T.axis.S(16, i)
                 vj = T.axis.S(16, jo * 4 + ji)
                 T.where(jo * 4 + ji < 16)
@@ -2658,11 +2658,11 @@ def match_buffer_region():
         B = T.match_buffer(b, (1), "float32")
 
         for i, j in T.grid(16, 4):
-            with T.block():
+            with T.sblock():
                 vi, vj = T.axis.remap("SS", [i, j])
                 C = T.match_buffer(A[0:16, vi, vj * 4 : vj * 4 + 4], (16, 1, 4))
                 for ii in range(4):
-                    with T.block():
+                    with T.sblock():
                         vii = T.axis.S(4, ii)
                         D = T.match_buffer(C[vii * 4 : vii * 4 + 4, 0, 0:4], (4, 1, 4))
                         for i, j in T.grid(4, 4):
@@ -2701,12 +2701,12 @@ def block_elements():
         A = T.match_buffer(a, (16, 16), "float32")
         B = T.match_buffer(b, (1, 1), "float32")
 
-        with T.block("update"):
+        with T.sblock("update"):
             vi = T.axis.S(1, 0)
             T.where(True)
             T.reads(A[0:16, 0:16])
             T.writes(B[0, 0])
-            T.block_attr({"attr_key": "attr_value"})
+            T.sblock_attr({"attr_key": "attr_value"})
             C = T.alloc_buffer((4, 4), dtype="float32")
             D = T.match_buffer(A[0:4, 0], (4, 1))
             with T.init():
@@ -2739,11 +2739,11 @@ def opaque_block():
 
         for i in range(16):
             for j in range(16):
-                with T.block():
+                with T.sblock():
                     T.reads([])
                     T.writes(A[i, j])
                     A[i, j] = T.float32(0)
-            with T.block():
+            with T.sblock():
                 T.reads([A[i, 0:16]])
                 T.writes([B[i, 0:16]])
                 for j in range(16):
@@ -2854,7 +2854,7 @@ def rank0_block():
         B = T.alloc_buffer((), "float32")
         B[()] = A[()]
 
-        with T.block("update"):
+        with T.sblock("update"):
             T.reads([A[()]])
             T.writes([B[()]])
             for i in range(1):
@@ -2888,7 +2888,7 @@ def abs():
         A = T.match_buffer(a, (128, 128), "float32")
 
         for i, j in T.grid(128, 128):
-            with T.block("A"):
+            with T.sblock("A"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 A[vi, vj] = T.abs(A[vi, vj])
 
@@ -2924,11 +2924,11 @@ def var_with_same_name():
     def var_with_same_name(a: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         for i, j in T.grid(16, 16):
-            with T.block():
+            with T.sblock():
                 vi, vj = T.axis.remap("SS", [i, j])
                 A[vi, vj] = 0
         for i, j in T.grid(16, 16):
-            with T.block():
+            with T.sblock():
                 vi, vj = T.axis.remap("SS", [i, j])
                 A[vi, vj] = 0
 
@@ -2952,7 +2952,7 @@ def while_loop():
         B = T.match_buffer(b, (16,), "float32")
         i = T.alloc_buffer((), "int32", scope="local")
         for ii in range(16):
-            with T.block():
+            with T.sblock():
                 vi = T.axis.S(16, ii)
                 B[vi] = 0
             while i[()] < 10:
@@ -3031,11 +3031,11 @@ def multiple_commreducer():
         reduce_temp0 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
         reduce_temp1 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
-            with T.block("T_softmax_maxelem_cross_thread_reduction"):
+            with T.sblock("T_softmax_maxelem_cross_thread_reduction"):
                 T.attr(T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle"))
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), normal_reduce_temp0[0], True, reduce_temp0.data, ax0_1, dtype="handle"))
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
-            with T.block("T_softmax_expsum_cross_thread_reduction"):
+            with T.sblock("T_softmax_expsum_cross_thread_reduction"):
                 T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle"))
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), normal_reduce_temp1[0], True, reduce_temp1.data, ax0_1, dtype="handle"))
 
@@ -3082,7 +3082,7 @@ def nontrivial_range_axis():
     def nontrivial_range_axis(a: T.handle) -> None:
         A = T.match_buffer(a, (10), "float32")
         for i in range(10):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.spatial((1, 11), i + 1)
                 A[vi - 1] = A[vi - 1] + 1.0
 
@@ -3133,8 +3133,8 @@ def func_with_target_and_host_spec_by_str():
 def func_root_attr():
     @T.prim_func
     def func_root_attr():
-        with T.block("root"):
-            T.block_attr({"a": "0"})
+        with T.sblock("root"):
+            T.sblock_attr({"a": "0"})
             T.evaluate(0)
 
     return func_root_attr
@@ -3143,7 +3143,7 @@ def func_root_attr():
 def func_trivial_root_block():
     @T.prim_func
     def func(A: T.Buffer(1, "int32")):
-        with T.block("root"):
+        with T.sblock("root"):
             A[0] = 0
 
     return func
@@ -3152,8 +3152,8 @@ def func_trivial_root_block():
 def func_nested_root_block():
     @T.prim_func
     def func(A: T.Buffer(1, "int32")):
-        with T.block("root"):
-            with T.block("block"):
+        with T.sblock("root"):
+            with T.sblock("block"):
                 A[0] = 0
 
     return func
@@ -3203,7 +3203,7 @@ def llvm_intrin_call():
     @T.prim_func
     def ctpop(A: T.Buffer((16,), "uint8"), B: T.Buffer((16,), "uint8")) -> None:
         for i in range(0, 16):
-            with T.block("A"):
+            with T.sblock("A"):
                 vi = T.axis.remap(
                     "S",
                     [
@@ -3229,12 +3229,12 @@ def parse_bufferslice_as_range_bound():
         B = T.match_buffer(B_ptr, [n], dtype="float32")
         indptr = T.match_buffer(indptr_ptr, [n + 1], dtype="int32")
         for i in T.serial(n):
-            with T.block("outer"):
+            with T.sblock("outer"):
                 vi = T.axis.spatial(n, i)
                 T.reads(indptr[i : i + 2], B[vi], A[indptr[i] : indptr[i + 1]])
                 T.writes(B[vi])
                 for j in T.serial(indptr[i], indptr[i + 1]):
-                    with T.block("inner"):
+                    with T.sblock("inner"):
                         vj = T.axis.reduce(m, j)
                         T.reads(B[vi], A[vj])
                         T.writes(B[vi])
@@ -3252,11 +3252,11 @@ def int64_support():
         B = T.alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
         C = T.match_buffer(c, (T.int64(128), T.int64(128)), dtype="float32")
         for i, j in T.grid(128, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 1.0
 
@@ -3303,11 +3303,11 @@ def buffer_axis_separator():
         B = T.alloc_buffer((128, 128), "float32", axis_separators=[1])
 
         for i, j in T.grid(128, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * T.float32(2)
         for i, j in T.grid(128, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + T.float32(1)
 
@@ -3436,9 +3436,9 @@ def float_infinity():
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         for i0, i1, i2 in T.grid(1, 512, 768):
-            with T.block("T_isinf"):
+            with T.sblock("T_isinf"):
                 ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                 T.reads(placeholder[ax0, ax1, ax2])
                 T.writes(T_isinf[ax0, ax1, ax2])
@@ -3988,14 +3988,14 @@ def func_attr_with_list():
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         C = T.alloc_buffer([128, 128], dtype="float32")
         for i0, i1, i2 in T.grid(128, 128, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 x, y, k = T.axis.remap("SSR", [i0, i1, i2])
                 with T.init():
                     C[x, y] = T.float32(0)
                 C[x, y] = C[x, y] + A[x, k] * B[y, k]
         for i0, i1 in T.grid(128, 128):
-            with T.block("D"):
-                T.block_attr({"layout_free_placeholders": [C]})
+            with T.sblock("D"):
+                T.sblock_attr({"layout_free_placeholders": [C]})
                 x, y = T.axis.remap("SS", [i0, i1])
                 D[x, y] = C[x, y] + T.float32(1)
 

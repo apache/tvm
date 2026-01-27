@@ -196,9 +196,9 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   ffi::Function f_visit_seq_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const EvaluateNode* op)` function. */
   ffi::Function f_visit_evaluate{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockNode* op)` function. */
+  /*! \brief The packed function to the `VisitStmt_(const SBlockNode* op)` function. */
   ffi::Function f_visit_block{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockRealizeNode* op)` function. */
+  /*! \brief The packed function to the `VisitStmt_(const SBlockRealizeNode* op)` function. */
   ffi::Function f_visit_sblock_realize{nullptr};
 
   using StmtExprVisitor::VisitExpr;
@@ -563,9 +563,9 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   ffi::Function f_visit_seq_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const EvaluateNode* op)` function. */
   ffi::Function f_visit_evaluate{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockNode* op)` function. */
+  /*! \brief The packed function to the `VisitStmt_(const SBlockNode* op)` function. */
   ffi::Function f_visit_block{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockRealizeNode* op)` function. */
+  /*! \brief The packed function to the `VisitStmt_(const SBlockRealizeNode* op)` function. */
   ffi::Function f_visit_sblock_realize{nullptr};
 
   using StmtExprMutator::VisitExpr;

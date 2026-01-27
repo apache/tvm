@@ -48,7 +48,7 @@ def test_annotate_opkind_outewisefusable():
             C = T.match_buffer(z, (m, k))
 
             for i, j, k in T.grid(m, k, n):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         C[vi, vj] = T.float32(0)
@@ -81,7 +81,7 @@ def test_annotate_opkind_outewisefusable_with_cast(cast_pattern):
             C = T.match_buffer(z, (m, k), "float32")
 
             for i, j, k in T.grid(m, k, n):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         C[vi, vj] = T.float32(0)
@@ -103,7 +103,7 @@ def test_annotate_opkind_outewisefusable_int_var_signature():
             C = T.match_buffer(z, (m, k))
 
             for i, j, k in T.grid(m, k, n):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         C[vi, vj] = T.float32(0)
@@ -124,7 +124,7 @@ def test_annotate_opkind_reduce():
             B = T.match_buffer(y, (16,))
 
             for i, j in T.grid(16, 16):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj = T.axis.remap("SR", [i, j])
                     with T.init():
                         B[vi] = 0.0
@@ -145,7 +145,7 @@ def test_annotate_opkind_ewise():
             B = T.match_buffer(y, (16, 16))
 
             for i, j in T.grid(16, 16):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + 1.0
 
@@ -164,7 +164,7 @@ def test_annotate_opkind_broadcast():
             B = T.match_buffer(y, (16, 16, 16, 16))
 
             for i0, j0, i1, j1 in T.grid(16, 16, 16, 16):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi0, vj0, vi1, vj1 = T.axis.remap("SSSS", [i0, j0, i1, j1])
                     B[vi0, vj0, vi1, vj1] = A[vj0, vj1]
 
@@ -183,7 +183,7 @@ def test_annotate_opkind_injective():
             B = T.match_buffer(y, (16, 16))
 
             for i, j in T.grid(16, 16):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi // 4, vj // 4, vi % 4, vj % 4]
 
@@ -204,9 +204,9 @@ def test_annotate_opkind_bias_add():
             # function attr dict
             T.func_attr({"global_symbol": "tir_bias_add", "tir.noalias": True})
             # body
-            # with T.block("root")
+            # with T.sblock("root")
             for i0, i1 in T.grid(1, 1000):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(A[ax0, ax1], B[ax1])
                     T.writes(C[ax0, ax1])
@@ -228,7 +228,7 @@ def test_annotate_opkind_add_broadcast_with_unit_shape():
         ) -> None:
             T.func_attr({"global_symbol": "add5", "tir.noalias": True})
             for i0, i1, i2, i3 in T.grid(1, 64, 112, 112):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(A[ax0, ax1, ax2, ax3], B[ax1, 0, 0])
                     T.writes(C[ax0, ax1, ax2, ax3])
@@ -250,7 +250,7 @@ def test_annotate_opkind_add_zero_dim_element_wise():
         ) -> None:
             T.func_attr({"global_symbol": "add8", "tir.noalias": True})
             for i0 in T.serial(128):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     ax0 = T.axis.spatial(128, i0)
                     T.reads(A[ax0], B[()])
                     T.writes(C[ax0])
@@ -272,10 +272,10 @@ def test_annotate_opkind_pooling():
             # function attr dict
             T.func_attr({"global_symbol": "max_pool2d", "T.noalias": True})
             # body
-            # with T.block("root")
+            # with T.sblock("root")
             pad_temp_1 = T.alloc_buffer([1, 64, 114, 114], dtype="float32")
             for i0, i1, i2, i3 in T.grid(1, 64, 114, 114):
-                with T.block("pad_temp"):
+                with T.sblock("pad_temp"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(rxplaceholder_1[ax0, ax1, ax2 - 1, ax3 - 1])
                     T.writes(pad_temp_1[ax0, ax1, ax2, ax3])
@@ -286,7 +286,7 @@ def test_annotate_opkind_pooling():
                         dtype="float32",
                     )
             for i0, i1, i2, i3, i4, i5 in T.grid(1, 64, 56, 56, 3, 3):
-                with T.block("tensor"):
+                with T.sblock("tensor"):
                     ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
                     T.reads(
                         tensor_1[ax0, ax1, ax2, ax3],
@@ -316,12 +316,12 @@ def test_annotate_opkind_softmax():
             # function attr dict
             T.func_attr({"global_symbol": "softmax", "T.noalias": True})
             # body
-            # with T.block("root")
+            # with T.sblock("root")
             T_softmax_maxelem_1 = T.alloc_buffer([16], dtype="float32")
             T_softmax_exp_1 = T.alloc_buffer([16, 16], dtype="float32")
             T_softmax_expsum_1 = T.alloc_buffer([16], dtype="float32")
             for i0_7, i1_3 in T.grid(16, 16):
-                with T.block("T_softmax_maxelem"):
+                with T.sblock("T_softmax_maxelem"):
                     i0_8, k = T.axis.remap("SR", [i0_7, i1_3])
                     T.reads(T_softmax_maxelem_1[i0_8], rxplaceholder_1[i0_8, k])
                     T.writes(T_softmax_maxelem_1[i0_8])
@@ -331,7 +331,7 @@ def test_annotate_opkind_softmax():
                         T_softmax_maxelem_1[i0_8], rxplaceholder_1[i0_8, k]
                     )
             for i0_9, i1_4 in T.grid(16, 16):
-                with T.block("T_softmax_exp"):
+                with T.sblock("T_softmax_exp"):
                     i0_10, i1_5 = T.axis.remap("SS", [i0_9, i1_4])
                     T.reads(rxplaceholder_1[i0_10, i1_5], T_softmax_maxelem_1[i0_10])
                     T.writes(T_softmax_exp_1[i0_10, i1_5])
@@ -339,7 +339,7 @@ def test_annotate_opkind_softmax():
                         rxplaceholder_1[i0_10, i1_5] - T_softmax_maxelem_1[i0_10], dtype="float32"
                     )
             for i0_11, i1_6 in T.grid(16, 16):
-                with T.block("T_softmax_expsum"):
+                with T.sblock("T_softmax_expsum"):
                     i0_12, k = T.axis.remap("SR", [i0_11, i1_6])
                     T.reads(T_softmax_expsum_1[i0_12], T_softmax_exp_1[i0_12, k])
                     T.writes(T_softmax_expsum_1[i0_12])
@@ -349,11 +349,11 @@ def test_annotate_opkind_softmax():
                         T_softmax_expsum_1[i0_12] + T_softmax_exp_1[i0_12, k]
                     )
             for i0_13, i1_7 in T.grid(16, 16):
-                with T.block("T_softmax_norm"):
+                with T.sblock("T_softmax_norm"):
                     i0_14, i1_8 = T.axis.remap("SS", [i0_13, i1_7])
                     T.reads(T_softmax_exp_1[i0_14, i1_8], T_softmax_expsum_1[i0_14])
                     T.writes(T_softmax_norm_1[i0_14, i1_8])
-                    T.block_attr({"axis": 1})
+                    T.sblock_attr({"axis": 1})
                     T_softmax_norm_1[i0_14, i1_8] = (
                         T_softmax_exp_1[i0_14, i1_8] / T_softmax_expsum_1[i0_14]
                     )
@@ -371,7 +371,7 @@ def test_multiple_bufer_stores_fallback():
             rxplaceholder = T.match_buffer(
                 var_rxplaceholder, [10, 16], dtype="float32", offset_factor=1
             )
-            with T.block("cumsum_generic"):
+            with T.sblock("cumsum_generic"):
                 T.reads(rxplaceholder[0:10, 0:16])
                 T.writes(out_buf[0:160])
                 for fused in T.parallel(1):
@@ -400,7 +400,7 @@ def test_sum_sqsum():
             sqsum: T.Buffer((32,), "float32"),
         ):
             for ax0, k0 in T.grid(32, 64):
-                with T.block("block"):
+                with T.sblock("block"):
                     v_ax0, v_k0 = T.axis.remap("SR", [ax0, k0])
                     T.reads(A[v_ax0, v_k0])
                     T.writes(vsum[v_ax0], sqsum[v_ax0])
@@ -423,7 +423,7 @@ def test_no_buffer_stores():
         @T.prim_func
         def no_buffer_stores(A: T.Buffer((32, 64), "float32"), vsum: T.Buffer((32,), "float32")):
             for ax0, k0 in T.grid(32, 64):
-                with T.block("block"):
+                with T.sblock("block"):
                     v_ax0, v_k0 = T.axis.remap("SR", [ax0, k0])
                     T.reads(A[v_ax0, v_k0])
                     T.writes(vsum[v_ax0])

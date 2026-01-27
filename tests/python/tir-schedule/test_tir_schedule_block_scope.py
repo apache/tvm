@@ -34,11 +34,11 @@ def elementwise(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128), "float32")
     B = T.alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -49,11 +49,11 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j in T.grid(128, 128):
-        with T.block("init"):
+        with T.sblock("init"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = T.float32(0)
         for k in range(0, 128):
-            with T.block("update"):
+            with T.sblock("update"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -65,10 +65,10 @@ def war_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128))
 
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
@@ -78,7 +78,7 @@ def war_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
 # pylint: disable=invalid-name
 
 
-def _get_block(s: tir.ScheduleState, name_hint: str) -> tir.StmtSRef:
+def _get_sblock(s: tir.ScheduleState, name_hint: str) -> tir.StmtSRef:
     result = None
 
     def f_visit(node):
@@ -94,9 +94,9 @@ def _get_block(s: tir.ScheduleState, name_hint: str) -> tir.StmtSRef:
 
 def test_elementwise_dependency():
     s = tir.ScheduleState(elementwise, debug_mask="all")
-    root = _get_block(s, "root")
-    block_b = _get_block(s, "B")
-    block_c = _get_block(s, "C")
+    root = _get_sblock(s, "root")
+    block_b = _get_sblock(s, "B")
+    block_c = _get_sblock(s, "C")
     # Check get_deps_by_src
     (dep,) = s.get_sblock_scope(root).get_deps_by_src(block_b)
     assert dep.src.same_as(block_b)
@@ -111,9 +111,9 @@ def test_elementwise_dependency():
 
 def test_matmul_dependency():
     s = tir.ScheduleState(matmul, debug_mask="all")
-    root = _get_block(s, "root")
-    init = _get_block(s, "init")
-    update = _get_block(s, "update")
+    root = _get_sblock(s, "root")
+    init = _get_sblock(s, "init")
+    update = _get_sblock(s, "update")
     # Check get_deps_by_src
     p0, p1 = s.get_sblock_scope(root).get_deps_by_src(init)
     assert p0.src.same_as(init)
@@ -136,9 +136,9 @@ def test_matmul_dependency():
 
 def test_war_dependency():
     s = tir.ScheduleState(war_dependency, debug_mask="all")
-    root = _get_block(s, "root")
-    block_c = _get_block(s, "C")
-    block_b = _get_block(s, "B")
+    root = _get_sblock(s, "root")
+    block_c = _get_sblock(s, "C")
+    block_b = _get_sblock(s, "B")
     # Check get_deps_by_src
     (dep,) = s.get_sblock_scope(root).get_deps_by_src(block_c)
     assert dep.src.same_as(block_c)

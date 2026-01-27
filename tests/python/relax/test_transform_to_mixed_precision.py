@@ -1054,7 +1054,7 @@ def test_call_tir_with_float16_args():
             Output: T.Buffer(64, "float16"),
         ):
             for i in range(64):
-                with T.block("copy"):
+                with T.sblock("copy"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = Input[vi]
 

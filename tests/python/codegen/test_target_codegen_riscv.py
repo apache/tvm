@@ -59,7 +59,7 @@ def test_rvv_vscale_llvm_dbginfo(target):
         A = T.match_buffer(A_handle, (8,), dtype="float32", align=4, offset_factor=1)
         B = T.match_buffer(B_handle, (4, 8), dtype="float32", align=4, offset_factor=1, strides=[8, 1])
         C = T.match_buffer(C_handle, (4,), dtype="float32", align=4, offset_factor=1)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(A[0:8], B[0:4, 0:8])
             zero = T.call_llvm_intrin("float32xvscalex2", "llvm.riscv.vfmv.v.f", T.Broadcast(T.float32(0.0), T.vscale() * 2), C[0], T.uint64(1))
             vec_A = T.call_llvm_intrin("float32xvscalex4", "llvm.riscv.vle", T.Broadcast(T.float32(0.0), T.vscale() * 4), T.tvm_access_ptr(T.type_annotation("float32"), A.data, 0, 8, 1), T.int64(8))

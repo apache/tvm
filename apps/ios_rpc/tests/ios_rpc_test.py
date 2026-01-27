@@ -52,7 +52,7 @@ def test_rpc_module(host, port, key, mode):
     temp = utils.tempdir()
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
     sch = tvm.tir.Schedule(mod)
-    (i,) = sch.get_loops(block=sch.get_block("B"))
+    (i,) = sch.get_loops(block=sch.get_sblock("B"))
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")

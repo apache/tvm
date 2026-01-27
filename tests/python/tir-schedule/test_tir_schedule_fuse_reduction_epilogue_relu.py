@@ -39,14 +39,14 @@ def matmul_bias_relu_before(
     """Original function with separate reduction and epilogue blocks (Bias + ReLU)."""
     temp = T.alloc_buffer((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.block("matmul"):
+        with T.sblock("matmul"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 temp[vi, vj] = T.float32(0)
             temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vj, vk]
 
     for i, j in T.grid(16, 16):
-        with T.block("bias_relu"):
+        with T.sblock("bias_relu"):
             vi, vj = T.axis.remap("SS", [i, j])
             D[vi, vj] = T.max(temp[vi, vj] + C[vi, vj], T.float32(0))
 
@@ -61,18 +61,18 @@ def matmul_bias_relu_before_per_iteration(
     """Original function with per-iteration ReLU (same semantics as fused)."""
     temp = T.alloc_buffer((16, 16), dtype="float32")
     for i, j in T.grid(16, 16):
-        with T.block("init"):
+        with T.sblock("init"):
             vi, vj = T.axis.remap("SS", [i, j])
             temp[vi, vj] = T.max(C[vi, vj], T.float32(0))  # ReLU on bias
 
     for i, j, k in T.grid(16, 16, 16):
-        with T.block("matmul"):
+        with T.sblock("matmul"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             # Per-iteration ReLU
             temp[vi, vj] = T.max(temp[vi, vj] + A[vi, vk] * B[vj, vk], T.float32(0))
 
     for i, j in T.grid(16, 16):
-        with T.block("copy"):
+        with T.sblock("copy"):
             vi, vj = T.axis.remap("SS", [i, j])
             D[vi, vj] = temp[vi, vj]
 
@@ -87,7 +87,7 @@ def matmul_bias_relu_expected(
     """Expected function after fusion (Bias + ReLU)."""
     temp = T.alloc_buffer((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.block("matmul"):
+        with T.sblock("matmul"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
             T.writes(D[vi, vj])
@@ -163,19 +163,19 @@ def matmul_bias_relu_multiple_epilogue_before(
     """Original function with separate reduction and multiple epilogue blocks (one with ReLU, one without)."""
     temp = T.alloc_buffer((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.block("matmul"):
+        with T.sblock("matmul"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 temp[vi, vj] = T.float32(0)
             temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vj, vk]
 
     for i, j in T.grid(16, 16):
-        with T.block("bias_relu"):
+        with T.sblock("bias_relu"):
             vi, vj = T.axis.remap("SS", [i, j])
             D[vi, vj] = T.max(temp[vi, vj] + C[vi, vj], T.float32(0))
 
     for i, j in T.grid(16, 16):
-        with T.block("bias"):
+        with T.sblock("bias"):
             vi, vj = T.axis.remap("SS", [i, j])
             E[vi, vj] = temp[vi, vj] + C[vi, vj]
 
@@ -191,7 +191,7 @@ def matmul_bias_relu_multiple_epilogue_expected(
     """Expected function after fusion (Bias + ReLU) with multiple epilogue blocks."""
     temp = T.alloc_buffer((16, 16), dtype="float32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.block("matmul"):
+        with T.sblock("matmul"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
             T.writes(D[vi, vj])
@@ -199,7 +199,7 @@ def matmul_bias_relu_multiple_epilogue_expected(
                 D[vi, vj] = T.max(C[vi, vj], T.float32(0))
             D[vi, vj] = T.max(D[vi, vj] + A[vi, vk] * B[vj, vk], T.float32(0))
     for i, j in T.grid(16, 16):
-        with T.block("bias"):
+        with T.sblock("bias"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(temp[vi, vj], C[vi, vj])
             T.writes(E[vi, vj])

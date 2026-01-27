@@ -32,19 +32,19 @@ def element_wise(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
-    with T.block("root"):
+    with T.sblock("root"):
         T.reads([])
         T.writes([])
         B = T.alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     vi, vj = T.axis.remap("SS", [i0, ax1])
                     T.reads([A[vi, vj]])
                     T.writes([B[vi, vj]])
                     B[vi, vj] = (A[vi, vj]*T.float32(2))
             for i1 in T.serial(0, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi_1, vj_1 = T.axis.remap("SS", [i0, i1])
                     T.reads([B[vi_1, vj_1]])
                     T.writes([C[vi_1, vj_1]])
@@ -56,20 +56,20 @@ def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
-    with T.block("root"):
+    with T.sblock("root"):
         T.reads([])
         T.writes([])
         B = T.alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     vi, vj = T.axis.remap("SS", [i0, ax1])
                     T.reads([A[vi, vj]])
                     T.writes([B[vi, vj]])
-                    T.block_attr({"buffer_dim_align":[[0, 0, 128, 127]]})
+                    T.sblock_attr({"buffer_dim_align":[[0, 0, 128, 127]]})
                     B[vi, vj] = (A[vi, vj]*T.float32(2))
             for i1 in T.serial(0, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi_1, vj_1 = T.axis.remap("SS", [i0, i1])
                     T.reads([B[vi_1, vj_1]])
                     T.writes([C[vi_1, vj_1]])
@@ -81,20 +81,20 @@ def element_wise_invalid_annotation(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128], elem_offset=0, align=64, offset_factor=1)
     A = T.match_buffer(a, [128, 128], elem_offset=0, align=64, offset_factor=1)
     # body
-    with T.block("root"):
+    with T.sblock("root"):
         T.reads([])
         T.writes([])
         B = T.alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
-                with T.block("B"):
-                    T.block_attr({"buffer_dim_align": [0]})
+                with T.sblock("B"):
+                    T.sblock_attr({"buffer_dim_align": [0]})
                     vi, vj = T.axis.remap("SS", [i0, ax1])
                     T.reads([A[vi, vj]])
                     T.writes([B[vi, vj]])
                     B[vi, vj] = (A[vi, vj]*T.float32(2))
             for i1 in T.serial(0, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi_1, vj_1 = T.axis.remap("SS", [i0, i1])
                     T.reads([B[vi_1, vj_1]])
                     T.writes([C[vi_1, vj_1]])
@@ -106,7 +106,7 @@ use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name"
 def test_storage_align(use_block_name):
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    B = 'B' if use_block_name else s.get_block("B")
+    B = 'B' if use_block_name else s.get_sblock("B")
     s.storage_align(B, 0, axis=0, factor=128, offset=127)
     assert_structural_equal_ignore_global_symbol(element_wise_storage_align, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
@@ -115,7 +115,7 @@ def test_storage_align(use_block_name):
 def test_storage_align_update():
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    B = s.get_block("B")
+    B = s.get_sblock("B")
     s.storage_align(B, 0, axis=0, factor=128, offset=0)
     s.storage_align(B, 0, axis=0, factor=128, offset=127)
     assert_structural_equal_ignore_global_symbol(element_wise_storage_align, s.mod["main"])
@@ -125,7 +125,7 @@ def test_storage_align_update():
 def test_storage_align_invalid_factor1():
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    B = s.get_block("B")
+    B = s.get_sblock("B")
     with pytest.raises(tir.ScheduleError):
         s.storage_align(B, 0, axis=0, factor=0, offset=127)
 
@@ -133,7 +133,7 @@ def test_storage_align_invalid_factor1():
 def test_storage_align_invalid_factor2():
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    B = s.get_block("B")
+    B = s.get_sblock("B")
     with pytest.raises(tir.ScheduleError):
         s.storage_align(B, 0, axis=0, factor=-1, offset=127)
 
@@ -141,7 +141,7 @@ def test_storage_align_invalid_factor2():
 def test_storage_align_invalid_buffer():
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    C = s.get_block("C")
+    C = s.get_sblock("C")
     with pytest.raises(tir.ScheduleError):
         s.storage_align(C, 0, axis=0, factor=128, offset=127)
 
@@ -149,7 +149,7 @@ def test_storage_align_invalid_buffer():
 def test_storage_align_invalid_buffer_index():
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    B = s.get_block("B")
+    B = s.get_sblock("B")
     with pytest.raises(tir.ScheduleError):
         s.storage_align(B, 2, axis=0, factor=128, offset=127)
 
@@ -157,7 +157,7 @@ def test_storage_align_invalid_buffer_index():
 def test_storage_align_invalid_axis():
     func = element_wise
     s = tir.Schedule(func, debug_mask='all')
-    B = s.get_block("B")
+    B = s.get_sblock("B")
     with pytest.raises(tir.ScheduleError):
         s.storage_align(B, 0, axis=2, factor=128, offset=127)
 
@@ -165,7 +165,7 @@ def test_storage_align_invalid_axis():
 def test_storage_align_invalid_annotation():
     func = element_wise_invalid_annotation
     s = tir.Schedule(func, debug_mask='all')
-    B = s.get_block("B")
+    B = s.get_sblock("B")
     with pytest.raises(tir.ScheduleError):
         s.storage_align(B, 0, axis=2, factor=128, offset=127)
 

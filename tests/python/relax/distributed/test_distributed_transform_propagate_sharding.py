@@ -96,13 +96,13 @@ def test_mlp_with_tuple():
             A = T.match_buffer(var_A, (128, 128), "float32")
             T_split = T.match_buffer(var_T_split, (64, 128), "float32")
             T_split_1 = T.match_buffer(var_T_split_1, (64, 128), "float32")
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax1, ax2 in T.grid(64, 128):
-                with T.block("T_split"):
+                with T.sblock("T_split"):
                     v_ax1, v_ax2 = T.axis.remap("SS", [ax1, ax2])
                     T_split[v_ax1, v_ax2] = A[v_ax1, v_ax2]
             for ax1, ax2 in T.grid(64, 128):
-                with T.block("T_split_1"):
+                with T.sblock("T_split_1"):
                     v_ax1, v_ax2 = T.axis.remap("SS", [ax1, ax2])
                     T_split_1[v_ax1, v_ax2] = A[v_ax1 + 64, v_ax2]
 
@@ -142,15 +142,15 @@ def test_mlp_with_tuple():
             T_split_1: T.Buffer((64, 128), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax1, ax2 in T.grid(64, 128):
-                with T.block("T_split"):
+                with T.sblock("T_split"):
                     v_ax1, v_ax2 = T.axis.remap("SS", [ax1, ax2])
                     T.reads(A[v_ax1, v_ax2])
                     T.writes(T_split[v_ax1, v_ax2])
                     T_split[v_ax1, v_ax2] = A[v_ax1, v_ax2]
             for ax1, ax2 in T.grid(64, 128):
-                with T.block("T_split_1"):
+                with T.sblock("T_split_1"):
                     v_ax1, v_ax2 = T.axis.remap("SS", [ax1, ax2])
                     T.reads(A[v_ax1 + 64, v_ax2])
                     T.writes(T_split_1[v_ax1, v_ax2])
@@ -393,10 +393,10 @@ def test_decoder_layer():
 
             A = T.match_buffer(var_A, (T.int64(1), 256, T.int64(4096)), "float16")
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), 256, T.int64(4096)), "float16")
-            # with T.block("root"):
+            # with T.sblock("root"):
             Ared_temp = T.alloc_buffer((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
-                with T.block("Ared_temp"):
+                with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
                     T.reads(A[v_bsz, v_i, v_k])
                     T.writes(Ared_temp[v_bsz, v_i])
@@ -406,7 +406,7 @@ def test_decoder_layer():
                         "float32", A[v_bsz, v_i, v_k]
                     ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
-                with T.block("rms_norm"):
+                with T.sblock("rms_norm"):
                     v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
                     T.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     T.writes(rms_norm_1[v_bsz, v_i, v_k])
@@ -435,9 +435,9 @@ def test_decoder_layer():
             rotary = T.match_buffer(
                 var_rotary, (T.int64(1), 256, T.int64(32), T.int64(128)), "float16"
             )
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, i2, i3 in T.grid(T.int64(1), 256, T.int64(32), T.int64(128)):
-                with T.block("rotary"):
+                with T.sblock("rotary"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(
                         B[256 + v_i1 - 256, v_i3],
@@ -603,10 +603,10 @@ def test_decoder_layer():
             rms_norm_1: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             Ared_temp = T.alloc_buffer((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
-                with T.block("Ared_temp"):
+                with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
                     T.reads(A[v_bsz, v_i, v_k])
                     T.writes(Ared_temp[v_bsz, v_i])
@@ -616,7 +616,7 @@ def test_decoder_layer():
                         "float32", A[v_bsz, v_i, v_k]
                     ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
-                with T.block("rms_norm"):
+                with T.sblock("rms_norm"):
                     v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
                     T.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     T.writes(rms_norm_1[v_bsz, v_i, v_k])
@@ -640,9 +640,9 @@ def test_decoder_layer():
             rotary: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, i2, i3 in T.grid(T.int64(1), 256, T.int64(32), T.int64(128)):
-                with T.block("rotary"):
+                with T.sblock("rotary"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(
                         B[256 + v_i1 - 256, v_i3],
@@ -819,9 +819,9 @@ def test_decoder_layer_tir():
             T_add: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(256), T.int64(4096)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_ax1, v_ax2 = T.axis.remap("SS", [ax1, ax2])
                     T.reads(A[T.int64(0), v_ax1, v_ax2], B[T.int64(0), v_ax1, v_ax2])
@@ -837,9 +837,9 @@ def test_decoder_layer_tir():
             T_divide: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
-                with T.block("T_divide"):
+                with T.sblock("T_divide"):
                     v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_ax1, v_ax2, v_ax3 = T.axis.remap("SSS", [ax1, ax2, ax3])
                     T.reads(A[T.int64(0), v_ax1, v_ax2, v_ax3], B[T.int64(0), v_ax1, v_ax2, v_ax3])
@@ -855,9 +855,9 @@ def test_decoder_layer_tir():
             matmul: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(256), T.int64(4096), T.int64(4096)):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     v_i0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_i1, v_i2, v_k = T.axis.remap("SSR", [i1, i2, k])
                     T.reads(A[T.int64(0), v_i1, v_k], B[v_k, v_i2])
@@ -875,11 +875,11 @@ def test_decoder_layer_tir():
             matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, i2, i3, k in T.grid(
                 T.int64(1), T.int64(32), T.int64(256), T.int64(256), T.int64(128)
             ):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     v_i0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSR", [i1, i2, i3, k])
                     T.reads(A[T.int64(0), v_i1, v_i2, v_k], B[T.int64(0), v_i1, v_k, v_i3])
@@ -898,11 +898,11 @@ def test_decoder_layer_tir():
             matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, i2, i3, k in T.grid(
                 T.int64(1), T.int64(32), T.int64(256), T.int64(128), T.int64(256)
             ):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     v_i0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSR", [i1, i2, i3, k])
                     T.reads(A[T.int64(0), v_i1, v_i2, v_k], B[T.int64(0), v_i1, v_k, v_i3])
@@ -921,9 +921,9 @@ def test_decoder_layer_tir():
             T_maximum: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
-                with T.block("T_maximum"):
+                with T.sblock("T_maximum"):
                     v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_ax1, v_ax2, v_ax3 = T.axis.remap("SSS", [ax1, ax2, ax3])
                     T.reads(A[T.int64(0), v_ax1, v_ax2, v_ax3], B[T.int64(0), v_ax1, v_ax2, v_ax3])
@@ -939,9 +939,9 @@ def test_decoder_layer_tir():
             T_minimum: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
-                with T.block("T_minimum"):
+                with T.sblock("T_minimum"):
                     v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_ax1, v_ax2, v_ax3 = T.axis.remap("SSS", [ax1, ax2, ax3])
                     T.reads(
@@ -958,9 +958,9 @@ def test_decoder_layer_tir():
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(256), T.int64(32), T.int64(128)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_ax1, v_ax2, v_ax3 = T.axis.remap("SSS", [ax1, ax2, ax3])
                     T.reads(A[T.int64(0), v_ax1, v_ax2 * T.int64(128) + v_ax3])
@@ -975,9 +975,9 @@ def test_decoder_layer_tir():
             T_reshape: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2 in T.grid(T.int64(256), T.int64(32), T.int64(128)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(A[T.int64(0), v_ax0, v_ax1, v_ax2])
                     T.writes(T_reshape[v_ax0, v_ax1, v_ax2])
@@ -989,9 +989,9 @@ def test_decoder_layer_tir():
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(256), T.int64(32), T.int64(128)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_ax1, v_ax2, v_ax3 = T.axis.remap("SSS", [ax1, ax2, ax3])
                     T.reads(A[v_ax1, v_ax2, v_ax3])
@@ -1004,9 +1004,9 @@ def test_decoder_layer_tir():
             T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(256), T.int64(4096)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_ax1, v_ax2 = T.axis.remap("SS", [ax1, ax2])
                     T.reads(A[T.int64(0), v_ax1, v_ax2 // T.int64(128), v_ax2 % T.int64(128)])
@@ -1022,10 +1022,10 @@ def test_decoder_layer_tir():
             rms_norm_1: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             Ared_temp = T.alloc_buffer((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
-                with T.block("Ared_temp"):
+                with T.sblock("Ared_temp"):
                     v_bsz = T.axis.spatial(T.int64(1), T.int64(0))
                     v_i, v_k = T.axis.remap("SR", [i, k])
                     T.reads(A[T.int64(0), v_i, v_k])
@@ -1036,7 +1036,7 @@ def test_decoder_layer_tir():
                         "float32", A[T.int64(0), v_i, v_k]
                     ) * T.Cast("float32", A[T.int64(0), v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
-                with T.block("rms_norm"):
+                with T.sblock("rms_norm"):
                     v_bsz = T.axis.spatial(T.int64(1), T.int64(0))
                     v_i, v_k = T.axis.remap("SS", [i, k])
                     T.reads(B[v_k], A[T.int64(0), v_i, v_k], Ared_temp[T.int64(0), v_i])
@@ -1061,9 +1061,9 @@ def test_decoder_layer_tir():
             rotary: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, i2, i3 in T.grid(T.int64(1), 256, T.int64(32), T.int64(128)):
-                with T.block("rotary"):
+                with T.sblock("rotary"):
                     v_i0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_i1, v_i2, v_i3 = T.axis.remap("SSS", [i1, i2, i3])
                     T.reads(
@@ -1093,14 +1093,14 @@ def test_decoder_layer_tir():
             ),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             T_softmax_maxelem = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(256)), "float16")
             T_softmax_exp = T.alloc_buffer(
                 (T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"
             )
             T_softmax_expsum = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(256)), "float16")
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
-                with T.block("T_softmax_maxelem"):
+                with T.sblock("T_softmax_maxelem"):
                     v_i0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_i1, v_i2, v_k = T.axis.remap("SSR", [i1, i2, k])
                     T.reads(A[T.int64(0), v_i1, v_i2, v_k])
@@ -1111,7 +1111,7 @@ def test_decoder_layer_tir():
                         T_softmax_maxelem[T.int64(0), v_i1, v_i2], A[T.int64(0), v_i1, v_i2, v_k]
                     )
             for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
-                with T.block("T_softmax_exp"):
+                with T.sblock("T_softmax_exp"):
                     v_i0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_i1, v_i2, v_i3 = T.axis.remap("SSS", [i1, i2, i3])
                     T.reads(
@@ -1122,7 +1122,7 @@ def test_decoder_layer_tir():
                         A[T.int64(0), v_i1, v_i2, v_i3] - T_softmax_maxelem[T.int64(0), v_i1, v_i2]
                     )
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
-                with T.block("T_softmax_expsum"):
+                with T.sblock("T_softmax_expsum"):
                     v_i0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_i1, v_i2, v_k = T.axis.remap("SSR", [i1, i2, k])
                     T.reads(T_softmax_exp[T.int64(0), v_i1, v_i2, v_k])
@@ -1134,7 +1134,7 @@ def test_decoder_layer_tir():
                         + T_softmax_exp[T.int64(0), v_i1, v_i2, v_k]
                     )
             for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
-                with T.block("T_softmax_norm"):
+                with T.sblock("T_softmax_norm"):
                     v_i0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_i1, v_i2, v_i3 = T.axis.remap("SSS", [i1, i2, i3])
                     T.reads(
@@ -1142,7 +1142,7 @@ def test_decoder_layer_tir():
                         T_softmax_expsum[T.int64(0), v_i1, v_i2],
                     )
                     T.writes(T_softmax_norm[T.int64(0), v_i1, v_i2, v_i3])
-                    T.block_attr({"axis": 3})
+                    T.sblock_attr({"axis": 3})
                     T_softmax_norm[T.int64(0), v_i1, v_i2, v_i3] = (
                         T_softmax_exp[T.int64(0), v_i1, v_i2, v_i3]
                         / T_softmax_expsum[T.int64(0), v_i1, v_i2]
@@ -1154,9 +1154,9 @@ def test_decoder_layer_tir():
             T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(4096), T.int64(4096)):
-                with T.block("T_transpose"):
+                with T.sblock("T_transpose"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax1, v_ax0])
                     T.writes(T_transpose[v_ax0, v_ax1])
@@ -1168,9 +1168,9 @@ def test_decoder_layer_tir():
             T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(128)):
-                with T.block("T_transpose"):
+                with T.sblock("T_transpose"):
                     v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_ax1, v_ax2, v_ax3 = T.axis.remap("SSS", [ax1, ax2, ax3])
                     T.reads(A[T.int64(0), v_ax2, v_ax1, v_ax3])
@@ -1185,9 +1185,9 @@ def test_decoder_layer_tir():
             T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(32), T.int64(128), T.int64(256)):
-                with T.block("T_transpose"):
+                with T.sblock("T_transpose"):
                     v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_ax1, v_ax2, v_ax3 = T.axis.remap("SSS", [ax1, ax2, ax3])
                     T.reads(A[T.int64(0), v_ax1, v_ax3, v_ax2])
@@ -1202,9 +1202,9 @@ def test_decoder_layer_tir():
             T_transpose: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(256), T.int64(32), T.int64(128)):
-                with T.block("T_transpose"):
+                with T.sblock("T_transpose"):
                     v_ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v_ax1, v_ax2, v_ax3 = T.axis.remap("SSS", [ax1, ax2, ax3])
                     T.reads(A[T.int64(0), v_ax2, v_ax1, v_ax3])
@@ -1602,10 +1602,10 @@ def test_decoder_layer_dynamic_shape():
             n = T.int64()
             A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
-            # with T.block("root"):
+            # with T.sblock("root"):
             Ared_temp = T.alloc_buffer((T.int64(1), n))
             for bsz, i, k in T.grid(T.int64(1), n, T.int64(4096)):
-                with T.block("Ared_temp"):
+                with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
                     T.reads(A[v_bsz, v_i, v_k])
                     T.writes(Ared_temp[v_bsz, v_i])
@@ -1615,7 +1615,7 @@ def test_decoder_layer_dynamic_shape():
                         "float32", A[v_bsz, v_i, v_k]
                     ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), n, T.int64(4096)):
-                with T.block("rms_norm"):
+                with T.sblock("rms_norm"):
                     v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
                     T.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     T.writes(rms_norm_1[v_bsz, v_i, v_k])
@@ -1645,9 +1645,9 @@ def test_decoder_layer_dynamic_shape():
             rotary = T.match_buffer(
                 var_rotary, (T.int64(1), n, T.int64(32), T.int64(128)), "float16"
             )
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, i2, i3 in T.grid(T.int64(1), n, T.int64(32), T.int64(128)):
-                with T.block("rotary"):
+                with T.sblock("rotary"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(
                         B[m + v_i1 - n, v_i3],
@@ -1810,10 +1810,10 @@ def test_decoder_layer_dynamic_shape():
             n = T.int64()
             A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
-            # with T.block("root"):
+            # with T.sblock("root"):
             Ared_temp = T.alloc_buffer((T.int64(1), n))
             for bsz, i, k in T.grid(T.int64(1), n, T.int64(4096)):
-                with T.block("Ared_temp"):
+                with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
                     T.reads(A[v_bsz, v_i, v_k])
                     T.writes(Ared_temp[v_bsz, v_i])
@@ -1823,7 +1823,7 @@ def test_decoder_layer_dynamic_shape():
                         "float32", A[v_bsz, v_i, v_k]
                     ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), n, T.int64(4096)):
-                with T.block("rms_norm"):
+                with T.sblock("rms_norm"):
                     v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
                     T.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     T.writes(rms_norm_1[v_bsz, v_i, v_k])
@@ -1853,9 +1853,9 @@ def test_decoder_layer_dynamic_shape():
             rotary = T.match_buffer(
                 var_rotary, (T.int64(1), n, T.int64(32), T.int64(128)), "float16"
             )
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, i2, i3 in T.grid(T.int64(1), n, T.int64(32), T.int64(128)):
-                with T.block("rotary"):
+                with T.sblock("rotary"):
                     v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(
                         B[m + v_i1 - n, v_i3],

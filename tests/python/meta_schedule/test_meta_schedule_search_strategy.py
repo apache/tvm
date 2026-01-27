@@ -41,7 +41,7 @@ class Matmul:
         B = T.match_buffer(b, (32, 32), "float32")
         C = T.match_buffer(c, (32, 32), "float32")
         for i, j, k in T.grid(32, 32, 32):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0 # type: ignore
@@ -62,7 +62,7 @@ def _is_trace_equal(sch_1: Schedule, sch_2: Schedule, remove_decisions=True) -> 
 
 
 def _schedule_matmul(sch: Schedule):
-    block = sch.get_block("matmul")
+    block = sch.get_sblock("matmul")
     i, j, k = sch.get_loops(block=block)
     i_0, i_1, i_2, i_3 = sch.split(i, sch.sample_perfect_tile(i, n=4))
     j_0, j_1, j_2, j_3 = sch.split(j, sch.sample_perfect_tile(j, n=4))
@@ -123,7 +123,7 @@ def test_meta_schedule_replay_func(
 
 def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
     def _schedule_matmul_small(sch: Schedule):
-        block = sch.get_block("matmul")
+        block = sch.get_sblock("matmul")
         _, j, k = sch.get_loops(block=block)
         _, _ = sch.split(j, sch.sample_perfect_tile(j, n=2))
         _, _ = sch.split(k, sch.sample_perfect_tile(k, n=2))

@@ -843,8 +843,8 @@ SBlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& sel
 
 SBlockRealize GetSBlockRealize(const ScheduleState& self, const StmtSRef& block_sref) {
   struct BlockRealizeFinder : public StmtVisitor {
-    explicit BlockRealizeFinder(const SBlockNode* target_block)
-        : target_block(target_block), result(nullptr) {}
+    explicit BlockRealizeFinder(const SBlockNode* target_sblock)
+        : target_sblock(target_sblock), result(nullptr) {}
 
     void VisitStmt(const Stmt& stmt) final {
       if (result != nullptr) {
@@ -854,13 +854,13 @@ SBlockRealize GetSBlockRealize(const ScheduleState& self, const StmtSRef& block_
     }
 
     void VisitStmt_(const SBlockRealizeNode* block_realize) final {
-      if (block_realize->block.get() == target_block) {
+      if (block_realize->block.get() == target_sblock) {
         result = block_realize;
       }
       // No need to visit recursively, since the deeper BlockRealizes must not be the result.
     }
 
-    const SBlockNode* target_block;
+    const SBlockNode* target_sblock;
     const SBlockRealizeNode* result;
   };
 

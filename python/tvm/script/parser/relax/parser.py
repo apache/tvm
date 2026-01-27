@@ -24,7 +24,7 @@ from tvm import relax, tir
 from tvm.ir import GlobalVar, structural_equal
 from tvm.relax import Expr, StructInfo
 from tvm.relax.utils import convert_to_expr
-from tvm.script.ir_builder.relax.frame import BlockFrame
+from tvm.script.ir_builder.relax.frame import BindingBlockFrame
 
 from ...ir_builder import ir as I
 from ...ir_builder import relax as R
@@ -360,7 +360,7 @@ def visit_with(self: Parser, node: doc.With) -> None:
     with self.var_table.with_frame():
         with frame:
             self.visit(node.body)
-    if isinstance(frame, BlockFrame) and frame.is_dataflow:
+    if isinstance(frame, BindingBlockFrame) and frame.is_dataflow:
         output_vars = frame.output_vars
         for var in output_vars:
             self.var_table.add(var.name_hint, var, allow_shadowing=True)

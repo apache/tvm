@@ -33,7 +33,7 @@ def sdot4(
     B: T.Buffer((4,), "int8", offset_factor=1, align=4, scope="shared"),
     C: T.Buffer((1,), "int32", offset_factor=1, align=4, scope="local"),
 ) -> None:
-    with T.block("root"):
+    with T.sblock("root"):
         T.reads(C[0], A[0:4], B[0:4])
         T.writes(C[0])
 
@@ -125,11 +125,11 @@ def get_mma_fill_intrin(dtype, local_size):
     def mma_fill_desc(a: T.handle) -> None:
         C_warp = T.match_buffer(a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads()
             T.writes(C_warp[0:WARP_SIZE, 0:local_size])
             for i0, i1 in T.grid(M_DIM, N_DIM):
-                with T.block("C_warp"):
+                with T.sblock("C_warp"):
                     i, j = T.axis.remap("SS", [i0, i1])
                     thread_id, local_id = T.meta_var(index_map(i, j))
                     T.reads()
@@ -142,7 +142,7 @@ def get_mma_fill_intrin(dtype, local_size):
             a, [WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1
         )
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads()
             T.writes(C_warp[0:WARP_SIZE, 0:local_size])
             tx = T.env_thread("threadIdx.x")
@@ -212,12 +212,12 @@ def get_mfma_load_intrin(
             reg_handle, (WARP_SIZE, local_size), dtype, offset_factor=1, scope="warp"
         )
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(memory[0:row_dim, 0:col_dim])
             T.writes(reg[0:WARP_SIZE, 0:local_size])
 
             for ax0, ax1 in T.grid(row_dim, col_dim):
-                with T.block("memory_reg"):
+                with T.sblock("memory_reg"):
                     v0, v1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(memory[v0, v1])
 
@@ -243,7 +243,7 @@ def get_mfma_load_intrin(
             reg_handle, (WARP_SIZE, local_size), dtype, align=64, offset_factor=1, scope="warp"
         )
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(memory[0:row_dim, 0:col_dim])
             T.writes(reg[0:WARP_SIZE, 0:local_size])
             tx = T.env_thread("threadIdx.x")
@@ -291,7 +291,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
         B = T.match_buffer(b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
         C = T.match_buffer(c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp")
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(
                 C[0:WARP_SIZE, 0:local_size_out],
                 A[0:WARP_SIZE, 0:local_size],
@@ -300,7 +300,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
             T.writes(C[0:WARP_SIZE, 0:local_size_out])
 
             for i, j, k in T.grid(M_DIM, N_DIM, k_dim):
-                with T.block("C"):
+                with T.sblock("C"):
                     i, j, k = T.axis.remap("SSR", [i, j, k])
                     b_row_ind, b_col_ind = T.meta_var(maybe_swap(k, j))
 
@@ -325,7 +325,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
         B = T.match_buffer(b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
         C = T.match_buffer(c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp")
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(
                 A[0:WARP_SIZE, 0:local_size],
                 B[0:WARP_SIZE, 0:local_size],
@@ -351,7 +351,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
         B = T.match_buffer(b, (WARP_SIZE, local_size), in_dtype, offset_factor=1, scope="warp")
         C = T.match_buffer(c, (WARP_SIZE, local_size_out), out_dtype, offset_factor=1, scope="warp")
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(
                 A[0:WARP_SIZE, 0:local_size],
                 B[0:WARP_SIZE, 0:local_size],
@@ -387,11 +387,11 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
         C_warp = T.match_buffer(a, [WARP_SIZE, local_size], dtype=dtype, scope="warp")
         C = T.match_buffer(c, [M_DIM, N_DIM], dtype=dtype, scope=scope)
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C_warp[0:WARP_SIZE, 0:local_size])
             T.writes(C[0:M_DIM, 0:N_DIM])
             for i0, i1 in T.grid(M_DIM, N_DIM):
-                with T.block("C_warp"):
+                with T.sblock("C_warp"):
                     v0, v1 = T.axis.remap("SS", [i0, i1])
                     thread_id, local_id = T.meta_var(index_map(v0, v1))
                     T.reads(C_warp[thread_id, local_id])
@@ -410,7 +410,7 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
             c, [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]
         )
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C_warp[0:WARP_SIZE, 0:local_size])
             T.writes(C[0:M_DIM, 0:N_DIM])
             tx = T.env_thread("threadIdx.x")

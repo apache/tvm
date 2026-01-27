@@ -41,7 +41,7 @@ def get_add_operator(operations):
         b_buffer = T.match_buffer(b, [operations], dtype="float64")
         c_buffer = T.match_buffer(c, [operations], dtype="float64")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind] = a_buffer[vn_ind] + b_buffer[vn_ind]
 
@@ -58,7 +58,7 @@ def get_multiply_operator(operations):
         b_buffer = T.match_buffer(b, [operations], dtype="float64")
         c_buffer = T.match_buffer(c, [operations], dtype="float64")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind] = a_buffer[vn_ind] * b_buffer[vn_ind]
 
@@ -75,7 +75,7 @@ def get_sub_operator(operations):
         b_buffer = T.match_buffer(b, [operations], dtype="float64")
         c_buffer = T.match_buffer(c, [operations], dtype="float64")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind] = a_buffer[vn_ind] - b_buffer[vn_ind]
 
@@ -153,7 +153,7 @@ class TestMatMulVec:
         single_thread_runtime = evaluate(hexagon_session, operations, expected_output_producer, sch)
 
         sch = tvm.tir.Schedule(operator_producer(operations))
-        block = sch.get_block("c_buffer")
+        block = sch.get_sblock("c_buffer")
         b = sch.get_loops(block)
         b_output, _ = sch.split(b[0], factors=[split_factor, None])
         sch.parallel(b_output)

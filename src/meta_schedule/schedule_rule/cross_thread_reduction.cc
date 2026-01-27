@@ -68,10 +68,10 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     // block to its consumers. We want to fuse as much as possible because it results in
     // significantly faster schedule.
     // `target_loop` is the loop position where the input block will be computed at.
-    // `target_block` is the consumer block that we want to compute-at the input block to.
+    // `target_sblock` is the consumer block that we want to compute-at the input block to.
     // `tgt_block_innermost_loop` is the innermost loop outside the target block.
 
-    auto [fusible, target_loop, target_block, tgt_block_innermost_loop] =
+    auto [fusible, target_loop, target_sblock, tgt_block_innermost_loop] =
         GetComputeTargetLoopAndBlock(tmp_sch, block_rv);
 
     // Step 3. Try block fusion.
@@ -79,15 +79,16 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     ffi::Array<FloatImm> probs(n_candidate, FloatImm(DataType::Float(32), 1.0 / n_candidate));
     tir::ExprRV thread_extent = tmp_sch->SampleCategorical(thread_extents, probs);
     if (fusible) {
-      ICHECK(target_block.defined());
+      ICHECK(target_sblock.defined());
       ICHECK(target_loop.defined());
 
       // Step 3.1.
-      // - If the outer loops of `target_block` haven't been bound to "threadIdx.x", we should first
-      //   bound the innermost outer loop of `target_block` to threadIdx. Possibly we need to split
+      // - If the outer loops of `target_sblock` haven't been bound to "threadIdx.x", we should
+      // first
+      //   bound the innermost outer loop of `target_sblock` to threadIdx. Possibly we need to split
       //   the loop before binding.
       // - Otherwise, we search for the extent of "threadIdx.x" and use it as the split factor.
-      if (!InThreadScope(tmp_sch, target_block)) {
+      if (!InThreadScope(tmp_sch, target_sblock)) {
         const ffi::Array<tir::LoopRV>& split_res =
             tmp_sch->Split(tgt_block_innermost_loop, {std::nullopt, thread_extent});
         tmp_sch->Bind(split_res[1], "threadIdx.x");

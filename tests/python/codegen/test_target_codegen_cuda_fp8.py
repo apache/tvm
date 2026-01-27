@@ -55,14 +55,14 @@ def test_fp8_conversions(input):
     ):
         T.func_attr({"tir.noalias": True})
         for i in range(64):
-            with T.block("C"):
+            with T.sblock("C"):
                 v_i = T.axis.spatial(64, i)
                 T.reads(A[v_i], B[v_i])
                 T.writes(C[v_i])
                 C[v_i] = T.Cast(dtype, T.Cast("float16", A[v_i]) + T.Cast("float16", B[v_i]))
 
     sch = tvm.tir.Schedule(add)
-    block = sch.get_block("C")
+    block = sch.get_sblock("C")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 32])
     sch.bind(bx, "blockIdx.x")
@@ -103,27 +103,27 @@ def test_fp8_packing(dtype):
         B: T.Buffer((length,), native_dtype),
     ):
         T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         for i in range(length):
-            with T.block("R"):
+            with T.sblock("R"):
                 v_i = T.axis.spatial(length, i)
                 T.reads(A[v_i])
                 T.writes(R[v_i])
                 R[v_i] = T.reinterpret(packed_dtype, A[v_i])
         for i in range(length):
-            with T.block("B"):
+            with T.sblock("B"):
                 v_i = T.axis.spatial(length, i)
                 T.reads(R[v_i])
                 T.writes(B[v_i])
                 B[v_i] = T.reinterpret(native_dtype, R[v_i])
 
     sch = tvm.tir.Schedule(add)
-    block = sch.get_block("R")
+    block = sch.get_sblock("R")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 32])
     sch.bind(bx, "blockIdx.x")
     sch.bind(tx, "threadIdx.x")
-    block = sch.get_block("B")
+    block = sch.get_sblock("B")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 32])
     sch.bind(bx, "blockIdx.x")
@@ -171,9 +171,9 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
         C: T.Buffer((vector_length,), native_dtype),
     ):
         T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         for i in range(vector_length):
-            with T.block("C"):
+            with T.sblock("C"):
                 v_i = T.axis.spatial(vector_length, i)
                 T.reads(A[v_i], B[v_i])
                 T.writes(C[v_i])
@@ -182,7 +182,7 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
                 )
 
     sch = tvm.tir.Schedule(add)
-    block = sch.get_block("C")
+    block = sch.get_sblock("C")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 32])
     sch.bind(bx, "blockIdx.x")
@@ -228,11 +228,11 @@ def test_half_broadcast(bcast_length):
     @T.prim_func
     def vector_broadcast(a: T.Buffer((), dtype), vec: T.Buffer((bcast_length,), dtype)):
         for t in range(1):
-            with T.block("broadcast"):
+            with T.sblock("broadcast"):
                 vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
 
     sch = tvm.tir.Schedule(vector_broadcast)
-    block = sch.get_block("broadcast")
+    block = sch.get_sblock("broadcast")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 1])
     sch.bind(bx, "blockIdx.x")
@@ -305,16 +305,16 @@ def test_half4_vector_add():
         C: T.Buffer((length,), vec_dtype),
     ):
         T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         for i in range(length):
-            with T.block("C"):
+            with T.sblock("C"):
                 v_i = T.axis.spatial(length, i)
                 T.reads(A[v_i], B[v_i])
                 T.writes(C[v_i])
                 C[v_i] = A[v_i] + B[v_i]
 
     sch = tvm.tir.Schedule(add)
-    block = sch.get_block("C")
+    block = sch.get_sblock("C")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 32])
     sch.bind(bx, "blockIdx.x")
@@ -576,12 +576,12 @@ class BaseFP8E4M3QuantScaleOnly:
                 storage_dtype,
             ),
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             # test = T.alloc_buffer(1, dtype=vec_model_dtype, scope="local")
             for i0, i1 in T.grid(
                 T.int64(weight_shape[0]), T.int64(weight_shape[1] // vector_length)
             ):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
                     T.reads(
                         A[v_i0, v_i1 : v_i1 + vector_length],
@@ -623,9 +623,9 @@ class BaseFP8E4M3QuantScaleOnly:
             dequantize: T.Buffer(out_shape, model_dtype),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1 in T.grid(T.int64(packed_weight_shape[0]), T.int64(packed_weight_shape[1])):
-                with T.block("dequantize"):
+                with T.sblock("dequantize"):
                     v_i0 = T.axis.spatial(T.int64(packed_weight_shape[0]), i0)
                     v_i1 = T.axis.spatial(T.int64(packed_weight_shape[1]), i1)
                     T.reads(
@@ -884,7 +884,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
             num_seq = T.int64()
             x = T.match_buffer(x_handle, (num_seq, reduce_size), "float16")
             for expert_id in T.thread_binding(2, thread="blockIdx.y"):
-                with T.block("gemv_o"):
+                with T.sblock("gemv_o"):
                     e = T.axis.spatial(2, expert_id)
                     T.reads(
                         w[indptr[0, e], 0:spatial_size, 0:reduce_size],
@@ -895,13 +895,13 @@ def test_moe_gemv_shfl_down_illegal_instr():
                     T.writes(o[e, 0:spatial_size])
                     y = T.alloc_buffer((spatial_size, reduce_size), "float16")
                     for i1, i2 in T.grid(spatial_size, reduce_size):
-                        with T.block("dequantize"):
+                        with T.sblock("dequantize"):
                             i, j = T.axis.remap("SS", [i1, i2])
                             T.reads(w[indptr[0, e], i, j], indptr[0, e], scale[0])
                             T.writes(y[i, j])
                             y[i, j] = T.Cast("float16", w[indptr[0, e], i, j]) * scale[0]
                     for i1, i2 in T.grid(spatial_size, reduce_size):
-                        with T.block("gemv"):
+                        with T.sblock("gemv"):
                             i, j = T.axis.remap("SR", [i1, i2])
                             T.reads(x[e, j], y[i, j])
                             T.writes(o[e, i])
@@ -983,12 +983,12 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
         C: T.Buffer((128,), dtype),
     ) -> None:
         for i in T.serial(128):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 vi = T.axis.remap("S", [i])
                 C[vi] = (A[vi].astype(dtype) * B[vi]) + T.bfloat16(3.0)
 
     sch = tir.Schedule(func_vectorize)
-    (l,) = sch.get_loops(sch.get_block("compute"))
+    (l,) = sch.get_loops(sch.get_sblock("compute"))
     lo, li = sch.split(l, [None, vec_length])
     sch.bind(lo, "threadIdx.x")
     sch.vectorize(li)

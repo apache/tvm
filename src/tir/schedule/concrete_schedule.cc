@@ -319,9 +319,9 @@ SBlockRV ConcreteScheduleNode::GetSBlock(const ffi::String& name,
   } else if (func_working_on_.has_value()) {
     gv = this->func_working_on_.value();
   } else {
-    LOG(FATAL) << "ValueError: `get_block` does not know which function to be working on. Please "
+    LOG(FATAL) << "ValueError: `get_sblock` does not know which function to be working on. Please "
                   "specify the function name explicitly, or call `work_on` to specify the function "
-                  "before using `get_block`.";
+                  "before using `get_sblock`.";
   }
   ffi::Array<StmtSRef> blocks = tir::GetSBlocks(this->state_, name, gv);
   if (blocks.size() != 1) {

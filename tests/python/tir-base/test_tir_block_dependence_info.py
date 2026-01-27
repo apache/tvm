@@ -37,15 +37,15 @@ def elementwise(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128), "float32")
     B = T.alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
     for i, j in T.grid(128, 128):
-        with T.block("D"):
+        with T.sblock("D"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -57,10 +57,10 @@ def war_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128))
 
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
@@ -71,11 +71,11 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j in T.grid(128, 128):
-        with T.block("init"):
+        with T.sblock("init"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = T.float32(0)
         for k in range(0, 128):
-            with T.block("update"):
+            with T.sblock("update"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -83,7 +83,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
-def get_blocks(func: PrimFunc):
+def get_sblocks(func: PrimFunc):
     blocks = {}
 
     def update_blocks(node):
@@ -129,21 +129,21 @@ def _verify_dependence(dependence_info, src_block, dst_block, kind):
 def test_RAW_dependences():
     func = elementwise
     dependence_info = BlockDependenceInfo(func)
-    blocks = get_blocks(func)
+    blocks = get_sblocks(func)
     _verify_dependence(dependence_info, blocks["B"], blocks["C"], DepKind.RAW)
 
 
 def test_WAR_dependences():
     func = war_dependency
     dependence_info = BlockDependenceInfo(func)
-    blocks = get_blocks(func)
+    blocks = get_sblocks(func)
     _verify_dependence(dependence_info, blocks["C"], blocks["B"], DepKind.WAR)
 
 
 def test_RAW_and_WAW_dependences():
     func = matmul
     dependence_info = BlockDependenceInfo(func)
-    blocks = get_blocks(func)
+    blocks = get_sblocks(func)
     _verify_dependence(dependence_info, blocks["init"], blocks["update"], DepKind.RAW)
     _verify_dependence(dependence_info, blocks["init"], blocks["update"], DepKind.WAW)
 

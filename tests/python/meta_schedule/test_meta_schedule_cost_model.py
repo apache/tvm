@@ -47,7 +47,7 @@ class Matmul:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
@@ -60,7 +60,7 @@ class FullModule:
     def main(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-            with T.block("T_full"):
+            with T.sblock("T_full"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads()
                 T.writes(T_full[v_ax0, v_ax1])

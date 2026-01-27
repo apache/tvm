@@ -30,7 +30,7 @@ def matmul(
     C: T.Buffer((128, 128), "float32"),
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -44,7 +44,7 @@ def matmul_after_reorder_block_iter_var(
     C: T.Buffer((128, 128), "float32"),
 ):
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vk, vj, vi = T.axis.remap("RSS", [k, j, i])
             T.reads(A[vi, vk], B[vj, vk])
             T.writes(C[vi, vj])
@@ -55,7 +55,7 @@ def matmul_after_reorder_block_iter_var(
 
 def test_reorder_block_iter_var():
     sch = tir.Schedule(matmul, debug_mask="all")
-    C = sch.get_block("C")
+    C = sch.get_sblock("C")
     sch.reorder_block_iter_var(C, [2, 1, 0])
     tvm.ir.assert_structural_equal(
         matmul_after_reorder_block_iter_var.with_attr("global_symbol", "matmul"), sch.mod["main"]
@@ -65,21 +65,21 @@ def test_reorder_block_iter_var():
 
 def test_reorder_block_iter_var_fail_not_full():
     sch = tir.Schedule(matmul, debug_mask="all")
-    C = sch.get_block("C")
+    C = sch.get_sblock("C")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder_block_iter_var(C, [2, 1])
 
 
 def test_reorder_block_iter_var_fail_not_within_bound():
     sch = tir.Schedule(matmul, debug_mask="all")
-    C = sch.get_block("C")
+    C = sch.get_sblock("C")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder_block_iter_var(C, [-1, 3, 2])
 
 
 def test_reorder_block_iter_var_fail_not_unique():
     sch = tir.Schedule(matmul, debug_mask="all")
-    C = sch.get_block("C")
+    C = sch.get_sblock("C")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder_block_iter_var(C, [0, 0, 2])
 

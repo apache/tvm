@@ -137,8 +137,8 @@ def test_llvm_multi_parallel():
     sch = tir.Schedule(mod)
 
     # Get blocks and loops
-    c_block = sch.get_block("C")
-    b_block = sch.get_block("B")
+    c_block = sch.get_sblock("C")
+    b_block = sch.get_sblock("B")
     c_loop = sch.get_loops(c_block)[0]
 
     # Split and parallelize
@@ -180,7 +180,7 @@ def test_llvm_flip_pipeline():
         sch = tir.Schedule(mod)
 
         # Get block and loop
-        block = sch.get_block("C")
+        block = sch.get_sblock("C")
         loop = sch.get_loops(block)[0]
 
         # Split and parallelize
@@ -216,7 +216,7 @@ def test_llvm_vadd_pipeline():
     sch = tir.Schedule(mod)
 
     # Get block and loop
-    block = sch.get_block("C")
+    block = sch.get_sblock("C")
     loop = sch.get_loops(block)[0]
 
     # Split the loop
@@ -245,7 +245,7 @@ def test_llvm_madd_pipeline():
         sch = tir.Schedule(mod)
 
         # Get block and loops
-        block = sch.get_block("C")
+        block = sch.get_sblock("C")
         i_loop, j_loop = sch.get_loops(block)
 
         # Split and parallelize
@@ -444,7 +444,7 @@ def test_alignment():
     sch = tir.Schedule(mod)
 
     # Get block and loop
-    block = sch.get_block("B")
+    block = sch.get_sblock("B")
     loop = sch.get_loops(block)[0]
 
     # Split and vectorize
@@ -679,7 +679,7 @@ def test_dwarf_debug_information():
     sch = tir.Schedule(mod)
 
     # Get block and loop
-    block = sch.get_block("C")
+    block = sch.get_sblock("C")
     loop = sch.get_loops(block)[0]
 
     # Split and parallelize
@@ -769,7 +769,7 @@ def test_llvm_bf16():
         sch = tir.Schedule(mod)
 
         # Get block and loop
-        block = sch.get_block("D")
+        block = sch.get_sblock("D")
         loop = sch.get_loops(block)[0]
 
         # Apply vectorization if requested

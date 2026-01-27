@@ -32,13 +32,13 @@ def add(a: T.handle, b: T.handle) -> None:
     A_cached = T.alloc_buffer([2048, 2048, 2048], dtype="float32")
     # body
     for i, j, k in T.grid(2048, 2048, 2048):
-        with T.block("move"):
+        with T.sblock("move"):
             vi, vj, vk = T.axis.remap("SSS", [i, j, k])
             T.reads([A[vi, vj, vk]])
             T.writes([A_cached[vi, vj, vk]])
             A_cached[vi, vj, vk] = A[vi, vj, vk]
     for i0, j0, i1, j1, k0, i2, j2, k1 in T.grid(128, 64, 4, 4, 64, 4, 8, 32):
-        with T.block("add"):
+        with T.sblock("add"):
             vi = T.axis.spatial(2048, i0 * 16 + i1 * 4 + i2)
             vj = T.axis.spatial(2048, j0 * 32 + j1 * 8 + j2)
             vk = T.axis.spatial(2048, k0 * 32 + k1)
@@ -53,7 +53,7 @@ def add(a: T.handle, b: T.handle) -> None:
 def _sch(decision: int) -> Schedule:
     sch = Schedule(add, debug_mask="all")
     # pylint: disable=invalid-name
-    b0 = sch.get_block(name="move", func_name="main")
+    b0 = sch.get_sblock(name="move", func_name="main")
     l1 = sch.sample_compute_location(block=b0, decision=decision)
     sch.compute_at(block=b0, loop=l1, preserve_unit_loops=True)
     # pylint: enable=invalid-name

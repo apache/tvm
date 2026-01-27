@@ -482,9 +482,9 @@ class BlockBuilder(Object):
                     rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
                     compute = T.match_buffer(var_compute, [128, 128], dtype="float32")
                     # body
-                    # with T.block("root")
+                    # with T.sblock("root")
                     for i0, i1 in T.grid(128, 128):
-                        with T.block("compute"):
+                        with T.sblock("compute"):
                             i, j = T.axis.remap("SS", [i0, i1])
                             T.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
                             T.writes([compute[i, j]])
@@ -526,9 +526,9 @@ class BlockBuilder(Object):
                                                    dtype="float32")
                     compute = T.match_buffer(var_compute, [n + T.int64(1)], dtype="float32")
                     # body
-                    # with T.block("root")
+                    # with T.sblock("root")
                     for i0 in T.serial(0, n + T.int64(1)):
-                        with T.block("compute"):
+                        with T.sblock("compute"):
                             i = T.axis.spatial(n + T.int64(1), i0)
                             T.reads([rxplaceholder[i]])
                             T.writes([compute[i]])

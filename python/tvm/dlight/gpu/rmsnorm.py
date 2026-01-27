@@ -88,7 +88,7 @@ class RMSNorm(ScheduleRule):
             num_tx = 64
 
         sch = tir.Schedule(func)
-        root = sch.get_block(name="root", func_name="main")
+        root = sch.get_sblock(name="root", func_name="main")
 
         blocks = sch.get_child_blocks(root)
 

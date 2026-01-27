@@ -57,11 +57,11 @@ def test_relax_dynamo():
             # function attr dict
             T.func_attr({"tir.noalias": True, "global_symbol": "main"})
             # body
-            # with T.block("root")
+            # with T.sblock("root")
             matmul = T.alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
             T_add = T.alloc_buffer([T.int64(10), T.int64(10)], dtype="float32")
             for i0, i1, k in T.grid(T.int64(10), T.int64(10), T.int64(100)):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
                     T.reads(inp_0[v_i0, v_k], param_0[v_k, v_i1])
                     T.writes(matmul[v_i0, v_i1])
@@ -69,13 +69,13 @@ def test_relax_dynamo():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + inp_0[v_i0, v_k] * param_0[v_k, v_i1]
             for ax0, ax1 in T.grid(T.int64(10), T.int64(10)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(matmul[v_ax0, v_ax1], param_1[v_ax1])
                     T.writes(T_add[v_ax0, v_ax1])
                     T_add[v_ax0, v_ax1] = matmul[v_ax0, v_ax1] + param_1[v_ax1]
             for i0, i1 in T.grid(T.int64(10), T.int64(10)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
                     T.reads(T_add[v_i0, v_i1])
                     T.writes(compute[v_i0, v_i1])
@@ -85,9 +85,9 @@ def test_relax_dynamo():
     workload = db.commit_workload(Input1_ir)
 
     sch = tir.Schedule(Input1_ir, debug_mask="all")
-    b0 = sch.get_block(name="matmul", func_name="main")
-    b1 = sch.get_block(name="T_add", func_name="main")
-    b2 = sch.get_block(name="root", func_name="main")
+    b0 = sch.get_sblock(name="matmul", func_name="main")
+    b1 = sch.get_sblock(name="T_add", func_name="main")
+    b2 = sch.get_sblock(name="root", func_name="main")
     sch.compute_inline(block=b1)
     sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSRSRS")
     l3, l4, l5 = sch.get_loops(block=b0)

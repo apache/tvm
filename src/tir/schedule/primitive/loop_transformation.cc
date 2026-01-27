@@ -633,10 +633,10 @@ class BlockMutator : public StmtExprMutator {
   int inner_iter_var_index = -1;
 };
 
-const ffi::String get_block_name(Stmt loop_body) {
+const ffi::String get_sblock_name(Stmt loop_body) {
   const SBlockRealizeNode* blk_realize = loop_body.as<SBlockRealizeNode>();
   if (blk_realize == nullptr) {
-    return get_block_name(loop_body.as<ForNode>()->body);
+    return get_sblock_name(loop_body.as<ForNode>()->body);
   }
   return blk_realize->block->name_hint;
 }
@@ -659,7 +659,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
     dtype = DataType::Int(bits);
   }
 
-  ffi::String block_name = get_block_name(loop->body) + "_" + loop->loop_var->name_hint;
+  ffi::String block_name = get_sblock_name(loop->body) + "_" + loop->loop_var->name_hint;
   int n = factors.size();
   PrimExpr min_value = loop->min;
   PrimExpr extent_value;

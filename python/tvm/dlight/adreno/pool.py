@@ -33,7 +33,7 @@ class Pool2D(AdrenoScheduleRule):
         _: bool,
     ) -> tir.Schedule:
         sch = tir.Schedule(func)
-        root = sch.get_block(name="root", func_name="main")
+        root = sch.get_sblock(name="root", func_name="main")
 
         blocks = sch.get_child_blocks(root)
         blocks_names = [sch.get(blk).name_hint for blk in blocks]
@@ -51,7 +51,7 @@ class Pool2D(AdrenoScheduleRule):
             sch.bind(tx, "threadIdx.x")
 
         def schedule_max_pool(blk: tir.schedule.SBlockRV):
-            block_info = analysis.get_block_info(sch, blk)
+            block_info = analysis.get_sblock_info(sch, blk)
             iters_kind = "".join([_iter.kind for _iter in block_info.iters])
             if iters_kind != "SSSSSRR":
                 return None

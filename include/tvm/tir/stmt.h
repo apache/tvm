@@ -919,7 +919,7 @@ class MatchBufferRegion : public ObjectRef {
  * \note SBlock's body is parameterized by iter vars.
  * \code
  *
- *  with T.block(name):
+ *  with T.sblock(name):
  *      v0 = T.axis.S(domain, value0)
  *      v1 = T.axis.R(domain, value1)
  *      ...

@@ -36,7 +36,7 @@ def test_bind_params(use_np_array):
             B = T.match_buffer(y, (16, 16))
             C = T.match_buffer(z, (16, 16))
             for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi = T.axis.S(16, i0 * 4 + i1)
                     vj = T.axis.S(16, j)
                     vk = T.axis.R(16, k0 * 4 + k1)

@@ -295,7 +295,7 @@ def find_anchor_sblock(mod: IRModule) -> SBlock:
         The input TIR module.
     Returns
     -------
-    anchor_block: Block
+    anchor_block: SBlock
         The anchor block if found, None otherwise.
     """
     return _ffi_api.find_anchor_sblock(mod)  # type: ignore # pylint: disable=no-member

@@ -31,11 +31,11 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j in T.grid(128, 128):
-        with T.block("init"):
+        with T.sblock("init"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = T.float32(0)
         for k in range(128):
-            with T.block("update"):
+            with T.sblock("update"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -45,7 +45,7 @@ def two_kernels(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
     T.func_attr({"tir.noalias": True})
     A = T.match_buffer(var_A, (1, seq_len * 8), "int32")
     B = T.match_buffer(var_B, (1, seq_len * 8), "int32", align=8)
-    with T.block("exclusive_scan"):
+    with T.sblock("exclusive_scan"):
         T.reads()
         T.writes()
         s8: T.int32 = seq_len * 8
@@ -65,7 +65,7 @@ def two_kernels(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
 def test_tir_schedule_error_detail():
     sch = tir.Schedule(matmul, debug_mask="all", error_render_level="detail")
     with pytest.raises(tir.ScheduleError) as excinfo:
-        sch.get_block("wrong_name")
+        sch.get_sblock("wrong_name")
     (msg,) = excinfo.value.args
     assert "Cannot find a block with the name: wrong_name" in msg
 
@@ -73,7 +73,7 @@ def test_tir_schedule_error_detail():
 def test_tir_schedule_error_fast():
     sch = tir.Schedule(matmul, debug_mask="all", error_render_level="fast")
     with pytest.raises(tir.ScheduleError) as excinfo:
-        sch.get_block("wrong_name")
+        sch.get_sblock("wrong_name")
     (msg,) = excinfo.value.args
     assert "Cannot find a block with the specified name" in msg
 
@@ -81,7 +81,7 @@ def test_tir_schedule_error_fast():
 def test_tir_schedule_error_none():
     sch = tir.Schedule(matmul, debug_mask="all", error_render_level="none")
     with pytest.raises(tir.ScheduleError) as excinfo:
-        sch.get_block("wrong_name")
+        sch.get_sblock("wrong_name")
     (msg,) = excinfo.value.args
     assert "(not rendered)" in msg
 

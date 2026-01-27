@@ -333,7 +333,7 @@ def test_no_local_func():
             C: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("sub"):
+                with T.sblock("sub"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     C[vi, vj] = A[vi, vj] - B[vi, vj]
 

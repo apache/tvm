@@ -29,14 +29,14 @@ def scale_by_two(buffer_a: T.Buffer((8192,), "int8"), buffer_c: T.Buffer((8192,)
         0,
         8192,
     ):
-        with T.block("C"):
+        with T.sblock("C"):
             buffer_c[i] = buffer_a[i] * T.int8(2)
 
 
 def get_scale_by_two_schedule():
     mod = tvm.IRModule.from_expr(scale_by_two.with_attr("global_symbol", "main"))
     sch = tir.Schedule(mod, debug_mask="all")
-    block_c = sch.get_block("C")
+    block_c = sch.get_sblock("C")
     (flat,) = sch.get_loops(block_c)
     outer, _, _, _ = sch.split(flat, factors=[8, 4, 2, 128])
     cache_block = sch.cache_read(block_c, 0, storage_scope="global.vtcm")

@@ -169,8 +169,8 @@ TEST(IRF, StmtVisitor) {
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
 
     // construct block and block_realize
-    SBlock block =
-        Block({}, {buffer_region}, {buffer_region}, "block", body, body, {}, {match_buffer_region});
+    SBlock block = SBlock({}, {buffer_region}, {buffer_region}, "block", body, body, {},
+                          {match_buffer_region});
     Stmt block_realize = SBlockRealize({}, const_true(), block);
 
     v.count = 0;
@@ -296,12 +296,12 @@ TEST(IRF, StmtMutator) {
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
     // construct block and block_realize
-    SBlock block =
-        Block({}, {buffer_region}, {buffer_region}, "block", body, body, {}, {match_buffer_region});
+    SBlock block = SBlock({}, {buffer_region}, {buffer_region}, "block", body, body, {},
+                          {match_buffer_region});
     Stmt block_realize = SBlockRealize({}, const_true(), block);
     body = v(std::move(block_realize));
     // the body should be changed
-    Block new_block = body.as<BlockRealizeNode>()->block;
+    SBlock new_block = body.as<SBlockRealizeNode>()->block;
     ICHECK(new_block->body.as<DeclBufferNode>()->body.as<AllocateNode>()->extents[1].same_as(x));
     ICHECK(new_block->init.as<DeclBufferNode>()->body.as<AllocateNode>()->extents[1].same_as(x));
     ICHECK(new_block->reads[0]->region[0]->min.same_as(x));

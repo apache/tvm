@@ -158,7 +158,7 @@ def _schedule(
     len_vec: int,
 ):
     # pylint: disable=invalid-name
-    block = sch.get_block("B")
+    block = sch.get_sblock("B")
     xo, xi, k = sch.get_loops(block)
     bx, xo = sch.split(xo, factors=[len_bx, None])
     xi, tx, vec = sch.split(xi, factors=[None, len_tx, len_vec])

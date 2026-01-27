@@ -63,7 +63,7 @@ def test_call_tir_dtensor():
         ):
             T.func_attr({"tir.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.block():
+                with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
                     y[vi, vj] = x[vi, vj] + 1.0
 
@@ -126,7 +126,7 @@ def test_explicit_device_id():
         ):
             T.func_attr({"tir.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.block():
+                with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
                     y[vi, vj] = x[vi, vj] + 1.0
 
@@ -166,7 +166,7 @@ def test_constant():
         ):
             T.func_attr({"tir.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.block():
+                with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
                     y[vi, vj] = x[vi, vj] + 1.0
 

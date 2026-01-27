@@ -81,12 +81,12 @@ class Conv2d(AdrenoScheduleRule):
         root_block = analysis.get_root_block(sch, sch.func_working_on)
         blocks = sch.get_child_blocks(root_block)
         reduction_blocks = list(
-            filter(lambda block: analysis.get_block_info(sch, block).is_reduction(), blocks)
+            filter(lambda block: analysis.get_sblock_info(sch, block).is_reduction(), blocks)
         )
         remaining_blocks = [blk for blk in blocks if blk not in reduction_blocks]
 
         def is_convolution(blk):
-            block_info = analysis.get_block_info(sch, blk)
+            block_info = analysis.get_sblock_info(sch, blk)
             return "conv2d_NCHWc" in block_info.name
 
         if len(reduction_blocks) != 1 or not is_convolution(reduction_blocks[0]):

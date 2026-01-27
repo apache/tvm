@@ -705,7 +705,7 @@ def test_ignore_call_tir():
             out: T.Buffer((1, 64, 56, 56), "float32"),
         ):
             for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):
-                with T.block("root"):
+                with T.sblock("root"):
                     i, j, k, l = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     out[i, j, k, l] = T.max(data[i, j, k, l], 0.0)
 
@@ -732,9 +732,9 @@ def test_ignore_call_tir():
             data: T.Buffer((1, 64, 56, 56), "float32"),
             out: T.Buffer((1, 64, 56, 56), "float32"),
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):
-                with T.block("root"):
+                with T.sblock("root"):
                     i, j, k, l = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(data[i, j, k, l])
                     T.writes(out[i, j, k, l])

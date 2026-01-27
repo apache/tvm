@@ -45,7 +45,7 @@ def memcopy_operator(size):
         a_buffer = T.match_buffer(a, size, dtype="int8", align=128, scope="global")
         a_global_vtcm = T.match_buffer(a_v, size, dtype="int8", align=128, scope="global.vtcm")
         for ax0 in T.serial(size):
-            with T.block("A_global.vtcm"):
+            with T.sblock("A_global.vtcm"):
                 v0_ind = T.axis.spatial(size, ax0)
                 T.reads(a_buffer[v0_ind])
                 T.writes(a_global_vtcm[v0_ind])
@@ -149,7 +149,7 @@ class TestMatMulVec:
 
         # Run with some basic unroll and vectorize scheduling.
         sch = tvm.tir.Schedule(memcopy_operator(size))
-        vtcm_block_a = sch.get_block("A_global.vtcm")
+        vtcm_block_a = sch.get_sblock("A_global.vtcm")
         v_block = sch.get_loops(vtcm_block_a)
         _, vio_a, vii_a = sch.split(v_block[0], factors=[None, unroll_split, vector_split])
         sch.unroll(vio_a)
@@ -158,7 +158,7 @@ class TestMatMulVec:
 
         # Run with some basic unroll and vectorize scheduling and parallelization.
         sch = tvm.tir.Schedule(memcopy_operator(size))
-        vtcm_block_a = sch.get_block("A_global.vtcm")
+        vtcm_block_a = sch.get_sblock("A_global.vtcm")
         v_block = sch.get_loops(vtcm_block_a)
         vbo_a, _, vio_a, vii_a = sch.split(
             v_block[0], factors=[outer_split, None, unroll_split, vector_split]
@@ -170,7 +170,7 @@ class TestMatMulVec:
 
         # Run with some basic unroll and vectorize scheduling and parallelization.
         sch = tvm.tir.Schedule(memcopy_operator(size))
-        block = sch.get_block("A_global.vtcm")
+        block = sch.get_sblock("A_global.vtcm")
         loops = sch.get_loops(block)
         _, inner = sch.split(loops[0], [None, 128])
         sch.tensorize(inner, DMA_READ_128_i8)

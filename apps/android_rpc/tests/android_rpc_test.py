@@ -58,7 +58,7 @@ def test_rpc_module():
 
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
     sch = tvm.tir.Schedule(mod)
-    (x,) = sch.get_loops(block=sch.get_block("B"))
+    (x,) = sch.get_loops(block=sch.get_sblock("B"))
     xo, xi = sch.split(i, [None, 32])
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")

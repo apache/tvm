@@ -64,7 +64,7 @@ class Matmul:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
@@ -80,13 +80,13 @@ class DuplicateMatmul:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -101,15 +101,15 @@ class TrinityMatmul:
         C = T.alloc_buffer((1024, 1024), "float32")
         D = T.match_buffer(d, (1024, 1024), "float32")
         for i, j in T.grid(1024, 1024):
-            with T.block("A"):
+            with T.sblock("A"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(1024, 1024):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 3.0
         for i, j in T.grid(1024, 1024):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 D[vi, vj] = C[vi, vj] * 5.0
 
@@ -126,14 +126,14 @@ class TrinityMatmulProcessedForReference:
         # with tir.block("root")
         B = T.alloc_buffer([1024, 1024], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1 in T.grid(16, 64, 64, 16):
-            with T.block("A"):
+            with T.sblock("A"):
                 vi = T.axis.S(1024, i0_0 * 64 + i0_1)
                 vj = T.axis.S(1024, i1_0 * 16 + i1_1)
                 T.reads([A[vi, vj]])
                 T.writes([B[vi, vj]])
                 B[vi, vj] = A[vi, vj] * T.float32(2)
         for i0_0, i1_0, i0_1, i1_1 in T.grid(16, 64, 64, 16):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi = T.axis.S(1024, i0_0 * 64 + i0_1)
                 vj = T.axis.S(1024, i1_0 * 16 + i1_1)
                 T.reads([B[vi, vj]])
@@ -337,9 +337,9 @@ def test_meta_schedule_post_order_apply_remove_block():
             [
                 "# from tvm import tir",
                 "def apply_trace(sch: tir.Schedule) -> None:",
-                '  b0 = sch.get_block(name="A", func_name="main")',
-                '  b1 = sch.get_block(name="B", func_name="main")',
-                '  b2 = sch.get_block(name="C", func_name="main")',
+                '  b0 = sch.get_sblock(name="A", func_name="main")',
+                '  b1 = sch.get_sblock(name="B", func_name="main")',
+                '  b2 = sch.get_sblock(name="C", func_name="main")',
                 "  sch.compute_inline(block=b1)",
                 "  l3, l4 = sch.get_loops(block=b2)",
                 "  l5, l6 = sch.split(loop=l3, factors="
@@ -379,7 +379,7 @@ def test_meta_schedule_post_order_apply_remove_block():
             tvm.tir.schedule.schedule.ScheduleError,
             match="ScheduleError: An error occurred in the schedule primitive 'get-block'.",
         ):
-            sch.get_block("B", "main")
+            sch.get_sblock("B", "main")
         sch_trace = sch.trace.simplified(True)
         assert (
             str(sch_trace) == correct_trace([16, 64], [64, 16], [2, 512], [2, 512])
@@ -389,7 +389,7 @@ def test_meta_schedule_post_order_apply_remove_block():
         )
 
 
-def test_target_blocks_search_space():
+def test_target_sblocks_search_space():
     # Test that specific blocks of trinity matmul can be targeted.
     def filter_fn(block, target_names) -> bool:
         return block.name_hint in target_names

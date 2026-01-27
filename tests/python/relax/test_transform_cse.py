@@ -402,7 +402,7 @@ def test_call_tir_tuple_arg():
             C: T.Buffer([16, 16], "int32"),
         ):
             for iters in T.grid(*A.shape):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     i, j = T.axis.remap("SS", iters)
                     C[i, j] = A[i, j] * B[i, j]
 
@@ -413,7 +413,7 @@ def test_call_tir_tuple_arg():
             C: T.Buffer([16, 16], "int32"),
         ):
             for iters in T.grid(*A.shape):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     i, j = T.axis.remap("SS", iters)
                     C[i, j] = A[i, j] + B[i, j]
 

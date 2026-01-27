@@ -174,7 +174,7 @@ Doc PrintBlock(IRDocsifier d, tir::SBlock block, AccessPath block_p,  //
   // Step 4. Handle block attributes
   if (!block->annotations.empty()) {
     (*frame)->stmts.push_back(ExprStmtDoc(
-        TIR(d, "block_attr")
+        TIR(d, "sblock_attr")
             ->Call({d->AsDoc<ExprDoc>(block->annotations, block_p->Attr("annotations"))})));
   }
   // Step 5. Handle `alloc_buffer`
@@ -210,7 +210,7 @@ Doc PrintBlock(IRDocsifier d, tir::SBlock block, AccessPath block_p,  //
     kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
   }
   return ScopeDoc(std::nullopt,
-                  TIR(d, "block")  //
+                  TIR(d, "sblock")  //
                       ->Call({LiteralDoc::Str(block->name_hint, block_p->Attr("name_hint"))},
                              kwargs_keys, kwargs_values),
                   (*frame)->stmts);

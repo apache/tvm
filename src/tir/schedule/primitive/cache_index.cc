@@ -30,7 +30,7 @@ namespace tir {
 /*! \brief The auxiliary info used for the insertion point and content of the cache stage. */
 struct IndexInfo {
   /*! \brief The target block to perform cache_index */
-  StmtSRef target_block;
+  StmtSRef target_sblock;
   /*! \brief Record the common subexpr extract threshold */
   size_t cse_thresh;
   /*! \brief The cache buffer to store the precomputed index */
@@ -113,9 +113,9 @@ class IndexInfoCollector : public StmtExprVisitor {
   }
 
   void VisitStmt_(const SBlockNode* block) final {
-    visiting_target_block = static_cast<bool>(block_sref_->stmt == block);
+    visiting_target_sblock = static_cast<bool>(block_sref_->stmt == block);
     StmtVisitor::VisitStmt_(block);
-    visiting_target_block = false;
+    visiting_target_sblock = false;
     if (block == scope_sref_->stmt) {
       // The block vistied is the current parent scope
       // Handling cases when no SeqStmt in the scope
@@ -142,7 +142,7 @@ class IndexInfoCollector : public StmtExprVisitor {
 
   void VisitStmt_(const BufferStoreNode* store) final {
     // Only analyze the cache candidate for stores in target block
-    if (visiting_target_block) {
+    if (visiting_target_sblock) {
       auto IsEligibleComputation = [](const PrimExpr& expr) {
         return (SideEffect(expr) <= CallEffectKind::kPure && CalculateExprComplexity(expr) > 1 &&
                 (expr.as<RampNode>() == nullptr) && (expr.as<BroadcastNode>() == nullptr));
@@ -205,7 +205,7 @@ class IndexInfoCollector : public StmtExprVisitor {
   /*! \brief The flag whether we have visited the target block */
   bool visited_block_{false};
   /*! \brief The flag indicating currently visiting target block */
-  bool visiting_target_block{false};
+  bool visiting_target_sblock{false};
   /*! \brief The index to insert the cache_index stage */
   int loc_pos_{-1};
   /*! \brief The flag indicating the right scope to update seq pos */
@@ -388,9 +388,9 @@ class CacheIndexRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const SBlockNode* block) final {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
     // Mutate the body
-    visiting_target_block = static_cast<bool>(block == info_->target_block->stmt);
+    visiting_target_sblock = static_cast<bool>(block == info_->target_sblock->stmt);
     SBlock stmt = Downcast<SBlock>(StmtMutator::VisitStmt_(block));
-    visiting_target_block = false;
+    visiting_target_sblock = false;
 
     // Check if it is the block corresponding to the parent scope
     if (block == scope_sref_->stmt) {
@@ -409,7 +409,7 @@ class CacheIndexRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* store) final {
     Stmt ret_stmt = StmtMutator::VisitStmt_(store);
     // Replace common sub expr for target block, with cached buffer load
-    if (visiting_target_block) {
+    if (visiting_target_sblock) {
       for (size_t i = 0; i < info_->index_exprs.size(); i++) {
         PrimExpr& computation = info_->index_exprs[i];
         std::function<bool(const PrimExpr&)> predicate_selector =
@@ -433,7 +433,7 @@ class CacheIndexRewriter : public StmtExprMutator {
   /*! \brief The indices for the cache buffer */
   std::vector<ffi::Array<PrimExpr>> cache_indices_;
   /*! \brief Indicating whether cache stage is inserted, only do index replacement afterwards*/
-  bool visiting_target_block{false};
+  bool visiting_target_sblock{false};
 };
 
 ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
@@ -449,7 +449,7 @@ ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
 
   // Step 0. Checking index, getting the target buffer and the parent scope
   IndexInfo info;
-  info.target_block = block_sref;
+  info.target_sblock = block_sref;
   CHECK_GE(cse_thresh, 0) << "cse_thresh should not be negative number";
   info.cse_thresh = cse_thresh;
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);

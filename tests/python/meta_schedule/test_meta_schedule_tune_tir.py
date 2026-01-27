@@ -40,7 +40,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -53,11 +53,11 @@ def two_step(a: T.handle, c: T.handle) -> None:
     B = T.alloc_buffer((1024, 1024), "float32")
     C = T.match_buffer(c, (1024, 1024), "float32")
     for i, j in T.grid(1024, 1024):
-        with T.block("A"):
+        with T.sblock("A"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(1024, 1024):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 3.0
 

@@ -280,7 +280,7 @@ def test_call_tir_inplace_simple():
             # just overwrites A with 0s
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_zeros"):
+                with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.writes(A[ax0, ax1])
                     A[ax0, ax1] = T.int32(0)
@@ -298,7 +298,7 @@ def test_call_tir_inplace_simple():
         def zeros(A: T.Buffer((2, 3), "int32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_zeros"):
+                with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.writes(A[ax0, ax1])
                     A[ax0, ax1] = T.int32(0)
@@ -324,7 +324,7 @@ def test_call_tir_inplace_multiple_args():
             # copies the contents of C into A and B
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_zeros"):
+                with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(C[ax0, ax1])
                     T.writes(A[ax0, ax1], B[ax0, ax1])
@@ -353,7 +353,7 @@ def test_call_tir_inplace_multiple_args():
             # copies the contents of C into A and B
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_zeros"):
+                with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(C[ax0, ax1])
                     T.writes(A[ax0, ax1], B[ax0, ax1])
@@ -387,7 +387,7 @@ def test_call_tir_inplace_some_new():
             # copies the contents of C into A, out1, and out2
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_zeros"):
+                with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(C[ax0, ax1])
                     T.writes(A[ax0, ax1], out1[ax0, ax1], out2[ax0, ax1])
@@ -426,7 +426,7 @@ def test_call_tir_inplace_some_new():
         ):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_zeros"):
+                with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(C[ax0, ax1])
                     T.writes(A[ax0, ax1], out1[ax0, ax1], out2[ax0, ax1])

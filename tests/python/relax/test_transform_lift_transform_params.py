@@ -35,7 +35,7 @@ def test_basic(consume_params):
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ) -> None:
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     out[o, i, h, w] = w1[i, o, h, w]
 
@@ -102,7 +102,7 @@ def test_basic(consume_params):
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -175,7 +175,7 @@ def test_basic(consume_params):
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -1440,7 +1440,7 @@ def test_symbolic_var_2():
             n = T.int64()
             T_full = T.match_buffer(var_T_full, (n, n))
             for ax0, ax1 in T.grid(n, n):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads()
                     T.writes(T_full[v_ax0, v_ax1])
@@ -1465,9 +1465,9 @@ def test_symbolic_var_2():
             T.func_attr({"tir.noalias": True})
             n = T.int64()
             T_full = T.match_buffer(var_T_full, (n, n))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(n, n):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads()
                     T.writes(T_full[v_ax0, v_ax1])
@@ -1532,7 +1532,7 @@ def test_symbolic_var_from_shape():
         ):
             T.func_attr({"tir.noalias": True})
             for j in range(16):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     vj = T.axis.remap("S", [j])
                     Output_Slice[vj] = Input_2d[slice_index, vj]
 
@@ -1586,7 +1586,7 @@ def test_symbolic_var_from_shape():
         ):
             T.func_attr({"tir.noalias": True})
             for j in range(16):
-                with T.block("T_full"):
+                with T.sblock("T_full"):
                     vj = T.axis.remap("S", [j])
                     Output_Slice[vj] = Input_2d[slice_index, vj]
 

@@ -274,7 +274,7 @@ def get_index_map(block: tir.SBlock) -> Optional[Tuple[tir.IndexMap, ...]]:
     )
 
 
-def get_block_info(sch: tir.Schedule, block: tir.schedule.SBlockRV) -> SBlockInfo:
+def get_sblock_info(sch: tir.Schedule, block: tir.schedule.SBlockRV) -> SBlockInfo:
     def _iter_kind(loop: tir.IterVar) -> str:
         return {tir.IterVar.DataPar: "S", tir.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
 
@@ -981,7 +981,7 @@ class Matmul(GPUScheduleRule):
         main_block = reduction_blocks[0]
         block_stmt = sch.get(main_block)
 
-        main_block_info = get_block_info(sch, main_block)
+        main_block_info = get_sblock_info(sch, main_block)
         iter_infos = main_block_info.iters
         if not get_index_map(block_stmt):
             return None

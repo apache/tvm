@@ -43,7 +43,7 @@ class Matmul:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
@@ -60,13 +60,13 @@ class MatmulRelu:
         D = T.match_buffer(d, (16, 16), "float32")
         C = T.alloc_buffer((16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(16, 16):
-            with T.block("relu"):
+            with T.sblock("relu"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 D[vi, vj] = T.max(C[vi, vj], 0.0)
 
@@ -76,7 +76,7 @@ class MatmulRelu:
 
 
 def _schedule_matmul(sch: Schedule):
-    block = sch.get_block("matmul")
+    block = sch.get_sblock("matmul")
     i, j, k = sch.get_loops(block=block)
     i_tiles = [1, 1, 2, 512]
     j_tiles = [1, 512, 1, 2]

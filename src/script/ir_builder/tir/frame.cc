@@ -31,7 +31,7 @@ namespace tir {
 TVM_FFI_STATIC_INIT_BLOCK() {
   TIRFrameNode::RegisterReflection();
   PrimFuncFrameNode::RegisterReflection();
-  BlockFrameNode::RegisterReflection();
+  SBlockFrameNode::RegisterReflection();
   BlockInitFrameNode::RegisterReflection();
   ForFrameNode::RegisterReflection();
   AssertFrameNode::RegisterReflection();
@@ -84,7 +84,7 @@ void PrimFuncFrameNode::ExitWithScope() {
   }
 }
 
-void BlockFrameNode::ExitWithScope() {
+void SBlockFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   ffi::Array<tvm::tir::Buffer> tir_alloc_buffers;
   for (const tvm::tir::Buffer& buffer : alloc_buffers) {
@@ -108,7 +108,7 @@ void BlockFrameNode::ExitWithScope() {
 }
 
 void BlockInitFrameNode::EnterWithScope() {
-  BlockFrame frame = FindBlockFrame("T.init");
+  SBlockFrame frame = FindSBlockFrame("T.init");
   if (frame->init.defined()) {
     LOG(FATAL) << "ValueError: Duplicate block init declaration";
   }
@@ -117,7 +117,7 @@ void BlockInitFrameNode::EnterWithScope() {
 
 void BlockInitFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  BlockFrame frame = FindBlockFrame("T.init");
+  SBlockFrame frame = FindSBlockFrame("T.init");
   frame->init = AsStmt(stmts);
 }
 

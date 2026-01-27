@@ -25,7 +25,7 @@ from tvm.script import tir as T
 def apply_transformations(func, suggested_transfoms, print_transformation=False):
     sch = tir.Schedule(func)
     for block, per_block_transformations in suggested_transfoms.items():
-        blockrv = sch.get_block(block.name_hint)
+        blockrv = sch.get_sblock(block.name_hint)
         for obj, index_map in per_block_transformations.items():
             if isinstance(obj, tir.SBlock):
                 block_name = obj.name_hint
@@ -48,12 +48,12 @@ def test_nested_blocks():
         relu: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         for i, j in T.grid(32, 64):
-            with T.block("outer"):
+            with T.sblock("outer"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
                 T.reads(arg[v_i, v_j, 0:224, 0:224])
                 T.writes(relu[v_i, v_j, 0:224, 0:224])
                 for k, l in T.grid(224, 224):
-                    with T.block("inner"):
+                    with T.sblock("inner"):
                         v_k, v_l = T.axis.remap("SS", [k, l])
                         T.reads(arg[v_i, v_j, v_k, v_l])
                         T.writes(relu[v_i, v_j, v_k, v_l])
@@ -73,7 +73,7 @@ def test_mismatch_transformations_and_num_params():
         relu: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(arg[v_i0, v_i1, v_i2, v_i3])
                 T.writes(relu[v_i0, v_i1, v_i2, v_i3])
@@ -97,7 +97,7 @@ def test_empty_write_transformations():
         relu: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(arg[v_i0, v_i1, v_i2, v_i3])
                 T.writes(relu[v_i0, v_i1, v_i2, v_i3])
@@ -116,7 +116,7 @@ def test_non_bijective_block_transform():
         output: T.Buffer((32, 64), "float32"),
     ):
         for ax0, ax1 in T.grid(32, 64):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(arg[v_ax0, v_ax1])
                 T.writes(output[v_ax0, v_ax1])
@@ -135,7 +135,7 @@ def test_non_affine_access():
         output: T.Buffer((32 * 64, 10), "float32"),
     ):
         for ax0, ax1, ax2 in T.grid(32, 64, 10):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                 T.reads(arg[v_ax0, v_ax1])
                 T.writes(output[v_ax0 * v_ax1, v_ax2])
@@ -154,7 +154,7 @@ def test_unsupported_write_spatial_layout():
         output: T.Buffer((16), "float32"),
     ):
         for ax0, ax1 in T.grid(4, 4):
-            with T.block("flatten"):
+            with T.sblock("flatten"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(arg[v_ax0, v_ax1])
                 T.writes(output[v_ax0 * 4 + v_ax1])
@@ -173,7 +173,7 @@ def test_unpacked_iter_used_in_read_access():
         output: T.Buffer((4, 8), "float32"),
     ):
         for ax0, ax1, ax2 in T.grid(4, 8, 4):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                 T.reads(arg[v_ax1, v_ax2])
                 T.writes(output[v_ax0, v_ax1])
@@ -185,7 +185,7 @@ def test_unpacked_iter_used_in_read_access():
         output: T.Buffer((32), "float32"),
     ):
         for ax0, ax2 in T.grid(32, 4):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v_ax0, v_ax2 = T.axis.remap("SS", [ax0, ax2])
                 T.reads(arg[v_ax0 % 8, v_ax2])
                 T.writes(output[v_ax0])
@@ -205,7 +205,7 @@ def test_invalid_index_map():
         relu: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(arg[v_i0, v_i1, v_i2, v_i3])
                 T.writes(relu[v_i0, v_i1, v_i2, v_i3])
@@ -226,7 +226,7 @@ def test_SRSR_block():
         sum: T.Buffer((32, 64), "float32"),
     ):
         for ax0, k2, ax1, k3 in T.grid(32, 224, 64, 224):
-            with T.block("rxplaceholder_red"):
+            with T.sblock("rxplaceholder_red"):
                 v_ax0, v_k2, v_ax1, v_k3 = T.axis.remap("SRSR", [ax0, k2, ax1, k3])
                 T.reads(arg[v_ax0, v_ax1, v_k2, v_k3])
                 T.writes(sum[v_ax0, v_ax1])
@@ -240,7 +240,7 @@ def test_SRSR_block():
         sum: T.Buffer((32, 16, 4), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 16, 224, 4):
-            with T.block("rxplaceholder_red"):
+            with T.sblock("rxplaceholder_red"):
                 v0, v1, v2, v3, v4 = T.axis.remap("SRSRS", [ax0, ax1, ax2, ax3, ax4])
                 T.reads(arg[v0, v1, v2, v3, v4])
                 T.writes(sum[v0, v2, v4])
@@ -265,7 +265,7 @@ def test_op_elemwise_symbolic():
         Arg = T.match_buffer(arg, (N, C, H, W))
         Relu = T.match_buffer(relu, (N, C, H, W))
         for i0, i1, i2, i3 in T.grid(N, C, H, W):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(Arg[v_i0, v_i1, v_i2, v_i3])
                 T.writes(Relu[v_i0, v_i1, v_i2, v_i3])
@@ -279,9 +279,9 @@ def test_op_elemwise_symbolic():
         W = T.int64()
         Arg = T.match_buffer(arg, (N, H, W, C))
         Relu = T.match_buffer(relu, (N, H, W, C))
-        # with T.block("root"):
+        # with T.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(N, H, W, C):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(Arg[v0, v1, v2, v3])
                 T.writes(Relu[v0, v1, v2, v3])
@@ -301,7 +301,7 @@ def test_op_elemwise():
         relu: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 224, 224):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(arg[v_i0, v_i1, v_i2, v_i3])
                 T.writes(relu[v_i0, v_i1, v_i2, v_i3])
@@ -313,7 +313,7 @@ def test_op_elemwise():
         relu: T.Buffer((32, 224, 224, 64), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 64):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v0, v1, v2, v3])
                 T.writes(relu[v0, v1, v2, v3])
@@ -333,7 +333,7 @@ def test_op_pool_nchw_nhwc():
         pool_max: T.Buffer((32, 64, 111, 223), "float32"),
     ):
         for ax0, ax1, ax2, ax3, rv0, rv1 in T.grid(32, 64, 111, 223, 2, 2):
-            with T.block("pool_max"):
+            with T.sblock("pool_max"):
                 v_ax0, v_ax1, v_ax2, v_ax3, v_rv0, v_rv1 = T.axis.remap(
                     "SSSSRR", [ax0, ax1, ax2, ax3, rv0, rv1]
                 )
@@ -346,7 +346,7 @@ def test_op_pool_nchw_nhwc():
                     ]
                 )
                 T.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3])
-                T.block_attr({"schedule_rule": "meta_schedule.pool_max"})
+                T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
                 with T.init():
                     pool_max[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(-3.4028234663852886e38)
                 pool_max[v_ax0, v_ax1, v_ax2, v_ax3] = T.max(
@@ -364,13 +364,13 @@ def test_op_pool_nchw_nhwc():
         arg: T.Buffer((32, 224, 224, 64), "float32"),
         pool_max: T.Buffer((32, 111, 223, 64), "float32"),
     ):
-        # with T.block("root"):
+        # with T.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4, ax5 in T.grid(32, 111, 223, 64, 2, 2):
-            with T.block("pool_max"):
+            with T.sblock("pool_max"):
                 v0, v1, v2, v3, v4, v5 = T.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, ax4, ax5])
                 T.reads(arg[v0, v1 * 2 + v4 * 2, v2 + v5, v3])
                 T.writes(pool_max[v0, v1, v2, v3])
-                T.block_attr({"schedule_rule": "meta_schedule.pool_max"})
+                T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
                 with T.init():
                     pool_max[v0, v1, v2, v3] = T.float32(-3.4028234663852886e38)
                 pool_max[v0, v1, v2, v3] = T.max(
@@ -399,13 +399,13 @@ def test_op_pool_nchw16c_nhwc():
         ),
     ):
         for ax0, ax1, ax2, ax3, ax4, rv0, rv1 in T.grid(32, 4, 110, 220, 16, 5, 5):
-            with T.block("pool_max"):
+            with T.sblock("pool_max"):
                 v_ax0, v_ax1, v_ax2, v_ax3, v_ax4, v_rv0, v_rv1 = T.axis.remap(
                     "SSSSSRR", [ax0, ax1, ax2, ax3, ax4, rv0, rv1]
                 )
                 T.reads(arg[v_ax0, v_ax1, v_ax2 * 2 + v_rv0, v_ax3 + v_rv1, v_ax4])
                 T.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                T.block_attr({"schedule_rule": "meta_schedule.pool_max"})
+                T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
                 with T.init():
                     pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.float32(-3.4028234663852886e38)
                 pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.max(
@@ -419,11 +419,11 @@ def test_op_pool_nchw16c_nhwc():
         pool_max: T.Buffer((32, 110, 220, 64), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4, ax5 in T.grid(32, 110, 220, 64, 5, 5):
-            with T.block("pool_max"):
+            with T.sblock("pool_max"):
                 v0, v1, v2, v3, v4, v5 = T.axis.remap("SSSSRR", [ax0, ax1, ax2, ax3, ax4, ax5])
                 T.reads(arg[v0, v1 * 2 + v4, v2 + v5, v3])
                 T.writes(pool_max[v0, v1, v2, v3])
-                T.block_attr({"schedule_rule": "meta_schedule.pool_max"})
+                T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
                 with T.init():
                     pool_max[v0, v1, v2, v3] = T.float32(-3.4028234663852886e38)
                 pool_max[v0, v1, v2, v3] = T.max(
@@ -446,7 +446,7 @@ def test_op_reduce():
         sum: T.Buffer((32, 64), "float32"),
     ):
         for ax0, ax1, k2, k3 in T.grid(32, 64, 224, 224):
-            with T.block("rxplaceholder_red"):
+            with T.sblock("rxplaceholder_red"):
                 v_ax0, v_ax1, v_k2, v_k3 = T.axis.remap("SSRR", [ax0, ax1, k2, k3])
                 T.reads(arg[v_ax0, v_ax1, v_k2, v_k3])
                 T.writes(sum[v_ax0, v_ax1])
@@ -460,7 +460,7 @@ def test_op_reduce():
         sum: T.Buffer((32, 4, 16), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 4, 224, 224, 16):
-            with T.block("rxplaceholder_red"):
+            with T.sblock("rxplaceholder_red"):
                 v0, v1, v2, v3, v4 = T.axis.remap("SSRRS", [ax0, ax1, ax2, ax3, ax4])
                 T.reads(arg[v0, v1, v2, v3, v4])
                 T.writes(sum[v0, v1, v4])
@@ -483,7 +483,7 @@ def test_op_upsampling():
         resize: T.Buffer((32, 64, 202, 246), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 202, 246):
-            with T.block("resize"):
+            with T.sblock("resize"):
                 v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(arg[v_i0, v_i1, 0:224, 0:224])
                 T.writes(resize[v_i0, v_i1, v_i2, v_i3])
@@ -523,9 +523,9 @@ def test_op_upsampling():
         arg: T.Buffer((32, 64, 224, 224), "float32"),
         resize: T.Buffer((32, 202, 246, 64), "float32"),
     ):
-        # with T.block("root"):
+        # with T.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(32, 202, 246, 64):
-            with T.block("resize"):
+            with T.sblock("resize"):
                 v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v0, v3, 0:224, 0:224])
                 T.writes(resize[v0, v1, v2, v3])
@@ -574,7 +574,7 @@ def test_op_strided_slice():
         T_strided_slice_with_axes: T.Buffer((32, 64, 10, 8), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 64, 10, 8):
-            with T.block("T_strided_slice_with_axes"):
+            with T.sblock("T_strided_slice_with_axes"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(
                     arg[
@@ -597,9 +597,9 @@ def test_op_strided_slice():
         arg: T.Buffer((32, 224, 224, 16, 4), "float32"),
         T_strided_slice_with_axes: T.Buffer((32, 10, 8, 16, 4), "float32"),
     ):
-        # with T.block("root"):
+        # with T.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 10, 8, 16, 4):
-            with T.block("T_strided_slice_with_axes"):
+            with T.sblock("T_strided_slice_with_axes"):
                 v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
                 T.reads(arg[v0, v1 * 5 + 2, v2 * 7 + 4, v3, v4])
                 T.writes(T_strided_slice_with_axes[v0, v1, v2, v3, v4])
@@ -622,9 +622,9 @@ def test_op_binary_broadcast():
         T_add: T.Buffer((32, 64, 224, 224), "float32"),
     ):
         T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         for ax0, ax1, ax2, ax3 in T.grid(32, 64, 224, 224):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(
                     arg0[v_ax0, v_ax1, v_ax2, v_ax3],
@@ -642,9 +642,9 @@ def test_op_binary_broadcast():
         T_add: T.Buffer((32, 224, 224, 16, 4), "float32"),
     ):
         T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 224, 16, 4):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
                 T.reads(arg0[v0, v1, v2, v3, v4], arg1[v1, v2, v3, v4])
                 T.writes(T_add[v0, v1, v2, v3, v4])
@@ -664,7 +664,7 @@ def test_op_transpose():
         T_transpose: T.Buffer((32, 224, 224, 64), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 64):
-            with T.block("T_transpose"):
+            with T.sblock("T_transpose"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v_ax0, v_ax3, v_ax1, v_ax2])
                 T.writes(T_transpose[v_ax0, v_ax1, v_ax2, v_ax3])
@@ -676,7 +676,7 @@ def test_op_transpose():
         T_transpose: T.Buffer((32, 224, 64, 224), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 64, 224):
-            with T.block("T_transpose"):
+            with T.sblock("T_transpose"):
                 v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v0, v2, v3, v1])
                 T.writes(T_transpose[v0, v1, v2, v3])
@@ -696,7 +696,7 @@ def test_op_pad():
         PadInput: T.Buffer((32, 64, 230, 230), "float32"),
     ):
         for i0, i1, i2, i3 in T.grid(32, 64, 230, 230):
-            with T.block("PadInput"):
+            with T.sblock("PadInput"):
                 v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(arg[v_i0, v_i1, v_i2 - 2, v_i3 - 2])
                 T.writes(PadInput[v_i0, v_i1, v_i2, v_i3])
@@ -712,7 +712,7 @@ def test_op_pad():
         PadInput: T.Buffer((32, 230, 230, 16, 4), "float32"),
     ):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 230, 230, 16, 4):
-            with T.block("PadInput"):
+            with T.sblock("PadInput"):
                 v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
                 T.reads(arg[v0, v1 - 2, v2 - 2, v3, v4])
                 T.writes(PadInput[v0, v1, v2, v3, v4])
@@ -737,13 +737,13 @@ def test_op_split():
         split1: T.Buffer((32, 32, 224, 224), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
-            with T.block("T_split_sections"):
+            with T.sblock("T_split_sections"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v_ax0, v_ax1, v_ax2, v_ax3])
                 T.writes(split0[v_ax0, v_ax1, v_ax2, v_ax3])
                 split0[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1, v_ax2, v_ax3]
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
-            with T.block("T_split_sections_1"):
+            with T.sblock("T_split_sections_1"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3])
                 T.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
@@ -756,13 +756,13 @@ def test_op_split():
         split1: T.Buffer((32, 224, 224, 32), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 32):
-            with T.block("T_split_sections"):
+            with T.sblock("T_split_sections"):
                 v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v0, v1, v2, v3])
                 T.writes(split0[v0, v1, v2, v3])
                 split0[v0, v1, v2, v3] = arg[v0, v1, v2, v3]
         for ax0, ax1, ax2, ax3 in T.grid(32, 224, 224, 32):
-            with T.block("T_split_sections_1"):
+            with T.sblock("T_split_sections_1"):
                 v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v0, v1, v2, v3 + 32])
                 T.writes(split1[v0, v1, v2, v3])
@@ -785,13 +785,13 @@ def test_op_split_tiling_split_dim():
         split1: T.Buffer((32, 32, 224, 224), "float32"),
     ):
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
-            with T.block("T_split_sections"):
+            with T.sblock("T_split_sections"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v_ax0, v_ax1, v_ax2, v_ax3])
                 T.writes(split0[v_ax0, v_ax1, v_ax2, v_ax3])
                 split0[v_ax0, v_ax1, v_ax2, v_ax3] = arg[v_ax0, v_ax1, v_ax2, v_ax3]
         for ax0, ax1, ax2, ax3 in T.grid(32, 32, 224, 224):
-            with T.block("T_split_sections_1"):
+            with T.sblock("T_split_sections_1"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(arg[v_ax0, v_ax1 + 32, v_ax2, v_ax3])
                 T.writes(split1[v_ax0, v_ax1, v_ax2, v_ax3])
@@ -803,15 +803,15 @@ def test_op_split_tiling_split_dim():
         split0: T.Buffer((32, 224, 224, 8, 4), "float32"),
         split1: T.Buffer((32, 224, 224, 8, 4), "float32"),
     ):
-        # with T.block("root"):
+        # with T.sblock("root"):
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 224, 8, 4):
-            with T.block("T_split_sections"):
+            with T.sblock("T_split_sections"):
                 v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
                 T.reads(arg[v0, v1, v2, v3, v4])
                 T.writes(split0[v0, v1, v2, v3, v4])
                 split0[v0, v1, v2, v3, v4] = arg[v0, v1, v2, v3, v4]
         for ax0, ax1, ax2, ax3, ax4 in T.grid(32, 224, 224, 8, 4):
-            with T.block("T_split_sections_1"):
+            with T.sblock("T_split_sections_1"):
                 v0, v1, v2, v3, v4 = T.axis.remap("SSSSS", [ax0, ax1, ax2, ax3, ax4])
                 T.reads(arg[v0, v1, v2, v3 + 8, v4])
                 T.writes(split1[v0, v1, v2, v3, v4])

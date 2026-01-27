@@ -24,7 +24,7 @@ from .common_analysis import (
     is_broadcast_epilogue,
     normalize_prim_func,
     get_root_block,
-    get_block_info,
+    get_sblock_info,
 )
 from .gemv import (
     is_gemv,

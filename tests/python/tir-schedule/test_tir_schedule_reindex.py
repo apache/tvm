@@ -32,7 +32,7 @@ def transpose_elementwise(
     A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
 ) -> None:
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vj, vi] * 2.0
 
@@ -43,11 +43,11 @@ def transpose_elementwise_reindex_read(
 ) -> None:
     A_reindex = T.alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.block("A_reindex"):
+        with T.sblock("A_reindex"):
             vi, vj = T.axis.remap("SS", [i, j])
             A_reindex[vi, vj] = A[vj, vi]
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A_reindex[vi, vj] * 2.0
 
@@ -60,7 +60,7 @@ def conv2d_nhwc(
 ) -> None:
     PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
-        with T.block("PadInput"):
+        with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
             PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
                 ((((i1_1 >= 3) and (i1_1 < 227)) and (i2_1 >= 3)) and (i2_1 < 227)),
@@ -69,7 +69,7 @@ def conv2d_nhwc(
                 dtype="float32",
             )
     for i0, i1, i2, i3, i4, i5, i6 in T.grid(1, 112, 112, 64, 7, 7, 3):
-        with T.block("conv2d_nhwc"):
+        with T.sblock("conv2d_nhwc"):
             n, h, w, co, rh, rw, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
             with T.init():
                 Conv2d_nhwc[n, h, w, co] = T.float32(0)
@@ -88,7 +88,7 @@ def conv2d_nhwc_reindex_data(
     PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
     ReindexInput = T.alloc_buffer([1, 112, 112, 7, 7, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
-        with T.block("PadInput"):
+        with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
             PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
                 ((((i1_1 >= 3) and (i1_1 < 227)) and (i2_1 >= 3)) and (i2_1 < 227)),
@@ -97,11 +97,11 @@ def conv2d_nhwc_reindex_data(
                 dtype="float32",
             )
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 112, 112, 7, 7, 3):
-        with T.block("ReindexInput"):
+        with T.sblock("ReindexInput"):
             n, h, w, rh, rw, rc = T.axis.remap("SSSSSS", [i0, i1, i2, i3, i4, i5])
             ReindexInput[n, h, w, rh, rw, rc] = PadInput[n, ((h * 2) + rh), ((w * 2) + rw), rc]
     for i0, i1, i2, i3, i4, i5, i6 in T.grid(1, 112, 112, 64, 7, 7, 3):
-        with T.block("conv2d_nhwc"):
+        with T.sblock("conv2d_nhwc"):
             n, h, w, co, rh, rw, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
             with T.init():
                 Conv2d_nhwc[n, h, w, co] = T.float32(0)
@@ -120,7 +120,7 @@ def conv2d_nhwc_reindex_weight(
     PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
     weight_reindex = T.alloc_buffer([64, 7, 7, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
-        with T.block("PadInput"):
+        with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
             T.reads(inputs[i0_1, i1_1 - 3, i2_1 - 3, i3_1])
             T.writes(PadInput[i0_1, i1_1, i2_1, i3_1])
@@ -131,13 +131,13 @@ def conv2d_nhwc_reindex_weight(
                 dtype="float32",
             )
     for ax3, ax4, ax5, ax6 in T.grid(64, 7, 7, 3):
-        with T.block("weight_reindex"):
+        with T.sblock("weight_reindex"):
             v3, v4, v5, v6 = T.axis.remap("SSSS", [ax3, ax4, ax5, ax6])
             T.reads(weight[v4, v5, v6, v3])
             T.writes(weight_reindex[v3, v4, v5, v6])
             weight_reindex[v3, v4, v5, v6] = weight[v4, v5, v6, v3]
     for i0, i1, i2, i3, i4, i5, i6 in T.grid(1, 112, 112, 64, 7, 7, 3):
-        with T.block("conv2d_nhwc"):
+        with T.sblock("conv2d_nhwc"):
             n, h, w, co, rh, rw, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
             T.reads(
                 PadInput[n, h * 2 + rh, w * 2 + rw, co // 64 * 3 + rc],
@@ -160,7 +160,7 @@ def matmul(
     C: T.Buffer((512, 512), "float32"),
 ) -> None:
     for i0, i1, i2 in T.grid(512, 512, 512):
-        with T.block("matmul"):
+        with T.sblock("matmul"):
             i, j, k = T.axis.remap("SSR", [i0, i1, i2])
             T.reads(C[i, j], A[i, k], B[k, j])
             T.writes(C[i, j])
@@ -177,7 +177,7 @@ def matmul_reindex_write(
 ) -> None:
     C_reindex = T.alloc_buffer([512, 512], dtype="float32")
     for i0, i1, i2 in T.grid(512, 512, 512):
-        with T.block("matmul"):
+        with T.sblock("matmul"):
             i, j, k = T.axis.remap("SSR", [i0, i1, i2])
             T.reads(C_reindex[i, j], A[i, k], B[k, j])
             T.writes(C_reindex[i, j])
@@ -185,7 +185,7 @@ def matmul_reindex_write(
                 C_reindex[i, j] = T.float32(0)
             C_reindex[i, j] = C_reindex[i, j] + A[i, k] * B[k, j]
     for i0, i1 in T.grid(512, 512):
-        with T.block("C_reindex"):
+        with T.sblock("C_reindex"):
             v0, v1 = T.axis.remap("SS", [i0, i1])
             T.reads(C_reindex[v0, v1])
             T.writes(C[v0, v1])
@@ -195,7 +195,7 @@ def matmul_reindex_write(
 @T.prim_func
 def multiple_read(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")) -> None:
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vj, vi] + A[vi, vj]
 
@@ -207,7 +207,7 @@ def mixed_dtype(
     T_matmul_NT: T.Buffer((T.int64(2), 1280), "float16"),
 ) -> None:
     for i0, i1, i2 in T.grid(T.int64(2), 1280, 1280):
-        with T.block("T_matmul_NT"):
+        with T.sblock("T_matmul_NT"):
             i = T.axis.spatial(T.int64(2), i0)
             j, k = T.axis.remap("SR", [i1, i2])
             T.reads(p0[i, k], p1[j, k])
@@ -225,7 +225,7 @@ def mixed_dtype_reindex_write(
 ) -> None:
     T_matmul_NT_reindex = T.alloc_buffer([T.int64(2), 1280], dtype="float16")
     for i0, i1, i2 in T.grid(T.int64(2), 1280, 1280):
-        with T.block("T_matmul_NT"):
+        with T.sblock("T_matmul_NT"):
             i = T.axis.spatial(T.int64(2), i0)
             j, k = T.axis.remap("SR", [i1, i2])
             T.reads(p0[i, k], p1[j, k])
@@ -234,7 +234,7 @@ def mixed_dtype_reindex_write(
                 T_matmul_NT_reindex[i, j] = T.float16(0)
             T_matmul_NT_reindex[i, j] = T_matmul_NT_reindex[i, j] + p0[i, k] * p1[j, k]
     for ax0, ax1 in T.grid(T.int64(2), 1280):
-        with T.block("T_matmul_NT_reindex"):
+        with T.sblock("T_matmul_NT_reindex"):
             v0 = T.axis.spatial(T.int64(2), ax0)
             v1 = T.axis.remap("S", [ax1])
             T.reads(T_matmul_NT_reindex[v0, v1])
@@ -249,7 +249,7 @@ def matmul_unit_dim(
     C: T.Buffer((1, 1), "float32"),
 ) -> None:
     for i0, i1, i2 in T.grid(1, 1, 512):
-        with T.block("matmul"):
+        with T.sblock("matmul"):
             i, j, k = T.axis.remap("SSR", [i0, i1, i2])
             T.reads(C[i, j], A[i, k], B[k, j])
             T.writes(C[i, j])
@@ -266,7 +266,7 @@ def matmul_unit_dim_reindex_write(
 ) -> None:
     C_reindex = T.alloc_buffer([1, 1], dtype="float32")
     for i0, i1, i2 in T.grid(1, 1, 512):
-        with T.block("matmul"):
+        with T.sblock("matmul"):
             i, j, k = T.axis.remap("SSR", [i0, i1, i2])
             T.reads(C_reindex[i, j], A[i, k], B[k, j])
             T.writes(C_reindex[i, j])
@@ -274,7 +274,7 @@ def matmul_unit_dim_reindex_write(
                 C_reindex[i, j] = T.float32(0)
             C_reindex[i, j] = C_reindex[i, j] + A[i, k] * B[k, j]
     for i0, i1 in T.grid(1, 1):
-        with T.block("C_reindex"):
+        with T.sblock("C_reindex"):
             v0, v1 = T.axis.remap("SS", [i0, i1])
             T.reads(C_reindex[v0, v1])
             T.writes(C[v0, v1])
@@ -287,7 +287,7 @@ use_buffer_name = tvm.testing.parameter(by_dict={"buffer_index": False, "buffer_
 
 def test_reindex_read_basic(use_block_name, use_buffer_name):
     sch = tir.Schedule(transpose_elementwise)
-    block = "B" if use_block_name else sch.get_block("B")
+    block = "B" if use_block_name else sch.get_sblock("B")
     buf = "A" if use_buffer_name else ("read", 0)
     sch.reindex(block, buf)
     assert_structural_equal_ignore_global_symbol(
@@ -298,7 +298,7 @@ def test_reindex_read_basic(use_block_name, use_buffer_name):
 
 def test_conv2d_reindex_weight(use_block_name, use_buffer_name):
     sch = tir.Schedule(conv2d_nhwc)
-    block = "conv2d_nhwc" if use_block_name else sch.get_block("conv2d_nhwc")
+    block = "conv2d_nhwc" if use_block_name else sch.get_sblock("conv2d_nhwc")
     buf = "Weight" if use_buffer_name else ("read", 1)
     sch.reindex(block, buf)
     assert_structural_equal_ignore_global_symbol(conv2d_nhwc_reindex_weight, sch.mod["main"])
@@ -307,7 +307,7 @@ def test_conv2d_reindex_weight(use_block_name, use_buffer_name):
 
 def test_conv2d_reindex_data(use_block_name, use_buffer_name):
     sch = tir.Schedule(conv2d_nhwc)
-    block = "conv2d_nhwc" if use_block_name else sch.get_block("conv2d_nhwc")
+    block = "conv2d_nhwc" if use_block_name else sch.get_sblock("conv2d_nhwc")
     buf = "PadInput" if use_buffer_name else ("read", 0)
     sch.reindex(block, buf)
     assert_structural_equal_ignore_global_symbol(conv2d_nhwc_reindex_data, sch.mod["main"])
@@ -316,7 +316,7 @@ def test_conv2d_reindex_data(use_block_name, use_buffer_name):
 
 def test_matmul_reindex_write(use_block_name, use_buffer_name):
     sch = tir.Schedule(matmul)
-    block = "matmul" if use_block_name else sch.get_block("matmul")
+    block = "matmul" if use_block_name else sch.get_sblock("matmul")
     buf = "C" if use_buffer_name else ("write", 0)
     sch.reindex(block, buf)
     assert_structural_equal_ignore_global_symbol(matmul_reindex_write, sch.mod["main"])
@@ -325,7 +325,7 @@ def test_matmul_reindex_write(use_block_name, use_buffer_name):
 
 def test_reindex_fail_multiple_read(use_block_name, use_buffer_name):
     sch = tir.Schedule(multiple_read)
-    block = "B" if use_block_name else sch.get_block("B")
+    block = "B" if use_block_name else sch.get_sblock("B")
     buf = "A" if use_buffer_name else ("read", 0)
     with pytest.raises(ScheduleError):
         sch.reindex(block, buf)
@@ -333,7 +333,7 @@ def test_reindex_fail_multiple_read(use_block_name, use_buffer_name):
 
 def test_reindex_mixed_dtype(use_block_name, use_buffer_name):
     sch = tir.Schedule(mixed_dtype)
-    block = "T_matmul_NT" if use_block_name else sch.get_block("T_matmul_NT")
+    block = "T_matmul_NT" if use_block_name else sch.get_sblock("T_matmul_NT")
     buf = "T_matmul_NT" if use_buffer_name else ("write", 0)
     sch.reindex(block, buf)
     assert_structural_equal_ignore_global_symbol(mixed_dtype_reindex_write, sch.mod["main"])
@@ -342,7 +342,7 @@ def test_reindex_mixed_dtype(use_block_name, use_buffer_name):
 
 def test_matmul_unit_dim_reindex_write(use_block_name, use_buffer_name):
     sch = tir.Schedule(matmul_unit_dim)
-    block = "matmul" if use_block_name else sch.get_block("matmul")
+    block = "matmul" if use_block_name else sch.get_sblock("matmul")
     buf = "C" if use_buffer_name else ("write", 0)
     sch.reindex(block, buf)
     assert_structural_equal_ignore_global_symbol(matmul_unit_dim_reindex_write, sch.mod["main"])

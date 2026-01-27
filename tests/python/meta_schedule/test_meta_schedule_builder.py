@@ -49,7 +49,7 @@ class MatmulModule:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
@@ -68,13 +68,13 @@ class MatmulReluModule:
         D = T.match_buffer(d, (1024, 1024), "float32")
         C = T.alloc_buffer((1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(1024, 1024):
-            with T.block("relu"):
+            with T.sblock("relu"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 D[vi, vj] = T.max(C[vi, vj], 0.0)
 
@@ -90,7 +90,7 @@ class BatchMatmulModule:
         B = T.match_buffer(b, [16, 128, 128])
         C = T.match_buffer(c, [16, 128, 128])
         for n, i, j, k in T.grid(16, 128, 128, 128):
-            with T.block("update"):
+            with T.sblock("update"):
                 vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
                 with T.init():
                     C[vn, vi, vj] = 0.0

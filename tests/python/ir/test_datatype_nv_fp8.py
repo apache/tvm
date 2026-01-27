@@ -57,7 +57,7 @@ def fp8_unary(dtype: str):
         A_fp32 = T.match_buffer(a_fp32, [128], dtype="float32")
         A_roundtrip = T.match_buffer(a_roundtrip, [128], dtype=dtype)
         for i in range(128):
-            with T.block("fp8_unary"):
+            with T.sblock("fp8_unary"):
                 vi = T.axis.spatial(128, i)
                 A_add_B[vi] = A[vi] + B[vi]
                 A_sub_B[vi] = A[vi] - B[vi]

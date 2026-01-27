@@ -424,11 +424,11 @@ def test_disregard_primfuncs():
         def identity_identity(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
             C = T.alloc_buffer((128, 128), "float32")
             for i0, i1 in T.grid(4, 4):
-                with T.block("identity"):
+                with T.sblock("identity"):
                     vi0, vi1 = T.axis.remap("SS", [i0, i1])
                     C[vi0, vi1] = A[vi0, vi1]
             for i0, i1 in T.grid(4, 4):
-                with T.block("identity"):
+                with T.sblock("identity"):
                     vi0, vi1 = T.axis.remap("SS", [i0, i1])
                     B[vi0, vi1] = C[vi0, vi1]
 

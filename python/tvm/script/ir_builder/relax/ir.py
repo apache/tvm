@@ -377,11 +377,11 @@ def rewriter(rewriter_mod: Union[IRModule, Type]) -> PatternMatchingRewriter:
 ############################# BindingBlock ##############################
 
 
-def dataflow() -> frame.BlockFrame:
+def dataflow() -> frame.BindingBlockFrame:
     """Start a dataflow binding block frame.
     Returns
     -------
-    frame: frame.BlockFrame
+    frame: frame.BindingBlockFrame
         The created ir_builder Block frame.
     """
     return _ffi_api.Dataflow()  # type: ignore[attr-defined] # pylint: disable=no-member

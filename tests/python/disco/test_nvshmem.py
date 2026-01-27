@@ -157,7 +157,7 @@ def test_nvshmem_compile():
     def main(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
         for i in T.thread_binding(T.int64(8), thread="threadIdx.y"):
             for j in T.thread_binding(T.int64(16), thread="threadIdx.x"):
-                with T.block("T_transpose"):
+                with T.sblock("T_transpose"):
                     v0 = T.axis.spatial(T.int64(8), i)
                     v1 = T.axis.spatial(T.int64(16), j)
                     T.reads(A[v0, v1])
@@ -226,7 +226,7 @@ def _test_nvshmem_kernel_compile_impl():
                 my_pe_out: T.Buffer((1,), "int32"),
                 n_pes_out: T.Buffer((1,), "int32"),
             ):
-                with T.block("root"):
+                with T.sblock("root"):
                     T.reads()
                     T.writes(my_pe_out[0:1], n_pes_out[0:1])
                     T.call_kernel(

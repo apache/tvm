@@ -97,11 +97,11 @@ def test_single_arg_return():
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"
             ),
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3, ax4, rv0, rv1 in T.grid(
                 T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4), T.int64(2), T.int64(2)
             ):
-                with T.block("pool_max"):
+                with T.sblock("pool_max"):
                     v_ax0, v_ax1, v_ax2, v_ax3, v_ax4, v_rv0, v_rv1 = T.axis.remap(
                         "SSSSSRR", [ax0, ax1, ax2, ax3, ax4, rv0, rv1]
                     )
@@ -115,7 +115,7 @@ def test_single_arg_return():
                         ]
                     )
                     T.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                    T.block_attr({"schedule_rule": "meta_schedule.pool_max"})
+                    T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
                     with T.init():
                         pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.float32(
                             -340282346638528859811704183484516925440.0
@@ -138,9 +138,9 @@ def test_single_arg_return():
                 (T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"
             ),
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for self, i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(26), T.int64(26)):
-                with T.block("te_layout_transform"):
+                with T.sblock("te_layout_transform"):
                     v_self, v_i0, v_i1, v_i2 = T.axis.remap("SSSS", [self, i0, i1, i2])
                     T.reads(x[v_self, v_i0, v_i1, v_i2])
                     T.writes(
@@ -161,11 +161,11 @@ def test_single_arg_return():
                 (T.int64(2), T.int64(4), T.int64(13), T.int64(13)), "float32"
             ),
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for self, i0, i1, i2, i3 in T.grid(
                 T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)
             ):
-                with T.block("te_layout_transform"):
+                with T.sblock("te_layout_transform"):
                     v_self, v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSSS", [self, i0, i1, i2, i3])
                     T.reads(lv2[v_self, v_i0, v_i1, v_i2, v_i3])
                     T.writes(te_layout_transform[v_self, v_i3, v_i1, v_i2])

@@ -34,11 +34,11 @@ def elementwise(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128), "float32")
     B = T.alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -49,11 +49,11 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j in T.grid(128, 128):
-        with T.block("init"):
+        with T.sblock("init"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = 0.0
         for k in range(0, 128):
-            with T.block("update"):
+            with T.sblock("update"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -63,25 +63,25 @@ def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     B = T.match_buffer(b, (128, 128), "float32")
     for i in range(128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(128, i)
             T.reads([A[0:128, 0:128]])
             T.writes([B[0:128, 0:128]])
             B[vi, 0] = A[vi, 0]
             if A[vi, 0] == 0.0:
-                with T.block("C"):
+                with T.sblock("C"):
                     T.reads([A[0:128, 0:128]])
                     T.writes([B[0:128, 0:128]])
                     for j in range(128):
-                        with T.block("D"):
+                        with T.sblock("D"):
                             vj = T.axis.S(128, j)
                             B[vi, vj] = A[vi, vj] * 3.0
             else:
-                with T.block("E"):
+                with T.sblock("E"):
                     T.reads([A[0:128, 0:128]])
                     T.writes([B[0:128, 0:128]])
                     for j in range(128):
-                        with T.block("F"):
+                        with T.sblock("F"):
                             vj = T.axis.S(128, j)
                             B[vi, vj] = A[vi, vj] * 2.0
 
@@ -92,11 +92,11 @@ def write_after_read(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
@@ -107,10 +107,10 @@ def loop_carried_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (128,))
     C = T.match_buffer(c, (128,))
     for i in range(0, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(128, i)
             B[vi] = A[vi] * 2.0
-        with T.block("C"):
+        with T.sblock("C"):
             vi = T.axis.S(128, i)
             C[vi] = T.if_then_else(vi >= 1, B[vi - 1] + 1.0, 0.0, dtype="float32")
 
@@ -120,15 +120,15 @@ def concatenate_multi_producer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128,))
     B = T.match_buffer(b, (128,))
     for i in range(0, 64):
-        with T.block("A_0"):
+        with T.sblock("A_0"):
             vi = T.axis.S(64, i)
             A[vi] = vi + 1
     for i in range(0, 64):
-        with T.block("A_1"):
+        with T.sblock("A_1"):
             vi = T.axis.S(64, i + 64)
             A[vi] = vi + 2
     for i in range(0, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(128, i)
             B[vi] = A[vi] * 2.0
 
@@ -138,15 +138,15 @@ def concatenate_multi_producer_uncovered(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128,))
     B = T.match_buffer(b, (128,))
     for i in range(0, 63):
-        with T.block("A_0"):
+        with T.sblock("A_0"):
             vi = T.axis.S(63, i)
             A[vi] = vi + 1
     for i in range(0, 64):
-        with T.block("A_1"):
+        with T.sblock("A_1"):
             vi = T.axis.S(64, i + 64)
             A[vi] = vi + 2
     for i in range(0, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(128, i)
             B[vi] = A[vi] * 2.0
 
@@ -157,10 +157,10 @@ def lca_at_loop(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, (128,))
     C = T.match_buffer(c, (128,))
     for i in range(0, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(128, i)
             B[vi] = A[vi] * 2.0
-        with T.block("C"):
+        with T.sblock("C"):
             vi = T.axis.S(128, i)
             C[vi] = B[vi] + 1.0
 
@@ -170,19 +170,19 @@ def multi_producer_consumer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128,))
     B = T.match_buffer(b, (128,))
     for i in range(0, 64):
-        with T.block("A_0"):
+        with T.sblock("A_0"):
             vi = T.axis.S(64, i)
             A[vi] = vi + 1
     for i in range(0, 64):
-        with T.block("A_1"):
+        with T.sblock("A_1"):
             vi = T.axis.S(64, i + 64)
             A[vi] = vi + 2
     for i in range(0, 64):
-        with T.block("B_0"):
+        with T.sblock("B_0"):
             vi = T.axis.S(64, i)
             B[vi] = A[vi] + 2.0
     for i in range(0, 64):
-        with T.block("B_1"):
+        with T.sblock("B_1"):
             vi = T.axis.S(64, i + 64)
             B[vi] = A[vi] + 3.0
 
@@ -193,12 +193,12 @@ def elementwise_affine_producer(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128), "float32")
     B = T.alloc_buffer((128, 128), "float32")
     for i, j, k, l in T.grid(16, 2, 32, 16):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(128, i * 8 + j * 4 + k // 8)
             vj = T.axis.S(128, k % 8 * 16 + l)
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -209,16 +209,16 @@ def elementwise_subblock(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128), "float32")
     B = T.alloc_buffer((128, 128), "float32")
     for i, j in T.grid(32, 32):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([A[vi * 4 : vi * 4 + 4, vj * 4 : vj * 4 + 4]])
             T.writes([B[vi * 4 : vi * 4 + 4, vj * 4 : vj * 4 + 4]])
             for ii, jj in T.grid(4, 4):
-                with T.block("B_sub"):
+                with T.sblock("B_sub"):
                     vi_i, vj_i = T.axis.remap("SS", [ii, jj])
                     B[vi * 4 + vi_i, vj * 4 + vj_i] = A[vi * 4 + vi_i, vj * 4 + vj_i] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -229,16 +229,16 @@ def elementwise_subblock_uncovered(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128), "float32")
     B = T.alloc_buffer((128, 128), "float32")
     for i, j in T.grid(32, 32):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([A[vi * 4 : vi * 4 + 2, vj * 4 : vj * 4 + 2]])
             T.writes([B[vi * 4 : vi * 4 + 2, vj * 4 : vj * 4 + 2]])
             for ii, jj in T.grid(2, 2):
-                with T.block("B_sub"):
+                with T.sblock("B_sub"):
                     vi_i, vj_i = T.axis.remap("SS", [ii, jj])
                     B[vi * 4 + vi_i, vj * 4 + vj_i] = A[vi * 4 + vi_i, vj * 4 + vj_i] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -250,11 +250,11 @@ def bound_to_thread(a: T.handle, c: T.handle) -> None:
     B = T.alloc_buffer([128, 128], scope="shared")
     for i in T.thread_binding(0, 128, thread="threadIdx.x"):
         for j in T.serial(0, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for j in T.serial(0, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vj, vi] = B[vj, vi] + 1.0
 
@@ -267,12 +267,12 @@ def equal_ranked_threads(a: T.handle, c: T.handle) -> None:
     for i_o in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i_i in T.thread_binding(0, 8, thread="threadIdx.y"):
             for j in T.serial(0, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     vi = T.axis.S(128, i_o * 8 + i_i)
                     vj = T.axis.S(128, j)
                     B[vi, vj] = A[vi, vj] * 2.0
             for j in T.serial(0, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi = T.axis.S(128, i_o * 8 + i_i)
                     vj = T.axis.S(128, j)
                     C[vj, vi] = B[vj, vi] + 1.0
@@ -286,11 +286,11 @@ def warp_memory(a: T.handle, c: T.handle) -> None:
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
         for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
             for j in T.serial(0, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     warp_id, lane_id, vj = T.axis.remap("SSS", [i_o, i_i, j])
                     B[vj, warp_id, lane_id] = A[warp_id * 32 + lane_id, vj] * 2.0
             for j in T.serial(0, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     warp_id, lane_id, vj = T.axis.remap("SSS", [i_o, i_i, j])
                     C[warp_id * 32 + lane_id, vj] = B[vj, warp_id, lane_id] + 1.0
 
@@ -303,12 +303,12 @@ def warp_memory_negative(a: T.handle, c: T.handle) -> None:
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
         for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
             for j in T.serial(0, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     warp_id, lane_id, vj = T.axis.remap("SSS", [i_o, i_i, j])
                     B[vj, warp_id, lane_id] = A[warp_id * 32 + lane_id, vj] * 2.0
             for i_o_prime in T.thread_binding(0, 4, thread="threadIdx.y"):
                 for j in T.serial(0, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         _warp_id, warp_id, lane_id, vj = T.axis.remap(
                             "SSSS", [i_o, i_i, i_o_prime, j]
                         )
@@ -323,7 +323,7 @@ def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
     for hh_0, ww_0 in T.grid(28, 28):
         for ax0 in T.serial(0, 10):
             for ax1 in T.serial(0, 10):
-                with T.block("cache"):
+                with T.sblock("cache"):
                     h = T.axis.spatial(224, hh_0 * 8 - 1 + ax0)
                     w = T.axis.spatial(224, ww_0 * 8 - 1 + ax1)
                     T.where(
@@ -334,7 +334,7 @@ def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
                     )
                     cache[h, w] = X[h, w]
         for hh_1, ww_1, khh, kww in T.grid(8, 8, 3, 3):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 h = T.axis.spatial(224, hh_0 * 8 + hh_1)
                 w = T.axis.spatial(224, ww_0 * 8 + ww_1)
                 kh, kw = T.axis.remap("RR", [khh, kww])
@@ -357,11 +357,11 @@ def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
 @T.prim_func
 def uncovered_producer_region(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
     for i in range(120):
-        with T.block("producer"):
+        with T.sblock("producer"):
             vi = T.axis.S((0, 120), i)
             A[vi] = 1.0
     for i in range(120):
-        with T.block("consumer"):
+        with T.sblock("consumer"):
             vi = T.axis.S((8, 128), i + 8)
             B[vi] = A[vi]
 
@@ -371,20 +371,20 @@ def matmul_relu_padding(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 12
     # function attr dict
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     # body
-    # with T.block("root")
+    # with T.sblock("root")
     C = T.alloc_buffer([127, 127], dtype="float32")
     A_reindex = T.alloc_buffer([128, 128], dtype="float16")
     B_reindex = T.alloc_buffer([128, 128], dtype="float16")
     C_reindex_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
     C_reindex_shared_wmma_accumulator = T.alloc_buffer([128, 128], dtype="float32", scope="wmma.accumulator")
     for ax0, ax1, ax2 in T.grid(128, 1, 128):
-        with T.block("A_reindex"):
+        with T.sblock("A_reindex"):
             v0, v1, v2 = T.axis.remap("SSS", [ax0, ax1, ax2])
             T.reads(A[v0, v2])
             T.writes(A_reindex[v0, v2])
             A_reindex[v0, v2] = T.if_then_else(v0 < 127 and v2 < 127, A[v0, v2], T.float16(0), dtype="float16")
     for ax0, ax1, ax2 in T.grid(1, 128, 128):
-        with T.block("B_reindex"):
+        with T.sblock("B_reindex"):
             v0, v1, v2 = T.axis.remap("SSS", [ax0, ax1, ax2])
             T.reads(B[v2, v1])
             T.writes(B_reindex[v2, v1])
@@ -393,45 +393,45 @@ def matmul_relu_padding(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 12
         for ax0_0_1_ax1_0_1_fused in T.thread_binding(1, thread="blockIdx.x"):
             for ax0_0_2_ax1_0_2_fused in T.thread_binding(16, thread="threadIdx.y"):
                 for ax2_0_0, ax2_0_1, ax0_0_3, ax1_0_3, ax2_0_2, ax0_0_4, ax1_0_4 in T.grid(2, 2, 1, 2, 2, 1, 1):
-                    with T.block("C_o"):
+                    with T.sblock("C_o"):
                         v0_o = T.axis.spatial(8, ax0_0_2_ax1_0_2_fused // 2 + ax0_0_3 + ax0_0_4)
                         v1_o = T.axis.spatial(8, ax1_0_4 + ax0_0_0_ax1_0_0_fused * 4 + ax0_0_2_ax1_0_2_fused % 2 * 2 + ax1_0_3)
                         v2_o = T.axis.reduce(8, ax2_0_0 * 4 + ax2_0_1 * 2 + ax2_0_2)
                         T.reads(A_reindex[v0_o * 16 : v0_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16], B_reindex[v2_o * 16 : v2_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
                         T.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
-                        T.block_attr({"meta_schedule.auto_tensorize":"wmma_sync_16x16x16_f16f16f32", "meta_schedule.auto_tensorize_init":"wmma_fill_16x16x16_f32", "warp_execution":1})
+                        T.sblock_attr({"meta_schedule.auto_tensorize":"wmma_sync_16x16x16_f16f16f32", "meta_schedule.auto_tensorize_init":"wmma_fill_16x16x16_f32", "warp_execution":1})
                         with T.init():
                             for ax0_1, ax1_1 in T.grid(16, 16):
-                                with T.block("C_init"):
+                                with T.sblock("C_init"):
                                     v0_i_init, v1_i_init = T.axis.remap("SS", [ax0_1, ax1_1])
                                     T.reads()
                                     T.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i_init, v1_o * 16 + v1_i_init])
                                     C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i_init, v1_o * 16 + v1_i_init] = T.float32(0)
                         for ax0_1, ax1_1, ax2_1 in T.grid(16, 16, 16):
-                            with T.block("C"):
+                            with T.sblock("C"):
                                 v0_i, v1_i, v2_i = T.axis.remap("SSR", [ax0_1, ax1_1, ax2_1])
                                 T.reads(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i], A_reindex[v0_o * 16 + v0_i, v2_o * 16 + v2_i], B_reindex[v2_o * 16 + v2_i, v1_o * 16 + v1_i])
                                 T.writes(C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
-                                T.block_attr({"meta_schedule.tiling_structure":"SSSRRSRS"})
+                                T.sblock_attr({"meta_schedule.tiling_structure":"SSSRRSRS"})
                                 C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = C_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i] + T.cast(A_reindex[v0_o * 16 + v0_i, v2_o * 16 + v2_i], "float32") * T.cast(B_reindex[v2_o * 16 + v2_i, v1_o * 16 + v1_i], "float32")
                 for ax0, ax1 in T.grid(16, 32):
-                    with T.block("C_reindex_shared_wmma.accumulator"):
+                    with T.sblock("C_reindex_shared_wmma.accumulator"):
                         v0 = T.axis.spatial(128, ax0_0_2_ax1_0_2_fused // 2 * 16 + ax0)
                         v1 = T.axis.spatial(128, ax0_0_0_ax1_0_0_fused * 64 + ax0_0_2_ax1_0_2_fused % 2 * 32 + ax1)
                         T.reads(C_reindex_shared_wmma_accumulator[v0, v1])
                         T.writes(C_reindex_shared[v0, v1])
                         C_reindex_shared[v0, v1] = C_reindex_shared_wmma_accumulator[v0, v1]
             for ax0, ax1 in T.grid(128, 64):
-                with T.block("C_reindex_shared"):
+                with T.sblock("C_reindex_shared"):
                     v0 = T.axis.spatial(128, ax0)
                     v1 = T.axis.spatial(128, ax0_0_0_ax1_0_0_fused * 64 + ax1)
                     T.where(ax0 < 127 and ax0_0_0_ax1_0_0_fused * 64 + ax1 < 127)
                     T.reads(C_reindex_shared[v0, v1])
                     T.writes(C[v0, v1])
-                    T.block_attr({"meta_schedule.cooperative_fetch":3})
+                    T.sblock_attr({"meta_schedule.cooperative_fetch":3})
                     C[v0, v1] = C_reindex_shared[v0, v1]
     for i0, i1 in T.grid(127, 127):
-        with T.block("compute"):
+        with T.sblock("compute"):
             i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
             T.reads(C[i0_1, i1_1])
             T.writes(compute[i0_1, i1_1])
@@ -444,7 +444,7 @@ def splitted_square_sum_with_predicate(
 ) -> None:
     for i0_i1_i2_i3_0_fused, ax0, ax1, ax2, ax3 in T.grid(2, 1, 1, 1, 256):
         for ax4_ax5_fused_0, ax4_ax5_fused_1 in T.grid(1, 256):
-            with T.block("B"):
+            with T.sblock("B"):
                 T.where(ax4_ax5_fused_0 * 256 + ax4_ax5_fused_1 < 49)
                 ax0_1, ax1_1, ax2_1 = T.axis.remap("SSS", [ax0, ax1, ax2])
                 ax3_1 = T.axis.spatial(512, i0_i1_i2_i3_0_fused * 256 + ax3)
@@ -461,7 +461,7 @@ def splitted_square_sum_with_predicate(
 # fmt: on
 
 
-def _get_block(s: tir.ScheduleState, name_hint: str) -> tir.StmtSRef:
+def _get_sblock(s: tir.ScheduleState, name_hint: str) -> tir.StmtSRef:
     result = None
 
     def f_visit(node):
@@ -478,17 +478,17 @@ def _get_block(s: tir.ScheduleState, name_hint: str) -> tir.StmtSRef:
 def test_elementwise():
     s = tir.ScheduleState(elementwise, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -499,17 +499,17 @@ def test_elementwise():
 def test_matmul():
     s = tir.ScheduleState(matmul, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "init")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "init")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "update")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "update")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -520,27 +520,27 @@ def test_matmul():
 def test_block_in_opaque_block():
     s = tir.ScheduleState(block_in_opaque_block, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "E")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "E")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "F")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "F")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -551,17 +551,17 @@ def test_block_in_opaque_block():
 def test_write_after_read():
     s = tir.ScheduleState(write_after_read, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=False,
@@ -572,17 +572,17 @@ def test_write_after_read():
 def test_loop_carried_dependency():
     s = tir.ScheduleState(loop_carried_dependency, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=False,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=False,
@@ -593,22 +593,22 @@ def test_loop_carried_dependency():
 def test_concatenate_multi_producer_covered():  # pylint: disable=invalid-name
     s = tir.ScheduleState(concatenate_multi_producer, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "A_0")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "A_0")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "A_1")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "A_1")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -619,22 +619,22 @@ def test_concatenate_multi_producer_covered():  # pylint: disable=invalid-name
 def test_concatenate_multi_producer_uncovered():  # pylint: disable=invalid-name
     s = tir.ScheduleState(concatenate_multi_producer_uncovered, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "A_0")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "A_0")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "A_1")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "A_1")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=False,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=False,
@@ -645,17 +645,17 @@ def test_concatenate_multi_producer_uncovered():  # pylint: disable=invalid-name
 def test_lca_at_loop():
     s = tir.ScheduleState(lca_at_loop, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -666,22 +666,22 @@ def test_lca_at_loop():
 def test_multi_producer_consumer():
     s = tir.ScheduleState(multi_producer_consumer, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "A_0")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "A_0")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "A_1")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "A_1")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "B_0")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B_0")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "B_1")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B_1")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -692,17 +692,17 @@ def test_multi_producer_consumer():
 def test_elementwise_affine_producer():
     s = tir.ScheduleState(elementwise_affine_producer, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -713,22 +713,22 @@ def test_elementwise_affine_producer():
 def test_subblock():
     s = tir.ScheduleState(elementwise_subblock, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "B_sub")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B_sub")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -739,22 +739,22 @@ def test_subblock():
 def test_subblock_uncovered():
     s = tir.ScheduleState(elementwise_subblock_uncovered, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=False,
     )
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "B_sub")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B_sub")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=False,
         stage_pipeline=True,
@@ -765,17 +765,17 @@ def test_subblock_uncovered():
 def test_thread_binding():
     s = tir.ScheduleState(bound_to_thread, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -786,17 +786,17 @@ def test_thread_binding():
 def test_equal_ranked_threads():
     s = tir.ScheduleState(equal_ranked_threads, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -807,17 +807,17 @@ def test_equal_ranked_threads():
 def test_warp_memory():
     s = tir.ScheduleState(warp_memory, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -828,17 +828,17 @@ def test_warp_memory():
 def test_warp_memory_negative():
     s = tir.ScheduleState(warp_memory_negative, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "root")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=False,
     )
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C")) == CachedFlags(
         affine_binding=True,
         region_cover=False,
         stage_pipeline=True,
@@ -849,12 +849,12 @@ def test_warp_memory_negative():
 def test_non_perfect_tiling_cache():
     s = tir.ScheduleState(non_perfect_tiling_cache, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "cache")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "cache")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    assert s._get_cached_flags(_get_block(s, "compute")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "compute")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -865,7 +865,7 @@ def test_non_perfect_tiling_cache():
 def test_uncovered_producer_region():
     s = tir.ScheduleState(uncovered_producer_region, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "consumer")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "consumer")) == CachedFlags(
         affine_binding=True,
         region_cover=False,
         stage_pipeline=True,
@@ -876,7 +876,7 @@ def test_uncovered_producer_region():
 def test_matmul_relu_padding():
     s = tir.ScheduleState(matmul_relu_padding, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "C_reindex_shared")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "C_reindex_shared")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
@@ -887,7 +887,7 @@ def test_matmul_relu_padding():
 def test_splitted_square_sum_with_predicate():
     s = tir.ScheduleState(splitted_square_sum_with_predicate, debug_mask="all")
     # pylint: disable=protected-access
-    assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
+    assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,

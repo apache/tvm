@@ -63,7 +63,7 @@ class IterInfo:
         return str(self)
 
 
-get_blockrealize = get_global_func("tir.schedule.GetSBlockRealize")
+get_sblockrealize = get_global_func("tir.schedule.GetSBlockRealize")
 # BufferIndex Types
 Index = namedtuple("Index", ["sub"])  # c
 RemIndex = namedtuple("RemIndex", ["sub", "div"])  # c%len
@@ -92,7 +92,7 @@ class BufferInfo:
             lps = sch.get_loops(block_rv)
         loops = [sch.get(lp) for lp in lps]
         iter_vars = [Var.var for Var in block.iter_vars]
-        iter_values = get_blockrealize(sch, block_rv).iter_values
+        iter_values = get_sblockrealize(sch, block_rv).iter_values
         lpvar_lp = dict([loop.loop_var, lp] for loop, lp in zip(loops, lps))
         var_lp = dict(zip(iter_vars, [lpvar_lp.get(val, None) for val in iter_values]))
 
@@ -204,11 +204,11 @@ class SBlockInfo:
         return "".join(i.kind for i in self.iters)
 
     def is_injective(self) -> bool:
-        """Whether the block is injective, i.e. all its iteration domains are injective."""
+        """Whether the SBlock is injective, i.e. all its iteration domains are injective."""
         return all(k == "S" for k in self.dom_kind())
 
     def is_elementwise(self, sch: tir.Schedule) -> bool:
-        """Whether the block is elementwise, i.e. trivial mapping between read/write region"""
+        """Whether the SBlock is elementwise, i.e. trivial mapping between read/write region"""
 
         def _check_unit_var_range(dom: ir.Range, var: tir.Var) -> bool:
             return dom.min.same_as(var) and dom.extent == 1
@@ -231,7 +231,7 @@ class SBlockInfo:
         return [iter_info.loop_rv for iter_info in self.iters]
 
     def is_reduction(self) -> bool:
-        """Whether the block is a reduction workload."""
+        """Whether the SBlock is a reduction workload."""
         # TODO(@junrushao): distinguish GEMV and reduction
         return self._reduction_block
 
@@ -270,7 +270,7 @@ class SBlockInfo:
         raise NotImplementedError
 
     def is_gemm(self) -> bool:
-        """Whether the block is a GEMM workload."""
+        """Whether the SBlock is a GEMM workload."""
         raise NotImplementedError
 
     def __str__(self) -> str:
@@ -319,7 +319,7 @@ def normalize_prim_func(sch: tir.Schedule) -> Optional[List[SBlockInfo]]:
     return blocks
 
 
-def get_block_info(sch: tir.Schedule, block: tir.schedule.SBlockRV) -> SBlockInfo:
+def get_sblock_info(sch: tir.Schedule, block: tir.schedule.SBlockRV) -> SBlockInfo:
     def _iter_kind(loop: tir.IterVar) -> str:
         return {tir.IterVar.DataPar: "S", tir.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
 
@@ -379,7 +379,7 @@ def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
             f"The function body is expected to be the root block, but got:\n"
             f"{sch.mod[func_name].body}"
         )
-    return sch.get_block(block.name_hint)
+    return sch.get_sblock(block.name_hint)
 
 
 def collect_block_iter_vars_used_in_access_region(

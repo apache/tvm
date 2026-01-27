@@ -112,7 +112,7 @@ struct GetSBlockTraits : public UnpackedInstTraits<GetSBlockTraits> {
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String name,
                                       ffi::String func_name) {
-    PythonAPICall py("get_block");
+    PythonAPICall py("get_sblock");
     py.Input("name", name);
     py.Input("func_name", func_name);
     py.SingleOutput(outputs);

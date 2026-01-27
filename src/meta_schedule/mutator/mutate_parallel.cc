@@ -61,8 +61,8 @@ Instruction ReplaceAnnValue(Instruction inst, int64_t ann_val) {
  * \return The output of the instruction Get-Block
  */
 const SBlockRVNode* GetInstGetSBlockOutput(const Instruction& inst) {
-  static const InstructionKind& inst_get_block = InstructionKind::Get("GetSBlock");
-  if (!inst->kind.same_as(inst_get_block)) {
+  static const InstructionKind& inst_get_sblock = InstructionKind::Get("GetSBlock");
+  if (!inst->kind.same_as(inst_get_sblock)) {
     return nullptr;
   }
   ICHECK_EQ(inst->outputs.size(), 1);
@@ -219,16 +219,16 @@ bool FindParallelDecision(const Trace& trace, TRandState* rand_state,
                           MutateParallelNode::Candidate* candidate) {
   using tir::InstructionNode;
   using tir::SBlockRVNode;
-  std::unordered_map<const SBlockRVNode*, const InstructionNode*> get_block_insts;
+  std::unordered_map<const SBlockRVNode*, const InstructionNode*> get_sblock_insts;
   std::vector<const InstructionNode*> ann_insts;
-  get_block_insts.reserve(trace->insts.size());
+  get_sblock_insts.reserve(trace->insts.size());
   ann_insts.reserve(trace->insts.size());
   for (const Instruction& inst : trace->insts) {
     if (tir::IsAnnotateWithParallel(inst)) {
       ann_insts.push_back(inst.get());
     }
     if (const SBlockRVNode* block_rv = tir::GetInstGetSBlockOutput(inst)) {
-      get_block_insts[block_rv] = inst.get();
+      get_sblock_insts[block_rv] = inst.get();
     }
   }
   int n_ann_insts = ann_insts.size();
@@ -237,13 +237,13 @@ bool FindParallelDecision(const Trace& trace, TRandState* rand_state,
   }
   const InstructionNode* ann_inst = ann_insts[tir::SampleInt(rand_state, 0, n_ann_insts)];
   ICHECK_EQ(ann_inst->inputs.size(), 2);
-  const InstructionNode* get_block_inst =
-      get_block_insts.at(Downcast<tir::SBlockRV>(ann_inst->inputs[0]).get());
-  ICHECK_EQ(get_block_inst->attrs.size(), 2);
+  const InstructionNode* get_sblock_inst =
+      get_sblock_insts.at(Downcast<tir::SBlockRV>(ann_inst->inputs[0]).get());
+  ICHECK_EQ(get_sblock_inst->attrs.size(), 2);
   candidate->inst = ffi::GetRef<Instruction>(ann_inst);
   candidate->parallel_extent = Downcast<IntImm>(ann_inst->inputs[1])->value;
-  candidate->block_name = Downcast<ffi::String>(get_block_inst->attrs[0]);
-  candidate->func_name = Downcast<ffi::String>(get_block_inst->attrs[1]);
+  candidate->block_name = Downcast<ffi::String>(get_sblock_inst->attrs[0]);
+  candidate->func_name = Downcast<ffi::String>(get_sblock_inst->attrs[1]);
   return true;
 }
 

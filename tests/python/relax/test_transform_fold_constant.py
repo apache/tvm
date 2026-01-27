@@ -61,7 +61,7 @@ def test_one_fold_addone():
         @T.prim_func
         def addone(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("addone"):
+                with T.sblock("addone"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + T.float32(1)
 
@@ -91,7 +91,7 @@ def test_one_fold_transpose():
         @T.prim_func
         def func(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32")) -> None:
             for i, j in T.grid(3, 2):
-                with T.block("transpose"):
+                with T.sblock("transpose"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
@@ -120,7 +120,7 @@ def test_two_hop_addone():
         @T.prim_func
         def addone(A: T.Buffer((2, 2), "float32"), B: T.Buffer((2, 2), "float32")) -> None:
             for i, j in T.grid(2, 2):
-                with T.block("addone"):
+                with T.sblock("addone"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + T.float32(1)
 
@@ -151,7 +151,7 @@ def test_dataflow_fold():
         @T.prim_func
         def identity(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("identity"):
+                with T.sblock("identity"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
 
@@ -186,7 +186,7 @@ def test_fold_mixed_case():
             A = T.match_buffer(a, (n, m))
             B = T.match_buffer(b, (n, m))
             for i, j in T.grid(n, m):
-                with T.block("addone"):
+                with T.sblock("addone"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + T.float32(1)
 
@@ -197,7 +197,7 @@ def test_fold_mixed_case():
             C: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("sub"):
+                with T.sblock("sub"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     C[vi, vj] = A[vi, vj] - B[vi, vj]
 
@@ -248,7 +248,7 @@ def test_int32_fold():
         @T.prim_func
         def addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("addone"):
+                with T.sblock("addone"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + T.int32(1)
 
