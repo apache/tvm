@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=unused-import, redefined-builtin
 """Namespace for Tensor-level IR"""
-from tvm.ir import PrimExpr
+from tvm.ir import PrimExpr, PrimIntExpr, PrimFloatExpr, PrimLogicalExpr
 from tvm.runtime import const
 
 from .buffer import Buffer, decl_buffer, DataProducer
