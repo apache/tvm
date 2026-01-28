@@ -142,11 +142,11 @@ Buffer MatchBuffer(ObjectRef param, ffi::Array<PrimExpr> shape, DataType dtype,
     }
     LOG(FATAL) << "ValueError: Can not bind non-input param to buffer.";
   } else if (const auto* buffer_load = param.as<tvm::tir::BufferLoadNode>()) {
-    BlockFrame frame = FindBlockFrame("T.match_buffer");
+    SBlockFrame frame = FindSBlockFrame("T.match_buffer");
     frame->match_buffers.push_back(tvm::tir::MatchBufferRegion(
         buffer, BufferRegionFromLoad(ffi::GetRef<tvm::tir::BufferLoad>(buffer_load))));
   } else if (const auto* buffer_region = param.as<tvm::tir::BufferRegionNode>()) {
-    BlockFrame frame = FindBlockFrame("T.match_buffer");
+    SBlockFrame frame = FindSBlockFrame("T.match_buffer");
     frame->match_buffers.push_back(
         tvm::tir::MatchBufferRegion(buffer, ffi::GetRef<tvm::tir::BufferRegion>(buffer_region)));
   } else {
@@ -155,8 +155,8 @@ Buffer MatchBuffer(ObjectRef param, ffi::Array<PrimExpr> shape, DataType dtype,
   return buffer;
 }
 
-BlockFrame Block(ffi::String name, bool no_realize) {
-  ObjectPtr<BlockFrameNode> n = ffi::make_object<BlockFrameNode>();
+SBlockFrame Block(ffi::String name, bool no_realize) {
+  ObjectPtr<SBlockFrameNode> n = ffi::make_object<SBlockFrameNode>();
   n->name = name;
   n->iter_vars.clear();
   n->reads = std::nullopt;
@@ -168,13 +168,13 @@ BlockFrame Block(ffi::String name, bool no_realize) {
   n->iter_values.clear();
   n->predicate = std::nullopt;
   n->no_realize = no_realize;
-  return BlockFrame(n);
+  return SBlockFrame(n);
 }
 
 BlockInitFrame Init() { return BlockInitFrame(ffi::make_object<BlockInitFrameNode>()); }
 
 void Where(PrimExpr predicate) {
-  BlockFrame frame = FindBlockFrame("T.where");
+  SBlockFrame frame = FindSBlockFrame("T.where");
   if (frame->predicate.defined()) {
     LOG(FATAL) << "ValueError: Duplicate block predicate declaration, previous one is "
                << frame->predicate;
@@ -184,7 +184,7 @@ void Where(PrimExpr predicate) {
 
 void Reads(ffi::Array<ObjectRef> buffer_slices) {
   using namespace tvm::tir;
-  BlockFrame frame = FindBlockFrame("T.reads");
+  SBlockFrame frame = FindSBlockFrame("T.reads");
   if (frame->reads.defined()) {
     LOG(FATAL) << "ValueError: Duplicate read region declaration, previous one is " << frame->reads;
   }
@@ -203,7 +203,7 @@ void Reads(ffi::Array<ObjectRef> buffer_slices) {
 
 void Writes(ffi::Array<ObjectRef> buffer_slices) {
   using namespace tvm::tir;
-  BlockFrame frame = FindBlockFrame("T.writes");
+  SBlockFrame frame = FindSBlockFrame("T.writes");
   if (frame->writes.defined()) {
     LOG(FATAL) << "ValueError: Duplicate write region declaration, previous one is "
                << frame->writes;
@@ -253,7 +253,7 @@ ffi::Map<ffi::String, Any> MergeAnnotations(const ffi::Map<ffi::String, Any>& ne
 }
 
 void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
-  BlockFrame frame = FindBlockFrame("T.block_attr");
+  SBlockFrame frame = FindSBlockFrame("T.sblock_attr");
   // Case 1: the block has no annotations, set the new annotations
   if (!frame->annotations.defined()) {
     frame->annotations = attrs;
@@ -270,25 +270,25 @@ Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::Optional<Var
   Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                              offset_factor, buffer_type_str, axis_separators);
   IRBuilder builder = IRBuilder::Current();
-  if (ffi::Optional<BlockFrame> frame = builder->FindFrame<BlockFrame>()) {
+  if (ffi::Optional<SBlockFrame> frame = builder->FindFrame<SBlockFrame>()) {
     frame.value()->alloc_buffers.push_back(buffer);
   } else if (ffi::Optional<PrimFuncFrame> frame = builder->GetLastFrame<PrimFuncFrame>()) {
     frame.value()->root_alloc_buffers.push_back(buffer);
   } else {
     LOG(FATAL) << "ValueError: Block frame or PrimFunc frame not find. Please ensure "
-                  "'T.alloc_buffer' is called under T.block() or T.prim_func()";
+                  "'T.alloc_buffer' is called under T.sblock() or T.prim_func()";
   }
   return buffer;
 }
 namespace axis {
 
 IterVar PushBlockVar(IterVar iter_var, PrimExpr binding) {
-  if (ffi::Optional<BlockFrame> opt_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>()) {
-    BlockFrame frame = opt_frame.value();
+  if (ffi::Optional<SBlockFrame> opt_frame = IRBuilder::Current()->GetLastFrame<SBlockFrame>()) {
+    SBlockFrame frame = opt_frame.value();
     frame->iter_vars.push_back(iter_var);
     frame->iter_values.push_back(binding);
   } else {
-    LOG(FATAL) << "TypeError: The last frame is not BlockFrame";
+    LOG(FATAL) << "TypeError: The last frame is not SBlockFrame";
   }
   return iter_var;
 }

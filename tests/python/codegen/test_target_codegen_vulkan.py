@@ -416,7 +416,7 @@ def test_negative_operand_divmod(target, dev):
     @T.prim_func
     def func(A: T.Buffer((N, 2), "int32")):
         for i in T.serial(N):
-            with T.block("A"):
+            with T.sblock("A"):
                 v_i = T.axis.spatial(N, i)
                 A[v_i, 0] = T.floordiv(v_i - offset, divisor)
                 A[v_i, 1] = T.floormod(v_i - offset, divisor)
@@ -464,7 +464,7 @@ def test_cooperative_matrix(out_dtype):
     M, N, K = 16, 16, 32
     func = get_matmul(M, N, K, out_dtype)
     sch = Schedule(func)
-    block = sch.get_block("compute")
+    block = sch.get_sblock("compute")
 
     i, j, k = sch.get_loops(block)
     i_outer, i_inner = sch.split(i, factors=[None, 16])
@@ -596,7 +596,7 @@ def test_unary():
         mod = te.create_prim_func([A, B])
         sch = tir.Schedule(mod)
 
-        block = sch.get_block("B")
+        block = sch.get_sblock("B")
         loop = sch.get_loops(block)[0]
         bx, tx = sch.split(loop, factors=[None, 64])
         sch.bind(bx, "blockIdx.x")

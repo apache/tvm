@@ -21,7 +21,7 @@ from typing import Dict, List, Optional, Union
 import tvm
 from tvm.ir import IRModule
 from tvm.tir.expr import Var
-from tvm.tir.stmt import Block, BufferRegion, PrimExpr
+from tvm.tir.stmt import SBlock, BufferRegion, PrimExpr
 
 from .. import Buffer, Stmt
 from ..function import PrimFunc
@@ -116,15 +116,15 @@ def verify_gpu_code(func: PrimFunc, constraints: Dict[str, int]) -> None:
     return _ffi_api.verify_gpu_code(func, constraints)  # type: ignore
 
 
-def get_block_access_region(
-    block: Block, buffer_var_map: Dict[Var, Buffer]
+def get_sblock_access_region(
+    block: SBlock, buffer_var_map: Dict[Var, Buffer]
 ) -> List[List[BufferRegion]]:
     """Detect which regions of tensors in this block are read or written to.
        Regions are sorted by order of appearance in the AST.
 
     Parameters
     ----------
-    block: tvm.tir.Block
+    block: tvm.tir.SBlock
         The block in which we are detecting read/write regions.
 
     buffer_var_map : Dict[Var, Buffer]
@@ -138,18 +138,18 @@ def get_block_access_region(
             - second: write regions
             - third: opaque regions
     """
-    return _ffi_api.GetBlockAccessRegion(block, buffer_var_map)  # type: ignore
+    return _ffi_api.GetSBlockAccessRegion(block, buffer_var_map)  # type: ignore
 
 
-def get_block_read_write_region(
-    block: Block, buffer_var_map: Dict[Var, Buffer]
+def get_sblock_read_write_region(
+    block: SBlock, buffer_var_map: Dict[Var, Buffer]
 ) -> List[List[BufferRegion]]:
     """Auto detect the block read/write region according to its body stmt.
        An opaque access will be counted as both a read and a write access
 
     Parameters
     ----------
-    block: tvm.tir.Block
+    block: tvm.tir.SBlock
         The block in which we are detecting read/write regions.
 
     buffer_var_map : Dict[Var, Buffer]
@@ -160,7 +160,7 @@ def get_block_read_write_region(
     result : List[List[BufferRegion]]
         An array only consisting of the read regions and write regions of the input block
     """
-    return _ffi_api.GetBlockReadWriteRegion(block, buffer_var_map)  # type: ignore
+    return _ffi_api.GetSBlockReadWriteRegion(block, buffer_var_map)  # type: ignore
 
 
 def calculate_allocated_bytes(
@@ -274,7 +274,7 @@ def OOBChecker():
     return _ffi_api.OOBChecker()  # type: ignore
 
 
-def find_anchor_block(mod: IRModule) -> Block:
+def find_anchor_sblock(mod: IRModule) -> SBlock:
     """Find the "anchor block" of the given module.
 
     We define the anchor block to be the block with (1) an init statement and (2) having
@@ -295,10 +295,10 @@ def find_anchor_block(mod: IRModule) -> Block:
         The input TIR module.
     Returns
     -------
-    anchor_block: Block
+    anchor_block: SBlock
         The anchor block if found, None otherwise.
     """
-    return _ffi_api.find_anchor_block(mod)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.find_anchor_sblock(mod)  # type: ignore # pylint: disable=no-member
 
 
 def has_if_then_else(stmt: Stmt) -> bool:

@@ -63,7 +63,7 @@ def test_tir_triton_integration():
             x = T.match_buffer(x_handle, (m,), "float32")
             y = T.match_buffer(y_handle, (m,), "float32")
             output = T.match_buffer(output_handle, (m,), "float32")
-            with T.block("root"):
+            with T.sblock("root"):
                 T.reads(x[0:m], y[0:m])
                 T.writes(output[0:m])
                 BLOCK_SIZE = T.meta_var(64)
@@ -93,7 +93,7 @@ def test_tir_triton_integration():
             x = T.match_buffer(x_handle, (m,))
             y = T.match_buffer(y_handle, (m,))
             output = T.match_buffer(output_handle, (m,))
-            with T.block("root"):
+            with T.sblock("root"):
                 T.reads(x[0:m], y[0:m])
                 T.writes(output[0:m])
                 T.call_packed(

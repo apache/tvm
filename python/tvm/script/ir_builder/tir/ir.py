@@ -92,7 +92,7 @@ from .external_kernel import call_kernel
 _block_name_suffix = threading.local()
 
 
-def _get_block_name_suffix() -> str:
+def _get_sblock_name_suffix() -> str:
     """Get the current block name suffix for macro expansion."""
     return getattr(_block_name_suffix, "value", "")
 
@@ -367,23 +367,23 @@ def match_buffer(
     )
 
 
-def block(name: str = "", no_realize: bool = False) -> frame.BlockFrame:
-    """The block declaration statement.
+def sblock(name: str = "", no_realize: bool = False) -> frame.SBlockFrame:
+    """The sblock declaration statement.
 
     Parameters
     ----------
     name : str
-        The name of the block.
+        The name of the sblock.
 
     no_realize : bool
-        The flag whether to construct BlockRealize or Block.
+        The flag whether to construct SBlockRealize or SBlock.
 
     Returns
     -------
-    res : frame.BlockFrame
-        The BlockFrame.
+    res : frame.SBlockFrame
+        The SBlockFrame.
     """
-    block_suffix = _get_block_name_suffix()
+    block_suffix = _get_sblock_name_suffix()
     if block_suffix and name:
         name = name + block_suffix
     return _ffi_api.Block(name, no_realize)  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -458,7 +458,7 @@ def writes(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
     _ffi_api.Writes(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def block_attr(attrs: Dict[str, Any]) -> None:
+def sblock_attr(attrs: Dict[str, Any]) -> None:
     """The block annotation statement.
 
     Parameters
@@ -2168,13 +2168,13 @@ __all__ = float_types + [
     "func_attr",
     "func_ret",
     "match_buffer",
-    "block",
+    "sblock",
     "block_name_suffix_context",
     "init",
     "where",
     "reads",
     "writes",
-    "block_attr",
+    "sblock_attr",
     "alloc_buffer",
     "axis",
     "serial",

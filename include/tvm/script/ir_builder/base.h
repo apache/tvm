@@ -56,7 +56,7 @@ namespace ir_builder {
  * using T = tvm::script::ir_builder::tir;
  * With <PrimFuncFrame> _(...);
  * {
- *   With<BlockFrame> _2(...);
+ *   With<SBlockFrame> _2(...);
  *   Buffer buffer = T::MatchBuffer(...);
  * }
  *

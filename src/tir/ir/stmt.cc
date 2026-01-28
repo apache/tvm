@@ -49,8 +49,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   WhileNode::RegisterReflection();
   BufferRegionNode::RegisterReflection();
   MatchBufferRegionNode::RegisterReflection();
-  BlockNode::RegisterReflection();
-  BlockRealizeNode::RegisterReflection();
+  SBlockNode::RegisterReflection();
+  SBlockRealizeNode::RegisterReflection();
 }
 
 // LetStmt
@@ -660,12 +660,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Block
-Block::Block(ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
-             ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
-             ffi::Optional<Stmt> init, ffi::Array<Buffer> alloc_buffers,
-             ffi::Array<MatchBufferRegion> match_buffers, ffi::Map<ffi::String, Any> annotations,
-             Span span) {
-  ObjectPtr<BlockNode> node = ffi::make_object<BlockNode>();
+SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
+               ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
+               ffi::Optional<Stmt> init, ffi::Array<Buffer> alloc_buffers,
+               ffi::Array<MatchBufferRegion> match_buffers, ffi::Map<ffi::String, Any> annotations,
+               Span span) {
+  ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>();
   node->iter_vars = std::move(iter_vars);
   node->reads = std::move(reads);
   node->writes = std::move(writes);
@@ -681,25 +681,25 @@ Block::Block(ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.Block",
+  refl::GlobalDef().def("tir.SBlock",
                         [](ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
                            ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
                            ffi::Optional<Stmt> init, ffi::Array<Buffer> alloc_buffers,
                            ffi::Array<MatchBufferRegion> match_buffers,
                            ffi::Map<ffi::String, Any> annotations, Span span) {
-                          return Block(iter_vars, reads, writes, name_hint, body, init,
-                                       alloc_buffers, match_buffers, annotations, span);
+                          return SBlock(iter_vars, reads, writes, name_hint, body, init,
+                                        alloc_buffers, match_buffers, annotations, span);
                         });
 }
 
 // BlockRealize
-BlockRealize::BlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, Block block,
-                           Span span) {
+SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SBlock block,
+                             Span span) {
   CHECK_EQ(block->iter_vars.size(), values.size())
       << "ValueError: BlockRealize needs to have the same number of iter_vars and binding values";
   CHECK(predicate.dtype().is_bool() || predicate.dtype() == DataType::UInt(1))
       << "TypeError: Expect Block.predicate to be a bool expression";
-  ObjectPtr<BlockRealizeNode> node = ffi::make_object<BlockRealizeNode>();
+  ObjectPtr<SBlockRealizeNode> node = ffi::make_object<SBlockRealizeNode>();
   node->iter_values = std::move(values);
   node->predicate = std::move(predicate);
   node->block = std::move(block);
@@ -709,9 +709,9 @@ BlockRealize::BlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, Bloc
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.BlockRealize", [](ffi::Array<PrimExpr> iter_values, PrimExpr predicate,
-                                               Block block, Span span) {
-    return BlockRealize(iter_values, predicate, block, span);
+  refl::GlobalDef().def("tir.SBlockRealize", [](ffi::Array<PrimExpr> iter_values,
+                                                PrimExpr predicate, SBlock block, Span span) {
+    return SBlockRealize(iter_values, predicate, block, span);
   });
 }
 

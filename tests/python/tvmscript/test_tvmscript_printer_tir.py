@@ -111,7 +111,7 @@ def test_block_realize():
     j = tir.Var("j", "int32")
     k = tir.Var("k", "int32")
     with IRBuilder() as ib:
-        with T.block(name="block", no_realize=False):
+        with T.sblock(name="block", no_realize=False):
             vi = ib.name("vi", T.axis.spatial(128, i))
             vj = ib.name("vj", T.axis.spatial(64, j))
             vk = ib.name("vk", T.axis.reduce(32, k))
@@ -125,7 +125,7 @@ def test_block_realize():
 i = T.int32()
 j = T.int32()
 k = T.int32()
-with T.block("block"):
+with T.sblock("block"):
     vi = T.axis.spatial(128, i)
     vj = T.axis.spatial(64, j)
     vk = T.axis.reduce(32, k)
@@ -140,7 +140,7 @@ def test_block():
     j = tir.Var("j", "int32")
     k = tir.Var("k", "int32")
     with IRBuilder() as ib:
-        with T.block(name="block", no_realize=False):
+        with T.sblock(name="block", no_realize=False):
             vi = ib.name("vi", T.axis.spatial(128, i))
             vj = ib.name("vj", T.axis.spatial(64, j))
             vk = ib.name("vk", T.axis.reduce(32, k))
@@ -151,7 +151,7 @@ def test_block():
     _assert_print(
         obj,
         """
-with T.block("block", no_realize=True):
+with T.sblock("block", no_realize=True):
     vi = T.axis.spatial(128)
     vj = T.axis.spatial(64)
     vk = T.axis.reduce(32)
@@ -725,7 +725,7 @@ def test_remap():
     @T.prim_func
     def block_with_remap_implicitly():
         for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
-            with T.block("update"):
+            with T.sblock("update"):
                 v0 = T.axis.spatial(128, i0 + 1)
                 v1 = T.axis.spatial(128, i1)
                 v2 = T.axis.reduce(128, i2)
@@ -736,7 +736,7 @@ def test_remap():
     @T.prim_func
     def block_with_remap_explicitly():
         for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
-            with T.block("update"):
+            with T.sblock("update"):
                 v0 = T.axis.spatial(128, i0 + 1)
                 v1, v2 = T.axis.remap("SR", [i1, i2])
                 v3 = T.axis.spatial(128, i3 - 1)
@@ -747,9 +747,9 @@ def test_remap():
 
 @T.prim_func
 def main():
-    # with T.block("root"):
+    # with T.sblock("root"):
     for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
-        with T.block("update"):
+        with T.sblock("update"):
             v0 = T.axis.spatial(128, i0 + 1)
             v1, v2 = T.axis.remap("SR", [i1, i2])
             v3 = T.axis.spatial(128, i3 - 1)
@@ -768,15 +768,15 @@ def test_root_block():
     def root_block_implicitly():
         a = T.alloc_buffer([128, 128])
         for i, j in T.grid(128, 128):
-            with T.block():
+            with T.sblock():
                 T.evaluate(0)
 
     @T.prim_func
     def root_block_explicitly():
-        with T.block("root"):
+        with T.sblock("root"):
             a = T.alloc_buffer([128, 128])
             for i, j in T.grid(128, 128):
-                with T.block():
+                with T.sblock():
                     T.evaluate(0)
 
     expected_output = """
@@ -784,10 +784,10 @@ def test_root_block():
 
 @T.prim_func
 def main():
-    # with T.block("root"):
+    # with T.sblock("root"):
     a = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
-        with T.block(""):
+        with T.sblock(""):
             T.reads()
             T.writes()
             T.evaluate(0)

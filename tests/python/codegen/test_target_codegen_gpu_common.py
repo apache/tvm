@@ -38,7 +38,7 @@ def test_int_intrin(target, dev, dtype):
         B = te.compute(A.shape, lambda *i: tvm_intrin(A(*i)), name="B")
         func = te.create_prim_func([A, B])
         sch = tvm.tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_block("B"))
+        (x,) = sch.get_loops(sch.get_sblock("B"))
         sch.bind(x, "threadIdx.x")
         f = tvm.compile(sch.mod, target=target)
         a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(A.dtype), dev)

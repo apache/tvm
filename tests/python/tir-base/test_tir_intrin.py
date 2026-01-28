@@ -276,7 +276,7 @@ def test_clz(target, dev, dtype):
 
     # Apply scheduling primitives if target is Vulkan
     if target.kind.name == "vulkan":
-        block = sch.get_block("B")
+        block = sch.get_sblock("B")
         loop = sch.get_loops(block)[0]
         bx, tx = sch.split(loop, factors=[None, 64])
         sch.bind(bx, "blockIdx.x")

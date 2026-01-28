@@ -64,22 +64,22 @@ const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var) 
   return nullptr;
 }
 
-Stmt GetEnclosingLoop(const BlockNode* block, Stmt func_body) {
+Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
   struct GetRootSeqStmt : public StmtVisitor {
     void VisitStmt_(const SeqStmtNode* seq) override { result = seq; }
     const SeqStmtNode* result;
   };
 
   struct BlockFinder : public StmtVisitor {
-    explicit BlockFinder(const BlockNode* tgt) : target(tgt) {}
+    explicit BlockFinder(const SBlockNode* tgt) : target(tgt) {}
 
-    void VisitStmt_(const BlockNode* block) override {
+    void VisitStmt_(const SBlockNode* block) override {
       if (block == target) {
         found = true;
       }
     }
 
-    const BlockNode* target;
+    const SBlockNode* target;
     bool found = false;
   };
 
@@ -98,23 +98,23 @@ Stmt GetEnclosingLoop(const BlockNode* block, Stmt func_body) {
     }
   }
 
-  LOG(FATAL) << "Enclosing loop not found for a block " << ffi::GetRef<Block>(block);
+  LOG(FATAL) << "Enclosing loop not found for a block " << ffi::GetRef<SBlock>(block);
   TVM_FFI_UNREACHABLE();
 }
 
-const BlockNode* FindAnchorBlock(const IRModule& mod) {
-  struct ReductionBlockCollector : public StmtVisitor {
-    void VisitStmt_(const BlockNode* block) override {
+const SBlockNode* FindAnchorBlock(const IRModule& mod) {
+  struct ReductionSBlockCollector : public StmtVisitor {
+    void VisitStmt_(const SBlockNode* block) override {
       if (block->init) {
         blocks.push_back(block);
       }
       StmtVisitor::VisitStmt(block->body);
     }
-    std::vector<const BlockNode*> blocks;
+    std::vector<const SBlockNode*> blocks;
   };
 
   if (auto prim_func = FindEntryFunc(mod, nullptr)) {
-    ReductionBlockCollector collector;
+    ReductionSBlockCollector collector;
     collector(prim_func->body);
 
     const auto& candidates = collector.blocks;
@@ -142,12 +142,12 @@ const BlockNode* FindAnchorBlock(const IRModule& mod) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.find_anchor_block", [](const IRModule& mod) {
+  refl::GlobalDef().def("tir.analysis.find_anchor_sblock", [](const IRModule& mod) {
     auto ret = FindAnchorBlock(mod);
     if (ret) {
-      return ffi::Optional<Block>(ffi::GetRef<Block>(ret));
+      return ffi::Optional<SBlock>(ffi::GetRef<SBlock>(ret));
     }
-    return ffi::Optional<Block>(std::nullopt);
+    return ffi::Optional<SBlock>(std::nullopt);
   });
 }
 

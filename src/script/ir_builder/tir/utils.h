@@ -76,21 +76,21 @@ inline PrimFuncFrame FindPrimFuncFrame(const ffi::String& method) {
 }
 
 /*!
- * \brief Check whether the top frame in IRBuilder frame stack is BlockFrame.
+ * \brief Check whether the top frame in IRBuilder frame stack is SBlockFrame.
  * \param method The method name to be printed when throwing exception.
- * \return The top frame of BlockFrame.
+ * \return The top frame of SBlockFrame.
  */
-inline BlockFrame FindBlockFrame(const ffi::String& method) {
-  if (ffi::Optional<BlockFrame> frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
+inline SBlockFrame FindSBlockFrame(const ffi::String& method) {
+  if (ffi::Optional<SBlockFrame> frame = IRBuilder::Current()->FindFrame<SBlockFrame>()) {
     return frame.value();
-  } else if (ffi::Optional<BlockFrame> frame = IRBuilder::Current()->FindFrame<BlockFrame>()) {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.block().  "
+  } else if (ffi::Optional<SBlockFrame> frame = IRBuilder::Current()->FindFrame<SBlockFrame>()) {
+    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.sblock().  "
                << "While " << method << " did occur within the block \"" << frame.value()->name
-               << "\", other frames (e.g. if/else/let) had been introduced since the T.block(\""
+               << "\", other frames (e.g. if/else/let) had been introduced since the T.sblock(\""
                << frame.value()->name << "\") frame";
   } else {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.block(), "
-               << "but " << method << " occurred outside of any T.block() frame";
+    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.sblock(), "
+               << "but " << method << " occurred outside of any T.sblock() frame";
   }
   throw;
 }

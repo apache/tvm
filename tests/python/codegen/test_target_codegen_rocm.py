@@ -98,7 +98,7 @@ def test_rocm_warp_shuffle():
 
         for bx in T.thread_binding(1, thread="blockIdx.x"):
             for tx in T.thread_binding(32, thread="threadIdx.x"):
-                with T.block("test"):
+                with T.sblock("test"):
                     A_local = T.alloc_buffer((1,), "float32", scope="local")
                     mask = T.alloc_buffer((1,), "uint32", scope="local")
                     t0 = T.alloc_buffer((1,), "float32", scope="local")
@@ -126,7 +126,7 @@ def test_rocm_vectorized_exp():
 
         for bx in T.thread_binding(1, thread="blockIdx.x"):
             for tx in T.thread_binding(1, thread="threadIdx.x"):
-                with T.block("test"):
+                with T.sblock("test"):
                     for i in T.vectorized(0, 4):
                         B[i] = T.exp2(A[i])
 

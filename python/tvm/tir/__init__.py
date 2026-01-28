@@ -40,7 +40,7 @@ from .stmt import (
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
-from .stmt import BufferRegion, MatchBufferRegion, Block, BlockRealize
+from .stmt import BufferRegion, MatchBufferRegion, SBlock, SBlockRealize
 
 from .function import PrimFunc, TensorIntrin, IndexMap
 
@@ -115,8 +115,8 @@ from .op import dp4a
 from .op import ignore_loop_partition
 from .generic import add, subtract, multiply
 
-from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
-from .block_dependence_info import BlockDependenceInfo
+from .schedule import StmtSRef, SBlockScope, ScheduleState, Schedule, ScheduleError
+from .block_dependence_info import SBlockDependenceInfo
 
 from . import schedule
 from . import ir_builder

@@ -31,7 +31,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle, n: T.int32) -> None:
     C = T.match_buffer(c, [m, m])
 
     for i, j, k in T.grid(m, m, n):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -45,7 +45,7 @@ def matmul_128(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128])
 
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -60,7 +60,7 @@ def matmul_m_128(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [m, m])
 
     for i, j, k in T.grid(m, m, 128):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -78,7 +78,7 @@ def matmul_m_8x(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [m, m])
 
     for i, j, k in T.grid(m, m, x * 8):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -95,12 +95,12 @@ def element_wise(a: T.handle, c: T.handle) -> None:
     B = T.alloc_buffer((m, n), "float32")
 
     for i, j in T.grid(m, n):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
     for i, j in T.grid(m, n):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -112,12 +112,12 @@ def element_wise_128_64(a: T.handle, c: T.handle) -> None:
     B = T.alloc_buffer((128, 64), "float32")
 
     for i, j in T.grid(128, 64):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
     for i, j in T.grid(128, 64):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -130,12 +130,12 @@ def element_wise_128_n(a: T.handle, c: T.handle) -> None:
     B = T.alloc_buffer((128, n), "float32")
 
     for i, j in T.grid(128, n):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
     for i, j in T.grid(128, n):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -146,7 +146,7 @@ def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int32, q: T.
     B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=q)
 
     for i, j in T.grid(m, n):
-        with T.block():
+        with T.sblock():
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj]
 
@@ -157,7 +157,7 @@ def mem_copy_16_16_8_4(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (16, 16), "float32", strides=[8, 1], elem_offset=4)
 
     for i, j in T.grid(16, 16):
-        with T.block():
+        with T.sblock():
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj]
 
@@ -168,7 +168,7 @@ def mem_copy_m_n_p_n(a: T.handle, b: T.handle, m: T.int32, n: T.int32, p: T.int3
     B = T.match_buffer(b, (m, n), "float32", strides=[p, 1], elem_offset=n)
 
     for i, j in T.grid(m, n):
-        with T.block():
+        with T.sblock():
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj]
 
@@ -226,7 +226,7 @@ def test_specialize_with_const_folding():
         A = T.match_buffer(a, [n // 8, 8], "int32")
         B = T.match_buffer(b, [n], "int32")
         for i in range(n - 1):
-            with T.block():
+            with T.sblock():
                 vi = T.axis.S(n - 1, i)
                 B[vi] = A[vi // 8, vi % 8] + (n + 1) * 42
 
@@ -235,7 +235,7 @@ def test_specialize_with_const_folding():
         A = T.match_buffer(a, [2, 8], "int32")
         B = T.match_buffer(b, [16], "int32")
         for i in range(15):
-            with T.block():
+            with T.sblock():
                 vi = T.axis.S(15, i)
                 B[vi] = A[vi // 8, vi % 8] + 714
 

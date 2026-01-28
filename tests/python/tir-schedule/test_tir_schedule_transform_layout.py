@@ -39,11 +39,11 @@ def packed_index_map_func(m, n):
 def two_elementwise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -54,11 +54,11 @@ def two_elementwise_transformed_intermediate_buffer(
 ) -> None:
     B = T.alloc_buffer((8, 8, 16, 16), "float32")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi // 16, vj // 16, vi % 16, vj % 16] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi // 16, vj // 16, vi % 16, vj % 16] + 1.0
 
@@ -69,11 +69,11 @@ def two_elementwise_transformed_input_buffer(
 ) -> None:
     B = T.alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi // 16, vj // 16, vi % 16, vj % 16] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -84,11 +84,11 @@ def two_elementwise_transformed_output_buffer(
 ) -> None:
     B = T.alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi // 16, vj // 16, vi % 16, vj % 16] = B[vi, vj] + 1.0
 
@@ -96,7 +96,7 @@ def two_elementwise_transformed_output_buffer(
 @T.prim_func
 def elementwise(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")) -> None:
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
@@ -104,7 +104,7 @@ def elementwise(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "flo
 @T.prim_func
 def elementwise_transformed(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")) -> None:
     for i in range(16384):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.remap("S", [i])
             B[vi // 128, vi % 128] = A[vi // 128, vi % 128] * 2.0
 
@@ -117,7 +117,7 @@ def conv2d_nhwc(
 ) -> None:
     PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
-        with T.block("PadInput"):
+        with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
             PadInput[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(
                 ((((i1_1 >= 3) and (i1_1 < 227)) and (i2_1 >= 3)) and (i2_1 < 227)),
@@ -126,7 +126,7 @@ def conv2d_nhwc(
                 dtype="float32",
             )
     for i0, i1, i2, i3, i4, i5, i6 in T.grid(1, 112, 112, 64, 7, 7, 3):
-        with T.block("conv2d_nhwc"):
+        with T.sblock("conv2d_nhwc"):
             n, h, w, co, rh, rw, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
             with T.init():
                 Conv2d_nhwc[n, h, w, co] = T.float32(0)
@@ -144,7 +144,7 @@ def conv2d_nhwc_transformed(
 ) -> None:
     PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
-        with T.block("PadInput"):
+        with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
             T.reads(Input[i0_1, i1_1 - 3, i2_1 - 3, i3_1])
             T.writes(PadInput[i0_1, i1_1, i2_1, i3_1])
@@ -155,7 +155,7 @@ def conv2d_nhwc_transformed(
                 dtype="float32",
             )
     for ax0, ax1, ax2 in T.grid(12544, 64, 147):
-        with T.block("conv2d_nhwc"):
+        with T.sblock("conv2d_nhwc"):
             v0, v1, v2 = T.axis.remap("SSR", [ax0, ax1, ax2])
             with T.init():
                 Conv2d_nhwc[0, v0 // 112, v0 % 112, v1] = T.float32(0)
@@ -166,11 +166,11 @@ def conv2d_nhwc_transformed(
 def two_elementwise_unit_dim(A: T.Buffer((1, 128), "float32"), C: T.Buffer((1, 128), "float32")) -> None:
     B = T.alloc_buffer((1, 128), "float32")
     for i, j in T.grid(1, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(1, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -187,7 +187,7 @@ class TestTransformLayoutWithCacheWriteAndAxisSeparators(tvm.testing.CompareBefo
                 return [x // 32, y, tvm.te.AXIS_SEPARATOR, x % 32]
 
             sch = tvm.tir.Schedule(mod, debug_mask="all")
-            block_rv = sch.get_block("T_add")
+            block_rv = sch.get_sblock("T_add")
             sch.cache_write(block_rv, 0, "global")
             sch.transform_layout(block_rv, ("write", 0), transform_fn, pad_value=0.0)
             return sch.mod
@@ -200,9 +200,9 @@ class TestTransformLayoutWithCacheWriteAndAxisSeparators(tvm.testing.CompareBefo
         T_add: T.Buffer((T.int64(33), T.int64(128)), "float32"),
     ):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         for ax0, ax1 in T.grid(T.int64(33), T.int64(128)):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(p0[v_ax0, v_ax1], p1[v_ax0, v_ax1])
                 T.writes(T_add[v_ax0, v_ax1])
@@ -210,16 +210,16 @@ class TestTransformLayoutWithCacheWriteAndAxisSeparators(tvm.testing.CompareBefo
 
     def expected(p0: T.Buffer((T.int64(33), T.int64(128)), "float32"), p1: T.Buffer((T.int64(33), T.int64(128)), "float32"), T_add: T.Buffer((T.int64(33), T.int64(128)), "float32")):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         T_add_global = T.alloc_buffer((T.int64(2), T.int64(128), T.int64(32)), axis_separators=[2])
         for axis0, axis1, axis2 in T.grid(T.int64(2), T.int64(128), T.int64(32)):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_axis0, v_axis1, v_axis2 = T.axis.remap("SSS", [axis0, axis1, axis2])
                 T.reads(p0[v_axis0 * T.int64(32) + v_axis2, v_axis1], p1[v_axis0 * T.int64(32) + v_axis2, v_axis1])
                 T.writes(T_add_global[v_axis0, v_axis1, v_axis2])
                 T_add_global[v_axis0, v_axis1, v_axis2] = T.if_then_else(v_axis0 == T.int64(1) and T.int64(1) <= v_axis2, T.float32(0), p0[v_axis0 * T.int64(32) + v_axis2, v_axis1] + p1[v_axis0 * T.int64(32) + v_axis2, v_axis1])
         for ax0, ax1 in T.grid(T.int64(33), T.int64(128)):
-            with T.block("T_add_global"):
+            with T.sblock("T_add_global"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(T_add_global[v0 // T.int64(32), v1, v0 % T.int64(32)])
                 T.writes(T_add[v0, v1])
@@ -241,7 +241,7 @@ def test_two_elementwise_transform_intermediate_buffer(use_block_name):
             index_map=packed_index_map_func,
         )
     else:
-        block = sch.get_block("B")
+        block = sch.get_sblock("B")
         sch.transform_layout(block, ("write", 0), packed_index_map_func)
 
     assert_structural_equal_ignore_global_symbol(
@@ -252,7 +252,7 @@ def test_two_elementwise_transform_intermediate_buffer(use_block_name):
 
 def test_transform_layout_with_sampling():
     sch = tir.Schedule(two_elementwise, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     loop = sch.get_loops(block_b)[-1]
     j0, j1, j2 = sch.sample_perfect_tile(loop, 3, decision=[4, 8, 4])
     sch.transform_layout(block_b, ("write", 0), lambda i, j: (i, j // (j1 * j2), j % (j1 * j2)))
@@ -269,7 +269,7 @@ def test_two_elementwise_transform_input_buffer(use_block_name):
             buffer="A",
         )
     else:
-        block = sch.get_block("B")
+        block = sch.get_sblock("B")
         sch.transform_layout(block, ("read", 0), packed_index_map_func)
 
     assert_structural_equal_ignore_global_symbol(
@@ -288,7 +288,7 @@ def test_two_elementwise_transform_output_buffer(use_block_name):
             buffer="C",
         )
     else:
-        block = sch.get_block("C")
+        block = sch.get_sblock("C")
         sch.transform_layout(block, ("write", 0), packed_index_map_func)
 
     assert_structural_equal_ignore_global_symbol(
@@ -308,7 +308,7 @@ def test_two_elementwise_unit_dim(use_block_name):
             buffer="B",
         )
     else:
-        block = sch.get_block("B")
+        block = sch.get_sblock("B")
         sch.transform_layout(block, ("write", 0), index_map)
 
     assert_structural_equal_ignore_global_symbol(two_elementwise_unit_dim, sch.mod["main"])
@@ -318,7 +318,7 @@ def test_two_elementwise_unit_dim(use_block_name):
 def test_simplify():
     sch = tir.Schedule(two_elementwise, debug_mask="all")
 
-    i, j = sch.get_loops(sch.get_block("C"))
+    i, j = sch.get_loops(sch.get_sblock("C"))
     i, i_inner = sch.split(i, factors=[None, 16])
     j, j_inner = sch.split(j, factors=[None, 16])
 
@@ -337,12 +337,12 @@ def test_simplify():
     @T.prim_func
     def ref(B: T.Buffer((8, 8, 16, 16), "float32"), C: T.Buffer((128, 128), "float32")):
         for i_0, j_0 in T.grid(8, 8):
-            with T.block("C_o"):
+            with T.sblock("C_o"):
                 vi_o, vj_o = T.axis.remap("SS", [i_0, j_0])
                 T.reads(B[vi_o, vj_o, 0:16, 0:16])
                 T.writes(C[vi_o * 16 : vi_o * 16 + 16, vj_o * 16 : vj_o * 16 + 16])
                 for i_1, j_1 in T.grid(16, 16):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i_1, j_1])
                         T.reads(B[vi_o, vj_o, vi, vj])
                         T.writes(C[vi_o * 16 + vi, vj_o * 16 + vj])
@@ -363,7 +363,7 @@ def test_var_args_sugar():
     ) -> None:
         B[0] = 0
         for i, j, k in T.grid(1024, 1024, 32):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 B[0] = B[0] + A[vi, vj, vk]
 
@@ -373,7 +373,7 @@ def test_var_args_sugar():
     ) -> None:
         B[0] = 0
         for i, j, k in T.grid(1024, 1024, 32):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 B[0] = B[0] + A[vi, vj, vk // 4, vk % 4]
 
@@ -386,7 +386,7 @@ def test_var_args_sugar():
 
 def test_transform_block_layout_basic(use_block_name):
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block = "B" if use_block_name else sch.get_block("B")
+    block = "B" if use_block_name else sch.get_sblock("B")
     sch.transform_block_layout(block, lambda i, j: (i * 128 + j,))
     assert_structural_equal_ignore_global_symbol(elementwise_transformed, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
@@ -394,7 +394,7 @@ def test_transform_block_layout_basic(use_block_name):
 
 def test_transform_block_layout_conv2d_nhwc(use_block_name):
     sch = tir.Schedule(conv2d_nhwc, debug_mask="all")
-    block = "conv2d_nhwc" if use_block_name else sch.get_block("conv2d_nhwc")
+    block = "conv2d_nhwc" if use_block_name else sch.get_sblock("conv2d_nhwc")
     sch.transform_block_layout(
         block,
         lambda n, h, w, co, rh, rw, rc: (n * 112 * 112 + h * 112 + w, co, rh * 7 * 3 + rw * 3 + rc),
@@ -405,7 +405,7 @@ def test_transform_block_layout_conv2d_nhwc(use_block_name):
 
 def test_transform_block_layout_unit_dim(use_block_name):
     sch = tir.Schedule(two_elementwise_unit_dim, debug_mask="all")
-    block = "B" if use_block_name else sch.get_block("B")
+    block = "B" if use_block_name else sch.get_sblock("B")
     sch.transform_block_layout(block, lambda i, j: (j, i))
 
     @T.prim_func
@@ -414,11 +414,11 @@ def test_transform_block_layout_unit_dim(use_block_name):
     ) -> None:
         B = T.alloc_buffer((1, 128), "float32")
         for j, i in T.grid(128, 1):
-            with T.block("B"):
+            with T.sblock("B"):
                 vj, vi = T.axis.remap("SS", [j, i])
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(1, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 1.0
 
@@ -430,14 +430,14 @@ def test_transform_block_layout_unit_dim(use_block_name):
 
 def test_transform_block_layout_fail_non_affine(use_block_name):
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block = "B" if use_block_name else sch.get_block("B")
+    block = "B" if use_block_name else sch.get_sblock("B")
     with pytest.raises(tir.ScheduleError):
         sch.transform_block_layout(block, lambda i, j: (i + j,))
 
 
 def test_transform_block_layout_fail_mixed_iter_type(use_block_name):
     sch = tir.Schedule(conv2d_nhwc, debug_mask="all")
-    block = "conv2d_nhwc" if use_block_name else sch.get_block("conv2d_nhwc")
+    block = "conv2d_nhwc" if use_block_name else sch.get_sblock("conv2d_nhwc")
     with pytest.raises(tir.ScheduleError):
         sch.transform_block_layout(
             block,
@@ -452,7 +452,7 @@ def test_transform_block_layout_int64_extent(use_block_name):
         B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     ) -> None:
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
 
@@ -462,14 +462,14 @@ def test_transform_block_layout_int64_extent(use_block_name):
         B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
     ) -> None:
         for i in range(T.int64(16384)):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi = T.axis.remap("S", [i])
                 B[vi // T.int64(128), vi % T.int64(128)] = (
                     A[vi // T.int64(128), vi % T.int64(128)] * 2.0
                 )
 
     sch = tir.Schedule(elementwise_int64_extent, debug_mask="all")
-    block = "B" if use_block_name else sch.get_block("B")
+    block = "B" if use_block_name else sch.get_sblock("B")
     sch.transform_block_layout(block, lambda i, j: (i * 128 + j,))
     assert_structural_equal_ignore_global_symbol(
         elementwise_int64_extent_transformed, sch.mod["main"]
@@ -510,14 +510,14 @@ class TestNoPadding(BasePaddingCompare):
     def before():
         A = T.alloc_buffer(16, "int32")
         for i in T.serial(16):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 A[vi] = 0
 
     def expected():
         A = T.alloc_buffer([4, 4], "int32")
         for i in T.serial(16):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 A[vi // 4, vi % 4] = 0
 
@@ -535,26 +535,26 @@ class TestNoPaddingMultipleUsage(BasePaddingCompare):
     def before():
         A = T.alloc_buffer(16, "int32")
         for i in T.serial(16):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 A[vi] = 0
 
         B = T.alloc_buffer(16, "int32")
         for i in T.serial(16):
-            with T.block("other"):
+            with T.sblock("other"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi]
 
     def expected():
         A = T.alloc_buffer([4, 4], "int32")
         for i in T.serial(16):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 A[vi // 4, vi % 4] = 0
 
         B = T.alloc_buffer(16, "int32")
         for i in T.serial(16):
-            with T.block("other"):
+            with T.sblock("other"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi // 4, vi % 4]
 
@@ -570,13 +570,13 @@ class TestNoPaddingOpaqueBlock(BasePaddingCompare):
     def before():
         A = T.alloc_buffer(16, "int32")
         for i in T.serial(16):
-            with T.block("block"):
+            with T.sblock("block"):
                 A[i] = 0
 
     def expected():
         A = T.alloc_buffer([4, 4], "int32")
         for i in T.serial(16):
-            with T.block("block"):
+            with T.sblock("block"):
                 A[i // 4, i % 4] = 0
 
 
@@ -586,7 +586,7 @@ class TestErrorIfPaddingForbidden(BasePaddingCompare):
     def before():
         A = T.alloc_buffer(14, "int32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 A[vi] = 0
 
@@ -603,14 +603,14 @@ class TestImplicitPaddingAssumeInjective(BasePaddingCompare):
     def before():
         A = T.alloc_buffer(14, "int32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 A[vi] = 0
 
     def expected():
         A = T.alloc_buffer([4, 4], "int32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 A[vi // 4, vi % 4] = 0
 
@@ -623,7 +623,7 @@ class TestErrorOnWrongPaddingType(BasePaddingCompare):
     def before():
         A = T.alloc_buffer(14, "int32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 A[vi] = 0
 
@@ -638,7 +638,7 @@ class TestErrorOnNonMatchingTypes(BasePaddingCompare):
     def before():
         A = T.alloc_buffer(14, "float32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 A[vi] = 0
 
@@ -666,7 +666,7 @@ class TestPaddedTransformIfThenElse(BasePaddingCompare):
         def func(A: T.Buffer(14, dtype)):
             B = T.alloc_buffer(14, dtype)
             for i in T.serial(14):
-                with T.block("block"):
+                with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi]
 
@@ -680,7 +680,7 @@ class TestPaddedTransformIfThenElse(BasePaddingCompare):
         def func(A: T.Buffer(14, dtype)):
             B = T.alloc_buffer([4, 4], dtype)
             for i, j in T.grid(4, 4):
-                with T.block("block"):
+                with T.sblock("block"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = T.if_then_else(
                         vi == 3 and 2 <= vj, pad_value, A[vi * 4 + vj], dtype=dtype
@@ -699,18 +699,18 @@ class TestPaddedTransformWithoutLoop(BasePaddingCompare):
     pad_value = tvm.testing.parameter(0)
 
     def before(A: T.Buffer(14, "int32")):
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads()
             T.writes()
-            with T.block("block"):
+            with T.sblock("block"):
                 A[0] = 0
 
     def expected(A: T.Buffer((4, 4), "int32")):
-        with T.block("block"):
+        with T.sblock("block"):
             A[0, 0] = 0
 
         for i, j in T.grid(4, 4):
-            with T.block("buffer_A_padding"):
+            with T.sblock("buffer_A_padding"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.where(i == 3 and 2 <= j)
                 A[vi, vj] = 0
@@ -725,7 +725,7 @@ class TestPaddedTransformIfThenElseReduction(BasePaddingCompare):
     def before(A: T.Buffer((14, 32), "int32")):
         B = T.alloc_buffer(14, "int32")
         for i, k in T.grid(14, 32):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi, vk = T.axis.remap("SR", [i, k])
                 with T.init():
                     B[vi] = 0
@@ -734,7 +734,7 @@ class TestPaddedTransformIfThenElseReduction(BasePaddingCompare):
     def expected(A: T.Buffer((14, 32), "int32")):
         B = T.alloc_buffer([4, 4], "int32")
         for i, j, k in T.grid(4, 4, 32):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     B[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, 0, 0, dtype="int32")
@@ -754,7 +754,7 @@ class TestPaddedTransformIfThenElseReductionOpaque(BasePaddingCompare):
         for i in T.serial(14):
             B[i] = 0
             for k in T.serial(32):
-                with T.block("block"):
+                with T.sblock("block"):
                     B[i] = B[i] + A[i, k]
 
     def expected(A: T.Buffer((14, 32), "int32")):
@@ -762,7 +762,7 @@ class TestPaddedTransformIfThenElseReductionOpaque(BasePaddingCompare):
         for i, j in T.grid(4, 4):
             B[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, 0, dtype="int32")
             for k in T.serial(32):
-                with T.block("block"):
+                with T.sblock("block"):
                     B[i, j] = T.if_then_else(
                         i == 3 and 2 <= j, 0, B[i, j] + A[i * 4 + j, k], dtype="int32"
                     )
@@ -782,7 +782,7 @@ class TestPaddedTransformPostProcIfRequiredDueToSideEffects(BasePaddingCompare):
         B = T.alloc_buffer(14, "int32")
         C = T.alloc_buffer(14, "int32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi]
                 C[vi] = 0
@@ -791,13 +791,13 @@ class TestPaddedTransformPostProcIfRequiredDueToSideEffects(BasePaddingCompare):
         B = T.alloc_buffer([4, 4], "int32")
         C = T.alloc_buffer(14, "int32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 B[vi // 4, vi % 4] = A[vi]
                 C[vi] = 0
 
         for i, j in T.grid(4, 4):
-            with T.block("block_pad_B"):
+            with T.sblock("block_pad_B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.where(i == 3 and 2 <= j)
                 B[vi, vj] = 0
@@ -810,18 +810,18 @@ class TestPaddedTransformOfInputCreatesAssumption(BasePaddingCompare):
 
     def before(A: T.Buffer(14, "int32"), B: T.Buffer(14, "int32")):
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi]
 
     def expected(A: T.Buffer((4, 4), "int32"), B: T.Buffer(14, "int32")):
         for i, j in T.grid(4, 4):
-            with T.block("buffer_A_assumption"):
+            with T.sblock("buffer_A_assumption"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.evaluate(T.assume(not (vi == 3 and 2 <= vj) or A[vi, vj] == 42))
 
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi // 4, vi % 4]
 
@@ -850,14 +850,14 @@ class TestPaddedTransformNonConstantValue(tvm.testing.CompareBeforeAfter):
     def before(A: T.Buffer(14, "int32")):
         B = T.alloc_buffer(14, "int32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi]
 
     def expected(A: T.Buffer(14, "int32")):
         B = T.alloc_buffer([4, 4], "int32")
         for i, j in T.grid(4, 4):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = T.if_then_else(
                     vi == 3 and 2 <= vj, vi + vj, A[vi * 4 + vj], dtype="int32"
@@ -879,7 +879,7 @@ class TestPaddedTransformRepeatedBufferElement(tvm.testing.CompareBeforeAfter):
         def transform(mod):
             sch = tir.Schedule(mod)
 
-            A = sch.get(sch.get_block("block")).reads[0].buffer
+            A = sch.get(sch.get_sblock("block")).reads[0].buffer
             sch.transform_layout(
                 "block",
                 "A",
@@ -893,13 +893,13 @@ class TestPaddedTransformRepeatedBufferElement(tvm.testing.CompareBeforeAfter):
     def before(A: T.Buffer(14, "int32")):
         B = T.alloc_buffer(14, "int32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi]
 
     def expected(A: T.Buffer((4, 4), "int32")):
         for i, j in T.grid(4, 4):
-            with T.block("buffer_A_assumption"):
+            with T.sblock("buffer_A_assumption"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.evaluate(
                     T.assume(
@@ -910,7 +910,7 @@ class TestPaddedTransformRepeatedBufferElement(tvm.testing.CompareBeforeAfter):
 
         B = T.alloc_buffer(14, "int32")
         for i in T.grid(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi // 4, vi % 4]
 
@@ -927,7 +927,7 @@ class TestPadValueMayNotReferenceOtherBuffer(tvm.testing.CompareBeforeAfter):
         def transform(mod):
             sch = tir.Schedule(mod)
 
-            A = sch.get(sch.get_block("block")).reads[0].buffer
+            A = sch.get(sch.get_sblock("block")).reads[0].buffer
             other = tir.decl_buffer(1, A.dtype, name="other")
             sch.transform_layout(
                 "block",
@@ -942,7 +942,7 @@ class TestPadValueMayNotReferenceOtherBuffer(tvm.testing.CompareBeforeAfter):
     def before(A: T.Buffer(14, "int32")):
         B = T.alloc_buffer(14, "int32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi]
 
@@ -972,14 +972,14 @@ class TestTransformLayoutWithVar(tvm.testing.CompareBeforeAfter):
     def before(A: T.Buffer(16, "int32"), n: T.int32):
         B = T.alloc_buffer(16, "int32")
         for i in T.serial(16):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi]
 
     def expected(A: T.Buffer(16, "int32"), n: T.int32):
         B = T.alloc_buffer([(-16 % n + 16) // n, n], dtype="int32")
         for i, j in T.grid((-16 % n + 16) // n, n):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = T.if_then_else(
                     # Checks if the transform introduced padding
@@ -1004,14 +1004,14 @@ class TestTransformWithAxisSeparators(BasePaddingCompare):
     def before(a: T.handle):
         A = T.match_buffer(a, [14], "int32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 A[vi] = 42
 
     def expected(a: T.handle):
         A = T.match_buffer(a, [4, 4], "int32", axis_separators=[1])
         for i, j in T.grid(4, 4):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 A[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, 0, 42, dtype="int32")
 
@@ -1025,13 +1025,13 @@ class TestTransformWithAxisSeparatorsOpaqueBlock(BasePaddingCompare):
     def before(a: T.handle):
         A = T.match_buffer(a, [14], "int32")
         for i in T.serial(14):
-            with T.block("block"):
+            with T.sblock("block"):
                 A[i] = 42
 
     def expected(a: T.handle):
         A = T.match_buffer(a, [4, 4], "int32", axis_separators=[1])
         for i, j in T.grid(4, 4):
-            with T.block("block"):
+            with T.sblock("block"):
                 A[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, 42, dtype="int32")
 
 
@@ -1041,7 +1041,7 @@ def test_index_map_dtype_legalize():
     @T.prim_func
     def func(A: T.Buffer(T.int64(58), "int32")):
         for i in T.serial(T.int64(58)):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 T.writes(A[vi])
                 A[vi] = 0
@@ -1052,7 +1052,7 @@ def test_index_map_dtype_legalize():
     # # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
     # # The dtype of the extent of an IterVar (int64) must match its associated Var's dtype (int32)
     sch.transform_layout(
-        sch.get_block("block"), buffer="A", index_map=lambda h: [h // 8, h % 8], pad_value=0
+        sch.get_sblock("block"), buffer="A", index_map=lambda h: [h // 8, h % 8], pad_value=0
     )
 
 
@@ -1065,7 +1065,7 @@ def test_index_map_dtype_legalize_with_constant():
     @T.prim_func
     def func(A: T.Buffer(T.int64(16), "int32")):
         for i in T.grid(T.int64(16)):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 A[vi] = 0
 
@@ -1103,7 +1103,7 @@ def test_transform_layout_with_symbolic_bound():
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
         C = T.match_buffer(c, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
         for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), n, T.int64(128)):
-            with T.block("NT_matmul"):
+            with T.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
                 T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_i3, v_k])
                 T.writes(C[v_i0, v_i1, v_i2, v_i3])
@@ -1119,7 +1119,7 @@ def test_transform_layout_with_symbolic_bound():
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
         C = T.match_buffer(c, (n * T.int64(32),), "float16")
         for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), n, T.int64(128)):
-            with T.block("NT_matmul"):
+            with T.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
                 T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_i3, v_k])
                 T.writes(C[v_i1 * n + v_i3])
@@ -1131,7 +1131,7 @@ def test_transform_layout_with_symbolic_bound():
     # pylint: disable=invalid-name
     _, _, n, _ = before.buffer_map[before.params[1]].shape
     sch = tvm.tir.Schedule(before)
-    block = sch.get_block("NT_matmul")
+    block = sch.get_sblock("NT_matmul")
     sch.transform_layout(
         block,
         ("write", 0),
@@ -1153,7 +1153,7 @@ def test_transform_block_layout_with_symbolic_bound():
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
         C = T.match_buffer(c, (n * T.int64(32),), "float16")
         for i0, i1, i2, i3, k in T.grid(T.int64(1), T.int64(32), T.int64(1), n, T.int64(128)):
-            with T.block("NT_matmul"):
+            with T.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
                 T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_i3, v_k])
                 T.writes(C[v_i1 * n + v_i3])
@@ -1169,7 +1169,7 @@ def test_transform_block_layout_with_symbolic_bound():
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
         C = T.match_buffer(c, (n * T.int64(32),), "float16")
         for ax0, ax1 in T.grid(n * T.int64(32), T.int64(128)):
-            with T.block("NT_matmul"):
+            with T.sblock("NT_matmul"):
                 v0, v1 = T.axis.remap("SR", [ax0, ax1])
                 T.reads(A[T.int64(0), v0 // n, T.int64(0), v1], B[T.int64(0), v0 // n, v0 % n, v1])
                 T.writes(C[v0])
@@ -1181,7 +1181,7 @@ def test_transform_block_layout_with_symbolic_bound():
     # pylint: disable=invalid-name
     _, _, n, _ = before.buffer_map[before.params[1]].shape
     sch = tvm.tir.Schedule(before)
-    block = sch.get_block("NT_matmul")
+    block = sch.get_sblock("NT_matmul")
     sch.transform_block_layout(
         block,
         lambda x, y, z, w, k: (

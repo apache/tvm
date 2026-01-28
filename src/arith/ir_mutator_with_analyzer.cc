@@ -67,7 +67,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
   return StmtExprMutator::VisitStmt_(op);
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const BlockNode* op) {
+Stmt IRMutatorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
   for (const auto& iter_var : op->iter_vars) {
     analyzer_->Bind(iter_var->var, iter_var->dom);
     iter_vars_.Set(iter_var->var, iter_var->dom);
