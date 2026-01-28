@@ -29,7 +29,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) final {
     if (!CheckConditions(sch, block_rv)) {
       return {sch};
     }
@@ -40,7 +40,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     // decision of Sample-Compute-Location is "compute-inline" for the input block, we can no longer
     // access the input block. Hence we collect its producer ahead of time.
     // - Note that only single producer is allowed in this case.
-    ffi::Array<tir::BlockRV> producers{nullptr};
+    ffi::Array<tir::SBlockRV> producers{nullptr};
     if (tir::HasAnn(sch->GetSRef(block_rv), tir::attr::meta_schedule_random_compute_producer,
                     true)) {
       producers = sch->GetProducers(block_rv);
@@ -66,9 +66,9 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
   }
 
  private:
-  bool CheckConditions(const tir::Schedule sch, const tir::BlockRV& block_rv) const {
+  bool CheckConditions(const tir::Schedule sch, const tir::SBlockRV& block_rv) const {
     tir::StmtSRef block_sref = sch->GetSRef(block_rv);
-    TVM_SREF_TO_BLOCK(block_sref);
+    TVM_SREF_TO_SBLOCK(block_sref);
 
     // Cond 1. The block is not the root block.
     if (block_sref->parent == nullptr) {
@@ -106,7 +106,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
    * \param block_rv The block whose compute-at location is to be sampled
    * \return The TIR schedule after transformation
    */
-  tir::Schedule RandomlyComputeAt(const tir::Schedule& sch, const tir::BlockRV& block_rv) {
+  tir::Schedule RandomlyComputeAt(const tir::Schedule& sch, const tir::SBlockRV& block_rv) {
     tir::LoopRV compute_at_loc = sch->SampleComputeLocation(block_rv);
     sch->ComputeAt(block_rv, compute_at_loc, true);
     return sch;

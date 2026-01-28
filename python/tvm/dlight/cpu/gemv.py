@@ -20,7 +20,7 @@ from typing import List, Optional, Union
 from tvm import tir
 from tvm.target import Target
 
-from ..analysis import BlockInfo, normalize_prim_func
+from ..analysis import SBlockInfo, normalize_prim_func
 from ..analysis.gemv import is_gemv, normalize
 from ..base import get_extent, try_inline_contiguous_spatial
 from .base import CPUScheduleRule
@@ -77,9 +77,9 @@ class GEMV(CPUScheduleRule):
         self,
         sch: tir.Schedule,
         target: Target,
-        block: tir.schedule.BlockRV,
+        block: tir.schedule.SBlockRV,
         vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[BlockInfo],
+        epilogue_info: Optional[SBlockInfo],
     ):
         """Schedule the inner reduction block."""
 

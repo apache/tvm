@@ -34,11 +34,11 @@ def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "fl
     B = T.alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -46,13 +46,13 @@ def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "fl
 def element_wise_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
     B = T.alloc_buffer((128, 128), "float16")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(A[vi, vj])
             T.writes(B[vi, vj])
             B[vi, vj] = T.cast(A[vi, vj] * 2.0, "float16")
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[vi, vj])
             T.writes(C[vi, vj])
@@ -63,12 +63,12 @@ def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer
     B = T.alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B_subregion0 = T.match_buffer(B[vi, vj], [], offset_factor=1)
             B_subregion0[()] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             B_subregion1 = T.match_buffer(B[vi, vj], [], offset_factor=1)
             C[vi, vj] = B_subregion1[()] + 1.0
@@ -78,14 +78,14 @@ def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer
 def element_wise_subregion_match_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
     B = T.alloc_buffer((128, 128), "float16")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(A[vi, vj])
             T.writes(B[vi, vj])
             B_subregion0 = T.match_buffer(B[vi, vj], (), "float16", offset_factor=1)
             B_subregion0[()] = T.cast(A[vi, vj] * 2.0, "float16")
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[vi, vj])
             T.writes(C[vi, vj])
@@ -98,7 +98,7 @@ use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name"
 def test_set_dtype(use_block_name):
     func = element_wise
     sch = tir.Schedule(func, debug_mask="all")
-    sch.unsafe_set_dtype("B" if use_block_name else sch.get_block("B"), 0, "float16")
+    sch.unsafe_set_dtype("B" if use_block_name else sch.get_sblock("B"), 0, "float16")
     assert_structural_equal_ignore_global_symbol(element_wise_set_dtype, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func)
 
@@ -106,20 +106,20 @@ def test_set_dtype_fail_on_output_buffer(use_block_name):
     func = element_wise
     sch = tir.Schedule(func, debug_mask='all')
     with pytest.raises(tvm.tir.ScheduleError):
-        sch.unsafe_set_dtype('C' if use_block_name else sch.get_block("C"), 0, "float16")
+        sch.unsafe_set_dtype('C' if use_block_name else sch.get_sblock("C"), 0, "float16")
 
 def test_set_dtype_fail_on_index_out_of_bound():
     func = element_wise
     sch = tir.Schedule(func, debug_mask='all')
     with pytest.raises(tvm.tir.ScheduleError):
-        sch.unsafe_set_dtype(sch.get_block("B"), 1, "float64")
+        sch.unsafe_set_dtype(sch.get_sblock("B"), 1, "float64")
     with pytest.raises(tvm.tir.ScheduleError):
-        sch.unsafe_set_dtype(sch.get_block("B"), -1, "float64")
+        sch.unsafe_set_dtype(sch.get_sblock("B"), -1, "float64")
 
 def test_set_dtype_subregion():
     func = element_wise_subregion_match
     sch = tir.Schedule(func, debug_mask='all')
-    sch.unsafe_set_dtype(sch.get_block("B"), 0, "float16")
+    sch.unsafe_set_dtype(sch.get_sblock("B"), 0, "float16")
     assert_structural_equal_ignore_global_symbol(element_wise_subregion_match_set_dtype, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=func)
 

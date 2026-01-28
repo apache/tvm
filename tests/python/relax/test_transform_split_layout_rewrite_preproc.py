@@ -34,12 +34,12 @@ def test_single_buffer():
             T.func_attr({"layout_free_buffers": [1]})
             W_rewrite = T.alloc_buffer((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
-                with T.block("W_rewrite"):
+                with T.sblock("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
-                    T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                    T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                     W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W[vi, vj]
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
@@ -67,7 +67,7 @@ def test_single_buffer():
             Out: T.Buffer((224, 224), "float32"),
         ):
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
@@ -78,7 +78,7 @@ def test_single_buffer():
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
         ):
             for i, j in T.grid(224, 224):
-                with T.block("W_rewrite"):
+                with T.sblock("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W[vi, vj]
 
@@ -117,17 +117,17 @@ def test_multiple_buffers():
             W1_rewrite = T.alloc_buffer((4, 4, 56, 56))
             W2_rewrite = T.alloc_buffer((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
-                with T.block("W1_rewrite"):
+                with T.sblock("W1_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
-                    T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                    T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                     W1_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W1[vi, vj]
             for i, j in T.grid(224, 224):
-                with T.block("W2_rewrite"):
+                with T.sblock("W2_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
-                    T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                    T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                     W2_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W2[vi, vj]
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = (
@@ -161,7 +161,7 @@ def test_multiple_buffers():
             Out: T.Buffer((224, 224), "float32"),
         ):
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = (
@@ -178,11 +178,11 @@ def test_multiple_buffers():
             W2_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
         ):
             for i, j in T.grid(224, 224):
-                with T.block("W1_rewrite"):
+                with T.sblock("W1_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     W1_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W1[vi, vj]
             for i, j in T.grid(224, 224):
-                with T.block("W2_rewrite"):
+                with T.sblock("W2_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     W2_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W2[vi, vj]
 
@@ -228,12 +228,12 @@ def test_attr_inheritance():
             T.func_attr({"layout_free_buffers": [1], "tir.noalias": True})
             W_rewrite = T.alloc_buffer((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
-                with T.block("W_rewrite"):
+                with T.sblock("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
-                    T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                    T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                     W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W[vi, vj]
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
@@ -262,7 +262,7 @@ def test_attr_inheritance():
         ):
             T.func_attr({"tir.noalias": True})
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
-                with T.block("Out"):
+                with T.sblock("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
                     vj = T.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
@@ -274,7 +274,7 @@ def test_attr_inheritance():
         ):
             T.func_attr({"tir.noalias": True})
             for i, j in T.grid(224, 224):
-                with T.block("W_rewrite"):
+                with T.sblock("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56] = W[vi, vj]
 

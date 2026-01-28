@@ -166,9 +166,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
     return it->second;
   }
 
-  void BeginDataflowBlock() final { block_stack_.emplace_back(BlockFrame{{}, true}); }
+  void BeginDataflowBlock() final { block_stack_.emplace_back(BindingBlockFrame{{}, true}); }
 
-  void BeginBindingBlock() final { block_stack_.emplace_back(BlockFrame{{}, false}); }
+  void BeginBindingBlock() final { block_stack_.emplace_back(BindingBlockFrame{{}, false}); }
 
   void BeginScope(ffi::Optional<ffi::Array<Var>> params) final {
     // The current implementation handles the collection of shape var
@@ -230,17 +230,17 @@ class BlockBuilderImpl : public BlockBuilderNode {
   void EndScope() final { scope_stack_.pop_back(); }
 
   BindingBlock EndBlock() final {
-    BlockFrame* cur_frame = CurrentBlockFrame();
+    BindingBlockFrame* cur_frame = CurrentBindingBlockFrame();
     BindingBlock ret = cur_frame->is_dataflow ? DataflowBlock(cur_frame->bindings)
                                               : BindingBlock(cur_frame->bindings);
     block_stack_.pop_back();
     return ret;
   }
 
-  bool CurrentBlockIsDataFlow() final { return CurrentBlockFrame()->is_dataflow; }
+  bool CurrentBlockIsDataFlow() final { return CurrentBindingBlockFrame()->is_dataflow; }
 
   Var Emit(Expr expr, ffi::String name_hint) final {
-    return this->Emit(expr, CurrentBlockFrame()->is_dataflow, name_hint);
+    return this->Emit(expr, CurrentBindingBlockFrame()->is_dataflow, name_hint);
   }
 
   Var EmitMatchCast(Expr value, StructInfo struct_info, ffi::String name_hint) final {
@@ -252,7 +252,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
         << GetStructInfo(value) << ", given struct info: " << struct_info;
 
     // NOTE: do match cast checking later in a pass.
-    BlockFrame* cur_frame = CurrentBlockFrame();
+    BindingBlockFrame* cur_frame = CurrentBindingBlockFrame();
     Var var = CreateVar(cur_frame->is_dataflow, name_hint);
     UpdateStructInfo(var, struct_info);
 
@@ -266,7 +266,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   Var EmitOutput(Expr output, ffi::String name_hint) final {
-    BlockFrame* cur_frame = CurrentBlockFrame();
+    BindingBlockFrame* cur_frame = CurrentBindingBlockFrame();
 
     ICHECK(cur_frame->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
 
@@ -274,7 +274,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   void EmitNormalized(Binding binding) final {
-    BlockFrame* cur_frame = CurrentBlockFrame();
+    BindingBlockFrame* cur_frame = CurrentBindingBlockFrame();
 
     if (const auto* var_binding = binding.as<VarBindingNode>()) {
       if (!cur_frame->is_dataflow) {
@@ -313,7 +313,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
    * to build a binding block, and a boolean to indicate if the
    * block being built is a DataflowBlock or not.
    */
-  struct BlockFrame {
+  struct BindingBlockFrame {
     /*!
      * \brief List of bindings
      */
@@ -345,7 +345,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   };
 
   /*! \brief A stack to store block frames. */
-  std::vector<BlockFrame> block_stack_;
+  std::vector<BindingBlockFrame> block_stack_;
 
   /*! \brief A stack to store scope frames. */
   std::vector<ScopeFrame> scope_stack_;
@@ -368,7 +368,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
    *       or other scope calls this value can change if the block stack get updated,
    *       then the block frame is no longer valid.
    */
-  BlockFrame* CurrentBlockFrame() {
+  BindingBlockFrame* CurrentBindingBlockFrame() {
     ICHECK(!block_stack_.empty()) << "no block is being built";
     return &block_stack_.back();
   }
@@ -399,7 +399,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // set the values
     UpdateStructInfo(var, Downcast<StructInfo>(expr->struct_info_.value()));
 
-    CurrentBlockFrame()->bindings.push_back(VarBinding(var, expr));
+    CurrentBindingBlockFrame()->bindings.push_back(VarBinding(var, expr));
 
     // update the binding table
     binding_table_[var->vid] = expr;
@@ -553,7 +553,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr NormalizeArgument(const Expr& arg) final {
     if (!block_stack_.empty()) {
       // cache lookup
-      BlockFrame* cur_frame = CurrentBlockFrame();
+      BindingBlockFrame* cur_frame = CurrentBindingBlockFrame();
       auto it = cur_frame->normalize_binding_map.find(arg);
       if (it != cur_frame->normalize_binding_map.end()) {
         return it->second;
@@ -567,7 +567,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       Var var = this->Emit(post, "");
       // NOTE: current frame addr can change due to underlying vector
       // re-allocation, redo lookup
-      CurrentBlockFrame()->normalize_binding_map[arg] = var;
+      CurrentBindingBlockFrame()->normalize_binding_map[arg] = var;
       return var;
     } else {
       return post;
@@ -606,7 +606,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr VisitExpr(const Expr& expr) final {
     // lookup normalize map
     if (!block_stack_.empty()) {
-      BlockFrame* cur_frame = CurrentBlockFrame();
+      BindingBlockFrame* cur_frame = CurrentBindingBlockFrame();
       auto it = cur_frame->normalize_binding_map.find(expr);
       if (it != cur_frame->normalize_binding_map.end()) {
         return it->second;

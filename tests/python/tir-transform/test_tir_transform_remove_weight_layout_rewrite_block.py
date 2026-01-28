@@ -42,14 +42,14 @@ def test_matmul():
         T.func_attr({"layout_free_buffers": [1]})
         B_ = T.alloc_buffer([16, 4, 4], dtype="float32")
         for i0_o, i1_o in T.grid(16, 16):
-            with T.block("layout_rewrite"):
+            with T.sblock("layout_rewrite"):
                 i0, i1 = T.axis.remap("SS", [i0_o, i1_o])
                 T.reads(B[i0, i1])
                 T.writes(B_[i1, i0 // 4, i0 % 4])
-                T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                 B_[i1, i0 // 4, i0 % 4] = B[i0, i1]
         for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi = T.axis.spatial(16, i0 * 4 + i1)
                 vj = T.axis.spatial(16, j)
                 vk = T.axis.reduce(16, k0 * 4 + k1)
@@ -67,14 +67,14 @@ def test_matmul():
     ) -> None:
         T.func_attr({"layout_free_buffers": [1]})
         for i0_o, i1_o in T.grid(16, 16):
-            with T.block("layout_rewrite"):
+            with T.sblock("layout_rewrite"):
                 i0, i1 = T.axis.remap("SS", [i0_o, i1_o])
                 T.reads()
                 T.writes()
-                T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                 T.evaluate(0)
         for i0, j, k0, i1, k1 in T.grid(4, 16, 4, 4, 4):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi = T.axis.spatial(16, i0 * 4 + i1)
                 vj = T.axis.spatial(16, j)
                 vk = T.axis.reduce(16, k0 * 4 + k1)

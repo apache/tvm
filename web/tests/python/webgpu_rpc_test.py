@@ -41,7 +41,7 @@ def test_rpc():
     B = te.compute(A.shape, lambda *i: te.log(te.abs(A(*i) + 1)), name="B")
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
     sch = tvm.tir.Schedule(mod)
-    (i,) = sch.get_loops(block=sch.get_block("B"))
+    (i,) = sch.get_loops(block=sch.get_sblock("B"))
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")

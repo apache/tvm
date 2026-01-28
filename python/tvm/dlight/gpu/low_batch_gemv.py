@@ -22,7 +22,7 @@ from tvm import arith, ir, tir
 from tvm.target import Target
 
 from ..analysis import (
-    BlockInfo,
+    SBlockInfo,
     collect_block_iter_vars_used_in_access_region,
     collect_vars_used_in_prim_expr,
     is_broadcast_epilogue,
@@ -32,7 +32,7 @@ from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
+def _get_reduction_expr(block: tir.SBlock) -> Optional[tir.PrimExpr]:
     # Detect and return `Y` in `X[...] = X[...] + Y`
     buffer_store = block.body
     if not isinstance(buffer_store, tir.BufferStore):
@@ -48,7 +48,7 @@ def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
     return buffer_store.value.b
 
 
-def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffer]]:
+def is_gemv(sch: tir.Schedule, block_info: SBlockInfo) -> Optional[List[tir.Buffer]]:
     """Check if the block is a low batch GEMM.
 
     Parameters
@@ -57,7 +57,7 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
     sch : tir.Schedule
         The schedule
 
-    block_info : BlockInfo
+    block_info : SBlockInfo
         The block info to be checked
 
 
@@ -109,7 +109,7 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
     return ret if 0 < len(ret) < len(block_stmt.reads) else None
 
 
-def detect_dominant_read(block: tir.Block, const_iter_vars: Set[tir.Var]) -> tir.PrimExpr:
+def detect_dominant_read(block: tir.SBlock, const_iter_vars: Set[tir.Var]) -> tir.PrimExpr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1
@@ -128,10 +128,10 @@ def detect_dominant_read(block: tir.Block, const_iter_vars: Set[tir.Var]) -> tir
 
 def normalize(
     sch: tir.Schedule,
-    block_info: BlockInfo,
+    block_info: SBlockInfo,
 ) -> Optional[bool]:
     """Normalize the main block."""
-    block_stmt: tir.Block = sch.get(block_info.block_rv)
+    block_stmt: tir.SBlock = sch.get(block_info.block_rv)
     const_iter_vars = set(
         iter_var.var
         for iter_var in block_stmt.iter_vars
@@ -288,11 +288,11 @@ class LowBatchGEMV(GPUScheduleRule):
         self,
         sch: tir.Schedule,
         target: Target,
-        block: tir.schedule.BlockRV,
-        dequantize_block: Optional[tir.schedule.BlockRV],
-        pad_input_block: Optional[tir.schedule.BlockRV],
+        block: tir.schedule.SBlockRV,
+        dequantize_block: Optional[tir.schedule.SBlockRV],
+        pad_input_block: Optional[tir.schedule.SBlockRV],
         vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[BlockInfo],
+        epilogue_info: Optional[SBlockInfo],
         batch_pad: int,
     ):
         """Schedule the inner reduction block."""
@@ -600,11 +600,11 @@ class LowBatchGEMV(GPUScheduleRule):
         self,
         sch: tir.Schedule,
         target: Target,
-        block: tir.schedule.BlockRV,
-        dequantize_block: Optional[tir.schedule.BlockRV],
-        pad_input_block: Optional[tir.schedule.BlockRV],
+        block: tir.schedule.SBlockRV,
+        dequantize_block: Optional[tir.schedule.SBlockRV],
+        pad_input_block: Optional[tir.schedule.SBlockRV],
         vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[BlockInfo],
+        epilogue_info: Optional[SBlockInfo],
         batch_pad: int,
     ):
         """Schedule the outer reduction block."""
@@ -615,7 +615,7 @@ class LowBatchGEMV(GPUScheduleRule):
 
         def apply(
             sch: tir.Schedule,
-            main_block: tir.schedule.BlockRV,
+            main_block: tir.schedule.SBlockRV,
             TAG_S: Literal["threadIdx.x", "threadIdx.y"],
             TAG_R: Literal["threadIdx.x", "threadIdx.y"],
             TS: int,

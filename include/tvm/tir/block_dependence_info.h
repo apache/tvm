@@ -18,7 +18,7 @@
  */
 /*!
  * \file tvm/tir/block_dependence_info.h
- * \brief Define BlockDependenceInfoNode that uses the BlockScope and StmtSRef objects to
+ * \brief Define BlockDependenceInfoNode that uses the SBlockScope and StmtSRef objects to
  * store the block level dependences
  * \sa BlockDependenceInfoNode
  */
@@ -41,10 +41,10 @@ namespace tir {
 
 /**
  * @brief An object that helps build and query block level dependences using the 2 core objects
- * BlockScope and StmtSRef
+ * SBlockScope and StmtSRef
  *
  * The data structures exposed are:
- * 1) sref2scope: Mapping from the srefs to its corresponding BlockScope
+ * 1) sref2scope: Mapping from the srefs to its corresponding SBlockScope
  * 2) stmt2ref: Mapping from blocks to corresponding StmtSRefs
  *
  * Note that this object does not store SRefs to loops as the purpose is only to expose block level
@@ -54,10 +54,10 @@ namespace tir {
 class BlockDependenceInfoNode : public Object {
  public:
   /*!
-   * \brief Mapping from a block sref to its corresponding BlockScope,
+   * \brief Mapping from a block sref to its corresponding SBlockScope,
    * tracking the dependency inside the block scope,
    */
-  std::unordered_map<StmtSRef, BlockScope, ObjectPtrHash, ObjectPtrEqual> sref2scope;
+  std::unordered_map<StmtSRef, SBlockScope, ObjectPtrHash, ObjectPtrEqual> sref2scope;
   /*! \brief The reverse mapping from block/for-loop to their corresponding srefs */
   std::unordered_map<const StmtNode*, StmtSRef> stmt2ref;
 
@@ -65,17 +65,17 @@ class BlockDependenceInfoNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BlockDependenceInfoNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockDependenceInfo", BlockDependenceInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SBlockDependenceInfo", BlockDependenceInfoNode, Object);
 
   /*!
-   * \brief Get the BlockScope corresponding to the sref of scope root block
+   * \brief Get the SBlockScope corresponding to the sref of scope root block
    * \param scope_root The block sref to be retrieved
-   * \return The corresponding BlockScope
+   * \return The corresponding SBlockScope
    */
-  BlockScope GetBlockScope(const StmtSRef& scope_root) const {
+  SBlockScope GetSBlockScope(const StmtSRef& scope_root) const {
     auto it = sref2scope.find(scope_root);
     CHECK(it != sref2scope.end())
-        << "IndexError: Cannot find the corresponding BlockScope to the block sref:\n"
+        << "IndexError: Cannot find the corresponding SBlockScope to the block sref:\n"
         << ffi::GetRef<Stmt>(scope_root->stmt);
     return it->second;
   }

@@ -65,7 +65,7 @@ class TestPyFuncModule(BasePyModule):
         B = T.match_buffer(var_B, (n,), "float32")
 
         for i in T.grid(n):
-            with T.block("copy"):
+            with T.sblock("copy"):
                 vi = T.axis.remap("S", [i])
                 B[vi] = A[vi]
 

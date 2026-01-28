@@ -1142,7 +1142,7 @@ def test_handle_existence_of_call_tir():
         ):
             T.func_attr({"tir.noalias": True})
             for i in range(T.int64(10)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = T.max(Input[vi], T.float32(0))
 
@@ -1194,7 +1194,7 @@ def test_handle_existence_of_call_tir():
         ):
             T.func_attr({"tir.noalias": True})
             for i in range(T.int64(10)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = T.max(Input[vi], T.float32(0))
 

@@ -43,7 +43,7 @@ class Module_1D:
         B = T.match_buffer(b, (m,), data_type, scope="global.vtcm")
         C = T.match_buffer(c, (m,), data_type, scope="global.vtcm")
         for ax0 in T.grid(m):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0 = T.axis.remap("S", [ax0])
                 T.reads(A[v_ax0], B[v_ax0])
                 T.writes(C[v_ax0])

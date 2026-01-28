@@ -31,7 +31,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128])
 
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = T.float32(0)
@@ -80,7 +80,7 @@ def test_tir_buffer_region_extent_correct_dtype():
     @T.prim_func
     def func(A: T.Buffer((T.int64(16), T.int64(1)), "float32")):
         for i in T.grid(T.int64(16)):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.remap("S", [i])
                 T.reads(A[vi, T.int64(0) : T.int64(1)])
                 T.evaluate(0)

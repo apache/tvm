@@ -47,7 +47,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   }
 
   ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
-    using ScheduleAndUnvisitedBlocks = std::pair<tir::Schedule, ffi::Array<tir::BlockRV>>;
+    using ScheduleAndUnvisitedBlocks = std::pair<tir::Schedule, ffi::Array<tir::SBlockRV>>;
     CHECK(sch_rules.defined()) << "ValueError: `sch_rules` is not set in PostOrderApply";
     tir::Schedule sch = tir::Schedule::Traced(
         /*mod=*/mod,
@@ -57,7 +57,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
 
     std::vector<ScheduleAndUnvisitedBlocks> stack;
     ffi::Array<tir::Schedule> result{sch};
-    ffi::Array<tir::BlockRV> all_blocks = BlockCollector::Collect(sch, f_block_filter_);
+    ffi::Array<tir::SBlockRV> all_blocks = SBlockCollector::Collect(sch, f_block_filter_);
 
     for (ScheduleRule sch_rule : sch_rules.value()) {
       for (const tir::Schedule& sch : result) {
@@ -74,7 +74,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
           continue;
         }
         // otherwise, get the last block that is not visited
-        tir::BlockRV block_rv = blocks.back();
+        tir::SBlockRV block_rv = blocks.back();
         blocks.pop_back();
         if (!sch->HasBlock(block_rv)) {
           stack.emplace_back(sch, blocks);

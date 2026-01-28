@@ -31,7 +31,7 @@ namespace tvm {
 namespace tir {
 
 /*!
- * \brief Remove Block to ensure that the TIR can not be scheduled again.
+ * \brief Remove SBlock to ensure that the TIR can not be scheduled again.
  */
 class OpaqueBlockLower : public StmtExprMutator {
  public:
@@ -42,12 +42,12 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
  private:
-  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     // We have convert blocks into opaque blocks in previous passes.
     ICHECK(op->iter_values.empty()) << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
                                        "call pass ConvertBlocksToOpaque before.";
     // Step 1. Visit the body
-    Block new_block = Downcast<Block>(this->VisitStmt(op->block));
+    SBlock new_block = Downcast<SBlock>(this->VisitStmt(op->block));
     PrimExpr predicate = this->VisitExpr(op->predicate);
     // Step 2. Transform the `predicate` to if-then-else
     Stmt body = new_block->body;

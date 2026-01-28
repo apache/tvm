@@ -43,7 +43,7 @@ def test_rms_norm_with_casting():
             n = T.int32()
             data = T.match_buffer(var_data, (1, n, 4096), "float16")
             T_cast = T.match_buffer(var_T_cast, (1, n, 4096), "float16")
-            # with T.block("root"):
+            # with T.sblock("root"):
             T_cast_1 = T.alloc_buffer((1, n, 4096))
             T_multiply = T.alloc_buffer((1, n, 4096))
             T_multiply_red = T.alloc_buffer((1, n))
@@ -51,19 +51,19 @@ def test_rms_norm_with_casting():
             T_cast_2 = T.alloc_buffer((4096,))
             T_rms_norm = T.alloc_buffer((1, n, 4096))
             for ax0, ax1, ax2 in T.grid(1, n, 4096):
-                with T.block("T_cast"):
+                with T.sblock("T_cast"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(data[v_ax0, v_ax1, v_ax2])
                     T.writes(T_cast_1[v_ax0, v_ax1, v_ax2])
                     T_cast_1[v_ax0, v_ax1, v_ax2] = T.Cast("float32", data[v_ax0, v_ax1, v_ax2])
             for ax0, ax1, ax2 in T.grid(1, n, 4096):
-                with T.block("T_multiply"):
+                with T.sblock("T_multiply"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(T_cast_1[v_ax0, v_ax1, v_ax2])
                     T.writes(T_multiply[v_ax0, v_ax1, v_ax2])
                     T_multiply[v_ax0, v_ax1, v_ax2] = T_cast_1[v_ax0, v_ax1, v_ax2] * T_cast_1[v_ax0, v_ax1, v_ax2]
             for ax0, ax1, k2 in T.grid(1, n, 4096):
-                with T.block("T_multiply_red"):
+                with T.sblock("T_multiply_red"):
                     v_ax0, v_ax1, v_k2 = T.axis.remap("SSR", [ax0, ax1, k2])
                     T.reads(T_multiply[v_ax0, v_ax1, v_k2])
                     T.writes(T_multiply_red[v_ax0, v_ax1])
@@ -71,25 +71,25 @@ def test_rms_norm_with_casting():
                         T_multiply_red[v_ax0, v_ax1] = T.float32(0)
                     T_multiply_red[v_ax0, v_ax1] = T_multiply_red[v_ax0, v_ax1] + T_multiply[v_ax0, v_ax1, v_k2]
             for ax0, ax1 in T.grid(1, n):
-                with T.block("rsqrt"):
+                with T.sblock("rsqrt"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(T_multiply_red[v_ax0, v_ax1])
                     T.writes(rsqrt[v_ax0, v_ax1])
                     rsqrt[v_ax0, v_ax1] = T.rsqrt(T_multiply_red[v_ax0, v_ax1] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))
             for ax0 in range(4096):
-                with T.block("T_cast_1"):
+                with T.sblock("T_cast_1"):
                     v_ax0 = T.axis.spatial(4096, ax0)
                     T.reads(weight[v_ax0])
                     T.writes(T_cast_2[v_ax0])
                     T_cast_2[v_ax0] = T.Cast("float32", weight[v_ax0])
             for ax0, ax1, ax2 in T.grid(1, n, 4096):
-                with T.block("T_rms_norm"):
+                with T.sblock("T_rms_norm"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(rsqrt[v_ax0, v_ax1], T_cast_1[v_ax0, v_ax1, v_ax2], T_cast_2[v_ax2])
                     T.writes(T_rms_norm[v_ax0, v_ax1, v_ax2])
                     T_rms_norm[v_ax0, v_ax1, v_ax2] = rsqrt[v_ax0, v_ax1] * T_cast_1[v_ax0, v_ax1, v_ax2] * T_cast_2[v_ax2]
             for ax0, ax1, ax2 in T.grid(1, n, 4096):
-                with T.block("T_cast_2"):
+                with T.sblock("T_cast_2"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(T_rms_norm[v_ax0, v_ax1, v_ax2])
                     T.writes(T_cast[v_ax0, v_ax1, v_ax2])
@@ -103,7 +103,7 @@ def test_rms_norm_with_casting():
             n = T.int32()
             data = T.match_buffer(var_data, (1, n, 4096), "float16")
             T_cast = T.match_buffer(var_T_cast, (1, n, 4096), "float16")
-            # with T.block("root"):
+            # with T.sblock("root"):
             T_multiply_local = T.alloc_buffer((1, n, 4096), scope="local")
             T_multiply_red_local = T.alloc_buffer((1, n), scope="local")
             rsqrt_shared = T.alloc_buffer((1, n), scope="shared")
@@ -113,7 +113,7 @@ def test_rms_norm_with_casting():
                 for ax2_0 in T.thread_binding(512, thread="threadIdx.x"):
                     for ax2_1 in range(1):
                         for ax2_2 in T.vectorized(8):
-                            with T.block("data_local"):
+                            with T.sblock("data_local"):
                                 v0 = T.axis.spatial(1, 0)
                                 v1 = T.axis.spatial(n, ax0_ax1_fused)
                                 v2 = T.axis.spatial(4096, ax2_0 * 8 + ax2_1 * 8 + ax2_2)
@@ -121,7 +121,7 @@ def test_rms_norm_with_casting():
                                 T.writes(data_local[v0, v1, v2])
                                 data_local[v0, v1, v2] = data[v0, v1, v2]
                     for ax0 in range(8):
-                        with T.block("T_multiply"):
+                        with T.sblock("T_multiply"):
                             v_ax0 = T.axis.spatial(1, 0)
                             v_ax1 = T.axis.spatial(n, ax0_ax1_fused)
                             v_ax2 = T.axis.spatial(4096, ax2_0 * 8 + ax0)
@@ -129,7 +129,7 @@ def test_rms_norm_with_casting():
                             T.writes(T_multiply_local[v_ax0, v_ax1, v_ax2])
                             T_multiply_local[v_ax0, v_ax1, v_ax2] = T.Cast("float32", data_local[v_ax0, v_ax1, v_ax2]) * T.Cast("float32", data_local[v_ax0, v_ax1, v_ax2])
                     for ax0 in range(8):
-                        with T.block("T_multiply_red"):
+                        with T.sblock("T_multiply_red"):
                             v_ax0 = T.axis.spatial(1, 0)
                             v_ax1 = T.axis.spatial(n, ax0_ax1_fused)
                             v_k2 = T.axis.reduce(4096, ax2_0 * 8 + ax0)
@@ -138,7 +138,7 @@ def test_rms_norm_with_casting():
                             with T.init():
                                 T_multiply_red_local[v_ax0, v_ax1] = T.float32(0)
                             T_multiply_red_local[v_ax0, v_ax1] = T_multiply_red_local[v_ax0, v_ax1] + T_multiply_local[v_ax0, v_ax1, v_k2]
-                with T.block("rsqrt"):
+                with T.sblock("rsqrt"):
                     v_ax0 = T.axis.spatial(1, 0)
                     v_ax1 = T.axis.spatial(n, ax0_ax1_fused)
                     T.reads(T_multiply_red_local[v_ax0, v_ax1])
@@ -146,7 +146,7 @@ def test_rms_norm_with_casting():
                     rsqrt_shared[v_ax0, v_ax1] = T.rsqrt(T_multiply_red_local[v_ax0, v_ax1] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))
                 for ax0_0 in T.thread_binding(512, thread="threadIdx.x"):
                     for ax0_1, ax0_2 in T.grid(1, 8):
-                        with T.block("T_rms_norm"):
+                        with T.sblock("T_rms_norm"):
                             v_ax0 = T.axis.spatial(1, 0)
                             v_ax1 = T.axis.spatial(n, ax0_ax1_fused)
                             v_ax2 = T.axis.spatial(4096, ax0_0 * 8 + ax0_1 * 8 + ax0_2)
@@ -154,7 +154,7 @@ def test_rms_norm_with_casting():
                             T.writes(T_rms_norm_local[v_ax0, v_ax1, v_ax2])
                             T_rms_norm_local[v_ax0, v_ax1, v_ax2] = rsqrt_shared[v_ax0, v_ax1] * T.Cast("float32", data_local[v_ax0, v_ax1, v_ax2]) * T.Cast("float32", weight[v_ax2])
                     for ax0 in T.vectorized(8):
-                        with T.block("T_cast_local"):
+                        with T.sblock("T_cast_local"):
                             v0 = T.axis.spatial(1, 0)
                             v1 = T.axis.spatial(n, ax0_ax1_fused)
                             v2 = T.axis.spatial(4096, ax0_0 * 8 + ax0)
@@ -175,19 +175,19 @@ def test_rms_norm_without_casting():
             n = T.int32()
             data = T.match_buffer(var_data, (1, n, 4096))
             T_cast = T.match_buffer(var_T_cast, (1, n, 4096))
-            # with T.block("root"):
+            # with T.sblock("root"):
             T_multiply = T.alloc_buffer((1, n, 4096))
             T_multiply_red = T.alloc_buffer((1, n))
             rsqrt = T.alloc_buffer((1, n))
             T_rms_norm = T.alloc_buffer((1, n, 4096))
             for ax0, ax1, ax2 in T.grid(1, n, 4096):
-                with T.block("T_multiply"):
+                with T.sblock("T_multiply"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(data[v_ax0, v_ax1, v_ax2])
                     T.writes(T_multiply[v_ax0, v_ax1, v_ax2])
                     T_multiply[v_ax0, v_ax1, v_ax2] = data[v_ax0, v_ax1, v_ax2] * data[v_ax0, v_ax1, v_ax2]
             for ax0, ax1, k2 in T.grid(1, n, 4096):
-                with T.block("T_multiply_red"):
+                with T.sblock("T_multiply_red"):
                     v_ax0, v_ax1, v_k2 = T.axis.remap("SSR", [ax0, ax1, k2])
                     T.reads(T_multiply[v_ax0, v_ax1, v_k2])
                     T.writes(T_multiply_red[v_ax0, v_ax1])
@@ -195,19 +195,19 @@ def test_rms_norm_without_casting():
                         T_multiply_red[v_ax0, v_ax1] = T.float32(0)
                     T_multiply_red[v_ax0, v_ax1] = T_multiply_red[v_ax0, v_ax1] + T_multiply[v_ax0, v_ax1, v_k2]
             for ax0, ax1 in T.grid(1, n):
-                with T.block("rsqrt"):
+                with T.sblock("rsqrt"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(T_multiply_red[v_ax0, v_ax1])
                     T.writes(rsqrt[v_ax0, v_ax1])
                     rsqrt[v_ax0, v_ax1] = T.rsqrt(T_multiply_red[v_ax0, v_ax1] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))
             for ax0, ax1, ax2 in T.grid(1, n, 4096):
-                with T.block("T_rms_norm"):
+                with T.sblock("T_rms_norm"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(rsqrt[v_ax0, v_ax1], data[v_ax0, v_ax1, v_ax2], weight[v_ax2])
                     T.writes(T_rms_norm[v_ax0, v_ax1, v_ax2])
                     T_rms_norm[v_ax0, v_ax1, v_ax2] = rsqrt[v_ax0, v_ax1] * data[v_ax0, v_ax1, v_ax2] * weight[v_ax2]
             for ax0, ax1, ax2 in T.grid(1, n, 4096):
-                with T.block("T_cast_2"):
+                with T.sblock("T_cast_2"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(T_rms_norm[v_ax0, v_ax1, v_ax2])
                     T.writes(T_cast[v_ax0, v_ax1, v_ax2])
@@ -221,7 +221,7 @@ def test_rms_norm_without_casting():
             n = T.int32()
             data = T.match_buffer(var_data, (1, n, 4096))
             T_cast = T.match_buffer(var_T_cast, (1, n, 4096))
-            # with T.block("root"):
+            # with T.sblock("root"):
             T_multiply_local = T.alloc_buffer((1, n, 4096), scope="local")
             T_multiply_red_local = T.alloc_buffer((1, n), scope="local")
             rsqrt_shared = T.alloc_buffer((1, n), scope="shared")
@@ -231,7 +231,7 @@ def test_rms_norm_without_casting():
                 for ax2_0 in T.thread_binding(512, thread="threadIdx.x"):
                     for ax2_1 in range(1):
                         for ax2_2 in T.vectorized(8):
-                            with T.block("data_local"):
+                            with T.sblock("data_local"):
                                 v0 = T.axis.spatial(1, 0)
                                 v1 = T.axis.spatial(n, ax0_ax1_fused)
                                 v2 = T.axis.spatial(4096, ax2_0 * 8 + ax2_1 * 8 + ax2_2)
@@ -239,7 +239,7 @@ def test_rms_norm_without_casting():
                                 T.writes(data_local[v0, v1, v2])
                                 data_local[v0, v1, v2] = data[v0, v1, v2]
                     for ax0 in range(8):
-                        with T.block("T_multiply"):
+                        with T.sblock("T_multiply"):
                             v_ax0 = T.axis.spatial(1, 0)
                             v_ax1 = T.axis.spatial(n, ax0_ax1_fused)
                             v_ax2 = T.axis.spatial(4096, ax2_0 * 8 + ax0)
@@ -247,7 +247,7 @@ def test_rms_norm_without_casting():
                             T.writes(T_multiply_local[v_ax0, v_ax1, v_ax2])
                             T_multiply_local[v_ax0, v_ax1, v_ax2] = data_local[v_ax0, v_ax1, v_ax2] * data_local[v_ax0, v_ax1, v_ax2]
                     for ax0 in range(8):
-                        with T.block("T_multiply_red"):
+                        with T.sblock("T_multiply_red"):
                             v_ax0 = T.axis.spatial(1, 0)
                             v_ax1 = T.axis.spatial(n, ax0_ax1_fused)
                             v_k2 = T.axis.reduce(4096, ax2_0 * 8 + ax0)
@@ -256,7 +256,7 @@ def test_rms_norm_without_casting():
                             with T.init():
                                 T_multiply_red_local[v_ax0, v_ax1] = T.float32(0)
                             T_multiply_red_local[v_ax0, v_ax1] = T_multiply_red_local[v_ax0, v_ax1] + T_multiply_local[v_ax0, v_ax1, v_k2]
-                with T.block("rsqrt"):
+                with T.sblock("rsqrt"):
                     v_ax0 = T.axis.spatial(1, 0)
                     v_ax1 = T.axis.spatial(n, ax0_ax1_fused)
                     T.reads(T_multiply_red_local[v_ax0, v_ax1])
@@ -264,7 +264,7 @@ def test_rms_norm_without_casting():
                     rsqrt_shared[v_ax0, v_ax1] = T.rsqrt(T_multiply_red_local[v_ax0, v_ax1] * T.float32(0.000244140625) + T.float32(9.9999999999999995e-07))
                 for ax0_0 in T.thread_binding(512, thread="threadIdx.x"):
                     for ax0_1, ax0_2 in T.grid(1, 8):
-                        with T.block("T_rms_norm"):
+                        with T.sblock("T_rms_norm"):
                             v_ax0 = T.axis.spatial(1, 0)
                             v_ax1 = T.axis.spatial(n, ax0_ax1_fused)
                             v_ax2 = T.axis.spatial(4096, ax0_0 * 8 + ax0_1 * 8 + ax0_2)
@@ -272,7 +272,7 @@ def test_rms_norm_without_casting():
                             T.writes(T_rms_norm_local[v_ax0, v_ax1, v_ax2])
                             T_rms_norm_local[v_ax0, v_ax1, v_ax2] = rsqrt_shared[v_ax0, v_ax1] * data_local[v_ax0, v_ax1, v_ax2] * weight[v_ax2]
                     for ax0 in T.vectorized(8):
-                        with T.block("T_cast_local"):
+                        with T.sblock("T_cast_local"):
                             v0 = T.axis.spatial(1, 0)
                             v1 = T.axis.spatial(n, ax0_ax1_fused)
                             v2 = T.axis.spatial(4096, ax0_0 * 8 + ax0)

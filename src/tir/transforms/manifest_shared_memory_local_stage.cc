@@ -50,7 +50,7 @@ class IntermediateStageRewriter {
   explicit IntermediateStageRewriter(const std::vector<Stmt>& ancestor_loop_or_blocks)
       : ancestor_loop_or_blocks_(ancestor_loop_or_blocks) {}
 
-  std::tuple<Buffer, Buffer, Block, Stmt> Rewrite(const BlockNode* block) {
+  std::tuple<Buffer, Buffer, SBlock, Stmt> Rewrite(const SBlockNode* block) {
     const BufferStoreNode* store = block->body.as<BufferStoreNode>();
     CHECK(store != nullptr && runtime::StorageScope::Create(store->buffer.scope()).rank ==
                                   runtime::StorageRank::kShared)
@@ -73,7 +73,7 @@ class IntermediateStageRewriter {
     BufferLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
     BufferStore new_buffer_store = Downcast<BufferStore>(block->body);
     new_buffer_store.CopyOnWrite()->value = new_buffer_load;
-    Block new_block = ffi::GetRef<Block>(block);
+    SBlock new_block = ffi::GetRef<SBlock>(block);
     new_block.CopyOnWrite()->body = std::move(new_buffer_store);
 
     return {target_buffer, new_buffer, new_block, local_stage};
@@ -81,7 +81,7 @@ class IntermediateStageRewriter {
 
  private:
   /*! \brief Collect relaxed outer loops from innermost to outermost */
-  std::vector<const ForNode*> CollectRelaxedOuterLoops(const BlockNode* block,
+  std::vector<const ForNode*> CollectRelaxedOuterLoops(const SBlockNode* block,
                                                        const Buffer& target_buffer) {
     std::vector<const ForNode*> relaxed_loops;
     for (int n = static_cast<int>(ancestor_loop_or_blocks_.size()) - 1, i = n - 1; i >= 0; --i) {
@@ -97,15 +97,15 @@ class IntermediateStageRewriter {
           CHECK(ancestor_loop->body.same_as(ancestor_loop_or_blocks_[i + 1]))
               << "ValueError: Expect the ancestor loops to have a single child.";
         } else {
-          const BlockRealizeNode* block_realize = ancestor_loop->body.as<BlockRealizeNode>();
+          const SBlockRealizeNode* block_realize = ancestor_loop->body.as<SBlockRealizeNode>();
           ICHECK(block_realize != nullptr);
           CHECK(block_realize != nullptr && block_realize->block.get() == block)
               << "ValueError: Expect the ancestor loops to have a single child.";
         }
       } else {
-        const BlockRealizeNode* ancestor_block_realize = ancestor.as<BlockRealizeNode>();
+        const SBlockRealizeNode* ancestor_block_realize = ancestor.as<SBlockRealizeNode>();
         ICHECK(ancestor_block_realize != nullptr);
-        const BlockNode* ancestor_block = ancestor_block_realize->block.get();
+        const SBlockNode* ancestor_block = ancestor_block_realize->block.get();
         auto it = std::find_if(
             ancestor_block->alloc_buffers.begin(), ancestor_block->alloc_buffers.end(),
             [&target_buffer](const Buffer& buffer) { return buffer.same_as(target_buffer); });
@@ -118,7 +118,7 @@ class IntermediateStageRewriter {
   }
 
   /*! \brief Create the intermediate stage. */
-  Stmt MakeLocalStage(const BlockNode* block, const Buffer& new_buffer,
+  Stmt MakeLocalStage(const SBlockNode* block, const Buffer& new_buffer,
                       ffi::Array<PrimExpr> local_stage_indices,
                       std::vector<const ForNode*> relaxed_loops, const BufferStoreNode* store) {
     // Step 0: Create the body of the local stage, which is BufferStore to the intermediate buffer.
@@ -127,12 +127,12 @@ class IntermediateStageRewriter {
     // Step 1: Make block and block realize
     BufferRegion write_buffer_region = BufferRegion::FromPoint(new_buffer, local_stage_indices);
     local_stage =
-        Block(/*iter_vars=*/{}, /*reads=*/block->reads, /*writes=*/{write_buffer_region}, "",
-              /*body=*/std::move(local_stage));
-    local_stage = BlockRealize(
+        SBlock(/*iter_vars=*/{}, /*reads=*/block->reads, /*writes=*/{write_buffer_region}, "",
+               /*body=*/std::move(local_stage));
+    local_stage = SBlockRealize(
         /*iter_values=*/{},
-        /*predicate=*/ancestor_loop_or_blocks_.back().as<BlockRealizeNode>()->predicate,
-        Downcast<Block>(local_stage));
+        /*predicate=*/ancestor_loop_or_blocks_.back().as<SBlockRealizeNode>()->predicate,
+        Downcast<SBlock>(local_stage));
 
     // Step 2: Add outer loops
     ffi::Map<Var, Var> subst_map;
@@ -178,14 +178,14 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
     return new_stmt;
   }
 
-  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     ancestor_loop_or_blocks_.push_back(ffi::GetRef<Stmt>(op));
     Stmt new_stmt = StmtMutator::VisitStmt_(op);
     ancestor_loop_or_blocks_.pop_back();
     return new_stmt;
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     if (op->annotations.count(attr::manifest_shared_memory_local_stage)) {
       // Rewrite the shared memory access to load from the intermediate buffer.
       // The annotated block must be a leaf block (will be checked during rewriting). No need to
@@ -249,8 +249,8 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       new_seq.push_back(body);
     }
 
-    Block new_block = ffi::GetRef<Block>(op);
-    BlockNode* new_block_node = new_block.CopyOnWrite();
+    SBlock new_block = ffi::GetRef<SBlock>(op);
+    SBlockNode* new_block_node = new_block.CopyOnWrite();
     // Add new buffer allocations if any.
     if (new_alloc_buffers.size() > 0) {
       new_block_node->alloc_buffers = Concat(new_block_node->alloc_buffers, new_alloc_buffers);

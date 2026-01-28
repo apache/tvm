@@ -20,7 +20,7 @@ from typing import List, Union
 from tvm import arith, tir
 from tvm.target import Target
 from tvm.tir import Schedule
-from tvm.tir.schedule import BlockRV
+from tvm.tir.schedule import SBlockRV
 
 from ..analysis import detect_dominant_read, normalize_prim_func
 from ..base import try_inline_contiguous_spatial
@@ -30,7 +30,7 @@ from .base import GPUScheduleRule
 class Transpose(GPUScheduleRule):
     """Schedule rule for transpose"""
 
-    def is_transpose(self, sch: Schedule, block_rv: BlockRV):
+    def is_transpose(self, sch: Schedule, block_rv: SBlockRV):
         block = sch.get(block_rv)
         if isinstance(block.body, tir.BufferStore):
             rhs = block.body.value

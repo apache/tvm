@@ -59,7 +59,7 @@ ffi::Array<tir::LoopRV> BindSpatialLoop(tir::Schedule sch, tir::LoopRV loop,  //
  * \param max_threads_per_block The maximum number of threads allowed.
  * \param get_factor A function that returns the tiling factor.
  */
-void BindBlockThreadIdx(tir::Schedule sch, tir::BlockRV block,  //
+void BindBlockThreadIdx(tir::Schedule sch, tir::SBlockRV block,  //
                         int64_t max_threadblocks, int64_t max_threads_per_block,
                         std::function<tir::ExprRV(int64_t max_extent)> get_factor = nullptr);
 

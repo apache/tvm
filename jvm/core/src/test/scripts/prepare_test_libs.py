@@ -67,7 +67,7 @@ def prepare_gpu_lib(base_path):
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B, C]).with_attr("global_symbol", "myadd"))
     sch = tvm.tir.Schedule(mod)
     sch.work_on("myadd")
-    (i,) = sch.get_loops(block=sch.get_block("C"))
+    (i,) = sch.get_loops(block=sch.get_sblock("C"))
     i0, i1 = sch.split(i, [None, 32])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")

@@ -285,16 +285,16 @@ inline std::string Concat(const ffi::Array<ffi::String>& strs, const std::string
 }
 
 /*!
- * \brief Get the BlockRV from a block StmtSRef
+ * \brief Get the SBlockRV from a block StmtSRef
  * \param sch The schedule
  * \param block_sref The block StmtSRef
  * \param global_var_name The global variable name
- * \return The BlockRV
+ * \return The SBlockRV
  */
-inline tir::BlockRV GetRVFromSRef(const tir::Schedule& sch, const tir::StmtSRef& block_sref,
-                                  const ffi::String& global_var_name) {
-  const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-  return sch->GetBlock(block->name_hint, global_var_name);
+inline tir::SBlockRV GetRVFromSRef(const tir::Schedule& sch, const tir::StmtSRef& block_sref,
+                                   const ffi::String& global_var_name) {
+  const tir::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  return sch->GetSBlock(block->name_hint, global_var_name);
 }
 
 /*!
@@ -578,24 +578,24 @@ inline double Sum(const ffi::Array<FloatImm>& arr) {
 }
 
 /*! \brief Collecting all the blocks */
-class BlockCollector : public tir::StmtVisitor {
+class SBlockCollector : public tir::StmtVisitor {
  public:
-  static ffi::Array<tir::BlockRV> Collect(const tir::Schedule& sch,
-                                          const ffi::Function f_block_filter = nullptr) {  //
-    return BlockCollector(sch, f_block_filter).Run();
+  static ffi::Array<tir::SBlockRV> Collect(const tir::Schedule& sch,
+                                           const ffi::Function f_block_filter = nullptr) {  //
+    return SBlockCollector(sch, f_block_filter).Run();
   }
 
  private:
   /*! \brief Entry point */
-  ffi::Array<tir::BlockRV> Run() {
-    std::vector<tir::BlockRV> results;
+  ffi::Array<tir::SBlockRV> Run() {
+    std::vector<tir::SBlockRV> results;
     auto f_collect = [this, &results](tir::PrimFunc func, ffi::String func_name) {
       func_name_ = func_name;
       block_names_.clear();
       blocks_to_collect_.clear();
       VisitStmt(func->body);
       for (const ffi::String& name : blocks_to_collect_) {
-        results.push_back(sch_->GetBlock(name, func_name_));
+        results.push_back(sch_->GetSBlock(name, func_name_));
       }
     };
 
@@ -615,10 +615,10 @@ class BlockCollector : public tir::StmtVisitor {
     return results;
   }
   /*! \brief Constructor */
-  explicit BlockCollector(const tir::Schedule& sch, const ffi::Function f_block_filter = nullptr)
+  explicit SBlockCollector(const tir::Schedule& sch, const ffi::Function f_block_filter = nullptr)
       : sch_(sch), f_block_filter_(f_block_filter) {}
   /*! \brief Override the Stmt visiting behaviour */
-  void VisitStmt_(const tir::BlockNode* block) override {
+  void VisitStmt_(const tir::SBlockNode* block) override {
     tir::StmtVisitor::VisitStmt_(block);
     CHECK(block_names_.count(block->name_hint) == 0)
         << "Duplicated block name " << block->name_hint << " in function " << func_name_
@@ -629,7 +629,7 @@ class BlockCollector : public tir::StmtVisitor {
     // Otherwise collect all blocks.
     Bool collect_block = Bool(true);
     if (f_block_filter_ != nullptr) {
-      collect_block = f_block_filter_(ffi::GetRef<tir::Block>(block)).cast<Bool>();
+      collect_block = f_block_filter_(ffi::GetRef<tir::SBlock>(block)).cast<Bool>();
     }
     if (collect_block) {
       blocks_to_collect_.push_back(block->name_hint);

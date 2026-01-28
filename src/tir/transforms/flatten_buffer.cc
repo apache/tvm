@@ -60,12 +60,12 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
 
   explicit BufferFlattener(arith::Analyzer* ana) : IRMutatorWithAnalyzer(ana) {}
 
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     ICHECK_EQ(op->match_buffers.size(), 0)
         << "Unexpected MatchBufferRegion found during tir.transform.FlattenBuffer.  "
         << "All MatchBufferRegion should be removed in tir.transform.LowerMatchBuffer.";
 
-    Block block = ffi::GetRef<Block>(op);
+    SBlock block = ffi::GetRef<SBlock>(op);
 
     ffi::Array<Buffer> alloc_buffers = op->alloc_buffers;
     alloc_buffers.MutateByApply([this](Buffer buf) { return GetFlattenedBuffer(buf); });

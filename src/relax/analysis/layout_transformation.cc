@@ -318,7 +318,8 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
  */
 class BlockAnalyzer : public StmtExprVisitor {
  public:
-  explicit BlockAnalyzer(const Block& block, const ffi::Map<Buffer, IndexMap>& transformation_cache,
+  explicit BlockAnalyzer(const SBlock& block,
+                         const ffi::Map<Buffer, IndexMap>& transformation_cache,
                          IndexMap write_transformation)
       : can_transform_block_(true),
         write_transformation_(write_transformation),
@@ -465,7 +466,7 @@ class BlockAnalyzer : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     // Blocks with nested blocks cannot be handled yet.
     LOG(WARNING) << "[LayoutInference] Nested blocks are not supported for layout inference yet";
     can_transform_block_ = false;
@@ -515,7 +516,7 @@ class BlockAnalyzer : public StmtExprVisitor {
 
  public:
   bool CanBeTransformed() { return can_transform_block_; }
-  IndexMap GetBlockTransformation() { return block_transformation_; }
+  IndexMap GetSBlockTransformation() { return block_transformation_; }
   ffi::Map<Buffer, IndexMap> GetReadBufferTransformations() { return read_buffer_transformations_; }
 
  private:
@@ -524,7 +525,7 @@ class BlockAnalyzer : public StmtExprVisitor {
   ffi::Map<tir::Var, Range> spatial_dom_;
   arith::Analyzer arith_analyzer_;
 
-  Block block_;
+  SBlock block_;
   IndexMap block_transformation_;
 
   ffi::Map<Buffer, IndexMap> read_buffer_transformations_;
@@ -557,8 +558,8 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
     }
     VisitStmt(func->body);
   }
-  ffi::Map<Block, ffi::Map<ObjectRef, IndexMap>> GetSuggestedTransforms() {
-    ffi::Map<Block, ffi::Map<ObjectRef, IndexMap>> result;
+  ffi::Map<SBlock, ffi::Map<ObjectRef, IndexMap>> GetSuggestedTransforms() {
+    ffi::Map<SBlock, ffi::Map<ObjectRef, IndexMap>> result;
     for (const auto& [block, index_map] : block_transformations_) {
       ffi::Map<ObjectRef, IndexMap> block_transformations;
       block_transformations.Set(block, index_map);
@@ -571,14 +572,14 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
   }
 
  private:
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     if (op->name_hint == "root") {
       // Skip the root block
       StmtVisitor::VisitStmt_(op);
       return;
     }
 
-    Block block = ffi::GetRef<Block>(op);
+    SBlock block = ffi::GetRef<SBlock>(op);
     // Get block write buffer transformation.
     if (block->writes.size() != 1) return;
     auto write_buffer = block->writes[0]->buffer;
@@ -588,7 +589,7 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
 
     if (!block_analyzer.CanBeTransformed()) return;
     // Collect the suggested transformations
-    block_transformations_.Set(block, block_analyzer.GetBlockTransformation());
+    block_transformations_.Set(block, block_analyzer.GetSBlockTransformation());
 
     for (const auto& [buffer, index_map] : block_analyzer.GetReadBufferTransformations()) {
       // BlockAnalyzer makes sure that it does not propose transformation for a buffer for which a
@@ -602,11 +603,11 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
 
  private:
   ffi::Map<Buffer, IndexMap> buffer_transformation_cache_;
-  ffi::Map<Block, IndexMap> block_transformations_;
-  std::unordered_map<Block, ffi::Array<Buffer>, ObjectPtrHash, ObjectPtrEqual> block_to_buffer_;
+  ffi::Map<SBlock, IndexMap> block_transformations_;
+  std::unordered_map<SBlock, ffi::Array<Buffer>, ObjectPtrHash, ObjectPtrEqual> block_to_buffer_;
 };
 
-ffi::Map<tir::Block, ffi::Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
+ffi::Map<tir::SBlock, ffi::Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
     const PrimFunc& prim_func, ffi::Array<IndexMap> write_buffer_transformations) {
   // No changes to the PrimFunc are required if no transformations on output buffers.
   if (write_buffer_transformations.empty()) return {};

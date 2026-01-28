@@ -52,8 +52,8 @@ ffi::Optional<Integer> ParseThreadBinding(const Schedule& sch, const Instruction
  * \param vector_lane The number of vector lane in vectorized cooperative fetching
  * \return std::nullopt if parsing fails; Otherwise, the annotated block
  */
-ffi::Optional<BlockRV> ParseAnnotate(const Schedule& sch, const Instruction& inst,
-                                     int64_t* vector_lane) {
+ffi::Optional<SBlockRV> ParseAnnotate(const Schedule& sch, const Instruction& inst,
+                                      int64_t* vector_lane) {
   static InstructionKind inst_kind_annotate = InstructionKind::Get("Annotate");
   if (!inst->kind.same_as(inst_kind_annotate)) {
     return std::nullopt;
@@ -65,7 +65,7 @@ ffi::Optional<BlockRV> ParseAnnotate(const Schedule& sch, const Instruction& ins
     return std::nullopt;
   }
   *vector_lane = Downcast<Integer>(sch->Get(Downcast<ExprRV>(inst->inputs[1])))->value;
-  return Downcast<BlockRV>(inst->inputs[0]);
+  return Downcast<SBlockRV>(inst->inputs[0]);
 }
 
 /*!
@@ -85,7 +85,7 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
   return ann_key == attr::warp_execution;
 }
 
-size_t GetMaxUsedDtypeBytes(Block block) {
+size_t GetMaxUsedDtypeBytes(SBlock block) {
   size_t max_bytes = 1;
   static auto q_multiply_shift_per_axis = Op::Get("tir.q_multiply_shift_per_axis");
   static auto q_multiply_shift = Op::Get("tir.q_multiply_shift");
@@ -168,7 +168,7 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
       thread_extent_x = thread_warp_size_;
       continue;
     }
-    ffi::Optional<tir::BlockRV> opt_block_rv = tir::ParseAnnotate(sch, inst, &vector_lane);
+    ffi::Optional<tir::SBlockRV> opt_block_rv = tir::ParseAnnotate(sch, inst, &vector_lane);
     if (!opt_block_rv.defined()) {
       continue;
     }

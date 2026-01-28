@@ -42,11 +42,11 @@ def get_make_filled_simdgroup_matrix_intrin(
     @T.prim_func
     def desc(a: T.handle) -> None:
         A = T.match_buffer(a, (col, row), dtype, scope="metal.simdgroup", offset_factor=1)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads()
             T.writes(A[0:col, 0:row])
             for i, j in T.grid(col, row):
-                with T.block("init"):
+                with T.sblock("init"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     A[vi, vj] = T.float32(0)
 
@@ -56,7 +56,7 @@ def get_make_filled_simdgroup_matrix_intrin(
         A = T.match_buffer(
             a, (col, row), dtype, scope="metal.simdgroup", strides=[d1, d0], offset_factor=1
         )
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads()
             T.writes(A[0:col, 0:row])
             T.make_filled_simdgroup_matrix(
@@ -85,11 +85,11 @@ def get_simdgroup_load_intrin(
         C = T.match_buffer(
             c, (col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1
         )
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(A[0:col, 0:row])
             T.writes(C[0:col, 0:row])
             for i, j in T.grid(col, row):
-                with T.block("load"):
+                with T.sblock("load"):
                     vii, vjj = T.axis.remap("SS", [i, j])
                     if transpose_matrix:
                         # C[vii, vjj] = A[vjj, vii]
@@ -118,7 +118,7 @@ def get_simdgroup_load_intrin(
             strides=[d1, d0],
             offset_factor=1,
         )
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(A[0:col, 0:row])
             T.writes(C[0:col, 0:row])
             T.simdgroup_load(
@@ -149,11 +149,11 @@ def get_simdgroup_store_intrin(
             a, (col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1
         )
         C = T.match_buffer(c, (col, row), dtype, align=align, scope=scope, offset_factor=1)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(A[0:col, 0:row])
             T.writes(C[0:col, 0:row])
             for i, j in T.grid(col, row):
-                with T.block("store"):
+                with T.sblock("store"):
                     vii, vjj = T.axis.remap("SS", [i, j])
                     if transpose_matrix:
                         C[vjj, vii] = A[vii, vjj]
@@ -175,7 +175,7 @@ def get_simdgroup_store_intrin(
         C = T.match_buffer(
             c, (col, row), dtype, align=align, scope=scope, strides=[d1, d0], offset_factor=1
         )
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(A[0:col, 0:row])
             T.writes(C[0:col, 0:row])
             T.simdgroup_store(
@@ -199,11 +199,11 @@ def get_simdgroup_multiply_accumulate_intrin(
         A = T.match_buffer(a, (m_dim, k_dim), dtype, scope="metal.simdgroup", offset_factor=1)
         B = T.match_buffer(b, (k_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1)
         C = T.match_buffer(c, (m_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:k_dim, 0:n_dim])
             T.writes(C[0:m_dim, 0:n_dim])
             for i, j, k in T.grid(m_dim, n_dim, k_dim):
-                with T.block(""):
+                with T.sblock(""):
                     vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
                     C[vii, vjj] += A[vii, vkk] * B[vkk, vjj]
 
@@ -219,7 +219,7 @@ def get_simdgroup_multiply_accumulate_intrin(
         C = T.match_buffer(
             c, (m_dim, n_dim), dtype, scope="metal.simdgroup", strides=[c1, c0], offset_factor=1
         )
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:k_dim, 0:n_dim])
             T.writes(C[0:m_dim, 0:n_dim])
             T.simdgroup_multiply_accumulate(

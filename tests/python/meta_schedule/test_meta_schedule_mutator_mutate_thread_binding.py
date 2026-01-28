@@ -28,7 +28,7 @@ def element_wise(var_A: T.handle, var_B: T.handle) -> None:
     A = T.match_buffer(var_A, [512, 512], dtype="float32")
     B = T.match_buffer(var_B, [512, 512], dtype="float32")
     for i, j in T.grid(512, 512):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] + 1.0
 
@@ -39,7 +39,7 @@ def element_wise(var_A: T.handle, var_B: T.handle) -> None:
 def _sch() -> Schedule:
     sch = Schedule(element_wise, debug_mask="all")
     # pylint: disable=invalid-name
-    b0 = sch.get_block(name="C", func_name="main")
+    b0 = sch.get_sblock(name="C", func_name="main")
     l1, l2 = sch.get_loops(block=b0)
     l3 = sch.fuse(l1, l2)
     v4 = sch.sample_categorical(

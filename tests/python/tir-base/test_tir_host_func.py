@@ -38,9 +38,9 @@ class Module:
                 "tir.noalias": True,
             }
         )
-        # with T.block("root"):
+        # with T.sblock("root"):
         for i, j, k in T.grid(729, 729, 729):
-            with T.block("C"):
+            with T.sblock("C"):
                 v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
                 T.reads(A[v_i, v_k], B[v_k, v_j])
                 T.writes(C[v_i, v_j])

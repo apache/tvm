@@ -286,7 +286,7 @@ class PatternMatcher : public ExprVisitor {
   std::unordered_map<const VarNode*, PrimExpr> filled_map_;
 };
 
-/******** Reduction Block Related ********/
+/******** Reduction SBlock Related ********/
 
 static const char* kRFactorCrossThreadReductionApplicableBlockDef =
     R"(Definition of a reduction block that is applicable by RFactor and Cross-Thread Reduction:
@@ -304,10 +304,10 @@ static const char* kRFactorCrossThreadReductionApplicableBlockDef =
 12) The indices of all BufferStores in the reduction block should be the same)";
 
 void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleState>& self,
-                                                   Block block, int violated_cond) {
+                                                   SBlock block, int violated_cond) {
   class RFactorNotApplicableError : public ScheduleError {
    public:
-    explicit RFactorNotApplicableError(IRModule mod, Block block, int violated_cond)
+    explicit RFactorNotApplicableError(IRModule mod, SBlock block, int violated_cond)
         : mod_(std::move(mod)), block_(std::move(block)), violated_cond_(violated_cond) {}
 
     ffi::String FastErrorString() const final {
@@ -327,7 +327,7 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
     ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
     IRModule mod_;
-    Block block_;
+    SBlock block_;
     int violated_cond_;
   };
 
@@ -352,7 +352,7 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
  * \param buf2index A mapping from reduction buffers to their indices of the reduction order
  * \throw ScheduleError If rfactor or cross-thread reduction cannot be applied to the block
  */
-void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, Block block,
+void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock block,
                              const LetStmtNode* let, int n_buffers,
                              ffi::Array<BufferStore>* updates,
                              std::unordered_map<const BufferNode*, int>* buf2index) {
@@ -429,7 +429,7 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, Block blo
 }
 
 std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
-    const ffi::Optional<ScheduleState>& self, Block block) {
+    const ffi::Optional<ScheduleState>& self, SBlock block) {
   ffi::Array<BufferStore> inits;
   ffi::Array<BufferStore> updates;
 
@@ -522,7 +522,7 @@ bool ContainsOnlyDataParAndReductionBlockIter(const ffi::Array<IterVar>& iters) 
   return true;
 }
 
-bool ReductionIterNotIndexOutputBuffer(const Block& block) {
+bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   // Step 1. Collect the reduction block iters.
   std::unordered_set<const VarNode*> reduction_block_iters;
   reduction_block_iters.reserve(block->iter_vars.size());
@@ -559,7 +559,7 @@ bool ReductionIterNotIndexOutputBuffer(const Block& block) {
     if (affected) {
       return false;
     }
-    const auto* block_node = obj.as<BlockNode>();
+    const auto* block_node = obj.as<SBlockNode>();
     if (block_node) {
       for (const MatchBufferRegion& region : block_node->match_buffers) {
         match_buffer_sources[region->buffer.get()] = region->source->buffer.get();

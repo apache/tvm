@@ -48,17 +48,17 @@ namespace software_pipeline {
  * \param buffer_data_to_buffer The map from buffer data to buffer.
  * \return The result block.
  */
-Block MakeBlock(const Stmt& body, const ffi::Map<Var, Buffer>& buffer_data_to_buffer) {
-  if (const BlockRealizeNode* block_realize = body.as<BlockRealizeNode>()) {
+SBlock MakeSBlock(const Stmt& body, const ffi::Map<Var, Buffer>& buffer_data_to_buffer) {
+  if (const SBlockRealizeNode* block_realize = body.as<SBlockRealizeNode>()) {
     if (is_one(block_realize->predicate)) {
       // no need to create a new block
       return block_realize->block;
     }
   }
-  Block block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{}, /*name_hint=*/"", /*body*/ body);
+  SBlock block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{}, /*name_hint=*/"", /*body*/ body);
   ffi::Array<ffi::Array<BufferRegion>> access =
-      GetBlockReadWriteRegion(block, buffer_data_to_buffer);
-  BlockNode* n = block.CopyOnWrite();
+      GetSBlockReadWriteRegion(block, buffer_data_to_buffer);
+  SBlockNode* n = block.CopyOnWrite();
   n->reads = access[0];
   n->writes = access[1];
   return block;
@@ -71,7 +71,7 @@ struct PipelineAnnotation {
   bool async;
 };
 
-using PipelineInfo = std::unordered_map<Block, PipelineAnnotation, ObjectPtrHash, ObjectPtrEqual>;
+using PipelineInfo = std::unordered_map<SBlock, PipelineAnnotation, ObjectPtrHash, ObjectPtrEqual>;
 
 struct BufferAccessInfo {
   int def = -1;  // the defining stage of the buffer
@@ -247,12 +247,12 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return buffer_region;
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     for (const Buffer& alloc_buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.Set(alloc_buffer->data, alloc_buffer);
     }
-    Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
-    BlockNode* n = block.CopyOnWrite();
+    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+    SBlockNode* n = block.CopyOnWrite();
     n->reads.MutateByApply([this](const BufferRegion& buffer_region) {
       return RewritePipelineBufferRegion(buffer_region);
     });
@@ -354,7 +354,7 @@ class PipelineRewriter : public StmtExprMutator {
 
     ordered_stmts_.resize(pipeline_info_.size());
     for (const auto& pair : pipeline_info_) {
-      const Block& block = pair.first;
+      const SBlock& block = pair.first;
       int order = pair.second.order;
       ordered_stmts_.Set(order, block);
     }
@@ -388,9 +388,9 @@ class PipelineRewriter : public StmtExprMutator {
       alloc_buffers.push_back(buffer_remap_.Get(alloc).value_or(alloc));
       buffer_data_to_buffer_.erase(alloc->data);
     }
-    Block block = MakeBlock(stmt, buffer_data_to_buffer_);
+    SBlock block = MakeSBlock(stmt, buffer_data_to_buffer_);
     block.CopyOnWrite()->alloc_buffers = std::move(alloc_buffers);
-    return BlockRealize({}, Bool(true), block);
+    return SBlockRealize({}, Bool(true), block);
   }
 
  private:
@@ -404,7 +404,7 @@ class PipelineRewriter : public StmtExprMutator {
   GetBufferAccessInfo() {
     std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual> infos;
     for (const auto& pair : pipeline_info_) {
-      const Block& block = pair.first;
+      const SBlock& block = pair.first;
       int stage = pair.second.stage;
       max_stage_ = std::max(max_stage_, stage);
 
@@ -482,7 +482,7 @@ class PipelineRewriter : public StmtExprMutator {
       // of block_i and block_j overlap.
       bool need_multi_version = false;
       for (const auto& pair1 : pipeline_info_) {
-        const Block& writer_block = pair1.first;
+        const SBlock& writer_block = pair1.first;
         const auto& writer_info = pair1.second;
 
         auto it1 = std::find_if(writer_block->writes.begin(), writer_block->writes.end(),
@@ -494,7 +494,7 @@ class PipelineRewriter : public StmtExprMutator {
         }
 
         for (const auto& pair2 : pipeline_info_) {
-          const Block& reader_block = pair2.first;
+          const SBlock& reader_block = pair2.first;
           const auto& reader_info = pair2.second;
           auto it2 = std::find_if(reader_block->reads.begin(), reader_block->reads.end(),
                                   [&](const BufferRegion& buffer_region) {
@@ -592,16 +592,16 @@ class PipelineRewriter : public StmtExprMutator {
   };
 
   /*! Structure holding intermediate information for pipeline loop rewriting. */
-  struct RewrittenBlockInfo {
+  struct RewrittenSBlockInfo {
     int stage;
     PrimExpr predicate;
-    Block block;
+    SBlock block;
     PrimExpr access_index;
     bool is_async;
   };
 
   // Determine where to insert async_wait and the corresponding wait count.
-  void PopulateWaitCounts(const std::vector<RewrittenBlockInfo>& new_blocks,
+  void PopulateWaitCounts(const std::vector<RewrittenSBlockInfo>& new_blocks,
                           arith::Analyzer* ana_normalized,
                           const std::unordered_map<const BufferNode*, int>& buffer_to_commit_group,
                           std::map<int, AsyncStateLocal>* async_states_local) {
@@ -730,10 +730,10 @@ class PipelineRewriter : public StmtExprMutator {
   // Given pipelined blocks and async-related information, generate final loop statements with async
   // scopes (if any).
   ffi::Array<Stmt> CompletePipelineLoopStatements(
-      const std::vector<RewrittenBlockInfo>& blocks,
+      const std::vector<RewrittenSBlockInfo>& blocks,
       const std::map<int, AsyncStateLocal>& async_states_local,
       arith::Analyzer* ana_normalized) const {
-    std::vector<RewrittenBlockInfo> new_blocks = blocks;
+    std::vector<RewrittenSBlockInfo> new_blocks = blocks;
     std::vector<int> commit_group_indices(new_blocks.size(), -1);
     for (const auto& [stage_id, state] : async_states_local) {
       if (!state.commit_groups.empty()) {
@@ -748,7 +748,7 @@ class PipelineRewriter : public StmtExprMutator {
       if (state.pending_wait.valid()) {
         auto attach_wait_scope = [&new_blocks](int i, int stage_id, PrimExpr wait_count) {
           auto& block = new_blocks[i].block;
-          BlockNode* n = block.CopyOnWrite();
+          SBlockNode* n = block.CopyOnWrite();
           auto zero = make_zero(DataType::Int(32));
           n->body =
               AttrStmt(zero, tir::attr::async_wait_queue_scope, stage_id,
@@ -774,7 +774,7 @@ class PipelineRewriter : public StmtExprMutator {
     for (size_t i = 0; i < new_blocks.size();) {
       if (commit_group_indices[i] == -1) {
         // A synchrnous block, not part of any commit group
-        stmts.push_back(BlockRealize({}, new_blocks[i].predicate, new_blocks[i].block));
+        stmts.push_back(SBlockRealize({}, new_blocks[i].predicate, new_blocks[i].block));
         ++i;
       } else {
         ffi::Array<Stmt> group_bodies;
@@ -795,8 +795,8 @@ class PipelineRewriter : public StmtExprMutator {
         for (auto body : group_bodies) {
           auto commit_queue_scope = AttrStmt(make_zero(DataType::Int(32)),
                                              tir::attr::async_commit_queue_scope, stage_id, body);
-          auto new_block = MakeBlock(commit_queue_scope, buffer_data_to_buffer_);
-          stmts.push_back(BlockRealize({}, predicate, new_block));
+          auto new_block = MakeSBlock(commit_queue_scope, buffer_data_to_buffer_);
+          stmts.push_back(SBlockRealize({}, predicate, new_block));
         }
       }
     }
@@ -817,7 +817,7 @@ class PipelineRewriter : public StmtExprMutator {
     PrimExpr new_loop_var;
     PrimExpr extent = end - start;
 
-    auto make_nop = []() { return BlockRealize({}, Bool(true), MakeBlock(Evaluate(0), {})); };
+    auto make_nop = []() { return SBlockRealize({}, Bool(true), MakeSBlock(Evaluate(0), {})); };
 
     if (analyzer_.CanProve(extent <= 0)) {
       return make_nop();
@@ -837,13 +837,13 @@ class PipelineRewriter : public StmtExprMutator {
       ana_normalized.Bind(Downcast<Var>(new_loop_var), Range(pipeline_loop_->min, extent));
     }
 
-    std::vector<RewrittenBlockInfo> new_blocks;
+    std::vector<RewrittenSBlockInfo> new_blocks;
 
     // Async related
     std::map<int, AsyncStateLocal> async_states_local;
     std::unordered_map<const BufferNode*, int> buffer_to_commit_group;
 
-    for (const Block& block : ordered_stmts_) {
+    for (const SBlock& block : ordered_stmts_) {
       int stage = pipeline_info_.at(block).stage;
       PrimExpr skewed_loop_var = new_loop_var - stage;
       PrimExpr inbound = analyzer_.Simplify(pipeline_loop_->min <= skewed_loop_var) &&
@@ -854,9 +854,9 @@ class PipelineRewriter : public StmtExprMutator {
       if (analyzer_.CanProve(!inbound)) {
         continue;
       }
-      Block new_block = Downcast<Block>(PipelineBodyRewriter(buffer_data_to_buffer_, buffer_remap_,
-                                                             pipeline_loop_, max_stage_ != 1,
-                                                             fragment_info_)(block));
+      SBlock new_block = Downcast<SBlock>(
+          PipelineBodyRewriter(buffer_data_to_buffer_, buffer_remap_, pipeline_loop_,
+                               max_stage_ != 1, fragment_info_)(block));
 
       PrimExpr delta = start - pipeline_loop_->min;
       // This variable corresponds to
@@ -871,7 +871,7 @@ class PipelineRewriter : public StmtExprMutator {
         inbound = Substitute(inbound, {{loop_iter, loop_iter + delta}});
       }
 
-      new_block = Downcast<Block>(
+      new_block = Downcast<SBlock>(
           Substitute(new_block, {{pipeline_loop_->loop_var, normalized_access_index}}));
 
       if (pipeline_info_[block].async) {
@@ -909,7 +909,7 @@ class PipelineRewriter : public StmtExprMutator {
           local_state.predicate = ana_normalized.Simplify(local_state.predicate.value() & inbound);
         }
 
-        BlockNode* n = new_block.CopyOnWrite();
+        SBlockNode* n = new_block.CopyOnWrite();
         n->body = AttrStmt(make_zero(DataType::Int(32)), tir::attr::async_scope, 1, n->body);
       }
 
@@ -963,7 +963,7 @@ class PipelineRewriter : public StmtExprMutator {
       }
     }
 
-    return BlockRealize({}, Bool(true), MakeBlock(std::move(new_loop), buffer_data_to_buffer_));
+    return SBlockRealize({}, Bool(true), MakeSBlock(std::move(new_loop), buffer_data_to_buffer_));
   }
 
   arith::Analyzer analyzer_;
@@ -975,7 +975,7 @@ class PipelineRewriter : public StmtExprMutator {
   const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info_;
   int max_stage_ = -1;
   ffi::Map<Buffer, Buffer> buffer_remap_;
-  ffi::Array<Block> ordered_stmts_;
+  ffi::Array<SBlock> ordered_stmts_;
   std::map<int, AsyncStateGlobal> async_states;
   ffi::Map<ffi::String, ffi::Any> preserved_annotations_;
 };
@@ -989,16 +989,16 @@ class PipelineRewriter : public StmtExprMutator {
  * destination to the source.
  */
 void BuildDependencyGraph(
-    const ffi::Array<Block>& blocks,
-    std::unordered_map<Block, ffi::Array<Block>, ObjectPtrHash, ObjectPtrEqual>* dep_src2dst,
-    std::unordered_map<Block, ffi::Array<Block>, ObjectPtrHash, ObjectPtrEqual>* dep_dst2src) {
-  std::unordered_map<Var, ffi::Array<Block>> buffer_writers;
+    const ffi::Array<SBlock>& blocks,
+    std::unordered_map<SBlock, ffi::Array<SBlock>, ObjectPtrHash, ObjectPtrEqual>* dep_src2dst,
+    std::unordered_map<SBlock, ffi::Array<SBlock>, ObjectPtrHash, ObjectPtrEqual>* dep_dst2src) {
+  std::unordered_map<Var, ffi::Array<SBlock>> buffer_writers;
 
-  for (const Block& block : blocks) {
+  for (const SBlock& block : blocks) {
     for (const BufferRegion& read : block->reads) {
       auto it = buffer_writers.find(read->buffer->data);
       if (it != buffer_writers.end()) {
-        for (const Block& writer : it->second) {
+        for (const SBlock& writer : it->second) {
           if (dep_src2dst != nullptr) {
             (*dep_src2dst)[writer].push_back(block);
           }
@@ -1040,12 +1040,12 @@ class PipelineInjector : private StmtExprMutator {
    *   case 2: stage(A) == stage(B) and order(A) < order(B)
    */
   void ValidatePipelineBody(const PipelineInfo& pipeline_info,
-                            const ffi::Array<Block>& original_order) {
+                            const ffi::Array<SBlock>& original_order) {
     std::unordered_set<int> used_orders;
     std::unordered_map<int, int> stage_max_order;
-    std::unordered_map<int, const Block*> order_to_block;
-    std::unordered_map<const Block*, int> block_to_stage;
-    for (const Block& block : original_order) {
+    std::unordered_map<int, const SBlock*> order_to_block;
+    std::unordered_map<const SBlock*, int> block_to_stage;
+    for (const SBlock& block : original_order) {
       const auto& stmt_info = pipeline_info.at(block);
       int order = stmt_info.order;
       CHECK(!used_orders.count(order))
@@ -1053,14 +1053,14 @@ class PipelineInjector : private StmtExprMutator {
       used_orders.insert(order);
     }
 
-    std::unordered_map<Block, ffi::Array<Block>, ObjectPtrHash, ObjectPtrEqual> dep_src2dst;
+    std::unordered_map<SBlock, ffi::Array<SBlock>, ObjectPtrHash, ObjectPtrEqual> dep_src2dst;
     BuildDependencyGraph(original_order, &dep_src2dst, nullptr);
 
     for (const auto& pair : dep_src2dst) {
-      const Block& src = pair.first;
+      const SBlock& src = pair.first;
       const auto& src_info = pipeline_info.at(src);
-      const ffi::Array<Block>& dsts = pair.second;
-      for (const Block& dst : dsts) {
+      const ffi::Array<SBlock>& dsts = pair.second;
+      for (const SBlock& dst : dsts) {
         const auto& dst_info = pipeline_info.at(dst);
         CHECK_LE(src_info.stage, dst_info.stage)
             << "ValueError: statement " << dst << " in stage " << dst_info.stage
@@ -1085,7 +1085,7 @@ class PipelineInjector : private StmtExprMutator {
     // child of the block.
     Stmt pipeline_body{nullptr};
     ffi::Array<Buffer> pipeline_allocs;
-    if (const auto* realize = for_node->body.as<BlockRealizeNode>()) {
+    if (const auto* realize = for_node->body.as<SBlockRealizeNode>()) {
       const auto& block = realize->block;
       for (const auto& buffer : block->alloc_buffers) {
         ICHECK(buffer->IsInstance<BufferNode>());
@@ -1105,16 +1105,16 @@ class PipelineInjector : private StmtExprMutator {
     // Step 3: Blockize the components of the pipeline. Each child of the pipelined loop will be
     // converted into a block.
     PipelineInfo pipeline_info;
-    ffi::Array<Block> original_order;  // pipeline body blocks in the original order
+    ffi::Array<SBlock> original_order;  // pipeline body blocks in the original order
 
     auto f_add_child = [&](const Stmt& child) {
-      original_order.push_back(MakeBlock(child, buffer_data_to_buffer_));
+      original_order.push_back(MakeSBlock(child, buffer_data_to_buffer_));
     };
     for (size_t i = 0; i < pipeline_body_seq->seq.size(); i++) {
-      const auto* nested_block_realize = pipeline_body_seq->seq[i].as<BlockRealizeNode>();
+      const auto* nested_block_realize = pipeline_body_seq->seq[i].as<SBlockRealizeNode>();
       if (nested_block_realize && is_one(nested_block_realize->predicate) &&
           nested_block_realize->block->body->IsInstance<SeqStmtNode>()) {
-        const Block& nested_pipeline_block = nested_block_realize->block;
+        const SBlock& nested_pipeline_block = nested_block_realize->block;
         ICHECK(
             nested_pipeline_block->match_buffers.empty());  // match_buffer should have been lowered
         for (const auto& buffer : nested_pipeline_block->alloc_buffers) {
@@ -1175,7 +1175,7 @@ class PipelineInjector : private StmtExprMutator {
                                               pipeline_allocs, ffi::GetRef<For>(op), pipeline_info,
                                               fragment_info_, preserved_annotations);
 
-    if (const auto* realize = op->body.as<BlockRealizeNode>()) {
+    if (const auto* realize = op->body.as<SBlockRealizeNode>()) {
       const auto& block = realize->block;
       for (const auto& buffer : block->alloc_buffers) {
         buffer_data_to_buffer_.erase(buffer->data);
@@ -1189,7 +1189,7 @@ class PipelineInjector : private StmtExprMutator {
    * \param n The block pointer to which the buffer allocations are added.
    * \param alloc_buffers The buffer allocations to be added.
    */
-  void AddAllocBuffers(BlockNode* n, const ffi::Array<Buffer> alloc_buffers) {
+  void AddAllocBuffers(SBlockNode* n, const ffi::Array<Buffer> alloc_buffers) {
     for (const Buffer& alloc_buffer : alloc_buffers) {
       n->alloc_buffers.push_back(alloc_buffer);
       Region region;
@@ -1201,7 +1201,7 @@ class PipelineInjector : private StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     for (const auto& buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
@@ -1214,7 +1214,7 @@ class PipelineInjector : private StmtExprMutator {
           << buffer_index << " vs. " << op->writes.size() << ")";
       double_buffers.insert(op->writes[buffer_index]->buffer);
     }
-    Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
+    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
 
     for (const auto& buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.erase(buffer->data);

@@ -46,11 +46,11 @@ def element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
     for i in T.thread_binding(0, 128, "blockIdx.x"):
         for j0_0 in T.thread_binding(0, 4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
         for j1_0 in T.thread_binding(0, 4, "threadIdx.x"):
             for j1_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
@@ -63,12 +63,12 @@ def unified_element_wise_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None
     for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     B[blockIdx_x, threadIdx_x * 32 + j0_1] = (
                         A[blockIdx_x, threadIdx_x * 32 + j0_1] * 2.0
                     )
             for j1_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     C[blockIdx_x, threadIdx_x * 32 + j1_1] = (
                         B[blockIdx_x, threadIdx_x * 32 + j1_1] + 1.0
                     )
@@ -83,11 +83,11 @@ def element_wise_thread_x_different_dtype(
     for i in T.thread_binding(128, "blockIdx.x"):
         for j0_0 in T.thread_binding(4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
         for j1_0 in T.thread_binding(T.int64(4), "threadIdx.x"):
             for j1_1 in T.serial(T.int64(32)):
-                with T.block(""):
+                with T.sblock(""):
                     C[i, j1_0 * T.int64(32) + j1_1] = B[i, j1_0 * T.int64(32) + j1_1] + 1.0
 
 
@@ -100,12 +100,12 @@ def unified_element_wise_thread_x_different_dtype(
     for blockIdx_x in T.thread_binding(128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     B[blockIdx_x, threadIdx_x * 32 + j0_1] = (
                         A[blockIdx_x, threadIdx_x * 32 + j0_1] * 2.0
                     )
             for j1_1 in T.serial(T.int64(32)):
-                with T.block(""):
+                with T.sblock(""):
                     C[blockIdx_x, T.cast(threadIdx_x, "int64") * T.int64(32) + j1_1] = (
                         B[blockIdx_x, T.cast(threadIdx_x, "int64") * T.int64(32) + j1_1] + 1.0
                     )
@@ -124,10 +124,10 @@ def element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> None:
     T.launch_thread(j1_0, 4)
 
     for j0_1 in T.serial(0, 32):
-        with T.block(""):
+        with T.sblock(""):
             B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
     for j1_1 in T.serial(0, 32):
-        with T.block(""):
+        with T.sblock(""):
             C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
@@ -140,12 +140,12 @@ def unified_element_wise_env_thread_x(a: T.handle, b: T.handle, c: T.handle) -> 
     for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     B[blockIdx_x, threadIdx_x * 32 + j0_1] = (
                         A[blockIdx_x, threadIdx_x * 32 + j0_1] * 2.0
                     )
             for j1_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     C[blockIdx_x, threadIdx_x * 32 + j1_1] = (
                         B[blockIdx_x, threadIdx_x * 32 + j1_1] + 1.0
                     )
@@ -159,7 +159,7 @@ def element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
         for i_1 in T.thread_binding(0, 64, "threadIdx.x"):
             for j_0 in T.thread_binding(0, 2, "vthread.x"):
                 for j_1 in T.serial(0, 64):
-                    with T.block(""):
+                    with T.sblock(""):
                         B[i_0 * 64 + i_1, j_0 * 64 + j_1] = A[i_0 * 64 + i_1, j_0 * 64 + j_1] * 2.0
 
 
@@ -170,7 +170,7 @@ def unified_element_wise_vthread_x(a: T.handle, b: T.handle) -> None:
     for vthread_x in T.thread_binding(0, 2, "vthread.x"):
         for threadIdx_x in T.thread_binding(0, 64, "threadIdx.x"):
             for j_1 in T.serial(0, 64):
-                with T.block(""):
+                with T.sblock(""):
                     B[vthread_x * 64 + threadIdx_x, vthread_x * 64 + j_1] = (
                         A[vthread_x * 64 + threadIdx_x, vthread_x * 64 + j_1] * 2.0
                     )
@@ -230,11 +230,11 @@ def element_wise_implicit_block(a: T.handle, b: T.handle, c: T.handle) -> None:
     for i in T.thread_binding(0, 128, "threadIdx.y"):
         for j0_0 in T.thread_binding(0, 4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
         for j1_0 in T.thread_binding(0, 4, "threadIdx.x"):
             for j1_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
@@ -247,12 +247,12 @@ def unified_element_wise_implicit_block(a: T.handle, b: T.handle, c: T.handle) -
     for blockIdx_x in T.thread_binding(0, 128, "threadIdx.y"):
         for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
             for j0_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     B[blockIdx_x, threadIdx_x * 32 + j0_1] = (
                         A[blockIdx_x, threadIdx_x * 32 + j0_1] * 2.0
                     )
             for j1_1 in T.serial(0, 32):
-                with T.block(""):
+                with T.sblock(""):
                     C[blockIdx_x, threadIdx_x * 32 + j1_1] = (
                         B[blockIdx_x, threadIdx_x * 32 + j1_1] + 1.0
                     )
@@ -293,7 +293,7 @@ def test_inner_binding_with_annotation():
     def inner_binding_with_annotation(A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")):
         for bx in T.thread_binding(32, "blockIdx.x"):
             for tx in T.thread_binding(2, "threadIdx.x", annotations={"my_annotation": 1}):
-                with T.block("block"):
+                with T.sblock("block"):
                     v = T.axis.spatial(64, bx * 2 + tx)
                     B[v] = A[v]
 
@@ -304,7 +304,7 @@ def test_inner_binding_with_annotation():
         for blockIdx_x in T.thread_binding(32, thread="blockIdx.x"):
             for threadIdx_x in T.thread_binding(2, thread="threadIdx.x"):
                 for var in T.serial(1, annotations={"my_annotation": 1}):
-                    with T.block("block"):
+                    with T.sblock("block"):
                         v = T.axis.spatial(64, blockIdx_x * 2 + threadIdx_x)
                         T.reads(A[v])
                         T.writes(B[v])

@@ -24,7 +24,7 @@ import tvm.testing
 from tvm import tir
 from tvm.ir import IRModule
 from tvm.script import tir as T
-from tvm.tir import PrimFunc, BlockDependenceInfo
+from tvm.tir import PrimFunc, SBlockDependenceInfo
 from tvm.tir.stmt_functor import post_order_visit
 from tvm.tir.block_scope import DepKind
 
@@ -37,15 +37,15 @@ def elementwise(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128), "float32")
     B = T.alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
     for i, j in T.grid(128, 128):
-        with T.block("D"):
+        with T.sblock("D"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -57,10 +57,10 @@ def war_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128))
 
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
@@ -71,11 +71,11 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j in T.grid(128, 128):
-        with T.block("init"):
+        with T.sblock("init"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = T.float32(0)
         for k in range(0, 128):
-            with T.block("update"):
+            with T.sblock("update"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -83,14 +83,14 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
-def get_blocks(func: PrimFunc):
+def get_sblocks(func: PrimFunc):
     blocks = {}
 
     def update_blocks(node):
-        if isinstance(node, tvm.tir.Block):
+        if isinstance(node, tvm.tir.SBlock):
             blocks[node.name_hint] = node
 
-    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.tir.Block) else None)
+    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.tir.SBlock) else None)
     post_order_visit(func.body, update_blocks)
     return blocks
 
@@ -98,7 +98,7 @@ def get_blocks(func: PrimFunc):
 def _verify_dependence(dependence_info, src_block, dst_block, kind):
     src_sref = dependence_info.get_sref(src_block)
     dst_sref = dependence_info.get_sref(dst_block)
-    scope = dependence_info.get_block_scope(src_sref.parent)
+    scope = dependence_info.get_sblock_scope(src_sref.parent)
 
     def _find_dependence(deps):
         for dep in deps:
@@ -128,22 +128,22 @@ def _verify_dependence(dependence_info, src_block, dst_block, kind):
 
 def test_RAW_dependences():
     func = elementwise
-    dependence_info = BlockDependenceInfo(func)
-    blocks = get_blocks(func)
+    dependence_info = SBlockDependenceInfo(func)
+    blocks = get_sblocks(func)
     _verify_dependence(dependence_info, blocks["B"], blocks["C"], DepKind.RAW)
 
 
 def test_WAR_dependences():
     func = war_dependency
-    dependence_info = BlockDependenceInfo(func)
-    blocks = get_blocks(func)
+    dependence_info = SBlockDependenceInfo(func)
+    blocks = get_sblocks(func)
     _verify_dependence(dependence_info, blocks["C"], blocks["B"], DepKind.WAR)
 
 
 def test_RAW_and_WAW_dependences():
     func = matmul
-    dependence_info = BlockDependenceInfo(func)
-    blocks = get_blocks(func)
+    dependence_info = SBlockDependenceInfo(func)
+    blocks = get_sblocks(func)
     _verify_dependence(dependence_info, blocks["init"], blocks["update"], DepKind.RAW)
     _verify_dependence(dependence_info, blocks["init"], blocks["update"], DepKind.WAW)
 

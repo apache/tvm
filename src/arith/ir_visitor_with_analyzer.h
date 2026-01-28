@@ -40,7 +40,7 @@ class IRVisitorWithAnalyzer : public tir::StmtExprVisitor {
   using StmtExprVisitor::VisitStmt_;
 
   void VisitStmt_(const tir::ForNode* op);
-  void VisitStmt_(const tir::BlockNode* op);
+  void VisitStmt_(const tir::SBlockNode* op);
   void VisitStmt_(const tir::LetStmtNode* op);
   void VisitStmt_(const tir::IfThenElseNode* op);
   void VisitStmt_(const tir::AttrStmtNode* op);

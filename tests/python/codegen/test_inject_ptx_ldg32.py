@@ -27,10 +27,10 @@ def vector_add(A: T.Buffer((16), "float32"), B: T.Buffer((32), "float32")) -> No
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.block():
+    with T.sblock():
         A_local = T.alloc_buffer((32), "float32", scope="local")
 
-        with T.block():
+        with T.sblock():
             T.reads(A[0:16])
             T.writes(A_local[0:32])
             A_local[tx] = T.if_then_else(tx % 2 == 0, A[tx // 2], T.float32(0), dtype="float32")

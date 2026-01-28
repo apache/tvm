@@ -1263,9 +1263,9 @@ def test_fp16A_int4B_gemm():
             decode_1: T.Buffer((T.int64(64), T.int64(128)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i, j in T.grid(T.int64(64), T.int64(128)):
-                with T.block("decode"):
+                with T.sblock("decode"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(A[v_i, v_j // T.int64(2)], B[v_j])
                     T.writes(decode_1[v_i, v_j])
@@ -1296,11 +1296,11 @@ def test_fp16A_int4B_gemm():
             compute: T.Buffer((T.int64(128),), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             max_abs_value = T.alloc_buffer((T.int64(128),), "float16")
             scale = T.alloc_buffer((T.int64(128),))
             for i, k in T.grid(T.int64(128), T.int64(64)):
-                with T.block("max_abs_value"):
+                with T.sblock("max_abs_value"):
                     v_i, v_k = T.axis.remap("SR", [i, k])
                     T.reads(A[v_i, v_k])
                     T.writes(max_abs_value[v_i])
@@ -1308,7 +1308,7 @@ def test_fp16A_int4B_gemm():
                         max_abs_value[v_i] = T.float16(-65504)
                     max_abs_value[v_i] = T.max(max_abs_value[v_i], T.fabs(A[v_i, v_k]))
             for i in range(T.int64(128)):
-                with T.block("scale"):
+                with T.sblock("scale"):
                     v_i = T.axis.spatial(T.int64(128), i)
                     T.reads(max_abs_value[v_i])
                     T.writes(scale[v_i])
@@ -1316,7 +1316,7 @@ def test_fp16A_int4B_gemm():
                         T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
                     ) * T.float32(0.125)
             for j, i, k in T.grid(T.int64(64), T.int64(64), T.int64(2)):
-                with T.block("w_gathered"):
+                with T.sblock("w_gathered"):
                     v_j, v_i, v_k = T.axis.remap("SSR", [j, i, k])
                     T.reads(A[v_i * T.int64(2) + v_k, v_j], scale[v_i * T.int64(2) + v_k])
                     T.writes(w_gathered[v_j, v_i])
@@ -1351,7 +1351,7 @@ def test_fp16A_int4B_gemm():
                         ),
                     )
             for i0 in range(T.int64(128)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0 = T.axis.spatial(T.int64(128), i0)
                     T.reads(scale[v_i0])
                     T.writes(compute[v_i0])
@@ -1520,9 +1520,9 @@ def test_fp16A_int8B_gemm():
             decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i, j in T.grid(T.int64(64), T.int64(64)):
-                with T.block("decode"):
+                with T.sblock("decode"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(A[v_i, v_j], B[v_j])
                     T.writes(decode_1[v_i, v_j])
@@ -1535,11 +1535,11 @@ def test_fp16A_int8B_gemm():
             compute: T.Buffer((T.int64(64),), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             max_abs_value = T.alloc_buffer((T.int64(64),), "float16")
             scale = T.alloc_buffer((T.int64(64),))
             for i, k in T.grid(T.int64(64), T.int64(64)):
-                with T.block("max_abs_value"):
+                with T.sblock("max_abs_value"):
                     v_i, v_k = T.axis.remap("SR", [i, k])
                     T.reads(A[v_i, v_k])
                     T.writes(max_abs_value[v_i])
@@ -1547,7 +1547,7 @@ def test_fp16A_int8B_gemm():
                         max_abs_value[v_i] = T.float16(-65504)
                     max_abs_value[v_i] = T.max(max_abs_value[v_i], T.fabs(A[v_i, v_k]))
             for i in range(T.int64(64)):
-                with T.block("scale"):
+                with T.sblock("scale"):
                     v_i = T.axis.spatial(T.int64(64), i)
                     T.reads(max_abs_value[v_i])
                     T.writes(scale[v_i])
@@ -1555,7 +1555,7 @@ def test_fp16A_int8B_gemm():
                         T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(64), T.int64(64)):
-                with T.block("w_gathered"):
+                with T.sblock("w_gathered"):
                     v_j, v_i = T.axis.remap("SS", [j, i])
                     T.reads(A[v_i, v_j], scale[v_i])
                     T.writes(w_gathered[v_j, v_i])
@@ -1570,7 +1570,7 @@ def test_fp16A_int8B_gemm():
                         ),
                     )
             for i0 in range(T.int64(64)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0 = T.axis.spatial(T.int64(64), i0)
                     T.reads(scale[v_i0])
                     T.writes(compute[v_i0])
@@ -1666,10 +1666,10 @@ def test_rms_norm():
             rms_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             Ared_temp = T.alloc_buffer((T.int64(1), T.int64(1)))
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
-                with T.block("Ared_temp"):
+                with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
                     T.reads(A[v_bsz, v_i, v_k])
                     T.writes(Ared_temp[v_bsz, v_i])
@@ -1679,7 +1679,7 @@ def test_rms_norm():
                         "float32", A[v_bsz, v_i, v_k]
                     ) * T.Cast("float32", A[v_bsz, v_i, v_k])
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
-                with T.block("rms_norm"):
+                with T.sblock("rms_norm"):
                     v_bsz, v_i, v_k = T.axis.remap("SSS", [bsz, i, k])
                     T.reads(B[v_k], A[v_bsz, v_i, v_k], Ared_temp[v_bsz, v_i])
                     T.writes(rms_norm[v_bsz, v_i, v_k])
@@ -1799,9 +1799,9 @@ def test_fp16A_int8B_gemm_batched():
             decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i, j in T.grid(T.int64(64), T.int64(64)):
-                with T.block("decode"):
+                with T.sblock("decode"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(A[v_i, v_j], B[v_j])
                     T.writes(decode_1[v_i, v_j])
@@ -1814,11 +1814,11 @@ def test_fp16A_int8B_gemm_batched():
             compute: T.Buffer((T.int64(64),), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             max_abs_value = T.alloc_buffer((T.int64(64),), "float16")
             scale = T.alloc_buffer((T.int64(64),))
             for i, k in T.grid(T.int64(64), T.int64(64)):
-                with T.block("max_abs_value"):
+                with T.sblock("max_abs_value"):
                     v_i, v_k = T.axis.remap("SR", [i, k])
                     T.reads(A[v_i, v_k])
                     T.writes(max_abs_value[v_i])
@@ -1826,7 +1826,7 @@ def test_fp16A_int8B_gemm_batched():
                         max_abs_value[v_i] = T.float16(-65504)
                     max_abs_value[v_i] = T.max(max_abs_value[v_i], T.fabs(A[v_i, v_k]))
             for i in range(T.int64(64)):
-                with T.block("scale"):
+                with T.sblock("scale"):
                     v_i = T.axis.spatial(T.int64(64), i)
                     T.reads(max_abs_value[v_i])
                     T.writes(scale[v_i])
@@ -1834,7 +1834,7 @@ def test_fp16A_int8B_gemm_batched():
                         T.Cast("float32", max_abs_value[v_i]), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(64), T.int64(64)):
-                with T.block("w_gathered"):
+                with T.sblock("w_gathered"):
                     v_j, v_i = T.axis.remap("SS", [j, i])
                     T.reads(A[v_i, v_j], scale[v_i])
                     T.writes(w_gathered[v_j, v_i])
@@ -1849,7 +1849,7 @@ def test_fp16A_int8B_gemm_batched():
                         ),
                     )
             for i0 in range(T.int64(64)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0 = T.axis.spatial(T.int64(64), i0)
                     T.reads(scale[v_i0])
                     T.writes(compute[v_i0])
@@ -1933,7 +1933,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
         ):
             T.func_attr({"tir.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.block("decode"):
+                with T.sblock("decode"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(A[v_i, v_j], B[v_i // T.int64(64), v_j])
                     T.writes(decode_1[v_i, v_j])
@@ -1966,7 +1966,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                 )
             )
             for i, j, k in T.grid(T.int64(2), T.int64(128), T.int64(64)):
-                with T.block("max_abs_value"):
+                with T.sblock("max_abs_value"):
                     v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
                     T.reads(A[v_j, v_i * T.int64(64) + v_k])
                     T.writes(max_abs_value[v_i, v_j])
@@ -1976,7 +1976,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                         max_abs_value[v_i, v_j], T.fabs(A[v_j, v_i * T.int64(64) + v_k])
                     )
             for i, j in T.grid(T.int64(2), T.int64(128)):
-                with T.block("scale"):
+                with T.sblock("scale"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(max_abs_value[v_i, v_j])
                     T.writes(scale[v_i, v_j])
@@ -1984,7 +1984,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                         T.Cast("float32", max_abs_value[v_i, v_j]), T.float32(0.0001)
                     ) * T.float32(0.0078125)
             for j, i in T.grid(T.int64(128), T.int64(128)):
-                with T.block("w_gathered"):
+                with T.sblock("w_gathered"):
                     v_j, v_i = T.axis.remap("SS", [j, i])
                     T.reads(A[v_i, v_j], scale[v_j // T.int64(64), v_i])
                     T.writes(w_gathered[v_j, v_i])
@@ -2001,7 +2001,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                         ),
                     )
             for i0, i1 in T.grid(T.int64(2), T.int64(128)):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
                     T.reads(scale[v_i0, v_i1])
                     T.writes(compute[v_i0, v_i1])

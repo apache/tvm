@@ -1209,7 +1209,7 @@ class WorkloadEmbeddingExtractor : private StmtVisitor {
   }
 
  private:
-  void VisitStmt_(const BlockNode* block) final {
+  void VisitStmt_(const SBlockNode* block) final {
     StmtVisitor::VisitStmt_(block);
     std::string name = block->name_hint;
     std::for_each(name.begin(), name.end(), [](char& c) { c = ::tolower(c); });
@@ -1327,7 +1327,7 @@ class PerStoreFeatureCollector : private StmtVisitor {
     feature.group5 = std::make_unique<group5::Feature>(loop_nest_);
   }
 
-  void VisitStmt_(const BlockNode* block) final {
+  void VisitStmt_(const SBlockNode* block) final {
     StmtVisitor::VisitStmt_(block);
     for (const Buffer& buffer : block->alloc_buffers) {
       HandleBufferAlloc(buffer);

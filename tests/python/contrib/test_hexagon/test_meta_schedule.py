@@ -55,7 +55,7 @@ class MatmulModule:
         b_buffer = T.match_buffer(b, (16, 16), "float32")
         c_buffer = T.match_buffer(c, (16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi_axis, vj_axis, vk_axis = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     c_buffer[vi_axis, vj_axis] = 0.0  # type: ignore
@@ -201,13 +201,13 @@ def test_vrmpy_dense(hexagon_launcher):
     if not do_tune:
         ir_module = tvm.IRModule({"main": workload})
         sch = tvm.tir.Schedule(ir_module)
-        block = sch.get_block("compute")
+        block = sch.get_sblock("compute")
         schedule_dense(sch, block, m_size, do_tune)
     else:
         with tempfile.TemporaryDirectory() as work_dir:
 
             def schedule_dense_for_tune(sch):
-                block = sch.get_block("compute")
+                block = sch.get_sblock("compute")
                 return schedule_dense(sch, block, None, True)
 
             target = get_hexagon_target("v69")
@@ -251,19 +251,19 @@ class ModuleVRMPYAutoTensorize:
             512, annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}
         ):
             for i0_1_init, i1_0_1_init, i0_2_init, i1_0_2_init in T.grid(2, 3, 1, 1):
-                with T.block("compute_o_init"):
+                with T.sblock("compute_o_init"):
                     i = T.axis.spatial(128, i0_0_i1_0_0_fused // 8 * 2 + i0_1_init + i0_2_init)
                     j_o = T.axis.spatial(24, i1_0_2_init + i0_0_i1_0_0_fused % 8 * 3 + i1_0_1_init)
                     T.reads()
                     T.writes(compute[i, j_o * 32 : j_o * 32 + 32])  # type: ignore
                     for i1_1 in T.vectorized(32):
-                        with T.block("compute_init"):
+                        with T.sblock("compute_init"):
                             j_i_init = T.axis.spatial(32, i1_1)
                             T.reads()
                             T.writes(compute[i, j_o * 32 + j_i_init])
                             compute[i, j_o * 32 + j_i_init] = 0  # type: ignore
             for i2_0_0, i0_1, i1_0_1, i2_0_1, i0_2, i1_0_2 in T.grid(32, 2, 3, 6, 1, 1):
-                with T.block("compute_o_update"):
+                with T.sblock("compute_o_update"):
                     i = T.axis.spatial(128, i0_0_i1_0_0_fused // 8 * 2 + i0_1 + i0_2)
                     j_o = T.axis.spatial(24, i1_0_2 + i0_0_i1_0_0_fused % 8 * 3 + i1_0_1)
                     k_o = T.axis.reduce(192, i2_0_0 * 6 + i2_0_1)

@@ -2802,7 +2802,7 @@ def sample_top_p_top_k_from_sorted_prob(
         top_k = T.match_buffer(C, (batch, 1), index_dtype)
         renorm_prob = T.match_buffer(D, (batch, 1), prob_dtype)
         for ax0, ax1 in T.grid(batch, vocab_size):
-            with T.block("T_get_renorm_prob"):
+            with T.sblock("T_get_renorm_prob"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 if not _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, 0):
                     renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, 0]
@@ -2826,7 +2826,7 @@ def sample_top_p_top_k_from_sorted_prob(
         output_index = T.match_buffer(F, (out_batch, 1), index_dtype)
 
         for ax0, ax1 in T.grid(out_batch, vocab_size):
-            with T.block("T_get_index_from_sorted"):
+            with T.sblock("T_get_index_from_sorted"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.writes(output_index[v_ax0, 0])
                 if (
@@ -2909,7 +2909,7 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
         top_k = T.match_buffer(D, (batch, 1), top_k_dtype)
         cutoff = T.match_buffer(E, (batch, 1), prob_dtype)
         for ax0, ax1 in T.grid(batch, vocab_size):
-            with T.block("T_get_renorm_cutoff"):
+            with T.sblock("T_get_renorm_cutoff"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 if _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, 0) == 0:
                     cutoff[v_ax0, 0] = sorted_prob[v_ax0, 0]

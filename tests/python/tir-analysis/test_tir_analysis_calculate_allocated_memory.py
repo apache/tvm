@@ -29,7 +29,7 @@ class Module:
     @T.prim_func
     def scale_by_two(a: T.Buffer((128,), "int8"), c: T.Buffer((128,), "int8")):
         for i in T.serial(128):
-            with T.block("C"):
+            with T.sblock("C"):
                 c[i] = a[i] * T.int8(2)
 
 
@@ -37,10 +37,10 @@ class Module:
     def scale_by_two_three(a: T.Buffer((128,), "int8"), c: T.Buffer((128,), "int8")):
         B = T.alloc_buffer([128], dtype="int8", scope="global.vtcm")
         for i in T.serial(128):
-            with T.block("B"):
+            with T.sblock("B"):
                 B[i] = a[i] * T.int8(2)
         for i in T.serial(128):
-            with T.block("C"):
+            with T.sblock("C"):
                 c[i] = B[i] * T.int8(3)
 
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
@@ -54,7 +54,7 @@ def test_scale_by(primFunc, size):
     """Test calculate allocated bytes per scope"""
     mod = tvm.IRModule.from_expr(primFunc.with_attr("global_symbol", "main"))
     sch = tir.Schedule(mod, debug_mask="all")
-    block_c = sch.get_block("C")
+    block_c = sch.get_sblock("C")
     (flat,) = sch.get_loops(block_c)
     cache_block = sch.cache_read(block_c, 0, storage_scope="global.vtcm")
     sch.compute_at(cache_block, flat)
@@ -78,21 +78,21 @@ def matmul_mix_scope(a: T.handle, b: T.handle, c: T.handle) -> None:
     C_allocated = T.alloc_buffer([128, 128], dtype="float32", scope="global")
 
     for i, j in T.grid(128, 128):
-        with T.block("A.allocated"):
+        with T.sblock("A.allocated"):
             A_allocated[i, j] = A[i, j]
     for i, j in T.grid(128, 128):
-        with T.block("B.allocated"):
+        with T.sblock("B.allocated"):
             B_allocated[i, j] = B[i, j]
 
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C_allocated[vi, vj] = 0.0
             C_allocated[vi, vj] = C[vi, vj] + A_allocated[vi, vk] * B_allocated[vj, vk]
 
     for i, j in T.grid(128, 128):
-        with T.block("C"):
+        with T.sblock("C"):
             C[i, j] = C_allocated[i, j]
 
 
@@ -114,7 +114,7 @@ def test_matmul_mix_scope(scope, size):
 def test_full_mod_calculator():
     def apply_schedule(sch, func_name):
         sch.work_on(func_name)
-        block_c = sch.get_block("C")
+        block_c = sch.get_sblock("C")
         sch.cache_read(block_c, 0, storage_scope="global.vtcm")
 
     sch = tvm.tir.Schedule(Module, debug_mask="all")

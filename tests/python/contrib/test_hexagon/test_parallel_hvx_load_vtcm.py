@@ -58,7 +58,7 @@ def apply_unroll_vectorize(sch, blocks, unroll_split, vector_split):
 
 
 def apply_vrmpy_parallelization(sch):
-    block = sch.get_block("c_buffer")
+    block = sch.get_sblock("c_buffer")
     b = sch.get_loops(block)
     b_outer, _ = sch.split(b[0], factors=[4, None])
     sch.parallel(b_outer)
@@ -66,7 +66,7 @@ def apply_vrmpy_parallelization(sch):
 
 
 def apply_vtcm_cache_read_write(sch):
-    block = sch.get_block("c_buffer")
+    block = sch.get_sblock("c_buffer")
     sch.cache_read(block, 0, "global.vtcm")
     sch.cache_read(block, 1, "global.vtcm")
     sch.cache_write(block, 0, "global.vtcm")
@@ -83,7 +83,7 @@ def vrmpy(operations):
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8", align=128)
         c_buffer = T.match_buffer(c, [operations, 32], dtype="int32", align=128)
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
@@ -119,7 +119,7 @@ def preloaded_vrmpy(operations):
             c, [T.cast(operations, "int32") * 32], dtype="int32", align=128, scope="global.vtcm"
         )
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[T.ramp(T.cast(vn_ind, "int32") * 32, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
@@ -154,15 +154,15 @@ def preallocated_vrmpy(operations):
             c_v, [out_size], dtype="int32", align=128, scope="global.vtcm"
         )
         for n, i in T.grid(operations, 128):
-            with T.block("a_buffer_global.vtcm"):
+            with T.sblock("a_buffer_global.vtcm"):
                 vn_ind, vi_index = T.axis.remap("SS", [n, i])
                 a_global_vtcm[vn_ind * 128 + vi_index] = a_buffer[vn_ind, vi_index]
         for n, i in T.grid(operations, 128):
-            with T.block("b_buffer_global.vtcm"):
+            with T.sblock("b_buffer_global.vtcm"):
                 vn_ind, vi_index = T.axis.remap("SS", [n, i])
                 b_global_vtcm[vn_ind * 128 + vi_index] = b_buffer[vn_ind, vi_index]
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_global_vtcm[T.ramp(T.cast(vn_ind, "int32") * 32, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
@@ -177,7 +177,7 @@ def preallocated_vrmpy(operations):
                     dtype="int32x32",
                 )
         for n, i in T.grid(operations, 32):
-            with T.block("c_buffer_global.vtcm"):
+            with T.sblock("c_buffer_global.vtcm"):
                 vn_ind, vi_index = T.axis.remap("SS", [n, i])
                 c_buffer[vn_ind, vi_index] = c_global_vtcm[vn_ind * 32 + vi_index]
 
@@ -260,7 +260,7 @@ def preallocated_single_dma_vrmpy(operations):
             )
         )
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_global_vtcm[T.ramp(T.cast(vn_ind, "int32") * 32, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
@@ -446,12 +446,12 @@ class TestMatMulVec:
         sch = apply_vrmpy_parallelization(sch)
         sch = apply_unroll_vectorize(
             sch,
-            [sch.get_block("a_buffer_global.vtcm"), sch.get_block("b_buffer_global.vtcm")],
+            [sch.get_sblock("a_buffer_global.vtcm"), sch.get_sblock("b_buffer_global.vtcm")],
             unroll_split,
             vector_split,
         )
         sch = apply_unroll_vectorize(
-            sch, [sch.get_block("c_buffer_global.vtcm")], unroll_split, c_vector_split_unallocated
+            sch, [sch.get_sblock("c_buffer_global.vtcm")], unroll_split, c_vector_split_unallocated
         )
         vectorized_runtime, result = setup_and_run(
             hexagon_session, sch, input_a, input_b, input_c, operations
@@ -464,14 +464,14 @@ class TestMatMulVec:
         sch = apply_vrmpy_parallelization(sch)
         sch = apply_parallel_unroll_vectorize(
             sch,
-            [sch.get_block("a_buffer_global.vtcm"), sch.get_block("b_buffer_global.vtcm")],
+            [sch.get_sblock("a_buffer_global.vtcm"), sch.get_sblock("b_buffer_global.vtcm")],
             outer_split,
             unroll_split,
             vector_split,
         )
         sch = apply_parallel_unroll_vectorize(
             sch,
-            [sch.get_block("c_buffer_global.vtcm")],
+            [sch.get_sblock("c_buffer_global.vtcm")],
             outer_split,
             unroll_split,
             c_vector_split_unallocated,
@@ -486,12 +486,12 @@ class TestMatMulVec:
         sch = apply_vrmpy_parallelization(sch)
         sch = apply_unroll_vectorize(
             sch,
-            [sch.get_block("a_buffer_global.vtcm"), sch.get_block("b_buffer_global.vtcm")],
+            [sch.get_sblock("a_buffer_global.vtcm"), sch.get_sblock("b_buffer_global.vtcm")],
             unroll_split,
             vector_split,
         )
         sch = apply_unroll_vectorize(
-            sch, [sch.get_block("c_buffer_global.vtcm")], unroll_split, c_vector_split
+            sch, [sch.get_sblock("c_buffer_global.vtcm")], unroll_split, c_vector_split
         )
         preallocated_vectorized_runtime, result = setup_and_run_preallocated(
             hexagon_session, sch, input_a, input_b, input_c, operations
@@ -504,13 +504,13 @@ class TestMatMulVec:
         sch = apply_vrmpy_parallelization(sch)
         sch = apply_parallel_unroll_vectorize(
             sch,
-            [sch.get_block("a_buffer_global.vtcm"), sch.get_block("b_buffer_global.vtcm")],
+            [sch.get_sblock("a_buffer_global.vtcm"), sch.get_sblock("b_buffer_global.vtcm")],
             outer_split,
             unroll_split,
             vector_split,
         )
         sch = apply_parallel_unroll_vectorize(
-            sch, [sch.get_block("c_buffer_global.vtcm")], outer_split, unroll_split, c_vector_split
+            sch, [sch.get_sblock("c_buffer_global.vtcm")], outer_split, unroll_split, c_vector_split
         )
         prealloc_vector_parallelized, result = setup_and_run_preallocated(
             hexagon_session, sch, input_a, input_b, input_c, operations

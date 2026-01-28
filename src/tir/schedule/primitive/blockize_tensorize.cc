@@ -47,7 +47,7 @@ T DeepCopy(const T& stmt) {
  */
 class SubspaceNotDivisibleError : public ScheduleError {
  public:
-  explicit SubspaceNotDivisibleError(IRModule mod, For scope_loop, Block inner_block)
+  explicit SubspaceNotDivisibleError(IRModule mod, For scope_loop, SBlock inner_block)
       : mod_(std::move(mod)),
         scope_loop_(std::move(scope_loop)),
         inner_block_(std::move(inner_block)) {}
@@ -68,7 +68,7 @@ class SubspaceNotDivisibleError : public ScheduleError {
  private:
   IRModule mod_;
   For scope_loop_;
-  Block inner_block_;
+  SBlock inner_block_;
 };
 
 /*!
@@ -154,7 +154,7 @@ ffi::Array<ffi::Array<arith::IterMark>> TrivialSubspaceDivision(
  * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
  * \param loop_sref_as_outer Whether loop_sref is divided into outer or inner
  */
-ffi::Array<ffi::Array<arith::IterMark>> SubspaceDivide(const BlockRealize& realize,
+ffi::Array<ffi::Array<arith::IterMark>> SubspaceDivide(const SBlockRealize& realize,
                                                        const StmtSRef& block_sref,  //
                                                        const StmtSRef& loop_sref,   //
                                                        std::vector<const ForNode*>* loops,
@@ -283,12 +283,12 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
  * `iter_vars`, `init` and `reads` fields.
  * \return The inner block created.
  */
-BlockRealize GenerateInner(bool is_write_reduction,
-                           const ffi::Array<IterVar>& iter_vars,     //
-                           const ffi::Array<PrimExpr>& iter_values,  //
-                           const PrimExpr& predicate,                //
-                           Block block) {
-  BlockNode* n = block.CopyOnWrite();
+SBlockRealize GenerateInner(bool is_write_reduction,
+                            const ffi::Array<IterVar>& iter_vars,     //
+                            const ffi::Array<PrimExpr>& iter_values,  //
+                            const PrimExpr& predicate,                //
+                            SBlock block) {
+  SBlockNode* n = block.CopyOnWrite();
   n->iter_vars = iter_vars;
   n->init = std::nullopt;
   if (is_write_reduction) {
@@ -298,8 +298,8 @@ BlockRealize GenerateInner(bool is_write_reduction,
     reads.insert(reads.end(), block->reads.begin(), block->reads.end());
     n->reads = std::move(reads);
   }
-  return BlockRealize(/*iter_values=*/iter_values, /*predicate=*/predicate,
-                      /*block=*/block);
+  return SBlockRealize(/*iter_values=*/iter_values, /*predicate=*/predicate,
+                       /*block=*/block);
 }
 
 /*!
@@ -309,9 +309,9 @@ BlockRealize GenerateInner(bool is_write_reduction,
  * \param loops The inner loops after blockize.
  * \return The subtree of the init block and its outer loops.
  */
-Stmt GenerateOuterInit(const Stmt& block_init, const BlockRealize& inner_realize,
+Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realize,
                        const std::vector<const ForNode*>& loops, ffi::String block_name) {
-  const Block& inner_block = inner_realize->block;
+  const SBlock& inner_block = inner_realize->block;
   ffi::Map<Var, Var> subst_map;
   // Step 1: Create new block vars for the block inside the init stmt of outer block
   // A iter is used in the block if
@@ -336,16 +336,16 @@ Stmt GenerateOuterInit(const Stmt& block_init, const BlockRealize& inner_realize
     }
   }
   // Step 2: Generate the block inside init stmt of outer block
-  Stmt stmt = BlockRealize(
+  Stmt stmt = SBlockRealize(
       /*iter_values=*/iter_values,
       /*predicate=*/inner_realize->predicate,
       /*block=*/
-      Block(/*iter_vars=*/iter_vars,
-            /*reads=*/{},
-            /*writes=*/inner_block->writes,
-            /*name_hint=*/block_name,
-            /*body=*/block_init,
-            /*init=*/std::nullopt));
+      SBlock(/*iter_vars=*/iter_vars,
+             /*reads=*/{},
+             /*writes=*/inner_block->writes,
+             /*name_hint=*/block_name,
+             /*body=*/block_init,
+             /*init=*/std::nullopt));
   // Step 3. Create the loop nest on top of the block
   for (const ForNode* loop : loops) {
     bool is_init_loop = false;
@@ -376,10 +376,10 @@ Stmt GenerateOuterInit(const Stmt& block_init, const BlockRealize& inner_realize
  * \return The substituted stmt.
  */
 Stmt Substitute(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
-                ffi::Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer) {
+                ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::Analyzer* analyzer) {
   struct Replacer : public StmtExprMutator {
-    explicit Replacer(const ffi::Map<Var, PrimExpr>& sub, ffi::Map<Block, Block>* block_sref_reuse,
-                      arith::Analyzer* analyzer)
+    explicit Replacer(const ffi::Map<Var, PrimExpr>& sub,
+                      ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::Analyzer* analyzer)
         : sub_(sub), block_sref_reuse_(block_sref_reuse), analyzer_(analyzer) {}
 
     PrimExpr VisitExpr(const PrimExpr& op) final {
@@ -397,9 +397,9 @@ Stmt Substitute(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
       return StmtExprMutator::VisitExpr_(op);
     }
 
-    Stmt VisitStmt_(const BlockNode* op) final {
-      Block src = ffi::GetRef<Block>(op);
-      Block tgt = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
+    Stmt VisitStmt_(const SBlockNode* op) final {
+      SBlock src = ffi::GetRef<SBlock>(op);
+      SBlock tgt = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
       if (!src.same_as(tgt)) {
         block_sref_reuse_->Set(src, tgt);
       }
@@ -407,7 +407,7 @@ Stmt Substitute(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
     }
 
     const ffi::Map<Var, PrimExpr>& sub_;
-    ffi::Map<Block, Block>* block_sref_reuse_;
+    ffi::Map<SBlock, SBlock>* block_sref_reuse_;
     arith::Analyzer* analyzer_;
   };
   return Replacer(sub, block_sref_reuse, analyzer)(stmt);
@@ -485,13 +485,13 @@ Stmt MakeLoopNest(Stmt stmt, const std::vector<const ForNode*>& loops) {
   return stmt;
 }
 
-BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
-                          ffi::Map<Block, Block>* block_sref_reuse, arith::Analyzer* analyzer,
-                          bool preserve_unit_iters) {
+SBlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
+                           ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::Analyzer* analyzer,
+                           bool preserve_unit_iters) {
   TVM_SREF_TO_FOR(loop_sref);
   // Step 1: Check and get the only block under `loop`.
-  BlockRealize block_realize = CheckGetSingleChildBlockRealizeOnSRefTree(self, loop_sref);
-  Block block = block_realize->block;
+  SBlockRealize block_realize = CheckGetSingleChildBlockRealizeOnSRefTree(self, loop_sref);
+  SBlock block = block_realize->block;
   StmtSRef block_sref = self->stmt2ref.at(block.get());
   // Step 2: Derive subspace division
   std::vector<const ForNode*> loops;
@@ -518,8 +518,8 @@ BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
     inner_iter_dom.Set(iter->var, arith::IntSet::FromRange(iter->dom));
     analyzer->Bind(iter->var, iter->dom);
   }
-  Block block_subst =
-      Downcast<Block>(Substitute(block, block_var_subst, block_sref_reuse, analyzer));
+  SBlock block_subst =
+      Downcast<SBlock>(Substitute(block, block_var_subst, block_sref_reuse, analyzer));
   // Step 5: Generate the inner block. The write regions of the inner blocks will be reduction if
   // 1. The original block has init stmt.
   // 2. There are outer reduction iter vars.
@@ -532,46 +532,46 @@ BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
       }
     }
   }
-  BlockRealize inner_realize = GenerateInner(/*is_write_reduction=*/has_outer_reduction,
-                                             /*iter_vars=*/inner_iter_vars,
-                                             /*iter_values*/ inner_bindings,
-                                             /*predicate=*/inner_predicate,
-                                             /*block=*/block_subst);
+  SBlockRealize inner_realize = GenerateInner(/*is_write_reduction=*/has_outer_reduction,
+                                              /*iter_vars=*/inner_iter_vars,
+                                              /*iter_values*/ inner_bindings,
+                                              /*predicate=*/inner_predicate,
+                                              /*block=*/block_subst);
   block_sref_reuse->Set(block, inner_realize->block);
   // Step 6: Generate the outer block.
-  return BlockRealize(
+  return SBlockRealize(
       /*iter_values=*/std::move(outer_bindings),
       /*predicate=*/std::move(outer_predicate),
       /*block=*/
-      Block(/*iter_vars=*/std::move(outer_iter_vars),
-            /*reads=*/EvalSetRegions(block_subst->reads, inner_iter_dom),
-            /*writes=*/EvalSetRegions(block_subst->writes, inner_iter_dom),
-            /*name_hint=*/block_subst->name_hint + "_o",
-            /*body=*/MakeLoopNest(inner_realize, loops),
-            /*init=*/
-            block_subst->init.defined()  //
-                ? GenerateOuterInit(block_subst->init.value(), inner_realize, loops,
-                                    block_subst->name_hint + "_init")
-                : ffi::Optional<Stmt>(std::nullopt)));
+      SBlock(/*iter_vars=*/std::move(outer_iter_vars),
+             /*reads=*/EvalSetRegions(block_subst->reads, inner_iter_dom),
+             /*writes=*/EvalSetRegions(block_subst->writes, inner_iter_dom),
+             /*name_hint=*/block_subst->name_hint + "_o",
+             /*body=*/MakeLoopNest(inner_realize, loops),
+             /*init=*/
+             block_subst->init.defined()  //
+                 ? GenerateOuterInit(block_subst->init.value(), inner_realize, loops,
+                                     block_subst->name_hint + "_init")
+                 : ffi::Optional<Stmt>(std::nullopt)));
 }
 
 StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_unit_iters) {
   arith::Analyzer analyzer;
-  ffi::Map<Block, Block> block_sref_reuse;
-  BlockRealize blockized =
+  ffi::Map<SBlock, SBlock> block_sref_reuse;
+  SBlockRealize blockized =
       BlockizeImpl(self, loop_sref, &block_sref_reuse, &analyzer, preserve_unit_iters);
   self->Replace(loop_sref, blockized, block_sref_reuse);
   StmtSRef result = self->stmt2ref.at(blockized->block.get());
   StmtSRef scope_root = tir::GetScopeRoot(self, result, /*require_stage_pipeline=*/false);
   bool scope_block_affine_binding = self->IsAffineBlockBinding(scope_root);
-  self->UpdateScopeBlockInfo(tir::GetBlockRealize(self, scope_root));
+  self->UpdateScopeSBlockInfo(tir::GetSBlockRealize(self, scope_root));
   self->block_info[scope_root].affine_binding = scope_block_affine_binding;
   return result;
 }
 
-BlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRef>& block_srefs,
-                            const StmtSRef& lca, ffi::Map<Block, Block>* block_sref_reuse,
-                            bool preserve_unit_iters) {
+SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRef>& block_srefs,
+                             const StmtSRef& lca, ffi::Map<SBlock, SBlock>* block_sref_reuse,
+                             bool preserve_unit_iters) {
   ffi::Array<Stmt> seq_body;
   PrimExpr outer_predicate{nullptr};
   ffi::Array<IterVar> outer_iter_vars{nullptr};
@@ -582,7 +582,7 @@ BlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRef
   ffi::Map<Var, Var> loop_var_subst;
   arith::Analyzer analyzer;
   for (const auto& block_sref : block_srefs) {
-    auto block_realize = GetBlockRealize(self, block_sref);
+    auto block_realize = GetSBlockRealize(self, block_sref);
     auto block = block_realize->block;
     // Step 1: Derive subspace division
     std::vector<const ForNode*> loops;
@@ -613,8 +613,8 @@ BlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRef
       inner_iter_dom.Set(iter->var, arith::IntSet::FromRange(dom));
       analyzer.Bind(iter->var, dom);
     }
-    Block block_subst =
-        Downcast<Block>(Substitute(block, block_var_subst, block_sref_reuse, &analyzer));
+    SBlock block_subst =
+        Downcast<SBlock>(Substitute(block, block_var_subst, block_sref_reuse, &analyzer));
     auto reads = EvalSetRegions(block_subst->reads, inner_iter_dom);
     auto writes = EvalSetRegions(block_subst->writes, inner_iter_dom);
     read_regions.insert(read_regions.end(), reads.begin(), reads.end());
@@ -632,11 +632,11 @@ BlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRef
     }
     ICHECK(has_outer_reduction == false)
         << "No reduction iter vars allowed for the outer loops when blockize multiple blocks";
-    BlockRealize inner_realize = GenerateInner(/*is_write_reduction=*/has_outer_reduction,
-                                               /*iter_vars=*/inner_iter_vars,
-                                               /*iter_values*/ inner_bindings,
-                                               /*predicate=*/inner_predicate,
-                                               /*block=*/block_subst);
+    SBlockRealize inner_realize = GenerateInner(/*is_write_reduction=*/has_outer_reduction,
+                                                /*iter_vars=*/inner_iter_vars,
+                                                /*iter_values*/ inner_bindings,
+                                                /*predicate=*/inner_predicate,
+                                                /*block=*/block_subst);
     block_sref_reuse->Set(block, inner_realize->block);
     Stmt stmt = inner_realize;
     for (const ForNode* loop : loops) {
@@ -648,29 +648,29 @@ BlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRef
     seq_body.push_back(stmt);
   }
   // Step 5: Generate the outer block.
-  return BlockRealize(
+  return SBlockRealize(
       /*iter_values=*/std::move(outer_bindings),
       /*predicate=*/std::move(outer_predicate),
       /*block=*/
-      Block(/*iter_vars=*/std::move(outer_iter_vars),
-            /*reads=*/UnionRegions(read_regions),
-            /*writes=*/UnionRegions(write_regions),
-            /*name_hint=*/outer_block_name,
-            /*body=*/SeqStmt(seq_body),
-            /*init=*/ffi::Optional<Stmt>(std::nullopt)));
+      SBlock(/*iter_vars=*/std::move(outer_iter_vars),
+             /*reads=*/UnionRegions(read_regions),
+             /*writes=*/UnionRegions(write_regions),
+             /*name_hint=*/outer_block_name,
+             /*body=*/SeqStmt(seq_body),
+             /*init=*/ffi::Optional<Stmt>(std::nullopt)));
 }
 
 class BlockizeRewriter : public StmtMutator {
  public:
   static Stmt Rewrite(const StmtSRef& lca, const ffi::Array<StmtSRef>& blocks,
-                      const BlockRealize& blockized) {
+                      const SBlockRealize& blockized) {
     BlockizeRewriter rewriter(lca, blocks, blockized);
     return rewriter(ffi::GetRef<Stmt>(lca->stmt));
   }
 
  private:
   explicit BlockizeRewriter(const StmtSRef& lca, const ffi::Array<StmtSRef>& blocks,
-                            const BlockRealize& blockized)
+                            const SBlockRealize& blockized)
       : lca_(lca), blocks_(blocks), blockized_(blockized) {}
 
   Stmt RewriteSeq(const Stmt& stmt) {
@@ -708,11 +708,11 @@ class BlockizeRewriter : public StmtMutator {
     return StmtMutator::VisitStmt_(loop);
   }
 
-  Stmt VisitStmt_(const BlockNode* block) final {
+  Stmt VisitStmt_(const SBlockNode* block) final {
     if (block == lca_->stmt) {
-      return Block(block->iter_vars, block->reads, block->writes, block->name_hint,
-                   RewriteSeq(block->body), block->init, block->alloc_buffers, block->match_buffers,
-                   block->annotations, block->span);
+      return SBlock(block->iter_vars, block->reads, block->writes, block->name_hint,
+                    RewriteSeq(block->body), block->init, block->alloc_buffers,
+                    block->match_buffers, block->annotations, block->span);
     }
     for (const StmtSRef& block_sref : blocks_) {
       if (block_sref->stmt == block) {
@@ -725,38 +725,38 @@ class BlockizeRewriter : public StmtMutator {
 
   StmtSRef lca_;
   ffi::Array<StmtSRef> blocks_;
-  BlockRealize blockized_;
+  SBlockRealize blockized_;
   bool target_in_ = false;
 };
 
 StmtSRef Blockize(ScheduleState self, const ffi::Array<StmtSRef>& blocks,
                   bool preserve_unit_iters) {
-  ffi::Map<Block, Block> block_sref_reuse;
+  ffi::Map<SBlock, SBlock> block_sref_reuse;
   auto lca = GetSRefLowestCommonAncestor(blocks);
-  BlockRealize blockized =
+  SBlockRealize blockized =
       BlockizeBlocks(self, blocks, lca, &block_sref_reuse, preserve_unit_iters);
   auto new_root = BlockizeRewriter::Rewrite(lca, blocks, blockized);
   self->Replace(lca, new_root, block_sref_reuse);
   StmtSRef result = self->stmt2ref.at(blockized->block.get());
   StmtSRef scope_root = tir::GetScopeRoot(self, result, /*require_stage_pipeline=*/false);
-  self->UpdateScopeBlockInfo(tir::GetBlockRealize(self, scope_root));
+  self->UpdateScopeSBlockInfo(tir::GetSBlockRealize(self, scope_root));
   return result;
 }
 
 void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& intrin,
                bool preserve_unit_iters) {
   // Step 1: Blockize the subtree rooted at the given loop if needed
-  BlockRealize block_realize{nullptr};
-  ffi::Optional<Block> old_block = std::nullopt;
-  if (sref->stmt->IsInstance<BlockNode>()) {
-    block_realize = GetBlockRealize(self, sref);
+  SBlockRealize block_realize{nullptr};
+  ffi::Optional<SBlock> old_block = std::nullopt;
+  if (sref->stmt->IsInstance<SBlockNode>()) {
+    block_realize = GetSBlockRealize(self, sref);
     old_block = block_realize->block;
   } else if (sref->stmt->IsInstance<ForNode>()) {
     arith::Analyzer analyzer;
-    ffi::Map<Block, Block> block_sref_reuse;
+    ffi::Map<SBlock, SBlock> block_sref_reuse;
     block_realize = BlockizeImpl(self, sref, &block_sref_reuse, &analyzer, preserve_unit_iters);
   } else {
-    LOG(FATAL) << "TypeError: Tensorize only support For or Block, but gets: "
+    LOG(FATAL) << "TypeError: Tensorize only support For or SBlock, but gets: "
                << ffi::GetRef<Stmt>(sref->stmt);
     throw;
   }
@@ -799,7 +799,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     impl2cur[impl] = comparator.rhs_buffer_map_[desc];
   }
   std::unordered_map<Buffer, ffi::Array<Range>, ObjectPtrHash, ObjectPtrEqual> impl2region;
-  Block impl_block = Downcast<BlockRealize>(intrin_impl->body)->block;
+  SBlock impl_block = Downcast<SBlockRealize>(intrin_impl->body)->block;
   for (const BufferRegion& read : impl_block->reads) {
     impl2region.emplace(read->buffer, read->region);
   }
@@ -833,7 +833,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }
   // Step 5: Replace the subtree in the original IR with the tensor intrin impl.
   {
-    BlockNode* block = block_realize.CopyOnWrite()->block.CopyOnWrite();
+    SBlockNode* block = block_realize.CopyOnWrite()->block.CopyOnWrite();
     block->body = impl_block->body;
     block->match_buffers = std::move(match_buffer_regions);
     for (const auto& [key, val] : impl_block->annotations) {
@@ -854,7 +854,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   // Step 6: Update the cached flags.
   StmtSRef result = self->stmt2ref.at(block_realize->block.get());
   StmtSRef scope_root = tir::GetScopeRoot(self, result, /*require_stage_pipeline=*/false);
-  self->UpdateScopeBlockInfo(scope_root->StmtAs<BlockNode>()->body);
+  self->UpdateScopeSBlockInfo(scope_root->StmtAs<SBlockNode>()->body);
 }
 
 /******** InstructionKind Registration ********/
@@ -868,13 +868,14 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static BlockRV UnpackedApplyToSchedule(Schedule sch, ObjectRef target, Bool preserve_unit_iters) {
+  static SBlockRV UnpackedApplyToSchedule(Schedule sch, ObjectRef target,
+                                          Bool preserve_unit_iters) {
     if (auto loop = target.as<LoopRV>()) {
       return sch->Blockize(loop.value(), preserve_unit_iters.operator bool());
-    } else if (auto blocks = target.as<ffi::Array<BlockRV>>()) {
+    } else if (auto blocks = target.as<ffi::Array<SBlockRV>>()) {
       return sch->Blockize(blocks.value(), preserve_unit_iters.operator bool());
     }
-    LOG(FATAL) << "TypeError: expect Loop or list of Blocks, but gets:" << target->GetTypeKey();
+    LOG(FATAL) << "TypeError: expect Loop or list of SBlocks, but gets:" << target->GetTypeKey();
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ObjectRef target,
@@ -901,12 +902,12 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, ffi::String intrin,
                                       Bool preserve_unit_iters) {
-    if (auto block = block_or_loop_rv.as<BlockRV>()) {
+    if (auto block = block_or_loop_rv.as<SBlockRV>()) {
       sch->Tensorize(block.value(), intrin, preserve_unit_iters.operator bool());
     } else if (auto loop = block_or_loop_rv.as<LoopRV>()) {
       sch->Tensorize(loop.value(), intrin, preserve_unit_iters.operator bool());
     } else {
-      LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: "
+      LOG(FATAL) << "TypeError: Expected SBlock or Loop, but gets: "
                  << block_or_loop_rv->GetTypeKey();
     }
   }

@@ -43,7 +43,7 @@ def conv2d_async_non_contig(
     # function attr dict
     T.func_attr({"tir.noalias": True, "global_symbol": "main"})
     # body
-    # with T.block("root")
+    # with T.sblock("root")
     p0_global_vtcm = T.alloc_buffer(
         [T.int64(1), T.int64(1), T.int64(56), T.int64(56), T.int64(4)],
         dtype="uint8",
@@ -64,7 +64,7 @@ def conv2d_async_non_contig(
             },
         ):
             for ax0_ax1_ax2_ax3_ax4_fused in T.serial(T.int64(1600)):
-                with T.block("p0_global.vtcm"):
+                with T.sblock("p0_global.vtcm"):
                     v0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v1 = T.axis.spatial(T.int64(1), T.int64(0))
                     v2 = T.axis.spatial(
@@ -79,7 +79,7 @@ def conv2d_async_non_contig(
                     T.writes(p0_global_vtcm[v0, v1, v2, v3, v4])
                     p0_global_vtcm[v0, v1, v2, v3, v4] = p0[v0, v1, v2, v3, v4]
             for ax0_ax1_ax2_ax3_ax4_ax5_ax6_fused in T.serial(T.int64(1152)):
-                with T.block("fused_constant_global.vtcm"):
+                with T.sblock("fused_constant_global.vtcm"):
                     v0 = T.axis.spatial(T.int64(1), T.int64(0))
                     v1 = T.axis.spatial(T.int64(1), T.int64(0))
                     v2 = T.axis.spatial(
@@ -100,7 +100,7 @@ def conv2d_async_non_contig(
                     ]
             for oh_1, ow_1 in T.grid(T.int64(3), T.int64(6)):
                 for oh_2_init, ow_2_init in T.grid(T.int64(6), T.int64(3)):
-                    with T.block("conv2d_NCHWc_int8_o_init"):
+                    with T.sblock("conv2d_NCHWc_int8_o_init"):
                         v_n = T.axis.spatial(T.int64(1), T.int64(0))
                         v_oc_chunk = T.axis.spatial(T.int64(1), T.int64(0))
                         v_oh = T.axis.spatial(
@@ -114,7 +114,7 @@ def conv2d_async_non_contig(
                             conv2d_NCHWc_int8[v_n, v_oc_chunk, v_oh, v_ow, T.int64(0) : T.int64(32)]
                         )
                         for oc_block_1 in T.vectorized(T.int64(32)):
-                            with T.block("conv2d_NCHWc_int8_init"):
+                            with T.sblock("conv2d_NCHWc_int8_init"):
                                 v_oc_block_i_init = T.axis.spatial(T.int64(32), oc_block_1)
                                 T.reads()
                                 T.writes(
@@ -128,7 +128,7 @@ def conv2d_async_non_contig(
                 for kh_1, kw_1, oh_2, ow_2 in T.grid(
                     T.int64(3), T.int64(3), T.int64(6), T.int64(3)
                 ):
-                    with T.block("conv2d_NCHWc_int8_o_update"):
+                    with T.sblock("conv2d_NCHWc_int8_o_update"):
                         v_n = T.axis.spatial(T.int64(1), T.int64(0))
                         v_oc_chunk = T.axis.spatial(T.int64(1), T.int64(0))
                         v_oh = T.axis.spatial(
@@ -226,7 +226,7 @@ def conv_approximation(size_a, size_w):
         w_buffer = T.match_buffer(b_input, w_shape, dtype="uint8")
         c_buffer = T.match_buffer(c_output, out_shape, dtype="int32")
         for n, index_0 in T.grid(size_a, size_w):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_index, vi_index = T.axis.remap("SR", [n, index_0])
                 T.reads(
                     a_buffer[vn_index, 0:VRMPY_SIZE_B],
@@ -301,7 +301,7 @@ def get_fake_conv_vtcm_schedule(size_a, size_w, blocks=2):
     """Generate fake conv schedule with VTCM."""
     sch = conv_approximation(size_a, size_w)
 
-    compute_block = sch.get_block("c_buffer")
+    compute_block = sch.get_sblock("c_buffer")
     sch.cache_read(compute_block, 1, "global.vtcm")
 
     n = sch.get_loops(compute_block)[0]
@@ -322,7 +322,7 @@ def get_multi_input_fake_conv_vtcm_schedule(size_a, size_w, blocks=2):
     """Generate multi input fake Conv using VTCM."""
     sch = conv_approximation(size_a, size_w)
 
-    compute_block = sch.get_block("c_buffer")
+    compute_block = sch.get_sblock("c_buffer")
 
     n = sch.get_loops(compute_block)[0]
     n_outer, _ = sch.split(n, [blocks, None])
@@ -425,7 +425,7 @@ class TestAsyncDMAPipeline:
         )
 
         sch = get_fake_conv_vtcm_schedule(size_a, size_w)
-        n = sch.get_loops(sch.get_block("c_buffer"))[0]
+        n = sch.get_loops(sch.get_sblock("c_buffer"))[0]
         sch.annotate(n, "software_pipeline_stage", [0, 1, 2])
         sch.annotate(n, "software_pipeline_order", [0, 1, 2])
         sch.annotate(n, "software_pipeline_async_stages", [0])
@@ -440,7 +440,7 @@ class TestAsyncDMAPipeline:
         )
 
         sch = get_fake_conv_vtcm_schedule(size_a, size_w)
-        n = sch.get_loops(sch.get_block("c_buffer"))[0]
+        n = sch.get_loops(sch.get_sblock("c_buffer"))[0]
         sch.annotate(n, "software_pipeline_stage", [0, 1, 2])
         sch.annotate(n, "software_pipeline_order", [0, 1, 2])
         sch.annotate(n, "software_pipeline_async_stages", [0, 2])
@@ -455,7 +455,7 @@ class TestAsyncDMAPipeline:
         )
 
         sch = get_fake_conv_vtcm_schedule(size_a, size_w)
-        n = sch.get_loops(sch.get_block("c_buffer"))[0]
+        n = sch.get_loops(sch.get_sblock("c_buffer"))[0]
         sch.annotate(n, "software_pipeline_stage", [0, 3, 6])
         sch.annotate(n, "software_pipeline_order", [0, 1, 2])
         sch.annotate(n, "software_pipeline_async_stages", [0, 6])
@@ -470,7 +470,7 @@ class TestAsyncDMAPipeline:
         )
 
         sch = get_multi_input_fake_conv_vtcm_schedule(size_a, size_w)
-        n = sch.get_loops(sch.get_block("c_buffer"))[0]
+        n = sch.get_loops(sch.get_sblock("c_buffer"))[0]
         sch.annotate(n, "software_pipeline_stage", [0, 0, 1, 2])
         sch.annotate(n, "software_pipeline_order", [0, 1, 2, 3])
         sch.annotate(n, "software_pipeline_async_stages", [0, 2])
@@ -485,7 +485,7 @@ class TestAsyncDMAPipeline:
         )
 
         sch = get_fake_conv_vtcm_schedule(size_a, size_w)
-        n = sch.get_loops(sch.get_block("c_buffer"))[0]
+        n = sch.get_loops(sch.get_sblock("c_buffer"))[0]
         sch.annotate(n, "software_pipeline_stage", [0, 1, 2])
         sch.annotate(n, "software_pipeline_order", [0, 1, 2])
         sch.annotate(n, "software_pipeline_async_stages", [2])
@@ -542,12 +542,12 @@ class ModulePipelined:
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         conv2d_nchwc_int8 = T.alloc_buffer([1, 2, 112, 112, 32], dtype="int32", scope="global.vtcm")
         p0_global_vtcm = T.alloc_buffer([1, 1, 230, 230, 4], dtype="uint8", scope="global.vtcm")
         p1_global_vtcm = T.alloc_buffer([2, 1, 7, 7, 1, 32, 4], dtype="int8", scope="global.vtcm")
         for ax0, ax1, ax2, ax3, ax4, ax5, ax6 in T.grid(2, 1, 7, 7, 1, 32, 4):
-            with T.block("p1_global.vtcm"):
+            with T.sblock("p1_global.vtcm"):
                 v0_ind, v1_ind, v2_ind, v3_ind, v4_ind, v5_ind, v6_ind = T.axis.remap(
                     "SSSSSSS", [ax0, ax1, ax2, ax3, ax4, ax5, ax6]
                 )
@@ -558,7 +558,7 @@ class ModulePipelined:
                 ]
         for p_outer in T.serial(4):
             for index_0 in T.serial(55876):
-                with T.block("p0_global.vtcm"):
+                with T.sblock("p0_global.vtcm"):
                     v0_ind = T.axis.spatial(1, 0)
                     v1_ind = T.axis.spatial(1, 0)
                     v2_ind = T.axis.spatial(230, p_outer * 56 + index_0 // 916)
@@ -571,7 +571,7 @@ class ModulePipelined:
                     ]
             for index_0 in T.parallel(28):
                 for index_1, index_2, index_3 in T.grid(2, 14, 8):
-                    with T.block("conv2d_NCHWc_int8_o_init"):
+                    with T.sblock("conv2d_NCHWc_int8_o_init"):
                         n = T.axis.spatial(1, 0)
                         oc_chunk = T.axis.spatial(2, index_1)
                         o_height = T.axis.spatial(
@@ -582,7 +582,7 @@ class ModulePipelined:
                         T.reads()
                         T.writes(conv2d_nchwc_int8[n, oc_chunk, o_height, o_width, 0:32])
                         for i4_1 in T.vectorized(32):
-                            with T.block("conv2d_NCHWc_int8_init"):
+                            with T.sblock("conv2d_NCHWc_int8_init"):
                                 oc_block_i_init = T.axis.spatial(32, i4_1)
                                 T.reads()
                                 T.writes(
@@ -594,7 +594,7 @@ class ModulePipelined:
                                     n, oc_chunk, o_height, o_width, oc_block_i_init
                                 ] = 0
                 for i1_1, i5_1, i6_1, i2_2, i3_2 in T.grid(2, 7, 7, 14, 8):
-                    with T.block("conv2d_NCHWc_int8_o_update"):
+                    with T.sblock("conv2d_NCHWc_int8_o_update"):
                         n = T.axis.spatial(1, 0)
                         oc_chunk = T.axis.spatial(2, i1_1)
                         o_height = T.axis.spatial(112, (p_outer * 28 + index_0) // 14 * 14 + i2_2)
@@ -660,7 +660,7 @@ class ModulePipelined:
                             dtype="int32x32",
                         )
             for index_0 in T.serial(200704):
-                with T.block("conv2d_nchwc_int8.vtcm"):
+                with T.sblock("conv2d_nchwc_int8.vtcm"):
                     ax0_1 = T.axis.spatial(1, 0)
                     ax1_1 = T.axis.spatial(2, index_0 % 7168 // 3584)
                     ax2_1 = T.axis.spatial(
@@ -694,7 +694,7 @@ class ModuleBase:
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # buffer definition
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         conv2d_nchwc_int8 = T.alloc_buffer([1, 2, 112, 112, 32], dtype="int32")
         for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(
             112, annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}
@@ -703,7 +703,7 @@ class ModuleBase:
                 for i1_1_init, i2_1_init, i3_1_init, i1_2_init, i2_2_init, i3_2_init in T.grid(
                     2, 1, 1, 1, 14, 8
                 ):
-                    with T.block("conv2d_NCHWc_int8_o_init"):
+                    with T.sblock("conv2d_NCHWc_int8_o_init"):
                         n = T.axis.spatial(1, 0)
                         oc_chunk = T.axis.spatial(2, i1_1_init + i1_2_init)
                         o_height = T.axis.spatial(
@@ -716,7 +716,7 @@ class ModuleBase:
                         T.reads()
                         T.writes(conv2d_nchwc_int8[n, oc_chunk, o_height, o_width, 0:32])
                         for i4_1 in T.vectorized(32):
-                            with T.block("conv2d_NCHWc_int8_init"):
+                            with T.sblock("conv2d_NCHWc_int8_init"):
                                 oc_block_i_init = T.axis.spatial(32, i4_1)
                                 T.reads()
                                 T.writes(
@@ -747,7 +747,7 @@ class ModuleBase:
                         i3_2,
                         i4_0_2,  # pylint: disable=unused-variable
                     ) in T.grid(1, 2, 1, 1, 1, 7, 7, 1, 1, 1, 1, 1, 14, 8, 1):
-                        with T.block("conv2d_NCHWc_int8_o_update"):
+                        with T.sblock("conv2d_NCHWc_int8_o_update"):
                             n = T.axis.spatial(1, 0)
                             oc_chunk = T.axis.spatial(2, i1_1 + i1_2)
                             o_height = T.axis.spatial(
@@ -815,7 +815,7 @@ class ModuleBase:
                             )
                     for ax0, ax1, ax2, ax3 in T.grid(1, 2, 14, 8):
                         for ax4_fused in T.vectorized(32):
-                            with T.block("T_cast_2"):
+                            with T.sblock("T_cast_2"):
                                 ax0_1, ax1_1 = T.axis.remap("SS", [ax0, ax1])
                                 ax2_1 = T.axis.spatial(
                                     112, i0_0_i1_0_i2_0_i3_0_fused // 14 * 14 + ax2
@@ -845,7 +845,7 @@ def test_meta(hexagon_session):
     base_runtime = evaluate(hexagon_session, sch, a_data, w_data, c_data)
 
     sch = tvm.tir.Schedule(ModulePipelined)
-    compute_block = sch.get_block("conv2d_NCHWc_int8_o_update")
+    compute_block = sch.get_sblock("conv2d_NCHWc_int8_o_update")
     outer = sch.get_loops(compute_block)[0]
 
     unscheduled_vtcm_runtime = evaluate(
@@ -853,7 +853,7 @@ def test_meta(hexagon_session):
     )
 
     sch = tvm.tir.Schedule(ModulePipelined)
-    compute_block = sch.get_block("conv2d_NCHWc_int8_o_update")
+    compute_block = sch.get_sblock("conv2d_NCHWc_int8_o_update")
     outer = sch.get_loops(compute_block)[0]
 
     sch.annotate(outer, "software_pipeline_stage", [0, 1, 2])

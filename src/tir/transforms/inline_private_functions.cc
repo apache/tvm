@@ -120,9 +120,9 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
 
   // We do not currently support inlining of schedulable TIR
   // functions.  To support this use case, repeated names in
-  // `tir::Block` nodes resulting from multiple calls to the same
+  // `tir::SBlock` nodes resulting from multiple calls to the same
   // inlined function will need to be de-duplicated.
-  bool has_block_node = prim_func->body.as<BlockRealizeNode>();
+  bool has_block_node = prim_func->body.as<SBlockRealizeNode>();
   if (has_block_node) return false;
 
   return true;

@@ -594,9 +594,9 @@ def test_tensor_expr_op():
         @T.prim_func(private=True)
         def add_one(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), T_add: T.Buffer((T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(10), T.int64(10)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1])
                     T.writes(T_add[v_ax0, v_ax1])
@@ -733,7 +733,7 @@ def test_tensor_ir_inplace_op():
         pos = T.match_buffer(var_pos, (seq_len,), "int32")
         embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
         for ax0, ax1 in T.grid(seq_len, hidden_size):
-            with T.block("T_take"):
+            with T.sblock("T_take"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(weight[pos[v0], v1], pos[v0])
                 T.writes(embeddings[v0, v1])
@@ -766,7 +766,7 @@ def test_tensor_ir_inplace_op():
             pos = T.match_buffer(var_pos, (seq_len,), "int32")
             embeddings = T.match_buffer(var_embeddings, (total_seq_len, hidden_size), dtype)
             for ax0, ax1 in T.grid(seq_len, hidden_size):
-                with T.block("T_take"):
+                with T.sblock("T_take"):
                     v0, v1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(weight[pos[v0], v1], pos[v0])
                     T.writes(embeddings[v0, v1])
@@ -1032,9 +1032,9 @@ def test_sample_top_p_top_k_from_sorted_prob():
             usample = T.match_buffer(D, (out_batch, 1))
             sample_indices = T.match_buffer(E, (out_batch, 1), "int64")
             output_index = T.match_buffer(F, (out_batch, 1), "int64")
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(out_batch, vocab_size):
-                with T.block("T_get_index_from_sorted"):
+                with T.sblock("T_get_index_from_sorted"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(usample[v_ax0, T.int64(0)], cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1):v_ax1 - T.int64(1) + T.int64(2)], sample_indices[v_ax0, T.int64(0)], renorm_prob[sample_indices[v_ax0, T.int64(0)], 0], indices[sample_indices[v_ax0, T.int64(0)], T.min(T.int64(0), v_ax1):T.min(T.int64(0), v_ax1) + (T.max(T.int64(0), v_ax1) + T.int64(1) - T.min(T.int64(0), v_ax1))])
                     T.writes(output_index[v_ax0, 0])
@@ -1052,9 +1052,9 @@ def test_sample_top_p_top_k_from_sorted_prob():
             top_p = T.match_buffer(B, (batch, 1))
             top_k = T.match_buffer(C, (batch, 1), "int64")
             renorm_prob = T.match_buffer(D, (batch, 1))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(batch, vocab_size):
-                with T.block("T_get_renorm_prob"):
+                with T.sblock("T_get_renorm_prob"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0])
                     T.writes(renorm_prob[v_ax0, 0])
@@ -1153,9 +1153,9 @@ def test_renormalize_top_p_top_k_prob():
         @T.prim_func(private=True)
         def filter_with_top_p_top_k(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), B: T.Buffer((T.int64(2), T.int64(1)), "float32"), filter_with_top_p_top_k: T.Buffer((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i, j in T.grid(T.int64(2), T.int64(3)):
-                with T.block("filter_with_top_p_top_k"):
+                with T.sblock("filter_with_top_p_top_k"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     T.reads(B[v_i, T.int64(0)], A[v_i, v_j])
                     T.writes(filter_with_top_p_top_k[v_i, v_j])
@@ -1169,9 +1169,9 @@ def test_renormalize_top_p_top_k_prob():
             top_p = T.match_buffer(C, (batch, 1))
             top_k = T.match_buffer(D, (batch, 1), "int64")
             cutoff = T.match_buffer(E, (batch, 1))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(batch, vocab_size):
-                with T.block("T_get_renorm_prob"):
+                with T.sblock("T_get_renorm_prob"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0], sorted_prob[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))])
                     T.writes(cutoff[v_ax0, 0])

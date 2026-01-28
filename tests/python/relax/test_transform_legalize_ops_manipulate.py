@@ -44,7 +44,7 @@ def test_broadcast_to():
         def broadcast_to(rxplaceholder: T.Buffer((T.int64(2), T.int64(1), T.int64(3)), "float32"), T_broadcast_to: T.Buffer((T.int64(4), T.int64(2), T.int64(5), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(2), T.int64(5), T.int64(3)):
-                with T.block("T_broadcast_to"):
+                with T.sblock("T_broadcast_to"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(rxplaceholder[ax1, T.int64(0), ax3])
                     T.writes(T_broadcast_to[ax0, ax1, ax2, ax3])
@@ -89,7 +89,7 @@ def test_broadcast_to_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [b, T.int64(1), d], dtype="float32")
             T_broadcast_to = T.match_buffer(var_T_broadcast_to, [a, b, c, d], dtype="float32")
             for i0, i1, i2, i3 in T.grid(a, b, c, d):
-                with T.block("T_broadcast_to"):
+                with T.sblock("T_broadcast_to"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(rxplaceholder[ax1, T.int64(0), ax3])
                     T.writes(T_broadcast_to[ax0, ax1, ax2, ax3])
@@ -120,7 +120,7 @@ def test_concat():
         def concatenate(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(1), T.int64(3), T.int64(3)), "float32"), rxplaceholder_2: T.Buffer((T.int64(1), T.int64(4), T.int64(3)), "float32"), T_concat: T.Buffer((T.int64(1), T.int64(9), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(1), T.int64(9), T.int64(3)):
-                with T.block("T_concat"):
+                with T.sblock("T_concat"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder_2[ax0, ax1 - T.int64(5), ax2], rxplaceholder_1[ax0, ax1 - T.int64(2), ax2], rxplaceholder[ax0, ax1, ax2])
                     T.writes(T_concat[ax0, ax1, ax2])
@@ -153,7 +153,7 @@ def test_concat_input_tuple_var():
         def concatenate(rxplaceholder: T.Buffer((T.int64(3), T.int64(4)), "float32"), rxplaceholder_1: T.Buffer((T.int64(3), T.int64(5)), "float32"), T_concat: T.Buffer((T.int64(3), T.int64(9)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(3), T.int64(9)):
-                with T.block("T_concat"):
+                with T.sblock("T_concat"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder_1[ax0, ax1 - T.int64(4)], rxplaceholder[ax0, ax1])
                     T.writes(T_concat[ax0, ax1])
@@ -203,7 +203,7 @@ def test_concat_input_tuple_var_symbolic():
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, [a, b2], dtype="float32")
             T_concat = T.match_buffer(var_T_concat, [a, b0 + b1 + b2], dtype="float32")
             for i0, i1 in T.grid(a, b0 + b1 + b2):
-                with T.block("T_concat"):
+                with T.sblock("T_concat"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder_2[ax0, ax1 - b0 - b1], rxplaceholder_1[ax0, ax1 - b0], rxplaceholder[ax0, ax1])
                     T.writes(T_concat[ax0, ax1])
@@ -234,7 +234,7 @@ def test_expand_dims():
         def expand_dims(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), expand_dims: T.Buffer((T.int64(2), T.int64(1), T.int64(1), T.int64(1), T.int64(3), T.int64(1), T.int64(4), T.int64(1)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(T.int64(2), T.int64(1), T.int64(1), T.int64(1), T.int64(3), T.int64(1), T.int64(4), T.int64(1)):
-                with T.block("expand_dims"):
+                with T.sblock("expand_dims"):
                     i0_1, i1_1, i2_1, i3_1, i4_1, i5_1, i6_1, i7_1 = T.axis.remap("SSSSSSSS", [i0, i1, i2, i3, i4, i5, i6, i7])
                     T.reads(rxplaceholder[i0_1, i4_1, i6_1])
                     T.writes(expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1, i5_1, i6_1, i7_1])
@@ -276,7 +276,7 @@ def test_expand_dims_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c], dtype="float32")
             expand_dims = T.match_buffer(var_expand_dims, [a, T.int64(1), b, T.int64(1), c, T.int64(1)], dtype="float32")
             for i0, i1, i2, i3, i4, i5 in T.grid(a, T.int64(1), b, T.int64(1), c, T.int64(1)):
-                with T.block("expand_dims"):
+                with T.sblock("expand_dims"):
                     i0_1, i1_1, i2_1, i3_1, i4_1, i5_1 = T.axis.remap("SSSSSS", [i0, i1, i2, i3, i4, i5])
                     T.reads(rxplaceholder[i0_1, i2_1, i4_1])
                     T.writes(expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1, i5_1])
@@ -307,7 +307,7 @@ def test_flatten():
         def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), T_reshape: T.Buffer(T.int64(24), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0 in T.serial(T.int64(24)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     ax0 = T.axis.spatial(T.int64(24), i0)
                     T.reads(rxplaceholder[ax0 % T.int64(24) // T.int64(12), ax0 % T.int64(12) // T.int64(4), ax0 % T.int64(4)])
                     T.writes(T_reshape[ax0])
@@ -338,7 +338,7 @@ def test_flatten_zero_rank():
         def reshape(rxplaceholder: T.Buffer((), "float32"), T_reshape: T.Buffer(T.int64(1), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0 in T.serial(T.int64(1)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     ax0 = T.axis.spatial(T.int64(1), i0)
                     T.reads(rxplaceholder[()])
                     T.writes(T_reshape[ax0])
@@ -380,7 +380,7 @@ def test_flatten_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c], dtype="float32")
             T_reshape = T.match_buffer(var_T_reshape, [a * b * c], dtype="float32")
             for i0 in T.serial(a * b * c):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     ax0 = T.axis.spatial(a * b * c, i0)
                     T.reads(rxplaceholder[ax0 // c // b % a, ax0 // c % b, ax0 % c])
                     T.writes(T_reshape[ax0])
@@ -411,7 +411,7 @@ def test_permute_dims():
         def transpose(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3), T.int64(4)), "float32"), T_transpose: T.Buffer((T.int64(2), T.int64(4), T.int64(3), T.int64(1)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(4), T.int64(3), T.int64(1)):
-                with T.block("T_transpose"):
+                with T.sblock("T_transpose"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(rxplaceholder[ax3, ax0, ax2, ax1])
                     T.writes(T_transpose[ax0, ax1, ax2, ax3])
@@ -456,7 +456,7 @@ def test_permute_dims_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b, c, d], dtype="float32")
             T_transpose = T.match_buffer(var_T_transpose, [b, d, c, a], dtype="float32")
             for i0, i1, i2, i3 in T.grid(b, d, c, a):
-                with T.block("T_transpose"):
+                with T.sblock("T_transpose"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(rxplaceholder[ax3, ax0, ax2, ax1])
                     T.writes(T_transpose[ax0, ax1, ax2, ax3])
@@ -487,7 +487,7 @@ def test_reshape():
         def reshape(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3), T.int64(4)), "float32"), T_reshape: T.Buffer((T.int64(8), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(8), T.int64(3)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[T.int64(0), (ax0 * T.int64(3) + ax1) % T.int64(24) // T.int64(12), (ax0 * T.int64(3) + ax1) % T.int64(12) // T.int64(4), (ax0 * T.int64(3) + ax1) % T.int64(4)])
                     T.writes(T_reshape[ax0, ax1])
@@ -516,9 +516,9 @@ def test_reshape():
             T_reshape: T.Buffer((T.int64(8), T.int64(3)), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(8), T.int64(3)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(
                         rxplaceholder[
@@ -575,7 +575,7 @@ def test_reshape_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, b], dtype="float32")
             T_reshape = T.match_buffer(var_T_reshape, [a // T.int64(2), b * T.int64(2)], dtype="float32")
             for i0, i1 in T.grid(a // T.int64(2), b * T.int64(2)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[(ax0 * b * T.int64(2) + ax1) // b % a, (ax0 * b * T.int64(2) + ax1) % b])
                     T.writes(T_reshape[ax0, ax1])
@@ -617,7 +617,7 @@ def test_reshape_symbolic():
                 var_T_reshape, [a // T.int64(2), b * T.int64(2)], dtype="float32"
             )
             for i0, i1 in T.grid(a // T.int64(2), b * T.int64(2)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(
                         rxplaceholder[
@@ -653,9 +653,9 @@ def test_reshape_symbolic():
             b = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(10), b))
             T_reshape = T.match_buffer(var_T_reshape, (T.int64(5), b * T.int64(2)))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(5), b * T.int64(2)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(
                         rxplaceholder[
@@ -728,7 +728,7 @@ def test_data_dependent_reshape():
             N = T.int64()
             T_reshape = T.match_buffer(var_T_reshape, [M,N], "float32")
             for i,j in T.grid(M,N):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     vi,vj = T.axis.remap('SS',[i,j])
                     T.reads(rxplaceholder[(vi*N + vj) % 16])
                     T.writes(T_reshape[vi,vj])
@@ -758,19 +758,19 @@ def test_split_by_indices():
         def split(rxplaceholder: T.Buffer((T.int64(2), T.int64(10), T.int64(4)), "float32"), T_split: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), T_split_1: T.Buffer((T.int64(2), T.int64(4), T.int64(4)), "float32"), T_split_2: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
-                with T.block("T_split"):
+                with T.sblock("T_split"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, ax1, ax2])
                     T.writes(T_split[ax0, ax1, ax2])
                     T_split[ax0, ax1, ax2] = rxplaceholder[ax0, ax1, ax2]
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(4)):
-                with T.block("T_split_1"):
+                with T.sblock("T_split_1"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, ax1 + T.int64(3), ax2])
                     T.writes(T_split_1[ax0, ax1, ax2])
                     T_split_1[ax0, ax1, ax2] = rxplaceholder[ax0, ax1 + T.int64(3), ax2]
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
-                with T.block("T_split_2"):
+                with T.sblock("T_split_2"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, ax1 + T.int64(7), ax2])
                     T.writes(T_split_2[ax0, ax1, ax2])
@@ -801,19 +801,19 @@ def test_split_by_indices_n_section_indivisible():
         def split(rxplaceholder: T.Buffer((T.int64(2), T.int64(10), T.int64(4)), "float32"), T_split_sections: T.Buffer((T.int64(2), T.int64(4), T.int64(4)), "float32"), T_split_sections_1: T.Buffer((T.int64(2), T.int64(4), T.int64(4)), "float32"), T_split_sections_2: T.Buffer((T.int64(2), T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(4)):
-                with T.block("T_split_sections"):
+                with T.sblock("T_split_sections"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, ax1, ax2])
                     T.writes(T_split_sections[ax0, ax1, ax2])
                     T_split_sections[ax0, ax1, ax2] = rxplaceholder[ax0, ax1, ax2]
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(4)):
-                with T.block("T_split_sections_1"):
+                with T.sblock("T_split_sections_1"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, ax1 + T.int64(4), ax2])
                     T.writes(T_split_sections_1[ax0, ax1, ax2])
                     T_split_sections_1[ax0, ax1, ax2] = rxplaceholder[ax0, ax1 + T.int64(4), ax2]
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(2), T.int64(4)):
-                with T.block("T_split_sections_2"):
+                with T.sblock("T_split_sections_2"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, ax1 + T.int64(8), ax2])
                     T.writes(T_split_sections_2[ax0, ax1, ax2])
@@ -845,13 +845,13 @@ def test_split_by_indices_n_section_divisible():
         def split(rxplaceholder: T.Buffer((T.int64(2), T.int64(10), T.int64(4)), "float32"), T_split_sections: T.Buffer((T.int64(2), T.int64(5), T.int64(4)), "float32"), T_split_sections_1: T.Buffer((T.int64(2), T.int64(5), T.int64(4)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(5), T.int64(4)):
-                with T.block("T_split_sections"):
+                with T.sblock("T_split_sections"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, ax1, ax2])
                     T.writes(T_split_sections[ax0, ax1, ax2])
                     T_split_sections[ax0, ax1, ax2] = rxplaceholder[ax0, ax1, ax2]
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(5), T.int64(4)):
-                with T.block("T_split_sections_1"):
+                with T.sblock("T_split_sections_1"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, ax1 + T.int64(5), ax2])
                     T.writes(T_split_sections_1[ax0, ax1, ax2])
@@ -891,19 +891,19 @@ def test_split_by_indices_n_section_divisible_symbolic():
             T_split_sections_1 = T.match_buffer(var_T_split_sections_1, [m, (n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2) - (n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3)], dtype="float32")
             T_split_sections_2 = T.match_buffer(var_T_split_sections_2, [m, n * T.int64(3) - (n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2)], dtype="float32")
             for i0, i1 in T.grid(m, n):
-                with T.block("T_split_sections"):
+                with T.sblock("T_split_sections"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[ax0, ax1])
                     T.writes(T_split_sections[ax0, ax1])
                     T_split_sections[ax0, ax1] = rxplaceholder[ax0, ax1]
             for i0, i1 in T.grid(m, n):
-                with T.block("T_split_sections_1"):
+                with T.sblock("T_split_sections_1"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[ax0, ax1 + n])
                     T.writes(T_split_sections_1[ax0, ax1])
                     T_split_sections_1[ax0, ax1] = rxplaceholder[ax0, ax1 + n]
             for i0, i1 in T.grid(m, n):
-                with T.block("T_split_sections_2"):
+                with T.sblock("T_split_sections_2"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[ax0, n * T.int64(2) + ax1])
                     T.writes(T_split_sections_2[ax0, ax1])
@@ -934,7 +934,7 @@ def test_squeeze():
         def squeeze(rxplaceholder: T.Buffer((T.int64(2), T.int64(1), T.int64(3), T.int64(1), T.int64(1), T.int64(4)), "float32"), T_squeeze: T.Buffer((T.int64(2), T.int64(3), T.int64(1), T.int64(4)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(3), T.int64(1), T.int64(4)):
-                with T.block("T_squeeze"):
+                with T.sblock("T_squeeze"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(rxplaceholder[ax0, T.int64(0), ax1, ax2, T.int64(0), ax3])
                     T.writes(T_squeeze[ax0, ax1, ax2, ax3])
@@ -965,7 +965,7 @@ def test_squeeze_no_axis():
         def squeeze(rxplaceholder: T.Buffer((T.int64(2), T.int64(1), T.int64(3), T.int64(1), T.int64(1), T.int64(4)), "float32"), T_squeeze: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(3), T.int64(4)):
-                with T.block("T_squeeze"):
+                with T.sblock("T_squeeze"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, T.int64(0), ax1, T.int64(0), T.int64(0), ax2])
                     T.writes(T_squeeze[ax0, ax1, ax2])
@@ -1004,7 +1004,7 @@ def test_squeeze_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, [a, T.int64(1), b, T.int64(1)], dtype="float32")
             T_squeeze = T.match_buffer(var_T_squeeze, [a, b, T.int64(1)], dtype="float32")
             for i0, i1, i2 in T.grid(a, b, T.int64(1)):
-                with T.block("T_squeeze"):
+                with T.sblock("T_squeeze"):
                     ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(rxplaceholder[ax0, T.int64(0), ax1, ax2])
                     T.writes(T_squeeze[ax0, ax1, ax2])
@@ -1035,7 +1035,7 @@ def test_collapse_sum_like():
         def collapse_sum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), rxplaceholder_red: T.Buffer((T.int64(1), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2 in T.grid(T.int64(1), T.int64(3), T.int64(2)):
-                with T.block("rxplaceholder_red"):
+                with T.sblock("rxplaceholder_red"):
                     ax0, ax1, k0 = T.axis.remap("SSR", [i0, i1, i2])
                     T.reads(rxplaceholder[k0, ax1])
                     T.writes(rxplaceholder_red[ax0, ax1])
@@ -1071,7 +1071,7 @@ def test_collapse_sum_to():
         def collapse_sum(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32"), rxplaceholder_red: T.Buffer((T.int64(2), T.int64(1)), "float32")):
             T.func_attr({"tir.noalias": True})
             for ax0, ax1, k0, k2 in T.grid(T.int64(2), T.int64(1), T.int64(3), T.int64(3)):
-                with T.block("rxplaceholder_red"):
+                with T.sblock("rxplaceholder_red"):
                     v_ax0, v_ax1, v_k0, v_k2 = T.axis.remap("SSRR", [ax0, ax1, k0, k2])
                     T.reads(rxplaceholder[v_k0, v_ax0, v_k2])
                     T.writes(rxplaceholder_red[v_ax0, v_ax1])
@@ -1103,9 +1103,9 @@ def test_repeat():
         @T.prim_func(private=True)
         def repeat(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32"), T_repeat: T.Buffer((T.int64(6), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2 in T.grid(T.int64(6), T.int64(2), T.int64(3)):
-                with T.block("T_repeat"):
+                with T.sblock("T_repeat"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(rxplaceholder[v_ax0 // T.int64(2), v_ax1, v_ax2])
                     T.writes(T_repeat[v_ax0, v_ax1, v_ax2])
@@ -1140,10 +1140,10 @@ def test_repeat_no_axis():
             T_repeat: T.Buffer((T.int64(36),), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             T_reshape = T.alloc_buffer((T.int64(18),))
             for ax0 in range(T.int64(18)):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     v_ax0 = T.axis.spatial(T.int64(18), ax0)
                     T.reads(
                         rxplaceholder[
@@ -1159,7 +1159,7 @@ def test_repeat_no_axis():
                         v_ax0 % T.int64(3),
                     ]
             for ax0 in range(T.int64(36)):
-                with T.block("T_repeat"):
+                with T.sblock("T_repeat"):
                     v_ax0 = T.axis.spatial(T.int64(36), ax0)
                     T.reads(T_reshape[v_ax0 // T.int64(2)])
                     T.writes(T_repeat[v_ax0])
@@ -1189,9 +1189,9 @@ def test_repeat_symbolic():
             c = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c))
             T_repeat = T.match_buffer(var_T_repeat, (T.int64(2) * a, b, c))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2 in T.grid(a * T.int64(2), b, c):
-                with T.block("T_repeat"):
+                with T.sblock("T_repeat"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
                     T.reads(rxplaceholder[v_ax0 // T.int64(2), v_ax1, v_ax2])
                     T.writes(T_repeat[v_ax0, v_ax1, v_ax2])
@@ -1224,9 +1224,9 @@ def test_tile():
         @T.prim_func(private=True)
         def tile(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "float32"), T_tile: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(9)), "float32")):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(3), T.int64(4), T.int64(9)):
-                with T.block("T_tile"):
+                with T.sblock("T_tile"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(rxplaceholder[v_ax1 % T.int64(3), v_ax2 % T.int64(2), v_ax3 % T.int64(3)])
                     T.writes(T_tile[v_ax0, v_ax1, v_ax2, v_ax3])
@@ -1261,9 +1261,9 @@ def test_tile_symbolic():
             c = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c))
             T_tile = T.match_buffer(var_T_tile, (T.int64(2), a, b * T.int64(2), c * T.int64(3)))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), a, b * T.int64(2), c * T.int64(3)):
-                with T.block("T_tile"):
+                with T.sblock("T_tile"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(rxplaceholder[v_ax1 % a, v_ax2 % b, v_ax3 % c])
                     T.writes(T_tile[v_ax0, v_ax1, v_ax2, v_ax3])
@@ -1305,7 +1305,7 @@ def test_flip():
         ):
             T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_reverse_sequence"):
+                with T.sblock("T_reverse_sequence"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(rxplaceholder[T.int64(1) - v_ax0, v_ax1])
                     T.writes(T_reverse_sequence[v_ax0, v_ax1])
@@ -1347,7 +1347,7 @@ def test_flip_symbolic():
             rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b))
             T_reverse_sequence = T.match_buffer(var_T_reverse_sequence, (a, b))
             for ax0, ax1 in T.grid(a, b):
-                with T.block("T_reverse_sequence"):
+                with T.sblock("T_reverse_sequence"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(rxplaceholder[v_ax0, b - v_ax1 - T.int64(1)])
                     T.writes(T_reverse_sequence[v_ax0, v_ax1])
@@ -1388,7 +1388,7 @@ def test_scatter_elements():
             rxplaceholder_2 = T.match_buffer(
                 var_rxplaceholder_2, (T.int64(2), T.int64(2)), offset_factor=1
             )
-            with T.block("scatter_elements_generic"):
+            with T.sblock("scatter_elements_generic"):
                 for i in T.parallel(T.int64(16)):
                     out_buf[i // T.int64(4), i % T.int64(4)] = rxplaceholder[
                         i // T.int64(4), i % T.int64(4)
@@ -1483,7 +1483,7 @@ def test_scatter_elements_symbolic():
             )
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (m, n), offset_factor=1)
             out_buf = T.match_buffer(var_scatter_elements_generic, (a, b))
-            with T.block("scatter_elements_generic"):
+            with T.sblock("scatter_elements_generic"):
                 for i in T.parallel(a * b):
                     out_buf[i // b, i % b] = rxplaceholder[i // b, i % b]
                 for fused in T.parallel(m):
@@ -1565,9 +1565,9 @@ def test_layout_transform():
         @T.prim_func(private=True)
         def te_layout_transform(A: T.Buffer((T.int64(10), T.int64(21), T.int64(30)), "float32"), te_layout_transform_1: T.Buffer((T.int64(10), T.int64(30), T.int64(7), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, i2 in T.grid(T.int64(10), T.int64(21), T.int64(30)):
-                with T.block("te_layout_transform"):
+                with T.sblock("te_layout_transform"):
                     v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
                     T.reads(A[v_i0, v_i1, v_i2])
                     T.writes(te_layout_transform_1[v_i0, v_i2, v_i1 // T.int64(3), v_i1 % T.int64(3)])
@@ -1602,9 +1602,9 @@ def test_layout_transform_with_pad():
         @T.prim_func(private=True)
         def te_layout_transform_with_pad(A: T.Buffer((T.int64(10), T.int64(20), T.int64(30)), "float32"), te_layout_transform_with_pad_1: T.Buffer((T.int64(10), T.int64(30), T.int64(7), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for axis0, axis1, axis2, axis3 in T.grid(T.int64(10), T.int64(30), T.int64(7), T.int64(3)):
-                with T.block("te_layout_transform_with_pad"):
+                with T.sblock("te_layout_transform_with_pad"):
                     v_axis0, v_axis1, v_axis2, v_axis3 = T.axis.remap("SSSS", [axis0, axis1, axis2, axis3])
                     T.reads(A[v_axis0, v_axis2 * T.int64(3) + v_axis3, v_axis1])
                     T.writes(te_layout_transform_with_pad_1[v_axis0, v_axis1, v_axis2, v_axis3])
@@ -1642,9 +1642,9 @@ def test_layout_transform_symbolic():
             a, b, c = T.int64(), T.int64(), T.int64()
             A = T.match_buffer(var_A, (a, b, c))
             te_layout_transform_with_pad_1 = T.match_buffer(var_te_layout_transform_with_pad, (a, c, (b - b % T.int64(-3)) // T.int64(3), T.int64(3)))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for axis0, axis1, axis2, axis3 in T.grid(a, c, (b - b % T.int64(-3)) // T.int64(3), T.int64(3)):
-                with T.block("te_layout_transform_with_pad_with_pad"):
+                with T.sblock("te_layout_transform_with_pad_with_pad"):
                     v_axis0, v_axis1, v_axis2, v_axis3 = T.axis.remap("SSSS", [axis0, axis1, axis2, axis3])
                     T.reads(A[v_axis0, v_axis2 * T.int64(3) + v_axis3, v_axis1])
                     T.writes(te_layout_transform_with_pad_1[v_axis0, v_axis1, v_axis2, v_axis3])
@@ -1684,9 +1684,9 @@ def test_layout_transform_with_pad_axis_sep():
         def te_layout_transform_with_pad_axis_separator(A: T.Buffer((T.int64(10), T.int64(20), T.int64(30)), "float32"), var_te_layout_transform_with_pad_axis_separator: T.handle):
             T.func_attr({"tir.noalias": True})
             te_layout_transform_with_pad_axis_separator_1 = T.match_buffer(var_te_layout_transform_with_pad_axis_separator, (T.int64(10), T.int64(30), T.int64(7), T.int64(3)), axis_separators=[3])
-            # with T.block("root"):
+            # with T.sblock("root"):
             for axis0, axis1, axis2, axis3 in T.grid(T.int64(10), T.int64(30), T.int64(7), T.int64(3)):
-                with T.block("te_layout_transform_with_pad_axis_separator"):
+                with T.sblock("te_layout_transform_with_pad_axis_separator"):
                     v_axis0, v_axis1, v_axis2, v_axis3 = T.axis.remap("SSSS", [axis0, axis1, axis2, axis3])
                     T.reads(A[v_axis0, v_axis2 * T.int64(3) + v_axis3, v_axis1])
                     T.writes(te_layout_transform_with_pad_axis_separator_1[v_axis0, v_axis1, v_axis2, v_axis3])
@@ -1762,7 +1762,7 @@ def test_func_struct_info_of_legalized_layout_transform():
         ):
             T.func_attr({"tir.noalias": True})
             for i in range(T.int64(16)):
-                with T.block("te_layout_transform"):
+                with T.sblock("te_layout_transform"):
                     vi = T.axis.spatial(T.int64(16), i)
                     te_layout_transform[vi // T.int64(4), vi % T.int64(4)] = A[vi]
 
@@ -1804,19 +1804,19 @@ def test_scatter_nd():
             indices = T.match_buffer(var_indices, (T.int64(4), T.int64(1)), "int64")
             updates = T.match_buffer(var_updates, (T.int64(4),), offset_factor=1)
             out_buf = T.match_buffer(var_scatter_nd_generic, (T.int64(8),))
-            with T.block("root"):
+            with T.sblock("root"):
                 T.reads()
                 T.writes()
                 T_transpose = T.alloc_buffer((T.int64(1), T.int64(4)), "int64")
                 for ax0 in range(T.int64(1)):
                     for ax1 in range(T.int64(4)):
-                        with T.block("T_transpose"):
+                        with T.sblock("T_transpose"):
                             v_ax0 = T.axis.spatial(T.int64(1), ax0)
                             v_ax1 = T.axis.spatial(T.int64(4), ax1)
                             T.reads(indices[v_ax1, v_ax0])
                             T.writes(T_transpose[v_ax0, v_ax1])
                             T_transpose[v_ax0, v_ax1] = indices[v_ax1, v_ax0]
-                with T.block("scatter_nd_generic"):
+                with T.sblock("scatter_nd_generic"):
                     T.reads()
                     T.writes()
                     for i in range(T.int64(8)):

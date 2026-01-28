@@ -30,7 +30,7 @@ class WithInit:
 
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
-                with T.block():
+                with T.sblock():
                     i, j, k = T.axis.remap("SRR", [i0, j0, k0])
                     with T.init():
                         B[i] = T.float32(0)
@@ -46,7 +46,7 @@ class WithBranch:
 
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
-                with T.block():
+                with T.sblock():
                     i, j, k = T.axis.remap("SRR", [i0, j0, k0])
                     T.reads(A[i, j, k])
                     T.writes(B[i])
@@ -64,7 +64,7 @@ class InitWithMatchBuffer:
 
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
-                with T.block():
+                with T.sblock():
                     i, j, k = T.axis.remap("SRR", [i0, j0, k0])
                     BB = T.match_buffer(B[i], ())
                     AA = T.match_buffer(A[i, 0:64, 0:64], (64, 64))
@@ -82,7 +82,7 @@ class BranchWithMatchBuffer:
 
         for i0, j0 in T.grid(64, 64):
             for k0 in T.serial(32, 64):
-                with T.block():
+                with T.sblock():
                     i, j, k = T.axis.remap("SRR", [i0, j0, k0])
                     T.reads(A[i, j, k])
                     T.writes(B[i])

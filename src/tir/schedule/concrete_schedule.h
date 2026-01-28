@@ -68,15 +68,15 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   /******** Lookup random variables ********/
-  inline Block Get(const BlockRV& block_rv) const final;
+  inline SBlock Get(const SBlockRV& block_rv) const final;
   inline For Get(const LoopRV& loop_rv) const final;
   inline PrimExpr Get(const ExprRV& expr_rv) const final;
-  inline StmtSRef GetSRef(const BlockRV& block_rv) const final;
+  inline StmtSRef GetSRef(const SBlockRV& block_rv) const final;
   inline StmtSRef GetSRef(const LoopRV& loop_rv) const final;
-  inline bool HasBlock(const BlockRV& block_rv) const final;
-  inline ffi::Array<StmtSRef> GetSRefs(const ffi::Array<BlockRV>& rvs) const;
+  inline bool HasBlock(const SBlockRV& block_rv) const final;
+  inline ffi::Array<StmtSRef> GetSRefs(const ffi::Array<SBlockRV>& rvs) const;
   inline ffi::Array<StmtSRef> GetSRefs(const ffi::Array<LoopRV>& rvs) const;
-  void RemoveRV(const BlockRV& block_rv) final { RemoveFromSymbolTable(block_rv); }
+  void RemoveRV(const SBlockRV& block_rv) final { RemoveFromSymbolTable(block_rv); }
   void RemoveRV(const LoopRV& loop_rv) final { RemoveFromSymbolTable(loop_rv); }
   void RemoveRV(const ExprRV& expr_rv) final { RemoveFromSymbolTable(expr_rv); }
   using ScheduleNode::GetSRef;
@@ -91,16 +91,16 @@ class ConcreteScheduleNode : public ScheduleNode {
   ffi::Array<ExprRV> SamplePartitionedTile(
       const LoopRV& loop_rv, int n, int partition_pos, int innerpart_factor,
       ffi::Optional<ffi::Array<Integer>> decision = std::nullopt) override;
-  LoopRV SampleComputeLocation(const BlockRV& block_rv,
+  LoopRV SampleComputeLocation(const SBlockRV& block_rv,
                                ffi::Optional<Integer> decision = std::nullopt) override;
   /******** Schedule: Get blocks & loops ********/
-  BlockRV GetBlock(const ffi::String& name, const ffi::Optional<ffi::String>& func_name) override;
-  ffi::Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
-  ffi::Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) override;
-  ffi::Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) override;
-  ffi::Array<BlockRV> GetProducers(const BlockRV& block_rv) override;
-  ffi::Array<BlockRV> GetConsumers(const BlockRV& block_rv) override;
-  ffi::Array<BlockRV> GetOutputBlocks(const BlockRV& scope_block_rv) override;
+  SBlockRV GetSBlock(const ffi::String& name, const ffi::Optional<ffi::String>& func_name) override;
+  ffi::Array<LoopRV> GetLoops(const SBlockRV& block_rv) override;
+  ffi::Array<SBlockRV> GetChildBlocks(const SBlockRV& block_rv) override;
+  ffi::Array<SBlockRV> GetChildBlocks(const LoopRV& loop_rv) override;
+  ffi::Array<SBlockRV> GetProducers(const SBlockRV& block_rv) override;
+  ffi::Array<SBlockRV> GetConsumers(const SBlockRV& block_rv) override;
+  ffi::Array<SBlockRV> GetOutputBlocks(const SBlockRV& scope_block_rv) override;
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const ffi::Array<LoopRV>& loop_rvs, bool preserve_unit_iters) override;
   LoopRV Merge(const ffi::Array<LoopRV>& loop_rvs) override;
@@ -110,8 +110,8 @@ class ConcreteScheduleNode : public ScheduleNode {
                                    const ffi::Array<ffi::Optional<ExprRV>>& factors,
                                    bool preserve_unit_iters) override;
   void Reorder(const ffi::Array<LoopRV>& ordered_loop_rvs) override;
-  void ReorderBlockIterVar(const BlockRV& block_rv, const ffi::Array<Integer> new_order) override;
-  LoopRV AddUnitLoop(const BlockRV& block_rv) override;
+  void ReorderBlockIterVar(const SBlockRV& block_rv, const ffi::Array<Integer> new_order) override;
+  LoopRV AddUnitLoop(const SBlockRV& block_rv) override;
   LoopRV AddUnitLoop(const LoopRV& loop_rv) override;
   /******** Schedule: Manipulate ForKind ********/
   void Parallel(const LoopRV& loop_rv) override;
@@ -119,75 +119,77 @@ class ConcreteScheduleNode : public ScheduleNode {
   void Bind(const LoopRV& loop_rv, const ffi::String& thread_axis) override;
   void Unroll(const LoopRV& loop_rv) override;
   /******** Schedule: Insert cache stages ********/
-  BlockRV CacheRead(const BlockRV& block_rv, int read_buffer_index,
-                    const ffi::String& storage_scope,
-                    const ffi::Array<BlockRV> consumer_blocks = {}) override;
-  BlockRV CacheWrite(const BlockRV& block_rv, int write_buffer_index,
+  SBlockRV CacheRead(const SBlockRV& block_rv, int read_buffer_index,
                      const ffi::String& storage_scope,
-                     const ffi::Array<BlockRV> consumer_blocks = {}) override;
-  BlockRV ReindexCacheRead(const BlockRV& block_rv, int read_buffer_index,
-                           const ffi::String& storage_scope, const IndexMap& index_map) override;
-  BlockRV ReindexCacheWrite(const BlockRV& block_rv, int write_buffer_index,
+                     const ffi::Array<SBlockRV> consumer_blocks = {}) override;
+  SBlockRV CacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+                      const ffi::String& storage_scope,
+                      const ffi::Array<SBlockRV> consumer_blocks = {}) override;
+  SBlockRV ReindexCacheRead(const SBlockRV& block_rv, int read_buffer_index,
                             const ffi::String& storage_scope, const IndexMap& index_map) override;
-  ffi::Array<BlockRV> CacheInplace(const BlockRV& block_rv, int read_buffer_index,
-                                   const ffi::String& storage_scope) override;
-  ffi::Array<BlockRV> CacheIndex(const BlockRV& block_rv, const ffi::String& storage_scope,
-                                 int cse_thresh) override;
-  BlockRV ReIndex(const BlockRV& block_rv, int buffer_index,
-                  BufferIndexType buffer_index_type) override;
+  SBlockRV ReindexCacheWrite(const SBlockRV& block_rv, int write_buffer_index,
+                             const ffi::String& storage_scope, const IndexMap& index_map) override;
+  ffi::Array<SBlockRV> CacheInplace(const SBlockRV& block_rv, int read_buffer_index,
+                                    const ffi::String& storage_scope) override;
+  ffi::Array<SBlockRV> CacheIndex(const SBlockRV& block_rv, const ffi::String& storage_scope,
+                                  int cse_thresh) override;
+  SBlockRV ReIndex(const SBlockRV& block_rv, int buffer_index,
+                   BufferIndexType buffer_index_type) override;
   /******** Schedule: Data movement ********/
-  BlockRV ReadAt(const LoopRV& loop_rv, const BlockRV& block_rv, int read_buffer_index,
-                 const ffi::String& storage_scope) override;
-  BlockRV WriteAt(const LoopRV& loop_rv, const BlockRV& block_rv, int write_buffer_index,
+  SBlockRV ReadAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int read_buffer_index,
                   const ffi::String& storage_scope) override;
+  SBlockRV WriteAt(const LoopRV& loop_rv, const SBlockRV& block_rv, int write_buffer_index,
+                   const ffi::String& storage_scope) override;
   /******** Schedule: Compute location ********/
-  void ComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+  void ComputeAt(const SBlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
                  int index = -1) override;
-  void ReverseComputeAt(const BlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
+  void ReverseComputeAt(const SBlockRV& block_rv, const LoopRV& loop_rv, bool preserve_unit_loops,
                         int index = -1) override;
-  void ComputeInline(const BlockRV& block) override;
-  void ReverseComputeInline(const BlockRV& block) override;
-  void FuseReductionEpilogue(const BlockRV& reduction_block,
-                             const BlockRV& epilogue_block) override;
+  void ComputeInline(const SBlockRV& block) override;
+  void ReverseComputeInline(const SBlockRV& block) override;
+  void FuseReductionEpilogue(const SBlockRV& reduction_block,
+                             const SBlockRV& epilogue_block) override;
   /******** Schedule: Reduction ********/
-  BlockRV RFactor(const LoopRV& loop_rv, int factor_axis) override;
-  BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) override;
-  void PadEinsum(const BlockRV& block_rv, const ffi::Array<Integer>& padding) override;
-  /******** Schedule: Block annotation ********/
-  void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
+  SBlockRV RFactor(const LoopRV& loop_rv, int factor_axis) override;
+  SBlockRV DecomposeReduction(const SBlockRV& block_rv, const LoopRV& loop_rv) override;
+  void PadEinsum(const SBlockRV& block_rv, const ffi::Array<Integer>& padding) override;
+  /******** Schedule: SBlock annotation ********/
+  void StorageAlign(const SBlockRV& block_rv, int buffer_index, int axis, int factor,
                     int offset) override;
-  void SetScope(const BlockRV& block_rv, int buffer_index,
+  void SetScope(const SBlockRV& block_rv, int buffer_index,
                 const ffi::String& storage_scope) override;
-  void UnsafeSetDType(const BlockRV& block_rv, int buffer_index, const ffi::String& dtype) override;
+  void UnsafeSetDType(const SBlockRV& block_rv, int buffer_index,
+                      const ffi::String& dtype) override;
   /******** Schedule: Blockize & Tensorize ********/
-  BlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) override;
-  BlockRV Blockize(const ffi::Array<BlockRV>& blocks, bool preserve_unit_iters) override;
-  void Tensorize(const BlockRV& block_rv, const ffi::String& intrin,
+  SBlockRV Blockize(const LoopRV& loop_rv, bool preserve_unit_iters) override;
+  SBlockRV Blockize(const ffi::Array<SBlockRV>& blocks, bool preserve_unit_iters) override;
+  void Tensorize(const SBlockRV& block_rv, const ffi::String& intrin,
                  bool preserve_unit_iters) override;
   void Tensorize(const LoopRV& loop_rv, const ffi::String& intrin,
                  bool preserve_unit_iters) override;
   /******** Schedule: Annotation ********/
   void Annotate(const LoopRV& loop_rv, const ffi::String& ann_key, const Any& ann_val) override;
   void Unannotate(const LoopRV& loop_rv, const ffi::String& ann_key) override;
-  void Annotate(const BlockRV& block_rv, const ffi::String& ann_key, const Any& ann_val) override;
-  void Unannotate(const BlockRV& block_rv, const ffi::String& ann_key) override;
+  void Annotate(const SBlockRV& block_rv, const ffi::String& ann_key, const Any& ann_val) override;
+  void Unannotate(const SBlockRV& block_rv, const ffi::String& ann_key) override;
   /******** Schedule: Layout transformation ********/
-  void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
-                       const IndexMap& index_map, const ffi::Optional<IndexMap>& pad_value,
+  void TransformLayout(const SBlockRV& block_rv, int buffer_index,
+                       BufferIndexType buffer_index_type, const IndexMap& index_map,
+                       const ffi::Optional<IndexMap>& pad_value,
                        bool assume_injective_transform = false) override;
-  void TransformBlockLayout(const BlockRV& block_rv, const IndexMap& index_map) override;
-  void SetAxisSeparator(const BlockRV& block_rv, int buffer_index,
+  void TransformBlockLayout(const SBlockRV& block_rv, const IndexMap& index_map) override;
+  void SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
                         BufferIndexType buffer_index_type,
                         const ffi::Array<IntImm>& axis_separators) override;
   /******** Schedule: Padding decomposition ********/
-  BlockRV DecomposePadding(const BlockRV& block_rv, const LoopRV& loop_rv) override;
+  SBlockRV DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) override;
   /******** Schedule: Buffer transformation ********/
-  void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) override;
+  void RollingBuffer(const SBlockRV& block_rv, int write_buffer_index) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
-  void UnsafeHideBufferAccess(const BlockRV& block_rv, const ffi::String& buf_type,
+  void UnsafeHideBufferAccess(const SBlockRV& block_rv, const ffi::String& buf_type,
                               const ffi::Array<IntImm>& buf_index_array) override;
-  void AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+  void AnnotateBufferAccess(const SBlockRV& block_rv, int buffer_index,
                             BufferIndexType buffer_index_type, const IndexMap& index_map) override;
 
  protected:
@@ -244,10 +246,9 @@ class ConcreteScheduleNode : public ScheduleNode {
 
 /******** Lookup random variables ********/
 
-inline Block ConcreteScheduleNode::Get(const BlockRV& block_rv) const {
+inline SBlock ConcreteScheduleNode::Get(const SBlockRV& block_rv) const {
   StmtSRef sref = this->GetSRef(block_rv);
-  const BlockNode* block = TVM_SREF_TO_BLOCK(sref);
-  return ffi::GetRef<Block>(block);
+  return ffi::GetRef<SBlock>(TVM_SREF_TO_SBLOCK(sref));
 }
 
 inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
@@ -269,7 +270,7 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
   return this->analyzer_->Simplify(transformed);
 }
 
-inline bool ConcreteScheduleNode::HasBlock(const BlockRV& block_rv) const {
+inline bool ConcreteScheduleNode::HasBlock(const SBlockRV& block_rv) const {
   auto it = this->symbol_table_.find(block_rv);
   if (it == this->symbol_table_.end()) {
     return false;
@@ -282,15 +283,15 @@ inline bool ConcreteScheduleNode::HasBlock(const BlockRV& block_rv) const {
   return true;
 }
 
-inline StmtSRef ConcreteScheduleNode::GetSRef(const BlockRV& block_rv) const {
+inline StmtSRef ConcreteScheduleNode::GetSRef(const SBlockRV& block_rv) const {
   auto it = this->symbol_table_.find(block_rv);
   if (it == this->symbol_table_.end()) {
-    LOG(FATAL) << "IndexError: Cannot find corresponding BlockRV: " << block_rv;
+    LOG(FATAL) << "IndexError: Cannot find corresponding SBlockRV: " << block_rv;
   }
   const ObjectRef& obj = (*it).second;
   const auto* sref = obj.as<StmtSRefNode>();
   if (sref == nullptr) {
-    LOG(FATAL) << "ValueError: BlockRV's corresponding type is invalid: "
+    LOG(FATAL) << "ValueError: SBlockRV's corresponding type is invalid: "
                << (obj.defined() ? obj->GetTypeKey() : "None");
   }
   if (sref->stmt == nullptr) {
@@ -335,7 +336,7 @@ inline ffi::Array<StmtSRef> GetSRefsHelper(const ConcreteScheduleNode* sch,
   return result;
 }
 
-inline ffi::Array<StmtSRef> ConcreteScheduleNode::GetSRefs(const ffi::Array<BlockRV>& rvs) const {
+inline ffi::Array<StmtSRef> ConcreteScheduleNode::GetSRefs(const ffi::Array<SBlockRV>& rvs) const {
   return GetSRefsHelper(this, rvs);
 }
 

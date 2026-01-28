@@ -145,10 +145,10 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
     return result;
   }
   TResult VisitStmt_(const BufferStoreNode* store) override { return VisitExpr(store->value); }
-  TResult VisitStmt_(const BlockRealizeNode* block) override {
+  TResult VisitStmt_(const SBlockRealizeNode* block) override {
     return VisitStmt(block->block->body);
   }
-  TResult VisitStmt_(const BlockNode* block) override {
+  TResult VisitStmt_(const SBlockNode* block) override {
     TResult result;
     if (block->init.defined()) {
       result += VisitStmt(block->init.value());

@@ -125,7 +125,7 @@ class TestAnnotateAndSliceTIR(tvm.testing.CompareBeforeAfter):
     #        def main(A: T.Buffer((1,), "int8"):
     #            #A = T.match_buffer(a, (1,), "int8")
     #            A[0] = 0
-    #            with T.block("block_foo"): # optional: give this block a name, perhaps for testing?
+    #            with T.sblock("block_foo"): # optional: give this block a name, perhaps for testing?
     #                # NOTE: nice to have: human control over name used for the generated callee
     #                T.annotate("extract_as_subroutine", "add_one")
     #                A[0] += 1
@@ -137,7 +137,7 @@ class TestAnnotateAndSliceTIR(tvm.testing.CompareBeforeAfter):
     #        def main():
     #            A = T.buffer[[1], "int8"]
     #            A[0] = 0
-    #            with T.block("block_foo"):
+    #            with T.sblock("block_foo"):
     #                call_tir(add_one, A)
     #
     #        @T.prim_func
@@ -160,7 +160,7 @@ class TestLowerCallTir(tvm.testing.CompareBeforeAfter):
     #    def main():
     #        A = T.buffer[[1], "int8"]
     #        A[0] = 0
-    #        with T.block():
+    #        with T.sblock():
     #            call_tir(add_one, A)
     #
     #    @T.prim_func
@@ -173,7 +173,7 @@ class TestLowerCallTir(tvm.testing.CompareBeforeAfter):
     #    def main():
     #        A = T.buffer[[1], "int8"]
     #        A[0] = 0
-    #        with T.block():
+    #        with T.sblock():
     #            # TODO: figure out the right TVMScript thing to do here
     #            call_packed(add_one, A)  # not sure about this function / interface
     #
@@ -200,7 +200,7 @@ class TestPrimfuncSlicingEndToEnd(tvm.testing.CompareBeforeAfter):
     #    def main():
     #        A = T.buffer[[1], "int8"]
     #        A[0] = 0
-    #        with T.block(): # optional: give this block a name, perhaps for testing?
+    #        with T.sblock(): # optional: give this block a name, perhaps for testing?
     #            # NOTE: nice to have: human control over name used for the generated callee
     #            T.annotate("extract_as_subroutine", "add_one")
     #            A[0] += 1

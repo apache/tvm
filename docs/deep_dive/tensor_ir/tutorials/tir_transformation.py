@@ -51,13 +51,13 @@ class MyModule:
         T.func_attr({"tir.noalias": True})
         Y = T.alloc_buffer((128, 128))
         for i, j, k in T.grid(128, 128, 128):
-            with T.block("Y"):
+            with T.sblock("Y"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     Y[vi, vj] = T.float32(0)
                 Y[vi, vj] = Y[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(128, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = T.max(Y[vi, vj], T.float32(0))
 
@@ -103,7 +103,7 @@ sch = tvm.tir.Schedule(MyModule)
 # Subsequently, we execute the requisite operations to acquire a reference to
 # block **Y** and its associated loops.
 
-block_Y = sch.get_block("Y")
+block_Y = sch.get_sblock("Y")
 i, j, k = sch.get_loops(block_Y)
 
 ######################################################################
@@ -136,7 +136,7 @@ evaluate(sch.mod)
 # variant. First, we employ a primitive known as **reverse_compute_at** to relocate block
 # **C** to an inner loop of **Y**.
 
-block_C = sch.get_block("C")
+block_C = sch.get_sblock("C")
 sch.reverse_compute_at(block_C, j0)
 sch.mod.show()
 

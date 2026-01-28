@@ -45,7 +45,7 @@ class Matmul:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
@@ -56,7 +56,7 @@ class Matmul:
 
 
 def schedule_matmul(sch: Schedule):
-    block = sch.get_block("matmul")
+    block = sch.get_sblock("matmul")
     i, j, k = sch.get_loops(block=block)
     # TODO(@zxybazh): Change to `sample_perfect_tile` after upstreaming
     i_0, i_1, i_2, i_3 = sch.split(loop=i, factors=[2, 4, 64, 2])

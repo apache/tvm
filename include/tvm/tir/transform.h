@@ -458,7 +458,7 @@ TVM_DLL Pass LiftThreadBinding();
  *  \code
  *
  *  for i in range(0, 16):
- *      with T.block():
+ *      with T.sblock():
  *          B = T.alloc_buffer(16, 16)
  *          for j in range(0, 16):
  *              B[i, j] = A[i, j] + 1
@@ -474,7 +474,7 @@ TVM_DLL Pass LiftThreadBinding();
  *  \code
  *
  *  for i in range(0, 16):
- *      with T.block():
+ *      with T.sblock():
  *          B = T.alloc_buffer(1, 16)
  *          for j in range(0, 16):
  *              B[0, j] = A[i, j] + 1
@@ -580,8 +580,8 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  * are overlapped with the information provided in loop annotations, which enables optimization
  * techniques like prefetching and pipeline parallelism.
  *
- * The pipeline scope consists of the direct children of the annotated loop (ignoring BlockRealize,
- * Block, SeqStmt), and the number of children is denoted by `n` in the documentation.
+ * The pipeline scope consists of the direct children of the annotated loop (ignoring SBlockRealize,
+ * SBlock, SeqStmt), and the number of children is denoted by `n` in the documentation.
  *
  * The following annotations are used to guide the loop transformation:
  *
@@ -590,7 +590,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  * where max_stage is the maximum (inclusive) stage.
  * 2) Loop annotation `software_pipeline_order` defines the pipeline order.
  * An array of `n` integers, a permutation of [0, 1, ..., num_components - 1];
- * 3) Block annotation `double_buffer_scope` controls certain buffer sizes to allow decoupling of
+ * 3) SBlock annotation `double_buffer_scope` controls certain buffer sizes to allow decoupling of
  * read/write dependency. It's an integer index of the write regions of the block.
  *
  * Every annotated loop is transformed into a loop with three blocks as its direct children:
@@ -620,15 +620,15 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *                           annotations={"software_pipeline_stage": [0, 1],
  *                                        "software_pipeline_order": [0, 1]}
  *                          ):
- *             with T.block():
+ *             with T.sblock():
  *                 T.reads(A[tx, i])
  *                 T.writes(C[tx, i])
  *                 B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
- *                 with T.block("B"):
+ *                 with T.sblock("B"):
  *                     T.reads(A[tx, i])
  *                     T.writes(B[tx, 0])
  *                     B[tx, 0] = A[tx, i] * T.float32(2)
- *                 with T.block("C"):
+ *                 with T.sblock("C"):
  *                     T.reads(B[tx, 0])
  *                     T.writes(C[tx, i])
  *                     C[tx, i] = B[tx, 0] + T.float32(1)
@@ -641,27 +641,27 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  * @T.prim_func
  * def after_transform(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
  *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
- *         with T.block():
+ *         with T.sblock():
  *             T.reads([A[tx, 0:16]])
  *             T.writes([C[tx, 0:16]])
  *             B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
- *             with T.block("prologue"):
+ *             with T.sblock("prologue"):
  *                 T.reads([A[tx, 0]])
  *                 T.writes([B[0, tx, 0]])
  *                 B[0, tx, 0] = A[tx, 0] * T.float32(2)
- *             with T.block("body"):
+ *             with T.sblock("body"):
  *                 T.reads([A[tx, 1:16], B[0:2, tx, 0]])
  *                 T.writes([B[0:2, tx, 0], C[tx, 0:15]])
  *                 for i in T.serial(0, 15):
- *                     with T.block("B"):
+ *                     with T.sblock("B"):
  *                         T.reads([A[tx, i + 1]])
  *                         T.writes([B[(i + 1) % 2, tx, 0]])
  *                         B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
- *                     with T.block("C"):
+ *                     with T.sblock("C"):
  *                         T.reads([B[i % 2, tx, 0]])
  *                         T.writes([C[tx, i]])
  *                         C[tx, i] = B[i % 2, tx, 0] + T.float32(1)
- *             with T.block("epilogue"):
+ *             with T.sblock("epilogue"):
  *                 T.reads([B[1, tx, 0]])
  *                 T.writes([C[tx, 15]])
  *                 C[tx, 15] = B[1, tx, 0] + T.float32(1)
