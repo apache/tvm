@@ -605,9 +605,9 @@ class MatchBufferRegion(Object, Scriptable):
         )
 
 
-@tvm_ffi.register_object("tir.Block")
-class Block(Stmt):
-    """Block node.
+@tvm_ffi.register_object("tir.SBlock")
+class SBlock(Stmt):
+    """SBlock node.
 
     Parameters
     ----------
@@ -673,7 +673,7 @@ class Block(Stmt):
         if annotations is None:
             annotations = {}
         self.__init_handle_by_constructor__(
-            _ffi_api.Block,  # type: ignore
+            _ffi_api.SBlock,  # type: ignore
             iter_vars,
             reads,
             writes,
@@ -687,9 +687,9 @@ class Block(Stmt):
         )  # type: ignore
 
 
-@tvm_ffi.register_object("tir.BlockRealize")
-class BlockRealize(Stmt):
-    """BlockRealize node.
+@tvm_ffi.register_object("tir.SBlockRealize")
+class SBlockRealize(Stmt):
+    """SBlockRealize node.
 
     Parameters
     ----------
@@ -699,7 +699,7 @@ class BlockRealize(Stmt):
     predicate : Union[PrimExpr, bool]
         The predicate of the block.
 
-    block : Block
+    block : SBlock
         The block to realize
 
     span : Optional[Span]
@@ -708,20 +708,20 @@ class BlockRealize(Stmt):
 
     iter_values: List[PrimExpr]
     predicate: PrimExpr
-    block: Block
+    block: SBlock
     span: Optional[Span]
 
     def __init__(
         self,
         iter_values: List[PrimExpr],
         predicate: Union[PrimExpr, bool],
-        block: Block,
+        block: SBlock,
         span: Optional[Span] = None,
     ) -> None:
         if isinstance(predicate, bool):
             predicate = const(predicate, "bool")
         self.__init_handle_by_constructor__(
-            _ffi_api.BlockRealize,  # type: ignore
+            _ffi_api.SBlockRealize,  # type: ignore
             iter_values,
             predicate,
             block,

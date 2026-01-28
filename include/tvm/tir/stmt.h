@@ -916,10 +916,10 @@ class MatchBufferRegion : public ObjectRef {
 
 /*!
  * \brief A block is a basic schedule unit in TIR.
- * \note Block's body is parameterized by iter vars.
+ * \note SBlock's body is parameterized by iter vars.
  * \code
  *
- *  with T.block(name):
+ *  with T.sblock(name):
  *      v0 = T.axis.S(domain, value0)
  *      v1 = T.axis.R(domain, value1)
  *      ...
@@ -935,7 +935,7 @@ class MatchBufferRegion : public ObjectRef {
  *
  * \endcode
  */
-class BlockNode : public StmtNode {
+class SBlockNode : public StmtNode {
  public:
   /*! \brief The variables of the block. */
   ffi::Array<IterVar> iter_vars;
@@ -964,27 +964,27 @@ class BlockNode : public StmtNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BlockNode>()
-        .def_ro("iter_vars", &BlockNode::iter_vars, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("reads", &BlockNode::reads)
-        .def_ro("writes", &BlockNode::writes)
-        .def_ro("name_hint", &BlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("alloc_buffers", &BlockNode::alloc_buffers)
-        .def_ro("match_buffers", &BlockNode::match_buffers)
-        .def_ro("annotations", &BlockNode::annotations)
-        .def_ro("init", &BlockNode::init)
-        .def_ro("body", &BlockNode::body);
+    refl::ObjectDef<SBlockNode>()
+        .def_ro("iter_vars", &SBlockNode::iter_vars, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("reads", &SBlockNode::reads)
+        .def_ro("writes", &SBlockNode::writes)
+        .def_ro("name_hint", &SBlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("alloc_buffers", &SBlockNode::alloc_buffers)
+        .def_ro("match_buffers", &SBlockNode::match_buffers)
+        .def_ro("annotations", &SBlockNode::annotations)
+        .def_ro("init", &SBlockNode::init)
+        .def_ro("body", &SBlockNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Block", BlockNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SBlock", SBlockNode, StmtNode);
 };
 
 /*!
- * \brief Managed reference to BlockNode.
- * \sa BlockNode
+ * \brief Managed reference to SBlockNode.
+ * \sa SBlockNode
  */
-class Block : public Stmt {
+class SBlock : public Stmt {
  public:
-  TVM_DLL explicit Block(
+  TVM_DLL explicit SBlock(
       ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
       ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
       ffi::Optional<Stmt> init = std::nullopt,
@@ -993,14 +993,14 @@ class Block : public Stmt {
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Block, Stmt, BlockNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlock, Stmt, SBlockNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockNode);
 };
 
 /*!
  * \brief A block realization node represents execution of the block at the binding values.
  */
-class BlockRealizeNode : public StmtNode {
+class SBlockRealizeNode : public StmtNode {
  public:
   /*! \brief The corresponding values of the iter vars. */
   ffi::Array<PrimExpr> iter_values;
@@ -1010,29 +1010,29 @@ class BlockRealizeNode : public StmtNode {
    */
   PrimExpr predicate;
   /*! \brief The block to be realized. */
-  Block block;
+  SBlock block;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BlockRealizeNode>()
-        .def_ro("iter_values", &BlockRealizeNode::iter_values)
-        .def_ro("predicate", &BlockRealizeNode::predicate)
-        .def_ro("block", &BlockRealizeNode::block);
+    refl::ObjectDef<SBlockRealizeNode>()
+        .def_ro("iter_values", &SBlockRealizeNode::iter_values)
+        .def_ro("predicate", &SBlockRealizeNode::predicate)
+        .def_ro("block", &SBlockRealizeNode::block);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BlockRealize", BlockRealizeNode, StmtNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SBlockRealize", SBlockRealizeNode, StmtNode);
 };
 
 /*!
  * \brief Managed reference to BlockRealizeNode
  * \sa BlockRealizeNode
  */
-class BlockRealize : public Stmt {
+class SBlockRealize : public Stmt {
  public:
-  TVM_DLL explicit BlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, Block block,
-                                Span span = Span());
+  TVM_DLL explicit SBlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, SBlock block,
+                                 Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BlockRealize, Stmt, BlockRealizeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockRealizeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlockRealize, Stmt, SBlockRealizeNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockRealizeNode);
 };
 
 /*! \brief namespace of possible attributes in AttrStmt.attr_key */

@@ -119,10 +119,10 @@ Buffer MatchBuffer(ObjectRef param, ffi::Array<PrimExpr> shape,
 /*!
  * \brief The block declaration statement.
  * \param name The name of the block.
- * \param no_realize The flag whether to construct BlockRealize or Block.
- * \return The BlockFrame.
+ * \param no_realize The flag whether to construct SBlockRealize or SBlock.
+ * \return The SBlockFrame.
  */
-BlockFrame Block(ffi::String name, bool no_realize = false);
+SBlockFrame Block(ffi::String name, bool no_realize = false);
 
 /*!
  * \brief The block initialization statement.

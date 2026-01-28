@@ -104,7 +104,7 @@ void StmtVisitor::VisitStmt_(const SeqStmtNode* op) {
 
 void StmtVisitor::VisitStmt_(const EvaluateNode* op) { this->VisitExpr(op->value); }
 
-void StmtVisitor::VisitStmt_(const BlockNode* op) {
+void StmtVisitor::VisitStmt_(const SBlockNode* op) {
   auto fvisit_buffer_region = [this](const BufferRegion& s) {
     for (const auto& range : s->region) {
       this->VisitExpr(range->min);
@@ -127,7 +127,7 @@ void StmtVisitor::VisitStmt_(const BlockNode* op) {
   this->VisitStmt(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const BlockRealizeNode* op) {
+void StmtVisitor::VisitStmt_(const SBlockRealizeNode* op) {
   VisitArray(op->iter_values, [this](const PrimExpr& e) { this->VisitExpr(e); });
   this->VisitExpr(op->predicate);
   this->VisitStmt(op->block);
@@ -466,7 +466,7 @@ Stmt StmtMutator::VisitStmt_(const EvaluateNode* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const BlockNode* op) {
+Stmt StmtMutator::VisitStmt_(const SBlockNode* op) {
   ffi::Array<IterVar> iter_vars = Internal::Mutate(this, op->iter_vars);
   ffi::Array<BufferRegion> reads = Internal::Mutate(this, op->reads);
   ffi::Array<BufferRegion> writes = Internal::Mutate(this, op->writes);
@@ -479,7 +479,7 @@ Stmt StmtMutator::VisitStmt_(const BlockNode* op) {
   if (iter_vars.same_as(op->iter_vars) && reads.same_as(op->reads) && writes.same_as(op->writes) &&
       body.same_as(op->body) && init.same_as(op->init) &&
       match_buffers.same_as(op->match_buffers)) {
-    return ffi::GetRef<Block>(op);
+    return ffi::GetRef<SBlock>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->iter_vars = std::move(iter_vars);
@@ -492,7 +492,7 @@ Stmt StmtMutator::VisitStmt_(const BlockNode* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const BlockRealizeNode* op) {
+Stmt StmtMutator::VisitStmt_(const SBlockRealizeNode* op) {
   ffi::Array<PrimExpr> v = Internal::Mutate(this, op->iter_values);
   PrimExpr pred = this->VisitExpr(op->predicate);
   Stmt block = this->VisitStmt(op->block);
@@ -502,7 +502,7 @@ Stmt StmtMutator::VisitStmt_(const BlockRealizeNode* op) {
     auto n = CopyOnWrite(op);
     n->iter_values = std::move(v);
     n->predicate = std::move(pred);
-    n->block = Downcast<Block>(block);
+    n->block = Downcast<SBlock>(block);
     return Stmt(n);
   }
 }

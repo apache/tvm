@@ -46,7 +46,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
     ):
         T.func_attr({"tir.noalias": True})
         for i in range(vector_length):
-            with T.block("C"):
+            with T.sblock("C"):
                 v_i = T.axis.spatial(vector_length, i)
                 T.reads(A[v_i], B[v_i])
                 T.writes(C[v_i])
@@ -55,7 +55,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
                 )
 
     sch = tvm.tir.Schedule(add)
-    block = sch.get_block("C")
+    block = sch.get_sblock("C")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 32])
     sch.bind(bx, "blockIdx.x")
@@ -127,7 +127,7 @@ def test_e2m1_dequantize():
         ):
             T.func_attr({"tir.noalias": True})
             for i in range(n):
-                with T.block("C"):
+                with T.sblock("C"):
                     v_i = T.axis.spatial(n, i)
                     T.reads(A[v_i])
                     T.writes(B[v_i])
@@ -156,7 +156,7 @@ def test_e2m1_dequantize():
         ):
             T.func_attr({"tir.noalias": True})
             for i in range(n):
-                with T.block("C"):
+                with T.sblock("C"):
                     v_i = T.axis.spatial(n, i)
                     T.reads(A[v_i])
                     T.writes(B[v_i])
@@ -173,7 +173,7 @@ def test_e2m1_dequantize():
 
         func = shuffle_reinterpret if func_type == "shuffle" else scalar_reinterpret
         sch = tvm.tir.Schedule(func)
-        block = sch.get_block("C")
+        block = sch.get_sblock("C")
         b = sch.get_loops(block)
         bx, tx, vec = sch.split(b[0], factors=[None, 32, vector_length])
         sch.bind(bx, "blockIdx.x")

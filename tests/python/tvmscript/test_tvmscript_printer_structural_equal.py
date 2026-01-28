@@ -130,13 +130,13 @@ def test_for():
     @T.prim_func
     def func1():
         for i, j in T.grid(128, 128):
-            with T.block():
+            with T.sblock():
                 pass
 
     @T.prim_func
     def func2():
         for i, j, k in T.grid(128, 128, 128):
-            with T.block():
+            with T.sblock():
                 pass
 
     func1 = func1.with_attr("global_symbol", "main")

@@ -30,11 +30,11 @@ def test_pass_simple():
     ):
         B = T.alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(128, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 # It's a opaque block , so it can use outside variables
                 C[i, j] = B[i, j] * 2.0
 
@@ -49,7 +49,7 @@ def test_fail_use_out_loop_var():
         B: T.Buffer((128, 128), "float32"),
     ):
         for i, j in T.grid(128, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 # we cannot use `i` since it's defined outside the block
                 B[vi, vj] = A[i, vj] * 2.0
@@ -280,7 +280,7 @@ def test_block_match_buffer_defines_buffer_obj():
         @T.prim_func
         def func(A: T.Buffer([256, 256], "float32")):
             for iters in T.grid(16, 16, 16, 16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     tile_i, tile_j, i, j = T.axis.remap("SSSS", iters)
                     B = T.match_buffer(
                         A[tile_i * 16 : (tile_i + 1) * 16, tile_j * 16 : (tile_j + 1) * 16],
@@ -299,7 +299,7 @@ def test_block_match_buffer_defines_symbolic_variables():
         @T.prim_func
         def func(A: T.Buffer([256, 256], "int32")):
             for iters in T.grid(16, 16, 16, 16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     tile_i, tile_j, i, j = T.axis.remap("SSSS", iters)
 
                     elem_offset = T.int32()
