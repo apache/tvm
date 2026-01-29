@@ -37,8 +37,8 @@ import json
 import copy
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_network_resnet(target):
     @I.ir_module
     class Resnet:
