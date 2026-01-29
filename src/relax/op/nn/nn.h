@@ -114,6 +114,9 @@ Expr cross_entropy_with_logits(Expr predictions, Expr labels);
 Expr nll_loss(Expr predictions, Expr targets, ffi::Optional<Expr> weights, ffi::String reduction,
               int ignore_index);
 
+/*! \brief Batch flatten: flatten all dimensions except the first (batch) dimension. */
+Expr batch_flatten(Expr data);
+
 }  // namespace relax
 }  // namespace tvm
 
