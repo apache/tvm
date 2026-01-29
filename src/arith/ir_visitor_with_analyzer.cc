@@ -54,6 +54,10 @@ void IRVisitorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
 
   PrimExpr real_condition = ExtractRealCondition(op->condition);
 
+  if (!IsPureCondition(real_condition, GetRef<Stmt>(op))) {
+    return StmtExprVisitor::VisitStmt_(op);
+  }
+
   {
     With<ConstraintContext> constraint(&analyzer_, real_condition);
     this->VisitStmt(op->then_case);
