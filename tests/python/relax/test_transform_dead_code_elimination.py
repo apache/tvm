@@ -166,7 +166,7 @@ def test_unused_relax_func():
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -203,7 +203,7 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -244,7 +244,7 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
             z: T.Buffer((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -292,7 +292,7 @@ def test_unused_relax_func_symbolic_shape():
             y = T.match_buffer(y_handle, (n, k), "float32")
             z = T.match_buffer(z_handle, (m, k), "float32")
             for i, j, k in T.grid(m, k, n):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         z[vi, vj] = 0.0
@@ -329,7 +329,7 @@ def test_unused_prim_func():
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 
@@ -375,7 +375,7 @@ def test_preserve_indirectly_used_prim_func():
             z: T.Buffer((16, 16), "float32"),
         ):
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = InputModule.tir_add_float32(x[vi, vj], y[vi, vj])
 
@@ -401,7 +401,7 @@ def test_multiple_unused_funcs():
         ) -> None:
             T.func_attr({"global_symbol": "tir_unused"})
             for i, j in T.grid(16, 16):
-                with T.block("add"):
+                with T.sblock("add"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     z[vi, vj] = x[vi, vj] + y[vi, vj]
 

@@ -35,7 +35,7 @@ struct ReductionBlockFinder : private StmtVisitor {
       if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
         ReductionBlockFinder finder;
         finder(prim_func->body);
-        for (const BlockNode* block : finder.results_) {
+        for (const SBlockNode* block : finder.results_) {
           results.emplace_back(self->stmt2ref.at(block), g_var->name_hint);
         }
       }
@@ -52,19 +52,19 @@ struct ReductionBlockFinder : private StmtVisitor {
     StmtVisitor::VisitStmt_(loop);
   }
 
-  void VisitStmt_(const BlockRealizeNode* realize) final {
+  void VisitStmt_(const SBlockRealizeNode* realize) final {
     if (realize->block->init.defined() && AllReductionIterVarAreUnbound(realize)) {
       results_.push_back(realize->block.get());
     }
     StmtVisitor::VisitStmt_(realize);
   }
 
-  bool AllReductionIterVarAreUnbound(const BlockRealizeNode* realize) const {
+  bool AllReductionIterVarAreUnbound(const SBlockRealizeNode* realize) const {
     if (thread_bound_loop_vars_.empty()) {
       return true;
     }
     auto f_find = [this](const VarNode* var) -> bool { return thread_bound_loop_vars_.count(var); };
-    const BlockNode* block = realize->block.get();
+    const SBlockNode* block = realize->block.get();
     ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
     int n = block->iter_vars.size();
     for (int i = 0; i < n; ++i) {
@@ -80,7 +80,7 @@ struct ReductionBlockFinder : private StmtVisitor {
   }
 
   /*! \brief The results of the collection */
-  std::vector<const BlockNode*> results_;
+  std::vector<const SBlockNode*> results_;
   /*! \brief Loop variables that are bound to threads */
   std::unordered_set<const VarNode*> thread_bound_loop_vars_;
 };
@@ -142,9 +142,9 @@ bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {
       if (decompose_point == -1) {
         continue;
       }
-      tir::BlockRV block_rv = GetRVFromSRef(sch, block_sref, global_var_name);
+      tir::SBlockRV block_rv = GetRVFromSRef(sch, block_sref, global_var_name);
       ffi::Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
-      tir::BlockRV init_block_rv = sch->DecomposeReduction(block_rv, loop_rvs[decompose_point]);
+      tir::SBlockRV init_block_rv = sch->DecomposeReduction(block_rv, loop_rvs[decompose_point]);
 
       // Rewrite auto tensorization related annotations
       if (tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_auto_tensorize)

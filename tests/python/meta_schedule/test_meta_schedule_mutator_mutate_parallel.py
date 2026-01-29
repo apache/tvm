@@ -31,7 +31,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [512, 512])
     C = T.match_buffer(c, [512, 512])
     for i, j, k in T.grid(512, 512, 512):  # type: ignore
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])  # type: ignore
             with T.init():
                 C[vi, vj] = 0.0  # type: ignore
@@ -45,8 +45,8 @@ def _sch(decisions: List[List[int]], ann_val: int) -> Schedule:
     sch = Schedule(matmul, debug_mask="all")
     # pylint: disable=invalid-name
     d0, d1, d2 = decisions
-    b0 = sch.get_block(name="C", func_name="main")
-    root = sch.get_block(name="root", func_name="main")
+    b0 = sch.get_sblock(name="C", func_name="main")
+    root = sch.get_sblock(name="root", func_name="main")
     sch.get_consumers(block=b0)
     b1 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="global")
     l2, l3, l4 = sch.get_loops(block=b0)

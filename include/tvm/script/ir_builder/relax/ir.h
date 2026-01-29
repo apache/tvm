@@ -77,13 +77,13 @@ TVM_DLL void FuncRetValue(const tvm::relax::Expr& value);
  * \brief Start a binding block frame.
  * \return The created ir_builder Block frame.
  */
-TVM_DLL BlockFrame BindingBlock();
+TVM_DLL BindingBlockFrame BindingBlock();
 
 /*!
  * \brief Start a dataflow binding block frame.
  * \return The created ir_builder Block frame.
  */
-TVM_DLL BlockFrame Dataflow();
+TVM_DLL BindingBlockFrame Dataflow();
 
 /*!
  * \brief Expose the dataflow block output variables as global ones

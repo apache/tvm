@@ -233,8 +233,8 @@ TVM_DLL bool VerifyVTCMLimit(const PrimFunc& func, Integer limit);
  *           - second: write regions
  *           - third: opaque regions
  */
-TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetBlockAccessRegion(
-    const Block& block, const ffi::Map<Var, Buffer>& buffer_var_map);
+TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
+    const SBlock& block, const ffi::Map<Var, Buffer>& buffer_var_map);
 
 /*!
  * \brief Auto detect the block read/write region according to its body stmt. An opaque access will
@@ -244,8 +244,8 @@ TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetBlockAccessRegion(
  *                       It is a map from buffer var to the buffer
  * \return An array only consisting of the read regions and write regions of the input block
  */
-TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetBlockReadWriteRegion(
-    const Block& block, const ffi::Map<Var, Buffer>& buffer_var_map);
+TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
+    const SBlock& block, const ffi::Map<Var, Buffer>& buffer_var_map);
 
 /*! \brief Helper struct for return value of IdentifyMemCpy
  *
@@ -329,7 +329,7 @@ TVM_DLL ffi::Map<Buffer, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFu
  *
  * - Each variable has a single point of definition.
  *
- * - Expressions within a tir::Block may not reference variables
+ * - Expressions within a tir::SBlock may not reference variables
  *   defined outside the block.  For example, for a block with iter
  *   vars `vi, vj = T.axis.remap('SS', [i,j])`, the statement
  *   `B[i,j] = A[i,j]` would be ill-formed, because it uses the loop
@@ -379,7 +379,7 @@ const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var);
  * \param mod The input TIR module.
  * \return The anchor block if found, nullptr otherwise.
  */
-const tir::BlockNode* FindAnchorBlock(const IRModule& mod);
+const tir::SBlockNode* FindAnchorBlock(const IRModule& mod);
 
 // Pass variants of verification analysis
 // directly throws RuntimeError when verification fails.

@@ -58,7 +58,7 @@ class LayoutTransform(AdrenoScheduleRule):
             return None
 
         blk = sch.get_child_blocks(root_block)[0]
-        block_info = analysis.get_block_info(sch, blk)
+        block_info = analysis.get_sblock_info(sch, blk)
         if not (
             (self.use_op_name and block_info.name == "te_layout_transform")
             or (not self.use_op_name and block_info.is_layout_transform(sch))

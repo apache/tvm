@@ -34,7 +34,7 @@ def test_metal_inf_nan():
         C = te.compute((n,), lambda i: inf_value, name="C")
         prim_func = te.create_prim_func([A, C])
         sch = tvm.tir.Schedule(prim_func)
-        (x,) = sch.get_loops(sch.get_block("C"))
+        (x,) = sch.get_loops(sch.get_sblock("C"))
         sch.bind(x, "threadIdx.x")
         fun = tvm.compile(sch.mod, target=target)
         a = tvm.runtime.empty((n,), A.dtype, dev)
@@ -62,7 +62,7 @@ def test_unaligned_vectorize():
             T.func_attr({"global_symbol": "main"})
             for i0_1 in T.thread_binding(3, thread="threadIdx.x"):
                 for i0_0 in T.vectorized(2):
-                    with T.block("block"):
+                    with T.sblock("block"):
                         vi0 = T.axis.spatial(6, i0_0 * 3 + i0_1)
                         B[vi0] = A[vi0 // 3, vi0 % 3]
 
@@ -87,7 +87,7 @@ def test_metal_erf():
         C = te.compute(A.shape, lambda *i: te.erf(A(*i)), name="C")
         func = te.create_prim_func([A, C])
         sch = tvm.tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_block("C"))
+        (x,) = sch.get_loops(sch.get_sblock("C"))
         sch.bind(x, "threadIdx.x")
         fun = tvm.compile(sch.mod, target=target)
         a = tvm.runtime.empty((n,), A.dtype, dev)
@@ -112,7 +112,7 @@ def test_ramp():
         def main(A: T.Buffer((1, 2), "int32")):
             T.func_attr({"global_symbol": "main"})
             for i in T.thread_binding(1, thread="threadIdx.x"):
-                with T.block("block"):
+                with T.sblock("block"):
                     tx = T.axis.spatial(1, i)
                     r = T.ramp(tx, 3, 2)
                     A[0, T.ramp(0, 1, 2)] = r
@@ -134,7 +134,7 @@ def test_select_vectorize():
             T.func_attr({"global_symbol": "main"})
             for i0_1 in T.thread_binding(3, thread="threadIdx.x"):
                 for i0_0 in T.vectorized(2):
-                    with T.block("block"):
+                    with T.sblock("block"):
                         vi0 = T.axis.spatial(6, i0_0 * 3 + i0_1)
                         B[vi0] = T.Select((vi0 % 2) == 0, A[vi0], T.float32(0))
 
@@ -156,7 +156,7 @@ def test_vectorized_uint8():
     def func(A: T.Buffer((16), "uint8"), B: T.Buffer((16), "float32")):
         for i in T.thread_binding(4, thread="threadIdx.x"):
             for j in T.vectorized(4):
-                with T.block("block"):
+                with T.sblock("block"):
                     vi = T.axis.spatial(16, i * 4 + j)
                     B[vi] = T.Cast("float32", A[vi])
 
@@ -176,7 +176,7 @@ def test_func_with_trailing_pod_params():
     @T.prim_func
     def func(A: T.Buffer((16), "float32"), B: T.Buffer((16), "float32"), x: T.float32):
         for i in T.thread_binding(16, thread="threadIdx.x"):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.spatial(16, i)
                 B[vi] = A[vi] + x
 

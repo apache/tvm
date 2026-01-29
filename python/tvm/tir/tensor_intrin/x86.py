@@ -30,12 +30,12 @@ def dot_product_16x4_u8i8i32_desc(
     B: T.Buffer((16, 4), "int8", offset_factor=1),
     C: T.Buffer((16,), "int32", offset_factor=1),
 ) -> None:
-    with T.block("root"):
+    with T.sblock("root"):
         T.reads(C[0:16], A[0:4], B[0:16, 0:4])
         T.writes(C[0:16])
         for i in T.serial(0, 16):
             for k in T.serial(0, 4):
-                with T.block("update"):
+                with T.sblock("update"):
                     vi, vk = T.axis.remap("SR", [i, k])
                     C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
@@ -46,7 +46,7 @@ def dot_product_16x4_u8i8i32_vnni(
     B: T.Buffer((16, 4), "int8", offset_factor=1),
     C: T.Buffer((16,), "int32", offset_factor=1),
 ) -> None:
-    with T.block("root"):
+    with T.sblock("root"):
         T.reads(C[0:16], A[0:4], B[0:16, 0:4])
         T.writes(C[0:16])
 
@@ -72,7 +72,7 @@ def dot_product_16x4_u8i8i32_avx512(
     B: T.Buffer((16, 4), "int8", offset_factor=1),
     C: T.Buffer((16,), "int32", offset_factor=1),
 ) -> None:
-    with T.block("root"):
+    with T.sblock("root"):
         T.reads(C[0:16], A[0:4], B[0:16, 0:4])
         T.writes(C[0:16])
 

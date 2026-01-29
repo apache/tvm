@@ -47,7 +47,7 @@ class SRefTreeVerifier : public StmtVisitor {
     ICHECK_EQ(n_block_sref_visited_, static_cast<int>(self_->block_info.size()));
   }
 
-  void VisitStmt_(const BlockNode* block) final {
+  void VisitStmt_(const SBlockNode* block) final {
     if (init_block_depth_) {
       ICHECK(!self_->stmt2ref.count(block)) << "InternalError: A block inside init block has its "
                                                "corresponding sref, which is not allowed";
@@ -115,7 +115,7 @@ class SRefTreeVerifier : public StmtVisitor {
     for (int i = 0; i < n; ++i) {
       const Stmt& child = seq_stmt->seq[i];
       StmtSRef sref{nullptr};
-      if (const auto* realize = child.as<BlockRealizeNode>()) {
+      if (const auto* realize = child.as<SBlockRealizeNode>()) {
         const auto* block = realize->block.get();
         ICHECK(self_->stmt2ref.count(block));
         sref = self_->stmt2ref.at(block);
@@ -157,13 +157,13 @@ void VerifyCachedFlags(const ScheduleState& self) {
     if (stmt->IsInstance<ForNode>() || !self->stmt2ref.count(stmt)) {
       continue;
     }
-    const BlockInfo& new_block_info = new_state->block_info.at(new_sref);
+    const SBlockInfo& new_block_info = new_state->block_info.at(new_sref);
     const StmtSRef& old_sref = self->stmt2ref.at(stmt);
     if (!self->block_info.count(old_sref)) {
       block_info_not_found.push_back(new_sref);
       continue;
     }
-    const BlockInfo& old_block_info = self->block_info.at(old_sref);
+    const SBlockInfo& old_block_info = self->block_info.at(old_sref);
     if (new_block_info.affine_binding != old_block_info.affine_binding) {
       block_info_wrong_affine_binding.emplace_back(new_sref,  //
                                                    new_block_info.affine_binding,
@@ -191,9 +191,9 @@ void VerifyCachedFlags(const ScheduleState& self) {
   }
   std::ostringstream os;
   if (has_not_found) {
-    os << "- BlockInfo not found:";
+    os << "- SBlockInfo not found:";
     for (const StmtSRef& block_sref : block_info_not_found) {
-      const auto* block = block_sref->StmtAs<BlockNode>();
+      const auto* block = block_sref->StmtAs<SBlockNode>();
       ICHECK(block);
       os << " " << block->name_hint;
     }
@@ -205,7 +205,7 @@ void VerifyCachedFlags(const ScheduleState& self) {
       const StmtSRef& block_sref = std::get<0>(record);
       bool expected = std::get<1>(record);
       bool actual = std::get<2>(record);
-      const auto* block = block_sref->StmtAs<BlockNode>();
+      const auto* block = block_sref->StmtAs<SBlockNode>();
       ICHECK(block);
       os << " (" << block->name_hint << ", expected=" << expected << ", actual=" << actual << ")";
     }
@@ -217,7 +217,7 @@ void VerifyCachedFlags(const ScheduleState& self) {
       const StmtSRef& block_sref = std::get<0>(record);
       bool expected = std::get<1>(record);
       bool actual = std::get<2>(record);
-      const auto* block = block_sref->StmtAs<BlockNode>();
+      const auto* block = block_sref->StmtAs<SBlockNode>();
       ICHECK(block);
       os << " (" << block->name_hint << ", expected=" << expected << ", actual=" << actual << ")";
     }
@@ -229,7 +229,7 @@ void VerifyCachedFlags(const ScheduleState& self) {
       const StmtSRef& block_sref = std::get<0>(record);
       bool expected = std::get<1>(record);
       bool actual = std::get<2>(record);
-      const auto* block = block_sref->StmtAs<BlockNode>();
+      const auto* block = block_sref->StmtAs<SBlockNode>();
       ICHECK(block);
       os << " (" << block->name_hint << ", expected=" << expected << ", actual=" << actual << ")";
     }

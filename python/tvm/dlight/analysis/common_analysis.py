@@ -26,7 +26,7 @@ from tvm_ffi import get_global_func
 from tvm import ir, tir
 from tvm.target.target import Target
 from tvm.tir import Schedule
-from tvm.tir.schedule import BlockRV
+from tvm.tir.schedule import SBlockRV
 from tvm.runtime import DataType
 
 
@@ -63,7 +63,7 @@ class IterInfo:
         return str(self)
 
 
-get_blockrealize = get_global_func("tir.schedule.GetBlockRealize")
+get_sblockrealize = get_global_func("tir.schedule.GetSBlockRealize")
 # BufferIndex Types
 Index = namedtuple("Index", ["sub"])  # c
 RemIndex = namedtuple("RemIndex", ["sub", "div"])  # c%len
@@ -74,6 +74,7 @@ BufIndex = List[Union[Index, RemIndex, DivIndex, MergeIndex, None]]
 
 class BufferInfo:
     "Information about Buffer. Provides useful analysis"
+
     buf_region: tir.BufferRegion
     shape: Tuple[int]
     assoc_lps: List[Union[tir.schedule.LoopRV, None]]
@@ -82,7 +83,7 @@ class BufferInfo:
     def __init__(
         self,
         sch: tir.Schedule,
-        block_rv: tir.schedule.BlockRV,
+        block_rv: tir.schedule.SBlockRV,
         buf_region: tir.BufferRegion,
         lps: Union[List[tir.schedule.LoopRV], None],
     ):
@@ -91,7 +92,7 @@ class BufferInfo:
             lps = sch.get_loops(block_rv)
         loops = [sch.get(lp) for lp in lps]
         iter_vars = [Var.var for Var in block.iter_vars]
-        iter_values = get_blockrealize(sch, block_rv).iter_values
+        iter_values = get_sblockrealize(sch, block_rv).iter_values
         lpvar_lp = dict([loop.loop_var, lp] for loop, lp in zip(loops, lps))
         var_lp = dict(zip(iter_vars, [lpvar_lp.get(val, None) for val in iter_values]))
 
@@ -163,22 +164,22 @@ class BufferInfo:
         return str(self)
 
 
-class BlockInfo:
+class SBlockInfo:
     """Information about a TIR block."""
 
     name: str
     iters: List[IterInfo]
-    block_rv: tir.schedule.BlockRV
+    block_rv: tir.schedule.SBlockRV
     _reduction_block: bool
 
     def __init__(
         self,
         name: str,
         iters: List[IterInfo],
-        block_rv: tir.schedule.BlockRV,
+        block_rv: tir.schedule.SBlockRV,
         reduction_block: bool = False,
     ):
-        """Construct a BlockInfo object."""
+        """Construct a SBlockInfo object."""
         self.name = name
         self.block_rv = block_rv
         self.iters = iters
@@ -203,11 +204,11 @@ class BlockInfo:
         return "".join(i.kind for i in self.iters)
 
     def is_injective(self) -> bool:
-        """Whether the block is injective, i.e. all its iteration domains are injective."""
+        """Whether the SBlock is injective, i.e. all its iteration domains are injective."""
         return all(k == "S" for k in self.dom_kind())
 
     def is_elementwise(self, sch: tir.Schedule) -> bool:
-        """Whether the block is elementwise, i.e. trivial mapping between read/write region"""
+        """Whether the SBlock is elementwise, i.e. trivial mapping between read/write region"""
 
         def _check_unit_var_range(dom: ir.Range, var: tir.Var) -> bool:
             return dom.min.same_as(var) and dom.extent == 1
@@ -230,12 +231,12 @@ class BlockInfo:
         return [iter_info.loop_rv for iter_info in self.iters]
 
     def is_reduction(self) -> bool:
-        """Whether the block is a reduction workload."""
+        """Whether the SBlock is a reduction workload."""
         # TODO(@junrushao): distinguish GEMV and reduction
         return self._reduction_block
 
     def is_layout_transform(self, sch: tir.Schedule) -> bool:
-        """Whether the Block can be considered having a Layout Transform Pattern"""
+        """Whether the SBlock can be considered having a Layout Transform Pattern"""
         return (
             all(k == "S" for k in self.dom_kind())
             and len(self.write_bufs(sch)) == 1
@@ -245,7 +246,7 @@ class BlockInfo:
         )
 
     def is_data_pad(self, sch: tir.Schedule) -> bool:
-        """Whether the Block can be considered having a data pad pattern"""
+        """Whether the SBlock can be considered having a data pad pattern"""
         return (
             all(k == "S" for k in self.dom_kind())
             and len(self.write_bufs(sch)) == 1
@@ -257,23 +258,23 @@ class BlockInfo:
         )
 
     def is_convolution(self) -> bool:
-        """Whether a Block can be considered having Convolution Pattern"""
+        """Whether a SBlock can be considered having Convolution Pattern"""
         raise NotImplementedError
 
     def is_pool(self) -> bool:
-        """Whether a Block can be considered having Pooling Pattern"""
+        """Whether a SBlock can be considered having Pooling Pattern"""
         raise NotImplementedError
 
     def is_gemv(self) -> bool:
-        """Whether the block is a GEMV workload."""
+        """Whether the SBlock is a GEMV workload."""
         raise NotImplementedError
 
     def is_gemm(self) -> bool:
-        """Whether the block is a GEMM workload."""
+        """Whether the SBlock is a GEMM workload."""
         raise NotImplementedError
 
     def __str__(self) -> str:
-        return f'BlockInfo("{self.name}", "{self.dom_kind()}", {self.dom()})'
+        return f'SBlockInfo("{self.name}", "{self.dom_kind()}", {self.dom()})'
 
     def __repr__(self) -> str:
         return str(self)
@@ -282,7 +283,7 @@ class BlockInfo:
 _normalize_prim_func = get_global_func("tir.schedule.NormalizePrimFunc")
 
 
-def normalize_prim_func(sch: tir.Schedule) -> Optional[List[BlockInfo]]:
+def normalize_prim_func(sch: tir.Schedule) -> Optional[List[SBlockInfo]]:
     """Normalize the primfunc to normal form"""
     try:
         result = _normalize_prim_func(sch)
@@ -297,10 +298,10 @@ def normalize_prim_func(sch: tir.Schedule) -> Optional[List[BlockInfo]]:
             tir.IterVar.CommReduce: "R",
         }.get(i.iter_type, "O")
 
-    blocks: List[BlockInfo] = []
+    blocks: List[SBlockInfo] = []
     for block, loops, iters, is_reduction in zip(*result):
         blocks.append(
-            BlockInfo(
+            SBlockInfo(
                 name=sch.get(block).name_hint,
                 iters=[
                     IterInfo(
@@ -318,17 +319,17 @@ def normalize_prim_func(sch: tir.Schedule) -> Optional[List[BlockInfo]]:
     return blocks
 
 
-def get_block_info(sch: tir.Schedule, block: tir.schedule.BlockRV) -> BlockInfo:
+def get_sblock_info(sch: tir.Schedule, block: tir.schedule.SBlockRV) -> SBlockInfo:
     def _iter_kind(loop: tir.IterVar) -> str:
         return {tir.IterVar.DataPar: "S", tir.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
 
-    def _is_reduction_block(block: tir.schedule.BlockRV):
+    def _is_reduction_block(block: tir.schedule.SBlockRV):
         for iter_var in sch.get(block).iter_vars:
             if _iter_kind(iter_var) == "R":
                 return True
         return False
 
-    return BlockInfo(
+    return SBlockInfo(
         name=sch.get(block).name_hint,
         iters=[
             IterInfo(
@@ -370,7 +371,7 @@ def get_max_shared_memory_per_block(target: Target) -> int:
     return int(max_shared_memory_per_block)
 
 
-def get_root_block(sch: Schedule, func_name: str = "main") -> BlockRV:
+def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
     try:
         block = sch.mod[func_name].body.block
     except:
@@ -378,11 +379,11 @@ def get_root_block(sch: Schedule, func_name: str = "main") -> BlockRV:
             f"The function body is expected to be the root block, but got:\n"
             f"{sch.mod[func_name].body}"
         )
-    return sch.get_block(block.name_hint)
+    return sch.get_sblock(block.name_hint)
 
 
 def collect_block_iter_vars_used_in_access_region(
-    block: tir.Block, region: List[ir.Range]
+    block: tir.SBlock, region: List[ir.Range]
 ) -> Set[tir.Var]:
     """Collect the block iter variables used in the access region of a buffer region."""
     tir_vars = set()
@@ -405,7 +406,7 @@ def collect_vars_used_in_prim_expr(expr: tir.PrimExpr) -> Set[tir.Var]:
     return tir_vars
 
 
-def detect_dominant_read(block: tir.Block) -> tir.PrimExpr:
+def detect_dominant_read(block: tir.SBlock) -> tir.PrimExpr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1
@@ -421,8 +422,8 @@ def detect_dominant_read(block: tir.Block) -> tir.PrimExpr:
 
 def is_broadcast_epilogue(
     sch: tir.Schedule,
-    block: tir.schedule.BlockRV,
-    epilogue: tir.schedule.BlockRV,
+    block: tir.schedule.SBlockRV,
+    epilogue: tir.schedule.SBlockRV,
 ) -> bool:
     """Check if the epilogue block is a broadcast pattern"""
     write_buffers = {r.buffer for r in sch.get(block).writes}

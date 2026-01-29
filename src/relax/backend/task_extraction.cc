@@ -51,14 +51,14 @@ using meta_schedule::ModuleHash;
  */
 class BlockCounter : public tir::StmtVisitor {
  public:
-  static size_t GetBlockCount(const tir::PrimFunc& func) {
+  static size_t GetSBlockCount(const tir::PrimFunc& func) {
     BlockCounter counter;
     counter(func->body);
     return counter.count;
   }
 
  private:
-  void VisitStmt_(const tir::BlockNode* op) final {
+  void VisitStmt_(const tir::SBlockNode* op) final {
     ++count;
     StmtVisitor::VisitStmt_(op);
   }
@@ -120,7 +120,7 @@ class TaskExtractor : public ExprVisitor {
       // count the PrinFunc number of blocks and leave only the function with the smallest number of
       // blocks. This way, "nn_conv2d_add_nn_relu" will have a smaller number of blocks than
       // "nn_conv2d_add_add_nn_relu" and will be selected to tune.
-      if (BlockCounter::GetBlockCount(func) < BlockCounter::GetBlockCount(alt_func)) {
+      if (BlockCounter::GetSBlockCount(func) < BlockCounter::GetSBlockCount(alt_func)) {
         weight += it->second->weight;
         func2task_.erase(it->first);
       }

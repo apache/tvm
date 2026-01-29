@@ -33,17 +33,17 @@ def elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i in range(0, 16):
-        with T.block():
+        with T.sblock():
             T.reads(A[i, 0:16])
             T.writes(C[i, 0:16])
             B = T.alloc_buffer((16, 16), "float32")
             for j in range(0, 16):
-                with T.block():
+                with T.sblock():
                     vi = T.axis.S(16, i)
                     vj = T.axis.S(16, j)
                     B[vi, vj] = A[vi, vj] + 1.0
             for j in range(0, 16):
-                with T.block():
+                with T.sblock():
                     vi = T.axis.S(16, i)
                     vj = T.axis.S(16, j)
                     C[vi, vj] = B[vi, vj] * 2.0
@@ -54,17 +54,17 @@ def substituted_elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i in range(0, 16):
-        with T.block():
+        with T.sblock():
             T.reads(A[i, 0:16])
             T.writes(C[i, 0:16])
             B = T.alloc_buffer([16, 16], "float32")
             for j in range(0, 16):
-                with T.block():
+                with T.sblock():
                     T.reads([A[i, j]])
                     T.writes([B[i, j]])
                     B[i, j] = A[i, j] + 1.0
             for j in range(0, 16):
-                with T.block():
+                with T.sblock():
                     T.reads([B[i, j]])
                     T.writes([C[i, j]])
                     C[i, j] = B[i, j] * 2.0
@@ -80,7 +80,7 @@ class TestErrorIfPredicateUsesBlockVariables(tvm.testing.CompareBeforeAfter):
 
     def before(A: T.Buffer(8, "int32")):
         for i in T.serial(8):
-            with T.block():
+            with T.sblock():
                 vi = T.axis.remap("S", [i])
                 T.where(vi < 6)
                 T.evaluate(0)

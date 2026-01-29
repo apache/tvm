@@ -111,7 +111,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
     return StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const BlockNode* op) {
+  void VisitStmt_(const SBlockNode* op) {
     for (const IterVar& iter : op->iter_vars) {
       analyzer_.Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
       vextent_[iter->var.as<VarNode>()] = iter->dom->extent.dtype();

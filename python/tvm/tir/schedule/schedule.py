@@ -22,7 +22,7 @@ from tvm_ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import GlobalVar, IRModule, PrimExpr
 from tvm.runtime import Object
-from tvm.tir import Block, Buffer, FloatImm, For, IntImm, PrimFunc
+from tvm.tir import SBlock, Buffer, FloatImm, For, IntImm, PrimFunc
 
 from ..function import IndexMap
 from . import _ffi_api
@@ -47,14 +47,14 @@ class LoopRV(Object):
         )
 
 
-@_register_object("tir.BlockRV")
-class BlockRV(Object):
+@_register_object("tir.SBlockRV")
+class SBlockRV(Object):
     """A random variable that refers to a block"""
 
     def __init__(self) -> None:
-        """Construct a new BlockRV."""
+        """Construct a new SBlockRV."""
         self.__init_handle_by_constructor__(
-            _ffi_api.BlockRV  # type: ignore # pylint: disable=no-member
+            _ffi_api.SBlockRV  # type: ignore # pylint: disable=no-member
         )
 
 
@@ -64,7 +64,7 @@ class BlockRV(Object):
 # A random variable that evaluates to an integer
 ExprRV = Union[PrimExpr]  # pylint: disable=invalid-name
 
-RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
+RAND_VAR_TYPE = Union[ExprRV, SBlockRV, LoopRV]  # pylint: disable=invalid-name
 
 _ERROR_RENDER_LEVEL: Dict[Literal["detail", "fast", "none"], int] = {
     "detail": 0,
@@ -98,7 +98,7 @@ def _parse_seed(seed: Optional[int]) -> int:
     return seed
 
 
-def _get_block_default_dtype(block: Block) -> str:
+def _get_sblock_default_dtype(block: SBlock) -> str:
     for i in block.iter_vars:
         return i.var.dtype
     for buffer_region in list(block.reads) + list(block.writes):
@@ -228,7 +228,7 @@ class Schedule(Object):
         of their names are "main", users will have to call this method to explicitly specify which
         function to work on.
 
-        This sugar function will guide the `GetBlock` method if its `func_name` is not specified.
+        This sugar function will guide the `GetSBlock` method if its `func_name` is not specified.
 
         Parameters
         ----------
@@ -297,22 +297,22 @@ class Schedule(Object):
     @type_checked
     def get(
         self, rand_var_or_sref: Union[RAND_VAR_TYPE, StmtSRef]
-    ) -> Optional[Union[int, Block, For]]:
+    ) -> Optional[Union[int, SBlock, For]]:
         """Returns:
-        - the corresponding Block that a BlockRV evaluates to;
+        - the corresponding SBlock that a SBlockRV evaluates to;
         - the corresponding For that a LoopRV evaluates to;
         - the corresponding integer that a ExprRV evaluates to;
-        - the corresponding Block that a block sref points to;
+        - the corresponding SBlock that a SBlock sref points to;
         - the corresponding For that a loop sref points to;
 
         Parameters
         ----------
-        rand_var_or_sref : Union[ExprRV, BlockRV, LoopRV, StmtSRef]
+        rand_var_or_sref : Union[ExprRV, SBlockRV, LoopRV, StmtSRef]
             The random variable / sref to be evaluated
 
         Returns
         -------
-        result : Optional[Union[int, Block, For]]
+        result : Optional[Union[int, SBlock, For]]
             The corresponding result
         """
         if isinstance(rand_var_or_sref, StmtSRef):
@@ -324,16 +324,18 @@ class Schedule(Object):
         return result
 
     @type_checked
-    def get_sref(self, rand_var_or_stmt: Union[BlockRV, LoopRV, Block, For]) -> Optional[StmtSRef]:
+    def get_sref(
+        self, rand_var_or_stmt: Union[SBlockRV, LoopRV, SBlock, For]
+    ) -> Optional[StmtSRef]:
         """Returns the corresponding sref to the given
         1) LoopRV
-        2) BlockRV
+        2) SBlockRV
         3) Block
         4) For
 
         Parameters
         ----------
-        rand_var_or_stmt : Union[BlockRV, LoopRV, Block, For]
+        rand_var_or_stmt : Union[SBlockRV, LoopRV, SBlock, For]
             The random variable / sref to be evaluated
 
         Returns
@@ -351,7 +353,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        rand_var : Union[BlockRV, LoopRV, ExprRV]
+        rand_var : Union[SBlockRV, LoopRV, ExprRV]
             The random variable to be removed
         """
         return _ffi_api.ScheduleRemoveRV(self, rand_var)  # type: ignore # pylint: disable=no-member
@@ -456,13 +458,13 @@ class Schedule(Object):
 
     @type_checked
     def sample_compute_location(
-        self, block: Union[BlockRV, str], decision: Optional[int] = None
+        self, block: Union[SBlockRV, str], decision: Optional[int] = None
     ) -> LoopRV:
         """Sample a compute-at location of the given block
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The block whose compute-at location is to be sampled
         decision : Optional[int]
             The sampling decision
@@ -480,7 +482,7 @@ class Schedule(Object):
 
     ########## Schedule: Get blocks & loops ##########
     @type_checked
-    def get_block(self, name: str, func_name: Optional[str] = None) -> BlockRV:
+    def get_sblock(self, name: str, func_name: Optional[str] = None) -> SBlockRV:
         """Retrieve a block in a specific function with its name
 
         By default, if `func_name` is not specified, the schedule will search for the block in the
@@ -496,21 +498,21 @@ class Schedule(Object):
 
         Returns
         -------
-        block : BlockRV
+        block : SBlockRV
             The block retrieved
             IndexError is raised if 0 or multiple blocks exist with the specific name.
         """
-        return _ffi_api.ScheduleGetBlock(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleGetSBlock(  # type: ignore # pylint: disable=no-member
             self, name, func_name
         )
 
     @type_checked
-    def get_loops(self, block: Union[BlockRV, str]) -> List[LoopRV]:
+    def get_loops(self, block: Union[SBlockRV, str]) -> List[LoopRV]:
         """Get the parent loops of the block in its scope, from outer to inner
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The query block
 
         Returns
@@ -523,12 +525,12 @@ class Schedule(Object):
         return list(_ffi_api.ScheduleGetLoops(self, block))  # type: ignore
 
     @type_checked
-    def get_child_blocks(self, block_or_loop: Union[BlockRV, LoopRV]) -> List[BlockRV]:
+    def get_child_blocks(self, block_or_loop: Union[SBlockRV, LoopRV]) -> List[SBlockRV]:
         """Get the leaf blocks of a specific block/loop
 
         Parameters
         ----------
-        block_or_loop : Union[BlockRV, LoopRV]
+        block_or_loop : Union[SBlockRV, LoopRV]
             The query block/loop
 
         Returns
@@ -540,17 +542,17 @@ class Schedule(Object):
         return list(_ffi_api.ScheduleGetChildBlocks(self, block_or_loop))  # type: ignore
 
     @type_checked
-    def get_producers(self, block: Union[BlockRV, str]) -> List[BlockRV]:
+    def get_producers(self, block: Union[SBlockRV, str]) -> List[SBlockRV]:
         """Get the producers of a specific block
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The block in the query
 
         Returns
         -------
-        producers : List[BlockRV]
+        producers : List[SBlockRV]
             A list of producers of the given block
         """
         block = self._normalize_block_arg(block)
@@ -558,17 +560,17 @@ class Schedule(Object):
         return list(_ffi_api.ScheduleGetProducers(self, block))  # type: ignore
 
     @type_checked
-    def get_consumers(self, block: Union[BlockRV, str]) -> List[BlockRV]:
+    def get_consumers(self, block: Union[SBlockRV, str]) -> List[SBlockRV]:
         """Get the consumers of a specific block
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The block in the query
 
         Returns
         -------
-        consumers : List[BlockRV]
+        consumers : List[SBlockRV]
             A list of consumers of the given block
         """
         block = self._normalize_block_arg(block)
@@ -576,19 +578,19 @@ class Schedule(Object):
         return list(_ffi_api.ScheduleGetConsumers(self, block))  # type: ignore
 
     @type_checked
-    def get_output_blocks(self, scope_block: Union[BlockRV, str]) -> List[BlockRV]:
+    def get_output_blocks(self, scope_block: Union[SBlockRV, str]) -> List[SBlockRV]:
         """Get the list of output blocks within the given scope
         An output block is a block which has atleast one buffer being written
         to, but is not allocated within the PrimFunc
 
         Parameters
         ----------
-        scope_block : Union[BlockRV, str],
+        scope_block : Union[SBlockRV, str],
             The scope block from which output blocks are collected
 
         Returns
         -------
-        output_blocks : List[BlockRV]
+        output_blocks : List[SBlockRV]
             A list of all blocks that write to some output buffer
 
         """
@@ -628,11 +630,11 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 C = T.match_buffer(c, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = A[vi, vj] * 2.0
 
@@ -641,8 +643,8 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_fuse)
-            i1, _ = sch.get_loops(sch.get_block("B"))
-            i2, _ = sch.get_loops(sch.get_block("C"))
+            i1, _ = sch.get_loops(sch.get_sblock("B"))
+            i2, _ = sch.get_loops(sch.get_sblock("C"))
             sch.merge(i1, i2)
             print(sch.mod["main"].script())
 
@@ -658,13 +660,13 @@ class Schedule(Object):
                 # the 2 loops are merged into 1
                 for i_m in range(128):
                     for j in range(128):
-                        with T.block("B"):
+                        with T.sblock("B"):
                             vi, vj = T.axis.remap("SS", [i_m, j])
                             T.reads(A[vi, vj])
                             T.writes(B[vi, vj])
                             B[vi, vj] = A[vi, vj] * T.float32(2)
                     for j in range(128):
-                        with T.block("C"):
+                        with T.sblock("C"):
                             vi, vj = T.axis.remap("SS", [i_m, j])
                             T.reads(A[vi, vj])
                             T.writes(C[vi, vj])
@@ -702,7 +704,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -711,7 +713,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_fuse)
-            i, j = sch.get_loops(sch.get_block("B"))
+            i, j = sch.get_loops(sch.get_sblock("B"))
             sch.fuse(i, j)
             print(sch.mod["main"].script())
 
@@ -725,7 +727,7 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 # the 2 loops are fused into 1
                 for i_j_fused in T.serial(0, 16384):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi = T.axis.S(128, T.floordiv(i_j_fused, 128))
                         vj = T.axis.S(128, T.floormod(i_j_fused, 128))
                         B[vi, vj] = A[vi, vj] * 2.0
@@ -789,7 +791,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -798,7 +800,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_split)
-            i, j = sch.get_loops(sch.get_block("B"))
+            i, j = sch.get_loops(sch.get_sblock("B"))
             sch.split(i, factors=[2, 64])
             print(sch.mod["main"].script())
 
@@ -812,7 +814,7 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 # the original loop is split into 2 loops
                 for i0, i1, j in T.grid(2, 64, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi = T.axis.S(128, i0 * 64 + i1)
                         vj = T.axis.S(128, j)
                         B[vi, vj] = A[vi, vj] * 2.0
@@ -875,7 +877,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -884,7 +886,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_partition)
-            i, j = sch.get_loops(sch.get_block("B"))
+            i, j = sch.get_loops(sch.get_sblock("B"))
             sch.partition(i, factors=[2, 64])
             print(sch.mod["main"].script())
 
@@ -896,37 +898,37 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 # the original loop is partition into 3 loops
-                with T.block("root"):
+                with T.sblock("root"):
                     T.reads()
                     T.writes()
-                    with T.block("B_i_common"):
+                    with T.sblock("B_i_common"):
                         T.reads()
                         T.writes()
-                        with T.block("B_i0_partition"):
+                        with T.sblock("B_i0_partition"):
                             T.reads()
                             T.writes()
                             for i0, j in T.grid(2, 128):
-                                with T.block("B_i0"):
+                                with T.sblock("B_i0"):
                                     vi, vj = T.axis.remap("SS", [i0, j])
                                     T.reads(A[0:2, 0:128])
                                     T.writes(B[0:2, 0:128])
                                     B[vi, vj] = A[vi, vj] * T.float32(2)
-                        with T.block("B_i1_partition"):
+                        with T.sblock("B_i1_partition"):
                             T.reads()
                             T.writes()
                             for i1 in range(2, 66):
                                 for j in range(128):
-                                    with T.block("B_i1"):
+                                    with T.sblock("B_i1"):
                                         vi, vj = T.axis.remap("SS", [i1, j])
                                         T.reads(A[2:66, 0:128])
                                         T.writes(B[2:66, 0:128])
                                         B[vi, vj] = A[vi, vj] * T.float32(2)
-                        with T.block("B_partition_2"):
+                        with T.sblock("B_partition_2"):
                             T.reads()
                             T.writes()
                             for i2 in range(66, 128):
                                 for j in range(128):
-                                    with T.block("B_i2"):
+                                    with T.sblock("B_i2"):
                                         vi, vj = T.axis.remap("SS", [i2, j])
                                         T.reads(A[66:128, 0:128])
                                         T.writes(B[66:128, 0:128])
@@ -968,7 +970,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -977,7 +979,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_reorder)
-            i, j = sch.get_loops(sch.get_block("B"))
+            i, j = sch.get_loops(sch.get_sblock("B"))
             sch.reorder(j, i)
             print(sch.mod["main"].script())
 
@@ -991,7 +993,7 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 # Here j and i are reordered
                 for j, i in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -999,12 +1001,12 @@ class Schedule(Object):
         _ffi_api.ScheduleReorder(self, ordered_loops)  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def reorder_block_iter_var(self, block: BlockRV, new_order: List[int]) -> None:
+    def reorder_block_iter_var(self, block: SBlockRV, new_order: List[int]) -> None:
         """Reorder the itervars inside a given block.
 
         Parameters
         ----------
-        block : BlockRV
+        block : SBlockRV
             The block to be transformed.
         new_order : List[int]
             The new block itervar order.
@@ -1023,7 +1025,7 @@ class Schedule(Object):
                 C: T.Buffer((128, 128), "float32"),
             ) -> None:
                 for i, j, k in T.grid(128, 128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                         with T.init():
                             C[vi, vj] = 0.0
@@ -1034,7 +1036,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(matmul)
-            C = sch.get_block("C")
+            C = sch.get_sblock("C")
             sch.reorder_block_iter_var(C, [2, 1, 0])
 
         After applying reorder_block_iter_var, the IR becomes:
@@ -1048,7 +1050,7 @@ class Schedule(Object):
                 C: T.Buffer((128, 128), "float32"),
             ):
                 for i, j, k in T.grid(128, 128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vk, vj, vi = T.axis.remap("RSS", [k, j, i])
                         T.reads(A[vi, vk], B[vj, vk])
                         T.writes(C[vi, vj])
@@ -1064,12 +1066,12 @@ class Schedule(Object):
         _ffi_api.ScheduleReorderBlockIterVar(self, block, new_order)  # type: ignore
 
     @type_checked
-    def add_unit_loop(self, block_or_loop: Union[LoopRV, BlockRV]) -> LoopRV:
+    def add_unit_loop(self, block_or_loop: Union[LoopRV, SBlockRV]) -> LoopRV:
         """Create a new unit loop on top of the specific block or loop.
 
         Parameters
         ----------
-        block_or_loop : Union[LoopRV, BlockRV]
+        block_or_loop : Union[LoopRV, SBlockRV]
             The block above which the new loop is created
 
         Returns
@@ -1090,7 +1092,7 @@ class Schedule(Object):
                 B: T.Buffer((), "int32"),
                 C: T.Buffer((), "int32"),
             ) -> None:
-                with T.block("C"):
+                with T.sblock("C"):
                     vi = T.axis.spatial(1, 0)
                     C[()] = A[()] + B[()]
 
@@ -1099,7 +1101,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_add_unit_loop)
-            sch.add_unit_loop(sch.get_block("C"))
+            sch.add_unit_loop(sch.get_sblock("C"))
             print(sch.mod["main"].script())
 
         After applying add-unit-loop, the IR becomes:
@@ -1113,7 +1115,7 @@ class Schedule(Object):
                 C: T.Buffer((), "int32"),
             ) -> None:
                 for u in T.serial(1):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi = T.axis.spatial(1, 0)
                         C[()] = A[()] + B[()]
         """
@@ -1148,7 +1150,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1157,7 +1159,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_parallel)
-            i, j = sch.get_loops(sch.get_block("B"))
+            i, j = sch.get_loops(sch.get_sblock("B"))
             sch.parallel(i)
 
         After applying parallel, the IR becomes:
@@ -1170,7 +1172,7 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 for i in T.parallel(0, 128):
                     for j in T.serial(0, 128):
-                        with T.block("B"):
+                        with T.sblock("B"):
                             vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1203,7 +1205,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1212,7 +1214,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_vectorize)
-            i, j = sch.get_loops(sch.get_block("B"))
+            i, j = sch.get_loops(sch.get_sblock("B"))
             sch.vectorize(j)
 
         After applying vectorize, the IR becomes:
@@ -1225,7 +1227,7 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 for i in T.serial(0, 128):
                     for j in T.vectorized(0, 128):
-                        with T.block("B"):
+                        with T.sblock("B"):
                             vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1266,7 +1268,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1275,7 +1277,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_bind)
-            i, j = sch.get_loops(sch.get_block("B"))
+            i, j = sch.get_loops(sch.get_sblock("B"))
             sch.bind(i, "blockIdx.x")
             sch.bind(j, "threadIdx.x")
 
@@ -1289,7 +1291,7 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 for i in T.thread_binding(0, 128, thread = "blockIdx.x"):
                     for j in T.thread_binding(0, 128, thread = "threadIdx.x"):
-                        with T.block("B"):
+                        with T.sblock("B"):
                             vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1317,7 +1319,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1326,7 +1328,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_unroll)
-            i, j = sch.get_loops(sch.get_block("B"))
+            i, j = sch.get_loops(sch.get_sblock("B"))
             sch.unroll(i)
 
         After applying unroll, the IR becomes:
@@ -1339,7 +1341,7 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 for i in T.unroll(0, 128):
                     for j in T.serial(0, 128):
-                        with T.block("B"):
+                        with T.sblock("B"):
                             vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1351,11 +1353,11 @@ class Schedule(Object):
     @type_checked
     def cache_read(
         self,
-        block: Union[BlockRV, str],
+        block: Union[SBlockRV, str],
         read_buffer_index: Union[int, str, Buffer],
         storage_scope: str,
-        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
-    ) -> BlockRV:
+        consumer_blocks: Optional[List[Union[SBlockRV, str]]] = None,
+    ) -> SBlockRV:
         """Create a block that reads a buffer region into a read cache. It requires:
 
         1) There is at most one block who write the buffer in the scope.
@@ -1364,7 +1366,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The consumer block of the target buffer.
 
         buffer: Union[int, str, Buffer]
@@ -1375,13 +1377,13 @@ class Schedule(Object):
         storage_scope: str
             The target storage scope.
 
-        consumer_blocks: Optional[List[Union[BlockRV, str]]]
+        consumer_blocks: Optional[List[Union[SBlockRV, str]]]
             An optional list of consumers that should read from the cache. If not specified,
             all consumers will use the cache.
 
         Returns
         -------
-        cached_block : BlockRV
+        cached_block : SBlockRV
             The block of the cache stage
 
         Examples
@@ -1395,7 +1397,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1404,7 +1406,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_cache_read)
-            block_b = sch.get_block("B")
+            block_b = sch.get_sblock("B")
             sch.cache_read(block_b, 0, "local")
             print(sch.mod["main"].script())
 
@@ -1418,11 +1420,11 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 A_local = T.alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.block("A_local"):
+                    with T.sblock("A_local"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         A_local[vi, vj] = A[vi, vj]
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A_local[vi, vj] * 2.0
 
@@ -1430,7 +1432,7 @@ class Schedule(Object):
         if consumer_blocks is None:
             consumer_blocks = []
 
-        # Convert any string block names into Block RVs.
+        # Convert any string SBlock names into SBlock RVs.
         consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
 
@@ -1445,11 +1447,11 @@ class Schedule(Object):
     @type_checked
     def cache_write(
         self,
-        block: Union[BlockRV, str],
+        block: Union[SBlockRV, str],
         write_buffer_index: Union[int, str, Buffer],
         storage_scope: str,
-        consumer_blocks: Optional[List[Union[BlockRV, str]]] = None,
-    ) -> BlockRV:
+        consumer_blocks: Optional[List[Union[SBlockRV, str]]] = None,
+    ) -> SBlockRV:
         """Create a block that reads a buffer region into a write cache. It requires:
 
         1) There is only one block who write the buffer in the scope.
@@ -1458,7 +1460,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The producer block of the target buffer.
 
         write_buffer_index: int
@@ -1469,13 +1471,13 @@ class Schedule(Object):
         storage_scope: str
             The target storage scope.
 
-        consumer_blocks: Optional[List[Union[BlockRV, str]]]
+        consumer_blocks: Optional[List[Union[SBlockRV, str]]]
             An optional list of consumers that should read directly from the cache.
             If not specified, all consumers will read from the original buffer.
 
         Returns
         -------
-        cached_block : BlockRV
+        cached_block : SBlockRV
             The block of the cache stage
 
         Examples
@@ -1489,7 +1491,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1498,7 +1500,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_cache_write)
-            block_b = sch.get_block("B")
+            block_b = sch.get_sblock("B")
             sch.cache_write(block_b, 0, "local")
             print(sch.mod["main"].script())
 
@@ -1512,11 +1514,11 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 B_local = T.alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.block("A_local"):
+                    with T.sblock("A_local"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B_local[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = B_local[vi, vj]
 
@@ -1524,7 +1526,7 @@ class Schedule(Object):
         if consumer_blocks is None:
             consumer_blocks = []
 
-        # Convert any string block names into Block RVs.
+        # Convert any string SBlock names into SBlock RVs.
         consumer_blocks = [self._normalize_block_arg(b) for b in consumer_blocks]
         block = self._normalize_block_arg(block)
 
@@ -1539,11 +1541,11 @@ class Schedule(Object):
     @type_checked
     def reindex_cache_read(
         self,
-        block: Union[BlockRV, str],
+        block: Union[SBlockRV, str],
         read_buffer_index: int,
         storage_scope: str,
         index_map: Union[IndexMap, Callable],
-    ) -> BlockRV:
+    ) -> SBlockRV:
         """Create a block that reads a buffer region into a read cache using customized
         indices specified by index map. The read region of the buffer must be a single point.
 
@@ -1557,7 +1559,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : BlockRV
+        block : SBlockRV
             The consumer block of the target buffer.
         read_buffer_index: int
             The index of the buffer in block's read region.
@@ -1568,7 +1570,7 @@ class Schedule(Object):
 
         Returns
         -------
-        cached_block : BlockRV
+        cached_block : SBlockRV
             The block of the cache stage
 
         Examples
@@ -1582,7 +1584,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1591,7 +1593,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_cache_read)
-            block_b = sch.get_block("B")
+            block_b = sch.get_sblock("B")
             sch.reindex_cache_read(block_b, 0, "local", lambda vi, vj: (vj, vi))
             print(sch.mod["main"].script())
 
@@ -1605,11 +1607,11 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 A_local = T.alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.block("A_local"):
+                    with T.sblock("A_local"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         A_local[vj, vi] = A[vi, vj]
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A_local[vj, vi] * 2.0
 
@@ -1621,13 +1623,13 @@ class Schedule(Object):
         cache_read
         reindex
         """
-        # Convert any string block names into Block RVs.
+        # Convert any string SBlock names into SBlock RVs.
         block = self._normalize_block_arg(block)
 
         if callable(index_map):
             index_map = IndexMap.from_func(
                 index_map,
-                index_dtype=_get_block_default_dtype(self.get(block)),
+                index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
         return _ffi_api.ScheduleReindexCacheRead(  # type: ignore # pylint: disable=no-member
             self, block, read_buffer_index, storage_scope, index_map
@@ -1636,11 +1638,11 @@ class Schedule(Object):
     @type_checked
     def reindex_cache_write(
         self,
-        block: Union[BlockRV, str],
+        block: Union[SBlockRV, str],
         write_buffer_index: int,
         storage_scope: str,
         index_map: Union[Callable, IndexMap],
-    ) -> BlockRV:
+    ) -> SBlockRV:
         r"""Create a block that reads a buffer region into a write cache using customized
         indices specified by index map. The write region of the buffer must be a single point.
 
@@ -1654,7 +1656,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The consumer block of the target buffer.
         write_buffer_index: int
             The index of the buffer in block's write region.
@@ -1662,13 +1664,13 @@ class Schedule(Object):
             The target storage scope.
         index_map: Union[Callable, IndexMap]
             User defined indices to access allocated cache buffer, maps from block iter vars.
-        consumer_blocks: Optional[List[Union[BlockRV, str]]]
+        consumer_blocks: Optional[List[Union[SBlockRV, str]]]
             An optional list of consumers that should read directly from the cache.
             If not specified, all consumers will read from the original buffer.
 
         Returns
         -------
-        cached_block : BlockRV
+        cached_block : SBlockRV
             The block of the cache stage
 
         Examples
@@ -1682,7 +1684,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -1691,7 +1693,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_cache_write)
-            block_b = sch.get_block("B")
+            block_b = sch.get_sblock("B")
             sch.reindex_cache_write(block_b, 0, "local", lambda vi, vj: (vi // 2, vi % 2, vj))
             print(sch.mod["main"].script())
 
@@ -1705,11 +1707,11 @@ class Schedule(Object):
                 B = T.match_buffer(b, (64, 2, 128))
                 B_local = T.alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.block("A_local"):
+                    with T.sblock("A_local"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B_local[vi % 2, vi // 2, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = B_local[vi % 2, vi // 2, vj]
 
@@ -1721,13 +1723,13 @@ class Schedule(Object):
         cache_write
         reindex
         """
-        # Convert any string block names into Block RVs.
+        # Convert any string SBlock names into SBlock RVs.
         block = self._normalize_block_arg(block)
 
         if callable(index_map):
             index_map = IndexMap.from_func(
                 index_map,
-                index_dtype=_get_block_default_dtype(self.get(block)),
+                index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
         return _ffi_api.ScheduleReindexCacheWrite(  # type: ignore # pylint: disable=no-member
             self, block, write_buffer_index, storage_scope, index_map
@@ -1736,17 +1738,17 @@ class Schedule(Object):
     @type_checked
     def cache_inplace(
         self,
-        block: Union[BlockRV, str],
+        block: Union[SBlockRV, str],
         read_buffer_index: Union[int, str, Buffer],
         storage_scope: str,
-    ) -> List[BlockRV]:
+    ) -> List[SBlockRV]:
         """Create blocks that reads & write a buffer region into a cache block.
         It requires the target block both read & write the target buffer.
         Mainly for inplace operation.
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The target block operates on the target buffer.
 
         read_buffer_index: int
@@ -1760,7 +1762,7 @@ class Schedule(Object):
 
         Returns
         -------
-        cached_blocks : List[BlockRV]
+        cached_blocks : List[SBlockRV]
             The blocks of the cache stage, read cache first, write cache second
 
         Examples
@@ -1772,7 +1774,7 @@ class Schedule(Object):
             @T.prim_func
             def before_cache_inplace(data_io: T.Buffer((64), "int32")):
                 for i0 in T.serial(1):
-                    with T.block("A"):
+                    with T.sblock("A"):
                         T.reads(data_io[:64])
                         T.writes(data_io[:64])
                         T.evaluate(T.call_extern("call_impl", data_io.data, dtype=""))
@@ -1782,7 +1784,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_cache_inplace)
-            block_a = sch.get_block("A")
+            block_a = sch.get_sblock("A")
             sch.cache_inplace(block_a, 0, "local")
             print(sch.mod["main"].script())
 
@@ -1795,17 +1797,17 @@ class Schedule(Object):
                 data_io_local = T.alloc_buffer([64], dtype="int32", scope="local")
                 for i0 in T.serial(1):
                     for ax0 in T.serial(64):
-                        with T.block("data_io_local"):
+                        with T.sblock("data_io_local"):
                             v0 = T.axis.spatial(64, ax0)
                             T.reads(data_io[v0])
                             T.writes(data_io_local[v0])
                             data_io_local[v0] = data_io[v0]
-                    with T.block("A"):
+                    with T.sblock("A"):
                         T.reads(data_io_local[0 : 64])
                         T.writes(data_io_local[0 : 64])
                         T.evaluate(T.call_extern("call_impl", data_io_local.data, dtype=""))
                     for ax0 in T.serial(64):
-                        with T.block("data_io_local"):
+                        with T.sblock("data_io_local"):
                             v0 = T.axis.spatial(64, ax0)
                             T.reads(data_io_local[v0])
                             T.writes(data_io[v0])
@@ -1824,14 +1826,14 @@ class Schedule(Object):
 
     @type_checked
     def cache_index(
-        self, block: Union[BlockRV, str], storage_scope: str, cse_thresh: int = 0
-    ) -> List[BlockRV]:
+        self, block: Union[SBlockRV, str], storage_scope: str, cse_thresh: int = 0
+    ) -> List[SBlockRV]:
         """Create a block to cache precomputed index for later use.
         if there is no index computation, keep unchanged.
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The target block operates on the target buffer.
 
         storage_scope: str
@@ -1844,7 +1846,7 @@ class Schedule(Object):
 
         Returns
         -------
-        cached_blocks : List[BlockRV]
+        cached_blocks : List[SBlockRV]
             The blocks of the stage writing the cache buffers
 
         Examples
@@ -1858,7 +1860,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (1, 3, 40, 40))
                 B = T.match_buffer(b, (1, 3, 80, 80))
                 for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
-                    with T.block("A"):
+                    with T.sblock("A"):
                         n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
                         B[n, c, vi, vj] = A[n, c, vi//4 + vj//4, vj//2]
 
@@ -1867,7 +1869,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(resize)
-            block_a = sch.get_block("A")
+            block_a = sch.get_sblock("A")
             sch.cache_index(block_a, "global", 1)
             print(sch.mod["main"].script())
 
@@ -1882,20 +1884,20 @@ class Schedule(Object):
                 index_var_0 = T.alloc_buffer([80, 80], dtype="int32", strides=[1])
                 index_var_1 = T.alloc_buffer([80], dtype="int32", strides=[1])
                 for ax0, ax1 in T.grid(80, 80):
-                    with T.block("index_0"):
+                    with T.sblock("index_0"):
                         v0 = T.axis.spatial(80, ax0)
                         v1 = T.axis.spatial(80, ax1)
                         T.reads()
                         T.writes(index_var_0[v0, v1])
                         index_var_0[v0, v1] = v0 // 4 + v1 // 4
                 for ax0 in T.serial(80):
-                    with T.block("index_1"):
+                    with T.sblock("index_1"):
                         v0 = T.axis.spatial(80, ax0)
                         T.reads()
                         T.writes(index_var_1[v0])
                         index_var_1[v0] = v0 // 2
                 for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
-                    with T.block("A"):
+                    with T.sblock("A"):
                         n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
                         T.reads(A[n, c, vi // 4 + vj // 4, vj // 2])
                         T.writes(B[n, c, vi, vj])
@@ -1910,8 +1912,8 @@ class Schedule(Object):
 
     @type_checked
     def reindex(
-        self, block: Union[BlockRV, str], buffer: Union[Tuple[str, int], str, Buffer]
-    ) -> BlockRV:
+        self, block: Union[SBlockRV, str], buffer: Union[Tuple[str, int], str, Buffer]
+    ) -> SBlockRV:
         """Create a block that read/write a buffer region into a read/write cache with reindexing.
         The layout of the cache will be the same as by the iterators of the block that reads/writes
         the buffer. It requires:
@@ -1920,7 +1922,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
 
             The block that accesses the target buffer.  If a string,
             this must uniquely identify a block.
@@ -1944,7 +1946,7 @@ class Schedule(Object):
 
         Returns
         -------
-        reindex_block : BlockRV
+        reindex_block : SBlockRV
             The block of the reindex stage
 
         Examples
@@ -1960,7 +1962,7 @@ class Schedule(Object):
                 B: T.Buffer((128, 128), "float32")
             ) -> None:
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vj, vi] * 2.0
 
@@ -1969,7 +1971,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_reindex)
-            block = sch.get_block("B")
+            block = sch.get_sblock("B")
             sch.reindex(block, ("read", 0))
 
         After applying reindex, the IR becomes:
@@ -1983,11 +1985,11 @@ class Schedule(Object):
             ) -> None:
                 A_reindex = T.alloc_buffer((128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.block("A_reindex"):
+                    with T.sblock("A_reindex"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         A_reindex[vi, vj] = A[vj, vi]
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A_reindex[vi, vj] * 2.0
 
@@ -2003,15 +2005,15 @@ class Schedule(Object):
     ########## Schedule: Data movement ##########
 
     def read_at(
-        self, loop: LoopRV, block: BlockRV, read_buffer_index: int, storage_scope: str
-    ) -> BlockRV:
+        self, loop: LoopRV, block: SBlockRV, read_buffer_index: int, storage_scope: str
+    ) -> SBlockRV:
         return _ffi_api.ScheduleReadAt(  # type: ignore # pylint: disable=no-member
             self, loop, block, read_buffer_index, storage_scope
         )
 
     def write_at(
-        self, loop: LoopRV, block: BlockRV, write_buffer_index: int, storage_scope: str
-    ) -> BlockRV:
+        self, loop: LoopRV, block: SBlockRV, write_buffer_index: int, storage_scope: str
+    ) -> SBlockRV:
         return _ffi_api.ScheduleWriteAt(  # type: ignore # pylint: disable=no-member
             self, loop, block, write_buffer_index, storage_scope
         )
@@ -2021,7 +2023,7 @@ class Schedule(Object):
     @type_checked
     def compute_at(
         self,
-        block: Union[BlockRV, str],
+        block: Union[SBlockRV, str],
         loop: LoopRV,
         preserve_unit_loops: bool = False,
         index: int = -1,
@@ -2045,7 +2047,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The block to be moved
 
         loop: LoopRV
@@ -2073,11 +2075,11 @@ class Schedule(Object):
                 B = T.alloc_buffer((128, 128), "float32")
                 C = T.match_buffer(c, (128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
@@ -2086,8 +2088,8 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_compute_at)
-            block = sch.get_block("B")
-            loop, _ = sch.get_loops(sch.get_block("C"))
+            block = sch.get_sblock("B")
+            loop, _ = sch.get_loops(sch.get_sblock("C"))
             sch.compute_at(block, loop, preserve_unit_loops=False)
             print(sch.mod["main"].script())
 
@@ -2102,11 +2104,11 @@ class Schedule(Object):
                 C = T.match_buffer(c, (128, 128), "float32")
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
-                        with T.block("B"):
+                        with T.sblock("B"):
                             vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
                     for j in T.serial(0, 128):
-                        with T.block("C"):
+                        with T.sblock("C"):
                             vi, vj = T.axis.remap("SS", [i, j])
                             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -2119,7 +2121,7 @@ class Schedule(Object):
     @type_checked
     def reverse_compute_at(
         self,
-        block: Union[BlockRV, str],
+        block: Union[SBlockRV, str],
         loop: LoopRV,
         preserve_unit_loops: bool = False,
         index: int = -1,
@@ -2140,7 +2142,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The block to be moved
 
         loop: LoopRV
@@ -2168,11 +2170,11 @@ class Schedule(Object):
                 B = T.alloc_buffer((128, 128), "float32")
                 C = T.match_buffer(c, (128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
@@ -2181,8 +2183,8 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_reverse_compute_at)
-            block = sch.get_block("C")
-            loop, _ = sch.get_loops(sch.get_block("B"))
+            block = sch.get_sblock("C")
+            loop, _ = sch.get_loops(sch.get_sblock("B"))
             sch.reverse_compute_at(block, loop, preserve_unit_loops=False)
             print(sch.mod["main"].script())
 
@@ -2197,11 +2199,11 @@ class Schedule(Object):
                 C = T.match_buffer(c, (128, 128), "float32")
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
-                        with T.block("B"):
+                        with T.sblock("B"):
                             vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
                     for j in T.serial(0, 128):
-                        with T.block("C"):
+                        with T.sblock("C"):
                             vi, vj = T.axis.remap("SS", [i, j])
                             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -2212,7 +2214,7 @@ class Schedule(Object):
         )
 
     @type_checked
-    def compute_inline(self, block: Union[BlockRV, str]) -> None:
+    def compute_inline(self, block: Union[SBlockRV, str]) -> None:
         """Inline a block into its consumer(s). It requires:
 
         1) The block is a complete non-root block, which only produces one buffer
@@ -2227,7 +2229,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The block to be inlined to its consumer(s)
 
         Examples
@@ -2243,11 +2245,11 @@ class Schedule(Object):
                 B = T.alloc_buffer((128, 128))
                 C = T.match_buffer(c, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
@@ -2256,7 +2258,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_inline)
-            sch.compute_inline(sch.get_block("B"))
+            sch.compute_inline(sch.get_sblock("B"))
             print(sch.mod["main"].script())
 
         After applying compute-inline, the IR becomes:
@@ -2268,7 +2270,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 C = T.match_buffer(c, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
@@ -2277,7 +2279,7 @@ class Schedule(Object):
         _ffi_api.ScheduleComputeInline(self, block)  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def reverse_compute_inline(self, block: Union[BlockRV, str]) -> None:
+    def reverse_compute_inline(self, block: Union[SBlockRV, str]) -> None:
         """Inline a block into its only producer. It requires:
 
         1) The block is a complete non-root block, which only produces and consumes one buffer
@@ -2295,7 +2297,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The block to be inlined to its producer
 
         Examples
@@ -2311,11 +2313,11 @@ class Schedule(Object):
                 B = T.alloc_buffer((128, 128))
                 C = T.match_buffer(c, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
@@ -2324,7 +2326,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_inline)
-            sch.reverse_compute_inline(sch.get_block("C"))
+            sch.reverse_compute_inline(sch.get_sblock("C"))
             print(sch.mod["main"].script())
 
         After applying reverse-compute-inline, the IR becomes:
@@ -2336,7 +2338,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 C = T.match_buffer(c, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
@@ -2348,8 +2350,8 @@ class Schedule(Object):
     @type_checked
     def fuse_reduction_epilogue(
         self,
-        reduction_block: Union[BlockRV, str],
-        epilogue_block: Union[BlockRV, str],
+        reduction_block: Union[SBlockRV, str],
+        epilogue_block: Union[SBlockRV, str],
     ) -> None:
         """Fuse an epilogue block into a reduction block.
 
@@ -2383,9 +2385,9 @@ class Schedule(Object):
 
         Parameters
         ----------
-        reduction_block : Union[BlockRV, str]
+        reduction_block : Union[SBlockRV, str]
             The reduction block (e.g., matmul)
-        epilogue_block : Union[BlockRV, str]
+        epilogue_block : Union[SBlockRV, str]
             The epilogue block to be fused (e.g., bias add, ReLU, clipping)
 
         Examples
@@ -2402,7 +2404,7 @@ class Schedule(Object):
     ########## Schedule: Reduction ##########
 
     @type_checked
-    def decompose_reduction(self, block: Union[BlockRV, str], loop: LoopRV) -> BlockRV:
+    def decompose_reduction(self, block: Union[SBlockRV, str], loop: LoopRV) -> SBlockRV:
         """Decompose a reduction block into two separate blocks.
 
         a) The init block, which is translated from the init statement of the reduction block;
@@ -2421,14 +2423,14 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The reduction block to be decomposed
         loop : LoopRV
             The loop above which the init block is inserted before.
 
         Returns
         -------
-        init_block : BlockRV
+        init_block : SBlockRV
             The init block
 
         Examples
@@ -2453,7 +2455,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_decompose)
-            C = sch.get_block("C")
+            C = sch.get_sblock("C")
             i, j, k = sch.get_loops(C)
             sch.decompose_reduction(C, i)
             print(sch.mod["main"].script())
@@ -2481,7 +2483,7 @@ class Schedule(Object):
         return _ffi_api.ScheduleDecomposeReduction(self, block, loop)  # type: ignore
 
     @type_checked
-    def rfactor(self, loop: LoopRV, factor_axis: int) -> BlockRV:
+    def rfactor(self, loop: LoopRV, factor_axis: int) -> SBlockRV:
         """Factorize an associative reduction block by the specified loop.
 
         An associative reduction cannot be parallelized directly,
@@ -2550,7 +2552,7 @@ class Schedule(Object):
 
         Returns
         -------
-        rf_block : BlockRV
+        rf_block : SBlockRV
             The block which computes partial results over each slices (i.e., the first block
             as described in the above illustration)
 
@@ -2566,7 +2568,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128, 128))
                 B = T.match_buffer(b, (128,))
                 for ii, i, j in T.grid(128, 128, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     vii, vi, vj = T.axis.remap("SRR", [ii, i, j])
                     with T.init():
                         B[vii] = 0.0
@@ -2577,7 +2579,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_rfactor)
-            _, _, k = sch.get_loops(sch.get_block("B"))
+            _, _, k = sch.get_loops(sch.get_sblock("B"))
             sch.rfactor(k, 0)
             print(sch.mod["main"].script())
 
@@ -2591,13 +2593,13 @@ class Schedule(Object):
                 B = T.match_buffer(b, [128])
                 B_rf = T.alloc_buffer([128, 128])
                 for i2, ii, i in T.grid(128, 128, 128):
-                    with T.block("B_rf"):
+                    with T.sblock("B_rf"):
                         vi2, vii, vi = T.axis.remap("SSR", [i2, ii, i])
                         with T.init():
                             B_rf[vi2, vii] = 0.0
                         B_rf[vi2, vii] = (B_rf[vi2, vii] + A[vii, vi, vi2])
                 for ii, i2 in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vii, vi2 = T.axis.remap("SR", [ii, i2])
                         with T.init():
                             B[vii] = 0.0
@@ -2630,11 +2632,11 @@ class Schedule(Object):
         # pylint: disable-next=no-member
         return _ffi_api.ScheduleRFactor(self, loop, factor_axis)  # type: ignore
 
-    ######## Schedule: Block annotation ########
+    ######## Schedule: SBlock annotation ########
 
     @type_checked
     def storage_align(  # pylint: disable=too-many-arguments
-        self, block: Union[BlockRV, str], buffer_index: int, axis: int, factor: int, offset: int
+        self, block: Union[SBlockRV, str], buffer_index: int, axis: int, factor: int, offset: int
     ) -> None:
         """Set alignment requirement for specific dimension such that
         stride[axis] == k * factor + offset for some k. This is useful to set memory layout for more
@@ -2643,7 +2645,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The producer block of the buffer.
         buffer_index : int
             The index of the buffer in block's write region.
@@ -2667,11 +2669,11 @@ class Schedule(Object):
                 B = T.alloc_buffer((128, 128))
                 C = T.match_buffer(c, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
@@ -2680,7 +2682,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_storage_align)
-            sch.storage_align(sch.get_block("B"), buffer_index=0, axis=0, factor=128, offset=1)
+            sch.storage_align(sch.get_sblock("B"), buffer_index=0, axis=0, factor=128, offset=1)
             print(sch.mod["main"].script())
 
         After applying storage_align, the IR becomes:
@@ -2693,12 +2695,12 @@ class Schedule(Object):
                 B = T.alloc_buffer((128, 128))
                 C = T.match_buffer(c, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
-                        T.block_attr({"buffer_dim_align": [[[0, 128, 1]]]})
+                    with T.sblock("B"):
+                        T.sblock_attr({"buffer_dim_align": [[[0, 128, 1]]]})
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
@@ -2715,14 +2717,14 @@ class Schedule(Object):
 
     @type_checked
     def set_scope(
-        self, block: Union[BlockRV, str], buffer_index: Union[int, str, Buffer], storage_scope: str
+        self, block: Union[SBlockRV, str], buffer_index: Union[int, str, Buffer], storage_scope: str
     ) -> None:
         """Set the storage scope of a buffer, where the buffer is
         specified by the a block and a write-index.
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The producer block of the buffer
         buffer_index : int
             The index of the buffer in block's write region
@@ -2743,11 +2745,11 @@ class Schedule(Object):
                 B = T.alloc_buffer((128, 128), dtype="float32")
 
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
@@ -2756,7 +2758,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_set_scope)
-            sch.set_scope(sch.get_block("B"), buffer_index=0, storage_scope="shared")
+            sch.set_scope(sch.get_sblock("B"), buffer_index=0, storage_scope="shared")
             print(sch.mod["main"].script())
 
         After applying set_scope, the IR becomes:
@@ -2770,11 +2772,11 @@ class Schedule(Object):
                 B_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
 
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B_shared[vi, vj] = A[vi, vj] * T.float32(2)
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B_shared[vi, vj] + T.float32(1)
 
@@ -2792,7 +2794,7 @@ class Schedule(Object):
         )
 
     @type_checked
-    def unsafe_set_dtype(self, block: Union[BlockRV, str], buffer_index: int, dtype: str) -> None:
+    def unsafe_set_dtype(self, block: Union[SBlockRV, str], buffer_index: int, dtype: str) -> None:
         """Set the data type of a buffer, where the buffer is
         specified by the a block and write-index.
 
@@ -2801,7 +2803,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The producer block of the buffer
         buffer_index : int
             The index of the buffer in block's write region
@@ -2822,11 +2824,11 @@ class Schedule(Object):
                 B = T.alloc_buffer((128, 128), dtype="float32")
 
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j]
                         C[vi, vj] = B[vi, vj] + 1.0
 
@@ -2849,11 +2851,11 @@ class Schedule(Object):
                 B = T.alloc_buffer((128, 128), dtype="float16")
 
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = T.cast(A[vi, vj] * 2.0, "float16")
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j]
                         C[vi, vj] = T.cast(B[vi, vj], "float32") + 1.0
 
@@ -2871,20 +2873,20 @@ class Schedule(Object):
 
     @type_checked
     def blockize(
-        self, target: Union[LoopRV, List[BlockRV]], preserve_unit_iters: bool = True
-    ) -> BlockRV:
+        self, target: Union[LoopRV, List[SBlockRV]], preserve_unit_iters: bool = True
+    ) -> SBlockRV:
         """Convert multiple blocks or the subtree rooted at a specific loop into a block.
 
         Parameters
         ----------
-        target : LoopRV or List[BlockRV]
+        target : LoopRV or List[SBlockRV]
             The root of the subtree or the specified blocks.
         preserve_unit_iters : bool
             Whether or not to preserve unit iterators in block bindings
 
         Returns
         -------
-        result : BlockRV
+        result : SBlockRV
             The new block.
 
         Examples
@@ -2900,7 +2902,7 @@ class Schedule(Object):
                 B: T.Buffer((128, 128), "float32")
             ) -> None:
                 for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi = T.axis.spatial(128, i_0 * 16 + i_1)
                         vj = T.axis.spatial(128, j_0 * 16 + j_1)
                         T.reads(A[vi, vj])
@@ -2912,7 +2914,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_blockize)
-            B = sch.get_block("B")
+            B = sch.get_sblock("B")
             _, _, i1, _ = sch.get_loops(B)
             sch.blockize(i1)
             print(sch.mod["main"].script())
@@ -2927,12 +2929,12 @@ class Schedule(Object):
                 B: T.Buffer((128, 128), "float32")
             )-> None:
                 for i_0, j_0 in T.grid(8, 8):
-                    with T.block("B_o"):
+                    with T.sblock("B_o"):
                         vio, vjo = T.axis.remap("SS", [i_0, j_0])
                         T.reads(A[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
                         T.writes(B[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
                         for i_1, j_1 in T.grid(16, 16):
-                            with T.block("B"):
+                            with T.sblock("B"):
                                 vi, vj = T.axis.remap("SS", [i_1, j_1])
                                 T.reads(A[vio * 16 + vi, vjo * 16 + vj])
                                 T.writes(B[vio * 16 + vi, vjo * 16 + vj])
@@ -2951,7 +2953,7 @@ class Schedule(Object):
     @type_checked
     def tensorize(
         self,
-        block_or_loop: Union[BlockRV, LoopRV],
+        block_or_loop: Union[SBlockRV, LoopRV],
         tensor_intrin: str,
         preserve_unit_iters: bool = True,
     ) -> None:
@@ -2959,7 +2961,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block_or_loop : Union[BlockRV, LoopRV]
+        block_or_loop : Union[SBlockRV, LoopRV]
             The loop to be tensorized.
         tensor_intrin : str
             The tensor intrin or the name of the tensor intrin.
@@ -2980,9 +2982,9 @@ class Schedule(Object):
                 C: T.Buffer((128, 128), "float32"),
             ) -> None:
                 # body
-                # with T.block("root")
+                # with T.sblock("root")
                 for i_0, j_0, k_0, i_1, j_1, k_1 in T.grid(8, 8, 8, 16, 16, 16):
-                    with T.block("update"):
+                    with T.sblock("update"):
                         vi = T.axis.spatial(128, i_0 * 16 + i_1)
                         vj = T.axis.spatial(128, j_0 * 16 + j_1)
                         vk = T.axis.reduce(128, k_0 * 16 + k_1)
@@ -3000,11 +3002,11 @@ class Schedule(Object):
                 B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
                 C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
 
-                with T.block("root"):
+                with T.sblock("root"):
                     T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
                     T.writes(C[0 : 16, 0 : 16])
                     for i, j, k in T.grid(16, 16, 16):
-                        with T.block("update"):
+                        with T.sblock("update"):
                             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -3015,7 +3017,7 @@ class Schedule(Object):
                 B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
                 C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
 
-                with T.block("root"):
+                with T.sblock("root"):
                     T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
                     T.writes(C[0 : 16, 0 : 16])
                     T.evaluate(
@@ -3039,7 +3041,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_tensorize)
-            update = sch.get_block("update")
+            update = sch.get_sblock("update")
             _, _, _, i1, _, _ = sch.get_loops(update)
             sch.tensorize(i1, "test_mma_intrin")
             print(sch.mod["main"].script())
@@ -3055,9 +3057,9 @@ class Schedule(Object):
                 C: T.Buffer((128, 128), "float32"),
             ) -> None:
                 # body
-                # with T.block("root")
+                # with T.sblock("root")
                 for i_0, j_0, k_0 in T.grid(8, 8, 8):
-                    with T.block("update_o"):
+                    with T.sblock("update_o"):
                         vio, vjo, vko = T.axis.remap("SSR", [i_0, j_0, k_0])
                         T.reads(
                             C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
@@ -3112,13 +3114,13 @@ class Schedule(Object):
 
     @type_checked
     def annotate(
-        self, block_or_loop: Union[BlockRV, LoopRV], ann_key: str, ann_val: AnnotationValueT
+        self, block_or_loop: Union[SBlockRV, LoopRV], ann_key: str, ann_val: AnnotationValueT
     ) -> None:
         """Annotate a block/loop with a key value pair
 
         Parameters
         ----------
-        block_or_loop: Union[BlockRV, LoopRV]
+        block_or_loop: Union[SBlockRV, LoopRV]
             The block/loop to be annotated
         ann_key : str
             The annotation key
@@ -3137,7 +3139,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -3146,7 +3148,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_annotate)
-            sch.annotate(sch.get_block("B"), "ann_key", "ann_value")
+            sch.annotate(sch.get_sblock("B"), "ann_key", "ann_value")
             print(sch.mod["main"].script())
 
         After applying annotate, the IR becomes:
@@ -3158,9 +3160,9 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
-                        T.block_attr({"ann_key", "ann_value"})
+                        T.sblock_attr({"ann_key", "ann_value"})
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -3169,12 +3171,12 @@ class Schedule(Object):
         )
 
     @type_checked
-    def unannotate(self, block_or_loop: Union[BlockRV, LoopRV], ann_key: str) -> None:
+    def unannotate(self, block_or_loop: Union[SBlockRV, LoopRV], ann_key: str) -> None:
         """Unannotate a block/loop's annotation with key ann_key
 
         Parameters
         ----------
-        block_or_loop: Union[BlockRV, LoopRV]
+        block_or_loop: Union[SBlockRV, LoopRV]
             The block/loop to be unannotated
         ann_key : str
             The annotation key
@@ -3191,9 +3193,9 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
-                        T.block_attr({"ann_key", "ann_value"})
+                        T.sblock_attr({"ann_key", "ann_value"})
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do annotate:
@@ -3201,7 +3203,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_unannotate)
-            sch.unannotate(sch.get_block("B"), "ann_key")
+            sch.unannotate(sch.get_sblock("B"), "ann_key")
             print(sch.mod["main"].script())
 
         After applying unannotate, the IR becomes:
@@ -3213,7 +3215,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -3224,19 +3226,19 @@ class Schedule(Object):
 
     ########## Schedule: Layout transformation ##########
 
-    def _normalize_block_arg(self, block: Union[BlockRV, str]) -> BlockRV:
+    def _normalize_block_arg(self, block: Union[SBlockRV, str]) -> SBlockRV:
         if isinstance(block, str):
-            return self.get_block(block)
+            return self.get_sblock(block)
 
         return block
 
     def _normalize_buffer_arg(
         self,
-        block: BlockRV,
+        block: SBlockRV,
         buffer: Union[Tuple[str, int], int, str, Buffer],
         required_buffer_type=None,
     ) -> Tuple[str, int, Buffer]:
-        block_obj: Block = self.get(block)
+        block_obj: SBlock = self.get(block)
         block_name = block_obj.name_hint
 
         def iter_buffers():
@@ -3301,7 +3303,7 @@ class Schedule(Object):
     @type_checked
     def transform_layout(
         self,
-        block: Union[BlockRV, str],
+        block: Union[SBlockRV, str],
         buffer: Union[Tuple[str, int], str, Buffer],
         index_map: Union[IndexMap, Callable],
         pad_value: Optional[Union[int, float, PrimExpr, IndexMap, Callable]] = None,
@@ -3312,7 +3314,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
 
             The block that accesses the target buffer.  If a string,
             this must uniquely identify a block.
@@ -3392,11 +3394,11 @@ class Schedule(Object):
                 B = T.alloc_buffer((128, 128), "float32")
                 C = T.match_buffer(c, (128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
@@ -3405,7 +3407,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_storage_align)
-            sch.transform_layout(sch.get_block("B"), buffer=("write",0),
+            sch.transform_layout(sch.get_sblock("B"), buffer=("write",0),
                                  index_map=lambda m, n: (m // 16, n // 16, m % 16, n % 16))
             print(sch.mod["main"].script())
 
@@ -3419,11 +3421,11 @@ class Schedule(Object):
                 B = T.alloc_buffer((8, 8, 16, 16), "float32")
                 C = T.match_buffer(c, (128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi // 16, vj // 16, vi % 16, vj % 16] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi // 16, vj // 16, vi % 16, vj % 16] + 1.0
 
@@ -3436,7 +3438,7 @@ class Schedule(Object):
             index_map, axis_separators = IndexMap.from_func_with_separators(
                 index_map,
                 ndim=ndim,
-                index_dtype=_get_block_default_dtype(self.get(block)),
+                index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
         else:
             axis_separators = []
@@ -3447,7 +3449,7 @@ class Schedule(Object):
             pad_value = IndexMap.from_func(
                 pad_value,
                 ndim=len(index_map.final_indices),
-                index_dtype=_get_block_default_dtype(self.get(block)),
+                index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
         elif not isinstance(pad_value, IndexMap):
             # Explicitly convert python int/float arguments to the
@@ -3461,7 +3463,7 @@ class Schedule(Object):
             pad_value = IndexMap.from_func(
                 lambda *indices: pad_value,
                 ndim=len(index_map.final_indices),
-                index_dtype=_get_block_default_dtype(self.get(block)),
+                index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
 
         buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
@@ -3481,13 +3483,13 @@ class Schedule(Object):
 
     @type_checked
     def transform_block_layout(
-        self, block: Union[BlockRV, str], index_map: Union[IndexMap, Callable]
+        self, block: Union[SBlockRV, str], index_map: Union[IndexMap, Callable]
     ) -> None:
         """Apply a transformation represented by IndexMap to block
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The block to be transformed
 
         index_map : Union[IndexMap, Callable]
@@ -3506,7 +3508,7 @@ class Schedule(Object):
                 B: T.Buffer((16, 16), "float32")
             ) -> None:
                 for i, j in T.grid(16, 16):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
@@ -3515,7 +3517,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_transform_block_layout)
-            sch.transform_block_layout(sch.get_block("B"), lambda i, j: (i * 16 + j,))
+            sch.transform_block_layout(sch.get_sblock("B"), lambda i, j: (i * 16 + j,))
             print(sch.mod["main"].script())
 
         After applying transform_block_layout, the IR becomes:
@@ -3528,7 +3530,7 @@ class Schedule(Object):
                 B: T.Buffer((16, 16), "float32")
             ) -> None:
                 for i in range(256):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, = T.axis.remap("S", [i])
                         B[vi // 16, vi % 16] = A[vi // 16, vi % 16] * 2.0
         """
@@ -3536,7 +3538,7 @@ class Schedule(Object):
         if callable(index_map):
             index_map = IndexMap.from_func(
                 index_map,
-                index_dtype=_get_block_default_dtype(self.get(block)),
+                index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
         _ffi_api.ScheduleTransformBlockLayout(  # type: ignore # pylint: disable=no-member
             self, block, index_map
@@ -3544,7 +3546,7 @@ class Schedule(Object):
 
     def set_axis_separator(
         self,
-        block: Union[BlockRV, str],
+        block: Union[SBlockRV, str],
         buffer: Union[Tuple[str, int], str, Buffer],
         axis_separators: Optional[List[int]],
     ) -> None:
@@ -3553,7 +3555,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
 
             The block that accesses the target buffer.  If a string,
             this must uniquely identify a block.
@@ -3593,11 +3595,11 @@ class Schedule(Object):
                 B = T.alloc_buffer((128, 128), dtype="float32")
 
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
@@ -3606,7 +3608,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_set_axis_separator)
-            sch.set_axis_separators(sch.get_block("B"), buffer=("write", 0),
+            sch.set_axis_separators(sch.get_sblock("B"), buffer=("write", 0),
                                     axis_separators=[1])
             print(sch.mod["main"].script())
 
@@ -3621,11 +3623,11 @@ class Schedule(Object):
                 B = T.alloc_buffer([128, 128], dtype="float32", axis_separators=[1])
 
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * T.float32(2)
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + T.float32(1)
         """
@@ -3641,7 +3643,7 @@ class Schedule(Object):
 
     ########## Schedule: Padding decomposition #########
     @type_checked
-    def decompose_padding(self, block: Union[BlockRV, str], loop: LoopRV) -> BlockRV:
+    def decompose_padding(self, block: Union[SBlockRV, str], loop: LoopRV) -> SBlockRV:
         """Decompose a block of padding computation pattern into two separate blocks.
 
         a) The block which fill const pad values into full write region;
@@ -3660,14 +3662,14 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The padding block to be decomposed.
         loop : LoopRV
             The loop above which the pad value filling block is inserted before.
 
         Returns
         -------
-        pad_value_block : BlockRV
+        pad_value_block : SBlockRV
             The block filling const pad values.
 
         Examples
@@ -3679,7 +3681,7 @@ class Schedule(Object):
             @T.prim_func
             def before_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
                 for i in range(140):
-                    with T.block("block"):
+                    with T.sblock("block"):
                         vi = T.axis.remap("S", [i])
                         y[vi] = T.if_then_else(vi >= 6 and vi < 134, x[vi - 6], 0, dtype="int32")
 
@@ -3688,7 +3690,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_decompose, debug_mask="all")
-            block = sch.get_block("block")
+            block = sch.get_sblock("block")
             sch.decompose_padding(block, sch.get_loops(block)[0])
             print(sch.mod["main].script())
 
@@ -3699,11 +3701,11 @@ class Schedule(Object):
             @T.prim_func
             def after_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
                 for i in T.serial(140):
-                    with T.block("block_pad_const"):
+                    with T.sblock("block_pad_const"):
                         vi = T.axis.spatial(140, i)
                         y[vi] = 0
                 for i in T.serial(128):
-                    with T.block("block"):
+                    with T.sblock("block"):
                         vi = T.axis.spatial(128, i)
                         y[vi + 6] = x[vi]
         """
@@ -3713,13 +3715,13 @@ class Schedule(Object):
         )
 
     @type_checked
-    def can_decompose_padding(self, block: Union[BlockRV, str], loop: LoopRV) -> bool:
+    def can_decompose_padding(self, block: Union[SBlockRV, str], loop: LoopRV) -> bool:
         """Check whether the block match padding pattern and can be decomposed."""
         # pylint: disable-next=no-member
         return _ffi_api.CanDecomposePadding(self, block, loop)  # type: ignore
 
     @type_checked
-    def pad_einsum(self, block: Union[BlockRV, str], padding: List[int]) -> None:
+    def pad_einsum(self, block: Union[SBlockRV, str], padding: List[int]) -> None:
         """Pad the computation of Einsum.
 
         On a block with trivial binding, this primitive pads the iteration domain of the block by
@@ -3732,7 +3734,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The block that matches the Einsum pattern.
 
         padding : List[int]
@@ -3752,7 +3754,7 @@ class Schedule(Object):
                 C: T.Buffer((127, 127), "float32"),
             ) -> None:
                 for i0, i1, i2 in T.grid(127, 127, 127):
-                    with T.block("C_shared"):
+                    with T.sblock("C_shared"):
                         i, j, k = T.axis.remap("SSR", [i0, i1, i2])
                         with T.init():
                             C[i, j] = T.float32(0)
@@ -3763,7 +3765,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_pad_einsum, debug_mask="all")
-            block = sch.get_block("C_shared")
+            block = sch.get_sblock("C_shared")
             sch.pad_einsum(block, [32, 32, 32])
             print(sch.mod["main"].script())
 
@@ -3777,12 +3779,12 @@ class Schedule(Object):
                 B: T.Buffer((127, 127), "float32"),
                 C: T.Buffer((127, 127), "float32"),
             ):
-                # with T.block("root"):
+                # with T.sblock("root"):
                 A_pad = T.alloc_buffer((128, 128))
                 B_pad = T.alloc_buffer((128, 128))
                 C_pad = T.alloc_buffer((128, 128))
                 for i0, i1 in T.grid(128, 128):
-                    with T.block("A_pad"):
+                    with T.sblock("A_pad"):
                         v0, v1 = T.axis.remap("SS", [i0, i1])
                         A_pad[v0, v1] = T.if_then_else(
                             v0 < 127 and v1 < 127,
@@ -3790,7 +3792,7 @@ class Schedule(Object):
                             T.float32(0),
                         )
                 for i0, i1 in T.grid(128, 128):
-                    with T.block("B_pad"):
+                    with T.sblock("B_pad"):
                         v0, v1 = T.axis.remap("SS", [i0, i1])
                         B_pad[v0, v1] = T.if_then_else(
                             v0 < 127 and v1 < 127,
@@ -3798,13 +3800,13 @@ class Schedule(Object):
                             T.float32(0),
                         )
                 for i0, i1, i2 in T.grid(128, 128, 128):
-                    with T.block("C_shared"):
+                    with T.sblock("C_shared"):
                         i, j, k = T.axis.remap("SSR", [i0, i1, i2])
                         with T.init():
                             C_pad[i, j] = T.float32(0)
                         C_pad[i, j] = C_pad[i, j] + A_pad[i, k] * B_pad[k, j]
                 for i0, i1 in T.grid(127, 127):
-                    with T.block("C_pad"):
+                    with T.sblock("C_pad"):
                         v0, v1 = T.axis.remap("SS", [i0, i1])
                         C[v0, v1] = C_pad[v0, v1]
 
@@ -3817,7 +3819,7 @@ class Schedule(Object):
     ######## Schedule: Buffer transformation ########
 
     @type_checked
-    def rolling_buffer(self, block: Union[BlockRV, str], write_buffer_index: int) -> None:
+    def rolling_buffer(self, block: Union[SBlockRV, str], write_buffer_index: int) -> None:
         """Compute the target buffer via rolling buffering, select the outermost rollable
         axis with a positive bound overlap that appears in the block's ancestor loops
         as `rolling axis`, fold and circularize the buffer along the rolling dimension,
@@ -3835,7 +3837,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[BlockRV, str]
+        block : Union[SBlockRV, str]
             The producer block of the buffer.
         write_buffer_index : int
             The index of the buffer in block's write region.
@@ -3852,11 +3854,11 @@ class Schedule(Object):
                 A: T.Buffer((12, 12), "int8"), C: T.Buffer((8, 8), "int8")
             ) -> None:
                 # body
-                # with T.block("root")
+                # with T.sblock("root")
                 B = T.alloc_buffer([10, 10], dtype="int8")
                 for i0, i1 in T.grid(2, 2):
                     for ax0, ax1, ax2, ax3 in T.grid(6, 6, 3, 3):
-                        with T.block("B"):
+                        with T.sblock("B"):
                             ax0_1 = T.axis.spatial(10, i0 * 4 + ax0)
                             ax1_1 = T.axis.spatial(10, i1 * 4 + ax1)
                             rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
@@ -3864,7 +3866,7 @@ class Schedule(Object):
                                 B[ax0_1, ax1_1], A[ax0_1 + rv0, ax1_1 + rv1]
                             )
                     for ax0, ax1, ax2, ax3 in T.grid(4, 4, 3, 3):
-                        with T.block("C"):
+                        with T.sblock("C"):
                             ax0_1 = T.axis.spatial(8, i0 * 4 + ax0)
                             ax1_1 = T.axis.spatial(8, i1 * 4 + ax1)
                             rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
@@ -3877,7 +3879,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_rolling_buffer)
-            sch.rolling_buffer(sch.get_block("B"), write_buffer_index=0)
+            sch.rolling_buffer(sch.get_sblock("B"), write_buffer_index=0)
             print(sch.mod["main"].script())
 
         After applying rolling_buffer, the IR becomes:
@@ -3890,11 +3892,11 @@ class Schedule(Object):
                 C: T.Buffer((8, 8), "int8")
             ) -> None:
                 # body
-                # with T.block("root")
+                # with T.sblock("root")
                 B = T.alloc_buffer([6, 10], dtype="int8")
                 for i0, i1 in T.grid(2, 2):
                     for ax0, ax1, ax2, ax3 in T.grid(6, 6, 3, 3):
-                        with T.block("B"):
+                        with T.sblock("B"):
                             T.where((i0 < 1 or 2 <= ax0) and (i1 < 1 or 2 <= ax1))
                             ax0_1 = T.axis.spatial(10, i0 * 4 + ax0)
                             ax1_1 = T.axis.spatial(10, i1 * 4 + ax1)
@@ -3903,7 +3905,7 @@ class Schedule(Object):
                                 B[ax0_1 % 6, ax1_1], A[ax0_1 + rv0, ax1_1 + rv1]
                             )
                     for ax0, ax1, ax2, ax3 in T.grid(4, 4, 3, 3):
-                        with T.block("C"):
+                        with T.sblock("C"):
                             ax0_1 = T.axis.spatial(8, i0 * 4 + ax0)
                             ax1_1 = T.axis.spatial(8, i1 * 4 + ax1)
                             rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
@@ -3928,13 +3930,13 @@ class Schedule(Object):
 
     @type_checked
     def unsafe_hide_buffer_access(
-        self, block: BlockRV, buf_type: str, buf_index_array: List[int]
+        self, block: SBlockRV, buf_type: str, buf_index_array: List[int]
     ) -> None:
         """Hide some buffer access in a given block. This is an unsafe schedule primitive.
 
         Parameters
         ----------
-        block : BlockRV
+        block : SBlockRV
             The block where we hide read access.
         buf_type : str
             The buffer type: "read"/"write".
@@ -3959,13 +3961,13 @@ class Schedule(Object):
 
     @type_checked
     def annotate_buffer_access(
-        self, block: BlockRV, buffer_index: int, buf_type: str, gen_new_ranges: Callable
+        self, block: SBlockRV, buffer_index: int, buf_type: str, gen_new_ranges: Callable
     ) -> None:
         """Annotate the read or write region of a block
 
         Parameters
         ----------
-        block : BlockRV
+        block : SBlockRV
             The block to be annotated
         buffer_index : int
             The index of the buffer in block's read or write region
@@ -3993,11 +3995,11 @@ class Schedule(Object):
             ) -> None:
                 B = T.alloc_buffer((128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
@@ -4006,7 +4008,7 @@ class Schedule(Object):
         .. code-block:: python
 
             sch = tir.Schedule(before_annotate_buffer_access)
-            block = sch.get_block("B")
+            block = sch.get_sblock("B")
             sch.annotate_buffer_access(block, 0, "read",
             lambda vi, vj: ((vi - 1, vi + 1), (vj - 1, vj + 1)))
             print(sch.mod["main"].script())
@@ -4022,14 +4024,14 @@ class Schedule(Object):
             ) -> None:
                 B = T.alloc_buffer((128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         T.reads(A[vi - 1:vi + 1, vj - 1:vj + 1])
                         T.writes(B[vi, vj])
-                        T.block_attr({"explicit_read_region": 0})
+                        T.sblock_attr({"explicit_read_region": 0})
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 

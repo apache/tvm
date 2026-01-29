@@ -39,7 +39,7 @@ def test_x86_conv2d_nchwc(intrin=VNNI_INTRIN, target="llvm -mcpu=cascadelake -nu
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
-            with T.block("conv2d_NCHWc_int8"):
+            with T.sblock("conv2d_NCHWc_int8"):
                 (
                     n,
                     oc_chunk,
@@ -72,11 +72,11 @@ def test_x86_conv2d_nchwc(intrin=VNNI_INTRIN, target="llvm -mcpu=cascadelake -nu
     @T.prim_func
     def x86_conv2d_nchwc_0(placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32")) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         conv2d_NCHWc_int8_global = T.alloc_buffer((1, 16, 56, 56, 16), "int32")
         for i0_0, i1_0, i2_0, i3_0, i4_0_0, i0_1, i1_1, i2_1, i3_1, i4_0_1 in T.grid(1, 8, 28, 56, 1, 1, 2, 1, 1, 1):
             for i5_0, i6_0, i7_0, i8_0, i9_0_0, i0_2, i1_2, i2_2, i3_2, i4_0_2, i5_1, i6_1, i7_1, i8_1, i9_0_1, i0_3, i1_3, i2_3, i3_3, i4_0_3 in T.grid(1, 1, 1, 4, 1, 1, 1, 2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1):
-                with T.block("conv2d_NCHWc_int8_o"):
+                with T.sblock("conv2d_NCHWc_int8_o"):
                     n = T.axis.spatial(1, i0_0 + i0_1 + i0_2 + i0_3)
                     oc_chunk = T.axis.spatial(16, i1_0 * 2 + i1_1 + i1_2 + i1_3)
                     oh = T.axis.spatial(56, i2_0 * 2 + i2_1 * 2 + i2_2 + i2_3)
@@ -89,23 +89,23 @@ def test_x86_conv2d_nchwc(intrin=VNNI_INTRIN, target="llvm -mcpu=cascadelake -nu
                     ic_s_inner_o = T.axis.reduce(1, i9_0_0 + i9_0_1)
                     T.reads(placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4:ic_f_inner * 4 + 4], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:16, 0:4])
                     T.writes(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, 0:16])
-                    T.block_attr({"meta_schedule.auto_tensorize": intrin})
+                    T.sblock_attr({"meta_schedule.auto_tensorize": intrin})
                     with T.init():
                         for i4_1 in range(16):
-                            with T.block("conv2d_NCHWc_int8_init"):
+                            with T.sblock("conv2d_NCHWc_int8_init"):
                                 oc_block_i_init = T.axis.spatial(16, i4_1)
                                 T.reads()
                                 T.writes(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i_init])
                                 conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i_init] = 0
                     for i4_1, i9_1 in T.grid(16, 4):
-                        with T.block("conv2d_NCHWc_int8"):
+                        with T.sblock("conv2d_NCHWc_int8"):
                             oc_block_i, ic_s_inner_i = T.axis.remap("SR", [i4_1, i9_1])
                             T.reads(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i], placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
                             T.writes(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i])
-                            T.block_attr({"meta_schedule.tiling_structure": "SSRSRS"})
+                            T.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
                             conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] = conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] + T.Cast("int32", placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i]) * T.Cast("int32", placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
             for ax0, ax1, ax2, ax3, ax4 in T.grid(1, 1, 2, 1, 16):
-                with T.block("conv2d_NCHWc_int8_global"):
+                with T.sblock("conv2d_NCHWc_int8_global"):
                     v0 = T.axis.spatial(1, ax0)
                     v1 = T.axis.spatial(16, i1_0 * 2 + i1_1 + ax1)
                     v2 = T.axis.spatial(56, i2_0 * 2 + ax2)
@@ -118,11 +118,11 @@ def test_x86_conv2d_nchwc(intrin=VNNI_INTRIN, target="llvm -mcpu=cascadelake -nu
     @T.prim_func
     def x86_conv2d_nchwc_1(placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32")) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         conv2d_NCHWc_int8_global = T.alloc_buffer((1, 16, 56, 56, 16), "int32")
         for i0_0, i1_0, i2_0, i3_0, i4_0_0 in T.grid(1, 8, 28, 56, 1):
             for i0_1, i1_1, i2_1, i3_1, i4_0_1, i5_0, i6_0, i7_0, i8_0, i9_0_0, i0_2, i1_2, i2_2, i3_2, i4_0_2, i5_1, i6_1, i7_1, i8_1, i9_0_1, i0_3, i1_3, i2_3, i3_3, i4_0_3 in T.grid(1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1):
-                with T.block("conv2d_NCHWc_int8_o"):
+                with T.sblock("conv2d_NCHWc_int8_o"):
                     n = T.axis.spatial(1, i0_0 + i0_1 + i0_2 + i0_3)
                     oc_chunk = T.axis.spatial(16, i1_0 * 2 + i1_1 + i1_2 + i1_3)
                     oh = T.axis.spatial(56, i2_0 * 2 + i2_1 * 2 + i2_2 + i2_3)
@@ -135,23 +135,23 @@ def test_x86_conv2d_nchwc(intrin=VNNI_INTRIN, target="llvm -mcpu=cascadelake -nu
                     ic_s_inner_o = T.axis.reduce(1, i9_0_0 + i9_0_1)
                     T.reads(placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4:ic_f_inner * 4 + 4], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:16, 0:4])
                     T.writes(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, 0:16])
-                    T.block_attr({"meta_schedule.auto_tensorize": intrin})
+                    T.sblock_attr({"meta_schedule.auto_tensorize": intrin})
                     with T.init():
                         for i4_1 in range(16):
-                            with T.block("conv2d_NCHWc_int8_init"):
+                            with T.sblock("conv2d_NCHWc_int8_init"):
                                 oc_block_i_init = T.axis.spatial(16, i4_1)
                                 T.reads()
                                 T.writes(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i_init])
                                 conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i_init] = 0
                     for i4_1, i9_1 in T.grid(16, 4):
-                        with T.block("conv2d_NCHWc_int8"):
+                        with T.sblock("conv2d_NCHWc_int8"):
                             oc_block_i, ic_s_inner_i = T.axis.remap("SR", [i4_1, i9_1])
                             T.reads(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i], placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
                             T.writes(conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i])
-                            T.block_attr({"meta_schedule.tiling_structure": "SSRSRS"})
+                            T.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
                             conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] = conv2d_NCHWc_int8_global[n, oc_chunk, oh, ow, oc_block_i] + T.Cast("int32", placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i]) * T.Cast("int32", placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
             for ax0, ax1, ax2, ax3, ax4 in T.grid(1, 2, 2, 1, 16):
-                with T.block("conv2d_NCHWc_int8_global"):
+                with T.sblock("conv2d_NCHWc_int8_global"):
                     v0 = T.axis.spatial(1, ax0)
                     v1 = T.axis.spatial(16, i1_0 * 2 + ax1)
                     v2 = T.axis.spatial(56, i2_0 * 2 + ax2)
@@ -164,9 +164,9 @@ def test_x86_conv2d_nchwc(intrin=VNNI_INTRIN, target="llvm -mcpu=cascadelake -nu
     @T.prim_func
     def x86_conv2d_nchwc_2(placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"), placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"), conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32")) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         for i0_0, i1_0, i2_0, i3_0, i4_0_0, i0_1, i1_1, i2_1, i3_1, i4_0_1, i5_0, i6_0, i7_0, i8_0, i9_0_0, i0_2, i1_2, i2_2, i3_2, i4_0_2, i5_1, i6_1, i7_1, i8_1, i9_0_1, i0_3, i1_3, i2_3, i3_3, i4_0_3 in T.grid(1, 8, 28, 56, 1, 1, 2, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 1):
-            with T.block("conv2d_NCHWc_int8_o"):
+            with T.sblock("conv2d_NCHWc_int8_o"):
                 n = T.axis.spatial(1, i0_0 + i0_1 + i0_2 + i0_3)
                 oc_chunk = T.axis.spatial(16, i1_0 * 2 + i1_1 + i1_2 + i1_3)
                 oh = T.axis.spatial(56, i2_0 * 2 + i2_1 * 2 + i2_2 + i2_3)
@@ -179,20 +179,20 @@ def test_x86_conv2d_nchwc(intrin=VNNI_INTRIN, target="llvm -mcpu=cascadelake -nu
                 ic_s_inner_o = T.axis.reduce(1, i9_0_0 + i9_0_1)
                 T.reads(placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4:ic_f_inner * 4 + 4], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:16, 0:4])
                 T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0:16])
-                T.block_attr({"meta_schedule.auto_tensorize": intrin})
+                T.sblock_attr({"meta_schedule.auto_tensorize": intrin})
                 with T.init():
                     for i4_1 in range(16):
-                        with T.block("conv2d_NCHWc_int8_init"):
+                        with T.sblock("conv2d_NCHWc_int8_init"):
                             oc_block_i_init = T.axis.spatial(16, i4_1)
                             T.reads()
                             T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i_init])
                             conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i_init] = 0
                 for i4_1, i9_1 in T.grid(16, 4):
-                    with T.block("conv2d_NCHWc_int8"):
+                    with T.sblock("conv2d_NCHWc_int8"):
                         oc_block_i, ic_s_inner_i = T.axis.remap("SR", [i4_1, i9_1])
                         T.reads(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i], placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i], placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
                         T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i])
-                        T.block_attr({"meta_schedule.tiling_structure": "SSRSRS"})
+                        T.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
                         conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i] = conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i] + T.Cast("int32", placeholder[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner_i]) * T.Cast("int32", placeholder_1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block_i, ic_s_inner_i])
     # fmt: on
     decision_0 = [
@@ -307,7 +307,7 @@ def test_dp4a_dense():
         compute: T.Buffer((128, 128), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         compute_local = T.alloc_buffer((128, 128), "int32", scope="local")
         X_shared = T.alloc_buffer((128, 128), "int8", scope="shared")
         W_shared = T.alloc_buffer((128, 128), "int8", scope="shared")
@@ -316,23 +316,23 @@ def test_dp4a_dense():
                 for i_2_j_2_fused in T.thread_binding(2, thread="threadIdx.x"):
                     for k_0_0 in range(1):
                         for ax0_ax1_fused in range(16384):
-                            with T.block("X_shared"):
+                            with T.sblock("X_shared"):
                                 v0 = T.axis.spatial(128, ax0_ax1_fused // 128)
                                 v1 = T.axis.spatial(128, ax0_ax1_fused % 128)
                                 T.reads(X[v0, v1])
                                 T.writes(X_shared[v0, v1])
-                                T.block_attr({"meta_schedule.cooperative_fetch": 1})
+                                T.sblock_attr({"meta_schedule.cooperative_fetch": 1})
                                 X_shared[v0, v1] = X[v0, v1]
                         for ax0_ax1_fused in range(16384):
-                            with T.block("W_shared"):
+                            with T.sblock("W_shared"):
                                 v0 = T.axis.spatial(128, ax0_ax1_fused // 128)
                                 v1 = T.axis.spatial(128, ax0_ax1_fused % 128)
                                 T.reads(W[v0, v1])
                                 T.writes(W_shared[v0, v1])
-                                T.block_attr({"meta_schedule.cooperative_fetch": 1})
+                                T.sblock_attr({"meta_schedule.cooperative_fetch": 1})
                                 W_shared[v0, v1] = W[v0, v1]
                         for k_0_1, i_3, j_3, k_0_2, i_4, j_4 in T.grid(1, 2, 4, 32, 2, 1):
-                            with T.block("compute_o"):
+                            with T.sblock("compute_o"):
                                 v_i = T.axis.spatial(
                                     128, i_1_j_1_fused // 32 * 8 + i_2_j_2_fused * 4 + i_3 * 2 + i_4
                                 )
@@ -343,14 +343,14 @@ def test_dp4a_dense():
                                     W_shared[v_j, v_k_o * 4 : v_k_o * 4 + 4],
                                 )
                                 T.writes(compute_local[v_i, v_j])
-                                T.block_attr({"meta_schedule.auto_tensorize": "dp4a_s8s8s32"})
+                                T.sblock_attr({"meta_schedule.auto_tensorize": "dp4a_s8s8s32"})
                                 with T.init():
-                                    with T.block("compute_init"):
+                                    with T.sblock("compute_init"):
                                         T.reads()
                                         T.writes(compute_local[v_i, v_j])
                                         compute_local[v_i, v_j] = 0
                                 for k_1 in range(4):
-                                    with T.block("compute"):
+                                    with T.sblock("compute"):
                                         v_k_i = T.axis.reduce(4, k_1)
                                         T.reads(
                                             compute_local[v_i, v_j],
@@ -358,12 +358,14 @@ def test_dp4a_dense():
                                             W_shared[v_j, v_k_o * 4 + v_k_i],
                                         )
                                         T.writes(compute_local[v_i, v_j])
-                                        T.block_attr({"meta_schedule.tiling_structure": "SSSRRSRS"})
+                                        T.sblock_attr(
+                                            {"meta_schedule.tiling_structure": "SSSRRSRS"}
+                                        )
                                         compute_local[v_i, v_j] = compute_local[v_i, v_j] + T.Cast(
                                             "int32", X_shared[v_i, v_k_o * 4 + v_k_i]
                                         ) * T.Cast("int32", W_shared[v_j, v_k_o * 4 + v_k_i])
                     for ax0, ax1 in T.grid(4, 4):
-                        with T.block("compute_local"):
+                        with T.sblock("compute_local"):
                             v0 = T.axis.spatial(
                                 128, i_1_j_1_fused // 32 * 8 + i_2_j_2_fused * 4 + ax0
                             )

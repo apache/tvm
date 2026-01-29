@@ -30,7 +30,7 @@ namespace tir {
 /*! \brief The auxiliary info used for the insertion point and content of the cache stage. */
 struct IndexInfo {
   /*! \brief The target block to perform cache_index */
-  StmtSRef target_block;
+  StmtSRef target_sblock;
   /*! \brief Record the common subexpr extract threshold */
   size_t cse_thresh;
   /*! \brief The cache buffer to store the precomputed index */
@@ -48,7 +48,7 @@ struct IndexInfo {
   /*! \brief The cache stage to be inserted. */
   Stmt cache_stage;
   /*! \brief The map used for ScheduleStateNode::Replace. */
-  ffi::Map<Block, Block> block_reuse;
+  ffi::Map<SBlock, SBlock> block_reuse;
 };
 
 /*!
@@ -112,10 +112,10 @@ class IndexInfoCollector : public StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const BlockNode* block) final {
-    visiting_target_block = static_cast<bool>(block_sref_->stmt == block);
+  void VisitStmt_(const SBlockNode* block) final {
+    visiting_target_sblock = static_cast<bool>(block_sref_->stmt == block);
     StmtVisitor::VisitStmt_(block);
-    visiting_target_block = false;
+    visiting_target_sblock = false;
     if (block == scope_sref_->stmt) {
       // The block vistied is the current parent scope
       // Handling cases when no SeqStmt in the scope
@@ -142,7 +142,7 @@ class IndexInfoCollector : public StmtExprVisitor {
 
   void VisitStmt_(const BufferStoreNode* store) final {
     // Only analyze the cache candidate for stores in target block
-    if (visiting_target_block) {
+    if (visiting_target_sblock) {
       auto IsEligibleComputation = [](const PrimExpr& expr) {
         return (SideEffect(expr) <= CallEffectKind::kPure && CalculateExprComplexity(expr) > 1 &&
                 (expr.as<RampNode>() == nullptr) && (expr.as<BroadcastNode>() == nullptr));
@@ -205,7 +205,7 @@ class IndexInfoCollector : public StmtExprVisitor {
   /*! \brief The flag whether we have visited the target block */
   bool visited_block_{false};
   /*! \brief The flag indicating currently visiting target block */
-  bool visiting_target_block{false};
+  bool visiting_target_sblock{false};
   /*! \brief The index to insert the cache_index stage */
   int loc_pos_{-1};
   /*! \brief The flag indicating the right scope to update seq pos */
@@ -220,8 +220,8 @@ class IndexInfoCollector : public StmtExprVisitor {
  * \param storage_scope The storage scope of the cached buffer (only used in naming here)
  * \returns A block indicating the body of the loop nesting.
  */
-ffi::Array<Block> MakeIndexCacheStage(IndexInfo* info, const ffi::String& storage_scope) {
-  ffi::Array<Block> blocks;
+ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& storage_scope) {
+  ffi::Array<SBlock> blocks;
   ffi::Array<Stmt> bodies;
   bodies.reserve(info->index_exprs.size());
   info->cache_buffer.reserve(info->index_exprs.size());
@@ -308,7 +308,7 @@ ffi::Array<Block> MakeIndexCacheStage(IndexInfo* info, const ffi::String& storag
 
     // Create the index computing block
     PrimExpr new_expr = Substitute(index_expr, block_var_map);
-    Block block(
+    SBlock block(
         /*iter_vars=*/std::move(block_vars),
         /*reads=*/{},
         /*writes=*/{BufferRegion(info->cache_buffer[expr_index], access_region)},
@@ -321,9 +321,9 @@ ffi::Array<Block> MakeIndexCacheStage(IndexInfo* info, const ffi::String& storag
         /*annotations=*/{});
     blocks.push_back(block);
     // Create the block realize node
-    Stmt body = BlockRealize(/*values=*/iter_values,
-                             /*predicate=*/const_true(),
-                             /*block=*/block);
+    Stmt body = SBlockRealize(/*values=*/iter_values,
+                              /*predicate=*/const_true(),
+                              /*block=*/block);
     // Create surrounding loops
     for (size_t i = loop_vars.size(); i >= 1; --i) {
       body = For(/*loop_var=*/loop_vars[i - 1],
@@ -385,22 +385,22 @@ class CacheIndexRewriter : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const BlockNode* block) final {
-    Block old_stmt = ffi::GetRef<Block>(block);
+  Stmt VisitStmt_(const SBlockNode* block) final {
+    SBlock old_stmt = ffi::GetRef<SBlock>(block);
     // Mutate the body
-    visiting_target_block = static_cast<bool>(block == info_->target_block->stmt);
-    Block stmt = Downcast<Block>(StmtMutator::VisitStmt_(block));
-    visiting_target_block = false;
+    visiting_target_sblock = static_cast<bool>(block == info_->target_sblock->stmt);
+    SBlock stmt = Downcast<SBlock>(StmtMutator::VisitStmt_(block));
+    visiting_target_sblock = false;
 
     // Check if it is the block corresponding to the parent scope
     if (block == scope_sref_->stmt) {
       // If so, put buffer allocation and insert cache stages on the parent scope
-      ObjectPtr<BlockNode> n = ffi::make_object<BlockNode>(*stmt.as<BlockNode>());
+      ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
       n->body = InsertIndexStage(n->body, info_->loc_pos, info_->cache_stage);
       for (const Buffer& it : info_->cache_buffer) {
         n->alloc_buffers.push_back(it);
       }
-      stmt = Block(n);
+      stmt = SBlock(n);
     }
     info_->block_reuse.Set(old_stmt, stmt);
     return stmt;
@@ -409,7 +409,7 @@ class CacheIndexRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* store) final {
     Stmt ret_stmt = StmtMutator::VisitStmt_(store);
     // Replace common sub expr for target block, with cached buffer load
-    if (visiting_target_block) {
+    if (visiting_target_sblock) {
       for (size_t i = 0; i < info_->index_exprs.size(); i++) {
         PrimExpr& computation = info_->index_exprs[i];
         std::function<bool(const PrimExpr&)> predicate_selector =
@@ -433,7 +433,7 @@ class CacheIndexRewriter : public StmtExprMutator {
   /*! \brief The indices for the cache buffer */
   std::vector<ffi::Array<PrimExpr>> cache_indices_;
   /*! \brief Indicating whether cache stage is inserted, only do index replacement afterwards*/
-  bool visiting_target_block{false};
+  bool visiting_target_sblock{false};
 };
 
 ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
@@ -449,7 +449,7 @@ ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
 
   // Step 0. Checking index, getting the target buffer and the parent scope
   IndexInfo info;
-  info.target_block = block_sref;
+  info.target_sblock = block_sref;
   CHECK_GE(cse_thresh, 0) << "cse_thresh should not be negative number";
   info.cse_thresh = cse_thresh;
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
@@ -458,9 +458,9 @@ ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
   IndexInfoCollector::Collect(self, block_sref, scope_sref, &info);
 
   // Step 2. Create cache stages and rewrite the stmt.
-  BlockRealize realize = GetBlockRealize(self, block_sref);
+  SBlockRealize realize = GetSBlockRealize(self, block_sref);
   info.var_binding = GetBindings(realize);
-  ffi::Array<Block> cache_stages = MakeIndexCacheStage(&info, storage_scope);
+  ffi::Array<SBlock> cache_stages = MakeIndexCacheStage(&info, storage_scope);
   Stmt new_scope = CacheIndexRewriter::Rewrite(/*scope_sref=*/scope_sref, /*info=*/&info);
 
   bool old_stage_pipeline = self->block_info[block_sref].stage_pipeline;
@@ -468,10 +468,10 @@ ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
   // Step 3. Replacing and updating flags.
   self->Replace(scope_sref, new_scope, info.block_reuse);
   ffi::Array<StmtSRef> result_block_srefs;
-  for (const Block& it : cache_stages) {
+  for (const SBlock& it : cache_stages) {
     StmtSRef result_block_sref = self->stmt2ref.at(it.get());
     result_block_srefs.push_back(result_block_sref);
-    BlockInfo& block_info = self->block_info[result_block_sref];
+    SBlockInfo& block_info = self->block_info[result_block_sref];
 
     bool affine_binding = false;
     if (result_block_sref->parent == nullptr) {
@@ -479,7 +479,7 @@ ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
     } else {
       arith::Analyzer analyzer;
       StmtSRef parent_sref = ffi::GetRef<StmtSRef>(result_block_sref->parent);
-      affine_binding = IsAffineBinding(/*realize=*/GetBlockRealize(self, result_block_sref),
+      affine_binding = IsAffineBinding(/*realize=*/GetSBlockRealize(self, result_block_sref),
                                        /*loop_var_ranges=*/LoopDomainOfSRefTreePath(parent_sref),
                                        /*analyzer=*/&analyzer);
     }
@@ -503,9 +503,9 @@ struct CacheIndexTraits : public UnpackedInstTraits<CacheIndexTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static ffi::Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block,
-                                                     ffi::String storage_scope,
-                                                     Integer cse_thresh) {
+  static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block,
+                                                      ffi::String storage_scope,
+                                                      Integer cse_thresh) {
     return sch->CacheIndex(block, storage_scope, cse_thresh->value);
   }
 

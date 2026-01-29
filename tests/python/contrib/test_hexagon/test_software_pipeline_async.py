@@ -35,8 +35,8 @@ def compute(comp_type, outer, inner, dtype):
         ):
             for i in T.serial(outer):
                 for j in T.serial(inner):
-                    with T.block("compute"):
-                        with T.block():
+                    with T.sblock("compute"):
+                        with T.sblock():
                             out[i, j] = a_buffer[i, j] + T.cast(1, dtype)
 
         return a_plus_1_primfunc
@@ -50,8 +50,8 @@ def compute(comp_type, outer, inner, dtype):
         ):
             for i in T.serial(outer):
                 for j in T.serial(inner):
-                    with T.block("compute"):
-                        with T.block():
+                    with T.sblock("compute"):
+                        with T.sblock():
                             out[i, j] = a_buffer[i, j] + b_buffer[i, j] + T.cast(1, dtype)
 
         return a_plus_b_plus_1_primfunc
@@ -114,7 +114,7 @@ class TestAsyncSoftwarePipeline:
         """Generate schedule."""
         sch = tir.Schedule(compute(comp_type, outer, inner, dtype))
 
-        compute_block = sch.get_block("compute")
+        compute_block = sch.get_sblock("compute")
         i, _ = sch.get_loops(compute_block)
 
         if "read" in sched_type:

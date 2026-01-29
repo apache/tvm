@@ -34,7 +34,7 @@ class TensorIntrinMismatchError : public ScheduleError {
         lhs_stmt_(std::move(lhs_stmt)),
         rhs_stmt_(std::move(rhs_stmt)),
         error_messages_(std::move(error_messages)) {
-    ICHECK(lhs_stmt_->IsInstance<ForNode>() || lhs_stmt_->IsInstance<BlockNode>());
+    ICHECK(lhs_stmt_->IsInstance<ForNode>() || lhs_stmt_->IsInstance<SBlockNode>());
   }
 
   ffi::String FastErrorString() const final {
@@ -67,7 +67,7 @@ class TensorIntrinMismatchError : public ScheduleError {
 bool TensorizeComparator::VisitStmt(const Stmt& n, const Stmt& other) {
   bool equal = n.same_as(other) ||
                ((n->type_index() == other->type_index()) && StmtComparator::VisitStmt(n, other));
-  if (!equal && assert_mode_ && (n->IsInstance<ForNode>() || n->IsInstance<BlockNode>())) {
+  if (!equal && assert_mode_ && (n->IsInstance<ForNode>() || n->IsInstance<SBlockNode>())) {
     throw TensorIntrinMismatchError(lhs_mod_, n, other, std::move(error_messages_));
   }
   return equal;
@@ -183,8 +183,8 @@ bool TensorizeComparator::VisitStmt_(const BufferStoreNode* op, const Stmt& othe
   return CompareBufferAccess(op, rhs) && VisitExpr(op->value, rhs->value);
 }
 
-bool TensorizeComparator::VisitStmt_(const BlockRealizeNode* op, const Stmt& other) {
-  const auto* rhs = other.as<BlockRealizeNode>();
+bool TensorizeComparator::VisitStmt_(const SBlockRealizeNode* op, const Stmt& other) {
+  const auto* rhs = other.as<SBlockRealizeNode>();
   if (!is_scope_block) {
     if (!CompareArray(op->iter_values, rhs->iter_values, &TensorizeComparator::VisitExpr)) {
       if (assert_mode_) {
@@ -199,8 +199,8 @@ bool TensorizeComparator::VisitStmt_(const BlockRealizeNode* op, const Stmt& oth
   return VisitExpr(op->predicate, rhs->predicate) && VisitStmt(op->block, rhs->block);
 }
 
-bool TensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
-  const auto* rhs = other.as<BlockNode>();
+bool TensorizeComparator::VisitStmt_(const SBlockNode* op, const Stmt& other) {
+  const auto* rhs = other.as<SBlockNode>();
   for (const IterVar& iter : op->iter_vars) {
     lhs_analyzer_.Bind(iter->var, iter->dom);
   }
@@ -623,8 +623,8 @@ bool AutoTensorizeComparator::VisitStmtDefault_(const Object* op, const Stmt& ot
   return false;
 }
 
-bool AutoTensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other) {
-  const auto* rhs = other.as<BlockNode>();
+bool AutoTensorizeComparator::VisitStmt_(const SBlockNode* op, const Stmt& other) {
+  const auto* rhs = other.as<SBlockNode>();
   // Check block equality.
   // All iter vars and buffer regions including the order should match.
   // When checking iter vars, DefEqual is used to remap variables.
@@ -643,7 +643,7 @@ bool AutoTensorizeComparator::VisitStmt_(const BlockNode* op, const Stmt& other)
       inner_iter_dom_map_.Set(block_iter->var, arith::IntSet::FromRange(block_iter->dom));
     }
   } else {
-    auto collect_iter = [&](const BlockNode* op, std::vector<IterVar>& iters) -> bool {
+    auto collect_iter = [&](const SBlockNode* op, std::vector<IterVar>& iters) -> bool {
       for (const auto& iter : op->iter_vars) {
         analyzer_.Bind(iter->var, iter->dom);
         if (iter->iter_type == IterVarType::kDataPar ||

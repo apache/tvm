@@ -49,7 +49,7 @@ def test_customize_legalize():
         def add(rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                     T.reads(rxplaceholder_1[ax0, ax1, ax2, T.int64(0)], rxplaceholder[T.int64(0), ax2, ax3])
                     T.writes(T_add[ax0, ax1, ax2, ax3])
@@ -77,7 +77,7 @@ def test_legalize_multiple_types_of_call():
         @T.prim_func(private=True)
         def identity(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_id: T.Buffer((T.int64(3), T.int64(3)), "float32")):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(rxplaceholder[v_ax0, v_ax1])
                     T.writes(T_id[v_ax0, v_ax1])
@@ -102,7 +102,7 @@ def test_legalize_multiple_types_of_call():
         @T.prim_func(private=True)
         def identity(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_id: T.Buffer((T.int64(3), T.int64(3)), "float32")):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(rxplaceholder[v_ax0, v_ax1])
                     T.writes(T_id[v_ax0, v_ax1])
@@ -112,7 +112,7 @@ def test_legalize_multiple_types_of_call():
         def multiply(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float32")):
             T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.block("T_multiply"):
+                with T.sblock("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(rxplaceholder[v_ax0, v_ax1])
                     T.writes(T_multiply[v_ax0, v_ax1])
@@ -195,9 +195,9 @@ def test_legalize_scalar_data_type_preserve():
             T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float16"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.block("T_multiply"):
+                with T.sblock("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(rxplaceholder[v_ax0, v_ax1])
                     T.writes(T_multiply[v_ax0, v_ax1])
@@ -219,9 +219,9 @@ def test_legalize_scalar_data_type_preserve():
             T_multiply: T.Buffer((T.int64(3), T.int64(3)), "uint8"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.block("T_multiply"):
+                with T.sblock("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(rxplaceholder[v_ax0, v_ax1])
                     T.writes(T_multiply[v_ax0, v_ax1])
@@ -241,9 +241,9 @@ def test_legalize_scalar_data_type_preserve():
             T_equal: T.Buffer((T.int64(3), T.int64(3)), "bool"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
-                with T.block("T_equal"):
+                with T.sblock("T_equal"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(rxplaceholder[v_ax0, v_ax1])
                     T.writes(T_equal[v_ax0, v_ax1])
@@ -402,7 +402,7 @@ def test_legalize_with_vdevice():
         ):
             T.func_attr({"tir.noalias": True})
             for iters in T.grid(T.int64(32), T.int64(32)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     ax0, ax1 = T.axis.remap("SS", iters)
                     C[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
 
@@ -427,7 +427,7 @@ def test_legalize_with_vdevice():
         ):
             T.func_attr({"target": T.target("llvm"), "tir.noalias": True})
             for iters in T.grid(T.int64(32), T.int64(32)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     ax0, ax1 = T.axis.remap("SS", iters)
                     C[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
 

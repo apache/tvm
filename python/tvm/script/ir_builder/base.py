@@ -55,7 +55,7 @@ class IRBuilderFrame(_Object):
     with IRBuilder() as builder:
         with T.prim_func(...):  # pushes a PrimFuncFrame (subclass of IRBuilderFrame)
                                 # to `builder`'s stack of frames
-            with T.block(...):  # pushes a BlockFrame (subclass of IRBuilderFrame)
+            with T.sblock(...):  # pushes a BlockFrame (subclass of IRBuilderFrame)
                                 # to `builder`'s stack of frames
                 buffer = T.match_buffer(...)
     """

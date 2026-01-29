@@ -29,7 +29,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("matmul"):
+        with T.sblock("matmul"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -41,7 +41,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 def test_time_evalutor_with_preproc(f_preproc: str):
     mod = tvm.IRModule.from_expr(matmul.with_attr("global_symbol", "main"))
     sch = tvm.tir.Schedule(mod)
-    blk = sch.get_block("matmul")
+    blk = sch.get_sblock("matmul")
     i, j, k = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")
     sch.bind(j, "threadIdx.x")

@@ -57,11 +57,12 @@ inline tvm::relax::BlockBuilder GetBlockBuilder() {
   return frame.value()->block_builder;
 }
 
-inline BlockFrame CheckBlockFrameExistAndUnended() {
+inline BindingBlockFrame CheckBindingBlockFrameExistAndUnended() {
   // We check if the current block is "ended" - if a block is ended, it is not allowed to emit new
   // bindings into this block, and we should throw exceptions.
 
-  ffi::Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
+  ffi::Optional<BindingBlockFrame> block_frame =
+      IRBuilder::Current()->GetLastFrame<BindingBlockFrame>();
   CHECK(block_frame.defined()) << "ValueError: Block frame not find";
   CHECK(!block_frame.value()->block_ended)
       << "ValueError: New binding is not allowed after dataflow block output.";

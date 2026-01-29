@@ -37,17 +37,17 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
    * \param old_reduction_block The reduction block we want to decompose
    * \return The new block scope and the updated reduction block
    */
-  static std::pair<Block, Block> Replace(Block old_scope_root, For target_loop,
-                                         Stmt decomposed_body, Block old_reduction_block) {
+  static std::pair<SBlock, SBlock> Replace(SBlock old_scope_root, For target_loop,
+                                           Stmt decomposed_body, SBlock old_reduction_block) {
     DecomposeReductionBlockReplacer replacer(std::move(target_loop), std::move(decomposed_body),
                                              std::move(old_reduction_block));
-    return std::make_pair(Downcast<Block>(replacer(std::move(old_scope_root))),
+    return std::make_pair(Downcast<SBlock>(replacer(std::move(old_scope_root))),
                           replacer.new_reduction_block_);
   }
 
  private:
   explicit DecomposeReductionBlockReplacer(For target_loop, Stmt decomposed_body,
-                                           Block old_reduction_block)
+                                           SBlock old_reduction_block)
       : target_loop_(std::move(target_loop)),
         decomposed_body_(std::move(decomposed_body)),
         old_reduction_block_(std::move(old_reduction_block)) {}
@@ -61,9 +61,9 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
     }
   }
 
-  Stmt VisitStmt_(const BlockNode* block) final {
+  Stmt VisitStmt_(const SBlockNode* block) final {
     if (block == old_reduction_block_.get()) {
-      ObjectPtr<BlockNode> p_new_block = CopyOnWrite(block);
+      ObjectPtr<SBlockNode> p_new_block = CopyOnWrite(block);
       p_new_block->name_hint = p_new_block->name_hint + "_update";
       p_new_block->init = std::nullopt;
       // Add write regions back to read regions in update block.
@@ -81,7 +81,7 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
         new_reads.push_back(read_access);
       }
       p_new_block->reads = new_reads;
-      new_reduction_block_ = Block(p_new_block);
+      new_reduction_block_ = SBlock(p_new_block);
       return new_reduction_block_;
     } else {
       return StmtMutator::VisitStmt_(block);
@@ -100,14 +100,14 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
  private:
   For target_loop_;
   Stmt decomposed_body_;
-  Block old_reduction_block_;
-  Block new_reduction_block_;
+  SBlock old_reduction_block_;
+  SBlock new_reduction_block_;
 };
 
 class LoopHeightError : public ScheduleError {
  public:
-  static void CheckLoopHigherThanReduceLoops(const IRModule& mod, const BlockNode* block,
-                                             const BlockRealizeNode* realize,
+  static void CheckLoopHigherThanReduceLoops(const IRModule& mod, const SBlockNode* block,
+                                             const SBlockRealizeNode* realize,
                                              const ffi::Array<StmtSRef>& loops,
                                              const StmtSRef& loop_sref) {
     for (int i = 0, n = block->iter_vars.size(); i < n; ++i) {
@@ -126,13 +126,13 @@ class LoopHeightError : public ScheduleError {
         const Var& loop_var = higher_loop->StmtAs<ForNode>()->loop_var;
         if (UsesVar(binding, [v = loop_var.get()](const VarNode* var) { return var == v; })) {
           const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-          throw LoopHeightError(mod, ffi::GetRef<For>(loop), ffi::GetRef<Block>(block));
+          throw LoopHeightError(mod, ffi::GetRef<For>(loop), ffi::GetRef<SBlock>(block));
         }
       }
     }
   }
 
-  explicit LoopHeightError(IRModule mod, For loop, Block block)
+  explicit LoopHeightError(IRModule mod, For loop, SBlock block)
       : mod_(std::move(mod)), loop_(std::move(loop)), block_(std::move(block)) {}
 
   ffi::String FastErrorString() const final {
@@ -152,7 +152,7 @@ class LoopHeightError : public ScheduleError {
 
   IRModule mod_;
   For loop_;
-  Block block_;
+  SBlock block_;
 };
 
 PrimExpr RemakePredicate(PrimExpr pred, const std::unordered_set<const VarNode*>& discarded_loops) {
@@ -185,17 +185,17 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
    *    - generate corresponding init block and update block
    */
   // Condition Checks and Information Collection
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   // Get the outer loops from high to low
   ffi::Array<StmtSRef> loops = GetLoops(block_sref);
-  const BlockRealizeNode* realize = GetBlockRealize(self, block_sref).get();
+  const SBlockRealizeNode* realize = GetSBlockRealize(self, block_sref).get();
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
                                           /*require_stage_pipeline=*/false);
   if (self->enable_check) {
     // Cond 0. Check loop_sref is an ancestor of block_sref
     if (std::find(loops.begin(), loops.end(), loop_sref) == loops.end()) {
-      throw LoopPositionError(self->mod, ffi::GetRef<For>(loop), ffi::GetRef<Block>(block),
+      throw LoopPositionError(self->mod, ffi::GetRef<For>(loop), ffi::GetRef<SBlock>(block),
                               "decompose_reduction");
     }
     // Cond 1. Check block is reduction
@@ -204,12 +204,12 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
   }
   // IR Manipulation
-  ObjectPtr<BlockNode> init_block = ffi::make_object<BlockNode>();
-  ObjectPtr<BlockRealizeNode> init_realize = ffi::make_object<BlockRealizeNode>();
+  ObjectPtr<SBlockNode> init_block = ffi::make_object<SBlockNode>();
+  ObjectPtr<SBlockRealizeNode> init_realize = ffi::make_object<SBlockRealizeNode>();
   init_block->name_hint = block->name_hint + "_init";
   init_block->annotations = block->annotations;
   init_realize->iter_values = {};
-  init_realize->block = Block(init_block);
+  init_realize->block = SBlock(init_block);
   // Step 1. Create new block vars and their bindings
   // Maps an old block var to the new corresponding block var
   std::unordered_map<Var, Var> block_var_map;
@@ -266,7 +266,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   init_realize->predicate = RemakePredicate(realize->predicate, discarded_loops);
   // Step 5. Create new loops above init block
   std::unordered_map<Var, Var> loop_var_map;
-  Stmt body = BlockRealize(init_realize);
+  Stmt body = SBlockRealize(init_realize);
   for (int i : chosen_loops) {
     For old_loop = ffi::GetRef<For>(TVM_SREF_TO_FOR(loops[i]));
     // Create a new equivalent to the chosen loop
@@ -288,13 +288,14 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   }
   body = Substitute(body, loop_var_map);
   // Step 6. Mutate IR
-  const BlockNode* old_scope_root = TVM_SREF_TO_BLOCK(scope_root_sref);
+  const SBlockNode* old_scope_root = TVM_SREF_TO_SBLOCK(scope_root_sref);
   auto [new_scope_root, new_reduction_block] = DecomposeReductionBlockReplacer::Replace(
-      ffi::GetRef<Block>(old_scope_root), ffi::GetRef<For>(loop), body, ffi::GetRef<Block>(block));
+      ffi::GetRef<SBlock>(old_scope_root), ffi::GetRef<For>(loop), body,
+      ffi::GetRef<SBlock>(block));
   self->Replace(scope_root_sref, new_scope_root,
-                {{ffi::GetRef<Block>(old_scope_root), new_scope_root},
-                 {ffi::GetRef<Block>(block), new_reduction_block}});
-  self->UpdateScopeBlockInfo(new_scope_root);
+                {{ffi::GetRef<SBlock>(old_scope_root), new_scope_root},
+                 {ffi::GetRef<SBlock>(block), new_reduction_block}});
+  self->UpdateScopeSBlockInfo(new_scope_root);
   return self->stmt2ref.at(init_block.get());
 }
 
@@ -559,10 +560,10 @@ class LoopPropertyError : public ScheduleError {
   ffi::Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
   static void CheckLoopProperty(const ScheduleState& self, const ffi::Array<For>& loops,
-                                const ForNode* rf_loop, const Block& block,
+                                const ForNode* rf_loop, const SBlock& block,
                                 const std::unordered_set<const VarNode*>& data_par_loop_vars,
                                 const std::unordered_set<const VarNode*>& reduce_loop_vars) {
-    ffi::Array<BlockRealize> children_of_outermost_loop =
+    ffi::Array<SBlockRealize> children_of_outermost_loop =
         GetChildBlockRealizeOnSRefTree(self->stmt2ref.at(loops[0].get()));
     if (!children_of_outermost_loop[0]->block.same_as(block)) {
       throw LoopPropertyError(self->mod, loops[0], kNotFirstChildBlockOfOutermostLoop);
@@ -649,7 +650,7 @@ ffi::Array<Buffer> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_store
  */
 class BaseBlockCreator {
  public:
-  explicit BaseBlockCreator(BlockRealize old_block_realize, For rf_loop,
+  explicit BaseBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                             ffi::Array<BufferStore> old_reduction_updates, CommReducer reducer,
                             ffi::Array<Buffer> rf_buffers, bool is_rf_block)
       : old_block_realize_(std::move(old_block_realize)),
@@ -695,7 +696,7 @@ class BaseBlockCreator {
       new_block_name = new_block_name + "_rf";
       predicate = old_block_realize_->predicate;
     }
-    new_block_ = Block(
+    new_block_ = SBlock(
         /*iter_vars=*/iter_vars_,
         /*reads=*/read_regions_,
         /*writes=*/write_regions_,
@@ -705,7 +706,7 @@ class BaseBlockCreator {
         /*alloc_buffers=*/{},
         /*match_buffers=*/{},
         /*annotations=*/old_block_realize_->block->annotations);
-    new_block_realize_ = BlockRealize(iter_values_, predicate, new_block_);
+    new_block_realize_ = SBlockRealize(iter_values_, predicate, new_block_);
   }
 
  private:
@@ -765,15 +766,15 @@ class BaseBlockCreator {
 
  public:
   /*! \brief The new created block */
-  Block new_block_;
+  SBlock new_block_;
   /*! \brief The new created block-realize */
-  BlockRealize new_block_realize_;
+  SBlockRealize new_block_realize_;
   /*! \brief The indices used to access the intermediate rfactor buffer */
   ffi::Array<PrimExpr> rf_buf_access_indices_;
 
  protected:
   /*! \brief The old block-realize */
-  BlockRealize old_block_realize_;
+  SBlockRealize old_block_realize_;
   /*! \brief The number of block iters in the old block */
   int n_block_iters_;
   /*! \brief The rfactor loop */
@@ -836,7 +837,7 @@ class BaseBlockCreator {
  */
 class RFactorBlockCreator : public BaseBlockCreator {
  public:
-  explicit RFactorBlockCreator(BlockRealize old_block_realize, For rf_loop,
+  explicit RFactorBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                                ffi::Array<BufferStore> old_reduction_updates, CommReducer reducer,
                                ffi::Array<Buffer> rf_buffers,
                                std::unordered_map<const VarNode*, For> loop_vars2loop,
@@ -915,7 +916,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
     for (int i = 0; i < n_buffers_; ++i) {
       buffer_map.Set(old_reduction_updates_[i]->buffer, rf_buffers_[i]);
     }
-    const Block& old_block = old_block_realize_->block;
+    const SBlock& old_block = old_block_realize_->block;
     read_regions_.reserve(old_block->reads.size());
     for (const BufferRegion& read_region : old_block->reads) {
       read_regions_.push_back(
@@ -961,7 +962,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
  */
 class WriteBackBlockCreator : public BaseBlockCreator {
  public:
-  explicit WriteBackBlockCreator(BlockRealize old_block_realize, For rf_loop,
+  explicit WriteBackBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                                  ffi::Array<BufferStore> old_reduction_updates, CommReducer reducer,
                                  ffi::Array<Buffer> rf_buffers, IterVar rf_additional_iter,
                                  ffi::Array<PrimExpr> combiner_lhs,
@@ -1039,7 +1040,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
  * \param loops The loops to be wrapped over the rfactor block
  * \return A Stmt which is the wrapping result
  */
-Stmt CreateLoopOutsideRfactorBlock(BlockRealize rf_block_realize, const ffi::Array<For>& loops) {
+Stmt CreateLoopOutsideRfactorBlock(SBlockRealize rf_block_realize, const ffi::Array<For>& loops) {
   int n_loops = static_cast<int>(loops.size());
 
   // Step 1. Create new loop vars.
@@ -1059,7 +1060,7 @@ Stmt CreateLoopOutsideRfactorBlock(BlockRealize rf_block_realize, const ffi::Arr
     new_bindings.push_back(Substitute(old_binding, new_loop_var_map));
   }
   {
-    BlockRealizeNode* p_rf_block_realize = rf_block_realize.CopyOnWrite();
+    SBlockRealizeNode* p_rf_block_realize = rf_block_realize.CopyOnWrite();
     p_rf_block_realize->iter_values = new_bindings;
     p_rf_block_realize->predicate = Substitute(rf_block_realize->predicate, new_loop_var_map);
   }
@@ -1100,17 +1101,17 @@ class BlockReplacer : public StmtMutator {
    * \param rf_buffer The rfactor buffer to be added into the scope root's `alloc_buffers`
    * \return The transformed new scope root block
    */
-  static Block Replace(Block scope_root_block, Stmt rf_body, For outermost_loop,
-                       BlockRealize wb_block_realize, BlockRealize old_block_realize, For rf_loop,
-                       std::unordered_set<const VarNode*> reduce_loop_vars,
-                       std::unordered_map<const VarNode*, For> loop_vars2loop,
-                       const ffi::Array<Buffer>& rf_buffers) {
+  static SBlock Replace(SBlock scope_root_block, Stmt rf_body, For outermost_loop,
+                        SBlockRealize wb_block_realize, SBlockRealize old_block_realize,
+                        For rf_loop, std::unordered_set<const VarNode*> reduce_loop_vars,
+                        std::unordered_map<const VarNode*, For> loop_vars2loop,
+                        const ffi::Array<Buffer>& rf_buffers) {
     BlockReplacer replacer(std::move(rf_body), std::move(outermost_loop),
                            std::move(wb_block_realize), std::move(old_block_realize),
                            std::move(rf_loop), std::move(reduce_loop_vars),
                            std::move(loop_vars2loop));
-    Block new_scope_root = Downcast<Block>(replacer(std::move(scope_root_block)));
-    BlockNode* p = new_scope_root.CopyOnWrite();
+    SBlock new_scope_root = Downcast<SBlock>(replacer(std::move(scope_root_block)));
+    SBlockNode* p = new_scope_root.CopyOnWrite();
     for (const Buffer& rf_buffer : rf_buffers) {
       p->alloc_buffers.push_back(rf_buffer);
     }
@@ -1118,8 +1119,8 @@ class BlockReplacer : public StmtMutator {
   }
 
  private:
-  explicit BlockReplacer(Stmt rf_body, For outermost_loop, BlockRealize wb_block_realize,
-                         BlockRealize old_block_realize, For rf_loop,
+  explicit BlockReplacer(Stmt rf_body, For outermost_loop, SBlockRealize wb_block_realize,
+                         SBlockRealize old_block_realize, For rf_loop,
                          std::unordered_set<const VarNode*> reduce_loop_vars,
                          std::unordered_map<const VarNode*, For> loop_vars2loop)
       : rf_body_(std::move(rf_body)),
@@ -1154,7 +1155,7 @@ class BlockReplacer : public StmtMutator {
     return loop == outermost_loop_.get() ? SeqStmt({rf_body_, body}) : body;
   }
 
-  Stmt VisitStmt_(const BlockRealizeNode* block_realize) final {
+  Stmt VisitStmt_(const SBlockRealizeNode* block_realize) final {
     // Due to the visitor's behavior on ForNode, this block-realize must be the reduction block's
     // block-realize. And we directly return the new `wb_block_realize`.
     ICHECK_EQ(block_realize, old_block_realize_.get());
@@ -1174,8 +1175,8 @@ class BlockReplacer : public StmtMutator {
  private:
   Stmt rf_body_;
   For outermost_loop_;
-  BlockRealize wb_block_realize_;
-  BlockRealize old_block_realize_;
+  SBlockRealize wb_block_realize_;
+  SBlockRealize old_block_realize_;
   For rf_loop_;
   std::unordered_set<const VarNode*> reduce_loop_vars_;
   std::unordered_map<const VarNode*, For> loop_vars2loop_;
@@ -1187,9 +1188,9 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // *****************************************************
 
   // Step 1. Check some basic conditions for rfactor. Get the block and block-realize.
-  BlockRealize block_realize = CheckGetSingleChildBlockRealizeOnSRefTree(self, rf_loop_sref);
+  SBlockRealize block_realize = CheckGetSingleChildBlockRealizeOnSRefTree(self, rf_loop_sref);
   const StmtSRef& block_sref = self->stmt2ref.at(block_realize->block.get());
-  const Block& block = block_realize->block;
+  const SBlock& block = block_realize->block;
   StmtSRef scope_root = GetScopeRoot(self, block_sref,  //
                                      /*require_stage_pipeline=*/true);
   if (self->enable_check) {
@@ -1271,8 +1272,8 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   // *****************************************************
 
   // Step 1. Substitute the old scope root block with the new scope root block.
-  Block old_scope_root_block = ffi::GetRef<Block>(scope_root->StmtAs<BlockNode>());
-  Block new_scope_root_block = BlockReplacer::Replace(
+  SBlock old_scope_root_block = ffi::GetRef<SBlock>(scope_root->StmtAs<SBlockNode>());
+  SBlock new_scope_root_block = BlockReplacer::Replace(
       old_scope_root_block, rf_body, loops[0], wb_block_creator.new_block_realize_, block_realize,
       ffi::GetRef<For>(rf_loop), reduce_loop_vars, loop_vars2loop, rf_buffers);
   self->Replace(
@@ -1283,7 +1284,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   std::vector<StmtSRef> new_block_srefs{self->stmt2ref.at(rf_block_creator.new_block_.get()),
                                         self->stmt2ref.at(wb_block_creator.new_block_.get())};
   for (const StmtSRef& new_block_sref : new_block_srefs) {
-    BlockInfo& info = self->block_info[new_block_sref];
+    SBlockInfo& info = self->block_info[new_block_sref];
     info.affine_binding = true;
     info.region_cover = true;
     info.stage_pipeline = true;
@@ -1302,7 +1303,7 @@ struct DecomposeReductionTraits : public UnpackedInstTraits<DecomposeReductionTr
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static BlockRV UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, LoopRV loop_rv) {
+  static SBlockRV UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, LoopRV loop_rv) {
     return sch->DecomposeReduction(block_rv, loop_rv);
   }
 
@@ -1328,7 +1329,7 @@ struct RFactorTraits : public UnpackedInstTraits<RFactorTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static BlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer factor_axis) {
+  static SBlockRV UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, Integer factor_axis) {
     return sch->RFactor(loop_rv, factor_axis->value);
   }
 

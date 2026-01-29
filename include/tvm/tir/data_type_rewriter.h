@@ -51,8 +51,8 @@ class DataTypeLegalizer : public StmtExprMutator {
  protected:
   Stmt VisitStmt_(const ForNode* op) override;
   Stmt VisitStmt_(const AttrStmtNode* op) override;
-  Stmt VisitStmt_(const BlockRealizeNode* op) override;
-  Stmt VisitStmt_(const BlockNode* op) override;
+  Stmt VisitStmt_(const SBlockRealizeNode* op) override;
+  Stmt VisitStmt_(const SBlockNode* op) override;
   Stmt VisitStmt_(const LetStmtNode* op) override;
   PrimExpr VisitExpr_(const VarNode* op) override;
   PrimExpr VisitExpr_(const SelectNode* op) override;
@@ -101,8 +101,8 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   using Parent::VisitExpr_;
   using Parent::VisitStmt_;
 
-  Stmt VisitStmt_(const BlockRealizeNode* op) override;
-  Stmt VisitStmt_(const BlockNode* op) override;
+  Stmt VisitStmt_(const SBlockRealizeNode* op) override;
+  Stmt VisitStmt_(const SBlockNode* op) override;
   Stmt VisitStmt_(const BufferStoreNode* op) override;
   Stmt VisitStmt_(const AttrStmtNode* op) override;
   PrimExpr VisitExpr_(const BufferLoadNode* op) override;

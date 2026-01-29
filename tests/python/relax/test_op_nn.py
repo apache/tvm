@@ -1845,5 +1845,59 @@ def test_pixel_shuffle_infer_struct_info():
     )
 
 
+def test_batch_flatten_op_correctness():
+    x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    assert relax.op.nn.batch_flatten(x).op == Op.get("relax.nn.batch_flatten")
+
+
+def test_batch_flatten_infer_struct_info():
+    bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
+    x0 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=4))
+    x2 = relax.Var("x", R.Tensor("float32", ndim=-1))
+    x3 = relax.Var("x", R.Tensor((2, 3, 4, 5)))
+    x4 = relax.Var("x", R.Tensor((10, 20), "float32"))
+    x5 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32", vdev0))
+
+    _check_inference(bb, relax.op.nn.batch_flatten(x0), relax.TensorStructInfo((2, 60), "float32"))
+    _check_inference(
+        bb, relax.op.nn.batch_flatten(x5), relax.TensorStructInfo((2, 60), "float32", vdev0)
+    )
+    _check_inference(
+        bb, relax.op.nn.batch_flatten(x1), relax.TensorStructInfo(dtype="float32", ndim=2)
+    )
+    _check_inference(
+        bb, relax.op.nn.batch_flatten(x2), relax.TensorStructInfo(dtype="float32", ndim=2)
+    )
+    _check_inference(bb, relax.op.nn.batch_flatten(x3), relax.TensorStructInfo((2, 60), dtype=""))
+    _check_inference(bb, relax.op.nn.batch_flatten(x4), relax.TensorStructInfo((10, 20), "float32"))
+
+
+def test_batch_flatten_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    h = tir.Var("h", "int64")
+    w = tir.Var("w", "int64")
+    x0 = relax.Var("x", R.Tensor((m, n, h, w), "float32"))
+    x1 = relax.Var("x", R.Tensor((4, n, 8, 8), "float32"))
+
+    _check_inference(
+        bb, relax.op.nn.batch_flatten(x0), relax.TensorStructInfo((m, n * h * w), "float32")
+    )
+    _check_inference(
+        bb, relax.op.nn.batch_flatten(x1), relax.TensorStructInfo((4, n * 8 * 8), "float32")
+    )
+
+
+def test_batch_flatten_infer_struct_info_wrong_ndim():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((3,), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.batch_flatten(x0))
+
+
 if __name__ == "__main__":
     tvm.testing.main()

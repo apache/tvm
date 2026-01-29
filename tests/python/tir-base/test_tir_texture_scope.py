@@ -36,13 +36,13 @@ def test_texture_scope():
             for block_idx in T.thread_binding(0, 128, thread="blockIdx.x"):
                 for thread_idx in T.thread_binding(0, 128, thread="threadIdx.x"):
                     for k in T.serial(4):
-                        with T.block("B"):
+                        with T.sblock("B"):
                             vb, vt, vk = T.axis.remap("SSS", [block_idx, thread_idx, k])
                             B[vb, vt, vk] = A[vb, vt, vk] + T.float32(1)
             for block_idx in T.thread_binding(0, 128, thread="blockIdx.x"):
                 for thread_idx in T.thread_binding(0, 128, thread="threadIdx.x"):
                     for k in T.serial(4):
-                        with T.block("C"):
+                        with T.sblock("C"):
                             vb, vt, vk = T.axis.remap("SSS", [block_idx, thread_idx, k])
                             C[vb, vt, vk] = B[vb, vt, vk] * T.float32(2)
 
@@ -52,8 +52,8 @@ def test_texture_scope():
         _, _, inner = sch.get_loops(block)
         sch.vectorize(inner)
 
-    schedule_block(sch.get_block("B"))
-    schedule_block(sch.get_block("C"))
+    schedule_block(sch.get_sblock("B"))
+    schedule_block(sch.get_sblock("C"))
 
     target = tvm.target.Target("opencl")
     mod = tvm.compile(sch.mod["main"], target=target)

@@ -37,7 +37,7 @@ def test_basic():
             C = T.match_buffer(z, (m, k))
 
             for i, j, k in T.grid(m, k, n):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         C[vi, vj] = T.float32(0)
@@ -64,7 +64,7 @@ def test_basic():
             C = T.match_buffer(z, (m, k))
 
             for i, j, k in T.grid(m, k, n):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         C[vi, vj] = T.float32(0)

@@ -1151,7 +1151,7 @@ def LegalizeOps(
             ):
                 T.func_attr({"tir.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.block("T_add"):
+                    with T.sblock("T_add"):
                         v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                         T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                         T.writes(T_add[v_ax0, v_ax1])
@@ -1165,7 +1165,7 @@ def LegalizeOps(
             ):
                 T.func_attr({"tir.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.block("T_multiply"):
+                    with T.sblock("T_multiply"):
                         v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                         T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                         T.writes(T_multiply[v_ax0, v_ax1])

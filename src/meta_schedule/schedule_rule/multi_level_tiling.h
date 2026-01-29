@@ -107,15 +107,15 @@ class StateNode : public Object {
   /*! \brief The schedule to date */
   tir::Schedule sch;
   /*! \brief The block to be tiled */
-  tir::BlockRV block_rv;
+  tir::SBlockRV block_rv;
   /*! \brief The loop tiles */
   ffi::Array<ffi::Array<tir::LoopRV>> tiles;
   /*! \brief The factors of the loop tiles. */
   ffi::Array<ffi::Array<tir::ExprRV>> tile_factors;
   /*! \brief The mapping from buffer index to read cache block. */
-  std::unordered_map<int, tir::BlockRV> read_reuse;
+  std::unordered_map<int, tir::SBlockRV> read_reuse;
   /*! \brief The mapping from buffer index to write cache block. */
-  std::unordered_map<int, tir::BlockRV> write_reuse;
+  std::unordered_map<int, tir::SBlockRV> write_reuse;
 
   /*!
    * \brief Create a copy of the state. The underlying schedule is copied. Schedule rules that
@@ -131,7 +131,7 @@ class StateNode : public Object {
 class State : public ObjectRef {
  public:
   /*! \brief Default constructor */
-  explicit State(tir::Schedule sch, tir::BlockRV block_rv,
+  explicit State(tir::Schedule sch, tir::SBlockRV block_rv,
                  ffi::Array<ffi::Array<tir::LoopRV>> tiles = {});
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(State, ObjectRef, StateNode);
 };
@@ -174,7 +174,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
 
   // Entry of the mega rule; Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) override;
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) override;
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const override;
@@ -183,10 +183,10 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
 
   virtual std::pair<ffi::Array<tir::ExprRV>, ffi::Array<tir::LoopRV>> SplitLoop(
-      const tir::Schedule& sch, tir::BlockRV block, tir::LoopRV loop, int n_tiles) const;
+      const tir::Schedule& sch, tir::SBlockRV block, tir::LoopRV loop, int n_tiles) const;
 
   // Annotate a block to use cooperative fetching
-  void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::BlockRV& block) const;
+  void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::SBlockRV& block) const;
 
  public:
   /*!

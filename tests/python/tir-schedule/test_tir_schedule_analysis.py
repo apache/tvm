@@ -164,11 +164,11 @@ class DenseTIRModule:
         compute: T.Buffer((1024, 1024), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads()
             T.writes()
             for i0, i1, i2 in T.grid(1024, 1024, 1024):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     i, j, k = T.axis.remap("SSR", [i0, i1, i2])
                     T.reads(placeholder[i, k], placeholder_1[j // 16, k // 4, j % 16, k % 4])
                     T.writes(compute[i, j])
@@ -189,7 +189,7 @@ class Conv2dNCHWcTIRModule:
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
-            with T.block("conv2d_NCHWc_int8"):
+            with T.sblock("conv2d_NCHWc_int8"):
                 (
                     n,
                     oc_chunk,
@@ -235,7 +235,7 @@ def collect_loops(prim_func):
 
 def test_get_tensorize_loop_mapping_dense_16x4():
     s = Schedule(DenseTIRModule)
-    block = s.get_block("compute")
+    block = s.get_sblock("compute")
 
     info = get_tensorize_loop_mapping(s, block, dot_product_16x4_u8i8i32_desc)
 
@@ -253,7 +253,7 @@ def test_get_tensorize_loop_mapping_dense_16x4():
 
 def test_get_tensorize_loop_mapping_conv2d_nchwc_16x4():
     s = Schedule(Conv2dNCHWcTIRModule)
-    block = s.get_block("conv2d_NCHWc_int8")
+    block = s.get_sblock("conv2d_NCHWc_int8")
 
     info = get_tensorize_loop_mapping(s, block, dot_product_16x4_u8i8i32_desc)
 
@@ -277,11 +277,11 @@ def test_get_tensorize_loop_mapping_matmul_mma():
         B: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
         C: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
     ) -> None:
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
             T.writes(C[0:16, 0:16])
             for i, j, k in T.grid(16, 16, 16):
-                with T.block("update"):
+                with T.sblock("update"):
                     vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
                     C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
@@ -294,7 +294,7 @@ def test_get_tensorize_loop_mapping_matmul_mma():
     )
 
     s = Schedule(matmul)
-    block = s.get_block("C")
+    block = s.get_sblock("C")
     i0, i1, i2 = s.get_loops(block)
     desc_loops = collect_loops(matmul_16x16x16xf16f16f16_desc)
 
@@ -326,7 +326,7 @@ def test_get_tensorize_loop_mapping_padding_matmul():
         )
     )
     s = Schedule(matmul)
-    block = s.get_block("C")
+    block = s.get_sblock("C")
 
     desc = TensorIntrin.get(WMMA_SYNC_16x16x16_f16f16f16_INTRIN).desc
     info = get_tensorize_loop_mapping(s, block, desc, allow_padding=True)
@@ -341,7 +341,7 @@ def test_get_tensorize_loop_mapping_padding_matmul():
 
 def check_index_map(workload, block_name, intrin_name, expected_index_map):
     s = Schedule(workload)
-    block = s.get_block(block_name)
+    block = s.get_sblock(block_name)
     desc_func = TensorIntrin.get(intrin_name).desc
     info = get_auto_tensorize_mapping_info(s, block, desc_func)
     if expected_index_map is None:
@@ -413,16 +413,16 @@ def test_is_output_block():
         B = T.alloc_buffer((128, 128), "float32")
         C = T.match_buffer(c, (128, 128), "float32")
         for i, j in T.grid(128, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(128, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 1.0
 
     sch = tvm.tir.Schedule(two_elementwise)
-    block_rv = sch.get_block("C")
+    block_rv = sch.get_sblock("C")
     assert is_output_block(sch, block_rv)
 
 
@@ -431,13 +431,13 @@ def test_empty_grid():
     def foo(out: T.Buffer((T.int64(1), T.int64(8), T.int64(8)), "int32")):
         act = T.alloc_buffer((1, 8, 8), "int32")
         for z2, y2, x2 in T.grid(1, 8, 8):
-            with T.block("b0"):
+            with T.sblock("b0"):
                 az, ay, ax = T.axis.remap("SSS", [z2, y2, x2])
                 T.writes(act[az, ay, ax])
                 act[az, ay, az] = T.int32(0)
         # Empty grid:
         for z1, y1, x1 in T.grid(0, 8, 8):
-            with T.block("b1"):
+            with T.sblock("b1"):
                 az, ay, ax = T.axis.remap("SSS", [z1, y1, x1])
                 T.reads(act[az + 1, ay, ax])
                 T.writes(out[az, ay, ax])
@@ -445,7 +445,7 @@ def test_empty_grid():
         # The block below is not needed to show the bug, but the 'out'
         # buffer would be undefined without it.
         for z2, y2, x2 in T.grid(1, 8, 8):
-            with T.block("b2"):
+            with T.sblock("b2"):
                 az, ay, ax = T.axis.remap("SSS", [z2, y2, x2])
                 T.writes(out[az, ay, ax])
                 out[az, ay, az] = T.int32(0)

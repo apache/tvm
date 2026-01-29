@@ -26,11 +26,11 @@ def buffer_load_store_func(a: T.handle, b: T.handle) -> None:
     C = T.alloc_buffer((128, 128), "float32")
     D = T.alloc_buffer((128, 128), "float32")
     for ii, jj in T.grid(128, 128):
-        with T.block():
+        with T.sblock():
             i, j = T.axis.remap("SS", [ii, jj])
             A[i, j] = T.float32(0)
     for i0, j0, k0 in T.grid(32, 32, 32):
-        with T.block():
+        with T.sblock():
             i, j, k = T.axis.remap("SSR", [i0, j0, k0])
             with T.init():
                 for ii, jj in T.grid(4, 4):
@@ -49,7 +49,7 @@ def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [16, 16], "float32")
     C = T.match_buffer(c, [16, 16], "float32")
 
-    with T.block():
+    with T.sblock():
         T.reads([])
         T.writes(B[0:16, 0:16])
         A = T.decl_buffer([256], "float32")
@@ -62,7 +62,7 @@ def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
                 T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, T.float32(0), dtype="handle"))
 
     for i, j in T.grid(16, 16):
-        with T.block():
+        with T.sblock():
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj]
 
@@ -78,14 +78,14 @@ def match_buffer_func(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
     B = T.match_buffer(b, (128, 128), "float32")
     for i, j in T.grid(8, 8):
-        with T.block("block"):
+        with T.sblock("block"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
             T.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
             B0 = T.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
             B1 = T.match_buffer(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
             for ii, jj in T.grid(16, 16):
-                with T.block("AAA"):
+                with T.sblock("AAA"):
                     vii, vjj = T.axis.remap("SS", [ii, jj])
                     AA = T.match_buffer(A[vii, vjj], ())
                     AA[()] = 1.0
@@ -99,7 +99,7 @@ def global_buffer_with_blockidx(
 ) -> None:
     for i0 in T.thread_binding(0, 1, thread="blockIdx.x"):
         for i1 in T.thread_binding(0, 32, thread="threadIdx.x"):
-            with T.block("copy"):
+            with T.sblock("copy"):
                 i, j = T.axis.remap("SS", [i0, i1])
                 T.reads(a[i, j])
                 T.writes(b[i, j])

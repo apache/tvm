@@ -48,8 +48,8 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
   }
 
  private:
-  Stmt VisitStmt_(const BlockNode* op) final {
-    Block block = Downcast<Block>(StmtMutator::VisitStmt_(op));
+  Stmt VisitStmt_(const SBlockNode* op) final {
+    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
 
     auto it = block->annotations.find(attr::meta_schedule_layout_rewrite_preproc);
     if (it == block->annotations.end() || !is_one(Downcast<PrimExpr>((*it).second))) {
@@ -158,8 +158,8 @@ class AllocateConstRewrite : public StmtExprMutator {
         skip_tensor_rewrite_(skip_tensor_rewrite) {}
 
  private:
-  Stmt VisitStmt_(const BlockNode* op) final {
-    Block block = Downcast<Block>(StmtMutator::VisitStmt_(op));
+  Stmt VisitStmt_(const SBlockNode* op) final {
+    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
     auto n = CopyOnWrite(block.get());
     ffi::Array<BufferRegion> new_reads;
     for (auto read_region : op->reads) {

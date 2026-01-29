@@ -1192,5 +1192,55 @@ TVM_REGISTER_OP("relax.nn.nll_loss")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNLLLoss)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.nn.batch_flatten */
+
+Expr batch_flatten(Expr data) {
+  static const Op& op = Op::Get("relax.nn.batch_flatten");
+  return Call(op, {std::move(data)}, {}, {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.nn.batch_flatten", batch_flatten);
+}
+
+StructInfo InferStructInfoBatchFlatten(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+
+  if (data_sinfo->IsUnknownNdim()) {
+    return TensorStructInfo(data_sinfo->dtype, /*ndim=*/2, data_sinfo->vdevice);
+  }
+
+  if (data_sinfo->ndim < 2) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "batch_flatten expects input tensor to have at least 2 dimensions, "
+                     << "but got " << data_sinfo->ndim);
+  }
+
+  if (data_sinfo->ndim == 2) {
+    return data_sinfo;
+  }
+
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  if (data_shape == nullptr) {
+    return TensorStructInfo(data_sinfo->dtype, /*ndim=*/2, data_sinfo->vdevice);
+  }
+
+  PrimExpr batch_dim = data_shape->values[0];
+  PrimExpr flat_dim = IntImm(DataType::Int(64), 1);
+  for (size_t i = 1; i < data_shape->values.size(); ++i) {
+    flat_dim = flat_dim * data_shape->values[i];
+  }
+
+  return TensorStructInfo(ShapeExpr({batch_dim, flat_dim}), data_sinfo->dtype, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.nn.batch_flatten")
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBatchFlatten)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 }  // namespace relax
 }  // namespace tvm

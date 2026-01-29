@@ -30,11 +30,11 @@ def generate_dma_load_intrin(
     def sync_dma_load_desc(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (size), dtype, offset_factor=1, scope="global")
         C = T.match_buffer(c, (size), dtype, offset_factor=1, scope="global.vtcm")
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(A[0:size])
             T.writes(C[0:size])
             for i in T.serial(size):
-                with T.block("load"):
+                with T.sblock("load"):
                     vii = T.axis.remap("S", [i])
                     C[vii] = A[vii]
 
@@ -42,7 +42,7 @@ def generate_dma_load_intrin(
     def sync_dma_load_impl(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (size), dtype, offset_factor=1, scope="global")
         C = T.match_buffer(c, (size), dtype, offset_factor=1, scope="global.vtcm")
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(A[0:size])
             T.writes(C[0:size])
             T.evaluate(
@@ -81,12 +81,12 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
         A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 4), "uint8", offset_factor=1, scope=mem_scope)
         C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:32], A[0:4], B[0:32, 0:4])
             T.writes(C[0:32])
             for i in T.serial(0, 32):
                 for k in T.serial(0, 4):
-                    with T.block("update"):
+                    with T.sblock("update"):
                         vi, vk = T.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
@@ -95,7 +95,7 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
         A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 4), "uint8", offset_factor=1, scope=mem_scope)
         C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:32], A[0:4], B[0:32, 0:4])
             T.writes(C[0:32])
 
@@ -122,12 +122,12 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
         A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 4), "int8", offset_factor=1, scope=mem_scope)
         C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:32], A[0:4], B[0:32, 0:4])
             T.writes(C[0:32])
             for i in T.serial(0, 32):
                 for k in T.serial(0, 4):
-                    with T.block("update"):
+                    with T.sblock("update"):
                         vi, vk = T.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
@@ -136,7 +136,7 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
         A = T.match_buffer(a, (4,), "uint8", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 4), "int8", offset_factor=1, scope=mem_scope)
         C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:32], A[0:4], B[0:32, 0:4])
             T.writes(C[0:32])
 
@@ -163,12 +163,12 @@ def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
         A = T.match_buffer(a, (2,), "int16", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 2), "int16", offset_factor=1, scope=mem_scope)
         C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:32], A[0:2], B[0:32, 0:2])
             T.writes(C[0:32])
             for i in T.serial(0, 32):
                 for k in T.serial(0, 2):
-                    with T.block("update"):
+                    with T.sblock("update"):
                         vi, vk = T.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
@@ -177,7 +177,7 @@ def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
         A = T.match_buffer(a, (2,), "int16", offset_factor=1, scope=mem_scope)
         B = T.match_buffer(b, (32, 2), "int16", offset_factor=1, scope=mem_scope)
         C = T.match_buffer(c, (32,), "int32", offset_factor=1, scope=mem_scope)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:32], A[0:2], B[0:32, 0:2])
             T.writes(C[0:32])
 

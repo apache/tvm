@@ -316,7 +316,7 @@ def test_rpc_remote_module():
 
         s = tvm.tir.Schedule(mod)
 
-        x = s.get_loops(s.get_block("B"))
+        x = s.get_loops(s.get_sblock("B"))
         xo, xi = s.split(x, factors=[None, 32])
         s.bind(xo, "blockIdx.x")
         s.bind(xi, "threadIdx.x")

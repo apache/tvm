@@ -23,12 +23,12 @@
 namespace tvm {
 namespace tir {
 
-bool IsRootBlock(const Schedule& sch, const BlockRV& block_rv) {
+bool IsRootBlock(const Schedule& sch, const SBlockRV& block_rv) {
   StmtSRef block_sref = sch->GetSRef(block_rv);
   return block_sref->parent == nullptr;
 }
 
-bool CheckSpatialPrimFunc(const Schedule& sch, const BlockRV& root_block_rv) {
+bool CheckSpatialPrimFunc(const Schedule& sch, const SBlockRV& root_block_rv) {
   return IsSpatialPrimFunc(
       ffi::GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sch->Get(root_block_rv).get(), nullptr)));
 }
@@ -51,7 +51,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& root_rv) {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& root_rv) {
     // Currently only mark the root block with annotations.
     if (!tir::IsRootBlock(sch, root_rv)) {
       return {sch};

@@ -372,7 +372,7 @@ def extern_primfunc(input_tensors: List[_tensor.Tensor], primfunc: tvm.tir.PrimF
             A = T.match_buffer(a, (128, 128))
             B = T.match_buffer(b, (128, 128))
             for i, j in T.grid(128, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] * 2.0
 
@@ -588,7 +588,7 @@ def create_prim_func(
             C = T.match_buffer(c, (128, 128))
 
             for i, j, k in T.grid(128, 128, 128):
-                with T.block():
+                with T.sblock():
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         C[vi, vj] = 0.0

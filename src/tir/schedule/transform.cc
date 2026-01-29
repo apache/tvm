@@ -27,13 +27,13 @@ namespace tir {
 
 /******** Annotation ********/
 
-Block WithAnnotation(const BlockNode* block, const ffi::String& attr_key,
-                     const ObjectRef& attr_value) {
+SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
+                      const ObjectRef& attr_value) {
   ffi::Map<ffi::String, Any> annotations = block->annotations;
   annotations.Set(attr_key, attr_value);
-  ObjectPtr<BlockNode> new_block = ffi::make_object<BlockNode>(*block);
+  ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block);
   new_block->annotations = std::move(annotations);
-  return Block(new_block);
+  return SBlock(new_block);
 }
 
 /******** Buffer Related ********/
@@ -128,13 +128,13 @@ ffi::Array<MatchBufferRegion> ReplaceBufferRegion(ffi::Array<MatchBufferRegion> 
 
 /******** ReplaceBufferMutator ********/
 ReplaceBufferMutator::ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
-                                           ffi::Map<Block, Block>* block_sref_reuse)
+                                           ffi::Map<SBlock, SBlock>* block_sref_reuse)
     : block_sref_reuse_(block_sref_reuse) {
   buffer_var_map_[old_buffer->data.get()] = std::move(new_buffer);
 }
 
 ReplaceBufferMutator::ReplaceBufferMutator(const ffi::Map<Buffer, Buffer>& buffer_map,
-                                           ffi::Map<Block, Block>* block_sref_reuse)
+                                           ffi::Map<SBlock, SBlock>* block_sref_reuse)
     : block_sref_reuse_(block_sref_reuse) {
   for (const auto& [old_buffer, new_buffer] : buffer_map) {
     buffer_var_map_[old_buffer->data.get()] = new_buffer;
@@ -167,7 +167,7 @@ MatchBufferRegion ReplaceBufferMutator::VisitMatchBufferRegion(
   }
 }
 
-Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
+Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
   // To reduce the number of blocks in block sref reuse map, we check whether the block is really
   // mutated (i.e., the old buffer appears in the block). If so, we return the block after
   // mutation. Otherwise we just return the original block.
@@ -214,35 +214,35 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
   // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
   ffi::Array<Buffer> alloc_buffers = block->alloc_buffers.Map(f_mutate_alloc_buffers);
   // Step 4. Recursively mutate the block.
-  Block mutated_block = Downcast<Block>(StmtMutator::VisitStmt_(block));
+  SBlock mutated_block = Downcast<SBlock>(StmtMutator::VisitStmt_(block));
 
   if (mutated_block.get() == block && reads.same_as(mutated_block->reads) &&
       writes.same_as(mutated_block->writes) &&
       alloc_buffers.same_as(mutated_block->alloc_buffers) &&
       match_buffers.same_as(mutated_block->match_buffers)) {
-    return ffi::GetRef<Block>(block);
+    return ffi::GetRef<SBlock>(block);
   } else {
-    ObjectPtr<BlockNode> n = CopyOnWrite(mutated_block.get());
+    ObjectPtr<SBlockNode> n = CopyOnWrite(mutated_block.get());
     n->reads = std::move(reads);
     n->writes = std::move(writes);
     n->alloc_buffers = std::move(alloc_buffers);
     n->match_buffers = std::move(match_buffers);
 
-    Block new_block(n);
+    SBlock new_block(n);
     if (block_sref_reuse_ != nullptr) {
-      block_sref_reuse_->Set(ffi::GetRef<Block>(block), new_block);
+      block_sref_reuse_->Set(ffi::GetRef<SBlock>(block), new_block);
     }
     return new_block;
   }
 }
 
-/******** Block Removal ********/
+/******** SBlock Removal ********/
 
 void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_sref,
                           Stmt* src_stmt, Stmt* tgt_stmt) {
   class OnlyLeafError : public ScheduleError {
    public:
-    explicit OnlyLeafError(IRModule mod, Block leaf_block, Block scope_root)
+    explicit OnlyLeafError(IRModule mod, SBlock leaf_block, SBlock scope_root)
         : mod_(mod), leaf_block_(leaf_block), scope_root_(scope_root) {}
 
     ffi::String FastErrorString() const final {
@@ -258,8 +258,8 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     ffi::Array<ObjectRef> LocationsOfInterest() const final { return {leaf_block_, scope_root_}; }
 
     IRModule mod_;
-    Block leaf_block_;
-    Block scope_root_;
+    SBlock leaf_block_;
+    SBlock scope_root_;
   };
 
   // Go upwards until find an ancestor with more than one child
@@ -278,7 +278,7 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
       break;
     }
   }
-  if (const auto* block = sref->StmtAs<BlockNode>()) {
+  if (const auto* block = sref->StmtAs<SBlockNode>()) {
     auto body = block->body;
     // Peel off AllocateConst nodes at the beginning of the block body.
     std::vector<Stmt> allocs;
@@ -299,7 +299,7 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
 
     if (const auto* seq = body.as<SeqStmtNode>()) {
-      ObjectPtr<BlockNode> n = ffi::make_object<BlockNode>(*block);
+      ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
       auto new_seq = RemoveFromSeqStmt(ffi::GetRef<SeqStmt>(seq), ffi::GetRef<Stmt>(last_stmt));
       // Re-attach AllocateConst nodes
       auto new_body = MergeNest(allocs, new_seq);
@@ -319,12 +319,12 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     }
   }
   ICHECK(sref != nullptr && sref->stmt != nullptr);
-  const auto* leaf_block = TVM_SREF_TO_BLOCK(leaf_block_sref);
-  const auto* scope_block = TVM_SREF_TO_BLOCK(sref);
-  throw OnlyLeafError(self->mod, ffi::GetRef<Block>(leaf_block), ffi::GetRef<Block>(scope_block));
+  const auto* leaf_block = TVM_SREF_TO_SBLOCK(leaf_block_sref);
+  const auto* scope_block = TVM_SREF_TO_SBLOCK(sref);
+  throw OnlyLeafError(self->mod, ffi::GetRef<SBlock>(leaf_block), ffi::GetRef<SBlock>(scope_block));
 }
 
-ffi::Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
+ffi::Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::SBlockRV& block_rv,
                                            const ffi::String& intrin_name, bool allow_padding) {
   ffi::Optional<tir::TensorizeInfo> opt_tensorize_info =
       GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block_rv),
@@ -346,7 +346,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::
     sch->PadEinsum(block_rv, info->block_iter_paddings.value());
 
     // Now we need to find out all the padded Block's.
-    ffi::Array<BlockRV> inlined_producers, inlined_consumers;
+    ffi::Array<SBlockRV> inlined_producers, inlined_consumers;
     for (const auto& producer : sch->GetProducers(block_rv)) {
       // PadEinsum will not modify the producer if it does not need padding.
       if (original_producers.count(sch->GetSRef(producer).get())) {
@@ -476,8 +476,8 @@ void BlockBufferAccessSimplifier::SimplifyBufferIndices(ffi::Array<PrimExpr>* in
   *indices = this->IterMapSimplifyWithContext(*indices, true);
 }
 
-Stmt BlockBufferAccessSimplifier::VisitStmt_(const BlockNode* op) {
-  Block block = Downcast<Block>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
+Stmt BlockBufferAccessSimplifier::VisitStmt_(const SBlockNode* op) {
+  SBlock block = Downcast<SBlock>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
   auto* n = block.CopyOnWrite();
   SimplifyAccessRegion(&n->reads);
   SimplifyAccessRegion(&n->writes);
@@ -498,25 +498,25 @@ PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
 
 /******** PrimFunc-level analysis and transformation ********/
 
-void GetLeafBlocksHelper(Schedule sch, BlockRV cur_block_rv, ffi::Array<BlockRV>* leaf_blocks) {
-  ffi::Array<BlockRV> blocks = sch->GetChildBlocks(cur_block_rv);
+void GetLeafBlocksHelper(Schedule sch, SBlockRV cur_block_rv, ffi::Array<SBlockRV>* leaf_blocks) {
+  ffi::Array<SBlockRV> blocks = sch->GetChildBlocks(cur_block_rv);
   if (blocks.empty()) {
     leaf_blocks->push_back(cur_block_rv);
   } else {
-    for (const BlockRV& block : blocks) {
+    for (const SBlockRV& block : blocks) {
       GetLeafBlocksHelper(sch, block, leaf_blocks);
     }
   }
 }
 
 ffi::Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
-  BlockRV root_block = sch->GetBlock("root");
-  ffi::Array<BlockRV> leaf_blocks;
+  SBlockRV root_block = sch->GetSBlock("root");
+  ffi::Array<SBlockRV> leaf_blocks;
   GetLeafBlocksHelper(sch, root_block, &leaf_blocks);
-  for (const BlockRV& block : leaf_blocks) {
+  for (const SBlockRV& block : leaf_blocks) {
     StmtSRef block_sref = sch->GetSRef(block);
     ffi::Array<StmtSRef> loops = GetLoops(block_sref);
-    ffi::Array<PrimExpr> binds = GetBlockRealize(sch->state(), block_sref)->iter_values;
+    ffi::Array<PrimExpr> binds = GetSBlockRealize(sch->state(), block_sref)->iter_values;
     if (loops.size() == 0) continue;
     if (loops.size() != binds.size()) {
       return std::nullopt;
@@ -535,7 +535,7 @@ ffi::Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
   ffi::Array<ffi::Array<LoopRV>> block_loops;
   ffi::Array<ffi::Array<IterVar>> block_iters;
   ffi::Array<IntImm> block_is_reduction;
-  for (const BlockRV& block : leaf_blocks) {
+  for (const SBlockRV& block : leaf_blocks) {
     ffi::Array<IterVar> iters = sch->Get(block)->iter_vars;
     bool has_spatial_iter = false;
     ffi::Array<Var> index_map_inputs;

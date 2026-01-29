@@ -388,7 +388,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
         k = T.match_buffer(var_k, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
         v = T.match_buffer(var_v, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
         for iters in T.grid(batch_size, seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
+            with T.sblock("llama_fused_rope"):
                 b, s, h, d = T.axis.remap("SSSS", iters)
                 if h < num_q_heads:
                     q[b, s, h, d] = T.if_then_else(
@@ -524,7 +524,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
         )
         for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
+            with T.sblock("llama_fused_rope"):
                 s, h, d = T.axis.remap("SSS", iters)
                 if h < num_q_heads:
                     q[s, h, d] = T.if_then_else(
@@ -573,7 +573,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
 
         if seq_len > original_max_position_embeddings:
             for iters in T.grid(seq_len, fused_heads, head_dim):
-                with T.block("llama_fused_rope"):
+                with T.sblock("llama_fused_rope"):
                     s, h, d = T.axis.remap("SSS", iters)
                     if h < num_q_heads:
                         q[s, h, d] = T.if_then_else(
@@ -605,7 +605,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                         v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
         else:
             for iters in T.grid(seq_len, fused_heads, head_dim):
-                with T.block("llama_fused_rope"):
+                with T.sblock("llama_fused_rope"):
                     s, h, d = T.axis.remap("SSS", iters)
                     if h < num_q_heads:
                         q[s, h, d] = T.if_then_else(
@@ -744,7 +744,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
             var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
         )
         for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
+            with T.sblock("llama_fused_rope"):
                 s, h, d = T.axis.remap("SSS", iters)
                 if h < num_q_heads:
                     q[s, h, d] = T.if_then_else(
@@ -786,7 +786,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
             var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
         )
         for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
+            with T.sblock("llama_fused_rope"):
                 s, h, d = T.axis.remap("SSS", iters)
                 if h < num_q_heads:
                     q[s, h, d] = T.if_then_else(

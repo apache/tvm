@@ -30,7 +30,7 @@ def ceildiv(o, d):
 
 
 # defines inner block shape: 8h8w32c
-def get_block_shape():
+def get_sblock_shape():
     return 8, 8, 32
 
 
@@ -44,7 +44,7 @@ def get_filter_block_shape():
 def get_packed_shape(logical_shape_nhwc):
     assert len(logical_shape_nhwc) == 4
     physical_shape_nhwc8h8w32c = [logical_shape_nhwc[0]]
-    block_shape = get_block_shape()
+    block_shape = get_sblock_shape()
     off_h, off_w, off_c = block_shape
     physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[1], off_h))
     physical_shape_nhwc8h8w32c.append(ceildiv(logical_shape_nhwc[2], off_w))
@@ -158,7 +158,7 @@ def conv2d_verify(output, ref_output, dtype):
 
 def conv2d_compute(X, filt, pad, stride, dilation):
     """Define conv2d compute"""
-    block_shape = get_block_shape()
+    block_shape = get_sblock_shape()
     block_H, block_W, block_C = block_shape
     filter_c_io, _, filter_c_ii = get_filter_block_shape()
     filter_c_i = filter_c_io * filter_c_ii

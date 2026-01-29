@@ -35,16 +35,22 @@ namespace tir {
 
 class PTXRewriter : public StmtMutator {
  public:
-  Stmt VisitStmt_(const AllocateNode* allocate) final {
-    if (!has_buffer_1) {
-      has_buffer_1 = true;
-      // addr[0] -> global_addr /  addr[1] -> local_addr
-      addr_buffer = decl_buffer({IntImm(DataType::Int(32), 2)}, DataType::Int(32), "addr", "local");
-      predicate_buffer =
-          decl_buffer({IntImm(DataType::Int(32), 1)}, DataType::Bool(), "predicate", "local");
+  Stmt AddAllocationsIfNeeded(Stmt body) {
+    if (!needs_buffer || has_buffer_2) {
+      return body;
     }
+    EnsureBuffers();
+    body = Allocate(addr_buffer->data, addr_buffer->dtype, addr_buffer->shape, Bool(true), body);
+    body = Allocate(predicate_buffer->data, predicate_buffer->dtype, predicate_buffer->shape,
+                    Bool(true), body);
+    has_buffer_2 = true;
+    return body;
+  }
+
+  Stmt VisitStmt_(const AllocateNode* allocate) final {
     Stmt result = StmtMutator::VisitStmt_(allocate);
-    if (!has_buffer_2) {
+    if (needs_buffer && !has_buffer_2) {
+      EnsureBuffers();
       has_buffer_2 = true;
       result =
           Allocate(addr_buffer->data, addr_buffer->dtype, addr_buffer->shape, Bool(true), result);
@@ -82,6 +88,8 @@ class PTXRewriter : public StmtMutator {
         if (ramp != nullptr) {
           return result;
         }
+        EnsureBuffers();
+        needs_buffer = true;
         local_addr = store->indices[0];
         BufferStore addr_store(addr_buffer, global_addr, {IntImm(DataType::Int(32), 0)});
         BufferStore local_addr_store(addr_buffer, local_addr, {IntImm(DataType::Int(32), 1)});
@@ -104,7 +112,19 @@ class PTXRewriter : public StmtMutator {
     return result;
   }
 
+  void EnsureBuffers() {
+    if (has_buffer_1) {
+      return;
+    }
+    has_buffer_1 = true;
+    // addr[0] -> global_addr /  addr[1] -> local_addr
+    addr_buffer = decl_buffer({IntImm(DataType::Int(32), 2)}, DataType::Int(32), "addr", "local");
+    predicate_buffer =
+        decl_buffer({IntImm(DataType::Int(32), 1)}, DataType::Bool(), "predicate", "local");
+  }
+
   bool has_buffer_1 = false, has_buffer_2 = false;
+  bool needs_buffer = false;
   Buffer addr_buffer, predicate_buffer;
 };
 
@@ -113,8 +133,14 @@ namespace transform {
 Pass InjectPTXLDG32(bool enable_inject_ptx_intrin) {
   auto pass_func = [enable_inject_ptx_intrin](PrimFunc f, IRModule m, PassContext ctx) {
     if (enable_inject_ptx_intrin) {
+      auto target = f->GetAttr<Target>("target");
+      if (!target.defined() || target.value()->kind->name != "cuda") {
+        return f;
+      }
       auto* n = f.CopyOnWrite();
-      n->body = PTXRewriter()(n->body);
+      PTXRewriter rewriter;
+      Stmt body = rewriter(n->body);
+      n->body = rewriter.AddAllocationsIfNeeded(body);
       // inject ptx
     }
     return f;

@@ -201,7 +201,7 @@ def test_vm_module(session_kind):
         @T.prim_func
         def transpose(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
             for i, j in T.grid(16, 8):
-                with T.block("transpose"):
+                with T.sblock("transpose"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
@@ -245,14 +245,14 @@ def test_vm_multi_func(session_kind):
         @T.prim_func
         def t1(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
             for i, j in T.grid(16, 8):
-                with T.block("t1"):
+                with T.sblock("t1"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
         @T.prim_func
         def t2(A: T.Buffer((16, 8), "float32"), B: T.Buffer((8, 16), "float32")):
             for i, j in T.grid(8, 16):
-                with T.block("t2"):
+                with T.sblock("t2"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 

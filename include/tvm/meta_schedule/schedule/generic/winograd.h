@@ -29,7 +29,7 @@ namespace meta_schedule {
  * If there is a constant winograd transform matrix, inline it.
  * \return The only producer block.
  */
-tir::BlockRV GetWinogradProducerAndInlineConst(tir::Schedule sch, tir::BlockRV block);
+tir::SBlockRV GetWinogradProducerAndInlineConst(tir::Schedule sch, tir::SBlockRV block);
 
 }  // namespace meta_schedule
 }  // namespace tvm

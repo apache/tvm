@@ -233,7 +233,7 @@ def run_opencl():
     # create schedule for the above "add one" compute declaration
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
     sch = tvm.tir.Schedule(mod)
-    (x,) = sch.get_loops(block=sch.get_block("B"))
+    (x,) = sch.get_loops(block=sch.get_sblock("B"))
     xo, xi = sch.split(x, [None, 32])
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")

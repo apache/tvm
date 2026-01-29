@@ -120,12 +120,12 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
         def main(A: T.Buffer((M, N), dtype), B: T.Buffer((M, N), dtype)):
             T.func_attr({"global_symbol": "main"})
             for li, lj in T.grid(M, N):
-                with T.block("Copy"):
+                with T.sblock("Copy"):
                     i, j = T.axis.remap("SS", [li, lj])
                     B[i, j] = A[i, j]
 
     def schedule_texture_read(sch: tir.Schedule):
-        B_blk = sch.get_block("Copy")
+        B_blk = sch.get_sblock("Copy")
         Ai_block = sch.cache_read(B_blk, 0, "global.texture")
         sch.transform_layout(Ai_block, ("write", 0), lambda i, j: (i, j // lanes, j % lanes))
 

@@ -35,7 +35,7 @@ def generated_func(shape: tuple, dtype: str, axis_separators: list):
         b_buffer = T.match_buffer(b, shape, dtype=dtype, axis_separators=axis_separators)
 
         for i, j in T.grid(dim0, dim1):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 b_buffer[i, j] = a_buffer[i, j] * T.cast(2, dtype=dtype)
 
     return elwise

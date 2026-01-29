@@ -28,10 +28,10 @@ using namespace tvm::tir;
  * If there is a constant winograd transform matrix, inline it.
  * \return The only producer block.
  */
-BlockRV GetWinogradProducerAndInlineConst(Schedule sch, BlockRV block) {
-  ffi::Array<BlockRV> producers = sch->GetProducers(block);
-  ffi::Array<BlockRV> results;
-  for (const BlockRV& producer : producers) {
+SBlockRV GetWinogradProducerAndInlineConst(Schedule sch, SBlockRV block) {
+  ffi::Array<SBlockRV> producers = sch->GetProducers(block);
+  ffi::Array<SBlockRV> results;
+  for (const SBlockRV& producer : producers) {
     if (sch->Get(producer)->reads.empty()) {
       sch->ComputeInline(producer);
     } else {

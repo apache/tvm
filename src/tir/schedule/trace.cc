@@ -76,9 +76,9 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
       result.push_back(input);
     } else if (auto expr = input.as<ffi::String>()) {
       result.push_back(expr.value());
-    } else if (input.as<BlockRVNode>() ||  // RV: block
-               input.as<LoopRVNode>() ||   // RV: loop
-               input.as<VarNode>()) {      // RV: var
+    } else if (input.as<SBlockRVNode>() ||  // RV: block
+               input.as<LoopRVNode>() ||    // RV: loop
+               input.as<VarNode>()) {       // RV: var
       auto it = rv_map.find(input.as<Object>());
       ICHECK(it != rv_map.end()) << "IndexError: Random variable doesn't exist: " << input;
       result.push_back(ffi::GetRef<ObjectRef>(it->second));
@@ -116,12 +116,12 @@ ffi::Array<Any> TranslateInputRVs(
     } else if (input.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
       // directly put back POD type and not string
       results.push_back(input);
-    } else if (input.as<BlockRVNode>() ||  // RV: block
-               input.as<LoopRVNode>() ||   // RV: loop
-               input.as<VarNode>()) {      // RV: var
+    } else if (input.as<SBlockRVNode>() ||  // RV: block
+               input.as<LoopRVNode>() ||    // RV: loop
+               input.as<VarNode>()) {       // RV: var
       auto it = rv_names.find(input.cast<ObjectRef>());
       if (it != rv_names.end()) {
-        // Case 1. BlockRV, LoopRV, VarRV
+        // Case 1. SBlockRV, LoopRV, VarRV
         results.push_back(it->second);
       } else {
         LOG(FATAL) << "IndexError: Random variable is not defined " << input;
@@ -209,7 +209,7 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
       results.push_back(ffi::String(std::string(name + 1, size - 2)));
       continue;
     }
-    // Case 0 & 1. None, BlockRV, LoopRV, VarRV
+    // Case 0 & 1. None, SBlockRV, LoopRV, VarRV
     auto it = named_rvs.find(name);
     CHECK(it != named_rvs.end()) << "ValueError: The random variable is not defined: " << name;
     results.push_back(it->second);
@@ -244,7 +244,7 @@ ffi::Array<ffi::String> TranslateAddOutputRVs(
     ffi::String result;
     if (output == nullptr) {
       result = "_";
-    } else if (output.as<BlockRVNode>()) {
+    } else if (output.as<SBlockRVNode>()) {
       result = "b" + std::to_string(i);
     } else if (output.as<LoopRVNode>()) {
       result = "l" + std::to_string(i);
@@ -502,7 +502,7 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
     for (const Any& obj : inst->inputs) {
       if (obj == nullptr) {
         continue;
-      } else if (obj.as<BlockRVNode>() || obj.as<LoopRVNode>() || obj.as<VarNode>()) {
+      } else if (obj.as<SBlockRVNode>() || obj.as<LoopRVNode>() || obj.as<VarNode>()) {
         used_rvs.insert(obj.as<Object>());
         continue;
       } else if (auto prim_expr = obj.as<PrimExpr>()) {

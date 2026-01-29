@@ -43,8 +43,8 @@ namespace tir {
  */
 class MmaBufferLayoutTransformer : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const BlockNode* op) {
-    Block block = ffi::GetRef<Block>(op);
+  Stmt VisitStmt_(const SBlockNode* op) {
+    SBlock block = ffi::GetRef<SBlock>(op);
     auto* n = block.CopyOnWrite();
     auto fmutate = [this](const Buffer& buffer) {
       // m16n8k8.matrix[A/B/C] buffers are composed ofseveral small blocks. Assume the block's

@@ -91,7 +91,7 @@ class TestModule:
     ):
         T.func_attr({"tir.noalias": True})
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.block():
+            with T.sblock():
                 vi, vj = T.axis.remap("SS", [i, j])
                 y[vi, vj] = x[vi, vj] + 1.0
 
@@ -138,9 +138,9 @@ class Module:
     @T.prim_func
     def tir_func(x: T.Buffer((T.int64(128), T.int64(128)), "float32"), y: T.Buffer((T.int64(128), T.int64(128)), "float32")):
         T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         for i, j in T.grid(T.int64(128), T.int64(128)):
-            with T.block(""):
+            with T.sblock(""):
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.reads(x[vi, vj])
                 T.writes(y[vi, vj])

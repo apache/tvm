@@ -75,7 +75,7 @@ class TestAutopad:
             ):
                 T.func_attr({"tir.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
-                    with T.block("PadInput"):
+                    with T.sblock("PadInput"):
                         v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                         T.reads(x[v_i0, v_i1, v_i2, v_i3])
                         T.writes(PadInput[v_i0, v_i1, v_i2, v_i3])
@@ -115,7 +115,7 @@ class TestAutopad:
             ):
                 T.func_attr({"tir.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
-                    with T.block("ReplicatePadInput"):
+                    with T.sblock("ReplicatePadInput"):
                         v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                         T.reads(
                             x[
@@ -176,7 +176,7 @@ class TestAutopad:
             ):
                 T.func_attr({"tir.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
-                    with T.block("MirrorPadInput"):
+                    with T.sblock("MirrorPadInput"):
                         v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                         T.reads(x[v_i0, v_i1, T.int64(0) : T.int64(4), T.int64(0) : T.int64(4)])
                         T.writes(MirrorPadInput[v_i0, v_i1, v_i2, v_i3])

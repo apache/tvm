@@ -29,7 +29,7 @@ namespace meta_schedule {
 
 using namespace tvm::tir;
 
-static ffi::Array<tir::LoopRV> ScheduleDataPack(tir::Schedule sch, tir::BlockRV block,
+static ffi::Array<tir::LoopRV> ScheduleDataPack(tir::Schedule sch, tir::SBlockRV block,
                                                 std::vector<int> tiled, std::vector<int> unrolled) {
   // This method is used for NHWC layout only. Will likely be refactored into a more schedule
   using namespace tvm::tir;
@@ -68,12 +68,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.cuda.conv2d_nhwc_winograd_data_pack",
-           [](Schedule sch, BlockRV data_pack) -> ffi::Array<Schedule> {
-             BlockRV input_tile = GetWinogradProducerAndInlineConst(sch, data_pack);
-             BlockRV data_pad = GetWinogradProducerAndInlineConst(sch, input_tile);
+           [](Schedule sch, SBlockRV data_pack) -> ffi::Array<Schedule> {
+             SBlockRV input_tile = GetWinogradProducerAndInlineConst(sch, data_pack);
+             SBlockRV data_pad = GetWinogradProducerAndInlineConst(sch, input_tile);
              ffi::Array<LoopRV> loops = ScheduleDataPack(sch, data_pack, {2, 3}, {0, 1, 4, 5});
              {
-               BlockRV data_pack_local = sch->CacheWrite(data_pack, 0, "local");
+               SBlockRV data_pack_local = sch->CacheWrite(data_pack, 0, "local");
                sch->ReverseComputeAt(data_pack_local, loops.back(), /*preserve_unit_loops=*/true);
              }
              {
@@ -92,7 +92,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return {sch};
            })
       .def("meta_schedule.cuda.conv2d_nhwc_winograd_inverse",
-           [](Schedule sch, BlockRV inverse) -> ffi::Array<Schedule> {
+           [](Schedule sch, SBlockRV inverse) -> ffi::Array<Schedule> {
              GetWinogradProducerAndInlineConst(sch, inverse);
              ScheduleDataPack(sch, inverse, /*tiled=*/{2, 3}, /*unrolled=*/{0, 1, 4, 5});
              int64_t max_threadblocks = 256;
@@ -104,11 +104,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return {sch};
            })
       .def("meta_schedule.cuda.conv2d_nchw_winograd_data_pack",
-           [](Schedule sch, BlockRV data_pack) -> ffi::Array<Schedule> {
+           [](Schedule sch, SBlockRV data_pack) -> ffi::Array<Schedule> {
              int64_t max_threadblocks = 256;
              int64_t max_threads_per_block = 1024;
-             BlockRV input_tile = GetWinogradProducerAndInlineConst(sch, data_pack);
-             BlockRV data_pad = GetWinogradProducerAndInlineConst(sch, input_tile);
+             SBlockRV input_tile = GetWinogradProducerAndInlineConst(sch, data_pack);
+             SBlockRV data_pad = GetWinogradProducerAndInlineConst(sch, input_tile);
              LoopRV outer{ffi::UnsafeInit()};
              {
                ffi::Array<LoopRV> loops = sch->GetLoops(data_pack);
@@ -123,7 +123,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                            .back();
              }
              {
-               BlockRV data_pack_local = sch->CacheWrite(data_pack, 0, "local");
+               SBlockRV data_pack_local = sch->CacheWrite(data_pack, 0, "local");
                sch->ReverseComputeAt(data_pack_local, outer, /*preserve_unit_loops=*/true);
              }
              {
@@ -134,14 +134,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return {sch};
            })
       .def("meta_schedule.cuda.conv2d_nchw_winograd_inverse",
-           [](Schedule sch, BlockRV inverse) -> ffi::Array<Schedule> {
+           [](Schedule sch, SBlockRV inverse) -> ffi::Array<Schedule> {
              GetWinogradProducerAndInlineConst(sch, inverse);
              // loops on top of the inverse block: [CO, P, tile_size, tile_size, alpha, alpha]
              int64_t tile_size =
                  Downcast<IntImm>(sch->Get(inverse)->writes[0]->buffer->shape[2])->value;
              LoopRV outer{ffi::UnsafeInit()};
              {
-               BlockRV output = sch->GetConsumers(inverse)[0];
+               SBlockRV output = sch->GetConsumers(inverse)[0];
                ffi::Array<LoopRV> nchw = sch->GetLoops(output);
                ICHECK_EQ(nchw.size(), 4);
                ffi::Array<LoopRV> hs = sch->Split(nchw[2], {std::nullopt, Integer(tile_size)});

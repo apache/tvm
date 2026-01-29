@@ -22,12 +22,12 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-Doc PrintBlock(IRDocsifier d, tir::Block block, AccessPath block_p,  //
-               ffi::Optional<tir::BlockRealize> opt_realize,
+Doc PrintBlock(IRDocsifier d, tir::SBlock block, AccessPath block_p,  //
+               ffi::Optional<tir::SBlockRealize> opt_realize,
                ffi::Optional<AccessPath> opt_realize_p) {
   With<TIRFrame> frame(d, block);
   ICHECK_EQ(opt_realize.defined(), opt_realize_p.defined());
-  const tir::BlockRealizeNode* realize =
+  const tir::SBlockRealizeNode* realize =
       opt_realize.defined() ? opt_realize.value().get() : nullptr;
   AccessPath realize_p = *opt_realize_p;
   // Step 1. Handle block var and block bindings
@@ -174,7 +174,7 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, AccessPath block_p,  //
   // Step 4. Handle block attributes
   if (!block->annotations.empty()) {
     (*frame)->stmts.push_back(ExprStmtDoc(
-        TIR(d, "block_attr")
+        TIR(d, "sblock_attr")
             ->Call({d->AsDoc<ExprDoc>(block->annotations, block_p->Attr("annotations"))})));
   }
   // Step 5. Handle `alloc_buffer`
@@ -210,15 +210,15 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, AccessPath block_p,  //
     kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
   }
   return ScopeDoc(std::nullopt,
-                  TIR(d, "block")  //
+                  TIR(d, "sblock")  //
                       ->Call({LiteralDoc::Str(block->name_hint, block_p->Attr("name_hint"))},
                              kwargs_keys, kwargs_values),
                   (*frame)->stmts);
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::BlockRealize>(
-        "", [](tir::BlockRealize realize, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tir::SBlockRealize>(
+        "", [](tir::SBlockRealize realize, AccessPath p, IRDocsifier d) -> Doc {
           Doc doc = PrintBlock(d, realize->block, p->Attr("block"), realize, p);
           // since we do not have d->AsDoc for realize->block,
           // we should add possible doc decoration manually.
@@ -227,12 +227,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::Block>("", [](tir::Block block, AccessPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<tir::SBlock>("", [](tir::SBlock block, AccessPath p, IRDocsifier d) -> Doc {
       return PrintBlock(d, block, p, std::nullopt, std::nullopt);
     });
 
-TVM_SCRIPT_REPR(tir::BlockNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::BlockRealizeNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::SBlockNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::SBlockRealizeNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

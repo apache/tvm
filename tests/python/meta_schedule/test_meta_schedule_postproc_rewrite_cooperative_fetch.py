@@ -59,7 +59,7 @@ class AfterRewrite0:
         B = T.match_buffer(var_B, [512, 512], dtype="float32")
         C = T.match_buffer(var_C, [512, 512], dtype="float32")
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         C_local = T.alloc_buffer([512, 512], dtype="float32", scope="local")
         A_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
         B_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
@@ -69,7 +69,7 @@ class AfterRewrite0:
                     for i2_0 in T.serial(0, 1):
                         for ax0_ax1_fused_0 in T.serial(0, 32768):
                             for ax0_ax1_fused_1 in T.thread_binding(0, 8, thread="threadIdx.x"):
-                                with T.block("A_shared"):
+                                with T.sblock("A_shared"):
                                     v0 = T.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) // 512)
                                     v1 = T.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) % 512)
                                     T.reads([A[v0, v1]])
@@ -78,14 +78,14 @@ class AfterRewrite0:
                         for ax0_ax1_fused_0 in T.serial(0, 1024):
                             for ax0_ax1_fused_1 in T.thread_binding(0, 8, thread="threadIdx.x"):
                                 for ax0_ax1_fused_2 in T.vectorized(0, 2):
-                                    with T.block("B_shared"):
+                                    with T.sblock("B_shared"):
                                         v0 = T.axis.spatial(512, (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) // 32)
                                         v1 = T.axis.spatial(512, i0_0_i1_0_fused * 32 + (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) % 32)
                                         T.reads([B[v0, v1]])
                                         T.writes([B_shared[v0, v1]])
                                         B_shared[v0, v1] = B[v0, v1]
                         for i2_1, i0_3, i1_3, i2_2, i0_4, i1_4 in T.grid(16, 2, 2, 32, 16, 2):
-                            with T.block("C"):
+                            with T.sblock("C"):
                                 i = T.axis.spatial(512, i0_1_i1_1_fused * 32 + i0_3 * 16 + i0_4)
                                 j = T.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + i1_3 * 2 + i1_4)
                                 k = T.axis.reduce(512, i2_0 * 512 + i2_1 * 32 + i2_2)
@@ -95,7 +95,7 @@ class AfterRewrite0:
                                     C_local[i, j] = T.float32(0)
                                 C_local[i, j] = C_local[i, j] + A_shared[i, k] * B_shared[k, j]
                     for ax0, ax1 in T.grid(32, 4):
-                        with T.block("C_local"):
+                        with T.sblock("C_local"):
                             v0 = T.axis.spatial(512, i0_1_i1_1_fused * 32 + ax0)
                             v1 = T.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + ax1)
                             T.reads([C_local[v0, v1]])
@@ -114,7 +114,7 @@ class WarpExecutionAfterRewrite:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         C_local = T.alloc_buffer([512, 512], dtype="float32", scope="local")
         A_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
         B_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
@@ -127,7 +127,7 @@ class WarpExecutionAfterRewrite:
                                 for ax0_ax1_fused_2 in T.thread_binding(
                                     0, 32, thread="threadIdx.x"
                                 ):
-                                    with T.block("A_shared"):
+                                    with T.sblock("A_shared"):
                                         v0 = T.axis.spatial(
                                             512,
                                             (
@@ -155,7 +155,7 @@ class WarpExecutionAfterRewrite:
                                     0, 32, thread="threadIdx.x"
                                 ):
                                     for ax0_ax1_fused_3 in T.vectorized(0, 2):
-                                        with T.block("B_shared"):
+                                        with T.sblock("B_shared"):
                                             v0 = T.axis.spatial(
                                                 512,
                                                 (
@@ -181,7 +181,7 @@ class WarpExecutionAfterRewrite:
                                             T.writes([B_shared[v0, v1]])
                                             B_shared[v0, v1] = B[v0, v1]
                         for i2_1, i0_3, i1_3, i2_2, i0_4, i1_4 in T.grid(16, 2, 2, 32, 16, 2):
-                            with T.block("C"):
+                            with T.sblock("C"):
                                 i = T.axis.spatial(512, i0_1_i1_1_fused * 32 + i0_3 * 16 + i0_4)
                                 j = T.axis.spatial(
                                     512,
@@ -190,12 +190,12 @@ class WarpExecutionAfterRewrite:
                                 k = T.axis.reduce(512, i2_0 * 512 + i2_1 * 32 + i2_2)
                                 T.reads([A_shared[i, k], B_shared[k, j]])
                                 T.writes([C_local[i, j]])
-                                T.block_attr({"warp_execution": 1})
+                                T.sblock_attr({"warp_execution": 1})
                                 with T.init():
                                     C_local[i, j] = T.float32(0)
                                 C_local[i, j] = C_local[i, j] + A_shared[i, k] * B_shared[k, j]
                     for ax0, ax1 in T.grid(32, 4):
-                        with T.block("C_local"):
+                        with T.sblock("C_local"):
                             v0 = T.axis.spatial(512, i0_1_i1_1_fused * 32 + ax0)
                             v1 = T.axis.spatial(
                                 512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + ax1
@@ -217,7 +217,7 @@ def test_rewrite_cooperative_fetch():
     sch = tir.Schedule(mod, debug_mask="all")
     # fmt: off
     # pylint: disable=line-too-long,invalid-name
-    b0 = sch.get_block(name="C", func_name="main")
+    b0 = sch.get_sblock(name="C", func_name="main")
     b1 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")
     l2, l3, l4 = sch.get_loops(block=b0)
     v5, v6, v7, v8, v9 = sch.sample_perfect_tile(loop=l2, n=5, max_innermost_factor=64, decision=[1, 16, 1, 2, 16])
@@ -261,7 +261,7 @@ def test_rewrite_warp_execution():
     sch = tir.Schedule(mod, debug_mask="all")
     # fmt: off
     # pylint: disable=line-too-long,invalid-name
-    b0 = sch.get_block(name="C", func_name="main")
+    b0 = sch.get_sblock(name="C", func_name="main")
     b1 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")
     l2, l3, l4 = sch.get_loops(block=b0)
     sch.annotate(b0, "warp_execution", 1)

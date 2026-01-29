@@ -47,8 +47,8 @@ class Fallback(AdrenoScheduleRule):
 
     @staticmethod
     def schedule_inline_blocks(
-        sch: tir.Schedule, blocks: List[tir.schedule.BlockRV]
-    ) -> List[tir.schedule.BlockRV]:
+        sch: tir.Schedule, blocks: List[tir.schedule.SBlockRV]
+    ) -> List[tir.schedule.SBlockRV]:
         """
         Auto Inlines Injective and Element-wise Operations while trying to omit data pad blocks...
         """
@@ -59,7 +59,7 @@ class Fallback(AdrenoScheduleRule):
 
         remaining_blocks = []
         for blk in blocks:
-            block_info = analysis.get_block_info(sch, blk)
+            block_info = analysis.get_sblock_info(sch, blk)
             if block_info.is_injective() and not block_info.is_data_pad(sch):
                 if len(sch.get_consumers(blk)) == 1:
                     try:
@@ -87,8 +87,8 @@ class Fallback(AdrenoScheduleRule):
         return remaining_blocks
 
     @staticmethod
-    def schedule_default(sch: tir.Schedule, blk: tir.schedule.BlockRV):
-        block_info = analysis.get_block_info(sch, blk)
+    def schedule_default(sch: tir.Schedule, blk: tir.schedule.SBlockRV):
+        block_info = analysis.get_sblock_info(sch, blk)
 
         s_loops, r_loops, o_loops = [], [], []
         v_loop = block_info.write_bufs(sch)[0].assoc_lps[-1]
@@ -139,8 +139,8 @@ class Fallback(AdrenoScheduleRule):
         schedule_blocks = [
             blk
             for blk in blocks
-            if analysis.get_block_info(sch, blk).is_reduction()
-            or analysis.get_block_info(sch, blk).is_data_pad(sch)
+            if analysis.get_sblock_info(sch, blk).is_reduction()
+            or analysis.get_sblock_info(sch, blk).is_data_pad(sch)
         ]
         remaining_blocks = [blk for blk in blocks if blk not in schedule_blocks]
 
@@ -169,7 +169,7 @@ class Fallback(AdrenoScheduleRule):
         if any(len(sch.get_child_blocks(block)) != 0 for block in blocks):
             return None
 
-        block_infos = [analysis.get_block_info(sch, block) for block in blocks]
+        block_infos = [analysis.get_sblock_info(sch, block) for block in blocks]
         if not any("texture" in block.write_bufs(sch)[0].get_scope() for block in block_infos):
             return None
 

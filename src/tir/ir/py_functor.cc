@@ -196,10 +196,10 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   ffi::Function f_visit_seq_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const EvaluateNode* op)` function. */
   ffi::Function f_visit_evaluate{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockNode* op)` function. */
+  /*! \brief The packed function to the `VisitStmt_(const SBlockNode* op)` function. */
   ffi::Function f_visit_block{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockRealizeNode* op)` function. */
-  ffi::Function f_visit_block_realize{nullptr};
+  /*! \brief The packed function to the `VisitStmt_(const SBlockRealizeNode* op)` function. */
+  ffi::Function f_visit_sblock_realize{nullptr};
 
   using StmtExprVisitor::VisitExpr;
   using StmtExprVisitor::VisitStmt;
@@ -237,8 +237,8 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   PY_STMT_VISITOR_DISPATCH(AssertStmtNode, f_visit_assert_stmt);
   PY_STMT_VISITOR_DISPATCH(SeqStmtNode, f_visit_seq_stmt);
   PY_STMT_VISITOR_DISPATCH(EvaluateNode, f_visit_evaluate);
-  PY_STMT_VISITOR_DISPATCH(BlockNode, f_visit_block);
-  PY_STMT_VISITOR_DISPATCH(BlockRealizeNode, f_visit_block_realize);
+  PY_STMT_VISITOR_DISPATCH(SBlockNode, f_visit_block);
+  PY_STMT_VISITOR_DISPATCH(SBlockRealizeNode, f_visit_sblock_realize);
   // Expression functions
   PY_EXPR_VISITOR_DISPATCH(VarNode, f_visit_var);
   PY_EXPR_VISITOR_DISPATCH(SizeVarNode, f_visit_size_var);
@@ -330,8 +330,8 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
     PY_STMT_VISITOR_DEFAULT_DISPATCH(AssertStmtNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(SeqStmtNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(EvaluateNode);
-    PY_STMT_VISITOR_DEFAULT_DISPATCH(BlockNode);
-    PY_STMT_VISITOR_DEFAULT_DISPATCH(BlockRealizeNode);
+    PY_STMT_VISITOR_DEFAULT_DISPATCH(SBlockNode);
+    PY_STMT_VISITOR_DEFAULT_DISPATCH(SBlockRealizeNode);
     vtable.Finalize();
     return vtable;
   }
@@ -362,7 +362,7 @@ class PyStmtExprVisitor : public ObjectRef {
                                                          ffi::Function f_visit_seq_stmt,        //
                                                          ffi::Function f_visit_evaluate,        //
                                                          ffi::Function f_visit_block,           //
-                                                         ffi::Function f_visit_block_realize,   //
+                                                         ffi::Function f_visit_sblock_realize,  //
                                                          ffi::Function f_visit_var,             //
                                                          ffi::Function f_visit_size_var,        //
                                                          ffi::Function f_visit_buffer_load,     //
@@ -414,7 +414,7 @@ class PyStmtExprVisitor : public ObjectRef {
     n->f_visit_seq_stmt = std::move(f_visit_seq_stmt);
     n->f_visit_evaluate = std::move(f_visit_evaluate);
     n->f_visit_block = std::move(f_visit_block);
-    n->f_visit_block_realize = std::move(f_visit_block_realize);
+    n->f_visit_sblock_realize = std::move(f_visit_sblock_realize);
     // Set expression functions
     n->f_visit_var = std::move(f_visit_var);
     n->f_visit_size_var = std::move(f_visit_size_var);
@@ -563,10 +563,10 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   ffi::Function f_visit_seq_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const EvaluateNode* op)` function. */
   ffi::Function f_visit_evaluate{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockNode* op)` function. */
+  /*! \brief The packed function to the `VisitStmt_(const SBlockNode* op)` function. */
   ffi::Function f_visit_block{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BlockRealizeNode* op)` function. */
-  ffi::Function f_visit_block_realize{nullptr};
+  /*! \brief The packed function to the `VisitStmt_(const SBlockRealizeNode* op)` function. */
+  ffi::Function f_visit_sblock_realize{nullptr};
 
   using StmtExprMutator::VisitExpr;
   using StmtExprMutator::VisitStmt;
@@ -604,8 +604,8 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   PY_STMT_MUTATOR_DISPATCH(AssertStmtNode, f_visit_assert_stmt);
   PY_STMT_MUTATOR_DISPATCH(SeqStmtNode, f_visit_seq_stmt);
   PY_STMT_MUTATOR_DISPATCH(EvaluateNode, f_visit_evaluate);
-  PY_STMT_MUTATOR_DISPATCH(BlockNode, f_visit_block);
-  PY_STMT_MUTATOR_DISPATCH(BlockRealizeNode, f_visit_block_realize);
+  PY_STMT_MUTATOR_DISPATCH(SBlockNode, f_visit_block);
+  PY_STMT_MUTATOR_DISPATCH(SBlockRealizeNode, f_visit_sblock_realize);
   // Expression functions
   PY_EXPR_MUTATOR_DISPATCH(VarNode, f_visit_var);
   PY_EXPR_MUTATOR_DISPATCH(SizeVarNode, f_visit_size_var);
@@ -697,8 +697,8 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(AssertStmtNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(SeqStmtNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(EvaluateNode);
-    PY_STMT_MUTATOR_DEFAULT_DISPATCH(BlockNode);
-    PY_STMT_MUTATOR_DEFAULT_DISPATCH(BlockRealizeNode);
+    PY_STMT_MUTATOR_DEFAULT_DISPATCH(SBlockNode);
+    PY_STMT_MUTATOR_DEFAULT_DISPATCH(SBlockRealizeNode);
     vtable.Finalize();
     return vtable;
   }
@@ -730,7 +730,7 @@ class PyStmtExprMutator : public ObjectRef {
                                                          ffi::Function f_visit_seq_stmt,        //
                                                          ffi::Function f_visit_evaluate,        //
                                                          ffi::Function f_visit_block,           //
-                                                         ffi::Function f_visit_block_realize,   //
+                                                         ffi::Function f_visit_sblock_realize,  //
                                                          ffi::Function f_visit_var,             //
                                                          ffi::Function f_visit_size_var,        //
                                                          ffi::Function f_visit_buffer_load,     //
@@ -782,7 +782,7 @@ class PyStmtExprMutator : public ObjectRef {
     n->f_visit_seq_stmt = std::move(f_visit_seq_stmt);
     n->f_visit_evaluate = std::move(f_visit_evaluate);
     n->f_visit_block = std::move(f_visit_block);
-    n->f_visit_block_realize = std::move(f_visit_block_realize);
+    n->f_visit_sblock_realize = std::move(f_visit_sblock_realize);
     // Expression functions
     n->f_visit_var = std::move(f_visit_var);
     n->f_visit_size_var = std::move(f_visit_size_var);

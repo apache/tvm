@@ -50,8 +50,8 @@ Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
   return For(n);
 }
 
-Stmt DataTypeLegalizer::VisitStmt_(const BlockRealizeNode* op) {
-  BlockRealize realize = Downcast<BlockRealize>(StmtExprMutator::VisitStmt_(op));
+Stmt DataTypeLegalizer::VisitStmt_(const SBlockRealizeNode* op) {
+  SBlockRealize realize = Downcast<SBlockRealize>(StmtExprMutator::VisitStmt_(op));
   ffi::Array<PrimExpr> new_iter_values;
   bool changed = false;
   for (int i = 0; i < static_cast<int>(op->iter_values.size()); ++i) {
@@ -69,8 +69,8 @@ Stmt DataTypeLegalizer::VisitStmt_(const BlockRealizeNode* op) {
   return realize;
 }
 
-Stmt DataTypeLegalizer::VisitStmt_(const BlockNode* op) {
-  Block new_block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
+Stmt DataTypeLegalizer::VisitStmt_(const SBlockNode* op) {
+  SBlock new_block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
   ffi::Array<IterVar> new_iter_vars =
       MutateArray(new_block->iter_vars, [/*this*/](const IterVar& iter) {
         auto dtype = iter->var.dtype();
@@ -302,7 +302,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const DeclBufferNode* op) {
   return decl_buffer;
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const BlockRealizeNode* op) {
+Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockRealizeNode* op) {
   bool is_condition = is_condition_;
   is_condition_ = true;
   auto new_predicate = VisitExpr(op->predicate);
@@ -313,10 +313,10 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockRealizeNode* op) {
   auto new_iter_values =
       op->iter_values.Map([this](const PrimExpr& e) { return this->VisitExpr(e); });
   is_enabled_ = is_enabled;
-  Block new_body = Downcast<Block>(this->VisitStmt(op->block));
+  SBlock new_body = Downcast<SBlock>(this->VisitStmt(op->block));
   if (!new_predicate.same_as(op->predicate) || !new_iter_values.same_as(op->iter_values) ||
       !new_body.same_as(op->block)) {
-    BlockRealize new_block_realize = ffi::GetRef<BlockRealize>(op);
+    SBlockRealize new_block_realize = ffi::GetRef<SBlockRealize>(op);
     auto* n = new_block_realize.CopyOnWrite();
     n->predicate = std::move(new_predicate);
     n->iter_values = std::move(new_iter_values);
@@ -328,7 +328,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockRealizeNode* op) {
   }
 }
 
-Stmt IndexDataTypeRewriter::VisitStmt_(const BlockNode* op) {
+Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockNode* op) {
   ffi::Array<Buffer> new_alloc_buffers =
       op->alloc_buffers.Map([this](const Buffer& buffer) { return this->VisitBuffer(buffer); });
   ffi::Array<MatchBufferRegion> new_match_buffers =
@@ -360,8 +360,8 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockNode* op) {
       !new_match_buffers.same_as(op->match_buffers) || !new_reads.same_as(op->reads) ||
       !new_writes.same_as(op->writes) || new_iter_vars.same_as(op->iter_vars) ||
       !new_annotations.same_as(op->annotations)) {
-    Block new_block = ffi::GetRef<Block>(op);
-    BlockNode* n = new_block.CopyOnWrite();
+    SBlock new_block = ffi::GetRef<SBlock>(op);
+    SBlockNode* n = new_block.CopyOnWrite();
     n->alloc_buffers = std::move(new_alloc_buffers);
     n->match_buffers = std::move(new_match_buffers);
     n->reads = std::move(new_reads);

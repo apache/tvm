@@ -38,9 +38,9 @@ def matmul(
     # function attr dict
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     # body
-    # with T.block("root")
+    # with T.sblock("root")
     for i0, i1, i2 in T.grid(512, 512, 512):
-        with T.block("C"):
+        with T.sblock("C"):
             i, j, k = T.axis.remap("SSR", [i0, i1, i2])
             T.reads(C[i, j], A[i, k], B[k, j])
             T.writes(C[i, j])
@@ -60,9 +60,9 @@ class LayoutTransform:
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         for i0_i1_i2_i3_i4_fused in T.parallel(25088, annotations={"pragma_auto_unroll_max_step":64, "pragma_unroll_explicit":1}):
-            with T.block("T_layout_trans_1"):
+            with T.sblock("T_layout_trans_1"):
                 ax0 = T.axis.spatial(1, 0)
                 ax1 = T.axis.spatial(1, 0)
                 ax2 = T.axis.spatial(7, i0_i1_i2_i3_i4_fused // 3584)
@@ -209,7 +209,7 @@ def test_cpu_matmul():
     def _create_schedule():
         func = matmul
         sch = tir.Schedule(func, debug_mask="all")
-        block = sch.get_block("C")
+        block = sch.get_sblock("C")
         i, j, k = sch.get_loops(block)
         i_o, i_i = sch.split(i, factors=[None, 16])  # outer: 32
         j_o, j_i = sch.split(j, factors=[None, 8])  # outer: 64
@@ -410,14 +410,14 @@ def test_cpu_fusion():
         B = T.match_buffer(b, [64, 32], dtype="float32")
         C = T.match_buffer(c, [64, 32], dtype="float32")
         for i, j in T.grid(64, 32):  # type: ignore
-            with T.block():
+            with T.sblock():
                 T.reads([A[i, j], B[i, j]])  # type: ignore
                 T.writes([B[i, j], C[i, j]])  # type: ignore
-                with T.block("B"):
+                with T.sblock("B"):
                     T.reads([A[i, j]])  # type: ignore
                     T.writes([B[i, j]])  # type: ignore
                     B[i, j] = A[i, j]  # type: ignore
-                with T.block("C"):
+                with T.sblock("C"):
                     T.reads([B[i, j]])  # type: ignore
                     T.writes([C[i, j]])  # type: ignore
                     C[i, j] = B[i, j]  # type: ignore
@@ -708,7 +708,7 @@ def test_empty_feature():
     @T.prim_func
     def full(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-            with T.block("T_full"):
+            with T.sblock("T_full"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads()
                 T.writes(T_full[v_ax0, v_ax1])
@@ -730,7 +730,7 @@ def test_gpu():
     def _create_schedule():
         func = matmul
         sch = tir.Schedule(func, debug_mask="all")
-        c = sch.get_block("C")
+        c = sch.get_sblock("C")
         c_local = sch.cache_write(c, 0, "local")
         i, j, k = sch.get_loops(c)
         # pylint: disable=invalid-name

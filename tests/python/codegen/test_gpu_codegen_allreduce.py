@@ -28,7 +28,7 @@ def reduce(a: T.handle, b: T.handle, d1: T.int32, d2: T.int32, d3: T.int32) -> N
     B = T.match_buffer(b, [1, d1, d2])
 
     for i, j, k, l in T.grid(1, d1, d2, d3):
-        with T.block("reduce"):
+        with T.sblock("reduce"):
             vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
             with T.init():
                 B[vi, vj, vk] = 0.0
@@ -41,7 +41,7 @@ def reduce_max(a: T.handle, b: T.handle, d1: T.int32, d2: T.int32, d3: T.int32) 
     B = T.match_buffer(b, [1, d1, d2])
 
     for i, j, k, l in T.grid(1, d1, d2, d3):
-        with T.block("reduce"):
+        with T.sblock("reduce"):
             vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
             with T.init():
                 B[vi, vj, vk] = T.float32(-3.4028234663852886e38)
@@ -65,7 +65,7 @@ def test_allreduce_sum(dims, target, dev):
     _, _, _d1, _d2, _d3 = reduce.params
     mod = reduce.specialize({_d1: d1, _d2: d2, _d3: d3})
     sch = tvm.tir.Schedule(mod)
-    blk = sch.get_block("reduce")
+    blk = sch.get_sblock("reduce")
     i, j, k, l = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")
     sch.bind(j, "threadIdx.z")
@@ -117,7 +117,7 @@ def test_allreduce_sum_compile(optional_metal_compile_callback):
     _, _, _d1, _d2, _d3 = reduce.params
     mod = reduce.specialize({_d1: d1, _d2: d2, _d3: d3})
     sch = tvm.tir.Schedule(mod)
-    blk = sch.get_block("reduce")
+    blk = sch.get_sblock("reduce")
     i, j, k, l = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")
     sch.bind(j, "threadIdx.z")
@@ -132,7 +132,7 @@ def test_allreduce_max(dims, target, dev):
     _, _, _d1, _d2, _d3 = reduce_max.params
     mod = reduce_max.specialize({_d1: d1, _d2: d2, _d3: d3})
     sch = tvm.tir.Schedule(mod)
-    blk = sch.get_block("reduce")
+    blk = sch.get_sblock("reduce")
     i, j, k, l = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")
     sch.bind(j, "threadIdx.z")

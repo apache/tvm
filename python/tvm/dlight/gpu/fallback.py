@@ -50,7 +50,7 @@ class Fallback(GPUScheduleRule):
             return None
 
         block_infos = try_inline(sch, block_infos)
-        reduction_blocks: List[Tuple[tir.schedule.BlockRV, tir.schedule.LoopRV]] = []
+        reduction_blocks: List[Tuple[tir.schedule.SBlockRV, tir.schedule.LoopRV]] = []
         for block in block_infos:
             s_loops: List[tir.schedule.LoopRV] = []
             r_loops: List[tir.schedule.LoopRV] = []

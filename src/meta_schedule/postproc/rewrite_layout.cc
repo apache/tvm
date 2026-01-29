@@ -34,7 +34,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
  public:
   explicit BufferReadPosCollector(const Buffer& buffer) : buffer_(buffer.get()) {}
 
-  const std::pair<Block, int>& GetBufferLocation() const { return buffer_loc_; }
+  const std::pair<SBlock, int>& GetBufferLocation() const { return buffer_loc_; }
 
   const ffi::Optional<IndexMap> GetBufferIndexMap() const { return buffer_index_map_; }
 
@@ -45,8 +45,8 @@ class BufferReadPosCollector : public StmtExprVisitor {
     loop_stack_.pop_back();
   }
 
-  void VisitStmt_(const BlockRealizeNode* op) final {
-    BlockRealize outer_block_realize = ffi::GetRef<BlockRealize>(op);
+  void VisitStmt_(const SBlockRealizeNode* op) final {
+    SBlockRealize outer_block_realize = ffi::GetRef<SBlockRealize>(op);
     std::swap(outer_block_realize, cur_realize_);
     StmtVisitor::VisitStmt_(op);
     std::swap(cur_realize_, outer_block_realize);
@@ -78,7 +78,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
     }
   }
 
-  static int GetReadBufferIndex(const Block& block, const Buffer& buffer) {
+  static int GetReadBufferIndex(const SBlock& block, const Buffer& buffer) {
     for (size_t i = 0; i < block->reads.size(); i++) {
       if (block->reads[i]->buffer.same_as(buffer)) {
         return i;
@@ -91,7 +91,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
   /*! \brief The buffer of interest. */
   const BufferNode* buffer_;
   /*! \brief The block that consumes the buffer and the corresponding read index. */
-  std::pair<Block, int> buffer_loc_;
+  std::pair<SBlock, int> buffer_loc_;
   /*! \brief The proposed IndexMap. */
   ffi::Optional<IndexMap> buffer_index_map_;
 
@@ -100,12 +100,12 @@ class BufferReadPosCollector : public StmtExprVisitor {
   /*! \brief Arithmetic analyzer. */
   arith::Analyzer analyzer_;
   /*! \brief Current BlockRealize scope, used in recursive visit */
-  BlockRealize cur_realize_;
+  SBlockRealize cur_realize_;
 };
 
 class LayoutFreeBufferCollector : public StmtVisitor {
  public:
-  void VisitStmt_(const BlockNode* block) final {
+  void VisitStmt_(const SBlockNode* block) final {
     StmtVisitor::VisitStmt_(block);
     if (auto ann = block->annotations.Get("layout_free_placeholders")) {
       for (Buffer buffer : Downcast<ffi::Array<Buffer>>(ann.value())) {
@@ -138,7 +138,7 @@ ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
   return layout_free_buffers;
 }
 
-std::optional<std::tuple<Block, int, IndexMap>> GetSuggestedIndexMap(
+std::optional<std::tuple<SBlock, int, IndexMap>> GetSuggestedIndexMap(
     Buffer buffer, const PrimFuncNode* prim_func) {
   BufferReadPosCollector collector(buffer);
   collector(prim_func->body);
@@ -160,7 +160,7 @@ std::vector<std::string> GetCacheReadChain(const Buffer& buf, const PrimFuncNode
    public:
     explicit BufferReadChainCollector(const Buffer& buffer) : cur_buffer_(buffer.get()) {}
 
-    void VisitStmt_(const BlockNode* op) final {
+    void VisitStmt_(const SBlockNode* op) final {
       // Check if this block is doing cache_read or a similar operation that consumes cur_buffer_.
       if (!op->init && op->reads.size() == 1 && op->writes.size() == 1 &&
           op->reads[0]->buffer.get() == cur_buffer_) {
@@ -183,8 +183,8 @@ std::vector<std::string> GetCacheReadChain(const Buffer& buf, const PrimFuncNode
 
 bool RewriteLayout(const Schedule& sch) {
   std::vector<std::pair<StmtSRef, ffi::String>> results;
-  auto add_layout_rewrite_block = [&sch](BlockRV consumer_block_rv, int buffer_index) {
-    BlockRV rewrite_block_rv = sch->CacheRead(consumer_block_rv, buffer_index, "global");
+  auto add_layout_rewrite_block = [&sch](SBlockRV consumer_block_rv, int buffer_index) {
+    SBlockRV rewrite_block_rv = sch->CacheRead(consumer_block_rv, buffer_index, "global");
     sch->Annotate(rewrite_block_rv, attr::meta_schedule_layout_rewrite_preproc, true);
   };
 
@@ -205,7 +205,7 @@ bool RewriteLayout(const Schedule& sch) {
         if (tup_opt == std::nullopt) continue;
 
         auto [anchor_block, buffer_index, index_map] = *tup_opt;
-        auto anchor_block_rv = sch->GetBlock(anchor_block->name_hint, func_name);
+        auto anchor_block_rv = sch->GetSBlock(anchor_block->name_hint, func_name);
         add_layout_rewrite_block(anchor_block_rv, buffer_index);
         sch->TransformLayout(anchor_block_rv, buffer_index, BufferIndexType::kRead, index_map,
                              std::nullopt);
@@ -213,20 +213,20 @@ bool RewriteLayout(const Schedule& sch) {
         // When the layout-free buffer is consumed by cache_read, we need to find the index map
         // for a cache-read buffer that is directly consumed by an anchor op. The last buffer
         // in cache_read_chain corresponds to that buffer.
-        Block cache_read_block = sch->Get(sch->GetBlock(cache_read_chain.back(), func_name));
+        SBlock cache_read_block = sch->Get(sch->GetSBlock(cache_read_chain.back(), func_name));
         ICHECK_EQ(cache_read_block->writes.size(), 1);
         auto tup_opt = GetSuggestedIndexMap(cache_read_block->writes[0]->buffer, prim_func);
         if (tup_opt == std::nullopt) continue;
 
         auto [anchor_block, buffer_index, index_map] = *tup_opt;
         // Transform the layout of the last cache-read buffer.
-        sch->TransformLayout(sch->GetBlock(anchor_block->name_hint, func_name), buffer_index,
+        sch->TransformLayout(sch->GetSBlock(anchor_block->name_hint, func_name), buffer_index,
                              BufferIndexType::kRead, index_map, std::nullopt);
 
         // Propagate the layout transformation over cache_read_chain, starting from
         // the next-to-last cache-read buffer.
         for (int i = static_cast<int>(cache_read_chain.size()) - 1; i >= 0; --i) {
-          BlockRV cache_read_block_rv = sch->GetBlock(cache_read_chain[i], func_name);
+          SBlockRV cache_read_block_rv = sch->GetSBlock(cache_read_chain[i], func_name);
           if (i == 0) {
             // Before the first cache_read that consumes the layout-free buffer, insert
             // a layout-rewrite block. Another cache-read buffer is added, and its layout is

@@ -60,7 +60,7 @@ class InstructionKind(Object):
     @property
     def is_pure(self) -> bool:
         """Indicates if the instruction is pure, i.e. removing it alone doesn't mutate the schedule
-        state. For example, the instruction `GetBlock` is pure because it changes
+        state. For example, the instruction `GetSBlock` is pure because it changes
         nothing, while `ComputeInline` is not because removing it leads to a different resulting
         schedule.
 
@@ -99,7 +99,7 @@ class Instruction(Object):
     inputs : List[INPUT_RV_TYPE]
         The input random variables of the instruction,
         and the type of each element can be one of the following:
-        - BlockRV
+        - SBlockRV
         - LoopRV
         - ExprRV
         - float
@@ -109,11 +109,11 @@ class Instruction(Object):
     attrs : List[ATTR_TYPE]
         The attributes of the instruction. Similar to attributes of an operator,
         attributes of an instruction are arbitrary constant metadata required by the instructions.
-        For example, the name of the block to be retrieved in `GetBlock`.
+        For example, the name of the block to be retrieved in `GetSBlock`.
     outputs : List[OUTPUT_RV_TYPE]
         The output random variables of the instruction,
         and the type of each element can be one of the following:
-        - BlockRV
+        - SBlockRV
         - LoopRV
         - ExprRV, atomic variables only, won't be constants or composite PrimExpr
     """
@@ -139,7 +139,7 @@ class Instruction(Object):
         inputs : List[INPUT_RV_TYPE]
             The input random variables of the instruction,
             and the type of each element can be one of the following:
-            - BlockRV
+            - SBlockRV
             - LoopRV
             - ExprRV
             - float
@@ -149,11 +149,11 @@ class Instruction(Object):
         attrs : List[ATTR_TYPE]
             The attributes of the instruction. Similar to attributes of an operator,
             attributes of an instruction are arbitrary constant metadata required by the
-            instructions. For example, the name of the block to be retrieved in `GetBlock`.
+            instructions. For example, the name of the block to be retrieved in `GetSBlock`.
         outputs : List[OUTPUT_RV_TYPE]
             The output random variables of the instruction,
             and the type of each element can be one of the following:
-            - BlockRV
+            - SBlockRV
             - LoopRV
             - ExprRV, atomic variables only, won't be constants or composite PrimExpr
         """

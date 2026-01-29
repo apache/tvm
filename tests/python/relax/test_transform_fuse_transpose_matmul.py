@@ -48,9 +48,9 @@ def test_transform_fuse_transpose_matmul():
             NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(128), T.int64(256)):
-                with T.block("NT_matmul"):
+                with T.sblock("NT_matmul"):
                     v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
                     T.reads(x[v_i0, v_k], w[v_i1, v_k])
                     T.writes(NT_matmul[v_i0, v_i1])
@@ -103,9 +103,9 @@ def test_transform_fuse_transpose_matmul_const():
             NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tir.noalias": True})
-            # with T.block("root"):
+            # with T.sblock("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(128), T.int64(256)):
-                with T.block("NT_matmul"):
+                with T.sblock("NT_matmul"):
                     v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
                     T.reads(x[v_i0, v_k], w[v_i1, v_k])
                     T.writes(NT_matmul[v_i0, v_i1])

@@ -33,7 +33,7 @@ def test_lazy_transform_params():
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -69,9 +69,9 @@ def test_lazy_transform_params():
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -114,7 +114,7 @@ def test_get_item_only():
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -151,9 +151,9 @@ def test_get_item_only():
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -199,7 +199,7 @@ def test_extra_get_item_params():
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -236,9 +236,9 @@ def test_extra_get_item_params():
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -288,7 +288,7 @@ def test_extra_set_item_params():
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -325,9 +325,9 @@ def test_extra_set_item_params():
         def transform_layout_IOHW_to_OIHW(
             w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
         ):
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -445,7 +445,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             slice_index: T.int64,
         ):
             for i in T.grid(16):
-                with T.block("slice_buffer"):
+                with T.sblock("slice_buffer"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = Input[slice_index, vi]
 
@@ -483,7 +483,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             slice_index: T.int64,
         ):
             for i in T.grid(16):
-                with T.block("slice_buffer"):
+                with T.sblock("slice_buffer"):
                     vi = T.axis.remap("S", [i])
                     Output[vi] = Input[slice_index, vi]
 
@@ -500,7 +500,7 @@ def test_param_shape_symbolic():
             w1 = T.match_buffer(var_w1, (ic, 16, 3, 3), "float32")
             out = T.match_buffer(var_out, (16, ic, 3, 3), "float32")
             for ax0, ax1, ax2, ax3 in T.grid(16, ic, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -540,7 +540,7 @@ def test_param_shape_symbolic():
             w1 = T.match_buffer(var_w1, (ic, 16, 3, 3), "float32")
             out = T.match_buffer(var_out, (16, ic, 3, 3), "float32")
             for ax0, ax1, ax2, ax3 in T.grid(16, ic, 3, 3):
-                with T.block("layout_transform"):
+                with T.sblock("layout_transform"):
                     o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(w1[i, o, h, w])
                     T.writes(out[o, i, h, w])
@@ -581,7 +581,7 @@ def test_output_with_use_site():
     class Module:
         @T.prim_func
         def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
-            with T.block("block"):
+            with T.sblock("block"):
                 T.reads(x[()])
                 T.writes(y[()])
                 y[()] = x[()]
@@ -603,7 +603,7 @@ def test_output_with_use_site():
     class Expected:
         @T.prim_func
         def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
-            with T.block("block"):
+            with T.sblock("block"):
                 T.reads(x[()])
                 T.writes(y[()])
                 y[()] = x[()]

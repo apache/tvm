@@ -36,7 +36,7 @@ void IRVisitorWithAnalyzer::VisitStmt_(const ForNode* op) {
   StmtExprVisitor::VisitStmt_(op);
 }
 
-void IRVisitorWithAnalyzer::VisitStmt_(const BlockNode* op) {
+void IRVisitorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
   for (const auto& iter_var : op->iter_vars) {
     analyzer_.Bind(iter_var->var, iter_var->dom);
   }

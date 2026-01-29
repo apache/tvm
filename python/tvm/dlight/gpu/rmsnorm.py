@@ -20,13 +20,13 @@
 import tvm
 from tvm import tir
 from tvm.target import Target
-from tvm.tir import Block, BufferStore
+from tvm.tir import SBlock, BufferStore
 from tvm.tir.expr import BufferLoad, Call, Cast
 
 from ..base import ScheduleRule
 
 
-def identify_cast_or_load_block(block: Block) -> bool:
+def identify_cast_or_load_block(block: SBlock) -> bool:
     if len(block.reads) != 1 or len(block.writes) != 1:
         return False
 
@@ -55,7 +55,7 @@ def identify_cast_or_load_block(block: Block) -> bool:
     return True
 
 
-def identify_rsqrt_block(block: Block) -> bool:
+def identify_rsqrt_block(block: SBlock) -> bool:
     if len(block.reads) != 1 or len(block.writes) != 1:
         return False
 
@@ -88,7 +88,7 @@ class RMSNorm(ScheduleRule):
             num_tx = 64
 
         sch = tir.Schedule(func)
-        root = sch.get_block(name="root", func_name="main")
+        root = sch.get_sblock(name="root", func_name="main")
 
         blocks = sch.get_child_blocks(root)
 

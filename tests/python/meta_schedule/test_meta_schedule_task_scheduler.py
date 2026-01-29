@@ -44,7 +44,7 @@ class MatmulModule:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0  # type: ignore
@@ -65,13 +65,13 @@ class MatmulReluModule:
         D = T.match_buffer(d, (1024, 1024), "float32")
         C = T.alloc_buffer((1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0  # type: ignore
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(1024, 1024):
-            with T.block("relu"):
+            with T.sblock("relu"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 D[vi, vj] = T.max(C[vi, vj], 0.0)  # type: ignore
 
@@ -89,7 +89,7 @@ class BatchMatmulModule:
         B = T.match_buffer(b, [16, 128, 128])
         C = T.match_buffer(c, [16, 128, 128])
         for n, i, j, k in T.grid(16, 128, 128, 128):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
                 with T.init():
                     C[vn, vi, vj] = 0.0  # type: ignore
@@ -100,7 +100,7 @@ class BatchMatmulModule:
 
 
 def _schedule_matmul(sch: Schedule):
-    block = sch.get_block("matmul")
+    block = sch.get_sblock("matmul")
     i, j, k = sch.get_loops(block=block)
     i_0, i_1, i_2, i_3 = sch.split(loop=i, factors=[2, 4, 64, 2])
     j_0, j_1, j_2, j_3 = sch.split(loop=j, factors=[4, 64, 2, 2])
@@ -109,7 +109,7 @@ def _schedule_matmul(sch: Schedule):
 
 
 def _schedule_batch_matmul(sch: Schedule):
-    block = sch.get_block("matmul")
+    block = sch.get_sblock("matmul")
     i, j, k, t = sch.get_loops(block=block)
     i_0, i_1, i_2, i_3 = sch.split(loop=i, factors=[2, 2, 2, 2])
     j_0, j_1, j_2, j_3 = sch.split(loop=j, factors=[2, 4, 64, 2])

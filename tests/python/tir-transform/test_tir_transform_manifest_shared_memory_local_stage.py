@@ -30,33 +30,33 @@ class MatmulBefore:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         for blockIdx_y in T.thread_binding(32, thread="blockIdx.y"):
             for blockIdx_x in T.thread_binding(32, thread="blockIdx.x"):
                 for threadIdx_y in T.thread_binding(2, thread="threadIdx.y"):
                     for threadIdx_x in T.thread_binding(2, thread="threadIdx.x"):
                         for k_0 in T.serial(32):
-                            with T.block():
+                            with T.sblock():
                                 T.reads(A[blockIdx_y * 32 : blockIdx_y * 32 + 32, k_0 * 32 : k_0 * 32 + 32], B[k_0 * 32 : k_0 * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
                                 T.writes(C[blockIdx_y * 32 : blockIdx_y * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
                                 A_shared = T.alloc_buffer([1024, 1024], dtype="float32", scope="shared")
                                 B_shared = T.alloc_buffer([1024, 1024], dtype="float32", scope="shared")
                                 for ax0_ax1_fused_0 in T.serial(64):
                                     for ax0_ax1_fused_3 in T.vectorized(4):
-                                        with T.block("A_shared"):
+                                        with T.sblock("A_shared"):
                                             T.reads(A[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
                                             T.writes(A_shared[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
-                                            T.block_attr({"tir.manifest_shared_memory_local_stage":1})
+                                            T.sblock_attr({"tir.manifest_shared_memory_local_stage":1})
                                             A_shared[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32] = A[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32]
                                 for ax0_ax1_fused_0 in T.serial(64):
                                     for ax0_ax1_fused_3 in T.vectorized(4):
-                                        with T.block("B_shared"):
+                                        with T.sblock("B_shared"):
                                             T.reads(B[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
                                             T.writes(B_shared[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
-                                            T.block_attr({"tir.manifest_shared_memory_local_stage":1})
+                                            T.sblock_attr({"tir.manifest_shared_memory_local_stage":1})
                                             B_shared[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32] = B[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32]
                                 for k_1, i_2, j_2, k_2 in T.grid(2, 16, 16, 16):
-                                    with T.block("C"):
+                                    with T.sblock("C"):
                                         T.reads(A_shared[blockIdx_y * 32 + threadIdx_y * 16 + i_2, k_0 * 32 + k_1 * 16 + k_2], B_shared[k_0 * 32 + k_1 * 16 + k_2, blockIdx_x * 32 + threadIdx_x * 16 + j_2])
                                         T.writes(C[blockIdx_y * 32 + threadIdx_y * 16 + i_2, blockIdx_x * 32 + threadIdx_x * 16 + j_2])
                                         if k_0 * 32 + k_1 * 16 + k_2 == 0:
@@ -71,13 +71,13 @@ class MatmulAfter:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         for blockIdx_y in T.thread_binding(32, thread="blockIdx.y"):
             for blockIdx_x in T.thread_binding(32, thread="blockIdx.x"):
                 for threadIdx_y in T.thread_binding(2, thread="threadIdx.y"):
                     for threadIdx_x in T.thread_binding(2, thread="threadIdx.x"):
                         for k_0 in T.serial(32):
-                            with T.block():
+                            with T.sblock():
                                 T.reads(A[blockIdx_y * 32 : blockIdx_y * 32 + 32, k_0 * 32 : k_0 * 32 + 32], B[k_0 * 32 : k_0 * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
                                 T.writes(C[blockIdx_y * 32 : blockIdx_y * 32 + 32, blockIdx_x * 32 : blockIdx_x * 32 + 32])
                                 A_shared = T.alloc_buffer([1024, 1024], dtype="float32", scope="shared")
@@ -86,30 +86,30 @@ class MatmulAfter:
                                 B_shared_local = T.alloc_buffer([64, 4], dtype="float32", scope="local")
                                 for ax0_ax1_fused_0 in T.serial(64):
                                     for ax0_ax1_fused_3 in T.vectorized(4):
-                                        with T.block():
+                                        with T.sblock():
                                             T.reads(A[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
                                             T.writes(A_shared_local[ax0_ax1_fused_0, ax0_ax1_fused_3])
                                             A_shared_local[ax0_ax1_fused_0, ax0_ax1_fused_3] = A[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32]
                                 for ax0_ax1_fused_0 in T.serial(64):
                                     for ax0_ax1_fused_3 in T.vectorized(4):
-                                        with T.block("A_shared"):
+                                        with T.sblock("A_shared"):
                                             T.reads(A[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
                                             T.writes(A_shared[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
                                             A_shared[blockIdx_y * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32] = A_shared_local[ax0_ax1_fused_0, ax0_ax1_fused_3]
                                 for ax0_ax1_fused_0 in T.serial(64):
                                     for ax0_ax1_fused_3 in T.vectorized(4):
-                                        with T.block():
+                                        with T.sblock():
                                             T.reads(B[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
                                             T.writes(B_shared_local[ax0_ax1_fused_0, ax0_ax1_fused_3])
                                             B_shared_local[ax0_ax1_fused_0, ax0_ax1_fused_3] = B[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32]
                                 for ax0_ax1_fused_0 in T.serial(64):
                                     for ax0_ax1_fused_3 in T.vectorized(4):
-                                        with T.block("B_shared"):
+                                        with T.sblock("B_shared"):
                                             T.reads(B[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
                                             T.writes(B_shared[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32])
                                             B_shared[k_0 * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) // 32, blockIdx_x * 32 + (ax0_ax1_fused_0 * 16 + threadIdx_y * 8 + threadIdx_x * 4 + ax0_ax1_fused_3) % 32] = B_shared_local[ax0_ax1_fused_0, ax0_ax1_fused_3]
                                 for k_1, i_2, j_2, k_2 in T.grid(2, 16, 16, 16):
-                                    with T.block("C"):
+                                    with T.sblock("C"):
                                         T.reads(A_shared[blockIdx_y * 32 + threadIdx_y * 16 + i_2, k_0 * 32 + k_1 * 16 + k_2], B_shared[k_0 * 32 + k_1 * 16 + k_2, blockIdx_x * 32 + threadIdx_x * 16 + j_2])
                                         T.writes(C[blockIdx_y * 32 + threadIdx_y * 16 + i_2, blockIdx_x * 32 + threadIdx_x * 16 + j_2])
                                         if k_0 * 32 + k_1 * 16 + k_2 == 0:

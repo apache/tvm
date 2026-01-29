@@ -27,7 +27,7 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_k
   const ffi::Map<ffi::String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
     annotations = &loop->annotations;
-  } else if (const auto* block = sref->StmtAs<BlockNode>()) {
+  } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
     annotations = &block->annotations;
   } else {
     LOG(FATAL) << "TypeError: Unknown type of sref: " << sref->stmt->GetTypeKey();
@@ -44,11 +44,11 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_k
     ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
     n->annotations = std::move(new_ann);
     self->Replace(sref, For(n), {});
-  } else if (const auto* block = sref->StmtAs<BlockNode>()) {
-    ObjectPtr<BlockNode> n = ffi::make_object<BlockNode>(*block);
+  } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
+    ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
     n->annotations = std::move(new_ann);
-    Block p(n);
-    self->Replace(sref, p, {{ffi::GetRef<Block>(block), p}});
+    SBlock p(n);
+    self->Replace(sref, p, {{ffi::GetRef<SBlock>(block), p}});
   } else {
     LOG(FATAL) << "TypeError: Unknown type of sref: " << sref->stmt->GetTypeKey();
     throw;
@@ -60,7 +60,7 @@ void Unannotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann
   const ffi::Map<ffi::String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
     annotations = &loop->annotations;
-  } else if (const auto* block = sref->StmtAs<BlockNode>()) {
+  } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
     annotations = &block->annotations;
   } else {
     LOG(FATAL) << "TypeError: Unknown type of sref: " << sref->stmt->GetTypeKey();
@@ -75,11 +75,11 @@ void Unannotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann
     ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*loop);
     n->annotations = std::move(new_ann);
     self->Replace(sref, For(n), {});
-  } else if (const auto* block = sref->StmtAs<BlockNode>()) {
-    ObjectPtr<BlockNode> n = ffi::make_object<BlockNode>(*block);
+  } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
+    ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
     n->annotations = std::move(new_ann);
-    Block p(n);
-    self->Replace(sref, p, {{ffi::GetRef<Block>(block), p}});
+    SBlock p(n);
+    self->Replace(sref, p, {{ffi::GetRef<SBlock>(block), p}});
   } else {
     LOG(FATAL) << "TypeError: Unknown type of sref: " << sref->stmt->GetTypeKey();
     throw;
@@ -97,13 +97,14 @@ struct AnnotateTraits : public UnpackedInstTraits<AnnotateTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, Any ann_val,
                                       ffi::String ann_key) {
-    if (auto block = block_or_loop_rv.as<BlockRV>()) {
+    if (auto block = block_or_loop_rv.as<SBlockRV>()) {
       return sch->Annotate(block.value(), ann_key, ann_val);
     }
     if (auto loop = block_or_loop_rv.as<LoopRV>()) {
       return sch->Annotate(loop.value(), ann_key, ann_val);
     }
-    LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: " << block_or_loop_rv->GetTypeKey();
+    LOG(FATAL) << "TypeError: Expected SBlock or Loop, but gets: "
+               << block_or_loop_rv->GetTypeKey();
     throw;
   }
 
@@ -131,13 +132,14 @@ struct UnannotateTraits : public UnpackedInstTraits<UnannotateTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv,
                                       ffi::String ann_key) {
-    if (auto block = block_or_loop_rv.as<BlockRV>()) {
+    if (auto block = block_or_loop_rv.as<SBlockRV>()) {
       return sch->Unannotate(block.value(), ann_key);
     }
     if (auto loop = block_or_loop_rv.as<LoopRV>()) {
       return sch->Unannotate(loop.value(), ann_key);
     }
-    LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: " << block_or_loop_rv->GetTypeKey();
+    LOG(FATAL) << "TypeError: Expected SBlock or Loop, but gets: "
+               << block_or_loop_rv->GetTypeKey();
     throw;
   }
 

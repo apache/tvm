@@ -55,7 +55,7 @@ class Matmul:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
@@ -69,7 +69,7 @@ def test_postproc_disallow_async_strided_mem_copy_allows():
     mod = Matmul
     sch = tir.Schedule(mod, debug_mask="all")
 
-    matmul_block = sch.get_block("matmul")
+    matmul_block = sch.get_sblock("matmul")
 
     loops = sch.get_loops(matmul_block)
     cache_read = sch.cache_read(matmul_block, 0, "global.vtcm")
@@ -89,7 +89,7 @@ def test_postproc_disallow_async_strided_mem_copy_disallows():
     mod = Matmul
     sch = tir.Schedule(mod, debug_mask="all")
 
-    matmul_block = sch.get_block("matmul")
+    matmul_block = sch.get_sblock("matmul")
 
     loops = sch.get_loops(matmul_block)
     # Make it a strided mem copy.

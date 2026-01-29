@@ -44,13 +44,13 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
  private:
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     for (const MatchBufferRegion& match_buffer : op->match_buffers) {
       CheckAndUpdateVarMap(match_buffer);
     }
 
     Stmt stmt = StmtExprMutator ::VisitStmt_(op);
-    op = stmt.as<BlockNode>();
+    op = stmt.as<SBlockNode>();
     ICHECK(op != nullptr);
     ffi::Array<BufferRegion> reads =
         op->reads.Map(std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));

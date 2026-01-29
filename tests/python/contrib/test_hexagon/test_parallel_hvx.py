@@ -81,7 +81,7 @@ def get_vmpy_operator(operations):
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
         c_buffer = T.match_buffer(c, [operations, 128], dtype="int16")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 128)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vmpybusv.128B"),
@@ -103,7 +103,7 @@ def get_vadd_operator(operations):
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
         c_buffer = T.match_buffer(c, [operations, 128], dtype="int16")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 128)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vaddubh.128B"),
@@ -125,7 +125,7 @@ def get_vrmpy_operator(operations):
         b_buffer = T.match_buffer(b, [operations, 128], dtype="uint8")
         c_buffer = T.match_buffer(c, [operations, 32], dtype="int32")
         for n in T.grid(operations):
-            with T.block("c_buffer"):
+            with T.sblock("c_buffer"):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
@@ -215,7 +215,7 @@ class TestMatMulVec:
         )
 
         sch = tvm.tir.Schedule(operator_producer(operation_count))
-        block = sch.get_block("c_buffer")
+        block = sch.get_sblock("c_buffer")
         b = sch.get_loops(block)
         b_output, _ = sch.split(b[0], factors=[split_factor, None])
         sch.parallel(b_output)

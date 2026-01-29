@@ -56,7 +56,7 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
   size_t Hash(IRModule mod) const {
     auto anchor_block = tir::FindAnchorBlock(mod);
     if (anchor_block) {
-      return ffi::StructuralHash::Hash(ffi::GetRef<tir::Block>(anchor_block),
+      return ffi::StructuralHash::Hash(ffi::GetRef<tir::SBlock>(anchor_block),
                                        /*map_free_vars=*/false,
                                        /*skip_tensor_content=*/true);
     }
@@ -66,8 +66,8 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
     auto anchor_block_lhs = tir::FindAnchorBlock(lhs);
     auto anchor_block_rhs = tir::FindAnchorBlock(rhs);
     if (anchor_block_lhs && anchor_block_rhs) {
-      return tvm::ffi::StructuralEqual::Equal(ffi::GetRef<tir::Block>(anchor_block_lhs),
-                                              ffi::GetRef<tir::Block>(anchor_block_rhs),
+      return tvm::ffi::StructuralEqual::Equal(ffi::GetRef<tir::SBlock>(anchor_block_lhs),
+                                              ffi::GetRef<tir::SBlock>(anchor_block_rhs),
                                               /*map_free_vars=*/false,
                                               /*skip_tensor_content=*/true);
     }

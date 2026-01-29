@@ -31,7 +31,7 @@ namespace tir {
 TVM_FFI_STATIC_INIT_BLOCK() {
   TIRFrameNode::RegisterReflection();
   PrimFuncFrameNode::RegisterReflection();
-  BlockFrameNode::RegisterReflection();
+  SBlockFrameNode::RegisterReflection();
   BlockInitFrameNode::RegisterReflection();
   ForFrameNode::RegisterReflection();
   AssertFrameNode::RegisterReflection();
@@ -84,7 +84,7 @@ void PrimFuncFrameNode::ExitWithScope() {
   }
 }
 
-void BlockFrameNode::ExitWithScope() {
+void SBlockFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   ffi::Array<tvm::tir::Buffer> tir_alloc_buffers;
   for (const tvm::tir::Buffer& buffer : alloc_buffers) {
@@ -94,21 +94,21 @@ void BlockFrameNode::ExitWithScope() {
   if (int detect_access = (!reads.defined()) | (!writes.defined() << 1)) {
     attrs.Set("tir.script_parsing_detect_access", tvm::IntImm(DataType::Int(64), detect_access));
   }
-  tvm::tir::Block block(iter_vars, reads.value_or(ffi::Array<tvm::tir::BufferRegion>()),
-                        writes.value_or(ffi::Array<tvm::tir::BufferRegion>()), name, AsStmt(stmts),
-                        init, tir_alloc_buffers, match_buffers, attrs);
+  tvm::tir::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::tir::BufferRegion>()),
+                         writes.value_or(ffi::Array<tvm::tir::BufferRegion>()), name, AsStmt(stmts),
+                         init, tir_alloc_buffers, match_buffers, attrs);
   if (no_realize) {
     CHECK(iter_values.empty())
         << "ValueError: Block bindings are not allowed when `no_realize=True`";
     CHECK(!predicate.defined()) << "ValueError: `T.where` is not allowed when `no_realize=True`";
     AddToParent(block);
   } else {
-    AddToParent(tvm::tir::BlockRealize(iter_values, predicate.value_or(Bool(true)), block));
+    AddToParent(tvm::tir::SBlockRealize(iter_values, predicate.value_or(Bool(true)), block));
   }
 }
 
 void BlockInitFrameNode::EnterWithScope() {
-  BlockFrame frame = FindBlockFrame("T.init");
+  SBlockFrame frame = FindSBlockFrame("T.init");
   if (frame->init.defined()) {
     LOG(FATAL) << "ValueError: Duplicate block init declaration";
   }
@@ -117,7 +117,7 @@ void BlockInitFrameNode::EnterWithScope() {
 
 void BlockInitFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  BlockFrame frame = FindBlockFrame("T.init");
+  SBlockFrame frame = FindSBlockFrame("T.init");
   frame->init = AsStmt(stmts);
 }
 

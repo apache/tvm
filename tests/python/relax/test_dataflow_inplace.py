@@ -176,7 +176,7 @@ def test_alias_call_tir():
             B = T.match_buffer(y, (m, n), "int32")
 
             for i, j in T.grid(m, n):
-                with T.block("id"):
+                with T.sblock("id"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
 
@@ -190,7 +190,7 @@ def test_alias_call_tir():
             C = T.match_buffer(z, (m, n), "int32")
 
             for i, j in T.grid(m, n):
-                with T.block("id"):
+                with T.sblock("id"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
                     C[vi, vj] = A[vi, vj]
@@ -379,7 +379,7 @@ def test_inplace_single_call():
     ):
         T.func_attr({"tir.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                 T.writes(A[v_ax0, v_ax1])
@@ -397,13 +397,13 @@ def test_inplace_single_call():
         T.func_attr({"tir.noalias": True})
         compute = T.alloc_buffer((T.int64(2), T.int64(3)))
         for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
                 T.reads(A[v_i0, v_i1])
                 T.writes(compute[v_i0, v_i1])
                 compute[v_i0, v_i1] = T.sigmoid(A[v_i0, v_i1])
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-            with T.block("T_multiply"):
+            with T.sblock("T_multiply"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(A[v_ax0, v_ax1], compute[v_ax0, v_ax1])
                 T.writes(A[v_ax0, v_ax1])
@@ -447,7 +447,7 @@ def test_insert_inplace_calls():
         ):
             T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1], B[T.int64(0), v_ax1])
                     T.writes(A[v_ax0, v_ax1])
@@ -460,7 +460,7 @@ def test_insert_inplace_calls():
         ):
             T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_multiply"):
+                with T.sblock("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1], B[T.int64(0), v_ax1])
                     T.writes(A[v_ax0, v_ax1])
@@ -473,7 +473,7 @@ def test_insert_inplace_calls():
         ):
             T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(1), T.int64(3)):
-                with T.block("T_subtract"):
+                with T.sblock("T_subtract"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                     T.writes(B[v_ax0, v_ax1])
@@ -565,7 +565,7 @@ def test_dynamic():
             A = T.match_buffer(var_A, (a, b))
             B = T.match_buffer(var_B, (a, b))
             for ax0, ax1 in T.grid(a, b):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                     T.writes(A[v_ax0, v_ax1])
@@ -578,7 +578,7 @@ def test_dynamic():
             A = T.match_buffer(var_A, (a, b))
             B = T.match_buffer(var_B, (a, b))
             for ax0, ax1 in T.grid(a, b):
-                with T.block("T_subtract"):
+                with T.sblock("T_subtract"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                     T.writes(B[v_ax0, v_ax1])

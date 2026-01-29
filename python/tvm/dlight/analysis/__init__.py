@@ -16,7 +16,7 @@
 # under the License.
 """Base infra"""
 from .common_analysis import (
-    BlockInfo,
+    SBlockInfo,
     IterInfo,
     collect_block_iter_vars_used_in_access_region,
     collect_vars_used_in_prim_expr,
@@ -24,7 +24,7 @@ from .common_analysis import (
     is_broadcast_epilogue,
     normalize_prim_func,
     get_root_block,
-    get_block_info,
+    get_sblock_info,
 )
 from .gemv import (
     is_gemv,

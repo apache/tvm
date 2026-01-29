@@ -17,7 +17,7 @@
 """Multi-level tiling with reuse."""
 from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Callable
 
-from tvm.tir.schedule import Schedule, BlockRV
+from tvm.tir.schedule import Schedule, SBlockRV
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -63,7 +63,7 @@ class MultiLevelTiling(ScheduleRule):
         Data reuse configuration for reading. None means no reuse.
     reuse_write : Optional[ReuseType]
         Data reuse configuration for writing. None means no reuse.
-    filter_fn: Optional[Callable[[Schedule, BlockRV], bool]]
+    filter_fn: Optional[Callable[[Schedule, SBlockRV], bool]]
         A function that can be passed to overwrite the default condition for applying
         MultiLevelTiling to a block. This is useful if there is a need to apply MultiLevelTiling
         to an operation / block which is ignored by default. This function should return True
@@ -78,7 +78,7 @@ class MultiLevelTiling(ScheduleRule):
         vector_load_lens: Optional[List[int]] = None,
         reuse_read: Optional[ReuseType] = None,
         reuse_write: Optional[ReuseType] = None,
-        filter_fn: Optional[Callable[[Schedule, BlockRV], bool]] = None,
+        filter_fn: Optional[Callable[[Schedule, SBlockRV], bool]] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ScheduleRuleMultiLevelTiling,  # type: ignore # pylint: disable=no-member

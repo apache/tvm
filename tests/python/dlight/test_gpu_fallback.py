@@ -33,11 +33,11 @@ def test_fallback():
         ):
             B = T.alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
-                with T.block("T_transpose"):
+                with T.sblock("T_transpose"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                     B[vi, vj, vk, vl] = A[vi, vk, vj, vl]
             for i, j, k in T.grid(1, 1, 4096):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
 
@@ -51,7 +51,7 @@ def test_fallback():
             T.func_attr({"tir.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
-                    with T.block("T_reshape"):
+                    with T.sblock("T_reshape"):
                         v0 = T.axis.spatial(4096, ax0_fused_0 * 1024 + ax0_fused_1)
                         T.reads(A[0, v0 // 128, 0, v0 % 128])
                         T.writes(C[0, 0, v0])
@@ -71,7 +71,7 @@ def test_fallback_reduction():
         @T.prim_func
         def main(A: T.Buffer((1, 6144), "float32"), B: T.Buffer((1,), "float32")):
             for ax0, ax1 in T.grid(1, 6144):
-                with T.block("block"):
+                with T.sblock("block"):
                     v0 = T.axis.spatial(1, ax0)
                     v1 = T.axis.reduce(6144, ax1)
                     T.reads(A[v0, v1])
@@ -87,14 +87,14 @@ def test_fallback_reduction():
             T.func_attr({"tir.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
-                    with T.block("block_init"):
+                    with T.sblock("block_init"):
                         v0 = T.axis.spatial(T.int64(1), T.int64(0))
                         T.where(ax0_fused_0 * T.int64(1024) + ax0_fused_1 < T.int64(1))
                         T.reads()
                         T.writes(B[0])
                         B[0] = T.float32(0)
                     for ax1 in range(6144):
-                        with T.block("block_update"):
+                        with T.sblock("block_update"):
                             v0 = T.axis.spatial(T.int64(1), T.int64(0))
                             v1 = T.axis.reduce(6144, ax1)
                             T.where(ax0_fused_0 * T.int64(1024) + ax0_fused_1 < T.int64(1))
@@ -132,7 +132,7 @@ def test_fallback_irregular_spatial():
         values = T.match_buffer(var_values, (nlayer, nhead, seqlen), "float16")
 
         for l, h, pos in T.grid(nlayer, nhead, seqlen):
-            with T.block("block"):
+            with T.sblock("block"):
                 vl, vh, vp = T.axis.remap("SSS", [l, h, pos])
                 values[vl, vh, vp] = pages[
                     page_table_values[page_table_indptr[seq_id] + T.floordiv(vp, page_size)],
@@ -160,7 +160,7 @@ def test_fallback_irregular_spatial():
 
         for ax0_ax1_ax2_fused_0 in T.thread_binding((nlayer * nhead * seqlen + 1023) // 1024, thread="blockIdx.x"):
             for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
-                with T.block("block"):
+                with T.sblock("block"):
                     v0 = T.axis.spatial(nlayer, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % (seqlen * nhead * nlayer) // (seqlen * nhead))
                     v1 = T.axis.spatial(nhead, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % (seqlen * nhead) // seqlen)
                     v2 = T.axis.spatial(seqlen, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % seqlen)
@@ -191,11 +191,11 @@ def test_gpu_fallback_ignores_non_gpu_functions():
         ):
             B = T.alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
-                with T.block("T_transpose"):
+                with T.sblock("T_transpose"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                     B[vi, vj, vk, vl] = A[vi, vk, vj, vl]
             for i, j, k in T.grid(1, 1, 4096):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
 
@@ -210,11 +210,11 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             T.func_attr({"target": T.target("llvm")})
             B = T.alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
-                with T.block("T_transpose"):
+                with T.sblock("T_transpose"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                     B[vi, vj, vk, vl] = A[vi, vk, vj, vl]
             for i, j, k in T.grid(1, 1, 4096):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
 
@@ -228,7 +228,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             T.func_attr({"tir.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
-                    with T.block("T_reshape"):
+                    with T.sblock("T_reshape"):
                         v0 = T.axis.spatial(4096, ax0_fused_0 * 1024 + ax0_fused_1)
                         T.reads(A[0, v0 // 128, 0, v0 % 128])
                         T.writes(C[0, 0, v0])
@@ -242,11 +242,11 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             T.func_attr({"target": T.target("llvm")})
             B = T.alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
-                with T.block("T_transpose"):
+                with T.sblock("T_transpose"):
                     vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                     B[vi, vj, vk, vl] = A[vi, vk, vj, vl]
             for i, j, k in T.grid(1, 1, 4096):
-                with T.block("T_reshape"):
+                with T.sblock("T_reshape"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
 

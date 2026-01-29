@@ -32,7 +32,7 @@ def identity_tir(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [54, 96])
 
     for i, j in T.grid(54, 96):
-        with T.block("compute"):
+        with T.sblock("compute"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj]
 

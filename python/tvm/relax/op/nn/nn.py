@@ -2249,3 +2249,22 @@ def attention_var_len(
         causal_mask,
         window_size,
     )  # type: ignore
+
+
+def batch_flatten(data: Expr) -> Expr:
+    """Flatten all dimensions except the first (batch) dimension.
+
+    This operation flattens a tensor of shape `(N, C, H, W, ...)` into
+    a 2D tensor of shape `(N, C*H*W*...)`.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    Returns
+    -------
+    result : relax.Expr
+        The flattened result with shape `(batch_size, flattened_features)`.
+    """
+    return _ffi_api.batch_flatten(data)  # type: ignore

@@ -64,19 +64,19 @@ class DistBufferReplacer : public StmtExprMutator {
     return load;
   }
 
-  Stmt VisitStmt_(const BlockNode* _block) final {
-    Block old_block = ffi::GetRef<Block>(_block);
-    Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(_block));
-    ObjectPtr<BlockNode> new_block = ffi::make_object<BlockNode>(*block.get());
+  Stmt VisitStmt_(const SBlockNode* _block) final {
+    SBlock old_block = ffi::GetRef<SBlock>(_block);
+    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(_block));
+    ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.get());
     new_block->reads = ReplaceBuffer(new_block->reads, buffer_map_);
     new_block->writes = ReplaceBuffer(new_block->writes, buffer_map_);
-    return Block(new_block);
+    return SBlock(new_block);
   }
 
   ffi::Map<Buffer, Buffer> buffer_map_;
 };
 
-class DistBlockInfoCollector : public StmtExprVisitor {
+class DistSBlockInfoCollector : public StmtExprVisitor {
  private:
   void VisitStmt_(const BufferStoreNode* op) final {
     buffer_access_indices[op->buffer].push_back(op->indices);
@@ -88,7 +88,7 @@ class DistBlockInfoCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     for (const auto& iter_var : op->iter_vars) {
       if (iter_var->iter_type == kCommReduce) {
         ICHECK(op->writes.size() == 1);
@@ -201,8 +201,9 @@ class DistributedBufferCompactor : StmtExprMutator {
   }
 
   ffi::Array<IterVar> ShardIterVar(
-      Block block, const std::unordered_map<Buffer, ffi::Array<ffi::Array<PrimExpr>>, ObjectPtrHash,
-                                            ObjectPtrEqual>& buffer_access_indices) {
+      SBlock block,
+      const std::unordered_map<Buffer, ffi::Array<ffi::Array<PrimExpr>>, ObjectPtrHash,
+                               ObjectPtrEqual>& buffer_access_indices) {
     std::vector<Buffer> buffers;
     for (const auto& read : block->reads) {
       buffers.push_back(read->buffer);
@@ -271,9 +272,9 @@ class DistributedBufferCompactor : StmtExprMutator {
     return Buffer(new_buffer);
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
-    Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
-    DistBlockInfoCollector collector;
+  Stmt VisitStmt_(const SBlockNode* op) final {
+    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+    DistSBlockInfoCollector collector;
     collector(block);
     ffi::Array<IterVar> new_iter_vars = ShardIterVar(block, collector.buffer_access_indices);
     ffi::Array<Buffer> new_alloc_buffers;
@@ -294,7 +295,7 @@ class DistributedBufferCompactor : StmtExprMutator {
         break;
       }
     }
-    ObjectPtr<BlockNode> new_block = ffi::make_object<BlockNode>(*block.operator->());
+    ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block.operator->());
     new_block->iter_vars = new_iter_vars;
     new_block->alloc_buffers = new_alloc_buffers;
     if (new_block->name_hint == "root") {
@@ -303,13 +304,13 @@ class DistributedBufferCompactor : StmtExprMutator {
                                       allocated_buffer_under_root.end());
     }
     new_block->body = DistBufferReplacer::BufferReplace(block->body, buffer_map);
-    return Block(new_block);
+    return SBlock(new_block);
   }
 
   void AddAllReduceBlock(std::string reduce_kind) { add_allreduce_kind_ = reduce_kind; }
 
-  Stmt VisitStmt_(const BlockRealizeNode* op) final {
-    BlockRealize realize = Downcast<BlockRealize>(StmtExprMutator::VisitStmt_(op));
+  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+    SBlockRealize realize = Downcast<SBlockRealize>(StmtExprMutator::VisitStmt_(op));
 
     for (int i = 0; i < static_cast<int>(realize->iter_values.size()); i++) {
       PrimExpr iter_value = realize->iter_values[i];

@@ -775,3 +775,10 @@ def _nn_nll_loss(bb: BlockBuilder, call: Call) -> Expr:
         reduction=call.attrs.reduction,
         ignore_index=call.attrs.ignore_index,
     )
+
+
+@register_legalize("relax.nn.batch_flatten")
+def _nn_batch_flatten(bb: BlockBuilder, call: Call) -> Expr:
+    if call.struct_info.shape is None:
+        return call
+    return bb.call_te(topi.reshape, call.args[0], call.struct_info.shape.values)

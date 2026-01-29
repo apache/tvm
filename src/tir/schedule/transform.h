@@ -41,8 +41,8 @@ namespace tir {
  * \param attr_value The annotation value to be added
  * \return A new block with the given annotation as its last annotation
  */
-Block WithAnnotation(const BlockNode* block, const ffi::String& attr_key,
-                     const ObjectRef& attr_value);
+SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
+                      const ObjectRef& attr_value);
 
 /******** Buffer Related ********/
 
@@ -131,10 +131,10 @@ class ReplaceBufferMutator : public StmtExprMutator {
    *        sref.
    */
   ReplaceBufferMutator(const Buffer& old_buffer, Buffer new_buffer,
-                       ffi::Map<Block, Block>* block_sref_reuse);
+                       ffi::Map<SBlock, SBlock>* block_sref_reuse);
 
   ReplaceBufferMutator(const ffi::Map<Buffer, Buffer>& buffer_map,
-                       ffi::Map<Block, Block>* block_sref_reuse);
+                       ffi::Map<SBlock, SBlock>* block_sref_reuse);
 
  protected:
   using StmtExprMutator::VisitExpr_;
@@ -157,7 +157,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
 
   virtual MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer);
 
-  Stmt VisitStmt_(const BlockNode* block) override;
+  Stmt VisitStmt_(const SBlockNode* block) override;
 
   /*!
    * \brief A mapping which maps old buffer vars to new buffers, including the buffers defined in
@@ -165,10 +165,10 @@ class ReplaceBufferMutator : public StmtExprMutator {
    */
   std::unordered_map<const VarNode*, Buffer> buffer_var_map_;
   /*! \brief The block sref reuse map for the following replacement */
-  ffi::Map<Block, Block>* block_sref_reuse_;
+  ffi::Map<SBlock, SBlock>* block_sref_reuse_;
 };
 
-/******** Block Removal ********/
+/******** SBlock Removal ********/
 
 /*!
  * \brief Construct a new AST, with a specific sref tree leaf removed.
@@ -218,11 +218,11 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
  * block tiled according to the given intrin, std::nullopt if a valid loop mapping is not found
  */
 ffi::Optional<tir::LoopRV> TileWithTensorIntrin(const tir::Schedule& sch,
-                                                const tir::BlockRV& block_rv,
+                                                const tir::SBlockRV& block_rv,
                                                 const ffi::String& intrin_name,
                                                 bool allow_padding = false);
 
-/******** Block mutation ********/
+/******** SBlock mutation ********/
 
 /*!
  * \brief Simplifier for indices of buffer access and block buffer access regions.
@@ -250,7 +250,7 @@ class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
   void SimplifyAccessRegion(ffi::Array<BufferRegion>* old_access_regions);
   void SimplifyBufferIndices(ffi::Array<PrimExpr>* indices);
 
-  Stmt VisitStmt_(const BlockNode* op) final;
+  Stmt VisitStmt_(const SBlockNode* op) final;
   Stmt VisitStmt_(const BufferStoreNode* op) final;
   PrimExpr VisitExpr_(const BufferLoadNode* op) final;
 };
