@@ -393,22 +393,53 @@ def test_mod(int_mode: bool):
     verify_binary_scalar("Mod", attrs={"fmod": fmod}, dtype=dtype)
 
 
-@pytest.mark.parametrize("num_inputs", [1, 2, 4])
+SHAPE_PARAMS = [
+    ([[32, 32], [32, 32]], [32, 32]),
+    ([[32, 1], [1, 2]], [32, 2]),
+    (
+        [
+            [
+                32,
+            ],
+            [
+                1,
+            ],
+        ],
+        [
+            32,
+        ],
+    ),
+    ([[32, 32, 1, 1], [1, 32, 32]], [32, 32, 32, 32]),
+    (
+        [
+            [32, 32, 1, 1],
+            [1, 32, 1],
+            [
+                32,
+            ],
+        ],
+        [32, 32, 32, 32],
+    ),
+]
+
+
+@pytest.mark.parametrize("input_shapes, expected_output_shape", SHAPE_PARAMS)
 @pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
-def test_multi_input(op_name: str, num_inputs: int):
-    input_shape = [32, 32]
-    input_var = ["i" + str(i) for i in range(num_inputs)]
-    input_values = [
-        helper.make_tensor_value_info(var, TensorProto.FLOAT, input_shape) for var in input_var
-    ]
-    test_node = helper.make_node(op_name, input_var, ["c"])
+def test_multi_input_broadcasting(op_name, input_shapes, expected_output_shape):
+    num_inputs = len(input_shapes)
+    input_names = [f"i{i}" for i in range(num_inputs)]
+
+    input_values_info = []
+    for name, shape in zip(input_names, input_shapes):
+        input_values_info.append(helper.make_tensor_value_info(name, TensorProto.FLOAT, shape))
+    test_node = helper.make_node(op_name, input_names, ["output"])
+    output_info = helper.make_tensor_value_info("output", TensorProto.FLOAT, expected_output_shape)
     graph = helper.make_graph(
         [test_node],
-        "multi_input_test",
-        inputs=input_values,
-        outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, input_shape)],
+        f"multi_input_{op_name}_test",
+        inputs=input_values_info,
+        outputs=[output_info],
     )
-
     model = helper.make_model(graph, producer_name="multi_input_test")
     check_correctness(model)
 
