@@ -113,15 +113,13 @@ try:
     import tvm.relax.backend.cuda.cublas as _cublas
 except ImportError as e:
     if "tvm_ffi" in str(e):
-        print("Error: TVM needs to be built with CUDA support.")
-        print("Please build TVM from source with CUDA enabled.")
-        print("See: https://tvm.apache.org/docs/install/from_source.html")
         import sys
+        print("Error: TVM needs to be built with CUDA support.", file=sys.stderr)
+        print("Please build TVM from source with CUDA enabled.", file=sys.stderr)
+        print("See: https://tvm.apache.org/docs/install/from_source.html", file=sys.stderr)
         sys.exit(1)
     else:
         raise
-
-
 # Define a new pass for CUBLAS dispatch
 @tvm.transform.module_pass(opt_level=0, name="CublasDispatch")
 class CublasDispatch:
@@ -239,5 +237,6 @@ print(gpu_out)
 # of the computation graph. The flexibility of the optimization pipeline enables us to quickly
 # iterate the optimization and improve the performance of the model.
 #
+
 
 
