@@ -137,7 +137,7 @@ Loop Iterations
 Computational Block
 ~~~~~~~~~~~~~~~~~~~
 A significant distinction lies in computational statements:
-**TensorIR incorporates an additional construct termed** ``T.block``.
+**TensorIR incorporates an additional construct termed** ``T.sblock``.
 
 .. code:: python
 
