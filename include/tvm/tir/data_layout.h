@@ -35,6 +35,8 @@
 #include <utility>
 #include <vector>
 
+#include "tvm/tir/var.h"
+
 namespace tvm {
 namespace tir {
 
@@ -159,6 +161,22 @@ class Layout : public ObjectRef {
   }
 
   /*!
+   * \brief Packs the Given Array of IterVars into a Single IterVar. Each IterVar in the Array
+   *        should represent either a single primal axis or one or more subordinate axis
+   * \param iters Array of iter vars to be packed
+   * \return A packed iter var
+   */
+  static IterVar PackIterVar(ffi::Array<IterVar> iters);
+
+  /*!
+   * \brief Unpacks a Packed IterVar into its constituents
+   * \param packed_iter A Packed IterVar containing a single primal axis or one or more subordinate
+   *                    axis
+   * \return Constituent IterVars
+   */
+  static ffi::Array<IterVar> UnpackIterVar(IterVar packed_iter);
+
+  /*!
    * \brief Returns a sub-layout which is the portion of the object
    *        that starts at dimension \p pos and spans \p len dimensions
    *        (or until the end of the layout, whichever comes first).
@@ -187,9 +205,12 @@ class Layout : public ObjectRef {
   inline size_t ndim_primal() const {
     if (!defined()) return 0;
     size_t ct = 0;
-    for (auto x : operator->()->axes) {
-      if (LayoutAxis::Get(x).IsPrimal()) {
-        ct++;
+    for (auto px : operator->()->axes) {
+      auto iter_vars = UnpackIterVar(px);
+      for (auto x : iter_vars) {
+        if (LayoutAxis::Get(x).IsPrimal()) {
+          ct++;
+        }
       }
     }
     return ct;
@@ -204,10 +225,13 @@ class Layout : public ObjectRef {
     Layout new_src_layout;
     // 1) Find the axis which are missing in the current layout. Make them the prefix.
     std::string new_src_layout_str = "";
-    for (auto dst_axis : dst_layout->axes) {
-      if (LayoutAxis::Get(dst_axis).IsPrimal()) {
-        if (!this->Contains(LayoutAxis::Get(dst_axis))) {
-          new_src_layout_str += dst_axis->var->name_hint;
+    for (auto packed_axis : dst_layout->axes) {
+      auto iter_vars = UnpackIterVar(packed_axis);
+      for (auto dst_axis : iter_vars) {
+        if (LayoutAxis::Get(dst_axis).IsPrimal()) {
+          if (!this->Contains(LayoutAxis::Get(dst_axis))) {
+            new_src_layout_str += dst_axis->var->name_hint;
+          }
         }
       }
     }
@@ -221,17 +245,35 @@ class Layout : public ObjectRef {
    * \brief return the index of the input axis.
    *        If it is not found in the layout or the layout is undefined,
    *        return -1.
-   * \param axis the input axis.
+   * \param axis The input axis either a layout axis, or a packed axis
    * \return the index or -1 if not found.
    */
-  inline int32_t IndexOf(const LayoutAxis& axis) const {
+  inline int32_t IndexOf(const std::string& axis) const {
     if (!this->defined()) return -1;
     const auto axes = operator->()->axes;
     for (size_t i = 0; i < axes.size(); ++i) {
-      if (axes[i]->var->name_hint == axis.name()) return static_cast<int32_t>(i);
+      if (axes[i]->var->name_hint == axis) return static_cast<int32_t>(i);
     }
     return -1;
   }
+
+  /*!
+   * \brief return the index of the input axis.
+   *        If it is not found in the layout or the layout is undefined,
+   *        return -1.
+   * \param axis the input layout axis.
+   * \return the index or -1 if not found.
+   */
+  inline int32_t IndexOf(const LayoutAxis& axis) const { return IndexOf(axis.name()); }
+
+  /*!
+   * \brief return the index of the input axis.
+   *        If it is not found in the layout or the layout is undefined,
+   *        return -1.
+   * \param iter the input iter var.
+   * \return the index or -1 if not found.
+   */
+  inline int32_t IndexOf(const tir::IterVar& iter) const { return IndexOf(iter->var->name_hint); }
 
   /*!
    * \brief Get the factor size of the subordinate axis.
@@ -249,9 +291,12 @@ class Layout : public ObjectRef {
    */
   bool Contains(const LayoutAxis& axis) const {
     if (!defined()) return false;
-    for (const tir::IterVar var : operator->()->axes) {
-      if (var->var->name_hint == axis.name()) {
-        return true;
+    for (const tir::IterVar packed_var : operator->()->axes) {
+      auto iter_vars = UnpackIterVar(packed_var);
+      for (auto var : iter_vars) {
+        if (var->var->name_hint == axis.name()) {
+          return true;
+        }
       }
     }
     return false;
@@ -263,6 +308,14 @@ class Layout : public ObjectRef {
     ICHECK(index >= 0 && static_cast<size_t>(index) < ndim()) << "Invalid index " << i;
     const tir::IterVar axis = operator->()->axes[index];
     return LayoutAxis::Get(axis);
+  }
+
+  IterVar PackedAxisAt(int32_t i) const {
+    ICHECK(defined()) << "Try to access axis from an undefined layout.";
+    int32_t index = i < 0 ? static_cast<int32_t>(ndim() + i) : i;
+    ICHECK(index >= 0 && static_cast<size_t>(index) < ndim()) << "Invalid index " << i;
+    const tir::IterVar axis = operator->()->axes[index];
+    return axis;
   }
 
   /*! \return the string description of the layout */
