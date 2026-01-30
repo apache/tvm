@@ -297,6 +297,23 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
     # pylint: enable=protected-access
 
 
+def _prepare_yarn_rope_scaling(
+    rope_scaling: Optional[Dict[str, Any]],
+    rope_theta: Optional[float],
+) -> Optional[Dict[str, Any]]:
+    """Ensure Yarn-specific scaling configs include the theta metadata."""
+    if rope_scaling is None:
+        return None
+    if rope_scaling.get("rope_type") != "yarn":
+        return rope_scaling
+
+    rope_scaling_updated = dict(rope_scaling)
+    if "inv_theta_log_scale" not in rope_scaling_updated and rope_theta is not None:
+        theta_value = float(rope_theta)
+        rope_scaling_updated["inv_theta_log_scale"] = 1.0 / (2 * math.log(theta_value))
+    return rope_scaling_updated
+
+
 class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
     """Paged KV cache using FlashInfer (CUDA) kernels."""
 
@@ -372,6 +389,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             Whether to enable disaggregation in the KV cache.
         """
         assert rope_mode != RopeMode.INLINE, "FlashInfer RoPE does not support inline mode."
+        rope_scaling = _prepare_yarn_rope_scaling(rope_scaling, rope_theta)
 
         attn_kind_single = attn_kind[0] if isinstance(attn_kind, List) else attn_kind
         if attn_kind_single == "mha_sliding":
@@ -561,6 +579,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         target : Target
             The target to build the model to.
         """
+        rope_scaling = _prepare_yarn_rope_scaling(rope_scaling, rope_theta)
         attn_kind_single = attn_kind[0] if isinstance(attn_kind, List) else attn_kind
         if attn_kind_single == "mha_sliding":
             attn_kind_single = "mha"
