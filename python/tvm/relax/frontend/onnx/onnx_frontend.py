@@ -2277,6 +2277,8 @@ class Resize(OnnxOpConverter):
                 roi = roi.data.numpy().tolist()
                 if len(roi) == 2 * ndims:
                     roi = roi[2:ndims] + roi[ndims + 2 : 2 * ndims]
+                elif len(roi) == 0:
+                    roi = [0.0] * (2 * (ndims - 2))
             else:
                 roi = relax.op.concat(
                     [
@@ -2309,7 +2311,7 @@ class Resize(OnnxOpConverter):
             elif isinstance(sizes, relax.expr.ShapeExpr):
                 sizes = [int(val.value) for val in sizes.values][2:]
             else:
-                assert f"Type {type(size)} for size is currently unsupported."
+                assert f"Type {type(sizes)} for size is currently unsupported."
 
         if ndims == 3:
             return bb.emit_te(
