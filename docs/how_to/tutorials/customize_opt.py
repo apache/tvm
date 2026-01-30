@@ -1,4 +1,4 @@
-# Licensed to the Apache Software Foundation (ASF) under one
+﻿# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -55,7 +55,21 @@ import tvm
 from tvm import IRModule, relax
 from tvm.relax.frontend import nn
 
-# Note: This tutorial requires TVM to be built with CUDA support.
+# Note: This tutorial requires TVM CUDA support.
+# If you encounter import errors:
+# 1. First try: pip install tvm-ffi (from 3rdparty/tvm-ffi)
+# 2. If that fails: Build TVM from source with CUDA enabled
+# Build instructions: https://tvm.apache.org/docs/install/from_source.html
+
+try:
+    import tvm.relax.backend.cuda.cublas as _cublas
+except ImportError as e:
+    import sys
+    print("Error: TVM CUDA support required for this tutorial.", file=sys.stderr)
+    print("Solutions:", file=sys.stderr)
+    print("  1. Install tvm-ffi: pip install tvm-ffi", file=sys.stderr)
+    print("  2. Build TVM with CUDA: https://tvm.apache.org/docs/install/from_source.html", file=sys.stderr)
+    sys.exit(1)
 # If you encounter 'No module named ''tvm_ffi''' error,
 # you need to build TVM from source with CUDA enabled.
 # Build instructions: https://tvm.apache.org/docs/install/from_source.html
@@ -244,3 +258,4 @@ print(gpu_out)
 # of the computation graph. The flexibility of the optimization pipeline enables us to quickly
 # iterate the optimization and improve the performance of the model.
 #
+
