@@ -92,6 +92,12 @@ def test_lower_floordiv():
         # const power of two
         res = lower_intrin([x, y], tvm.te.floordiv(x, tvm.tir.const(8, dtype=dtype)))
         check_value(res, x, y, [(a, b) for a, b in data if b == 8], lambda a, b: a // b)
+        # floordiv(x + m, k), m and k are positive constant. 2 <= m <= k-1.
+        res = lower_intrin(
+            [x, y],
+            tvm.te.floordiv(x + tvm.tir.const(4, dtype=dtype), tvm.tir.const(5, dtype=dtype)),
+        )
+        check_value(res, x, y, [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) // b)
 
 
 @tvm.testing.requires_llvm
@@ -115,6 +121,12 @@ def test_lower_floormod():
         # const power of two
         res = lower_intrin([x, y], tvm.te.floormod(x, tvm.tir.const(8, dtype=dtype)))
         check_value(res, x, y, [(a, b) for a, b in data if b == 8], lambda a, b: a % b)
+        # floormod(x + m, k), m and k are positive constant. 2 <= m <= k-1.
+        res = lower_intrin(
+            [x, y],
+            tvm.te.floormod(x + tvm.tir.const(4, dtype=dtype), tvm.tir.const(5, dtype=dtype)),
+        )
+        check_value(res, x, y, [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) % b)
 
 
 if __name__ == "__main__":
