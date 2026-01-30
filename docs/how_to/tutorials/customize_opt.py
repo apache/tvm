@@ -65,10 +65,14 @@ try:
     import tvm.relax.backend.cuda.cublas as _cublas
 except ImportError as e:
     import sys
+
     print("Error: TVM CUDA support required for this tutorial.", file=sys.stderr)
     print("Solutions:", file=sys.stderr)
     print("  1. Install tvm-ffi: pip install tvm-ffi", file=sys.stderr)
-    print("  2. Build TVM with CUDA: https://tvm.apache.org/docs/install/from_source.html", file=sys.stderr)
+    print(
+        "  2. Build TVM with CUDA: https://tvm.apache.org/docs/install/from_source.html",
+        file=sys.stderr,
+    )
     sys.exit(1)
 # If you encounter 'No module named ''tvm_ffi''' error,
 # you need to build TVM from source with CUDA enabled.
@@ -258,4 +262,3 @@ print(gpu_out)
 # of the computation graph. The flexibility of the optimization pipeline enables us to quickly
 # iterate the optimization and improve the performance of the model.
 #
-
