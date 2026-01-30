@@ -35,24 +35,35 @@ def lower_intrin(params, stmt):
     return stmt.value if lower_expr else stmt.body
 
 
-def check_value(expr, vx, vy, data, fref):
+def check_value(expr, variables, data, fref):
+    """
+    Check that expr evaluates to fref(*row) for each row in data.
+    variables: list of TIR vars [x] or [x, y] bound to the columns of data.
+    data: list of tuples, each tuple has len(variables) elements.
+    """
     n = len(data)
-    A = te.placeholder((n,), name="A", dtype=expr.dtype)
-    B = te.placeholder((n,), name="B", dtype=expr.dtype)
+    num_vars = len(variables)
+    assert num_vars >= 1 and all(len(row) == num_vars for row in data)
+
+    placeholders = [
+        te.placeholder((n,), name=f"v{i}", dtype=variables[i].dtype) for i in range(num_vars)
+    ]
 
     def make_binds(i):
         x = expr
-        x = tvm.tir.Let(vx, A[i], x)
-        x = tvm.tir.Let(vy, B[i], x)
+        for j in range(num_vars - 1, -1, -1):
+            x = tvm.tir.Let(variables[j], placeholders[j][i], x)
         return x
 
     C = te.compute((n,), make_binds)
-    f = tvm.compile(te.create_prim_func([A, B, C]), "llvm")
-    a = tvm.runtime.tensor(np.array([x for x, y in data], dtype=expr.dtype))
-    b = tvm.runtime.tensor(np.array([y for x, y in data], dtype=expr.dtype))
-    c = tvm.runtime.tensor(np.zeros(len(data), dtype=expr.dtype))
-    f(a, b, c)
-    cref = np.array([fref(x, y) for x, y in data])
+    f = tvm.compile(te.create_prim_func(placeholders + [C]), "llvm")
+    arrays = [
+        tvm.runtime.tensor(np.array([row[j] for row in data], dtype=variables[j].dtype))
+        for j in range(num_vars)
+    ]
+    c = tvm.runtime.tensor(np.zeros(n, dtype=expr.dtype))
+    f(*arrays, c)
+    cref = np.array([fref(*row) for row in data])
     np.testing.assert_equal(c.numpy(), cref)
 
 
@@ -75,29 +86,29 @@ def test_lower_floordiv():
         zero = tvm.tir.const(0, dtype)
         # no constraints
         res = lower_intrin([x, y], tvm.te.floordiv(x, y))
-        check_value(res, x, y, data, lambda a, b: a // b)
+        check_value(res, [x, y], data, lambda a, b: a // b)
         # rhs >= 0
         res = lower_intrin([x, y], tvm.tir.Select(y >= 0, tvm.te.floordiv(x, y), zero))
-        check_value(res, x, y, data, lambda a, b: a // b if b > 0 else 0)
+        check_value(res, [x, y], data, lambda a, b: a // b if b > 0 else 0)
         # involves max
         res = lower_intrin(
             [x, y], tvm.tir.Select(y >= 0, tvm.te.max(tvm.te.floordiv(x, y), zero), zero)
         )
-        check_value(res, x, y, data, lambda a, b: max(a // b, 0) if b > 0 else 0)
+        check_value(res, [x, y], data, lambda a, b: max(a // b, 0) if b > 0 else 0)
         # lhs >= 0
         res = lower_intrin(
             [x, y], tvm.tir.Select(tvm.tir.all(y >= 0, x >= 0), tvm.te.floordiv(x, y), zero)
         )
-        check_value(res, x, y, data, lambda a, b: a // b if b > 0 and a >= 0 else 0)
+        check_value(res, [x, y], data, lambda a, b: a // b if b > 0 and a >= 0 else 0)
         # const power of two
         res = lower_intrin([x, y], tvm.te.floordiv(x, tvm.tir.const(8, dtype=dtype)))
-        check_value(res, x, y, [(a, b) for a, b in data if b == 8], lambda a, b: a // b)
+        check_value(res, [x, y], [(a, b) for a, b in data if b == 8], lambda a, b: a // b)
         # floordiv(x + m, k), m and k are positive constant. 2 <= m <= k-1.
         res = lower_intrin(
             [x, y],
             tvm.te.floordiv(x + tvm.tir.const(4, dtype=dtype), tvm.tir.const(5, dtype=dtype)),
         )
-        check_value(res, x, y, [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) // b)
+        check_value(res, [x, y], [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) // b)
 
 
 @tvm.testing.requires_llvm
@@ -109,26 +120,60 @@ def test_lower_floormod():
         zero = tvm.tir.const(0, dtype)
         # no constraints
         res = lower_intrin([x, y], tvm.te.floormod(x, y))
-        check_value(res, x, y, data, lambda a, b: a % b)
+        check_value(res, [x, y], data, lambda a, b: a % b)
         # rhs >= 0
         res = lower_intrin([x, y], tvm.tir.Select(y >= 0, tvm.te.floormod(x, y), zero))
-        check_value(res, x, y, data, lambda a, b: a % b if b > 0 else 0)
+        check_value(res, [x, y], data, lambda a, b: a % b if b > 0 else 0)
         # lhs >= 0
         res = lower_intrin(
             [x, y], tvm.tir.Select(tvm.tir.all(y >= 0, x >= 0), tvm.te.floormod(x, y), zero)
         )
-        check_value(res, x, y, data, lambda a, b: a % b if b > 0 and a >= 0 else 0)
+        check_value(res, [x, y], data, lambda a, b: a % b if b > 0 and a >= 0 else 0)
         # const power of two
         res = lower_intrin([x, y], tvm.te.floormod(x, tvm.tir.const(8, dtype=dtype)))
-        check_value(res, x, y, [(a, b) for a, b in data if b == 8], lambda a, b: a % b)
+        check_value(res, [x, y], [(a, b) for a, b in data if b == 8], lambda a, b: a % b)
         # floormod(x + m, k), m and k are positive constant. 2 <= m <= k-1.
         res = lower_intrin(
             [x, y],
             tvm.te.floormod(x + tvm.tir.const(4, dtype=dtype), tvm.tir.const(5, dtype=dtype)),
         )
-        check_value(res, x, y, [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) % b)
+        check_value(res, [x, y], [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) % b)
+
+
+@tvm.testing.requires_llvm
+def test_lower_floordiv_overflow_checks():
+    """
+    Regression tests for overflow checks in TryFindShiftCoefficientForPositiveRange.
+    Divisor is constant 3 (not 1 to avoid CSE, not power-of-two so we don't take the shift path).
+    Reuses lower_intrin and check_value; overflow tests use one var [x].
+    """
+    # Check 3: (b-1) - a_min must not overflow (numerator and C++ int64).
+    # x (int64) full range -> min_value = -2^63. With b = 3: numerator = 2 - (-2^63) > LLONG_MAX.
+    x = te.var("x", dtype="int64")
+    res = lower_intrin([x], tvm.te.floordiv(x, tvm.tir.const(3, "int64")))
+    data_check3 = [(-(2**63),), (0,), (100,)]
+    check_value(res, [x], data_check3, lambda a: a // 3)
+
+    # Check 4: c_value * b_value must not overflow dtype.
+    # x (int16) full range -> min_value = -32768, c = ceil(32770/3) = 10923; 10923*3 > 32767.
+    x = te.var("x", dtype="int16")
+    res = lower_intrin([x], tvm.te.floordiv(x, tvm.tir.const(3, "int16")))
+    data_check4 = [(-32768,), (0,), (100,)]
+    check_value(res, [x], data_check4, lambda a: a // 3)
+
+    # Check 5: a_max + b*c must not overflow (offset numerator).
+    # tir.min(tir.max(x, -10), 32758) can give bounds [-10, 32758]; b=3, c=4; a_max + 12 > 32767.
+    # In practice this path may not be triggered. This test still validates correct lowering.
+    x = te.var("x", dtype="int16")
+    clamped = tvm.tir.min(
+        tvm.tir.max(x, tvm.tir.const(-10, "int16")), tvm.tir.const(32758, "int16")
+    )
+    res = lower_intrin([x], tvm.te.floordiv(clamped, tvm.tir.const(3, "int16")))
+    data_check5 = [(-10,), (0,), (32758,), (32757,)]
+    check_value(res, [x], data_check5, lambda a: (min(max(a, -10), 32758)) // 3)
 
 
 if __name__ == "__main__":
     test_lower_floordiv()
     test_lower_floormod()
+    test_lower_floordiv_overflow_checks()

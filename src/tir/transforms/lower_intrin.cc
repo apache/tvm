@@ -115,59 +115,15 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       if (analyzer_->CanProveGreaterEqual(op->a, 0) || analyzer_->CanProveGreaterEqual(e, 0)) {
         return truncdiv(op->a, op->b);
       }
-
-      // If the numerator's lower bound is known, express the floordiv
-      // in terms of truncdiv using only positive operands.
-
-      // The optimization below rewrites expressions involving `-a_min + (b - 1)`.
-      // Without proper bounds checking, this expression may overflow the dtype
-      // maximum, leading to non-equivalent transformations.
-      // To ensure safety, we require:
-      //   b_max - a_min <= max_value_of_dtype + 1
-      // This provides a conservative upper bound that prevents overflow and
-      // preserves the original semantics.
-      arith::ConstIntBound const_int_bound_a = analyzer_->const_int_bound(op->a);
-      arith::ConstIntBound const_int_bound_b = analyzer_->const_int_bound(op->b);
-      const int64_t max_value_of_dtype =
-          Downcast<IntImm>(tvm::max_value(op->a->dtype.element_of()))->value;
-      if (const_int_bound_a->min_value < 0 &&
-          const_int_bound_b->max_value - const_int_bound_a->min_value <= max_value_of_dtype + 1) {
-        // The goal is to write floordiv(a,b) in terms of truncdiv, without using
-        // negative operands.
-        //
-        // For any integer c
-        //
-        //   floordiv(a,b) == floordiv(a + b*c - b*c, b)
-        //                 == floordiv(a + b*c, b) - c
-        //
-        // Choosing `c = ceildiv(-a_min, b)`.  This can be rewritten in terms of
-        // truncdiv as follows.
-        //
-        //   c == ceildiv(-a_min,b)
-        //     == floordiv(-a_min + (b-1), b)
-        //     == truncdiv(-a_min + (b-1), b)
-        //
-        // When substituted into `a + b*c`, this results in a positive argument.
-        //
-        //   a + b*c
-        //     == a + b*ceildiv(-a_min,b)
-        //     == a - b*floordiv(a_min,b)
-        //     >= a - b*floordiv(a,b)
-        //     == floormod(a, b)
-        //     >= 0
-        //
-        // Since the argument is positive, this allows floordiv to be written as
-        // followed.
-        //
-        //   floordiv(a,b)
-        //     == floordiv(a + b*c, b) - c
-        //     == truncdiv(a + b*c, b) - c
-        IntImm min(op->a->dtype.element_of(), const_int_bound_a->min_value);
-        PrimExpr ceildiv = truncdiv((op->b - 1) - min, op->b);
-        PrimExpr offset_numerator = analyzer_->Simplify(op->a + op->b * ceildiv);
-        return truncdiv(offset_numerator, op->b) - ceildiv;
+      if (const IntImmNode* b_as_intimm = op->b.as<IntImmNode>()) {
+        int64_t b_value = b_as_intimm->value;
+        if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, b_value)) {
+          int64_t c_value = *opt_c_value;
+          // now we can safely lower to truncdiv
+          return truncdiv(op->a + make_const(dtype, b_value * c_value), op->b) -
+                 make_const(dtype, c_value);
+        }
       }
-
       DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
       PrimExpr rdiv = truncdiv(op->a, op->b);
       PrimExpr rmod = truncmod(op->a, op->b);
@@ -221,58 +177,14 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       if (analyzer_->CanProveGreaterEqual(op->a, 0)) {
         return truncmod(op->a, op->b);
       }
-
-      // If the numerator's lower bound is known, express the floormod
-      // in terms of truncmod using only positive operands.
-
-      // The optimization below rewrites expressions involving `-a_min + (b - 1)`.
-      // Without proper bounds checking, this expression may overflow the dtype
-      // maximum, leading to non-equivalent transformations.
-      // To ensure safety, we require:
-      //   b_max - a_min <= max_value_of_dtype + 1
-      // This provides a conservative upper bound that prevents overflow and
-      // preserves the original semantics.
-      arith::ConstIntBound const_int_bound_a = analyzer_->const_int_bound(op->a);
-      arith::ConstIntBound const_int_bound_b = analyzer_->const_int_bound(op->b);
-      const int64_t max_value_of_dtype =
-          Downcast<IntImm>(tvm::max_value(op->a->dtype.element_of()))->value;
-      if (const_int_bound_a->min_value < 0 &&
-          const_int_bound_b->max_value - const_int_bound_a->min_value <= max_value_of_dtype + 1) {
-        // The goal is to write floormod(a,b) in terms of truncdiv and truncmod,
-        // without using negative operands.
-        //
-        // For any integer c
-        //
-        //   floormod(a, b) == floormod(a + b*c, b)
-        //
-        // Choosing `c = ceildiv(-a_min, b)`.  This can be rewritten in terms of
-        // truncdiv as follows.
-        //
-        //   c == ceildiv(-a_min,b)
-        //     == floordiv(-a_min + (b-1), b)
-        //     == truncdiv(-a_min + (b-1), b)
-        //
-        // When substituted into `a + b*c`, this results in a positive argument.
-        //
-        //   a + b*c
-        //     == a + b*ceildiv(-a_min,b)
-        //     == a - b*floordiv(a_min,b)
-        //     >= a - b*floordiv(a,b)
-        //     == floormod(a, b)
-        //     >= 0
-        //
-        // Since the argument is positive, this allows floordiv to be written as
-        // followed.
-        //
-        //   floormod(a,b)
-        //     == floormod(a + b*c, b)
-        //     == truncmod(a + b*c, b)
-        IntImm min(op->a->dtype.element_of(), const_int_bound_a->min_value);
-        PrimExpr ceildiv = truncdiv(-min + (op->b - 1), op->b);
-        PrimExpr offset_numerator = analyzer_->Simplify(op->a + op->b * ceildiv);
-        return truncmod(offset_numerator, op->b);
+      if (const IntImmNode* b_as_intimm = op->b.as<IntImmNode>()) {
+        int64_t b_value = b_as_intimm->value;
+        if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, b_value)) {
+          int64_t c_value = *opt_c_value;
+          // floormod(a, b) == floormod(a + b*c, b)  == truncmod(a + b*c, b)
+          return truncmod(op->a + make_const(dtype, c_value * b_value), op->b);
+        }
       }
-
       DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divident";
       // NOTE:condition on b >= 0.
       // mod(a, b) < 0 will imply we are doing ceildiv,
@@ -386,6 +298,49 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       }
     }
     return IRMutatorWithAnalyzer::VisitExpr_(op);
+  }
+
+  /*!
+   * \brief Try to find a shift co-efficient c such that a + b*c positive and does not overflow.
+   *
+   * \param a the dividend
+   * \param b_value the divisor
+   * \return the shift co-efficient c, or nullopt if not found
+   */
+  std::optional<int64_t> TryFindShiftCoefficientForPositiveRange(const PrimExpr& a,
+                                                                 int64_t b_value) {
+    if (b_value <= 0) {
+      return std::nullopt;
+    }
+    // NOTE: we need to be very careful in the checks below, to make sure
+    // all the intermediate calculations in both compiler checks and runtime checks
+    // do not overflow
+    arith::ConstIntBound const_int_bound_a = analyzer_->const_int_bound(a);
+    if (const_int_bound_a->min_value >= 0) {
+      return std::nullopt;
+    }
+    const int64_t max_value_of_dtype =
+        Downcast<IntImm>(tvm::max_value(a->dtype.element_of()))->value;
+
+    // NOTE: ensures that (b-1) - a_min does not overflow
+    // also note: max_value_of_dtype + const_int_bound_a->min_value won't overflow
+    // since a_min is negative, adding it to a positive value will not overflow
+    if (b_value - 1 > max_value_of_dtype + const_int_bound_a->min_value) {
+      return std::nullopt;
+    }
+    int64_t c_value = ((b_value - 1) - const_int_bound_a->min_value) / b_value;
+    ICHECK_GT(c_value, 0);
+    // NOTE: the c_value * b_value risks in overflow
+    if (c_value > max_value_of_dtype / b_value) return std::nullopt;
+    // need to check if the offset numerator will overflow
+    // to ensure if don't overflow, we need to use max_value_of_dtype - b_value * c_value
+    // note that b_value * c_value is positive, max_value_of_dtype is also positive, so the
+    // subtraction will not overflow
+    if (const_int_bound_a->max_value > max_value_of_dtype - b_value * c_value) {
+      // a + b * c risks overflow
+      return std::nullopt;
+    }
+    return c_value;
   }
 
   // attribute maps, shared only when FLegalize == FLowerIntrinsic
