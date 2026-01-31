@@ -40,8 +40,8 @@ def test_conv2d(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_relu(target):
     @I.ir_module
     class Input:
@@ -58,8 +58,8 @@ def test_conv2d_relu(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_relu_conv2d_relu(target):
     @I.ir_module
     class Input:
@@ -77,8 +77,8 @@ def test_relu_conv2d_relu(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_relu_tanh(target):
     @I.ir_module
     class Input:
@@ -96,8 +96,8 @@ def test_conv2d_relu_tanh(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_add(target):
     @I.ir_module
     class Input:
@@ -116,8 +116,8 @@ def test_conv2d_add(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_sum(target):
     @I.ir_module
     class Input:
@@ -134,8 +134,8 @@ def test_conv2d_sum(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_sum_keepdims(target):
     @I.ir_module
     class Input:
@@ -152,8 +152,8 @@ def test_conv2d_sum_keepdims(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_sum_reduce(target):
     @I.ir_module
     class Input:
@@ -170,8 +170,8 @@ def test_conv2d_sum_reduce(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_transpose(target):
     @I.ir_module
     class Input:
@@ -188,8 +188,8 @@ def test_conv2d_transpose(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_expand_dims(target):
     @I.ir_module
     class Input:
@@ -206,8 +206,8 @@ def test_conv2d_expand_dims(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_squeeze(target):
     @I.ir_module
     class Input:
@@ -224,8 +224,8 @@ def test_conv2d_squeeze(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_strided_slice(target):
     @I.ir_module
     class Input:
@@ -244,8 +244,8 @@ def test_conv2d_strided_slice(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_relu_concat(target):
     @I.ir_module
     class Input:
@@ -263,8 +263,8 @@ def test_conv2d_relu_concat(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_relu_concat_split(target):
     @I.ir_module
     class Input:
@@ -283,8 +283,8 @@ def test_conv2d_relu_concat_split(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_relu_concat_split_transpose_concat(target):
     @I.ir_module
     class Input:
@@ -304,8 +304,8 @@ def test_conv2d_relu_concat_split_transpose_concat(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_maxpool2d(target):
     @I.ir_module
     class Input:
@@ -329,8 +329,8 @@ def test_conv2d_maxpool2d(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_avgpool2d(target):
     @I.ir_module
     class Input:
@@ -347,8 +347,8 @@ def test_conv2d_avgpool2d(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_softmax(target):
     @I.ir_module
     class Input:
@@ -365,8 +365,8 @@ def test_conv2d_softmax(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_conv2d_layernorm(target):
     @I.ir_module
     class Input:
@@ -388,8 +388,8 @@ def test_conv2d_layernorm(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_binary_broadcast(target):
     @I.ir_module
     class Input:
@@ -408,8 +408,8 @@ def test_binary_broadcast(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_binary_ewise_scalar(target):
     @I.ir_module
     class Input:
@@ -426,8 +426,8 @@ def test_binary_ewise_scalar(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_residual_block(target):
     """
     - some kind of residual block followed by convolution to have texture after residual block
@@ -512,7 +512,7 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d(target):
                 R.output(gv7)
             return gv7
 
-    verify(Input, "opencl")
+    verify(Input, target)
 
 
 @tvm.testing.requires_opencl
@@ -553,11 +553,11 @@ def test_conv2d_conv2d_conv2d_concat(target):
                 R.output(gv7)
             return gv7
 
-    verify(Input, "opencl")
+    verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_pooling_branching_texture_params(target):
     """
     Verification of the pooling and many branches having textures
@@ -610,8 +610,8 @@ def test_pooling_branching_texture_params(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_injective_inputs1(target):
     """
                                      Input
@@ -659,8 +659,8 @@ def test_injective_inputs1(target):
     verify(Input, target)
 
 
-@tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl")
+@tvm.testing.requires_opencl_vulkan
+@tvm.testing.parametrize_targets("opencl", "vulkan")
 def test_injective_nwo_inputs2(target):
     """
                                      Input

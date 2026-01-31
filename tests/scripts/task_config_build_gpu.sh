@@ -29,6 +29,7 @@ echo set\(USE_CUDA ON\) >> config.cmake
 echo set\(USE_VULKAN ON\) >> config.cmake
 echo set\(USE_OPENCL ON\) >> config.cmake
 echo set\(USE_OPENCL_GTEST \"/googletest\"\) >> config.cmake
+echo set\(USE_VULKAN_GTEST \"/googletest\"\) >> config.cmake
 echo set\(USE_LLVM \"/usr/bin/llvm-config-15 --link-static\"\) >> config.cmake
 echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_SORT ON\) >> config.cmake
