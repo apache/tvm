@@ -74,6 +74,7 @@ except ImportError as e:
         file=sys.stderr,
     )
     sys.exit(1)
+# If import succeeds, continue with tutorial
 # If you encounter 'No module named ''tvm_ffi''' error,
 # you need to build TVM from source with CUDA enabled.
 # Build instructions: https://tvm.apache.org/docs/install/from_source.html
@@ -127,22 +128,7 @@ mod.show()
 
 
 # Import cublas pattern
-try:
-    import tvm.relax.backend.cuda.cublas as _cublas
-except ImportError as e:
-    if "tvm_ffi" in str(e):
-        import sys
-
-        print("Error: TVM needs to be built with CUDA support.", file=sys.stderr)
-        print("Please build TVM from source with CUDA enabled.", file=sys.stderr)
-        print("See: https://tvm.apache.org/docs/install/from_source.html", file=sys.stderr)
-        sys.exit(1)
-    else:
-        raise
-
-    sys.exit(1)
-else:
-    raise
+import tvm.relax.backend.cuda.cublas as _cublas
 
 
 # Define a new pass for CUBLAS dispatch
@@ -261,4 +247,3 @@ print(gpu_out)
 # We can easily compose the optimization passes and customize the optimization for different parts
 # of the computation graph. The flexibility of the optimization pipeline enables us to quickly
 # iterate the optimization and improve the performance of the model.
-#
