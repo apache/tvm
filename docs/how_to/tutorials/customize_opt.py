@@ -55,6 +55,31 @@ import tvm
 from tvm import IRModule, relax
 from tvm.relax.frontend import nn
 
+# Note: This tutorial requires TVM CUDA support.
+# If you encounter import errors:
+# 1. First try: pip install tvm-ffi (from 3rdparty/tvm-ffi)
+# 2. If that fails: Build TVM from source with CUDA enabled
+# Build instructions: https://tvm.apache.org/docs/install/from_source.html
+
+try:
+    import tvm.relax.backend.cuda.cublas as _cublas
+except ImportError as e:
+    import sys
+
+    print("Error: TVM CUDA support required for this tutorial.", file=sys.stderr)
+    print("Solutions:", file=sys.stderr)
+    print("  1. Install tvm-ffi: pip install tvm-ffi", file=sys.stderr)
+    print(
+        "  2. Build TVM with CUDA: https://tvm.apache.org/docs/install/from_source.html",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+# If import succeeds, continue with tutorial
+# If you encounter 'No module named ''tvm_ffi''' error,
+# you need to build TVM from source with CUDA enabled.
+# Build instructions: https://tvm.apache.org/docs/install/from_source.html
+
+
 ######################################################################
 # Composable IRModule Optimization
 # --------------------------------
@@ -222,4 +247,3 @@ print(gpu_out)
 # We can easily compose the optimization passes and customize the optimization for different parts
 # of the computation graph. The flexibility of the optimization pipeline enables us to quickly
 # iterate the optimization and improve the performance of the model.
-#
