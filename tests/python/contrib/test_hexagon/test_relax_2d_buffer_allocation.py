@@ -40,7 +40,7 @@ class Module:
         T.func_attr({"operator_name": "relax.add"})
         for ax0 in range(2):
             for ax1 in range(2):
-                with T.block("T_add"):
+                with T.sblock("T_add"):
                     v_ax0 = T.axis.spatial(2, ax0)
                     v_ax1 = T.axis.spatial(2, ax1)
                     T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])

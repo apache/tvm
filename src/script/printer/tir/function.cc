@@ -143,19 +143,19 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         }
       }
       // Step 4. Handle `func->body`
-      ffi::Optional<tir::Block> implicit_root_block = [&]() -> ffi::Optional<tir::Block> {
-        const tir::BlockRealizeNode* root_block_realize = func->body.as<tir::BlockRealizeNode>();
+      ffi::Optional<tir::SBlock> implicit_root_block = [&]() -> ffi::Optional<tir::SBlock> {
+        const tir::SBlockRealizeNode* root_block_realize = func->body.as<tir::SBlockRealizeNode>();
         if (root_block_realize && !root_block_realize->iter_values.size() &&
             tir::is_one(root_block_realize->predicate)) {
-          tir::Block root_block = root_block_realize->block;
+          tir::SBlock root_block = root_block_realize->block;
           if (!root_block->annotations.size() && !root_block->match_buffers.size() &&
               !root_block->reads.size() && !root_block->writes.size() &&
               !root_block->init.defined()) {
-            const tir::BlockRealizeNode* block_realize =
-                root_block->body.as<tir::BlockRealizeNode>();
+            const tir::SBlockRealizeNode* block_realize =
+                root_block->body.as<tir::SBlockRealizeNode>();
             if (root_block->alloc_buffers.size() ||
                 (block_realize && block_realize->block->iter_vars.size()) ||
-                (!block_realize && tir::ContainsNode<tir::BlockRealizeNode>(root_block->body))) {
+                (!block_realize && tir::ContainsNode<tir::SBlockRealizeNode>(root_block->body))) {
               return root_block;
             }
           }
@@ -163,9 +163,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         return std::nullopt;
       }();
       if (d->cfg->syntax_sugar && implicit_root_block) {
-        tir::Block root_block = implicit_root_block.value();
+        tir::SBlock root_block = implicit_root_block.value();
         AccessPath root_block_p = p->Attr("body")->Attr("block");
-        (*f)->stmts.push_back(CommentDoc("with T.block(\"root\"):"));
+        (*f)->stmts.push_back(CommentDoc("with T.sblock(\"root\"):"));
         // Handle root block `alloc_buffer`
         for (int i = 0, n = root_block->alloc_buffers.size(); i < n; ++i) {
           tir::Buffer buffer = root_block->alloc_buffers[i];

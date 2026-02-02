@@ -40,7 +40,7 @@ class Gemm_F16F16F16:
         C: T.Buffer((M, N), "float16"),  # type: ignore
     ):
         for i, j, k in T.grid(M, N, K):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = T.float32(0)
@@ -57,7 +57,7 @@ class Gemm_F16F16F32:
         C: T.Buffer((M, N), "float32"),  # type: ignore
     ):
         for i, j, k in T.grid(M, N, K):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = T.float32(0)
@@ -98,8 +98,8 @@ def test_f16f16f16_mma_gemm():
     # fmt: off
     mod = Gemm_F16F16F16
     sch = Schedule(mod)
-    b0 = sch.get_block(name="C", func_name="main")
-    b1 = sch.get_block(name="root", func_name="main")
+    b0 = sch.get_sblock(name="C", func_name="main")
+    b1 = sch.get_sblock(name="root", func_name="main")
     sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSSRRSRS")
     b2 = sch.reindex(block=b0, buffer=("write", 0))
     b3 = sch.reindex(block=b0, buffer=("read", 0))
@@ -179,7 +179,7 @@ def test_f16f16f16_mma_gemm():
     v102 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001], decision=0)
     sch.annotate(block_or_loop=b1, ann_key="meta_schedule.unroll_explicit", ann_val=v102)
     sch.enter_postproc()
-    b103 = sch.get_block(name="root", func_name="main")
+    b103 = sch.get_sblock(name="root", func_name="main")
     sch.unannotate(block_or_loop=b103, ann_key="meta_schedule.unroll_explicit")
     b104, b105, b106, b107, b108, b109 = sch.get_child_blocks(b103)
     l110, l111, l112, l113 = sch.get_loops(block=b104)
@@ -188,23 +188,23 @@ def test_f16f16f16_mma_gemm():
     l125, l126, l127, l128, l129, l130, l131 = sch.get_loops(block=b107)
     l132, l133, l134, l135, l136, l137, l138, l139, l140, l141 = sch.get_loops(block=b108)
     l142, l143, l144 = sch.get_loops(block=b109)
-    b145 = sch.get_block(name="C_o", func_name="main")
+    b145 = sch.get_sblock(name="C_o", func_name="main")
     l146, l147, l148, l149, l150, l151, l152, l153, l154, l155 = sch.get_loops(block=b145)
     b156 = sch.decompose_reduction(block=b145, loop=l149)
     sch.unannotate(block_or_loop=b156, ann_key="meta_schedule.auto_tensorize")
     sch.annotate(block_or_loop=b156, ann_key="meta_schedule.auto_tensorize", ann_val="mma_init_m16n8k8_f16")
     sch.unannotate(block_or_loop=b145, ann_key="meta_schedule.auto_tensorize_init")
     sch.unannotate(block_or_loop=b156, ann_key="meta_schedule.auto_tensorize_init")
-    b157 = sch.get_block(name="C_o_init", func_name="main")
+    b157 = sch.get_sblock(name="C_o_init", func_name="main")
     sch.unannotate(block_or_loop=b157, ann_key="meta_schedule.auto_tensorize")
     sch.tensorize(block_or_loop=b157, tensor_intrin="mma_init_m16n8k8_f16", preserve_unit_iters=True)
-    b158 = sch.get_block(name="A_reindex_shared.dyn_m16n8k8.matrixA_o", func_name="main")
+    b158 = sch.get_sblock(name="A_reindex_shared.dyn_m16n8k8.matrixA_o", func_name="main")
     sch.unannotate(block_or_loop=b158, ann_key="meta_schedule.auto_tensorize")
     sch.tensorize(block_or_loop=b158, tensor_intrin="mma_load_m16n8k8_f16_A_shared_dyn", preserve_unit_iters=True)
-    b159 = sch.get_block(name="B_reindex_shared.dyn_m16n8k8.matrixB_o", func_name="main")
+    b159 = sch.get_sblock(name="B_reindex_shared.dyn_m16n8k8.matrixB_o", func_name="main")
     sch.unannotate(block_or_loop=b159, ann_key="meta_schedule.auto_tensorize")
     sch.tensorize(block_or_loop=b159, tensor_intrin="mma_load_m16n8k8_f16_B_shared_dyn", preserve_unit_iters=True)
-    b160 = sch.get_block(name="C_o_update", func_name="main")
+    b160 = sch.get_sblock(name="C_o_update", func_name="main")
     sch.unannotate(block_or_loop=b160, ann_key="meta_schedule.auto_tensorize")
     sch.tensorize(block_or_loop=b160, tensor_intrin="mma_sync_m16n8k8_f16f16f16", preserve_unit_iters=True)
     mod = sch.mod
@@ -218,8 +218,8 @@ def test_f16f16f32_mma_gemm():
     sch = Schedule(mod)
     # fmt: off
     sch = Schedule(mod)
-    b0 = sch.get_block(name="C", func_name="main")
-    b1 = sch.get_block(name="root", func_name="main")
+    b0 = sch.get_sblock(name="C", func_name="main")
+    b1 = sch.get_sblock(name="root", func_name="main")
     sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSSRRSRS")
     b2 = sch.reindex(block=b0, buffer=("write", 0))
     b3 = sch.reindex(block=b0, buffer=("read", 0))
@@ -299,7 +299,7 @@ def test_f16f16f32_mma_gemm():
     v102 = sch.sample_categorical(candidates=[0, 16, 64, 512, 1024], probs=[0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001, 0.20000000000000001], decision=0)
     sch.annotate(block_or_loop=b1, ann_key="meta_schedule.unroll_explicit", ann_val=v102)
     sch.enter_postproc()
-    b103 = sch.get_block(name="root", func_name="main")
+    b103 = sch.get_sblock(name="root", func_name="main")
     sch.unannotate(block_or_loop=b103, ann_key="meta_schedule.unroll_explicit")
     b104, b105, b106, b107, b108, b109 = sch.get_child_blocks(b103)
     l110, l111, l112, l113 = sch.get_loops(block=b104)
@@ -310,23 +310,23 @@ def test_f16f16f32_mma_gemm():
     sch.annotate(block_or_loop=l132, ann_key="pragma_auto_unroll_max_step", ann_val=0)
     sch.annotate(block_or_loop=l132, ann_key="pragma_unroll_explicit", ann_val=1)
     l142, l143, l144 = sch.get_loops(block=b109)
-    b145 = sch.get_block(name="C_o", func_name="main")
+    b145 = sch.get_sblock(name="C_o", func_name="main")
     l146, l147, l148, l149, l150, l151, l152, l153, l154, l155 = sch.get_loops(block=b145)
     b156 = sch.decompose_reduction(block=b145, loop=l149)
     sch.unannotate(block_or_loop=b156, ann_key="meta_schedule.auto_tensorize")
     sch.annotate(block_or_loop=b156, ann_key="meta_schedule.auto_tensorize", ann_val="mma_init_m16n8k8_f32")
     sch.unannotate(block_or_loop=b145, ann_key="meta_schedule.auto_tensorize_init")
     sch.unannotate(block_or_loop=b156, ann_key="meta_schedule.auto_tensorize_init")
-    b157 = sch.get_block(name="C_o_init", func_name="main")
+    b157 = sch.get_sblock(name="C_o_init", func_name="main")
     sch.unannotate(block_or_loop=b157, ann_key="meta_schedule.auto_tensorize")
     sch.tensorize(block_or_loop=b157, tensor_intrin="mma_init_m16n8k8_f32", preserve_unit_iters=True)
-    b158 = sch.get_block(name="A_reindex_shared.dyn_m16n8k8.matrixA_o", func_name="main")
+    b158 = sch.get_sblock(name="A_reindex_shared.dyn_m16n8k8.matrixA_o", func_name="main")
     sch.unannotate(block_or_loop=b158, ann_key="meta_schedule.auto_tensorize")
     sch.tensorize(block_or_loop=b158, tensor_intrin="mma_load_m16n8k8_f16_A_shared_dyn", preserve_unit_iters=True)
-    b159 = sch.get_block(name="B_reindex_shared.dyn_m16n8k8.matrixB_o", func_name="main")
+    b159 = sch.get_sblock(name="B_reindex_shared.dyn_m16n8k8.matrixB_o", func_name="main")
     sch.unannotate(block_or_loop=b159, ann_key="meta_schedule.auto_tensorize")
     sch.tensorize(block_or_loop=b159, tensor_intrin="mma_load_m16n8k8_f16_B_shared_dyn", preserve_unit_iters=True)
-    b160 = sch.get_block(name="C_o_update", func_name="main")
+    b160 = sch.get_sblock(name="C_o_update", func_name="main")
     sch.unannotate(block_or_loop=b160, ann_key="meta_schedule.auto_tensorize")
     sch.tensorize(block_or_loop=b160, tensor_intrin="mma_sync_m16n8k8_f16f16f32", preserve_unit_iters=True)
     mod = sch.mod

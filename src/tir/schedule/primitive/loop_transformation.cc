@@ -32,11 +32,11 @@ class BlockPredicateAppender : public StmtMutator {
 
  private:
   // For each direct child of type BlockRealizeNode, append the predicate
-  Stmt VisitStmt_(const BlockRealizeNode* realize) final {
+  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
     // We do not recursively do this
-    ObjectPtr<BlockRealizeNode> n = CopyOnWrite(realize);
+    ObjectPtr<SBlockRealizeNode> n = CopyOnWrite(realize);
     n->predicate = n->predicate && to_append_;
-    return BlockRealize(n);
+    return SBlockRealize(n);
   }
 
   /*! \brief The predicate to be appended */
@@ -48,7 +48,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
  public:
   explicit SubstituteVarAndCollectOpaqueBlock(
       std::function<ffi::Optional<PrimExpr>(const Var&)> vmap,
-      ffi::Map<Block, Block>* opaque_blocks)
+      ffi::Map<SBlock, SBlock>* opaque_blocks)
       : vmap_(vmap), opaque_blocks_(opaque_blocks) {}
 
  private:
@@ -61,8 +61,8 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const BlockRealizeNode* op) final {
-    BlockRealize realize = Downcast<BlockRealize>(StmtMutator::VisitStmt_(op));
+  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
+    SBlockRealize realize = Downcast<SBlockRealize>(StmtMutator::VisitStmt_(op));
     if (realize->block->iter_vars.empty()) {
       opaque_blocks_->Set(op->block, realize->block);
     }
@@ -72,7 +72,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
   /*! \brief The substitute function */
   std::function<ffi::Optional<PrimExpr>(const Var&)> vmap_;
   /*! \brief The reuse mapping of opaque blocks */
-  ffi::Map<Block, Block>* opaque_blocks_;
+  ffi::Map<SBlock, SBlock>* opaque_blocks_;
 };
 
 /*! \brief Simplify the binding of block realize and update the opaque block reuse mapping */
@@ -104,11 +104,11 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
     return res;
   }
 
-  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     // skip opaque block and update mapping
     if (op->iter_values.empty()) {
-      Block block = op->block;
-      BlockRealize realize = Downcast<BlockRealize>(StmtMutator::VisitStmt_(op));
+      SBlock block = op->block;
+      SBlockRealize realize = Downcast<SBlockRealize>(StmtMutator::VisitStmt_(op));
       for (const auto& entry : *opaque_blocks_) {
         if (entry.second.same_as(block)) {
           opaque_blocks_->at(entry.first) = realize->block;
@@ -127,7 +127,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
     if (v.same_as(op->iter_values)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      ObjectPtr<BlockRealizeNode> n = CopyOnWrite(op);
+      ObjectPtr<SBlockRealizeNode> n = CopyOnWrite(op);
       n->iter_values = std::move(v);
       return Stmt(n);
     }
@@ -160,15 +160,15 @@ class BlockPropertyError : public ScheduleError {
           : state_(state), top_(top) {}
 
      private:
-      void VisitStmt_(const BlockNode* op) final {
+      void VisitStmt_(const SBlockNode* op) final {
         for (const IterVar& iter_var : op->iter_vars) {
           if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
-            throw BlockPropertyError(state_->mod, ffi::GetRef<Block>(op));
+            throw BlockPropertyError(state_->mod, ffi::GetRef<SBlock>(op));
           }
           ffi::Optional<StmtSRef> high_exclusive = top_->parent
                                                        ? ffi::GetRef<StmtSRef>(top_->parent)
                                                        : ffi::Optional<StmtSRef>(std::nullopt);
-          CheckPartialAffineBinding(state_, ffi::GetRef<Block>(op), high_exclusive);
+          CheckPartialAffineBinding(state_, ffi::GetRef<SBlock>(op), high_exclusive);
         }
       }
       const ScheduleState& state_;
@@ -179,7 +179,7 @@ class BlockPropertyError : public ScheduleError {
     checker(ffi::GetRef<Stmt>(sref->stmt));
   }
 
-  explicit BlockPropertyError(IRModule mod, Block block) : mod_(mod), block_(std::move(block)) {}
+  explicit BlockPropertyError(IRModule mod, SBlock block) : mod_(mod), block_(std::move(block)) {}
 
   ffi::String FastErrorString() const final {
     return "ScheduleError: The block under the loops to be reordered have block iter type other "
@@ -195,7 +195,7 @@ class BlockPropertyError : public ScheduleError {
   ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   IRModule mod_;
-  Block block_;
+  SBlock block_;
 };
 
 class HasAnnotationOrThreadBindingError : public ScheduleError {
@@ -426,7 +426,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
     analyzer.Bind(var, Range::FromMinExtent(make_const(dtype, 0), tvm::cast(dtype, factor)));
     new_loop_vars.emplace_back(std::move(var));
   }
-  ffi::Map<Block, Block> opaque_block_reuse;
+  ffi::Map<SBlock, SBlock> opaque_block_reuse;
   Stmt new_stmt = loop->body;
   new_stmt = SubstituteVarAndCollectOpaqueBlock(
       [&](const Var& v) -> ffi::Optional<PrimExpr> {
@@ -464,7 +464,7 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
  public:
   explicit BufferIndicesMapExtractor(Var loop_var) : loop_var_(loop_var) {}
 
-  static ffi::Map<ffi::String, ffi::Array<ffi::String>> Extract(Var loop_var, Block& block) {
+  static ffi::Map<ffi::String, ffi::Array<ffi::String>> Extract(Var loop_var, SBlock& block) {
     BufferIndicesMapExtractor extractor(loop_var);
     extractor(std::move(block->body));
     return extractor.buffer_indices_map;
@@ -503,7 +503,7 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(load);
   }
 
-  void VisitStmt_(const BlockNode* op) final { StmtVisitor::VisitStmt_(op); }
+  void VisitStmt_(const SBlockNode* op) final { StmtVisitor::VisitStmt_(op); }
 
   Var loop_var_;
   ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map;
@@ -536,8 +536,8 @@ class BlockMutator : public StmtExprMutator {
       : new_loop_var_(new_loop_var), min_(min), extent_(extent) {}
 
  private:
-  Stmt VisitStmt_(const BlockNode* _op) final {
-    Block new_block = Downcast<Block>(StmtMutator::VisitStmt_(_op));
+  Stmt VisitStmt_(const SBlockNode* _op) final {
+    SBlock new_block = Downcast<SBlock>(StmtMutator::VisitStmt_(_op));
 
     // If iter_vars.size() is 0, then the block most probably be an Opaque block
     if (new_block->iter_vars.size() == 0 || inner_iter_var_index == -1) {
@@ -603,7 +603,7 @@ class BlockMutator : public StmtExprMutator {
     return block_stmt;
   }
 
-  Stmt VisitStmt_(const BlockRealizeNode* realize) final {
+  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
     ffi::Array<PrimExpr> iter_values = realize->iter_values;
     for (size_t i = 0; i < iter_values.size(); i++) {
       if (new_loop_var_.same_as(iter_values[i])) {
@@ -612,7 +612,7 @@ class BlockMutator : public StmtExprMutator {
         break;
       }
     }
-    BlockRealize stmt = Downcast<BlockRealize>(StmtExprMutator::VisitStmt_(realize));
+    SBlockRealize stmt = Downcast<SBlockRealize>(StmtExprMutator::VisitStmt_(realize));
     return stmt;
   }
 
@@ -633,10 +633,10 @@ class BlockMutator : public StmtExprMutator {
   int inner_iter_var_index = -1;
 };
 
-const ffi::String get_block_name(Stmt loop_body) {
-  const BlockRealizeNode* blk_realize = loop_body.as<BlockRealizeNode>();
+const ffi::String get_sblock_name(Stmt loop_body) {
+  const SBlockRealizeNode* blk_realize = loop_body.as<SBlockRealizeNode>();
   if (blk_realize == nullptr) {
-    return get_block_name(loop_body.as<ForNode>()->body);
+    return get_sblock_name(loop_body.as<ForNode>()->body);
   }
   return blk_realize->block->name_hint;
 }
@@ -659,7 +659,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
     dtype = DataType::Int(bits);
   }
 
-  ffi::String block_name = get_block_name(loop->body) + "_" + loop->loop_var->name_hint;
+  ffi::String block_name = get_sblock_name(loop->body) + "_" + loop->loop_var->name_hint;
   int n = factors.size();
   PrimExpr min_value = loop->min;
   PrimExpr extent_value;
@@ -681,16 +681,16 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
 
     const auto& partition_block_name = block_name + std::to_string(i) + "_partition";
     // Create partition_block for the partitioned for loop
-    BlockRealize partition_block({}, extent_value > 0,
-                                 Block({}, {}, {}, partition_block_name, for_node));
+    SBlockRealize partition_block({}, extent_value > 0,
+                                  SBlock({}, {}, {}, partition_block_name, for_node));
     block_partitions.push_back(partition_block);
 
     min_value = extent_value;
   }
 
   // Create common block with all the partitioned blocks as its children blocks
-  BlockRealize common({}, make_const(DataType::Bool(), 1),
-                      Block({}, {}, {}, block_name + "_common", tir::SeqStmt(block_partitions)));
+  SBlockRealize common({}, make_const(DataType::Bool(), 1),
+                       SBlock({}, {}, {}, block_name + "_common", tir::SeqStmt(block_partitions)));
 
   // Replace existing loop with the newly created common block
   self->Replace(loop_sref, common, {});
@@ -698,7 +698,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   StmtSRef scope_root = tir::GetScopeRoot(self, scope_sref, /*require_stage_pipeline=*/false);
   bool scope_block_affine_binding = self->IsAffineBlockBinding(scope_root);
   // Update the SRefTree for the newly created common block
-  self->UpdateScopeBlockInfo(tir::GetBlockRealize(self, scope_root));
+  self->UpdateScopeSBlockInfo(tir::GetSBlockRealize(self, scope_root));
   self->block_info[scope_root].affine_binding = scope_block_affine_binding;
 
   // Collect the SRef for each partitioned loop and return
@@ -706,7 +706,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   partition_srefs.reserve(n);
   for (int i = 0; i < n; i++) {
     StmtSRef partition_loop_sref =
-        self->stmt2ref.at(block_partitions[i].as<BlockRealizeNode>()->block->body.get());
+        self->stmt2ref.at(block_partitions[i].as<SBlockRealizeNode>()->block->body.get());
     partition_srefs.push_back(partition_loop_sref);
   }
   return partition_srefs;
@@ -714,7 +714,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
 
 class LoopReconstructor : private StmtMutator {
  public:
-  explicit LoopReconstructor(Block scope_root, const std::vector<std::vector<For>>& loops)
+  explicit LoopReconstructor(SBlock scope_root, const std::vector<std::vector<For>>& loops)
       : scope_root_(scope_root), loops_(loops) {}
 
   using StmtMutator::operator();
@@ -752,9 +752,9 @@ class LoopReconstructor : private StmtMutator {
   }
 
  private:
-  Stmt VisitStmt_(const BlockNode* block) final {
+  Stmt VisitStmt_(const SBlockNode* block) final {
     if (block != scope_root_.get()) {
-      return ffi::GetRef<Block>(block);
+      return ffi::GetRef<SBlock>(block);
     }
     return StmtMutator::VisitStmt_(block);
   }
@@ -789,7 +789,7 @@ class LoopReconstructor : private StmtMutator {
 
  public:
   /*! \brief The root block of the block scope */
-  Block scope_root_;
+  SBlock scope_root_;
   /*! \brief The given loops to be merge */
   const std::vector<std::vector<For>>& loops_;
   /*! \brief The outermost new loop to replace the original loop */
@@ -860,10 +860,10 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
     }
   }
   // Step 2. Create merged loops and replace the original loops
-  Block scope_root = ffi::GetRef<Block>(scope_root_sref->StmtAs<BlockNode>());
+  SBlock scope_root = ffi::GetRef<SBlock>(scope_root_sref->StmtAs<SBlockNode>());
   LoopReconstructor reconstructor(scope_root, lca_nest_loops);
   reconstructor.MakeNewLoop();
-  Block new_scope_root = Downcast<Block>(reconstructor(scope_root));
+  SBlock new_scope_root = Downcast<SBlock>(reconstructor(scope_root));
   // Step 3. Do the actual replacement
   self->Replace(scope_root_sref, new_scope_root, {{scope_root, new_scope_root}});
   return self->stmt2ref.at(reconstructor.new_inner_loop_.get());
@@ -934,7 +934,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   }
   substitute_value.Set(0, is_one(loops[0]->extent) ? 0 : floordiv(fused_var, lower));
   Stmt new_stmt = loops.back()->body;
-  ffi::Map<Block, Block> opaque_block_reuse;
+  ffi::Map<SBlock, SBlock> opaque_block_reuse;
   auto f_substitute = [&](const Var& v) -> ffi::Optional<PrimExpr> {
     for (int i = 0; i < n; i++) {
       if (v.same_as(loops[i]->loop_var)) {
@@ -1000,7 +1000,7 @@ std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
     }
     for (const StmtSRefNode* v = loop_sref;; v = v->parent) {
       // Case 1. If `v` corresponds to a block, stop traversal.
-      if (v->stmt->IsInstance<BlockNode>()) {
+      if (v->stmt->IsInstance<SBlockNode>()) {
         if (scope_block_visited) {
           throw LoopsNotAChainError(self->mod, std::nullopt,
                                     LoopsNotAChainError::ProblemKind::kNotUnderAScope);
@@ -1146,10 +1146,10 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
    public:
     explicit NewLoopCreator(const StmtNode* src_block) : src_block_(src_block) {}
 
-    Stmt VisitStmt_(const BlockRealizeNode* realize) final {
+    Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
       if (realize->block.get() == src_block_) {
         new_loop_ = For(Var("u", DataType::Int(32)), 0, 1, ForKind::kSerial,
-                        ffi::GetRef<BlockRealize>(realize));
+                        ffi::GetRef<SBlockRealize>(realize));
         return new_loop_;
       }
       return StmtMutator::VisitStmt_(realize);
@@ -1166,8 +1166,8 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
   if (new_stmt->IsInstance<ForNode>()) {
     self->Replace(parent_sref, std::move(new_stmt), {});
   } else {
-    Block old_parent_block = ffi::GetRef<Block>(parent_sref->StmtAs<BlockNode>());
-    Block new_parent_block = Downcast<Block>(new_stmt);
+    SBlock old_parent_block = ffi::GetRef<SBlock>(parent_sref->StmtAs<SBlockNode>());
+    SBlock new_parent_block = Downcast<SBlock>(new_stmt);
     self->Replace(parent_sref, new_stmt, {{old_parent_block, new_parent_block}});
   }
   return self->stmt2ref.at(creator.new_loop_.get());
@@ -1364,7 +1364,7 @@ struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch, ObjectRef rv) {
-    if (auto block = rv.as<BlockRV>()) {
+    if (auto block = rv.as<SBlockRV>()) {
       return sch->AddUnitLoop(block.value());
     } else if (auto loop = rv.as<LoopRV>()) {
       return sch->AddUnitLoop(loop.value());

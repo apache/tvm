@@ -20,14 +20,14 @@ from typing import List, Optional
 from tvm import arith, ir, tir
 
 from .common_analysis import (
-    BlockInfo,
+    SBlockInfo,
     collect_block_iter_vars_used_in_access_region,
     collect_vars_used_in_prim_expr,
     detect_dominant_read,
 )
 
 
-def get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
+def get_reduction_expr(block: tir.SBlock) -> Optional[tir.PrimExpr]:
     """Extracts the reduction expression from a TIR block.
 
     This function checks whether the given TIR block follows a reduction pattern
@@ -35,7 +35,7 @@ def get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
 
     Parameters:
     ----------
-    block : tir.Block
+    block : tir.SBlock
         The TIR block to analyze.
 
     Returns:
@@ -58,7 +58,7 @@ def get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
     return buffer_store.value.b
 
 
-def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffer]]:
+def is_gemv(sch: tir.Schedule, block_info: SBlockInfo) -> Optional[List[tir.Buffer]]:
     """Check if the block is a GEMV.
 
     Parameters
@@ -67,7 +67,7 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
     sch : tir.Schedule
         The schedule
 
-    block_info : BlockInfo
+    block_info : SBlockInfo
         The block info to be checked
 
 
@@ -102,10 +102,10 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
 
 def normalize(
     sch: tir.Schedule,
-    block_info: BlockInfo,
+    block_info: SBlockInfo,
 ) -> Optional[bool]:
     """Normalize the main block."""
-    block_stmt: tir.Block = sch.get(block_info.block_rv)
+    block_stmt: tir.SBlock = sch.get(block_info.block_rv)
     access = arith.normalize_to_iter_sum(
         detect_dominant_read(block_stmt),
         input_iters={i.var: i.dom for i in block_stmt.iter_vars},

@@ -51,10 +51,10 @@ class Module:
     @T.prim_func
     def add(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
         T.func_attr({"global_symbol": "add"})
-        with T.block("root"):
+        with T.sblock("root"):
             for i in T.thread_binding(16, thread="threadIdx.x"):
                 for j in range(16):
-                    with T.block("update"):
+                    with T.sblock("update"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] + T.float32(1)
 

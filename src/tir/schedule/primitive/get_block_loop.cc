@@ -22,13 +22,13 @@
 namespace tvm {
 namespace tir {
 
-ffi::Array<StmtSRef> GetBlocks(const ScheduleState& self, const ffi::String& name,
-                               const GlobalVar& gv) {
+ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& name,
+                                const GlobalVar& gv) {
   struct Finder : public StmtVisitor {
     explicit Finder(const ScheduleState& self, const ffi::String& name)
         : self_(self), name_(name) {}
 
-    void VisitStmt_(const BlockNode* block) override {
+    void VisitStmt_(const SBlockNode* block) override {
       if (block->name_hint == name_) {
         auto it = self_->stmt2ref.find(block);
         ICHECK(it != self_->stmt2ref.end());
@@ -61,7 +61,7 @@ ffi::Array<StmtSRef> GetLoops(const StmtSRef& block_sref) {
 ffi::Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent_sref) {
   struct Collector : public StmtVisitor {
    private:
-    void VisitStmt_(const BlockNode* block) final { result.push_back(self->stmt2ref.at(block)); }
+    void VisitStmt_(const SBlockNode* block) final { result.push_back(self->stmt2ref.at(block)); }
 
    public:
     explicit Collector(const ScheduleState& self) : self(self) {}
@@ -73,8 +73,8 @@ ffi::Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& p
   if (parent_sref->stmt->IsInstance<ForNode>()) {
     const auto* loop = static_cast<const ForNode*>(parent_sref->stmt);
     collector(loop->body);
-  } else if (parent_sref->stmt->IsInstance<BlockNode>()) {
-    const auto* block = static_cast<const BlockNode*>(parent_sref->stmt);
+  } else if (parent_sref->stmt->IsInstance<SBlockNode>()) {
+    const auto* block = static_cast<const SBlockNode*>(parent_sref->stmt);
     collector(block->body);
   }
   return std::move(collector.result);
@@ -82,23 +82,23 @@ ffi::Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& p
 
 ffi::Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sref) {
   StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  return tir::GetProducers(block_sref, self->GetBlockScope(scope_root));
+  return tir::GetProducers(block_sref, self->GetSBlockScope(scope_root));
 }
 
 ffi::Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref) {
   StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  return tir::GetConsumers(block_sref, self->GetBlockScope(scope_root));
+  return tir::GetConsumers(block_sref, self->GetSBlockScope(scope_root));
 }
 
 ffi::Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const StmtSRef& scope_sref) {
-  const auto* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
+  const auto* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
   return tir::GetOutputBlocks(self, scope_block);
 }
 
 /******** InstructionKind Registration ********/
 
-struct GetBlockTraits : public UnpackedInstTraits<GetBlockTraits> {
-  static constexpr const char* kName = "GetBlock";
+struct GetSBlockTraits : public UnpackedInstTraits<GetSBlockTraits> {
+  static constexpr const char* kName = "GetSBlock";
   static constexpr bool kIsPure = true;
 
  private:
@@ -106,13 +106,13 @@ struct GetBlockTraits : public UnpackedInstTraits<GetBlockTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static BlockRV UnpackedApplyToSchedule(Schedule sch, ffi::String name, ffi::String func_name) {
-    return sch->GetBlock(name, func_name);
+  static SBlockRV UnpackedApplyToSchedule(Schedule sch, ffi::String name, ffi::String func_name) {
+    return sch->GetSBlock(name, func_name);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String name,
                                       ffi::String func_name) {
-    PythonAPICall py("get_block");
+    PythonAPICall py("get_sblock");
     py.Input("name", name);
     py.Input("func_name", func_name);
     py.SingleOutput(outputs);
@@ -132,7 +132,7 @@ struct GetLoopsTraits : public UnpackedInstTraits<GetLoopsTraits> {
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static ffi::Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+  static ffi::Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv) {
     return sch->GetLoops(block_rv);
   }
 
@@ -156,14 +156,15 @@ struct GetChildBlocksTraits : public UnpackedInstTraits<GetChildBlocksTraits> {
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static ffi::Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv) {
-    if (auto block = block_or_loop_rv.as<BlockRV>()) {
+  static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv) {
+    if (auto block = block_or_loop_rv.as<SBlockRV>()) {
       return sch->GetChildBlocks(block.value());
     }
     if (auto loop = block_or_loop_rv.as<LoopRV>()) {
       return sch->GetChildBlocks(loop.value());
     }
-    LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: " << block_or_loop_rv->GetTypeKey();
+    LOG(FATAL) << "TypeError: Expected SBlock or Loop, but gets: "
+               << block_or_loop_rv->GetTypeKey();
     throw;
   }
 
@@ -188,7 +189,7 @@ struct GetProducersTraits : public UnpackedInstTraits<GetProducersTraits> {
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static ffi::Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+  static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv) {
     return sch->GetProducers(block_rv);
   }
 
@@ -212,7 +213,7 @@ struct GetConsumersTraits : public UnpackedInstTraits<GetConsumersTraits> {
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static ffi::Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+  static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv) {
     return sch->GetConsumers(block_rv);
   }
 
@@ -236,7 +237,7 @@ struct GetOutputBlocksTraits : public UnpackedInstTraits<GetOutputBlocksTraits> 
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static ffi::Array<BlockRV> UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv) {
+  static ffi::Array<SBlockRV> UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv) {
     return sch->GetOutputBlocks(block_rv);
   }
 
@@ -251,7 +252,7 @@ struct GetOutputBlocksTraits : public UnpackedInstTraits<GetOutputBlocksTraits> 
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(GetBlockTraits);
+TVM_REGISTER_INST_KIND_TRAITS(GetSBlockTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetLoopsTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetChildBlocksTraits);
 TVM_REGISTER_INST_KIND_TRAITS(GetProducersTraits);

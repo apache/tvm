@@ -36,7 +36,7 @@ def test_large_uint_imm():
     sch = tir.Schedule(mod)
 
     # Get block and loop
-    block = sch.get_block("A")
+    block = sch.get_sblock("A")
     loop = sch.get_loops(block)[0]
 
     # Split and bind
@@ -71,8 +71,8 @@ def test_add_pipeline():
     sch = tir.Schedule(mod)
 
     # Get blocks and loops
-    c_block = sch.get_block("C")
-    d_block = sch.get_block("D")
+    c_block = sch.get_sblock("C")
+    d_block = sch.get_sblock("D")
     c_loop = sch.get_loops(c_block)[0]
     d_loop = sch.get_loops(d_block)[0]
 

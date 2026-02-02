@@ -38,7 +38,7 @@ bool IsInSpatialPrimFunc(const tir::Schedule& sch, const tir::StmtSRef& block_sr
   const StmtSRefNode* sref = block_sref.get();
   for (; sref->parent != nullptr; sref = sref->parent) {
   }
-  ICHECK(sref->stmt != nullptr && sref->stmt->IsInstance<BlockNode>());
+  ICHECK(sref->stmt != nullptr && sref->stmt->IsInstance<SBlockNode>());
   return IsSpatialPrimFunc(ffi::GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sref->stmt, nullptr)));
 }
 
@@ -46,13 +46,13 @@ bool IsInSpatialPrimFunc(const tir::Schedule& sch, const tir::StmtSRef& block_sr
 class AutoInlineNode : public ScheduleRuleNode {
  public:
   /*! \brief Checks if the specific block should be inlined */
-  inline InlineType CheckInline(const tir::Schedule& sch, const tir::BlockRV& block_rv);
+  inline InlineType CheckInline(const tir::Schedule& sch, const tir::SBlockRV& block_rv);
 
   // Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) final {
     InlineType inline_type = CheckInline(sch, block_rv);
     if (inline_type == InlineType::kInlineIntoConsumer) {
       sch->ComputeInline(block_rv);
@@ -99,13 +99,13 @@ class AutoInlineNode : public ScheduleRuleNode {
 };
 
 inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
-                                              const tir::BlockRV& block_rv) {
+                                              const tir::SBlockRV& block_rv) {
   using namespace tvm::tir;
   StmtSRef block_sref = sch->GetSRef(block_rv);
   bool is_pure_sptial = IsInSpatialPrimFunc(sch, block_sref);
   ScheduleState state = sch->state();
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-  BlockRealize realize = GetBlockRealize(state, block_sref);
+  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  SBlockRealize realize = GetSBlockRealize(state, block_sref);
   // Cond 1. The block has only one write buffer
   if (block->writes.size() != 1) {
     return InlineType::kNoInline;
@@ -205,7 +205,7 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
  public:
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) final {
     // Look for a block of the form
     // block compile_engine_const(iter_var(vi, range(min=0, ext=1))) {
     //   reads([])

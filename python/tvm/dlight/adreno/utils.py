@@ -22,10 +22,10 @@ from typing import List
 from tvm.target import Target
 from tvm import tir
 
-from ..analysis import BlockInfo
+from ..analysis import SBlockInfo
 
 
-def get_texture_storage(block_info: BlockInfo):
+def get_texture_storage(block_info: SBlockInfo):
     """
     Returns the texture layout acceptable for the shape
 
@@ -67,13 +67,13 @@ def get_texture_storage(block_info: BlockInfo):
     return "global"
 
 
-def schedule_inline_blocks(sch: tir.Schedule, blocks: List[tir.schedule.BlockRV] = None):
+def schedule_inline_blocks(sch: tir.Schedule, blocks: List[tir.schedule.SBlockRV] = None):
     from .fallback import Fallback
 
     return Fallback.schedule_inline_blocks(sch, blocks)
 
 
-def schedule_default(sch, blocks: List[tir.schedule.BlockRV] = None):
+def schedule_default(sch, blocks: List[tir.schedule.SBlockRV] = None):
     from .fallback import Fallback
 
     ret = []

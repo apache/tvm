@@ -37,7 +37,7 @@ class Matmul:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
+            with T.sblock("matmul"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0

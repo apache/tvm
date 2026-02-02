@@ -32,11 +32,11 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
         B: T.Buffer((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
         C: T.Buffer((1,), dtype_c, offset_factor=1, align=4, scope="local"),
     ) -> None:
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0], A[0:4], B[0:4])
             T.writes(C[0])
             for i in range(0, 4):
-                with T.block("update"):
+                with T.sblock("update"):
                     vi = T.axis.remap("R", [i])
                     C[0] = C[0] + T.cast(A[vi], dtype_c) * T.cast(B[vi], dtype_c)
 
@@ -46,7 +46,7 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
         B: T.Buffer((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
         C: T.Buffer((1,), dtype_c, offset_factor=1, align=4, scope="local"),
     ) -> None:
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0], A[0:4], B[0:4])
             T.writes(C[0])
 

@@ -40,6 +40,7 @@ from .base import (
     register_gradient,
     shape_of,
     shape_to_tensor,
+    size,
     tensor_to_shape,
     to_vdevice,
 )

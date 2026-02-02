@@ -19,7 +19,7 @@
 
 import math
 from functools import partial
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from tvm import tir
 from tvm.relax.frontend.nn import Tensor, op
@@ -180,12 +180,12 @@ def rope_freq_longrope(  # pylint: disable=too-many-arguments
 def yarn_find_correction_dim(
     num_rotations: int,
     d: tir.Var,
-    theta: float,
     max_position_embeddings: int,
+    inv_theta_log_scale: Optional[Union[float, tir.PrimExpr]] = None,
 ):
     """Inverse dim formula to find dim based on number of rotations"""
-    return (d * math.log(max_position_embeddings / (num_rotations * 2 * math.pi))) / (
-        2 * math.log(theta)
+    return (
+        d * math.log(max_position_embeddings / (num_rotations * 2 * math.pi)) * inv_theta_log_scale
     )
 
 
@@ -193,12 +193,16 @@ def yarn_find_correction_range(
     low_rot: int,
     high_rot: int,
     d: tir.Var,
-    theta: float,
     max_position_embeddings: int,
+    inv_theta_log_scale: Optional[Union[float, tir.PrimExpr]] = None,
 ):
     """Find the correction range based on the number of rotations"""
-    low = yarn_find_correction_dim(low_rot, d, theta, max_position_embeddings)
-    high = yarn_find_correction_dim(high_rot, d, theta, max_position_embeddings)
+    low = yarn_find_correction_dim(
+        low_rot, d, max_position_embeddings, inv_theta_log_scale=inv_theta_log_scale
+    )
+    high = yarn_find_correction_dim(
+        high_rot, d, max_position_embeddings, inv_theta_log_scale=inv_theta_log_scale
+    )
     return tir.max(low, 0), tir.min(high, d - 1)
 
 
@@ -206,12 +210,13 @@ def rope_freq_yarn(
     s: tir.Var,
     d: tir.Var,
     d_range: int,
-    theta: float,
+    theta: Union[float, tir.PrimExpr],
     dtype: str,
     original_max_position_embeddings: int,
     scaling_factor: float,
     beta_fast: int,
     beta_slow: int,
+    inv_theta_log_scale: Optional[Union[float, tir.PrimExpr]] = None,
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Compute the inverse frequency of RoPE for yarn RoPE scaling."""
 
@@ -221,7 +226,11 @@ def rope_freq_yarn(
     freq_inter = tir.const(1, "float32") / (scaling_factor * freq_power)
 
     low, high = yarn_find_correction_range(
-        beta_fast, beta_slow, d_range, theta, original_max_position_embeddings
+        beta_fast,
+        beta_slow,
+        d_range,
+        original_max_position_embeddings,
+        inv_theta_log_scale=inv_theta_log_scale,
     )
     high = tir.if_then_else(low == high, high + 0.001, high)
     inv_freq_mask = tir.const(1, "float32") - tir.max(
@@ -266,12 +275,15 @@ def switch_rope_freq_func(rope_scaling: Dict[str, Any]) -> Callable:
             original_max_position_embeddings=rope_scaling["original_max_position_embeddings"],
         )
     if rope_scaling["rope_type"] == "yarn":
+        inv_theta_log_scale = rope_scaling.get("inv_theta_log_scale")
+        assert inv_theta_log_scale is not None, "inv_theta_log_scale must be precomputed for YaRN"
         return partial(
             rope_freq_yarn,
             original_max_position_embeddings=rope_scaling["original_max_position_embeddings"],
             scaling_factor=rope_scaling["factor"],
             beta_fast=rope_scaling["beta_fast"],
             beta_slow=rope_scaling["beta_slow"],
+            inv_theta_log_scale=inv_theta_log_scale,
         )
     raise ValueError(f'Unsupported RoPE scaling type: {rope_scaling["rope_type"]}')
 
@@ -388,7 +400,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
         k = T.match_buffer(var_k, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
         v = T.match_buffer(var_v, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
         for iters in T.grid(batch_size, seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
+            with T.sblock("llama_fused_rope"):
                 b, s, h, d = T.axis.remap("SSSS", iters)
                 if h < num_q_heads:
                     q[b, s, h, d] = T.if_then_else(
@@ -524,7 +536,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
         )
         for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
+            with T.sblock("llama_fused_rope"):
                 s, h, d = T.axis.remap("SSS", iters)
                 if h < num_q_heads:
                     q[s, h, d] = T.if_then_else(
@@ -573,7 +585,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
 
         if seq_len > original_max_position_embeddings:
             for iters in T.grid(seq_len, fused_heads, head_dim):
-                with T.block("llama_fused_rope"):
+                with T.sblock("llama_fused_rope"):
                     s, h, d = T.axis.remap("SSS", iters)
                     if h < num_q_heads:
                         q[s, h, d] = T.if_then_else(
@@ -605,7 +617,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                         v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
         else:
             for iters in T.grid(seq_len, fused_heads, head_dim):
-                with T.block("llama_fused_rope"):
+                with T.sblock("llama_fused_rope"):
                     s, h, d = T.axis.remap("SSS", iters)
                     if h < num_q_heads:
                         q[s, h, d] = T.if_then_else(
@@ -744,7 +756,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
             var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
         )
         for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
+            with T.sblock("llama_fused_rope"):
                 s, h, d = T.axis.remap("SSS", iters)
                 if h < num_q_heads:
                     q[s, h, d] = T.if_then_else(
@@ -786,7 +798,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
             var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
         )
         for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
+            with T.sblock("llama_fused_rope"):
                 s, h, d = T.axis.remap("SSS", iters)
                 if h < num_q_heads:
                     q[s, h, d] = T.if_then_else(

@@ -35,8 +35,8 @@ class FunctionFrame(SeqExprFrame):
     """The ir_builder frame for the relax function."""
 
 
-@_register_object("script.ir_builder.relax.BlockFrame")
-class BlockFrame(RelaxFrame):
+@_register_object("script.ir_builder.relax.BindingBlockFrame")
+class BindingBlockFrame(RelaxFrame):
     """The ir_builder frame for relax binding blocks."""
 
 

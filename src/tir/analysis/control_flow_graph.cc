@@ -1422,7 +1422,7 @@ void ControlFlowGraph::ForwardPropagateKnownValues(std::optional<size_t> flow_fr
         // Predecessors, if any, are unvisited.
         return {};
       } else if (block.predecessors.size() == 1) {
-        // Block has only a single predecessor
+        // SBlock has only a single predecessor
         return states[0];
       }
 
@@ -1553,7 +1553,7 @@ void ControlFlowGraph::BackwardPropagateUnusedValues(std::optional<size_t> flow_
         // Successors, if any, are unvisited.
         return {};
       } else if (block.successors.size() == 1) {
-        // Block has only a single successor
+        // SBlock has only a single successor
         return states[0];
       }
 

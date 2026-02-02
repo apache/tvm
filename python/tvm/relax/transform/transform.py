@@ -1151,7 +1151,7 @@ def LegalizeOps(
             ):
                 T.func_attr({"tir.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.block("T_add"):
+                    with T.sblock("T_add"):
                         v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                         T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                         T.writes(T_add[v_ax0, v_ax1])
@@ -1165,7 +1165,7 @@ def LegalizeOps(
             ):
                 T.func_attr({"tir.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.block("T_multiply"):
+                    with T.sblock("T_multiply"):
                         v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                         T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
                         T.writes(T_multiply[v_ax0, v_ax1])
@@ -1367,7 +1367,10 @@ def AlterOpImpl(
     )  # type: ignore
 
 
-def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pass:
+def ConvertLayout(
+    desired_layouts: Dict[str, List[str]],
+    layout_cb: Callable = None,
+) -> tvm.ir.transform.Pass:
     """Automatic layout conversion pass.
 
     Parameters
@@ -1377,13 +1380,16 @@ def ConvertLayout(desired_layouts: Dict[str, List[str]]) -> tvm.ir.transform.Pas
         of the desired feature map, weight and output. For example, if we want to convert the
         layout of conv2d from NCHW to NHWC, we can set the desired layout of conv2d to be
         ``{"relax.nn.conv2d": ["NHWC", "OHWI"]}``.
+    layout_cb : Callable
+        A user defined call back function that can dynamically handle operator layouts
+        based on Call description. desired_layouts will be ignored if layout_cb is defined.
 
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for layout conversion.
     """
-    return _ffi_api.ConvertLayout(desired_layouts)  # type: ignore
+    return _ffi_api.ConvertLayout(desired_layouts, layout_cb)  # type: ignore
 
 
 def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:

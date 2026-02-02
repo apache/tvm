@@ -42,12 +42,12 @@ def neon_4x4_i8i8i32_desc(
     B: T.Buffer((4, 4), "int8", offset_factor=1),
     C: T.Buffer((4,), "int32", offset_factor=1),
 ) -> None:
-    with T.block("root"):
+    with T.sblock("root"):
         T.reads(C[0:4], A[0:4], B[0:4, 0:4])
         T.writes(C[0:4])
         for i in T.serial(0, 4):
             for k in T.serial(0, 4):
-                with T.block("update"):
+                with T.sblock("update"):
                     vi, vk = T.axis.remap("SR", [i, k])
                     C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
@@ -58,7 +58,7 @@ def neon_4x4_i8i8i32_impl(
     B: T.Buffer((4, 4), "int8", offset_factor=1),
     C: T.Buffer((4,), "int32", offset_factor=1),
 ) -> None:
-    with T.block("root"):
+    with T.sblock("root"):
         T.reads(C[0:4], A[0:4], B[0:4, 0:4])
         T.writes(C[0:4])
 
@@ -123,12 +123,12 @@ def get_dotprod_intrin(in_dtype, out_dtype):
         A = T.match_buffer(a, (4,), dtype=in_dtype, offset_factor=1)
         B = T.match_buffer(b, (4, 4), dtype=in_dtype, offset_factor=1)
         C = T.match_buffer(c, (4,), dtype=out_dtype, offset_factor=1)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:4], A[0:4], B[0:4, 0:4])
             T.writes(C[0:4])
             for i in T.serial(0, 4):
                 for k in T.serial(0, 4):
-                    with T.block("update"):
+                    with T.sblock("update"):
                         vi, vk = T.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], dtype=out_dtype) * T.cast(
                             B[vi, vk], dtype=out_dtype
@@ -139,7 +139,7 @@ def get_dotprod_intrin(in_dtype, out_dtype):
         A = T.match_buffer(a, (4,), dtype=in_dtype, offset_factor=1)
         B = T.match_buffer(b, (4, 4), dtype=in_dtype, offset_factor=1)
         C = T.match_buffer(c, (4,), dtype=out_dtype, offset_factor=1)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:4], A[0:4], B[0:4, 0:4])
             T.writes(C[0:4])
 
@@ -258,11 +258,11 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
     def desc(a: T.handle, a_t: T.handle) -> None:
         A = T.match_buffer(a, (SVF2, SVF2), dtype="float32", offset_factor=1)
         A_t = T.match_buffer(a_t, (SVF2, SVF2), dtype="float32", offset_factor=1)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(A[0:SVF2, 0:SVF2])
             T.writes(A_t[0:SVF2, 0:SVF2])
             for k, m in T.grid(SVF2, SVF2):
-                with T.block("transpose"):
+                with T.sblock("transpose"):
                     v_m, v_k = T.axis.remap("SS", [m, k])
                     A_t[v_k, v_m] = A[v_m, v_k]
 
@@ -285,7 +285,7 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
                     strides=[T.int32(), 1],
                 )
 
-                with T.block("root"):
+                with T.sblock("root"):
                     T.reads(A[0:SVF2, 0:SVF2])
                     T.writes(A_t[0:SVF2, 0:SVF2])
 
@@ -393,11 +393,11 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
     def desc(a: T.handle, a_t: T.handle) -> None:
         A = T.match_buffer(a, (SVF2, SVF), dtype="float16", offset_factor=1)
         A_t = T.match_buffer(a_t, (SVF, SVF2), dtype="float16", offset_factor=1)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(A[0:SVF2, 0:SVF])
             T.writes(A_t[0:SVF, 0:SVF2])
             for k, m in T.grid(SVF, SVF2):
-                with T.block("transpose"):
+                with T.sblock("transpose"):
                     v_m, v_k = T.axis.remap("SS", [m, k])
                     A_t[v_k, v_m] = A[v_m, v_k]
 
@@ -417,7 +417,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
                 ptrue_fp16 = _create_ptrue_mask("float16")
                 ptrue_fp32 = _create_ptrue_mask("float32")
 
-                with T.block("root"):
+                with T.sblock("root"):
                     T.reads(A[0:SVF2, 0:SVF])
                     T.writes(A_t[0:SVF, 0:SVF2])
 
@@ -596,11 +596,11 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
         B = T.match_buffer(b, (K, SVF2), dtype=in_dtype, offset_factor=1)
         C = T.match_buffer(c, (SVF2, SVF2), dtype="float32", offset_factor=1)
 
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads(C[0:SVF2, 0:SVF2], A[0:K, 0:SVF2], B[0:K, 0:SVF2])
             T.writes(C[0:SVF2, 0:SVF2])
             for m, n, k in T.grid(SVF2, SVF2, K):
-                with T.block("gemm"):
+                with T.sblock("gemm"):
                     v_m, v_n, v_k = T.axis.remap("SSR", [m, n, k])
                     C[v_m, v_n] += T.Cast("float32", A[v_k, v_m]) * T.Cast("float32", B[v_k, v_n])
 
@@ -621,7 +621,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
 
                 ptrue = _create_ptrue_mask(in_dtype)
 
-                with T.block("root"):
+                with T.sblock("root"):
                     T.reads(C[0:SVF2, 0:SVF2], A[0:K, 0:SVF2], B[0:K, 0:SVF2])
                     T.writes(C[0:SVF2, 0:SVF2])
 
@@ -723,18 +723,18 @@ def get_sme_init_intrin():
     @T.prim_func
     def desc(c: T.handle) -> None:
         C = T.match_buffer(c, (SVF2, SVF2), "float32", offset_factor=1)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads()
             T.writes(C[0:SVF2, 0:SVF2])
             for m, n in T.grid(SVF2, SVF2):
-                with T.block("init"):
+                with T.sblock("init"):
                     v_m, v_n = T.axis.remap("SS", [m, n])
                     C[v_m, v_n] = T.float32(0)
 
     @T.prim_func
     def impl(c: T.handle) -> None:
         C = T.match_buffer(c, (SVF2, SVF2), "float32", offset_factor=1)
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads()
             T.writes(C[0:SVF2, 0:SVF2])
             clear_all_tiles = T.int32(255)

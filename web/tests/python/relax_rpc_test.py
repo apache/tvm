@@ -40,7 +40,7 @@ def get_model():
     sch = tvm.tir.Schedule(mod)
     # manually transform loop
     sch.work_on("add")
-    (i,) = sch.get_loops(block=sch.get_block("T_add"))
+    (i,) = sch.get_loops(block=sch.get_sblock("T_add"))
     i0, i1 = sch.split(i, [None, 128])
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")

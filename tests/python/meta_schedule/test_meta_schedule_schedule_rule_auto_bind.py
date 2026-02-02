@@ -29,7 +29,7 @@ def element_wise(var_A: T.handle, var_B: T.handle) -> None:
     A = T.match_buffer(var_A, [512, 512], dtype="float32")
     B = T.match_buffer(var_B, [512, 512], dtype="float32")
     for i, j in T.grid(512, 512):
-        with T.block("C"):
+        with T.sblock("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] + 1.0
 
@@ -41,7 +41,7 @@ def reduction_loop_only(
     C: T.Buffer((), "float32"),
 ) -> None:
     for i0 in T.serial(2):
-        with T.block("C"):
+        with T.sblock("C"):
             k0 = T.axis.reduce(2, i0)
             T.reads(A[k0], B[k0])
             T.writes(C[()])
@@ -56,7 +56,7 @@ def zero_dim_add(
     B: T.Buffer((), "float32"),
     C: T.Buffer((), "float32"),
 ) -> None:
-    with T.block("C"):
+    with T.sblock("C"):
         vi = T.axis.spatial(1, 0)
         C[()] = A[()] + B[()]
 
@@ -68,10 +68,10 @@ def test_cuda_element_wise():
         B: T.Buffer((512, 512), "float32"),
     ) -> None:
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         for i_j_fused_0 in T.thread_binding(256, thread="blockIdx.x"):
             for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi = T.axis.spatial(512, (i_j_fused_0 * 1024 + i_j_fused_1) // 512)
                     vj = T.axis.spatial(512, (i_j_fused_0 * 1024 + i_j_fused_1) % 512)
                     T.reads(A[vi, vj])
@@ -106,7 +106,7 @@ def test_cuda_reduction_loop_only():
         for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
                 for i0 in T.serial(2):
-                    with T.block("C"):
+                    with T.sblock("C"):
                         k0 = T.axis.reduce(2, i0)
                         T.reads(A[k0], B[k0])
                         T.writes(C[()])
@@ -138,7 +138,7 @@ def test_cuda_zero_dim_add():
     ) -> None:
         for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for u_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi = T.axis.spatial(1, 0)
                     T.reads(A[()], B[()])
                     T.writes(C[()])

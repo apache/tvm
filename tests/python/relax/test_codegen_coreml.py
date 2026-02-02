@@ -198,7 +198,6 @@ def test_relu():
     verify(mod, [x_data])
 
 
-@pytest.mark.skip("`batch_flatten` is not implemented yet.")
 def test_batch_flatten():
     x = relax.Var("x", relax.TensorStructInfo([10, 10, 10], "float32"))
     bb = relax.BlockBuilder()

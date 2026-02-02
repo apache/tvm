@@ -30,8 +30,8 @@ class AnnotateRegionRewriter : public StmtExprMutator {
         new_region_(new_region),
         buffer_index_type_(buffer_index_type) {}
 
-  Stmt VisitStmt_(const BlockNode* op) final {
-    Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
+  Stmt VisitStmt_(const SBlockNode* op) final {
+    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
 
     ffi::Array<BufferRegion> regions =
         buffer_index_type_ == BufferIndexType::kWrite ? block->writes : block->reads;
@@ -39,7 +39,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
     ICHECK_LT(buffer_index_, static_cast<int>(regions.size())) << "Buffer index out of range";
     regions.Set(buffer_index_, new_region_);
 
-    ObjectPtr<BlockNode> n = CopyOnWrite(block.get());
+    ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
     if (buffer_index_type_ == BufferIndexType::kWrite) {
       n->writes = std::move(regions);
     } else {
@@ -70,7 +70,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
     }
     n->annotations = std::move(new_annotations);
 
-    return Block(n);
+    return SBlock(n);
   }
 
  private:
@@ -82,9 +82,9 @@ class AnnotateRegionRewriter : public StmtExprMutator {
 
 void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                           BufferIndexType buffer_index_type, const IndexMap& index_map) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   Buffer buffer =
-      GetNthAccessBuffer(self, ffi::GetRef<Block>(block), buffer_index, buffer_index_type);
+      GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, buffer_index_type);
 
   arith::Analyzer analyzer;
   ffi::Array<PrimExpr> block_iter_vars;
@@ -105,7 +105,7 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
   AnnotateRegionRewriter mutator(buffer, buffer_index, new_region, buffer_index_type);
   Stmt new_stmt = mutator(ffi::GetRef<Stmt>(block_sref->stmt));
 
-  self->Replace(block_sref, new_stmt, {{ffi::GetRef<Block>(block), Downcast<Block>(new_stmt)}});
+  self->Replace(block_sref, new_stmt, {{ffi::GetRef<SBlock>(block), Downcast<SBlock>(new_stmt)}});
 }
 
 struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAccessTraits> {
@@ -117,7 +117,7 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer buffer_index,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, Integer buffer_index,
                                       Integer buffer_index_type, IndexMap index_map) {
     return sch->AnnotateBufferAccess(block, buffer_index->value,
                                      static_cast<BufferIndexType>(buffer_index_type->value),

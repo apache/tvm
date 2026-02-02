@@ -33,7 +33,7 @@ namespace tir {
 
 class InitBlockLower : public StmtMutator {
  private:
-  Stmt VisitStmt_(const BlockNode* block) final {
+  Stmt VisitStmt_(const SBlockNode* block) final {
     if (!block->init.defined()) {
       return StmtMutator::VisitStmt_(block);
     }
@@ -42,7 +42,7 @@ class InitBlockLower : public StmtMutator {
     auto n = CopyOnWrite(block);
     n->init = std::nullopt;
     n->body = SeqStmt::Flatten(init, body);
-    return Block(n);
+    return SBlock(n);
   }
 
   static Stmt DoLowering(const Stmt& init, const ffi::Array<IterVar>& iter_vars) {

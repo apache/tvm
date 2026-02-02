@@ -92,7 +92,7 @@ class InstructionKindNode : public runtime::Object {
   ffi::String name;
   /*!
    * \brief Indicates if the instruction is pure, i.e. removing it alone doesn't mutate the schedule
-   * state. For example, the instruction `GetBlock` is pure because it changes
+   * state. For example, the instruction `GetSBlock` is pure because it changes
    * nothing, while `ComputeInline` is not because removing it leads to a different resulting
    * schedule.
    */
@@ -148,7 +148,7 @@ class InstructionNode : public runtime::Object {
   /*!
    * \brief The input random variables of the instruction, and the type of each element can be one
    * of the following:
-   * - BlockRV
+   * - SBlockRV
    * - LoopRV
    * - ExprRV
    * - double
@@ -160,12 +160,12 @@ class InstructionNode : public runtime::Object {
   /*!
    * \brief The attributes of the instruction. Similar to attributes of an operator,
    * attributes of an instruction are arbitrary constant metadata required by the instructions.
-   * For example, the name of the block to be retrieved in `GetBlock`.
+   * For example, the name of the block to be retrieved in `GetSBlock`.
    */
   ffi::Array<Any> attrs;
   /*! \brief The output random variables of the instruction, and the type of each element can be one
    * of the following:
-   * - BlockRV
+   * - SBlockRV
    * - LoopRV
    * - ExprRV, atomic variables only, won't be constants or composite PrimExpr
    */

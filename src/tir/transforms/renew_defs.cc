@@ -103,7 +103,7 @@ class RenewDefMutator : public StmtExprMutator {
   STMT_REGENERATE_VAR_DEF(AllocateConstNode, buffer_var);
   STMT_REGENERATE_VAR_DEF(ForNode, loop_var);
 
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     // Step 0. Re-define Itervars
     ffi::Array<IterVar> iter_vars =
         op->iter_vars.Map(std::bind(&RenewDefMutator::VisitIterVar, this, std::placeholders::_1));
@@ -130,7 +130,7 @@ class RenewDefMutator : public StmtExprMutator {
         op->writes.Map(std::bind(&RenewDefMutator::VisitBufferRegion, this, std::placeholders::_1));
 
     // Step 5. Regenerate block. Since the defs are changed, we need to create a new block
-    auto n = ffi::make_object<BlockNode>(*op);
+    auto n = ffi::make_object<SBlockNode>(*op);
     n->iter_vars = std::move(iter_vars);
     n->alloc_buffers = std::move(alloc_buffers);
     n->match_buffers = std::move(match_buffers);

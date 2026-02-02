@@ -34,10 +34,10 @@ struct RollingBufferInfo {
   std::vector<int> axis_overlaps;
   std::vector<ffi::Optional<Var>> axis_iter_vars;
   /*! \brief The map used for ScheduleStateNode::Replace. */
-  ffi::Map<Block, Block> block_reuse;
+  ffi::Map<SBlock, SBlock> block_reuse;
 };
 
-BufferRegion GetRelaxedBufferRegion(const BlockRealize& realize, const BufferRegion& buffer_region,
+BufferRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const BufferRegion& buffer_region,
                                     const ffi::Map<Var, arith::IntSet>& dom_map) {
   ffi::Array<arith::IntSet> relaxed_intsets =
       arith::EvalSet(Substitute(buffer_region->region, GetBindings(realize)), dom_map);
@@ -52,7 +52,7 @@ BufferRegion GetRelaxedBufferRegion(const BlockRealize& realize, const BufferReg
 
 class RollingBufferDependencyError : public ScheduleError {
  public:
-  explicit RollingBufferDependencyError(IRModule mod, Block block)
+  explicit RollingBufferDependencyError(IRModule mod, SBlock block)
       : mod_(mod), block_(std::move(block)) {}
 
   ffi::String FastErrorString() const final {
@@ -75,29 +75,29 @@ class RollingBufferDependencyError : public ScheduleError {
    */
   static void Check(const ScheduleState& self, const StmtSRef& block_sref,
                     const StmtSRef& scope_root_sref) {
-    BlockScope scope = self->GetBlockScope(scope_root_sref);
+    SBlockScope scope = self->GetSBlockScope(scope_root_sref);
     for (const Dependency& producers : scope->GetDepsByDst(block_sref)) {
       if (!(producers->kind == DepKind::kRAW)) {
-        const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-        throw RollingBufferDependencyError(self->mod, ffi::GetRef<Block>(block));
+        const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+        throw RollingBufferDependencyError(self->mod, ffi::GetRef<SBlock>(block));
       }
     }
     for (const Dependency& consumers : scope->GetDepsBySrc(block_sref)) {
       if (!(consumers->kind == DepKind::kRAW)) {
-        const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-        throw RollingBufferDependencyError(self->mod, ffi::GetRef<Block>(block));
+        const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+        throw RollingBufferDependencyError(self->mod, ffi::GetRef<SBlock>(block));
       }
     }
   }
 
  private:
   IRModule mod_;
-  Block block_;
+  SBlock block_;
 };
 
 class RollingBufferMatchError : public ScheduleError {
  public:
-  RollingBufferMatchError(IRModule mod, Block block, BufferRegion buffer_region)
+  RollingBufferMatchError(IRModule mod, SBlock block, BufferRegion buffer_region)
       : mod_(mod), block_(block), buffer_region_(buffer_region) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: rolling_buffer expect the buffer region to have at least one dimention"
@@ -117,13 +117,13 @@ class RollingBufferMatchError : public ScheduleError {
 
  private:
   IRModule mod_;
-  Block block_;
+  SBlock block_;
   BufferRegion buffer_region_;
 };
 
 class RollingBufferInsertionError : public ScheduleError {
  public:
-  RollingBufferInsertionError(IRModule mod, Buffer buffer, Block block)
+  RollingBufferInsertionError(IRModule mod, Buffer buffer, SBlock block)
       : mod_(mod), buffer_(std::move(buffer)), block_(block) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: rolling_buffer injection is invalid, the lca of the access "
@@ -143,7 +143,7 @@ class RollingBufferInsertionError : public ScheduleError {
  private:
   IRModule mod_;
   Buffer buffer_;
-  Block block_;
+  SBlock block_;
 };
 
 class RollingBufferInfoCollector {
@@ -153,8 +153,8 @@ class RollingBufferInfoCollector {
                                                         const BufferRegion& buffer_region) {
     RollingBufferInfoCollector collector;
     if (!collector.MatchRollingBuffer(block_sref, buffer_region)) {
-      const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-      throw RollingBufferMatchError(mod, ffi::GetRef<Block>(block), buffer_region);
+      const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+      throw RollingBufferMatchError(mod, ffi::GetRef<SBlock>(block), buffer_region);
     }
     return collector.info_;
   }
@@ -291,10 +291,10 @@ class RollingBufferRewriter : public StmtExprMutator {
     *indices = std::move(new_indices);
   }
 
-  Stmt VisitStmt_(const BlockNode* block) final {
-    Block old_stmt = ffi::GetRef<Block>(block);
-    Block stmt = Downcast<Block>(StmtExprMutator::VisitStmt_(block));
-    BlockNode* n = stmt.CopyOnWrite();
+  Stmt VisitStmt_(const SBlockNode* block) final {
+    SBlock old_stmt = ffi::GetRef<SBlock>(block);
+    SBlock stmt = Downcast<SBlock>(StmtExprMutator::VisitStmt_(block));
+    SBlockNode* n = stmt.CopyOnWrite();
     if (block == scope_sref_->stmt) {
       ffi::Array<Buffer> new_alloc_buffers;
       for (const Buffer& buffer : stmt->alloc_buffers) {
@@ -324,7 +324,7 @@ class RollingBufferRewriter : public StmtExprMutator {
         }
       }
       ffi::Map<Var, Buffer> buffer_data_to_buffer = {{info_->new_buffer->data, info_->new_buffer}};
-      auto infered_access_regions = GetBlockReadWriteRegion(stmt, buffer_data_to_buffer);
+      auto infered_access_regions = GetSBlockReadWriteRegion(stmt, buffer_data_to_buffer);
 
       n->iter_vars = std::move(new_iter_vars);
       RewriteAccessRegion(&n->reads, infered_access_regions[0]);
@@ -334,8 +334,8 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt VisitStmt_(const BlockRealizeNode* realize) final {
-    BlockRealize stmt = Downcast<BlockRealize>(StmtExprMutator::VisitStmt_(realize));
+  Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
+    SBlockRealize stmt = Downcast<SBlockRealize>(StmtExprMutator::VisitStmt_(realize));
     // Append block predicate to avoid recomputing elements.
     if (rewrite_block_predicate_) {
       rewrite_block_predicate_ = false;
@@ -353,7 +353,7 @@ class RollingBufferRewriter : public StmtExprMutator {
               And(condition, Or(LT(var, 1), GE(term_2, info_->axis_overlaps[i]))));
         }
       }
-      BlockRealizeNode* n = stmt.CopyOnWrite();
+      SBlockRealizeNode* n = stmt.CopyOnWrite();
       n->predicate = condition;
     }
     return stmt;
@@ -401,8 +401,8 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
    *    - Append block predicate to avoid recomputing overlapping elements.
    */
   ffi::Map<Var, arith::IntSet> dom_map;
-  const BlockRealize& realize = GetBlockRealize(self, block_sref);
-  const Block& block = realize->block;
+  const SBlockRealize& realize = GetSBlockRealize(self, block_sref);
+  const SBlock& block = realize->block;
 
   // Step 1. Checking index, getting the target buffer region and the parent scope.
   const BufferRegion& buffer_region =
@@ -443,7 +443,7 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
   self->Replace(scope_root_sref, new_scope_root, info.block_reuse);
   // Step 7. Regenerate block info from the root block, because `region_cover` for the target block
   // and `stage_pipeline` for the root block are no longer satisfied after rolling buffer injection.
-  self->UpdateScopeBlockInfo(tir::GetBlockRealize(self, self->stmt2ref.at(new_scope_root.get())));
+  self->UpdateScopeSBlockInfo(tir::GetSBlockRealize(self, self->stmt2ref.at(new_scope_root.get())));
 }
 
 struct RollingBufferTraits : public UnpackedInstTraits<RollingBufferTraits> {
@@ -455,7 +455,7 @@ struct RollingBufferTraits : public UnpackedInstTraits<RollingBufferTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, Integer write_buffer_index) {
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, Integer write_buffer_index) {
     return sch->RollingBuffer(block, write_buffer_index.IntValue());
   }
 

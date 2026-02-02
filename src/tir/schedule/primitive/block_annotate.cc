@@ -136,7 +136,7 @@ class StorageAlignInvalidFactorError : public ScheduleError {
 
 class StorageAlignInvalidAnnotationError : public ScheduleError {
  public:
-  explicit StorageAlignInvalidAnnotationError(IRModule mod, Block block)
+  explicit StorageAlignInvalidAnnotationError(IRModule mod, SBlock block)
       : mod_(std::move(mod)), block_(std::move(block)) {}
 
   ffi::String FastErrorString() const final {
@@ -153,7 +153,7 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
     return os.str();
   }
 
-  static StorageAlignAnnotation CheckAndGetAnnotation(const IRModule& mod, const Block& block) {
+  static StorageAlignAnnotation CheckAndGetAnnotation(const IRModule& mod, const SBlock& block) {
     // Get existing annotation value.
     auto it = block->annotations.find(attr::buffer_dim_align);
     if (it != block->annotations.end()) {
@@ -172,12 +172,12 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
   IRModule mod() const final { return mod_; }
 
  private:
-  static bool IsValidAnnotation(const Block& block, const Any& anno_value) {
+  static bool IsValidAnnotation(const SBlock& block, const Any& anno_value) {
     return anno_value.try_cast<ffi::Array<ffi::Tuple<int, int, int, int>>>().has_value();
   }
 
   IRModule mod_;
-  Block block_;
+  SBlock block_;
 };
 
 /*!
@@ -193,17 +193,18 @@ class StorageScopeMutator : private ReplaceBufferMutator {
    * \param block_sref_reuse The block sref reuse map to be updated
    * \return The new block after the mutation
    */
-  static Block Mutate(const Block& allocate_site, const Buffer& old_buffer,
-                      const ffi::String& storage_scope, ffi::Map<Block, Block>* block_sref_reuse) {
+  static SBlock Mutate(const SBlock& allocate_site, const Buffer& old_buffer,
+                       const ffi::String& storage_scope,
+                       ffi::Map<SBlock, SBlock>* block_sref_reuse) {
     Buffer new_buffer = WithScope(old_buffer, storage_scope);
     StorageScopeMutator mutator(old_buffer, new_buffer, storage_scope, block_sref_reuse);
     Stmt new_block = mutator.VisitStmt(allocate_site);
-    return Downcast<Block>(new_block);
+    return Downcast<SBlock>(new_block);
   }
 
  private:
   StorageScopeMutator(const Buffer& old_buffer, Buffer new_buffer, ffi::String storage_scope,
-                      ffi::Map<Block, Block>* block_sref_reuse)
+                      ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : ReplaceBufferMutator(old_buffer, std::move(new_buffer), block_sref_reuse) {}
 
   MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer) final {
@@ -221,8 +222,8 @@ class StorageScopeMutator : private ReplaceBufferMutator {
 
 void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_index, int axis,
                   int factor, int offset) {
-  const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_sref);
-  Buffer buffer = GetNthAccessBuffer(self, ffi::GetRef<Block>(block_ptr), buffer_index,
+  const SBlockNode* block_ptr = TVM_SREF_TO_SBLOCK(block_sref);
+  Buffer buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block_ptr), buffer_index,
                                      BufferIndexType::kWrite);
   StorageAlignInvalidFactorError::Check(self->mod, factor);
   axis = StorageAlignAxisOutOfRangeError::CheckAndUpdate(self->mod, buffer, axis);
@@ -231,7 +232,7 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
   // Step 1: Get existing or create new annotation value.
   StorageAlignAnnotation storage_align_annotation =
       StorageAlignInvalidAnnotationError::CheckAndGetAnnotation(self->mod,
-                                                                ffi::GetRef<Block>(block_ptr));
+                                                                ffi::GetRef<SBlock>(block_ptr));
 
   // Step 2: Update the annotation value
   bool found = false;
@@ -249,15 +250,15 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
   }
 
   // Step 3: Replace the block with the new annotation
-  Block new_block = WithAnnotation(block_ptr, attr::buffer_dim_align, storage_align_annotation);
-  self->Replace(block_sref, new_block, {{ffi::GetRef<Block>(block_ptr), new_block}});
+  SBlock new_block = WithAnnotation(block_ptr, attr::buffer_dim_align, storage_align_annotation);
+  self->Replace(block_sref, new_block, {{ffi::GetRef<SBlock>(block_ptr), new_block}});
 }
 
 void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
               const ffi::String& storage_scope) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   Buffer buffer =
-      GetNthAccessBuffer(self, ffi::GetRef<Block>(block), buffer_index, BufferIndexType::kWrite);
+      GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, BufferIndexType::kWrite);
 
   // Step 1. If `storage_scope` equals the original storage scope of the buffer, just return.
   if (buffer.scope() == storage_scope) {
@@ -270,13 +271,13 @@ void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
   // Step 3. Get the allocation site of the target buffer.
   StmtSRef alloc_site_sref =
       NonAllocatedBufferError::CheckAndGetBufferAllocationSite(self->mod, block_sref, buffer);
-  const BlockNode* alloc_site = TVM_SREF_TO_BLOCK(alloc_site_sref);
+  const SBlockNode* alloc_site = TVM_SREF_TO_SBLOCK(alloc_site_sref);
 
   // Step 4. Recursively replace the old buffer to a new buffer, where the new buffer has the given
   // storage scope. In the meanwhile, collect the block sref reuse information.
-  ffi::Map<Block, Block> block_reuse_map;
-  Block new_block = StorageScopeMutator::Mutate(ffi::GetRef<Block>(alloc_site), buffer,
-                                                storage_scope, &block_reuse_map);
+  ffi::Map<SBlock, SBlock> block_reuse_map;
+  SBlock new_block = StorageScopeMutator::Mutate(ffi::GetRef<SBlock>(alloc_site), buffer,
+                                                 storage_scope, &block_reuse_map);
   self->Replace(alloc_site_sref, new_block, block_reuse_map);
 }
 
@@ -293,17 +294,17 @@ class DTypeMutator : private ReplaceBufferMutator {
    * \param block_sref_reuse The block sref reuse map to be updated
    * \return The new block after the mutation
    */
-  static Block Mutate(const Block& allocate_site, const Buffer& old_buffer, const DataType& dtype,
-                      ffi::Map<Block, Block>* block_sref_reuse) {
+  static SBlock Mutate(const SBlock& allocate_site, const Buffer& old_buffer, const DataType& dtype,
+                       ffi::Map<SBlock, SBlock>* block_sref_reuse) {
     Buffer new_buffer = WithDType(old_buffer, dtype);
     DTypeMutator mutator(old_buffer, new_buffer, dtype, block_sref_reuse);
     Stmt new_block = mutator.VisitStmt(allocate_site);
-    return Downcast<Block>(new_block);
+    return Downcast<SBlock>(new_block);
   }
 
  private:
   DTypeMutator(const Buffer& old_buffer, Buffer new_buffer, const DataType& dtype,
-               ffi::Map<Block, Block>* block_sref_reuse)
+               ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : ReplaceBufferMutator(old_buffer, std::move(new_buffer), block_sref_reuse),
         src_dtype_(old_buffer->dtype),
         tgt_dtype_(dtype) {}
@@ -344,9 +345,9 @@ class DTypeMutator : private ReplaceBufferMutator {
 
 void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                     const ffi::String& dtype) {
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
+  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   Buffer buffer =
-      GetNthAccessBuffer(self, ffi::GetRef<Block>(block), buffer_index, BufferIndexType::kWrite);
+      GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, BufferIndexType::kWrite);
   DataType target_dtype(ffi::StringToDLDataType(dtype));
 
   // Step 1. If `dtype` equals the original data type, just return.
@@ -357,13 +358,13 @@ void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_i
   // Step 2. Get the allocation site of the target buffer.
   StmtSRef alloc_site_sref =
       NonAllocatedBufferError::CheckAndGetBufferAllocationSite(self->mod, block_sref, buffer);
-  const BlockNode* alloc_site = TVM_SREF_TO_BLOCK(alloc_site_sref);
+  const SBlockNode* alloc_site = TVM_SREF_TO_SBLOCK(alloc_site_sref);
 
   // Step 3. Recursively replace old buffer to a new buffer, where the new buffer has the given
   // dtype, and insert data type conversions.
-  ffi::Map<Block, Block> block_reuse_map;
-  Block new_block =
-      DTypeMutator::Mutate(ffi::GetRef<Block>(alloc_site), buffer, target_dtype, &block_reuse_map);
+  ffi::Map<SBlock, SBlock> block_reuse_map;
+  SBlock new_block =
+      DTypeMutator::Mutate(ffi::GetRef<SBlock>(alloc_site), buffer, target_dtype, &block_reuse_map);
   self->Replace(alloc_site_sref, new_block, block_reuse_map);
 }
 
@@ -378,7 +379,7 @@ struct StorageAlignTraits : public UnpackedInstTraits<StorageAlignTraits> {
   static constexpr size_t kNumAttrs = 4;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, Integer buffer_index,
                                       Integer axis, Integer factor, Integer offset) {
     return sch->StorageAlign(block_rv, buffer_index->value, axis->value, factor->value,
                              offset->value);
@@ -409,7 +410,7 @@ struct SetScopeTraits : public UnpackedInstTraits<SetScopeTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, Integer buffer_index,
                                       ffi::String storage_scope) {
     return sch->SetScope(block_rv, buffer_index->value, storage_scope);
   }
@@ -436,7 +437,7 @@ struct UnsafeSetDTypeTraits : public UnpackedInstTraits<UnsafeSetDTypeTraits> {
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block_rv, Integer buffer_index,
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, Integer buffer_index,
                                       ffi::String dtype) {
     return sch->UnsafeSetDType(block_rv, buffer_index->value, dtype);
   }

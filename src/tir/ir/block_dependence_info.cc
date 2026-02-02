@@ -27,7 +27,7 @@ namespace tir {
 TVM_FFI_STATIC_INIT_BLOCK() { BlockDependenceInfoNode::RegisterReflection(); }
 
 /**
- * @brief A helper class to collect and build Block Dependences using BlockScope class
+ * @brief A helper class to collect and build SBlock Dependences using SBlockScope class
  */
 class BlockDependenceInfoCollector : private StmtVisitor {
  public:
@@ -41,19 +41,19 @@ class BlockDependenceInfoCollector : private StmtVisitor {
     block_frames_.emplace_back();
   }
 
-  void MakeBlockScope(StmtSRef scope) {
+  void MakeSBlockScope(StmtSRef scope) {
     ffi::Array<StmtSRef> child_block_srefs = std::move(block_frames_.back());
-    self_->sref2scope[scope] = BlockScope(child_block_srefs);
+    self_->sref2scope[scope] = SBlockScope(child_block_srefs);
   }
 
-  void VisitStmt_(const BlockRealizeNode* realize) final {
+  void VisitStmt_(const SBlockRealizeNode* realize) final {
     block_frames_.emplace_back();
-    const BlockNode* block = realize->block.get();
+    const SBlockNode* block = realize->block.get();
     // Recursive visit
     VisitStmt(block->body);  // `block->init` is not visited
-    // Create BlockInfo for the block
+    // Create SBlockInfo for the block
     auto sref = self_->stmt2ref.at(block);
-    MakeBlockScope(sref);
+    MakeSBlockScope(sref);
     // Update parent scope
     block_frames_.pop_back();
     block_frames_.back().push_back(sref);
@@ -90,10 +90,11 @@ BlockDependenceInfo::BlockDependenceInfo(IRModule mod) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.BlockDependenceInfo",
+      .def("tir.SBlockDependenceInfo",
            [](IRModule mod) -> BlockDependenceInfo { return BlockDependenceInfo(mod); })
-      .def_method("tir.BlockDependenceInfoGetBlockScope", &BlockDependenceInfoNode::GetBlockScope)
-      .def("tir.BlockDependenceInfoGetSRef",
+      .def_method("tir.SBlockDependenceInfoGetSBlockScope",
+                  &BlockDependenceInfoNode::GetSBlockScope)
+      .def("tir.SBlockDependenceInfoGetSRef",
            [](BlockDependenceInfo self, Stmt stmt) -> ffi::Optional<StmtSRef> {
              auto it = self->stmt2ref.find(stmt.get());
              return it != self->stmt2ref.end() ? it->second : ffi::Optional<StmtSRef>(std::nullopt);

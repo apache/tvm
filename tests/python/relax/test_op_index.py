@@ -1003,7 +1003,7 @@ def test_legalize_dynamic_begin_end():
         ):
             T.func_attr({"tir.noalias": True})
             for iters in T.grid(*B.shape):
-                with T.block("T_dynamic_strided_slice"):
+                with T.sblock("T_dynamic_strided_slice"):
                     i, j = T.axis.remap("SS", iters)
                     B[i, j] = A[i + index, j]
 
@@ -1030,9 +1030,9 @@ def test_legalize_dynamic_begin_inf_end():
         def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), var_T_dynamic_strided_slice_with_axes: T.handle, index: T.int64):
             T.func_attr({"tir.noalias": True})
             T_dynamic_strided_slice_with_axes = T.match_buffer(var_T_dynamic_strided_slice_with_axes, (T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)))
-            # with T.block("root"):
+            # with T.sblock("root"):
             for ax0, ax1 in T.grid(T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)):
-                with T.block("T_dynamic_strided_slice_with_axes"):
+                with T.sblock("T_dynamic_strided_slice_with_axes"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(A[v_ax0 + index, v_ax1])
                     T.writes(T_dynamic_strided_slice_with_axes[v_ax0, v_ax1])

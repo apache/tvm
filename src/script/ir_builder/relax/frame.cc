@@ -34,19 +34,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RelaxFrameNode::RegisterReflection();
   SeqExprFrameNode::RegisterReflection();
   FunctionFrameNode::RegisterReflection();
-  BlockFrameNode::RegisterReflection();
+  BindingBlockFrameNode::RegisterReflection();
   IfFrameNode::RegisterReflection();
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
 }
 
 void SeqExprFrameNode::ExitWithScope() {
-  // At this moment, there should be at most one BlockFrame which hasn't ended. In this case, call
-  // its `ExitBlockFrame` and check if there is any more unended BlockFrame.
-  if (ffi::Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>()) {
+  // At this moment, there should be at most one BindingBlockFrame which hasn't ended. In this case,
+  // call its `ExitBindingBlockFrame` and check if there is any more unended BindingBlockFrame.
+  if (ffi::Optional<BindingBlockFrame> block_frame =
+          IRBuilder::Current()->GetLastFrame<BindingBlockFrame>()) {
     block_frame.value()->ExitWithScope();
-    ICHECK(!IRBuilder::Current()->GetLastFrame<BlockFrame>().defined())
-        << "ValueError: There is some remaining BlockFrame that is not properly popped out.";
+    ICHECK(!IRBuilder::Current()->GetLastFrame<BindingBlockFrame>().defined())
+        << "ValueError: There is some remaining BindingBlockFrame that is not properly popped out.";
   }
   RelaxFrameNode::ExitWithScope();
 }
@@ -105,14 +106,15 @@ void FunctionFrameNode::ExitWithScope() {
   }
 }
 
-void BlockFrameNode::EnterWithScope() {
+void BindingBlockFrameNode::EnterWithScope() {
   // Step 1. If the last frame is a block frame. The start of a new block frame marks the end of the
   // last block frame.
-  ffi::Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
+  ffi::Optional<BindingBlockFrame> block_frame =
+      IRBuilder::Current()->GetLastFrame<BindingBlockFrame>();
   if (block_frame.defined()) {
     block_frame.value()->ExitWithScope();
     // Block frames cannot appear consecutively.
-    ICHECK(!IRBuilder::Current()->GetLastFrame<BlockFrame>());
+    ICHECK(!IRBuilder::Current()->GetLastFrame<BindingBlockFrame>());
   }
   // Step 2. Deal with the new block frame.
   RelaxFrameNode::EnterWithScope();
@@ -147,7 +149,7 @@ class VarReplacer : public tvm::relax::ExprMutator {
   }
 };
 
-void BlockFrameNode::ExitWithScope() {
+void BindingBlockFrameNode::ExitWithScope() {
   // Step 1. Pop the current frame out of the frame stack.
   RelaxFrameNode::ExitWithScope();
 
@@ -191,7 +193,7 @@ void BlockFrameNode::ExitWithScope() {
 
   // Step 4. Since we popped out any possible block frame when entering the "with" scope of the
   // current frame, the last frame cannot be a block frame.
-  ICHECK(!last_frame->IsInstance<BlockFrameNode>());
+  ICHECK(!last_frame->IsInstance<BindingBlockFrameNode>());
 
   // Step 5. Push the block frame into the corresponding field of the last frame.
   if (const auto* seq_frame = last_frame.as<SeqExprFrameNode>()) {
@@ -212,7 +214,7 @@ void BlockFrameNode::ExitWithScope() {
 void IfFrameNode::EnterWithScope() {
   const ffi::Array<IRBuilderFrame>& frames = IRBuilder::Current()->frames;
   for (const IRBuilderFrame& frame : frames) {
-    const auto* block_frame = frame.as<BlockFrameNode>();
+    const auto* block_frame = frame.as<BindingBlockFrameNode>();
     if (block_frame && block_frame->is_dataflow) {
       LOG(FATAL) << "ValueError: Cannot create an IfFrame inside a dataflow block.";
     }

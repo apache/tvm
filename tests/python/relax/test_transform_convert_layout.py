@@ -21,10 +21,10 @@ from tvm.relax.transform import ConvertLayout, Normalize
 from tvm.script.parser import ir as I, relax as R, tir as T
 
 
-def verify(input, expected, extra_ops={}):
+def verify(input, expected, extra_ops={}, cb=None):
     desired_layouts = {"relax.nn.conv2d": ["NHWC", "OHWI"]}
     desired_layouts.update(extra_ops)
-    mod = ConvertLayout(desired_layouts)(input)
+    mod = ConvertLayout(desired_layouts, cb)(input)
     mod = Normalize()(mod)
     tvm.ir.assert_structural_equal(mod, expected)
 
@@ -5485,6 +5485,97 @@ def test_conv2d_gather_elements():
             return gv
 
     verify(Input, Expected)
+
+
+def test_layout_cb():
+    @I.ir_module
+    class Input:
+        @R.function
+        def main(
+            x: R.Tensor((2, 4, 28, 28), "float32"),
+            w: R.Tensor((4, 4, 3, 3), "float32"),
+            bias: R.Tensor((2, 4, 26, 26), "float32"),
+        ) -> R.Tensor(None, "float32", ndim=4):
+            with R.dataflow():
+                gv: R.Tensor((2, 4, 26, 26), "float32") = R.nn.conv2d(x, w, out_dtype="float32")
+                gv2: R.Tensor((2, 4, 26, 26), "float32") = R.add(gv, bias)
+                gv3: R.Tensor((2, 4, 26, 26), "float32") = R.nn.relu(gv2)
+                gv4: R.Tensor((2, 4, 24, 24), "float32") = R.nn.conv2d(gv3, w, out_dtype="float32")
+                R.output(gv4)
+            return gv4
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 4, 28, 28), dtype="float32"),
+            w: R.Tensor((4, 4, 3, 3), dtype="float32"),
+            bias: R.Tensor((2, 4, 26, 26), dtype="float32"),
+        ) -> R.Tensor((2, 4, 24, 24), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2, 1, 28, 28, 4), dtype="float32") = R.layout_transform(
+                    x,
+                    index_map=T.index_map(
+                        lambda i0, i1, i2, i3: (i0, i1 // 4, i2, i3, i1 % 4), index_dtype="int32"
+                    ),
+                )
+                lv1: R.Tensor((1, 4, 3, 3, 4), dtype="float32") = R.layout_transform(
+                    w,
+                    index_map=T.index_map(
+                        lambda i0, i1, i2, i3: (i0 // 4, i1, i2, i3, i0 % 4), index_dtype="int32"
+                    ),
+                )
+                gv: R.Tensor((2, 1, 26, 26, 4), dtype="float32") = R.nn.conv2d(
+                    lv,
+                    lv1,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NCHW4c",
+                    kernel_layout="OIHW4o",
+                    out_layout="NCHW4c",
+                    out_dtype="float32",
+                )
+                lv2: R.Tensor((2, 1, 26, 26, 4), dtype="float32") = R.layout_transform(
+                    bias,
+                    index_map=T.index_map(
+                        lambda i0, i1, i2, i3: (i0, i1 // 4, i2, i3, i1 % 4), index_dtype="int32"
+                    ),
+                )
+                gv2: R.Tensor((2, 1, 26, 26, 4), dtype="float32") = R.add(gv, lv2)
+                gv3: R.Tensor((2, 1, 26, 26, 4), dtype="float32") = R.nn.relu(gv2)
+                lv3: R.Tensor((1, 4, 3, 3, 4), dtype="float32") = R.layout_transform(
+                    w,
+                    index_map=T.index_map(
+                        lambda i0, i1, i2, i3: (i0 // 4, i1, i2, i3, i0 % 4), index_dtype="int32"
+                    ),
+                )
+                lv4: R.Tensor((2, 1, 24, 24, 4), dtype="float32") = R.nn.conv2d(
+                    gv3,
+                    lv3,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NCHW4c",
+                    kernel_layout="OIHW4o",
+                    out_layout="NCHW4c",
+                    out_dtype="float32",
+                )
+                gv4: R.Tensor((2, 4, 24, 24), dtype="float32") = R.layout_transform(
+                    lv4,
+                    index_map=T.index_map(
+                        lambda i0, i1, i2, i3, i4: (i0, i1 * 4 + i4, i2, i3), index_dtype="int32"
+                    ),
+                )
+                R.output(gv4)
+            return gv4
+
+    def layout_cb(call: tvm.relax.Call):
+        return {"relax.nn.conv2d": ["NCHW4c", "OIHW4o"]}
+
+    verify(Input, Expected, cb=layout_cb)
 
 
 if __name__ == "__main__":

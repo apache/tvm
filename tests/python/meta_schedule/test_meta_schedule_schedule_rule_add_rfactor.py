@@ -35,7 +35,7 @@ def test_cpu_matmul():
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i0, i1, i2 in T.grid(4, 4, 512):
-            with T.block("C"):
+            with T.sblock("C"):
                 i, j, k = T.axis.remap("SSR", [i0, i1, i2])
                 T.reads(A[i, k], B[k, j])
                 T.writes(C[i, j])
@@ -52,7 +52,7 @@ def test_cpu_matmul():
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         C_rf = T.alloc_buffer([4, 4, 128], dtype="float32")
         for i0, i1, i2_0, i2_1 in T.grid(4, 4, 4, 128):
-            with T.block("C_rf"):
+            with T.sblock("C_rf"):
                 vi2_1, i, j, vi2_0 = T.axis.remap("SSSR", [i2_1, i0, i1, i2_0])
                 T.reads(A[i, vi2_0 * 128 + vi2_1], B[vi2_0 * 128 + vi2_1, j])
                 T.writes(C_rf[i, j, vi2_1])
@@ -62,11 +62,11 @@ def test_cpu_matmul():
                     C_rf[i, j, vi2_1] + A[i, vi2_0 * 128 + vi2_1] * B[vi2_0 * 128 + vi2_1, j]
                 )
         for i0, i1, i2_1 in T.grid(4, 4, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi2_1, i, j = T.axis.remap("RSS", [i2_1, i0, i1])
                 T.reads(C_rf[i, j, vi2_1])
                 T.writes(C[i, j])
-                T.block_attr({"meta_schedule.random_compute_producer": 1})
+                T.sblock_attr({"meta_schedule.random_compute_producer": 1})
                 with T.init():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + C_rf[i, j, vi2_1]
@@ -80,7 +80,7 @@ def test_cpu_matmul():
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         C_rf = T.alloc_buffer([4, 4, 4], dtype="float32")
         for i0, i1, i2_0, i2_1 in T.grid(4, 4, 4, 128):
-            with T.block("C_rf"):
+            with T.sblock("C_rf"):
                 vi2_0, i, j, vi2_1 = T.axis.remap("SSSR", [i2_0, i0, i1, i2_1])
                 T.reads(A[i, vi2_0 * 128 + vi2_1], B[vi2_0 * 128 + vi2_1, j])
                 T.writes(C_rf[i, j, vi2_0])
@@ -90,11 +90,11 @@ def test_cpu_matmul():
                     C_rf[i, j, vi2_0] + A[i, vi2_0 * 128 + vi2_1] * B[vi2_0 * 128 + vi2_1, j]
                 )
         for i0, i1, i2_0 in T.grid(4, 4, 4):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi2_0, i, j = T.axis.remap("RSS", [i2_0, i0, i1])
                 T.reads(C_rf[i, j, vi2_0])
                 T.writes(C[i, j])
-                T.block_attr({"meta_schedule.random_compute_producer": 1})
+                T.sblock_attr({"meta_schedule.random_compute_producer": 1})
                 with T.init():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + C_rf[i, j, vi2_0]
@@ -130,7 +130,7 @@ def test_cpu_argmax():
         argmax_v1: T.Buffer((128,), "float32"),
     ) -> None:
         for i0, i1 in T.grid(128, 128):
-            with T.block("argmax"):
+            with T.sblock("argmax"):
                 i = T.axis.spatial(128, i0)
                 k = T.axis.reduce(128, i1)
                 T.reads(idx[i, k], val[i, k])
@@ -153,7 +153,7 @@ def test_cpu_argmax():
         argmax_v1: T.Buffer(128, "float32"),
     ) -> None:
         for i0, i1 in T.grid(128, 128):
-            with T.block("argmax"):
+            with T.sblock("argmax"):
                 i, k = T.axis.remap("SR", [i0, i1])
                 T.reads(idx[i, k], val[i, k])
                 T.writes(argmax_v0[i], argmax_v1[i])
@@ -177,7 +177,7 @@ def test_cpu_argmax():
         argmax_v0_rf = T.alloc_buffer([128, 16], dtype="int32")
         argmax_v1_rf = T.alloc_buffer([128, 16], dtype="float32")
         for i0, i1_0, i1_1 in T.grid(128, 8, 16):
-            with T.block("argmax_rf"):
+            with T.sblock("argmax_rf"):
                 vi1_1, i, vi1_0 = T.axis.remap("SSR", [i1_1, i0, i1_0])
                 T.reads(idx[i, vi1_0 * 16 + vi1_1], val[i, vi1_0 * 16 + vi1_1])
                 T.writes(argmax_v0_rf[i, vi1_1], argmax_v1_rf[i, vi1_1])
@@ -197,11 +197,11 @@ def test_cpu_argmax():
                 argmax_v0_rf[i, vi1_1] = v_argmax_v0_rf
                 argmax_v1_rf[i, vi1_1] = v_argmax_v1_rf
         for i0, i1_1 in T.grid(128, 16):
-            with T.block("argmax"):
+            with T.sblock("argmax"):
                 vi1_1, i = T.axis.remap("RS", [i1_1, i0])
                 T.reads(argmax_v0_rf[i, vi1_1], argmax_v1_rf[i, vi1_1])
                 T.writes(argmax_v0[i], argmax_v1[i])
-                T.block_attr({"meta_schedule.random_compute_producer": 1})
+                T.sblock_attr({"meta_schedule.random_compute_producer": 1})
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
@@ -222,11 +222,11 @@ def test_cpu_argmax():
         argmax_v1: T.Buffer(128, "float32"),
     ) -> None:
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         argmax_v0_rf = T.alloc_buffer([128, 8], dtype="int32")
         argmax_v1_rf = T.alloc_buffer([128, 8], dtype="float32")
         for i0, i1_0, i1_1 in T.grid(128, 8, 16):
-            with T.block("argmax_rf"):
+            with T.sblock("argmax_rf"):
                 vi1_0, i, vi1_1 = T.axis.remap("SSR", [i1_0, i0, i1_1])
                 T.reads(idx[i, vi1_0 * 16 + vi1_1], val[i, vi1_0 * 16 + vi1_1])
                 T.writes(argmax_v0_rf[i, vi1_0], argmax_v1_rf[i, vi1_0])
@@ -246,11 +246,11 @@ def test_cpu_argmax():
                 argmax_v0_rf[i, vi1_0] = v_argmax_v0_rf
                 argmax_v1_rf[i, vi1_0] = v_argmax_v1_rf
         for i0, i1_0 in T.grid(128, 8):
-            with T.block("argmax"):
+            with T.sblock("argmax"):
                 vi1_0, i = T.axis.remap("RS", [i1_0, i0])
                 T.reads(argmax_v0_rf[i, vi1_0], argmax_v1_rf[i, vi1_0])
                 T.writes(argmax_v0[i], argmax_v1[i])
-                T.block_attr({"meta_schedule.random_compute_producer": 1})
+                T.sblock_attr({"meta_schedule.random_compute_producer": 1})
                 with T.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)

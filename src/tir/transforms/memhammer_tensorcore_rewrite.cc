@@ -145,10 +145,10 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
       /*buffer_type=*/kDefault);
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
-  Stmt wmma_body = BlockRealize(
+  Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},
       /*predicate=*/Bool(true),
-      Block(
+      SBlock(
           /*iter_vars=*/{},
           /*reads=*/{BufferRegion(src_buffer, read_region)},
           /*writes=*/{BufferRegion(tgt_buffer, write_region)},
@@ -254,43 +254,43 @@ Stmt RewriteWmmaStore(Stmt stmt) {
 
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
-  Stmt wmma_body = BlockRealize(
+  Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},  //
       /*predicate=*/Bool(true),
-      Block(/*iter_vars=*/{},
-            /*reads=*/{BufferRegion(src_buffer, read_region)},
-            /*writes=*/{BufferRegion(tgt_buffer, write_region)},
-            /*name_hint=*/"wmma_store",
-            Evaluate(Call(
-                /*data=*/runtime::DataType::Handle(),
-                /*op=*/builtin::tvm_store_matrix_sync(),
-                {/*0:*/ new_src_buffer->data,
-                 /*1:*/ 16,
-                 /*2:*/ 16,
-                 /*3:*/ 16,
-                 /*4:*/ floordiv(new_src_buffer->elem_offset, 256) +
-                     floordiv(floormod(new_src_buffer->elem_offset, 256), 16),
-                 /*5:*/
-                 Call(
-                     /*data=*/runtime::DataType::Handle(),
-                     /*op=*/builtin::tvm_access_ptr(),
-                     {
-                         /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
-                         /*1:*/ new_tgt_buffer->data,
-                         /*2:*/ new_tgt_buffer->elem_offset,
-                         /*3:*/ new_tgt_buffer->strides[0] * 16,
-                         /*4:*/ 2,
-                     }),
-                 /*6:*/ new_tgt_buffer->strides[0],
-                 /*7:*/ StringImm("row_major")})),
-            /*init=*/std::nullopt,
-            /*alloc_buffers=*/{},
-            /*match_buffers=*/
-            {
-                MatchBufferRegion(new_src_buffer, BufferRegion(src_buffer, read_region)),
-                MatchBufferRegion(new_tgt_buffer, BufferRegion(tgt_buffer, write_region)),
-            },
-            /*annotations=*/{}));
+      SBlock(/*iter_vars=*/{},
+             /*reads=*/{BufferRegion(src_buffer, read_region)},
+             /*writes=*/{BufferRegion(tgt_buffer, write_region)},
+             /*name_hint=*/"wmma_store",
+             Evaluate(Call(
+                 /*data=*/runtime::DataType::Handle(),
+                 /*op=*/builtin::tvm_store_matrix_sync(),
+                 {/*0:*/ new_src_buffer->data,
+                  /*1:*/ 16,
+                  /*2:*/ 16,
+                  /*3:*/ 16,
+                  /*4:*/ floordiv(new_src_buffer->elem_offset, 256) +
+                      floordiv(floormod(new_src_buffer->elem_offset, 256), 16),
+                  /*5:*/
+                  Call(
+                      /*data=*/runtime::DataType::Handle(),
+                      /*op=*/builtin::tvm_access_ptr(),
+                      {
+                          /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
+                          /*1:*/ new_tgt_buffer->data,
+                          /*2:*/ new_tgt_buffer->elem_offset,
+                          /*3:*/ new_tgt_buffer->strides[0] * 16,
+                          /*4:*/ 2,
+                      }),
+                  /*6:*/ new_tgt_buffer->strides[0],
+                  /*7:*/ StringImm("row_major")})),
+             /*init=*/std::nullopt,
+             /*alloc_buffers=*/{},
+             /*match_buffers=*/
+             {
+                 MatchBufferRegion(new_src_buffer, BufferRegion(src_buffer, read_region)),
+                 MatchBufferRegion(new_tgt_buffer, BufferRegion(tgt_buffer, write_region)),
+             },
+             /*annotations=*/{}));
   for (int i = n - 3; i >= 0; i--) {
     auto new_loop = ffi::GetRef<For>(loops[i]);
     new_loop.CopyOnWrite()->body = std::move(wmma_body);
@@ -481,36 +481,36 @@ Stmt RewriteMmaStore(Stmt stmt) {
   //   tgt[tx // 4, (tx % 4) * 2 + vec] = src[tx // 4, (tx % 4) * 2 + vec]
   Var tx = Var("tx");
   Var vec = Var("vec");
-  Stmt mma_body = BlockRealize(
+  Stmt mma_body = SBlockRealize(
       /*iter_values=*/{},  //
       /*predicate=*/Bool(true),
-      Block(/*iter_vars=*/{},
-            /*reads=*/{BufferRegion(src_buffer, read_region)},
-            /*writes=*/{BufferRegion(tgt_buffer, write_region)},
-            /*name_hint=*/"mma_store",
-            AttrStmt(
-                /*node=*/IterVar(
-                    /*dom=*/Range::FromMinExtent(0, 32),
-                    /*var=*/tx,
-                    /*iter_type=*/IterVarType::kThreadIndex,
-                    /*thread_tag=*/"threadIdx.x"),
-                /*attr_key=*/"thread_extent",
-                /*value=*/Integer(32),
-                /*body=*/
-                For(vec, 0, 2, ForKind::kVectorized,
-                    /*body=*/
-                    BufferStore(
-                        new_tgt_buffer,
-                        BufferLoad(new_src_buffer, {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
-                        {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}))),
-            /*init=*/std::nullopt,
-            /*alloc_buffers=*/{},
-            /*match_buffers=*/
-            {
-                MatchBufferRegion(new_src_buffer, BufferRegion(src_buffer, read_region)),
-                MatchBufferRegion(new_tgt_buffer, BufferRegion(tgt_buffer, write_region)),
-            },
-            /*annotations=*/{}));
+      SBlock(/*iter_vars=*/{},
+             /*reads=*/{BufferRegion(src_buffer, read_region)},
+             /*writes=*/{BufferRegion(tgt_buffer, write_region)},
+             /*name_hint=*/"mma_store",
+             AttrStmt(
+                 /*node=*/IterVar(
+                     /*dom=*/Range::FromMinExtent(0, 32),
+                     /*var=*/tx,
+                     /*iter_type=*/IterVarType::kThreadIndex,
+                     /*thread_tag=*/"threadIdx.x"),
+                 /*attr_key=*/"thread_extent",
+                 /*value=*/Integer(32),
+                 /*body=*/
+                 For(vec, 0, 2, ForKind::kVectorized,
+                     /*body=*/
+                     BufferStore(
+                         new_tgt_buffer,
+                         BufferLoad(new_src_buffer, {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
+                         {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}))),
+             /*init=*/std::nullopt,
+             /*alloc_buffers=*/{},
+             /*match_buffers=*/
+             {
+                 MatchBufferRegion(new_src_buffer, BufferRegion(src_buffer, read_region)),
+                 MatchBufferRegion(new_tgt_buffer, BufferRegion(tgt_buffer, write_region)),
+             },
+             /*annotations=*/{}));
 
   // Step 3.4. wrap outer loops
   for (int i = n - 3; i >= 0; i--) {

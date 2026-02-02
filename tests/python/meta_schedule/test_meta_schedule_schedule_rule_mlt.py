@@ -38,22 +38,22 @@ def test_cpu_matmul():
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         C_global = T.alloc_buffer([512, 512], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1 in T.grid(1, 8, 8, 1):
             for i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(16, 2, 8, 32, 32, 8):
-                with T.block("C"):
+                with T.sblock("C"):
                     i = T.axis.spatial(512, i0_0 * 512 + i0_1 * 64 + i0_2 * 32 + i0_3)
                     j = T.axis.spatial(512, i1_0 * 64 + i1_1 * 64 + i1_2 * 8 + i1_3)
                     k = T.axis.reduce(512, i2_0 * 32 + i2_1)
                     T.reads(A[i, k], B[k, j])
                     T.writes(C_global[i, j])
-                    T.block_attr({"meta_schedule.tiling_structure": "SSRSRS"})
+                    T.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
                     with T.init():
                         C_global[i, j] = T.float32(0)
                     C_global[i, j] = C_global[i, j] + A[i, k] * B[k, j]
             for ax0, ax1 in T.grid(64, 64):
-                with T.block("C_global"):
+                with T.sblock("C_global"):
                     v0 = T.axis.spatial(512, i0_1 * 64 + ax0)
                     v1 = T.axis.spatial(512, i1_0 * 64 + ax1)
                     T.reads(C_global[v0, v1])
@@ -69,22 +69,22 @@ def test_cpu_matmul():
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         C_global = T.alloc_buffer([512, 512], dtype="float32")
         for i0_0, i1_0 in T.grid(1, 8):
             for i0_1, i1_1, i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(8, 1, 16, 2, 8, 32, 32, 8):
-                with T.block("C"):
+                with T.sblock("C"):
                     i = T.axis.spatial(512, i0_0 * 512 + i0_1 * 64 + i0_2 * 32 + i0_3)
                     j = T.axis.spatial(512, i1_0 * 64 + i1_1 * 64 + i1_2 * 8 + i1_3)
                     k = T.axis.reduce(512, i2_0 * 32 + i2_1)
                     T.reads(A[i, k], B[k, j])
                     T.writes(C_global[i, j])
-                    T.block_attr({"meta_schedule.tiling_structure": "SSRSRS"})
+                    T.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
                     with T.init():
                         C_global[i, j] = T.float32(0)
                     C_global[i, j] = C_global[i, j] + A[i, k] * B[k, j]
             for ax0, ax1 in T.grid(512, 64):
-                with T.block("C_global"):
+                with T.sblock("C_global"):
                     v0 = T.axis.spatial(512, ax0)
                     v1 = T.axis.spatial(512, i1_0 * 64 + ax1)
                     T.reads(C_global[v0, v1])
@@ -100,17 +100,17 @@ def test_cpu_matmul():
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         for i0_0, i1_0, i0_1, i1_1, i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(
             1, 8, 8, 1, 16, 2, 8, 32, 32, 8
         ):
-            with T.block("C"):
+            with T.sblock("C"):
                 i = T.axis.spatial(512, i0_0 * 512 + i0_1 * 64 + i0_2 * 32 + i0_3)
                 j = T.axis.spatial(512, i1_0 * 64 + i1_1 * 64 + i1_2 * 8 + i1_3)
                 k = T.axis.reduce(512, i2_0 * 32 + i2_1)
                 T.reads(A[i, k], B[k, j])
                 T.writes(C[i, j])
-                T.block_attr({"meta_schedule.tiling_structure": "SSRSRS"})
+                T.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
                 with T.init():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + A[i, k] * B[k, j]
@@ -156,23 +156,23 @@ def test_cpu_matmul_relu():
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         C = T.alloc_buffer([512, 512], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1, i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(
             256, 4, 1, 4, 64, 1, 32, 8, 2, 1
         ):
-            with T.block("C"):
+            with T.sblock("C"):
                 i = T.axis.spatial(512, i0_0 * 2 + i0_1 * 2 + i0_2 * 2 + i0_3)
                 j = T.axis.spatial(512, i1_0 * 128 + i1_1 * 32 + i1_2 + i1_3)
                 k = T.axis.reduce(512, i2_0 * 8 + i2_1)
                 T.reads(A[i, k], B[k, j])
                 T.writes(C[i, j])
-                T.block_attr({"meta_schedule.tiling_structure": "SSRSRS"})
+                T.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
                 with T.init():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + A[i, k] * B[k, j]
         for i0, i1 in T.grid(512, 512):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 i0_4, i1_4 = T.axis.remap("SS", [i0, i1])
                 T.reads(C[i0_4, i1_4])
                 T.writes(compute[i0_4, i1_4])
@@ -187,22 +187,22 @@ def test_cpu_matmul_relu():
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         C = T.alloc_buffer([512, 512], dtype="float32")
         for i0_0, i1_0, i0_1, i1_1 in T.grid(256, 4, 1, 4):
             for i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(64, 1, 32, 8, 2, 1):
-                with T.block("C"):
+                with T.sblock("C"):
                     i = T.axis.spatial(512, i0_0 * 2 + i0_1 * 2 + i0_2 * 2 + i0_3)
                     j = T.axis.spatial(512, i1_0 * 128 + i1_1 * 32 + i1_2 + i1_3)
                     k = T.axis.reduce(512, i2_0 * 8 + i2_1)
                     T.reads(A[i, k], B[k, j])
                     T.writes(C[i, j])
-                    T.block_attr({"meta_schedule.tiling_structure": "SSRSRS"})
+                    T.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
                     with T.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
             for ax0, ax1 in T.grid(2, 32):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     i0 = T.axis.spatial(512, i0_0 * 2 + ax0)
                     i1 = T.axis.spatial(512, i1_0 * 128 + i1_1 * 32 + ax1)
                     T.reads(C[i0, i1])
@@ -218,22 +218,22 @@ def test_cpu_matmul_relu():
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         C = T.alloc_buffer([512, 512], dtype="float32")
         for i0_0, i1_0 in T.grid(256, 4):
             for i0_1, i1_1, i2_0, i0_2, i1_2, i2_1, i0_3, i1_3 in T.grid(1, 4, 64, 1, 32, 8, 2, 1):
-                with T.block("C"):
+                with T.sblock("C"):
                     i = T.axis.spatial(512, i0_0 * 2 + i0_1 * 2 + i0_2 * 2 + i0_3)
                     j = T.axis.spatial(512, i1_0 * 128 + i1_1 * 32 + i1_2 + i1_3)
                     k = T.axis.reduce(512, i2_0 * 8 + i2_1)
                     T.reads(A[i, k], B[k, j])
                     T.writes(C[i, j])
-                    T.block_attr({"meta_schedule.tiling_structure": "SSRSRS"})
+                    T.sblock_attr({"meta_schedule.tiling_structure": "SSRSRS"})
                     with T.init():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
             for ax0, ax1 in T.grid(2, 128):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     i0 = T.axis.spatial(512, i0_0 * 2 + ax0)
                     i1 = T.axis.spatial(512, i1_0 * 128 + ax1)
                     T.reads(C[i0, i1])
@@ -280,7 +280,7 @@ def test_cuda_matmul():
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         C_local = T.alloc_buffer([512, 512], dtype="float32", scope="local")
         A_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
         B_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
@@ -289,27 +289,27 @@ def test_cuda_matmul():
                 for i0_2_i1_2_fused in T.thread_binding(4, thread="threadIdx.x"):
                     for i2_0 in T.serial(128):
                         for ax0_ax1_fused in T.serial(256):
-                            with T.block("A_shared"):
+                            with T.sblock("A_shared"):
                                 v0 = T.axis.spatial(
                                     512, i0_0_i1_0_fused // 16 * 64 + ax0_ax1_fused // 4
                                 )
                                 v1 = T.axis.spatial(512, i2_0 * 4 + ax0_ax1_fused % 4)
                                 T.reads(A[v0, v1])
                                 T.writes(A_shared[v0, v1])
-                                T.block_attr({"meta_schedule.cooperative_fetch": 2})
+                                T.sblock_attr({"meta_schedule.cooperative_fetch": 2})
                                 A_shared[v0, v1] = A[v0, v1]
                         for ax0_ax1_fused in T.serial(128):
-                            with T.block("B_shared"):
+                            with T.sblock("B_shared"):
                                 v0 = T.axis.spatial(512, i2_0 * 4 + ax0_ax1_fused // 32)
                                 v1 = T.axis.spatial(
                                     512, i0_0_i1_0_fused % 16 * 32 + ax0_ax1_fused % 32
                                 )
                                 T.reads(B[v0, v1])
                                 T.writes(B_shared[v0, v1])
-                                T.block_attr({"meta_schedule.cooperative_fetch": 1})
+                                T.sblock_attr({"meta_schedule.cooperative_fetch": 1})
                                 B_shared[v0, v1] = B[v0, v1]
                         for i2_1, i0_3, i1_3, i2_2, i0_4, i1_4 in T.grid(2, 1, 1, 2, 16, 4):
-                            with T.block("C"):
+                            with T.sblock("C"):
                                 i = T.axis.spatial(
                                     512,
                                     i0_0_i1_0_fused // 16 * 64
@@ -328,7 +328,7 @@ def test_cuda_matmul():
                                 k = T.axis.reduce(512, i2_0 * 4 + i2_1 * 2 + i2_2)
                                 T.reads(A_shared[i, k], B_shared[k, j])
                                 T.writes(C_local[i, j])
-                                T.block_attr(
+                                T.sblock_attr(
                                     {
                                         "meta_schedule.thread_extent_high_inclusive": 1024,
                                         "meta_schedule.thread_extent_low_inclusive": 32,
@@ -339,7 +339,7 @@ def test_cuda_matmul():
                                     C_local[i, j] = T.float32(0)
                                 C_local[i, j] = C_local[i, j] + A_shared[i, k] * B_shared[k, j]
                     for ax0, ax1 in T.grid(16, 4):
-                        with T.block("C_local"):
+                        with T.sblock("C_local"):
                             v0 = T.axis.spatial(
                                 512, i0_0_i1_0_fused // 16 * 64 + i0_1_i1_1_fused // 2 * 16 + ax0
                             )
@@ -386,7 +386,7 @@ def test_cuda_matmul_relu():
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         C = T.alloc_buffer([512, 512], dtype="float32")
         C_local = T.alloc_buffer([512, 512], dtype="float32", scope="local")
         A_shared = T.alloc_buffer([512, 512], dtype="float32", scope="shared")
@@ -396,27 +396,27 @@ def test_cuda_matmul_relu():
                 for i0_2_i1_2_fused in T.thread_binding(8, thread="threadIdx.x"):
                     for i2_0 in T.serial(8):
                         for ax0_ax1_fused in T.serial(4096):
-                            with T.block("A_shared"):
+                            with T.sblock("A_shared"):
                                 v0 = T.axis.spatial(
                                     512, i0_0_i1_0_fused // 8 * 64 + ax0_ax1_fused // 64
                                 )
                                 v1 = T.axis.spatial(512, i2_0 * 64 + ax0_ax1_fused % 64)
                                 T.reads(A[v0, v1])
                                 T.writes(A_shared[v0, v1])
-                                T.block_attr({"meta_schedule.cooperative_fetch": 2})
+                                T.sblock_attr({"meta_schedule.cooperative_fetch": 2})
                                 A_shared[v0, v1] = A[v0, v1]
                         for ax0_ax1_fused in T.serial(4096):
-                            with T.block("B_shared"):
+                            with T.sblock("B_shared"):
                                 v0 = T.axis.spatial(512, i2_0 * 64 + ax0_ax1_fused // 64)
                                 v1 = T.axis.spatial(
                                     512, i0_0_i1_0_fused % 8 * 64 + ax0_ax1_fused % 64
                                 )
                                 T.reads(B[v0, v1])
                                 T.writes(B_shared[v0, v1])
-                                T.block_attr({"meta_schedule.cooperative_fetch": 4})
+                                T.sblock_attr({"meta_schedule.cooperative_fetch": 4})
                                 B_shared[v0, v1] = B[v0, v1]
                         for i2_1, i0_3, i1_3, i2_2, i0_4, i1_4 in T.grid(8, 2, 1, 8, 2, 2):
-                            with T.block("C"):
+                            with T.sblock("C"):
                                 i = T.axis.spatial(
                                     512,
                                     i0_0_i1_0_fused // 8 * 64
@@ -436,7 +436,7 @@ def test_cuda_matmul_relu():
                                 k = T.axis.reduce(512, i2_0 * 64 + i2_1 * 8 + i2_2)
                                 T.reads(A_shared[i, k], B_shared[k, j])
                                 T.writes(C_local[i, j])
-                                T.block_attr(
+                                T.sblock_attr(
                                     {
                                         "meta_schedule.thread_extent_high_inclusive": 1024,
                                         "meta_schedule.thread_extent_low_inclusive": 32,
@@ -447,7 +447,7 @@ def test_cuda_matmul_relu():
                                     C_local[i, j] = T.float32(0)
                                 C_local[i, j] = C_local[i, j] + A_shared[i, k] * B_shared[k, j]
                     for ax0, ax1 in T.grid(4, 2):
-                        with T.block("C_local"):
+                        with T.sblock("C_local"):
                             v0 = T.axis.spatial(
                                 512,
                                 i0_0_i1_0_fused // 8 * 64
@@ -466,7 +466,7 @@ def test_cuda_matmul_relu():
                             T.writes(C[v0, v1])
                             C[v0, v1] = C_local[v0, v1]
         for i0, i1 in T.grid(512, 512):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
                 T.reads(C[i0_1, i1_1])
                 T.writes(compute[i0_1, i1_1])
@@ -501,7 +501,7 @@ def test_cuda_sum_with_trivial_block_iter():
         B: T.Buffer((1, 64, 1), "float32"),
     ) -> None:
         for i0, i1, i2, i3 in T.grid(1, 64, 1, 768):
-            with T.block("sum"):
+            with T.sblock("sum"):
                 ax0, ax1, ax2, k2 = T.axis.remap("SSSR", [i0, i1, i2, i3])
                 T.reads(A[ax0, ax1, k2])
                 T.writes(B[ax0, ax1, ax2])
@@ -530,7 +530,7 @@ def test_multi_level_tiling_hexagon():
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         PadInput = T.alloc_buffer((1, 58, 58, 64), "float16")
         for i0, i1, i2, i3 in T.grid(1, 58, 58, 64):
-            with T.block("PadInput"):
+            with T.sblock("PadInput"):
                 v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(inputs[v_i0, v_i1 - 1, v_i2 - 1, v_i3])
                 T.writes(PadInput[v_i0, v_i1, v_i2, v_i3])
@@ -559,7 +559,7 @@ def test_multi_level_tiling_hexagon():
             w_2,
             co_2,
         ) in T.grid(1, 1, 2, 1, 3, 3, 16, 1, 14, 2, 1, 1, 1, 4, 1, 4, 14, 64):
-            with T.block("conv2d_nhwc"):
+            with T.sblock("conv2d_nhwc"):
                 v_n = T.axis.spatial(1, n_0 + n_1 + n_2)
                 v_h = T.axis.spatial(56, h_0 * 56 + h_1 * 4 + h_2)
                 v_w = T.axis.spatial(56, w_0 * 28 + w_1 * 14 + w_2)
@@ -572,7 +572,7 @@ def test_multi_level_tiling_hexagon():
                     weight[v_rh, v_rw, v_rc, v_co],
                 )
                 T.writes(conv2d_nhwc[v_n, v_h, v_w, v_co])
-                T.block_attr({"meta_schedule.tiling_structure": "SRSRS"})
+                T.sblock_attr({"meta_schedule.tiling_structure": "SRSRS"})
                 with T.init():
                     conv2d_nhwc[v_n, v_h, v_w, v_co] = T.float16(0)
                 conv2d_nhwc[v_n, v_h, v_w, v_co] = (
@@ -642,23 +642,23 @@ def test_cache_read_specify_consumer():
                 for i_2_j_2_fused in T.thread_binding(16, thread="threadIdx.x"):
                     for k_0 in range(2):
                         for ax0_ax1_fused in range(131072):
-                            with T.block("A_shared"):
+                            with T.sblock("A_shared"):
                                 v0 = T.axis.spatial(512, ax0_ax1_fused // 256)
                                 v1 = T.axis.spatial(512, k_0 * 256 + ax0_ax1_fused % 256)
                                 T.reads(A[v0, v1])
                                 T.writes(A_shared[v0, v1])
-                                T.block_attr({"meta_schedule.cooperative_fetch": 2})
+                                T.sblock_attr({"meta_schedule.cooperative_fetch": 2})
                                 A_shared[v0, v1] = A[v0, v1]
                         for ax0_ax1_fused in range(65536):
-                            with T.block("B_shared"):
+                            with T.sblock("B_shared"):
                                 v0 = T.axis.spatial(512, k_0 * 256 + ax0_ax1_fused // 256)
                                 v1 = T.axis.spatial(512, i_0_j_0_fused * 256 + ax0_ax1_fused % 256)
                                 T.reads(B[v0, v1])
                                 T.writes(B_shared[v0, v1])
-                                T.block_attr({"meta_schedule.cooperative_fetch": 3})
+                                T.sblock_attr({"meta_schedule.cooperative_fetch": 3})
                                 B_shared[v0, v1] = B[v0, v1]
                         for k_1, i_3, j_3, k_2, i_4, j_4 in T.grid(64, 1, 1, 4, 1, 16):
-                            with T.block("C"):
+                            with T.sblock("C"):
                                 v_i = T.axis.spatial(
                                     512,
                                     i_1_j_1_fused // 8 * 8 + i_2_j_2_fused // 2 + i_3 + i_4,
@@ -674,7 +674,7 @@ def test_cache_read_specify_consumer():
                                 v_k = T.axis.reduce(512, k_0 * 256 + k_1 * 4 + k_2)
                                 T.reads(A_shared[v_i, v_k], B_shared[v_k, v_j])
                                 T.writes(C_local[v_i, v_j])
-                                T.block_attr(
+                                T.sblock_attr(
                                     {
                                         "meta_schedule.thread_extent_high_inclusive": 1024,
                                         "meta_schedule.thread_extent_low_inclusive": 32,
@@ -687,7 +687,7 @@ def test_cache_read_specify_consumer():
                                     C_local[v_i, v_j] + A_shared[v_i, v_k] * B_shared[v_k, v_j]
                                 )
                     for ax0, ax1 in T.grid(1, 16):
-                        with T.block("C_local"):
+                        with T.sblock("C_local"):
                             v0 = T.axis.spatial(
                                 512,
                                 i_1_j_1_fused // 8 * 8 + i_2_j_2_fused // 2 + ax0,
@@ -703,7 +703,7 @@ def test_cache_read_specify_consumer():
                             T.writes(C[v0, v1])
                             C[v0, v1] = C_local[v0, v1]
         for ax0, ax1 in T.grid(512, 512):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 v_ax0 = T.axis.spatial(512, ax0)
                 v_ax1 = T.axis.spatial(512, ax1)
                 T.reads(C[v_ax0, v_ax1], A[v_ax0, v_ax1])
@@ -746,7 +746,7 @@ def test_max_pool_blocked():
         X_global = T.alloc_buffer((1, 2, 8, 8, 8, 8, 32), "uint8")
         for b_0, c_o_0, h_o_0, w_o_0, h_i_0, w_i_0, c_i_0 in T.grid(1, 2, 4, 1, 8, 1, 4):
             for ax0_ax1_ax2_ax3_ax4_ax5_ax6_fused in range(896):
-                with T.block("X_global"):
+                with T.sblock("X_global"):
                     v0 = T.axis.spatial(1, 0)
                     v1 = T.axis.spatial(2, c_o_0)
                     v2 = T.axis.spatial(8, h_o_0 * 2)
@@ -762,7 +762,7 @@ def test_max_pool_blocked():
             for wh, ww, b_1, c_o_1, h_o_1, w_o_1, h_i_1, w_i_1, c_i_1 in T.grid(
                 2, 2, 1, 1, 1, 4, 1, 8, 8
             ):
-                with T.block("pool"):
+                with T.sblock("pool"):
                     v_b = T.axis.spatial(1, b_0 + b_1)
                     v_c_o = T.axis.spatial(2, c_o_0 + c_o_1)
                     v_h_o = T.axis.spatial(4, h_o_0 + h_o_1)
@@ -783,7 +783,7 @@ def test_max_pool_blocked():
                         ]
                     )
                     T.writes(pool_global[v_b, v_c_o, v_h_o, v_w_o, v_h_i, v_w_i, v_c_i])
-                    T.block_attr({"meta_schedule.tiling_structure": "SRS"})
+                    T.sblock_attr({"meta_schedule.tiling_structure": "SRS"})
                     with T.init():
                         pool_global[v_b, v_c_o, v_h_o, v_w_o, v_h_i, v_w_i, v_c_i] = T.uint8(0)
                     pool_global[v_b, v_c_o, v_h_o, v_w_o, v_h_i, v_w_i, v_c_i] = T.max(
@@ -799,7 +799,7 @@ def test_max_pool_blocked():
                         ],
                     )
             for ax0, ax1, ax2, ax3, ax4, ax5, ax6 in T.grid(1, 1, 1, 4, 1, 8, 8):
-                with T.block("pool_global"):
+                with T.sblock("pool_global"):
                     v0 = T.axis.spatial(1, ax0)
                     v1 = T.axis.spatial(2, c_o_0 + ax1)
                     v2 = T.axis.spatial(4, h_o_0 + ax2)

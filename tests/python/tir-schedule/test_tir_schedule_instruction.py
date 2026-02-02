@@ -20,7 +20,7 @@ import sys
 
 import pytest
 import tvm.testing
-from tvm.tir.schedule import BlockRV, Instruction, InstructionKind, LoopRV
+from tvm.tir.schedule import SBlockRV, Instruction, InstructionKind, LoopRV
 
 
 def test_inst_kind_get():
@@ -30,7 +30,7 @@ def test_inst_kind_get():
 
 
 def test_inst_construct_1():
-    block = BlockRV()
+    block = SBlockRV()
     loop0 = LoopRV()
     loop1 = LoopRV()
     inst = Instruction(
@@ -50,7 +50,7 @@ def test_inst_construct_1():
 
 
 def test_inst_construct_2():
-    block = BlockRV()
+    block = SBlockRV()
     inst = Instruction(
         kind=InstructionKind.get("ComputeInline"),
         inputs=[block],

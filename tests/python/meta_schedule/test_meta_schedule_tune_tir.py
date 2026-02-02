@@ -28,7 +28,7 @@ from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.tir.schedule import BlockRV, Schedule
+from tvm.tir.schedule import SBlockRV, Schedule
 
 logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
@@ -40,7 +40,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("update"):
+        with T.sblock("update"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 C[vi, vj] = 0.0
@@ -53,11 +53,11 @@ def two_step(a: T.handle, c: T.handle) -> None:
     B = T.alloc_buffer((1024, 1024), "float32")
     C = T.match_buffer(c, (1024, 1024), "float32")
     for i, j in T.grid(1024, 1024):
-        with T.block("A"):
+        with T.sblock("A"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(1024, 1024):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 3.0
 
@@ -152,7 +152,7 @@ def test_tune_block_cpu():
         def _initialize_with_tune_context(self, context: ms.TuneContext) -> None:
             pass
 
-        def apply(self, sch: Schedule, block: BlockRV):
+        def apply(self, sch: Schedule, block: SBlockRV):
             if sch.get(block).name_hint == "root":
                 return [sch]
             sch = sch.copy()

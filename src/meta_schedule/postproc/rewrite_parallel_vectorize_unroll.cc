@@ -102,7 +102,7 @@ struct ParsedAnnotation {
   int num_vectorize_loops;
 };
 
-bool ParseAnnotation(const Block& block, ParsedAnnotation* parsed) {
+bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
   bool found = false;
   *parsed = ParsedAnnotation{-1, -1, -1, -1, -1, -1};
   for (const auto& ann : block->annotations) {
@@ -131,7 +131,8 @@ bool ParseAnnotation(const Block& block, ParsedAnnotation* parsed) {
   return found;
 }
 
-void RemoveParsedAnn(const Schedule& sch, const BlockRV& block_rv, const ParsedAnnotation& parsed) {
+void RemoveParsedAnn(const Schedule& sch, const SBlockRV& block_rv,
+                     const ParsedAnnotation& parsed) {
   if (parsed.max_parallel_extent != -1) {
     sch->Unannotate(block_rv, attr::meta_schedule_parallel);
   }
@@ -173,7 +174,7 @@ int CalculateNumRewritableLoops(const ffi::Array<StmtSRef>& loop_srefs,
   return rw_loops_num;
 }
 
-void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
+void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
                              const ffi::Array<LoopRV>& loop_rvs, ParsedAnnotation* parsed) {
   StmtSRef block_sref = sch->GetSRef(block_rv);
   if (parsed->max_parallel_extent == -1 && parsed->max_vectorize_extent == -1) {
@@ -197,7 +198,7 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
     }
   }
   // check the maximal number of axes that are vectorizable (contiguous memory access)
-  BlockRealize realize = GetBlockRealize(sch->state(), block_sref);
+  SBlockRealize realize = GetSBlockRealize(sch->state(), block_sref);
   ffi::Array<BufferRegion> buffer_access(realize->block->reads);
   buffer_access.insert(buffer_access.end(), realize->block->writes.begin(),
                        realize->block->writes.end());
@@ -337,17 +338,17 @@ void AdjustParallelVectorize(const Schedule& sch, const BlockRV& block_rv,
   }
 }
 
-bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, BlockRV* root_rv) {
+bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, SBlockRV* root_rv) {
   IRModule mod = sch->mod();
   for (const auto& kv : mod->functions) {
     const GlobalVar& g_var = kv.first;
     const BaseFunc& base_func = kv.second;
     if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
-      const BlockRealizeNode* block_realize = prim_func->body.as<BlockRealizeNode>();
+      const SBlockRealizeNode* block_realize = prim_func->body.as<SBlockRealizeNode>();
       if (block_realize != nullptr) {
-        Block block = block_realize->block;
+        SBlock block = block_realize->block;
         if (ParseAnnotation(block, parsed)) {
-          *root_rv = sch->GetBlock(block->name_hint, g_var->name_hint);
+          *root_rv = sch->GetSBlock(block->name_hint, g_var->name_hint);
           RemoveParsedAnn(sch, *root_rv, *parsed);
           return true;
         }
@@ -392,7 +393,7 @@ void RewriteVectorize(const Schedule& sch, size_t n, ffi::Array<LoopRV>* loop_rv
   }
 }
 
-void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const BlockRV& block,
+void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const SBlockRV& block,
                    const LoopRV& loop) {
   // Do not unroll for pure spatial block.
   if (max_step <= 0 || IsSpatial(sch->GetSRef(block))) {
@@ -415,9 +416,9 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
 
   bool Apply(const Schedule& sch) final {
     tir::ParsedAnnotation parsed_root;
-    tir::BlockRV root_rv{ffi::UnsafeInit()};
+    tir::SBlockRV root_rv{ffi::UnsafeInit()};
     while (tir::FindAnnotatedRootBlock(sch, &parsed_root, &root_rv)) {
-      for (tir::BlockRV block_rv : sch->GetChildBlocks(root_rv)) {
+      for (tir::SBlockRV block_rv : sch->GetChildBlocks(root_rv)) {
         ffi::Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
         if (loop_rvs.empty()) {
           continue;

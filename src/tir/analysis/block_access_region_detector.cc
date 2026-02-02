@@ -114,7 +114,7 @@ class BlockReadWriteDetector : public StmtExprVisitor {
 
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
-  void VisitStmt_(const BlockRealizeNode* op) override;
+  void VisitStmt_(const SBlockRealizeNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
@@ -123,7 +123,7 @@ class BlockReadWriteDetector : public StmtExprVisitor {
 };
 
 void BlockReadWriteDetector::operator()(const Stmt& stmt) {
-  const auto* block = stmt.as<BlockNode>();
+  const auto* block = stmt.as<SBlockNode>();
   ICHECK(block != nullptr) << "Only visiting Blocks is allowed, but got " << stmt->GetTypeKey();
   for (const MatchBufferRegion& match_buffer : block->match_buffers) {
     const Var& target_var = match_buffer->buffer->data;
@@ -253,7 +253,7 @@ void BlockReadWriteDetector::VisitStmt_(const BufferStoreNode* op) {
   StmtVisitor::VisitStmt_(op);
 }
 
-void BlockReadWriteDetector::VisitStmt_(const BlockRealizeNode* op) {
+void BlockReadWriteDetector::VisitStmt_(const SBlockRealizeNode* op) {
   /*! \note detector will not visit child block recursively, so it will stop here */
   std::unordered_map<const VarNode*, PrimExpr> vmap;
   for (size_t i = 0; i < op->block->iter_vars.size(); ++i) {
@@ -371,8 +371,8 @@ void BlockReadWriteDetector::UpdateOpaque(const Var& buffer_var) {
   }
 }
 
-ffi::Array<ffi::Array<BufferRegion>> GetBlockAccessRegion(
-    const Block& block, const ffi::Map<Var, Buffer>& buffer_var_map) {
+ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
+    const SBlock& block, const ffi::Map<Var, Buffer>& buffer_var_map) {
   BlockReadWriteDetector detector(buffer_var_map);
   detector(block);
   ffi::Array<BufferRegion> writes = detector.CollectWrites();
@@ -388,8 +388,8 @@ ffi::Array<ffi::Array<BufferRegion>> GetBlockAccessRegion(
   return {reads, writes, opaques};
 }
 
-ffi::Array<ffi::Array<BufferRegion>> GetBlockReadWriteRegion(
-    const Block& block, const ffi::Map<Var, Buffer>& buffer_var_map) {
+ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
+    const SBlock& block, const ffi::Map<Var, Buffer>& buffer_var_map) {
   BlockReadWriteDetector detector(buffer_var_map);
   detector(block);
   ffi::Array<BufferRegion> opaques = detector.CollectOpaques();
@@ -414,8 +414,8 @@ ffi::Array<ffi::Array<BufferRegion>> GetBlockReadWriteRegion(
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.analysis.GetBlockAccessRegion", GetBlockAccessRegion)
-      .def("tir.analysis.GetBlockReadWriteRegion", GetBlockReadWriteRegion);
+      .def("tir.analysis.GetSBlockAccessRegion", GetSBlockAccessRegion)
+      .def("tir.analysis.GetSBlockReadWriteRegion", GetSBlockReadWriteRegion);
 }
 
 }  // namespace tir

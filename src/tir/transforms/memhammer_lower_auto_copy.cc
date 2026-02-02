@@ -211,7 +211,7 @@ class AutoPadder {
         return store;
       }
 
-      Stmt VisitStmt_(const BlockNode* op) final {
+      Stmt VisitStmt_(const SBlockNode* op) final {
         // To reduce the number of blocks in block sref reuse map, we check whether the block is
         // really mutated (i.e., the old buffer appears in the block). If so, we return the block
         // after mutation. Otherwise we just return the original block.
@@ -256,13 +256,13 @@ class AutoPadder {
         }
 
         if (changed) {
-          ObjectPtr<BlockNode> block = CopyOnWrite(res.as<BlockNode>());
+          ObjectPtr<SBlockNode> block = CopyOnWrite(res.as<SBlockNode>());
           block->reads = std::move(reads);
           block->writes = std::move(writes);
           block->match_buffers = std::move(match_buffers);
           return Stmt(block);
         } else {
-          return ffi::GetRef<Block>(op);
+          return ffi::GetRef<SBlock>(op);
         }
       }
       const ffi::Map<Buffer, Buffer>& buffer_map_;
@@ -561,7 +561,7 @@ class AutoPadder {
      * threadIdx. The iteration space would be {{0, 1, ..., 15}, {0, 1, ..., 15}}.
      * \param op the call node
      */
-    void VisitStmt_(const BlockNode* op) final {
+    void VisitStmt_(const SBlockNode* op) final {
       if (const auto* eval = op->body.as<EvaluateNode>()) {
         if (const auto* call = eval->value.as<CallNode>()) {
           if (call->op == builtin::tvm_load_matrix_sync() ||
@@ -661,11 +661,11 @@ class AutoCopyMutator : public StmtExprMutator {
   Stmt RewritePaddingBody(const Stmt& stmt) { return padder.RewriteBufferAccess(stmt); }
 
  private:
-  Stmt VisitStmt_(const BlockNode* op) final {
-    Block block = Downcast<Block>(StmtMutator::VisitStmt_(op));
+  Stmt VisitStmt_(const SBlockNode* op) final {
+    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
     // only rewrite the block annotated with "auto_copy"
     if (!GetAnn<bool>(op, tir::attr::auto_copy).value_or(false)) {
-      BlockNode* n = block.CopyOnWrite();
+      SBlockNode* n = block.CopyOnWrite();
       n->alloc_buffers = padder.PadSharedMemory(std::move(n->alloc_buffers));
       return block;
     }
@@ -691,7 +691,7 @@ class AutoCopyMutator : public StmtExprMutator {
                               block->writes[0],      //
                               data_bits,             //
                               block->annotations);
-    BlockNode* n = block.CopyOnWrite();
+    SBlockNode* n = block.CopyOnWrite();
     OutputSet outputs;
     for (RewriteRule* rule : rules) {
       n->body = rule->Apply(std::move(n->body), constraints, &outputs);
@@ -744,7 +744,7 @@ class ThreadExtentCollector : public StmtVisitor {
   }
 
  private:
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     if (ffi::Optional<Integer> warp_execution = GetAnn<Integer>(op, "warp_execution")) {
       if (warp_execution.value()->value != 0) {
         thread_extent_.Set("threadIdx.x", Integer(32));

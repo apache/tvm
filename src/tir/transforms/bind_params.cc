@@ -111,12 +111,12 @@ PrimFunc BindParams(PrimFunc f, const ffi::Array<runtime::Tensor>& constants) {
     }
     DataType dtype = DataType(constant_map[var]->dtype);
 
-    if (n->body->IsInstance<BlockRealizeNode>()) {
-      auto* block_realize = n->body.as<BlockRealizeNode>();
+    if (n->body->IsInstance<SBlockRealizeNode>()) {
+      auto* block_realize = n->body.as<SBlockRealizeNode>();
       auto block = block_realize->block;
       block.CopyOnWrite()->body =
           tir::AllocateConst(var, dtype, extents, constant_map[var], block->body);
-      n->body = BlockRealize(block_realize->iter_values, block_realize->predicate, block);
+      n->body = SBlockRealize(block_realize->iter_values, block_realize->predicate, block);
     } else {
       n->body = tir::AllocateConst(var, dtype, extents, constant_map[var], n->body);
     }

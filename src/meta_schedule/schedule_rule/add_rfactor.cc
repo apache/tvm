@@ -36,7 +36,7 @@ class AddRFactorNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv);
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv);
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
@@ -78,7 +78,7 @@ ScheduleRule ScheduleRule::AddRFactor(int max_jobs_per_core,
 }
 
 ffi::Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch,
-                                                const tir::BlockRV& block_rv) {
+                                                const tir::SBlockRV& block_rv) {
   tir::StmtSRef block_sref = sch->GetSRef(block_rv);
   if (!NeedsRFactorOrCrossThreadReduction(sch->state(), block_sref, max_parallel_extent_,
                                           max_parallel_basic_)) {
@@ -106,7 +106,7 @@ ffi::Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch,
     tir::Schedule sch_tmp = sch->Copy();
     sch_tmp->Seed(sch->ForkSeed());
     try {
-      const tir::BlockRV& block_rf = sch_tmp->RFactor(split_loop, num_spatial_loops);
+      const tir::SBlockRV& block_rf = sch_tmp->RFactor(split_loop, num_spatial_loops);
       ffi::Array<tir::LoopRV> axes = sch_tmp->GetLoops(block_rf);
       ICHECK_GT(axes.size(), num_spatial_loops);
 

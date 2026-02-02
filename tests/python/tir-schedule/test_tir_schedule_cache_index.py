@@ -34,7 +34,7 @@ def resize(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (1, 3, 40, 40))
     B = T.match_buffer(b, (1, 3, 80, 80))
     for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
-        with T.block("A"):
+        with T.sblock("A"):
             n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
             B[n, c, vi, vj] = A[n, c, vi // 4 + vj // 4, vj // 2]
 
@@ -46,19 +46,19 @@ def resize_cache_index(
     index_var_0 = T.alloc_buffer([80, 80], dtype="int32", strides=[1])
     index_var_1 = T.alloc_buffer([80], dtype="int32", strides=[1])
     for ax0, ax1 in T.grid(80, 80):
-        with T.block("index_0"):
+        with T.sblock("index_0"):
             v0, v1 = T.axis.remap("SS", [ax0, ax1])
             T.reads()
             T.writes(index_var_0[v0, v1])
             index_var_0[v0, v1] = v0 // 4 + v1 // 4
     for ax0 in T.serial(80):
-        with T.block("index_1"):
+        with T.sblock("index_1"):
             v0 = T.axis.spatial(80, ax0)
             T.reads()
             T.writes(index_var_1[v0])
             index_var_1[v0] = v0 // 2
     for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
-        with T.block("A"):
+        with T.sblock("A"):
             n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
             T.reads(A[n, c, vi // 4 + vj // 4, vj // 2])
             T.writes(B[n, c, vi, vj])
@@ -70,7 +70,7 @@ def bilinear_resize(
     x: T.Buffer((1, 3, 40, 40), "float16"), resize: T.Buffer((1, 3, 80, 80), "float16")
 ):
     for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
-        with T.block("resize"):
+        with T.sblock("resize"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
             T.reads(x[i0_1, i1_1, 0:40, 0:40])
             T.writes(resize[i0_1, i1_1, i2_1, i3_1])
@@ -342,7 +342,7 @@ def cached_bilinear_resize(
     index_var_1 = T.alloc_buffer([80], dtype="int32", strides=[1])
     index_var_2 = T.alloc_buffer([80], dtype="int32", strides=[1])
     for ax0 in T.serial(80):
-        with T.block("index_0"):
+        with T.sblock("index_0"):
             v0 = T.axis.spatial(80, ax0)
             T.reads()
             T.writes(index_var_0[v0])
@@ -362,7 +362,7 @@ def cached_bilinear_resize(
                 )
             )
     for ax0 in T.serial(80):
-        with T.block("index_1"):
+        with T.sblock("index_1"):
             v0 = T.axis.spatial(80, ax0)
             T.reads()
             T.writes(index_var_1[v0])
@@ -374,7 +374,7 @@ def cached_bilinear_resize(
                 ),
             )
     for ax0 in T.serial(80):
-        with T.block("index_2"):
+        with T.sblock("index_2"):
             v0 = T.axis.spatial(80, ax0)
             T.reads()
             T.writes(index_var_2[v0])
@@ -386,7 +386,7 @@ def cached_bilinear_resize(
                 ),
             )
     for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
-        with T.block("resize"):
+        with T.sblock("resize"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
             T.reads(x[i0_1, i1_1, 0:40, 0:40])
             T.writes(resize[i0_1, i1_1, i2_1, i3_1])
@@ -454,7 +454,7 @@ def cached_bilinear_resize(
 
 def test_basic_cache_index():
     sch = tvm.tir.Schedule(resize, debug_mask="all")
-    block = sch.get_block("A")
+    block = sch.get_sblock("A")
     sch.cache_index(block, "global")
     tvm.ir.assert_structural_equal(
         resize_cache_index, sch.mod["main"].with_attr("global_symbol", "resize_cache_index")
@@ -464,7 +464,7 @@ def test_basic_cache_index():
 
 def test_resize_bilinear_cache_index():
     sch = tvm.tir.Schedule(bilinear_resize, debug_mask="all")
-    block = sch.get_block("resize")
+    block = sch.get_sblock("resize")
     sch.cache_index(block, "global", 4)
     tvm.ir.assert_structural_equal(
         sch.mod["main"], cached_bilinear_resize.with_attr("global_symbol", "bilinear_resize")

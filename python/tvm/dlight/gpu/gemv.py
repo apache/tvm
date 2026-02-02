@@ -22,7 +22,7 @@ from tvm import tir
 from tvm.target import Target
 
 from ..analysis import (
-    BlockInfo,
+    SBlockInfo,
     is_broadcast_epilogue,
     is_gemv,
     normalize,
@@ -87,9 +87,9 @@ class GEMV(GPUScheduleRule):
         self,
         sch: tir.Schedule,
         target: Target,
-        block: tir.schedule.BlockRV,
+        block: tir.schedule.SBlockRV,
         vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[BlockInfo],
+        epilogue_info: Optional[SBlockInfo],
     ):
         """Schedule the inner reduction block."""
 
@@ -427,9 +427,9 @@ class GEMV(GPUScheduleRule):
         self,
         sch: tir.Schedule,
         target: Target,
-        block: tir.schedule.BlockRV,
+        block: tir.schedule.SBlockRV,
         vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[BlockInfo],
+        epilogue_info: Optional[SBlockInfo],
     ):
         """Schedule the outer reduction block."""
 
@@ -632,9 +632,9 @@ class GEMV(GPUScheduleRule):
         self,
         sch: tir.Schedule,
         target: Target,
-        block: tir.schedule.BlockRV,
+        block: tir.schedule.SBlockRV,
         vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[BlockInfo],
+        epilogue_info: Optional[SBlockInfo],
     ):
         """Schedule the outer reduction block."""
         # NOTE: Only Android is supported so far

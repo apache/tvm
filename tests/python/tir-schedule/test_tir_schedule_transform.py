@@ -30,11 +30,11 @@ class DenseTIRModule:
         compute: T.Buffer((1024, 1024), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads()
             T.writes()
             for i0, i1, i2 in T.grid(1024, 1024, 1024):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     i, j, k = T.axis.remap("SSR", [i0, i1, i2])
                     T.reads(placeholder[i, k], placeholder_1[j // 16, k // 4, j % 16, k % 4])
                     T.writes(compute[i, j])
@@ -56,9 +56,9 @@ class DenseTIRModuleTiled:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         for i0, i1_0, i2_0, i1_1, i2_1 in T.grid(1024, 64, 256, 16, 4):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 i = T.axis.spatial(1024, i0)
                 j = T.axis.spatial(1024, i1_0 * 16 + i1_1)
                 k = T.axis.reduce(1024, i2_0 * 4 + i2_1)
@@ -81,7 +81,7 @@ class Conv2dNCHWcTIRModule:
     ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
-            with T.block("conv2d_NCHWc_int8"):
+            with T.sblock("conv2d_NCHWc_int8"):
                 (
                     n,
                     oc_chunk,
@@ -123,11 +123,11 @@ class Conv2dNCHWcTIRModuleTiled:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         for i0, i1, i2, i3, i4_0, i5, i6, i7, i8, i9_0, i4_1, i9_1 in T.grid(
             1, 16, 56, 56, 1, 1, 1, 4, 4, 1, 16, 4
         ):
-            with T.block("conv2d_NCHWc_int8"):
+            with T.sblock("conv2d_NCHWc_int8"):
                 n, oc_chunk, oh, ow = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 oc_block = T.axis.spatial(16, i4_0 * 16 + i4_1)
                 kh, kw, ic_outer, ic_f_inner = T.axis.remap("RRRR", [i5, i6, i7, i8])
@@ -152,7 +152,7 @@ class Conv2dNCHWcTIRModuleTiled:
 
 def test_tile_with_tensor_intrin_dense(intrin=VNNI_DOT_16x4_INTRIN):
     s = Schedule(DenseTIRModule)
-    block = s.get_block("compute")
+    block = s.get_sblock("compute")
 
     tiled_loop = tile_with_tensor_intrin(s, block, intrin)
 
@@ -164,7 +164,7 @@ def test_tile_with_tensor_intrin_dense(intrin=VNNI_DOT_16x4_INTRIN):
 
 def test_tile_with_tensor_intrin_conv2d_nchwc(intrin=VNNI_DOT_16x4_INTRIN):
     s = Schedule(Conv2dNCHWcTIRModule)
-    block = s.get_block("conv2d_NCHWc_int8")
+    block = s.get_sblock("conv2d_NCHWc_int8")
     tiled_loop = tile_with_tensor_intrin(s, block, intrin)
     tiled_loops = s.get_loops(block)
     assert len(tiled_loops) == 12

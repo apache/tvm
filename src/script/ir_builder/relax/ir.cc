@@ -125,7 +125,7 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   // a function body. Therefore if there is any unended block frame when dealing with function
   // return, we should end the block frame.
 
-  if (auto opt = ir_builder->GetLastFrame<BlockFrame>()) {
+  if (auto opt = ir_builder->GetLastFrame<BindingBlockFrame>()) {
     auto block_frame = opt.value();
     for (const auto& var : tvm::relax::FreeVars(normalized_value)) {
       if (var->IsInstance<tvm::relax::DataflowVarNode>()) {
@@ -159,23 +159,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 ///////////////////////////// BindingBlock //////////////////////////////
 
-BlockFrame Dataflow() {
-  ObjectPtr<BlockFrameNode> n = ffi::make_object<BlockFrameNode>();
+BindingBlockFrame Dataflow() {
+  ObjectPtr<BindingBlockFrameNode> n = ffi::make_object<BindingBlockFrameNode>();
   n->is_dataflow = true;
   n->block_ended = false;
-  return BlockFrame(n);
+  return BindingBlockFrame(n);
 }
 
-BlockFrame BindingBlock() {
-  ObjectPtr<BlockFrameNode> n = ffi::make_object<BlockFrameNode>();
+BindingBlockFrame BindingBlock() {
+  ObjectPtr<BindingBlockFrameNode> n = ffi::make_object<BindingBlockFrameNode>();
   n->is_dataflow = false;
   n->block_ended = false;
-  return BlockFrame(n);
+  return BindingBlockFrame(n);
 }
 
 void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars) {
   // Step 1. Check that we're in a Dataflow block that is not ended.
-  ffi::Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
+  ffi::Optional<BindingBlockFrame> block_frame =
+      IRBuilder::Current()->GetLastFrame<BindingBlockFrame>();
   CHECK(block_frame.defined() && block_frame.value()->is_dataflow)
       << "ValueError: `R.output` should appear inside a dataflow block. However, the current "
          "innermost block is not a dataflow block.";
@@ -210,7 +211,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 tvm::relax::Var Emit(const tvm::relax::Expr& expr,
                      const ffi::Optional<tvm::relax::StructInfo>& annotate_struct_info) {
   using tvm::relax::GetStructInfo;
-  BlockFrame block_frame = CheckBlockFrameExistAndUnended();
+  BindingBlockFrame block_frame = CheckBindingBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   if (annotate_struct_info.defined()) {
     const auto& sinfo = annotate_struct_info.value();
@@ -229,7 +230,7 @@ tvm::relax::Var Emit(const tvm::relax::Expr& expr,
 
 tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
                               const tvm::relax::StructInfo& struct_info) {
-  BlockFrame block_frame = CheckBlockFrameExistAndUnended();
+  BindingBlockFrame block_frame = CheckBindingBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
 
   tvm::relax::Var var = block_builder->EmitMatchCast(value, struct_info);
@@ -238,7 +239,7 @@ tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value,
 }
 
 tvm::relax::Var EmitVarBinding(const tvm::relax::VarBinding& binding) {
-  BlockFrame block_frame = CheckBlockFrameExistAndUnended();
+  BindingBlockFrame block_frame = CheckBindingBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   block_builder->EmitNormalized(binding);
   block_frame->emitted_vars.push_back(binding->var);

@@ -135,13 +135,13 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
             Z = T.match_buffer(z, (M, N), "float32")
             Y = T.alloc_buffer((M, N), "float32")
             for i, j, k in T.grid(M, N, K):
-                with T.block("Y"):
+                with T.sblock("Y"):
                     v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
                     with T.init():
                         Y[v_i, v_j] = T.float32(0.0)
                     Y[v_i, v_j] = Y[v_i, v_j] + X[v_i, v_k] * W[v_k, v_j]
             for i, j in T.grid(M, N):
-                with T.block("Z"):
+                with T.sblock("Z"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     Z[v_i, v_j] = Y[v_i, v_j] + B[v_j]
 
@@ -151,7 +151,7 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
             X = T.match_buffer(x, (M, N), "float32")
             Y = T.match_buffer(y, (M, N), "float32")
             for i, j in T.grid(M, N):
-                with T.block("Y"):
+                with T.sblock("Y"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
                     Y[v_i, v_j] = T.max(X[v_i, v_j], T.float32(0.0))
 

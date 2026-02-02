@@ -42,7 +42,7 @@ def mma_schedule(
     ir_module = tvm.IRModule({"main": workload})
     sch = tvm.tir.Schedule(ir_module)
 
-    block = sch.get_block("C")
+    block = sch.get_sblock("C")
     i, j, k = sch.get_loops(block)
     i, i_tc = sch.split(i, factors=[None, 16])
     j, j_tc = sch.split(j, factors=[None, 16])
@@ -101,7 +101,7 @@ def mma_schedule(
     sch.reorder(io, jo, ii, ji)
 
     sch.decompose_reduction(block_outer, sch.get_loops(block_outer)[3])
-    block_init_c = sch.get_block("C_init")
+    block_init_c = sch.get_sblock("C_init")
 
     def tile_wmma_fragment(block_read, height, width):
         i, j = sch.get_loops(block_read)[-2:]
@@ -158,7 +158,7 @@ def mfma_schedule(
     wmma_n = 16
     wmma_k = k_inner
     warp_size = 64
-    block = sch.get_block("C")
+    block = sch.get_sblock("C")
     i, j, k = sch.get_loops(block)
     i, i_tc = sch.split(i, factors=[None, wmma_m])
     j, j_tc = sch.split(j, factors=[None, wmma_n])
@@ -212,7 +212,7 @@ def mfma_schedule(
     sch.reorder(io, jo, ii, ji)
 
     sch.decompose_reduction(block_outer, sch.get_loops(block_outer)[3])
-    block_init_c = sch.get_block("C_init")
+    block_init_c = sch.get_sblock("C_init")
 
     def tile_wmma_fragment(block_read, height, width):
         i, j = sch.get_loops(block_read)[-2:]

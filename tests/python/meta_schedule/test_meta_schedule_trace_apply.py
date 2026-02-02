@@ -38,13 +38,13 @@ class Dense:
         # function attr dict
         T.func_attr({"layout_free_buffers": [1], "tir.noalias": True, "global_symbol": "main"})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         for i0, i1, i2 in T.grid(128, 128, 128):
-            with T.block("T_matmul_NT"):
+            with T.sblock("T_matmul_NT"):
                 i, j, k = T.axis.remap("SSR", [i0, i1, i2])
                 T.reads(p0[i, k], p1[j, k])
                 T.writes(T_matmul_NT[i, j])
-                T.block_attr({"layout_free_placeholders": []})
+                T.sblock_attr({"layout_free_placeholders": []})
                 with T.init():
                     T_matmul_NT[i, j] = T.float32(0)
                 T_matmul_NT[i, j] = T_matmul_NT[i, j] + p0[i, k] * p1[j, k]
@@ -61,25 +61,25 @@ class DenseAdd:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         T_matmul_NT = T.alloc_buffer([128, 128], dtype="float32")
         compile_engine_const = T.alloc_buffer([], dtype="float32")
         for i0, i1, i2 in T.grid(128, 128, 128):
-            with T.block("T_matmul_NT"):
+            with T.sblock("T_matmul_NT"):
                 i, j, k = T.axis.remap("SSR", [i0, i1, i2])
                 T.reads(p0[i, k], p1[j, k])
                 T.writes(T_matmul_NT[i, j])
-                T.block_attr({"layout_free_placeholders": []})
+                T.sblock_attr({"layout_free_placeholders": []})
                 with T.init():
                     T_matmul_NT[i, j] = T.float32(0)
                 T_matmul_NT[i, j] = T_matmul_NT[i, j] + p0[i, k] * p1[j, k]
-        with T.block("compile_engine_const"):
+        with T.sblock("compile_engine_const"):
             vi = T.axis.spatial(1, 0)
             T.reads()
             T.writes(compile_engine_const[()])
             compile_engine_const[()] = T.float32(1)
         for i0, i1 in T.grid(128, 128):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 ax0, ax1 = T.axis.remap("SS", [i0, i1])
                 T.reads(T_matmul_NT[ax0, ax1], compile_engine_const[()])
                 T.writes(T_add[ax0, ax1])
@@ -97,21 +97,21 @@ class DenseAdd_scheduled_cpu:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         T_matmul_NT_global = T.alloc_buffer([128, 128], dtype="float32")
         p1_global = T.alloc_buffer([2, 128, 64], dtype="float32")
         for ax0, ax1 in T.grid(128, 128):
-            with T.block("p1_global"):
+            with T.sblock("p1_global"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(p1[v0, v1])
                 T.writes(p1_global[v0 // 64, v1, v0 % 64])
-                T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                 p1_global[v0 // 64, v1, v0 % 64] = p1[v0, v1]
         for i0_0_i1_0_fused_fused in T.parallel(4):
             for i0_1, i1_1 in T.grid(8, 1):
                 for i0_2_init, i1_2_init, i0_3_init in T.grid(4, 1, 2):
                     for i1_3_fused_init in T.vectorized(64):
-                        with T.block("T_matmul_NT_init"):
+                        with T.sblock("T_matmul_NT_init"):
                             i = T.axis.spatial(
                                 128,
                                 i0_0_i1_0_fused_fused // 2 * 64
@@ -128,7 +128,7 @@ class DenseAdd_scheduled_cpu:
                             )
                             T.reads()
                             T.writes(T_matmul_NT_global[i, j])
-                            T.block_attr(
+                            T.sblock_attr(
                                 {
                                     "layout_free_placeholders": [],
                                     "meta_schedule.tiling_structure": "SSRSRS",
@@ -137,7 +137,7 @@ class DenseAdd_scheduled_cpu:
                             T_matmul_NT_global[i, j] = T.float32(0)
                 for i2_0, i0_2, i1_2, i2_1, i0_3 in T.grid(128, 4, 1, 1, 2):
                     for i1_3_fused in T.vectorized(64):
-                        with T.block("T_matmul_NT_update"):
+                        with T.sblock("T_matmul_NT_update"):
                             i = T.axis.spatial(
                                 128, i0_0_i1_0_fused_fused // 2 * 64 + i0_1 * 8 + i0_2 * 2 + i0_3
                             )
@@ -150,7 +150,7 @@ class DenseAdd_scheduled_cpu:
                                 T_matmul_NT_global[i, j], p0[i, k], p1_global[j // 64, k, j % 64]
                             )
                             T.writes(T_matmul_NT_global[i, j])
-                            T.block_attr(
+                            T.sblock_attr(
                                 {
                                     "layout_free_placeholders": [],
                                     "meta_schedule.tiling_structure": "SSRSRS",
@@ -161,7 +161,7 @@ class DenseAdd_scheduled_cpu:
                             )
             for ax0 in T.serial(64):
                 for ax1_fused in T.vectorized(64):
-                    with T.block("T_matmul_NT_global"):
+                    with T.sblock("T_matmul_NT_global"):
                         v0 = T.axis.spatial(128, i0_0_i1_0_fused_fused // 2 * 64 + ax0)
                         v1 = T.axis.spatial(128, i0_0_i1_0_fused_fused % 2 * 64 + ax1_fused)
                         T.reads(T_matmul_NT_global[v0, v1])
@@ -176,38 +176,38 @@ class DenseAdd_cpu_no_write_cache:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         T_matmul_NT = T.alloc_buffer([128, 128], dtype="float32")
         p1_global = T.alloc_buffer([8, 4, 16, 32], dtype="float32")
         for ax0, ax1 in T.grid(128, 128):
-            with T.block("p1_global"):
+            with T.sblock("p1_global"):
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(p1[v0, v1])
                 T.writes(p1_global[v1 // 16, v0 // 32, v1 % 16, v0 % 32])
-                T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
+                T.sblock_attr({"meta_schedule.layout_rewrite_preproc": True})
                 p1_global[v1 // 16, v0 // 32, v1 % 16, v0 % 32] = p1[v0, v1]
         for i0_0_i1_0_i0_1_i1_1_fused in T.parallel(16, annotations={"pragma_auto_unroll_max_step":16, "pragma_unroll_explicit":1}):
             for i0_2_init, i1_2_init, i0_3_init in T.grid(4, 4, 2):
                 for i1_3_fused_init in T.vectorized(32):
-                    with T.block("T_matmul_NT_init"):
+                    with T.sblock("T_matmul_NT_init"):
                         i = T.axis.spatial(128, i0_0_i1_0_i0_1_i1_1_fused * 8 + i0_2_init * 2 + i0_3_init)
                         j = T.axis.spatial(128, i1_2_init * 32 + i1_3_fused_init)
                         T.reads()
                         T.writes(T_matmul_NT[i, j])
-                        T.block_attr({"layout_free_placeholders":[], "meta_schedule.tiling_structure":"SSRSRS"})
+                        T.sblock_attr({"layout_free_placeholders":[], "meta_schedule.tiling_structure":"SSRSRS"})
                         T_matmul_NT[i, j] = T.float32(0)
             for i2_0, i0_2, i1_2, i2_1, i0_3 in T.grid(8, 4, 4, 16, 2):
                 for i1_3_fused in T.vectorized(32):
-                    with T.block("T_matmul_NT_update"):
+                    with T.sblock("T_matmul_NT_update"):
                         i = T.axis.spatial(128, i0_0_i1_0_i0_1_i1_1_fused * 8 + i0_2 * 2 + i0_3)
                         j = T.axis.spatial(128, i1_2 * 32 + i1_3_fused)
                         k = T.axis.reduce(128, i2_0 * 16 + i2_1)
                         T.reads(T_matmul_NT[i, j], p0[i, k], p1_global[k // 16, j // 32, k % 16, j % 32])
                         T.writes(T_matmul_NT[i, j])
-                        T.block_attr({"layout_free_placeholders":[], "meta_schedule.tiling_structure":"SSRSRS"})
+                        T.sblock_attr({"layout_free_placeholders":[], "meta_schedule.tiling_structure":"SSRSRS"})
                         T_matmul_NT[i, j] = T_matmul_NT[i, j] + p0[i, k] * p1_global[k // 16, j // 32, k % 16, j % 32]
         for i0_i1_fused in T.parallel(16384):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 ax0 = T.axis.spatial(128, i0_i1_fused // 128)
                 ax1 = T.axis.spatial(128, i0_i1_fused % 128)
                 T.reads(T_matmul_NT[ax0, ax1])
@@ -226,7 +226,7 @@ class DenseAdd_scheduled_gpu:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         T_matmul_NT_local = T.alloc_buffer([128, 128], dtype="float32", scope="local")
         p0_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
         p1_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
@@ -238,7 +238,7 @@ class DenseAdd_scheduled_gpu:
             for i0_1_i1_1_fused in T.thread_binding(1, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(128, thread="threadIdx.x"):
                     for i0_3_init, i1_3_init, i0_4_init, i1_4_init in T.grid(1, 4, 1, 1):
-                        with T.block("T_matmul_NT_init"):
+                        with T.sblock("T_matmul_NT_init"):
                             i = T.axis.spatial(
                                 128,
                                 i0_0_i1_0_fused // 4 * 16
@@ -255,7 +255,7 @@ class DenseAdd_scheduled_gpu:
                             )
                             T.reads()
                             T.writes(T_matmul_NT_local[i, j])
-                            T.block_attr(
+                            T.sblock_attr(
                                 {
                                     "layout_free_placeholders": [],
                                     "meta_schedule.thread_extent_high_inclusive": 256,
@@ -268,7 +268,7 @@ class DenseAdd_scheduled_gpu:
                         for ax0_ax1_fused_0 in T.serial(1):
                             for ax0_ax1_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
                                 for ax0_ax1_fused_2 in T.vectorized(2):
-                                    with T.block("p0_shared"):
+                                    with T.sblock("p0_shared"):
                                         T.where(
                                             (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1) * 2
                                             + ax0_ax1_fused_2
@@ -300,7 +300,7 @@ class DenseAdd_scheduled_gpu:
                         for ax0_ax1_fused_0 in T.serial(1):
                             for ax0_ax1_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
                                 for ax0_ax1_fused_2 in T.vectorized(4):
-                                    with T.block("p1_shared"):
+                                    with T.sblock("p1_shared"):
                                         T.where(
                                             (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1) * 4
                                             + ax0_ax1_fused_2
@@ -330,7 +330,7 @@ class DenseAdd_scheduled_gpu:
                                         T.writes(p1_shared[v0, v1])
                                         p1_shared[v0, v1] = p1[v0, v1]
                         for i2_1, i0_3, i1_3, i2_2, i0_4, i1_4 in T.grid(1, 1, 4, 4, 1, 1):
-                            with T.block("T_matmul_NT_update"):
+                            with T.sblock("T_matmul_NT_update"):
                                 i = T.axis.spatial(
                                     128,
                                     i0_0_i1_0_fused // 4 * 16 + i0_2_i1_2_fused // 8 + i0_3 + i0_4,
@@ -345,7 +345,7 @@ class DenseAdd_scheduled_gpu:
                                 k = T.axis.reduce(128, i2_0 * 4 + i2_1 * 4 + i2_2)
                                 T.reads(T_matmul_NT_local[i, j], p0_shared[i, k], p1_shared[j, k])
                                 T.writes(T_matmul_NT_local[i, j])
-                                T.block_attr(
+                                T.sblock_attr(
                                     {
                                         "layout_free_placeholders": [],
                                         "meta_schedule.thread_extent_high_inclusive": 256,
@@ -357,7 +357,7 @@ class DenseAdd_scheduled_gpu:
                                     T_matmul_NT_local[i, j] + p0_shared[i, k] * p1_shared[j, k]
                                 )
                     for ax0, ax1 in T.grid(1, 4):
-                        with T.block("T_matmul_NT_local"):
+                        with T.sblock("T_matmul_NT_local"):
                             v0 = T.axis.spatial(
                                 128, i0_0_i1_0_fused // 4 * 16 + i0_2_i1_2_fused // 8 + ax0
                             )
@@ -376,7 +376,7 @@ class Conv2dInt8:
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         pad_temp = T.alloc_buffer([16, 56, 56, 64], dtype="int8")
         conv2d_nhwc = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
         T_subtract = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
@@ -392,13 +392,13 @@ class Conv2dInt8:
         T_cast_3 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
         T_subtract_1 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 64):
-            with T.block("pad_temp"):
+            with T.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(p0[i0_1, i1_1, i2_1, i3_1])
                 T.writes(pad_temp[i0_1, i1_1, i2_1, i3_1])
                 pad_temp[i0_1, i1_1, i2_1, i3_1] = p0[i0_1, i1_1, i2_1, i3_1]
         for i0, i1, i2, i3, i4, i5, i6 in T.grid(16, 56, 56, 256, 1, 1, 64):
-            with T.block("conv2d_nhwc"):
+            with T.sblock("conv2d_nhwc"):
                 nn, yy, xx, ff, ry, rx, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
                 T.reads(pad_temp[nn, yy + ry, xx + rx, rc], p1[ff, ry, rx, rc])
                 T.writes(conv2d_nhwc[nn, yy, xx, ff])
@@ -406,79 +406,79 @@ class Conv2dInt8:
                     conv2d_nhwc[nn, yy, xx, ff] = 0
                 conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_subtract"):
+            with T.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(conv2d_nhwc[ax0, ax1, ax2, ax3], p2[0, 0, 0, ax3])
                 T.writes(T_subtract[ax0, ax1, ax2, ax3])
                 T_subtract[ax0, ax1, ax2, ax3] = conv2d_nhwc[ax0, ax1, ax2, ax3] - p2[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_subtract[ax0, ax1, ax2, ax3], p3[0, 0, 0, ax3])
                 T.writes(T_add[ax0, ax1, ax2, ax3])
                 T_add[ax0, ax1, ax2, ax3] = T_subtract[ax0, ax1, ax2, ax3] + p3[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_cast"):
+            with T.sblock("T_cast"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_add[ax0, ax1, ax2, ax3])
                 T.writes(T_cast[ax0, ax1, ax2, ax3])
                 T_cast[ax0, ax1, ax2, ax3] = T.cast(T_add[ax0, ax1, ax2, ax3], "int64")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_multiply"):
+            with T.sblock("T_multiply"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_cast[ax0, ax1, ax2, ax3], p4[0, 0, 0, ax3])
                 T.writes(T_multiply[ax0, ax1, ax2, ax3])
                 T_multiply[ax0, ax1, ax2, ax3] = T_cast[ax0, ax1, ax2, ax3] * p4[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_add_1"):
+            with T.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_multiply[ax0, ax1, ax2, ax3], p5[0, 0, 0, ax3])
                 T.writes(T_add_1[ax0, ax1, ax2, ax3])
                 T_add_1[ax0, ax1, ax2, ax3] = T_multiply[ax0, ax1, ax2, ax3] + p5[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_right_shift"):
+            with T.sblock("T_right_shift"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_add_1[ax0, ax1, ax2, ax3], p6[0, 0, 0, ax3])
                 T.writes(T_right_shift[ax0, ax1, ax2, ax3])
                 T_right_shift[ax0, ax1, ax2, ax3] = T.shift_right(T_add_1[ax0, ax1, ax2, ax3], p6[0, 0, 0, ax3], dtype="int64")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_cast_1"):
+            with T.sblock("T_cast_1"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_right_shift[ax0, ax1, ax2, ax3])
                 T.writes(T_cast_1[ax0, ax1, ax2, ax3])
                 T_cast_1[ax0, ax1, ax2, ax3] = T.cast(T_right_shift[ax0, ax1, ax2, ax3], "int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_add_2"):
+            with T.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(p7[()], T_cast_1[ax0, ax1, ax2, ax3])
                 T.writes(T_add_2[ax0, ax1, ax2, ax3])
                 T_add_2[ax0, ax1, ax2, ax3] = p7[()] + T_cast_1[ax0, ax1, ax2, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 i0_2, i1_2, i2_2, i3_2 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_add_2[i0_2, i1_2, i2_2, i3_2])
                 T.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
                 compute_1[i0_2, i1_2, i2_2, i3_2] = T.max(T.min(T_add_2[i0_2, i1_2, i2_2, i3_2], 255), 0)
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
-            with T.block("T_cast_2"):
+            with T.sblock("T_cast_2"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
                 T.reads(compute_1[ax0, ax1, ax2, ax3])
                 T.writes(T_cast_2[ax0, ax1, ax2, ax3])
                 T_cast_2[ax0, ax1, ax2, ax3] = T.cast(compute_1[ax0, ax1, ax2, ax3], "uint8")
         for i0_4, i1_4, i2_4, i3_4 in T.grid(16, 56, 56, 256):
-            with T.block("T_cast_3"):
+            with T.sblock("T_cast_3"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_4, i1_4, i2_4, i3_4])
                 T.reads(T_cast_2[ax0, ax1, ax2, ax3])
                 T.writes(T_cast_3[ax0, ax1, ax2, ax3])
                 T_cast_3[ax0, ax1, ax2, ax3] = T.cast(T_cast_2[ax0, ax1, ax2, ax3], "int32")
         for i0_5, i1_5, i2_5, i3_5 in T.grid(16, 56, 56, 256):
-            with T.block("T_subtract_1"):
+            with T.sblock("T_subtract_1"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_5, i1_5, i2_5, i3_5])
                 T.reads(T_cast_3[ax0, ax1, ax2, ax3], p8[0])
                 T.writes(T_subtract_1[ax0, ax1, ax2, ax3])
                 T_subtract_1[ax0, ax1, ax2, ax3] = T_cast_3[ax0, ax1, ax2, ax3] - p8[0]
         for i0_6, i1_6, i2_6, i3_6 in T.grid(16, 56, 56, 256):
-            with T.block("compute_1"):
+            with T.sblock("compute_1"):
                 i0_7, i1_7, i2_7, i3_7 = T.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
                 T.reads(T_subtract_1[i0_7, i1_7, i2_7, i3_7])
                 T.writes(compute[i0_7, i1_7, i2_7, i3_7])
@@ -492,7 +492,7 @@ class Conv2dInt8_target:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         pad_temp = T.alloc_buffer([16, 56, 56, 64], dtype="int8")
         conv2d_nhwc = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
         T_subtract = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
@@ -512,13 +512,13 @@ class Conv2dInt8_target:
         compute_3 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
         T_cast_4 = T.alloc_buffer([16, 56, 56, 256], dtype="uint8")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 64):
-            with T.block("pad_temp"):
+            with T.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(p0[i0_1, i1_1, i2_1, i3_1])
                 T.writes(pad_temp[i0_1, i1_1, i2_1, i3_1])
                 pad_temp[i0_1, i1_1, i2_1, i3_1] = p0[i0_1, i1_1, i2_1, i3_1]
         for i0, i1, i2, i3, i4, i5, i6 in T.grid(16, 56, 56, 256, 1, 1, 64):
-            with T.block("conv2d_nhwc"):
+            with T.sblock("conv2d_nhwc"):
                 nn, yy, xx, ff, ry, rx, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
                 T.reads(pad_temp[nn, yy + ry, xx + rx, rc], p1[ff, ry, rx, rc])
                 T.writes(conv2d_nhwc[nn, yy, xx, ff])
@@ -526,103 +526,103 @@ class Conv2dInt8_target:
                     conv2d_nhwc[nn, yy, xx, ff] = 0
                 conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_subtract"):
+            with T.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(conv2d_nhwc[ax0, ax1, ax2, ax3], p2[0, 0, 0, ax3])
                 T.writes(T_subtract[ax0, ax1, ax2, ax3])
                 T_subtract[ax0, ax1, ax2, ax3] = conv2d_nhwc[ax0, ax1, ax2, ax3] - p2[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_subtract[ax0, ax1, ax2, ax3], p3[0, 0, 0, ax3])
                 T.writes(T_add[ax0, ax1, ax2, ax3])
                 T_add[ax0, ax1, ax2, ax3] = T_subtract[ax0, ax1, ax2, ax3] + p3[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_cast"):
+            with T.sblock("T_cast"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_add[ax0, ax1, ax2, ax3])
                 T.writes(T_cast[ax0, ax1, ax2, ax3])
                 T_cast[ax0, ax1, ax2, ax3] = T.cast(T_add[ax0, ax1, ax2, ax3], "int64")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_multiply"):
+            with T.sblock("T_multiply"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_cast[ax0, ax1, ax2, ax3], p4[0, 0, 0, ax3])
                 T.writes(T_multiply[ax0, ax1, ax2, ax3])
                 T_multiply[ax0, ax1, ax2, ax3] = T_cast[ax0, ax1, ax2, ax3] * p4[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_add_1"):
+            with T.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_multiply[ax0, ax1, ax2, ax3], p5[0, 0, 0, ax3])
                 T.writes(T_add_1[ax0, ax1, ax2, ax3])
                 T_add_1[ax0, ax1, ax2, ax3] = T_multiply[ax0, ax1, ax2, ax3] + p5[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_right_shift"):
+            with T.sblock("T_right_shift"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_add_1[ax0, ax1, ax2, ax3], p6[0, 0, 0, ax3])
                 T.writes(T_right_shift[ax0, ax1, ax2, ax3])
                 T_right_shift[ax0, ax1, ax2, ax3] = T.shift_right(T_add_1[ax0, ax1, ax2, ax3], p6[0, 0, 0, ax3], dtype="int64")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_cast_1"):
+            with T.sblock("T_cast_1"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_right_shift[ax0, ax1, ax2, ax3])
                 T.writes(T_cast_1[ax0, ax1, ax2, ax3])
                 T_cast_1[ax0, ax1, ax2, ax3] = T.cast(T_right_shift[ax0, ax1, ax2, ax3], "int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_add_2"):
+            with T.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(p7[()], T_cast_1[ax0, ax1, ax2, ax3])
                 T.writes(T_add_2[ax0, ax1, ax2, ax3])
                 T_add_2[ax0, ax1, ax2, ax3] = p7[()] + T_cast_1[ax0, ax1, ax2, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 i0_2, i1_2, i2_2, i3_2 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_add_2[i0_2, i1_2, i2_2, i3_2])
                 T.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
                 compute_1[i0_2, i1_2, i2_2, i3_2] = T.max(T.min(T_add_2[i0_2, i1_2, i2_2, i3_2], 255), 0)
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
-            with T.block("T_cast_2"):
+            with T.sblock("T_cast_2"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
                 T.reads(compute_1[ax0, ax1, ax2, ax3])
                 T.writes(T_cast_2[ax0, ax1, ax2, ax3])
                 T_cast_2[ax0, ax1, ax2, ax3] = T.cast(compute_1[ax0, ax1, ax2, ax3], "uint8")
         for i0_4, i1_4, i2_4, i3_4 in T.grid(16, 56, 56, 256):
-            with T.block("T_cast_3"):
+            with T.sblock("T_cast_3"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_4, i1_4, i2_4, i3_4])
                 T.reads(T_cast_2[ax0, ax1, ax2, ax3])
                 T.writes(T_cast_3[ax0, ax1, ax2, ax3])
                 T_cast_3[ax0, ax1, ax2, ax3] = T.cast(T_cast_2[ax0, ax1, ax2, ax3], "int32")
         for i0_5, i1_5, i2_5, i3_5 in T.grid(16, 56, 56, 256):
-            with T.block("T_subtract_1"):
+            with T.sblock("T_subtract_1"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_5, i1_5, i2_5, i3_5])
                 T.reads(T_cast_3[ax0, ax1, ax2, ax3], p8[0])
                 T.writes(T_subtract_1[ax0, ax1, ax2, ax3])
                 T_subtract_1[ax0, ax1, ax2, ax3] = T_cast_3[ax0, ax1, ax2, ax3] - p8[0]
         for i0_6, i1_6, i2_6, i3_6 in T.grid(16, 56, 56, 256):
-            with T.block("compute_1"):
+            with T.sblock("compute_1"):
                 i0_7, i1_7, i2_7, i3_7 = T.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
                 T.reads(T_subtract_1[i0_7, i1_7, i2_7, i3_7])
                 T.writes(compute_2[i0_7, i1_7, i2_7, i3_7])
                 compute_2[i0_7, i1_7, i2_7, i3_7] = T.q_multiply_shift(T_subtract_1[i0_7, i1_7, i2_7, i3_7], 1098990753, 31, 1, dtype="int32")
         for i0_8, i1_8, i2_8, i3_8 in T.grid(16, 56, 56, 256):
-            with T.block("T_add_3"):
+            with T.sblock("T_add_3"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_8, i1_8, i2_8, i3_8])
                 T.reads(compute_2[ax0, ax1, ax2, ax3], p9[ax0, ax1, ax2, ax3])
                 T.writes(T_add_3[ax0, ax1, ax2, ax3])
                 T_add_3[ax0, ax1, ax2, ax3] = compute_2[ax0, ax1, ax2, ax3] + p9[ax0, ax1, ax2, ax3]
         for i0_9, i1_9, i2_9, i3_9 in T.grid(16, 56, 56, 256):
-            with T.block("compute_2"):
+            with T.sblock("compute_2"):
                 i0_10, i1_10, i2_10, i3_10 = T.axis.remap("SSSS", [i0_9, i1_9, i2_9, i3_9])
                 T.reads(T_add_3[i0_10, i1_10, i2_10, i3_10])
                 T.writes(compute_3[i0_10, i1_10, i2_10, i3_10])
                 compute_3[i0_10, i1_10, i2_10, i3_10] = T.max(T.min(T_add_3[i0_10, i1_10, i2_10, i3_10], 255), 0)
         for i0_11, i1_11, i2_11, i3_11 in T.grid(16, 56, 56, 256):
-            with T.block("T_cast_4"):
+            with T.sblock("T_cast_4"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_11, i1_11, i2_11, i3_11])
                 T.reads(compute_3[ax0, ax1, ax2, ax3])
                 T.writes(T_cast_4[ax0, ax1, ax2, ax3])
                 T_cast_4[ax0, ax1, ax2, ax3] = T.cast(compute_3[ax0, ax1, ax2, ax3], "uint8")
         for i0_12, i1_12, i2_12, i3_12 in T.grid(16, 56, 56, 256):
-            with T.block("compute_3"):
+            with T.sblock("compute_3"):
                 i0_13, i1_13, i2_13, i3_13 = T.axis.remap("SSSS", [i0_12, i1_12, i2_12, i3_12])
                 T.reads(T_cast_4[i0_13, i1_13, i2_13, i3_13])
                 T.writes(compute[i0_13, i1_13, i2_13, i3_13])
@@ -634,7 +634,7 @@ class Conv2dInt8_tensorcore_scheduled:
     @T.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((1, 1, 1, 256), "int64"), p5: T.Buffer((1, 1, 1, 256), "int64"), p6: T.Buffer((1, 1, 1, 256), "int64"), p7: T.Buffer((), "int32"), p8: T.Buffer((1,), "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "uint8")):
         T.func_attr({"tir.noalias": True})
-        # with T.block("root"):
+        # with T.sblock("root"):
         conv2d_nhwc_reindex_shared = T.alloc_buffer((50176, 256), "int32", scope="shared")
         conv2d_nhwc_reindex_shared_wmma_accumulator = T.alloc_buffer((50176, 256), "int32", scope="wmma.accumulator")
         pad_temp_reindex_shared = T.alloc_buffer((50176, 64), "int8", scope="shared")
@@ -645,42 +645,42 @@ class Conv2dInt8_tensorcore_scheduled:
             for ax2_0_1_ax3_0_1_fused in T.thread_binding(1, thread="vthread.x"):
                 for ax2_0_2_ax3_0_2_fused in T.thread_binding(16, thread="threadIdx.x"):
                     for ax0_0_init, ax1_0_init, ax0_1_init, ax1_1_init, ax2_0_3_init, ax3_0_3_init, ax0_2_init, ax1_2_init, ax2_0_4_init, ax3_0_4_init in T.grid(1, 1, 1, 1, 1, 1, 1, 1, 1, 1):
-                        with T.block("conv2d_nhwc_o_init"):
+                        with T.sblock("conv2d_nhwc_o_init"):
                             v0_o = T.axis.spatial(1, ax0_0_init + ax0_1_init + ax0_2_init)
                             v1_o = T.axis.spatial(1, ax1_0_init + ax1_1_init + ax1_2_init)
                             v2_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 8 * 8 + ax2_0_2_ax3_0_2_fused // 2 + ax2_0_3_init + ax2_0_4_init)
                             v3_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 8 * 2 + ax2_0_2_ax3_0_2_fused % 2 + ax3_0_3_init + ax3_0_4_init)
                             T.reads()
                             T.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16:v2_o * 16 + 16, v3_o * 16:v3_o * 16 + 16])
-                            T.block_attr({"meta_schedule.thread_extent_high_inclusive": 1024, "meta_schedule.thread_extent_low_inclusive": 32, "warp_execution": 1})
+                            T.sblock_attr({"meta_schedule.thread_extent_high_inclusive": 1024, "meta_schedule.thread_extent_low_inclusive": 32, "warp_execution": 1})
                             C = T.match_buffer(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16:v2_o * 16 + 16, v3_o * 16:v3_o * 16 + 16], (16, 16), "int32", strides=("C_s0", "C_s1"), scope="wmma.accumulator", offset_factor=16)
                             T.tvm_fill_fragment(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.float32(0))
                     for ax0_0, ax1_0, ax4_0_0 in T.grid(1, 1, 2):
                         for ax0_ax1_fused_0 in range(16):
                             for ax0_ax1_fused_1 in T.thread_binding(16, thread="threadIdx.x"):
                                 for ax0_ax1_fused_2 in T.vectorized(16):
-                                    with T.block("pad_temp_reindex_shared"):
+                                    with T.sblock("pad_temp_reindex_shared"):
                                         v0 = T.axis.spatial(50176, ax2_0_0_ax3_0_0_fused // 8 * 128 + (ax0_ax1_fused_0 * 256 + ax0_ax1_fused_1 * 16 + ax0_ax1_fused_2) // 32)
                                         v1 = T.axis.spatial(64, ax4_0_0 * 32 + (ax0_ax1_fused_0 * 256 + ax0_ax1_fused_1 * 16 + ax0_ax1_fused_2) % 32)
                                         T.reads(p0[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
                                         T.writes(pad_temp_reindex_shared[v0, v1])
-                                        T.block_attr({"buffer_dim_align": [[0, 0, 32, 16]]})
+                                        T.sblock_attr({"buffer_dim_align": [[0, 0, 32, 16]]})
                                         pad_temp_reindex_shared[v0, v1] = p0[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1]
                         for ax0_ax1_ax2_ax3_fused_0 in range(8):
                             for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(16, thread="threadIdx.x"):
                                 for ax0_ax1_ax2_ax3_fused_2 in T.vectorized(8):
-                                    with T.block("p1_reindex_shared"):
+                                    with T.sblock("p1_reindex_shared"):
                                         v0 = T.axis.spatial(1, 0)
                                         v1 = T.axis.spatial(1, 0)
                                         v2 = T.axis.spatial(256, ax2_0_0_ax3_0_0_fused % 8 * 32 + (ax0_ax1_ax2_ax3_fused_0 * 128 + ax0_ax1_ax2_ax3_fused_1 * 8 + ax0_ax1_ax2_ax3_fused_2) // 32)
                                         v3 = T.axis.spatial(64, ax4_0_0 * 32 + (ax0_ax1_ax2_ax3_fused_0 * 128 + ax0_ax1_ax2_ax3_fused_1 * 8 + ax0_ax1_ax2_ax3_fused_2) % 32)
                                         T.reads(p1[v2, v0, v1, v3])
                                         T.writes(p1_reindex_shared[v0, v1, v2, v3])
-                                        T.block_attr({"buffer_dim_align": [[0, 2, 32, 16]]})
+                                        T.sblock_attr({"buffer_dim_align": [[0, 2, 32, 16]]})
                                         p1_reindex_shared[v0, v1, v2, v3] = p1[v2, v0, v1, v3]
                         for ax0_1, ax1_1, ax4_0_1 in T.grid(1, 1, 1):
                             for ax0_0_1, ax1_0_1 in T.grid(1, 2):
-                                with T.block("pad_temp_reindex_shared_wmma.matrix_a_o"):
+                                with T.sblock("pad_temp_reindex_shared_wmma.matrix_a_o"):
                                     v0_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 8 * 8 + ax2_0_2_ax3_0_2_fused // 2 + ax0_0_1)
                                     v1_o = T.axis.spatial(4, ax4_0_0 * 2 + ax1_0_1)
                                     T.reads(pad_temp_reindex_shared[v0_o * 16:v0_o * 16 + 16, v1_o * 16:v1_o * 16 + 16])
@@ -689,7 +689,7 @@ class Conv2dInt8_tensorcore_scheduled:
                                     C = T.match_buffer(pad_temp_reindex_shared_wmma_matrix_a[v0_o * 16:v0_o * 16 + 16, v1_o * 16:v1_o * 16 + 16], (16, 16), "int8", strides=("C_s0", "C_s1"), scope="wmma.matrix_a", offset_factor=16)
                                     T.tvm_load_matrix_sync(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.tvm_access_ptr(T.type_annotation("int8"), A.data, A.elem_offset, A.strides[0] * 16, 1), A.strides[0], "row_major")
                             for ax0, ax1, ax2_0, ax3_0 in T.grid(1, 1, 1, 2):
-                                with T.block("p1_reindex_shared_wmma.matrix_b_o"):
+                                with T.sblock("p1_reindex_shared_wmma.matrix_b_o"):
                                     v0_o, v1_o = T.axis.remap("SS", [ax0, ax1])
                                     v2_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 8 * 2 + ax2_0_2_ax3_0_2_fused % 2 + ax2_0)
                                     v3_o = T.axis.spatial(4, ax4_0_0 * 2 + ax3_0)
@@ -699,7 +699,7 @@ class Conv2dInt8_tensorcore_scheduled:
                                     C = T.match_buffer(p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v2_o * 16:v2_o * 16 + 16, v3_o * 16:v3_o * 16 + 16], (16, 16), "int8", strides=("C_s0", "C_s1"), scope="wmma.matrix_b", offset_factor=16)
                                     T.tvm_load_matrix_sync(C.data, 16, 16, 16, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, T.tvm_access_ptr(T.type_annotation("int8"), A.data, A.elem_offset, A.strides[0] * 16, 1), A.strides[0], "col_major")
                             for ax2_0_3, ax3_0_3, ax0_2, ax1_2, ax4_0_2, ax2_0_4, ax3_0_4 in T.grid(1, 1, 1, 1, 2, 1, 1):
-                                with T.block("conv2d_nhwc_o_update"):
+                                with T.sblock("conv2d_nhwc_o_update"):
                                     v0_o = T.axis.spatial(1, ax0_0 + ax0_1 + ax0_2)
                                     v1_o = T.axis.spatial(1, ax1_0 + ax1_1 + ax1_2)
                                     v2_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 8 * 8 + ax2_0_2_ax3_0_2_fused // 2 + ax2_0_3 + ax2_0_4)
@@ -707,13 +707,13 @@ class Conv2dInt8_tensorcore_scheduled:
                                     v4_o = T.axis.reduce(4, ax4_0_0 * 2 + ax4_0_1 * 2 + ax4_0_2)
                                     T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16:v2_o * 16 + 16, v3_o * 16:v3_o * 16 + 16], pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16:v2_o * 16 + 16, v4_o * 16:v4_o * 16 + 16], p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v3_o * 16:v3_o * 16 + 16, v4_o * 16:v4_o * 16 + 16])
                                     T.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16:v2_o * 16 + 16, v3_o * 16:v3_o * 16 + 16])
-                                    T.block_attr({"meta_schedule.thread_extent_high_inclusive": 1024, "meta_schedule.thread_extent_low_inclusive": 32, "warp_execution": 1})
+                                    T.sblock_attr({"meta_schedule.thread_extent_high_inclusive": 1024, "meta_schedule.thread_extent_low_inclusive": 32, "warp_execution": 1})
                                     A = T.match_buffer(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16:v2_o * 16 + 16, v4_o * 16:v4_o * 16 + 16], (16, 16), "int8", strides=("A_s0", "A_s1"), scope="wmma.matrix_a", offset_factor=16)
                                     B = T.match_buffer(p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v3_o * 16:v3_o * 16 + 16, v4_o * 16:v4_o * 16 + 16], (16, 16), "int8", strides=("B_s0", "B_s1"), scope="wmma.matrix_b", offset_factor=16)
                                     C = T.match_buffer(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16:v2_o * 16 + 16, v3_o * 16:v3_o * 16 + 16], (16, 16), "int32", strides=("C_s0", "C_s1"), scope="wmma.accumulator", offset_factor=16)
                                     T.tvm_mma_sync(C.data, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16, A.data, A.elem_offset // A.strides[0] // 16 * (A.strides[0] // 16) + A.elem_offset % A.strides[0] // 16, B.data, B.elem_offset // B.strides[0] // 16 * (B.strides[0] // 16) + B.elem_offset % B.strides[0] // 16, C.data, C.elem_offset // C.strides[0] // 16 * (C.strides[0] // 16) + C.elem_offset % C.strides[0] // 16)
                     for ax0_0, ax1_0 in T.grid(1, 1):
-                        with T.block("conv2d_nhwc_reindex_shared_wmma.accumulator_o"):
+                        with T.sblock("conv2d_nhwc_reindex_shared_wmma.accumulator_o"):
                             v0_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 8 * 8 + ax2_0_2_ax3_0_2_fused // 2 + ax0_0)
                             v1_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 8 * 2 + ax2_0_2_ax3_0_2_fused % 2 + ax1_0)
                             T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v0_o * 16:v0_o * 16 + 16, v1_o * 16:v1_o * 16 + 16])
@@ -723,7 +723,7 @@ class Conv2dInt8_tensorcore_scheduled:
                             T.tvm_store_matrix_sync(A.data, 16, 16, 16, A.elem_offset // A.strides[0] // 16 * (A.strides[0] // 16) + A.elem_offset % A.strides[0] // 16, T.tvm_access_ptr(T.type_annotation("int32"), C.data, C.elem_offset, C.strides[0] * 16, 2), C.strides[0], "row_major")
                 for ax0, ax1_0 in T.grid(128, 2):
                     for ax1_1 in T.thread_binding(16, thread="threadIdx.x"):
-                        with T.block("conv2d_nhwc_reindex_shared"):
+                        with T.sblock("conv2d_nhwc_reindex_shared"):
                             v0 = T.axis.spatial(50176, ax2_0_0_ax3_0_0_fused // 8 * 128 + ax0)
                             v1 = T.axis.spatial(256, ax2_0_0_ax3_0_0_fused % 8 * 32 + ax1_0 * 16 + ax1_1)
                             T.reads(p7[()], conv2d_nhwc_reindex_shared[v0, v1], p2[0, 0, 0, v1], p3[0, 0, 0, v1], p4[0, 0, 0, v1], p5[0, 0, 0, v1], p6[0, 0, 0, v1], p8[0], p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
@@ -737,7 +737,7 @@ class Conv2dInt8_NCHWc:
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         compile_engine_const = T.alloc_buffer([], dtype="float32")
         conv2d_NCHWc_int8 = T.alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
         T_add = T.alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
@@ -759,134 +759,134 @@ class Conv2dInt8_NCHWc:
         T_add_3 = T.alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
         compute_2 = T.alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
         T_cast_5 = T.alloc_buffer([1, 128, 7, 7, 16], dtype="uint8")
-        with T.block("compile_engine_const"):
+        with T.sblock("compile_engine_const"):
             vi = T.axis.spatial(1, 0)
             T.reads()
             T.writes(compile_engine_const[()])
             compile_engine_const[()] = T.float32(0.94537687301635742)
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 128, 7, 7, 16, 1, 1, 32, 4, 4):
-            with T.block("conv2d_NCHWc_int8"):
+            with T.sblock("conv2d_NCHWc_int8"):
                 n, oc_chunk, oh, ow, oc_block, kh, kw, ic_outer, ic_f_inner, ic_s_inner = T.axis.remap("SSSSSRRRRR", [i0, i1, i2, i3, i4, i5, i6, i7, i8, i9])
                 T.reads(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner])
                 T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block])
-                T.block_attr({"schedule_rule":"meta_schedule.conv2d_NCHWc_int8", "workload":["conv2d_NCHWc_int8.x86", ["TENSOR", [1, 32, 7, 7, 16], "uint8"], ["TENSOR", [128, 32, 1, 1, 4, 16, 4], "int8"], [1, 1], [0, 0, 0, 0], [1, 1], "NCHW16c", "NCHW16c", "int32"]})
+                T.sblock_attr({"schedule_rule":"meta_schedule.conv2d_NCHWc_int8", "workload":["conv2d_NCHWc_int8.x86", ["TENSOR", [1, 32, 7, 7, 16], "uint8"], ["TENSOR", [128, 32, 1, 1, 4, 16, 4], "int8"], [1, 1], [0, 0, 0, 0], [1, 1], "NCHW16c", "NCHW16c", "int32"]})
                 with T.init():
                     conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = 0
                 conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] + T.cast(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], "int32") * T.cast(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner], "int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(conv2d_NCHWc_int8[ax0, ax1, ax2, ax3, ax4], p2[ax0, ax1, 0, 0, ax4])
                 T.writes(T_add[ax0, ax1, ax2, ax3, ax4])
                 T_add[ax0, ax1, ax2, ax3, ax4] = conv2d_NCHWc_int8[ax0, ax1, ax2, ax3, ax4] + p2[ax0, ax1, 0, 0, ax4]
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast"):
+            with T.sblock("T_cast"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_add[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast[ax0, ax1, ax2, ax3, ax4])
                 T_cast[ax0, ax1, ax2, ax3, ax4] = T.cast(T_add[ax0, ax1, ax2, ax3, ax4], "float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_multiply"):
+            with T.sblock("T_multiply"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_cast[ax0, ax1, ax2, ax3, ax4], p3[ax0, ax1, 0, 0, ax4])
                 T.writes(T_multiply[ax0, ax1, ax2, ax3, ax4])
                 T_multiply[ax0, ax1, ax2, ax3, ax4] = T_cast[ax0, ax1, ax2, ax3, ax4] * p3[ax0, ax1, 0, 0, ax4]
-        with T.block("compile_engine_const_1"):
+        with T.sblock("compile_engine_const_1"):
             vi = T.axis.spatial(1, 0)
             T.reads()
             T.writes(compile_engine_const_1[()])
             compile_engine_const_1[()] = T.float32(54.5)
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_add_1"):
+            with T.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_multiply[ax0, ax1, ax2, ax3, ax4], compile_engine_const_1[()])
                 T.writes(T_add_1[ax0, ax1, ax2, ax3, ax4])
                 T_add_1[ax0, ax1, ax2, ax3, ax4] = T_multiply[ax0, ax1, ax2, ax3, ax4] + compile_engine_const_1[()]
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_floor"):
+            with T.sblock("T_floor"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_add_1[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_floor[ax0, ax1, ax2, ax3, ax4])
                 T_floor[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_1[ax0, ax1, ax2, ax3, ax4], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_1"):
+            with T.sblock("T_cast_1"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_floor[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_1[ax0, ax1, ax2, ax3, ax4])
                 T_cast_1[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor[ax0, ax1, ax2, ax3, ax4], "int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_cast_1[i0_1, i1_1, i2_1, i3_1, i4_1])
                 T.writes(compute_1[i0_1, i1_1, i2_1, i3_1, i4_1])
                 compute_1[i0_1, i1_1, i2_1, i3_1, i4_1] = T.max(T.min(T_cast_1[i0_1, i1_1, i2_1, i3_1, i4_1], 255), 0)
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_2"):
+            with T.sblock("T_cast_2"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(compute_1[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_2[ax0, ax1, ax2, ax3, ax4])
                 T_cast_2[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_1[ax0, ax1, ax2, ax3, ax4], "uint8")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_3"):
+            with T.sblock("T_cast_3"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_cast_2[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_3[ax0, ax1, ax2, ax3, ax4])
                 T_cast_3[ax0, ax1, ax2, ax3, ax4] = T.cast(T_cast_2[ax0, ax1, ax2, ax3, ax4], "float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_subtract"):
+            with T.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_cast_3[ax0, ax1, ax2, ax3, ax4], p4[0])
                 T.writes(T_subtract[ax0, ax1, ax2, ax3, ax4])
                 T_subtract[ax0, ax1, ax2, ax3, ax4] = T_cast_3[ax0, ax1, ax2, ax3, ax4] - p4[0]
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_multiply_1"):
+            with T.sblock("T_multiply_1"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(compile_engine_const[()], T_subtract[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_multiply_1[ax0, ax1, ax2, ax3, ax4])
                 T_multiply_1[ax0, ax1, ax2, ax3, ax4] = compile_engine_const[()] * T_subtract[ax0, ax1, ax2, ax3, ax4]
-        with T.block("compile_engine_const_2"):
+        with T.sblock("compile_engine_const_2"):
             vi = T.axis.spatial(1, 0)
             T.reads()
             T.writes(compile_engine_const_2[()])
             compile_engine_const_2[()] = T.float32(0.5)
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_add_2"):
+            with T.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_multiply_1[ax0, ax1, ax2, ax3, ax4], compile_engine_const_2[()])
                 T.writes(T_add_2[ax0, ax1, ax2, ax3, ax4])
                 T_add_2[ax0, ax1, ax2, ax3, ax4] = T_multiply_1[ax0, ax1, ax2, ax3, ax4] + compile_engine_const_2[()]
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_floor_1"):
+            with T.sblock("T_floor_1"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_add_2[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_floor_1[ax0, ax1, ax2, ax3, ax4])
                 T_floor_1[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_2[ax0, ax1, ax2, ax3, ax4], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_4"):
+            with T.sblock("T_cast_4"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_floor_1[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_4[ax0, ax1, ax2, ax3, ax4])
                 T_cast_4[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor_1[ax0, ax1, ax2, ax3, ax4], "int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_add_3"):
+            with T.sblock("T_add_3"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_cast_4[ax0, ax1, ax2, ax3, ax4], p5[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_add_3[ax0, ax1, ax2, ax3, ax4])
                 T_add_3[ax0, ax1, ax2, ax3, ax4] = T_cast_4[ax0, ax1, ax2, ax3, ax4] + p5[ax0, ax1, ax2, ax3, ax4]
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("compute_1"):
+            with T.sblock("compute_1"):
                 i0_2, i1_2, i2_2, i3_2, i4_2 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_add_3[i0_2, i1_2, i2_2, i3_2, i4_2])
                 T.writes(compute_2[i0_2, i1_2, i2_2, i3_2, i4_2])
                 compute_2[i0_2, i1_2, i2_2, i3_2, i4_2] = T.max(T.min(T_add_3[i0_2, i1_2, i2_2, i3_2, i4_2], 255), 0)
         for i0_3, i1_3, i2_3, i3_3, i4_3 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_5"):
+            with T.sblock("T_cast_5"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0_3, i1_3, i2_3, i3_3, i4_3])
                 T.reads(compute_2[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_5[ax0, ax1, ax2, ax3, ax4])
                 T_cast_5[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_2[ax0, ax1, ax2, ax3, ax4], "uint8")
         for i0_4, i1_4, i2_4, i3_4, i4_4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("compute_2"):
+            with T.sblock("compute_2"):
                 i0_5, i1_5, i2_5, i3_5, i4_5 = T.axis.remap("SSSSS", [i0_4, i1_4, i2_4, i3_4, i4_4])
                 T.reads(T_cast_5[i0_5, i1_5, i2_5, i3_5, i4_5])
                 T.writes(compute[i0_5, i1_5, i2_5, i3_5, i4_5])
@@ -900,7 +900,7 @@ class Conv2dInt8_NCHWc_target:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         compile_engine_const = T.alloc_buffer([], dtype="float32")
         conv2d_NCHWc_int8 = T.alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
         T_add = T.alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
@@ -930,180 +930,180 @@ class Conv2dInt8_NCHWc_target:
         compute_1 = T.alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
         T_cast_8 = T.alloc_buffer([1, 128, 7, 7, 16], dtype="uint8")
         compute_2 = T.alloc_buffer([1, 128, 7, 7, 16], dtype="uint8")
-        with T.block("compile_engine_const"):
+        with T.sblock("compile_engine_const"):
             vi = T.axis.spatial(1, 0)
             T.reads()
             T.writes(compile_engine_const[()])
             compile_engine_const[()] = T.float32(0.95489668846130371)
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 128, 7, 7, 16, 1, 1, 32, 4, 4):
-            with T.block("conv2d_NCHWc_int8"):
+            with T.sblock("conv2d_NCHWc_int8"):
                 n, oc_chunk, oh, ow, oc_block, kh, kw, ic_outer, ic_f_inner, ic_s_inner = T.axis.remap("SSSSSRRRRR", [i0, i1, i2, i3, i4, i5, i6, i7, i8, i9])
                 T.reads(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner])
                 T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block])
-                T.block_attr({"schedule_rule":"meta_schedule.conv2d_NCHWc_int8", "workload":["conv2d_NCHWc_int8.x86", ["TENSOR", [1, 32, 7, 7, 16], "uint8"], ["TENSOR", [128, 32, 1, 1, 4, 16, 4], "int8"], [1, 1], [0, 0, 0, 0], [1, 1], "NCHW16c", "NCHW16c", "int32"]})
+                T.sblock_attr({"schedule_rule":"meta_schedule.conv2d_NCHWc_int8", "workload":["conv2d_NCHWc_int8.x86", ["TENSOR", [1, 32, 7, 7, 16], "uint8"], ["TENSOR", [128, 32, 1, 1, 4, 16, 4], "int8"], [1, 1], [0, 0, 0, 0], [1, 1], "NCHW16c", "NCHW16c", "int32"]})
                 with T.init():
                     conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = 0
                 conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] = conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block] + T.cast(p0[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 + ic_s_inner], "int32") * T.cast(p1[oc_chunk, ic_outer, kh, kw, ic_f_inner, oc_block, ic_s_inner], "int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(conv2d_NCHWc_int8[ax0, ax1, ax2, ax3, ax4], p2[ax0, ax1, 0, 0, ax4])
                 T.writes(T_add[ax0, ax1, ax2, ax3, ax4])
                 T_add[ax0, ax1, ax2, ax3, ax4] = conv2d_NCHWc_int8[ax0, ax1, ax2, ax3, ax4] + p2[ax0, ax1, 0, 0, ax4]
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast"):
+            with T.sblock("T_cast"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_add[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_1[ax0, ax1, ax2, ax3, ax4])
                 T_cast_1[ax0, ax1, ax2, ax3, ax4] = T.cast(T_add[ax0, ax1, ax2, ax3, ax4], "float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_multiply"):
+            with T.sblock("T_multiply"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_cast_1[ax0, ax1, ax2, ax3, ax4], p3[ax0, ax1, 0, 0, ax4])
                 T.writes(T_multiply[ax0, ax1, ax2, ax3, ax4])
                 T_multiply[ax0, ax1, ax2, ax3, ax4] = T_cast_1[ax0, ax1, ax2, ax3, ax4] * p3[ax0, ax1, 0, 0, ax4]
-        with T.block("compile_engine_const_1"):
+        with T.sblock("compile_engine_const_1"):
             vi = T.axis.spatial(1, 0)
             T.reads()
             T.writes(compile_engine_const_1[()])
             compile_engine_const_1[()] = T.float32(65.5)
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_add_1"):
+            with T.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_multiply[ax0, ax1, ax2, ax3, ax4], compile_engine_const_1[()])
                 T.writes(T_add_1[ax0, ax1, ax2, ax3, ax4])
                 T_add_1[ax0, ax1, ax2, ax3, ax4] = T_multiply[ax0, ax1, ax2, ax3, ax4] + compile_engine_const_1[()]
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_floor"):
+            with T.sblock("T_floor"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_add_1[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_floor[ax0, ax1, ax2, ax3, ax4])
                 T_floor[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_1[ax0, ax1, ax2, ax3, ax4], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_1"):
+            with T.sblock("T_cast_1"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_floor[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_2[ax0, ax1, ax2, ax3, ax4])
                 T_cast_2[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor[ax0, ax1, ax2, ax3, ax4], "int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_cast_2[i0_1, i1_1, i2_1, i3_1, i4_1])
                 T.writes(compute[i0_1, i1_1, i2_1, i3_1, i4_1])
                 compute[i0_1, i1_1, i2_1, i3_1, i4_1] = T.max(T.min(T_cast_2[i0_1, i1_1, i2_1, i3_1, i4_1], 255), 0)
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_2"):
+            with T.sblock("T_cast_2"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(compute[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_3[ax0, ax1, ax2, ax3, ax4])
                 T_cast_3[ax0, ax1, ax2, ax3, ax4] = T.cast(compute[ax0, ax1, ax2, ax3, ax4], "uint8")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_3"):
+            with T.sblock("T_cast_3"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_cast_3[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_4[ax0, ax1, ax2, ax3, ax4])
                 T_cast_4[ax0, ax1, ax2, ax3, ax4] = T.cast(T_cast_3[ax0, ax1, ax2, ax3, ax4], "float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_subtract"):
+            with T.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_cast_4[ax0, ax1, ax2, ax3, ax4], p4[0])
                 T.writes(T_subtract[ax0, ax1, ax2, ax3, ax4])
                 T_subtract[ax0, ax1, ax2, ax3, ax4] = T_cast_4[ax0, ax1, ax2, ax3, ax4] - p4[0]
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_multiply_1"):
+            with T.sblock("T_multiply_1"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(compile_engine_const[()], T_subtract[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_multiply_1[ax0, ax1, ax2, ax3, ax4])
                 T_multiply_1[ax0, ax1, ax2, ax3, ax4] = compile_engine_const[()] * T_subtract[ax0, ax1, ax2, ax3, ax4]
-        with T.block("compile_engine_const_2"):
+        with T.sblock("compile_engine_const_2"):
             vi = T.axis.spatial(1, 0)
             T.reads()
             T.writes(compile_engine_const_2[()])
             compile_engine_const_2[()] = T.float32(0.5)
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_add_2"):
+            with T.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_multiply_1[ax0, ax1, ax2, ax3, ax4], compile_engine_const_2[()])
                 T.writes(T_add_2[ax0, ax1, ax2, ax3, ax4])
                 T_add_2[ax0, ax1, ax2, ax3, ax4] = T_multiply_1[ax0, ax1, ax2, ax3, ax4] + compile_engine_const_2[()]
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_floor_1"):
+            with T.sblock("T_floor_1"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_add_2[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_floor_1[ax0, ax1, ax2, ax3, ax4])
                 T_floor_1[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_2[ax0, ax1, ax2, ax3, ax4], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_4"):
+            with T.sblock("T_cast_4"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_floor_1[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_5[ax0, ax1, ax2, ax3, ax4])
                 T_cast_5[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor_1[ax0, ax1, ax2, ax3, ax4], "int32")
-        with T.block("compile_engine_const_3"):
+        with T.sblock("compile_engine_const_3"):
             vi = T.axis.spatial(1, 0)
             T.reads()
             T.writes(compile_engine_const_3[()])
             compile_engine_const_3[()] = T.float32(0.71245479583740234)
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_5"):
+            with T.sblock("T_cast_5"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(p5[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_6[ax0, ax1, ax2, ax3, ax4])
                 T_cast_6[ax0, ax1, ax2, ax3, ax4] = T.cast(p5[ax0, ax1, ax2, ax3, ax4], "float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_multiply_2"):
+            with T.sblock("T_multiply_2"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(compile_engine_const_3[()], T_cast_6[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_multiply_2[ax0, ax1, ax2, ax3, ax4])
                 T_multiply_2[ax0, ax1, ax2, ax3, ax4] = compile_engine_const_3[()] * T_cast_6[ax0, ax1, ax2, ax3, ax4]
-        with T.block("compile_engine_const_4"):
+        with T.sblock("compile_engine_const_4"):
             vi = T.axis.spatial(1, 0)
             T.reads()
             T.writes(compile_engine_const_4[()])
             compile_engine_const_4[()] = T.float32(0.5)
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_add_3"):
+            with T.sblock("T_add_3"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_multiply_2[ax0, ax1, ax2, ax3, ax4], compile_engine_const_4[()])
                 T.writes(T_add_3[ax0, ax1, ax2, ax3, ax4])
                 T_add_3[ax0, ax1, ax2, ax3, ax4] = T_multiply_2[ax0, ax1, ax2, ax3, ax4] + compile_engine_const_4[()]
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_floor_2"):
+            with T.sblock("T_floor_2"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_add_3[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_floor_2[ax0, ax1, ax2, ax3, ax4])
                 T_floor_2[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_3[ax0, ax1, ax2, ax3, ax4], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_6"):
+            with T.sblock("T_cast_6"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_floor_2[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_7[ax0, ax1, ax2, ax3, ax4])
                 T_cast_7[ax0, ax1, ax2, ax3, ax4] = T.cast(T_floor_2[ax0, ax1, ax2, ax3, ax4], "int32")
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_add_4"):
+            with T.sblock("T_add_4"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_cast_5[ax0, ax1, ax2, ax3, ax4], T_cast_7[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_add_4[ax0, ax1, ax2, ax3, ax4])
                 T_add_4[ax0, ax1, ax2, ax3, ax4] = T_cast_5[ax0, ax1, ax2, ax3, ax4] + T_cast_7[ax0, ax1, ax2, ax3, ax4]
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("compute_1"):
+            with T.sblock("compute_1"):
                 i0_2, i1_2, i2_2, i3_2, i4_2 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 T.reads(T_add_4[i0_2, i1_2, i2_2, i3_2, i4_2])
                 T.writes(compute_1[i0_2, i1_2, i2_2, i3_2, i4_2])
                 compute_1[i0_2, i1_2, i2_2, i3_2, i4_2] = T.max(T.min(T_add_4[i0_2, i1_2, i2_2, i3_2, i4_2], 255), 0)
         for i0_3, i1_3, i2_3, i3_3, i4_3 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_7"):
+            with T.sblock("T_cast_7"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0_3, i1_3, i2_3, i3_3, i4_3])
                 T.reads(compute_1[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast_8[ax0, ax1, ax2, ax3, ax4])
                 T_cast_8[ax0, ax1, ax2, ax3, ax4] = T.cast(compute_1[ax0, ax1, ax2, ax3, ax4], "uint8")
         for i0_4, i1_4, i2_4, i3_4, i4_4 in T.grid(1, 128, 7, 7, 16):
-            with T.block("compute_2"):
+            with T.sblock("compute_2"):
                 i0_5, i1_5, i2_5, i3_5, i4_5 = T.axis.remap("SSSSS", [i0_4, i1_4, i2_4, i3_4, i4_4])
                 T.reads(T_cast_8[i0_5, i1_5, i2_5, i3_5, i4_5])
                 T.writes(compute_2[i0_5, i1_5, i2_5, i3_5, i4_5])
                 compute_2[i0_5, i1_5, i2_5, i3_5, i4_5] = T.max(T.min(T_cast_8[i0_5, i1_5, i2_5, i3_5, i4_5], T.uint8(255)), T.uint8(0))
         for i0_6, i1_6, i2_6, i3_6, i4_6 in T.grid(1, 128, 7, 7, 16):
-            with T.block("T_cast_8"):
+            with T.sblock("T_cast_8"):
                 ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0_6, i1_6, i2_6, i3_6, i4_6])
                 T.reads(compute_2[ax0, ax1, ax2, ax3, ax4])
                 T.writes(T_cast[ax0, ax1, ax2, ax3, ax4])
@@ -1118,12 +1118,12 @@ def get_conv2d_vnni_mod(intrin_id):
             # function attr dict
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             # body
-            # with T.block("root")
+            # with T.sblock("root")
             conv2d_NCHWc_int8 = T.alloc_buffer([1, 128, 7, 7, 16], dtype="int32")
             for i0_0_i1_0_i2_0_i3_0_i4_0_0_i0_1_i1_1_fused in T.parallel(128, annotations={"pragma_auto_unroll_max_step":64, "pragma_unroll_explicit":1}):
                 for i2_1, i3_1, i4_0_1 in T.grid(7, 1, 1):
                     for i0_2_init, i1_2_init, i2_2_init, i3_2_init, i4_0_2_init, i0_3_init, i1_3_init, i2_3_init, i3_3_init, i4_0_3_init in T.grid(1, 1, 1, 1, 1, 1, 1, 1, 7, 1):
-                        with T.block("conv2d_NCHWc_int8_o_init"):
+                        with T.sblock("conv2d_NCHWc_int8_o_init"):
                             n = T.axis.spatial(1, i0_2_init + i0_3_init)
                             oc_chunk = T.axis.spatial(128, i0_0_i1_0_i2_0_i3_0_i4_0_0_i0_1_i1_1_fused + i1_2_init + i1_3_init)
                             oh = T.axis.spatial(7, i2_1 + i2_2_init + i2_3_init)
@@ -1132,13 +1132,13 @@ def get_conv2d_vnni_mod(intrin_id):
                             T.reads()
                             T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, 0 : 16])
                             for i4_1 in T.vectorized(16):
-                                with T.block("conv2d_NCHWc_int8_init"):
+                                with T.sblock("conv2d_NCHWc_int8_init"):
                                     oc_block_i_init = T.axis.spatial(16, i4_1)
                                     T.reads()
                                     T.writes(conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i_init])
                                     conv2d_NCHWc_int8[n, oc_chunk, oh, ow, oc_block_i_init] = 0
                     for i5_0, i6_0, i7_0, i8_0, i9_0_0, i0_2, i1_2, i2_2, i3_2, i4_0_2, i5_1, i6_1, i7_1, i8_1, i9_0_1, i0_3, i1_3, i2_3, i3_3, i4_0_3 in T.grid(1, 1, 4, 4, 1, 1, 1, 1, 1, 1, 1, 1, 8, 1, 1, 1, 1, 1, 7, 1):
-                        with T.block("conv2d_NCHWc_int8_o_update"):
+                        with T.sblock("conv2d_NCHWc_int8_o_update"):
                             n = T.axis.spatial(1, i0_2 + i0_3)
                             oc_chunk = T.axis.spatial(128,  i0_0_i1_0_i2_0_i3_0_i4_0_0_i0_1_i1_1_fused + i1_2 + i1_3)
                             oh = T.axis.spatial(7, i2_1 + i2_2 + i2_3)
@@ -1162,7 +1162,7 @@ def get_conv2d_vnni_mod(intrin_id):
                             C[0:16] = T.call_llvm_pure_intrin(T.uint32(intrin_id), C_i32x16, T.broadcast(A_i32, 16), B_i32x16, dtype="int32x16")
                     for ax0, ax1, ax2, ax3 in T.grid(1, 1, 1, 7):
                         for ax4_fused in T.vectorized(16):
-                            with T.block("T_cast_8"):
+                            with T.sblock("T_cast_8"):
                                 ax0_1 = T.axis.spatial(1, ax0)
                                 ax1_1 = T.axis.spatial(128, i0_0_i1_0_i2_0_i3_0_i4_0_0_i0_1_i1_1_fused + ax1)
                                 ax2_1 = T.axis.spatial(7, i2_1 + ax2)
@@ -1181,7 +1181,7 @@ class Conv2dWinogradAddRelu:
         # function attr dict
         T.func_attr({"layout_free_buffers": [1], "tir.noalias": True, "global_symbol": "main"})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         data_pad = T.alloc_buffer([1, 58, 58, 64], dtype="float32")
         input_tile = T.alloc_buffer([6, 6, 196, 64], dtype="float32")
         B = T.alloc_buffer([6, 6], dtype="float32")
@@ -1192,74 +1192,74 @@ class Conv2dWinogradAddRelu:
         conv2d_winograd = T.alloc_buffer([1, 56, 56, 64], dtype="float32")
         T_add = T.alloc_buffer([1, 56, 56, 64], dtype="float32")
         for i0, i1, i2, i3 in T.grid(1, 58, 58, 64):
-            with T.block("data_pad"):
+            with T.sblock("data_pad"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(p0[i0_1, i1_1 - 1, i2_1 - 1, i3_1])
                 T.writes(data_pad[i0_1, i1_1, i2_1, i3_1])
-                T.block_attr({"schedule_rule":"None"})
+                T.sblock_attr({"schedule_rule":"None"})
                 data_pad[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(1 <= i1_1 and i1_1 < 57 and 1 <= i2_1 and i2_1 < 57, p0[i0_1, i1_1 - 1, i2_1 - 1, i3_1], T.float32(0), dtype="float32")
         for i0, i1, i2, i3 in T.grid(6, 6, 196, 64):
-            with T.block("input_tile"):
+            with T.sblock("input_tile"):
                 eps, nu, p, ci = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(data_pad[p // 196, p % 196 // 14 * 4 + eps, p % 14 * 4 + nu, ci])
                 T.writes(input_tile[eps, nu, p, ci])
-                T.block_attr({"schedule_rule":"None"})
+                T.sblock_attr({"schedule_rule":"None"})
                 input_tile[eps, nu, p, ci] = data_pad[p // 196, p % 196 // 14 * 4 + eps, p % 14 * 4 + nu, ci]
         for i0, i1 in T.grid(6, 6):
-            with T.block("B"):
+            with T.sblock("B"):
                 i, j = T.axis.remap("SS", [i0, i1])
                 T.reads()
                 T.writes(B[i, j])
-                T.block_attr({"const_matrix":True, "schedule_rule":"meta_schedule.compute_inline"})
+                T.sblock_attr({"const_matrix":True, "schedule_rule":"meta_schedule.compute_inline"})
                 B[i, j] = T.Select(i % 6 == 5 and j % 6 == 5, T.float32(1), T.Select(i % 6 == 5 and j % 6 == 4, T.float32(0), T.Select(i % 6 == 5 and j % 6 == 3, T.float32(0), T.Select(i % 6 == 5 and j % 6 == 2, T.float32(0), T.Select(i % 6 == 5 and j % 6 == 1, T.float32(0), T.Select(i % 6 == 5 and j % 6 == 0, T.float32(0), T.Select(i % 6 == 4 and j % 6 == 5, T.float32(1.5), T.Select(i % 6 == 4 and j % 6 == 4, T.float32(1), T.Select(i % 6 == 4 and j % 6 == 3, T.float32(1), T.Select(i % 6 == 4 and j % 6 == 2, T.float32(1), T.Select(i % 6 == 4 and j % 6 == 1, T.float32(1), T.Select(i % 6 == 4 and j % 6 == 0, T.float32(1), T.Select(i % 6 == 3 and j % 6 == 5, T.float32(-2), T.Select(i % 6 == 3 and j % 6 == 4, T.float32(-0.5), T.Select(i % 6 == 3 and j % 6 == 3, T.float32(2), T.Select(i % 6 == 3 and j % 6 == 2, T.float32(2.5), T.Select(i % 6 == 3 and j % 6 == 1, T.float32(0.5), T.Select(i % 6 == 3 and j % 6 == 0, T.float32(1.5), T.Select(i % 6 == 2 and j % 6 == 5, T.float32(-1.5), T.Select(i % 6 == 2 and j % 6 == 4, T.float32(-1), T.Select(i % 6 == 2 and j % 6 == 3, T.float32(-1), T.Select(i % 6 == 2 and j % 6 == 2, T.float32(0.5), T.Select(i % 6 == 2 and j % 6 == 1, T.float32(-2.5), T.Select(i % 6 == 2 and j % 6 == 0, T.float32(-2), T.Select(i % 6 == 1 and j % 6 == 5, T.float32(1), T.Select(i % 6 == 1 and j % 6 == 4, T.float32(0.5), T.Select(i % 6 == 1 and j % 6 == 3, T.float32(-2), T.Select(i % 6 == 1 and j % 6 == 2, T.float32(-1), T.Select(i % 6 == 1 and j % 6 == 1, T.float32(1), T.Select(i % 6 == 1 and j % 6 == 0, T.float32(-1.5), T.Select(i % 6 == 0 and j % 6 == 5, T.float32(0), T.Select(i % 6 == 0 and j % 6 == 4, T.float32(0), T.Select(i % 6 == 0 and j % 6 == 3, T.float32(0), T.Select(i % 6 == 0 and j % 6 == 2, T.float32(0), T.Select(i % 6 == 0 and j % 6 == 1, T.float32(0), T.Select(i % 6 == 0 and j % 6 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))))))))))))))
         for i0, i1, i2, i3, i4, i5 in T.grid(6, 6, 196, 64, 6, 6):
-            with T.block("data_pack"):
+            with T.sblock("data_pack"):
                 eps, nu, p, ci, r_a, r_b = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
                 T.reads(input_tile[r_a, r_b, p, ci], B[T.min(r_a, r_b) : T.max(r_a, r_b) + 1, T.min(eps, nu) : T.max(eps, nu) + 1])
                 T.writes(data_pack[eps, nu, p, ci])
-                T.block_attr({"auto_scheduler_simplify_const_tensor_indices":["eps", "nu", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_data_pack.cuda"})
+                T.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["eps", "nu", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_data_pack.cuda"})
                 with T.init():
                     data_pack[eps, nu, p, ci] = T.float32(0)
                 data_pack[eps, nu, p, ci] = data_pack[eps, nu, p, ci] + input_tile[r_a, r_b, p, ci] * B[r_a, eps] * B[r_b, nu]
         for i0, i1, i2, i3, i4 in T.grid(6, 6, 196, 64, 64):
-            with T.block("bgemm"):
+            with T.sblock("bgemm"):
                 eps, nu, p, co, ci = T.axis.remap("SSSSR", [i0, i1, i2, i3, i4])
                 T.reads(data_pack[eps, nu, p, ci], p1[eps, nu, co, ci])
                 T.writes(bgemm[eps, nu, p, co])
-                T.block_attr({"layout_free_placeholders":[]})
+                T.sblock_attr({"layout_free_placeholders":[]})
                 with T.init():
                     bgemm[eps, nu, p, co] = T.float32(0)
                 bgemm[eps, nu, p, co] = bgemm[eps, nu, p, co] + data_pack[eps, nu, p, ci] * p1[eps, nu, co, ci]
         for i0, i1 in T.grid(6, 4):
-            with T.block("A"):
+            with T.sblock("A"):
                 i, j = T.axis.remap("SS", [i0, i1])
                 T.reads()
                 T.writes(A[i, j])
-                T.block_attr({"const_matrix":True, "schedule_rule":"meta_schedule.compute_inline"})
+                T.sblock_attr({"const_matrix":True, "schedule_rule":"meta_schedule.compute_inline"})
                 A[i, j] = T.Select(i % 6 == 5 and j % 4 == 3, T.float32(1), T.Select(i % 6 == 5 and j % 4 == 2, T.float32(0), T.Select(i % 6 == 5 and j % 4 == 1, T.float32(0), T.Select(i % 6 == 5 and j % 4 == 0, T.float32(0), T.Select(i % 6 == 4 and j % 4 == 3, T.float32(-8), T.Select(i % 6 == 4 and j % 4 == 2, T.float32(4), T.Select(i % 6 == 4 and j % 4 == 1, T.float32(-2), T.Select(i % 6 == 4 and j % 4 == 0, T.float32(1), T.Select(i % 6 == 3 and j % 4 == 3, T.float32(0.125), T.Select(i % 6 == 3 and j % 4 == 2, T.float32(0.25), T.Select(i % 6 == 3 and j % 4 == 1, T.float32(0.5), T.Select(i % 6 == 3 and j % 4 == 0, T.float32(1), T.Select(i % 6 == 2 and j % 4 == 3, T.float32(1), T.Select(i % 6 == 2 and j % 4 == 2, T.float32(1), T.Select(i % 6 == 2 and j % 4 == 1, T.float32(1), T.Select(i % 6 == 2 and j % 4 == 0, T.float32(1), T.Select(i % 6 == 1 and j % 4 == 3, T.float32(-1), T.Select(i % 6 == 1 and j % 4 == 2, T.float32(1), T.Select(i % 6 == 1 and j % 4 == 1, T.float32(-1), T.Select(i % 6 == 1 and j % 4 == 0, T.float32(1), T.Select(i % 6 == 0 and j % 4 == 3, T.float32(0), T.Select(i % 6 == 0 and j % 4 == 2, T.float32(0), T.Select(i % 6 == 0 and j % 4 == 1, T.float32(0), T.Select(i % 6 == 0 and j % 4 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))
         for i0, i1, i2, i3, i4, i5 in T.grid(4, 4, 196, 64, 6, 6):
-            with T.block("inverse"):
+            with T.sblock("inverse"):
                 vh, vw, p, co, r_a, r_b = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
                 T.reads(bgemm[r_a, r_b, p, co], A[T.min(r_a, r_b) : T.max(r_a, r_b) + 1, T.min(vh, vw) : T.max(vh, vw) + 1])
                 T.writes(inverse[vh, vw, p, co])
-                T.block_attr({"auto_scheduler_simplify_const_tensor_indices":["vh", "vw", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_inverse.cuda"})
+                T.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["vh", "vw", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_inverse.cuda"})
                 with T.init():
                     inverse[vh, vw, p, co] = T.float32(0)
                 inverse[vh, vw, p, co] = inverse[vh, vw, p, co] + bgemm[r_a, r_b, p, co] * A[r_a, vh] * A[r_b, vw]
         for i0, i1, i2, i3 in T.grid(1, 56, 56, 64):
-            with T.block("conv2d_winograd"):
+            with T.sblock("conv2d_winograd"):
                 n, h, w, co = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(inverse[h % 4, w % 4, n * 196 + h // 4 * 14 + w // 4, co])
                 T.writes(conv2d_winograd[n, h, w, co])
                 conv2d_winograd[n, h, w, co] = inverse[h % 4, w % 4, n * 196 + h // 4 * 14 + w // 4, co]
         for i0, i1, i2, i3 in T.grid(1, 56, 56, 64):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(conv2d_winograd[ax0, ax1, ax2, ax3], p2[ax0, 0, 0, ax3])
                 T.writes(T_add[ax0, ax1, ax2, ax3])
                 T_add[ax0, ax1, ax2, ax3] = conv2d_winograd[ax0, ax1, ax2, ax3] + p2[ax0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(1, 56, 56, 64):
-            with T.block("T_relu"):
+            with T.sblock("T_relu"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_add[ax0, ax1, ax2, ax3])
                 T.writes(T_relu[ax0, ax1, ax2, ax3])
@@ -1273,7 +1273,7 @@ class Conv2dWinogradAddResidualRelu:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         data_pad = T.alloc_buffer([1, 58, 58, 64], dtype="float32")
         input_tile = T.alloc_buffer([6, 6, 196, 64], dtype="float32")
         B = T.alloc_buffer([6, 6], dtype="float32")
@@ -1285,80 +1285,80 @@ class Conv2dWinogradAddResidualRelu:
         T_add = T.alloc_buffer([1, 56, 56, 64], dtype="float32")
         T_add_1 = T.alloc_buffer([1, 56, 56, 64], dtype="float32")
         for i0, i1, i2, i3 in T.grid(1, 58, 58, 64):
-            with T.block("data_pad"):
+            with T.sblock("data_pad"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(p0[i0_1, i1_1 - 1, i2_1 - 1, i3_1])
                 T.writes(data_pad[i0_1, i1_1, i2_1, i3_1])
-                T.block_attr({"schedule_rule":"None"})
+                T.sblock_attr({"schedule_rule":"None"})
                 data_pad[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(1 <= i1_1 and i1_1 < 57 and 1 <= i2_1 and i2_1 < 57, p0[i0_1, i1_1 - 1, i2_1 - 1, i3_1], T.float32(0), dtype="float32")
         for i0, i1, i2, i3 in T.grid(6, 6, 196, 64):
-            with T.block("input_tile"):
+            with T.sblock("input_tile"):
                 eps, nu, p, ci = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(data_pad[p // 196, p % 196 // 14 * 4 + eps, p % 14 * 4 + nu, ci])
                 T.writes(input_tile[eps, nu, p, ci])
-                T.block_attr({"schedule_rule":"None"})
+                T.sblock_attr({"schedule_rule":"None"})
                 input_tile[eps, nu, p, ci] = data_pad[p // 196, p % 196 // 14 * 4 + eps, p % 14 * 4 + nu, ci]
         for i0, i1 in T.grid(6, 6):
-            with T.block("B"):
+            with T.sblock("B"):
                 i, j = T.axis.remap("SS", [i0, i1])
                 T.reads()
                 T.writes(B[i, j])
-                T.block_attr({"const_matrix":True, "schedule_rule":"meta_schedule.compute_inline"})
+                T.sblock_attr({"const_matrix":True, "schedule_rule":"meta_schedule.compute_inline"})
                 B[i, j] = T.Select(i % 6 == 5 and j % 6 == 5, T.float32(1), T.Select(i % 6 == 5 and j % 6 == 4, T.float32(0), T.Select(i % 6 == 5 and j % 6 == 3, T.float32(0), T.Select(i % 6 == 5 and j % 6 == 2, T.float32(0), T.Select(i % 6 == 5 and j % 6 == 1, T.float32(0), T.Select(i % 6 == 5 and j % 6 == 0, T.float32(0), T.Select(i % 6 == 4 and j % 6 == 5, T.float32(1.5), T.Select(i % 6 == 4 and j % 6 == 4, T.float32(1), T.Select(i % 6 == 4 and j % 6 == 3, T.float32(1), T.Select(i % 6 == 4 and j % 6 == 2, T.float32(1), T.Select(i % 6 == 4 and j % 6 == 1, T.float32(1), T.Select(i % 6 == 4 and j % 6 == 0, T.float32(1), T.Select(i % 6 == 3 and j % 6 == 5, T.float32(-2), T.Select(i % 6 == 3 and j % 6 == 4, T.float32(-0.5), T.Select(i % 6 == 3 and j % 6 == 3, T.float32(2), T.Select(i % 6 == 3 and j % 6 == 2, T.float32(2.5), T.Select(i % 6 == 3 and j % 6 == 1, T.float32(0.5), T.Select(i % 6 == 3 and j % 6 == 0, T.float32(1.5), T.Select(i % 6 == 2 and j % 6 == 5, T.float32(-1.5), T.Select(i % 6 == 2 and j % 6 == 4, T.float32(-1), T.Select(i % 6 == 2 and j % 6 == 3, T.float32(-1), T.Select(i % 6 == 2 and j % 6 == 2, T.float32(0.5), T.Select(i % 6 == 2 and j % 6 == 1, T.float32(-2.5), T.Select(i % 6 == 2 and j % 6 == 0, T.float32(-2), T.Select(i % 6 == 1 and j % 6 == 5, T.float32(1), T.Select(i % 6 == 1 and j % 6 == 4, T.float32(0.5), T.Select(i % 6 == 1 and j % 6 == 3, T.float32(-2), T.Select(i % 6 == 1 and j % 6 == 2, T.float32(-1), T.Select(i % 6 == 1 and j % 6 == 1, T.float32(1), T.Select(i % 6 == 1 and j % 6 == 0, T.float32(-1.5), T.Select(i % 6 == 0 and j % 6 == 5, T.float32(0), T.Select(i % 6 == 0 and j % 6 == 4, T.float32(0), T.Select(i % 6 == 0 and j % 6 == 3, T.float32(0), T.Select(i % 6 == 0 and j % 6 == 2, T.float32(0), T.Select(i % 6 == 0 and j % 6 == 1, T.float32(0), T.Select(i % 6 == 0 and j % 6 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))))))))))))))
         for i0, i1, i2, i3, i4, i5 in T.grid(6, 6, 196, 64, 6, 6):
-            with T.block("data_pack"):
+            with T.sblock("data_pack"):
                 eps, nu, p, ci, r_a, r_b = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
                 T.reads(input_tile[r_a, r_b, p, ci], B[T.min(r_a, r_b) : T.max(r_a, r_b) + 1, T.min(eps, nu) : T.max(eps, nu) + 1])
                 T.writes(data_pack[eps, nu, p, ci])
-                T.block_attr({"auto_scheduler_simplify_const_tensor_indices":["eps", "nu", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_data_pack.cuda"})
+                T.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["eps", "nu", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_data_pack.cuda"})
                 with T.init():
                     data_pack[eps, nu, p, ci] = T.float32(0)
                 data_pack[eps, nu, p, ci] = data_pack[eps, nu, p, ci] + input_tile[r_a, r_b, p, ci] * B[r_a, eps] * B[r_b, nu]
         for i0, i1, i2, i3, i4 in T.grid(6, 6, 196, 64, 64):
-            with T.block("bgemm"):
+            with T.sblock("bgemm"):
                 eps, nu, p, co, ci = T.axis.remap("SSSSR", [i0, i1, i2, i3, i4])
                 T.reads(data_pack[eps, nu, p, ci], p1[eps, nu, co, ci])
                 T.writes(bgemm[eps, nu, p, co])
-                T.block_attr({"layout_free_placeholders":[]})
+                T.sblock_attr({"layout_free_placeholders":[]})
                 with T.init():
                     bgemm[eps, nu, p, co] = T.float32(0)
                 bgemm[eps, nu, p, co] = bgemm[eps, nu, p, co] + data_pack[eps, nu, p, ci] * p1[eps, nu, co, ci]
         for i0, i1 in T.grid(6, 4):
-            with T.block("A"):
+            with T.sblock("A"):
                 i, j = T.axis.remap("SS", [i0, i1])
                 T.reads()
                 T.writes(A[i, j])
-                T.block_attr({"const_matrix":True, "schedule_rule":"meta_schedule.compute_inline"})
+                T.sblock_attr({"const_matrix":True, "schedule_rule":"meta_schedule.compute_inline"})
                 A[i, j] = T.Select(i % 6 == 5 and j % 4 == 3, T.float32(1), T.Select(i % 6 == 5 and j % 4 == 2, T.float32(0), T.Select(i % 6 == 5 and j % 4 == 1, T.float32(0), T.Select(i % 6 == 5 and j % 4 == 0, T.float32(0), T.Select(i % 6 == 4 and j % 4 == 3, T.float32(-8), T.Select(i % 6 == 4 and j % 4 == 2, T.float32(4), T.Select(i % 6 == 4 and j % 4 == 1, T.float32(-2), T.Select(i % 6 == 4 and j % 4 == 0, T.float32(1), T.Select(i % 6 == 3 and j % 4 == 3, T.float32(0.125), T.Select(i % 6 == 3 and j % 4 == 2, T.float32(0.25), T.Select(i % 6 == 3 and j % 4 == 1, T.float32(0.5), T.Select(i % 6 == 3 and j % 4 == 0, T.float32(1), T.Select(i % 6 == 2 and j % 4 == 3, T.float32(1), T.Select(i % 6 == 2 and j % 4 == 2, T.float32(1), T.Select(i % 6 == 2 and j % 4 == 1, T.float32(1), T.Select(i % 6 == 2 and j % 4 == 0, T.float32(1), T.Select(i % 6 == 1 and j % 4 == 3, T.float32(-1), T.Select(i % 6 == 1 and j % 4 == 2, T.float32(1), T.Select(i % 6 == 1 and j % 4 == 1, T.float32(-1), T.Select(i % 6 == 1 and j % 4 == 0, T.float32(1), T.Select(i % 6 == 0 and j % 4 == 3, T.float32(0), T.Select(i % 6 == 0 and j % 4 == 2, T.float32(0), T.Select(i % 6 == 0 and j % 4 == 1, T.float32(0), T.Select(i % 6 == 0 and j % 4 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))
         for i0, i1, i2, i3, i4, i5 in T.grid(4, 4, 196, 64, 6, 6):
-            with T.block("inverse"):
+            with T.sblock("inverse"):
                 vh, vw, p, co, r_a, r_b = T.axis.remap("SSSSRR", [i0, i1, i2, i3, i4, i5])
                 T.reads(bgemm[r_a, r_b, p, co], A[T.min(r_a, r_b) : T.max(r_a, r_b) + 1, T.min(vh, vw) : T.max(vh, vw) + 1])
                 T.writes(inverse[vh, vw, p, co])
-                T.block_attr({"auto_scheduler_simplify_const_tensor_indices":["vh", "vw", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_inverse.cuda"})
+                T.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["vh", "vw", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_inverse.cuda"})
                 with T.init():
                     inverse[vh, vw, p, co] = T.float32(0)
                 inverse[vh, vw, p, co] = inverse[vh, vw, p, co] + bgemm[r_a, r_b, p, co] * A[r_a, vh] * A[r_b, vw]
         for i0, i1, i2, i3 in T.grid(1, 56, 56, 64):
-            with T.block("conv2d_winograd"):
+            with T.sblock("conv2d_winograd"):
                 n, h, w, co = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(inverse[h % 4, w % 4, n * 196 + h // 4 * 14 + w // 4, co])
                 T.writes(conv2d_winograd[n, h, w, co])
                 conv2d_winograd[n, h, w, co] = inverse[h % 4, w % 4, n * 196 + h // 4 * 14 + w // 4, co]
         for i0, i1, i2, i3 in T.grid(1, 56, 56, 64):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(conv2d_winograd[ax0, ax1, ax2, ax3], p2[ax0, 0, 0, ax3])
                 T.writes(T_add[ax0, ax1, ax2, ax3])
                 T_add[ax0, ax1, ax2, ax3] = conv2d_winograd[ax0, ax1, ax2, ax3] + p2[ax0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(1, 56, 56, 64):
-            with T.block("T_add_1"):
+            with T.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_add[ax0, ax1, ax2, ax3], p3[ax0, ax1, ax2, ax3])
                 T.writes(T_add_1[ax0, ax1, ax2, ax3])
                 T_add_1[ax0, ax1, ax2, ax3] = T_add[ax0, ax1, ax2, ax3] + p3[ax0, ax1, ax2, ax3]
         for i0, i1, i2, i3 in T.grid(1, 56, 56, 64):
-            with T.block("T_relu"):
+            with T.sblock("T_relu"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_add_1[ax0, ax1, ax2, ax3])
                 T.writes(T_relu[ax0, ax1, ax2, ax3])
@@ -1372,7 +1372,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         input_tile_local = T.alloc_buffer([6, 6, 196, 64], dtype="float32", scope="local")
         data_pack = T.alloc_buffer([6, 6, 196, 64], dtype="float32")
         bgemm = T.alloc_buffer([6, 6, 196, 64], dtype="float32")
@@ -1383,53 +1383,53 @@ class Conv2dWinogradAddResidualRelu_scheduled:
         for i2_0_i3_0_i2_1_i3_1_fused_0 in T.thread_binding(98, thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step":1024, "pragma_unroll_explicit":1}):
             for i2_0_i3_0_i2_1_i3_1_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
                 for ax0, ax1, ax2, ax3 in T.grid(6, 6, 1, 1):
-                    with T.block("input_tile"):
+                    with T.sblock("input_tile"):
                         eps, nu = T.axis.remap("SS", [ax0, ax1])
                         p = T.axis.spatial(196, (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) // 896 * 14 + (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) % 112 // 8 + ax2)
                         ci = T.axis.spatial(64, (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) % 896 // 112 * 8 + (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) % 8 + ax3)
                         T.reads(p0[p // 196, p % 196 // 14 * 4 + eps - 1, p % 14 * 4 + nu - 1, ci])
                         T.writes(input_tile_local[eps, nu, p, ci])
-                        T.block_attr({"schedule_rule":"None"})
+                        T.sblock_attr({"schedule_rule":"None"})
                         input_tile_local[eps, nu, p, ci] = T.if_then_else(1 <= p % 196 // 14 * 4 + eps and p % 196 // 14 * 4 + eps < 57 and 1 <= p % 14 * 4 + nu and p % 14 * 4 + nu < 57, p0[p // 196, p % 196 // 14 * 4 + eps - 1, p % 14 * 4 + nu - 1, ci], T.float32(0), dtype="float32")
                 for i0 in T.unroll(6):
                     for i1 in T.unroll(6):
-                        with T.block("data_pack_init"):
+                        with T.sblock("data_pack_init"):
                             eps, nu = T.axis.remap("SS", [i0, i1])
                             p = T.axis.spatial(196, (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) // 896 * 14 + (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) % 112 // 8)
                             ci = T.axis.spatial(64, (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) % 896 // 112 * 8 + (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) % 8)
                             T.reads()
                             T.writes(data_pack[eps, nu, p, ci])
-                            T.block_attr({"auto_scheduler_simplify_const_tensor_indices":["eps", "nu", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_data_pack.cuda"})
+                            T.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["eps", "nu", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_data_pack.cuda"})
                             data_pack[eps, nu, p, ci] = T.float32(0)
                         for i4 in T.unroll(6):
                             for i5 in T.unroll(6):
-                                with T.block("data_pack_update"):
+                                with T.sblock("data_pack_update"):
                                     eps, nu = T.axis.remap("SS", [i0, i1])
                                     p = T.axis.spatial(196, (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) // 896 * 14 + (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) % 112 // 8)
                                     ci = T.axis.spatial(64, (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) % 896 // 112 * 8 + (i2_0_i3_0_i2_1_i3_1_fused_0 * 128 + i2_0_i3_0_i2_1_i3_1_fused_1) % 8)
                                     r_a, r_b = T.axis.remap("RR", [i4, i5])
                                     T.reads(data_pack[eps, nu, p, ci], input_tile_local[r_a, r_b, p, ci])
                                     T.writes(data_pack[eps, nu, p, ci])
-                                    T.block_attr({"auto_scheduler_simplify_const_tensor_indices":["eps", "nu", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_data_pack.cuda"})
+                                    T.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["eps", "nu", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_data_pack.cuda"})
                                     data_pack[eps, nu, p, ci] = data_pack[eps, nu, p, ci] + input_tile_local[r_a, r_b, p, ci] * T.Select(r_a % 6 == 5 and eps % 6 == 5, T.float32(1), T.Select(r_a % 6 == 5 and eps % 6 == 4, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 3, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 2, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 1, T.float32(0), T.Select(r_a % 6 == 5 and eps % 6 == 0, T.float32(0), T.Select(r_a % 6 == 4 and eps % 6 == 5, T.float32(1.5), T.Select(r_a % 6 == 4 and eps % 6 == 4, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 3, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 2, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 1, T.float32(1), T.Select(r_a % 6 == 4 and eps % 6 == 0, T.float32(1), T.Select(r_a % 6 == 3 and eps % 6 == 5, T.float32(-2), T.Select(r_a % 6 == 3 and eps % 6 == 4, T.float32(-0.5), T.Select(r_a % 6 == 3 and eps % 6 == 3, T.float32(2), T.Select(r_a % 6 == 3 and eps % 6 == 2, T.float32(2.5), T.Select(r_a % 6 == 3 and eps % 6 == 1, T.float32(0.5), T.Select(r_a % 6 == 3 and eps % 6 == 0, T.float32(1.5), T.Select(r_a % 6 == 2 and eps % 6 == 5, T.float32(-1.5), T.Select(r_a % 6 == 2 and eps % 6 == 4, T.float32(-1), T.Select(r_a % 6 == 2 and eps % 6 == 3, T.float32(-1), T.Select(r_a % 6 == 2 and eps % 6 == 2, T.float32(0.5), T.Select(r_a % 6 == 2 and eps % 6 == 1, T.float32(-2.5), T.Select(r_a % 6 == 2 and eps % 6 == 0, T.float32(-2), T.Select(r_a % 6 == 1 and eps % 6 == 5, T.float32(1), T.Select(r_a % 6 == 1 and eps % 6 == 4, T.float32(0.5), T.Select(r_a % 6 == 1 and eps % 6 == 3, T.float32(-2), T.Select(r_a % 6 == 1 and eps % 6 == 2, T.float32(-1), T.Select(r_a % 6 == 1 and eps % 6 == 1, T.float32(1), T.Select(r_a % 6 == 1 and eps % 6 == 0, T.float32(-1.5), T.Select(r_a % 6 == 0 and eps % 6 == 5, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 4, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 3, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 2, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 1, T.float32(0), T.Select(r_a % 6 == 0 and eps % 6 == 0, T.float32(1), T.float32(0))))))))))))))))))))))))))))))))))))) * T.Select(r_b % 6 == 5 and nu % 6 == 5, T.float32(1), T.Select(r_b % 6 == 5 and nu % 6 == 4, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 3, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 2, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 1, T.float32(0), T.Select(r_b % 6 == 5 and nu % 6 == 0, T.float32(0), T.Select(r_b % 6 == 4 and nu % 6 == 5, T.float32(1.5), T.Select(r_b % 6 == 4 and nu % 6 == 4, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 3, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 2, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 1, T.float32(1), T.Select(r_b % 6 == 4 and nu % 6 == 0, T.float32(1), T.Select(r_b % 6 == 3 and nu % 6 == 5, T.float32(-2), T.Select(r_b % 6 == 3 and nu % 6 == 4, T.float32(-0.5), T.Select(r_b % 6 == 3 and nu % 6 == 3, T.float32(2), T.Select(r_b % 6 == 3 and nu % 6 == 2, T.float32(2.5), T.Select(r_b % 6 == 3 and nu % 6 == 1, T.float32(0.5), T.Select(r_b % 6 == 3 and nu % 6 == 0, T.float32(1.5), T.Select(r_b % 6 == 2 and nu % 6 == 5, T.float32(-1.5), T.Select(r_b % 6 == 2 and nu % 6 == 4, T.float32(-1), T.Select(r_b % 6 == 2 and nu % 6 == 3, T.float32(-1), T.Select(r_b % 6 == 2 and nu % 6 == 2, T.float32(0.5), T.Select(r_b % 6 == 2 and nu % 6 == 1, T.float32(-2.5), T.Select(r_b % 6 == 2 and nu % 6 == 0, T.float32(-2), T.Select(r_b % 6 == 1 and nu % 6 == 5, T.float32(1), T.Select(r_b % 6 == 1 and nu % 6 == 4, T.float32(0.5), T.Select(r_b % 6 == 1 and nu % 6 == 3, T.float32(-2), T.Select(r_b % 6 == 1 and nu % 6 == 2, T.float32(-1), T.Select(r_b % 6 == 1 and nu % 6 == 1, T.float32(1), T.Select(r_b % 6 == 1 and nu % 6 == 0, T.float32(-1.5), T.Select(r_b % 6 == 0 and nu % 6 == 5, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 4, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 3, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 2, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 1, T.float32(0), T.Select(r_b % 6 == 0 and nu % 6 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))))))))))))))
         for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(168, thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step":1024, "pragma_unroll_explicit":1}):
             for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(4, thread="vthread.x"):
                 for i0_2_i1_2_i2_2_i3_2_fused in T.thread_binding(48, thread="threadIdx.x"):
                     for i0_3_init, i1_3_init, i2_3_init, i3_3_init, i0_4_init, i1_4_init, i2_4_init, i3_4_init in T.grid(1, 1, 14, 1, 1, 1, 1, 1):
-                        with T.block("bgemm_init"):
+                        with T.sblock("bgemm_init"):
                             eps = T.axis.spatial(6, i0_1_i1_1_i2_1_i3_1_fused // 2 * 3 + i0_2_i1_2_i2_2_i3_2_fused // 16 + i0_3_init + i0_4_init)
                             nu = T.axis.spatial(6, i0_0_i1_0_i2_0_i3_0_fused // 28 + i1_3_init + i1_4_init)
                             p = T.axis.spatial(196, i0_0_i1_0_i2_0_i3_0_fused % 28 // 4 * 28 + i0_1_i1_1_i2_1_i3_1_fused % 2 * 14 + i2_3_init + i2_4_init)
                             co = T.axis.spatial(64, i0_0_i1_0_i2_0_i3_0_fused % 4 * 16 + i0_2_i1_2_i2_2_i3_2_fused % 16 + i3_3_init + i3_4_init)
                             T.reads()
                             T.writes(bgemm_local[eps, nu, p, co])
-                            T.block_attr({"layout_free_placeholders":[], "meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "meta_schedule.tiling_structure":"SSSRRSRS"})
+                            T.sblock_attr({"layout_free_placeholders":[], "meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "meta_schedule.tiling_structure":"SSSRRSRS"})
                             bgemm_local[eps, nu, p, co] = T.float32(0)
                     for i4_0 in T.serial(2):
                         for ax0_ax1_ax2_ax3_fused_0 in T.serial(28):
                             for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(48, thread="threadIdx.x"):
                                 for ax0_ax1_ax2_ax3_fused_2 in T.vectorized(4):
-                                    with T.block("data_pack_shared"):
+                                    with T.sblock("data_pack_shared"):
                                         v0 = T.axis.spatial(6, (ax0_ax1_ax2_ax3_fused_0 * 192 + ax0_ax1_ax2_ax3_fused_1 * 4 + ax0_ax1_ax2_ax3_fused_2) // 896)
                                         v1 = T.axis.spatial(6, i0_0_i1_0_i2_0_i3_0_fused // 28)
                                         v2 = T.axis.spatial(196, i0_0_i1_0_i2_0_i3_0_fused % 28 // 4 * 28 + (ax0_ax1_ax2_ax3_fused_0 * 192 + ax0_ax1_ax2_ax3_fused_1 * 4 + ax0_ax1_ax2_ax3_fused_2) % 896 // 32)
@@ -1440,7 +1440,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                         for ax0_ax1_ax2_ax3_fused_0 in T.serial(16):
                             for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(48, thread="threadIdx.x"):
                                 for ax0_ax1_ax2_ax3_fused_2 in T.vectorized(4):
-                                    with T.block("p1_shared"):
+                                    with T.sblock("p1_shared"):
                                         v0 = T.axis.spatial(6, (ax0_ax1_ax2_ax3_fused_0 * 192 + ax0_ax1_ax2_ax3_fused_1 * 4 + ax0_ax1_ax2_ax3_fused_2) // 512)
                                         v1 = T.axis.spatial(6, i0_0_i1_0_i2_0_i3_0_fused // 28)
                                         v2 = T.axis.spatial(64, i0_0_i1_0_i2_0_i3_0_fused % 4 * 16 + (ax0_ax1_ax2_ax3_fused_0 * 192 + ax0_ax1_ax2_ax3_fused_1 * 4 + ax0_ax1_ax2_ax3_fused_2) % 512 // 32)
@@ -1449,7 +1449,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                                         T.writes(p1_shared[v0, v1, v2, v3])
                                         p1_shared[v0, v1, v2, v3] = p1[v0, v1, v2, v3]
                         for i4_1, i0_3, i1_3, i2_3, i3_3, i4_2, i0_4, i1_4, i2_4, i3_4 in T.grid(2, 1, 1, 14, 1, 16, 1, 1, 1, 1):
-                            with T.block("bgemm_update"):
+                            with T.sblock("bgemm_update"):
                                 eps = T.axis.spatial(6, i0_1_i1_1_i2_1_i3_1_fused // 2 * 3 + i0_2_i1_2_i2_2_i3_2_fused // 16 + i0_3 + i0_4)
                                 nu = T.axis.spatial(6, i0_0_i1_0_i2_0_i3_0_fused // 28 + i1_3 + i1_4)
                                 p = T.axis.spatial(196, i0_0_i1_0_i2_0_i3_0_fused % 28 // 4 * 28 + i0_1_i1_1_i2_1_i3_1_fused % 2 * 14 + i2_3 + i2_4)
@@ -1457,10 +1457,10 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                                 ci = T.axis.reduce(64, i4_0 * 32 + i4_1 * 16 + i4_2)
                                 T.reads(bgemm_local[eps, nu, p, co], data_pack_shared[eps, nu, p, ci], p1_shared[eps, nu, co, ci])
                                 T.writes(bgemm_local[eps, nu, p, co])
-                                T.block_attr({"layout_free_placeholders":[], "meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "meta_schedule.tiling_structure":"SSSRRSRS"})
+                                T.sblock_attr({"layout_free_placeholders":[], "meta_schedule.thread_extent_high_inclusive":1024, "meta_schedule.thread_extent_low_inclusive":32, "meta_schedule.tiling_structure":"SSSRRSRS"})
                                 bgemm_local[eps, nu, p, co] = bgemm_local[eps, nu, p, co] + data_pack_shared[eps, nu, p, ci] * p1_shared[eps, nu, co, ci]
                     for ax0, ax1, ax2, ax3 in T.grid(1, 1, 14, 1):
-                        with T.block("bgemm_local"):
+                        with T.sblock("bgemm_local"):
                             v0 = T.axis.spatial(6, i0_1_i1_1_i2_1_i3_1_fused // 2 * 3 + i0_2_i1_2_i2_2_i3_2_fused // 16 + ax0)
                             v1 = T.axis.spatial(6, i0_0_i1_0_i2_0_i3_0_fused // 28 + ax1)
                             v2 = T.axis.spatial(196, i0_0_i1_0_i2_0_i3_0_fused % 28 // 4 * 28 + i0_1_i1_1_i2_1_i3_1_fused % 2 * 14 + ax2)
@@ -1472,18 +1472,18 @@ class Conv2dWinogradAddResidualRelu_scheduled:
             for i2_0_i3_0_i2_1_i3_1_fused_1 in T.thread_binding(512, thread="threadIdx.x"):
                 for i0 in T.unroll(4):
                     for i1 in T.unroll(4):
-                        with T.block("inverse_init"):
+                        with T.sblock("inverse_init"):
                             T.where(i2_0_i3_0_i2_1_i3_1_fused_0 * 512 + i2_0_i3_0_i2_1_i3_1_fused_1 < 12544)
                             vh, vw = T.axis.remap("SS", [i0, i1])
                             p = T.axis.spatial(196, (i2_0_i3_0_i2_1_i3_1_fused_0 * 512 + i2_0_i3_0_i2_1_i3_1_fused_1) // 448 * 7 + (i2_0_i3_0_i2_1_i3_1_fused_0 * 512 + i2_0_i3_0_i2_1_i3_1_fused_1) % 224 // 32)
                             co = T.axis.spatial(64, (i2_0_i3_0_i2_1_i3_1_fused_0 * 512 + i2_0_i3_0_i2_1_i3_1_fused_1) % 448 // 224 * 32 + (i2_0_i3_0_i2_1_i3_1_fused_0 * 512 + i2_0_i3_0_i2_1_i3_1_fused_1) % 32)
                             T.reads()
                             T.writes(inverse[vh, vw, p, co])
-                            T.block_attr({"auto_scheduler_simplify_const_tensor_indices":["vh", "vw", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_inverse.cuda"})
+                            T.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["vh", "vw", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_inverse.cuda"})
                             inverse[vh, vw, p, co] = T.float32(0)
                         for i4 in T.unroll(6):
                             for i5 in T.unroll(6):
-                                with T.block("inverse_update"):
+                                with T.sblock("inverse_update"):
                                     T.where(i2_0_i3_0_i2_1_i3_1_fused_0 * 512 + i2_0_i3_0_i2_1_i3_1_fused_1 < 12544)
                                     vh, vw = T.axis.remap("SS", [i0, i1])
                                     p = T.axis.spatial(196, (i2_0_i3_0_i2_1_i3_1_fused_0 * 512 + i2_0_i3_0_i2_1_i3_1_fused_1) // 448 * 7 + (i2_0_i3_0_i2_1_i3_1_fused_0 * 512 + i2_0_i3_0_i2_1_i3_1_fused_1) % 224 // 32)
@@ -1491,11 +1491,11 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                                     r_a, r_b = T.axis.remap("RR", [i4, i5])
                                     T.reads(inverse[vh, vw, p, co], bgemm[r_a, r_b, p, co])
                                     T.writes(inverse[vh, vw, p, co])
-                                    T.block_attr({"auto_scheduler_simplify_const_tensor_indices":["vh", "vw", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_inverse.cuda"})
+                                    T.sblock_attr({"auto_scheduler_simplify_const_tensor_indices":["vh", "vw", "r_a", "r_b"], "schedule_rule":"meta_schedule.winograd_inverse.cuda"})
                                     inverse[vh, vw, p, co] = inverse[vh, vw, p, co] + bgemm[r_a, r_b, p, co] * T.Select(r_a % 6 == 5 and vh % 4 == 3, T.float32(1), T.Select(r_a % 6 == 5 and vh % 4 == 2, T.float32(0), T.Select(r_a % 6 == 5 and vh % 4 == 1, T.float32(0), T.Select(r_a % 6 == 5 and vh % 4 == 0, T.float32(0), T.Select(r_a % 6 == 4 and vh % 4 == 3, T.float32(-8), T.Select(r_a % 6 == 4 and vh % 4 == 2, T.float32(4), T.Select(r_a % 6 == 4 and vh % 4 == 1, T.float32(-2), T.Select(r_a % 6 == 4 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 3 and vh % 4 == 3, T.float32(0.125), T.Select(r_a % 6 == 3 and vh % 4 == 2, T.float32(0.25), T.Select(r_a % 6 == 3 and vh % 4 == 1, T.float32(0.5), T.Select(r_a % 6 == 3 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 3, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 2, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 1, T.float32(1), T.Select(r_a % 6 == 2 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 1 and vh % 4 == 3, T.float32(-1), T.Select(r_a % 6 == 1 and vh % 4 == 2, T.float32(1), T.Select(r_a % 6 == 1 and vh % 4 == 1, T.float32(-1), T.Select(r_a % 6 == 1 and vh % 4 == 0, T.float32(1), T.Select(r_a % 6 == 0 and vh % 4 == 3, T.float32(0), T.Select(r_a % 6 == 0 and vh % 4 == 2, T.float32(0), T.Select(r_a % 6 == 0 and vh % 4 == 1, T.float32(0), T.Select(r_a % 6 == 0 and vh % 4 == 0, T.float32(1), T.float32(0))))))))))))))))))))))))) * T.Select(r_b % 6 == 5 and vw % 4 == 3, T.float32(1), T.Select(r_b % 6 == 5 and vw % 4 == 2, T.float32(0), T.Select(r_b % 6 == 5 and vw % 4 == 1, T.float32(0), T.Select(r_b % 6 == 5 and vw % 4 == 0, T.float32(0), T.Select(r_b % 6 == 4 and vw % 4 == 3, T.float32(-8), T.Select(r_b % 6 == 4 and vw % 4 == 2, T.float32(4), T.Select(r_b % 6 == 4 and vw % 4 == 1, T.float32(-2), T.Select(r_b % 6 == 4 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 3 and vw % 4 == 3, T.float32(0.125), T.Select(r_b % 6 == 3 and vw % 4 == 2, T.float32(0.25), T.Select(r_b % 6 == 3 and vw % 4 == 1, T.float32(0.5), T.Select(r_b % 6 == 3 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 3, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 2, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 1, T.float32(1), T.Select(r_b % 6 == 2 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 1 and vw % 4 == 3, T.float32(-1), T.Select(r_b % 6 == 1 and vw % 4 == 2, T.float32(1), T.Select(r_b % 6 == 1 and vw % 4 == 1, T.float32(-1), T.Select(r_b % 6 == 1 and vw % 4 == 0, T.float32(1), T.Select(r_b % 6 == 0 and vw % 4 == 3, T.float32(0), T.Select(r_b % 6 == 0 and vw % 4 == 2, T.float32(0), T.Select(r_b % 6 == 0 and vw % 4 == 1, T.float32(0), T.Select(r_b % 6 == 0 and vw % 4 == 0, T.float32(1), T.float32(0)))))))))))))))))))))))))
         for i0_i1_i2_i3_fused_0 in T.thread_binding(1568, thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step":1024, "pragma_unroll_explicit":1}):
             for i0_i1_i2_i3_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
-                with T.block("conv2d_winograd"):
+                with T.sblock("conv2d_winograd"):
                     n = T.axis.spatial(1, 0)
                     h = T.axis.spatial(56, (i0_i1_i2_i3_fused_0 * 128 + i0_i1_i2_i3_fused_1) // 3584)
                     w = T.axis.spatial(56, (i0_i1_i2_i3_fused_0 * 128 + i0_i1_i2_i3_fused_1) % 3584 // 64)
@@ -1512,7 +1512,7 @@ class Conv2dInt8_with_predicate:
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         pad_temp = T.alloc_buffer([16, 56, 56, 64], dtype="int8")
         conv2d_nhwc = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
         T_subtract = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
@@ -1522,13 +1522,13 @@ class Conv2dInt8_with_predicate:
         compute_2 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
         T_subtract_1 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 64):
-            with T.block("pad_temp"):
+            with T.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(p0[i0_1, i1_1, i2_1, i3_1])
                 T.writes(pad_temp[i0_1, i1_1, i2_1, i3_1])
                 pad_temp[i0_1, i1_1, i2_1, i3_1] = p0[i0_1, i1_1, i2_1, i3_1]
         for i0, i1, i2, i3, i4, i5, i6 in T.grid(16, 56, 56, 256, 1, 1, 64):
-            with T.block("conv2d_nhwc"):
+            with T.sblock("conv2d_nhwc"):
                 nn, yy, xx, ff, ry, rx, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
                 T.reads(pad_temp[nn, yy + ry, xx + rx, rc], p1[ff, ry, rx, rc])
                 T.writes(conv2d_nhwc[nn, yy, xx, ff])
@@ -1536,43 +1536,43 @@ class Conv2dInt8_with_predicate:
                     conv2d_nhwc[nn, yy, xx, ff] = 0
                 conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_subtract"):
+            with T.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(conv2d_nhwc[ax0, ax1, ax2, ax3], p2[0, 0, 0, ax3])
                 T.writes(T_subtract[ax0, ax1, ax2, ax3])
                 T_subtract[ax0, ax1, ax2, ax3] = conv2d_nhwc[ax0, ax1, ax2, ax3] - p2[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_subtract[ax0, ax1, ax2, ax3], p3[0, 0, 0, ax3])
                 T.writes(T_add[ax0, ax1, ax2, ax3])
                 T_add[ax0, ax1, ax2, ax3] = T_subtract[ax0, ax1, ax2, ax3] + p3[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 i0_2, i1_2, i2_2, i3_2 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
                 T.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
                 compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True, dtype="int32")
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
-            with T.block("T_add_1"):
+            with T.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
                 T.reads(p7[()], compute_1[ax0, ax1, ax2, ax3])
                 T.writes(T_add_1[ax0, ax1, ax2, ax3])
                 T_add_1[ax0, ax1, ax2, ax3] = p7[()] + compute_1[ax0, ax1, ax2, ax3]
         for i0_4, i1_4, i2_4, i3_4 in T.grid(16, 56, 56, 256):
-            with T.block("compute_1"):
+            with T.sblock("compute_1"):
                 i0_5, i1_5, i2_5, i3_5 = T.axis.remap("SSSS", [i0_4, i1_4, i2_4, i3_4])
                 T.reads(T_add_1[i0_5, i1_5, i2_5, i3_5])
                 T.writes(compute_2[i0_5, i1_5, i2_5, i3_5])
                 compute_2[i0_5, i1_5, i2_5, i3_5] = T.max(T.min(T_add_1[i0_5, i1_5, i2_5, i3_5], 255), 0)
         for i0_6, i1_6, i2_6, i3_6 in T.grid(16, 56, 56, 256):
-            with T.block("T_subtract_1"):
+            with T.sblock("T_subtract_1"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
                 T.reads(compute_2[ax0, ax1, ax2, ax3], p8[0])
                 T.writes(T_subtract_1[ax0, ax1, ax2, ax3])
                 T_subtract_1[ax0, ax1, ax2, ax3] = compute_2[ax0, ax1, ax2, ax3] - p8[0]
         for i0_7, i1_7, i2_7, i3_7 in T.grid(16, 56, 56, 256):
-            with T.block("compute_2"):
+            with T.sblock("compute_2"):
                 i0_8, i1_8, i2_8, i3_8 = T.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
                 T.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
                 T.writes(compute[i0_8, i1_8, i2_8, i3_8])
@@ -1586,7 +1586,7 @@ class Conv2dInt8_with_predicate_target:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
-        # with T.block("root")
+        # with T.sblock("root")
         pad_temp = T.alloc_buffer([16, 56, 56, 64], dtype="int8")
         conv2d_nhwc = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
         T_subtract = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
@@ -1599,13 +1599,13 @@ class Conv2dInt8_with_predicate_target:
         compute_4 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
         T_add_2 = T.alloc_buffer([16, 56, 56, 256], dtype="int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 64):
-            with T.block("pad_temp"):
+            with T.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(p0[i0_1, i1_1, i2_1, i3_1])
                 T.writes(pad_temp[i0_1, i1_1, i2_1, i3_1])
                 pad_temp[i0_1, i1_1, i2_1, i3_1] = p0[i0_1, i1_1, i2_1, i3_1]
         for i0, i1, i2, i3, i4, i5, i6 in T.grid(16, 56, 56, 256, 1, 1, 64):
-            with T.block("conv2d_nhwc"):
+            with T.sblock("conv2d_nhwc"):
                 nn, yy, xx, ff, ry, rx, rc = T.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
                 T.reads(pad_temp[nn, yy + ry, xx + rx, rc], p1[ff, ry, rx, rc])
                 T.writes(conv2d_nhwc[nn, yy, xx, ff])
@@ -1613,61 +1613,61 @@ class Conv2dInt8_with_predicate_target:
                     conv2d_nhwc[nn, yy, xx, ff] = 0
                 conv2d_nhwc[nn, yy, xx, ff] = conv2d_nhwc[nn, yy, xx, ff] + T.cast(pad_temp[nn, yy + ry, xx + rx, rc], "int32") * T.cast(p1[ff, ry, rx, rc], "int32")
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_subtract"):
+            with T.sblock("T_subtract"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(conv2d_nhwc[ax0, ax1, ax2, ax3], p2[0, 0, 0, ax3])
                 T.writes(T_subtract[ax0, ax1, ax2, ax3])
                 T_subtract[ax0, ax1, ax2, ax3] = conv2d_nhwc[ax0, ax1, ax2, ax3] - p2[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("T_add"):
+            with T.sblock("T_add"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_subtract[ax0, ax1, ax2, ax3], p3[0, 0, 0, ax3])
                 T.writes(T_add[ax0, ax1, ax2, ax3])
                 T_add[ax0, ax1, ax2, ax3] = T_subtract[ax0, ax1, ax2, ax3] + p3[0, 0, 0, ax3]
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
-            with T.block("compute"):
+            with T.sblock("compute"):
                 i0_2, i1_2, i2_2, i3_2 = T.axis.remap("SSSS", [i0, i1, i2, i3])
                 T.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
                 T.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
                 compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True, dtype="int32")
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
-            with T.block("T_add_1"):
+            with T.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
                 T.reads(p7[()], compute_1[ax0, ax1, ax2, ax3])
                 T.writes(T_add_1[ax0, ax1, ax2, ax3])
                 T_add_1[ax0, ax1, ax2, ax3] = p7[()] + compute_1[ax0, ax1, ax2, ax3]
         for i0_4, i1_4, i2_4, i3_4 in T.grid(16, 56, 56, 256):
-            with T.block("compute_1"):
+            with T.sblock("compute_1"):
                 i0_5, i1_5, i2_5, i3_5 = T.axis.remap("SSSS", [i0_4, i1_4, i2_4, i3_4])
                 T.reads(T_add_1[i0_5, i1_5, i2_5, i3_5])
                 T.writes(compute_2[i0_5, i1_5, i2_5, i3_5])
                 compute_2[i0_5, i1_5, i2_5, i3_5] = T.max(T.min(T_add_1[i0_5, i1_5, i2_5, i3_5], 255), 0)
         for i0_6, i1_6, i2_6, i3_6 in T.grid(16, 56, 56, 256):
-            with T.block("T_subtract_1"):
+            with T.sblock("T_subtract_1"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
                 T.reads(compute_2[ax0, ax1, ax2, ax3], p8[0])
                 T.writes(T_subtract_1[ax0, ax1, ax2, ax3])
                 T_subtract_1[ax0, ax1, ax2, ax3] = compute_2[ax0, ax1, ax2, ax3] - p8[0]
         for i0_7, i1_7, i2_7, i3_7 in T.grid(16, 56, 56, 256):
-            with T.block("compute_2"):
+            with T.sblock("compute_2"):
                 i0_8, i1_8, i2_8, i3_8 = T.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
                 T.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
                 T.writes(compute_3[i0_8, i1_8, i2_8, i3_8])
                 compute_3[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1457846997, 31, 0, dtype="int32")
         for i0_9, i1_9, i2_9, i3_9 in T.grid(16, 56, 56, 256):
-            with T.block("compute_3"):
+            with T.sblock("compute_3"):
                 i0_10, i1_10, i2_10, i3_10 = T.axis.remap("SSSS", [i0_9, i1_9, i2_9, i3_9])
                 T.reads(p9[i0_10, i1_10, i2_10, i3_10])
                 T.writes(compute_4[i0_10, i1_10, i2_10, i3_10])
                 compute_4[i0_10, i1_10, i2_10, i3_10] = T.q_multiply_shift(p9[i0_10, i1_10, i2_10, i3_10], 2101000910, 31, 0, dtype="int32")
         for i0_11, i1_11, i2_11, i3_11 in T.grid(16, 56, 56, 256):
-            with T.block("T_add_2"):
+            with T.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3 = T.axis.remap("SSSS", [i0_11, i1_11, i2_11, i3_11])
                 T.reads(compute_3[ax0, ax1, ax2, ax3], compute_4[ax0, ax1, ax2, ax3])
                 T.writes(T_add_2[ax0, ax1, ax2, ax3])
                 T_add_2[ax0, ax1, ax2, ax3] = compute_3[ax0, ax1, ax2, ax3] + compute_4[ax0, ax1, ax2, ax3]
         for i0_12, i1_12, i2_12, i3_12 in T.grid(16, 56, 56, 256):
-            with T.block("compute_4"):
+            with T.sblock("compute_4"):
                 i0_13, i1_13, i2_13, i3_13 = T.axis.remap("SSSS", [i0_12, i1_12, i2_12, i3_12])
                 T.reads(T_add_2[i0_13, i1_13, i2_13, i3_13])
                 T.writes(compute[i0_13, i1_13, i2_13, i3_13])
@@ -1679,10 +1679,10 @@ class Conv2dInt8_with_predicate_scheduled:
     @T.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((256,), "int32"), p5: T.Buffer((256,), "int32"), p6: T.Buffer((256,), "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer((1,), "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")):
         T.func_attr({"tir.noalias": True})
-        with T.block("root"):
+        with T.sblock("root"):
             T.reads()
             T.writes()
-            T.block_attr({"meta_schedule.unroll_explicit": 1024})
+            T.sblock_attr({"meta_schedule.unroll_explicit": 1024})
             conv2d_nhwc_reindex_shared = T.alloc_buffer((50176, 256), "int32", scope="shared")
             conv2d_nhwc_reindex_shared_wmma_accumulator = T.alloc_buffer((50176, 256), "int32", scope="wmma.accumulator")
             pad_temp_reindex_shared = T.alloc_buffer((50176, 64), "int8", scope="shared")
@@ -1694,53 +1694,53 @@ class Conv2dInt8_with_predicate_scheduled:
                     for ax2_0_2_ax3_0_2_fused in T.thread_binding(4, thread="threadIdx.y"):
                         for ax0_0, ax1_0, ax4_0_0 in T.grid(1, 1, 2):
                             for ax0_ax1_fused in range(1024):
-                                with T.block("pad_temp_reindex_shared"):
+                                with T.sblock("pad_temp_reindex_shared"):
                                     v0 = T.axis.spatial(50176, ax2_0_0_ax3_0_0_fused // 4 * 6272 + ax2_0_1_ax3_0_1_fused * 32 + ax0_ax1_fused // 32)
                                     v1 = T.axis.spatial(64, ax4_0_0 * 32 + ax0_ax1_fused % 32)
                                     T.reads(p0[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
                                     T.writes(pad_temp_reindex_shared[v0, v1])
-                                    T.block_attr({"buffer_dim_align": [[0, 0, 32, 16]], "meta_schedule.cooperative_fetch": 4})
+                                    T.sblock_attr({"buffer_dim_align": [[0, 0, 32, 16]], "meta_schedule.cooperative_fetch": 4})
                                     pad_temp_reindex_shared[v0, v1] = p0[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1]
                             for ax0_ax1_ax2_ax3_fused in range(2048):
-                                with T.block("p1_reindex_shared"):
+                                with T.sblock("p1_reindex_shared"):
                                     v0 = T.axis.spatial(1, 0)
                                     v1 = T.axis.spatial(1, 0)
                                     v2 = T.axis.spatial(256, ax2_0_0_ax3_0_0_fused % 4 * 64 + ax0_ax1_ax2_ax3_fused // 32)
                                     v3 = T.axis.spatial(64, ax4_0_0 * 32 + ax0_ax1_ax2_ax3_fused % 32)
                                     T.reads(p1[v2, v0, v1, v3])
                                     T.writes(p1_reindex_shared[v0, v1, v2, v3])
-                                    T.block_attr({"buffer_dim_align": [[0, 2, 32, 16]], "meta_schedule.cooperative_fetch": 3})
+                                    T.sblock_attr({"buffer_dim_align": [[0, 2, 32, 16]], "meta_schedule.cooperative_fetch": 3})
                                     p1_reindex_shared[v0, v1, v2, v3] = p1[v2, v0, v1, v3]
                             for ax0_1, ax1_1, ax4_0_1 in T.grid(1, 1, 2):
                                 for ax0_0_1, ax1_0_1 in T.grid(1, 1):
-                                    with T.block("pad_temp_reindex_shared_wmma.matrix_a_o"):
+                                    with T.sblock("pad_temp_reindex_shared_wmma.matrix_a_o"):
                                         v0_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 4 * 392 + ax2_0_1_ax3_0_1_fused * 2 + ax2_0_2_ax3_0_2_fused // 2 + ax0_0_1)
                                         v1_o = T.axis.spatial(4, ax4_0_0 * 2 + ax4_0_1 + ax1_0_1)
                                         T.reads(pad_temp_reindex_shared[v0_o * 16:v0_o * 16 + 16, v1_o * 16:v1_o * 16 + 16])
                                         T.writes(pad_temp_reindex_shared_wmma_matrix_a[v0_o * 16:v0_o * 16 + 16, v1_o * 16:v1_o * 16 + 16])
-                                        T.block_attr({"meta_schedule.auto_tensorize": "wmma_load_16x16x16_s8_a_shared"})
+                                        T.sblock_attr({"meta_schedule.auto_tensorize": "wmma_load_16x16x16_s8_a_shared"})
                                         for ax0_1_1, ax1_1_1 in T.grid(16, 16):
-                                            with T.block("pad_temp_reindex_shared_wmma.matrix_a"):
+                                            with T.sblock("pad_temp_reindex_shared_wmma.matrix_a"):
                                                 v0_i, v1_i = T.axis.remap("SS", [ax0_1_1, ax1_1_1])
                                                 T.reads(pad_temp_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
                                                 T.writes(pad_temp_reindex_shared_wmma_matrix_a[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
                                                 pad_temp_reindex_shared_wmma_matrix_a[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = pad_temp_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i]
                                 for ax0, ax1, ax2_0, ax3_0 in T.grid(1, 1, 2, 1):
-                                    with T.block("p1_reindex_shared_wmma.matrix_b_o"):
+                                    with T.sblock("p1_reindex_shared_wmma.matrix_b_o"):
                                         v0_o, v1_o = T.axis.remap("SS", [ax0, ax1])
                                         v2_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 4 * 4 + ax2_0_2_ax3_0_2_fused % 2 * 2 + ax2_0)
                                         v3_o = T.axis.spatial(4, ax4_0_0 * 2 + ax4_0_1 + ax3_0)
                                         T.reads(p1_reindex_shared[v0_o, v1_o, v2_o * 16:v2_o * 16 + 16, v3_o * 16:v3_o * 16 + 16])
                                         T.writes(p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v2_o * 16:v2_o * 16 + 16, v3_o * 16:v3_o * 16 + 16])
-                                        T.block_attr({"meta_schedule.auto_tensorize": "wmma_load_16x16x16_s8_b_trans_shared"})
+                                        T.sblock_attr({"meta_schedule.auto_tensorize": "wmma_load_16x16x16_s8_b_trans_shared"})
                                         for ax2_1, ax3_1 in T.grid(16, 16):
-                                            with T.block("p1_reindex_shared_wmma.matrix_b"):
+                                            with T.sblock("p1_reindex_shared_wmma.matrix_b"):
                                                 v2_i, v3_i = T.axis.remap("SS", [ax2_1, ax3_1])
                                                 T.reads(p1_reindex_shared[v0_o, v1_o, v2_o * 16 + v2_i, v3_o * 16 + v3_i])
                                                 T.writes(p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v2_o * 16 + v2_i, v3_o * 16 + v3_i])
                                                 p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v2_o * 16 + v2_i, v3_o * 16 + v3_i] = p1_reindex_shared[v0_o, v1_o, v2_o * 16 + v2_i, v3_o * 16 + v3_i]
                                 for ax2_0_3, ax3_0_3, ax0_2, ax1_2, ax4_0_2, ax2_0_4, ax3_0_4 in T.grid(1, 1, 1, 1, 1, 1, 2):
-                                    with T.block("conv2d_nhwc_o"):
+                                    with T.sblock("conv2d_nhwc_o"):
                                         v0_o = T.axis.spatial(1, ax0_0 + ax0_1 + ax0_2)
                                         v1_o = T.axis.spatial(1, ax1_0 + ax1_1 + ax1_2)
                                         v2_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 4 * 392 + ax2_0_1_ax3_0_1_fused * 2 + ax2_0_2_ax3_0_2_fused // 2 + ax2_0_3 + ax2_0_4)
@@ -1748,36 +1748,36 @@ class Conv2dInt8_with_predicate_scheduled:
                                         v4_o = T.axis.reduce(4, ax4_0_0 * 2 + ax4_0_1 + ax4_0_2)
                                         T.reads(pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16:v2_o * 16 + 16, v4_o * 16:v4_o * 16 + 16], p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v3_o * 16:v3_o * 16 + 16, v4_o * 16:v4_o * 16 + 16])
                                         T.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16:v2_o * 16 + 16, v3_o * 16:v3_o * 16 + 16])
-                                        T.block_attr({"meta_schedule.auto_tensorize": "wmma_sync_16x16x16_s8s8s32_trans", "meta_schedule.auto_tensorize_init": "wmma_fill_16x16x16_s32", "meta_schedule.thread_extent_high_inclusive": 1024, "meta_schedule.thread_extent_low_inclusive": 32, "warp_execution": 1})
+                                        T.sblock_attr({"meta_schedule.auto_tensorize": "wmma_sync_16x16x16_s8s8s32_trans", "meta_schedule.auto_tensorize_init": "wmma_fill_16x16x16_s32", "meta_schedule.thread_extent_high_inclusive": 1024, "meta_schedule.thread_extent_low_inclusive": 32, "warp_execution": 1})
                                         with T.init():
                                             for ax2_1, ax3_1 in T.grid(16, 16):
-                                                with T.block("conv2d_nhwc_init"):
+                                                with T.sblock("conv2d_nhwc_init"):
                                                     v2_i_init, v3_i_init = T.axis.remap("SS", [ax2_1, ax3_1])
                                                     T.reads()
                                                     T.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i_init, v3_o * 16 + v3_i_init])
                                                     conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i_init, v3_o * 16 + v3_i_init] = 0
                                         for ax2_1, ax3_1, ax4_1 in T.grid(16, 16, 16):
-                                            with T.block("conv2d_nhwc"):
+                                            with T.sblock("conv2d_nhwc"):
                                                 v2_i, v3_i, v4_i = T.axis.remap("SSR", [ax2_1, ax3_1, ax4_1])
                                                 T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i], pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i], p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v3_o * 16 + v3_i, v4_o * 16 + v4_i])
                                                 T.writes(conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i])
-                                                T.block_attr({"meta_schedule.tiling_structure": "SSSRRSRS"})
+                                                T.sblock_attr({"meta_schedule.tiling_structure": "SSSRRSRS"})
                                                 conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v2_o * 16 + v2_i, v3_o * 16 + v3_i] + T.Cast("int32", pad_temp_reindex_shared_wmma_matrix_a[v2_o * 16 + v2_i, v4_o * 16 + v4_i]) * T.Cast("int32", p1_reindex_shared_wmma_matrix_b[v0_o, v1_o, v3_o * 16 + v3_i, v4_o * 16 + v4_i])
                         for ax0_0, ax1_0 in T.grid(1, 2):
-                            with T.block("conv2d_nhwc_reindex_shared_wmma.accumulator_o"):
+                            with T.sblock("conv2d_nhwc_reindex_shared_wmma.accumulator_o"):
                                 v0_o = T.axis.spatial(3136, ax2_0_0_ax3_0_0_fused // 4 * 392 + ax2_0_1_ax3_0_1_fused * 2 + ax2_0_2_ax3_0_2_fused // 2 + ax0_0)
                                 v1_o = T.axis.spatial(16, ax2_0_0_ax3_0_0_fused % 4 * 4 + ax2_0_2_ax3_0_2_fused % 2 * 2 + ax1_0)
                                 T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v0_o * 16:v0_o * 16 + 16, v1_o * 16:v1_o * 16 + 16])
                                 T.writes(conv2d_nhwc_reindex_shared[v0_o * 16:v0_o * 16 + 16, v1_o * 16:v1_o * 16 + 16])
-                                T.block_attr({"meta_schedule.auto_tensorize": "wmma_store_16x16x16_s32_shared"})
+                                T.sblock_attr({"meta_schedule.auto_tensorize": "wmma_store_16x16x16_s32_shared"})
                                 for ax0_1, ax1_1 in T.grid(16, 16):
-                                    with T.block("conv2d_nhwc_reindex_shared_wmma.accumulator"):
+                                    with T.sblock("conv2d_nhwc_reindex_shared_wmma.accumulator"):
                                         v0_i, v1_i = T.axis.remap("SS", [ax0_1, ax1_1])
                                         T.reads(conv2d_nhwc_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
                                         T.writes(conv2d_nhwc_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i])
                                         conv2d_nhwc_reindex_shared[v0_o * 16 + v0_i, v1_o * 16 + v1_i] = conv2d_nhwc_reindex_shared_wmma_accumulator[v0_o * 16 + v0_i, v1_o * 16 + v1_i]
                     for ax0, ax1_0, ax1_1, ax1_2, ax1_3 in T.grid(32, 1, 4, 32, 2):
-                        with T.block("conv2d_nhwc_reindex_shared"):
+                        with T.sblock("conv2d_nhwc_reindex_shared"):
                             v0 = T.axis.spatial(50176, ax2_0_0_ax3_0_0_fused // 4 * 6272 + ax2_0_1_ax3_0_1_fused * 32 + ax0)
                             v1 = T.axis.spatial(256, ax2_0_0_ax3_0_0_fused % 4 * 64 + (ax1_0 * 256 + ax1_1 * 64 + ax1_2 * 2 + ax1_3))
                             T.where(((ax1_0 * 4 + ax1_1) * 32 + ax1_2) * 2 + ax1_3 < 64)
@@ -1801,8 +1801,8 @@ def verify(anchor_mod, anchor_trace_fun, target_mod, target, ref):
 
 def test_dense_add_cpu():
     def apply_anchor_trace(sch: Schedule) -> None:
-        b0 = sch.get_block(name="T_matmul_NT", func_name="main")
-        b1 = sch.get_block(name="root", func_name="main")
+        b0 = sch.get_sblock(name="T_matmul_NT", func_name="main")
+        b1 = sch.get_sblock(name="root", func_name="main")
         sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSRSRS")
         l2, l3, l4 = sch.get_loops(block=b0)
         v5, v6, v7, v8 = sch.sample_perfect_tile(
@@ -1827,7 +1827,7 @@ def test_dense_add_cpu():
         )
         sch.annotate(block_or_loop=b1, ann_key="meta_schedule.unroll_explicit", ann_val=v26)
         sch.enter_postproc()
-        b27 = sch.get_block(name="root", func_name="main")
+        b27 = sch.get_sblock(name="root", func_name="main")
         sch.unannotate(block_or_loop=b27, ann_key="meta_schedule.parallel")
         sch.unannotate(block_or_loop=b27, ann_key="meta_schedule.vectorize")
         sch.unannotate(block_or_loop=b27, ann_key="meta_schedule.unroll_explicit")
@@ -1842,10 +1842,10 @@ def test_dense_add_cpu():
         sch.parallel(loop=l45)
         l46 = sch.fuse(l44, preserve_unit_iters=True)
         sch.vectorize(loop=l46)
-        b47 = sch.get_block(name="T_matmul_NT", func_name="main")
+        b47 = sch.get_sblock(name="T_matmul_NT", func_name="main")
         l48, l49, l50, l51, l52, l53, l54, l55, l56 = sch.get_loops(block=b47)
         b57 = sch.decompose_reduction(block=b47, loop=l51)
-        b58 = sch.get_block(name="T_matmul_NT_update", func_name="main")
+        b58 = sch.get_sblock(name="T_matmul_NT_update", func_name="main")
         b59 = sch.cache_read(block=b58, read_buffer_index=2, storage_scope="global")
         sch.transform_layout(
             block=b58,
@@ -1873,8 +1873,8 @@ def test_dense_add_cpu():
 
 def test_dense_add_cpu_no_write_cache():
     def apply_trace(sch):
-        b0 = sch.get_block(name="T_matmul_NT", func_name="main")
-        b1 = sch.get_block(name="root", func_name="main")
+        b0 = sch.get_sblock(name="T_matmul_NT", func_name="main")
+        b1 = sch.get_sblock(name="root", func_name="main")
         sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSRSRS")
         l2, l3, l4 = sch.get_loops(block=b0)
         v5, v6, v7, v8 = sch.sample_perfect_tile(
@@ -1897,7 +1897,7 @@ def test_dense_add_cpu_no_write_cache():
         )
         sch.annotate(block_or_loop=b1, ann_key="meta_schedule.unroll_explicit", ann_val=v25)
         sch.enter_postproc()
-        b26 = sch.get_block(name="root", func_name="main")
+        b26 = sch.get_sblock(name="root", func_name="main")
         sch.unannotate(block_or_loop=b26, ann_key="meta_schedule.parallel")
         sch.unannotate(block_or_loop=b26, ann_key="meta_schedule.vectorize")
         sch.unannotate(block_or_loop=b26, ann_key="meta_schedule.unroll_explicit")
@@ -1909,10 +1909,10 @@ def test_dense_add_cpu_no_write_cache():
         sch.vectorize(loop=l39)
         sch.annotate(block_or_loop=l38, ann_key="pragma_auto_unroll_max_step", ann_val=16)
         sch.annotate(block_or_loop=l38, ann_key="pragma_unroll_explicit", ann_val=1)
-        b40 = sch.get_block(name="T_matmul_NT", func_name="main")
+        b40 = sch.get_sblock(name="T_matmul_NT", func_name="main")
         l41, l42, l43, l44, l45, l46, l47 = sch.get_loops(block=b40)
         b48 = sch.decompose_reduction(block=b40, loop=l42)
-        b49 = sch.get_block(name="T_matmul_NT_update", func_name="main")
+        b49 = sch.get_sblock(name="T_matmul_NT_update", func_name="main")
         b50 = sch.cache_read(block=b49, read_buffer_index=2, storage_scope="global")
         sch.transform_layout(
             block=b49,
@@ -1941,8 +1941,8 @@ def test_dense_add_cpu_no_write_cache():
 
 def test_dense_add_gpu():
     def apply_anchor_trace(sch: Schedule) -> None:
-        b0 = sch.get_block(name="T_matmul_NT", func_name="main")
-        b1 = sch.get_block(name="root", func_name="main")
+        b0 = sch.get_sblock(name="T_matmul_NT", func_name="main")
+        b1 = sch.get_sblock(name="root", func_name="main")
         sch.annotate(block_or_loop=b0, ann_key="meta_schedule.tiling_structure", ann_val="SSSRRSRS")
         l2, l3, l4 = sch.get_loops(block=b0)
         v5, v6, v7, v8, v9 = sch.sample_perfect_tile(
@@ -2019,7 +2019,7 @@ def test_dense_add_gpu():
         l67, l68, l69 = sch.split(loop=l66, factors=[None, 128, 4], preserve_unit_iters=True)
         sch.vectorize(loop=l69)
         sch.bind(loop=l68, thread_axis="threadIdx.x")
-        b70 = sch.get_block(name="root", func_name="main")
+        b70 = sch.get_sblock(name="root", func_name="main")
         sch.unannotate(block_or_loop=b70, ann_key="meta_schedule.unroll_explicit")
         b71, b72, b73, b74 = sch.get_child_blocks(b70)
         l75, l76, l77, l78, l79, l80, l81 = sch.get_loops(block=b71)
@@ -2034,7 +2034,7 @@ def test_dense_add_gpu():
         l99, l100, l101, l102, l103 = sch.get_loops(block=b74)
         sch.annotate(block_or_loop=l99, ann_key="pragma_auto_unroll_max_step", ann_val=64)
         sch.annotate(block_or_loop=l99, ann_key="pragma_unroll_explicit", ann_val=1)
-        b104 = sch.get_block(name="T_matmul_NT", func_name="main")
+        b104 = sch.get_sblock(name="T_matmul_NT", func_name="main")
         l105, l106, l107, l108, l109, l110, l111, l112, l113, l114 = sch.get_loops(block=b104)
         b115 = sch.decompose_reduction(block=b104, loop=l108)
 
@@ -2043,22 +2043,22 @@ def test_dense_add_gpu():
 
 def test_conv2d_int8_tensorcore():
     def apply_trace(sch):
-        b0 = sch.get_block(name="pad_temp", func_name="main")
-        b1 = sch.get_block(name="conv2d_nhwc", func_name="main")
-        b2 = sch.get_block(name="T_subtract", func_name="main")
-        b3 = sch.get_block(name="T_add", func_name="main")
-        b4 = sch.get_block(name="T_cast", func_name="main")
-        b5 = sch.get_block(name="T_multiply", func_name="main")
-        b6 = sch.get_block(name="T_add_1", func_name="main")
-        b7 = sch.get_block(name="T_right_shift", func_name="main")
-        b8 = sch.get_block(name="T_cast_1", func_name="main")
-        b9 = sch.get_block(name="T_add_2", func_name="main")
-        b10 = sch.get_block(name="compute", func_name="main")
-        b11 = sch.get_block(name="T_cast_2", func_name="main")
-        b12 = sch.get_block(name="T_cast_3", func_name="main")
-        b13 = sch.get_block(name="T_subtract_1", func_name="main")
-        b14 = sch.get_block(name="compute_1", func_name="main")
-        b15 = sch.get_block(name="root", func_name="main")
+        b0 = sch.get_sblock(name="pad_temp", func_name="main")
+        b1 = sch.get_sblock(name="conv2d_nhwc", func_name="main")
+        b2 = sch.get_sblock(name="T_subtract", func_name="main")
+        b3 = sch.get_sblock(name="T_add", func_name="main")
+        b4 = sch.get_sblock(name="T_cast", func_name="main")
+        b5 = sch.get_sblock(name="T_multiply", func_name="main")
+        b6 = sch.get_sblock(name="T_add_1", func_name="main")
+        b7 = sch.get_sblock(name="T_right_shift", func_name="main")
+        b8 = sch.get_sblock(name="T_cast_1", func_name="main")
+        b9 = sch.get_sblock(name="T_add_2", func_name="main")
+        b10 = sch.get_sblock(name="compute", func_name="main")
+        b11 = sch.get_sblock(name="T_cast_2", func_name="main")
+        b12 = sch.get_sblock(name="T_cast_3", func_name="main")
+        b13 = sch.get_sblock(name="T_subtract_1", func_name="main")
+        b14 = sch.get_sblock(name="compute_1", func_name="main")
+        b15 = sch.get_sblock(name="root", func_name="main")
         sch.annotate(block_or_loop=b1, ann_key="meta_schedule.tiling_structure", ann_val="SSSRRSRS")
         b16 = sch.reindex(block=b1, buffer=("write", 0))
         b17 = sch.reindex(block=b1, buffer=("read", 0))
@@ -2383,7 +2383,7 @@ def test_conv2d_int8_tensorcore():
         l217, l218, l219 = sch.split(loop=l216, factors=[None, 16, 8], preserve_unit_iters=True)
         sch.vectorize(loop=l219)
         sch.bind(loop=l218, thread_axis="threadIdx.x")
-        b220 = sch.get_block(name="root", func_name="main")
+        b220 = sch.get_sblock(name="root", func_name="main")
         sch.unannotate(block_or_loop=b220, ann_key="meta_schedule.unroll_explicit")
         b221, b222, b223, b224, b225, b226, b227 = sch.get_child_blocks(b220)
         l228, l229, l230, l231, l232, l233, l234, l235, l236 = sch.get_loops(block=b221)
@@ -2438,7 +2438,7 @@ def test_conv2d_int8_tensorcore():
         l291, l292, l293, l294, l295 = sch.get_loops(block=b227)
         sch.annotate(block_or_loop=l291, ann_key="pragma_auto_unroll_max_step", ann_val=512)
         sch.annotate(block_or_loop=l291, ann_key="pragma_unroll_explicit", ann_val=1)
-        b296 = sch.get_block(name="conv2d_nhwc_o", func_name="main")
+        b296 = sch.get_sblock(name="conv2d_nhwc_o", func_name="main")
         (
             l297,
             l298,
@@ -2466,19 +2466,21 @@ def test_conv2d_int8_tensorcore():
         )
         sch.unannotate(block_or_loop=b296, ann_key="meta_schedule.auto_tensorize_init")
         sch.unannotate(block_or_loop=b313, ann_key="meta_schedule.auto_tensorize_init")
-        b314 = sch.get_block(name="conv2d_nhwc_o_init", func_name="main")
+        b314 = sch.get_sblock(name="conv2d_nhwc_o_init", func_name="main")
         sch.unannotate(block_or_loop=b314, ann_key="meta_schedule.auto_tensorize")
         sch.tensorize(block_or_loop=b314, tensor_intrin="wmma_fill_16x16x16_s32")
-        b315 = sch.get_block(name="pad_temp_reindex_shared_wmma.matrix_a_o", func_name="main")
+        b315 = sch.get_sblock(name="pad_temp_reindex_shared_wmma.matrix_a_o", func_name="main")
         sch.unannotate(block_or_loop=b315, ann_key="meta_schedule.auto_tensorize")
         sch.tensorize(block_or_loop=b315, tensor_intrin="wmma_load_16x16x16_s8_a_shared")
-        b316 = sch.get_block(name="p1_reindex_shared_wmma.matrix_b_o", func_name="main")
+        b316 = sch.get_sblock(name="p1_reindex_shared_wmma.matrix_b_o", func_name="main")
         sch.unannotate(block_or_loop=b316, ann_key="meta_schedule.auto_tensorize")
         sch.tensorize(block_or_loop=b316, tensor_intrin="wmma_load_16x16x16_s8_b_trans_shared")
-        b317 = sch.get_block(name="conv2d_nhwc_o_update", func_name="main")
+        b317 = sch.get_sblock(name="conv2d_nhwc_o_update", func_name="main")
         sch.unannotate(block_or_loop=b317, ann_key="meta_schedule.auto_tensorize")
         sch.tensorize(block_or_loop=b317, tensor_intrin="wmma_sync_16x16x16_s8s8s32_trans")
-        b318 = sch.get_block(name="conv2d_nhwc_reindex_shared_wmma.accumulator_o", func_name="main")
+        b318 = sch.get_sblock(
+            name="conv2d_nhwc_reindex_shared_wmma.accumulator_o", func_name="main"
+        )
         sch.unannotate(block_or_loop=b318, ann_key="meta_schedule.auto_tensorize")
         sch.tensorize(block_or_loop=b318, tensor_intrin="wmma_store_16x16x16_s32_shared")
 
@@ -2487,28 +2489,28 @@ def test_conv2d_int8_tensorcore():
 
 def test_conv2d_int8_vnni():
     def apply_trace(sch):
-        b0 = sch.get_block(name="compile_engine_const", func_name="main")
-        b1 = sch.get_block(name="conv2d_NCHWc_int8", func_name="main")
-        b2 = sch.get_block(name="T_add", func_name="main")
-        b3 = sch.get_block(name="T_cast", func_name="main")
-        b4 = sch.get_block(name="T_multiply", func_name="main")
-        b5 = sch.get_block(name="compile_engine_const_1", func_name="main")
-        b6 = sch.get_block(name="T_add_1", func_name="main")
-        b7 = sch.get_block(name="T_floor", func_name="main")
-        b8 = sch.get_block(name="T_cast_1", func_name="main")
-        b9 = sch.get_block(name="compute", func_name="main")
-        b10 = sch.get_block(name="T_cast_2", func_name="main")
-        b11 = sch.get_block(name="T_cast_3", func_name="main")
-        b12 = sch.get_block(name="T_subtract", func_name="main")
-        b13 = sch.get_block(name="T_multiply_1", func_name="main")
-        b14 = sch.get_block(name="compile_engine_const_2", func_name="main")
-        b15 = sch.get_block(name="T_add_2", func_name="main")
-        b16 = sch.get_block(name="T_floor_1", func_name="main")
-        b17 = sch.get_block(name="T_cast_4", func_name="main")
-        b18 = sch.get_block(name="T_add_3", func_name="main")
-        b19 = sch.get_block(name="compute_1", func_name="main")
-        b20 = sch.get_block(name="T_cast_5", func_name="main")
-        b21 = sch.get_block(name="root", func_name="main")
+        b0 = sch.get_sblock(name="compile_engine_const", func_name="main")
+        b1 = sch.get_sblock(name="conv2d_NCHWc_int8", func_name="main")
+        b2 = sch.get_sblock(name="T_add", func_name="main")
+        b3 = sch.get_sblock(name="T_cast", func_name="main")
+        b4 = sch.get_sblock(name="T_multiply", func_name="main")
+        b5 = sch.get_sblock(name="compile_engine_const_1", func_name="main")
+        b6 = sch.get_sblock(name="T_add_1", func_name="main")
+        b7 = sch.get_sblock(name="T_floor", func_name="main")
+        b8 = sch.get_sblock(name="T_cast_1", func_name="main")
+        b9 = sch.get_sblock(name="compute", func_name="main")
+        b10 = sch.get_sblock(name="T_cast_2", func_name="main")
+        b11 = sch.get_sblock(name="T_cast_3", func_name="main")
+        b12 = sch.get_sblock(name="T_subtract", func_name="main")
+        b13 = sch.get_sblock(name="T_multiply_1", func_name="main")
+        b14 = sch.get_sblock(name="compile_engine_const_2", func_name="main")
+        b15 = sch.get_sblock(name="T_add_2", func_name="main")
+        b16 = sch.get_sblock(name="T_floor_1", func_name="main")
+        b17 = sch.get_sblock(name="T_cast_4", func_name="main")
+        b18 = sch.get_sblock(name="T_add_3", func_name="main")
+        b19 = sch.get_sblock(name="compute_1", func_name="main")
+        b20 = sch.get_sblock(name="T_cast_5", func_name="main")
+        b21 = sch.get_sblock(name="root", func_name="main")
         sch.compute_inline(block=b20)
         sch.compute_inline(block=b19)
         sch.compute_inline(block=b18)
@@ -2627,7 +2629,7 @@ def test_conv2d_int8_vnni():
         )
         sch.annotate(block_or_loop=b21, ann_key="meta_schedule.unroll_explicit", ann_val=v120)
         sch.enter_postproc()
-        b121 = sch.get_block(name="root", func_name="main")
+        b121 = sch.get_sblock(name="root", func_name="main")
         sch.unannotate(block_or_loop=b121, ann_key="meta_schedule.parallel")
         sch.unannotate(block_or_loop=b121, ann_key="meta_schedule.vectorize")
         sch.unannotate(block_or_loop=b121, ann_key="meta_schedule.unroll_explicit")
@@ -2673,7 +2675,7 @@ def test_conv2d_int8_vnni():
         sch.vectorize(loop=l164)
         sch.annotate(block_or_loop=l155, ann_key="pragma_auto_unroll_max_step", ann_val=64)
         sch.annotate(block_or_loop=l155, ann_key="pragma_unroll_explicit", ann_val=1)
-        b165 = sch.get_block(name="conv2d_NCHWc_int8_o", func_name="main")
+        b165 = sch.get_sblock(name="conv2d_NCHWc_int8_o", func_name="main")
         (
             l166,
             l167,
@@ -2703,12 +2705,12 @@ def test_conv2d_int8_vnni():
         b190 = sch.decompose_reduction(block=b165, loop=l170)
         sch.unannotate(block_or_loop=b190, ann_key="meta_schedule.auto_tensorize")
         sch.annotate(block_or_loop=b190, ann_key="meta_schedule.auto_tensorize", ann_val="")
-        b191 = sch.get_block(name="conv2d_NCHWc_int8_o_init", func_name="main")
+        b191 = sch.get_sblock(name="conv2d_NCHWc_int8_o_init", func_name="main")
         sch.unannotate(block_or_loop=b191, ann_key="meta_schedule.auto_tensorize")
         (b192,) = sch.get_child_blocks(b191)
         (l193,) = sch.get_loops(block=b192)
         sch.vectorize(loop=l193)
-        b194 = sch.get_block(name="conv2d_NCHWc_int8_o_update", func_name="main")
+        b194 = sch.get_sblock(name="conv2d_NCHWc_int8_o_update", func_name="main")
         sch.unannotate(block_or_loop=b194, ann_key="meta_schedule.auto_tensorize")
         sch.tensorize(block_or_loop=b194, tensor_intrin=VNNI_INTRIN)
 
@@ -2724,15 +2726,15 @@ def test_conv2d_int8_vnni():
 
 def test_winograd_gpu():
     def apply_trace(sch):
-        b0 = sch.get_block(name="B", func_name="main")
-        b1 = sch.get_block(name="data_pack", func_name="main")
-        b2 = sch.get_block(name="bgemm", func_name="main")
-        b3 = sch.get_block(name="A", func_name="main")
-        b4 = sch.get_block(name="inverse", func_name="main")
-        b5 = sch.get_block(name="conv2d_winograd", func_name="main")
-        b6 = sch.get_block(name="T_add", func_name="main")
-        b7 = sch.get_block(name="T_relu", func_name="main")
-        b8 = sch.get_block(name="root", func_name="main")
+        b0 = sch.get_sblock(name="B", func_name="main")
+        b1 = sch.get_sblock(name="data_pack", func_name="main")
+        b2 = sch.get_sblock(name="bgemm", func_name="main")
+        b3 = sch.get_sblock(name="A", func_name="main")
+        b4 = sch.get_sblock(name="inverse", func_name="main")
+        b5 = sch.get_sblock(name="conv2d_winograd", func_name="main")
+        b6 = sch.get_sblock(name="T_add", func_name="main")
+        b7 = sch.get_sblock(name="T_relu", func_name="main")
+        b8 = sch.get_sblock(name="root", func_name="main")
         sch.compute_inline(block=b0)
         (b9,) = sch.get_producers(block=b1)
         (b10,) = sch.get_producers(block=b9)
@@ -2927,7 +2929,7 @@ def test_winograd_gpu():
         l162, l163, l164 = sch.split(loop=l161, factors=[None, 48, 4], preserve_unit_iters=True)
         sch.vectorize(loop=l164)
         sch.bind(loop=l163, thread_axis="threadIdx.x")
-        b165 = sch.get_block(name="root", func_name="main")
+        b165 = sch.get_sblock(name="root", func_name="main")
         sch.unannotate(block_or_loop=b165, ann_key="meta_schedule.unroll_explicit")
         b166, b167, b168, b169, b170, b171, b172, b173 = sch.get_child_blocks(b165)
         l174, l175, l176, l177, l178, l179 = sch.get_loops(block=b166)
@@ -2969,10 +2971,10 @@ def test_winograd_gpu():
         l227, l228 = sch.get_loops(block=b173)
         sch.annotate(block_or_loop=l227, ann_key="pragma_auto_unroll_max_step", ann_val=1024)
         sch.annotate(block_or_loop=l227, ann_key="pragma_unroll_explicit", ann_val=1)
-        b229 = sch.get_block(name="data_pack", func_name="main")
+        b229 = sch.get_sblock(name="data_pack", func_name="main")
         l230, l231, l232, l233, l234, l235 = sch.get_loops(block=b229)
         b236 = sch.decompose_reduction(block=b229, loop=l234)
-        b237 = sch.get_block(name="bgemm", func_name="main")
+        b237 = sch.get_sblock(name="bgemm", func_name="main")
         (
             l238,
             l239,
@@ -2990,7 +2992,7 @@ def test_winograd_gpu():
             l251,
         ) = sch.get_loops(block=b237)
         b252 = sch.decompose_reduction(block=b237, loop=l241)
-        b253 = sch.get_block(name="inverse", func_name="main")
+        b253 = sch.get_sblock(name="inverse", func_name="main")
         l254, l255, l256, l257, l258, l259 = sch.get_loops(block=b253)
         b260 = sch.decompose_reduction(block=b253, loop=l258)
 
@@ -3018,16 +3020,16 @@ def test_inline_order():
     # such cases.
 
     def apply_trace(sch: Schedule) -> None:
-        b0 = sch.get_block(name="pad_temp", func_name="main")
-        b1 = sch.get_block(name="conv2d_nhwc", func_name="main")
-        b2 = sch.get_block(name="T_subtract", func_name="main")
-        b3 = sch.get_block(name="T_add", func_name="main")
-        b4 = sch.get_block(name="compute", func_name="main")
-        b5 = sch.get_block(name="T_add_1", func_name="main")
-        b6 = sch.get_block(name="compute_1", func_name="main")
-        b7 = sch.get_block(name="T_subtract_1", func_name="main")
-        b8 = sch.get_block(name="compute_2", func_name="main")
-        b9 = sch.get_block(name="root", func_name="main")
+        b0 = sch.get_sblock(name="pad_temp", func_name="main")
+        b1 = sch.get_sblock(name="conv2d_nhwc", func_name="main")
+        b2 = sch.get_sblock(name="T_subtract", func_name="main")
+        b3 = sch.get_sblock(name="T_add", func_name="main")
+        b4 = sch.get_sblock(name="compute", func_name="main")
+        b5 = sch.get_sblock(name="T_add_1", func_name="main")
+        b6 = sch.get_sblock(name="compute_1", func_name="main")
+        b7 = sch.get_sblock(name="T_subtract_1", func_name="main")
+        b8 = sch.get_sblock(name="compute_2", func_name="main")
+        b9 = sch.get_sblock(name="root", func_name="main")
         sch.annotate(block_or_loop=b1, ann_key="meta_schedule.tiling_structure", ann_val="SSSRRSRS")
         b10 = sch.reindex(block=b1, buffer=("write", 0))
         b11 = sch.reindex(block=b1, buffer=("read", 0))

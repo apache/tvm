@@ -56,7 +56,7 @@ def test_thread_axis2():
         for i0_i1_i2_i3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
             for i0_i1_i2_i3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
                 for i0_i1_i2_i3_fused_0 in T.serial(T.int64(7)):
-                    with T.block("T_where"):
+                    with T.sblock("T_where"):
                         ax0 = T.axis.spatial(T.int64(1), T.int64(0))
                         ax1 = T.axis.spatial(
                             T.int64(12),
@@ -114,7 +114,7 @@ def test_thread_axis2():
         for i0_i1_i2_i3_fused_1 in T.thread_binding(256, thread="blockIdx.x"):
             for i0_i1_i2_i3_fused_2 in T.thread_binding(1024, thread="threadIdx.x"):
                 for i0_i1_i2_i3_fused_0 in range(7):
-                    with T.block("T_where"):
+                    with T.sblock("T_where"):
                         ax0 = T.axis.spatial(1, 0)
                         ax1 = T.axis.spatial(
                             12,
@@ -165,7 +165,7 @@ def test_block():
     def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
-                with T.block():
+                with T.sblock():
                     vi = T.axis.spatial(T.int64(128), i * T.int64(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
@@ -173,7 +173,7 @@ def test_block():
     def expected(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.serial(0, T.int32(16)):
             for j in T.serial(0, T.int32(8)):
-                with T.block():
+                with T.sblock():
                     vi = T.axis.spatial(T.int32(128), i * T.int32(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
@@ -187,7 +187,7 @@ def test_i16_buffer():
     def before(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(16)):
-                with T.block():
+                with T.sblock():
                     vi = T.axis.spatial(T.int64(128), i * 8 + j)
                     B[vi] = A[vi] + T.int16(1)
 
@@ -195,7 +195,7 @@ def test_i16_buffer():
     def expected(A: T.Buffer((128,), "int16"), B: T.Buffer((128,), "int16")):
         for i in T.serial(0, 16):
             for j in T.serial(0, 16):
-                with T.block():
+                with T.sblock():
                     vi = T.axis.spatial(128, i * 8 + j)
                     B[vi] = A[vi] + T.int16(1)
 
@@ -209,7 +209,7 @@ def test_fail_on_buffer_map():
     def func(A: T.Buffer((128,), "int64"), B: T.Buffer((128,), "int64")):
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
-                with T.block():
+                with T.sblock():
                     vi = T.axis.spatial(128, i * 8 + j)
                     B[vi] = A[vi] + T.int64(1)
 
@@ -224,12 +224,12 @@ def test_fail_on_buffer_map():
         C = T.alloc_buffer((128,), "int64")
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
-                with T.block():
+                with T.sblock():
                     vi = T.axis.spatial(128, i * 8 + j)
                     C[vi] = T.cast(A[vi], "int64") + T.int64(1)
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
-                with T.block():
+                with T.sblock():
                     vi = T.axis.spatial(128, i * 8 + j)
                     B[vi] = T.cast(C[vi] + T.int64(1), "int32")
 

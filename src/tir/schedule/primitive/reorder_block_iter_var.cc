@@ -27,7 +27,7 @@ namespace tir {
  */
 class InvalidReorderIndex : public ScheduleError {
  public:
-  explicit InvalidReorderIndex(IRModule mod, Block block, ffi::Array<Integer> new_order)
+  explicit InvalidReorderIndex(IRModule mod, SBlock block, ffi::Array<Integer> new_order)
       : mod_(mod), block_(block), new_order_(new_order) {}
   IRModule mod() const final { return mod_; }
   ffi::String FastErrorString() const final {
@@ -43,23 +43,23 @@ class InvalidReorderIndex : public ScheduleError {
 
  private:
   IRModule mod_;
-  Block block_;
+  SBlock block_;
   ffi::Array<Integer> new_order_;
 };
 
 class BlockIterVarRewriter : public StmtMutator {
  public:
-  ffi::Map<Block, Block> block_map;
-  explicit BlockIterVarRewriter(const BlockNode* block_n, std::vector<int> order)
+  ffi::Map<SBlock, SBlock> block_map;
+  explicit BlockIterVarRewriter(const SBlockNode* block_n, std::vector<int> order)
       : order_(std::move(order)), block_to_rewrite(block_n) {}
 
  private:
   std::vector<int> order_;
-  const BlockNode* block_to_rewrite;
-  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+  const SBlockNode* block_to_rewrite;
+  Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     if (op->block.get() == block_to_rewrite) {
       auto block_n = CopyOnWrite(op->block.get());
-      Block block = op->block;
+      SBlock block = op->block;
       ffi::Array<IterVar> new_iter_vars;
       ffi::Array<PrimExpr> new_iter_values;
       for (int idx : order_) {
@@ -67,12 +67,12 @@ class BlockIterVarRewriter : public StmtMutator {
         new_iter_values.push_back(op->iter_values[idx]);
       }
       block_n->iter_vars = new_iter_vars;
-      Block new_block(block_n);
+      SBlock new_block(block_n);
       block_map.Set(block, new_block);
       auto block_realize_n = CopyOnWrite(op);
       block_realize_n->block = new_block;
       block_realize_n->iter_values = new_iter_values;
-      return BlockRealize(block_realize_n);
+      return SBlockRealize(block_realize_n);
     } else {
       return StmtMutator::VisitStmt_(op);
     }
@@ -81,7 +81,7 @@ class BlockIterVarRewriter : public StmtMutator {
 
 void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
                          const ffi::Array<Integer>& new_order) {
-  const BlockNode* block_n = TVM_SREF_TO_BLOCK(block_sref);
+  const SBlockNode* block_n = TVM_SREF_TO_SBLOCK(block_sref);
   std::vector<int> new_order_vec;
   for (const Integer& x : new_order) {
     new_order_vec.push_back(x->value);
@@ -95,25 +95,25 @@ void ReorderBlockIterVar(ScheduleState self, const StmtSRef& block_sref,
     return x >= 0 && x < static_cast<int>(num_block_itervars);
   });
   if (!is_full || !is_unique || !is_within_boundary) {
-    throw InvalidReorderIndex(self->mod, ffi::GetRef<Block>(block_n), new_order);
+    throw InvalidReorderIndex(self->mod, ffi::GetRef<SBlock>(block_n), new_order);
   }
 
   // find parent block
-  const BlockNode* parent_block_n = nullptr;
+  const SBlockNode* parent_block_n = nullptr;
   const StmtSRefNode* p = block_sref.get()->parent;
   while (p != nullptr) {
-    if (p->stmt->IsInstance<BlockNode>()) {
-      parent_block_n = TVM_SREF_TO_BLOCK(ffi::GetRef<StmtSRef>(p));
+    if (p->stmt->IsInstance<SBlockNode>()) {
+      parent_block_n = TVM_SREF_TO_SBLOCK(ffi::GetRef<StmtSRef>(p));
       break;
     }
     p = p->parent;
   }
   const StmtSRef parent_block_sref = ffi::GetRef<StmtSRef>(p);
-  const Block& parent_block = ffi::GetRef<Block>(parent_block_n);
+  const SBlock& parent_block = ffi::GetRef<SBlock>(parent_block_n);
 
   // rewrite block and blockrealize
   BlockIterVarRewriter rewriter(block_n, std::move(new_order_vec));
-  Block new_parent_block = Downcast<Block>(rewriter(parent_block));
+  SBlock new_parent_block = Downcast<SBlock>(rewriter(parent_block));
   rewriter.block_map.Set(parent_block, new_parent_block);
   self->Replace(parent_block_sref, new_parent_block, rewriter.block_map);
 }
@@ -127,7 +127,7 @@ struct ReorderBlockIterVarTraits : public UnpackedInstTraits<ReorderBlockIterVar
   static constexpr size_t kNumAttrs = 0;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, ffi::Array<Integer> new_order) {
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, ffi::Array<Integer> new_order) {
     sch->ReorderBlockIterVar(block, new_order);
   }
 

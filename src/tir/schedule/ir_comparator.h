@@ -50,8 +50,8 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool VisitStmt_(const ForNode* op, const Stmt& other) override;
   bool VisitStmt_(const SeqStmtNode* op, const Stmt& other) override;
   bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
-  bool VisitStmt_(const BlockRealizeNode* op, const Stmt& other) override;
-  bool VisitStmt_(const BlockNode* op, const Stmt& other) override;
+  bool VisitStmt_(const SBlockRealizeNode* op, const Stmt& other) override;
+  bool VisitStmt_(const SBlockNode* op, const Stmt& other) override;
 
   bool VisitExpr_(const AddNode* op, const PrimExpr& other) override;
   bool VisitExpr_(const SubNode* op, const PrimExpr& other) override;
@@ -135,7 +135,7 @@ class AutoTensorizeComparator : public TensorizeComparator {
   bool VisitExprDefault_(const Object* op, const PrimExpr& other) override;
   bool VisitStmtDefault_(const Object* op, const Stmt& other) override;
 
-  bool VisitStmt_(const BlockNode* op, const Stmt& other) override;
+  bool VisitStmt_(const SBlockNode* op, const Stmt& other) override;
   bool VisitStmt_(const BufferStoreNode* op, const Stmt& other) override;
 
   bool VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) override;
@@ -147,9 +147,9 @@ class AutoTensorizeComparator : public TensorizeComparator {
  public:
   // Additional information extracted from LHS (the workload) and RHS (the tensor intrin).
 
-  /*! \brief Block iters in the LHS stmt. */
+  /*! \brief SBlock iters in the LHS stmt. */
   std::vector<IterVar> lhs_iters_;
-  /*! \brief Block iters in the RHS stmt. */
+  /*! \brief SBlock iters in the RHS stmt. */
   std::vector<IterVar> rhs_iters_;
   /*! \brief The buffer and its access indices in the LHS stmt. */
   std::unordered_map<Buffer, ffi::Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>

@@ -35,7 +35,7 @@ def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for i, j, k, l in T.grid(128, 128, 128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
@@ -45,7 +45,7 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for i, j, k, l in T.grid(128, 128, 128, 8):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj, vk = T.axis.remap("SSS", [i, j, k])
             vl = T.axis.S(128, l * 16)
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
@@ -57,7 +57,7 @@ def elementwise_dependent_loop(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (128, 128, 128, 128))
     for i in T.serial(0, 128):
         for j, k, l in T.grid(128, i, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                 B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
@@ -67,7 +67,7 @@ def elementwise_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for i, j, k, l in T.grid(128, 128, 128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             T.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
             vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
@@ -80,11 +80,11 @@ def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (128, 128, 128))
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 C[vi, vj, vk] = A[vi, vj, vk] * 2.0
         for k in T.serial(0, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 B[vi, vj, vk] = C[vi, vj, vk] * 2.0
 
@@ -94,10 +94,10 @@ def elementwise_with_loops_not_same_scope(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
     for i, j in T.grid(128, 128):
-        with T.block("A"):
+        with T.sblock("A"):
             vi, vj = T.axis.remap("SS", [i, j])
             for k in T.serial(0, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     vk = T.axis.S(128, k)
                     T.reads([A[vi, vj, vk]])
                     T.writes([B[vi, vj, vk]])
@@ -109,7 +109,7 @@ def elementwise_with_wrong_block_var_type(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             vk = T.axis.scan(128, k)
             T.reads([A[vi, vj, vk]])
@@ -122,7 +122,7 @@ def elementwise_reordered(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for l, j, k, i in T.grid(128, 128, 128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
@@ -132,7 +132,7 @@ def elementwise_reordered2(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for k, j, i, l in T.grid(128, 128, 128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
@@ -142,7 +142,7 @@ def elementwise_reordered_with_predicate(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128, 128))
     for l, j, k, i in T.grid(128, 128, 128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             T.where(i * 2097152 + j * 16384 + k * 128 + l < 100)
             vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
@@ -153,13 +153,13 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16], "float32")
     B = T.match_buffer(b, [16, 16], "float32")
     for i, j in T.grid(16, 16):
-        with T.block("A"):
+        with T.sblock("A"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([])
             T.writes([A[0:16, 0:16]])
             A[vi, vj] = 1
     for i, j in T.grid(16, 16):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([])
             T.writes([B[0:16, 0:16]])
@@ -171,13 +171,13 @@ def opaque_access_reorder(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16], "float32")
     B = T.match_buffer(b, [16, 16], "float32")
     for j, i in T.grid(16, 16):
-        with T.block("A"):
+        with T.sblock("A"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([])
             T.writes([A[0:16, 0:16]])
             A[vi, vj] = 1
     for j, i in T.grid(16, 16):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([])
             T.writes([B[0:16, 0:16]])
@@ -189,7 +189,7 @@ def opaque_access_reorder(a: T.handle, b: T.handle) -> None:
 
 def test_reorder():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k, l = sch.get_loops(block_b)
     sch.reorder(l, i)
     assert_structural_equal_ignore_global_symbol(elementwise_reordered, sch.mod["main"])
@@ -198,7 +198,7 @@ def test_reorder():
 
 def test_reorder2():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k, l = sch.get_loops(block_b)
     sch.reorder(k, i, l)
     assert_structural_equal_ignore_global_symbol(elementwise_reordered2, sch.mod["main"])
@@ -207,10 +207,10 @@ def test_reorder2():
 
 def test_reorder_with_opaque_access():
     sch = tir.Schedule(opaque_access, debug_mask="all")
-    block_a = sch.get_block("A")
+    block_a = sch.get_sblock("A")
     i, j = sch.get_loops(block_a)
     sch.reorder(j, i)
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j = sch.get_loops(block_b)
     sch.reorder(j, i)
     assert_structural_equal_ignore_global_symbol(opaque_access_reorder, sch.mod["main"])
@@ -222,7 +222,7 @@ def test_reorder_overlapped_access():
     def overlapped_access(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         # example to write first axis multiple times
         for v0, v1, v2 in T.grid(6, 4, 4):
-            with T.block("block"):
+            with T.sblock("block"):
                 i = T.axis.spatial(14, v0 * 2 + v1)
                 j = T.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
@@ -231,13 +231,13 @@ def test_reorder_overlapped_access():
     def overlapped_access_reorder(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         # example to write first axis multiple times
         for v0, v2, v1 in T.grid(6, 4, 4):
-            with T.block("block"):
+            with T.sblock("block"):
                 i = T.axis.spatial(14, v0 * 2 + v1)
                 j = T.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
 
     sch = tir.Schedule(overlapped_access, debug_mask="all")
-    v0, v1, v2 = sch.get_loops(sch.get_block("block"))
+    v0, v1, v2 = sch.get_loops(sch.get_sblock("block"))
     sch.reorder(v0, v2, v1)
     assert_structural_equal_ignore_global_symbol(overlapped_access_reorder, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=overlapped_access)
@@ -247,7 +247,7 @@ def test_reorder_with_partial_affineness():
     @T.prim_func
     def non_affine_func(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         for v0, v1, v2 in T.grid(6, 4, 4):
-            with T.block("block"):
+            with T.sblock("block"):
                 i = T.axis.spatial(14, v0 * v0 + v1)
                 j = T.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
@@ -255,13 +255,13 @@ def test_reorder_with_partial_affineness():
     @T.prim_func
     def non_affine_func_reorder(A: T.Buffer((14, 4), "float32"), B: T.Buffer((14, 4), "float32")):
         for v0, v2, v1 in T.grid(6, 4, 4):
-            with T.block("block"):
+            with T.sblock("block"):
                 i = T.axis.spatial(14, v0 * v0 + v1)
                 j = T.axis.spatial(4, v2)
                 B[i, j] = A[i, j] + 1.0
 
     sch = tir.Schedule(non_affine_func, debug_mask="all")
-    v0, v1, v2 = sch.get_loops(sch.get_block("block"))
+    v0, v1, v2 = sch.get_loops(sch.get_sblock("block"))
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder(v0, v2, v1)
 
@@ -277,13 +277,13 @@ def test_reorder_with_cascade_tiled_ops():
     ) -> None:
         y1 = T.alloc_buffer([1, 16, 110, 110], dtype="float32")
         for n, c, h, w, kh, kw in T.grid(1, 16, 110, 110, 3, 3):
-            with T.block("pool_0"):
+            with T.sblock("pool_0"):
                 ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [n, c, h, w, kh, kw])
                 with T.init():
                     y1[ax0, ax1, ax2, ax3] = 0.0
                 y1[ax0, ax1, ax2, ax3] = y1[ax0, ax1, ax2, ax3] + x[ax0, ax1, ax2 + rv0, ax3 + rv1]
         for n, c, h, w, kh, kw in T.grid(1, 16, 108, 108, 3, 3):
-            with T.block("pool_1"):
+            with T.sblock("pool_1"):
                 ax0, ax1, ax2, ax3, rv0, rv1 = T.axis.remap("SSSSRR", [n, c, h, w, kh, kw])
                 with T.init():
                     y2[ax0, ax1, ax2, ax3] = 0.0
@@ -296,7 +296,7 @@ def test_reorder_with_cascade_tiled_ops():
         y1 = T.alloc_buffer([1, 16, 110, 110], dtype="float32")
         for n, c, h_o in T.grid(1, 16, 27):
             for w, h_i, kh, kw in T.grid(110, 6, 3, 3):
-                with T.block("pool_0"):
+                with T.sblock("pool_0"):
                     ax0 = T.axis.spatial(1, 0)
                     ax1 = T.axis.spatial(16, c)
                     ax2 = T.axis.spatial(110, h_o * 4 + h_i)
@@ -307,7 +307,7 @@ def test_reorder_with_cascade_tiled_ops():
                         y1[ax0, ax1, ax2, ax3] + x[ax0, ax1, ax2 + rv0, ax3 + rv1]
                     )
             for h_i, w, kh, kw in T.grid(4, 108, 3, 3):
-                with T.block("pool_1"):
+                with T.sblock("pool_1"):
                     ax0 = T.axis.spatial(1, n)
                     ax1 = T.axis.spatial(16, c)
                     ax2 = T.axis.spatial(108, h_o * 4 + h_i)
@@ -319,8 +319,8 @@ def test_reorder_with_cascade_tiled_ops():
                     )
 
     sch = tvm.tir.schedule.Schedule(cascade_pool_ops)
-    pool_0 = sch.get_block("pool_0")
-    pool_1 = sch.get_block("pool_1")
+    pool_0 = sch.get_sblock("pool_0")
+    pool_1 = sch.get_sblock("pool_1")
     _, _, h, w, _, _ = sch.get_loops(pool_1)
     ho, _ = sch.split(h, factors=[None, 4])
     sch.compute_at(pool_0, ho)
@@ -334,7 +334,7 @@ def test_reorder_with_cascade_tiled_ops():
 
 def test_reorder_with_predicate():
     sch = tir.Schedule(elementwise_predicate, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k, l = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder(l, i)
@@ -342,7 +342,7 @@ def test_reorder_with_predicate():
 
 def test_reorder_fail_with_multi_appearance_loops():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k, l = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder(k, i, i)
@@ -350,13 +350,13 @@ def test_reorder_fail_with_multi_appearance_loops():
 
 def test_reorder_fail_with_non_single_branch_loop():
     sch = tir.Schedule(elementwise_non_single_branch, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder(k, i)
     sch = tir.Schedule(elementwise_non_single_branch, debug_mask="all")
-    block_b = sch.get_block("B")
-    block_c = sch.get_block("C")
+    block_b = sch.get_sblock("B")
+    block_c = sch.get_sblock("C")
     i, j, k1 = sch.get_loops(block_b)
     _, _, k2 = sch.get_loops(block_c)
     with pytest.raises(tvm.tir.ScheduleError):
@@ -365,8 +365,8 @@ def test_reorder_fail_with_non_single_branch_loop():
 
 def test_reorder_fail_with_loops_not_under_same_scope():
     sch = tir.Schedule(elementwise_with_loops_not_same_scope, debug_mask="all")
-    block_b = sch.get_block("B")
-    block_a = sch.get_block("A")
+    block_b = sch.get_sblock("B")
+    block_a = sch.get_sblock("A")
     i, j = sch.get_loops(block_a)
     k = sch.get_loops(block_b)[0]
     with pytest.raises(tvm.tir.ScheduleError):
@@ -375,7 +375,7 @@ def test_reorder_fail_with_loops_not_under_same_scope():
 
 def test_reorder_fail_with_wrong_block_var_type():
     sch = tir.Schedule(elementwise_with_wrong_block_var_type, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder(k, i)
@@ -383,7 +383,7 @@ def test_reorder_fail_with_wrong_block_var_type():
 
 def test_reorder_fail_with_dependent_loops():
     sch = tir.Schedule(elementwise_dependent_loop, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k, l = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder(l, i)
@@ -391,7 +391,7 @@ def test_reorder_fail_with_dependent_loops():
 
 def test_reorder_fail_not_affine_bindings():
     sch = tir.Schedule(elementwise_not_affine, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k, l = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.reorder(l, i)

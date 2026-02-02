@@ -25,6 +25,7 @@ from .nn import (
     avg_pool1d,
     avg_pool2d,
     avg_pool3d,
+    batch_flatten,
     batch_norm,
     conv1d,
     conv1d_transpose,

@@ -223,7 +223,7 @@ class TensorIntrin : public ObjectRef {
  *      A = T.match_buffer(a, (m, n), "float32")
  *      B = T.match_buffer(b, (m, n), "float32")
  *      for i, j in T.grid(m, n):
- *          with T.block():
+ *          with T.sblock():
  *              vi, vj = T.axis.remap("SS", [i, j])
  *              B[vi, vj] = A[vi, vj]
  * \endcode
@@ -243,7 +243,7 @@ class TensorIntrin : public ObjectRef {
  *      A = T.match_buffer(a, (16, 16), "float32")
  *      B = T.match_buffer(b, (16, 16), "float32")
  *      for i, j in T.grid(16, 16):
- *          with T.block():
+ *          with T.sblock():
  *              vi, vj = T.axis.remap("SS", [i, j])
  *              B[vi, vj] = A[vi, vj]
  * \endcode

@@ -27,8 +27,8 @@
 namespace tvm {
 namespace meta_schedule {
 
-using tir::BlockRV;
 using tir::LoopRV;
+using tir::SBlockRV;
 using tir::Schedule;
 
 /*!
@@ -56,17 +56,17 @@ class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
   }
 
   std::pair<ffi::Array<tir::ExprRV>, ffi::Array<tir::LoopRV>> SplitLoop(const Schedule& sch,
-                                                                        BlockRV block, LoopRV loop,
+                                                                        SBlockRV block, LoopRV loop,
                                                                         int n_tiles) const;
 };
 
 std::pair<ffi::Array<tir::ExprRV>, ffi::Array<tir::LoopRV>>
-MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, BlockRV block_rv, LoopRV loop_rv,
+MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv, LoopRV loop_rv,
                                           int n_tiles) const {
   const tir::ForNode* loop = TVM_SREF_TO_FOR(sch->GetSRef(loop_rv));
   const tir::StmtSRef block_sref = sch->GetSRef(block_rv);
-  const tir::BlockNode* block_node = block_sref->StmtAs<tir::BlockNode>();
-  const tir::BlockRealize block_realize = tir::GetBlockRealize(sch->state(), block_sref);
+  const tir::SBlockNode* block_node = block_sref->StmtAs<tir::SBlockNode>();
+  const tir::SBlockRealize block_realize = tir::GetSBlockRealize(sch->state(), block_sref);
   ICHECK(block_node && block_node->writes.size() == 1);
 
   const auto out_dtype = block_node->writes[0]->buffer->dtype;

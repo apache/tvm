@@ -24,21 +24,21 @@ from tvm.script import tir as T
 @T.prim_func
 def main(p0: T.Buffer((), "int32"), T_stack: T.Buffer((T.int64(3),), "int32")):
     T.func_attr({"tir.noalias": True})
-    # with T.block("root"):
+    # with T.sblock("root"):
     compile_engine_const = T.alloc_buffer((), "int32")
     compile_engine_const_1 = T.alloc_buffer((), "int32")
-    with T.block("compile_engine_const"):
+    with T.sblock("compile_engine_const"):
         vi = T.axis.spatial(1, T.int64(0))
         T.reads()
         T.writes(compile_engine_const[()])
         compile_engine_const[()] = 16
-    with T.block("compile_engine_const_1"):
+    with T.sblock("compile_engine_const_1"):
         vi = T.axis.spatial(1, T.int64(0))
         T.reads()
         T.writes(compile_engine_const_1[()])
         compile_engine_const_1[()] = 20
     for ax0 in range(T.int64(3)):
-        with T.block("T_stack"):
+        with T.sblock("T_stack"):
             v_ax0 = T.axis.spatial(T.int64(3), ax0)
             T.reads(compile_engine_const[()], p0[()], compile_engine_const_1[()])
             T.writes(T_stack[v_ax0])

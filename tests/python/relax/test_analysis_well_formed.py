@@ -715,7 +715,7 @@ def test_call_tir_with_matching_arguments():
         @T.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
@@ -740,7 +740,7 @@ def test_call_tir_input_ndim():
         @T.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
@@ -764,7 +764,7 @@ def test_call_tir_output_ndim():
         @T.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
@@ -789,7 +789,7 @@ def test_call_tir_input_shape():
         @T.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
@@ -813,7 +813,7 @@ def test_call_tir_output_shape():
         @T.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
@@ -839,7 +839,7 @@ def test_call_tir_input_dtype():
         @T.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
@@ -865,7 +865,7 @@ def test_call_tir_output_dtype():
         @T.prim_func
         def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
             for i in range(16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi] + T.float16(1.0)
 
@@ -898,7 +898,7 @@ def test_call_tir_with_correct_dynamic_output_shape():
             B = T.match_buffer(B_handle, [M, N], dtype="float16")
 
             for i, j in T.grid(M, N):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi * N + vj]
 
@@ -931,7 +931,7 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
             B = T.match_buffer(B_handle, [M, N], dtype="float16")
 
             for i, j in T.grid(M, N):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi * N + vj]
 
@@ -966,7 +966,7 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
             B = T.match_buffer(B_handle, [M, N], dtype="float16")
 
             for i, j in T.grid(M, N):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi * N + vj]
 
@@ -1004,7 +1004,7 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
             B = T.match_buffer(B_handle, [16, M, N], dtype="float16")
 
             for i, j, k in T.grid(16, M, N):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     B[vi, vj, vk] = A[vi * N * M + vj * N + vk]
 
@@ -1037,7 +1037,7 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
             B = T.match_buffer(B_handle, [M * N], dtype="float16")
 
             for i in T.grid(M * N):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi // N, vi % N]
 
@@ -1075,7 +1075,7 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
             B = T.match_buffer(B_handle, [M * N], dtype="float16")
 
             for i in T.grid(M * N):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi // N, vi % N]
 
@@ -1114,7 +1114,7 @@ def test_call_tir_with_dtensor_arguments():
             B = T.match_buffer(B_handle, [M * N], dtype="float16")
 
             for i in T.grid(M * N):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi // N, vi % N]
 
@@ -1139,7 +1139,7 @@ def test_call_tir_inplace_with_correct_shapes():
         @T.prim_func
         def add_one(A: T.Buffer(16, "float16")):
             for i in range(16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     A[vi] = A[vi] + T.float16(1.0)
 
@@ -1164,7 +1164,7 @@ def test_call_tir_inplace_with_incorrect_shapes():
         @T.prim_func
         def add_one(A: T.Buffer(16, "float16")):
             for i in range(16):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi = T.axis.remap("S", [i])
                     A[vi] = A[vi] + T.float16(1.0)
 
@@ -1196,12 +1196,12 @@ def test_call_tir_inplace_with_some_allocated_outputs():
             C: T.Buffer(16, "float16"),
         ):
             for i in range(32):
-                with T.block("inplace_B"):
+                with T.sblock("inplace_B"):
                     vi = T.axis.remap("S", [i])
                     B[vi] = B[vi] + T.float16(1.0)
 
             for i in range(16):
-                with T.block("output_C"):
+                with T.sblock("output_C"):
                     vi = T.axis.remap("S", [i])
                     C[vi] = A[vi] + T.float16(1.0)
 

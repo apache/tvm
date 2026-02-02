@@ -31,7 +31,7 @@ namespace transform {
  * \param max_thread_per_block The maximum number of threads per block.
  * \param max_threadblocks The maximum number of threadblocks.
  */
-void ThreadBind(tir::Schedule sch, const tir::BlockRV& block, int64_t max_thread_per_block,
+void ThreadBind(tir::Schedule sch, const tir::SBlockRV& block, int64_t max_thread_per_block,
                 int64_t max_threadblocks = 256) {
   // fetch the loops
   ffi::Array<tir::LoopRV> loops = sch->GetLoops(block);
@@ -146,8 +146,8 @@ Pass DefaultGPUSchedule() {
             int64_t max_thread_per_block = opt_max_thread_per_block.value().IntValue();
 
             sch->WorkOn(gv->name_hint);
-            ffi::Array<tir::BlockRV> blocks = meta_schedule::BlockCollector::Collect(sch);
-            for (const tir::BlockRV& block : blocks) {
+            ffi::Array<tir::SBlockRV> blocks = meta_schedule::SBlockCollector::Collect(sch);
+            for (const tir::SBlockRV& block : blocks) {
               auto childs = sch->GetChildBlocks(block);
               if (!childs.empty()) {
                 continue;

@@ -30,7 +30,7 @@ def ptx_ldmatrix(
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.block():
+    with T.sblock():
         A_shared = T.alloc_buffer([16, 16], "float16", scope="shared")
         A_local = T.alloc_buffer([8], "float16", scope="local")
 

@@ -34,7 +34,7 @@ def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 257, 1470))
     B = T.match_buffer(b, (128, 257, 1470))
     for i, j, k in T.grid(128, 257, 1470):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj, vk = T.axis.remap("SSS", [i, j, k])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
@@ -47,7 +47,7 @@ def tiled_conv2d_with_padding(
 ) -> None:
     PadInput = T.alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
-        with T.block("PadInput"):
+        with T.sblock("PadInput"):
             i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
             T.reads(inputs[i0_1, i1_1 - 3, i2_1 - 3, i3_1])
             T.writes(PadInput[i0_1, i1_1, i2_1, i3_1])
@@ -81,7 +81,7 @@ def tiled_conv2d_with_padding(
         i2_3,
         i3_3,
     ) in T.grid(1, 1, 4, 1, 1, 2, 4, 1, 7, 7, 1, 1, 1, 1, 1, 1, 1, 3, 1, 56, 7, 64):
-        with T.block("conv2d_nhwc"):
+        with T.sblock("conv2d_nhwc"):
             n = T.axis.spatial(1, 0)
             h = T.axis.spatial(112, i1_1_1 * 56 + i1_3)
             w = T.axis.spatial(112, i2_0 * 28 + i2_1_1 * 7 + i2_3)
@@ -151,7 +151,7 @@ def test_sample_categorical_serialize():
 
 def test_sample_perfect_tile_power_of_two():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    i, _, _ = sch.get_loops(sch.get_block("B"))
+    i, _, _ = sch.get_loops(sch.get_sblock("B"))
     factors = sch.sample_perfect_tile(i, n=4)
     factors = [sch.get(i) for i in factors]
     prod = factors[0] * factors[1] * factors[2] * factors[3]
@@ -161,7 +161,7 @@ def test_sample_perfect_tile_power_of_two():
 
 def test_sample_perfect_tile_prime():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    _, i, _ = sch.get_loops(sch.get_block("B"))
+    _, i, _ = sch.get_loops(sch.get_sblock("B"))
     factors = sch.sample_perfect_tile(i, n=4)
     factors = [sch.get(i) for i in factors]
     prod = factors[0] * factors[1] * factors[2] * factors[3]
@@ -171,7 +171,7 @@ def test_sample_perfect_tile_prime():
 
 def test_sample_perfect_tile_composite():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    _, _, i = sch.get_loops(sch.get_block("B"))
+    _, _, i = sch.get_loops(sch.get_sblock("B"))
     factors = sch.sample_perfect_tile(i, n=4)
     factors = [sch.get(i) for i in factors]
     prod = factors[0] * factors[1] * factors[2] * factors[3]
@@ -188,7 +188,7 @@ def test_sample_compute_location(use_sugared_block):
     if use_sugared_block:
         pad_input = "PadInput"
     else:
-        pad_input = sch.get_block("PadInput")
+        pad_input = sch.get_sblock("PadInput")
     decision_dict = dict()
     for _ in range(n):
         _ = sch.sample_compute_location(pad_input)  # pylint: disable=invalid-name
@@ -204,10 +204,10 @@ def test_sample_compute_location(use_sugared_block):
 def test_sample_perfect_tile_after_copy():
     sch = tir.Schedule(elementwise, debug_mask="all")
     sch_copy = sch.copy()
-    _, _, i = sch.get_loops(sch.get_block("B"))
+    _, _, i = sch.get_loops(sch.get_sblock("B"))
     sch.sample_perfect_tile(i, n=4)
 
-    _, _, i = sch_copy.get_loops(sch_copy.get_block("B"))
+    _, _, i = sch_copy.get_loops(sch_copy.get_sblock("B"))
     # Hangs if ForkSeed is not invoked when copying a schedule
     sch_copy.sample_perfect_tile(i, n=4)
 
@@ -220,12 +220,12 @@ def test_sample_perfect_tile_on_dynamic_loops():
         n = T.int32()
         A = T.match_buffer(a, (n, 1024))
         for i, j in T.grid(n, 1024):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 A[vi, vj] = 1.0
 
     sch = tir.Schedule(workload, debug_mask="all")
-    di, si = sch.get_loops(sch.get_block("B"))
+    di, si = sch.get_loops(sch.get_sblock("B"))
 
     factors = sch.sample_perfect_tile(si, n=4)
     factors = [sch.get(i) for i in factors]

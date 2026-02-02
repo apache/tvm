@@ -594,7 +594,7 @@ TVM_DLL bool WellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_
  * from the object (block or buffer) to it's index map transformation.
  */
 
-TVM_DLL ffi::Map<tir::Block, ffi::Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
+TVM_DLL ffi::Map<tir::SBlock, ffi::Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
     const Function& fn, ffi::Array<tir::IndexMap> write_buffer_transformations);
 
 /* \brief Collect variables whose value can be computed at compile-time

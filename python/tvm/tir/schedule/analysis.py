@@ -26,7 +26,7 @@ from ..expr import PrimExpr
 from ..function import IndexMap, PrimFunc
 
 from . import _ffi_api
-from .schedule import Schedule, BlockRV
+from .schedule import Schedule, SBlockRV
 
 
 def suggest_index_map(
@@ -68,7 +68,7 @@ class TensorizeInfo(Object):
 
 
 def get_tensorize_loop_mapping(
-    sch: Schedule, block: BlockRV, desc_func: PrimFunc, allow_padding: bool = False
+    sch: Schedule, block: SBlockRV, desc_func: PrimFunc, allow_padding: bool = False
 ) -> Optional[TensorizeInfo]:
     """Establish a mapping between loops in a target block and an intrinsic description
 
@@ -76,7 +76,7 @@ def get_tensorize_loop_mapping(
     ----------
     sch : Schedule
         The schedule to be tensorized
-    block : BlockRV
+    block : SBlockRV
         The target block to match against
     desc_func : PrimFunc
         The prim func describing the computation to be tensorized
@@ -96,7 +96,7 @@ class AutoTensorizeMappingInfo(Object):
 
 
 def get_auto_tensorize_mapping_info(
-    sch: Schedule, block: BlockRV, desc_func: PrimFunc
+    sch: Schedule, block: SBlockRV, desc_func: PrimFunc
 ) -> Optional[AutoTensorizeMappingInfo]:
     """Get mapping info between a target block and an intrinsic description including layout
     transformations to apply.
@@ -105,7 +105,7 @@ def get_auto_tensorize_mapping_info(
     ----------
     sch : Schedule
         The schedule to be tensorized
-    block : BlockRV
+    block : SBlockRV
         The compute block for auto tensorization
     desc_func : PrimFunc
         The prim func describing the computation to be tensorized
@@ -142,14 +142,14 @@ def has_block(sch: Schedule, block_name: str) -> bool:
     return _ffi_api.HasBlock(sch, block_name)  # type: ignore
 
 
-def is_output_block(sch: Schedule, block: BlockRV) -> bool:
+def is_output_block(sch: Schedule, block: SBlockRV) -> bool:
     """Check whether the given block is an output block
 
     Parameters
     ----------
     sch : Schedule
         The schedule object of the block
-    block : BlockRV
+    block : SBlockRV
         The blockRV to be checked
 
     Returns

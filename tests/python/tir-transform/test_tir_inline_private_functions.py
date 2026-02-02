@@ -141,7 +141,7 @@ class TestDeduplicateBlockName(BaseTestCase):
             A = T.decl_buffer(16, "float32", data=A_data)
             B = T.decl_buffer(16, "float32", data=B_data)
             for i in range(16):
-                with T.block("scalar_mul"):
+                with T.sblock("scalar_mul"):
                     B[i] = A[i] * 2.0
 
     @I.ir_module
@@ -153,7 +153,7 @@ class TestDeduplicateBlockName(BaseTestCase):
                 B_data_1: T.handle("float32") = T.address_of(B[0, 0])
                 B_1 = T.decl_buffer(16, "float32", data=B_data_1)
                 for i in range(16):
-                    with T.block("scalar_mul_1"):
+                    with T.sblock("scalar_mul_1"):
                         B_1[i] = A_1[i] * 2.0
 
             with T.LetStmt(T.address_of(A[1, 0]), var=T.handle("float32")) as A_data_2:
@@ -161,7 +161,7 @@ class TestDeduplicateBlockName(BaseTestCase):
                 B_data_2: T.handle("float32") = T.address_of(B[1, 0])
                 B_2 = T.decl_buffer(16, "float32", data=B_data_2)
                 for i in range(16):
-                    with T.block("scalar_mul_2"):
+                    with T.sblock("scalar_mul_2"):
                         B_2[i] = A_2[i] * 2.0
 
 

@@ -140,7 +140,7 @@ class PrimFunc(BaseFunc, Scriptable):
                 B = T.match_buffer(b, (m, n), "float32")
 
                 for i, j in T.grid(m, n):
-                    with T.block():
+                    with T.sblock():
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj]
 
@@ -163,7 +163,7 @@ class PrimFunc(BaseFunc, Scriptable):
                 B = T.match_buffer(b, (16, 16), "float32")
 
                 for i, j in T.grid(16, 16):
-                    with T.block():
+                    with T.sblock():
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj]
 

@@ -107,8 +107,8 @@ class LCADetector : public StmtExprVisitor {
     loop_scope_map_.erase(op->loop_var.get());
   }
 
-  void VisitStmt_(const BlockRealizeNode* op) final {
-    const BlockNode* block = op->block.get();
+  void VisitStmt_(const SBlockRealizeNode* op) final {
+    const SBlockNode* block = op->block.get();
     int n = ancestor_scopes_.size();
     for (const Buffer& buf : block->alloc_buffers) {
       buffer_var_map_.emplace(buf->data.get(), buf.get());
@@ -137,7 +137,7 @@ class LCADetector : public StmtExprVisitor {
     ancestor_scopes_.pop_back();
   }
 
-  void UpdateDominateScopeOfNonDataParIter(const BlockRealizeNode* block_realize) {
+  void UpdateDominateScopeOfNonDataParIter(const SBlockRealizeNode* block_realize) {
     // map iter var to the scope which dominate all loop carried dependencies.
     std::unordered_map<const VarNode*, const ScopeInfo*> opaque_var_scope;
     // maintain highest scope which dominate all reduce loop iters. null denotes non-reduce block.
@@ -168,7 +168,7 @@ class LCADetector : public StmtExprVisitor {
     // collect non-data-parallel block iteration's dominate scope.
     // for reduction iter type, we maintain the highest dominate scope for all reduce iters.
     // for other iter type, we maintain the dict for each individual iter.
-    const Block& block = block_realize->block;
+    const SBlock& block = block_realize->block;
     bool is_reduce_block = false;
     for (size_t i = 0; i < block_realize->iter_values.size(); ++i) {
       const IterVar& iter_var = block->iter_vars[i];
@@ -324,7 +324,7 @@ class LCADetector : public StmtExprVisitor {
     return lhs;
   }
 
-  /*! \brief The ancestor scope stacks info (Block and For).  The
+  /*! \brief The ancestor scope stacks info (SBlock and For).  The
    *  first element is initialized in LCADetector::Detect to represent
    *  the root scope.
    */

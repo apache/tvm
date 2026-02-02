@@ -33,7 +33,7 @@ def test_tir_print_all_passes(capsys):
         A = T.match_buffer(a, (128, 128, 128, 128))
         B = T.match_buffer(b, (128, 128, 128, 128))
         for i, j, k, l in T.grid(128, 128, 128, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
                 B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 

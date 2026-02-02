@@ -34,7 +34,7 @@ def elementwise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj, vk = T.axis.remap("SSS", [i, j, k])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
@@ -45,7 +45,7 @@ def elementwise_dependent_loops(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (128, 128, 128))
     for i in T.serial(0, 128):
         for j, k in T.grid(i, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi = T.axis.S(128, i)
                 vj = T.axis.S(i, j)
                 vk = T.axis.S(128, k)
@@ -57,7 +57,7 @@ def elementwise_symbolic(a: T.handle, b: T.handle, n: T.int32) -> None:
     A = T.match_buffer(a, (128, 128, n))
     B = T.match_buffer(b, (128, 128, n))
     for i, j, k in T.grid(128, 128, n):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj, vk = T.axis.remap("SSS", [i, j, k])
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
@@ -67,7 +67,7 @@ def elementwise_symbolic_fused(a: T.handle, b: T.handle, n: T.int32) -> None:
     A = T.match_buffer(a, (128, 128, n))
     B = T.match_buffer(b, (128, 128, n))
     for i_j_k_fused in T.serial(0, (n * 16384)):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(128, T.floordiv(i_j_k_fused, n * 128))
             vj = T.axis.S(128, T.floordiv(T.floormod(i_j_k_fused, n * 128), n))
             vk = T.axis.S(n, T.floormod(i_j_k_fused, n))
@@ -81,7 +81,7 @@ def elementwise_symbolic_split(a: T.handle, b: T.handle, n: T.int32) -> None:
     A = T.match_buffer(a, (128, 128, n))
     B = T.match_buffer(b, (128, 128, n))
     for i, j, k0, k1 in T.grid(128, 128, 10, T.floordiv((n + 9), 10)):
-        with T.block("B"):
+        with T.sblock("B"):
             T.where((((k0 * T.floordiv((n + 9), 10)) + k1) < n))
             vi, vj = T.axis.remap("SS", [i, j])
             vk = T.axis.S(n, k0 * T.floordiv(n + 9, 10) + k1)
@@ -97,11 +97,11 @@ def elementwise_with_seq(a: T.handle, b: T.handle) -> None:
     C = T.alloc_buffer((128, 128, 128))
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 C[vi, vj, vk] = A[vi, vj, vk] * 2.0
         for k in T.serial(0, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 B[vi, vj, vk] = C[vi, vj, vk] * 2.0
 
@@ -112,7 +112,7 @@ def elementwise_with_anno(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (128, 128, 128))
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128, annotations={"useless_annotation": True}):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 T.reads([A[vi, vj, vk]])
                 T.writes([B[vi, vj, vk]])
@@ -125,7 +125,7 @@ def elementwise_with_thread_binding(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (128, 128, 128))
     for i, j in T.grid(128, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 T.reads([A[vi, vj, vk]])
                 T.writes([B[vi, vj, vk]])
@@ -138,7 +138,7 @@ def elementwise_with_starting_point(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (128, 128, 128))
     for i, j in T.grid(128, 128):
         for k in T.serial(10, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 T.reads([A[vi, vj, vk]])
                 T.writes([B[vi, vj, vk]])
@@ -150,10 +150,10 @@ def elementwise_with_opaque_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
     for i, j, k in T.grid(128, 128, 128):
-        with T.block("opaque"):
+        with T.sblock("opaque"):
             T.reads([A[i, j, k]])
             T.writes([B[i, j, k]])
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 T.reads([A[vi, vj, vk]])
                 T.writes([B[vi, vj, vk]])
@@ -165,7 +165,7 @@ def elementwise_fused(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128))
     B = T.match_buffer(b, (128, 128, 128))
     for fused in T.serial(0, 2097152):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(128, T.floordiv(fused, 16384))
             vj = T.axis.S(128, T.floordiv(T.floormod(fused, 16384), 128))
             vk = T.axis.S(128, T.floormod(fused, 128))
@@ -179,7 +179,7 @@ def elementwise_split_case0(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
     B = T.match_buffer(b, [128, 128, 128])
     for i1, i2, i3, j1, j2, k1, k2 in T.grid(2, 1, 64, 4, 32, 16, 8):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(128, i1 * 64 + i2 * 64 + i3)
             vj = T.axis.S(128, j1 * 32 + j2)
             vk = T.axis.S(128, k1 * 8 + k2)
@@ -193,7 +193,7 @@ def elementwise_split_case1(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
     B = T.match_buffer(b, [128, 128, 128])
     for i1, i2, i3, j1, j2, j3, k1, k2, k3 in T.grid(2, 1, 64, 2, 1, 64, 2, 1, 64):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(128, i1 * 64 + i2 * 64 + i3)
             vj = T.axis.S(128, j1 * 64 + j2 * 64 + j3)
             vk = T.axis.S(128, k1 * 64 + k2 * 64 + k3)
@@ -207,7 +207,7 @@ def elementwise_split_with_predicate(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     A = T.match_buffer(a, [128, 128, 128])
     for i0, i1, i2, j0, j1, k0, k1 in T.grid(1000, 2, 3, 1, 129, 3, 43):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(128, i0 * 6 + i1 * 3 + i2)
             vj = T.axis.S(128, j0 * 129 + j1)
             vk = T.axis.S(128, k0 * 43 + k1)
@@ -222,7 +222,7 @@ def elementwise_fuse_with_opaque_block(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [128, 128, 128])
     A = T.match_buffer(a, [128, 128, 128])
     for i_j_k_fused in T.serial(0, 2097152):
-        with T.block("opaque"):
+        with T.sblock("opaque"):
             T.reads(
                 [
                     A[
@@ -241,7 +241,7 @@ def elementwise_fuse_with_opaque_block(a: T.handle, b: T.handle) -> None:
                     ]
                 ]
             )
-            with T.block("B"):
+            with T.sblock("B"):
                 vi = T.axis.S(128, T.floordiv(i_j_k_fused, 16384))
                 vj = T.axis.S(128, T.floordiv(T.floormod(i_j_k_fused, 16384), 128))
                 vk = T.axis.S(128, T.floormod(i_j_k_fused, 128))
@@ -256,10 +256,10 @@ def elementwise_split_with_opaque_block(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128, 128])
 
     for i0, i1, j, k in T.grid(8, 16, 128, 128):
-        with T.block("opaque"):
+        with T.sblock("opaque"):
             T.reads([A[i0 * 16 + i1, j, k]])
             T.writes([B[i0 * 16 + i1, j, k]])
-            with T.block("B"):
+            with T.sblock("B"):
                 vi = T.axis.S(128, i0 * 16 + i1)
                 vj, vk = T.axis.remap("SS", [j, k])
                 T.reads([A[vi, vj, vk]])
@@ -272,13 +272,13 @@ def opaque_access(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16], "float32")
     B = T.match_buffer(b, [16, 16], "float32")
     for i, j in T.grid(16, 16):
-        with T.block("A"):
+        with T.sblock("A"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([])
             T.writes([A[0:16, 0:16]])
             A[vi, vj] = 1
     for i, j in T.grid(16, 16):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads([])
             T.writes([B[0:16, 0:16]])
@@ -290,14 +290,14 @@ def opaque_access_fused(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [16, 16])
     B = T.match_buffer(b, [16, 16])
     for i_j_fused in T.serial(0, 256):
-        with T.block("A"):
+        with T.sblock("A"):
             vi = T.axis.S(16, T.floordiv(i_j_fused, 16))
             vj = T.axis.S(16, T.floormod(i_j_fused, 16))
             T.reads([])
             T.writes([A[0:16, 0:16]])
             A[vi, vj] = 1
     for i_j_fused in T.serial(0, 256):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(16, T.floordiv(i_j_fused, 16))
             vj = T.axis.S(16, T.floormod(i_j_fused, 16))
             T.reads([])
@@ -310,14 +310,14 @@ def opaque_access_split(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16, 16))
     B = T.match_buffer(b, (16, 16))
     for i, j0, j1 in T.grid(16, 4, 4):
-        with T.block("A"):
+        with T.sblock("A"):
             vi = T.axis.S(16, i)
             vj = T.axis.S(16, j0 * 4 + j1)
             T.reads([])
             T.writes([A[0:16, 0:16]])
             A[vi, vj] = 1
     for i, j0, j1 in T.grid(16, 4, 4):
-        with T.block("B"):
+        with T.sblock("B"):
             vi = T.axis.S(16, i)
             vj = T.axis.S(16, j0 * 4 + j1)
             T.reads([])
@@ -331,7 +331,7 @@ def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, (127, 128))
     for i in T.serial(0, 4):
         for j, k in T.grid(T.min(31, 126 - i * 32) + 1, 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi = T.axis.S(127, i * 32 + j)
                 vj = T.axis.S(128, k)
                 B[vi, vj] = A[vi, vj]
@@ -343,7 +343,7 @@ def elementwise_not_affine_fused(a: T.handle, b: T.handle) -> None:
     B = T.match_buffer(b, [127, 128])
     for i in T.grid(4):
         for j_k_fused in T.serial(0, T.min(31, 126 - i * 32) * 128 + 128):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi = T.axis.S(
                     127,
                     i * 32 + T.floordiv(j_k_fused, 128),
@@ -359,7 +359,7 @@ def elementwise_not_affine_fused(a: T.handle, b: T.handle) -> None:
 
 def test_fuse():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k = sch.get_loops(block_b)
     sch.fuse(i, j, k)
     assert_structural_equal_ignore_global_symbol(elementwise_fused, sch.mod["main"])
@@ -369,7 +369,7 @@ def test_fuse():
 @pytest.mark.parametrize("disable_predication", [True, False])
 def test_split(disable_predication):
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k = sch.get_loops(block_b)
     sch.split(i, factors=[2, 1, 64], disable_predication=disable_predication)
     sch.split(j, factors=[4, 32], disable_predication=disable_predication)
@@ -380,7 +380,7 @@ def test_split(disable_predication):
 
 def test_split_with_inferred_factor():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k = sch.get_loops(block_b)
     sch.split(i, factors=[None, 1, 64])
     sch.split(j, factors=[2, None, 64])
@@ -397,7 +397,7 @@ def test_split_with_dynamic_inferred_factor():
         A = T.match_buffer(a, (N, 128, M))
         B = T.match_buffer(b, (N, 128, M))
         for i, j, k in T.grid(N, 128, M):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
@@ -407,7 +407,7 @@ def test_split_with_dynamic_inferred_factor():
         A = T.match_buffer(a, (N, 128, M))
         B = T.match_buffer(b, (N, 128, M))
         for i_0, i_1, j_0, j_1, k_0, k_1 in T.grid((N + 15) // 16, 16, 4, 32, 16, (M + 15) // 16):
-            with T.block("B"):
+            with T.sblock("B"):
                 vi = T.axis.spatial(N, i_0 * 16 + i_1)
                 vj = T.axis.spatial(128, j_0 * 32 + j_1)
                 vk = T.axis.spatial(M, k_0 * ((M + 15) // 16) + k_1)
@@ -415,7 +415,7 @@ def test_split_with_dynamic_inferred_factor():
                 B[vi, vj, vk] = A[vi, vj, vk] * T.float32(2.0)
 
     sch = tir.Schedule(before, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k = sch.get_loops(block_b)
     sch.split(i, factors=[None, 16])
     sch.split(j, factors=[4, 32])
@@ -426,7 +426,7 @@ def test_split_with_dynamic_inferred_factor():
 
 def test_split_with_predicate():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k = sch.get_loops(block_b)
     sch.split(i, factors=[1000, 2, 3])
     sch.split(j, factors=[None, 129])
@@ -437,7 +437,7 @@ def test_split_with_predicate():
 
 def test_fuse_fail_not_only_child():
     sch = tir.Schedule(elementwise_with_seq, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, j, k = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.fuse(j, k)
@@ -445,7 +445,7 @@ def test_fuse_fail_not_only_child():
 
 def test_fuse_split_fail_with_annotation():
     sch = tir.Schedule(elementwise_with_anno, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, j, k = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.fuse(j, k)
@@ -455,7 +455,7 @@ def test_fuse_split_fail_with_annotation():
 
 def test_fuse_split_fail_not_start_with_zero():
     sch = tir.Schedule(elementwise_with_anno, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, j, k = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.fuse(j, k)
@@ -465,7 +465,7 @@ def test_fuse_split_fail_not_start_with_zero():
 
 def test_fuse_with_opaque_block():
     sch = tir.Schedule(elementwise_with_opaque_block, debug_mask="all")
-    block_opaque = sch.get_block("opaque")
+    block_opaque = sch.get_sblock("opaque")
     i, j, k = sch.get_loops(block_opaque)
     sch.fuse(i, j, k)
     assert_structural_equal_ignore_global_symbol(
@@ -476,10 +476,10 @@ def test_fuse_with_opaque_block():
 
 def test_fuse_with_opaque_access():
     sch = tir.Schedule(opaque_access, debug_mask="all")
-    block_a = sch.get_block("A")
+    block_a = sch.get_sblock("A")
     i, j = sch.get_loops(block_a)
     sch.fuse(i, j)
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j = sch.get_loops(block_b)
     sch.fuse(i, j)
     assert_structural_equal_ignore_global_symbol(opaque_access_fused, sch.mod["main"])
@@ -488,7 +488,7 @@ def test_fuse_with_opaque_access():
 
 def test_split_with_opaque_block():
     sch = tir.Schedule(elementwise_with_opaque_block, debug_mask="all")
-    block_opaque = sch.get_block("opaque")
+    block_opaque = sch.get_sblock("opaque")
     i, _, _ = sch.get_loops(block_opaque)
     sch.split(i, factors=[None, 16])
     assert_structural_equal_ignore_global_symbol(
@@ -499,10 +499,10 @@ def test_split_with_opaque_block():
 
 def test_split_with_opaque_access():
     sch = tir.Schedule(opaque_access, debug_mask="all")
-    block_a = sch.get_block("A")
+    block_a = sch.get_sblock("A")
     _, j = sch.get_loops(block_a)
     sch.split(j, factors=[None, 4])
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, j = sch.get_loops(block_b)
     sch.split(j, factors=[None, 4])
     assert_structural_equal_ignore_global_symbol(opaque_access_split, sch.mod["main"])
@@ -511,7 +511,7 @@ def test_split_with_opaque_access():
 
 def test_split_with_non_positive_factors():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.split(i, factors=[-2, -64])
@@ -523,7 +523,7 @@ def test_split_with_non_positive_factors():
 
 def test_fuse_split_fail_with_thread_binding():
     sch = tir.Schedule(elementwise_with_thread_binding, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, j, k = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.fuse(j, k)
@@ -533,7 +533,7 @@ def test_fuse_split_fail_with_thread_binding():
 
 def test_fuse_symbolic():
     sch = tir.Schedule(elementwise_symbolic, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, k = sch.get_loops(block_b)
     sch.fuse(i, j, k)
     assert_structural_equal_ignore_global_symbol(elementwise_symbolic_fused, sch.mod["main"])
@@ -542,7 +542,7 @@ def test_fuse_symbolic():
 
 def test_split_symbolic():
     sch = tir.Schedule(elementwise_symbolic, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, _, k = sch.get_loops(block_b)
     sch.split(k, factors=[10, None])
     assert_structural_equal_ignore_global_symbol(elementwise_symbolic_split, sch.mod["main"])
@@ -551,7 +551,7 @@ def test_split_symbolic():
 
 def test_fuse_fail_with_dependent_loops():
     sch = tir.Schedule(elementwise_dependent_loops, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     i, j, _ = sch.get_loops(block_b)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.fuse(i, j)
@@ -559,7 +559,7 @@ def test_fuse_fail_with_dependent_loops():
 
 def test_fuse_not_affine():
     sch = tir.Schedule(elementwise_not_affine, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, j, k = sch.get_loops(block_b)
     sch.fuse(j, k)
     assert_structural_equal_ignore_global_symbol(elementwise_not_affine_fused, sch.mod["main"])
@@ -573,7 +573,7 @@ def test_add_unit_loop_above_block():
         B: T.Buffer((), "int32"),
         C: T.Buffer((), "int32"),
     ) -> None:
-        with T.block("C"):
+        with T.sblock("C"):
             vi = T.axis.spatial(1, 0)
             C[()] = A[()] + B[()]
 
@@ -584,12 +584,12 @@ def test_add_unit_loop_above_block():
         C: T.Buffer((), "int32"),
     ) -> None:
         for u in range(1):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi = T.axis.spatial(1, 0)
                 C[()] = A[()] + B[()]
 
     sch = tir.Schedule(zero_dim, debug_mask="all")
-    block = sch.get_block("C")
+    block = sch.get_sblock("C")
     sch.add_unit_loop(block)
     assert_structural_equal_ignore_global_symbol(zero_dim_added, sch.mod["main"])
 
@@ -602,7 +602,7 @@ def test_add_unit_loop_above_loop():
         C: T.Buffer((), "int32"),
     ) -> None:
         for u in range(1):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi = T.axis.spatial(1, 0)
                 C[()] = A[()] + B[()]
 
@@ -613,12 +613,12 @@ def test_add_unit_loop_above_loop():
         C: T.Buffer((), "int32"),
     ) -> None:
         for u1, u2 in T.grid(1, 1):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi = T.axis.spatial(1, 0)
                 C[()] = A[()] + B[()]
 
     sch = tir.Schedule(zero_dim, debug_mask="all")
-    block = sch.get_block("C")
+    block = sch.get_sblock("C")
     (loop,) = sch.get_loops(block)
     sch.add_unit_loop(loop)
     assert_structural_equal_ignore_global_symbol(zero_dim_added, sch.mod["main"])
@@ -635,7 +635,7 @@ def test_fuse_int64():
 
     mod = _create_prim_func()
     sch = tir.Schedule(mod, debug_mask="all")
-    i, j = sch.get_loops(sch.get_block("B"))
+    i, j = sch.get_loops(sch.get_sblock("B"))
     sch.fuse(i, j)
     verify_trace_roundtrip(sch=sch, mod=mod)
 
@@ -649,7 +649,7 @@ def test_split_int64_extent_with_mixed_factors():
 
     mod = _create_prim_func()
     sch = tir.Schedule(mod, debug_mask="all")
-    (i,) = sch.get_loops(sch.get_block("B"))
+    (i,) = sch.get_loops(sch.get_sblock("B"))
     sch.split(
         i,
         factors=[
@@ -668,7 +668,7 @@ def test_split_int64_extent_with_int32_factors():
 
     mod = _create_prim_func()
     sch = tir.Schedule(mod, debug_mask="all")
-    (i,) = sch.get_loops(sch.get_block("B"))
+    (i,) = sch.get_loops(sch.get_sblock("B"))
     sch.split(
         i,
         factors=[
@@ -683,7 +683,7 @@ def test_split_int64_extent_with_int32_factors():
 
 def test_split_int64_factors():
     sch = tir.Schedule(elementwise_symbolic, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, _, k = sch.get_loops(block_b)
     sch.split(k, factors=[IntImm(dtype="int64", value=10), None])
     assert_structural_equal_ignore_global_symbol(elementwise_symbolic_split, sch.mod["main"])
@@ -705,7 +705,7 @@ def test_sve_scalable_split_predicated(num_elements):
             A = T.match_buffer(a, (num_elements,), "float32")
             T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
             for i in T.serial(num_elements):
-                with T.block("A"):
+                with T.sblock("A"):
                     v_i = T.axis.remap("S", [i])
                     A[v_i] = 1.0
 
@@ -714,7 +714,7 @@ def test_sve_scalable_split_predicated(num_elements):
             A = T.match_buffer(a, (num_elements,), "float32")
             T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
             for i_0, i_1 in T.grid(outer_extent, T.vscale() * 4):
-                with T.block("A"):
+                with T.sblock("A"):
                     v_i = T.axis.spatial(num_elements, i_0 * (T.vscale() * 4) + i_1)
                     T.where(i_0 * (T.vscale() * 4) + i_1 < num_elements)
                     A[v_i] = 1.0
@@ -741,7 +741,7 @@ def test_sve_scalable_split_assume_exact_multiple():
             A = T.match_buffer(a, (128,), "float32")
             T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
             for i in T.serial(128):
-                with T.block("A"):
+                with T.sblock("A"):
                     v_i = T.axis.remap("S", [i])
                     A[v_i] = 1.0
 
@@ -750,7 +750,7 @@ def test_sve_scalable_split_assume_exact_multiple():
             A = T.match_buffer(a, (128,), "float32")
             T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
             for i_0, i_1 in T.grid(outer_extent, T.vscale() * 4):
-                with T.block("A"):
+                with T.sblock("A"):
                     v_i = T.axis.spatial(128, i_0 * (T.vscale() * 4) + i_1)
                     A[v_i] = 1.0
 
@@ -771,7 +771,7 @@ def test_sve_split_over_scalable_loop():
         A = T.match_buffer(a, (128,), "float32")
         T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
         for i in T.serial(4 * T.vscale()):
-            with T.block("A"):
+            with T.sblock("A"):
                 v_i = T.axis.remap("S", [i])
                 A[v_i] = 1.0
 
@@ -780,7 +780,7 @@ def test_sve_split_over_scalable_loop():
         A = T.match_buffer(a, (128,), "float32")
         T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
         for i_0, i_1 in T.grid(T.vscale() * 2, T.vscale() * 2):
-            with T.block("A"):
+            with T.sblock("A"):
                 v_i = T.axis.spatial(T.vscale() * 4, i_0 * (T.vscale() * 2) + i_1)
                 T.where(i_0 * (T.vscale() * 2) + i_1 < T.vscale() * 4)
                 A[v_i] = 1.0
@@ -802,7 +802,7 @@ def test_unsupported_target_scalable_split(capfd):
         A = T.match_buffer(a, (128,), "float32")
         T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
         for i in T.serial(128):
-            with T.block("A"):
+            with T.sblock("A"):
                 v_i = T.axis.remap("S", [i])
                 A[v_i] = 1.0
 

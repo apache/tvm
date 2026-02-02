@@ -101,7 +101,7 @@ StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref, bool requ
  */
 struct ScopeBlockLoopInfo {
   /*! \brief A list of the leaf blocks, from left to right */
-  std::vector<BlockRealize> realizes;
+  std::vector<SBlockRealize> realizes;
   /*! \brief The loop vars bound to spatial block iters */
   std::unordered_set<const VarNode*> spatial_vars;
   /*! \brief The loop vars bound to non-spatial block iters */
@@ -113,7 +113,7 @@ struct ScopeBlockLoopInfo {
  * \param scope_block The root block of the scope
  * \return The information of the scope
  */
-ScopeBlockLoopInfo GetScopeBlockLoopInfo(const Block& scope_block);
+ScopeBlockLoopInfo GetScopeBlockLoopInfo(const SBlock& scope_block);
 
 /*!
  * \brief Checks whether the block is a complete block under the scope
@@ -212,7 +212,7 @@ void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
  * \param block_sref The block to be checked
  * \return A vector of types of the block vars
  */
-std::vector<IterVarType> GetBlockVarTypes(const StmtSRef& block_sref);
+std::vector<IterVarType> GetSBlockVarTypes(const StmtSRef& block_sref);
 
 /*!
  * \brief Checks if a block could be considered as a "write cache"
@@ -230,7 +230,7 @@ bool IsWriteCache(const StmtSRef& block_sref);
  * \param analyzer The analyzer
  * \return A boolean flag indicating if the binding is affine
  */
-bool IsAffineBinding(const BlockRealize& realize, const ffi::Map<Var, Range>& loop_var_ranges,
+bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& loop_var_ranges,
                      arith::Analyzer* analyzer);
 
 /*!
@@ -240,7 +240,7 @@ bool IsAffineBinding(const BlockRealize& realize, const ffi::Map<Var, Range>& lo
  * \param block The block to be checked
  * \throw ScheduleError If the input block does not have an affine binding
  */
-void CheckAffineBinding(const ScheduleState& self, Block block);
+void CheckAffineBinding(const ScheduleState& self, SBlock block);
 
 /*!
  * \brief Check whether a block has an affine binding under the high exclusive sref node,
@@ -250,7 +250,7 @@ void CheckAffineBinding(const ScheduleState& self, Block block);
  * \param high_exclusive The highest sref node
  * \throw ScheduleError If the input block does not have an affine binding
  */
-void CheckPartialAffineBinding(const ScheduleState& self, Block block,
+void CheckPartialAffineBinding(const ScheduleState& self, SBlock block,
                                const ffi::Optional<StmtSRef>& high_exclusive);
 
 /*!
@@ -273,7 +273,7 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(
  * \param realize The BlockRealize to be analyzed
  * \return The block var binding
  */
-ffi::Map<Var, PrimExpr> GetBindings(const BlockRealize& realize);
+ffi::Map<Var, PrimExpr> GetBindings(const SBlockRealize& realize);
 
 /*!
  * \brief Get the vars involved in the bindings of data parallel block vars and reduction block
@@ -284,7 +284,7 @@ ffi::Map<Var, PrimExpr> GetBindings(const BlockRealize& realize);
  * \return A boolean indicating whether the block has block iters that is neither a data parallel
  * block iter nor a reduction block iter
  */
-bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
+bool GetVarsTouchedByBlockIters(const SBlockRealize& block_realize,
                                 std::unordered_set<const VarNode*>* data_par_vars,
                                 std::unordered_set<const VarNode*>* reduce_vars);
 
@@ -324,7 +324,7 @@ ffi::Array<StmtSRef> GetChildBlockSRefOnSRefTree(const ScheduleState& self,
  * \param parent_sref The StmtSRef that points to the parent block/loop
  * \return A list of leaf BlockRealize
  */
-ffi::Array<BlockRealize> GetChildBlockRealizeOnSRefTree(const StmtSRef& parent_sref);
+ffi::Array<SBlockRealize> GetChildBlockRealizeOnSRefTree(const StmtSRef& parent_sref);
 
 /*!
  * \brief Get the BlockRealize of the single child block of the block or loop specified by
@@ -334,8 +334,8 @@ ffi::Array<BlockRealize> GetChildBlockRealizeOnSRefTree(const StmtSRef& parent_s
  * \return The BlockRealize of the single child block
  * \throw ScheduleError If there is 0 or multiple child blocks
  */
-BlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& self,
-                                                       const StmtSRef& parent_sref);
+SBlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& self,
+                                                        const StmtSRef& parent_sref);
 
 /*!
  * \brief Get the BlockRealize of the input block
@@ -343,7 +343,7 @@ BlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& self
  * \param block_sref The StmtSRef of the queried block
  * \return The BlockRealize of the input block
  */
-BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sref);
+SBlockRealize GetSBlockRealize(const ScheduleState& self, const StmtSRef& block_sref);
 
 /*!
  * \brief Get the IterVarType of the specific loop, according to the blocks it's bound to
@@ -386,7 +386,7 @@ std::pair<ffi::Array<StmtSRef>, std::vector<int>> CollectComputeLocation(
  * \param scope The block scope where the given block is in
  * \return The producer blocks of the specified block
  */
-ffi::Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const BlockScope& scope);
+ffi::Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const SBlockScope& scope);
 
 /*!
  * \brief Get the consumer blocks to the given block under the given scope
@@ -394,7 +394,7 @@ ffi::Array<StmtSRef> GetProducers(const StmtSRef& block_sref, const BlockScope& 
  * \param scope The block scope where the given block is in
  * \return The consumer blocks of the specified block
  */
-ffi::Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& scope);
+ffi::Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const SBlockScope& scope);
 
 /*!
  * \brief Get the list of output blocks within the given scope
@@ -404,7 +404,7 @@ ffi::Array<StmtSRef> GetConsumers(const StmtSRef& block_sref, const BlockScope& 
  * \return A list of all blocks that write to some output buffer
  * block
  */
-ffi::Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const BlockNode* scope_block);
+ffi::Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const SBlockNode* scope_block);
 
 /*!
  * \brief A solution to split a ordered list of subtrees into two parts,
@@ -435,7 +435,7 @@ struct ProducerConsumerSplit {
       const ScheduleState& state, const ffi::Array<Stmt>& subtrees,
       const ffi::Array<StmtSRef>& producer_block_srefs,
       const ffi::Array<StmtSRef>& consumer_block_srefs,
-      std::unordered_map<const BlockNode*, const BlockRealizeNode*>* block2realize);
+      std::unordered_map<const SBlockNode*, const SBlockRealizeNode*>* block2realize);
 };
 
 /******** Block-buffer relation ********/
@@ -449,7 +449,7 @@ struct ProducerConsumerSplit {
  * \return The buffer of the n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n,
+Buffer GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
                           BufferIndexType index_type);
 
 /*!
@@ -461,7 +461,7 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n,
  * \return The n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const Block& block, int n,
+BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& block, int n,
                                       BufferIndexType index_type);
 
 /*!
@@ -474,7 +474,7 @@ BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const Block& bl
 std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
                                                                const Buffer& buffer);
 
-/******** Reduction Block Related ********/
+/******** Reduction SBlock Related ********/
 
 /*!
  * \brief Get the init values and the BufferStore updates from the input reduction block
@@ -484,7 +484,7 @@ std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& b
  * \throw ScheduleError If rfactor or cross-thread reduction cannot be applied to the block
  */
 std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
-    const ffi::Optional<ScheduleState>& self, Block block);
+    const ffi::Optional<ScheduleState>& self, SBlock block);
 
 /*!
  * \brief Check whether the input array of IterVars only contains data-parallel and reduction block
@@ -502,7 +502,7 @@ bool ContainsOnlyDataParAndReductionBlockIter(const ffi::Array<IterVar>& iters);
  * \return A boolean indicating whether the block's reduction block iters are not used to index the
  * block's output buffer
  */
-bool ReductionIterNotIndexOutputBuffer(const Block& block);
+bool ReductionIterNotIndexOutputBuffer(const SBlock& block);
 
 /*!
  * \brief Given a list of reduction identities and a list of reduction combiners, detect the
@@ -616,7 +616,7 @@ bool HasOp(const Stmt& stmt, const ffi::Array<Op>& ops);
  * 1) IfThenElse statement
  * 2) Select expression
  * 3) The operator `tir.if_then_else`
- * 4) non-constant-true Block predicates
+ * 4) non-constant-true SBlock predicates
  * \param stmt The AST statement to be checked
  * \return A boolean indicating whether the statement contains the if-then-else pattern
  */
@@ -790,9 +790,9 @@ class AutoTensorizeMappingInfoNode : public Object {
   ffi::Map<Buffer, Buffer> lhs_buffer_map;
   /*! \brief Buffer indices on RHS */
   ffi::Map<Buffer, ffi::Array<PrimExpr>> rhs_buffer_indices;
-  /*! \brief Block iters on LHS */
+  /*! \brief SBlock iters on LHS */
   ffi::Array<IterVar> lhs_iters;
-  /*! \brief Block iters on RHS */
+  /*! \brief SBlock iters on RHS */
   ffi::Array<IterVar> rhs_iters;
 
   static void RegisterReflection() {
@@ -841,7 +841,7 @@ ffi::Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const Schedu
  * \param desc_func The prim func describing the computation to be tensorized
  * \return true if basic conditions are met.
  */
-bool CheckAutoTensorizeApplicable(const tir::Schedule& sch, const tir::BlockRV& block_rv,
+bool CheckAutoTensorizeApplicable(const tir::Schedule& sch, const tir::SBlockRV& block_rv,
                                   const tir::PrimFunc& desc_func);
 }  // namespace tir
 }  // namespace tvm

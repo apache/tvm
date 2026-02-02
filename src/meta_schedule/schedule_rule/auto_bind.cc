@@ -40,7 +40,7 @@ class AutoBindNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final;
+  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) final;
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
@@ -64,7 +64,7 @@ class AutoBindNode : public ScheduleRuleNode {
 };
 
 ffi::Array<tir::Schedule> AutoBindNode::Apply(const tir::Schedule& sch,
-                                              const tir::BlockRV& block_rv) {
+                                              const tir::SBlockRV& block_rv) {
   ICHECK_NE(this->max_threads_per_block_, -1);
   auto get_factor = MakeFactorSampler(sch, this->thread_extents_);
   BindBlockThreadIdx(sch, block_rv, max_threadblocks_, max_threads_per_block_, get_factor);

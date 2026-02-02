@@ -137,7 +137,7 @@ def gpu_multinomial_from_uniform(
         source_local: T.Buffer,
         output_local: T.Buffer,
     ):
-        with T.block():
+        with T.sblock():
             shared_buf = T.alloc_buffer((TX * TY,), "bool", scope="shared")
             tx_idx = ty * TX + tx
             shared_buf[tx_idx] = source_local[thread_elem - 1]
@@ -166,7 +166,7 @@ def gpu_multinomial_from_uniform(
         reduce_op: Callable,  # T.macro
         mask_local: Optional[T.Buffer] = None,
     ):
-        with T.block():
+        with T.sblock():
             local_sum = T.alloc_buffer((), dtype, scope="local")
             shared_buf = T.alloc_buffer((TX * TY,), dtype, scope="shared")
             idx = ty * TX + tx
@@ -198,7 +198,7 @@ def gpu_multinomial_from_uniform(
         uniform_sample,
         sample_id_local,
     ):
-        with T.block():
+        with T.sblock():
             prob_gt_threshold = T.alloc_buffer((thread_elem,), prob_dtype, scope="local")
             cumsum = T.alloc_buffer((block_elem,), prob_dtype, scope="shared")
             greater_than_u = T.alloc_buffer((thread_elem,), "bool", scope="local")
@@ -326,7 +326,7 @@ def generic_get_sample_index(
         output_index = T.match_buffer(D, (out_batch, 1), dtype)
 
         for ax0, ax1 in T.grid(out_batch, vocab_size):
-            with T.block("T_get_sample_index"):
+            with T.sblock("T_get_sample_index"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                 T.writes(output_index[v_ax0, 0])
                 if (

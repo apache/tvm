@@ -62,25 +62,25 @@ class Matmul_before_rewrite:
                     for i2_0 in T.serial(0, 1):
                         for ax0_ax1_fused_0 in T.serial(0, 32768):
                             for ax0_ax1_fused_1 in T.thread_binding(0, 8, thread="threadIdx.x"):
-                                with T.block("A_shared"):
+                                with T.sblock("A_shared"):
                                     v0 = T.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) // 512)
                                     v1 = T.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) % 512)
                                     T.reads([A[v0, v1]])
                                     T.writes([A_shared[v0, v1]])
-                                    T.block_attr({"meta_schedule.cooperative_fetch":1})
+                                    T.sblock_attr({"meta_schedule.cooperative_fetch":1})
                                     A_shared[v0, v1] = A[v0, v1]
                         for ax0_ax1_fused_0 in T.serial(0, 1024):
                             for ax0_ax1_fused_1 in T.thread_binding(0, 8, thread="threadIdx.x"):
                                 for ax0_ax1_fused_2 in T.vectorized(0, 2):
-                                    with T.block("B_shared"):
+                                    with T.sblock("B_shared"):
                                         v0 = T.axis.spatial(512, (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) // 32)
                                         v1 = T.axis.spatial(512, i0_0_i1_0_fused * 32 + (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) % 32)
                                         T.reads([B[v0, v1]])
                                         T.writes([B_shared[v0, v1]])
-                                        T.block_attr({"meta_schedule.cooperative_fetch":2})
+                                        T.sblock_attr({"meta_schedule.cooperative_fetch":2})
                                         B_shared[v0, v1] = B[v0, v1]
                         for i2_1, i0_3, i1_3, i2_2, i0_4, i1_4 in T.grid(16, 2, 2, 32, 16, 2):
-                            with T.block("C"):
+                            with T.sblock("C"):
                                 i = T.axis.spatial(512, i0_1_i1_1_fused * 32 + i0_3 * 16 + i0_4)
                                 j = T.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + i1_3 * 2 + i1_4)
                                 k = T.axis.reduce(512, i2_1 * 32 + i2_2)
@@ -90,7 +90,7 @@ class Matmul_before_rewrite:
                                     C_local[i, j] = T.float32(0)
                                 C_local[i, j] = C_local[i, j] + A_shared[i, k] * B_shared[k, j]
                     for ax0, ax1 in T.grid(32, 4):
-                        with T.block("C_local"):
+                        with T.sblock("C_local"):
                             v0 = T.axis.spatial(512, i0_1_i1_1_fused * 32 + ax0)
                             v1 = T.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + ax1)
                             T.reads([C_local[v0, v1]])
@@ -114,32 +114,32 @@ class Matmul_after_rewrite:
                     for i2_0 in T.serial(0, 1):
                         for ax0_ax1_fused_0 in T.serial(0, 32768):
                             for ax0_ax1_fused_1 in T.thread_binding(0, 8, thread="threadIdx.x"):
-                                with T.block("A_shared"):
+                                with T.sblock("A_shared"):
                                     v0 = T.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) // 512)
                                     v1 = T.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) % 512)
                                     T.reads([A[v0, v1]])
                                     T.writes([A_shared[v0, v1]])
-                                    T.block_attr({"meta_schedule.cooperative_fetch":1})
+                                    T.sblock_attr({"meta_schedule.cooperative_fetch":1})
                                     A_shared[v0, v1] = A[v0, v1]
                         for ax0_ax1_fused_0 in T.serial(0, 1024):
                             for ax0_ax1_fused_1 in T.thread_binding(0, 8, thread="threadIdx.x"):
                                 for ax0_ax1_fused_2 in T.vectorized(0, 2):
-                                    with T.block("B_shared"):
+                                    with T.sblock("B_shared"):
                                         v0 = T.axis.spatial(512, (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) // 32)
                                         v1 = T.axis.spatial(512, i0_0_i1_0_fused * 32 + (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) % 32)
                                         T.reads([B[v0, v1]])
                                         T.writes([B_shared[v0, v1]])
-                                        T.block_attr({"meta_schedule.cooperative_fetch":2})
+                                        T.sblock_attr({"meta_schedule.cooperative_fetch":2})
                                         B_shared[v0, v1] = B[v0, v1]
                         for i0_3_init, i1_3_init, i0_4_init, i1_4_init in T.grid(2, 2, 16, 2):
-                            with T.block("C_init"):
+                            with T.sblock("C_init"):
                                 i = T.axis.spatial(512, i0_1_i1_1_fused * 32 + i0_3_init * 16 + i0_4_init)
                                 j = T.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + i1_3_init * 2 + i1_4_init)
                                 T.reads([])
                                 T.writes([C_local[i, j]])
                                 C_local[i, j] = T.float32(0)
                         for i2_1, i0_3, i1_3, i2_2, i0_4, i1_4 in T.grid(16, 2, 2, 32, 16, 2):
-                            with T.block("C_update"):
+                            with T.sblock("C_update"):
                                 i = T.axis.spatial(512, i0_1_i1_1_fused * 32 + i0_3 * 16 + i0_4)
                                 j = T.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + i1_3 * 2 + i1_4)
                                 k = T.axis.reduce(512, i2_1 * 32 + i2_2)
@@ -147,7 +147,7 @@ class Matmul_after_rewrite:
                                 T.writes([C_local[i, j]])
                                 C_local[i, j] = C_local[i, j] + A_shared[i, k] * B_shared[k, j]
                     for ax0, ax1 in T.grid(32, 4):
-                        with T.block("C_local"):
+                        with T.sblock("C_local"):
                             v0 = T.axis.spatial(512, i0_1_i1_1_fused * 32 + ax0)
                             v1 = T.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + ax1)
                             T.reads([C_local[v0, v1]])
@@ -164,7 +164,7 @@ class Softmax_cross_thread_reduction:
         for i0 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 8):
                 for ax1_1 in T.thread_binding(32, thread="threadIdx.x"):
-                    with T.block("T_softmax_maxelem"):
+                    with T.sblock("T_softmax_maxelem"):
                         i0_1 = T.axis.spatial(256, i0)
                         k = T.axis.reduce(256, ax1_0 * 32 + ax1_1)
                         T.reads(T_softmax_maxelem_shared[i0_1], A[i0_1, k])
@@ -174,7 +174,7 @@ class Softmax_cross_thread_reduction:
                         T_softmax_maxelem_shared[i0_1] = T.max(T_softmax_maxelem_shared[i0_1], A[i0_1, k])
             for ax0, ax1_0 in T.grid(1, 8):
                 for ax1_1 in T.thread_binding(32, thread="threadIdx.x"):
-                    with T.block("T_softmax_expsum"):
+                    with T.sblock("T_softmax_expsum"):
                         i0_2 = T.axis.spatial(256, i0)
                         k = T.axis.reduce(256, ax1_0 * 32 + ax1_1)
                         T.reads(T_softmax_expsum_shared[i0_2], A[i0_2, k], T_softmax_maxelem_shared[i0_2])
@@ -184,12 +184,12 @@ class Softmax_cross_thread_reduction:
                         T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(A[i0_2, k] - T_softmax_maxelem_shared[i0_2], dtype="float32")
             for i1_0 in T.serial(8):
                 for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
-                    with T.block("T_softmax_norm"):
+                    with T.sblock("T_softmax_norm"):
                         i0_3 = T.axis.spatial(256, i0)
                         i1 = T.axis.spatial(256, i1_0 * 32 + i1_1)
                         T.reads(A[i0_3, i1], T_softmax_maxelem_shared[i0_3], T_softmax_expsum_shared[i0_3])
                         T.writes(T_softmax_norm[i0_3, i1])
-                        T.block_attr({"axis":1})
+                        T.sblock_attr({"axis":1})
                         T_softmax_norm[i0_3, i1] = T.exp(A[i0_3, i1] - T_softmax_maxelem_shared[i0_3], dtype="float32") / T_softmax_expsum_shared[i0_3]
 
 

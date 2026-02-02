@@ -54,12 +54,10 @@ def all_class_non_max_suppression(
         `num_total_detection` of shape `(1,)` representing the total number of selected
         boxes. The three values in `indices` encode batch, class, and box indices.
         Rows of `indices` are ordered such that selected boxes from batch 0, class 0 come
-        first, in descending of scores, followed by boxes from batch 0, class 1 etc. Out of
-        `batch_size * num_class* num_boxes` rows of indices, only the first `num_total_detection`
-        rows are valid.
+        first, in descending of scores, followed by boxes from batch 0, class 1 etc.
+        The output uses dynamic_strided_slice to trim to only valid detections,
+        so the first tensor has shape (num_total_detection, 3) containing only valid rows.
 
-        TODO: Implement true dynamic output shapes to match ONNX Runtime behavior exactly.
-        This would eliminate the need for manual trimming and improve memory efficiency.
         If `output_format` is "tensorflow", the output is three tensors, the first
         is `indices` of size `(batch_size, num_class * num_boxes , 2)`, the second is `scores` of
         size `(batch_size, num_class * num_boxes)`, and the third is `num_total_detection` of size

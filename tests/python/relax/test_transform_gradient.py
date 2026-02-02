@@ -1210,7 +1210,7 @@ def test_report_error():
         ):
             T.func_attr({"tir.noalias": True})
             for k0, k1 in T.grid(T.int64(3), T.int64(3)):
-                with T.block("rxplaceholder_red"):
+                with T.sblock("rxplaceholder_red"):
                     v_k0, v_k1 = T.axis.remap("RR", [k0, k1])
                     T.reads(rxplaceholder[v_k0, v_k1])
                     T.writes(rxplaceholder_red[()])

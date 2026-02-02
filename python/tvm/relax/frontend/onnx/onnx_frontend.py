@@ -38,6 +38,7 @@ import math
 import operator
 import re
 import warnings
+import functools
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as _np
@@ -911,8 +912,7 @@ class Size(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
-        # TODO(tvm-team): add native support for size op
-        return relax.op.prod(relax.op.shape_to_tensor(relax.op.shape_of(inputs[0])))
+        return relax.op.size(inputs[0])
 
 
 class EyeLike(OnnxOpConverter):
@@ -1660,6 +1660,22 @@ class Sqrt(OnnxOpConverter):
         return relax.op.sqrt(inputs[0])
 
 
+def compute_broadcast_shape(shape_a, shape_b):
+    """Compute target shape for Multidirectional Broadcasting"""
+    rank = max(len(shape_a), len(shape_b))
+
+    a = (1,) * (rank - len(shape_a)) + tuple(shape_a)
+    b = (1,) * (rank - len(shape_b)) + tuple(shape_b)
+
+    target = []
+    for ai, bi in zip(a, b):
+        if ai == bi or ai == 1 or bi == 1:
+            target.append(max(ai, bi))
+        else:
+            raise ValueError(f"Cannot broadcast {ai} and {bi}")
+    return tuple(target)
+
+
 class MultiInputBase(OnnxOpConverter):
     """Converts an onnx MultiInputBase node into an equivalent Relax expression."""
 
@@ -1675,9 +1691,12 @@ class MultiInputBase(OnnxOpConverter):
             output = cls.numpy_op(*np_inputs)  # pylint: disable=not-callable
             return relax.const(output, output.dtype)
 
-        # Expand inputs, stack them, then perform minimum over the new axis.
-        inputs = [bb.normalize(relax.op.expand_dims(i, axis=0)) for i in inputs]
-        stacked_tensor = relax.op.concat(inputs, axis=0)
+        input_shapes = [inp.struct_info.shape for inp in inputs]
+        target_shape = functools.reduce(compute_broadcast_shape, input_shapes)
+
+        # broadcast_to, stack them, then perform minimum over the new axis.
+        inputs = [bb.normalize(relax.op.broadcast_to(i, target_shape)) for i in inputs]
+        stacked_tensor = bb.normalize(relax.op.stack(inputs, axis=0))
         return cls.relax_op(stacked_tensor, axis=0)  # pylint: disable=not-callable
 
 
@@ -2258,6 +2277,8 @@ class Resize(OnnxOpConverter):
                 roi = roi.data.numpy().tolist()
                 if len(roi) == 2 * ndims:
                     roi = roi[2:ndims] + roi[ndims + 2 : 2 * ndims]
+                elif len(roi) == 0:
+                    roi = [0.0] * (2 * (ndims - 2))
             else:
                 roi = relax.op.concat(
                     [
@@ -2290,7 +2311,7 @@ class Resize(OnnxOpConverter):
             elif isinstance(sizes, relax.expr.ShapeExpr):
                 sizes = [int(val.value) for val in sizes.values][2:]
             else:
-                assert f"Type {type(size)} for size is currently unsupported."
+                assert f"Type {type(sizes)} for size is currently unsupported."
 
         if ndims == 3:
             return bb.emit_te(
@@ -2431,6 +2452,63 @@ class MeanVarianceNormalization(OnnxOpConverter):
         data_squared = relax.op.power(data, relax.const(2, dtype="float32"))
         data_squared_mean = relax.op.mean(data_squared, axis=axis, keepdims=True)
         return (data - data_mean) / relax.op.sqrt(data_squared_mean - data_mean_squared)
+
+
+class LocalResponseNormalization(OnnxOpConverter):
+    """Converts an onnx LocalResponseNormalization node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        size = attr["size"]
+        alpha = attr.get("alpha", 0.0001)
+        beta = attr.get("beta", 0.75)
+        bias = attr.get("bias", 1.0)
+
+        if hasattr(data.struct_info, "ndim"):
+            ndim = data.struct_info.ndim
+        else:
+            ndim = len(data.struct_info.shape)
+
+        if ndim not in [3, 4]:
+            raise ValueError(f"LRN only supports 3D or 4D input, got {ndim}D.")
+
+        data_squared = relax.op.multiply(data, data)
+        data_expanded = relax.op.expand_dims(data_squared, axis=1)
+        pad_len = size // 2
+        if ndim == 3:
+            pool_padding = [pad_len, 0, pad_len, 0]
+            pool_op = relax.op.nn.avg_pool2d
+            pool_size = (size, 1)
+            layout = "NCHW"
+            strides = (1, 1)
+        else:
+            pool_padding = [pad_len, 0, 0, pad_len, 0, 0]
+            pool_op = relax.op.nn.avg_pool3d
+            pool_size = (size, 1, 1)
+            layout = "NCDHW"
+            strides = (1, 1, 1)
+
+        data_avgpool = pool_op(
+            data_expanded,
+            pool_size=pool_size,
+            strides=strides,
+            padding=pool_padding,
+            layout=layout,
+            ceil_mode=False,
+            count_include_pad=True,
+        )
+        data_squeezed = relax.op.squeeze(data_avgpool, axis=1)
+
+        const_alpha = relax.const(alpha, dtype="float32")
+        const_bias = relax.const(bias, dtype="float32")
+        const_beta = relax.const(beta, dtype="float32")
+
+        scale = relax.op.multiply(data_squeezed, const_alpha)
+        scale = relax.op.add(scale, const_bias)
+        denominator = relax.op.power(scale, const_beta)
+
+        return relax.op.divide(data, denominator)
 
 
 class Pool(OnnxOpConverter):
@@ -3239,24 +3317,63 @@ class Unique(OnnxOpConverter):
     def _impl_v11(cls, bb, inputs, attr, params):
         data = inputs[0]
         axis = attr.get("axis", None)
-        sorted = bool(attr.get("sorted", 1))
-        # TODO(tvm-team): Add support for return_index, return_inverse, return_counts
-        unique = relax.op.unique(data, sorted=sorted, axis=axis)
+        sorted_flag = bool(attr.get("sorted", 1))
+        num_outputs = attr["tvm_custom"]["num_outputs"]
+
+        return_index = num_outputs > 1
+        return_inverse = num_outputs > 2
+        return_counts = num_outputs > 3
+
+        unique = relax.op.unique(
+            data,
+            sorted=sorted_flag,
+            return_index=return_index,
+            return_inverse=return_inverse,
+            return_counts=return_counts,
+            axis=axis,
+        )
+
         unique_numbers = tir.Var("unique_numbers", "int64")
         input_shape = data.struct_info.shape
         dtype = data.struct_info.dtype
 
         if axis is None:
-            # flatten the input tensor
-            return bb.match_cast(unique, relax.TensorStructInfo((unique_numbers,), dtype))
+            output_shape = (unique_numbers,)
+        else:
+            axis = axis if axis >= 0 else len(input_shape) + axis
+            if axis < 0 or axis >= len(input_shape):
+                raise ValueError(f"Axis {axis} is out of bounds")
+            output_shape = [
+                input_shape[i] if i != axis else unique_numbers for i in range(len(input_shape))
+            ]
 
-        axis = axis if axis >= 0 else len(input_shape) + axis
-        if axis < 0 or axis >= len(input_shape):
-            raise ValueError(f"Axis {axis} is out of bounds")
-        output_shape = [
-            input_shape[i] if i != axis else unique_numbers for i in range(len(input_shape))
-        ]
-        return bb.match_cast(unique, relax.TensorStructInfo(output_shape, dtype))
+        if num_outputs == 1:
+            return bb.match_cast(unique, relax.TensorStructInfo(output_shape, dtype))
+
+        outputs = [bb.match_cast(unique[0], relax.TensorStructInfo(output_shape, dtype))]
+        tuple_idx = 1  # Track which index in the tuple we're at
+
+        if return_index:
+            index_shape = (unique_numbers,)
+            index_sinfo = relax.TensorStructInfo(index_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], index_sinfo))
+            tuple_idx += 1
+
+        if return_inverse:
+            # ONNX spec: inverse_indices is always 1D
+            # When axis is None: shape is [X.size]
+            # When axis is specified: shape is [X.shape[axis]]
+            inverse_shape = (tir.Var("inverse_numbers", "int64"),)
+            inverse_sinfo = relax.TensorStructInfo(inverse_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], inverse_sinfo))
+            tuple_idx += 1
+
+        if return_counts:
+            count_shape = (unique_numbers,)
+            count_sinfo = relax.TensorStructInfo(count_shape, "int64")
+            outputs.append(bb.match_cast(unique[tuple_idx], count_sinfo))
+
+        return relax.Tuple(outputs)
 
 
 class NonZero(OnnxOpConverter):
@@ -3825,6 +3942,7 @@ def _get_convert_map():
         "EmbedLayerNormalization": EmbedLayerNormalization,
         "InstanceNormalization": InstanceNormalization,
         "MeanVarianceNormalization": MeanVarianceNormalization,
+        "LRN": LocalResponseNormalization,
         # defs/reduction
         "ReduceMax": ReduceMax,
         "ReduceMin": ReduceMin,
@@ -3864,7 +3982,6 @@ def _get_convert_map():
         "Unique": Unique,
         "NonZero": NonZero,
         # "If": If,
-        # "LRN": LRN,
         # "MaxRoiPool": MaxRoiPool,
         # "RoiAlign": RoiAlign,
         "NonMaxSuppression": NonMaxSuppression,

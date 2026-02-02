@@ -126,7 +126,7 @@ def test_unexpected_tir_args():
             def tir_addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
                 T.func_attr(({"global_symbol": "tir_addone"}))
                 for i, j in T.grid(16, 16):
-                    with T.block("tir_addone"):
+                    with T.sblock("tir_addone"):
                         vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] + T.int32(1)
 
@@ -198,7 +198,7 @@ def test_simple_module():
         ):
             T.func_attr({"tir.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.block():
+                with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
                     y[vi, vj] = x[vi, vj] + 1.0
 
@@ -227,7 +227,7 @@ def test_emit_te_primfunc_attrs():
         ):
             T.func_attr({"some_attr": "foo", "another_attr": True, "tir.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.block():
+                with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
                     y[vi, vj] = x[vi, vj] + 1.0
 
@@ -289,7 +289,7 @@ def test_module_with_attr_and_global_info():
         ):
             T.func_attr({"tir.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.block():
+                with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
                     y[vi, vj] = x[vi, vj] + 1.0
 
@@ -339,7 +339,7 @@ def test_global_info_vdevice():
         ):
             T.func_attr({"tir.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
-                with T.block():
+                with T.sblock():
                     vi, vj = T.axis.remap("SS", [i, j])
                     y[vi, vj] = x[vi, vj] + 1.0
 
@@ -980,7 +980,7 @@ def test_call_tir_with_tir_var():
             X = T.match_buffer(var_x, (n * 2,), dtype="float32")
             Y = T.match_buffer(var_y, (n * 2,), dtype="float32")
             for i in T.grid(n * 2):
-                with T.block("block"):
+                with T.sblock("block"):
                     vi = T.axis.remap("S", [i])
                     Y[vi] = X[vi]
 
@@ -996,7 +996,7 @@ def test_call_tir_with_grad():
             B = T.match_buffer(b, [54, 96])
 
             for i, j in T.grid(54, 96):
-                with T.block("compute"):
+                with T.sblock("compute"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj]
 
@@ -1027,7 +1027,7 @@ def test_call_tir_inplace():
             # copies the contents of B into A and out1
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
-                with T.block("T_zeros"):
+                with T.sblock("T_zeros"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(B[ax0, ax1])
                     T.writes(A[ax0, ax1], out1[ax0, ax1])
@@ -1080,7 +1080,7 @@ def test_call_tir_inplace_with_tuple_var_raises_error():
                 # copies the contents of B into A and out1
                 T.func_attr({"tir.noalias": True})
                 for iters in T.grid(T.int64(2), T.int64(3)):
-                    with T.block("T_zeros"):
+                    with T.sblock("T_zeros"):
                         i, j = T.axis.remap("SS", iters)
                         A[i, j] = B[i, j]
                         out1[i, j] = B[i, j]
@@ -1131,7 +1131,7 @@ def test_inline_prim_func():
                     C = T.match_buffer(c, (128, 128))
 
                     for i, j, k in T.grid(128, 128, 128):
-                        with T.block():
+                        with T.sblock():
                             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                             with T.init():
                                 C[vi, vj] = 0.0

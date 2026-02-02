@@ -67,7 +67,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buff
 /*! \brief The schedule error class when the padding size is invalid. */
 class InvalidPaddingError : public ScheduleError {
  public:
-  InvalidPaddingError(IRModule mod, Block block, ffi::Array<Integer> padding)
+  InvalidPaddingError(IRModule mod, SBlock block, ffi::Array<Integer> padding)
       : mod_(std::move(mod)), block_(std::move(block)), padding_(std::move(padding)) {}
   IRModule mod() const final { return mod_; }
   ffi::Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
@@ -81,7 +81,7 @@ class InvalidPaddingError : public ScheduleError {
     return os.str();
   }
 
-  static void Check(const ScheduleState& self, const Block& block, ffi::Array<Integer> padding) {
+  static void Check(const ScheduleState& self, const SBlock& block, ffi::Array<Integer> padding) {
     if (padding.size() != block->iter_vars.size()) {
       throw InvalidPaddingError(self->mod, block, padding);
     }
@@ -94,14 +94,14 @@ class InvalidPaddingError : public ScheduleError {
 
  private:
   IRModule mod_;
-  Block block_;
+  SBlock block_;
   ffi::Array<Integer> padding_;
 };
 
 /*! \brief The schedule error class when the block body is not an Einsum pattern. */
 class NonEinsumError : public ScheduleError {
  public:
-  explicit NonEinsumError(IRModule mod, Block block)
+  explicit NonEinsumError(IRModule mod, SBlock block)
       : mod_(std::move(mod)), block_(std::move(block)) {}
 
   IRModule mod() const final { return mod_; }
@@ -115,7 +115,7 @@ class NonEinsumError : public ScheduleError {
 
  private:
   IRModule mod_;
-  Block block_;
+  SBlock block_;
 };
 
 /*! \brief Data structure that represents a Einsum computation. */
@@ -157,7 +157,7 @@ struct BufferPadding {
     return result;
   }
 
-  Stmt MakeCopyBlock(bool is_read, ffi::Array<Block>* blocks, arith::Analyzer* analyzer) {
+  Stmt MakeCopyBlock(bool is_read, ffi::Array<SBlock>* blocks, arith::Analyzer* analyzer) {
     ffi::Array<Var> loop_vars;
     ffi::Array<Range> loop_doms;
     ffi::Array<IterVar> iter_vars;
@@ -198,10 +198,11 @@ struct BufferPadding {
     if (!is_read) {
       std::swap(read_region, write_region);
     }
-    Block new_block(iter_vars, {read_region}, {write_region}, padded_buffer->name, std::move(body));
+    SBlock new_block(iter_vars, {read_region}, {write_region}, padded_buffer->name,
+                     std::move(body));
     blocks->push_back(new_block);
-    body = BlockRealize(ffi::Array<PrimExpr>{loop_vars.begin(), loop_vars.end()}, Bool(true),
-                        new_block);
+    body = SBlockRealize(ffi::Array<PrimExpr>{loop_vars.begin(), loop_vars.end()}, Bool(true),
+                         new_block);
     for (int i = ndim - 1; i >= 0; --i) {
       body = For(loop_vars[i], loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,
                  std::move(body));
@@ -210,7 +211,7 @@ struct BufferPadding {
   }
 };
 
-Einsum ExtractEinsum(const ScheduleState& self, const Block& block) {
+Einsum ExtractEinsum(const ScheduleState& self, const SBlock& block) {
   Einsum result;
   std::unordered_set<const BufferNode*> buffer_used;
   int n_reads = block->reads.size();
@@ -272,7 +273,7 @@ class BufferNotAllocatedInScopeError : public ScheduleError {
 /*! \brief The schedule error class when the producer block cannot be padded. */
 class InvalidProducerError : public ScheduleError {
  public:
-  explicit InvalidProducerError(IRModule mod, Block producer)
+  explicit InvalidProducerError(IRModule mod, SBlock producer)
       : mod_(std::move(mod)), producer_(std::move(producer)) {}
 
   ffi::String FastErrorString() const final {
@@ -292,14 +293,14 @@ class InvalidProducerError : public ScheduleError {
  private:
   IRModule mod_;
   Buffer buffer_;
-  Block producer_;
+  SBlock producer_;
 };
 
 class PadEinsumBufferReplacer : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const BlockNode* old_block_ptr) final {
-    Block old_block = ffi::GetRef<Block>(old_block_ptr);
-    Block block = Downcast<Block>(StmtMutator::VisitStmt_(old_block_ptr));
+  Stmt VisitStmt_(const SBlockNode* old_block_ptr) final {
+    SBlock old_block = ffi::GetRef<SBlock>(old_block_ptr);
+    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(old_block_ptr));
     ffi::Array<IterVar> iter_vars;
     iter_vars.reserve(block->iter_vars.size());
     for (const IterVar& iter_var : block->iter_vars) {
@@ -329,9 +330,9 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
         writes.push_back(write);
       }
     }
-    Block new_block =
-        Block(iter_vars, reads, writes, block->name_hint, block->body, block->init,
-              /*alloc_buffers=*/{}, /*match_buffers=*/{}, /*annotations=*/block->annotations);
+    SBlock new_block =
+        SBlock(iter_vars, reads, writes, block->name_hint, block->body, block->init,
+               /*alloc_buffers=*/{}, /*match_buffers=*/{}, /*annotations=*/block->annotations);
     block_sref_reuse_.Set(old_block, new_block);
     return new_block;
   }
@@ -368,19 +369,19 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
   ffi::Map<Var, PrimExpr> iter2padded_extents;
   ffi::Map<Var, PrimExpr> loop_var2padded_extent;
   ffi::Map<Buffer, Buffer> buffer_map_;
-  ffi::Map<Block, Block> block_sref_reuse_;
+  ffi::Map<SBlock, SBlock> block_sref_reuse_;
 };
 
 void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<Integer>& padding) {
   arith::Analyzer analyzer;
   // Step 1: Input checking and error handling
-  const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
-  BlockRealize realize = GetBlockRealize(self, block_sref);
+  const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
+  SBlockRealize realize = GetSBlockRealize(self, block_sref);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
-  const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
-  InvalidPaddingError::Check(self, ffi::GetRef<Block>(block), padding);
+  const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
+  InvalidPaddingError::Check(self, ffi::GetRef<SBlock>(block), padding);
   // Step 2. Extract the Einsum pattern
-  ExtractEinsum(self, ffi::GetRef<Block>(block));
+  ExtractEinsum(self, ffi::GetRef<SBlock>(block));
   // Step 3. Figure out the padding needed
   PadEinsumBufferReplacer replacer;
   for (int i = 0, n = padding.size(); i < n; ++i) {
@@ -430,7 +431,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   // Step 5. For each buffer, if it needs padding, create a new buffer and a new block
   ffi::Array<Stmt> read_blocks;
   ffi::Array<Stmt> write_blocks;
-  ffi::Array<Block> new_copy_blocks;
+  ffi::Array<SBlock> new_copy_blocks;
   ffi::Array<Buffer> alloc_buffers;
   for (const BufferRegion& buffer_region : block->reads) {
     if (f_needs_padding(buffer_region->region)) {
@@ -462,19 +463,19 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
     new_scope_body.insert(new_scope_body.end(), write_blocks.begin(), write_blocks.end());
   }
   // Step 7. Create new scope
-  Block new_scope_block{nullptr};
+  SBlock new_scope_block{nullptr};
   {
-    ObjectPtr<BlockNode> n = ffi::make_object<BlockNode>(*scope_block);
+    ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*scope_block);
     n->body = SeqStmt::Flatten(new_scope_body);
     n->alloc_buffers.insert(n->alloc_buffers.end(), alloc_buffers.begin(), alloc_buffers.end());
-    new_scope_block = Block(n);
+    new_scope_block = SBlock(n);
   }
-  replacer.block_sref_reuse_.Set(ffi::GetRef<Block>(scope_block), new_scope_block);
+  replacer.block_sref_reuse_.Set(ffi::GetRef<SBlock>(scope_block), new_scope_block);
   // Step 8. Do replacement and update flags
   self->Replace(scope_sref, new_scope_block, replacer.block_sref_reuse_);
-  for (const Block& block : new_copy_blocks) {
+  for (const SBlock& block : new_copy_blocks) {
     StmtSRef block_sref = self->stmt2ref.at(block.get());
-    BlockInfo& block_info = self->block_info[block_sref];
+    SBlockInfo& block_info = self->block_info[block_sref];
     block_info.affine_binding = true;
     block_info.region_cover = true;
     block_info.stage_pipeline = true;
@@ -492,7 +493,7 @@ struct PadEinsumTraits : public UnpackedInstTraits<PadEinsumTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, ffi::Array<Integer> padding) {
+  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block, ffi::Array<Integer> padding) {
     sch->PadEinsum(block, padding);
   }
 

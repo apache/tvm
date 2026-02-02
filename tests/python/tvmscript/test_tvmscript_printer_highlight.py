@@ -37,7 +37,7 @@ def test_highlight_script():
             B = T.match_buffer(b, [16, 128, 128])
             C = T.match_buffer(c, [16, 128, 128])
             for n, i, j, k in T.grid(16, 128, 128, 128):
-                with T.block("matmul"):
+                with T.sblock("matmul"):
                     vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
                     with T.init():
                         C[vn, vi, vj] = 0.0  # type: ignore

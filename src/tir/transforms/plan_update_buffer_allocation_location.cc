@@ -35,7 +35,7 @@ namespace tir {
 
 class CollectManagedAllocations : public StmtExprVisitor {
  public:
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     for (const auto& buf : op->alloc_buffers) {
       managed_allocations.insert(buf->data.get());
     }
@@ -68,7 +68,7 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
            buffer_alloc_recorder_.end();
   }
 
-  void VisitStmt_(const BlockNode* op) final {
+  void VisitStmt_(const SBlockNode* op) final {
     for (const Buffer& buffer : op->alloc_buffers) {
       buffer_alloc_recorder_.push_back(buffer);
     }
@@ -160,7 +160,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     return node;
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const SBlockNode* op) final {
     ICHECK(!op->init.defined());
     ffi::Array<Buffer> alloc_buffers;
     auto it = alloc_buffers_.find(op);
@@ -177,7 +177,7 @@ class BufferAllocationLocator : public StmtExprMutator {
       buffer_data_to_buffer_.Set(target_var, match_buffer->buffer);
     }
     Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<BlockNode>();
+    op = stmt.as<SBlockNode>();
     ICHECK(op != nullptr);
 
     // No longer consider buffers created by match_buffer inside the block when updating access
@@ -193,7 +193,7 @@ class BufferAllocationLocator : public StmtExprMutator {
       }
     }
 
-    ObjectPtr<BlockNode> n = CopyOnWrite(op);
+    ObjectPtr<SBlockNode> n = CopyOnWrite(op);
     n->alloc_buffers = std::move(alloc_buffers);
     // Erase buffer allocated inside the block from access region.
     n->reads = RemoveRedundantBufferRegion(n->reads);
@@ -208,19 +208,19 @@ class BufferAllocationLocator : public StmtExprMutator {
 
   Stmt InjectOpaqueBlock(Stmt body, const ffi::Array<Buffer>& alloc_buffers) {
     ICHECK(!alloc_buffers.empty());
-    Block opaque_block(/*iter_vars=*/{},
-                       /*reads=*/{},
-                       /*writes=*/{},
-                       /*name_hint=*/"",
-                       /*body=*/std::move(body),
-                       /*init=*/std::nullopt,
-                       /*alloc_buffers=*/alloc_buffers);
-    ObjectPtr<BlockNode> n = CopyOnWrite(opaque_block.get());
+    SBlock opaque_block(/*iter_vars=*/{},
+                        /*reads=*/{},
+                        /*writes=*/{},
+                        /*name_hint=*/"",
+                        /*body=*/std::move(body),
+                        /*init=*/std::nullopt,
+                        /*alloc_buffers=*/alloc_buffers);
+    ObjectPtr<SBlockNode> n = CopyOnWrite(opaque_block.get());
     ffi::Array<ffi::Array<BufferRegion>> access =
-        GetBlockReadWriteRegion(opaque_block, buffer_data_to_buffer_);
+        GetSBlockReadWriteRegion(opaque_block, buffer_data_to_buffer_);
     n->reads = access[0];
     n->writes = access[1];
-    BlockRealize realize({}, Bool(true), Block(n));
+    SBlockRealize realize({}, Bool(true), SBlock(n));
     return realize;
   }
 

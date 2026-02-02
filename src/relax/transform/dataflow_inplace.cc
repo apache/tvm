@@ -730,8 +730,8 @@ tir::Stmt RemapBuffers(const tir::Stmt& stmt,
       return node;
     }
 
-    tir::Stmt VisitStmt_(const tir::BlockNode* op) final {
-      auto node = Downcast<tir::Block>(tir::StmtExprMutator::VisitStmt_(op));
+    tir::Stmt VisitStmt_(const tir::SBlockNode* op) final {
+      auto node = Downcast<tir::SBlock>(tir::StmtExprMutator::VisitStmt_(op));
       auto* node_cow = node.CopyOnWrite();
       // need the lambdas because class methods are not first-class (how ironic)
       node_cow->alloc_buffers =

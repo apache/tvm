@@ -32,7 +32,7 @@ def test_apply_to_func_with_different_block_name():
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             for i in T.serial(2):
-                with T.block("block"):
+                with T.sblock("block"):
                     vi = T.axis.spatial(2, i)
                     B[vi] = A[vi]
 
@@ -42,7 +42,7 @@ def test_apply_to_func_with_different_block_name():
         def main(A: T.Buffer((2,), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             for i in T.serial(2):
-                with T.block("renamed_block"):
+                with T.sblock("renamed_block"):
                     vi = T.axis.spatial(2, i)
                     B[vi] = A[vi]
 
@@ -58,13 +58,13 @@ def test_apply_to_func_with_different_block_name():
                 }
             )
             for i in T.serial(2):
-                with T.block("renamed_block"):
+                with T.sblock("renamed_block"):
                     vi = T.axis.spatial(2, i)
                     B[vi] = A[vi]
 
     def create_trace(mod: tvm.IRModule):
         sch = tir.Schedule(mod)
-        _ = sch.get_block("block")
+        _ = sch.get_sblock("block")
         return sch.trace
 
     db = ms.database.create(kind="memory")

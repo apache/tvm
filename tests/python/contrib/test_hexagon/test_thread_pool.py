@@ -41,7 +41,7 @@ class ElemwiseSumIRModule:
         B = T.match_buffer(b, (n,), dtype="float32")
         C = T.match_buffer(c, (n,), dtype="float32")
         for i in T.serial(n):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi = T.axis.spatial(n, i)
                 C[vi] = A[vi] + B[vi]
 
@@ -52,7 +52,7 @@ class ElemwiseSumIRModule:
         B = T.match_buffer(b, (n,), dtype="float32")
         C = T.match_buffer(c, (n,), dtype="float32")
         for i in T.parallel(n):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi = T.axis.spatial(n, i)
                 C[vi] = A[vi] + B[vi]
 

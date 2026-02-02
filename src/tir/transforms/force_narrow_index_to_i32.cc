@@ -59,8 +59,8 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
     return ffi::GetRef<IntImm>(op);
   }
 
-  Stmt VisitStmt_(const BlockNode* block) final {
-    Block block_ = Downcast<Block>(IndexDataTypeNormalizer::VisitStmt_(block));
+  Stmt VisitStmt_(const SBlockNode* block) final {
+    SBlock block_ = Downcast<SBlock>(IndexDataTypeNormalizer::VisitStmt_(block));
     // Check if the allocated integer buffers have dtype other than int32.
     for (const Buffer& buf : block_->alloc_buffers) {
       if (buf->dtype.is_int() && buf->dtype.bits() > 32) {

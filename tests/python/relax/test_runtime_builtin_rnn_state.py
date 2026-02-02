@@ -203,7 +203,7 @@ def rnn_state_get(
 
         for i in range(batch_size):
             for s in T.grid(*shape):
-                with T.block("copy"):
+                with T.sblock("copy"):
                     vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
                     seq_id: T.int32 = seq_slot_ids[vi]
                     history_id: T.int32 = history_slot_ids[vi]
@@ -238,7 +238,7 @@ def rnn_state_set(
 
         for i in range(batch_size):
             for s in T.grid(*shape):
-                with T.block("copy"):
+                with T.sblock("copy"):
                     vi, *vs = T.axis.remap("S" * (len(shape) + 1), [i, *s])
                     seq_id: T.int32 = seq_slot_ids[vi]
                     history_id: T.int32 = (history_slot_ids[vi] + 1) % T.cast(

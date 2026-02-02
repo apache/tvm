@@ -35,20 +35,20 @@ def elementwise(a: T.handle, c: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (64, 64))
     B = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(A[vi, vj])
             T.writes(B[vi, vj])
             B[vi, vj] = A[vi, vj] * T.float32(2)
     for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
-        with T.block("C"):
+        with T.sblock("C"):
             vi = T.axis.spatial(128, i_0 * 16 + i_1)
             vj = T.axis.spatial(128, j_0 * 16 + j_1)
             T.reads(B[vi, vj])
             T.writes(C[vi, vj])
             C[vi, vj] = B[vi, vj] + T.float32(1)
     for i_0, j_0, i_1, j_1 in T.grid(8, 8, 8, 8):
-        with T.block("D"):
+        with T.sblock("D"):
             vi = T.axis.spatial(64, i_0 * 8 + i_1)
             vj = T.axis.spatial(64, j_0 * 8 + j_1)
             T.reads(B[vi, vj])
@@ -63,21 +63,21 @@ def elementwise_merged(a: T.handle, c: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (64, 64))
     B = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(A[vi, vj])
             T.writes(B[vi, vj])
             B[vi, vj] = A[vi, vj] * T.float32(2)
     for i_0_m in range(8):
         for j_0, i_1, j_1 in T.grid(8, 16, 16):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi = T.axis.spatial(128, i_0_m * 16 + i_1)
                 vj = T.axis.spatial(128, j_0 * 16 + j_1)
                 T.reads(B[vi, vj])
                 T.writes(C[vi, vj])
                 C[vi, vj] = B[vi, vj] + T.float32(1)
         for j_0, i_1, j_1 in T.grid(8, 8, 8):
-            with T.block("D"):
+            with T.sblock("D"):
                 vi = T.axis.spatial(64, i_0_m * 8 + i_1)
                 vj = T.axis.spatial(64, j_0 * 8 + j_1)
                 T.reads(B[vi, vj])
@@ -92,21 +92,21 @@ def elementwise_merged2(a: T.handle, c: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (64, 64))
     B = T.alloc_buffer((128, 128))
     for i, j in T.grid(128, 128):
-        with T.block("B"):
+        with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(A[vi, vj])
             T.writes(B[vi, vj])
             B[vi, vj] = A[vi, vj] * T.float32(2)
     for i_0_m, j_0_m in T.grid(8, 8):
         for i_1, j_1 in T.grid(16, 16):
-            with T.block("C"):
+            with T.sblock("C"):
                 vi = T.axis.spatial(128, i_0_m * 16 + i_1)
                 vj = T.axis.spatial(128, j_0_m * 16 + j_1)
                 T.reads(B[vi, vj])
                 T.writes(C[vi, vj])
                 C[vi, vj] = B[vi, vj] + T.float32(1)
         for i_1, j_1 in T.grid(8, 8):
-            with T.block("D"):
+            with T.sblock("D"):
                 vi = T.axis.spatial(64, i_0_m * 8 + i_1)
                 vj = T.axis.spatial(64, j_0_m * 8 + j_1)
                 T.reads(B[vi, vj])
@@ -116,8 +116,8 @@ def elementwise_merged2(a: T.handle, c: T.handle, d: T.handle) -> None:
 
 def test_merge():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block_c = sch.get_block("C")
-    block_d = sch.get_block("D")
+    block_c = sch.get_sblock("C")
+    block_d = sch.get_sblock("D")
     i = sch.get_loops(block_c)[0]
     j = sch.get_loops(block_d)[0]
     sch.merge(i, j)
@@ -127,8 +127,8 @@ def test_merge():
 
 def test_merge2():
     sch = tir.Schedule(elementwise, debug_mask="all")
-    block_c = sch.get_block("C")
-    block_d = sch.get_block("D")
+    block_c = sch.get_sblock("C")
+    block_d = sch.get_sblock("D")
     i = sch.get_loops(block_c)[1]
     j = sch.get_loops(block_d)[1]
     sch.merge(i, j)
@@ -145,23 +145,23 @@ def test_merge_fail_not_only_child():
         D = T.alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
             for k in T.serial(0, 128):
-                with T.block("D"):
+                with T.sblock("D"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     D[vi, vj, vk] = A[vi, vj, vk] * 2.0
             for k in T.serial(0, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     B[vi, vj, vk] = A[vi, vj, vk] * 2.0
         for i, j in T.grid(128, 128):
             for k in T.serial(0, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = B[vi, vj, vk] * 2.0
 
     sch = tir.Schedule(elementwise_with_seq, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, _, b = sch.get_loops(block_b)
-    block_c = sch.get_block("C")
+    block_c = sch.get_sblock("C")
     _, _, c = sch.get_loops(block_c)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.merge(b, c)
@@ -175,19 +175,19 @@ def test_merge_fail_not_start_with_zero():
         B = T.alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
             for k in T.serial(1, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     B[vi, vj, vk] = A[vi, vj, vk] * 2.0
         for i, j in T.grid(128, 128):
             for k in T.serial(0, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
     sch = tir.Schedule(elementwise_loops_not_start_with_zero, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, _, b = sch.get_loops(block_b)
-    block_c = sch.get_block("C")
+    block_c = sch.get_sblock("C")
     _, _, c = sch.get_loops(block_c)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.merge(b, c)
@@ -201,19 +201,19 @@ def test_merge_fail_not_same_extent():
         B = T.alloc_buffer((64, 128, 128))
         for i, j in T.grid(64, 128):
             for k in T.serial(0, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     B[vi, vj, vk] = A[vi, vj, vk] * 2.0
         for i, j in T.grid(128, 128):
             for k in T.serial(0, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
     sch = tir.Schedule(elementwise_loops_not_same_extent, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, _, b = sch.get_loops(block_b)
-    block_c = sch.get_block("C")
+    block_c = sch.get_sblock("C")
     _, _, c = sch.get_loops(block_c)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.merge(b, c)
@@ -227,19 +227,19 @@ def test_merge_fail_not_same_level():
         B = T.alloc_buffer((128, 128, 128))
         for i, j in T.grid(128, 128):
             for k in T.serial(0, 128):
-                with T.block("B"):
+                with T.sblock("B"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     B[vi, vj, vk] = A[vi, vj, vk] * 2.0
         for i, j in T.grid(128, 128):
             for k in T.serial(0, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
     sch = tir.Schedule(elementwise_not_same_level, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, b, _ = sch.get_loops(block_b)
-    block_c = sch.get_block("C")
+    block_c = sch.get_sblock("C")
     _, _, c = sch.get_loops(block_c)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.merge(b, c)
@@ -251,22 +251,22 @@ def test_merge_fail_with_different_scope():
         A = T.match_buffer(a, (128, 128, 128))
         C = T.match_buffer(c, (128, 128, 128))
         B = T.alloc_buffer((128, 128, 128))
-        with T.block("A"):
+        with T.sblock("A"):
             for i, j in T.grid(128, 128):
                 for k in T.serial(0, 128):
-                    with T.block("B"):
+                    with T.sblock("B"):
                         vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                         B[vi, vj, vk] = A[vi, vj, vk] * 2.0
         for i, j in T.grid(128, 128):
             for k in T.serial(0, 128):
-                with T.block("C"):
+                with T.sblock("C"):
                     vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
     sch = tir.Schedule(elementwise_with_different_scope, debug_mask="all")
-    block_b = sch.get_block("B")
+    block_b = sch.get_sblock("B")
     _, _, b = sch.get_loops(block_b)
-    block_c = sch.get_block("C")
+    block_c = sch.get_sblock("C")
     _, _, c = sch.get_loops(block_c)
     with pytest.raises(tvm.tir.ScheduleError):
         sch.merge(b, c)

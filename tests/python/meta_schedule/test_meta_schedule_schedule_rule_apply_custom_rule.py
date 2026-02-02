@@ -34,8 +34,8 @@ class Matmul:
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.block("matmul"):
-                T.block_attr({"schedule_rule": "test_apply_custom_rule"})
+            with T.sblock("matmul"):
+                T.sblock_attr({"schedule_rule": "test_apply_custom_rule"})
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 with T.init():
                     C[vi, vj] = 0.0
@@ -43,7 +43,7 @@ class Matmul:
 
 
 @tvm.register_global_func("meta_schedule.cpu.test_apply_custom_rule")
-def sch_fn(sch: tvm.tir.Schedule, block: tvm.tir.Block) -> List[tvm.tir.Schedule]:
+def sch_fn(sch: tvm.tir.Schedule, block: tvm.tir.SBlock) -> List[tvm.tir.Schedule]:
     raise ValueError("Intended for meta_schedule.cpu.test_apply_custom_rule")
 
 

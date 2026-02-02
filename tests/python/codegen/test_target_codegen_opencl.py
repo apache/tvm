@@ -36,7 +36,7 @@ def test_opencl_ternary_expression():
 
         func = te.create_prim_func([A, C])
         sch = tvm.tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_block("C"))
+        (x,) = sch.get_loops(sch.get_sblock("C"))
         sch.bind(x, "threadIdx.x")
         fun = tvm.tir.build(sch.mod, target=target)
         a = tvm.runtime.empty((n,), A.dtype, dev)
@@ -53,7 +53,7 @@ def test_opencl_ternary_expression():
         C = te.compute((n,), lambda i: tvm.te.max(max_lhs, max_rhs), name="C")
         func = te.create_prim_func([A, C])
         sch = tvm.tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_block("C"))
+        (x,) = sch.get_loops(sch.get_sblock("C"))
         sch.bind(x, "threadIdx.x")
         fun = tvm.tir.build(sch.mod, target=target)
 
@@ -83,7 +83,7 @@ def test_opencl_inf_nan():
         C = te.compute((n,), lambda i: inf_value, name="C")
         func = te.create_prim_func([A, C])
         sch = tvm.tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_block("C"))
+        (x,) = sch.get_loops(sch.get_sblock("C"))
         sch.bind(x, "threadIdx.x")
         fun = tvm.tir.build(sch.mod, target=target)
         a = tvm.runtime.empty((n,), A.dtype, dev)
@@ -111,7 +111,7 @@ def test_opencl_max():
         C = te.compute((n,), lambda i: tvm.te.max(max_lhs, max_rhs), name="C")
         func = te.create_prim_func([A, C])
         sch = tvm.tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_block("C"))
+        (x,) = sch.get_loops(sch.get_sblock("C"))
         sch.bind(x, "threadIdx.x")
         fun = tvm.tir.build(sch.mod, target=target)
 
@@ -136,7 +136,7 @@ def test_opencl_erf():
         C = te.compute(A.shape, lambda *i: te.erf(A(*i)), name="C")
         func = te.create_prim_func([A, C])
         sch = tvm.tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_block("C"))
+        (x,) = sch.get_loops(sch.get_sblock("C"))
         sch.bind(x, "threadIdx.x")
         fun = tvm.tir.build(sch.mod, target=target)
 
@@ -173,7 +173,7 @@ def test_opencl_type_casting():
         # NOTE: test simple convert pattern
         func = te.create_prim_func([C])
         sch = tvm.tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_block("C"))
+        (x,) = sch.get_loops(sch.get_sblock("C"))
         tx, vx = sch.split(x, factors=[None, block_size])
         sch.bind(tx, "threadIdx.x")
         sch.vectorize(vx)
@@ -207,7 +207,7 @@ def test_opencl_ceil_log2(target):
             )
             func = te.create_prim_func([C])
             sch = tvm.tir.Schedule(func)
-            (x,) = sch.get_loops(sch.get_block("C"))
+            (x,) = sch.get_loops(sch.get_sblock("C"))
             sch.bind(x, "threadIdx.x")
 
             fun = tvm.tir.build(sch.mod, target=target)
