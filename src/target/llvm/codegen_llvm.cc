@@ -2323,6 +2323,32 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
 
   auto* di_loc = llvm::DILocation::get(*llvm_target_->GetContext(), 0, 0, di_subprogram_);
 
+#if TVM_LLVM_VERSION >= 150
+  // LLVM 15+ requires dbg_declare to reference pointer or integer types only.
+  // For non-pointer types (floats, vectors), use dbg_value instead to track
+  // the SSA value directly rather than a memory location.
+  if (!llvm_value->getType()->isPointerTy()) {
+    if (insert_before) {
+      // LLVM 20+ changed insertDbgValueIntrinsic to take BasicBlock::iterator
+      // instead of Instruction* for the insertion point.
+#if TVM_LLVM_VERSION >= 200
+      dbg_info_->di_builder_->insertDbgValueIntrinsic(
+          llvm_value, local_var, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
+          llvm::BasicBlock::iterator(insert_before));
+#else
+      dbg_info_->di_builder_->insertDbgValueIntrinsic(llvm_value, local_var,
+                                                      dbg_info_->di_builder_->createExpression(),
+                                                      llvm::DebugLoc(di_loc), insert_before);
+#endif
+    } else {
+      dbg_info_->di_builder_->insertDbgValueIntrinsic(
+          llvm_value, local_var, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
+          builder_->GetInsertBlock());
+    }
+    return;
+  }
+#endif
+
   if (insert_before) {
 #if TVM_LLVM_VERSION >= 200
     dbg_info_->di_builder_->insertDeclare(
