@@ -1,4 +1,4 @@
-..  Licensed to the Apache Software Foundation (ASF) under one
+﻿..  Licensed to the Apache Software Foundation (ASF) under one
     or more contributor license agreements.  See the NOTICE file
     distributed with this work for additional information
     regarding copyright ownership.  The ASF licenses this file
@@ -230,6 +230,71 @@ The following commands can be used to install the extra Python dependencies:
 .. code:: bash
 
     pip3 install tornado psutil 'xgboost>=1.1.0' cloudpickle
+
+
+.. _windows-build-notes:
+
+Windows-Specific Build Notes
+----------------------------
+
+If you're building TVM on Windows, note these platform-specific considerations:
+
+File Encoding
+.............
+- Ensure Python files are saved as **UTF-8 without BOM** (Byte Order Mark)
+- BOM characters cause ``SyntaxError: invalid non-printable character U+FEFF``
+- In VS Code: Bottom-right encoding → "Save with Encoding" → "UTF-8"
+
+Path Conventions
+................
+- Use forward slashes (``/``) in Python/CMake paths, not Windows backslashes
+- Example: ``python cmake/config.cmake`` not ``python cmake\\config.cmake``
+
+Common Windows Build Issues
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+CUDA Configuration
+..................
+For CUDA support:
+
+.. code-block:: batch
+
+   set CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8
+   set PATH=%CUDA_PATH%\bin;%PATH%
+   cmake .. -DUSE_CUDA=ON
+
+CMake & Compiler Setup
+......................
+- Use CMake GUI or specify generator: ``cmake -G "Visual Studio 16 2019" -A x64 ..``
+- Ensure Python is in PATH or specify: ``-DPython_EXECUTABLE=C:\Python39\python.exe``
+
+Development Environment Tips
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Git Configuration
+.................
+.. code-block:: bash
+
+   git config --global core.autocrlf input
+
+VS Code Settings
+................
+Add to ``settings.json``:
+
+.. code-block:: json
+
+   {
+       "files.encoding": "utf8",
+       "files.autoGuessEncoding": false,
+       "[python]": { "files.encoding": "utf8" }
+   }
+
+WSL2 Alternative
+~~~~~~~~~~~~~~~~
+For Linux-like environment: Install WSL2 (Ubuntu recommended) and follow Linux instructions.
+
+For more help, report Windows-specific issues on GitHub with your Windows version,
+Visual Studio version, and complete error logs.
 
 
 Advanced Build Configuration
