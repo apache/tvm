@@ -225,13 +225,13 @@ def matmul_bias_invalid_multiple_use_before(
     """Epilogue uses the reduction result twice; fusion must be rejected."""
     temp = T.alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.block("multiply"):
+        with T.sblock("multiply"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 temp[vi, vj] = T.int32(0)
             temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
     for i, j in T.grid(16, 16):
-        with T.block("bad_epilogue"):
+        with T.sblock("bad_epilogue"):
             vi, vj = T.axis.remap("SS", [i, j])
             # temp[vi, vj] is used twice in the epilogue expression
             D[vi, vj] = (temp[vi, vj] + C1[vi, vj]) * (temp[vi, vj] + C2[vi, vj])
@@ -254,13 +254,13 @@ def matmul_bias_invalid_scaling_before(
     """Epilogue scales the reduction result; fusion must be rejected."""
     temp = T.alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.block("multiply"):
+        with T.sblock("multiply"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
                 temp[vi, vj] = T.int32(0)
             temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
     for i, j in T.grid(16, 16):
-        with T.block("scaled_epilogue"):
+        with T.sblock("scaled_epilogue"):
             vi, vj = T.axis.remap("SS", [i, j])
             # temp[vi, vj] is scaled by 2 before adding bias; this must not be fused.
             D[vi, vj] = temp[vi, vj] * T.int32(2) + C[vi, vj]
