@@ -17,16 +17,17 @@
 # under the License.
 
 import argparse
-import logging
 import datetime
-import os
 import json
+import logging
+import os
 import re
 import shlex
+from typing import Any, Callable, Dict, List, Optional
 from urllib import error
-from typing import List, Dict, Any, Optional, Callable
-from git_utils import git, parse_remote, GitHubRepo
-from cmd_utils import REPO_ROOT, init_log
+
+from cmd_utils import REPO_ROOT, Sh, init_log
+from git_utils import GitHubRepo, git, parse_remote
 from should_rebuild_docker import docker_api
 
 JENKINS_DIR = REPO_ROOT / "ci" / "jenkins"
