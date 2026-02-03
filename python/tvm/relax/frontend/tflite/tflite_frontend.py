@@ -19,6 +19,8 @@
 # pylint: disable=no-value-for-parameter, unused-variable
 # pylint: disable=unexpected-keyword-arg, unused-import, too-many-function-args
 """Tensorflow lite frontend."""
+import functools
+from typing import Callable, Dict, List, Tuple, Union
 import itertools
 import math
 
@@ -37,14 +39,14 @@ def to_int_list(np_array):
 
     Note: This function converts np.int32 to python's int.
     If we don't do this conversion, numpy's automatic upcast will make
-    the shape / parameters be converted to int64 IntImm in relay and
-    cause problems in relay/TOPI.
+    the shape / parameters be converted to int64 IntImm in relax and
+    cause problems in relax/TOPI.
     """
     return [int(x) for x in np_array]
 
 
 class ExprTable(object):
-    """Table storing Relay expressions by names."""
+    """Table storing Relax expressions by names."""
 
     def __init__(self):
         self.exprs = {}
@@ -92,16 +94,13 @@ class TensorWrapper(object):
 
 
 class OperatorConverter(object):
-    """Operator Converted for converting TFLite ops to Relay ops"""
+    """Operator Converted for converting TFLite ops to Relax ops"""
 
     def __init__(self, model, subgraph, exp_tab, ctx):
 
-        try:
-            from tflite.ActivationFunctionType import ActivationFunctionType
-            from tflite.BuiltinOperator import BuiltinOperator
-            from tflite.BuiltinOptions import BuiltinOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+        from tflite.ActivationFunctionType import ActivationFunctionType
+        from tflite.BuiltinOperator import BuiltinOperator
+        from tflite.BuiltinOptions import BuiltinOptions
 
         self.model = model
         self.subgraph = subgraph
@@ -115,88 +114,102 @@ class OperatorConverter(object):
 
         # Add more operators
         self.convert_map = {
-            "ABS": self.convert_abs,
-            "ADD": self.convert_add,
+            "ABS": functools.partial(self._convert_unary_elemwise, relax_op=_op.abs),
+            "ADD": functools.partial(self._convert_elemwise, relax_op=_op.add),
             "ADD_N": self.convert_add_n,
-            "ARG_MAX": self.convert_arg_max,
-            "ARG_MIN": self.convert_arg_min,
-            "AVERAGE_POOL_2D": self.convert_average_pool2d,
+            "ARG_MAX": functools.partial(self._convert_arg_min_max, relax_op=_op.argmax),
+            "ARG_MIN": functools.partial(self._convert_arg_min_max, relax_op=_op.argmin),
+            "AVERAGE_POOL_2D": functools.partial(self.convert_pool2d, pool_type="average"),
             "BATCH_TO_SPACE_ND": self.convert_batch_to_space_nd,
             "BATCH_MATMUL": self.convert_batch_matmul,
             "CAST": self.convert_cast,
-            "CEIL": self.convert_ceil,
+            "CEIL": functools.partial(self._convert_unary_elemwise, relax_op=_op.ceil),
             "CONCATENATION": self.convert_concatenation,
-            "CONV_2D": self.convert_conv2d,
-            "COS": self.convert_cos,
+            "CONV_2D": functools.partial(self.convert_conv, conv_type="conv2d"),
+            "COS": functools.partial(self._convert_unary_elemwise, relax_op=_op.cos),
             "DENSIFY": self.convert_densify,
             "DEPTH_TO_SPACE": self.convert_depth_to_space,
-            "DEPTHWISE_CONV_2D": self.convert_depthwise_conv2d,
+            "DEPTHWISE_CONV_2D": functools.partial(self.convert_conv, conv_type="depthwise"),
             "DEQUANTIZE": self.convert_dequantize,
             "DETECTION_POSTPROCESS": self.convert_detection_postprocess,
-            "DIV": self.convert_div,
+            "DIV": functools.partial(self._convert_elemwise, relax_op=_op.divide),
             "ELU": self.convert_elu,
-            "EQUAL": self.convert_equal,
-            "EXP": self.convert_exp,
+            "EQUAL": functools.partial(
+                self._convert_elemwise, relax_op=_op.equal, comparison_op=True
+            ),
+            "EXP": functools.partial(self._convert_unary_elemwise, relax_op=_op.exp),
             "EXPAND_DIMS": self.convert_expand_dims,
             "FAKE_QUANT": self.convert_fake_quant,
             "FILL": self.convert_fill,
-            "FLOOR_DIV": self.convert_floor_div,
-            "FLOOR_MOD": self.convert_floor_mod,
-            "FLOOR": self.convert_floor,
+            "FLOOR_DIV": functools.partial(self._convert_elemwise, relax_op=_op.floor_divide),
+            "FLOOR_MOD": functools.partial(self._convert_elemwise, relax_op=_op.floor_mod),
+            "FLOOR": functools.partial(self._convert_unary_elemwise, relax_op=_op.floor),
             "FULLY_CONNECTED": self.convert_fully_connected,
             "GATHER": self.convert_gather,
             "GATHER_ND": self.convert_gather_nd,
-            "GREATER_EQUAL": self.convert_greater_equal,
-            "GREATER": self.convert_greater,
+            "GREATER_EQUAL": functools.partial(
+                self._convert_elemwise, relax_op=_op.greater_equal, comparison_op=True
+            ),
+            "GREATER": functools.partial(
+                self._convert_elemwise, relax_op=_op.greater, comparison_op=True
+            ),
             "GELU": self.convert_gelu,
             "HARD_SWISH": self.convert_hard_swish,
             "L2_NORMALIZATION": self.convert_l2_normalization,
-            "L2_POOL_2D": self.convert_l2_pool2d,
+            "L2_POOL_2D": functools.partial(self.convert_pool2d, pool_type="l2"),
             "LEAKY_RELU": self.convert_leaky_relu,
-            "LESS_EQUAL": self.convert_less_equal,
-            "LESS": self.convert_less,
+            "LESS_EQUAL": functools.partial(
+                self._convert_elemwise, relax_op=_op.less_equal, comparison_op=True
+            ),
+            "LESS": functools.partial(
+                self._convert_elemwise, relax_op=_op.less, comparison_op=True
+            ),
             "LOCAL_RESPONSE_NORMALIZATION": self.convert_lrn,
-            "LOG": self.convert_log,
+            "LOG": functools.partial(self._convert_unary_elemwise, relax_op=_op.log),
             "LOG_SOFTMAX": self.convert_log_softmax,
-            "LOGICAL_AND": self.convert_logical_and,
+            "LOGICAL_AND": functools.partial(
+                self._convert_logical_binary, relax_op=_op.logical_and
+            ),
             "LOGICAL_NOT": self.convert_logical_not,
-            "LOGICAL_OR": self.convert_logical_or,
+            "LOGICAL_OR": functools.partial(self._convert_logical_binary, relax_op=_op.logical_or),
             "LOGISTIC": self.convert_logistic,
             "MATRIX_DIAG": self.convert_matrix_diag,
             "MATRIX_SET_DIAG": self.convert_matrix_set_diag,
-            "MAX_POOL_2D": self.convert_max_pool2d,
-            "MAXIMUM": self.convert_maximum,
-            "MEAN": self.convert_reduce_mean,
-            "MINIMUM": self.convert_minimum,
+            "MAX_POOL_2D": functools.partial(self.convert_pool2d, pool_type="max"),
+            "MAXIMUM": functools.partial(self._convert_elemwise, relax_op=_op.maximum),
+            "MEAN": functools.partial(self._convert_reduce, relax_op=_op.mean),
+            "MINIMUM": functools.partial(self._convert_elemwise, relax_op=_op.minimum),
             "MIRROR_PAD": self.convert_mirror_pad,
-            "MUL": self.convert_mul,
-            "NEG": self.convert_neg,
-            "NOT_EQUAL": self.convert_not_equal,
+            "MUL": functools.partial(self._convert_elemwise, relax_op=_op.multiply),
+            "NEG": functools.partial(self._convert_unary_elemwise, relax_op=_op.negative),
+            "NOT_EQUAL": functools.partial(
+                self._convert_elemwise, relax_op=_op.not_equal, comparison_op=True
+            ),
             "ONE_HOT": self.convert_one_hot,
             "PACK": self.convert_pack,
             "PAD": self.convert_pad,
             "PADV2": self.convert_pad,
-            "POW": self.convert_pow,
+            "POW": functools.partial(self._convert_elemwise, relax_op=_op.power),
             "PRELU": self.convert_prelu,
             "RANGE": self.convert_range,
             "QUANTIZE": self.convert_quantize,
-            "REDUCE_ANY": self.convert_reduce_any,
-            "REDUCE_MAX": self.convert_reduce_max,
-            "REDUCE_MIN": self.convert_reduce_min,
-            "REDUCE_PROD": self.convert_reduce_prod,
+            # "REDUCE_ANY": functools.partial(self._convert_reduce, relax_op=_op.any),
+            "REDUCE_MAX": functools.partial(self._convert_reduce, relax_op=_op.max),
+            "REDUCE_MIN": functools.partial(self._convert_reduce, relax_op=_op.min),
+            "REDUCE_PROD": functools.partial(self._convert_reduce, relax_op=_op.prod),
             "RELU": self.convert_relu,
             "RELU6": self.convert_relu6,
             "RELU_N1_TO_1": self.convert_relu_n1_to_1,
             "RESHAPE": self.convert_reshape,
             "RESIZE_BILINEAR": self.convert_resize_bilinear,
             "RESIZE_NEAREST_NEIGHBOR": self.convert_resize_nearest_neighbor,
-            "ROUND": self.convert_round,
-            "RSQRT": self.convert_rsqrt,
+            "ROUND": functools.partial(self._convert_unary_elemwise, relax_op=_op.round),
+            "RSQRT": functools.partial(self._convert_unary_elemwise, relax_op=_op.rsqrt),
             "REVERSE_SEQUENCE": self.convert_reverse_sequence,
             "REVERSE_V2": self.convert_reverse_v2,
             "SELECT": self.convert_select,
             "SHAPE": self.convert_shape,
-            "SIN": self.convert_sin,
+            "SIN": functools.partial(self._convert_unary_elemwise, relax_op=_op.sin),
             "SLICE": self.convert_slice,
             "SOFTMAX": self.convert_softmax,
             "SPACE_TO_BATCH_ND": self.convert_space_to_batch_nd,
@@ -204,14 +217,14 @@ class OperatorConverter(object):
             "SPARSE_TO_DENSE": self.convert_sparse_to_dense,
             "SPLIT": self.convert_split,
             "SPLIT_V": self.convert_split_v,
-            "SQRT": self.convert_sqrt,
+            "SQRT": functools.partial(self._convert_unary_elemwise, relax_op=_op.sqrt),
             "SQUARE": self.convert_square,
             "SQUARED_DIFFERENCE": self.convert_squared_difference,
             "SQUEEZE": self.convert_squeeze,
             "STRIDED_SLICE": self.convert_strided_slice,
-            "SUB": self.convert_sub,
-            "SUM": self.convert_reduce_sum,
-            "TAN": self.convert_tan,
+            "SUB": functools.partial(self._convert_elemwise, relax_op=_op.subtract),
+            "SUM": functools.partial(self._convert_reduce, relax_op=_op.sum),
+            "TAN": functools.partial(self._convert_unary_elemwise, relax_op=_op.tan),
             "TANH": self.convert_tanh,
             "TILE": self.convert_tile,
             "TOPK_V2": self.convert_topk_v2,
@@ -293,8 +306,8 @@ class OperatorConverter(object):
         shape.pop(axis)
         timestep = 0  # Reshape to make time step as the first dim
         shape.insert(timestep, selections)
-        res_split = relax.op.split(
-            relax.op.reshape(self.get_expr(data.tensor_idx), tuple(shape)), selections, timestep
+        res_split = _op.split(
+            _op.reshape(self.get_expr(data.tensor_idx), tuple(shape)), selections, timestep
         )
         ret = []
         for i in range(selections):
@@ -310,15 +323,13 @@ class OperatorConverter(object):
             op = self.subgraph.Operators(op_idx)
             op_code_str = self.get_op_code_str(op)
             output_tensors = self.get_output_tensors(op)
-            try:
-                from tflite.Operator import Operator
-            except ImportError:
-                raise ImportError("The tflite package must be installed")
+
+            from tflite.Operator import Operator
 
             assert isinstance(op, Operator)
-            ret = self.convert_map[op_code_str](op)
+            ret = self.convert_map[op_code_str](op=op)
             ret = self.bb.normalize(ret)
-            # print("Op Code:", op_code_str, " Shape:", ret.struct_info)
+            print("Op Code:", op_code_str)
 
             # In case the Op can be prefetched, the output can be optimized out
             if ret is None:
@@ -335,10 +346,9 @@ class OperatorConverter(object):
 
     def get_op_code_str(self, op):
         """Get TFLite ops string representation"""
-        try:
-            from tflite.BuiltinOperator import BuiltinOperator
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.BuiltinOperator import BuiltinOperator
 
         op_code_list_idx = op.OpcodeIndex()
 
@@ -468,25 +478,18 @@ class OperatorConverter(object):
         """Returns np.dtype out of TensorType"""
         assert isinstance(tensor_wrapper, TensorWrapper)
 
-        try:
-            from tflite.TensorType import TensorType
+        from tflite.TensorType import TensorType
 
-            return {
-                TensorType.UINT8: np.uint8,
-                TensorType.INT8: np.int8,
-                TensorType.INT16: np.int16,
-                TensorType.FLOAT16: np.float16,
-                TensorType.FLOAT32: np.float32,
-                TensorType.INT32: np.int32,
-                TensorType.INT64: np.int64,
-                TensorType.BOOL: np.bool_,
-            }[tensor_wrapper.tensor.Type()]
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-        except KeyError:
-            raise NotImplementedError(
-                f"Tensor type '{tensor_wrapper.tensor.Type()}' currently not supported"
-            )
+        return {
+            TensorType.UINT8: np.uint8,
+            TensorType.INT8: np.int8,
+            TensorType.INT16: np.int16,
+            TensorType.FLOAT16: np.float16,
+            TensorType.FLOAT32: np.float32,
+            TensorType.INT32: np.int32,
+            TensorType.INT64: np.int64,
+            TensorType.BOOL: np.bool_,
+        }[tensor_wrapper.tensor.Type()]
 
     # pylint: disable=no-else-return
     def get_tensor_value(self, tensor_wrapper, is_sparse=False):
@@ -508,10 +511,8 @@ class OperatorConverter(object):
 
     def get_tensor_type_str(self, tensor_type):
         """Get tensor type string representation when given TFLite tensor type"""
-        try:
-            from tflite.TensorType import TensorType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.TensorType import TensorType
 
         if tensor_type == TensorType.INT8:
             return "int8"
@@ -536,14 +537,14 @@ class OperatorConverter(object):
         ndims = self._infer_shape(x_shape)[0]
         if ndims == nd:
             return x
-        newshape = relax.op.concat(
+        newshape = _op.concat(
             [
                 _expr.const([-1], dtype=_infer_type(x_shape).checked_type.dtype),
-                relax.op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
+                _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
             ],
             0,
         )
-        out = relax.op.reshape(x, _fold_constant(newshape))
+        out = _op.reshape(x, _fold_constant(newshape))
         return out
 
     def has_same_qnn_params(self, lhs_tensor, rhs_tensor):
@@ -558,14 +559,8 @@ class OperatorConverter(object):
             lhs_zero_point.data.numpy(), rhs_zero_point.data.numpy(), rtol=1e-5, atol=1e-5
         )
 
-    def is_quantized(self, op):
-        """Check if an input tensor is quantized."""
-        input_tensors = self.get_input_tensors(op)
-        first_tensor = input_tensors[0]
-        return first_tensor.qnn_params is not None
-
     def quantize(self, expr, tensor_to_quantize):
-        """Helper function to quantize a tensor with Relay"""
+        """Helper function to quantize a tensor with Relax"""
         tensor_type = tensor_to_quantize.tensor.Type()
         tensor_type_str = self.get_tensor_type_str(tensor_type)
         quantized = _qnn.op.quantize(
@@ -577,7 +572,7 @@ class OperatorConverter(object):
         return quantized
 
     def dequantize(self, expr, tensor):
-        """Helper function to dequantize a tensor with Relay"""
+        """Helper function to dequantize a tensor with Relax"""
         dequantized = _qnn.op.dequantize(
             data=expr,
             input_scale=tensor.qnn_params["scale"],
@@ -585,15 +580,19 @@ class OperatorConverter(object):
         )
         return dequantized
 
+    def is_quantized(self, op):
+        """Check if an input tensor is quantized."""
+        input_tensors = self.get_input_tensors(op)
+        first_tensor = input_tensors[0]
+        return first_tensor.qnn_params is not None
+
     def convert_qnn_fused_activation_function(
         self, expr, fused_activation_fn, scale, zero_point, dtype
     ):
         """Convert TFLite fused activation function. The expr is an input quantized tensor with
         scale and zero point"""
-        try:
-            from tflite.ActivationFunctionType import ActivationFunctionType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.ActivationFunctionType import ActivationFunctionType
 
         # Quantize a float value to an quantized integer value
         quantize = lambda x: float(int(round(x / scale)) + zero_point)
@@ -608,44 +607,22 @@ class OperatorConverter(object):
         if fused_activation_fn == ActivationFunctionType.NONE:
             return expr
         if fused_activation_fn == ActivationFunctionType.RELU6:
-            return relax.op.clip(expr, min=max(qmin, quantize(0)), max=min(qmax, quantize(6.0)))
+            return _op.clip(expr, min=max(qmin, quantize(0)), max=min(qmax, quantize(6.0)))
         if fused_activation_fn == ActivationFunctionType.RELU_N1_TO_1:
-            return relax.op.clip(expr, min=max(qmin, quantize(-1.0)), max=min(qmax, quantize(1.0)))
+            return _op.clip(expr, min=max(qmin, quantize(-1.0)), max=min(qmax, quantize(1.0)))
         if fused_activation_fn == ActivationFunctionType.RELU:
-            return relax.op.clip(expr, min=max(qmin, quantize(0.0)), a_max=qmax)
+            return _op.clip(expr, min=max(qmin, quantize(0.0)), a_max=qmax)
 
         fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
         raise tvm.error.OpNotImplemented(
             f"Quantized activation {fused_activation_fn_str} is not supported yet."
         )
 
-    def convert_conv2d(self, op):
-        """Convert TFLite conv2d"""
-        return self.convert_conv(op, "conv2d")
-
-    def convert_depthwise_conv2d(self, op):
-        """Convert TFLite depthwise conv2d"""
-        return self.convert_conv(op, "depthwise")
-
-    def convert_average_pool2d(self, op):
-        """Convert TFLite average pool2d"""
-        return self.convert_pool2d(op, "average")
-
-    def convert_max_pool2d(self, op):
-        """Convert TFLite max pool2d"""
-        return self.convert_pool2d(op, "max")
-
-    def convert_l2_pool2d(self, op):
-        """Convert TFLite l2 pool2d"""
-        return self.convert_pool2d(op, "l2")
-
     def convert_reshape(self, op):
         """Convert TFLite reshape"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ReshapeOptions import ReshapeOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.ReshapeOptions import ReshapeOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) in (1, 2), "input tensors should not be empty"
@@ -706,7 +683,7 @@ class OperatorConverter(object):
                 input_tensor, output_tensor
             ), "TFLite reshape requires input and output scale and zero points to be equal"
 
-        out = relax.op.reshape(in_expr, shape=relax.ShapeExpr(target_shape))
+        out = _op.reshape(in_expr, shape=relax.ShapeExpr(target_shape))
         if input_tensor.qnn_params and input_tensor_type_str == "uint8":
             output_tensor = output_tensors[0]
             if not self.has_same_qnn_params(input_tensor, output_tensor):
@@ -724,18 +701,14 @@ class OperatorConverter(object):
 
     def _convert_resize(self, method, op):
         """Generic method to Convert TFLite RESIZE operators"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ResizeBilinearOptions import ResizeBilinearOptions
 
-            # ResizeNearestNeighborOptions was added in tflite v1.13
-            tflite_ver = 1120
-            if "ResizeNearestNeighborOptions" in dir(BuiltinOptions):
-                from tflite.ResizeNearestNeighborOptions import ResizeNearestNeighborOptions
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.ResizeBilinearOptions import ResizeBilinearOptions
 
-                tflite_ver = 1130
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+        # ResizeNearestNeighborOptions was added in tflite v1.13
+        tflite_ver = 1120
+        if "ResizeNearestNeighborOptions" in dir(tflite.BuiltinOptions):
+            tflite_ver = 1130
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
@@ -760,6 +733,8 @@ class OperatorConverter(object):
             resize_options = ResizeBilinearOptions()
         elif tflite_ver >= 1130:
             assert op.BuiltinOptionsType() == BuiltinOptions.ResizeNearestNeighborOptions
+            from tflite.ResizeNearestNeighborOptions import ResizeNearestNeighborOptions
+
             resize_options = ResizeNearestNeighborOptions()
 
         if resize_options is not None:
@@ -779,7 +754,7 @@ class OperatorConverter(object):
 
         if bilinear_method and input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
-        out = relax.op.image.resize2d(
+        out = _op.image.resize2d(
             in_expr, target_size, None, "NHWC", method, coord_trans, rounding_method
         )
         if bilinear_method and output_tensor.qnn_params:
@@ -796,11 +771,9 @@ class OperatorConverter(object):
 
     def convert_l2_normalization(self, op):
         """Convert TFLite L2_NORMALIZATION"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.L2NormOptions import L2NormOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.L2NormOptions import L2NormOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -826,7 +799,7 @@ class OperatorConverter(object):
             )
 
         # TFL uses only the default epsilon value
-        out = relax.op.nn.l2_normalize(in_expr, eps=1e-12, axis=[input_tensor_rank - 1])
+        out = _op.nn.l2_normalize(in_expr, eps=1e-12, axis=[input_tensor_rank - 1])
 
         # if we have fused activation fn
         if output_tensor.qnn_params:
@@ -839,11 +812,9 @@ class OperatorConverter(object):
 
     def convert_lrn(self, op):
         """Convert TFLite LOCAL_RESPONSE_NORMALIZATION"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.LocalResponseNormalizationOptions import LocalResponseNormalizationOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.LocalResponseNormalizationOptions import LocalResponseNormalizationOptions
 
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented("TFlite quantized LRN operator is not supported yet.")
@@ -867,7 +838,7 @@ class OperatorConverter(object):
         size = (radius * 2) + 1
         alpha = alpha * size
         axis = 3  # NHWC format
-        out = relax.op.nn.lrn(in_expr, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
+        out = _op.nn.lrn(in_expr, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
 
         return out
 
@@ -885,7 +856,7 @@ class OperatorConverter(object):
 
         if input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
-        out = relax.op.sigmoid(in_expr)
+        out = _op.sigmoid(in_expr)
         if output_tensor.qnn_params:
             out = self.quantize(out, output_tensor)
 
@@ -912,7 +883,7 @@ class OperatorConverter(object):
         if input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
 
-        out = relax.op.nn.softmax(in_expr, **params)
+        out = _op.nn.softmax(in_expr, **params)
 
         # Go back to integer dataype if the original operator was quantized.
         if output_tensor.qnn_params:
@@ -933,17 +904,15 @@ class OperatorConverter(object):
 
         if input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
-        out = relax.op.tanh(in_expr)
+        out = _op.tanh(in_expr)
         if output_tensor.qnn_params:
             out = self.quantize(out, output_tensor)
         return out
 
     def convert_range(self, op):
         """Convert TFLite Range"""
-        try:
-            from tflite.TensorType import TensorType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.TensorType import TensorType
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 3, "input tensors length should be 3"
@@ -958,17 +927,15 @@ class OperatorConverter(object):
         else:
             out_type = self.get_tensor_type_str(start.tensor.Type())
 
-        out = relax.op.arange(expressions[0], expressions[1], expressions[2], out_type)
+        out = _op.arange(expressions[0], expressions[1], expressions[2], out_type)
 
         return out
 
     def convert_shape(self, op):
         """Convert TFLite Shape"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ShapeOptions import ShapeOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.ShapeOptions import ShapeOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -985,10 +952,8 @@ class OperatorConverter(object):
 
     def convert_relu(self, op):
         """Convert TFLite ReLU"""
-        try:
-            from tflite.ActivationFunctionType import ActivationFunctionType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.ActivationFunctionType import ActivationFunctionType
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -1013,7 +978,7 @@ class OperatorConverter(object):
                 dtype=output_tensor_type_str,
             )
         else:
-            out = relax.op.nn.relu(in_expr)
+            out = _op.nn.relu(in_expr)
 
         if output_tensor.qnn_params:
             output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
@@ -1040,7 +1005,7 @@ class OperatorConverter(object):
         output_tensor = output_tensors[0]
 
         def _relu6(data):
-            return relax.op.tensor.clip(data, 0.0, 6.0)
+            return _op.tensor.clip(data, 0.0, 6.0)
 
         def _hard_swish(data):
             return data * _relu6(data + relax.const(3.0)) / relax.const(6.0)
@@ -1060,10 +1025,8 @@ class OperatorConverter(object):
 
     def convert_relu6(self, op):
         """Convert TFLite ReLU6"""
-        try:
-            from tflite.ActivationFunctionType import ActivationFunctionType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.ActivationFunctionType import ActivationFunctionType
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -1088,7 +1051,7 @@ class OperatorConverter(object):
                 dtype=output_tensor_type_str,
             )
         else:
-            out = relax.op.clip(in_expr, min=0, max=6)
+            out = _op.clip(in_expr, min=0, max=6)
 
         if output_tensor.qnn_params:
             output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
@@ -1105,11 +1068,9 @@ class OperatorConverter(object):
 
     def convert_leaky_relu(self, op):
         """Convert TFLite LEAKY_RELU"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.LeakyReluOptions import LeakyReluOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.LeakyReluOptions import LeakyReluOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -1128,7 +1089,7 @@ class OperatorConverter(object):
 
         if input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
-        out = relax.op.nn.leaky_relu(in_expr, alpha_tensor)
+        out = _op.nn.leaky_relu(in_expr, alpha_tensor)
         if output_tensor.qnn_params:
             out = self.quantize(out, output_tensor)
 
@@ -1157,11 +1118,9 @@ class OperatorConverter(object):
             qmin = float(tvm.tir.op.min_value(input_tensor_type_str).value)
             qmax = float(tvm.tir.op.max_value(input_tensor_type_str).value)
 
-            out = relax.op.clip(
-                in_expr, min=max(qmin, quantize(-1.0)), max=min(qmax, quantize(1.0))
-            )
+            out = _op.clip(in_expr, min=max(qmin, quantize(-1.0)), max=min(qmax, quantize(1.0)))
         else:
-            out = relax.op.clip(in_expr, min=-1, max=1)
+            out = _op.clip(in_expr, min=-1, max=1)
 
         if output_tensor.qnn_params:
             output_tensor_type_str = self.get_tensor_type_str(output_tensor.tensor.Type())
@@ -1189,7 +1148,7 @@ class OperatorConverter(object):
 
         if input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
-        out = relax.op.nn.log_softmax(in_expr)
+        out = _op.nn.log_softmax(in_expr)
         if output_tensor.qnn_params:
             out = self.quantize(out, output_tensor)
 
@@ -1197,11 +1156,9 @@ class OperatorConverter(object):
 
     def convert_concatenation(self, op):
         """Convert TFLite concatenation"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ConcatenationOptions import ConcatenationOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.ConcatenationOptions import ConcatenationOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) >= 1, "input tensors should greater than 1"
@@ -1219,7 +1176,7 @@ class OperatorConverter(object):
         fused_activation_fn = concatenation_options.FusedActivationFunction()
 
         if not input_tensors[0].qnn_params:
-            out = relax.op.concat(in_exprs, axis=concatenation_axis)
+            out = _op.concat(in_exprs, axis=concatenation_axis)
         else:
             input_scales = [input_tensor.qnn_params["scale"] for input_tensor in input_tensors]
             input_zero_points = [
@@ -1251,7 +1208,7 @@ class OperatorConverter(object):
 
         return out
 
-    def _convert_unary_elemwise(self, relax_op, op):
+    def _convert_unary_elemwise(self, op, relax_op):
         """Generic method to convert TFLite unary elemwise functions"""
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -1270,54 +1227,6 @@ class OperatorConverter(object):
             out = self.quantize(out, output_tensor)
         return out
 
-    def convert_abs(self, op):
-        """Convert TFLite ABS"""
-        return self._convert_unary_elemwise(_op.abs, op)
-
-    def convert_ceil(self, op):
-        """Convert TFLite CEIL"""
-        return self._convert_unary_elemwise(_op.ceil, op)
-
-    def convert_floor(self, op):
-        """Convert TFLite FLOOR"""
-        return self._convert_unary_elemwise(_op.floor, op)
-
-    def convert_round(self, op):
-        """Convert TFLite ROUND"""
-        return self._convert_unary_elemwise(_op.round, op)
-
-    def convert_exp(self, op):
-        """Convert TFLite EXP"""
-        return self._convert_unary_elemwise(_op.exp, op)
-
-    def convert_log(self, op):
-        """Convert TFLite LOG"""
-        return self._convert_unary_elemwise(_op.log, op)
-
-    def convert_sin(self, op):
-        """Convert TFLite SIN"""
-        return self._convert_unary_elemwise(_op.sin, op)
-
-    def convert_tan(self, op):
-        """Convert TFLite TAN"""
-        return self._convert_unary_elemwise(_op.tan, op)
-
-    def convert_cos(self, op):
-        """Convert TFLite COS"""
-        return self._convert_unary_elemwise(_op.cos, op)
-
-    def convert_sqrt(self, op):
-        """Convert TFLite SQRT"""
-        return self._convert_unary_elemwise(_op.sqrt, op)
-
-    def convert_rsqrt(self, op):
-        """Convert TFLite RSQRT"""
-        return self._convert_unary_elemwise(_op.rsqrt, op)
-
-    def convert_neg(self, op):
-        """Convert TFLite NEG"""
-        return self._convert_unary_elemwise(_op.negative, op)
-
     def convert_elu(self, op):
         """Convert TFLite ELU"""
         input_tensors = self.get_input_tensors(op)
@@ -1326,9 +1235,9 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
         exp_type = self.get_tensor_type_str(input_tensor.tensor.Type())
-        out = relax.const(-1.0, exp_type) * relax.op.nn.relu(
-            relax.const(1.0, exp_type) - relax.op.exp(in_expr)
-        ) + relax.op.nn.relu(in_expr)
+        out = relax.const(-1.0, exp_type) * _op.nn.relu(
+            relax.const(1.0, exp_type) - _op.exp(in_expr)
+        ) + _op.nn.relu(in_expr)
 
         return out
 
@@ -1336,7 +1245,7 @@ class OperatorConverter(object):
         """Convert TFLite GELU"""
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
-                "The TFLite to Relay converter does not support quantized GELU operator yet."
+                "The TFLite to Relax converter does not support quantized GELU operator yet."
             )
 
         input_tensors = self.get_input_tensors(op)
@@ -1348,7 +1257,7 @@ class OperatorConverter(object):
 
         return in_expr * (
             relax.const(0.5, dtype=in_type)
-            + relax.op.erf(in_expr * relax.const(0.5**0.5, dtype=in_type))
+            + _op.erf(in_expr * relax.const(0.5**0.5, dtype=in_type))
             * relax.const(0.5, dtype=in_type)
         )
 
@@ -1364,21 +1273,20 @@ class OperatorConverter(object):
         output_tensor = output_tensors[0]
 
         exp_type = self.get_tensor_type_str(output_tensor.tensor.Type())
-        out = relax.op.power(in_expr, relax.const(2, exp_type))
+        out = _op.power(in_expr, relax.const(2, exp_type))
 
         return out
 
-    def _convert_elemwise(self, relax_op, op, ignore_qnn_params=False, comparison_op=False):
+    def _convert_elemwise(self, op, relax_op, relax_qnn_op=None, comparison_op=False):
         """Generic method to Convert TFLite elemwise"""
-        try:
-            from tflite.AddOptions import AddOptions
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.DivOptions import DivOptions
-            from tflite.MulOptions import MulOptions
-            from tflite.SubOptions import SubOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
 
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.AddOptions import AddOptions
+        from tflite.DivOptions import DivOptions
+        from tflite.MulOptions import MulOptions
+        from tflite.SubOptions import SubOptions
+
+        ignore_qnn_params = self.is_quantized(op)
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
@@ -1449,13 +1357,6 @@ class OperatorConverter(object):
                 out = self.convert_fused_activation_function(out, fused_activation_fn)
         return out
 
-    def convert_add(self, op):
-        """Convert TFLite ADD"""
-        # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            return self._convert_elemwise(_qnn.op.add, op)
-        return self._convert_elemwise(relax.op.add, op)
-
     def convert_add_n(self, op):
         """Convert TFLite ADD_N"""
         output_tensors = self.get_output_tensors(op)
@@ -1467,44 +1368,8 @@ class OperatorConverter(object):
         for rhs_tensor in input_tensors[1:]:
             assert not rhs_tensor.qnn_params, "TFLite does not support quantized ADD_N"
             rhs_expr = self.get_tensor_expr(rhs_tensor)
-            lhs_expr = relax.op.add(lhs_expr, rhs_expr)
+            lhs_expr = _op.add(lhs_expr, rhs_expr)
         return lhs_expr
-
-    def convert_sub(self, op):
-        """Convert TFLite SUB"""
-        # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            return self._convert_elemwise(_qnn.op.subtract, op)
-        return self._convert_elemwise(relax.op.subtract, op)
-
-    def convert_mul(self, op):
-        """Convert TFLite MUL"""
-        # Check if the input tensor is quantized, call QNN op
-        if self.is_quantized(op):
-            return self._convert_elemwise(_qnn.op.mul, op)
-        return self._convert_elemwise(relax.op.multiply, op)
-
-    def convert_div(self, op):
-        """Convert TFLite DIV"""
-        # Check if the input tensor is quantized, call QNN op
-        return self._convert_elemwise(relax.op.divide, op, self.is_quantized(op))
-
-    def convert_pow(self, op):
-        """Convert TFLite POW"""
-        # Check if the input tensor is quantized, call QNN op
-        return self._convert_elemwise(_op.power, op)
-
-    def convert_maximum(self, op):
-        """Convert TFLite MAXIMUM"""
-        return self._convert_elemwise(_op.maximum, op, self.is_quantized(op))
-
-    def convert_minimum(self, op):
-        """Convert TFLite MINIMUM"""
-        return self._convert_elemwise(_op.minimum, op, self.is_quantized(op))
-
-    def convert_greater(self, op):
-        """Convert TFLite GREATER"""
-        return self._convert_elemwise(_op.greater, op, self.is_quantized(op), comparison_op=True)
 
     def convert_squared_difference(self, op):
         """Convert TFLite SQUARED DIFFERENCE"""
@@ -1519,36 +1384,14 @@ class OperatorConverter(object):
             assert len(output_tensors) == 1, "output tensors length should be 1"
             lhs_expr_f32 = self.dequantize(lhs_expr, input_tensors[0])
             rhs_expr_f32 = self.dequantize(rhs_expr, input_tensors[1])
-            out_f32 = relax.op.subtract(lhs_expr_f32, rhs_expr_f32)
+            out_f32 = _op.subtract(lhs_expr_f32, rhs_expr_f32)
             return self.quantize(out_f32 * out_f32, output_tensors[0])
 
-        difference = self._convert_elemwise(_op.subtract, op)
+        difference = self._convert_elemwise(op, _op.subtract)
         # _convert_elemwise has guaranteed only have one output tensor
         exp_type = self.get_tensor_type_str(self.get_output_tensors(op)[0].tensor.Type())
-        out = relax.op.power(difference, relax.const(2, exp_type))
+        out = _op.power(difference, relax.const(2, exp_type))
         return out
-
-    def convert_greater_equal(self, op):
-        """Convert TFLite GREATER_EQUAL"""
-        return self._convert_elemwise(
-            relax.op.greater_equal, op, self.is_quantized(op), comparison_op=True
-        )
-
-    def convert_less(self, op):
-        """Convert TFLite LESS"""
-        return self._convert_elemwise(_op.less, op, self.is_quantized(op), comparison_op=True)
-
-    def convert_less_equal(self, op):
-        """Convert TFLite LESS_EQUAL"""
-        return self._convert_elemwise(_op.less_equal, op, self.is_quantized(op), comparison_op=True)
-
-    def convert_equal(self, op):
-        """Convert TFLite EQUAL"""
-        return self._convert_elemwise(_op.equal, op, self.is_quantized(op), comparison_op=True)
-
-    def convert_not_equal(self, op):
-        """Convert TFLite NOT_EQUAL"""
-        return self._convert_elemwise(_op.not_equal, op, self.is_quantized(op), comparison_op=True)
 
     def _convert_logical_binary(self, relax_op, op):
         """Generic method to convert logical binary ops"""
@@ -1563,32 +1406,21 @@ class OperatorConverter(object):
 
         return out
 
-    def convert_logical_and(self, op):
-        """Convert tflite LOGICAL_AND"""
-        return self._convert_logical_binary(_op.logical_and, op)
-
-    def convert_logical_or(self, op):
-        """Convert tflite LOGICAL_OR"""
-        return self._convert_logical_binary(_op.logical_or, op)
-
     def convert_logical_not(self, op):
         """Convert tflite LOGICAL_NOT"""
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
 
         data = self.get_expr(input_tensors[0].tensor_idx)
-        out = relax.op.logical_not(data)
+        out = _op.logical_not(data)
 
         return out
 
     def convert_gather(self, op):
         """Method to Convert TFLite GATHER operator"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.GatherOptions import GatherOptions
-            from tflite.TensorType import TensorType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.GatherOptions import GatherOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
@@ -1613,7 +1445,7 @@ class OperatorConverter(object):
         assert axis < data_dim, "Axis out of bounds"
 
         if self.has_expr(indices.tensor_idx):
-            indices_expr = relax.op.cast(self.get_expr(indices.tensor_idx), "int32")
+            indices_expr = _op.cast(self.get_expr(indices.tensor_idx), "int32")
         else:
             indices_val = self.get_tensor_value(indices)
             indices_expr = self.exp_tab.new_const(
@@ -1637,15 +1469,13 @@ class OperatorConverter(object):
                     raise ValueError("TFLite out of bound indices are not supported.")
 
         # Use mode 'fast' since indices are already checked within bounds.
-        out = relax.op.take(data, indices_expr, axis=axis, mode="fast")
+        out = _op.take(data, indices_expr, axis=axis, mode="fast")
         return out
 
     def convert_gather_nd(self, op):
         """Method to Convert TFLite GATHER_ND operator"""
-        try:
-            from tflite.TensorType import TensorType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.TensorType import TensorType
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
@@ -1660,9 +1490,9 @@ class OperatorConverter(object):
         assert indices_type in (TensorType.INT32, TensorType.INT64)
 
         indices_dims = len(self._infer_shape(indices))
-        indices_t = relax.op.permute_dims(indices, axes=[-1] + list(range(indices_dims - 1)))
+        indices_t = _op.permute_dims(indices, axes=[-1] + list(range(indices_dims - 1)))
 
-        out = relax.op.gather_nd(data, indices_t)
+        out = _op.gather_nd(data, indices_t)
         return out
 
     def convert_strided_slice(self, op):
@@ -1696,15 +1526,13 @@ class OperatorConverter(object):
         are ignored in this case.
         begin and end are zero-indexed. strides entries must be non-zero.
 
-        TVM Relay implementation of doesn't support mask, so the mask values are processed in
+        TVM Relax implementation of doesn't support mask, so the mask values are processed in
         this function and begin/end/strides are updated accordingly. If any mask is present, and
         since tvm doesn't support mask computation directly, the output need a final reshape.
         """
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.StridedSliceOptions import StridedSliceOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.StridedSliceOptions import StridedSliceOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 4, "input tensors length should be 4"
@@ -1800,7 +1628,7 @@ class OperatorConverter(object):
         end = [int(i) for i in end]
         stride = [int(i) for i in stride]
         axes = list(range(len(begin)))
-        out = relax.op.strided_slice(data_expr, axes=axes, begin=begin, end=end, strides=stride)
+        out = _op.strided_slice(data_expr, axes=axes, begin=begin, end=end, strides=stride)
         out_shape = self.bb.normalize(out).struct_info.shape
         if not fshape_indices:
             fshape_indices = range(len(out_shape))
@@ -1818,11 +1646,11 @@ class OperatorConverter(object):
                 final_output.append(out_shape[gather_index])
 
         if final_len == 0:
-            return relax.op.squeeze(out, axis=tuple(range(len(fshape_indices))))
+            return _op.squeeze(out, axis=tuple(range(len(fshape_indices))))
 
         if not final_output:
             return out
-        return relax.op.reshape(out, shape=tuple(final_output))
+        return _op.reshape(out, shape=tuple(final_output))
 
     def convert_zeros_like(self, op):
         """Convert TFLite ZEROS LIKE"""
@@ -1831,7 +1659,7 @@ class OperatorConverter(object):
 
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
-        out = relax.op.zeros_like(in_expr)
+        out = _op.zeros_like(in_expr)
 
         return out
 
@@ -1847,17 +1675,15 @@ class OperatorConverter(object):
 
         in_dims = list(self.get_tensor_value(input_tensors[0]))
         in_value_expr = self.get_expr(input_tensors[1].tensor_idx)
-        out = relax.op.full(in_dims, in_value_expr)
+        out = _op.full(in_dims, in_value_expr)
 
         return out
 
     def _convert_reduce(self, relax_op, op):
         """Generic method to Convert TFLite REDUCE operators"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ReducerOptions import ReducerOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.ReducerOptions import ReducerOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
@@ -1882,7 +1708,7 @@ class OperatorConverter(object):
             keep_dims = False
 
         if input_tensor.qnn_params:
-            in_expr = relax.op.cast(in_expr, "int32")
+            in_expr = _op.cast(in_expr, "int32")
 
         out = relax_op(in_expr, axis, keep_dims)
 
@@ -1903,32 +1729,12 @@ class OperatorConverter(object):
 
         return out
 
-    def convert_reduce_min(self, op):
-        return self._convert_reduce(_op.min, op)
-
-    def convert_reduce_max(self, op):
-        return self._convert_reduce(_op.max, op)
-
-    def convert_reduce_mean(self, op):
-        return self._convert_reduce(_op.mean, op)
-
-    def convert_reduce_prod(self, op):
-        return self._convert_reduce(_op.prod, op)
-
-    def convert_reduce_sum(self, op):
-        return self._convert_reduce(_op.sum, op)
-
-    def convert_reduce_any(self, op):
-        return self._convert_reduce(_op.reduce.any, op)
-
-    def _convert_arg_min_max(self, relax_op, op):
+    def _convert_arg_min_max(self, op, relax_op):
         """Generic method converting TFLite arg_min_max"""
-        try:
-            from tflite.ArgMaxOptions import ArgMaxOptions
-            from tflite.ArgMinOptions import ArgMinOptions
-            from tflite.BuiltinOptions import BuiltinOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.ArgMinOptions import ArgMinOptions
+        from tflite.ArgMaxOptions import ArgMaxOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "two input tensor arguments expected"
@@ -1958,26 +1764,12 @@ class OperatorConverter(object):
 
         return out
 
-    def convert_arg_min(self, op):
-        """Convert TFLite ARG_MIN"""
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                "TFlite quantized ARG_MIN operator is not supported yet."
-            )
-        return self._convert_arg_min_max(_op.argmin, op)
-
-    def convert_arg_max(self, op):
-        """Convert TFLite ARG_MAX"""
-        return self._convert_arg_min_max(_op.argmax, op)
-
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.FullyConnectedOptions import FullyConnectedOptions
-            from tflite.TensorType import TensorType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.FullyConnectedOptions import FullyConnectedOptions
+        from tflite.TensorType import TensorType
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) in (2, 3), "input tensors length should be two or three"
@@ -2013,7 +1805,11 @@ class OperatorConverter(object):
 
         # weight tensor type should be INT8/UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
-        assert weight_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
+        assert weight_tensor_type in (
+            TensorType.INT8,
+            TensorType.UINT8,
+            TensorType.FLOAT32,
+        )
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
         if self.has_expr(weight_tensor.tensor_idx):
@@ -2024,7 +1820,7 @@ class OperatorConverter(object):
                 weight_value, dtype=weight_tensor_type_str, source_name=weight_tensor.tensor.Name()
             )
         weight_shape = weight_expr.struct_info.shape
-        weight_expr = relax.op.permute_dims(weight_expr, [1, 0])
+        weight_expr = _op.permute_dims(weight_expr, [1, 0])
 
         if input_tensor.qnn_params:
             out = _qnn.op.dense(
@@ -2038,7 +1834,7 @@ class OperatorConverter(object):
                 out_dtype="int64" if output_tensor_type_str == "int16" else "int32",
             )
         else:
-            out = relax.op.matmul(in_expr, weight_expr)
+            out = _op.matmul(in_expr, weight_expr)
 
         # if we have bias
         if len(input_tensors) == 3:
@@ -2046,7 +1842,11 @@ class OperatorConverter(object):
             if bias_tensor.tensor_idx != -1:
                 bias_tensor_type = bias_tensor.tensor.Type()
                 # bias tensor type should be INT32 (quantization) or FLOAT32
-                assert bias_tensor_type in (TensorType.INT32, TensorType.INT64, TensorType.FLOAT32)
+                assert bias_tensor_type in (
+                    TensorType.INT32,
+                    TensorType.INT64,
+                    TensorType.FLOAT32,
+                )
                 bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
                 if self.has_expr(bias_tensor.tensor_idx):
                     bias_expr = self.get_expr(bias_tensor.tensor_idx)
@@ -2056,7 +1856,7 @@ class OperatorConverter(object):
                         dtype=bias_tensor_type_str,
                         source_name=bias_tensor.tensor.Name(),
                     )
-                out = relax.op.add(out, bias_expr)
+                out = _op.add(out, bias_expr)
 
         # Finally if the dense is quantized. Add a requantize at the end.
         if output_tensor.qnn_params:
@@ -2096,17 +1896,15 @@ class OperatorConverter(object):
         if keep_num_dims:
             input_shape = self._infer_shape(self.get_tensor_expr(input_tensor))
             output_shape = to_int_list(input_shape)[:-1] + [weight_tensor_shape[0]]
-            out = relax.op.reshape(out, output_shape)
+            out = _op.reshape(out, output_shape)
 
         return out
 
     def convert_squeeze(self, op):
         """Convert TFLite squeeze"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.SqueezeOptions import SqueezeOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.SqueezeOptions import SqueezeOptions
 
         input_tensors = self.get_input_tensors(op)
         output_tensors = self.get_output_tensors(op)
@@ -2122,27 +1920,25 @@ class OperatorConverter(object):
         squeeze_axis = squeeze_options.SqueezeDimsAsNumpy()
 
         in_expr = self.get_expr(input_tensor_idx)
-        out = relax.op.squeeze(in_expr, axis=tuple(squeeze_axis))
+        out = _op.squeeze(in_expr, axis=tuple(squeeze_axis))
 
         return out
 
     def convert_fused_activation_function(self, in_expr, fused_activation_fn):
         """Convert TFLite fused activation function"""
-        try:
-            from tflite.ActivationFunctionType import ActivationFunctionType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.ActivationFunctionType import ActivationFunctionType
 
         if fused_activation_fn == ActivationFunctionType.NONE:
             return in_expr
         if fused_activation_fn == ActivationFunctionType.RELU6:
-            return relax.op.clip(in_expr, min=0, max=6)
+            return _op.clip(in_expr, min=0, max=6)
         if fused_activation_fn == ActivationFunctionType.RELU:
-            return relax.op.nn.relu(in_expr)
+            return _op.nn.relu(in_expr)
         if fused_activation_fn == ActivationFunctionType.RELU_N1_TO_1:
-            return relax.op.clip(in_expr, min=-1, max=1)
+            return _op.clip(in_expr, min=-1, max=1)
         if fused_activation_fn == ActivationFunctionType.TANH:
-            return relax.op.tanh(in_expr)
+            return _op.tanh(in_expr)
         fused_activation_fn_str = self.activation_fn_type[fused_activation_fn]
         raise tvm.error.OpNotImplemented(
             f"Fused activation {fused_activation_fn_str} is not supported yet."
@@ -2150,14 +1946,12 @@ class OperatorConverter(object):
 
     def convert_conv(self, op, conv_type):
         """convolution implementation."""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.Conv2DOptions import Conv2DOptions
-            from tflite.DepthwiseConv2DOptions import DepthwiseConv2DOptions
-            from tflite.Padding import Padding
-            from tflite.TensorType import TensorType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.Conv2DOptions import Conv2DOptions
+        from tflite.DepthwiseConv2DOptions import DepthwiseConv2DOptions
+        from tflite.Padding import Padding
+        from tflite.TensorType import TensorType
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) >= 2, "input tensors length should be >= 2"
@@ -2236,7 +2030,11 @@ class OperatorConverter(object):
 
         # weight tensor type should be INT8/UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
-        assert weight_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
+        assert weight_tensor_type in (
+            TensorType.INT8,
+            TensorType.UINT8,
+            TensorType.FLOAT32,
+        )
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
         in_expr = self.get_expr(input_tensor_idx)
@@ -2248,11 +2046,11 @@ class OperatorConverter(object):
         if self.has_expr(weight_tensor.tensor_idx):
             weight_expr = self.get_expr(weight_tensor.tensor_idx)
             if is_depthwise_conv:
-                weight_expr = relax.op.reshape(
+                weight_expr = _op.reshape(
                     weight_expr, (kernel_h, kernel_w, input_c, depth_multiplier)
                 )
             else:
-                weight_expr = relax.op.permute_dims(weight_expr, axes=(1, 2, 3, 0))
+                weight_expr = _op.permute_dims(weight_expr, axes=(1, 2, 3, 0))
         else:
             if self.is_prefetched(weight_tensor.tensor_idx):
                 weight_value = self.get_prefetched_node(weight_tensor.tensor_idx)
@@ -2300,14 +2098,18 @@ class OperatorConverter(object):
             qnn_conv2d_params["kernel_scale"] = weight_tensor.qnn_params["scale"]
             out = _qnn.op.conv2d(in_expr, weight_expr, **qnn_conv2d_params)
         else:
-            out = relax.op.nn.conv2d(in_expr, weight_expr, **params)
+            out = _op.nn.conv2d(in_expr, weight_expr, **params)
 
         # if we have bias
         if len(input_tensors) == 3:
             bias_tensor = input_tensors[2]
             bias_tensor_type = bias_tensor.tensor.Type()
             # bias tensor type should be INT32 (int8 qnn) or INT64 (int16 qnn) or FLOAT32
-            assert bias_tensor_type in (TensorType.INT32, TensorType.INT64, TensorType.FLOAT32)
+            assert bias_tensor_type in (
+                TensorType.INT32,
+                TensorType.INT64,
+                TensorType.FLOAT32,
+            )
             bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
             if self.has_expr(bias_tensor.tensor_idx):
                 bias_expr = self.get_expr(bias_tensor.tensor_idx)
@@ -2318,7 +2120,7 @@ class OperatorConverter(object):
                     source_name=bias_tensor.tensor.Name(),
                 )
             channel_axis = 3
-            out = relax.op.add(out, bias_expr)
+            out = _op.add(out, bias_expr)
 
         # Handle fused activation.
         if output_tensor.qnn_params:
@@ -2364,11 +2166,9 @@ class OperatorConverter(object):
 
     def convert_split(self, op):
         """split implementation."""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.SplitOptions import SplitOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.SplitOptions import SplitOptions
 
         input_tensors = self.get_input_tensors(op)
 
@@ -2386,8 +2186,8 @@ class OperatorConverter(object):
         num_splits = split_options.NumSplits()
 
         in_expr = self.get_expr(input_tensor_idx)
-        out = relax.op.split(in_expr, num_splits, axis=int(split_axis))
-        # Relay does not like a TupleWrapper of 1 element, further this
+        out = _op.split(in_expr, num_splits, axis=int(split_axis))
+        # Relax does not like a TupleWrapper of 1 element, further this
         # only shows up with tf1.13 if we use a split with num_splits==1.
         # In tf 1.14 this doesn't appear as it is automatically a reshape
         # operation.
@@ -2418,8 +2218,8 @@ class OperatorConverter(object):
         axis_tensor = input_tensors[2]
         split_axis = self.get_tensor_value(axis_tensor)
 
-        out = relax.op.split(in_expr, size_splits, axis=int(split_axis))
-        # Relay does not like a TupleWrapper of 1 element, further this
+        out = _op.split(in_expr, size_splits, axis=int(split_axis))
+        # Relax does not like a TupleWrapper of 1 element, further this
         # only shows up with tf1.13 if we use a split with num_splits==1.
         # In tf 1.14 this doesn't appear as it is automatically a reshape
         # operation.
@@ -2437,7 +2237,7 @@ class OperatorConverter(object):
 
         begin = list(self.get_tensor_value(input_tensors[1]))
         size = list(self.get_tensor_value(input_tensors[2]))
-        # strided_slice(Relay) needs the slice's end indices, not the size
+        # strided_slice(Relax) needs the slice's end indices, not the size
         end = size
         input_tensor_shape = to_int_list(self.get_tensor_shape(input_tensor))
         input_tensor_rank = len(input_tensor_shape)
@@ -2447,7 +2247,7 @@ class OperatorConverter(object):
             else:
                 end[i] += begin[i]
 
-        out = relax.op.strided_slice(in_expr, begin, end)
+        out = _op.strided_slice(in_expr, begin, end)
 
         return out
 
@@ -2459,7 +2259,7 @@ class OperatorConverter(object):
         x = self.get_tensor_expr(input_tensors[1])
         y = self.get_tensor_expr(input_tensors[2])
 
-        out = relax.op.where(cond, x, y)
+        out = _op.where(cond, x, y)
 
         return out
 
@@ -2476,19 +2276,17 @@ class OperatorConverter(object):
         in_axis = tuple(self.get_tensor_value(input_tensors[1]))
 
         if not in_axis:
-            out = relax.op.permute_dims(in_expr)
+            out = _op.permute_dims(in_expr)
         else:
-            out = relax.op.permute_dims(in_expr, in_axis)
+            out = _op.permute_dims(in_expr, in_axis)
 
         return out
 
     def convert_reverse_sequence(self, op):
         """Convert TFLite REVERSE_SEQUENCE"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.ReverseSequenceOptions import ReverseSequenceOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.ReverseSequenceOptions import ReverseSequenceOptions
 
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
@@ -2508,15 +2306,13 @@ class OperatorConverter(object):
         batch_axis = options.BatchDim()
         seq_axis = options.SeqDim()
 
-        return relax.op.reverse_sequence(in_expr, length_expr, seq_axis, batch_axis)
+        return _op.reverse_sequence(in_expr, length_expr, seq_axis, batch_axis)
 
     def convert_cast(self, op):
         """Convert TFLite CAST"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.CastOptions import CastOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.CastOptions import CastOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -2536,7 +2332,7 @@ class OperatorConverter(object):
         else:
             cast_dtype = self.get_output_tensors(op)[0].tensor.Type()
 
-        out = relax.op.astype(in_expr, self.get_tensor_type_str(cast_dtype))
+        out = _op.astype(in_expr, self.get_tensor_type_str(cast_dtype))
 
         return out
 
@@ -2552,7 +2348,7 @@ class OperatorConverter(object):
         # reps (tuple of int) – The number of times repeating the tensor data.
         reps = tuple(self.get_tensor_value(input_tensors[1]))
 
-        out = relax.op.tile(in_expr, reps)
+        out = _op.tile(in_expr, reps)
 
         return out
 
@@ -2564,18 +2360,16 @@ class OperatorConverter(object):
         input_tensor_idx = input_tensor.tensor_idx
         in_expr = self.get_expr(input_tensor_idx)
         k = self.get_tensor_value(input_tensors[1])
-        out = relax.op.topk(in_expr, int(k))
+        out = _op.topk(in_expr, int(k))
 
         return out
 
     def convert_pool2d(self, op, pool_type):
         """pool2d implementation."""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.Padding import Padding
-            from tflite.Pool2DOptions import Pool2DOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.Pool2DOptions import Pool2DOptions
+        from tflite.Padding import Padding
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -2627,17 +2421,17 @@ class OperatorConverter(object):
                     "TFLite avg_pool2dreshape requires input and output scale"
                     "and zero points to be equal"
                 )
-                out = relax.op.cast(in_expr, dtype="int32")
-                out = relax.op.nn.avg_pool2d(out, **params)
-                out = relax.op.cast(out, dtype=output_tensor_type_str)
+                out = _op.cast(in_expr, dtype="int32")
+                out = _op.nn.avg_pool2d(out, **params)
+                out = _op.cast(out, dtype=output_tensor_type_str)
             else:
-                out = relax.op.nn.avg_pool2d(in_expr, **params)
+                out = _op.nn.avg_pool2d(in_expr, **params)
         elif pool_type == "max":
             if input_tensor.qnn_params:
                 assert self.has_same_qnn_params(
                     input_tensor, output_tensor
                 ), "qnn.op.max_pool2d requires input and output qnn params to be same"
-            out = relax.op.nn.max_pool2d(in_expr, **params)
+            out = _op.nn.max_pool2d(in_expr, **params)
         elif pool_type == "l2":
             # L2_POOL_2D is equivalent to square_root(avg_pool(square(in_data)))
             # TFLite does not have support for quantised L2_POOL_2D op.
@@ -2646,9 +2440,9 @@ class OperatorConverter(object):
             ), "As TFLite does not have support for quantized L2_POOL_2D, \
                 Quantized input is not expected."
             exp_type = self.get_tensor_type_str(output_tensor.tensor.Type())
-            square_exp = relax.op.power(in_expr, relax.const(2, exp_type))
-            avg_pool_exp = relax.op.nn.avg_pool2d(square_exp, **params)
-            out = relax.op.sqrt(avg_pool_exp)
+            square_exp = _op.power(in_expr, relax.const(2, exp_type))
+            avg_pool_exp = _op.nn.avg_pool2d(square_exp, **params)
+            out = _op.sqrt(avg_pool_exp)
         else:
             raise tvm.error.OpNotImplemented(
                 f"Operator {pool_type} pool is not supported for frontend TFLite."
@@ -2725,24 +2519,14 @@ class OperatorConverter(object):
                 ), "TFLite PADV2 requires input and constant_values tensors' \
                         scale and zero points to be equal"
 
-        out = relax.op.nn.pad(in_expr, pad_width=paddings, pad_value=pad_value)
+        out = _op.nn.pad(in_expr, pad_width=paddings, pad_value=pad_value)
         return out
-
-    def convert_floor_div(self, op):
-        """Convert TFLite FLOOR_DIV"""
-        return self._convert_elemwise(relax.op.floor_divide, op, self.is_quantized(op))
-
-    def convert_floor_mod(self, op):
-        """Convert TFLite FLOOR_MOD"""
-        return self._convert_elemwise(_op.floor_mod, op, self.is_quantized(op))
 
     def convert_mirror_pad(self, op):
         """Convert TFLite MIRROR_PAD"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.MirrorPadOptions import MirrorPadOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.MirrorPadOptions import MirrorPadOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
@@ -2763,17 +2547,15 @@ class OperatorConverter(object):
         mode_byte = mirror_pad_options.Mode()
 
         mode = "REFLECT" if mode_byte == 0 else "SYMMETRIC"
-        out = relax.op.nn.mirror_pad(in_expr, paddings, mode)
+        out = _op.nn.mirror_pad(in_expr, paddings, mode)
 
         return out
 
     def convert_pack(self, op):
         """Convert TFLite pack"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.PackOptions import PackOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.PackOptions import PackOptions
 
         input_tensors = self.get_input_tensors(op)
         output_tensors = self.get_output_tensors(op)
@@ -2800,16 +2582,14 @@ class OperatorConverter(object):
 
         in_exprs = [self.get_tensor_expr(_) for _ in input_tensors]
         in_exprs_reshaped = [_op.expand_dims(_, axis=pack_axis) for _ in in_exprs]
-        out = relax.op.concat(in_exprs_reshaped, pack_axis)
+        out = _op.concat(in_exprs_reshaped, pack_axis)
         return out
 
     def convert_unpack(self, op):
         """Convert TFLite unpack"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.UnpackOptions import UnpackOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.UnpackOptions import UnpackOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -2822,21 +2602,21 @@ class OperatorConverter(object):
         num_unpacks = unpack_options.Num()
         unpack_axis = unpack_options.Axis()
 
-        # Relay doesn't support 'unpack' operator so we use 'split' & 'squeeze' instead.
+        # Relax doesn't support 'unpack' operator so we use 'split' & 'squeeze' instead.
         # We have to do 'squeeze' along the split axis.
-        # Relay expects squeeze_axis to be List.
+        # Relax expects squeeze_axis to be List.
         squeeze_axis = [unpack_axis]
 
-        # Relay doesn't like TupleWrapper of 1 element so we isolate the case of unpacking
+        # Relax doesn't like TupleWrapper of 1 element so we isolate the case of unpacking
         # a tensor by an axis with len(axis) == 1. For reference see convert_split().
         # Such unpacking will result in the same tensor so we omit 'split' and only squeeze
         # along the axis of dim == 1.
         if num_unpacks == 1:
-            squeezed = relax.op.squeeze(in_expr, axis=squeeze_axis)
+            squeezed = _op.squeeze(in_expr, axis=squeeze_axis)
             if isinstance(squeezed, _expr.TupleWrapper):
                 squeezed = squeezed[0]
         else:
-            splitted = relax.op.split(in_expr, indices_or_sections=num_unpacks, axis=unpack_axis)
+            splitted = _op.split(in_expr, indices_or_sections=num_unpacks, axis=unpack_axis)
             squeezed = _expr.TupleWrapper(
                 _expr.Tuple(
                     [_op.squeeze(split_item, axis=squeeze_axis) for split_item in splitted]
@@ -2891,40 +2671,38 @@ class OperatorConverter(object):
         # hidden_state_weights is equivalent to output_state_in in tflite model
         out_state_in_shape = tuple(self.get_tensor_shape(output_state_in))
         out_state_in_dtype = self.get_tensor_type_str(output_state_in.tensor.Type())
-        out_state_in_expr = relax.op.zeros(out_state_in_shape, dtype=out_state_in_dtype)
-        weights_dict["hidden_state"] = relax.op.split(out_state_in_expr, 1)[0]
+        out_state_in_expr = _op.zeros(out_state_in_shape, dtype=out_state_in_dtype)
+        weights_dict["hidden_state"] = _op.split(out_state_in_expr, 1)[0]
 
         # cell_state_weights is equivalent to output_state_in tflite model
         cell_state_in_shape = tuple(self.get_tensor_shape(cell_state_in))
         cell_state_in_dtype = self.get_tensor_type_str(cell_state_in.tensor.Type())
-        cell_state_in_expr = relax.op.zeros(cell_state_in_shape, dtype=cell_state_in_dtype)
-        weights_dict["cell_state"] = relax.op.split(cell_state_in_expr, 1)[0]
+        cell_state_in_expr = _op.zeros(cell_state_in_shape, dtype=cell_state_in_dtype)
+        weights_dict["cell_state"] = _op.split(cell_state_in_expr, 1)[0]
 
         # Process weight matrix of input: w_inp
         # Concatenate of [input_input_weight, input_forget_weights,
         # input_cell_weights, input_output_weights]
         input_input_weights_default_values = self.get_tensor_value(input_input_weights)
-        input_input_weights_op = relax.op.split(
-            relax.op.const(input_input_weights_default_values.tolist()), 1
+        input_input_weights_op = _op.split(
+            _op.const(input_input_weights_default_values.tolist()), 1
         )
         input_output_weights_default_values = self.get_tensor_value(input_output_weights)
-        input_output_weights_op = relax.op.split(
-            relax.op.const(input_output_weights_default_values.tolist()), 1
+        input_output_weights_op = _op.split(
+            _op.const(input_output_weights_default_values.tolist()), 1
         )
         input_forget_weights_default_values = self.get_tensor_value(input_forget_weights)
-        input_forget_weights_op = relax.op.split(
-            relax.op.const(input_forget_weights_default_values.tolist()), 1
+        input_forget_weights_op = _op.split(
+            _op.const(input_forget_weights_default_values.tolist()), 1
         )
         input_cell_weights_default_values = self.get_tensor_value(input_cell_weights)
-        input_cell_weights_op = relax.op.split(
-            _op.const(input_cell_weights_default_values.tolist()), 1
-        )
-        weights_dict["w_inp"] = relax.op.concat(
+        input_cell_weights_op = _op.split(_op.const(input_cell_weights_default_values.tolist()), 1)
+        weights_dict["w_inp"] = _op.concat(
             [
-                relax.op.squeeze(input_input_weights_op[0]),
-                relax.op.squeeze(input_forget_weights_op[0]),
-                relax.op.squeeze(input_cell_weights_op[0]),
-                relax.op.squeeze(input_output_weights_op[0]),
+                _op.squeeze(input_input_weights_op[0]),
+                _op.squeeze(input_forget_weights_op[0]),
+                _op.squeeze(input_cell_weights_op[0]),
+                _op.squeeze(input_output_weights_op[0]),
             ],
             axis=0,
         )
@@ -2932,22 +2710,20 @@ class OperatorConverter(object):
         # Process weight matrix of hidden state:
         # w_hid to support lstm_cell function. Not used in tflite
         recurrent_input_weights_values = self.get_tensor_value(recurrent_input_weights)
-        recurrent_input_weights_op = relax.op.split(
-            relax.op.const(recurrent_input_weights_values.tolist()), 1
+        recurrent_input_weights_op = _op.split(
+            _op.const(recurrent_input_weights_values.tolist()), 1
         )
         recurrent_output_weights_values = self.get_tensor_value(recurrent_output_weights)
-        recurrent_output_weights_op = relax.op.split(
-            relax.op.const(recurrent_output_weights_values.tolist()), 1
+        recurrent_output_weights_op = _op.split(
+            _op.const(recurrent_output_weights_values.tolist()), 1
         )
         recurrent_forget_weights_values = self.get_tensor_value(recurrent_forget_weights)
-        recurrent_forget_weights_op = relax.op.split(
-            relax.op.const(recurrent_forget_weights_values.tolist()), 1
+        recurrent_forget_weights_op = _op.split(
+            _op.const(recurrent_forget_weights_values.tolist()), 1
         )
         recurrent_cell_weights_values = self.get_tensor_value(recurrent_cell_weights)
-        recurrent_cell_weights_op = relax.op.split(
-            _op.const(recurrent_cell_weights_values.tolist()), 1
-        )
-        weights_dict["w_hid"] = relax.op.concat(
+        recurrent_cell_weights_op = _op.split(_op.const(recurrent_cell_weights_values.tolist()), 1)
+        weights_dict["w_hid"] = _op.concat(
             [
                 recurrent_input_weights_op[0],
                 recurrent_forget_weights_op[0],
@@ -2959,14 +2735,14 @@ class OperatorConverter(object):
 
         # Process weight matrix of bias: b_inp
         input_gate_bias_values = self.get_tensor_value(input_gate_bias)
-        input_gate_bias_op = relax.op.split(_op.const(input_gate_bias_values.tolist()), 1)
+        input_gate_bias_op = _op.split(_op.const(input_gate_bias_values.tolist()), 1)
         output_gate_bias_values = self.get_tensor_value(output_gate_bias)
-        output_gate_bias_op = relax.op.split(_op.const(output_gate_bias_values.tolist()), 1)
+        output_gate_bias_op = _op.split(_op.const(output_gate_bias_values.tolist()), 1)
         forget_gate_bias_values = self.get_tensor_value(forget_gate_bias)
-        forget_gate_bias_op = relax.op.split(_op.const(forget_gate_bias_values.tolist()), 1)
+        forget_gate_bias_op = _op.split(_op.const(forget_gate_bias_values.tolist()), 1)
         cell_gate_bias_values = self.get_tensor_value(cell_gate_bias)
-        cell_gate_bias_op = relax.op.split(_op.const(cell_gate_bias_values.tolist()), 1)
-        weights_dict["b_inp"] = relax.op.concat(
+        cell_gate_bias_op = _op.split(_op.const(cell_gate_bias_values.tolist()), 1)
+        weights_dict["b_inp"] = _op.concat(
             [
                 input_gate_bias_op[0],
                 forget_gate_bias_op[0],
@@ -2979,8 +2755,8 @@ class OperatorConverter(object):
         # Process weight matrix of hidden bias:
         # b_hid (with the same shape as b_inp)
         gate_bias_dtype = self.get_tensor_type_str(input_gate_bias.tensor.Type())
-        weights_dict["b_hid"] = relax.op.split(
-            relax.op.const(
+        weights_dict["b_hid"] = _op.split(
+            _op.const(
                 np.zeros(self._infer_shape(weights_dict["b_inp"]), dtype=gate_bias_dtype),
                 dtype=gate_bias_dtype,
             ),
@@ -2989,7 +2765,7 @@ class OperatorConverter(object):
 
         outputs, _, _ = lstm_cell(input_seqs=X_steps, **weights_dict)
 
-        output = relax.op.stack(outputs, axis=1)
+        output = _op.stack(outputs, axis=1)
         return output
 
     def convert_batch_to_space_nd(self, op):
@@ -3005,16 +2781,14 @@ class OperatorConverter(object):
         block_shape = list(self.get_tensor_value(input_tensors[1]))
         crops = self.get_tensor_value(input_tensors[2]).tolist()
 
-        out = relax.op.nn.batch_to_space_nd(in_expr, block_shape, crops)
+        out = _op.nn.batch_to_space_nd(in_expr, block_shape, crops)
 
         return out
 
     def convert_batch_matmul(self, op):
         """batch_matmul implementation."""
-        try:
-            from tflite.BatchMatMulOptions import BatchMatMulOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BatchMatMulOptions import BatchMatMulOptions
 
         input_tensors = self.get_input_tensors(op)
 
@@ -3038,7 +2812,7 @@ class OperatorConverter(object):
             new_b_shape = shape_b
             if rank_a > rank_b:
                 rank_diff = rank_a - rank_b
-                new_b_shape = relax.op.concat(
+                new_b_shape = _op.concat(
                     [
                         _expr.const(
                             [1] * rank_diff, dtype=_infer_type(new_b_shape).checked_type.dtype
@@ -3049,7 +2823,7 @@ class OperatorConverter(object):
                 )
             elif rank_a < rank_b:
                 rank_diff = rank_b - rank_a
-                new_a_shape = relax.op.concat(
+                new_a_shape = _op.concat(
                     [
                         _expr.const(
                             [1] * rank_diff, dtype=_infer_type(new_a_shape).checked_type.dtype
@@ -3061,11 +2835,11 @@ class OperatorConverter(object):
             else:
                 pass
 
-            out_batch = relax.op.concat(
+            out_batch = _op.concat(
                 [
-                    relax.op.maximum(
-                        relax.op.strided_slice(new_b_shape, [i], [i + 1]),
-                        relax.op.strided_slice(new_a_shape, [i], [i + 1]),
+                    _op.maximum(
+                        _op.strided_slice(new_b_shape, [i], [i + 1]),
+                        _op.strided_slice(new_a_shape, [i], [i + 1]),
                     )
                     for i in range(max(rank_a, rank_b) - 2)
                 ],
@@ -3073,27 +2847,23 @@ class OperatorConverter(object):
             )
 
             a_broadcasted_shape = _fold_constant(
-                relax.op.concat(
-                    [out_batch, relax.op.strided_slice(shape_a, [rank_a - 2], [rank_a])], 0
-                )
+                _op.concat([out_batch, _op.strided_slice(shape_a, [rank_a - 2], [rank_a])], 0)
             )
             b_broadcasted_shape = _fold_constant(
-                relax.op.concat(
-                    [out_batch, relax.op.strided_slice(shape_b, [rank_b - 2], [rank_b])], 0
-                )
+                _op.concat([out_batch, _op.strided_slice(shape_b, [rank_b - 2], [rank_b])], 0)
             )
             if not tvm.ir.structural_equal(shape_a, a_broadcasted_shape):
-                input_a = relax.op.transform.broadcast_to(input_a, a_broadcasted_shape)
+                input_a = _op.transform.broadcast_to(input_a, a_broadcasted_shape)
             if not tvm.ir.structural_equal(shape_b, b_broadcasted_shape):
-                input_b = relax.op.transform.broadcast_to(input_b, b_broadcasted_shape)
+                input_b = _op.transform.broadcast_to(input_b, b_broadcasted_shape)
 
             input_a = self.flatten_to_nd(input_a, shape_a, 3)
             input_b = self.flatten_to_nd(input_b, shape_b, 3)
 
             if batch_matmul_options.AdjX():
-                input_a = relax.op.permute_dims(input_a, [0, 2, 1])
+                input_a = _op.permute_dims(input_a, [0, 2, 1])
             if not batch_matmul_options.AdjY():
-                input_b = relax.op.permute_dims(input_b, [0, 2, 1])
+                input_b = _op.permute_dims(input_b, [0, 2, 1])
 
             if self.is_quantized(op):
                 output = _qnn.op.batch_matmul(
@@ -3105,22 +2875,22 @@ class OperatorConverter(object):
                     relax.const(1.0, "float32"),
                 )
             else:
-                output = relax.op.nn.batch_matmul(input_a, input_b)
+                output = _op.nn.batch_matmul(input_a, input_b)
 
             # Reshape output to original dimensions.
             output_shape = shape_of(output)
 
             rank_out = self._infer_shape(output_shape)[0]
 
-        final_shape = relax.op.concat(
+        final_shape = _op.concat(
             [
-                relax.op.strided_slice(shape_a, [0], [rank_a - 2]),
-                relax.op.strided_slice(output_shape, [rank_out - 2], [rank_out]),
+                _op.strided_slice(shape_a, [0], [rank_a - 2]),
+                _op.strided_slice(output_shape, [rank_out - 2], [rank_out]),
             ],
             0,
         )
 
-        reshape = relax.op.reshape(output, _fold_constant(final_shape))
+        reshape = _op.reshape(output, _fold_constant(final_shape))
         # qnn batch matmul returns a int32 tensor so we need to requantize
         if self.is_quantized(op):
             return _qnn.op.requantize(
@@ -3146,17 +2916,15 @@ class OperatorConverter(object):
         block_shape = list(self.get_tensor_value(input_tensors[1]))
         paddings = self.get_tensor_value(input_tensors[2]).tolist()
 
-        out = relax.op.nn.space_to_batch_nd(in_expr, block_shape, paddings)
+        out = _op.nn.space_to_batch_nd(in_expr, block_shape, paddings)
 
         return out
 
     def convert_depth_to_space(self, op):
         """Convert TFLite DEPTH_TO_SPACE"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.DepthToSpaceOptions import DepthToSpaceOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.DepthToSpaceOptions import DepthToSpaceOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -3169,17 +2937,15 @@ class OperatorConverter(object):
         depth_to_space_options = DepthToSpaceOptions()
         depth_to_space_options.Init(op_options.Bytes, op_options.Pos)
         block_size = depth_to_space_options.BlockSize()
-        out = relax.op.nn.depth_to_space(in_expr, block_size, layout="NHWC")
+        out = _op.nn.depth_to_space(in_expr, block_size, layout="NHWC")
 
         return out
 
     def convert_space_to_depth(self, op):
         """Convert TFLite SPACE_TO_DEPTH"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.SpaceToDepthOptions import SpaceToDepthOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.SpaceToDepthOptions import SpaceToDepthOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -3192,16 +2958,12 @@ class OperatorConverter(object):
         space_to_depth_options = SpaceToDepthOptions()
         space_to_depth_options.Init(op_options.Bytes, op_options.Pos)
         block_size = space_to_depth_options.BlockSize()
-        out = relax.op.nn.space_to_depth(in_expr, block_size, layout="NHWC")
+        out = _op.nn.space_to_depth(in_expr, block_size, layout="NHWC")
 
         return out
 
     def convert_sparse_to_dense(self, op):
         """Convert TFLite SPARSE_TO_DENSE"""
-        try:
-            from tflite.TensorType import TensorType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 4, "input tensors length should be 4"
@@ -3217,7 +2979,7 @@ class OperatorConverter(object):
             t_type = t.tensor.Type()
             assert t_type in (TensorType.INT32, TensorType.INT64)
 
-        out = relax.op.sparse_to_dense(
+        out = _op.sparse_to_dense(
             self.get_tensor_expr(indices),
             list(self.get_tensor_value(output_shape)),
             self.get_tensor_expr(values),
@@ -3246,21 +3008,18 @@ class OperatorConverter(object):
         in_expr = self.get_expr(input_tensor.tensor_idx)
         data_shape = to_int_list(self.get_tensor_shape(input_tensor))
 
-        alpha_expr = relax.op.broadcast_to(alpha_expr, data_shape)
-        alpha_expr = relax.op.reshape(alpha_expr, [-1])
-        out = relax.op.nn.prelu(_op.reshape(in_expr, [-1]), alpha_expr, axis=0)
-        out = relax.op.reshape(out, data_shape)
+        alpha_expr = _op.broadcast_to(alpha_expr, data_shape)
+        alpha_expr = _op.reshape(alpha_expr, [-1])
+        out = _op.nn.prelu(_op.reshape(in_expr, [-1]), alpha_expr, axis=0)
+        out = _op.reshape(out, data_shape)
         return out
 
     def convert_transpose_conv(self, op):
         """Convert TFLite TRANSPOSE_CONV"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.Padding import Padding
-            from tflite.TensorType import TensorType
-            from tflite.TransposeConvOptions import TransposeConvOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.TransposeConvOptions import TransposeConvOptions
+        from tflite.Padding import Padding
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) >= 3, "input tensors length should be >= 3"
@@ -3305,16 +3064,20 @@ class OperatorConverter(object):
         # Weights
         weights_tensor_type = weights_tensor.tensor.Type()
         # weights tensor type should be UINT8 (quantization) or FLOAT32
-        assert weights_tensor_type in (TensorType.INT8, TensorType.UINT8, TensorType.FLOAT32)
+        assert weights_tensor_type in (
+            TensorType.INT8,
+            TensorType.UINT8,
+            TensorType.FLOAT32,
+        )
         weight_tensor_type_str = self.get_tensor_type_str(weights_tensor_type)
 
         if self.has_expr(weights_tensor.tensor_idx):
             weight_expr_iohw = self.get_expr(weights_tensor.tensor_idx)
-            weight_expr_iohw = relax.op.permute_dims(weight_expr_iohw, axes=(3, 0, 1, 2))
+            weight_expr_iohw = _op.permute_dims(weight_expr_iohw, axes=(3, 0, 1, 2))
         else:
             weight_value_ohwi = self.get_tensor_value(weights_tensor)
-            # Relay kernel_layout should be OIHW
-            # Relay weights layout should be different from kernel_layout - it should be IOHW
+            # Relax kernel_layout should be OIHW
+            # Relax weights layout should be different from kernel_layout - it should be IOHW
             weight_value_iohw = np.transpose(weight_value_ohwi, (3, 0, 1, 2))
             weight_expr_iohw = self.exp_tab.new_const(
                 weight_value_iohw,
@@ -3324,7 +3087,7 @@ class OperatorConverter(object):
 
         # Output shape value
         output_shape_value = self.get_tensor_value(output_shape_tensor)
-        # Relay expects filter output channel to match to output tensor channel.
+        # Relax expects filter output channel to match to output tensor channel.
         assert (
             out_channels == output_shape_value[3]
         ), "Output channel in the filter should match to channel in the output_shape"
@@ -3359,7 +3122,7 @@ class OperatorConverter(object):
                 out_dtype=out_dtype,
             )
         else:
-            out = relax.op.nn.conv2d_transpose(
+            out = _op.nn.conv2d_transpose(
                 in_expr,
                 weight_expr_iohw,
                 strides=(stride_h, stride_w),
@@ -3376,7 +3139,11 @@ class OperatorConverter(object):
             bias_tensor = input_tensors[3]
             bias_tensor_type = bias_tensor.tensor.Type()
             # bias tensor type should be INT32 (quantization) or FLOAT32
-            assert bias_tensor_type in (TensorType.INT32, TensorType.INT64, TensorType.FLOAT32)
+            assert bias_tensor_type in (
+                TensorType.INT32,
+                TensorType.INT64,
+                TensorType.FLOAT32,
+            )
             bias_tensor_type_str = self.get_tensor_type_str(bias_tensor_type)
             if self.has_expr(bias_tensor.tensor_idx):
                 bias_expr = self.get_expr(bias_tensor.tensor_idx)
@@ -3387,7 +3154,7 @@ class OperatorConverter(object):
                     source_name=bias_tensor.tensor.Name(),
                 )
             channel_axis = 3
-            out = relax.op.nn.bias_add(out, bias_expr, axis=channel_axis)
+            out = _op.nn.bias_add(out, bias_expr, axis=channel_axis)
 
         if output_tensor.qnn_params:
             # Calculate the intermediate scale and zero point of the int32 output.
@@ -3449,10 +3216,6 @@ class OperatorConverter(object):
 
     def convert_dequantize(self, op):
         """Convert TFLite Dequantize"""
-        try:
-            from tflite.TensorType import TensorType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
@@ -3516,29 +3279,27 @@ class OperatorConverter(object):
 
         # loc_prob coords are in yxhw format
         # need to convert to xywh
-        loc_coords = relax.op.split(loc_prob, 4, axis=2)
-        loc_prob = relax.op.concat(
-            [loc_coords[1], loc_coords[0], loc_coords[3], loc_coords[2]], axis=2
-        )
+        loc_coords = _op.split(loc_prob, 4, axis=2)
+        loc_prob = _op.concat([loc_coords[1], loc_coords[0], loc_coords[3], loc_coords[2]], axis=2)
         # reshape loc_prob tensor so is can be consumed by
         # multibox_transform_loc
-        loc_prob = relax.op.reshape(loc_prob, [batch_size, anchor_boxes * 4])
+        loc_prob = _op.reshape(loc_prob, [batch_size, anchor_boxes * 4])
 
         # anchor coords are in yxhw format
         # need to convert to ltrb
-        anchor_coords = relax.op.split(anchor_expr, 4, axis=1)
+        anchor_coords = _op.split(anchor_expr, 4, axis=1)
         anchor_y = anchor_coords[0]
         anchor_x = anchor_coords[1]
         anchor_h = anchor_coords[2]
         anchor_w = anchor_coords[3]
         plus_half = _expr.const(0.5, dtype="float32")
         minus_half = _expr.const(-0.5, dtype="float32")
-        anchor_l = relax.op.add(anchor_x, relax.op.multiply(anchor_w, minus_half))
-        anchor_r = relax.op.add(anchor_x, relax.op.multiply(anchor_w, plus_half))
-        anchor_t = relax.op.add(anchor_y, relax.op.multiply(anchor_h, minus_half))
-        anchor_b = relax.op.add(anchor_y, relax.op.multiply(anchor_h, plus_half))
-        anchor_expr = relax.op.concat([anchor_l, anchor_t, anchor_r, anchor_b], axis=1)
-        anchor_expr = relax.op.expand_dims(anchor_expr, 0)
+        anchor_l = _op.add(anchor_x, _op.multiply(anchor_w, minus_half))
+        anchor_r = _op.add(anchor_x, _op.multiply(anchor_w, plus_half))
+        anchor_t = _op.add(anchor_y, _op.multiply(anchor_h, minus_half))
+        anchor_b = _op.add(anchor_y, _op.multiply(anchor_h, plus_half))
+        anchor_expr = _op.concat([anchor_l, anchor_t, anchor_r, anchor_b], axis=1)
+        anchor_expr = _op.expand_dims(anchor_expr, 0)
 
         # attributes for multibox_transform_loc
         multibox_transform_loc_attrs = {}
@@ -3554,10 +3315,10 @@ class OperatorConverter(object):
         )
         multibox_transform_loc_attrs["keep_background"] = use_regular_nms
 
-        ret = relax.op.vision.multibox_transform_loc(
+        ret = _op.vision.multibox_transform_loc(
             # reshape cls_pred so it can be consumed by
             # multibox_transform_loc
-            relax.op.permute_dims(cls_pred, [0, 2, 1]),
+            _op.permute_dims(cls_pred, [0, 2, 1]),
             loc_prob,
             anchor_expr,
             **multibox_transform_loc_attrs,
@@ -3565,11 +3326,11 @@ class OperatorConverter(object):
 
         if use_regular_nms:
             # box coordinates need to be converted from ltrb to (ymin, xmin, ymax, xmax)
-            _, transformed_boxes = relax.op.split(ret[0], (2,), axis=2)
-            box_l, box_t, box_r, box_b = relax.op.split(transformed_boxes, 4, axis=2)
-            transformed_boxes = relax.op.concat([box_t, box_l, box_b, box_r], axis=2)
+            _, transformed_boxes = _op.split(ret[0], (2,), axis=2)
+            box_l, box_t, box_r, box_b = _op.split(transformed_boxes, 4, axis=2)
+            transformed_boxes = _op.concat([box_t, box_l, box_b, box_r], axis=2)
 
-            return relax.op.vision.regular_non_max_suppression(
+            return _op.vision.regular_non_max_suppression(
                 boxes=transformed_boxes,
                 scores=cls_pred,
                 max_detections_per_class=custom_options["detections_per_class"],
@@ -3588,20 +3349,18 @@ class OperatorConverter(object):
         non_max_suppression_attrs["max_output_size"] = custom_options["max_detections"]
         non_max_suppression_attrs["invalid_to_bottom"] = False
 
-        ret = relax.op.vision.non_max_suppression(
-            ret[0], ret[1], ret[1], **non_max_suppression_attrs
-        )
-        ret = relax.op.vision.get_valid_counts(ret, 0)
+        ret = _op.vision.non_max_suppression(ret[0], ret[1], ret[1], **non_max_suppression_attrs)
+        ret = _op.vision.get_valid_counts(ret, 0)
         valid_count = ret[0]
         # keep only the top 'max_detections' rows
-        ret = relax.op.strided_slice(
+        ret = _op.strided_slice(
             ret[1], [0, 0, 0], [batch_size, custom_options["max_detections"], 6]
         )
         # the output needs some reshaping to match tflite
-        ret = relax.op.split(ret, 6, axis=2)
-        cls_ids = relax.op.reshape(ret[0], [batch_size, -1])
-        scores = relax.op.reshape(ret[1], [batch_size, -1])
-        boxes = relax.op.concat([ret[3], ret[2], ret[5], ret[4]], axis=2)
+        ret = _op.split(ret, 6, axis=2)
+        cls_ids = _op.reshape(ret[0], [batch_size, -1])
+        scores = _op.reshape(ret[1], [batch_size, -1])
+        boxes = _op.concat([ret[3], ret[2], ret[5], ret[4]], axis=2)
         ret = _expr.TupleWrapper(_expr.Tuple([boxes, cls_ids, scores, valid_count]), size=4)
         return ret
 
@@ -3638,15 +3397,15 @@ class OperatorConverter(object):
                 "It is soft_nms when soft_nms_sigma != 0, which is not supported!"
             )
 
-        scores_expand = relax.op.expand_dims(scores, axis=-1, num_newaxis=1)
-        data = relax.op.concat([scores_expand, boxes], -1)
-        data = relax.op.expand_dims(data, axis=0, num_newaxis=1)
+        scores_expand = _op.expand_dims(scores, axis=-1, num_newaxis=1)
+        data = _op.concat([scores_expand, boxes], -1)
+        data = _op.expand_dims(data, axis=0, num_newaxis=1)
 
-        count, data, indices = relax.op.vision.get_valid_counts(
+        count, data, indices = _op.vision.get_valid_counts(
             data, score_threshold=score_threshold, id_index=-1, score_index=0
         )
 
-        nms_ret = relax.op.vision.non_max_suppression(
+        nms_ret = _op.vision.non_max_suppression(
             data=data,
             valid_count=count,
             indices=indices,
@@ -3661,10 +3420,10 @@ class OperatorConverter(object):
             invalid_to_bottom=False,
         )
 
-        selected_indices = relax.op.squeeze(nms_ret[0], axis=[0])
-        selected_indices = relax.op.strided_slice(selected_indices, [0], [max_output_size])
-        valide_num = relax.op.squeeze(nms_ret[1], axis=[1])
-        selected_scores = relax.op.take(scores, selected_indices, axis=0)
+        selected_indices = _op.squeeze(nms_ret[0], axis=[0])
+        selected_indices = _op.strided_slice(selected_indices, [0], [max_output_size])
+        valide_num = _op.squeeze(nms_ret[1], axis=[1])
+        selected_scores = _op.take(scores, selected_indices, axis=0)
         out = _expr.TupleWrapper(_expr.Tuple([selected_indices, selected_scores, valide_num]), 3)
         return out
 
@@ -3690,17 +3449,15 @@ class OperatorConverter(object):
         ndims = len(input_tensors[0].tensor.ShapeAsNumpy())
         assert -1 - ndims <= axis <= ndims, "axis out of range"
 
-        out = relax.op.expand_dims(input_expr, axis, 1)
+        out = _op.expand_dims(input_expr, axis, 1)
 
         return out
 
     def convert_one_hot(self, op):
         """Convert TFLite ONE_HOT"""
-        try:
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.OneHotOptions import OneHotOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+
+        from tflite.BuiltinOptions import BuiltinOptions
+        from tflite.OneHotOptions import OneHotOptions
 
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 4, "Input tensor's length should be 4"
@@ -3739,7 +3496,7 @@ class OperatorConverter(object):
         # Setting dtype
         dtype = self.get_tensor_type_str(on_value.tensor.Type())
 
-        out = relax.op.one_hot(indices_expr, on_value_expr, off_value_expr, depth, axis, dtype)
+        out = _op.one_hot(indices_expr, on_value_expr, off_value_expr, depth, axis, dtype)
 
         return out
 
@@ -3756,7 +3513,7 @@ class OperatorConverter(object):
             assert len(axis) == 1, "TFLite does not support multi-axis yet"
             axis = int(axis)
 
-        out = relax.op.reverse(input_expr, axis)
+        out = _op.reverse(input_expr, axis)
         return out
 
     def convert_matrix_set_diag(self, op):
@@ -3786,7 +3543,7 @@ class OperatorConverter(object):
         input_expr = self.get_tensor_expr(input_tensors[0])
         diagonal_expr = self.get_tensor_expr(input_tensors[1])
 
-        out = relax.op.matrix_set_diag(input_expr, diagonal_expr)
+        out = _op.matrix_set_diag(input_expr, diagonal_expr)
         return out
 
     def convert_matrix_diag(self, op):
@@ -3808,10 +3565,10 @@ class OperatorConverter(object):
         shape = np.append(shape, shape[-1])
         dtype = self.get_tensor_type_str(diagonal.tensor.Type())
 
-        input_expr = relax.op.zeros(tuple(shape), dtype)
+        input_expr = _op.zeros(tuple(shape), dtype)
         diagonal_expr = self.get_tensor_expr(diagonal)
 
-        out = relax.op.matrix_set_diag(input_expr, diagonal_expr)
+        out = _op.matrix_set_diag(input_expr, diagonal_expr)
         return out
 
     def convert_densify(self, op):
@@ -3878,16 +3635,16 @@ class OperatorConverter(object):
         nudged_min = (quant_min - nudged_zero_point) * scale
         nudged_max = (quant_max - nudged_zero_point) * scale
 
-        nudged_min_expr = relax.op.const(nudged_min)
-        clamped = relax.op.clip(in_expr, nudged_min, nudged_max)
-        clamped_shifted = relax.op.subtract(clamped, nudged_min_expr)
+        nudged_min_expr = _op.const(nudged_min)
+        clamped = _op.clip(in_expr, nudged_min, nudged_max)
+        clamped_shifted = _op.subtract(clamped, nudged_min_expr)
 
-        half = relax.op.const(0.5)
-        one = relax.op.const(1.0)
-        scale_expr = relax.op.const(scale)
-        inv_scale = relax.op.divide(one, scale_expr)
-        rounded = relax.op.floor(_op.add(_op.multiply(clamped_shifted, inv_scale), half))
-        return relax.op.add(_op.multiply(rounded, scale_expr), nudged_min_expr)
+        half = _op.const(0.5)
+        one = _op.const(1.0)
+        scale_expr = _op.const(scale)
+        inv_scale = _op.divide(one, scale_expr)
+        rounded = _op.floor(_op.add(_op.multiply(clamped_shifted, inv_scale), half))
+        return _op.add(_op.multiply(rounded, scale_expr), nudged_min_expr)
 
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
@@ -3907,7 +3664,7 @@ class OperatorConverter(object):
         return self.prefetched_nodes[get_tensor_name(self.subgraph, input_tensor_idx)]
 
     def get_tensor_expr(self, tensor, is_sparse=False):
-        """Return the Relay expr for tensor."""
+        """Return the Relax expr for tensor."""
         if self.has_expr(tensor.tensor_idx):
             expr = self.get_expr(tensor.tensor_idx)
         else:
@@ -4071,7 +3828,7 @@ def prepare_dense_matrix_from_sparse(sparse_tensor, sparse_tensor_value, sparse_
 
 
 def get_scalar_from_constant(expr):
-    """Returns scalar value from Relay constant scalar."""
+    """Returns scalar value from Relax constant scalar."""
     assert (
         isinstance(expr, _expr.Constant) and not expr.data.shape
     ), "Expr is not a constant scalar."
@@ -4083,7 +3840,7 @@ def get_scalar_from_constant(expr):
 
 
 def get_tensor_from_constant(expr):
-    """Returns tensor of values from Relay constant node."""
+    """Returns tensor of values from Relax constant node."""
     assert isinstance(expr, _expr.Constant)
     value = expr.data.numpy()
     assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
@@ -4201,7 +3958,12 @@ def _input_type(model):
     return shape_dict, dtype_dict
 
 
-def from_tflite(model, shape_dict=None, dtype_dict=None, op_converter=OperatorConverter):
+def from_tflite(
+    model,
+    shape_dict: Dict[str, Tuple[int]] = None,
+    dtype_dict: Dict[str, str] = None,
+    op_converter=OperatorConverter,
+):
     """Convert from tflite model into compatible relax Function.
 
     Parameters
@@ -4222,13 +3984,71 @@ def from_tflite(model, shape_dict=None, dtype_dict=None, op_converter=OperatorCo
 
     params : dict of str to tvm.nd.NDArray
         The parameter dict to be used by relax
-    """
-    try:
-        import tflite.BuiltinOperator
-        import tflite.SubGraph
-    except ImportError:
-        raise ImportError("The tflite package must be installed")
 
+    Examples
+    --------
+    Users can use TFLiteConverter to convert a concrete function followed by
+    tflite.Model.Model.GetRootAsModel to get a tflite.Model object
+    The following codes show how to convert a simple concrete function to a Relax program.
+
+    .. code-block:: python
+
+        import tensorflow as tf
+        from tvm.relax.frontend.tflite import from_tflite
+
+
+        # A concrete function be defined from network architecture or invoking a model
+        # from keras applications
+
+        # Define a tf.Module containing a tf.function with network definition
+        class Conv2DModule(tf.Module):
+            @tf.function(
+                input_signature=[
+                    tf.TensorSpec(shape=(1, 128, 128, 32), dtype=tf.float32),
+                    tf.TensorSpec(shape=(3, 3, 32, 32), dtype=tf.float32),
+                ]
+            )
+            def func(self, data, kernel):
+                return tf.nn.conv2d(
+                    input=(1, 128, 128, 32),
+                    filters=(3, 3, 32, 32),
+                    data_format="NHWC",
+                    strides=(1, 1, 1, 1),
+                    padding="SAME",
+                )
+        concrete_func = Conv2DModule().func.get_concrete_function()
+
+        # Alternatively you can use tensorflow.keras.application wrapped arounf a tf.function
+        class NetworkModule(tf.Module):
+            def __init__(self):
+                self.model = net(weights="imagenet", include_top=True)
+
+            @tf.function
+            def func(self, data):
+                return self.model(data, training=False)
+
+        model = NetworkModule()
+        concrete_func = model.func.get_concrete_function(
+            tf.TensorSpec(shape=shape, dtype=tf.float32)
+        )
+
+
+        # Which ever the way we have created the concrete function make tflite.Model as shown below
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.target_spec.supported_ops = [
+            tf.lite.OpsSet.TFLITE_BUILTINS,
+            tf.lite.OpsSet.SELECT_TF_OPS,
+        ]
+        tflite_model = tf.lite.Model.Model.GetRootAsModel(converter.convert(), 0)
+
+        # Call the imported to conver the tflite.Model to relax.Module
+        mod = from_tflite(tflite_model)
+
+        # Print out the imported model.
+        print(mod.script())
+
+    """
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
     try:
         import tflite
