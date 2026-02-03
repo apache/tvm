@@ -253,49 +253,6 @@ Path Conventions
 Common Windows Build Issues
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-CUDA Configuration
-..................
-For CUDA support:
-
-.. code-block:: batch
-
-   set CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8
-   set PATH=%CUDA_PATH%\bin;%PATH%
-   cmake .. -DUSE_CUDA=ON
-
-CMake & Compiler Setup
-......................
-- Use CMake GUI or specify generator: ``cmake -G "Visual Studio 16 2019" -A x64 ..``
-- Ensure Python is in PATH or specify: ``-DPython_EXECUTABLE=C:\Python39\python.exe``
-
-Development Environment Tips
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Git Configuration
-.................
-.. code-block:: bash
-
-   git config --global core.autocrlf input
-
-VS Code Settings
-................
-Add to ``settings.json``:
-
-.. code-block:: json
-
-   {
-       "files.encoding": "utf8",
-       "files.autoGuessEncoding": false,
-       "[python]": { "files.encoding": "utf8" }
-   }
-
-WSL2 Alternative
-~~~~~~~~~~~~~~~~
-For Linux-like environment: Install WSL2 (Ubuntu recommended) and follow Linux instructions.
-
-For more help, report Windows-specific issues on GitHub with your Windows version,
-Visual Studio version, and complete error logs.
-
 
 Advanced Build Configuration
 ----------------------------
@@ -339,6 +296,21 @@ You can then run the following command to build
 .. code:: bash
 
     cmake --build build --config Release -- /m
+
+CUDA Configuration
+..................
+For CUDA support on Windows:
+
+.. code-block:: batch
+
+   set CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8
+   set PATH=%CUDA_PATH%\bin;%PATH%
+   cmake .. -DUSE_CUDA=ON
+
+CMake & Compiler Setup
+......................
+- Use CMake GUI or specify generator: ``cmake -G "Visual Studio 16 2019" -A x64 ..``
+- Ensure Python is in PATH or specify: ``-DPython_EXECUTABLE=C:\Python39\python.exe``
 
 
 Building ROCm support
