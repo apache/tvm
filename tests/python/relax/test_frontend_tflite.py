@@ -36,11 +36,6 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 
 def _get_mod_from_cfunc(cfunc):
-    # print(cfunc.graph.as_graph_def())
-    # for op in cfunc.graph.get_operations():
-    #    if op.outputs:
-    #        print(f"Op: {op.name}, Output Shape: {op.outputs[0].shape}")
-
     converter = tf.lite.TFLiteConverter.from_concrete_functions([cfunc])
     converter.target_spec.supported_ops = [
         tf.lite.OpsSet.TFLITE_BUILTINS,
