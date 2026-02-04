@@ -18,7 +18,7 @@
 import tvm
 from tvm import meta_schedule as ms
 from tvm.script import tir as T
-from tvm.tir.tensor_intrin import cuda, rocm, x86
+from tvm.s_tir.tensor_intrin import cuda, rocm, x86
 
 
 @tvm.script.ir_module
@@ -477,7 +477,7 @@ def test_rewrite_tensorize_conv2d_nchwc_vnni():
             ms.postproc.RewriteTensorize(True),
         ],
     )
-    sch = tvm.tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
 
     for proc in ctx.space_generator.postprocs:
@@ -498,7 +498,7 @@ def test_rewrite_tensorize_dense_dp4a():
             ms.postproc.RewriteTensorize(),
         ],
     )
-    sch = tvm.tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
 
     for proc in ctx.space_generator.postprocs:

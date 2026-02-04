@@ -84,7 +84,7 @@ def test_relax_dynamo():
     db = ms.Database.create("memory")
     workload = db.commit_workload(Input1_ir)
 
-    sch = tir.Schedule(Input1_ir, debug_mask="all")
+    sch = tvm.s_tir.Schedule(Input1_ir, debug_mask="all")
     b0 = sch.get_sblock(name="matmul", func_name="main")
     b1 = sch.get_sblock(name="T_add", func_name="main")
     b2 = sch.get_sblock(name="root", func_name="main")

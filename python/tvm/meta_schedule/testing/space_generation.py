@@ -25,9 +25,9 @@ from typing_extensions import Literal
 from tvm import meta_schedule as ms
 from tvm.ir import IRModule, structural_equal
 from tvm.target import Target
-from tvm.tir import Schedule
-from tvm.tir.schedule import Trace
-from tvm.tir.schedule.testing import verify_trace_roundtrip
+from tvm.s_tir import Schedule
+from tvm.s_tir.schedule import Trace
+from tvm.s_tir.schedule.testing import verify_trace_roundtrip
 
 
 def get_rules(

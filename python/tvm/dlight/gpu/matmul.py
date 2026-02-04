@@ -20,19 +20,19 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 
-from tvm import tir
+from tvm import tir, s_tir
 from tvm.ir import Range
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import IterVar, PrimExpr, Var
 from tvm.tir.analysis import undefined_vars
-from tvm.tir.schedule.schedule import SBlockRV
+from tvm.s_tir.schedule.schedule import SBlockRV
 
 from ..analysis import SBlockInfo, IterInfo, get_root_block
 from .base import GPUScheduleRule
 
 
-def _collect_producers(sch: tir.Schedule, block: tir.schedule.SBlockRV):
+def _collect_producers(sch: s_tir.Schedule, block: s_tir.schedule.SBlockRV):
     result = []
     for producer in sch.get_producers(block):
         result.append(producer)
@@ -40,7 +40,7 @@ def _collect_producers(sch: tir.Schedule, block: tir.schedule.SBlockRV):
     return result
 
 
-def _collect_consumers(sch: tir.Schedule, block: tir.schedule.SBlockRV):
+def _collect_consumers(sch: s_tir.Schedule, block: s_tir.schedule.SBlockRV):
     result = []
     for consumer in sch.get_consumers(block):
         result.append(consumer)
@@ -49,8 +49,8 @@ def _collect_consumers(sch: tir.Schedule, block: tir.schedule.SBlockRV):
 
 
 def auto_inline_producers(
-    sch: tir.Schedule,
-    block: tir.schedule.SBlockRV,
+    sch: s_tir.Schedule,
+    block: s_tir.schedule.SBlockRV,
 ):
     while True:
         inlined_cnt = 0
@@ -66,8 +66,8 @@ def auto_inline_producers(
 
 
 def auto_inline_consumers(
-    sch: tir.Schedule,
-    block: tir.schedule.SBlockRV,
+    sch: s_tir.Schedule,
+    block: s_tir.schedule.SBlockRV,
 ):
     while True:
         inlined_cnt = 0
@@ -89,8 +89,8 @@ def auto_inline_consumers(
 
 
 def auto_inline_consumer_chain(
-    sch: tir.Schedule,
-    block: tir.schedule.SBlockRV,
+    sch: s_tir.Schedule,
+    block: s_tir.schedule.SBlockRV,
 ):
     auto_inline_consumers(sch, block)
     remaining_consumers = sch.get_consumers(block)
@@ -274,11 +274,11 @@ def get_index_map(block: tir.SBlock) -> Optional[Tuple[tir.IndexMap, ...]]:
     )
 
 
-def get_sblock_info(sch: tir.Schedule, block: tir.schedule.SBlockRV) -> SBlockInfo:
+def get_sblock_info(sch: s_tir.Schedule, block: s_tir.schedule.SBlockRV) -> SBlockInfo:
     def _iter_kind(loop: tir.IterVar) -> str:
         return {tir.IterVar.DataPar: "S", tir.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
 
-    def _is_reduction_block(block: tir.schedule.SBlockRV):
+    def _is_reduction_block(block: s_tir.schedule.SBlockRV):
         for iter_var in sch.get(block).iter_vars:
             if _iter_kind(iter_var) == "R":
                 return True
@@ -350,14 +350,14 @@ class MetalMatmul(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Optional[tir.Schedule]:
-        from tvm.tir.tensor_intrin.metal import (  # pylint: disable=import-outside-toplevel
+    ) -> Optional[s_tir.Schedule]:
+        from tvm.s_tir.tensor_intrin.metal import (  # pylint: disable=import-outside-toplevel
             get_simdgroup_intrin_group,
         )
 
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
-        sch = tir.Schedule(func)
+        sch = s_tir.Schedule(func)
         root_block = get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
 
@@ -453,7 +453,7 @@ class MetalMatmul(GPUScheduleRule):
         )
         sch.transform_layout(B_simdgroup, ("write", 0), lambda s, i, j: (s, j, i))
 
-        def tensorize_block(block: tir.schedule.SBlockRV, intrin: str):
+        def tensorize_block(block: s_tir.schedule.SBlockRV, intrin: str):
             *_, i, j = sch.get_loops(block)
             io, ii = sch.split(i, [None, micro_size])
             jo, ji = sch.split(j, [None, micro_size])
@@ -491,14 +491,14 @@ class MatmulTensorization(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Optional[tir.Schedule]:
-        from tvm.tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
+    ) -> Optional[s_tir.Schedule]:
+        from tvm.s_tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
             get_wmma_intrin_group,
         )
 
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
-        sch = tir.Schedule(func)
+        sch = s_tir.Schedule(func)
         root_block = get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
 
@@ -712,14 +712,14 @@ class MatmulInt8Tensorization(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Optional[tir.Schedule]:
-        from tvm.tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
+    ) -> Optional[s_tir.Schedule]:
+        from tvm.s_tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
             get_wmma_intrin_group,
         )
 
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
-        sch = tir.Schedule(func)
+        sch = s_tir.Schedule(func)
         root_block = get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
 
@@ -966,10 +966,10 @@ class Matmul(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Optional[tir.Schedule]:
+    ) -> Optional[s_tir.Schedule]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
-        sch = tir.Schedule(func)
+        sch = s_tir.Schedule(func)
         config = self.get_configs(target)
         root_block = get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
@@ -1125,11 +1125,11 @@ class Matmul(GPUScheduleRule):
 
     def sch_outer_reduction(
         self,
-        sch: tir.Schedule,
+        sch: s_tir.Schedule,
         config: Config,
-        reduction_block: tir.schedule.SBlockRV,
-        blocks: List[tir.schedule.SBlockRV],
-    ) -> Optional[tir.Schedule]:
+        reduction_block: s_tir.schedule.SBlockRV,
+        blocks: List[s_tir.schedule.SBlockRV],
+    ) -> Optional[s_tir.Schedule]:
         """Get vectorization factor"""
 
         def get_max_factor(n, factors):

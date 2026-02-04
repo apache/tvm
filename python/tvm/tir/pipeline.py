@@ -21,113 +21,6 @@
 import tvm
 from tvm import tir
 
-from . import backend
-
-
-def default_tir_pipeline():
-    """The default tir pipeline used in tvm.tir.build"""
-
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
-        """The default lowering passes for TIR backend."""
-        pass_ctx = tvm.transform.PassContext.current()
-        config = pass_ctx.config
-        passes = [
-            tir.transform.CanonicalizeLoop(),
-            tir.transform.LowerCrossThreadReduction(),
-            tir.transform.LowerInitBlock(),
-            tir.transform.PlanAndUpdateBufferAllocationLocation(),
-            tir.transform.ConvertBlocksToOpaque(),
-            tir.transform.LiftThreadBinding(),
-            tir.transform.ManifestSharedMemoryLocalStage(),
-            tir.transform.CompactBufferAllocation(),
-            tir.transform.LowerAutoCopy(),
-            tir.transform.UnifyThreadBinding(),
-            tir.transform.LowerMatchBuffer(),
-            tir.transform.Simplify(),
-            tir.transform.InjectPermutedLayout(),
-            tir.transform.AnnotateIrregularLoop(),
-            tir.transform.InjectSoftwarePipeline(),
-            tir.transform.TransformMmaBufferLayout(),
-            tir.transform.LowerOpaqueBlock(),
-            tir.transform.FlattenBuffer(),
-            tir.transform.BF16ComputeLegalize(),
-            tir.transform.NarrowDataType(32),
-            tir.transform.LoopPartition(),
-            tir.transform.VectorizeLoop(not bool(config.get("tir.disable_vectorize", False))),
-            tir.transform.InjectVirtualThread(),
-            tir.transform.InjectDoubleBuffer(),
-        ]
-        if not bool(config.get("tir.disable_storage_rewrite", False)):
-            passes.append(tir.transform.StorageRewrite())
-        if config.get("tir.use_async_copy", False):
-            passes.append(tir.transform.LowerAsyncDMA())
-        passes.extend(
-            [
-                tir.transform.HoistIfThenElse(),
-                tir.transform.UnrollLoop(),
-                tir.transform.RenormalizeSplitPattern(),
-                tir.transform.Simplify(),
-                tir.transform.RemoveNoOp(),
-                tir.transform.RewriteUnsafeSelect(),
-            ]
-        )
-        # Additional passes based on configuration.
-        if bool(config.get("tir.instrument_bound_checkers", False)):
-            passes.append(tir.transform.InstrumentBoundCheckers())
-        if bool(config.get("tir.ptx_ldg32", False)):
-            passes.append(tir.transform.InjectPTXLDG32(True))
-        passes.append(
-            tir.transform.CommonSubexprElimTIR(
-                not bool(config.get("tir.disable_cse_tir", False)),
-                bool(config.get("tir.enable_equiv_terms_in_cse_tir", False)),
-            )
-        )
-        if bool(config.get("tir.instrument_lwp", False)):
-            passes.append(tir.transform.InstrumentProfileIntrinsics())
-        passes.extend(
-            [
-                # Bind the target first so that target-specific attributes are available.
-                tir.transform.FP8ComputeLegalize(),
-                # VerifyVTCMLimit must occur before LowerVtcmAlloc.
-                tir.transform.VerifyVTCMLimit(),
-                tir.transform.LowerVtcmAlloc(),
-                tir.transform.VerifyMemory(),
-                tir.transform.AnnotateEntryFunc(),
-            ]
-        )
-        if bool(config.get("tir.detect_global_barrier", False)):
-            passes.append(tir.transform.ThreadSync("global"))
-        passes.extend(
-            [
-                tir.transform.ThreadSync("shared"),
-                tir.transform.ThreadSync("shared.dyn"),
-                tir.transform.ThreadSync("warp"),
-                tir.transform.InferFragment(),
-                tir.transform.LowerThreadAllreduce(),
-            ]
-        )
-        if bool(config.get("tir.use_async_copy", False)):
-            passes.append(tir.transform.InjectPTXAsyncCopy())
-        if bool(config.get("tir.ptx_ldg32", False)):
-            passes.append(tir.transform.InjectPTXLDG32())
-        passes.extend(
-            [
-                tir.transform.AnnotateDeviceRegions(),
-                tir.transform.SplitHostDevice(),
-                # MergeSharedMemoryAllocations must follow SplitHostDevice.
-                tir.transform.MergeSharedMemoryAllocations(),
-                tir.transform.MakePackedAPI(),
-                tir.transform.FP8StorageLegalize(),
-                tir.transform.BF16StorageLegalize(),
-                tir.transform.LowerDeviceKernelLaunch(),
-            ]
-        )
-        mod = tvm.ir.transform.Sequential(passes)(mod)
-        return mod
-
-    return _pipeline
-
 
 def finalize_host_passes():  # pylint: disable=unused-argument
     """The default finalization passes for TIR backend."""
@@ -154,12 +47,10 @@ def finalize_device_passes():  # pylint: disable=unused-argument
 
 
 # global map of pre-built pipelines
-PIPELINE_MAP = {
-    "default": default_tir_pipeline,
-}
+PIPELINE_MAP = {}
 
 
-def get_tir_pipeline(name: str = "default", **kwargs) -> tvm.transform.Pass:
+def get_tir_pipeline(name: str = None, **kwargs) -> tvm.transform.Pass:
     """Get pre-build pipeline by name
 
     Parameters
@@ -167,6 +58,9 @@ def get_tir_pipeline(name: str = "default", **kwargs) -> tvm.transform.Pass:
     name : Optional[str]
         Name of the pipeline
     """
+    if name == "default":
+        # for now, defualt to s_tir pipeline
+        name = "s_tir"
     if name not in PIPELINE_MAP:
         raise ValueError(
             f"Unknown pre-built pipeline {name}," f"candidates are {list(PIPELINE_MAP.keys())}"
@@ -179,6 +73,6 @@ def get_default_tir_pipeline(
 ) -> tvm.transform.Pass:
     """Get the default TIR pipeline for the given target."""
     if target.kind.name == "opencl" and "adreno" in target.keys:
-        return backend.adreno.get_tir_pipeline(target)
+        return get_tir_pipeline("adreno")
     else:
-        return default_tir_pipeline()
+        return get_tir_pipeline("s_tir")

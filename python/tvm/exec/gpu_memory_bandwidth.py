@@ -21,7 +21,7 @@ import itertools
 import numpy as np
 
 import tvm
-from tvm import te, tir
+from tvm import te
 from tvm.meta_schedule.runner import EvaluatorConfig, RPCConfig
 from tvm.testing import local_run, rpc_run
 
@@ -152,7 +152,7 @@ def _workload(
 
 
 def _schedule(
-    sch: tir.Schedule,
+    sch: s_tir.Schedule,
     len_bx: int,
     len_tx: int,
     len_vec: int,
@@ -215,7 +215,7 @@ def main():  # pylint: disable=too-many-locals
             len_xi=args.xi,
             dtype=dtype,
         )
-        sch = tir.Schedule(func)
+        sch = tvm.s_tir.Schedule(func)
         _schedule(sch, len_bx, len_tx, len_vec)
 
         if rpcConfig is None:

@@ -46,6 +46,9 @@ from . import ir
 # tvm.tir
 from . import tir
 
+# tvm.s_tir
+from . import s_tir
+
 # tvm.target
 from . import target
 

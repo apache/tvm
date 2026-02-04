@@ -112,7 +112,7 @@ class TestAsyncSoftwarePipeline:
     @tvm.testing.fixture
     def schedule(self, comp_type, sched_type, outer, inner, dtype, scope):
         """Generate schedule."""
-        sch = tir.Schedule(compute(comp_type, outer, inner, dtype))
+        sch = tvm.s_tir.Schedule(compute(comp_type, outer, inner, dtype))
 
         compute_block = sch.get_sblock("compute")
         i, _ = sch.get_loops(compute_block)

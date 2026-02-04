@@ -27,7 +27,7 @@ from typing_extensions import Literal
 from tvm_ffi import register_object
 from tvm.ir import IRModule
 from tvm.runtime import Object
-from tvm.tir.schedule import Schedule
+from tvm.s_tir.schedule import Schedule
 
 from .. import _ffi_api
 
@@ -80,7 +80,7 @@ class SpaceGenerator(Object):
 
         Returns
         -------
-        design_spaces : List[tvm.tir.Schedule]
+        design_spaces : List[tvm.s_tir.Schedule]
             The generated design spaces, i.e., schedules.
         """
         return _ffi_api.SpaceGeneratorGenerateDesignSpace(self, mod)  # type: ignore # pylint: disable=no-member
@@ -250,7 +250,7 @@ class PySpaceGenerator:
 
         Returns
         -------
-        design_spaces : List[tvm.tir.Schedule]
+        design_spaces : List[tvm.s_tir.Schedule]
             The generated design spaces, i.e., schedules.
         """
         raise NotImplementedError

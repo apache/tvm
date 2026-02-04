@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import tvm
 from tvm import relax as rx
-from tvm import tir
+from tvm import tir, s_tir
 from tvm.relax.frontend.nn import Object, Tensor
 from tvm.runtime import DataType
 from tvm.script import tir as T
@@ -1111,7 +1111,7 @@ def _get_prefill_kernel_config(h_kv, h_q, d, dtype, target: Target):
 
 
 def _schedule_prefill_kernel(
-    sch: tir.Schedule,
+    sch: s_tir.Schedule,
     load_vec,
     bdx,
     num_warps,
@@ -1120,7 +1120,7 @@ def _schedule_prefill_kernel(
     tile_z,
     transform_k_load: bool,
     merged_qk_load: bool,
-) -> tir.Schedule:
+) -> tvm.s_tir.Schedule:
     get_extent = lambda *lps: [int(sch.get(lp).extent) for lp in lps]
 
     def get_vecsize(extent):
@@ -1140,7 +1140,7 @@ def _schedule_prefill_kernel(
         tile_x = cnt // tile_y
         return tile_x, tile_y
 
-    def apply_to_qkv_load(sch: tir.Schedule, block):
+    def apply_to_qkv_load(sch: s_tir.Schedule, block):
         loop_x, loop_y = sch.get_loops(block)[-2:]
         x_extent, y_extent = get_extent(loop_x, loop_y)
         vec_size = getxy_vecsize(x_extent, y_extent, bdx * num_warps)
@@ -1156,7 +1156,7 @@ def _schedule_prefill_kernel(
         sch.bind(tx, "threadIdx.x")
         sch.vectorize(yv)
 
-    def apply_to_so_ewise(sch: tir.Schedule, block, tile):
+    def apply_to_so_ewise(sch: s_tir.Schedule, block, tile):
         loop_x, loop_y = sch.get_loops(block)[-2:]
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
@@ -1170,7 +1170,7 @@ def _schedule_prefill_kernel(
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
-    def apply_to_gemm(sch: tir.Schedule, block, tile, r_len=16, k_major=False):
+    def apply_to_gemm(sch: s_tir.Schedule, block, tile, r_len=16, k_major=False):
         loop_x, loop_y, loop_z = sch.get_loops(block)[-3:]
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
@@ -1512,7 +1512,7 @@ def _attention_prefill(
                                     tile_id[0] += NUM_BLKS
     # fmt: on
     # pylint: enable=line-too-long,too-many-branches
-    sch = tir.Schedule(batch_prefill_paged_kv)
+    sch = tvm.s_tir.Schedule(batch_prefill_paged_kv)
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, tile_y, tile_z, False, False
     )
@@ -2296,7 +2296,7 @@ def _attention_sequence_prefill(
 
     # fmt: on
     # pylint: enable=line-too-long,too-many-branches
-    sch = tir.Schedule(batch_sequence_prefill_kv)
+    sch = tvm.s_tir.Schedule(batch_sequence_prefill_kv)
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, tile_y, tile_z, False, False
     )
@@ -2690,7 +2690,7 @@ def _attention_prefill_ragged(
                                     tile_id[0] += NUM_BLKS
     # fmt: on
     # pylint: enable=line-too-long,too-many-branches
-    sch = tir.Schedule(batch_prefill_ragged_kv)
+    sch = tvm.s_tir.Schedule(batch_prefill_ragged_kv)
     sch = _schedule_prefill_kernel(sch, LOAD_VEC, bdx, num_warps, tile_x, d_v, tile_z, True, False)
     return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
@@ -2957,7 +2957,7 @@ def _attention_prefill_mla(
                                 tile_id[0] += NUM_BLKS
     # fmt: on
     # pylint: enable=line-too-long,too-many-branches
-    sch = tir.Schedule(batch_prefill_paged_kv_mla)
+    sch = tvm.s_tir.Schedule(batch_prefill_paged_kv_mla)
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, d_latent, tile_z, False, True
     )

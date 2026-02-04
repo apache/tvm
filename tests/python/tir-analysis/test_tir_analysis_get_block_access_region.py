@@ -312,7 +312,7 @@ def test_access_in_branch_func():
 
 
 def test_access_of_padding_pattern():
-    s = tvm.tir.schedule.Schedule(access_of_padding_pattern)
+    s = tvm.s_tir.schedule.Schedule(access_of_padding_pattern)
     alloc_buffers = s.get_sref(s.get_sblock("root")).stmt.alloc_buffers
     buffer_var_map = {buf.data: buf for buf in alloc_buffers}
 

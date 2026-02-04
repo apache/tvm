@@ -17,7 +17,7 @@
 # pylint: disable=missing-docstring
 """Pool schedule rule for Adreno operators."""
 
-from tvm import tir
+from tvm import tir, s_tir
 from tvm.target import Target
 
 from .base import AdrenoScheduleRule
@@ -31,8 +31,8 @@ class Pool2D(AdrenoScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> tir.Schedule:
-        sch = tir.Schedule(func)
+    ) -> s_tir.Schedule:
+        sch = s_tir.Schedule(func)
         root = sch.get_sblock(name="root", func_name="main")
 
         blocks = sch.get_child_blocks(root)
@@ -41,7 +41,7 @@ class Pool2D(AdrenoScheduleRule):
         if not "adaptive_pool_sum" in blocks_names and not "pool_max" in blocks_names:
             return None
 
-        def schedule_pad(blk: tir.schedule.SBlockRV):
+        def schedule_pad(blk: s_tir.schedule.SBlockRV):
             lps, veclp = sch.get_loops(blk)[:-1], sch.get_loops(blk)[-1]
             sch.vectorize(veclp)
             b = sch.fuse(*lps)
@@ -50,7 +50,7 @@ class Pool2D(AdrenoScheduleRule):
             sch.bind(bx, "blockIdx.x")
             sch.bind(tx, "threadIdx.x")
 
-        def schedule_max_pool(blk: tir.schedule.SBlockRV):
+        def schedule_max_pool(blk: s_tir.schedule.SBlockRV):
             block_info = analysis.get_sblock_info(sch, blk)
             iters_kind = "".join([_iter.kind for _iter in block_info.iters])
             if iters_kind != "SSSSSRR":

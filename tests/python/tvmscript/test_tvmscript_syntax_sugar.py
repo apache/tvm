@@ -22,7 +22,7 @@ import pytest
 import tvm.testing
 from tvm.script import from_source
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
 @T.prim_func

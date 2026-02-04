@@ -18,7 +18,7 @@
 """A fallback schedule rule for GPU operators."""
 from typing import List, Tuple
 
-from tvm import tir
+from tvm import tir, s_tir
 from tvm.target import Target
 
 from .. import base
@@ -38,23 +38,23 @@ class Fallback(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> tir.Schedule:
+    ) -> s_tir.Schedule:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         max_threads_per_block = base.max_threads_per_block(target)
 
-        sch = tir.Schedule(func)
+        sch = s_tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
 
         if block_infos is None:
             return None
 
         block_infos = try_inline(sch, block_infos)
-        reduction_blocks: List[Tuple[tir.schedule.SBlockRV, tir.schedule.LoopRV]] = []
+        reduction_blocks: List[Tuple[s_tir.schedule.SBlockRV, s_tir.schedule.LoopRV]] = []
         for block in block_infos:
-            s_loops: List[tir.schedule.LoopRV] = []
-            r_loops: List[tir.schedule.LoopRV] = []
-            o_loops: List[tir.schedule.LoopRV] = []
+            s_loops: List[s_tir.schedule.LoopRV] = []
+            r_loops: List[s_tir.schedule.LoopRV] = []
+            o_loops: List[s_tir.schedule.LoopRV] = []
             dom_kind = block.dom_kind()
             block = block.block_rv
 

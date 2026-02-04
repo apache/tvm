@@ -17,20 +17,20 @@
 """Common schedule strategies for TIR."""
 from typing import Callable, List
 
-from tvm import tir
+from tvm import s_tir
 
 from ..analysis import SBlockInfo
 
 
 def try_inline(
-    sch: tir.Schedule,
+    sch: s_tir.Schedule,
     blocks: List[SBlockInfo],
 ) -> List[SBlockInfo]:
     """Try to inline as many blocks as possible, and return the remaining blocks.
 
     Parameters
     ----------
-    sch : tir.Schedule
+    sch : s_tir.Schedule
         The TIR schedule used to inline blocks.
     blocks : List[SBlockInfo]
         The blocks to be inlined.
@@ -61,14 +61,14 @@ def try_inline(
 
 
 def try_inline_contiguous_spatial(
-    sch: tir.Schedule,
+    sch: s_tir.Schedule,
     block_infos: List[SBlockInfo],
 ) -> List[SBlockInfo]:
     """Try to inline contiguous spatial blocks in a schedule
 
     Parameters
     ----------
-    sch : tir.Schedule
+    sch : s_tir.Schedule
         The TIR schedule used to inline blocks.
     block_infos : List[SBlockInfo]
         The blocks to be try.

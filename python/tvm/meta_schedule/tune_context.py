@@ -28,7 +28,8 @@ from tvm_ffi import register_object, register_global_func
 from tvm import IRModule
 from tvm.runtime import Object
 from tvm.target import Target
-from tvm.tir import PrimFunc, Schedule
+from tvm.tir import PrimFunc
+from tvm.s_tir import Schedule
 
 from . import _ffi_api
 from .logging import Logger, get_logger, get_logging_func
@@ -106,7 +107,7 @@ class TuneContext(Object):
         logger: Optional[Logger] = None,
     ):
         # pylint: disable=import-outside-toplevel
-        import tvm.tir.tensor_intrin  # pylint: disable=unused-import
+        import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
 
         from .search_strategy import SearchStrategy
         from .space_generator import SpaceGenerator
@@ -164,7 +165,7 @@ class TuneContext(Object):
 
         Returns
         -------
-        design_spaces : List[tvm.tir.Schedule]
+        design_spaces : List[tvm.s_tir.Schedule]
             The generated design spaces, i.e., schedules.
         """
         if self.mod is None:
@@ -194,7 +195,7 @@ class TuneContext(Object):
             The maximum number of trials to be executed.
         num_trials_per_iter : int = 64
             The number of trials to be executed per iteration.
-        design_spaces : Optional[List[tvm.tir.Schedule]]
+        design_spaces : Optional[List[tvm.s_tir.Schedule]]
             The design spaces used during tuning process.
             If None, use the outcome of `self.generate_design_space()`.
         database : Optional[Database] = None

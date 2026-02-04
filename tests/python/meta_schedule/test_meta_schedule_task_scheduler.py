@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" Test Meta Schedule Task Scheduler """
+"""Test Meta Schedule Task Scheduler"""
 import random
 import weakref
 from typing import Set
@@ -26,7 +26,7 @@ import tvm.testing
 from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner
 from tvm.script import tir as T
-from tvm.tir import Schedule
+from tvm.s_tir import Schedule
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 

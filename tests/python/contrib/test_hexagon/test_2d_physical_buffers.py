@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test 2d physical buffers """
+"""Test 2d physical buffers"""
 
 import contextlib
 
@@ -222,7 +222,7 @@ class TestElementWise:
     ):
         tensors = self._te_tensors(input_shape, dtype)
 
-        sch = tvm.tir.Schedule(te.create_prim_func(tensors))
+        sch = tvm.s_tir.Schedule(te.create_prim_func(tensors))
 
         cache_read_block = sch.cache_read("Output", 0, working_scope)
         cache_write_block = sch.cache_write("Output", 0, working_scope)

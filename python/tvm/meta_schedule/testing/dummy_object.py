@@ -18,7 +18,7 @@
 import random
 from typing import List, Optional
 
-from tvm.tir.schedule import Trace
+from tvm.s_tir.schedule import Trace
 
 from ..builder import BuilderInput, BuilderResult, PyBuilder
 from ..mutator import PyMutator

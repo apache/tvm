@@ -247,7 +247,7 @@ class TestMaxPool2D:
                 )
                 primfunc = te.create_prim_func([data, output])
 
-                sch = tir.Schedule(primfunc, debug_mask="all")
+                sch = tvm.s_tir.Schedule(primfunc, debug_mask="all")
 
                 sch.transform_layout(
                     block="tensor", buffer="placeholder", index_map=_int8_nhwc_8h8w32c_map

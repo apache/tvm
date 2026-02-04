@@ -18,7 +18,7 @@
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 from typing import List, Union
 
-from tvm import arith, tir
+from tvm import arith, tir, s_tir
 from tvm.target import Target
 
 from ..analysis import normalize_prim_func
@@ -34,7 +34,7 @@ class GeneralReduction(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
+    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
 
@@ -48,7 +48,7 @@ class GeneralReduction(GPUScheduleRule):
             len_tx = 64
             unroll_depth = 64
 
-        sch = tir.Schedule(func)
+        sch = s_tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
         if block_infos is None or len(block_infos) == 0:

@@ -201,7 +201,7 @@ def test_rewrite_tiled_matmul():
     mod = Matmul_before_rewrite
     target = _target()
     ctx = _create_context(mod, target)
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, Matmul_after_rewrite)
@@ -211,7 +211,7 @@ def test_rewrite_softmax():
     mod = Softmax_cross_thread_reduction
     target = _target()
     ctx = _create_context(mod, target)
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
     # The module should not be rewritten

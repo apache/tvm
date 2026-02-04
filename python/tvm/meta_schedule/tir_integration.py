@@ -22,6 +22,7 @@ from typing_extensions import Literal
 from tvm_ffi import register_global_func
 
 # isort: on
+import tvm
 from tvm import ir, tir
 from tvm.target import Target
 from tvm.tir.expr import IntImm
@@ -248,8 +249,8 @@ def compile_tir(
     database: Database,
     mod: Union[ir.IRModule, tir.PrimFunc],
     target: Union[Target, str],
-) -> tir.Schedule:
-    """Compile a TIR to tir.Schedule, according to the records in the database.
+) -> tvm.s_tir.Schedule:
+    """Compile a TIR to s_tir.Schedule, according to the records in the database.
 
     Parameters
     ----------
@@ -262,7 +263,7 @@ def compile_tir(
 
     Returns
     -------
-    sch : tir.Schedule
+    sch : s_tir.Schedule
         The best schedule found in the database.
     """
     mod = _normalize_mod(mod)

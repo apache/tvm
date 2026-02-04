@@ -31,7 +31,7 @@ from tvm.meta_schedule.space_generator import (
 from tvm.meta_schedule.tune_context import TuneContext
 from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
-from tvm.tir.schedule import Schedule
+from tvm.s_tir.schedule import Schedule
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off

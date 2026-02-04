@@ -35,7 +35,7 @@ def test_nearbyint():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A, A_rounded])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Build from scheduled TIR
     func = tvm.compile(sch.mod, target="llvm")
@@ -91,7 +91,7 @@ def test_unary_intrin():
 
         # Convert to TIR and create schedule
         mod = te.create_prim_func([A, B])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         # Build from scheduled TIR
         func = tvm.compile(sch.mod, target="llvm")
@@ -148,7 +148,7 @@ def test_asin_acos_boundary_values():
         B = te.compute((m,), lambda *i: tvm_intrin(A(*i)), name="B")
 
         mod = te.create_prim_func([A, B])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
         func = tvm.compile(sch.mod, target="llvm")
 
         dev = tvm.cpu(0)
@@ -205,7 +205,7 @@ def test_binary_intrin():
 
         # Convert to TIR and create schedule
         mod = te.create_prim_func([A, B, C])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         # Build from scheduled TIR
         func = tvm.compile(sch.mod, target="llvm")
@@ -232,7 +232,7 @@ def test_ldexp():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A, B, C])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Build from scheduled TIR
     func = tvm.compile(sch.mod, target="llvm")
@@ -272,7 +272,7 @@ def test_clz(target, dev, dtype):
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A, B])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Apply scheduling primitives if target is Vulkan
     if target.kind.name == "vulkan":

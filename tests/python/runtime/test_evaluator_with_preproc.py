@@ -40,7 +40,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 @pytest.mark.parametrize("f_preproc", ["", "l2_cache_flush_cuda"])
 def test_time_evalutor_with_preproc(f_preproc: str):
     mod = tvm.IRModule.from_expr(matmul.with_attr("global_symbol", "main"))
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
     blk = sch.get_sblock("matmul")
     i, j, k = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")

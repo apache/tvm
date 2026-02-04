@@ -17,7 +17,7 @@
 """Analysis for GEMV."""
 from typing import List, Optional
 
-from tvm import arith, ir, tir
+from tvm import arith, ir, tir, s_tir
 
 from .common_analysis import (
     SBlockInfo,
@@ -58,13 +58,13 @@ def get_reduction_expr(block: tir.SBlock) -> Optional[tir.PrimExpr]:
     return buffer_store.value.b
 
 
-def is_gemv(sch: tir.Schedule, block_info: SBlockInfo) -> Optional[List[tir.Buffer]]:
+def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> Optional[List[tir.Buffer]]:
     """Check if the block is a GEMV.
 
     Parameters
     ----------
 
-    sch : tir.Schedule
+    sch : s_tir.Schedule
         The schedule
 
     block_info : SBlockInfo
@@ -101,7 +101,7 @@ def is_gemv(sch: tir.Schedule, block_info: SBlockInfo) -> Optional[List[tir.Buff
 
 
 def normalize(
-    sch: tir.Schedule,
+    sch: s_tir.Schedule,
     block_info: SBlockInfo,
 ) -> Optional[bool]:
     """Normalize the main block."""

@@ -17,10 +17,10 @@
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 from typing import List, Union
 
-from tvm import arith, tir
+from tvm import arith, tir, s_tir
 from tvm.target import Target
-from tvm.tir import Schedule
-from tvm.tir.schedule import SBlockRV
+from tvm.s_tir import Schedule
+from tvm.s_tir.schedule import SBlockRV
 
 from ..analysis import detect_dominant_read, normalize_prim_func
 from ..base import try_inline_contiguous_spatial
@@ -46,7 +46,7 @@ class Transpose(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
+    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
         # pylint: disable=invalid-name
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
@@ -64,7 +64,7 @@ class Transpose(GPUScheduleRule):
             unroll_depth = 64
         len_vec = 4
 
-        sch = tir.Schedule(func)
+        sch = s_tir.Schedule(func)
         blocks = normalize_prim_func(sch)
         transpose_block_idx = -1
         for idx, block in reversed(list(enumerate(blocks))):

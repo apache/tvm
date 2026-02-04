@@ -41,7 +41,7 @@ def get_module(target, compute):
     if target.kind.name == "llvm":
         return tvm.IRModule.from_expr(te.create_prim_func([A, B, D]))
 
-    sch = tvm.tir.Schedule(te.create_prim_func([A, B, D]))
+    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B, D]))
     for stage in ["C", "D"]:
         xo, xi = sch.split(sch.get_loops(stage)[0], factors=[None, 4])
         sch.bind(xo, "blockIdx.x")

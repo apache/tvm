@@ -19,8 +19,8 @@ import tvm
 import tvm.testing
 from tvm.meta_schedule.postproc import RewriteParallelVectorizeUnroll
 from tvm.script import tir as T
-from tvm.tir.schedule import Schedule
-from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+from tvm.s_tir.schedule import Schedule
+from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable,misplaced-comparison-constant
 # fmt: off

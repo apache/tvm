@@ -323,7 +323,7 @@ def test_rewrite_cooperative_fetch():
     mod = Before_cooperative_fetch
     target = _target()
     ctx = _create_context(mod, target)
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, After_cooperative_fetch)
@@ -333,7 +333,7 @@ def test_rewrite_norm_bmn():
     mod = Before_norm_bmn
     target = _target()
     ctx = _create_context(mod, target)
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, After_norm_bmn)
@@ -343,7 +343,7 @@ def test_rewrite_cuda_loop_split_no_reduction():
     mod = Bert_fused_reshape_transpose_reshape
     target = Target("nvidia/nvidia-v100", host="llvm")
     ctx = _create_context(mod, target)
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, Bert_fused_reshape_transpose_reshape_after_rub)
@@ -353,7 +353,7 @@ def test_rewrite_cuda_loop_split_no_reduction_large():
     mod = Bert_fused_reshape_transpose_reshape_large
     target = Target("nvidia/nvidia-v100", host="llvm")
     ctx = _create_context(mod, target)
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, Bert_fused_reshape_transpose_reshape_after_rub_large)
@@ -363,7 +363,7 @@ def test_rewrite_cuda_loop_split_for_kind():
     mod = before_unrolled_loop
     target = Target("nvidia/nvidia-v100", host="llvm")
     ctx = _create_context(mod, target)
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod["main"], after_unrolled_loop)

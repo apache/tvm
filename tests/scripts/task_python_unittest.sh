@@ -47,9 +47,10 @@ TEST_FILES=(
   "target"
   "te"
   "testing"
+  "s_tir/base"
+  "s_tir/schedule"
   "tir-analysis"
   "tir-base"
-  "tir-schedule"
   "tir-transform"
   "tvmscript"
 )

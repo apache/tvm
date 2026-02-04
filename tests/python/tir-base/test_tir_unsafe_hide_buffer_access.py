@@ -20,7 +20,7 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import (
+from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
@@ -72,7 +72,7 @@ def indirect_mem_access_hide_ib(a: T.handle, idx_a: T.handle, b: T.handle, idx_b
 
 
 def test_hide_buffer_access_read():
-    sch = tir.Schedule(indirect_mem_access, debug_mask="all")
+    sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
     sch.unsafe_hide_buffer_access(block_b, "read", [1])
     assert_structural_equal_ignore_global_symbol(indirect_mem_access_hide_ia, sch.mod["main"])
@@ -80,7 +80,7 @@ def test_hide_buffer_access_read():
 
 
 def test_hide_buffer_access_write():
-    sch = tir.Schedule(indirect_mem_access, debug_mask="all")
+    sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
     sch.unsafe_hide_buffer_access(block_b, "write", [1])
     assert_structural_equal_ignore_global_symbol(indirect_mem_access_hide_ib, sch.mod["main"])
@@ -88,14 +88,14 @@ def test_hide_buffer_access_write():
 
 
 def test_hide_buffer_access_fail_buffer_type():
-    sch = tir.Schedule(indirect_mem_access, debug_mask="all")
+    sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
     with pytest.raises(tvm.error.TVMError):
         sch.unsafe_hide_buffer_access(block_b, "opaque", [0])
 
 
 def test_hide_buffer_access_fail_buffer_index():
-    sch = tir.Schedule(indirect_mem_access, debug_mask="all")
+    sch = tvm.s_tir.Schedule(indirect_mem_access, debug_mask="all")
     block_b = sch.get_sblock("B")
     with pytest.raises(tvm.error.TVMError):
         sch.unsafe_hide_buffer_access(block_b, "read", [2])

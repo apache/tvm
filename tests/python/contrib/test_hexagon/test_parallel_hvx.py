@@ -209,12 +209,12 @@ class TestMatMulVec:
     ):
         """Test function handler."""
 
-        sch = tvm.tir.Schedule(operator_producer(operation_count))
+        sch = tvm.s_tir.Schedule(operator_producer(operation_count))
         single_thread_runtime = evaluate(
             hexagon_session, shape_dtypes_producer(operation_count), expected_output_producer, sch
         )
 
-        sch = tvm.tir.Schedule(operator_producer(operation_count))
+        sch = tvm.s_tir.Schedule(operator_producer(operation_count))
         block = sch.get_sblock("c_buffer")
         b = sch.get_loops(block)
         b_output, _ = sch.split(b[0], factors=[split_factor, None])

@@ -21,7 +21,7 @@ import tvm.testing
 from tvm import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
 def _target() -> Target:
@@ -59,7 +59,7 @@ def _apply_rewrite_layout(mod):
         ),
         task_name="test",
     )
-    sch = tvm.tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     if not ctx.space_generator.postprocs[0].apply(sch):
         raise tvm.TVMError("RewriteLayout postproc failed")
@@ -213,7 +213,7 @@ def rewritten_tir_matmul(
 def test_layout_rewrite():
     target = _target()
     ctx = _create_context(tir_matmul, target)
-    sch = tvm.tir.Schedule(tir_matmul, debug_mask="all")
+    sch = tvm.s_tir.Schedule(tir_matmul, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
     assert_structural_equal_ignore_global_symbol(sch.mod["main"], rewritten_tir_matmul)
@@ -479,7 +479,7 @@ class Conv2dCacheReadMultipleRewritten:
 def test_layout_rewrite_cache_read():
     target = Target("llvm")
     ctx = _create_context(Conv2dCacheRead, target)
-    sch = tvm.tir.Schedule(Conv2dCacheRead, debug_mask="all")
+    sch = tvm.s_tir.Schedule(Conv2dCacheRead, debug_mask="all")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
     tvm.ir.assert_structural_equal(sch.mod, Conv2dCacheReadRewritten)
@@ -488,7 +488,7 @@ def test_layout_rewrite_cache_read():
 def test_layout_rewrite_cache_read_multiple():
     target = Target("llvm")
     ctx = _create_context(Conv2dCacheRead, target)
-    sch = tvm.tir.Schedule(Conv2dCacheRead, debug_mask="all")
+    sch = tvm.s_tir.Schedule(Conv2dCacheRead, debug_mask="all")
     sch.cache_read(sch.get_sblock("p1_global"), 0, "global2")
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)

@@ -214,7 +214,7 @@ def test_rewrite_cooperative_fetch():
     target = _target()
     ctx = _create_context(mod, target)
 
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     # fmt: off
     # pylint: disable=line-too-long,invalid-name
     b0 = sch.get_sblock(name="C", func_name="main")
@@ -258,7 +258,7 @@ def test_rewrite_warp_execution():
     target = _target()
     ctx = _create_context(mod, target)
 
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     # fmt: off
     # pylint: disable=line-too-long,invalid-name
     b0 = sch.get_sblock(name="C", func_name="main")

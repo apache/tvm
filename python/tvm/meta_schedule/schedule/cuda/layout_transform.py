@@ -22,7 +22,7 @@ from typing import List, Optional, Tuple, Union
 
 import tvm
 from tvm import meta_schedule
-from tvm.tir.schedule import SBlockRV, ExprRV, LoopRV
+from tvm.s_tir.schedule import SBlockRV, ExprRV, LoopRV
 
 ## Tiling layout transforms:
 # Assume we have an input shape of [A, B, C, D] and want to layout transform
@@ -84,7 +84,7 @@ from tvm.tir.schedule import SBlockRV, ExprRV, LoopRV
 
 
 def tile_layout_transform(
-    sch: tvm.tir.Schedule,
+    sch: tvm.s_tir.Schedule,
     block_read: SBlockRV,
     block_write: SBlockRV,
     src_layout: str,
@@ -328,7 +328,7 @@ def tile_layout_transform(
 
 
 def create_cached_read(
-    sch: tvm.tir.Schedule,
+    sch: tvm.s_tir.Schedule,
     block_write: SBlockRV,
     orig_input_shape: List[int],
     orig_src_layout: str,
@@ -446,7 +446,7 @@ def create_cached_read(
     return block_read, unpack_list(input_shape), new_src_layout_str, new_dst_layout_str
 
 
-def auto_inline_into(sch: tvm.tir.Schedule, start_block: SBlockRV) -> SBlockRV:
+def auto_inline_into(sch: tvm.s_tir.Schedule, start_block: SBlockRV) -> SBlockRV:
     """
     Inlines given start_block's consumers and future dependencies into start_block.
 
@@ -503,8 +503,8 @@ def get_max_tile_size() -> int:
 
 @tvm.register_global_func("meta_schedule.cuda.layout_transform")
 def cuda_layout_transform_schedule_rule(
-    sch: tvm.tir.Schedule, block: SBlockRV, testing_tile_sizes: Optional[List[int]] = None
-) -> List[tvm.tir.Schedule]:
+    sch: tvm.s_tir.Schedule, block: SBlockRV, testing_tile_sizes: Optional[List[int]] = None
+) -> List[tvm.s_tir.Schedule]:
     """
     Applies tiling scheme to layout transform task (potentially fused with other injective funcs).
 

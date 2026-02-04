@@ -424,7 +424,7 @@ class TestMatMulVec:
     ):
         """Load VTCM for VRMPY operator test."""
         # Run parallel vrmpy without loading to VTCM.
-        sch = tvm.tir.Schedule(vrmpy(operations))
+        sch = tvm.s_tir.Schedule(vrmpy(operations))
         sch = apply_vrmpy_parallelization(sch)
         base_runtime, result = setup_and_run(
             hexagon_session, sch, input_a, input_b, input_c, operations
@@ -432,7 +432,7 @@ class TestMatMulVec:
         tvm.testing.assert_allclose(result, expected_output)
 
         # Run parallel vrmpy with basic memory loads to VTCM.
-        sch = tvm.tir.Schedule(vrmpy(operations))
+        sch = tvm.s_tir.Schedule(vrmpy(operations))
         sch = apply_vtcm_cache_read_write(sch)
         sch = apply_vrmpy_parallelization(sch)
         basic_load_runtime, result = setup_and_run(
@@ -441,7 +441,7 @@ class TestMatMulVec:
         tvm.testing.assert_allclose(result, expected_output)
 
         # Run parallel vrmpy with vectorized memory loads to VTCM.
-        sch = tvm.tir.Schedule(vrmpy(operations))
+        sch = tvm.s_tir.Schedule(vrmpy(operations))
         sch = apply_vtcm_cache_read_write(sch)
         sch = apply_vrmpy_parallelization(sch)
         sch = apply_unroll_vectorize(
@@ -459,7 +459,7 @@ class TestMatMulVec:
         tvm.testing.assert_allclose(result, expected_output)
 
         # Run parallel vrmpy with vectorized and parallelized memory loads to VTCM.
-        sch = tvm.tir.Schedule(vrmpy(operations))
+        sch = tvm.s_tir.Schedule(vrmpy(operations))
         sch = apply_vtcm_cache_read_write(sch)
         sch = apply_vrmpy_parallelization(sch)
         sch = apply_parallel_unroll_vectorize(
@@ -482,7 +482,7 @@ class TestMatMulVec:
         tvm.testing.assert_allclose(result, expected_output)
 
         # Run parallel vrmpy with preallocated and vectorized memory loads to VTCM.
-        sch = tvm.tir.Schedule(preallocated_vrmpy(operations))
+        sch = tvm.s_tir.Schedule(preallocated_vrmpy(operations))
         sch = apply_vrmpy_parallelization(sch)
         sch = apply_unroll_vectorize(
             sch,
@@ -500,7 +500,7 @@ class TestMatMulVec:
         tvm.testing.assert_allclose(result, expected_output)
 
         # Run parallel vrmpy with preallocated, vectorized, and parallelized memory loads to VTCM.
-        sch = tvm.tir.Schedule(preallocated_vrmpy(operations))
+        sch = tvm.s_tir.Schedule(preallocated_vrmpy(operations))
         sch = apply_vrmpy_parallelization(sch)
         sch = apply_parallel_unroll_vectorize(
             sch,
@@ -519,7 +519,7 @@ class TestMatMulVec:
         tvm.testing.assert_allclose(result, expected_output)
 
         # Run parallel vrmpy with preallocated single dma memory load to VTCM.
-        sch = tvm.tir.Schedule(preallocated_single_dma_vrmpy(operations))
+        sch = tvm.s_tir.Schedule(preallocated_single_dma_vrmpy(operations))
         sch = apply_vrmpy_parallelization(sch)
         single_dma_runtime, result = setup_and_run_preallocated(
             hexagon_session, sch, input_a, input_b, input_c, operations
@@ -528,7 +528,7 @@ class TestMatMulVec:
         tvm.testing.assert_allclose(result, expected_output)
 
         # Run parallel vrmpy with data preloaded in VTCM.
-        sch = tvm.tir.Schedule(preloaded_vrmpy(operations))
+        sch = tvm.s_tir.Schedule(preloaded_vrmpy(operations))
         sch = apply_vrmpy_parallelization(sch)
         input_a = input_a.reshape(operations * 128)
         input_b = input_b.reshape(operations * 128)

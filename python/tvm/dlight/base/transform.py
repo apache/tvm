@@ -20,7 +20,7 @@ or a space for MetaSchedule tuning
 """
 from typing import List, Optional
 
-from tvm import tir
+from tvm import tir, s_tir
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext, module_pass
 from tvm.target import Target
@@ -84,12 +84,12 @@ def _apply_rules(
     target: Target,
     rules: List[ScheduleRule],
     tunable: bool,
-) -> Optional[List[tir.Schedule]]:
+) -> Optional[List[s_tir.Schedule]]:
     for rule in rules:
         space = rule.apply(func, target, tunable)
         if space is None:
             continue
-        if isinstance(space, tir.Schedule):
+        if isinstance(space, s_tir.Schedule):
             space = [space]
         return space
     return None

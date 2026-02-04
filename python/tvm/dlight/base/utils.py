@@ -18,7 +18,7 @@
 """Utility methods for generic GPU."""
 from typing import List, Optional, Union
 
-from tvm import DataType, tir
+from tvm import DataType, tir, s_tir
 from tvm.target import Target
 
 
@@ -28,12 +28,12 @@ def get_bytes(dtype: Union[DataType, str]) -> int:
     return dtype.itemsize
 
 
-def get_extent(sch: tir.Schedule, loop_rv: tir.schedule.LoopRV):
+def get_extent(sch: s_tir.Schedule, loop_rv: s_tir.schedule.LoopRV):
     loop: tir.For = sch.get(loop_rv)
     return loop.extent.value if isinstance(loop.extent, tir.IntImm) else loop.extent
 
 
-def auto_vectorize(sch: tir.Schedule, loop: tir.schedule.LoopRV, max_vec: int):
+def auto_vectorize(sch: s_tir.Schedule, loop: s_tir.schedule.LoopRV, max_vec: int):
     """Auto vectorize the loop."""
     extent = get_extent(sch, loop)
     if not isinstance(extent, int):

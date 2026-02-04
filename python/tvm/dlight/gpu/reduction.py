@@ -18,7 +18,7 @@
 # TODO: combine reduction rule and general reduction rule into one file.
 from typing import List, Mapping, Optional, Tuple, Union
 
-from tvm import arith, ir, tir
+from tvm import arith, ir, tir, s_tir
 from tvm.target import Target
 
 from ..analysis import (
@@ -59,10 +59,10 @@ class Reduction(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
+    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
-        sch = tir.Schedule(func)
+        sch = s_tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
         if block_infos is None:
             return None
@@ -112,7 +112,7 @@ class Reduction(GPUScheduleRule):
 
     def _normalize(  # pylint: disable=too-many-branches
         self,
-        sch: tir.Schedule,
+        sch: s_tir.Schedule,
         block_info: SBlockInfo,
         access: arith.IterSumExpr,
     ) -> Tuple[Optional[bool], Optional[int], Optional[Mapping[int, int]], Optional[int]]:
@@ -175,9 +175,9 @@ class Reduction(GPUScheduleRule):
 
     def _sch_inner_reduction(  # pylint: disable=too-many-arguments
         self,
-        sch: tir.Schedule,
+        sch: s_tir.Schedule,
         target: Target,
-        block: tir.schedule.SBlockRV,
+        block: s_tir.schedule.SBlockRV,
         unroll_spatial_factor: Optional[int],
         epilogue_info: Optional[SBlockInfo],
         loop_order,
@@ -233,9 +233,9 @@ class Reduction(GPUScheduleRule):
 
     def _sch_inner_spatial(
         self,
-        sch: tir.Schedule,
+        sch: s_tir.Schedule,
         _: Target,
-        block: tir.schedule.SBlockRV,
+        block: s_tir.schedule.SBlockRV,
         block_info: SBlockInfo,
         unroll_spatial_factor: Optional[int],
         epilogue_info: Optional[SBlockInfo],

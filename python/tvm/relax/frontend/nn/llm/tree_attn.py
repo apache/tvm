@@ -21,7 +21,7 @@
 import math
 from typing import Any, Dict, Tuple
 
-from tvm import tir
+from tvm import tir, s_tir
 from tvm.runtime import DataType
 from tvm.script import tir as T
 from tvm.target import Target
@@ -581,7 +581,7 @@ def tree_attn(
                                     tile_id[0] += NUM_BLKS
     # fmt: on
     # pylint: enable=line-too-long,too-many-branches
-    sch = tir.Schedule(batch_tree_attn)
+    sch = s_tir.Schedule(batch_tree_attn)
 
     def get_tile_size(x, y, t):
         cnt = (x * y) // t
@@ -593,7 +593,7 @@ def tree_attn(
         tile_x = cnt // tile_y
         return tile_x, tile_y
 
-    def apply_to_qkv_load(sch: tir.Schedule, block):
+    def apply_to_qkv_load(sch: s_tir.Schedule, block):
         loop_x, loop_y = sch.get_loops(block)[-2:]
         loop = sch.fuse(loop_x, loop_y)
         _, ty, tx, vec = sch.split(
@@ -603,7 +603,7 @@ def tree_attn(
         sch.bind(tx, "threadIdx.x")
         sch.vectorize(vec)
 
-    def apply_to_so_ewise(sch: tir.Schedule, block, tile):
+    def apply_to_so_ewise(sch: s_tir.Schedule, block, tile):
         loop_x, loop_y = sch.get_loops(block)[-2:]
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
@@ -614,7 +614,7 @@ def tree_attn(
         sch.bind(tx, "threadIdx.x")
 
     def apply_to_gemm(  # pylint: disable=unused-argument
-        sch: tir.Schedule, block, tile, read_0, read_1, r_len=8, k_major=False
+        sch: s_tir.Schedule, block, tile, read_0, read_1, r_len=8, k_major=False
     ):
         loop_x, loop_y, loop_z = sch.get_loops(block)[-3:]
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])
@@ -1273,7 +1273,7 @@ def tree_attn_with_paged_kv_cache(
 
     # fmt: on
     # pylint: enable=line-too-long,too-many-branches
-    sch = tir.Schedule(tree_attn_paged_kv)
+    sch = s_tir.Schedule(tree_attn_paged_kv)
 
     def get_tile_size(x, y, t):
         cnt = (x * y) // t
@@ -1285,7 +1285,7 @@ def tree_attn_with_paged_kv_cache(
         tile_x = cnt // tile_y
         return tile_x, tile_y
 
-    def apply_to_qkv_load(sch: tir.Schedule, block):
+    def apply_to_qkv_load(sch: s_tir.Schedule, block):
         loop_x, loop_y = sch.get_loops(block)[-2:]
         loop = sch.fuse(loop_x, loop_y)
         _, ty, tx, vec = sch.split(
@@ -1295,7 +1295,7 @@ def tree_attn_with_paged_kv_cache(
         sch.bind(tx, "threadIdx.x")
         sch.vectorize(vec)
 
-    def apply_to_so_ewise(sch: tir.Schedule, block, tile):
+    def apply_to_so_ewise(sch: s_tir.Schedule, block, tile):
         loop_x, loop_y = sch.get_loops(block)[-2:]
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
@@ -1306,7 +1306,7 @@ def tree_attn_with_paged_kv_cache(
         sch.bind(tx, "threadIdx.x")
 
     def apply_to_gemm(  # pylint: disable=unused-argument
-        sch: tir.Schedule, block, tile, read_0, read_1, r_len=8, k_major=False
+        sch: s_tir.Schedule, block, tile, read_0, read_1, r_len=8, k_major=False
     ):
         loop_x, loop_y, loop_z = sch.get_loops(block)[-3:]
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])

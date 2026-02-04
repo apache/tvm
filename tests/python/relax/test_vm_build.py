@@ -482,7 +482,7 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
         bb.emit_func_output(gv)
 
     mod = bb.get()
-    sch = tvm.tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     loops = sch.get_loops(sch.get_sblock(name="T_add", func_name="add"))
     sch.bind(loops[0], "threadIdx.x")
 

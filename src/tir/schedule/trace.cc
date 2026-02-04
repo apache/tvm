@@ -524,8 +524,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TraceNode>([](const ObjectRef& obj, ReprPrinter* p) {
       const auto* self = obj.as<TraceNode>();
       ICHECK_NOTNULL(self);
-      p->stream << "# from tvm import tir\n";
-      p->stream << "def apply_trace(sch: tir.Schedule) -> None:\n";
+      p->stream << "# from tvm import s_tir\n";
+      p->stream << "def apply_trace(sch: s_tir.Schedule) -> None:\n";
       ffi::Array<ffi::String> repr = self->AsPython(/*remove_postproc=*/false);
       bool is_first = true;
       for (const ffi::String& line : repr) {

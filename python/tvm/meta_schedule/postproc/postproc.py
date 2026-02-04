@@ -24,7 +24,7 @@ from typing_extensions import Literal
 
 from tvm_ffi import register_object
 from tvm.runtime import Object
-from tvm.tir.schedule import Schedule
+from tvm.s_tir.schedule import Schedule
 
 from .. import _ffi_api
 from ..utils import _get_default_str
@@ -54,7 +54,7 @@ class Postproc(Object):
 
         Parameters
         ----------
-        sch : tvm.tir.Schedule
+        sch : tvm.s_tir.Schedule
             The schedule to be post processed.
 
         Returns

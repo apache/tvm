@@ -33,7 +33,7 @@ def test_large_uint_imm():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Get block and loop
     block = sch.get_sblock("A")
@@ -68,7 +68,7 @@ def test_add_pipeline():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A, B, D])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Get blocks and loops
     c_block = sch.get_sblock("C")

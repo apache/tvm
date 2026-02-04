@@ -18,7 +18,7 @@
 import numpy as np
 import tvm
 import tvm.testing
-from tvm import te, tir, topi
+from tvm import te, tir, s_tir, topi
 from tvm.script import tir as T
 import pytest
 
@@ -28,9 +28,9 @@ def test_unique_name_complete_block():
     B = te.compute((16, 16), lambda x, y: A[x, y] * 2, name="main")
     C = te.compute((16, 16), lambda x, y: B[x, y] + 1, name="main")
     func = te.create_prim_func([A, C])
-    s = tir.Schedule(func, debug_mask="all")
-    assert isinstance(s.get_sref(s.get_sblock("main")), tir.schedule.StmtSRef)
-    assert isinstance(s.get_sref(s.get_sblock("main_1")), tir.schedule.StmtSRef)
+    s = tvm.s_tir.Schedule(func, debug_mask="all")
+    assert isinstance(s.get_sref(s.get_sblock("main")), s_tir.schedule.StmtSRef)
+    assert isinstance(s.get_sref(s.get_sblock("main_1")), s_tir.schedule.StmtSRef)
 
 
 def test_unique_name_reduction_block():
@@ -40,9 +40,9 @@ def test_unique_name_reduction_block():
     B = te.compute((16,), lambda i: te.sum(A[i, k1], axis=k1), name="sum")
     C = te.compute((), lambda: te.sum(B[k2], axis=k2), name="sum")
     func = te.create_prim_func([A, C])
-    s = tir.Schedule(func, debug_mask="all")
-    assert isinstance(s.get_sref(s.get_sblock("sum")), tir.schedule.StmtSRef)
-    assert isinstance(s.get_sref(s.get_sblock("sum_1")), tir.schedule.StmtSRef)
+    s = tvm.s_tir.Schedule(func, debug_mask="all")
+    assert isinstance(s.get_sref(s.get_sblock("sum")), s_tir.schedule.StmtSRef)
+    assert isinstance(s.get_sref(s.get_sblock("sum_1")), s_tir.schedule.StmtSRef)
 
 
 def _check_workload(te_workload, tir_workload, index_dtype_override=None, do_simplify=False):
@@ -53,7 +53,7 @@ def _check_workload(te_workload, tir_workload, index_dtype_override=None, do_sim
         tir_workload = simplify(tvm.IRModule.from_expr(tir_workload))["main"]
     tvm.ir.assert_structural_equal(func, tir_workload)
     # make sure that we can create schedule from the func
-    s = tir.Schedule(func, debug_mask="all")
+    s = tvm.s_tir.Schedule(func, debug_mask="all")
     assert s
 
 

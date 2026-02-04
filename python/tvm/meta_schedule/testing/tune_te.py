@@ -21,7 +21,6 @@ from typing import Optional
 
 import tvm
 from tvm import meta_schedule as ms
-from tvm import tir
 from tvm.meta_schedule.testing.te_workload import create_te_workload
 from tvm.support import describe
 from tvm.testing.utils import strtobool
@@ -114,7 +113,7 @@ def main():
     describe()
     print(f"Workload: {ARGS.workload}")
     with ms.Profiler() as profiler:
-        sch: Optional[tir.Schedule] = ms.tir_integration.tune_tir(
+        sch: Optional[s_tir.Schedule] = ms.tir_integration.tune_tir(
             mod=create_te_workload(ARGS.workload, 0),
             target=ARGS.target,
             work_dir=ARGS.work_dir,

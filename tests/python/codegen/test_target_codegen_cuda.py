@@ -68,7 +68,7 @@ def test_cuda_vectorize_add():
         A = te.placeholder((n,), name="A", dtype="%sx%d" % (dtype, lanes))
         B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
 
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
         xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
@@ -120,7 +120,7 @@ def test_cuda_bf16_vectorize_add():
         A = te.placeholder((n,), name="A", dtype="bfloat16x%d" % lanes)
         B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
 
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
         xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
@@ -158,7 +158,7 @@ def test_cuda_multiply_add():
         D = te.compute(
             (n,), lambda i: tvm.tir.call_pure_extern("int32", "__dp4a", A[i], B[i], C[i]), name="D"
         )
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B, C, D]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B, C, D]))
         xo, xi = sch.split(sch.get_loops("D")[0], factors=[None, num_thread])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
@@ -189,7 +189,7 @@ def test_cuda_vectorize_load():
         A = te.placeholder((n,), name="A", dtype="%sx%d" % (dtype, lanes))
         B = te.compute((n,), lambda i: A[i], name="B")
 
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
         xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
@@ -216,7 +216,7 @@ def test_cuda_make_int8():
         dev = tvm.cuda(0)
         A = te.compute((n, lanes), lambda i, j: tvm.tir.const(value, dtype=dtype), name="A")
 
-        sch = tvm.tir.Schedule(te.create_prim_func([A]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A]))
         y, x = sch.get_loops("A")
         sch.vectorize(x)
         sch.bind(y, "blockIdx.x")
@@ -248,7 +248,7 @@ def test_cuda_inf_nan():
         inf_value = tvm.tir.const(value, dtype=dtype)
         C = te.compute((n,), lambda i: inf_value, name="C")
 
-        sch = tvm.tir.Schedule(te.create_prim_func([A, C]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, C]))
         xo, xi = sch.split(sch.get_loops("C")[0], factors=[None, 8])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
@@ -278,7 +278,7 @@ def test_crossthread_reduction1(target, dev):
     B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
 
     def sched(nthd):
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
         x, k = sch.get_loops("B")
         ko, _ = sch.split(k, factors=[nthd, None])
         sch.bind(ko, "threadIdx.x")
@@ -314,7 +314,7 @@ def test_crossthread_reduction2(target, dev):
     B = te.compute((n,), lambda i: te.sum(A[i, k0, k1], axis=(k0, k1)), name="B")
 
     def sched(nthdx, nthdy):
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
         x, k0, k1 = sch.get_loops("B")
         k0o, _ = sch.split(k0, factors=[nthdx, None])
         k1o, _ = sch.split(k1, factors=[nthdy, None])
@@ -350,7 +350,7 @@ def test_cuda_reduction_binding():
     A = te.placeholder((96, 32), name="A")
     B = te.compute((96,), lambda m: te.sum(A[m, k], axis=k), name="B")
 
-    sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
     x, k = sch.get_loops("B")
     sch.reorder(k, x)
     mo, _ = sch.split(x, factors=[None, 32])
@@ -369,7 +369,7 @@ def test_cuda_const_float_to_half():
     b = tvm.tir.const(0.5, dtype="float16")
     c = te.compute(shape, lambda i, j, k: a[i, j, k] > b, name="C")
 
-    sch = tvm.tir.Schedule(te.create_prim_func([a, c]))
+    sch = tvm.s_tir.Schedule(te.create_prim_func([a, c]))
     xo, xi = sch.split(sch.fuse(*sch.get_loops("C")), factors=[None, 64])
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")
@@ -394,7 +394,7 @@ def test_cuda_floordiv_with_vectorization():
         A = te.placeholder((n,), name="A")
         B = te.compute((n,), lambda i: A[tvm.tir.floordiv(i, k)], name="B")
 
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
         xo, xi = sch.split(sch.get_loops("B")[0], factors=[1, None])
         xio, xii = sch.split(xi, factors=[None, 4])
         sch.vectorize(xii)
@@ -420,7 +420,7 @@ def test_cuda_floormod_with_vectorization():
         k = 37
         A = te.placeholder((n,), name="A")
         B = te.compute((n,), lambda i: A[tvm.tir.floormod(i, k)], name="B")
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
         xo, xi = sch.split(sch.get_loops("B")[0], factors=[1, None])
         xio, xii = sch.split(xi, factors=[None, 4])
         sch.vectorize(xii)
@@ -452,7 +452,7 @@ def test_vectorized_casts():
         C = te.compute((n,), lambda i: A[i] + topi.cast(B[i], A.dtype), name="C")
 
         # schedule
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B, C]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B, C]))
         ob, ib = sch.split(sch.get_loops("C")[0], factors=[None, factor])
         sch.vectorize(ib)
         sch.bind(ob, "threadIdx.x")
@@ -503,7 +503,7 @@ def test_vectorized_casts():
 
 def sched(A, B):
     # schedule
-    sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
     io, ii = sch.split(sch.get_loops("B")[0], factors=[1, None])
     iio, iii = sch.split(ii, factors=[32, None])
     _, iiii = sch.split(iii, factors=[None, 4])
@@ -641,7 +641,7 @@ def test_cuda_vectorize_load_permute_pad():
             name="B",
         )
 
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
         block, thread, vectorize = sch.get_loops("B")
         sch.bind(block, "blockIdx.x")
         sch.bind(thread, "threadIdx.x")
@@ -682,7 +682,7 @@ def test_try_unaligned_vector_load():
         return get_compute(4, 2, 2)
 
     def build(A, C, N, C_N):
-        sch = tvm.tir.Schedule(te.create_prim_func([A, C]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, C]))
         oi, ii = sch.split(sch.get_loops("C")[0], factors=[None, 2])
         sch.bind(oi, "threadIdx.x")
         sch.vectorize(ii)  # BUG: misalignment
