@@ -17,40 +17,51 @@
 
 import tvm
 import tvm.testing
-from tvm import TVMError
-from tvm.script import tir as T
+from tvm.script import tir as T, ir as I
 
 
-class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
-    @tvm.testing.fixture
-    def transform(self):
-        return tvm.tir.transform.RemoveAssume()
-
-
-class TestRemoveAssume(BaseBeforeAfter):
+def test_remove_assume():
     """Remove any instance of T.assume"""
 
-    def before(A: T.Buffer(1, "int32")):
-        T.evaluate(T.assume(A[0] == 5))
-        A[0] = 10
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "int32")):
+            T.evaluate(T.assume(A[0] == 5))
+            A[0] = 10
 
-    def expected(A: T.Buffer(1, "int32")):
-        A[0] = 10
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(1, "int32")):
+            A[0] = 10
+
+    After = tvm.tir.transform.RemoveAssume()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestRemoveAssumeLoop(BaseBeforeAfter):
+def test_remove_assume_loop():
     """Loops containing only T.assume should be removed"""
 
-    def before(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            T.evaluate(T.assume(A[i] == 0))
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(16, "int32")):
+            for i in T.serial(16):
+                T.evaluate(T.assume(A[i] == 0))
 
-        for i in T.serial(16):
-            A[i] = 10
+            for i in T.serial(16):
+                A[i] = 10
 
-    def expected(A: T.Buffer(16, "int32")):
-        for i in T.serial(16):
-            A[i] = 10
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(16, "int32")):
+            for i in T.serial(16):
+                A[i] = 10
+
+    After = tvm.tir.transform.RemoveAssume()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

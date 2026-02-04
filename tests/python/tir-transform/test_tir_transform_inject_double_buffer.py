@@ -65,7 +65,7 @@ def test_double_buffer():
     assert count[0] == 4
 
 
-class TestDoubleBuffer(tvm.testing.CompareBeforeAfter):
+def test_double_buffer_transform():
     transform = tvm.ir.transform.Sequential(
         [
             tvm.tir.transform.InjectDoubleBuffer(),
@@ -73,41 +73,50 @@ class TestDoubleBuffer(tvm.testing.CompareBeforeAfter):
         ]
     )
 
-    def before(A: T.Buffer([16, 32], "float32"), B: T.Buffer(16, "float32")):
-        for i in range(16):
-            cache_data = T.allocate([32], "float32")
-            cache = T.Buffer(32, "float32", data=cache_data)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer([16, 32], "float32"), B: T.Buffer(16, "float32")):
+            for i in range(16):
+                cache_data = T.allocate([32], "float32")
+                cache = T.Buffer(32, "float32", data=cache_data)
 
-            T.attr(cache_data, "double_buffer_scope", 1)
+                T.attr(cache_data, "double_buffer_scope", 1)
 
+                for j in range(32):
+                    cache[j] = A[i, j]
+
+                B[i] = 0.0
+                for j in range(32):
+                    B[i] = B[i] + cache[j]
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((16, 32), "float32"), B: T.Buffer((16,), "float32")):
+            cache_data = T.allocate([64], "float32", "global")
+            cache = T.Buffer(64, data=cache_data)
             for j in range(32):
-                cache[j] = A[i, j]
+                cache[j] = A[0, j]
 
-            B[i] = 0.0
+            B[0] = T.float32(0)
             for j in range(32):
-                B[i] = B[i] + cache[j]
+                B[0] = B[0] + cache[j]
 
-    def expected(A: T.Buffer((16, 32), "float32"), B: T.Buffer((16,), "float32")):
-        cache_data = T.allocate([64], "float32", "global")
-        cache = T.Buffer(64, data=cache_data)
-        for j in range(32):
-            cache[j] = A[0, j]
+            for i_outer in range(15):
+                T.attr(cache_data, "double_buffer_write", 1)
+                for j in range(32):
+                    cache[(i_outer + 1) % 2 * 32 + j] = A[i_outer + 1, j]
+                B[i_outer + 1] = T.float32(0)
+                for j in range(32):
+                    B[i_outer + 1] = B[i_outer + 1] + cache[(i_outer + 1) % 2 * 32 + j]
 
-        B[0] = T.float32(0)
-        for j in range(32):
-            B[0] = B[0] + cache[j]
-
-        for i_outer in range(15):
-            T.attr(cache_data, "double_buffer_write", 1)
-            for j in range(32):
-                cache[(i_outer + 1) % 2 * 32 + j] = A[i_outer + 1, j]
-            B[i_outer + 1] = T.float32(0)
-            for j in range(32):
-                B[i_outer + 1] = B[i_outer + 1] + cache[(i_outer + 1) % 2 * 32 + j]
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestDoubleBufferWithDeclBuffer(tvm.testing.CompareBeforeAfter):
-    """Like TestDoubleBuffer, but with a declared buffer object"""
+def test_double_buffer_with_decl_buffer():
+    """Like test_double_buffer_transform, but with a declared buffer object"""
 
     transform = tvm.ir.transform.Sequential(
         [
@@ -116,34 +125,43 @@ class TestDoubleBufferWithDeclBuffer(tvm.testing.CompareBeforeAfter):
         ]
     )
 
-    def before(A: T.Buffer((16, 32), "float32"), B: T.Buffer(16, "float32")):
-        for i in range(16):
-            cache = T.decl_buffer(32, "float32")
-            T.attr(cache.data, "double_buffer_scope", 1)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer((16, 32), "float32"), B: T.Buffer(16, "float32")):
+            for i in range(16):
+                cache = T.decl_buffer(32, "float32")
+                T.attr(cache.data, "double_buffer_scope", 1)
 
+                for j in range(32):
+                    cache[j] = A[i, j]
+
+                B[i] = 0.0
+                for j in range(32):
+                    B[i] = B[i] + cache[j]
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((16, 32), "float32"), B: T.Buffer(16, "float32")):
+            cache = T.decl_buffer(64, "float32")
             for j in range(32):
-                cache[j] = A[i, j]
+                cache[j] = A[0, j]
 
-            B[i] = 0.0
+            B[0] = T.float32(0)
             for j in range(32):
-                B[i] = B[i] + cache[j]
+                B[0] = B[0] + cache[j]
 
-    def expected(A: T.Buffer((16, 32), "float32"), B: T.Buffer(16, "float32")):
-        cache = T.decl_buffer(64, "float32")
-        for j in range(32):
-            cache[j] = A[0, j]
+            for i_outer in range(15):
+                T.attr(cache.data, "double_buffer_write", 1)
+                for j in range(32):
+                    cache[(i_outer + 1) % 2 * 32 + j] = A[i_outer + 1, j]
+                B[i_outer + 1] = T.float32(0)
+                for j in range(32):
+                    B[i_outer + 1] = B[i_outer + 1] + cache[(i_outer + 1) % 2 * 32 + j]
 
-        B[0] = T.float32(0)
-        for j in range(32):
-            B[0] = B[0] + cache[j]
-
-        for i_outer in range(15):
-            T.attr(cache.data, "double_buffer_write", 1)
-            for j in range(32):
-                cache[(i_outer + 1) % 2 * 32 + j] = A[i_outer + 1, j]
-            B[i_outer + 1] = T.float32(0)
-            for j in range(32):
-                B[i_outer + 1] = B[i_outer + 1] + cache[(i_outer + 1) % 2 * 32 + j]
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

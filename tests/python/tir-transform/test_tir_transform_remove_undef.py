@@ -15,79 +15,115 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
 import tvm
 import tvm.testing
-from tvm.script import tir as T
+from tvm.script import tir as T, ir as I
 from tvm import TVMError
 
 
-class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
-    @tvm.testing.fixture
-    def transform(self):
-        return tvm.tir.transform.RemoveStoreUndef()
-
-
-class TestRemoveStoreUndef(BaseBeforeAfter):
+def test_remove_store_undef():
     """Remove a store whose value is T.undef()"""
 
-    def before(A: T.Buffer(1, "int32")):
-        A[0] = T.undef(dtype="int32")
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "int32")):
+            A[0] = T.undef(dtype="int32")
 
-    def expected(A: T.Buffer(1, "int32")):
-        T.evaluate(0)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(1, "int32")):
+            T.evaluate(0)
+
+    After = tvm.tir.transform.RemoveStoreUndef()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestRemoveStoreUndefExpression(BaseBeforeAfter):
+def test_remove_store_undef_expression():
     """Expressions containing T.undef() are removed"""
 
-    def before(A: T.Buffer(1, "int32")):
-        A[0] = 1 + T.undef(dtype="int32")
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "int32")):
+            A[0] = 1 + T.undef(dtype="int32")
 
-    def expected(A: T.Buffer(1, "int32")):
-        T.evaluate(0)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(1, "int32")):
+            T.evaluate(0)
+
+    After = tvm.tir.transform.RemoveStoreUndef()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestKeepOtherCallNodes(BaseBeforeAfter):
+def test_keep_other_call_nodes():
     """Expressions containing other CallNodes are not removed"""
 
-    def before(A: T.Buffer(1, "int32"), n: T.int32):
-        A[0] = T.shift_left(n, 1, dtype="int32")
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "int32"), n: T.int32):
+            A[0] = T.shift_left(n, 1, dtype="int32")
 
-    expected = before
+    Expected = Before
+
+    After = tvm.tir.transform.RemoveStoreUndef()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestRemoveLetUndef(BaseBeforeAfter):
+def test_remove_let_undef():
     """Remove a store whose value is bound to T.undef()"""
 
-    def before(A: T.Buffer(1, "int32")):
-        val = T.undef(dtype="int32")
-        A[0] = val
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "int32")):
+            val = T.undef(dtype="int32")
+            A[0] = val
 
-    def expected(A: T.Buffer(1, "int32")):
-        T.evaluate(0)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(1, "int32")):
+            T.evaluate(0)
+
+    After = tvm.tir.transform.RemoveStoreUndef()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestRaiseErrorForUndefAsStoreIndices(BaseBeforeAfter):
+def test_raise_error_for_undef_as_store_indices():
     """Use of T.undef() as buffer indices is an error"""
 
-    def before(A: T.Buffer(1, "int32")):
-        val = T.undef(dtype="int32")
-        A[val] = 5
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "int32")):
+            val = T.undef(dtype="int32")
+            A[val] = 5
 
-    expected = TVMError
+    with pytest.raises(TVMError):
+        tvm.tir.transform.RemoveStoreUndef()(Before)
 
 
-class TestRaiseErrorForUndefAsLoadIndices(BaseBeforeAfter):
+def test_raise_error_for_undef_as_load_indices():
     """Use of T.undef() as buffer indices is an error
 
     Even though this occurs as part of the BufferStore's value, the
     T.undef() may not appear in a buffer's indices.
     """
 
-    def before(A: T.Buffer(1, "int32"), B: T.Buffer(1, "int32")):
-        B[0] = A[T.undef(dtype="int32")]
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "int32"), B: T.Buffer(1, "int32")):
+            B[0] = A[T.undef(dtype="int32")]
 
-    expected = TVMError
+    with pytest.raises(TVMError):
+        tvm.tir.transform.RemoveStoreUndef()(Before)
 
 
 if __name__ == "__main__":

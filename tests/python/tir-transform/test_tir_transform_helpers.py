@@ -85,34 +85,48 @@ def test_bind_target():
     assert after["func2"].attrs["target"] == target
 
 
-class TestBindTarget(tvm.testing.CompareBeforeAfter):
+def test_bind_target_adds_attribute():
     """BindTarget adds the "target" attribute"""
 
-    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda"))
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            T.evaluate(0)
 
-    def before():
-        T.evaluate(0)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            T.func_attr({"target": T.target("cuda")})
+            T.evaluate(0)
 
-    def expected():
-        T.func_attr({"target": T.target("cuda")})
-        T.evaluate(0)
+    After = tvm.tir.transform.BindTarget(tvm.target.Target("cuda"))(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestBindTargetWithHostToExposedFunction(tvm.testing.CompareBeforeAfter):
+def test_bind_target_with_host_to_exposed_function():
     """BindTarget adds the host target to externally-exposed functions"""
 
-    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm"))
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            T.func_attr({"global_symbol": "main"})
+            T.evaluate(0)
 
-    def before():
-        T.func_attr({"global_symbol": "main"})
-        T.evaluate(0)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
+            T.evaluate(0)
 
-    def expected():
-        T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
-        T.evaluate(0)
+    After = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm"))(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestBindTargetWithHostToInternalFunction(tvm.testing.CompareBeforeAfter):
+def test_bind_target_with_host_to_internal_function():
     """Internal functions have a target annotation, but without the host
 
     The host portion of the target annotation provides host
@@ -122,147 +136,147 @@ class TestBindTargetWithHostToInternalFunction(tvm.testing.CompareBeforeAfter):
     used.
     """
 
-    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm"))
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def main():
+            T.evaluate(0)
 
-    def before(self):
-        @I.ir_module
-        class module:
-            @T.prim_func(private=True)
-            def main():
-                T.evaluate(0)
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def main():
+            T.func_attr({"target": T.target("cuda")})
+            T.evaluate(0)
 
-        return module
-
-    def expected(self):
-        @I.ir_module
-        class module:
-            @T.prim_func(private=True)
-            def main():
-                T.func_attr({"target": T.target("cuda")})
-                T.evaluate(0)
-
-        return module
+    After = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm"))(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestBindTargetIgnoresExisting(tvm.testing.CompareBeforeAfter):
+def test_bind_target_ignores_existing():
     """BindTarget should not replace existing annotations"""
 
-    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda"))
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            T.func_attr({"target": T.target("nvptx")})
+            T.evaluate(0)
 
-    def before():
-        T.func_attr({"target": T.target("nvptx")})
-        T.evaluate(0)
+    Expected = Before
 
-    expected = before
+    After = tvm.tir.transform.BindTarget(tvm.target.Target("cuda"))(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestBindTargetUpdatesHost(tvm.testing.CompareBeforeAfter):
+def test_bind_target_updates_host():
     """BindTarget should update host for existing annotations"""
 
-    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm -opt-level=0"))
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            T.func_attr({"global_symbol": "func", "target": T.target("nvptx")})
+            T.evaluate(0)
 
-    def before():
-        T.func_attr({"global_symbol": "func", "target": T.target("nvptx")})
-        T.evaluate(0)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            T.func_attr(
+                {
+                    "global_symbol": "func",
+                    "target": T.target("nvptx", host="llvm -opt-level=0"),
+                }
+            )
+            T.evaluate(0)
 
-    def expected():
-        T.func_attr(
-            {
-                "global_symbol": "func",
-                "target": T.target("nvptx", host="llvm -opt-level=0"),
-            }
-        )
-        T.evaluate(0)
+    After = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm -opt-level=0"))(
+        Before
+    )
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestBindTargetMultipleFunctions(tvm.testing.CompareBeforeAfter):
+def test_bind_target_multiple_functions():
     """BindTarget may apply to multiple functions in a module"""
 
-    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda"))
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def func1():
+            T.evaluate(0)
 
-    def before(self):
-        @tvm.script.ir_module
-        class mod:
-            @T.prim_func
-            def func1():
-                T.evaluate(0)
+        @T.prim_func
+        def func2():
+            T.evaluate(0)
 
-            @T.prim_func
-            def func2():
-                T.evaluate(0)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def func1():
+            T.func_attr({"target": T.target("cuda")})
+            T.evaluate(0)
 
-        return mod
+        @T.prim_func
+        def func2():
+            T.func_attr({"target": T.target("cuda")})
+            T.evaluate(0)
 
-    def expected(self):
-        @tvm.script.ir_module
-        class mod:
-            @T.prim_func
-            def func1():
-                T.func_attr({"target": T.target("cuda")})
-                T.evaluate(0)
-
-            @T.prim_func
-            def func2():
-                T.func_attr({"target": T.target("cuda")})
-                T.evaluate(0)
-
-        return mod
+    After = tvm.tir.transform.BindTarget(tvm.target.Target("cuda"))(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestBindTargetWithDeviceHostCallSameFunc(tvm.testing.CompareBeforeAfter):
+def test_bind_target_with_device_host_call_same_func():
     """BindTarget should bind the device target to the function if it is called from device"""
 
-    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm -opt-level=0"))
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def add(a: T.int32, b: T.int32) -> T.int32:
+            return a + b
 
-    def before(self):
-        @I.ir_module
-        class Module:
-            @T.prim_func(private=True)
-            def add(a: T.int32, b: T.int32) -> T.int32:
-                return a + b
+        @T.prim_func
+        def main(
+            A: T.Buffer((128, 128), "int32"),
+            B: T.Buffer((128, 128), "int32"),
+            C: T.Buffer((128, 128), "int32"),
+        ):
+            T.func_attr({"global_symbol": "main"})
+            length: T.int32 = Before.add(64, 64)  # Call from host
+            for bx in T.thread_binding(length, "blockIdx.x"):
+                for tx in T.thread_binding(length, "threadIdx.x"):
+                    C[bx, tx] = Before.add(A[bx, tx], B[bx, tx])  # Call from device
 
-            @T.prim_func
-            def main(
-                A: T.Buffer((128, 128), "int32"),
-                B: T.Buffer((128, 128), "int32"),
-                C: T.Buffer((128, 128), "int32"),
-            ):
-                T.func_attr({"global_symbol": "main"})
-                length: T.int32 = Module.add(64, 64)  # Call from host
-                for bx in T.thread_binding(length, "blockIdx.x"):
-                    for tx in T.thread_binding(length, "threadIdx.x"):
-                        C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])  # Call from device
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def add(a: T.int32, b: T.int32) -> T.int32:
+            T.func_attr({"target": T.target("cuda")})
+            return a + b
 
-        return Module
+        @T.prim_func(private=True)
+        def add_host(a: T.int32, b: T.int32) -> T.int32:
+            T.func_attr({"target": T.target("llvm -opt-level=0")})
+            return a + b
 
-    def expected(self):
-        @I.ir_module
-        class Module:
-            @T.prim_func(private=True)
-            def add(a: T.int32, b: T.int32) -> T.int32:
-                T.func_attr({"target": T.target("cuda")})
-                return a + b
+        @T.prim_func
+        def main(
+            A: T.Buffer((128, 128), "int32"),
+            B: T.Buffer((128, 128), "int32"),
+            C: T.Buffer((128, 128), "int32"),
+        ):
+            T.func_attr(
+                {"global_symbol": "main", "target": T.target("cuda", host="llvm -opt-level=0")}
+            )
+            length: T.int32 = Expected.add_host(64, 64)  # Call from host
+            for bx in T.thread_binding(length, "blockIdx.x"):
+                for tx in T.thread_binding(length, "threadIdx.x"):
+                    C[bx, tx] = Expected.add(A[bx, tx], B[bx, tx])  # Call from device
 
-            @T.prim_func(private=True)
-            def add_host(a: T.int32, b: T.int32) -> T.int32:
-                T.func_attr({"target": T.target("llvm -opt-level=0")})
-                return a + b
-
-            @T.prim_func
-            def main(
-                A: T.Buffer((128, 128), "int32"),
-                B: T.Buffer((128, 128), "int32"),
-                C: T.Buffer((128, 128), "int32"),
-            ):
-                T.func_attr(
-                    {"global_symbol": "main", "target": T.target("cuda", host="llvm -opt-level=0")}
-                )
-                length: T.int32 = Module.add_host(64, 64)  # Call from host
-                for bx in T.thread_binding(length, "blockIdx.x"):
-                    for tx in T.thread_binding(length, "threadIdx.x"):
-                        C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])  # Call from device
-
-        return Module
+    After = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm -opt-level=0"))(
+        Before
+    )
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_filter_primfunc():
@@ -299,7 +313,7 @@ def test_filter_primfunc():
     assert len(after.functions) == 0
 
 
-class TestFilterRemovesGlobalVarMap(tvm.testing.CompareBeforeAfter):
+def test_filter_removes_global_var_map():
     """Filtering out a function should be identical to never adding it
 
     This test is to guard against hidden state in the IRModule that
@@ -308,23 +322,18 @@ class TestFilterRemovesGlobalVarMap(tvm.testing.CompareBeforeAfter):
     filtered-out functions.
     """
 
-    transform = tvm.tir.transform.Filter(lambda prim_func: False)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def func():
+            T.evaluate(0)
 
-    def before(self):
-        @I.ir_module
-        class module:
-            @T.prim_func
-            def func():
-                T.evaluate(0)
+    @I.ir_module
+    class Expected:
+        pass
 
-        return module
-
-    def expected(self):
-        @I.ir_module
-        class module:
-            pass
-
-        return module
+    After = tvm.tir.transform.Filter(lambda prim_func: False)(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

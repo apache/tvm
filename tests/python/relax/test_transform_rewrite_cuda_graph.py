@@ -25,10 +25,6 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    transform = relax.transform.RewriteCUDAGraph()
-
-
 @pytest.fixture(autouse=True)
 def enable_cuda_graph():
     """Enable cuda graph transform for all tests in this file"""
@@ -676,8 +672,9 @@ def test_capture_fixed_inputs():
     tvm.ir.assert_structural_equal(after, after)
 
 
-class TestNullValue(BaseCompare):
-    class before:
+def test_null_value():
+    @I.ir_module
+    class Before:
         @R.function
         def main() -> R.Tuple(R.Object):
             _io: R.Object = R.null_value()
@@ -685,7 +682,10 @@ class TestNullValue(BaseCompare):
             gv: R.Tuple(R.Object) = lv
             return gv
 
-    expected = before
+    Expected = Before
+
+    After = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_transform_is_no_op_when_disabled():
@@ -875,7 +875,7 @@ def test_dynamic_capture():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-class TestMergeAllocFuncs(BaseCompare):
+def test_merge_alloc_funcs():
     @I.ir_module
     class Before:
         @R.function
@@ -1012,8 +1012,11 @@ class TestMergeAllocFuncs(BaseCompare):
             R.tuple()
             return R.tuple()
 
+    After = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestDisableCaptureOutput(BaseCompare):
+
+def test_disable_capture_output():
     @I.ir_module
     class Before:
         @R.function
@@ -1087,8 +1090,11 @@ class TestDisableCaptureOutput(BaseCompare):
             gv = (alloc3,)
             return gv
 
+    After = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestStaticInputWithSymbolicShape(BaseCompare):
+
+def test_static_input_with_symbolic_shape():
     @I.ir_module
     class Before:
         @R.function
@@ -1174,6 +1180,9 @@ class TestStaticInputWithSymbolicShape(BaseCompare):
             R.call_packed("dummy", alloc2, w, alloc3, sinfo_args=(R.Tuple,))
             gv_1: R.Tuple(R.Tensor((8,), dtype="float16")) = (alloc3,)
             return gv_1
+
+    After = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

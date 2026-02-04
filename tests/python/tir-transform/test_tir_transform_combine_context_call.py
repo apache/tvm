@@ -26,14 +26,13 @@ def _device_context(dev_type, dev_id):
     return tvm.tir.Call("handle", "tir.tvm_thread_context", [ctx])
 
 
-class TestCombineContextsInLoop(tvm.testing.CompareBeforeAfter):
+def test_combine_contexts_in_loop():
     """Device contexts should be hoisted and merged"""
 
-    transform = tvm.tir.transform.CombineContextCall()
-
-    def before(self):
+    @I.ir_module
+    class Before:
         @T.prim_func
-        def func(dev_type: T.int32, n: T.int32):
+        def main(dev_type: T.int32, n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             A = T.allocate([n], "float32", "global")
             for i in range(n):
@@ -57,26 +56,31 @@ class TestCombineContextsInLoop(tvm.testing.CompareBeforeAfter):
                         A,
                     )
 
-        return func
-
-    def expected(dev_type: T.int32, n: T.int32):
-        T.func_attr({"target": T.target("llvm")})
-        ctx_cache_: T.handle = T.call_extern("handle", "device_context", dev_type, 0)
-        ctx_cache__1: T.handle = T.call_extern("handle", "device_context", dev_type, 1)
-        A = T.allocate([n], "float32", "global")
-        for i in range(n):
-            T.call_extern("int32", "fadd", ctx_cache_, A)
-            for j in range(10):
-                T.call_extern("int32", "fadd", ctx_cache__1, A)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(dev_type: T.int32, n: T.int32):
+            T.func_attr({"target": T.target("llvm")})
+            ctx_cache_: T.handle = T.call_extern("handle", "device_context", dev_type, 0)
+            ctx_cache__1: T.handle = T.call_extern("handle", "device_context", dev_type, 1)
+            A = T.allocate([n], "float32", "global")
+            for i in range(n):
                 T.call_extern("int32", "fadd", ctx_cache_, A)
+                for j in range(10):
+                    T.call_extern("int32", "fadd", ctx_cache__1, A)
+                    T.call_extern("int32", "fadd", ctx_cache_, A)
+
+    After = tvm.tir.transform.CombineContextCall()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestCombineContextsInLoopWithoutTarget(TestCombineContextsInLoop):
+def test_combine_contexts_in_loop_without_target():
     """CombineContextCall only updates host-side functions"""
 
-    def before(self):
+    @I.ir_module
+    class Before:
         @T.prim_func
-        def func(dev_type: T.int32, n: T.int32):
+        def main(dev_type: T.int32, n: T.int32):
             A = T.allocate([n], "float32", "global")
             for i in range(n):
                 T.call_extern(
@@ -99,9 +103,10 @@ class TestCombineContextsInLoopWithoutTarget(TestCombineContextsInLoop):
                         A,
                     )
 
-        return func
+    Expected = Before
 
-    expected = before
+    After = tvm.tir.transform.CombineContextCall()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

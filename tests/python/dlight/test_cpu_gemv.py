@@ -23,20 +23,9 @@ from tvm.script import tir as T
 from tvm.target import Target
 
 
-class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
-    @pytest.fixture
-    def transform(self):
-        def transform(mod):
-            with Target("llvm"):
-                return dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
-
-        return transform
-
-
-class TestGEMV(BaseBeforeAfter):
+def test_gemv_basic():
     # fmt: off
-
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(lv1637: T.Buffer((1, 32, 1, 128), "float16"), p_lv1638: T.handle, p_lv1614: T.handle, p_output0: T.handle):
         T.func_attr({"tir.noalias": True})
         n = T.int32()
@@ -81,7 +70,7 @@ class TestGEMV(BaseBeforeAfter):
                 T.writes(var_compute_intermediate[v_i0, v_i1, v_i2, v_i3])
                 var_compute_intermediate[v_i0, v_i1, v_i2, v_i3] = T.Cast("float32", var_T_minimum_intermediate[v_i0, v_i1, v_i2, v_i3])
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(lv1637: T.Buffer((1, 32, 1, 128), "float16"), p_lv1638: T.handle, p_lv1614: T.handle, p_output0: T.handle):
         T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         n = T.int32()
@@ -113,6 +102,11 @@ class TestGEMV(BaseBeforeAfter):
                 var_compute_intermediate[0, v0, 0, v1] = T.Cast("float32", T.min(T.max(var_NT_matmul_intermediate[0, v0, 0, v1] * T.float16(0.088397790055248615), T.float16(-65504.0)), lv1614[0, 0, 0, v1]))
 
     # fmt: on
+
+    mod = tvm.IRModule({"main": before})
+    with Target("llvm"):
+        mod = dl.ApplyDefaultSchedule(dl.cpu.GEMV())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_decode_gemv_256_threads():

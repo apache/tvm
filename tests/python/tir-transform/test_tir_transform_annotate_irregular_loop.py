@@ -20,7 +20,7 @@
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import tir as T
+from tvm.script import ir as I, tir as T
 
 
 def test_handle_irrgular_unit_loop():
@@ -57,146 +57,212 @@ def test_handle_irrgular_unit_loop():
     tvm.ir.assert_structural_equal(mod["before"].with_attr("global_symbol", "expected"), expected)
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
+def test_annotate_loop_with_break():
+    """Test that loops containing break statements are annotated as irregular."""
     transform = tir.transform.AnnotateIrregularLoop()
 
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer((10,), "int32")):
+            for i in T.serial(10):
+                if A[i] > 5:
+                    break
+                A[i] = A[i] + 1
 
-class TestAnnotateLoopWithBreak(BaseCompare):
-    """Test that loops containing break statements are annotated as irregular."""
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((10,), "int32")):
+            for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
+                if A[i] > 5:
+                    break
+                A[i] = A[i] + 1
 
-    def before(A: T.Buffer((10,), "int32")):
-        for i in T.serial(10):
-            if A[i] > 5:
-                break
-            A[i] = A[i] + 1
-
-    def expected(A: T.Buffer((10,), "int32")):
-        for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
-            if A[i] > 5:
-                break
-            A[i] = A[i] + 1
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestAnnotateLoopWithContinue(BaseCompare):
+def test_annotate_loop_with_continue():
     """Test that loops containing continue statements are annotated as irregular."""
+    transform = tir.transform.AnnotateIrregularLoop()
 
-    def before(A: T.Buffer((10,), "int32")):
-        for i in T.serial(10):
-            if A[i] < 0:
-                continue
-            A[i] = A[i] * 2
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer((10,), "int32")):
+            for i in T.serial(10):
+                if A[i] < 0:
+                    continue
+                A[i] = A[i] * 2
 
-    def expected(A: T.Buffer((10,), "int32")):
-        for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
-            if A[i] < 0:
-                continue
-            A[i] = A[i] * 2
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((10,), "int32")):
+            for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
+                if A[i] < 0:
+                    continue
+                A[i] = A[i] * 2
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestNestedIrregularBothLoops(BaseCompare):
+def test_nested_irregular_both_loops():
     """Test nested loops where both loops have break/continue."""
+    transform = tir.transform.AnnotateIrregularLoop()
 
-    def before(A: T.Buffer((10, 10), "int32")):
-        for i in T.serial(10):
-            if i > 7:
-                break
-            for j in T.serial(10):
-                if A[i, j] < 0:
-                    continue
-                A[i, j] = A[i, j] + 1
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer((10, 10), "int32")):
+            for i in T.serial(10):
+                if i > 7:
+                    break
+                for j in T.serial(10):
+                    if A[i, j] < 0:
+                        continue
+                    A[i, j] = A[i, j] + 1
 
-    def expected(A: T.Buffer((10, 10), "int32")):
-        for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
-            if i > 7:
-                break
-            for j in T.serial(10, annotations={"irregular_loop_mark": 1}):
-                if A[i, j] < 0:
-                    continue
-                A[i, j] = A[i, j] + 1
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((10, 10), "int32")):
+            for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
+                if i > 7:
+                    break
+                for j in T.serial(10, annotations={"irregular_loop_mark": 1}):
+                    if A[i, j] < 0:
+                        continue
+                    A[i, j] = A[i, j] + 1
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestWhileLoopWithBreak(BaseCompare):
+def test_while_loop_with_break():
     """Test that while loops with break/continue are not annotated (while loops don't have annotations)."""
+    transform = tir.transform.AnnotateIrregularLoop()
 
-    def before(A: T.Buffer((10,), "int32")):
-        i = T.int32(0)
-        while i < 10:
-            if A[i] > 5:
-                break
-            A[i] = A[i] + 1
-            i = i + 1
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer((10,), "int32")):
+            i = T.int32(0)
+            while i < 10:
+                if A[i] > 5:
+                    break
+                A[i] = A[i] + 1
+                i = i + 1
 
-    def expected(A: T.Buffer((10,), "int32")):
-        i = T.int32(0)
-        while i < 10:
-            if A[i] > 5:
-                break
-            A[i] = A[i] + 1
-            i = i + 1
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((10,), "int32")):
+            i = T.int32(0)
+            while i < 10:
+                if A[i] > 5:
+                    break
+                A[i] = A[i] + 1
+                i = i + 1
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestBreakInNestedConditional(BaseCompare):
+def test_break_in_nested_conditional():
     """Test break statement deeply nested in conditional blocks."""
+    transform = tir.transform.AnnotateIrregularLoop()
 
-    def before(A: T.Buffer((10,), "int32"), flag1: T.int32, flag2: T.int32):
-        for i in T.serial(10):
-            if flag1 > 0:
-                if flag2 > 0:
-                    if A[i] > 5:
-                        break
-            A[i] = A[i] + 1
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer((10,), "int32"), flag1: T.int32, flag2: T.int32):
+            for i in T.serial(10):
+                if flag1 > 0:
+                    if flag2 > 0:
+                        if A[i] > 5:
+                            break
+                A[i] = A[i] + 1
 
-    def expected(A: T.Buffer((10,), "int32"), flag1: T.int32, flag2: T.int32):
-        for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
-            if flag1 > 0:
-                if flag2 > 0:
-                    if A[i] > 5:
-                        break
-            A[i] = A[i] + 1
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((10,), "int32"), flag1: T.int32, flag2: T.int32):
+            for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
+                if flag1 > 0:
+                    if flag2 > 0:
+                        if A[i] > 5:
+                            break
+                A[i] = A[i] + 1
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestWhileLoopWithBreakStandalone(BaseCompare):
+def test_while_loop_with_break_standalone():
     """Test that while loops with break/continue are not annotated (while loops don't have annotations)."""
+    transform = tir.transform.AnnotateIrregularLoop()
 
-    def before(A: T.Buffer((10,), "int32")):
-        i = T.int32(0)
-        while i < 10:
-            if A[i] > 5:
-                break
-            A[i] = A[i] + 1
-            i = i + 1
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer((10,), "int32")):
+            i = T.int32(0)
+            while i < 10:
+                if A[i] > 5:
+                    break
+                A[i] = A[i] + 1
+                i = i + 1
 
-    def expected(A: T.Buffer((10,), "int32")):
-        i = T.int32(0)
-        while i < 10:
-            if A[i] > 5:
-                break
-            A[i] = A[i] + 1
-            i = i + 1
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((10,), "int32")):
+            i = T.int32(0)
+            while i < 10:
+                if A[i] > 5:
+                    break
+                A[i] = A[i] + 1
+                i = i + 1
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestNestedIrregularLoopStandalone(BaseCompare):
+def test_nested_irregular_loop_standalone():
     """Test deeply nested loops with irregular control flow only in innermost loop."""
+    transform = tir.transform.AnnotateIrregularLoop()
 
-    def before(A: T.Buffer((5, 5, 5), "int32")):
-        for i in T.serial(5):
-            for j in T.serial(5):
-                for k in T.serial(5):
-                    if A[i, j, k] > 10:
-                        break
-                    if A[i, j, k] < 0:
-                        continue
-                    A[i, j, k] = A[i, j, k] + 1
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer((5, 5, 5), "int32")):
+            for i in T.serial(5):
+                for j in T.serial(5):
+                    for k in T.serial(5):
+                        if A[i, j, k] > 10:
+                            break
+                        if A[i, j, k] < 0:
+                            continue
+                        A[i, j, k] = A[i, j, k] + 1
 
-    def expected(A: T.Buffer((5, 5, 5), "int32")):
-        for i in T.serial(5):
-            for j in T.serial(5):
-                for k in T.serial(5, annotations={"irregular_loop_mark": 1}):
-                    if A[i, j, k] > 10:
-                        break
-                    if A[i, j, k] < 0:
-                        continue
-                    A[i, j, k] = A[i, j, k] + 1
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((5, 5, 5), "int32")):
+            for i in T.serial(5):
+                for j in T.serial(5):
+                    for k in T.serial(5, annotations={"irregular_loop_mark": 1}):
+                        if A[i, j, k] > 10:
+                            break
+                        if A[i, j, k] < 0:
+                            continue
+                        A[i, j, k] = A[i, j, k] + 1
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

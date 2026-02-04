@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+import pytest
 import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
@@ -43,38 +44,36 @@ def _create_context(mod, target) -> ms.TuneContext:
     return ctx
 
 
-class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
-    def transform(self):
-        def inner(mod):
-            target = Target("cuda", host="llvm")
-            ctx = ms.TuneContext(
-                mod=mod,
-                target=target,
-                space_generator=ms.space_generator.PostOrderApply(
-                    sch_rules=[],
-                    postprocs=[
-                        ms.postproc.RewriteLayout(),
-                    ],
-                    mutator_probs={},
-                ),
-                task_name="test",
-            )
-            sch = tvm.tir.Schedule(mod, debug_mask="all")
-            sch.enter_postproc()
-            if not ctx.space_generator.postprocs[0].apply(sch):
-                raise tvm.TVMError("RewriteLayout postproc failed")
-            return sch.mod
-
-        return inner
+def _apply_rewrite_layout(mod):
+    """Apply the RewriteLayout postproc transformation."""
+    target = Target("cuda", host="llvm")
+    ctx = ms.TuneContext(
+        mod=mod,
+        target=target,
+        space_generator=ms.space_generator.PostOrderApply(
+            sch_rules=[],
+            postprocs=[
+                ms.postproc.RewriteLayout(),
+            ],
+            mutator_probs={},
+        ),
+        task_name="test",
+    )
+    sch = tvm.tir.Schedule(mod, debug_mask="all")
+    sch.enter_postproc()
+    if not ctx.space_generator.postprocs[0].apply(sch):
+        raise tvm.TVMError("RewriteLayout postproc failed")
+    return sch.mod
 
 
-class TestTIRMatmul(BaseBeforeAfter):
+def test_tir_matmul():
     """Main functionality test
 
     A new block should be inserted to transform the layout, with the
     compute block operating on the temporary transformed buffer.
     """
 
+    @T.prim_func(private=True)
     def before(
         A: T.Buffer((16, 16), "float32"),
         B: T.Buffer((16, 16), "float32"),
@@ -90,6 +89,7 @@ class TestTIRMatmul(BaseBeforeAfter):
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
+    @T.prim_func(private=True)
     def expected(
         A: T.Buffer((16, 16), "float32"),
         B: T.Buffer((16, 16), "float32"),
@@ -111,10 +111,15 @@ class TestTIRMatmul(BaseBeforeAfter):
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B_reindex[vj, vk // 4, vk % 4]
 
+    mod = tvm.IRModule.from_expr(before)
+    mod = _apply_rewrite_layout(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
-class TestRewrittenBuffersMustOccurWithinBlock(BaseBeforeAfter):
+
+def test_rewritten_buffers_must_occur_within_block():
     """Buffers must occur within a Block"""
 
+    @T.prim_func(private=True)
     def before(
         A: T.Buffer((16, 16), "float32"),
     ) -> None:
@@ -122,16 +127,19 @@ class TestRewrittenBuffersMustOccurWithinBlock(BaseBeforeAfter):
         for i, j in T.grid(16, 16):
             T.evaluate(A[i, j])
 
-    expected = tvm.TVMError
+    mod = tvm.IRModule.from_expr(before)
+    with pytest.raises(tvm.TVMError):
+        _apply_rewrite_layout(mod)
 
 
-class TestExtentOne(BaseBeforeAfter):
+def test_extent_one():
     """Buffers with dimensions of extent 1 can be transformed
 
     Regression test for a previous bug, in which the removal of
     trivial variables resulted in an error in `IndexMap::Inverse`.
     """
 
+    @T.prim_func(private=True)
     def before(
         A: T.Buffer((16, 1), "float32"),
     ) -> None:
@@ -141,6 +149,7 @@ class TestExtentOne(BaseBeforeAfter):
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.evaluate(A[vi, vj])
 
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((16, 1), "float32")):
         T.func_attr({"layout_free_buffers": [0]})
 
@@ -155,6 +164,10 @@ class TestExtentOne(BaseBeforeAfter):
             with T.sblock("block"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.evaluate(A_global[vi])
+
+    mod = tvm.IRModule.from_expr(before)
+    mod = _apply_rewrite_layout(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
 @T.prim_func
@@ -482,13 +495,14 @@ def test_layout_rewrite_cache_read_multiple():
     tvm.ir.assert_structural_equal(sch.mod, Conv2dCacheReadMultipleRewritten)
 
 
-class TestLayoutRewriteInt64Index(BaseBeforeAfter):
+def test_layout_rewrite_int64_index():
+    @T.prim_func(private=True)
     def before(
         p0: T.Buffer((T.int64(12), T.int64(197), T.int64(64)), "int8"),
         p1: T.Buffer((T.int64(12), T.int64(197), T.int64(64)), "int8"),
         T_batch_matmul_NT: T.Buffer((T.int64(12), T.int64(197), T.int64(197)), "int32"),
     ):
-        T.func_attr({"layout_free_buffers": [1], "global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"layout_free_buffers": [1], "tir.noalias": True})
         for b_0_i_0_fused in T.parallel(T.int64(394)):
             for j_0 in T.serial(T.int64(1)):
                 for b_1, i_1, j_1 in T.grid(T.int64(1), T.int64(1), T.int64(1)):
@@ -543,12 +557,13 @@ class TestLayoutRewriteInt64Index(BaseBeforeAfter):
                                 "int32", p1[v_b, v_j, v_k]
                             )
 
+    @T.prim_func(private=True)
     def expected(
         p0: T.Buffer((T.int64(12), T.int64(197), T.int64(64)), "int8"),
         p1: T.Buffer((T.int64(12), T.int64(197), T.int64(64)), "int8"),
         T_batch_matmul_NT: T.Buffer((T.int64(12), T.int64(197), T.int64(197)), "int32"),
     ):
-        T.func_attr({"tir.noalias": True, "global_symbol": "main", "layout_free_buffers": [1]})
+        T.func_attr({"tir.noalias": True, "layout_free_buffers": [1]})
         p1_global = T.alloc_buffer(
             [T.int64(2), T.int64(64), T.int64(6), T.int64(197)], dtype="int8"
         )
@@ -610,6 +625,10 @@ class TestLayoutRewriteInt64Index(BaseBeforeAfter):
                         ] + T.Cast("int32", p0[v_b, v_i, v_k]) * T.Cast(
                             "int32", p1_global[v_b // T.int64(6), v_k, v_b % T.int64(6), v_j]
                         )
+
+    mod = tvm.IRModule.from_expr(before)
+    mod = _apply_rewrite_layout(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":

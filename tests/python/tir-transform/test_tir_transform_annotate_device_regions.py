@@ -20,38 +20,52 @@ import tvm.testing
 from tvm.script import tir as T, ir as I
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    transform = tvm.tir.transform.AnnotateDeviceRegions()
-
-
-class TestAnnotateThreadExtent(BaseCompare):
+def test_annotate_thread_extent():
     """Annotation inserted at the "thread_extent" attribute"""
 
-    def before(A: T.Buffer(16, "float32")):
-        T.func_attr({"target": T.target("cuda", host="llvm")})
-        i = T.launch_thread("threadIdx.x", 16)
-        A[i] = 0.0
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            i = T.launch_thread("threadIdx.x", 16)
+            A[i] = 0.0
 
-    def expected(A: T.Buffer(16, "float32")):
-        T.func_attr({"target": T.target("cuda", host="llvm")})
-        T.attr(T.target("cuda"), "target", 0)
-        i = T.launch_thread("threadIdx.x", 16)
-        A[i] = 0.0
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            T.attr(T.target("cuda"), "target", 0)
+            i = T.launch_thread("threadIdx.x", 16)
+            A[i] = 0.0
+
+    After = tvm.tir.transform.AnnotateDeviceRegions()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestAnnotateDeviceScope(BaseCompare):
+def test_annotate_device_scope():
     """Annotation inserted at the "device_scope" attribute"""
 
-    def before(A: T.Buffer(1, "float32")):
-        T.func_attr({"target": T.target("cuda", host="llvm")})
-        T.attr(0, "device_scope", 0)
-        A[0] = 0.0
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            T.attr(0, "device_scope", 0)
+            A[0] = 0.0
 
-    def expected(A: T.Buffer(1, "float32")):
-        T.func_attr({"target": T.target("cuda", host="llvm")})
-        T.attr(T.target("cuda"), "target", 0)
-        T.attr(0, "device_scope", 0)
-        A[0] = 0.0
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            T.attr(T.target("cuda"), "target", 0)
+            T.attr(0, "device_scope", 0)
+            A[0] = 0.0
+
+    After = tvm.tir.transform.AnnotateDeviceRegions()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

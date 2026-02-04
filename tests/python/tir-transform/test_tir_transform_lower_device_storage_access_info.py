@@ -16,7 +16,8 @@
 # under the License.
 
 import tvm
-from tvm.script import tir as T
+import tvm.testing
+from tvm.script import tir as T, ir as I
 
 
 @tvm.register_global_func("tvm.info.mem.global.test_with_head_address")
@@ -41,77 +42,113 @@ def mem_info_without_head_address():
     )
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    transform = tvm.tir.transform.LowerDeviceStorageAccessInfo()
-
-
-class TestLowerCPUAccessibleScope(BaseCompare):
+def test_lower_cpu_accessible_scope():
     """Allocate of CPU-visible buffers are replaced by LetStmt
 
     For scopes that are accessible by the CPU (e.g. VTCM on hexagon),
     the head address specifies how it should be accessed, and is used
     to replace the AllocateNode.
     """
+    transform = tvm.tir.transform.LowerDeviceStorageAccessInfo()
 
-    def before():
-        ptr = T.allocate([16], "float32", scope="global.test_with_head_address")
-        T.evaluate(ptr)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            ptr = T.allocate([16], "float32", scope="global.test_with_head_address")
+            T.evaluate(ptr)
 
-    def expected():
-        ptr: T.handle("float32", "global.test_with_head_address") = T.call_extern(  # noqa: F722
-            "handle", "dummy_head_address"
-        )
-        T.evaluate(ptr)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            ptr: T.handle("float32", "global.test_with_head_address") = T.call_extern(  # noqa: F722
+                "handle", "dummy_head_address"
+            )
+            T.evaluate(ptr)
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestLowerCPUAccessibleScopeWithDeclBuffer(BaseCompare):
-    """Like TestLowerCPUAccessibleScope, but with a DeclBuffer.
+def test_lower_cpu_accessible_scope_with_decl_buffer():
+    """Like test_lower_cpu_accessible_scope, but with a DeclBuffer.
 
     When the Allocate is updated, the DeclBuffer should not contain a
     dangling reference.
     """
+    transform = tvm.tir.transform.LowerDeviceStorageAccessInfo()
 
-    def before():
-        buf = T.decl_buffer(16, "float32", scope="global.test_with_head_address")
-        T.evaluate(buf.data)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            buf = T.decl_buffer(16, "float32", scope="global.test_with_head_address")
+            T.evaluate(buf.data)
 
-    def expected():
-        ptr: T.handle("float32", "global.test_with_head_address") = T.call_extern(  # noqa: F722
-            "handle", "dummy_head_address"
-        )
-        buf = T.decl_buffer(16, "float32", scope="global.test_with_head_address", data=ptr)
-        T.evaluate(ptr)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            ptr: T.handle("float32", "global.test_with_head_address") = T.call_extern(  # noqa: F722
+                "handle", "dummy_head_address"
+            )
+            buf = T.decl_buffer(16, "float32", scope="global.test_with_head_address", data=ptr)
+            T.evaluate(ptr)
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestLowerCPUInaccessibleScope(BaseCompare):
+def test_lower_cpu_inaccessible_scope():
     """Allocate of CPU-visible buffers are replaced by LetStmt
 
     For scopes that are inaccessible by the CPU (e.g. Texture memory
     on GPU), the allocate is removed.  All CPU-side references to the
     buffer should have been lowered by this point.
     """
+    transform = tvm.tir.transform.LowerDeviceStorageAccessInfo()
 
-    def before():
-        ptr = T.allocate([16], "float32", scope="global.test_without_head_address")
-        T.evaluate(0)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            ptr = T.allocate([16], "float32", scope="global.test_without_head_address")
+            T.evaluate(0)
 
-    def expected():
-        T.evaluate(0)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            T.evaluate(0)
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestLowerCPUInaccessibleScopeWithDeclBuffer(BaseCompare):
-    """Like TestLowerCPUInaccessibleScope, but with a DeclBuffer
+def test_lower_cpu_inaccessible_scope_with_decl_buffer():
+    """Like test_lower_cpu_inaccessible_scope, but with a DeclBuffer
 
     When the Allocate is removed, the DeclBuffer should not contain a
     dangling reference.
     """
+    transform = tvm.tir.transform.LowerDeviceStorageAccessInfo()
 
-    def before():
-        buf = T.decl_buffer(16, "float32", scope="global.test_without_head_address")
-        T.evaluate(0)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            buf = T.decl_buffer(16, "float32", scope="global.test_without_head_address")
+            T.evaluate(0)
 
-    def expected():
-        T.evaluate(0)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            T.evaluate(0)
+
+    After = transform(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

@@ -16,67 +16,63 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import tir
 from tvm.script import tir as T
-from tvm.tir.transform import HoistedConditionals, HoistedLetBindings, HoistExpression
+from tvm.tir.transform import HoistedConditionals, HoistedLetBindings
 
 
-class BaseBeforeAfter:
-    hoisted_conditionals = tvm.testing.parameter(HoistedConditionals.All)
-    hoisted_let_bindings = tvm.testing.parameter(HoistedLetBindings.All)
+def _run_transform(before, hoisted_conditionals, hoisted_let_bindings):
+    """Run HoistExpression transform with the given configuration."""
+    before_mod = tvm.IRModule.from_expr(before)
 
-    def test_hoist(self, hoisted_conditionals, hoisted_let_bindings):
-        before = self.before
-        before_mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
-
-        config = {
-            "tir.HoistExpression": {
-                "hoisted_conditionals": hoisted_conditionals.value,
-                "hoisted_let_bindings": hoisted_let_bindings.value,
-            }
+    config = {
+        "tir.HoistExpression": {
+            "hoisted_conditionals": hoisted_conditionals.value,
+            "hoisted_let_bindings": hoisted_let_bindings.value,
         }
+    }
 
-        with tvm.transform.PassContext(config=config):
-            after_mod = tvm.tir.transform.HoistExpression()(before_mod)
+    with tvm.transform.PassContext(config=config):
+        after_mod = tvm.tir.transform.HoistExpression()(before_mod)
 
-        after = after_mod["main"]
-        expected = self.expected.with_attr("global_symbol", "main")
-
-        try:
-            tvm.ir.assert_structural_equal(after, expected)
-        except ValueError as err:
-            script = tvm.IRModule({"expected": expected, "after": after, "before": before}).script()
-            raise ValueError(
-                f"Function after simplification did not match expected:\n{script}"
-            ) from err
+    return after_mod["main"]
 
 
-class TestHoistToTop(BaseBeforeAfter):
-    hoisted_conditionals = tvm.testing.parameter(
-        HoistedConditionals.IfElseStmt,
-        HoistedConditionals.All,
-    )
-
-    @T.prim_func
+def test_hoist_to_top_if_else_stmt():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if n != 0:
                 A[i] = 0.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((16,), "float32"), n: T.int32):
         if n != 0:
             for i in T.serial(16):
                 A[i] = 0.0
 
+    after = _run_transform(before, HoistedConditionals.IfElseStmt, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestSuppressHoistIfElse(BaseBeforeAfter):
-    hoisted_conditionals = tvm.testing.parameter(
-        HoistedConditionals.Never,
-        HoistedConditionals.IfElseExpr,
-    )
 
-    @T.prim_func
+def test_hoist_to_top_all():
+    @T.prim_func(private=True)
+    def before(A: T.Buffer((16,), "float32"), n: T.int32):
+        for i in T.serial(16):
+            if n != 0:
+                A[i] = 0.0
+
+    @T.prim_func(private=True)
+    def expected(A: T.Buffer((16,), "float32"), n: T.int32):
+        if n != 0:
+            for i in T.serial(16):
+                A[i] = 0.0
+
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_suppress_hoist_if_else_never():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((16,), "float32"), n: T.int32):
         for i in T.serial(16):
             if n != 0:
@@ -84,9 +80,25 @@ class TestSuppressHoistIfElse(BaseBeforeAfter):
 
     expected = before
 
+    after = _run_transform(before, HoistedConditionals.Never, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistBlockVar(BaseBeforeAfter):
-    @T.prim_func
+
+def test_suppress_hoist_if_else_expr_only():
+    @T.prim_func(private=True)
+    def before(A: T.Buffer((16,), "float32"), n: T.int32):
+        for i in T.serial(16):
+            if n != 0:
+                A[i] = 0.0
+
+    expected = before
+
+    after = _run_transform(before, HoistedConditionals.IfElseExpr, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_hoist_block_var():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
         i = T.env_thread("threadIdx.x")
         T.launch_thread(i, 128)
@@ -95,7 +107,7 @@ class TestHoistBlockVar(BaseBeforeAfter):
             if i < 32:
                 A[i, j] = 0.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((128, 16), "float32"), n: T.int32):
         i = T.env_thread("threadIdx.x")
         T.launch_thread(i, 128)
@@ -104,13 +116,12 @@ class TestHoistBlockVar(BaseBeforeAfter):
             for j in T.serial(16):
                 A[i, j] = 0.0
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestSuppressHoistBlockVar(BaseBeforeAfter):
-    hoisted_conditionals = tvm.testing.parameter(
-        HoistedConditionals.All & ~HoistedConditionals.UsingBlockVar
-    )
 
-    @T.prim_func
+def test_suppress_hoist_block_var():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
         thread_x = T.env_thread("threadIdx.x")
         T.launch_thread(thread_x, 128)
@@ -122,9 +133,16 @@ class TestSuppressHoistBlockVar(BaseBeforeAfter):
 
     expected = before
 
+    after = _run_transform(
+        before,
+        HoistedConditionals.All & ~HoistedConditionals.UsingBlockVar,
+        HoistedLetBindings.All,
+    )
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistAcrossBlockVar(BaseBeforeAfter):
-    @T.prim_func
+
+def test_hoist_across_block_var():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
         thread_x = T.env_thread("threadIdx.x")
         T.launch_thread(thread_x, 128)
@@ -134,7 +152,7 @@ class TestHoistAcrossBlockVar(BaseBeforeAfter):
                 for j in T.serial(16):
                     A[i, j] = 0.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((128, 16), "float32"), n: T.int32):
         thread_x = T.env_thread("threadIdx.x")
 
@@ -144,13 +162,12 @@ class TestHoistAcrossBlockVar(BaseBeforeAfter):
                 for j in T.serial(16):
                     A[i, j] = 0.0
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestSuppressHoistAcrossBlockVar(BaseBeforeAfter):
-    hoisted_conditionals = tvm.testing.parameter(
-        HoistedConditionals.All & ~HoistedConditionals.UsingBlockVar
-    )
 
-    @T.prim_func
+def test_suppress_hoist_across_block_var():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((128, 16), "float32"), n: T.int32):
         thread_x = T.env_thread("threadIdx.x")
         T.launch_thread(thread_x, 128)
@@ -160,7 +177,7 @@ class TestSuppressHoistAcrossBlockVar(BaseBeforeAfter):
                 if n == 0:
                     A[i, j] = 0.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((128, 16), "float32"), n: T.int32):
         thread_x = T.env_thread("threadIdx.x")
 
@@ -170,25 +187,35 @@ class TestSuppressHoistAcrossBlockVar(BaseBeforeAfter):
                 for j in T.serial(16):
                     A[i, j] = 0.0
 
+    after = _run_transform(
+        before,
+        HoistedConditionals.All & ~HoistedConditionals.UsingBlockVar,
+        HoistedLetBindings.All,
+    )
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistToMiddle(BaseBeforeAfter):
-    @T.prim_func
+
+def test_hoist_to_middle():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
                 if i < 3:
                     A[i, j] = 0.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 3:
                 for j in T.serial(4):
                     A[i, j] = 0.0
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistWithLet(BaseBeforeAfter):
-    @T.prim_func
+
+def test_hoist_with_let():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
@@ -196,7 +223,7 @@ class TestHoistWithLet(BaseBeforeAfter):
                 if condition:
                     A[i, j] = 0.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             condition = i < 3
@@ -204,17 +231,18 @@ class TestHoistWithLet(BaseBeforeAfter):
                 for j in T.serial(4):
                     A[i, j] = 0.0
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistDisableLet(BaseBeforeAfter):
-    """As TestHoistWithLet, but forbid hoisting of LetStmt
+
+def test_hoist_disable_let():
+    """As test_hoist_with_let, but forbid hoisting of LetStmt
 
     Because the condition depends on the let binding, it should no
     longer be hoisted.
     """
 
-    hoisted_let_bindings = tvm.testing.parameter(HoistedLetBindings.Never)
-
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
@@ -224,9 +252,12 @@ class TestHoistDisableLet(BaseBeforeAfter):
 
     expected = before
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.Never)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistIfElse(BaseBeforeAfter):
-    @T.prim_func
+
+def test_hoist_if_else():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
@@ -235,7 +266,7 @@ class TestHoistIfElse(BaseBeforeAfter):
                 else:
                     A[i, j] = 1.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 3:
@@ -245,9 +276,12 @@ class TestHoistIfElse(BaseBeforeAfter):
                 for j in T.serial(4):
                     A[i, j] = 1.0
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistSequentialAssign(BaseBeforeAfter):
-    @T.prim_func
+
+def test_hoist_sequential_assign():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
@@ -258,7 +292,7 @@ class TestHoistSequentialAssign(BaseBeforeAfter):
                     A[i, j] = 1.0
                     B[i, j] = 1.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 3:
@@ -270,9 +304,12 @@ class TestHoistSequentialAssign(BaseBeforeAfter):
                     A[i, j] = 1.0
                     B[i, j] = 1.0
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistMultiIf(BaseBeforeAfter):
-    @T.prim_func
+
+def test_hoist_multi_if():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
@@ -281,7 +318,7 @@ class TestHoistMultiIf(BaseBeforeAfter):
                         if i < 2:
                             A[i, j] = 0.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
@@ -290,15 +327,18 @@ class TestHoistMultiIf(BaseBeforeAfter):
                         for k in T.serial(4):
                             A[i, j] = 0.0
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistComplexConditional(BaseBeforeAfter):
-    @T.prim_func
+
+def test_hoist_complex_conditional():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i, j, k in T.grid(4, 4, 4):
             if j < 3 and i < 2:
                 A[i, j] = 0.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
@@ -307,28 +347,34 @@ class TestHoistComplexConditional(BaseBeforeAfter):
                         for k in T.serial(4):
                             A[i, j] = 0.0
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestSuppressSplittingConditional(BaseBeforeAfter):
-    hoisted_conditionals = tvm.testing.parameter(
-        HoistedConditionals.All & ~HoistedConditionals.BooleanExpression
-    )
 
-    @T.prim_func
+def test_suppress_splitting_conditional():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i, j, k in T.grid(4, 4, 4):
             if j < 3 and i < 2:
                 A[i, j] = 0.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             if j < 3 and i < 2:
                 for k in T.serial(4):
                     A[i, j] = 0.0
 
+    after = _run_transform(
+        before,
+        HoistedConditionals.All & ~HoistedConditionals.BooleanExpression,
+        HoistedLetBindings.All,
+    )
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistMultiIfElse(BaseBeforeAfter):
-    @T.prim_func
+
+def test_hoist_multi_if_else():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
@@ -344,7 +390,7 @@ class TestHoistMultiIfElse(BaseBeforeAfter):
                         else:
                             A[i, j] = 3.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
@@ -364,9 +410,12 @@ class TestHoistMultiIfElse(BaseBeforeAfter):
                         for k in T.serial(4):
                             A[i, j] = 3.0
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistMultiIfElseDifferentBranches(BaseBeforeAfter):
-    @T.prim_func
+
+def test_hoist_multi_if_else_different_branches():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             for j in T.serial(4):
@@ -382,7 +431,7 @@ class TestHoistMultiIfElseDifferentBranches(BaseBeforeAfter):
                         else:
                             A[i, j] = 3.0
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
@@ -411,14 +460,17 @@ class TestHoistMultiIfElseDifferentBranches(BaseBeforeAfter):
                         for k in T.serial(4):
                             A[i, j] = 3.0
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistIfElseExpr(BaseBeforeAfter):
-    @T.prim_func
+
+def test_hoist_if_else_expr():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             A[i, j] = T.if_then_else(i < 2, 1.0, 2.0, dtype="float32")
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             if i < 2:
@@ -428,47 +480,59 @@ class TestHoistIfElseExpr(BaseBeforeAfter):
                 for j in T.serial(4):
                     A[i, j] = 2.0
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestSuppressHoistIfElseExpr(TestHoistIfElseExpr):
-    hoisted_conditionals = tvm.testing.parameter(
-        HoistedConditionals.All & ~HoistedConditionals.IfElseExpr
-    )
 
-    @T.prim_func
+def test_suppress_hoist_if_else_expr():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             A[i, j] = T.if_then_else(i < 2, 1.0, 2.0, dtype="float32")
 
     expected = before
 
+    after = _run_transform(
+        before,
+        HoistedConditionals.All & ~HoistedConditionals.IfElseExpr,
+        HoistedLetBindings.All,
+    )
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestHoistLetExpr(BaseBeforeAfter):
-    @T.prim_func
+
+def test_hoist_let_expr():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             x = T.float32()
             A[i, j] = T.Let(5.0 * x + T.cast(j, "float32"), where={x: T.cast(i + 1, "float32")})
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
         for i in T.serial(4):
             x = T.cast(i + 1, "float32")
             for j in T.serial(4):
                 A[i, j] = 5.0 * x + T.cast(j, "float32")
 
+    after = _run_transform(before, HoistedConditionals.All, HoistedLetBindings.All)
+    tvm.ir.assert_structural_equal(after, expected)
 
-class TestSuppressHoistLetExpr(BaseBeforeAfter):
-    hoisted_let_bindings = tvm.testing.parameter(
-        HoistedLetBindings.All & ~HoistedLetBindings.LetExpr
-    )
 
-    @T.prim_func
+def test_suppress_hoist_let_expr():
+    @T.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
             x = T.float32()
             A[i, j] = T.Let(5.0 * x + T.cast(j, "float32"), where={x: T.cast(i + 1, "float32")})
 
     expected = before
+
+    after = _run_transform(
+        before,
+        HoistedConditionals.All,
+        HoistedLetBindings.All & ~HoistedLetBindings.LetExpr,
+    )
+    tvm.ir.assert_structural_equal(after, expected)
 
 
 if __name__ == "__main__":

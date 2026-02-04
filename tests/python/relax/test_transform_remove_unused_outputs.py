@@ -20,11 +20,7 @@ import tvm.testing
 from tvm.script import ir as I, relax as R, tir as T
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    transform = tvm.relax.transform.RemoveUnusedOutputs()
-
-
-class TestSimple(BaseCompare):
+def test_simple():
     @I.ir_module
     class Before:
         @R.function
@@ -50,8 +46,11 @@ class TestSimple(BaseCompare):
             A = R.zeros([16, 16], "int32")
             return A
 
+    After = tvm.relax.transform.RemoveUnusedOutputs()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestUseMultipleOutputs(BaseCompare):
+
+def test_use_multiple_outputs():
     @I.ir_module
     class Before:
         @R.function
@@ -79,8 +78,11 @@ class TestUseMultipleOutputs(BaseCompare):
             C = R.zeros([32, 32], "int32")
             return (A, C)
 
+    After = tvm.relax.transform.RemoveUnusedOutputs()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestMultipleCallSites(BaseCompare):
+
+def test_multiple_call_sites():
     @I.ir_module
     class Before:
         @R.function
@@ -118,8 +120,11 @@ class TestMultipleCallSites(BaseCompare):
             C = R.zeros([32, 32], "int32")
             return (A, C)
 
+    After = tvm.relax.transform.RemoveUnusedOutputs()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestReturnTuple(BaseCompare):
+
+def test_return_tuple():
     @I.ir_module
     class Before:
         @R.function
@@ -137,6 +142,9 @@ class TestReturnTuple(BaseCompare):
             return (C, D)
 
     Expected = Before
+
+    After = tvm.relax.transform.RemoveUnusedOutputs()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
