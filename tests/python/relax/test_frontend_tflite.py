@@ -18,6 +18,7 @@
 # pylint: disable=import-outside-toplevel, redefined-builtin
 """TFLite to Relax converter tests"""
 
+import os
 import pytest
 import tempfile
 import tensorflow as tf
