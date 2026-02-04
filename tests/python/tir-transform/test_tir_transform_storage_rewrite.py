@@ -43,20 +43,20 @@ def test_alloc_seq():
 
     register_mem(scope_tb, max_bits)
 
-    ib = tvm.tir.ir_builder.create()
-    n = te.var("n")
-    with ib.for_range(0, n, name="i") as i:
-        with ib.for_range(0, 10, name="j") as j:
-            A = ib.allocate("float32", 200, name="A", scope=scope_tb)
-            A[j] = 1.2
-        with ib.for_range(0, 10, name="j") as j:
-            A = ib.allocate("float32", 200, name="B", scope=scope_tb)
-            A[j] = 1.3
+    @T.prim_func
+    def func(n: T.int32):
+        for i in T.serial(n):
+            for j in range(10):
+                A_data = T.allocate([200], "float32", scope=scope_tb)
+                A = T.Buffer([200], "float32", data=A_data, scope=scope_tb)
+                A[j] = T.float32(1.2)
+            for j in range(10):
+                B_data = T.allocate([200], "float32", scope=scope_tb)
+                B = T.Buffer([200], "float32", data=B_data, scope=scope_tb)
+                B[j] = T.float32(1.3)
 
-    body = ib.get()
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+    mod = tvm.IRModule.from_expr(func)
+    body = tvm.tir.transform.StorageRewrite()(mod)["func"].body
 
     num_alloc = [0]
 
@@ -70,32 +70,41 @@ def test_alloc_seq():
 
 
 def test_alloc_different_dtypes():
-    def stmt_generater(dtype_list, length):
-        ib = tvm.tir.ir_builder.create()
-        base_dtype = dtype_list[0]
-        global_a = te.placeholder((length,), name="global_a", dtype=base_dtype)
+    # Test cross-loop buffer access with buffers allocated in parent scope
+    def make_mod(dtype_list, length):
         assert len(dtype_list) == 4
-        with ib.for_range(0, length, name="j") as j:
-            dtype = dtype_list[0]
-            A = ib.allocate(dtype, length, name="A", scope="local.L0A")
-            A[j] = tvm.tir.const(1, dtype=dtype)
-        with ib.for_range(0, length, name="j") as j:
-            dtype = dtype_list[1]
-            B = ib.allocate(dtype, length, name="B", scope="local.L0A")
-            B[j] = tvm.tir.const(1, dtype=dtype)
-        with ib.for_range(0, length, name="j") as j:
-            dtype = dtype_list[2]
-            C = ib.allocate(dtype, length, name="C", scope="local.L0A")
-            C[j] = tvm.tir.const(1, dtype=dtype)
-        with ib.for_range(0, length, name="j") as j:
-            dtype = dtype_list[3]
-            D = ib.allocate(dtype, length, name="D", scope="local.L0A")
-            D[j] = tvm.tir.const(1, dtype=dtype)
-        with ib.for_range(0, length, name="j") as j:
-            dtype = "int8"
-            E = ib.allocate(dtype, length, name="E", scope="local.L0A")
-            E[j] = A[j].astype(dtype) + B[j].astype(dtype) + C[j].astype(dtype) + D[j].astype(dtype)
-        return ib.get()
+
+        @T.prim_func
+        def func():
+            # Allocate all buffers in parent scope (before any loops)
+            A_data = T.allocate([length], dtype_list[0], scope="local.L0A")
+            A = T.Buffer([length], dtype_list[0], data=A_data, scope="local.L0A")
+            B_data = T.allocate([length], dtype_list[1], scope="local.L0A")
+            B = T.Buffer([length], dtype_list[1], data=B_data, scope="local.L0A")
+            C_data = T.allocate([length], dtype_list[2], scope="local.L0A")
+            C = T.Buffer([length], dtype_list[2], data=C_data, scope="local.L0A")
+            D_data = T.allocate([length], dtype_list[3], scope="local.L0A")
+            D = T.Buffer([length], dtype_list[3], data=D_data, scope="local.L0A")
+            E_data = T.allocate([length], "int8", scope="local.L0A")
+            E = T.Buffer([length], "int8", data=E_data, scope="local.L0A")
+
+            for j in range(length):
+                A[j] = T.Cast(dtype_list[0], 1)
+            for j in range(length):
+                B[j] = T.Cast(dtype_list[1], 1)
+            for j in range(length):
+                C[j] = T.Cast(dtype_list[2], 1)
+            for j in range(length):
+                D[j] = T.Cast(dtype_list[3], 1)
+            for j in range(length):
+                E[j] = (
+                    T.Cast("int8", A[j])
+                    + T.Cast("int8", B[j])
+                    + T.Cast("int8", C[j])
+                    + T.Cast("int8", D[j])
+                )
+
+        return tvm.IRModule.from_expr(func)
 
     def dtype_bit_len(dtype):
         index = 0
@@ -115,12 +124,10 @@ def test_alloc_different_dtypes():
             if isinstance(n, tvm.tir.Allocate):
                 assert n.extents[0].value == offset
 
-        body = stmt_generater(dtype_list, length)
+        mod = make_mod(dtype_list, length)
         offset = offset_generater(dtype_list, length)
 
-        mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], body))
-        body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
-
+        body = tvm.tir.transform.StorageRewrite()(mod)["func"].body
         tvm.tir.stmt_functor.post_order_visit(body, verify)
 
     length = 1024
@@ -191,53 +198,61 @@ def test_address_of():
 
 
 def test_parallel_alloc():
-    ib = tvm.tir.ir_builder.create()
-    n = te.var("n")
-    with ib.for_range(0, n, name="i", kind="parallel") as i:
-        with ib.for_range(0, 10, name="j") as j:
-            A = ib.allocate("float32", n, name="A", scope="global")
-            A[j] = A[j] + 2
+    @T.prim_func
+    def func1(n: T.int32):
+        for i in T.parallel(n):
+            for j in range(10):
+                A_data = T.allocate([n], "float32", scope="global")
+                A = T.Buffer([n], "float32", data=A_data, scope="global")
+                A[j] = A[j] + T.float32(2)
 
-    body = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
+    mod = tvm.IRModule.from_expr(func1)
+    body = tvm.tir.transform.StorageRewrite()(mod)["func1"]
 
     assert isinstance(body.body.body, tvm.tir.Allocate)
 
-    ib = tvm.tir.ir_builder.create()
-    n = te.var("n")
-    with ib.for_range(0, n, name="t") as i:
-        ib.scope_attr(
-            tvm.tir.const(1, "int32"), "pragma_scope", tvm.tir.StringImm("parallel_launch_point")
-        )
-        with ib.for_range(0, n, name="i", kind="parallel") as i:
-            with ib.for_range(0, 10, name="j") as j:
-                A = ib.allocate("float32", n, name="A", scope="global")
-                A[j] = A[j] + 2
-    body = ib.get()
+    @T.prim_func
+    def func2(n: T.int32):
+        for t in T.serial(n):
+            with T.attr(T.int32(1), "pragma_scope", "parallel_launch_point"):
+                for i in T.parallel(n):
+                    for j in range(10):
+                        A_data = T.allocate([n], "float32", scope="global")
+                        A = T.Buffer([n], "float32", data=A_data, scope="global")
+                        A[j] = A[j] + T.float32(2)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
+    mod = tvm.IRModule.from_expr(func2)
+    body = tvm.tir.transform.StorageRewrite()(mod)["func2"]
 
     assert isinstance(body.body.body.body.body, tvm.tir.Allocate)
 
 
 def test_while_alloc():
-    def get_mod(kind="serial"):
-        ib = tvm.tir.ir_builder.create()
-        n = te.var("n")
-        with ib.for_range(0, n, name="i", kind=kind) as i:
-            j = ib.allocate("int32", 1, name="j", scope="global")
+    @T.prim_func
+    def func_parallel(n: T.int32):
+        for i in T.parallel(n):
+            j_data = T.allocate([1], "int32", scope="global")
+            j = T.Buffer([1], "int32", data=j_data, scope="global")
             j[0] = 0
-            with ib.while_loop(j[0] < 10):
-                A = ib.allocate("float32", n, name="A", scope="global")
-                A[j[0]] = A[j[0]] + 2
-                j[0] += j[0] + 1
+            while j[0] < 10:
+                A_data = T.allocate([n], "float32", scope="global")
+                A = T.Buffer([n], "float32", data=A_data, scope="global")
+                A[j[0]] = A[j[0]] + T.float32(2)
+                j[0] = j[0] + j[0] + 1
 
-        body = ib.get()
-        return tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
+    @T.prim_func
+    def func_serial(n: T.int32):
+        for i in T.serial(n):
+            j_data = T.allocate([1], "int32", scope="global")
+            j = T.Buffer([1], "int32", data=j_data, scope="global")
+            j[0] = 0
+            while j[0] < 10:
+                A_data = T.allocate([n], "float32", scope="global")
+                A = T.Buffer([n], "float32", data=A_data, scope="global")
+                A[j[0]] = A[j[0]] + T.float32(2)
+                j[0] = j[0] + j[0] + 1
 
-    mod = get_mod(kind="parallel")
+    mod = tvm.IRModule.from_expr(func_parallel)
     # parallel (i, 0, n) {
     #   allocate j[int32 * 1]
     #   j[0] = 0
@@ -248,7 +263,7 @@ def test_while_alloc():
     #     j[0] = (j[0] + (j[0] + 1))
     #   }
     # }
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
+    body = tvm.tir.transform.StorageRewrite()(mod)["func_parallel"]
     # parallel (i, 0, n) {
     #   allocate j[int32 * 1]
     #   allocate A[float32 * n]
@@ -261,7 +276,7 @@ def test_while_alloc():
     assert isinstance(body.body.body, tvm.tir.Allocate)  # j
     assert isinstance(body.body.body.body, tvm.tir.Allocate)  # A
 
-    mod = get_mod(kind="serial")
+    mod = tvm.IRModule.from_expr(func_serial)
     # for (i, 0, n) {
     #   allocate j[int32 * 1]
     #   j[0] = 0
@@ -272,7 +287,7 @@ def test_while_alloc():
     #     j[0] = (j[0] + (j[0] + 1))
     #   }
     # }
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"]
+    body = tvm.tir.transform.StorageRewrite()(mod)["func_serial"]
     # allocate j[int32 * 1]
     # allocate A[float32 * n]
     # for (i, 0, n) {
@@ -287,27 +302,31 @@ def test_while_alloc():
 
 
 def test_alloc_seq_type():
-    ib = tvm.tir.ir_builder.create()
-    n = te.var("n")
-    with ib.for_range(0, n, name="i") as i:
-        with ib.for_range(0, 10, name="j") as j:
-            A = ib.allocate("float32", 200, name="A", scope="local.L0A")
-            A1 = ib.allocate("float32", 200, name="A1", scope="local.L0A")
-            A[j] = 1.2
-            A1[j] = 1.3
-            B = ib.allocate("int16", 200, name="B", scope="local.L0A")
-            B[j] = tvm.tir.const(1, "int16")
-            C = ib.allocate("int16", 200, name="C", scope="local.L0A")
-            C[j] = tvm.tir.const(1, "int16")
-            D = ib.allocate("int16", 200, name="D", scope="local.L0A")
-            D[j] = B[j] + C[j]
-            A2 = ib.allocate("float32", 200, name="A2", scope="local.L0A")
-            A2[j] = A[j]
+    @T.prim_func
+    def func(n: T.int32):
+        for i in T.serial(n):
+            for j in range(10):
+                A_data = T.allocate([200], "float32", scope="local.L0A")
+                A = T.Buffer([200], "float32", data=A_data, scope="local.L0A")
+                A1_data = T.allocate([200], "float32", scope="local.L0A")
+                A1 = T.Buffer([200], "float32", data=A1_data, scope="local.L0A")
+                A[j] = T.float32(1.2)
+                A1[j] = T.float32(1.3)
+                B_data = T.allocate([200], "int16", scope="local.L0A")
+                B = T.Buffer([200], "int16", data=B_data, scope="local.L0A")
+                B[j] = T.int16(1)
+                C_data = T.allocate([200], "int16", scope="local.L0A")
+                C = T.Buffer([200], "int16", data=C_data, scope="local.L0A")
+                C[j] = T.int16(1)
+                D_data = T.allocate([200], "int16", scope="local.L0A")
+                D = T.Buffer([200], "int16", data=D_data, scope="local.L0A")
+                D[j] = B[j] + C[j]
+                A2_data = T.allocate([200], "float32", scope="local.L0A")
+                A2 = T.Buffer([200], "float32", data=A2_data, scope="local.L0A")
+                A2[j] = A[j]
 
-    body = ib.get()
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+    mod = tvm.IRModule.from_expr(func)
+    body = tvm.tir.transform.StorageRewrite()(mod)["func"].body
 
     num_alloc = [0]
 
@@ -326,23 +345,24 @@ def test_alloc_seq_type2():
 
     register_mem(scope_tb, max_bits)
 
-    ib = tvm.tir.ir_builder.create()
-    n = te.var("n")
-    with ib.for_range(0, n, name="i") as i:
-        with ib.for_range(0, 10, name="j") as j:
-            A = ib.allocate("float32", 200, name="A", scope=scope_tb)
-            A[j] = 1.2
-        with ib.for_range(0, 20, name="j") as j:
-            B = ib.allocate("int16", 400, name="B", scope=scope_tb)
-            B[j] = tvm.tir.const(1, "int16")
-        with ib.for_range(0, 10, name="j") as j:
-            C = ib.allocate("float32", 200, name="C", scope=scope_tb)
-            C[j] = 1.2
+    @T.prim_func
+    def func(n: T.int32):
+        for i in T.serial(n):
+            for j in range(10):
+                A_data = T.allocate([200], "float32", scope=scope_tb)
+                A = T.Buffer([200], "float32", data=A_data, scope=scope_tb)
+                A[j] = T.float32(1.2)
+            for j in range(20):
+                B_data = T.allocate([400], "int16", scope=scope_tb)
+                B = T.Buffer([400], "int16", data=B_data, scope=scope_tb)
+                B[j] = T.int16(1)
+            for j in range(10):
+                C_data = T.allocate([200], "float32", scope=scope_tb)
+                C = T.Buffer([200], "float32", data=C_data, scope=scope_tb)
+                C[j] = T.float32(1.2)
 
-    body = ib.get()
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+    mod = tvm.IRModule.from_expr(func)
+    body = tvm.tir.transform.StorageRewrite()(mod)["func"].body
 
     num_alloc = [0]
 
@@ -356,27 +376,31 @@ def test_alloc_seq_type2():
 
 
 def test_reuse_small_buffer():
-    ib = tvm.tir.ir_builder.create()
-    n = te.var("n")
-    with ib.for_range(0, n, name="i") as i:
-        with ib.for_range(0, 10, name="j") as j:
-            A = ib.allocate("int16", 200, name="A", scope="local.L0A")
-            A[j] = tvm.tir.const(1, "int16")
-            B = ib.allocate("int16", 200, name="B", scope="local.L0A")
-            B[j] = tvm.tir.const(1, "int16")
-            B1 = ib.allocate("int16", 200, name="B1", scope="local.L0A")
-            B1[j] = A[j] + B[j]
-            C = ib.allocate("int16", 400, name="C", scope="local.L0A")
-            C[j] = tvm.tir.const(1, "int16")
-            D = ib.allocate("int16", 400, name="D", scope="local.L0A")
-            D[j] = tvm.tir.const(1, "int16")
-            E = ib.allocate("int16", 400, name="E", scope="local.L0A")
-            E[j] = C[j]
+    @T.prim_func
+    def func(n: T.int32):
+        for i in T.serial(n):
+            for j in range(10):
+                A_data = T.allocate([200], "int16", scope="local.L0A")
+                A = T.Buffer([200], "int16", data=A_data, scope="local.L0A")
+                A[j] = T.int16(1)
+                B_data = T.allocate([200], "int16", scope="local.L0A")
+                B = T.Buffer([200], "int16", data=B_data, scope="local.L0A")
+                B[j] = T.int16(1)
+                B1_data = T.allocate([200], "int16", scope="local.L0A")
+                B1 = T.Buffer([200], "int16", data=B1_data, scope="local.L0A")
+                B1[j] = A[j] + B[j]
+                C_data = T.allocate([400], "int16", scope="local.L0A")
+                C = T.Buffer([400], "int16", data=C_data, scope="local.L0A")
+                C[j] = T.int16(1)
+                D_data = T.allocate([400], "int16", scope="local.L0A")
+                D = T.Buffer([400], "int16", data=D_data, scope="local.L0A")
+                D[j] = T.int16(1)
+                E_data = T.allocate([400], "int16", scope="local.L0A")
+                E = T.Buffer([400], "int16", data=E_data, scope="local.L0A")
+                E[j] = C[j]
 
-    body = ib.get()
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
-    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+    mod = tvm.IRModule.from_expr(func)
+    body = tvm.tir.transform.StorageRewrite()(mod)["func"].body
 
     num_alloc = [0]
 

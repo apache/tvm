@@ -102,14 +102,12 @@ def test_ret_const():
 
 
 def test_control_flow_jump():
-    ib = tvm.tir.ir_builder.create()
-    a = tir.Var("a", "float32")
-    b = tir.Var("b", "float32")
-    with ib.if_scope(True):
-        ib.emit(tir.Evaluate(tir.ret(a)))
-    ib.emit(tir.Evaluate(tir.ret(b)))
-    stmt = ib.get()
-    func = tir.PrimFunc([a, b], stmt)
+    @T.prim_func
+    def func(a: T.float32, b: T.float32):
+        if True:
+            T.evaluate(T.ret(a))
+        T.evaluate(T.ret(b))
+
     func = build_tir_func(func)
     out = func(1.0, 2.0)
     assert out == 1.0

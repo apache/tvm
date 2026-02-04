@@ -24,10 +24,9 @@ import numpy
 
 @pytest.fixture
 def mod_without_attrs():
-    ib = tvm.tir.ir_builder.create()
+    # Use direct TIR construction to preserve exact parameter names
     A = tvm.tir.decl_buffer(name="A", shape=[1])
-    stmt = ib.get()
-    return tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], stmt))
+    return tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], tvm.tir.Evaluate(0)))
 
 
 @pytest.fixture
@@ -72,10 +71,9 @@ def test_device_setup(mod, target, dev):
 
 
 def test_no_buffers_no_device_setup():
-    ib = tvm.tir.ir_builder.create()
-    A = ib.pointer("float32", name="A")
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], stmt))
+    # Use direct TIR construction - pointer parameter (not buffer)
+    A = tvm.tir.Var("A", "handle")
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], tvm.tir.Evaluate(0)))
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm")))(mod)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
 
@@ -91,12 +89,10 @@ def test_argument_mapping(mod):
 
 
 def test_argument_mapping_multiple():
-    ib = tvm.tir.ir_builder.create()
+    # Use direct TIR construction to preserve exact parameter names
     A = tvm.tir.decl_buffer(name="A", shape=[1])
     B = tvm.tir.decl_buffer(name="B", shape=[1])
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, B], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, B], tvm.tir.Evaluate(0)))
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm")))(mod)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
 
@@ -107,11 +103,9 @@ def test_argument_mapping_multiple():
 
 
 def test_argument_mapping_multiple_matching():
-    ib = tvm.tir.ir_builder.create()
+    # Test passing the same buffer twice (duplicate parameter)
     A = tvm.tir.decl_buffer(name="A", shape=[1])
-    B = tvm.tir.decl_buffer(name="B", shape=[1])
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, A], stmt))
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, A], tvm.tir.Evaluate(0)))
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm")))(mod)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
 
@@ -122,13 +116,12 @@ def test_argument_mapping_multiple_matching():
 
 
 def test_body():
-    ib = tvm.tir.ir_builder.create()
+    # Test with 3 params: A, B, and a buffer ptr derived from A (has same name)
     A = tvm.tir.decl_buffer(name="A", shape=[1])
     B = tvm.tir.decl_buffer(name="B", shape=[1])
-    C = ib.buffer_ptr(A)
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, B, C], stmt))
+    # Create a buffer pointer variable that points to A's data
+    C = tvm.tir.Var("A", "handle")
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, B, C], tvm.tir.Evaluate(0)))
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm")))(mod)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("global_symbol", "main"))(mod)
     f = tvm.tir.transform.MakeUnpackedAPI()(mod)["main"]

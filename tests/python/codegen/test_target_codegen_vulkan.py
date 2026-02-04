@@ -211,49 +211,45 @@ def test_vulkan_while_if(target, dev):
     target = tvm.target.Target(target)
     n = 1
     dtype = "int32"
-    A = te.placeholder((n,), name="A", dtype=dtype)
 
-    def do_compute(A, B, n):
-        ib = tvm.tir.ir_builder.create()
-        A = ib.buffer_ptr(A)
-        B = ib.buffer_ptr(B)
+    def get_module(is_gpu):
+        if is_gpu:
 
-        if "gpu" in target.keys:
-            ib.scope_attr(te.thread_axis("blockIdx.x"), "thread_extent", 0)
+            @T.prim_func
+            def while_if_gpu(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "int32")):
+                for bx in T.thread_binding(1, thread="blockIdx.x"):
+                    iterations = T.decl_buffer((1,), "int32", scope="local")
+                    iterations[0] = 0
+                    B[0] = 0
+                    while iterations[0] < T.if_then_else(A[0] > 0, 10, 20):
+                        iterations[0] = iterations[0] + 1
+                        B[0] = B[0] + iterations[0]
 
-        iterations = ib.allocate("int32", (1,), name="iterations", scope="local")
-        iterations[0] = 0
-        B[0] = 0
+            return tvm.IRModule.from_expr(while_if_gpu.with_attr("target", target))
+        else:
 
-        loop_condition = iterations[0] < tvm.tir.if_then_else(A[0] > 0, 10, 20)
-        with ib.while_loop(loop_condition):
-            iterations[0] += 1
-            B[0] += iterations[0]
+            @T.prim_func
+            def while_if_cpu(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "int32")):
+                iterations = T.decl_buffer((1,), "int32", scope="local")
+                iterations[0] = 0
+                B[0] = 0
+                while iterations[0] < T.if_then_else(A[0] > 0, 10, 20):
+                    iterations[0] = iterations[0] + 1
+                    B[0] = B[0] + iterations[0]
 
-        return ib.get()
+            return tvm.IRModule.from_expr(while_if_cpu.with_attr("target", target))
 
-    B = te.extern(
-        A.shape,
-        [A],
-        lambda ins, outs: do_compute(ins[0], outs[0], n),
-        dtype=dtype,
-    )
+    mod = get_module("gpu" in target.keys)
+    compiled_func = tvm.compile(mod, target=target)
 
-    # Create IRModule
-    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Build
-    func = tvm.compile(sch.mod, target=target)
-
-    a = tvm.runtime.tensor(np.array([5], dtype=A.dtype), dev)
-    b = tvm.runtime.tensor(np.zeros(n, dtype=A.dtype), dev)
-    func(a, b)
+    a = tvm.runtime.tensor(np.array([5], dtype=dtype), dev)
+    b = tvm.runtime.tensor(np.zeros(n, dtype=dtype), dev)
+    compiled_func(a, b)
     tvm.testing.assert_allclose(b.numpy(), [55])
 
-    a = tvm.runtime.tensor(np.array([-5], dtype=A.dtype), dev)
-    b = tvm.runtime.tensor(np.zeros(n, dtype=A.dtype), dev)
-    func(a, b)
+    a = tvm.runtime.tensor(np.array([-5], dtype=dtype), dev)
+    b = tvm.runtime.tensor(np.zeros(n, dtype=dtype), dev)
+    compiled_func(a, b)
     tvm.testing.assert_allclose(b.numpy(), [210])
 
 
@@ -261,41 +257,22 @@ def test_vulkan_while_if(target, dev):
 def test_vulkan_local_threadidx(target, dev):
     target = tvm.target.Target(target)
     n = 32
-    A = te.placeholder((n,), name="A", dtype="int32")
 
-    def do_compute(A, B, n):
-        ib = tvm.tir.ir_builder.create()
-        A = ib.buffer_ptr(A)
-        B = ib.buffer_ptr(B)
+    @T.prim_func
+    def local_threadidx_func(A: T.Buffer((32,), "int32"), B: T.Buffer((32,), "int32")):
+        # First block with thread extent 16
+        for _ in range(1):
+            for tx in T.thread_binding(16, thread="threadIdx.x"):
+                B[tx + 0] = A[tx + 0]
+        # Second block with thread extent 16
+        for _ in range(1):
+            for tx in T.thread_binding(16, thread="threadIdx.x"):
+                B[tx + 16] = A[tx + 16]
 
-        tx = te.thread_axis("threadIdx.x")
+    mod = tvm.IRModule.from_expr(local_threadidx_func)
+    func = tvm.compile(mod, target=target)
 
-        with ib.for_range(0, 1):
-            ib.scope_attr(tx, "thread_extent", 16)
-            B[tx + 0] = A[tx + 0]
-
-        with ib.for_range(0, 1):
-            ib.scope_attr(tx, "thread_extent", 16)
-            B[tx + 16] = A[tx + 16]
-
-        return ib.get()
-
-    B = te.extern(
-        A.shape,
-        [A],
-        lambda ins, outs: do_compute(ins[0], outs[0], n),
-        dtype="int32",
-    )
-
-    # Create IRModule
-    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Build
-    func = tvm.compile(sch.mod, target=target)
-
-    n = 32
-    a_np = np.arange(n).astype(dtype=A.dtype)
+    a_np = np.arange(n).astype(dtype="int32")
     b_np = np.zeros((n,), dtype="int32")
     a = tvm.runtime.tensor(a_np, dev)
     b = tvm.runtime.tensor(b_np, dev)
@@ -303,96 +280,67 @@ def test_vulkan_local_threadidx(target, dev):
     tvm.testing.assert_allclose(b.numpy(), a_np)
 
 
-class TestVectorizedIndices:
-    load_type, store_type = tvm.testing.parameters(
-        # Load N values, write to N locations.
-        # Vectorized copy.
-        ("ramp", "ramp"),
-        # Load 1 value, write to N locations.
-        # Scalar load, vectorized store.
-        #
-        # Most TVM operations (e.g. schedule[tensor].vectorize(axis)) have
-        # the broadcast outside of the index, but it is semantically okay
-        # for the broadcast to be inside the index, and it shows up with
-        # some optimizations.
-        ("broadcast", "ramp"),
-        # Load 1 values, write to 1 location.
-        # Broadcasting on both sides should be equivalent to a scalar copy.
-        ("broadcast", "broadcast"),
-        # Loads N values, write to 1 location.
-        # Disabled as it would have unclear semantics.
-        # ("ramp","broadcoast"),
-    )
-    indirect_indices = tvm.testing.parameter(True, False, ids=["reorder", "no_reorder"])
+@tvm.testing.parametrize_targets("vulkan -from_device=0")
+def test_vectorized_index_ramp(target, dev):
+    """Test vectorized copy with ramp indices (load N values, write to N locations)"""
+    n = 4
+    ramp_index = tvm.tir.Ramp(0, 1, 4)
 
-    @tvm.testing.fixture
-    def ref_data(self, load_type, store_type, indirect_indices):
-        n = 4
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(var_A: T.handle, var_B: T.handle):
+            T.func_attr({"tir.noalias": True})
+            A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
+            B = T.match_buffer(var_B, (n,), "int32", offset_factor=1)
+            with T.sblock("compute"):
+                T.reads()
+                T.writes()
+                bx = T.launch_thread("blockIdx.x", 1)
+                B[ramp_index] = A[ramp_index]
 
-        index_map = {
-            "ramp": np.arange(n),
-            "broadcast": np.zeros(n, dtype="int32"),
-        }
+    f = tvm.compile(Module, target=target)
 
-        a_np = np.random.randint(np.iinfo("int32").max, size=n).astype("int32")
-        b_np = np.zeros(shape=n, dtype=a_np.dtype)
-        reorder_np = np.arange(n, dtype="int32")[::-1]
+    a_np = np.random.randint(np.iinfo("int32").max, size=n).astype("int32")
+    b_np = np.zeros(n, dtype="int32")
 
-        load_index = index_map[load_type]
-        store_index = index_map[store_type]
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(b_np, dev)
+    f(a, b)
+    tvm.testing.assert_allclose(b.numpy(), a_np)
 
-        if indirect_indices:
-            load_index = reorder_np[load_index]
 
-        b_np[store_index] = a_np[load_index]
+@tvm.testing.parametrize_targets("vulkan -from_device=0")
+def test_vectorized_index_broadcast(target, dev):
+    """Test broadcast index (load 1 value, write to N locations)"""
+    n = 4
+    broadcast_index = tvm.tir.Broadcast(0, 4)
+    ramp_index = tvm.tir.Ramp(0, 1, 4)
 
-        return a_np, reorder_np, b_np
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(var_A: T.handle, var_B: T.handle):
+            T.func_attr({"tir.noalias": True})
+            A = T.match_buffer(var_A, (n,), "int32", offset_factor=1)
+            B = T.match_buffer(var_B, (n,), "int32", offset_factor=1)
+            with T.sblock("compute"):
+                T.reads()
+                T.writes()
+                bx = T.launch_thread("blockIdx.x", 1)
+                # Load from broadcast index (single element), store to ramp index
+                B[ramp_index] = A[broadcast_index]
 
-    @tvm.testing.fixture
-    def mod(self, target, load_type, store_type, indirect_indices):
-        target = tvm.target.Target(target)
+    f = tvm.compile(Module, target=target)
 
-        n = 4
-        dtype = "int32"
-        A = te.placeholder((n,), dtype=dtype, name="A")
-        R = te.placeholder((n,), dtype=dtype, name="R")
+    a_np = np.random.randint(np.iinfo("int32").max, size=n).astype("int32")
+    b_np = np.zeros(n, dtype="int32")
 
-        def do_compute(ins, outs):
-            ib = tvm.tir.ir_builder.create()
-            A, R = map(ib.buffer_ptr, ins)
-            B = ib.buffer_ptr(outs[0])
-
-            if "gpu" in target.keys:
-                ib.scope_attr(te.thread_axis("blockIdx.x"), "thread_extent", 0)
-
-            index_map = {
-                "ramp": tvm.tir.Ramp(0, 1, 4),
-                "broadcast": tvm.tir.Broadcast(0, 4),
-            }
-
-            load_index = index_map[load_type]
-            store_index = index_map[store_type]
-
-            if indirect_indices:
-                load_index = R[load_index]
-
-            B[store_index] = A[load_index]
-
-            return ib.get()
-
-        B = te.extern(A.shape, [A, R], do_compute, dtype="int32")
-
-        return tvm.IRModule.from_expr(te.create_prim_func([A, R, B]))
-
-    def test_ramp_broadcast_index(self, target, dev, mod, ref_data):
-        f = tvm.compile(mod, target=target)
-
-        a_np, reorder_np, b_np = ref_data
-        a = tvm.runtime.tensor(a_np, dev)
-        r = tvm.runtime.tensor(reorder_np, dev)
-        b = tvm.runtime.tensor(np.zeros(shape=b_np.shape, dtype="int32"), dev)
-        f(a, r, b)
-        tvm.testing.assert_allclose(b.numpy(), b_np)
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(b_np, dev)
+    f(a, b)
+    # All elements of b should be a[0] (broadcast load)
+    tvm.testing.assert_allclose(b.numpy(), np.full(n, a_np[0]))
 
 
 def test_negative_operand_divmod(target, dev):

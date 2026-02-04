@@ -30,19 +30,17 @@ def collect_visit(stmt, f):
 
 
 def test_multi_loop():
-    ib = tvm.tir.ir_builder.create()
-    m = te.size_var("m")
-    n = te.size_var("n")
-    with ib.for_range(0, 4, "i") as i:
-        with ib.for_range(0, n, "j") as j:
-            with ib.for_range(0, m, "k") as k:
-                with ib.if_scope(ib.likely(i * m + j + k < n)):
-                    ib.emit(tvm.tir.Evaluate(m))
-                with ib.else_scope():
-                    ib.emit(tvm.tir.Evaluate(n))
-    stmt = ib.get()
+    @T.prim_func
+    def func(n: T.int64, m: T.int64):
+        for i in range(4):
+            for j in T.serial(n):
+                for k in T.serial(m):
+                    if T.likely(i * m + j + k < n):
+                        T.evaluate(m)
+                    else:
+                        T.evaluate(n)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n, m], stmt).with_attr("global_symbol", "main"))
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LoopPartition()(mod)
     stmt = tvm.tir.transform.Simplify()(mod)["main"].body
 
@@ -50,23 +48,21 @@ def test_multi_loop():
 
 
 def test_multi_if():
-    ib = tvm.tir.ir_builder.create()
-    m = te.size_var("m")
-    n = te.size_var("n")
-    with ib.for_range(0, 4, "i") as i:
-        with ib.for_range(0, n, "j") as j:
-            with ib.for_range(0, m, "k") as k:
-                with ib.if_scope(ib.likely(i * m + j + k < n)):
-                    ib.emit(tvm.tir.Evaluate(m))
-                with ib.else_scope():
-                    ib.emit(tvm.tir.Evaluate(n))
-                with ib.if_scope(ib.likely(i * m + j - k < n)):
-                    ib.emit(tvm.tir.Evaluate(m))
-                with ib.else_scope():
-                    ib.emit(tvm.tir.Evaluate(n))
-    stmt = ib.get()
+    @T.prim_func
+    def func(n: T.int64, m: T.int64):
+        for i in range(4):
+            for j in T.serial(n):
+                for k in T.serial(m):
+                    if T.likely(i * m + j + k < n):
+                        T.evaluate(m)
+                    else:
+                        T.evaluate(n)
+                    if T.likely(i * m + j - k < n):
+                        T.evaluate(m)
+                    else:
+                        T.evaluate(n)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LoopPartition()(mod)
     stmt = tvm.tir.transform.Simplify()(mod)["main"].body
 
@@ -74,15 +70,13 @@ def test_multi_if():
 
 
 def test_condition():
-    ib = tvm.tir.ir_builder.create()
-    m = te.size_var("m")
-    n = te.size_var("n")
-    with ib.for_range(0, tvm.tir.truncdiv(n + 3, 4), "i") as i:
-        with ib.for_range(0, 4, "j") as j:
-            ib.emit(tvm.tir.Evaluate(tvm.tir.Select(ib.likely(i * 4 + j < n), m, n)))
-    stmt = ib.get()
+    @T.prim_func
+    def func(m: T.int64, n: T.int64):
+        for i in T.serial(T.truncdiv(n + 3, 4)):
+            for j in range(4):
+                T.evaluate(T.Select(T.likely(i * 4 + j < n), m, n))
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt).with_attr("global_symbol", "main"))
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LoopPartition()(mod)
     stmt = tvm.tir.transform.Simplify()(mod)["main"].body
 
@@ -90,14 +84,12 @@ def test_condition():
 
 
 def test_condition_EQ():
-    ib = tvm.tir.ir_builder.create()
-    m = te.size_var("m")
-    n = te.size_var("n")
-    with ib.for_range(0, 10, "i") as i:
-        ib.emit(tvm.tir.Evaluate(tvm.tir.Select(ib.likely(tvm.tir.EQ(i, 5)), m, n)))
-    stmt = ib.get()
+    @T.prim_func
+    def func(m: T.int64, n: T.int64):
+        for i in range(10):
+            T.evaluate(T.Select(T.likely(i == 5), m, n))
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt).with_attr("global_symbol", "main"))
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
         stmt = tvm.tir.transform.Simplify()(mod)["main"].body
@@ -106,17 +98,15 @@ def test_condition_EQ():
 
 
 def test_everything_during_deduction():
-    m = te.size_var("m")
-    n = te.size_var("n")
-    ib = tvm.tir.ir_builder.create()
-    with ib.for_range(0, n, "i") as i:
-        with ib.for_range(0, 32, "j") as j:
-            with ib.if_scope(ib.likely(tvm.tir.truncdiv(i, j) < m)):
-                # this guard will produce everything during deduction
-                ib.emit(tvm.tir.Evaluate(m))
-    stmt = ib.get()
+    @T.prim_func
+    def func(m: T.int64, n: T.int64):
+        for i in T.serial(n):
+            for j in range(32):
+                if T.likely(T.truncdiv(i, j) < m):
+                    # this guard will produce everything during deduction
+                    T.evaluate(m)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt).with_attr("global_symbol", "main"))
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LoopPartition()(mod)
     stmt = tvm.tir.transform.Simplify()(mod)["main"].body
 
@@ -124,32 +114,27 @@ def test_everything_during_deduction():
 
 
 def test_oneD_pool():
-    m = te.size_var("m")
-    ib = tvm.tir.ir_builder.create()
-    # data = te.placeholder((16,), name = 'data')
-    data = ib.pointer("float32", name="A")
-    out = ib.pointer("float32", name="A")
-    with ib.for_range(0, 16, "ow") as ow:
-        with ib.for_range(0, 3, "kw") as kw:
-            with ib.if_scope(ib.likely(ow > 0)):
-                with ib.if_scope(ib.likely(ow < 15)):
-                    out[ow] = tvm.te.max(out[ow], data[ow + kw - 1])
-    with ib.for_range(0, 16, "ow") as ow:
-        with ib.for_range(0, 3, "kw") as kw:
-            with ib.if_scope(ib.likely(ow < 1)):
-                with ib.if_scope(ib.likely(kw > 0)):
-                    out[ow] = tvm.te.max(out[ow], data[ow + kw - 1])
-    with ib.for_range(0, 16, "ow") as ow:
-        with ib.for_range(0, 3, "kw") as kw:
-            with ib.if_scope(ib.likely(ow > 14)):
-                with ib.if_scope(ib.likely(kw < 2)):
-                    out[ow] = tvm.te.max(out[ow], data[ow + kw - 1])
+    @T.prim_func
+    def func(m: T.int64, data: T.handle("float32"), out: T.handle("float32")):
+        data_ptr = T.Buffer((16,), "float32", data=data)
+        out_ptr = T.Buffer((16,), "float32", data=out)
+        for ow in range(16):
+            for kw in range(3):
+                if T.likely(ow > 0):
+                    if T.likely(ow < 15):
+                        out_ptr[ow] = T.max(out_ptr[ow], data_ptr[ow + kw - 1])
+        for ow in range(16):
+            for kw in range(3):
+                if T.likely(ow < 1):
+                    if T.likely(kw > 0):
+                        out_ptr[ow] = T.max(out_ptr[ow], data_ptr[ow + kw - 1])
+        for ow in range(16):
+            for kw in range(3):
+                if T.likely(ow > 14):
+                    if T.likely(kw < 2):
+                        out_ptr[ow] = T.max(out_ptr[ow], data_ptr[ow + kw - 1])
 
-    stmt = ib.get()
-
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([m, data, out], stmt).with_attr("global_symbol", "main")
-    )
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
 
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
@@ -159,28 +144,19 @@ def test_oneD_pool():
 
 
 def test_cce_loop_1():
-    ib = tvm.tir.ir_builder.create()
-    dtype = "float16"
     n = 514
     m = 514
-    _A = te.placeholder((n * m,), name="A")
-    Ab = tvm.tir.decl_buffer((n * m,), dtype, name="A")
-    A = ib.buffer_ptr(Ab)
-    _B = te.placeholder((n * m,), name="B")
-    Bb = tvm.tir.decl_buffer((n * m,), dtype, name="B")
-    B = ib.buffer_ptr(Bb)
-    # for i in 0 to n-1:
-    with ib.for_range(0, 11, name="i") as i:
-        with ib.for_range(0, 160, name="j") as j:
-            with ib.if_scope(ib.likely(((i * 160) + j) < 1600)):
-                A[(i + 1) * m + j + 1] = (
-                    B[(i) * m + j + 1] + B[(i + 1) * m + j + 1] + B[(i + 2) * m + j + 1]
-                )
-    stmt = ib.get()
 
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([Ab, Bb], stmt).with_attr("global_symbol", "main")
-    )
+    @T.prim_func
+    def func(A: T.Buffer((n * m,), "float16"), B: T.Buffer((n * m,), "float16")):
+        for i in range(11):
+            for j in range(160):
+                if T.likely(i * 160 + j < 1600):
+                    A[(i + 1) * m + j + 1] = (
+                        B[i * m + j + 1] + B[(i + 1) * m + j + 1] + B[(i + 2) * m + j + 1]
+                    )
+
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
         stmt = tvm.tir.transform.Simplify()(mod)["main"].body
@@ -189,22 +165,19 @@ def test_cce_loop_1():
 
 
 def test_cce_loop_2():
-    ib = tvm.tir.ir_builder.create()
-    len = 112
+    length = 112
     tile = 32
-    loop = (len + tile - 1) // tile
-    with ib.for_range(0, loop, "i") as i:
-        head = i * tile
-        with ib.if_scope(ib.likely(head + tile > len)):
-            tail = len
-            ib.emit(tvm.tir.call_extern("float32", "cce_intrisic", head, tail))
-        with ib.else_scope():
-            tail = head + tile
-            ib.emit(tvm.tir.call_extern("float32", "cce_intrisic", head, tail))
+    loop = (length + tile - 1) // tile
 
-    stmt = ib.get()
+    @T.prim_func(private=True)
+    def func():
+        for i in range(loop):
+            if T.likely(i * tile + tile > length):
+                T.evaluate(T.call_extern("float32", "cce_intrisic", i * tile, length))
+            else:
+                T.evaluate(T.call_extern("float32", "cce_intrisic", i * tile, i * tile + tile))
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)
         stmt = tvm.tir.transform.Simplify()(mod)["main"].body
@@ -213,19 +186,18 @@ def test_cce_loop_2():
 
 
 def test_cce_loop_3():
-    ib = tvm.tir.ir_builder.create()
     loop1 = 4
     loop2 = 9998
     tile = 39991
-    with ib.for_range(0, loop2, "i") as i:
-        with ib.for_range(0, loop1, "j") as j:
-            head1 = i
-            head2 = j
-            with ib.if_scope(ib.likely(head1 * loop1 + head2 < tile)):
-                ib.emit(tvm.tir.call_extern("float16", "cce_intrisic", head1))
 
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
+    @T.prim_func(private=True)
+    def func():
+        for i in range(loop2):
+            for j in range(loop1):
+                if T.likely(i * loop1 + j < tile):
+                    T.evaluate(T.call_extern("float16", "cce_intrisic", i))
+
+    mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
 
     with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
         mod = tvm.tir.transform.LoopPartition()(mod)

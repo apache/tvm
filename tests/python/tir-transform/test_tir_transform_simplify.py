@@ -16,59 +16,59 @@
 # under the License.
 import tvm
 import tvm.testing
-
-from tvm import te
 from tvm.script import tir as T, ir as I
 
 
 def test_stmt_simplify():
-    ib = tvm.tir.ir_builder.create()
-    A = ib.pointer("float32", name="A")
-    C = ib.pointer("float32", name="C")
-    n = te.size_var("n")
-    with ib.for_range(0, n, name="i") as i:
-        with ib.if_scope(i < 12):
-            A[i] = C[i]
+    @T.prim_func(private=True)
+    def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
+        A_ptr = T.Buffer((10,), "float32", data=A)
+        C_ptr = T.Buffer((10,), "float32", data=C)
+        n_val: T.int32 = 10
+        for i in T.serial(n_val):
+            if i < 12:
+                A_ptr[i] = C_ptr[i]
 
-    body = tvm.tir.LetStmt(n, 10, ib.get())
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C, n], body))
+    mod = tvm.IRModule.from_expr(func)
     body = tvm.tir.transform.Simplify()(mod)["main"].body
+    # After simplification, LetStmt -> For -> BufferStore (if is eliminated since i < 12 is always true for i in 0..10)
     assert isinstance(body.body, tvm.tir.BufferStore)
 
 
 def test_thread_extent_simplify():
-    ib = tvm.tir.ir_builder.create()
-    A = ib.pointer("float32", name="A")
-    C = ib.pointer("float32", name="C")
-    n = te.size_var("n")
-    tx = te.thread_axis("threadIdx.x")
-    ty = te.thread_axis("threadIdx.y")
-    ib.scope_attr(tx, "thread_extent", n)
-    ib.scope_attr(tx, "thread_extent", n)
-    ib.scope_attr(ty, "thread_extent", 1)
-    with ib.if_scope(tx + ty < 12):
-        A[tx] = C[tx + ty]
-    body = tvm.tir.LetStmt(n, 10, ib.get())
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C, n], body))
+    @T.prim_func(private=True)
+    def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
+        A_ptr = T.Buffer((10,), "float32", data=A)
+        C_ptr = T.Buffer((10,), "float32", data=C)
+        n_val: T.int32 = 10
+        for tx in T.thread_binding(n_val, thread="threadIdx.x"):
+            for ty in T.thread_binding(1, thread="threadIdx.y"):
+                if tx + ty < 12:
+                    A_ptr[tx] = C_ptr[tx + ty]
+
+    mod = tvm.IRModule.from_expr(func)
     body = tvm.tir.transform.Simplify()(mod)["main"].body
-    assert isinstance(body.body.body.body, tvm.tir.BufferStore)
+    # After simplification: For(tx) -> For(ty) -> BufferStore
+    # The LetStmt and if are eliminated since tx + ty < 12 is always true for tx in 0..10 and ty = 0
+    assert isinstance(body, tvm.tir.For)  # tx loop
+    assert isinstance(body.body, tvm.tir.For)  # ty loop
+    assert isinstance(body.body.body, tvm.tir.BufferStore)  # The if was eliminated
 
 
 def test_if_likely():
-    ib = tvm.tir.ir_builder.create()
-    A = ib.pointer("float32", name="A")
-    C = ib.pointer("float32", name="C")
-    n = te.size_var("n")
-    tx = te.thread_axis("threadIdx.x")
-    ty = te.thread_axis("threadIdx.y")
-    ib.scope_attr(tx, "thread_extent", 32)
-    ib.scope_attr(ty, "thread_extent", 32)
-    with ib.if_scope(ib.likely(tx * 32 + ty < n)):
-        with ib.if_scope(ib.likely(tx * 32 + ty < n)):
-            A[tx] = C[tx * 32 + ty]
-    body = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C, n], body))
+    @T.prim_func(private=True)
+    def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
+        A_ptr = T.Buffer((32,), "float32", data=A)
+        C_ptr = T.Buffer((1024,), "float32", data=C)
+        for tx in T.thread_binding(32, thread="threadIdx.x"):
+            for ty in T.thread_binding(32, thread="threadIdx.y"):
+                if T.likely(tx * 32 + ty < n):
+                    if T.likely(tx * 32 + ty < n):
+                        A_ptr[tx] = C_ptr[tx * 32 + ty]
+
+    mod = tvm.IRModule.from_expr(func)
     body = tvm.tir.transform.Simplify()(mod)["main"].body
+    # Structure: For(tx) -> For(ty) -> IfThenElse
     assert isinstance(body.body.body, tvm.tir.IfThenElse)
     assert not isinstance(body.body.body.then_case, tvm.tir.IfThenElse)
 

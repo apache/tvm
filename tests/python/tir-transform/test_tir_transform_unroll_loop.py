@@ -15,24 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
-from tvm.script import tir as T
-import os
+from tvm.script import ir as I, tir as T
 
 
 def test_unroll_loop():
-    ib = tvm.tir.ir_builder.create()
-    dtype = "int64"
-    n = te.size_var("n")
-    Ab = tvm.tir.decl_buffer((n,), dtype)
-    Aptr = ib.buffer_ptr(Ab)
-    # for i in 0 to n-1:
-    with ib.for_range(n, n + 2, name="i") as i:
-        with ib.for_range(0, 8, name="i", kind="unroll") as j:
-            Aptr[j + 1] = Aptr[i] + 1
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.handle, n: T.int64):
+            Ab = T.match_buffer(A, (n,), "int64")
+            for i in T.serial(n, n + 2):
+                for j in T.unroll(8):
+                    Ab[j + 1] = Ab[i] + T.int64(1)
 
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt))
+    mod = Module
+    stmt = mod["main"].body
 
     assert isinstance(stmt, tvm.tir.For)
 
@@ -51,18 +48,23 @@ def test_unroll_loop():
         assert isinstance(ret, tvm.tir.For)
         assert ret.kind == tvm.tir.ForKind.UNROLLED
 
-    ib = tvm.tir.ir_builder.create()
-    ib.scope_attr(tvm.tir.const(0, "int32"), "pragma_auto_unroll_max_step", 16)
-    ib.emit(stmt)
-    wrapped = ib.get()
-    wrapped = tvm.tir.SeqStmt([wrapped, stmt])
-    assert isinstance(ret, tvm.tir.For)
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], wrapped))
+    @I.ir_module
+    class ModuleWithPragma:
+        @T.prim_func
+        def main(A: T.handle, n: T.int64):
+            Ab = T.match_buffer(A, (n,), "int64")
+            with T.attr(T.int32(0), "pragma_auto_unroll_max_step", 16):
+                for i in T.serial(n, n + 2):
+                    for j in T.unroll(8):
+                        Ab[j + 1] = Ab[i] + T.int64(1)
+            for i in T.serial(n, n + 2):
+                for j in T.unroll(8):
+                    Ab[j + 1] = Ab[i] + T.int64(1)
 
     with tvm.transform.PassContext(
         config={"tir.UnrollLoop": {"auto_max_depth": 8, "explicit_unroll": False}}
     ):
-        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
+        ret = tvm.tir.transform.UnrollLoop()(ModuleWithPragma)["main"].body
         assert isinstance(ret[0], tvm.tir.For)
         assert ret[0].kind == tvm.tir.ForKind.UNROLLED
         assert isinstance(ret[1], tvm.tir.For)
@@ -70,41 +72,36 @@ def test_unroll_loop():
 
 
 def test_unroll_fake_loop():
-    ib = tvm.tir.ir_builder.create()
-    dtype = "int32"
-    n = te.size_var("n")
-    Ab = tvm.tir.decl_buffer((n,), dtype)
-    Aptr = ib.buffer_ptr(Ab)
-    # for i in 0 to n-1:
-    with ib.for_range(0, 1, name="i") as i:
-        Aptr[i * 2] = 3
-        with ib.for_range(0, 10, name="j") as j:
-            Aptr[j + 1] = Aptr[i] + 1
-
-    stmt = ib.get()
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt))
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.handle, n: T.int64):
+            Ab = T.match_buffer(A, (n,), "int32")
+            for i in T.serial(1):
+                Ab[i * 2] = 3
+                for j in T.serial(10):
+                    Ab[j + 1] = Ab[i] + 1
 
     with tvm.transform.PassContext(
         config={
             "tir.UnrollLoop": {"auto_max_depth": 8, "auto_max_extent": 1, "explicit_unroll": False}
         }
     ):
-        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
+        ret = tvm.tir.transform.UnrollLoop()(Module)["main"].body
         assert isinstance(ret[0], tvm.tir.BufferStore)
 
 
 def test_unroll_allocations():
-    @tvm.script.ir_module
-    class before:
+    @I.ir_module
+    class Before:
         @T.prim_func
         def main():
             for i in T.unroll(2):
                 with T.decl_buffer([16], "float32") as buf:
                     buf[0] = 0.0
 
-    @tvm.script.ir_module
-    class expected:
+    @I.ir_module
+    class Expected:
         @T.prim_func
         def main():
             with T.decl_buffer([16], "float32") as buf1:
@@ -112,13 +109,13 @@ def test_unroll_allocations():
             with T.decl_buffer([16], "float32") as buf2:
                 buf2[0] = 0.0
 
-    after = tvm.tir.transform.UnrollLoop()(before)
+    after = tvm.tir.transform.UnrollLoop()(Before)
 
-    tvm.ir.assert_structural_equal(after, expected)
+    tvm.ir.assert_structural_equal(after, Expected)
 
 
 def test_unroll_local_access():
-    @tvm.script.ir_module
+    @I.ir_module
     class Before:
         @T.prim_func
         def main(B: T.Buffer((64,), "float32")):
@@ -129,7 +126,7 @@ def test_unroll_local_access():
                     for i in T.serial(4):
                         A_local[i] = T.float32(i)
 
-    @tvm.script.ir_module
+    @I.ir_module
     class Expected:
         @T.prim_func
         def main(B: T.Buffer((64,), "float32")):

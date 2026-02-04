@@ -17,6 +17,8 @@
 """ScatterElements operator"""
 from tvm import te
 from tvm import tir
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tir as T
 from . import utils
 from .math import cast
 
@@ -95,35 +97,33 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr, reduce_func):
         # pylint: disable=invalid-name
-        ib = tir.ir_builder.create()
-
-        data = ib.buffer_ptr(data_ptr)
-        indices = ib.buffer_ptr(indices_ptr)
-        updates = ib.buffer_ptr(updates_ptr)
-        out = ib.buffer_ptr(out_ptr)
+        data = T.buffer_proxy(data_ptr)
+        indices = T.buffer_proxy(indices_ptr)
+        updates = T.buffer_proxy(updates_ptr)
+        out = T.buffer_proxy(out_ptr)
 
         # Copy initial input data to output
-        with ib.for_range(0, full_range, "i", kind="parallel") as i:
-            out[i] = data[i]
+        with IRBuilder() as ib:
+            with T.seq_scope():
+                with T.parallel(0, full_range) as i:
+                    out[i] = data[i]
 
-        with ib.for_range(
-            0, ind_before_axis_range * ind_after_axis_range, "fused", kind="parallel"
-        ) as fused:
-            i = fused // ind_after_axis_range
-            j = fused % ind_after_axis_range
-            pre_index1 = i * ind_before_axis_stride + j
-            pre_index2 = i * before_axis_stride + j
-            with ib.for_range(0, ind_axis_range, "k") as k:
-                # Offset along indices or updates
-                index1 = pre_index1 + k * ind_after_axis_range
-                # Get index and shift to positive side if need
-                k_new = indices[index1]
-                shifted_index = k_new + (k_new < 0) * axis_range
-                # Offset along data
-                index2 = pre_index2 + shifted_index * after_axis_range
-                reduce_func(out, index2, updates[index1])
+                with T.parallel(0, ind_before_axis_range * ind_after_axis_range) as fused:
+                    i = fused // ind_after_axis_range
+                    j = fused % ind_after_axis_range
+                    pre_index1 = i * ind_before_axis_stride + j
+                    pre_index2 = i * before_axis_stride + j
+                    with T.serial(0, ind_axis_range) as k:
+                        # Offset along indices or updates
+                        index1 = pre_index1 + k * ind_after_axis_range
+                        # Get index and shift to positive side if need
+                        k_new = indices[index1]
+                        shifted_index = k_new + (k_new < 0) * axis_range
+                        # Offset along data
+                        index2 = pre_index2 + shifted_index * after_axis_range
+                        reduce_func(out, index2, updates[index1])
 
-        return ib.get()
+            return ib.get()
 
     def update_func(dst_ptr, dst_index, update):
         dst_ptr[dst_index] = update

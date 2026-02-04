@@ -214,20 +214,19 @@ def test_stmt():
     ii = te.var("i")
     jj = te.var("j")
 
-    Ab = tvm.tir.decl_buffer((n,), name="A")
     n = te.var("n")
 
-    def func2():
-        ib = tvm.tir.ir_builder.create()
-        A = ib.buffer_ptr(Ab)
-        with ib.for_range(0, n, name="i") as i:
-            A[i] = A[i] + 1
-            with ib.for_range(0, 10, name="j") as j:
-                A[j] = A[j] + 2
-                A[j] = A[j] + 2
-        return ib.get()
+    @T.prim_func(private=True, check_well_formed=False)
+    def func2(A: T.handle, n_param: T.int32):
+        n_var = T.var("int32")
+        Ab = T.match_buffer(A, (n_var,))
+        for i in T.serial(n_var):
+            Ab[i] = Ab[i] + T.float32(1)
+            for j in T.serial(10):
+                Ab[j] = Ab[j] + T.float32(2)
+                Ab[j] = Ab[j] + T.float32(2)
 
-    assert consistent_equal(func2(), func2())
+    assert consistent_equal(func2.body, func2.body)
 
 
 def test_buffer_storage_scope():

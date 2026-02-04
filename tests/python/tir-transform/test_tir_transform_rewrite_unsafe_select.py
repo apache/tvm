@@ -15,26 +15,54 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
+from tvm.script import ir as I, tir as T
 
 
 def test_rewrite_Select():
-    ib = tvm.tir.ir_builder.create()
-    A = ib.allocate("float32", 100, name="A", scope="global")
-    i = te.var("i")
-    y = tvm.tir.Select(i > 1, A[i - 1], 1.0)
+    @I.ir_module
+    class ModuleY:
+        @T.prim_func
+        def main(i: T.int32):
+            A_data = T.allocate([100], "float32", "global")
+            A = T.Buffer(100, "float32", data=A_data)
+            T.evaluate(T.Select(i > 1, A[i - 1], T.float32(1.0)))
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i], tvm.tir.Evaluate(y)))
-    yy = tvm.tir.transform.RewriteUnsafeSelect()(mod)["main"].body.value
+    yy = tvm.tir.transform.RewriteUnsafeSelect()(ModuleY)["main"].body.body.value
 
-    z = tvm.tir.Select(tvm.tir.Select(i > 1, A[i - 1], 1.0) > 0.0, A[i], 0.1)
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i], tvm.tir.Evaluate(z)))
-    zz = tvm.tir.transform.RewriteUnsafeSelect()(mod)["main"].body.value
+    @I.ir_module
+    class ModuleZ:
+        @T.prim_func
+        def main(i: T.int32):
+            A_data = T.allocate([100], "float32", "global")
+            A = T.Buffer(100, "float32", data=A_data)
+            T.evaluate(
+                T.Select(
+                    T.Select(i > 1, A[i - 1], T.float32(1.0)) > T.float32(0.0), A[i], T.float32(0.1)
+                )
+            )
 
-    a = tvm.tir.Select(tvm.tir.floordiv(i, 4) > 10, y, z)
+    zz = tvm.tir.transform.RewriteUnsafeSelect()(ModuleZ)["main"].body.body.value
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i], tvm.tir.Evaluate(a)))
-    aa = tvm.tir.transform.RewriteUnsafeSelect()(mod)["main"].body.value
+    @I.ir_module
+    class ModuleA:
+        @T.prim_func
+        def main(i: T.int32):
+            A_data = T.allocate([100], "float32", "global")
+            A = T.Buffer(100, "float32", data=A_data)
+            # Inline y and z to avoid Let bindings - outer Select condition is safe (no buffer access)
+            T.evaluate(
+                T.Select(
+                    T.floordiv(i, 4) > 10,
+                    T.Select(i > 1, A[i - 1], T.float32(1.0)),
+                    T.Select(
+                        T.Select(i > 1, A[i - 1], T.float32(1.0)) > T.float32(0.0),
+                        A[i],
+                        T.float32(0.1),
+                    ),
+                )
+            )
+
+    aa = tvm.tir.transform.RewriteUnsafeSelect()(ModuleA)["main"].body.body.value
     builtin_if_then_else = tvm.ir.Op.get("tir.if_then_else")
 
     assert yy.op.same_as(builtin_if_then_else)
