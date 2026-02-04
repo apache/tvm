@@ -20,11 +20,7 @@ import tvm.testing
 from tvm.script import ir as I, relax as R, tir as T
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    transform = tvm.relax.transform.ExpandTupleArguments()
-
-
-class TestSimple(BaseCompare):
+def test_simple():
     @I.ir_module
     class Before:
         @R.function
@@ -45,8 +41,11 @@ class TestSimple(BaseCompare):
         def func(A: R.Tensor, B: R.Tensor) -> R.Tensor:
             return A
 
+    After = tvm.relax.transform.ExpandTupleArguments()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestNested(BaseCompare):
+
+def test_nested():
     @I.ir_module
     class Before:
         @R.function
@@ -73,6 +72,9 @@ class TestNested(BaseCompare):
         @R.function(private=True)
         def func(A: R.Tensor, B: R.Tensor, C: R.Tensor, D: R.Tensor) -> R.Tensor:
             return B
+
+    After = tvm.relax.transform.ExpandTupleArguments()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

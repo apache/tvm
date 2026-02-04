@@ -16,30 +16,18 @@
 # under the License.
 # pylint: disable=missing-docstring, unused-variable, invalid-name
 # flake8: noqa: E501
-import pytest
-
+import tvm
 import tvm.testing
 from tvm import dlight as dl
 from tvm.script import tir as T
 from tvm.target import Target
 
 
-class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
-    @pytest.fixture
-    def transform(self):
-        def transform(mod):
-            with Target("nvidia/geforce-rtx-2080-ti"):
-                return dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-
-        return transform
-
-
-class TestMatmulTensorize(BaseBeforeAfter):
+def test_matmul_tensorize():
     # fmt: off
-
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(X: T.Buffer((256, 256), "float16"), W: T.Buffer((256, 256), "float16"), compute: T.Buffer((256, 256), "float16")):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
         for i, j, k in T.grid(256, 256, 256):
             with T.sblock("compute"):
@@ -50,9 +38,9 @@ class TestMatmulTensorize(BaseBeforeAfter):
                     compute[v_i, v_j] = T.float16(0)
                 compute[v_i, v_j] = compute[v_i, v_j] + X[v_i, v_k] * W[v_j, v_k]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(X: T.Buffer((256, 256), "float16"), W: T.Buffer((256, 256), "float16"), compute: T.Buffer((256, 256), "float16")):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": True, "tir.noalias": True})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.sblock("root"):
         X_reindex_shared_dyn = T.alloc_buffer((1, 256, 256), "float16", scope="shared.dyn")
         W_reindex_shared_dyn = T.alloc_buffer((1, 256, 256), "float16", scope="shared.dyn")
@@ -168,13 +156,17 @@ class TestMatmulTensorize(BaseBeforeAfter):
 
     # fmt: on
 
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-rtx-2080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
-class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
+
+def test_matmul_tensorize_too_small():
     # fmt: off
-
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(var_X: T.handle, W: T.Buffer((15, 256), "float16"), var_compute: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"tir.noalias": True})
         m = T.int32()
         X = T.match_buffer(var_X, (m, 256), "float16")
         compute = T.match_buffer(var_compute, (m, 15))
@@ -188,7 +180,7 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
                     compute[v_i, v_j] = T.float32(0)
                 compute[v_i, v_j] = compute[v_i, v_j] + T.Cast("float32", X[v_i, v_k]) * T.Cast("float32", W[v_j, v_k])
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(var_X: T.handle, W: T.Buffer((15, 256), "float16"), var_compute: T.handle):
         T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         m = T.int32()
@@ -260,11 +252,15 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
                                             compute[v1, v2] = compute_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-rtx-2080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
-class TestMatmulTensorizeEpilogue(BaseBeforeAfter):
+
+def test_matmul_tensorize_epilogue():
     # fmt: off
-
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(lv686: T.Buffer((T.int32(4096), T.int32(256)), "uint32"), lv687: T.Buffer((T.int32(4096), T.int32(64)), "float16"), p_lv42: T.handle, p_lv3: T.handle, p_output0: T.handle):
         T.func_attr({"tir.noalias": True})
         n = T.int32()
@@ -302,9 +298,9 @@ class TestMatmulTensorizeEpilogue(BaseBeforeAfter):
                 T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
                 p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_T_divide_intermediate[v_ax0, v_ax1, v_ax2] + var_NT_matmul_intermediate[v_ax0, v_ax1, v_ax2]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(lv686: T.Buffer((4096, 256), "uint32"), lv687: T.Buffer((4096, 64), "float16"), p_lv42: T.handle, p_lv3: T.handle, p_output0: T.handle):
-        T.func_attr({"global_symbol": "fused_fused_decode3_fused_NT_matmul6_divide1_add1", "tir.is_scheduled": True, "tir.noalias": True})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         n = T.int32()
         lv42 = T.match_buffer(p_lv42, (1, n, 2048), "float16")
         lv3 = T.match_buffer(p_lv3, (1, n, 4096), "float16")
@@ -424,12 +420,17 @@ class TestMatmulTensorizeEpilogue(BaseBeforeAfter):
                                         p_output0_intermediate[0, v1, v2] = lv3[0, v1, v2] * T.float16(0.5) + var_NT_matmul_intermediate_reindex_pad_shared_dyn[v0, v1, v2]
     # fmt: on
 
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-rtx-2080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
-class TestMatmulInt8Tensorize(BaseBeforeAfter):
+
+def test_matmul_int8_tensorize():
     # fmt: off
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(X: T.Buffer((256, 256), "int8"), W: T.Buffer((256, 256), "int8"), compute: T.Buffer((256, 256), "int32")):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
         for i, j, r in T.grid(256, 256, 256):
             with T.sblock("compute"):
@@ -440,9 +441,9 @@ class TestMatmulInt8Tensorize(BaseBeforeAfter):
                     compute[v_i, v_j] = 0
                 compute[v_i, v_j] = compute[v_i, v_j] + T.Cast("int32", X[v_i, v_k]) * T.Cast("int32", W[v_j, v_k])
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(X: T.Buffer((256, 256), "int8"), W: T.Buffer((256, 256), "int8"), compute: T.Buffer((256, 256), "int32")):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": True, "tir.noalias": True})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.sblock("root"):
         X_reindex_shared_dyn = T.alloc_buffer((1, 256, 256), "int8", scope="shared.dyn")
         W_reindex_shared_dyn = T.alloc_buffer((1, 256, 256), "int8", scope="shared.dyn")
@@ -557,10 +558,15 @@ class TestMatmulInt8Tensorize(BaseBeforeAfter):
                                         compute[v1, v2] = compute_reindex_shared_dyn[v0, v1, v2]
     # fmt: on
 
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-rtx-2080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
-class TestMatmulInt8Tensorize3d2dDyn(BaseBeforeAfter):
+
+def test_matmul_int8_tensorize_3d2d_dyn():
     # fmt: off
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(var_A: T.handle, B: T.Buffer((4096, 22016), "int8"), var_matmul: T.handle):
         T.func_attr({"op_pattern": 4, "tir.noalias": True})
         m = T.int32()
@@ -576,7 +582,7 @@ class TestMatmulInt8Tensorize3d2dDyn(BaseBeforeAfter):
                     matmul_1[v_i0, v_i1, v_i2] = 0
                 matmul_1[v_i0, v_i1, v_i2] = matmul_1[v_i0, v_i1, v_i2] + T.Cast("int32", A[v_i0, v_i1, v_k]) * T.Cast("int32", B[v_i2, v_k])
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(var_A: T.handle, B: T.Buffer((4096, 22016), "int8"), var_matmul: T.handle):
         T.func_attr({"op_pattern": 4, "tir.is_scheduled": True, "tir.noalias": True})
         m = T.int32()
@@ -697,18 +703,13 @@ class TestMatmulInt8Tensorize3d2dDyn(BaseBeforeAfter):
                                         matmul_1[0, v1, v2] = matmul_1_reindex_pad_shared_dyn[v0, v1, v2]
     # fmt: on
 
-
-class MetalBeforeAfter(tvm.testing.CompareBeforeAfter):
-    @pytest.fixture
-    def transform(self):
-        def transform(mod):
-            with Target("metal"):
-                return dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-
-        return transform
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-rtx-2080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-class TestMatmulMetal(MetalBeforeAfter):
+def test_matmul_metal():
     # fmt: off
     @T.prim_func(private=True)
     def before(
@@ -727,7 +728,7 @@ class TestMatmulMetal(MetalBeforeAfter):
                     C[v_i0, v_i1, v_i2] = T.float16(0)
                 C[v_i0, v_i1, v_i2] += A[v_i0, v_i1, v_k] * B[v_i2, v_k]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(var_A: T.handle, B: T.Buffer((28672, 4096), "float16"), var_C: T.handle):
         T.func_attr({"tir.is_scheduled": True})
         batch_size = T.int32()
@@ -837,8 +838,13 @@ class TestMatmulMetal(MetalBeforeAfter):
                                             C[v1, 0, v2] = C_reindex_pad_shared[v0, v1, v2]
     # fmt: on
 
+    mod = tvm.IRModule({"main": before})
+    with Target("metal"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
-class TestMatmulMetalInt4Quant(MetalBeforeAfter):
+
+def test_matmul_metal_int4_quant():
     # fmt: off
     @T.prim_func(private=True)
     def before(
@@ -975,6 +981,12 @@ class TestMatmulMetalInt4Quant(MetalBeforeAfter):
                                             T.reads(C_reindex_pad_shared[v0, v1, v2])
                                             T.writes(C[v1, 0, v2])
                                             C[v1, 0, v2] = C_reindex_pad_shared[v0, v1, v2]
+    # fmt: on
+
+    mod = tvm.IRModule({"main": before})
+    with Target("metal"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":

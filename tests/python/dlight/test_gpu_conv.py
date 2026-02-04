@@ -15,28 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-import pytest
-
+import tvm
 import tvm.testing
 from tvm import dlight as dl
 from tvm.script import tir as T
 from tvm.target import Target
 
 
-class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
-    @pytest.fixture
-    def transform(self):
-        def transform(mod):
-            with Target("nvidia/geforce-gtx-1080-ti"):
-                # Use Matmul rule for Conv for now
-                return dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-
-        return transform
-
-
-class TestConv3d(BaseBeforeAfter):
+def test_conv3d():
     # fmt: off
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(
         A: T.Buffer((14308, 3, 2, 14, 14), "float16"),
         W: T.Buffer((1280, 3, 2, 14, 14), "float16"),
@@ -54,7 +42,7 @@ class TestConv3d(BaseBeforeAfter):
                     C[v_nn, v_ff, v_yy, v_xx, v_zz] = T.float16(0.0)
                 C[v_nn, v_ff, v_yy, v_xx, v_zz] += pad_A[v_nn, v_rc, v_yy * 2 + v_ry, v_xx * 14 + v_rx, v_zz * 14 + v_rz]* W[v_ff, v_rc, v_ry, v_rx, v_rz]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(A: T.Buffer((14308, 3, 2, 14, 14), "float16"), W: T.Buffer((1280, 3, 2, 14, 14), "float16"), C: T.Buffer((14308, 1280, 1, 1, 1), "float16")):
         T.func_attr({"tir.is_scheduled": True})
         # with T.sblock("root"):
@@ -112,6 +100,11 @@ class TestConv3d(BaseBeforeAfter):
                                             T.where(ax1_0 * 32 + ax1_2 * 4 + ax1 < 14308)
                                             C[v1, v2, 0, 0, 0] = C_reindex_pad_local[v0, v1, v2]
     # fmt: on
+
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-gtx-1080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":

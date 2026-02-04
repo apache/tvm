@@ -20,6 +20,7 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.tir import IndexMap
+from tvm.script import ir as I
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
@@ -174,29 +175,31 @@ def test_set_axis_separator_subregion(argument_style):
     assert_structural_equal_ignore_global_symbol(element_wise_subregion_match_set_axis_separator, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
 
-class TestIndexedLookup(tvm.testing.CompareBeforeAfter):
-    def transform(self):
-        def func(mod):
-            sch = tir.Schedule(mod)
-            sch.set_axis_separator('block', 'B', [1])
-            return sch.mod
-        return func
+def test_indexed_lookup():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            A = T.alloc_buffer([4,4], dtype="int32")
+            B = T.alloc_buffer([1,1], dtype="int32")
+            for j in T.serial(4):
+                with T.sblock('block'):
+                    A[B[0,0],j] = 0
 
-    @T.prim_func
-    def before():
-        A = T.alloc_buffer([4,4], dtype="int32")
-        B = T.alloc_buffer([1,1], dtype="int32")
-        for j in T.serial(4):
-            with T.sblock('block'):
-                A[B[0,0],j] = 0
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            A = T.alloc_buffer([4,4], dtype="int32")
+            B = T.alloc_buffer([1,1], dtype="int32", axis_separators=[1])
+            for j in T.serial(4):
+                with T.sblock('block'):
+                    A[B[0,0],j] = 0
 
-    @T.prim_func
-    def expected():
-        A = T.alloc_buffer([4,4], dtype="int32")
-        B = T.alloc_buffer([1,1], dtype="int32", axis_separators=[1])
-        for j in T.serial(4):
-            with T.sblock('block'):
-                A[B[0,0],j] = 0
+    sch = tir.Schedule(Before)
+    sch.set_axis_separator('block', 'B', [1])
+    After = sch.mod
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

@@ -18,65 +18,100 @@
 import tvm
 import tvm.testing
 
-from tvm.script import tir as T
+from tvm.script import ir as I, tir as T
 from tvm.tir.stmt_functor import substitute
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    def transform(self):
-        def inner(mod):
-            func = mod["main"]
-            vmap = {func.params[0]: 16}
-            new_func = tvm.tir.PrimFunc(params=[], body=substitute(func.body, vmap))
-            return tvm.IRModule.from_expr(new_func)
-
-        return inner
-
-
-class TestBasicSubstitute(BaseCompare):
-    def before(n: T.int32):
-        for i in range(n):
-            T.evaluate(i)
-
-    def expected():
-        for i in range(16):
-            T.evaluate(i)
+def _apply_substitute(mod):
+    """Apply substitute transform to replace the first parameter with 16."""
+    func = mod["main"]
+    vmap = {func.params[0]: 16}
+    new_func = tvm.tir.PrimFunc(params=[], body=substitute(func.body, vmap)).with_attr(
+        "global_symbol", func.attrs["global_symbol"]
+    )
+    return tvm.IRModule.from_expr(new_func)
 
 
-class TestSubstituteAllocate(BaseCompare):
-    def before(n: T.int32):
-        A_data = T.allocate([n], "float32")
-        T.evaluate(A_data)
+def test_basic_substitute():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(n: T.int32):
+            for i in range(n):
+                T.evaluate(i)
 
-    def expected():
-        A_data = T.allocate([16], "float32")
-        T.evaluate(A_data)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            for i in range(16):
+                T.evaluate(i)
 
-
-class TestSubstituteBufferLoad(BaseCompare):
-    def before(n: T.int32):
-        A_data = T.allocate([n], "float32")
-        A = T.Buffer(n, "float32", data=A_data)
-        for i in range(n):
-            T.evaluate(A[i])
-
-    def expected():
-        A_data = T.allocate([16], "float32")
-        A = T.Buffer(16, "float32", data=A_data)
-        for i in range(16):
-            T.evaluate(A[i])
+    After = _apply_substitute(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestSubstituteDeclBuffer(BaseCompare):
-    def before(n: T.int32):
-        A_data = T.allocate([n], "float32")
-        A = T.decl_buffer(n, "float32", data=A_data)
-        T.evaluate(A.data)
+def test_substitute_allocate():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(n: T.int32):
+            A_data = T.allocate([n], "float32")
+            T.evaluate(A_data)
 
-    def expected():
-        A_data = T.allocate([16], "float32")
-        A = T.decl_buffer(16, "float32", data=A_data)
-        T.evaluate(A.data)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            A_data = T.allocate([16], "float32")
+            T.evaluate(A_data)
+
+    After = _apply_substitute(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_substitute_buffer_load():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(n: T.int32):
+            A_data = T.allocate([n], "float32")
+            A = T.Buffer(n, "float32", data=A_data)
+            for i in range(n):
+                T.evaluate(A[i])
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            A_data = T.allocate([16], "float32")
+            A = T.Buffer(16, "float32", data=A_data)
+            for i in range(16):
+                T.evaluate(A[i])
+
+    After = _apply_substitute(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_substitute_decl_buffer():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(n: T.int32):
+            A_data = T.allocate([n], "float32")
+            A = T.decl_buffer(n, "float32", data=A_data)
+            T.evaluate(A.data)
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            A_data = T.allocate([16], "float32")
+            A = T.decl_buffer(16, "float32", data=A_data)
+            T.evaluate(A.data)
+
+    After = _apply_substitute(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

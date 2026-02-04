@@ -138,7 +138,7 @@ def test_body():
     assert f.params[2].name == "A"
 
 
-class TestTargetHostRemoved(tvm.testing.CompareBeforeAfter):
+def test_target_host_removed():
     """After MakeUnpackedAPI, host-side target should be the host
 
     MakeUnpackedAPI is the last transform that requires both the device
@@ -146,43 +146,38 @@ class TestTargetHostRemoved(tvm.testing.CompareBeforeAfter):
     only contain the host-side target.
     """
 
-    transform = tvm.tir.transform.MakeUnpackedAPI()
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
+            Before.subroutine(A.data)
 
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
-                mod.subroutine(A.data)
+        @T.prim_func(private=True)
+        def subroutine(A_data: T.handle("float32")):
+            T.func_attr({"target": T.target("cuda")})
+            T.evaluate(A_data)
 
-            @T.prim_func(private=True)
-            def subroutine(A_data: T.handle("float32")):
-                T.func_attr({"target": T.target("cuda")})
-                T.evaluate(A_data)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A_data: T.handle("float32")) -> T.int32:
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+            T.attr("default", "device_id", 0)
+            T.attr("default", "device_type", 2)
+            Expected.subroutine(A_data)
+            T.ret(T.int32(0))
 
-        return mod
+        @T.prim_func(private=True)
+        def subroutine(A_data: T.handle("float32")):
+            T.func_attr({"target": T.target("cuda")})
+            T.evaluate(A_data)
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A_data: T.handle("float32")) -> T.int32:
-                T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
-                T.attr("default", "device_id", 0)
-                T.attr("default", "device_type", 2)
-                mod.subroutine(A_data)
-                T.ret(T.int32(0))
-
-            @T.prim_func(private=True)
-            def subroutine(A_data: T.handle("float32")):
-                T.func_attr({"target": T.target("cuda")})
-                T.evaluate(A_data)
-
-        return mod
+    After = tvm.tir.transform.MakeUnpackedAPI()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestInternalSubroutineCall(tvm.testing.CompareBeforeAfter):
+def test_internal_subroutine_call():
     """Internal subroutines do not require modification
 
     A subroutine without the "global_symbol" attribute is an internal
@@ -190,89 +185,77 @@ class TestInternalSubroutineCall(tvm.testing.CompareBeforeAfter):
     `runtime.Module`.
     """
 
-    transform = tvm.tir.transform.MakeUnpackedAPI()
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
+            Before.subroutine(A.data)
 
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
-                mod.subroutine(A.data)
+        @T.prim_func(private=True)
+        def subroutine(A_data: T.handle("float32")):
+            T.func_attr({"target": T.target("llvm")})
+            T.evaluate(A_data)
 
-            @T.prim_func(private=True)
-            def subroutine(A_data: T.handle("float32")):
-                T.func_attr({"target": T.target("llvm")})
-                T.evaluate(A_data)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A_data: T.handle("float32")) -> T.int32:
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+            T.attr("default", "device_id", 0)
+            T.attr("default", "device_type", 1)
+            Expected.subroutine(A_data)
+            T.ret(T.int32(0))
 
-        return mod
+        @T.prim_func(private=True)
+        def subroutine(A_data: T.handle("float32")):
+            T.func_attr({"target": T.target("llvm")})
+            T.evaluate(A_data)
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A_data: T.handle("float32")) -> T.int32:
-                T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
-                T.attr("default", "device_id", 0)
-                T.attr("default", "device_type", 1)
-                mod.subroutine(A_data)
-                T.ret(T.int32(0))
-
-            @T.prim_func(private=True)
-            def subroutine(A_data: T.handle("float32")):
-                T.func_attr({"target": T.target("llvm")})
-                T.evaluate(A_data)
-
-        return mod
+    After = tvm.tir.transform.MakeUnpackedAPI()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestSubroutineCallToExternallyVisibleSubroutine(tvm.testing.CompareBeforeAfter):
+def test_subroutine_call_to_externally_visible_subroutine():
     """Externally-visible subroutines should be updated
 
     Subroutines that are exposed externally should be updated by
     MakeUnpackedAPI.
     """
 
-    transform = tvm.tir.transform.MakeUnpackedAPI()
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
+            Before.subroutine(A.data)
 
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
-                mod.subroutine(A.data)
+        @T.prim_func
+        def subroutine(A_data: T.handle("float32")):
+            T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm", host="llvm")})
+            T.evaluate(A_data)
 
-            @T.prim_func
-            def subroutine(A_data: T.handle("float32")):
-                T.func_attr(
-                    {"global_symbol": "subroutine", "target": T.target("llvm", host="llvm")}
-                )
-                T.evaluate(A_data)
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A_data: T.handle("float32")) -> T.int32:
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+            T.attr("default", "device_id", 0)
+            T.attr("default", "device_type", 1)
+            Expected.subroutine(A_data)
+            T.ret(T.int32(0))
 
-        return mod
+        @T.prim_func
+        def subroutine(A_data: T.handle("float32")) -> T.int32:
+            T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm")})
+            T.evaluate(A_data)
+            T.ret(T.int32(0))
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A_data: T.handle("float32")) -> T.int32:
-                T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
-                T.attr("default", "device_id", 0)
-                T.attr("default", "device_type", 1)
-                mod.subroutine(A_data)
-                T.ret(T.int32(0))
-
-            @T.prim_func
-            def subroutine(A_data: T.handle("float32")) -> T.int32:
-                T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm")})
-                T.evaluate(A_data)
-                T.ret(T.int32(0))
-
-        return mod
+    After = tvm.tir.transform.MakeUnpackedAPI()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestCallExternallyVisibleSubroutineWithDLTensor(tvm.testing.CompareBeforeAfter):
+def test_call_externally_visible_subroutine_with_dltensor():
     """Callsites of externally-visible subroutines may require updates
 
     The MakeUnpackedAPI transform lowers all buffers into a data
@@ -282,55 +265,48 @@ class TestCallExternallyVisibleSubroutineWithDLTensor(tvm.testing.CompareBeforeA
     data pointer directly.
     """
 
-    transform = tvm.tir.transform.MakeUnpackedAPI()
-
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
-                mod.subroutine(
-                    T.tvm_stack_make_array(
-                        A.data,
-                        T.tvm_stack_make_shape(1, dtype="handle"),
-                        T.reinterpret(T.uint64(0), dtype="handle"),
-                        T.uint32(1),
-                        T.Cast("float32", 0),
-                        0,
-                        dtype="handle",
-                    )
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
+            Before.subroutine(
+                T.tvm_stack_make_array(
+                    A.data,
+                    T.tvm_stack_make_shape(1, dtype="handle"),
+                    T.reinterpret(T.uint64(0), dtype="handle"),
+                    T.uint32(1),
+                    T.Cast("float32", 0),
+                    0,
+                    dtype="handle",
                 )
+            )
 
-            @T.prim_func
-            def subroutine(A: T.Buffer(1, "float32")):
-                T.func_attr(
-                    {"global_symbol": "subroutine", "target": T.target("llvm", host="llvm")}
-                )
-                T.evaluate(A.data)
+        @T.prim_func
+        def subroutine(A: T.Buffer(1, "float32")):
+            T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm", host="llvm")})
+            T.evaluate(A.data)
 
-        return mod
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A_data: T.handle("float32")) -> T.int32:
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
+            T.attr("default", "device_id", 0)
+            T.attr("default", "device_type", 1)
+            Expected.subroutine(A_data)
+            T.ret(T.int32(0))
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A_data: T.handle("float32")) -> T.int32:
-                T.func_attr({"global_symbol": "main", "target": T.target("llvm")})
-                T.attr("default", "device_id", 0)
-                T.attr("default", "device_type", 1)
-                mod.subroutine(A_data)
-                T.ret(T.int32(0))
+        @T.prim_func
+        def subroutine(A_data: T.handle("float32")) -> T.int32:
+            T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm")})
+            T.attr("default", "device_id", 0)
+            T.attr("default", "device_type", 1)
+            T.evaluate(A_data)
+            T.ret(T.int32(0))
 
-            @T.prim_func
-            def subroutine(A_data: T.handle("float32")) -> T.int32:
-                T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm")})
-                T.attr("default", "device_id", 0)
-                T.attr("default", "device_type", 1)
-                T.evaluate(A_data)
-                T.ret(T.int32(0))
-
-        return mod
+    After = tvm.tir.transform.MakeUnpackedAPI()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

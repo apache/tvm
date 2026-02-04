@@ -21,6 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tir
+from tvm.script import ir as I
 from tvm.script import tir as T
 from tvm.tir.schedule.testing import (
     verify_trace_roundtrip,
@@ -353,37 +354,38 @@ def test_decompose_reduction_nested_block():
     verify_trace_roundtrip(sch, mod=nested_block)
 
 
-class TestDecomposeReductionWithThreadBinding(tvm.testing.CompareBeforeAfter):
-    def transform(self):
-        def func(mod):
-            sch = tir.Schedule(mod)
-            t, _ = sch.get_loops("B")
-            sch.decompose_reduction("B", t)
-            return sch.mod
+def test_decompose_reduction_with_thread_binding():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer((32, 16), "float32"), B: T.Buffer((32,), "float32")):
+            for t in T.thread_binding(0, 32, thread="threadIdx.x"):
+                for r in T.serial(16):
+                    with T.sblock("B"):
+                        vi, vr = T.axis.remap("SR", [t, r])
+                        with T.init():
+                            B[vi] = T.float32(0)
+                        B[vi] += A[vi, vr]
 
-        return func
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((32, 16), "float32"), B: T.Buffer((32,), "float32")):
+            for t_init in T.thread_binding(0, 32, thread="threadIdx.x"):
+                with T.sblock("B_init"):
+                    vi = T.axis.remap("S", [t_init])
+                    B[vi] = T.float32(0)
+            for t in T.thread_binding(0, 32, thread="threadIdx.x"):
+                for r in T.serial(16):
+                    with T.sblock("B"):
+                        vi, vr = T.axis.remap("SR", [t, r])
+                        B[vi] += A[vi, vr]
 
-    @T.prim_func
-    def before(A: T.Buffer((32, 16), "float32"), B: T.Buffer((32,), "float32")):
-        for t in T.thread_binding(0, 32, thread="threadIdx.x"):
-            for r in T.serial(16):
-                with T.sblock("B"):
-                    vi, vr = T.axis.remap("SR", [t, r])
-                    with T.init():
-                        B[vi] = T.float32(0)
-                    B[vi] += A[vi, vr]
-
-    @T.prim_func
-    def expected(A: T.Buffer((32, 16), "float32"), B: T.Buffer((32,), "float32")):
-        for t_init in T.thread_binding(0, 32, thread="threadIdx.x"):
-            with T.sblock("B_init"):
-                vi = T.axis.remap("S", [t_init])
-                B[vi] = T.float32(0)
-        for t in T.thread_binding(0, 32, thread="threadIdx.x"):
-            for r in T.serial(16):
-                with T.sblock("B"):
-                    vi, vr = T.axis.remap("SR", [t, r])
-                    B[vi] += A[vi, vr]
+    sch = tir.Schedule(Before)
+    t, _ = sch.get_loops("B")
+    sch.decompose_reduction("B", t)
+    After = sch.mod
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

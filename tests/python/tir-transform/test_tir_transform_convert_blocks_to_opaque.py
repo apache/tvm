@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import tir, te
-from tvm.script import tir as T
+from tvm.script import ir as I, tir as T
 
 
 def _check(original, transformed):
@@ -74,18 +76,19 @@ def test_elementwise():
     _check(elementwise_func, substituted_elementwise_func)
 
 
-class TestErrorIfPredicateUsesBlockVariables(tvm.testing.CompareBeforeAfter):
-    transform = tvm.tir.transform.ConvertBlocksToOpaque()
-    check_well_formed = False
+def test_error_if_predicate_uses_block_variables():
+    @I.ir_module(check_well_formed=False)
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(8, "int32")):
+            for i in T.serial(8):
+                with T.sblock():
+                    vi = T.axis.remap("S", [i])
+                    T.where(vi < 6)
+                    T.evaluate(0)
 
-    def before(A: T.Buffer(8, "int32")):
-        for i in T.serial(8):
-            with T.sblock():
-                vi = T.axis.remap("S", [i])
-                T.where(vi < 6)
-                T.evaluate(0)
-
-    expected = tvm.TVMError
+    with pytest.raises(tvm.TVMError):
+        tvm.tir.transform.ConvertBlocksToOpaque()(Before)
 
 
 if __name__ == "__main__":

@@ -21,109 +21,125 @@ import tvm.testing
 from tvm.script import tir as T, ir_module
 
 
-class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
-    def transform(self):
-        return lambda x: x
-
-
-class TestBeforeAfterPrimFunc(BaseBeforeAfter):
-    @T.prim_func
+def test_before_after_prim_func():
+    @T.prim_func(private=True)
     def before():
         T.evaluate(0)
 
     expected = before
 
-
-class TestBeforeAfterMethod(BaseBeforeAfter):
-    def before(self):
-        @T.prim_func
-        def func():
-            T.evaluate(0)
-
-        return func
-
-    expected = before
+    mod = tvm.IRModule.from_expr(before)
+    # Identity transform (no-op)
+    mod = (lambda x: x)(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-class TestBeforeAfterFixture(BaseBeforeAfter):
-    @tvm.testing.fixture
-    def before(self):
-        @T.prim_func
-        def func():
-            T.evaluate(0)
-
-        return func
-
-    expected = before
-
-
-class TestBeforeAfterDelayedPrimFunc(BaseBeforeAfter):
+def test_before_after_method():
+    @T.prim_func(private=True)
     def before():
         T.evaluate(0)
 
     expected = before
 
+    mod = tvm.IRModule.from_expr(before)
+    # Identity transform (no-op)
+    mod = (lambda x: x)(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
-class TestBeforeAfterParametrizedFixture(BaseBeforeAfter):
-    n = tvm.testing.parameter(1, 8, 16)
 
-    @tvm.testing.fixture
-    def before(self, n):
-        @T.prim_func
-        def func(A: T.Buffer(n, "float32")):
+def test_before_after_fixture():
+    @T.prim_func(private=True)
+    def before():
+        T.evaluate(0)
+
+    expected = before
+
+    mod = tvm.IRModule.from_expr(before)
+    # Identity transform (no-op)
+    mod = (lambda x: x)(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
+def test_before_after_delayed_prim_func():
+    @T.prim_func(private=True)
+    def before():
+        T.evaluate(0)
+
+    expected = before
+
+    mod = tvm.IRModule.from_expr(before)
+    # Identity transform (no-op)
+    mod = (lambda x: x)(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
+def test_before_after_parametrized_fixture():
+    """Test with different buffer sizes"""
+    for n in [1, 8, 16]:
+
+        @T.prim_func(private=True)
+        def before(A: T.Buffer(n, "float32")):
             for i in T.serial(n):
                 A[i] = 0.0
 
-        return func
+        expected = before
 
-    expected = before
+        mod = tvm.IRModule.from_expr(before)
+        # Identity transform (no-op)
+        mod = (lambda x: x)(mod)
+        tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-class TestBeforeAfterIRModule(BaseBeforeAfter):
+def test_before_after_ir_module():
     """The preferred form for writing TIR unit tests
 
     All evaluation is done at test-time, with the minimal amount of
-    additional lines.  The `@tvm.testing.fixture`, `@ir_module`, and
-    `@T.prim_func` annotations are handled by
-    `tvm.testing.CompareBeforeAfter`.
+    additional lines.
     """
 
+    @ir_module
     class before:
+        @T.prim_func(private=True)
         def func_A(A: T.Buffer(16, "float32")):
             for i in T.serial(16):
                 A[i] = 0.0
 
+        @T.prim_func(private=True)
         def func_B(A: T.Buffer(16, "int32")):
             for i in T.serial(16):
                 A[i] = 42
 
     expected = before
 
+    # Identity transform (no-op)
+    mod = (lambda x: x)(before)
+    tvm.ir.assert_structural_equal(mod, expected)
 
-class TestBeforeAfterIRModuleExplicitFixture(BaseBeforeAfter):
-    """Like TestBeforeAfterIRModule, but with an explicit fixture
+
+def test_before_after_ir_module_explicit_fixture():
+    """Like test_before_after_ir_module, but with an explicit fixture
 
     If the IRModule depends on additional fixtures, this form can be
     used.
     """
 
-    @tvm.testing.fixture
-    def before(self):
-        @ir_module
-        class mod:
-            @T.prim_func
-            def func_A(A: T.Buffer(16, "float32")):
-                for i in T.serial(16):
-                    A[i] = 0.0
+    @ir_module
+    class before:
+        @T.prim_func(private=True)
+        def func_A(A: T.Buffer(16, "float32")):
+            for i in T.serial(16):
+                A[i] = 0.0
 
-            @T.prim_func
-            def func_B(A: T.Buffer(16, "int32")):
-                for i in T.serial(16):
-                    A[i] = 42
-
-        return mod
+        @T.prim_func(private=True)
+        def func_B(A: T.Buffer(16, "int32")):
+            for i in T.serial(16):
+                A[i] = 42
 
     expected = before
+
+    # Identity transform (no-op)
+    mod = (lambda x: x)(before)
+    tvm.ir.assert_structural_equal(mod, expected)
 
 
 if __name__ == "__main__":

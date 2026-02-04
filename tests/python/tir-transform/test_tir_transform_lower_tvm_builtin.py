@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.testing
 
@@ -165,7 +167,7 @@ def test_lower_overflow_int32():
     tvm.compile(func, target="llvm")  # should not crash
 
 
-class TestLowerDeviceAllocate(tvm.testing.CompareBeforeAfter):
+def test_lower_device_allocate():
     """Device allocations are lowered to TVMBackend* calls
 
     This test validates the current behavior of LowerTVMBuiltin.  This
@@ -176,68 +178,80 @@ class TestLowerDeviceAllocate(tvm.testing.CompareBeforeAfter):
       dtype.
     """
 
-    transform = tvm.tir.transform.LowerTVMBuiltin()
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            T.func_attr({"target": T.target("llvm")})
+            T.attr("dummy", "device_type", 2)  # kDLCuda
+            T.attr("dummy", "device_id", 0)
+            ptr = T.allocate([16], "float32")
+            buf = T.decl_buffer(16, "float32", data=ptr)
+            buf[0] = 0.0
 
-    def before():
-        T.func_attr({"target": T.target("llvm")})
-        T.attr("dummy", "device_type", 2)  # kDLCuda
-        T.attr("dummy", "device_id", 0)
-        ptr = T.allocate([16], "float32")
-        buf = T.decl_buffer(16, "float32", data=ptr)
-        buf[0] = 0.0
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            T.func_attr({"target": T.target("llvm")})
+            ptr: T.handle("float32") = T.TVMBackendAllocWorkspace(2, 0, T.uint64(64), 2, 32)
+            T.attr(ptr, "storage_alignment", 64)
+            if T.isnullptr(ptr):
+                T.Call("int32", "tir.tvm_throw_last_error", [])
+            buf = T.decl_buffer((16,), data=ptr)
+            buf[0] = T.float32(0)
+            if T.TVMBackendFreeWorkspace(2, 0, ptr) != 0:
+                T.Call("int32", "tir.tvm_throw_last_error", [])
 
-    def expected():
-        T.func_attr({"target": T.target("llvm")})
-        ptr: T.handle("float32") = T.TVMBackendAllocWorkspace(2, 0, T.uint64(64), 2, 32)
-        T.attr(ptr, "storage_alignment", 64)
-        if T.isnullptr(ptr):
-            T.Call("int32", "tir.tvm_throw_last_error", [])
-        buf = T.decl_buffer((16,), data=ptr)
-        buf[0] = T.float32(0)
-        if T.TVMBackendFreeWorkspace(2, 0, ptr) != 0:
-            T.Call("int32", "tir.tvm_throw_last_error", [])
-
-    def test_compare(self, before, expected, transform):
-        after = transform(before)
-        assert_structural_equal_ignore_global_symbol(after, expected, map_free_vars=True)
+    After = tvm.tir.transform.LowerTVMBuiltin()(Before)
+    assert_structural_equal_ignore_global_symbol(After, Expected, map_free_vars=True)
 
 
-class TestLowerCPUAllocation(tvm.testing.CompareBeforeAfter):
+def test_lower_cpu_allocation():
     """CPU allocations can be handled at codegen time"""
 
-    transform = tvm.tir.transform.LowerTVMBuiltin()
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            T.func_attr({"target": T.target("llvm")})
+            T.attr("dummy", "device_type", 1)  # kDLCPU
+            T.attr("dummy", "device_id", 0)
+            ptr = T.allocate([16], "float32")
+            buf = T.decl_buffer(16, "float32", data=ptr)
+            buf[0] = 0.0
 
-    def before():
-        T.func_attr({"target": T.target("llvm")})
-        T.attr("dummy", "device_type", 1)  # kDLCPU
-        T.attr("dummy", "device_id", 0)
-        ptr = T.allocate([16], "float32")
-        buf = T.decl_buffer(16, "float32", data=ptr)
-        buf[0] = 0.0
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main():
+            T.func_attr({"target": T.target("llvm")})
+            ptr = T.allocate([16], "float32")
+            buf = T.decl_buffer(16, "float32", data=ptr)
+            buf[0] = 0.0
 
-    def expected():
-        T.func_attr({"target": T.target("llvm")})
-        ptr = T.allocate([16], "float32")
-        buf = T.decl_buffer(16, "float32", data=ptr)
-        buf[0] = 0.0
+    After = tvm.tir.transform.LowerTVMBuiltin()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestLowerAllocateRequiresDeviceID(tvm.testing.CompareBeforeAfter):
+def test_lower_allocate_requires_device_id():
     """If device id is missing, error."""
 
-    transform = tvm.tir.transform.LowerTVMBuiltin()
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            T.func_attr({"target": T.target("llvm")})
+            T.attr("dummy", "device_type", 2)  # kDLCuda
+            ptr = T.allocate([16], "float32")
+            buf = T.decl_buffer(16, "float32", data=ptr)
+            buf[0] = 0.0
 
-    def before():
-        T.func_attr({"target": T.target("llvm")})
-        T.attr("dummy", "device_type", 2)  # kDLCuda
-        ptr = T.allocate([16], "float32")
-        buf = T.decl_buffer(16, "float32", data=ptr)
-        buf[0] = 0.0
-
-    expected = tvm.TVMError
+    with pytest.raises(tvm.TVMError):
+        tvm.tir.transform.LowerTVMBuiltin()(Before)
 
 
-class TestLowerAllocateRequiresDeviceType(tvm.testing.CompareBeforeAfter):
+def test_lower_allocate_requires_device_type():
     """If device type is missing, error.
 
     The device type can be inferred either from the `"device_type"`
@@ -247,36 +261,43 @@ class TestLowerAllocateRequiresDeviceType(tvm.testing.CompareBeforeAfter):
     LowerTVMBuiltin.
     """
 
-    transform = tvm.tir.transform.LowerTVMBuiltin()
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            T.func_attr({"tir.is_host_func": True})
+            T.attr("dummy", "device_id", 0)
+            ptr = T.allocate([1024 * 1024], "float32")
+            buf = T.decl_buffer(1024 * 1024, "float32", data=ptr)
+            buf[0] = 0.0
 
-    def before():
-        T.func_attr({"tir.is_host_func": True})
-        T.attr("dummy", "device_id", 0)
-        ptr = T.allocate([1024 * 1024], "float32")
-        buf = T.decl_buffer(1024 * 1024, "float32", data=ptr)
-        buf[0] = 0.0
-
-    expected = tvm.TVMError
+    with pytest.raises(tvm.TVMError):
+        tvm.tir.transform.LowerTVMBuiltin()(Before)
 
 
-class TestLowerCPUAllocWithFunctionAttr(tvm.testing.CompareBeforeAfter):
+def test_lower_cpu_alloc_with_function_attr():
     """CPU allocations can be handled at codegen time
 
-    Like `TestLowerCPUAllocation`, but the device type is taken from
+    Like `test_lower_cpu_allocation`, but the device type is taken from
     the function attribute.  The `AttrStmt` can override the device
     type for allocations within its scope, but it defaults to the
     function's target.
     """
 
-    transform = tvm.tir.transform.LowerTVMBuiltin()
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            T.func_attr({"target": T.target("llvm")})
+            ptr = T.allocate([16], "float32")
+            buf = T.decl_buffer(16, "float32", data=ptr)
+            buf[0] = 0.0
 
-    def before():
-        T.func_attr({"target": T.target("llvm")})
-        ptr = T.allocate([16], "float32")
-        buf = T.decl_buffer(16, "float32", data=ptr)
-        buf[0] = 0.0
+    # Expected is same as before for this transform
+    Expected = Before
 
-    expected = before
+    After = tvm.tir.transform.LowerTVMBuiltin()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

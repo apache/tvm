@@ -20,11 +20,7 @@ import tvm.testing
 from tvm.script import tir as T, ir as I
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    transform = tvm.tir.transform.LowerDeviceKernelLaunch()
-
-
-class TestLowerDeviceKernelLaunch(BaseCompare):
+def test_lower_device_kernel_launch():
     """Kernel launch parameters are added at the call site
 
     The "tir.kernel_launch_params" determines which parameters belong
@@ -35,48 +31,45 @@ class TestLowerDeviceKernelLaunch(BaseCompare):
     runtime prior in order to launch the generated kernel.
     """
 
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"target": T.target("llvm")})
-                mod.kernel(A.data)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            Before.kernel(A.data)
 
-            @T.prim_func
-            def kernel(A_data: T.handle("float32")):
-                T.func_attr({"target": T.target("cuda")})
-                A = T.decl_buffer(1, dtype="float32", data=A_data)
-                A[0] = 0.0
+        @T.prim_func
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr({"target": T.target("cuda")})
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 0.0
 
-        return mod
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            T.call_packed("kernel", A.data)
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"target": T.target("llvm")})
-                T.call_packed("kernel", A.data)
+        @T.prim_func
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tir.kernel_launch_params": [],
+                    "global_symbol": "kernel",
+                    "tir.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 0.0
 
-            @T.prim_func
-            def kernel(A_data: T.handle("float32")):
-                T.func_attr(
-                    {
-                        "target": T.target("cuda"),
-                        "calling_conv": 2,
-                        "tir.kernel_launch_params": [],
-                        "global_symbol": "kernel",
-                        "tir.is_global_func": True,
-                    }
-                )
-                A = T.decl_buffer(1, dtype="float32", data=A_data)
-                A[0] = 0.0
-
-        return mod
+    After = tvm.tir.transform.LowerDeviceKernelLaunch()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestExternallyVisibleKernelLaunch(BaseCompare):
+def test_externally_visible_kernel_launch():
     """Like TestLowerDeviceKernelLaunch, with pre-defined global_symbol
 
     Because the host and kernel will be handled by different code
@@ -89,48 +82,45 @@ class TestExternallyVisibleKernelLaunch(BaseCompare):
     preserved.
     """
 
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"target": T.target("llvm")})
-                mod.kernel(A.data)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            Before.kernel(A.data)
 
-            @T.prim_func
-            def kernel(A_data: T.handle("float32")):
-                T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel_by_another_name"})
-                A = T.decl_buffer(1, dtype="float32", data=A_data)
-                A[0] = 0.0
+        @T.prim_func
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel_by_another_name"})
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 0.0
 
-        return mod
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            T.call_packed("kernel_by_another_name", A.data)
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"target": T.target("llvm")})
-                T.call_packed("kernel_by_another_name", A.data)
+        @T.prim_func
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tir.kernel_launch_params": [],
+                    "global_symbol": "kernel_by_another_name",
+                    "tir.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A[0] = 0.0
 
-            @T.prim_func
-            def kernel(A_data: T.handle("float32")):
-                T.func_attr(
-                    {
-                        "target": T.target("cuda"),
-                        "calling_conv": 2,
-                        "tir.kernel_launch_params": [],
-                        "global_symbol": "kernel_by_another_name",
-                        "tir.is_global_func": True,
-                    }
-                )
-                A = T.decl_buffer(1, dtype="float32", data=A_data)
-                A[0] = 0.0
-
-        return mod
+    After = tvm.tir.transform.LowerDeviceKernelLaunch()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestCollectLaunchParameter(BaseCompare):
+def test_collect_launch_parameter():
     """Kernel launch parameters are added at the call site
 
     The "tir.kernel_launch_params" determines which parameters belong
@@ -141,55 +131,52 @@ class TestCollectLaunchParameter(BaseCompare):
     runtime prior in order to launch the generated kernel.
     """
 
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(16, "float32")):
-                T.func_attr({"target": T.target("llvm")})
-                mod.kernel(A.data)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            Before.kernel(A.data)
 
-            @T.prim_func
-            def kernel(A_data: T.handle("float32")):
-                T.func_attr(
-                    {
-                        "target": T.target("cuda"),
-                        "global_symbol": "kernel",
-                    }
-                )
-                A = T.decl_buffer(16, dtype="float32", data=A_data)
-                i = T.launch_thread("threadIdx.x", 16)
-                A[i] = 0.0
+        @T.prim_func
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "global_symbol": "kernel",
+                }
+            )
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            i = T.launch_thread("threadIdx.x", 16)
+            A[i] = 0.0
 
-        return mod
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(16, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            T.call_packed("kernel", A.data, 16)
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(16, "float32")):
-                T.func_attr({"target": T.target("llvm")})
-                T.call_packed("kernel", A.data, 16)
+        @T.prim_func
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "calling_conv": 2,
+                    "tir.kernel_launch_params": ["threadIdx.x"],
+                    "global_symbol": "kernel",
+                    "tir.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            i = T.launch_thread("threadIdx.x", 16)
+            A[i] = 0.0
 
-            @T.prim_func
-            def kernel(A_data: T.handle("float32")):
-                T.func_attr(
-                    {
-                        "target": T.target("cuda"),
-                        "calling_conv": 2,
-                        "tir.kernel_launch_params": ["threadIdx.x"],
-                        "global_symbol": "kernel",
-                        "tir.is_global_func": True,
-                    }
-                )
-                A = T.decl_buffer(16, dtype="float32", data=A_data)
-                i = T.launch_thread("threadIdx.x", 16)
-                A[i] = 0.0
-
-        return mod
+    After = tvm.tir.transform.LowerDeviceKernelLaunch()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestSameDeviceDifferentTarget(BaseCompare):
+def test_same_device_different_target():
     """Handle subroutine calls to same device, different codegen
 
     The device kernel launch is only required when the caller and
@@ -199,43 +186,40 @@ class TestSameDeviceDifferentTarget(BaseCompare):
     lowered to a `T.call_extern`.
     """
 
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"target": T.target("llvm")})
-                mod.kernel(A.data)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            Before.kernel(A.data)
 
-            @T.prim_func
-            def kernel(A_data: T.handle("float32")):
-                T.func_attr({"target": T.target("c")})
-                A = T.decl_buffer(16, dtype="float32", data=A_data)
-                A[0] = 0.0
+        @T.prim_func
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr({"target": T.target("c")})
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            A[0] = 0.0
 
-        return mod
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.func_attr({"target": T.target("llvm")})
+            T.call_extern("kernel", A.data, dtype="void")
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(A: T.Buffer(1, "float32")):
-                T.func_attr({"target": T.target("llvm")})
-                T.call_extern("kernel", A.data, dtype="void")
+        @T.prim_func
+        def kernel(A_data: T.handle("float32")):
+            T.func_attr(
+                {
+                    "target": T.target("c"),
+                    "global_symbol": "kernel",
+                    "tir.is_global_func": True,
+                }
+            )
+            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            A[0] = 0.0
 
-            @T.prim_func
-            def kernel(A_data: T.handle("float32")):
-                T.func_attr(
-                    {
-                        "target": T.target("c"),
-                        "global_symbol": "kernel",
-                        "tir.is_global_func": True,
-                    }
-                )
-                A = T.decl_buffer(16, dtype="float32", data=A_data)
-                A[0] = 0.0
-
-        return mod
+    After = tvm.tir.transform.LowerDeviceKernelLaunch()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

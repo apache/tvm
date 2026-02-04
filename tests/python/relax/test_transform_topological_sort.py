@@ -20,23 +20,12 @@ import tvm.testing
 from tvm.script import ir as I, relax as R
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    def transform(self):
-        return tvm.relax.transform.TopologicalSort(
-            order=self.order,
-            direction=self.direction,
-        )
-
-
-class TestDepthFirstFromInputs(BaseCompare):
+def test_depth_first_from_inputs():
     """Sort DataflowBlock bindings with DFS, starting from inputs
 
     Starting with the inputs to the DataflowBlock, sort the variable
     bindings according to their occurrence in a depth-first search.
     """
-
-    order = "depth-first"
-    direction = "from-inputs"
 
     @I.ir_module
     class Before:
@@ -64,8 +53,14 @@ class TestDepthFirstFromInputs(BaseCompare):
                 R.output(D)
             return D
 
+    After = tvm.relax.transform.TopologicalSort(
+        order="depth-first",
+        direction="from-inputs",
+    )(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestDepthFirstFromInputWithConstant(BaseCompare):
+
+def test_depth_first_from_input_with_constant():
     """Topological sort must produce legal ordering.
 
     Here, both `C1` and `C2` use the input tensor `A`.  However, they
@@ -79,9 +74,6 @@ class TestDepthFirstFromInputWithConstant(BaseCompare):
     these variable bindings.
     """
 
-    order = "depth-first"
-    direction = "from-inputs"
-
     @I.ir_module
     class Before:
         @R.function
@@ -112,8 +104,14 @@ class TestDepthFirstFromInputWithConstant(BaseCompare):
                 R.output(E)
             return E
 
+    After = tvm.relax.transform.TopologicalSort(
+        order="depth-first",
+        direction="from-inputs",
+    )(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestDepthFirstFromInputWithMultipleInputs(BaseCompare):
+
+def test_depth_first_from_input_with_multiple_inputs():
     """Use parameter order for deterministic sort
 
     Here, both `C1` and `C2` use the input tensor `A`, as well as
@@ -121,9 +119,6 @@ class TestDepthFirstFromInputWithMultipleInputs(BaseCompare):
     before `B2`, `C1` should be sorted before `C2`.
     """
 
-    order = "depth-first"
-    direction = "from-inputs"
-
     @I.ir_module
     class Before:
         @R.function
@@ -150,8 +145,14 @@ class TestDepthFirstFromInputWithMultipleInputs(BaseCompare):
                 R.output(E)
             return E
 
+    After = tvm.relax.transform.TopologicalSort(
+        order="depth-first",
+        direction="from-inputs",
+    )(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestDepthFirstBreakTiesByExistingOrder(BaseCompare):
+
+def test_depth_first_break_ties_by_existing_order():
     """If DFS is ambiguous, provide deterministic output
 
     Here, both `B1` and `B2` use the input tensor `A`.  Since there
@@ -161,9 +162,6 @@ class TestDepthFirstBreakTiesByExistingOrder(BaseCompare):
     `B1`.
     """
 
-    order = "depth-first"
-    direction = "from-inputs"
-
     @I.ir_module
     class Before:
         @R.function
@@ -190,8 +188,14 @@ class TestDepthFirstBreakTiesByExistingOrder(BaseCompare):
                 R.output(D)
             return D
 
+    After = tvm.relax.transform.TopologicalSort(
+        order="depth-first",
+        direction="from-inputs",
+    )(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestDepthFirstFromOutput(BaseCompare):
+
+def test_depth_first_from_output():
     """Sort DataflowBlock bindings with DFS, starting from outputs
 
     Starting with the outputs to the DataflowBlock, sort the variable
@@ -201,9 +205,6 @@ class TestDepthFirstFromOutput(BaseCompare):
     at the output.
     """
 
-    order = "depth-first"
-    direction = "from-outputs"
-
     @I.ir_module
     class Before:
         @R.function
@@ -230,8 +231,14 @@ class TestDepthFirstFromOutput(BaseCompare):
                 R.output(D)
             return D
 
+    After = tvm.relax.transform.TopologicalSort(
+        order="depth-first",
+        direction="from-outputs",
+    )(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestDepthFirstFromOutputTupleWithBinding(BaseCompare):
+
+def test_depth_first_from_output_tuple_with_binding():
     """A dataflow block may produce multiple outputs
 
     If a dataflow block produces multiple outputs, the result should
@@ -241,9 +248,6 @@ class TestDepthFirstFromOutputTupleWithBinding(BaseCompare):
     `C2`.
     """
 
-    order = "depth-first"
-    direction = "from-outputs"
-
     @I.ir_module
     class Before:
         @R.function
@@ -270,8 +274,14 @@ class TestDepthFirstFromOutputTupleWithBinding(BaseCompare):
             gv = (C1, C2)
             return gv
 
+    After = tvm.relax.transform.TopologicalSort(
+        order="depth-first",
+        direction="from-outputs",
+    )(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestDepthFirstFromOutputTupleWithoutBinding(BaseCompare):
+
+def test_depth_first_from_output_tuple_without_binding():
     """A dataflow block may produce multiple outputs
 
     Like `TestDepthFirstFromOutputTupleWithBinding`, but the
@@ -280,9 +290,6 @@ class TestDepthFirstFromOutputTupleWithoutBinding(BaseCompare):
     bindings, this case must be handled explicitly.
     """
 
-    order = "depth-first"
-    direction = "from-outputs"
-
     @I.ir_module
     class Before:
         @R.function
@@ -307,8 +314,14 @@ class TestDepthFirstFromOutputTupleWithoutBinding(BaseCompare):
                 R.output(C1, C2)
             return (C1, C2)
 
+    After = tvm.relax.transform.TopologicalSort(
+        order="depth-first",
+        direction="from-outputs",
+    )(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestDepthFirstFromOutputWithUnusedVariables(BaseCompare):
+
+def test_depth_first_from_output_with_unused_variables():
     """Sort DataflowBlock bindings with DFS, starting from outputs
 
     The variables `D1` and `D2` are unused, but must still appear
@@ -321,9 +334,6 @@ class TestDepthFirstFromOutputWithUnusedVariables(BaseCompare):
     contribute to the output.
     """
 
-    order = "depth-first"
-    direction = "from-outputs"
-
     @I.ir_module
     class Before:
         @R.function
@@ -354,16 +364,19 @@ class TestDepthFirstFromOutputWithUnusedVariables(BaseCompare):
                 R.output(E)
             return E
 
+    After = tvm.relax.transform.TopologicalSort(
+        order="depth-first",
+        direction="from-outputs",
+    )(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestDepthFirstFromInputWithUnusedParameters(BaseCompare):
+
+def test_depth_first_from_input_with_unused_parameters():
     """Sort DataflowBlock bindings with DFS, starting from inputs
 
     Functions may accept parameters that are not used.
     """
 
-    order = "depth-first"
-    direction = "from-inputs"
-
     @I.ir_module
     class Before:
         @R.function
@@ -390,11 +403,14 @@ class TestDepthFirstFromInputWithUnusedParameters(BaseCompare):
                 R.output(D)
             return D
 
+    After = tvm.relax.transform.TopologicalSort(
+        order="depth-first",
+        direction="from-inputs",
+    )(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestBreadthFirst(BaseCompare):
-    order = "breadth-first"
-    direction = "from-inputs"
 
+def test_breadth_first():
     @I.ir_module
     class Before:
         @R.function
@@ -421,11 +437,14 @@ class TestBreadthFirst(BaseCompare):
                 R.output(D)
             return D
 
+    After = tvm.relax.transform.TopologicalSort(
+        order="breadth-first",
+        direction="from-inputs",
+    )(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
-class TestBreadthFirstBreakTiesByExistingOrder(BaseCompare):
-    order = "breadth-first"
-    direction = "from-inputs"
 
+def test_breadth_first_break_ties_by_existing_order():
     @I.ir_module
     class Before:
         @R.function
@@ -451,6 +470,12 @@ class TestBreadthFirstBreakTiesByExistingOrder(BaseCompare):
                 D = R.add(C1, C2)
                 R.output(D)
             return D
+
+    After = tvm.relax.transform.TopologicalSort(
+        order="breadth-first",
+        direction="from-inputs",
+    )(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

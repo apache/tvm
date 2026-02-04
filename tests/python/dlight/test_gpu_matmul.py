@@ -15,27 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-import pytest
-
+import tvm
 import tvm.testing
 from tvm import dlight as dl
 from tvm.script import tir as T
 from tvm.target import Target
 
 
-class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
-    @pytest.fixture
-    def transform(self):
-        def transform(mod):
-            with Target("nvidia/geforce-gtx-1080-ti"):
-                return dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-
-        return transform
-
-
-class TestMatmul(BaseBeforeAfter):
+def test_matmul():
     # fmt: off
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
         m = T.int64()
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
@@ -47,7 +36,7 @@ class TestMatmul(BaseBeforeAfter):
                     matmul[v_i0, v_i1, v_i2] = T.float32(0)
                 matmul[v_i0, v_i1, v_i2] = matmul[v_i0, v_i1, v_i2] + inp0[v_i0, v_i1, v_k] * inp1[v_k, v_i2]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
         T.func_attr({"tir.is_scheduled": True})
         m = T.int64()
@@ -118,6 +107,11 @@ class TestMatmul(BaseBeforeAfter):
                                             T.writes(matmul[T.int64(0), v1, v2])
                                             matmul[T.int64(0), v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
     # fmt: on
+
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-gtx-1080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
 def test_matmul_int32():
@@ -212,10 +206,9 @@ def test_matmul_int32():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-class TestFusedMatmul(BaseBeforeAfter):
+def test_fused_matmul():
     # fmt: off
-
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(W: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), S: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), A: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), C: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), Out: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32")):
         var_decode_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)))
         var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(4096)))
@@ -240,7 +233,7 @@ class TestFusedMatmul(BaseBeforeAfter):
                 T.writes(Out[v_ax0, v_ax1, v_ax2])
                 Out[v_ax0, v_ax1, v_ax2] = C[v_ax0, v_ax1, v_ax2] + var_matmul_intermediate[v_ax0, v_ax1, v_ax2]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(W: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), S: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), A: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), C: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32"), Out: T.Buffer((T.int64(1), T.int64(32), T.int64(4096)), "float32")):
         T.func_attr({"tir.is_scheduled": True})
         # with T.sblock("root"):
@@ -309,11 +302,15 @@ class TestFusedMatmul(BaseBeforeAfter):
 
     # fmt: on
 
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-gtx-1080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
-class TestSkipGEMV(BaseBeforeAfter):
+
+def test_skip_gemv():
     # fmt: off
-
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(W: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), S: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), C: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), Out: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32")):
         T.func_attr({"tir.noalias": True})
         var_decode_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)))
@@ -343,11 +340,15 @@ class TestSkipGEMV(BaseBeforeAfter):
 
     expected = before
 
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-gtx-1080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
-class TestOutputFP32(BaseBeforeAfter):
+
+def test_output_fp32():
     # fmt: off
-
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
         T.func_attr({"tir.noalias": True})
         n = T.int64()
@@ -399,7 +400,7 @@ class TestOutputFP32(BaseBeforeAfter):
                 T.writes(p_output0_intermediate[v_ax0, v_ax1, v_ax2])
                 p_output0_intermediate[v_ax0, v_ax1, v_ax2] = var_compute_intermediate_1[v_ax0, v_ax1, v_ax2] + lv3[v_ax0, v_ax1, v_ax2]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
         T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         n = T.int64()
@@ -473,8 +474,13 @@ class TestOutputFP32(BaseBeforeAfter):
 
     # fmt: on
 
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-gtx-1080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
-class TestInlineConsumerChain(BaseBeforeAfter):
+
+def test_inline_consumer_chain():
     # fmt: off
     @T.prim_func(private=True)
     def before(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
@@ -528,9 +534,9 @@ class TestInlineConsumerChain(BaseBeforeAfter):
                 T.writes(var_T_multiply_intermediate[v_ax0, v_ax1])
                 var_T_multiply_intermediate[v_ax0, v_ax1] = var_compute_intermediate[v_ax0, v_ax1] * var_T_multiply_intermediate_1[v_ax0, v_ax1]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": True, "tir.noalias": True})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         n = T.int64()
         lv26 = T.match_buffer(p_lv26, (n, T.int64(2048)), "float16")
         lv52 = T.match_buffer(p_lv52, (T.int64(1), n, T.int64(2048)))
@@ -602,20 +608,15 @@ class TestInlineConsumerChain(BaseBeforeAfter):
 
     # fmt: on
 
-
-class AndroidBeforeAfter(tvm.testing.CompareBeforeAfter):
-    @pytest.fixture
-    def transform(self):
-        def transform(mod):
-            with Target("opencl", host="llvm -mtriple=aarch64-linux-android"):
-                return dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
-
-        return transform
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-gtx-1080-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-class TestMatmulAndroid(AndroidBeforeAfter):
+def test_matmul_android():
     # fmt: off
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
         m = T.int64()
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
@@ -627,9 +628,9 @@ class TestMatmulAndroid(AndroidBeforeAfter):
                     matmul[v_i0, v_i1, v_i2] = T.float32(0)
                 matmul[v_i0, v_i1, v_i2] = matmul[v_i0, v_i1, v_i2] + inp0[v_i0, v_i1, v_k] * inp1[v_k, v_i2]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": True})
+        T.func_attr({"tir.is_scheduled": True})
         m = T.int64()
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
         matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
@@ -700,10 +701,15 @@ class TestMatmulAndroid(AndroidBeforeAfter):
                                     T.writes(matmul[v0, v1, v2])
                                     matmul[v0, v1, v2] = matmul_pad_local[v0, v1, v2]
 
+    mod = tvm.IRModule({"main": before})
+    with Target("opencl", host="llvm -mtriple=aarch64-linux-android"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
-class TestFusedDequantMatmulAndroid(AndroidBeforeAfter):
+
+def test_fused_dequant_matmul_android():
     # fmt: off
-    @T.prim_func
+    @T.prim_func(private=True)
     def before(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
         T.func_attr({"tir.noalias": True})
         seq_len = T.int64()
@@ -740,9 +746,9 @@ class TestFusedDequantMatmulAndroid(AndroidBeforeAfter):
                 T.writes(T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2])
                 T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2] = matmul_intermediate[v_ax0, v_ax1, v_ax2] + transformer_h_0_attn_c_attn_bias3[v_ax2]
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def expected(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": True, "tir.noalias": True})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         seq_len = T.int64()
         rms_norm130 = T.match_buffer(p_rms_norm130, (T.int64(1), seq_len, T.int64(4096)), "float16")
         T_add_intermediate_intermediate = T.match_buffer(p_output0, (T.int64(1), seq_len, T.int64(12288)), "float16")
@@ -840,6 +846,11 @@ class TestFusedDequantMatmulAndroid(AndroidBeforeAfter):
                                     T.writes(T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2])
                                     T_add_intermediate_intermediate[v_ax0, v_ax1, v_ax2] = matmul_intermediate_pad_local[v_ax0, v_ax1, v_ax2] + transformer_h_0_attn_c_attn_bias3[v_ax2]
     # fmt: on
+
+    mod = tvm.IRModule({"main": before})
+    with Target("opencl", host="llvm -mtriple=aarch64-linux-android"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":
