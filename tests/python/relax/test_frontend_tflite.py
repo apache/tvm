@@ -55,6 +55,13 @@ def verify(TestClass, expected=None):
         cf = TestClass
     mod = _get_mod_from_cfunc(cf)
 
+    if expected:
+        tvm.ir.assert_structural_equal(mod, expected)
+
+    # Run E2E test only on nightly
+    if not CI_ENV_NIGHTLY in os.environ:
+        return
+
     # Inputs
     tf_inputs = []
     tvm_inputs = []
@@ -80,9 +87,6 @@ def verify(TestClass, expected=None):
             np.testing.assert_allclose(tf_out.numpy(), tvm_out.numpy(), rtol=1e-5, atol=1e-5)
     else:
         np.testing.assert_allclose(tf_output.numpy(), tvm_output.numpy(), rtol=1e-5, atol=1e-5)
-
-    if expected:
-        tvm.ir.assert_structural_equal(mod, expected)
 
 
 def test_add_one_2d():
@@ -806,6 +810,10 @@ def test_pool_2d(pool, data, kernel, data_format, strides, padding):
     ],
 )
 def test_networks(net, shape):
+    # Run network tests only in nightly builds
+    if not CI_ENV_NIGHTLY in os.environ:
+        return
+
     class NetworkModule(tf.Module):
         def __init__(self):
             self.model = net(weights="imagenet", include_top=True)

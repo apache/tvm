@@ -27,3 +27,7 @@ python3 -m pip install  -v --target=python ./3rdparty/tvm-ffi/
 find . -type f -path "*.pyc" | xargs rm -f
 
 run_pytest python-topi-nightly tests/python/topi/nightly
+
+# Tensorflow device verification and network tests on nightly
+export CI_ENV_NIGHTLY
+python3 tests/python/relax/test_frontend_tflite.py
