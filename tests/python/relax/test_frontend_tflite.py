@@ -59,7 +59,7 @@ def verify(TestClass, expected=None):
         tvm.ir.assert_structural_equal(mod, expected)
 
     # Run E2E test only on nightly
-    if not CI_ENV_NIGHTLY in os.environ:
+    if "CI_ENV_NIGHTLY" not in os.environ:
         return
 
     # Inputs
@@ -811,7 +811,7 @@ def test_pool_2d(pool, data, kernel, data_format, strides, padding):
 )
 def test_networks(net, shape):
     # Run network tests only in nightly builds
-    if not CI_ENV_NIGHTLY in os.environ:
+    if "CI_ENV_NIGHTLY" not in os.environ:
         return
 
     class NetworkModule(tf.Module):
