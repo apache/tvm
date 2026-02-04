@@ -51,188 +51,176 @@ def test_ssa_across_entire_module():
     assert not loop_var.same_as(param_var)
 
 
-class BaseCompare(tvm.testing.CompareBeforeAfter):
-    transform = tvm.tir.transform.SplitHostDevice()
-
-
-class TestSplitHostDevice(BaseCompare):
+def test_split_host_device():
     """SplitHostDevice divides a function at the "target" attribute"""
 
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(n: T.int32):
-                T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
-                T.attr(T.target("cuda"), "target", 0)
-                T.evaluate(n)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(n: T.int32):
+            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            T.attr(T.target("cuda"), "target", 0)
+            T.evaluate(n)
 
-        return mod
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(n: T.int32):
+            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            Expected.main_kernel(n)
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(n: T.int32):
-                T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
-                mod.main_kernel(n)
+        @T.prim_func(private=True)
+        def main_kernel(n: T.int32):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "tir.noalias": True,
+                    "tir.is_global_func": True,
+                }
+            )
+            T.evaluate(n)
 
-            @T.prim_func(private=True)
-            def main_kernel(n: T.int32):
-                T.func_attr(
-                    {
-                        "target": T.target("cuda"),
-                        "tir.noalias": True,
-                        "tir.is_global_func": True,
-                    }
-                )
-                T.evaluate(n)
-
-        return mod
+    After = tvm.tir.transform.SplitHostDevice()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestSplitHostDeviceOnCPU(BaseCompare):
+def test_split_host_device_on_cpu():
     """A kernel running on the CPU may return an error code"""
 
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(n: T.int32):
-                T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
-                T.attr(T.target("llvm"), "target", 0)
-                T.evaluate(n)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(n: T.int32):
+            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            T.attr(T.target("llvm"), "target", 0)
+            T.evaluate(n)
 
-        return mod
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(n: T.int32):
+            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            err = Expected.main_kernel(n)
+            assert err == 0, "Error executing compute kernel"
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(n: T.int32):
-                T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
-                err = mod.main_kernel(n)
-                assert err == 0, "Error executing compute kernel"
+        @T.prim_func(private=True)
+        def main_kernel(n: T.int32) -> T.int32:
+            T.func_attr(
+                {
+                    "target": T.target("llvm"),
+                    "tir.noalias": True,
+                    "tir.is_global_func": True,
+                }
+            )
+            T.evaluate(n)
+            T.ret(0)
 
-            @T.prim_func(private=True)
-            def main_kernel(n: T.int32) -> T.int32:
-                T.func_attr(
-                    {
-                        "target": T.target("llvm"),
-                        "tir.noalias": True,
-                        "tir.is_global_func": True,
-                    }
-                )
-                T.evaluate(n)
-                T.ret(0)
-
-        return mod
+    After = tvm.tir.transform.SplitHostDevice()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestSplitHostDeviceWithoutFuncHostAttribute(BaseCompare):
-    """Like TestSplitHostDevice, but no host specified in the host's target
+def test_split_host_device_without_func_host_attribute():
+    """Like test_split_host_device, but no host specified in the host's target
 
     The `T.attr` specifying the device still requires splitting out
     the kernel.
     """
 
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(n: T.int32):
-                T.func_attr({"target": T.target("llvm")})
-                T.attr(T.target("cuda"), "target", 0)
-                T.evaluate(n)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(n: T.int32):
+            T.func_attr({"target": T.target("llvm")})
+            T.attr(T.target("cuda"), "target", 0)
+            T.evaluate(n)
 
-        return mod
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(n: T.int32):
+            T.func_attr({"target": T.target("llvm")})
+            Expected.main_kernel(n)
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(n: T.int32):
-                T.func_attr({"target": T.target("llvm")})
-                mod.main_kernel(n)
+        @T.prim_func(private=True)
+        def main_kernel(n: T.int32):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "tir.noalias": True,
+                    "tir.is_global_func": True,
+                }
+            )
+            T.evaluate(n)
 
-            @T.prim_func(private=True)
-            def main_kernel(n: T.int32):
-                T.func_attr(
-                    {
-                        "target": T.target("cuda"),
-                        "tir.noalias": True,
-                        "tir.is_global_func": True,
-                    }
-                )
-                T.evaluate(n)
-
-        return mod
+    After = tvm.tir.transform.SplitHostDevice()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
-class TestSplitHostDeviceWithoutDeviceRegion(BaseCompare):
-    """Like TestSplitHostDevice, but no device regions to extract
+def test_split_host_device_without_device_region():
+    """Like test_split_host_device, but no device regions to extract
 
     Because MakePackedAPI/MakeUnpackedAPI still require both the
     device and host, SplitHostDevice does not modify the "target"
     attribute.
     """
 
-    def before():
+    @T.prim_func
+    def Before():
         T.func_attr({"target": T.target("ext_dev", host="llvm")})
         T.evaluate(0)
 
-    expected = before
+    Expected = Before
+
+    After = tvm.tir.transform.SplitHostDevice()(tvm.IRModule.from_expr(Before))
+    tvm.ir.assert_structural_equal(After["Before"], Expected)
 
 
-class TestSplitHostDeviceNameCollision(BaseCompare):
-    """Like TestSplitHostDevice, but with the default name already taken
+def test_split_host_device_name_collision():
+    """Like test_split_host_device, but with the default name already taken
 
     The default name is generated as `func.name + "_kernel"`.  If this
     name is already taken by another function in the IRModule, then
     SplitHostDevice should select a different name.
     """
 
-    def before(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(n: T.int32):
-                T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
-                T.attr(T.target("cuda"), "target", 0)
-                T.evaluate(n)
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(n: T.int32):
+            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            T.attr(T.target("cuda"), "target", 0)
+            T.evaluate(n)
 
-            @T.prim_func
-            def main_kernel():
-                T.func_attr({"target": T.target("llvm")})
-                T.evaluate(0)
+        @T.prim_func
+        def main_kernel():
+            T.func_attr({"target": T.target("llvm")})
+            T.evaluate(0)
 
-        return mod
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(n: T.int32):
+            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            Expected.main_kernel_1(n)
 
-    def expected(self):
-        @I.ir_module
-        class mod:
-            @T.prim_func
-            def main(n: T.int32):
-                T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
-                mod.main_kernel_1(n)
+        @T.prim_func(private=True)
+        def main_kernel_1(n: T.int32):
+            T.func_attr(
+                {
+                    "target": T.target("cuda"),
+                    "tir.noalias": True,
+                    "tir.is_global_func": True,
+                }
+            )
+            T.evaluate(n)
 
-            @T.prim_func(private=True)
-            def main_kernel_1(n: T.int32):
-                T.func_attr(
-                    {
-                        "target": T.target("cuda"),
-                        "tir.noalias": True,
-                        "tir.is_global_func": True,
-                    }
-                )
-                T.evaluate(n)
+        @T.prim_func
+        def main_kernel():
+            T.func_attr({"target": T.target("llvm")})
+            T.evaluate(0)
 
-            @T.prim_func
-            def main_kernel():
-                T.func_attr({"target": T.target("llvm")})
-                T.evaluate(0)
-
-        return mod
+    After = tvm.tir.transform.SplitHostDevice()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_dynamic_launch_thread():
