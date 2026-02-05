@@ -676,13 +676,12 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   spirv::Value init_value = MakeValue(op->min);
   PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
   spirv::Value end_value = MakeValue(end);
-  spirv::PhiValue loop_var = builder_->MakePhi(init_value.stype, 2);
 
   // loop step
   spirv::Value step;
   if (op->HasTrivialStep()) {
-    step = op->loop_var.dtype().is_int() ? builder_->IntImm(loop_var.stype, 1)
-                                         : builder_->UIntImm(loop_var.stype, 1);
+    step = op->loop_var.dtype().is_int() ? builder_->IntImm(init_value.stype, 1)
+                                         : builder_->UIntImm(init_value.stype, 1);
   } else {
     step = MakeValue(tvm::cast(end->dtype, *op->step));
   }
@@ -699,8 +698,9 @@ void CodeGenSPIRV::VisitStmt_(const ForNode* op) {
   builder_->SetName(merge_label, "for_loop_merge");
   builder_->MakeInst(spv::OpBranch, head_label);
 
-  // Loop head
+  // Loop head - Phi must be created AFTER StartLabel so it's in the head block
   builder_->StartLabel(head_label);
+  spirv::PhiValue loop_var = builder_->MakePhi(init_value.stype, 2);
   loop_var.SetIncoming(0, init_value, init_label);
   spirv::Value loop_cond = builder_->LT(loop_var, end_value);
   uint32_t control =
