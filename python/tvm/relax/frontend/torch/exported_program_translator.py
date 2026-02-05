@@ -113,6 +113,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(relax.op.rsqrt(x))
 
+    def _to_sparse(self, node: fx.Node) -> relax.Var:
+        """Fallback for sparse conversion: Relax does not support sparse tensors yet."""
+        args = self.retrieve_args(node)
+        return args[0]
+
     ########## Neural Network ##########
 
     def _batch_norm(self, node: fx.Node, training: bool, return_tuple: bool = False) -> relax.Var:
@@ -1254,6 +1259,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "square.default": self._unary_op(relax.op.square),
             "tan.default": self._unary_op(relax.op.tan),
             "tanh.default": self._unary_op(relax.op.tanh),
+            "to_sparse.default": self._to_sparse,
             "tril.default": self._tril_triu(relax.op.tril),
             "triu.default": self._tril_triu(relax.op.triu),
             "trunc.default": self._unary_op(relax.op.trunc),
@@ -1812,8 +1818,28 @@ def from_exported_program(
         # Use the importer to import the ExportedProgram to Relax.
         mod: tvm.IRModule = from_exported_program(exported_program)
     """
+
+    def _is_sparse_tensor(value: object) -> bool:
+        if not isinstance(value, torch.Tensor):
+            return False
+        try:
+            return value.layout != torch.strided
+        except RuntimeError:
+            return False
+
+    def _has_sparse_tensors(ep: torch.export.ExportedProgram) -> bool:
+        from itertools import chain
+
+        all_potential_tensors = chain(
+            (t for _, t in ep.named_buffers()),
+            (t for _, t in ep.named_parameters()),
+            ep.constants.values(),
+            ep.tensor_constants.values(),
+        )
+        return any(_is_sparse_tensor(t) for t in all_potential_tensors)
+
     # Conditionally decompose into Core ATen operators
-    if run_ep_decomposition:
+    if run_ep_decomposition and not _has_sparse_tensors(exported_program):
         exported_program = exported_program.run_decompositions()
 
     return ExportedProgramImporter().from_exported_program(
