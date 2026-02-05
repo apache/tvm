@@ -34,7 +34,7 @@ from tvm.meta_schedule.search_strategy import MeasureCandidate
 from tvm.meta_schedule.tune_context import TuneContext
 from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
-from tvm.tir.schedule.schedule import Schedule
+from tvm.s_tir.schedule.schedule import Schedule
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring

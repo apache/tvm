@@ -17,7 +17,7 @@
 """Multi-level tiling with reuse."""
 from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Callable
 
-from tvm.tir.schedule import Schedule, SBlockRV
+from tvm.s_tir.schedule import Schedule, SBlockRV
 from tvm_ffi import register_object
 
 from .. import _ffi_api

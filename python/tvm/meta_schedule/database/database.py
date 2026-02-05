@@ -26,7 +26,7 @@ from tvm_ffi import register_object
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
 from tvm.target import Target
-from tvm.tir.schedule import Schedule, Trace
+from tvm.s_tir.schedule import Schedule, Trace
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
@@ -284,7 +284,7 @@ class Database(Object):
 
         Returns
         -------
-        schedule : Optional[tvm.tir.Schedule]
+        schedule : Optional[tvm.s_tir.Schedule]
             The best schedule of the given workload; None if not found.
         """
         return _ffi_api.DatabaseQuerySchedule(self, mod, target, workload_name)  # type: ignore # pylint: disable=no-member
@@ -350,7 +350,7 @@ class Database(Object):
 
         Returns
         -------
-        result : Union[tvm.tir.Schedule, IRModule, TuningRecord]
+        result : Union[tvm.s_tir.Schedule, IRModule, TuningRecord]
             The best optimization outcome of the given workload.
         """
         if kind == "schedule":
@@ -393,7 +393,7 @@ class Database(Object):
 
         Parameters
         ----------
-        kind : str = "json" | "memory" | "union" | "ordered_union" | Callable[[tvm.tir.Schedule],
+        kind : str = "json" | "memory" | "union" | "ordered_union" | Callable[[tvm.s_tir.Schedule],
         bool]
             The kind of the database to be created. The following kinds are supported:
             "json", "memory", "union", "ordered_union", and a custom schedule function.

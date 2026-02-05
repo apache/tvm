@@ -53,7 +53,7 @@ class Module:
 def test_scale_by(primFunc, size):
     """Test calculate allocated bytes per scope"""
     mod = tvm.IRModule.from_expr(primFunc.with_attr("global_symbol", "main"))
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     block_c = sch.get_sblock("C")
     (flat,) = sch.get_loops(block_c)
     cache_block = sch.cache_read(block_c, 0, storage_scope="global.vtcm")
@@ -117,7 +117,7 @@ def test_full_mod_calculator():
         block_c = sch.get_sblock("C")
         sch.cache_read(block_c, 0, storage_scope="global.vtcm")
 
-    sch = tvm.tir.Schedule(Module, debug_mask="all")
+    sch = tvm.s_tir.Schedule(Module, debug_mask="all")
     apply_schedule(sch, "scale_by_two")
     apply_schedule(sch, "scale_by_two_three")
     mod = tvm.tir.transform.ConvertBlocksToOpaque()(sch.mod)

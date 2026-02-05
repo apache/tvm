@@ -34,7 +34,7 @@ def sigmoid_compute(sigmoid_input):
 
 def sigmoid_stir_schedule(sigmoid_input, sigmoid_output):
     sigmoid_func = te.create_prim_func([sigmoid_input, sigmoid_output])
-    sch = tir.Schedule(sigmoid_func, debug_mask="all")
+    sch = tvm.s_tir.Schedule(sigmoid_func, debug_mask="all")
     block = sch.get_sblock("compute")
 
     (n,) = sch.get_loops(block)

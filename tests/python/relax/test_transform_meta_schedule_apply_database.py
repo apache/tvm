@@ -63,7 +63,7 @@ def test_apply_to_func_with_different_block_name():
                     B[vi] = A[vi]
 
     def create_trace(mod: tvm.IRModule):
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
         _ = sch.get_sblock("block")
         return sch.trace
 

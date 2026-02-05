@@ -115,15 +115,11 @@ from .op import dp4a
 from .op import ignore_loop_partition
 from .generic import add, subtract, multiply
 
-from .schedule import StmtSRef, SBlockScope, ScheduleState, Schedule, ScheduleError
-from .block_dependence_info import SBlockDependenceInfo
-
-from . import schedule
 from . import ir_builder
 from . import transform
 from . import analysis
+from . import backend
 from . import stmt_functor
 from .build import build
 from .pipeline import get_tir_pipeline, get_default_tir_pipeline
 from .functor import PyStmtExprVisitor, PyStmtExprMutator
-from . import backend

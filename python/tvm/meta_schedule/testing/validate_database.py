@@ -30,11 +30,11 @@ from tvm import meta_schedule as ms
 from tvm.ir import IRModule
 from tvm.support import describe
 from tvm.target import Target
-from tvm.tir import Schedule
-from tvm.tir.schedule import Trace
+from tvm.s_tir import Schedule
+from tvm.s_tir.schedule import Trace
 from tvm.meta_schedule.utils import remove_build_dir
 from tvm.meta_schedule.testing.tune_utils import generate_input_data
-from tvm.tir.tensor_intrin import *  # type: ignore # pylint: disable=wildcard-import,unused-wildcard-import
+from tvm.s_tir.tensor_intrin import *  # type: ignore # pylint: disable=wildcard-import,unused-wildcard-import
 from tvm.testing.utils import strtobool
 
 DELIMITOR = "\n" + "-" * 30 + "\n"

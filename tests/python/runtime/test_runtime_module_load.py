@@ -101,7 +101,7 @@ def test_device_module_dump():
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
 
-    sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
     # create iter var and assign them tags.
     num_thread = 8
     bx, tx = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])

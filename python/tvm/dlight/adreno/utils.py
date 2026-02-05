@@ -20,7 +20,7 @@
 from typing import List
 
 from tvm.target import Target
-from tvm import tir
+from tvm import s_tir
 
 from ..analysis import SBlockInfo
 
@@ -67,13 +67,13 @@ def get_texture_storage(block_info: SBlockInfo):
     return "global"
 
 
-def schedule_inline_blocks(sch: tir.Schedule, blocks: List[tir.schedule.SBlockRV] = None):
+def schedule_inline_blocks(sch: s_tir.Schedule, blocks: List[s_tir.schedule.SBlockRV] = None):
     from .fallback import Fallback
 
     return Fallback.schedule_inline_blocks(sch, blocks)
 
 
-def schedule_default(sch, blocks: List[tir.schedule.SBlockRV] = None):
+def schedule_default(sch, blocks: List[s_tir.schedule.SBlockRV] = None):
     from .fallback import Fallback
 
     ret = []

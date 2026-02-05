@@ -18,7 +18,7 @@
 """A Conv2d schedule rule for Adreno GPU operators."""
 from typing import Optional, Union
 
-from tvm import tir
+from tvm import tir, s_tir
 from tvm.target import Target
 
 from .utils import schedule_inline_blocks, schedule_default
@@ -30,7 +30,7 @@ class Conv2d(AdrenoScheduleRule):
     """The schedule rule for convolution computation"""
 
     @staticmethod
-    def schedule_conv2d(sch: tir.Schedule, blk: tir.schedule.SBlockRV):
+    def schedule_conv2d(sch: s_tir.Schedule, blk: s_tir.schedule.SBlockRV):
         n, oc, oh, ow, ob, ic, kh, kw = sch.get_loops(blk)
 
         bz, vz, tz = sch.split(oc, [None, 8, 1], preserve_unit_iters=True)
@@ -63,19 +63,19 @@ class Conv2d(AdrenoScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: Union[tir.PrimFunc, tir.Schedule],
+        func: Union[tir.PrimFunc, s_tir.Schedule],
         target: Target,
         _: bool,
-    ) -> Optional[tir.Schedule]:
-        if not (isinstance(func, (tir.PrimFunc, tir.Schedule))) or not self.is_target_available(
+    ) -> Optional[s_tir.Schedule]:
+        if not (isinstance(func, (tir.PrimFunc, s_tir.Schedule))) or not self.is_target_available(
             target
         ):
             return None
 
         if isinstance(func, tir.PrimFunc):
-            sch = tir.Schedule(func)
+            sch = s_tir.Schedule(func)
             sch.work_on("main")
-        elif isinstance(func, tir.Schedule):
+        elif isinstance(func, s_tir.Schedule):
             sch = func
 
         root_block = analysis.get_root_block(sch, sch.func_working_on)

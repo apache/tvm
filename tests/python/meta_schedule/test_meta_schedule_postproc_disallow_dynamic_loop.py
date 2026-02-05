@@ -85,14 +85,14 @@ class DynamicLoop:
 def test_postproc_disallow_dynamic_loops():
     mod = Matmul
     ctx = _create_context(mod, target=_target())
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     assert ctx.space_generator.postprocs[0].apply(sch)
 
 
 def test_postproc_disallow_dynamic_loops_fail():
     mod = DynamicLoop
     ctx = _create_context(mod, target=_target())
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     assert not ctx.space_generator.postprocs[0].apply(sch)
 
 

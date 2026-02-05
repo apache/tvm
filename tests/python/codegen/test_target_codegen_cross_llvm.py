@@ -33,7 +33,7 @@ def test_llvm_add_pipeline():
     B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
 
-    sch = tvm.tir.Schedule(te.create_prim_func([A, B, C]))
+    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B, C]))
     xo, xi = sch.split(sch.get_loops("C")[0], factors=[None, 4])
     sch.parallel(xo)
     sch.vectorize(xi)

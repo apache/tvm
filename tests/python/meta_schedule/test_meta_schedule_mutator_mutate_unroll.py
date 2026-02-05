@@ -20,7 +20,7 @@ from typing import List
 from tvm import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.tir import Schedule
+from tvm.s_tir import Schedule
 
 # pylint: disable=invalid-name, no-member
 

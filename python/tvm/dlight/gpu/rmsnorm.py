@@ -79,7 +79,7 @@ class RMSNorm(ScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> tir.Schedule:
+    ) -> tvm.s_tir.Schedule:
         if target.kind.name == "cuda":
             num_tx = 512
         elif target.kind.name == "opencl":
@@ -87,7 +87,7 @@ class RMSNorm(ScheduleRule):
         else:
             num_tx = 64
 
-        sch = tir.Schedule(func)
+        sch = tvm.s_tir.Schedule(func)
         root = sch.get_sblock(name="root", func_name="main")
 
         blocks = sch.get_child_blocks(root)

@@ -18,8 +18,8 @@
 import tvm
 import numpy as np
 from tvm.script import tir as T
-from tvm.tir.schedule import Schedule
-import tvm.tir.tensor_intrin  # pylint: disable=unused-import
+from tvm.s_tir.schedule import Schedule
+import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
 import tvm.testing
 
 import pytest

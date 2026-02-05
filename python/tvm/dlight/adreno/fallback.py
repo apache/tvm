@@ -19,7 +19,7 @@
 
 from typing import List, Union
 
-from tvm import tir
+from tvm import tir, s_tir
 from tvm.target import Target
 from .. import analysis
 from .base import AdrenoScheduleRule
@@ -47,8 +47,8 @@ class Fallback(AdrenoScheduleRule):
 
     @staticmethod
     def schedule_inline_blocks(
-        sch: tir.Schedule, blocks: List[tir.schedule.SBlockRV]
-    ) -> List[tir.schedule.SBlockRV]:
+        sch: s_tir.Schedule, blocks: List[s_tir.schedule.SBlockRV]
+    ) -> List[s_tir.schedule.SBlockRV]:
         """
         Auto Inlines Injective and Element-wise Operations while trying to omit data pad blocks...
         """
@@ -87,7 +87,7 @@ class Fallback(AdrenoScheduleRule):
         return remaining_blocks
 
     @staticmethod
-    def schedule_default(sch: tir.Schedule, blk: tir.schedule.SBlockRV):
+    def schedule_default(sch: s_tir.Schedule, blk: s_tir.schedule.SBlockRV):
         block_info = analysis.get_sblock_info(sch, blk)
 
         s_loops, r_loops, o_loops = [], [], []
@@ -156,13 +156,13 @@ class Fallback(AdrenoScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
+    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
         # pylint: disable=invalid-name
 
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
 
-        sch = tir.Schedule(func)
+        sch = s_tir.Schedule(func)
         root_block = analysis.get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
 

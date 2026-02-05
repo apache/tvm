@@ -21,7 +21,7 @@ import tvm.testing
 from tvm import te
 from tvm.script import tir as T
 from tvm import tir
-from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
+from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 
 
 def _check(original, transformed):

@@ -19,7 +19,7 @@
 from typing import Optional
 
 import tvm
-from tvm import topi, tir, relax, te
+from tvm import topi, tir, s_tir, relax, te
 from tvm.relax.op.base import call_tir
 from tvm.relax.struct_info import TensorStructInfo
 from tvm.relax.utils import gen_call_tir_inputs
@@ -309,7 +309,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
             name=name,
         )
 
-    def set_axis_sep(axis_sep: list, sch: tir.schedule, buffer_type: str):
+    def set_axis_sep(axis_sep: list, sch: s_tir.schedule, buffer_type: str):
         sch.set_axis_separator(primfunc_name, (buffer_type, 0), axis_separators=axis_sep)
 
     index_map: tvm.tir.IndexMap = call.attrs.index_map
@@ -337,7 +337,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
         te_layout_transform, call.args[0], primfunc_name
     )
     # Create TIR schedule to apply layout changes with axis separators
-    sch = tir.Schedule(tir_func)
+    sch = tvm.s_tir.Schedule(tir_func)
     sch.transform_layout(primfunc_name, ("write", 0), index_map, pad_value)
     set_axis_sep(axis_separators, sch, "write")
     if input_axis_separators is not None:

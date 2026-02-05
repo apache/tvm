@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test rpc based launcher for hexagon """
+"""Test rpc based launcher for hexagon"""
 import tempfile
 
 import numpy as np
@@ -34,7 +34,7 @@ from tvm.meta_schedule.builder import BuilderInput
 from tvm.meta_schedule.runner import RunnerInput
 from tvm.script import tir as T
 from tvm.tir import FloatImm
-from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
+from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 
 from .infrastructure import get_hexagon_target
 
@@ -200,7 +200,7 @@ def test_vrmpy_dense(hexagon_launcher):
 
     if not do_tune:
         ir_module = tvm.IRModule({"main": workload})
-        sch = tvm.tir.Schedule(ir_module)
+        sch = tvm.s_tir.Schedule(ir_module)
         block = sch.get_sblock("compute")
         schedule_dense(sch, block, m_size, do_tune)
     else:
@@ -357,7 +357,7 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
             )
             sch = ms.tir_integration.compile_tir(database, workload, target)
     else:
-        sch = tvm.tir.Schedule(ModuleVRMPYAutoTensorize, debug_mask="all")
+        sch = tvm.s_tir.Schedule(ModuleVRMPYAutoTensorize, debug_mask="all")
 
     with hexagon_launcher.create_session() as session:
         verify_dense(sch, get_hexagon_target("v68"), m_size, n_size, k_size, session)

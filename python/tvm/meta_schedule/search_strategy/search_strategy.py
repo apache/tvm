@@ -26,7 +26,7 @@ from typing_extensions import Literal
 # isort: on
 from tvm_ffi import register_object
 from tvm.runtime import Object
-from tvm.tir.schedule import Schedule
+from tvm.s_tir.schedule import Schedule
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
@@ -44,7 +44,7 @@ class MeasureCandidate(Object):
 
     Parameters
     ----------
-    sch : tvm.tir.Schedule
+    sch : tvm.s_tir.Schedule
         The schedule to be measured.
     args_info : List[ArgInfo]
         The argument information.
@@ -62,7 +62,7 @@ class MeasureCandidate(Object):
 
         Parameters
         ----------
-        sch : tvm.tir.Schedule
+        sch : tvm.s_tir.Schedule
             The schedule to be measured.
         args_info : List[ArgInfo]
             The argument information.
@@ -130,7 +130,7 @@ class SearchStrategy(Object):
             The maximum number of trials.
         num_trials_per_iter : int
             The number of trials per iteration.
-        design_spaces : List[tvm.tir.Schedule]
+        design_spaces : List[tvm.s_tir.Schedule]
             The design spaces used during tuning process.
         database : Optional[Database] = None
             The database used during tuning process.

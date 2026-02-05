@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" The class of Space used to optimize the Meta parameters """
+"""The class of Space used to optimize the Meta parameters"""
 
 import json
 import random
@@ -24,7 +24,7 @@ import numpy as np  # type: ignore
 
 from tvm import meta_schedule as ms
 from tvm.target import Target
-from tvm.tir import Schedule
+from tvm.s_tir import Schedule
 from tvm.meta_schedule.database import Workload, TuningRecord
 from tvm.meta_schedule.utils import remove_build_dir
 

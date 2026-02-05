@@ -55,9 +55,14 @@ Python API
 
     tir/tir
     tir/analysis
-    tir/schedule
     tir/stmt_functor
     tir/transform
+
+.. toctree::
+    :maxdepth: 1
+    :caption: tvm.s_tir
+
+    s_tir/schedule
 
 .. toctree::
     :maxdepth: 1

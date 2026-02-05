@@ -49,21 +49,21 @@ def unknown_bounds(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32"
 
 
 def test_oob_load():
-    with pytest.raises(tvm.tir.ScheduleError) as err:
+    with pytest.raises(tvm.s_tir.ScheduleError) as err:
         tvm.tir.analysis.OOBChecker()(tvm.IRModule.from_expr(bad_load))
     assert "buffer A" in err.value.args[0]
 
-    with pytest.raises(tvm.tir.ScheduleError) as err:
+    with pytest.raises(tvm.s_tir.ScheduleError) as err:
         tvm.tir.analysis.OOBChecker()(tvm.IRModule.from_expr(bad_load_loop))
     assert "buffer A" in err.value.args[0]
 
 
 def test_oob_store():
-    with pytest.raises(tvm.tir.ScheduleError) as err:
+    with pytest.raises(tvm.s_tir.ScheduleError) as err:
         tvm.tir.analysis.OOBChecker()(tvm.IRModule.from_expr(bad_store))
     assert "buffer B" in err.value.args[0]
 
-    with pytest.raises(tvm.tir.ScheduleError) as err:
+    with pytest.raises(tvm.s_tir.ScheduleError) as err:
         tvm.tir.analysis.OOBChecker()(tvm.IRModule.from_expr(bad_store_loop))
     assert "buffer B" in err.value.args[0]
 

@@ -40,7 +40,7 @@ def mma_schedule(
     import tvm  # pylint: disable=import-outside-toplevel
 
     ir_module = tvm.IRModule({"main": workload})
-    sch = tvm.tir.Schedule(ir_module)
+    sch = tvm.s_tir.Schedule(ir_module)
 
     block = sch.get_sblock("C")
     i, j, k = sch.get_loops(block)
@@ -152,7 +152,7 @@ def mfma_schedule(
     import tvm
 
     ir_module = tvm.IRModule({"main": workload})
-    sch = tvm.tir.Schedule(ir_module)
+    sch = tvm.s_tir.Schedule(ir_module)
 
     wmma_m = 16
     wmma_n = 16

@@ -61,7 +61,7 @@ def test_fp8_conversions(input):
                 T.writes(C[v_i])
                 C[v_i] = T.Cast(dtype, T.Cast("float16", A[v_i]) + T.Cast("float16", B[v_i]))
 
-    sch = tvm.tir.Schedule(add)
+    sch = tvm.s_tir.Schedule(add)
     block = sch.get_sblock("C")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 32])
@@ -117,7 +117,7 @@ def test_fp8_packing(dtype):
                 T.writes(B[v_i])
                 B[v_i] = T.reinterpret(native_dtype, R[v_i])
 
-    sch = tvm.tir.Schedule(add)
+    sch = tvm.s_tir.Schedule(add)
     block = sch.get_sblock("R")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 32])
@@ -181,7 +181,7 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
                     native_dtype, T.Cast(promoted_dtype, A[v_i]) + T.Cast(promoted_dtype, B[v_i])
                 )
 
-    sch = tvm.tir.Schedule(add)
+    sch = tvm.s_tir.Schedule(add)
     block = sch.get_sblock("C")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 32])
@@ -231,7 +231,7 @@ def test_half_broadcast(bcast_length):
             with T.sblock("broadcast"):
                 vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
 
-    sch = tvm.tir.Schedule(vector_broadcast)
+    sch = tvm.s_tir.Schedule(vector_broadcast)
     block = sch.get_sblock("broadcast")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 1])
@@ -313,7 +313,7 @@ def test_half4_vector_add():
                 T.writes(C[v_i])
                 C[v_i] = A[v_i] + B[v_i]
 
-    sch = tvm.tir.Schedule(add)
+    sch = tvm.s_tir.Schedule(add)
     block = sch.get_sblock("C")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 32])
@@ -987,7 +987,7 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
                 vi = T.axis.remap("S", [i])
                 C[vi] = (A[vi].astype(dtype) * B[vi]) + T.bfloat16(3.0)
 
-    sch = tir.Schedule(func_vectorize)
+    sch = tvm.s_tir.Schedule(func_vectorize)
     (l,) = sch.get_loops(sch.get_sblock("compute"))
     lo, li = sch.split(l, [None, vec_length])
     sch.bind(lo, "threadIdx.x")

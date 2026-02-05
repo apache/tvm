@@ -18,7 +18,7 @@
 from functools import reduce
 from typing import List, Literal, Optional, Set, Union
 
-from tvm import arith, ir, tir
+from tvm import arith, ir, tir, s_tir
 from tvm.target import Target
 
 from ..analysis import (
@@ -48,13 +48,13 @@ def _get_reduction_expr(block: tir.SBlock) -> Optional[tir.PrimExpr]:
     return buffer_store.value.b
 
 
-def is_gemv(sch: tir.Schedule, block_info: SBlockInfo) -> Optional[List[tir.Buffer]]:
+def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> Optional[List[tir.Buffer]]:
     """Check if the block is a low batch GEMM.
 
     Parameters
     ----------
 
-    sch : tir.Schedule
+    sch : s_tir.Schedule
         The schedule
 
     block_info : SBlockInfo
@@ -127,7 +127,7 @@ def detect_dominant_read(block: tir.SBlock, const_iter_vars: Set[tir.Var]) -> ti
 
 
 def normalize(
-    sch: tir.Schedule,
+    sch: s_tir.Schedule,
     block_info: SBlockInfo,
 ) -> Optional[bool]:
     """Normalize the main block."""
@@ -197,10 +197,10 @@ class LowBatchGEMV(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
+    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
-        sch = tir.Schedule(func)
+        sch = s_tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
         if block_infos is None:
             return None
@@ -286,11 +286,11 @@ class LowBatchGEMV(GPUScheduleRule):
 
     def sch_inner_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
         self,
-        sch: tir.Schedule,
+        sch: s_tir.Schedule,
         target: Target,
-        block: tir.schedule.SBlockRV,
-        dequantize_block: Optional[tir.schedule.SBlockRV],
-        pad_input_block: Optional[tir.schedule.SBlockRV],
+        block: s_tir.schedule.SBlockRV,
+        dequantize_block: Optional[s_tir.schedule.SBlockRV],
+        pad_input_block: Optional[s_tir.schedule.SBlockRV],
         vector_input_buffers: List[tir.Buffer],
         epilogue_info: Optional[SBlockInfo],
         batch_pad: int,
@@ -305,7 +305,7 @@ class LowBatchGEMV(GPUScheduleRule):
             return 1
 
         def apply(
-            sch: tir.Schedule,
+            sch: s_tir.Schedule,
             gemv,
             TAG_S,
             TAG_R,
@@ -598,11 +598,11 @@ class LowBatchGEMV(GPUScheduleRule):
 
     def sch_outer_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
         self,
-        sch: tir.Schedule,
+        sch: s_tir.Schedule,
         target: Target,
-        block: tir.schedule.SBlockRV,
-        dequantize_block: Optional[tir.schedule.SBlockRV],
-        pad_input_block: Optional[tir.schedule.SBlockRV],
+        block: s_tir.schedule.SBlockRV,
+        dequantize_block: Optional[s_tir.schedule.SBlockRV],
+        pad_input_block: Optional[s_tir.schedule.SBlockRV],
         vector_input_buffers: List[tir.Buffer],
         epilogue_info: Optional[SBlockInfo],
         batch_pad: int,
@@ -614,8 +614,8 @@ class LowBatchGEMV(GPUScheduleRule):
         SCALE_PACK = 4
 
         def apply(
-            sch: tir.Schedule,
-            main_block: tir.schedule.SBlockRV,
+            sch: s_tir.Schedule,
+            main_block: s_tir.schedule.SBlockRV,
             TAG_S: Literal["threadIdx.x", "threadIdx.y"],
             TAG_R: Literal["threadIdx.x", "threadIdx.y"],
             TS: int,

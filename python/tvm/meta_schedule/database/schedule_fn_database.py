@@ -18,7 +18,7 @@
 from typing import Callable
 
 from tvm_ffi import register_object
-from tvm.tir import Schedule
+from tvm.s_tir import Schedule
 
 from .. import _ffi_api
 from .database import Database

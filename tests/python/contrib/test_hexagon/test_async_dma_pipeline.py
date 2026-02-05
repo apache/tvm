@@ -256,7 +256,7 @@ def conv_approximation(size_a, size_w):
             )
         )
 
-    return tvm.tir.Schedule(operator)
+    return tvm.s_tir.Schedule(operator)
 
 
 def evaluate(
@@ -841,10 +841,10 @@ def test_meta(hexagon_session):
     w_data = np.random.randint(1, 8, (2, 1, 7, 7, 1, 32, 4), dtype="int8")
     c_data = np.zeros((1, 2, 112, 112, 32), dtype="int32")
 
-    sch = tvm.tir.Schedule(ModuleBase)
+    sch = tvm.s_tir.Schedule(ModuleBase)
     base_runtime = evaluate(hexagon_session, sch, a_data, w_data, c_data)
 
-    sch = tvm.tir.Schedule(ModulePipelined)
+    sch = tvm.s_tir.Schedule(ModulePipelined)
     compute_block = sch.get_sblock("conv2d_NCHWc_int8_o_update")
     outer = sch.get_loops(compute_block)[0]
 
@@ -852,7 +852,7 @@ def test_meta(hexagon_session):
         hexagon_session, sch, a_data, w_data, c_data, use_async_copy=1
     )
 
-    sch = tvm.tir.Schedule(ModulePipelined)
+    sch = tvm.s_tir.Schedule(ModulePipelined)
     compute_block = sch.get_sblock("conv2d_NCHWc_int8_o_update")
     outer = sch.get_loops(compute_block)[0]
 

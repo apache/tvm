@@ -25,7 +25,7 @@ from tvm.script import tir as T
 
 import numpy as np
 
-from tvm.tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
 @tvm.register_global_func("tvm.test_matmul")

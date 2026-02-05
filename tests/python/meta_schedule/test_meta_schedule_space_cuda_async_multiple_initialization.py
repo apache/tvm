@@ -26,7 +26,7 @@ from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.te_workload import create_te_workload
 from tvm.target import Target
 from tvm.ir import IRModule
-from tvm.tir import Schedule
+from tvm.s_tir import Schedule
 
 
 def generate_design_space(

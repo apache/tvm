@@ -95,7 +95,7 @@ evaluate(MyModule)
 # We initiate the process of code transformation by establishing a Schedule helper class,
 # utilizing the provided **MyModule** as input.
 
-sch = tvm.tir.Schedule(MyModule)
+sch = tvm.s_tir.Schedule(MyModule)
 
 ######################################################################
 # Loop Tiling

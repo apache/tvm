@@ -149,10 +149,10 @@ class TestMatMulVec:
     ):
         """Test Add operator."""
 
-        sch = tvm.tir.Schedule(operator_producer(operations))
+        sch = tvm.s_tir.Schedule(operator_producer(operations))
         single_thread_runtime = evaluate(hexagon_session, operations, expected_output_producer, sch)
 
-        sch = tvm.tir.Schedule(operator_producer(operations))
+        sch = tvm.s_tir.Schedule(operator_producer(operations))
         block = sch.get_sblock("c_buffer")
         b = sch.get_loops(block)
         b_output, _ = sch.split(b[0], factors=[split_factor, None])

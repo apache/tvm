@@ -124,7 +124,7 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
                     i, j = T.axis.remap("SS", [li, lj])
                     B[i, j] = A[i, j]
 
-    def schedule_texture_read(sch: tir.Schedule):
+    def schedule_texture_read(sch: s_tir.Schedule):
         B_blk = sch.get_sblock("Copy")
         Ai_block = sch.cache_read(B_blk, 0, "global.texture")
         sch.transform_layout(Ai_block, ("write", 0), lambda i, j: (i, j // lanes, j % lanes))
@@ -152,7 +152,7 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
 
     with target:
         mod = preprocess_pipeline(mod)
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
         schedule_texture_read(sch)
         mod = postprocess_pipeline(sch.mod)
 

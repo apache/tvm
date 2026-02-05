@@ -314,7 +314,7 @@ def test_rpc_remote_module():
         temp = utils.tempdir()
         dev = remote.cl(0)
 
-        s = tvm.tir.Schedule(mod)
+        s = tvm.s_tir.Schedule(mod)
 
         x = s.get_loops(s.get_sblock("B"))
         xo, xi = s.split(x, factors=[None, 32])

@@ -20,12 +20,12 @@ import numpy as np
 import pytest
 import tvm
 import tvm.testing
-import tvm.tir.tensor_intrin.cuda
+import tvm.s_tir.tensor_intrin.cuda
 from tvm import TVMError, te, tir
 from tvm.meta_schedule.testing import te_workload
 from tvm.script import tir as T
 from tvm.testing.tir import mma_schedule
-from tvm.tir.tensor_intrin.cuda import (
+from tvm.s_tir.tensor_intrin.cuda import (
     LDMATRIX_f16_A_DYN_INTRIN,
     LDMATRIX_f16_B_DYN_INTRIN,
     MMA_f16f16f32_INTRIN,
@@ -1183,7 +1183,7 @@ def test_error_missing_annotation():
 
 def test_simple_compute_async():
     mod = tvm.IRModule.from_expr(gen_simple_compute(1).with_attr("global_symbol", "main"))
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
     sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0])
@@ -1230,7 +1230,7 @@ def test_simple_compute_async():
     tvm.ir.assert_structural_equal(mod["main"], ref.with_attr("global_symbol", "main"), True)
 
     mod = tvm.IRModule.from_expr(gen_simple_compute(3).with_attr("global_symbol", "main"))
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
     sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0])
@@ -1315,7 +1315,7 @@ def test_async_producer_interleaving():
                         C[tx, i] = A_shared[tx, 0] + B_shared[tx, 0]
 
     mod = tvm.IRModule.from_expr(simple_compute.with_attr("global_symbol", "main"))
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
     sch.annotate(loop, ann_key="software_pipeline_stage", ann_val=[0, 0, 3])
@@ -1396,7 +1396,7 @@ def test_async_producer_interleaving():
 
 def test_three_stage_compute_two_stage_async():
     mod = tvm.IRModule.from_expr(three_stage_compute.with_attr("global_symbol", "main"))
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     _, loop = sch.get_loops(sch.get_sblock("compute"))
     sch.annotate(loop, ann_key="software_pipeline_async_stages", ann_val=[0, 1])

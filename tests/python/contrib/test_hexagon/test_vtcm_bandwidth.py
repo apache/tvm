@@ -22,7 +22,7 @@ import pytest
 
 import tvm
 from tvm.script import tir as T
-from tvm.tir.tensor_intrin.hexagon import DMA_READ_128_i8
+from tvm.s_tir.tensor_intrin.hexagon import DMA_READ_128_i8
 
 from .infrastructure import get_hexagon_target
 
@@ -144,11 +144,11 @@ class TestMatMulVec:
             pytest.skip("Skipping test since it takes too long in CI.")
 
         # Run the base memcopy operator.
-        sch = tvm.tir.Schedule(memcopy_operator(size))
+        sch = tvm.s_tir.Schedule(memcopy_operator(size))
         base_gpbs = evaluate(hexagon_session, sch, size)
 
         # Run with some basic unroll and vectorize scheduling.
-        sch = tvm.tir.Schedule(memcopy_operator(size))
+        sch = tvm.s_tir.Schedule(memcopy_operator(size))
         vtcm_block_a = sch.get_sblock("A_global.vtcm")
         v_block = sch.get_loops(vtcm_block_a)
         _, vio_a, vii_a = sch.split(v_block[0], factors=[None, unroll_split, vector_split])
@@ -157,7 +157,7 @@ class TestMatMulVec:
         vectorize_gbps = evaluate(hexagon_session, sch, size)
 
         # Run with some basic unroll and vectorize scheduling and parallelization.
-        sch = tvm.tir.Schedule(memcopy_operator(size))
+        sch = tvm.s_tir.Schedule(memcopy_operator(size))
         vtcm_block_a = sch.get_sblock("A_global.vtcm")
         v_block = sch.get_loops(vtcm_block_a)
         vbo_a, _, vio_a, vii_a = sch.split(
@@ -169,7 +169,7 @@ class TestMatMulVec:
         parallel_gbps = evaluate(hexagon_session, sch, size)
 
         # Run with some basic unroll and vectorize scheduling and parallelization.
-        sch = tvm.tir.Schedule(memcopy_operator(size))
+        sch = tvm.s_tir.Schedule(memcopy_operator(size))
         block = sch.get_sblock("A_global.vtcm")
         loops = sch.get_loops(block)
         _, inner = sch.split(loops[0], [None, 128])
@@ -178,7 +178,7 @@ class TestMatMulVec:
         sync_dma_gbps = evaluate(hexagon_session, sch, size)
 
         # Run using a single dma copy to transfer the data.
-        sch = tvm.tir.Schedule(single_dma_operator(size))
+        sch = tvm.s_tir.Schedule(single_dma_operator(size))
         single_dma_gbps = evaluate(hexagon_session, sch, size)
 
         mbs = round(size / MB, 2)

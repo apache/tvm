@@ -37,7 +37,7 @@ def get_model():
             return lv0
 
     mod = pipeline(Mod)
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
     # manually transform loop
     sch.work_on("add")
     (i,) = sch.get_loops(block=sch.get_sblock("T_add"))

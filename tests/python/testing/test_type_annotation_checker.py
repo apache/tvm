@@ -23,7 +23,7 @@ import pytest
 import _pytest
 
 import tvm
-from tvm.tir.schedule._type_checker import type_checked
+from tvm.s_tir.schedule._type_checker import type_checked
 
 
 def int_func(x: int) -> int:
@@ -208,7 +208,7 @@ def test_subscripted_generics(type_annotation, expected_key, expected_subtypes):
     In Python 3.14, Union and other generic types have a different internal representation.
     This test ensures that the dispatcher correctly identifies these types.
     """
-    from tvm.tir.schedule._type_checker import _dispatcher
+    from tvm.s_tir.schedule._type_checker import _dispatcher
 
     key, subtypes = _dispatcher(type_annotation)
     assert key == expected_key, f"Expected '{expected_key}' but got '{key}'"

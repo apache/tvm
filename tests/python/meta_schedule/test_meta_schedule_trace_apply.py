@@ -21,9 +21,10 @@ import tvm.testing
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tir import Schedule, floordiv, floormod
-from tvm.tir.tensor_intrin.cuda import *
-from tvm.tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.tir import floordiv, floormod
+from tvm.s_tir import Schedule
+from tvm.s_tir.tensor_intrin.cuda import *
+from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 
 # fmt: off

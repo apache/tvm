@@ -67,7 +67,7 @@ class Matmul:
 
 def test_postproc_disallow_async_strided_mem_copy_allows():
     mod = Matmul
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
 
     matmul_block = sch.get_sblock("matmul")
 
@@ -87,7 +87,7 @@ def test_postproc_disallow_async_strided_mem_copy_allows():
 
 def test_postproc_disallow_async_strided_mem_copy_disallows():
     mod = Matmul
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
 
     matmul_block = sch.get_sblock("matmul")
 

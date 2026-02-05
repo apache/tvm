@@ -65,7 +65,7 @@ def prepare_gpu_lib(base_path):
     B = te.placeholder((n,), name="B")
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B, C]).with_attr("global_symbol", "myadd"))
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
     sch.work_on("myadd")
     (i,) = sch.get_loops(block=sch.get_sblock("C"))
     i0, i1 = sch.split(i, [None, 32])

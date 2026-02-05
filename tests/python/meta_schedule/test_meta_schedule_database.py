@@ -29,7 +29,7 @@ from tvm.ir.module import IRModule
 from tvm.meta_schedule.database import TuningRecord, Workload
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.tir import Schedule
+from tvm.s_tir import Schedule
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
@@ -88,7 +88,7 @@ def _schedule_matmul(sch: Schedule):
 
 
 def _create_schedule(mod: IRModule, sch_fn: Callable[[Schedule], None]) -> Schedule:
-    sch = tir.Schedule(mod=mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod=mod, debug_mask="all")
     sch_fn(sch)
     return sch
 

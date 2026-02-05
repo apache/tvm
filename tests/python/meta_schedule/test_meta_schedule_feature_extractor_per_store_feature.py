@@ -23,7 +23,7 @@ import tvm
 import tvm.testing
 from numpy.testing import assert_allclose
 from tvm import meta_schedule as ms
-from tvm import te, tir
+from tvm import te, tir, s_tir
 from tvm.script import tir as T
 
 N_FEATURES = 164
@@ -84,7 +84,7 @@ def _make_context(target) -> ms.TuneContext:
     )
 
 
-def _make_candidate(f_sch: Callable[[], tir.Schedule]) -> ms.MeasureCandidate:
+def _make_candidate(f_sch: Callable[[], s_tir.Schedule]) -> ms.MeasureCandidate:
     return ms.MeasureCandidate(sch=f_sch(), args_info=[])
 
 
@@ -208,7 +208,7 @@ def _print_feature(feature, st, ed):  # pylint: disable=invalid-name
 def test_cpu_matmul():
     def _create_schedule():
         func = matmul
-        sch = tir.Schedule(func, debug_mask="all")
+        sch = tvm.s_tir.Schedule(func, debug_mask="all")
         block = sch.get_sblock("C")
         i, j, k = sch.get_loops(block)
         i_o, i_i = sch.split(i, factors=[None, 16])  # outer: 32
@@ -425,7 +425,7 @@ def test_cpu_fusion():
     # pylint: enable=all
 
     def _create_schedule():
-        return tir.Schedule(func, debug_mask="all")
+        return s_tir.Schedule(func, debug_mask="all")
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
@@ -715,7 +715,7 @@ def test_empty_feature():
                 T_full[v_ax0, v_ax1] = T.float32(1)
 
     def _create_schedule():
-        return tir.Schedule(full, debug_mask="all")
+        return s_tir.Schedule(full, debug_mask="all")
 
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
@@ -729,7 +729,7 @@ def test_empty_feature():
 def test_gpu():
     def _create_schedule():
         func = matmul
-        sch = tir.Schedule(func, debug_mask="all")
+        sch = tvm.s_tir.Schedule(func, debug_mask="all")
         c = sch.get_sblock("C")
         c_local = sch.cache_write(c, 0, "local")
         i, j, k = sch.get_loops(c)
@@ -1612,7 +1612,7 @@ def test_cpu_layout_transform():
     extractor = ms.feature_extractor.PerStoreFeature()
     (feature,) = extractor.extract_from(
         _make_context(tvm.target.Target("llvm")),
-        candidates=[_make_candidate(lambda: tir.Schedule(LayoutTransform))],
+        candidates=[_make_candidate(lambda: s_tir.Schedule(LayoutTransform))],
     )
 
 
@@ -1626,7 +1626,7 @@ def test_negative_extent():
     extractor = ms.feature_extractor.PerStoreFeature()
     (features,) = extractor.extract_from(
         _make_context(tvm.target.Target("llvm")),
-        candidates=[_make_candidate(lambda: tir.Schedule(negative_extent))],
+        candidates=[_make_candidate(lambda: s_tir.Schedule(negative_extent))],
     )
     named_features = dict(zip(_feature_names(), list(features.numpy()[0, :])))
     assert named_features["B0.unique_bytes"] == 0

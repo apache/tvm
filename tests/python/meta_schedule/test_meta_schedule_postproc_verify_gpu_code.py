@@ -782,7 +782,7 @@ def GMMCUDATensorCore(
 @pytest.mark.parametrize("mod", [Conv2dCuda0, Conv2dCuda1, GmmCuda0, GMMCUDATensorCore])
 def test_postproc_check_pass(mod):
     ctx = _create_context(mod, target=_target())
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     assert ctx.space_generator.postprocs[0].apply(sch)
 
 
@@ -797,7 +797,7 @@ def test_postproc_check_pass(mod):
 )
 def test_postproc_check_fail(mod):
     ctx = _create_context(mod, target=_target())
-    sch = tir.Schedule(mod, debug_mask="all")
+    sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     assert not ctx.space_generator.postprocs[0].apply(sch)
 
 

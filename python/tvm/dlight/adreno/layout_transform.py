@@ -20,7 +20,7 @@
 "Schedules for Texture Based Layout Transforms"
 from typing import List, Union
 
-from tvm import tir
+from tvm import tir, s_tir
 from tvm.target import Target
 from .. import analysis
 
@@ -36,20 +36,20 @@ class LayoutTransform(AdrenoScheduleRule):
     # TODO: Try using Coalesced Writes...
     def apply(  # pylint: disable=too-many-locals
         self,
-        func: Union[tir.PrimFunc, tir.Schedule],
+        func: Union[tir.PrimFunc, s_tir.Schedule],
         target: Target,
         _: bool,
-    ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
+    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
         # pylint: disable=invalid-name
-        if not (isinstance(func, (tir.PrimFunc, tir.Schedule))) or not self.is_target_available(
+        if not (isinstance(func, (tir.PrimFunc, s_tir.Schedule))) or not self.is_target_available(
             target
         ):
             return None
 
         if isinstance(func, tir.PrimFunc):
-            sch = tir.Schedule(func)
+            sch = s_tir.Schedule(func)
             sch.work_on("main")
-        elif isinstance(func, tir.Schedule):
+        elif isinstance(func, s_tir.Schedule):
             sch = func
 
         root_block = analysis.get_root_block(sch, sch.func_working_on)

@@ -30,7 +30,7 @@ from tvm.meta_schedule.testing.space_generation import (
     print_sketches,
 )
 from tvm.script import tir as T
-from tvm.tir.tensor_intrin.cuda import get_wmma_intrin_group
+from tvm.s_tir.tensor_intrin.cuda import get_wmma_intrin_group
 
 
 def multi_level_tiling_tensor_core(

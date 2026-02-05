@@ -33,7 +33,7 @@ from tvm.meta_schedule.space_generator import PostOrderApply
 from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.tir.schedule import SBlockRV, Schedule
+from tvm.s_tir.schedule import SBlockRV, Schedule
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off
@@ -335,8 +335,8 @@ def test_meta_schedule_post_order_apply_remove_block():
     def correct_trace(a, b, c, d):
         return "\n".join(
             [
-                "# from tvm import tir",
-                "def apply_trace(sch: tir.Schedule) -> None:",
+                "# from tvm import s_tir",
+                "def apply_trace(sch: s_tir.Schedule) -> None:",
                 '  b0 = sch.get_sblock(name="A", func_name="main")',
                 '  b1 = sch.get_sblock(name="B", func_name="main")',
                 '  b2 = sch.get_sblock(name="C", func_name="main")',
@@ -376,7 +376,7 @@ def test_meta_schedule_post_order_apply_remove_block():
     assert len(schs) == 4
     for sch in schs:
         with pytest.raises(
-            tvm.tir.schedule.schedule.ScheduleError,
+            tvm.s_tir.schedule.schedule.ScheduleError,
             match="ScheduleError: An error occurred in the schedule primitive 'get-block'.",
         ):
             sch.get_sblock("B", "main")

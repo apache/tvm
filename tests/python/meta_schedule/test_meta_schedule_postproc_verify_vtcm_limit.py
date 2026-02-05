@@ -114,7 +114,7 @@ def test_conv2d_vtcm():
         target = tvm.target.hexagon("v68", vtcm_capacity=vtcm_cap)
         return tvm.target.Target(target, host=target)
 
-    sch = tir.Schedule(Conv2dNCHWcVTCM, debug_mask="all")
+    sch = tvm.s_tir.Schedule(Conv2dNCHWcVTCM, debug_mask="all")
 
     ctx = _create_context(Conv2dNCHWcVTCM, target=get_target(70000))
     assert not ctx.space_generator.postprocs[0].apply(sch)

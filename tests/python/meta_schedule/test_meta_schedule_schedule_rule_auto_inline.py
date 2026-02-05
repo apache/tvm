@@ -24,7 +24,7 @@ from tvm.ir.base import assert_structural_equal
 from tvm.meta_schedule.testing.space_generation import generate_design_space
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.tir import Schedule
+from tvm.s_tir import Schedule
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
@@ -504,7 +504,7 @@ def test_conv2d_int8_inline_constant_scalars():
     conv2d = sch.get_sblock("conv2d_nhwc")
     sch.cache_write(conv2d, 0, "shared")
 
-    with pytest.raises(tvm.tir.ScheduleError) as e:
+    with pytest.raises(tvm.s_tir.ScheduleError) as e:
         sch.reverse_compute_inline(sch.get_sblock("T_add_1"))
 
     err_msg = "The block is only allowed to read a single buffer region, but it reads 2 region(s)"

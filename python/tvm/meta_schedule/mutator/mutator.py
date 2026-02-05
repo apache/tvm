@@ -24,7 +24,7 @@ from typing_extensions import Literal
 
 from tvm_ffi import register_object
 from tvm.runtime import Object
-from tvm.tir.schedule import Trace
+from tvm.s_tir.schedule import Trace
 
 from .. import _ffi_api
 from ..utils import _get_default_str
