@@ -46,7 +46,7 @@ def test_texture_scope():
                             vb, vt, vk = T.axis.remap("SSS", [block_idx, thread_idx, k])
                             C[vb, vt, vk] = B[vb, vt, vk] * T.float32(2)
 
-    sch = tir.Schedule(PlusOneMultTwo, debug_mask="all")
+    sch = tvm.s_tir.Schedule(PlusOneMultTwo, debug_mask="all")
 
     def schedule_block(block):
         _, _, inner = sch.get_loops(block)

@@ -65,7 +65,7 @@ def test_allreduce_sum(dims, target, dev):
     d1, d2, d3 = dims
     _, _, _d1, _d2, _d3 = reduce.params
     mod = reduce.specialize({_d1: d1, _d2: d2, _d3: d3})
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
     blk = sch.get_sblock("reduce")
     i, j, k, l = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")
@@ -119,7 +119,7 @@ def test_allreduce_sum_compile(optional_metal_compile_callback):
     d1, d2, d3 = dims
     _, _, _d1, _d2, _d3 = reduce.params
     mod = reduce.specialize({_d1: d1, _d2: d2, _d3: d3})
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
     blk = sch.get_sblock("reduce")
     i, j, k, l = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")
@@ -134,7 +134,7 @@ def test_allreduce_max(dims, target, dev):
     d1, d2, d3 = dims
     _, _, _d1, _d2, _d3 = reduce_max.params
     mod = reduce_max.specialize({_d1: d1, _d2: d2, _d3: d3})
-    sch = tvm.tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
     blk = sch.get_sblock("reduce")
     i, j, k, l = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")

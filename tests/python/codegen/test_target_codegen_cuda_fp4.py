@@ -54,7 +54,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
                     native_dtype, T.Cast(promoted_dtype, A[v_i]) + T.Cast(promoted_dtype, B[v_i])
                 )
 
-    sch = tvm.tir.Schedule(add)
+    sch = tvm.s_tir.Schedule(add)
     block = sch.get_sblock("C")
     b = sch.get_loops(block)
     bx, tx = sch.split(b[0], factors=[None, 32])
@@ -172,7 +172,7 @@ def test_e2m1_dequantize():
                     ).astype("float16")
 
         func = shuffle_reinterpret if func_type == "shuffle" else scalar_reinterpret
-        sch = tvm.tir.Schedule(func)
+        sch = tvm.s_tir.Schedule(func)
         block = sch.get_sblock("C")
         b = sch.get_loops(block)
         bx, tx, vec = sch.split(b[0], factors=[None, 32, vector_length])

@@ -84,7 +84,7 @@ def test_llvm_overloaded_intrin():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A, C])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Build from scheduled TIR
     f = tvm.compile(sch.mod, target="llvm")
@@ -112,7 +112,7 @@ def test_llvm_large_uintimm():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     def check_llvm():
         f = tvm.compile(sch.mod, target="llvm")
@@ -134,7 +134,7 @@ def test_llvm_multi_parallel():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A, C])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Get blocks and loops
     c_block = sch.get_sblock("C")
@@ -177,7 +177,7 @@ def test_llvm_flip_pipeline():
 
         # Convert to TIR and create schedule
         mod = te.create_prim_func([A, C])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         # Get block and loop
         block = sch.get_sblock("C")
@@ -213,7 +213,7 @@ def test_llvm_vadd_pipeline():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A, B, C])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Get block and loop
     block = sch.get_sblock("C")
@@ -242,7 +242,7 @@ def test_llvm_madd_pipeline():
 
         # Convert to TIR and create schedule
         mod = te.create_prim_func([A, C])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         # Get block and loops
         block = sch.get_sblock("C")
@@ -280,7 +280,7 @@ def test_llvm_temp_space():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A, C])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     def check_llvm():
         # build and invoke the kernel.
@@ -306,7 +306,7 @@ def test_multiple_func():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A, B, C])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Create two functions with different names
     mod = tvm.IRModule(
@@ -339,7 +339,7 @@ def test_llvm_condition():
 
         # Convert to TIR and create schedule
         mod = te.create_prim_func([A, C])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         # build and invoke the kernel.
         f = tvm.compile(sch.mod, target="llvm")
@@ -363,7 +363,7 @@ def test_llvm_bool():
 
         # Convert to TIR and create schedule
         mod = te.create_prim_func([A, C])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         # build and invoke the kernel.
         f = tvm.compile(sch.mod, target="llvm")
@@ -389,7 +389,7 @@ def test_rank_zero():
 
         # Convert to TIR and create schedule
         mod = te.create_prim_func([A, scale, D])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         # build and invoke the kernel.
         f = tvm.compile(sch.mod, target="llvm")
@@ -417,7 +417,7 @@ def test_rank_zero_bound_checkers():
 
             # Convert to TIR and create schedule
             mod = te.create_prim_func([A, scale, D])
-            sch = tir.Schedule(mod)
+            sch = tvm.s_tir.Schedule(mod)
 
             # build and invoke the kernel.
             f = tvm.compile(sch.mod, target="llvm")
@@ -441,7 +441,7 @@ def test_alignment():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A, B]).with_attr("global_symbol", "test_alignment")
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Get block and loop
     block = sch.get_sblock("B")
@@ -525,7 +525,7 @@ def test_llvm_div():
 
         # Convert to TIR and create schedule
         mod = te.create_prim_func([A, B, D, M])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         # Build from scheduled TIR
         f = tvm.compile(sch.mod, target="llvm")
@@ -631,7 +631,7 @@ def test_llvm_fp_math():
 
         # Convert to TIR and create schedule
         mod = te.create_prim_func([A, B])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         # Build from scheduled TIR
         f = tvm.compile(sch.mod, target="llvm")
@@ -651,7 +651,7 @@ def test_llvm_fp_math():
 
         # Convert to TIR and create schedule
         mod = te.create_prim_func([A, B])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         # Build from scheduled TIR
         f = tvm.compile(sch.mod, target="llvm")
@@ -676,7 +676,7 @@ def test_dwarf_debug_information():
 
     # Convert to TIR and create schedule
     mod = te.create_prim_func([A, B, C])
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Get block and loop
     block = sch.get_sblock("C")
@@ -766,7 +766,7 @@ def test_llvm_bf16():
 
         # Convert to TIR and create schedule
         mod = te.create_prim_func([A, B, D])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         # Get block and loop
         block = sch.get_sblock("D")
@@ -858,7 +858,7 @@ def test_llvm_import():
         temp = utils.tempdir()
         ll_path = temp.relpath("temp.ll")
         ll_code = clang.create_llvm(cc_code, output=ll_path)
-        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
 
         if use_file:
             sch.annotate(sch.get_loops("B")[0], "pragma_import_llvm", ll_path)
@@ -920,7 +920,7 @@ def test_llvm_target_attributes():
     B = te.compute((n,), lambda i: A[i], name="B")
     C = te.compute((n,), lambda i: B[i] + tvm.tir.const(1, A.dtype), name="C")
 
-    sch = tvm.tir.Schedule(
+    sch = tvm.s_tir.Schedule(
         te.create_prim_func([A, B, C, n]).with_attr("global_symbol", "test_func")
     )
     xo, xi = sch.split(sch.get_loops("C")[0], factors=[2, None])
