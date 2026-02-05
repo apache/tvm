@@ -117,6 +117,8 @@ class VulkanStream {
   // Synchronize the current stream `state_` with respect to the host.
   void Synchronize();
 
+  VkCommandPool CommandPool() const { return cmd_pool_; }
+
  private:
   const VulkanDevice* device_;
   std::unique_ptr<VulkanStreamState> state_;

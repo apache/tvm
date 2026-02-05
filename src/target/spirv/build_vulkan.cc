@@ -24,6 +24,8 @@
 
 #include <tvm/ffi/reflection/registry.h>
 
+#include <string>
+
 #include "../../runtime/spirv/spirv_shader.h"
 #include "../../runtime/vulkan/vulkan_module.h"
 #include "../build_common.h"
@@ -41,6 +43,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.build.vulkan",
                         [](IRModule mod, Target target) { return BuildSPIRV(mod, target); });
+}
+
+ffi::String VulkanDeviceScopeCompatibilityFromTarget(Target target, ffi::String memory_scope) {
+  auto prototype_keys = target->GetKeys();
+  bool is_adreno =
+      std::find(prototype_keys.begin(), prototype_keys.end(), "adreno") != prototype_keys.end();
+  if (is_adreno) {
+    return ffi::String("global");
+  }
+  return memory_scope;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("DeviceScopeCompatibility.vulkan",
+                        VulkanDeviceScopeCompatibilityFromTarget);
 }
 
 }  // namespace codegen

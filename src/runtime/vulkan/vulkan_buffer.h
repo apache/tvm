@@ -23,15 +23,17 @@
 #include <vulkan/vulkan_core.h>
 
 #include <memory>
+#include <optional>
+#include <string>
 #include <unordered_map>
+
+#include "vulkan_resource.h"
 
 namespace tvm {
 namespace runtime {
 namespace vulkan {
 
-class VulkanDevice;
-
-class VulkanBuffer {
+class VulkanBuffer : public VulkanResource {
  public:
   /* \brief Allocate memory on the device
    *
@@ -47,10 +49,11 @@ class VulkanBuffer {
    * an index to a compatible memory located in
    * VkPhysicalDeviceMemoryProperties.
    */
-  VulkanBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUsageFlags usage,
-               uint32_t mem_type_index);
 
-  //! \brief Destructor, deallocates the memory and buffer.
+  VulkanBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUsageFlags usage,
+               uint32_t mem_type_index, std::optional<std::string> mem_scope = std::nullopt,
+               std::shared_ptr<VulkanMemory> back_memory = nullptr);
+
   ~VulkanBuffer();
 
   // Forbid copy assignment/constructor
@@ -60,6 +63,8 @@ class VulkanBuffer {
   // Allow move assignment/constructor
   VulkanBuffer(VulkanBuffer&&);
   VulkanBuffer& operator=(VulkanBuffer&&);
+
+  void AllocateMemory(const VkMemoryRequirements& mem_reqs, uint32_t mem_type_index);
 
  private:
   /*! \brief Whether this buffer should be allocated using dedicated
@@ -95,15 +100,11 @@ class VulkanBuffer {
    * VulkanDevice may be moved to a different location while the
    * VulkanBuffer is alive.
    */
-  VkDevice device_{VK_NULL_HANDLE};
 
   //! \brief Handle to the logical buffer on the device
   VkBuffer buffer{VK_NULL_HANDLE};
 
-  //! \brief Handle to the physical device memory
-  VkDeviceMemory memory{VK_NULL_HANDLE};
-
-  friend class VulkanHostVisibleBuffer;
+  size_t size{0};  // buffer size
 };
 
 /*! \brief A struct to represent Vulkan buffers backed by host visible memory */
@@ -124,7 +125,8 @@ class VulkanHostVisibleBuffer {
    * VkPhysicalDeviceMemoryProperties.
    */
   VulkanHostVisibleBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUsageFlags usage,
-                          uint32_t mem_type_index);
+                          uint32_t mem_type_index,
+                          std::optional<std::string> mem_scope = std::nullopt);
 
   //! \brief Unmap memory and deallocate.
   ~VulkanHostVisibleBuffer();

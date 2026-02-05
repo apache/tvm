@@ -59,6 +59,7 @@ constexpr const char* kUseCooperativeLaunch = "tir.use_cooperative_launch";
 struct FunctionInfo {
   std::string name;
   std::vector<DLDataType> arg_types;
+  std::vector<std::string> storage_scopes;
   std::vector<std::string> launch_param_tags;
 
   enum class ArgExtraTags : int { kNone = 0, kTensorMap = 1 };
