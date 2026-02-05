@@ -23,7 +23,7 @@ import tvm.testing
 from tvm import tir
 from tvm.script import ir as I
 from tvm.script import tir as T
-from tvm.tir.schedule.testing import (
+from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
@@ -220,7 +220,7 @@ def test_transform_layout_with_cache_write_and_axis_separators():
     def transform_fn(x, y):
         return [x // 32, y, tvm.te.AXIS_SEPARATOR, x % 32]
 
-    sch = tvm.tir.Schedule(Before, debug_mask="all")
+    sch = tvm.s_tir.Schedule(Before, debug_mask="all")
     block_rv = sch.get_sblock("T_add")
     sch.cache_write(block_rv, 0, "global")
     sch.transform_layout(block_rv, ("write", 0), transform_fn, pad_value=0.0)
@@ -234,7 +234,7 @@ use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name"
 
 
 def test_two_elementwise_transform_intermediate_buffer(use_block_name):
-    sch = tir.Schedule(two_elementwise, debug_mask="all")
+    sch = tvm.s_tir.Schedule(two_elementwise, debug_mask="all")
 
     if use_block_name:
         sch.transform_layout(
@@ -253,7 +253,7 @@ def test_two_elementwise_transform_intermediate_buffer(use_block_name):
 
 
 def test_transform_layout_with_sampling():
-    sch = tir.Schedule(two_elementwise, debug_mask="all")
+    sch = tvm.s_tir.Schedule(two_elementwise, debug_mask="all")
     block_b = sch.get_sblock("B")
     loop = sch.get_loops(block_b)[-1]
     j0, j1, j2 = sch.sample_perfect_tile(loop, 3, decision=[4, 8, 4])
@@ -262,7 +262,7 @@ def test_transform_layout_with_sampling():
 
 
 def test_two_elementwise_transform_input_buffer(use_block_name):
-    sch = tir.Schedule(two_elementwise, debug_mask="all")
+    sch = tvm.s_tir.Schedule(two_elementwise, debug_mask="all")
 
     if use_block_name:
         sch.transform_layout(
@@ -281,7 +281,7 @@ def test_two_elementwise_transform_input_buffer(use_block_name):
 
 
 def test_two_elementwise_transform_output_buffer(use_block_name):
-    sch = tir.Schedule(two_elementwise, debug_mask="all")
+    sch = tvm.s_tir.Schedule(two_elementwise, debug_mask="all")
 
     if use_block_name:
         sch.transform_layout(
@@ -300,7 +300,7 @@ def test_two_elementwise_transform_output_buffer(use_block_name):
 
 
 def test_two_elementwise_unit_dim(use_block_name):
-    sch = tir.Schedule(two_elementwise_unit_dim, debug_mask="all")
+    sch = tvm.s_tir.Schedule(two_elementwise_unit_dim, debug_mask="all")
     index_map = lambda i, j: (i, j)
 
     if use_block_name:
@@ -318,7 +318,7 @@ def test_two_elementwise_unit_dim(use_block_name):
 
 
 def test_simplify():
-    sch = tir.Schedule(two_elementwise, debug_mask="all")
+    sch = tvm.s_tir.Schedule(two_elementwise, debug_mask="all")
 
     i, j = sch.get_loops(sch.get_sblock("C"))
     i, i_inner = sch.split(i, factors=[None, 16])
@@ -379,7 +379,7 @@ def test_var_args_sugar():
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 B[0] = B[0] + A[vi, vj, vk // 4, vk % 4]
 
-    sch = tir.Schedule(summation_3d, debug_mask="all")
+    sch = tvm.s_tir.Schedule(summation_3d, debug_mask="all")
     sch.transform_layout(
         index_map=lambda *indices, k: [*indices, k // 4, k % 4], block="compute", buffer="A"
     )
@@ -387,7 +387,7 @@ def test_var_args_sugar():
 
 
 def test_transform_block_layout_basic(use_block_name):
-    sch = tir.Schedule(elementwise, debug_mask="all")
+    sch = tvm.s_tir.Schedule(elementwise, debug_mask="all")
     block = "B" if use_block_name else sch.get_sblock("B")
     sch.transform_block_layout(block, lambda i, j: (i * 128 + j,))
     assert_structural_equal_ignore_global_symbol(elementwise_transformed, sch.mod["main"])
@@ -395,7 +395,7 @@ def test_transform_block_layout_basic(use_block_name):
 
 
 def test_transform_block_layout_conv2d_nhwc(use_block_name):
-    sch = tir.Schedule(conv2d_nhwc, debug_mask="all")
+    sch = tvm.s_tir.Schedule(conv2d_nhwc, debug_mask="all")
     block = "conv2d_nhwc" if use_block_name else sch.get_sblock("conv2d_nhwc")
     sch.transform_block_layout(
         block,
@@ -406,7 +406,7 @@ def test_transform_block_layout_conv2d_nhwc(use_block_name):
 
 
 def test_transform_block_layout_unit_dim(use_block_name):
-    sch = tir.Schedule(two_elementwise_unit_dim, debug_mask="all")
+    sch = tvm.s_tir.Schedule(two_elementwise_unit_dim, debug_mask="all")
     block = "B" if use_block_name else sch.get_sblock("B")
     sch.transform_block_layout(block, lambda i, j: (j, i))
 
@@ -431,16 +431,16 @@ def test_transform_block_layout_unit_dim(use_block_name):
 
 
 def test_transform_block_layout_fail_non_affine(use_block_name):
-    sch = tir.Schedule(elementwise, debug_mask="all")
+    sch = tvm.s_tir.Schedule(elementwise, debug_mask="all")
     block = "B" if use_block_name else sch.get_sblock("B")
-    with pytest.raises(tir.ScheduleError):
+    with pytest.raises(tvm.s_tir.ScheduleError):
         sch.transform_block_layout(block, lambda i, j: (i + j,))
 
 
 def test_transform_block_layout_fail_mixed_iter_type(use_block_name):
-    sch = tir.Schedule(conv2d_nhwc, debug_mask="all")
+    sch = tvm.s_tir.Schedule(conv2d_nhwc, debug_mask="all")
     block = "conv2d_nhwc" if use_block_name else sch.get_sblock("conv2d_nhwc")
-    with pytest.raises(tir.ScheduleError):
+    with pytest.raises(tvm.s_tir.ScheduleError):
         sch.transform_block_layout(
             block,
             lambda n, h, w, co, rh, rw, rc: (n * 112 * 112 + h * 112 + w, co * 7 + rh, rw * 3 + rc),
@@ -470,7 +470,7 @@ def test_transform_block_layout_int64_extent(use_block_name):
                     A[vi // T.int64(128), vi % T.int64(128)] * 2.0
                 )
 
-    sch = tir.Schedule(elementwise_int64_extent, debug_mask="all")
+    sch = tvm.s_tir.Schedule(elementwise_int64_extent, debug_mask="all")
     block = "B" if use_block_name else sch.get_sblock("B")
     sch.transform_block_layout(block, lambda i, j: (i * 128 + j,))
     assert_structural_equal_ignore_global_symbol(
@@ -503,7 +503,7 @@ def test_no_padding(pad_value):
                     vi = T.axis.remap("S", [i])
                     A[vi // 4, vi % 4] = 0
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "A",
@@ -555,7 +555,7 @@ def test_no_padding_multiple_usage(pad_value):
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi // 4, vi % 4]
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "A",
@@ -591,7 +591,7 @@ def test_no_padding_opaque_block(pad_value):
                 with T.sblock("block"):
                     A[i // 4, i % 4] = 0
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "A",
@@ -615,8 +615,8 @@ def test_error_if_padding_forbidden():
                     vi = T.axis.remap("S", [i])
                     A[vi] = 0
 
-    sch = tir.Schedule(Before)
-    with pytest.raises(tvm.tir.schedule.schedule.ScheduleError):
+    sch = tvm.s_tir.Schedule(Before)
+    with pytest.raises(tvm.s_tir.schedule.schedule.ScheduleError):
         sch.transform_layout(
             "block",
             "A",
@@ -650,7 +650,7 @@ def test_implicit_padding_assume_injective():
                     vi = T.axis.remap("S", [i])
                     A[vi // 4, vi % 4] = 0
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "A",
@@ -675,8 +675,8 @@ def test_error_on_wrong_padding_type():
                     vi = T.axis.remap("S", [i])
                     A[vi] = 0
 
-    sch = tir.Schedule(Before)
-    with pytest.raises(tvm.tir.schedule.schedule.ScheduleError):
+    sch = tvm.s_tir.Schedule(Before)
+    with pytest.raises(tvm.s_tir.schedule.schedule.ScheduleError):
         sch.transform_layout(
             "block",
             "A",
@@ -698,8 +698,8 @@ def test_error_on_non_matching_types():
                     vi = T.axis.remap("S", [i])
                     A[vi] = 0
 
-    sch = tir.Schedule(Before)
-    with pytest.raises(tvm.tir.schedule.schedule.ScheduleError):
+    sch = tvm.s_tir.Schedule(Before)
+    with pytest.raises(tvm.s_tir.schedule.schedule.ScheduleError):
         sch.transform_layout(
             "block",
             "A",
@@ -743,7 +743,7 @@ def test_padded_transform_if_then_else(dtype):
     Before = tvm.IRModule({"main": before_func})
     Expected = tvm.IRModule({"main": expected_func})
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "B",
@@ -784,7 +784,7 @@ def test_padded_transform_without_loop():
                     T.where(i == 3 and 2 <= j)
                     A[vi, vj] = 0
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "A",
@@ -824,7 +824,7 @@ def test_padded_transform_if_then_else_reduction():
                         vi == 3 and 2 <= vj, 0, B[vi, vj] + A[vi * 4 + vj, vk], dtype="int32"
                     )
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "B",
@@ -862,7 +862,7 @@ def test_padded_transform_if_then_else_reduction_opaque():
                             i == 3 and 2 <= j, 0, B[i, j] + A[i * 4 + j, k], dtype="int32"
                         )
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "B",
@@ -910,7 +910,7 @@ def test_padded_transform_post_proc_if_required_due_to_side_effects():
                     T.where(i == 3 and 2 <= j)
                     B[vi, vj] = 0
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "B",
@@ -947,7 +947,7 @@ def test_padded_transform_of_input_creates_assumption():
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi // 4, vi % 4]
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "A",
@@ -987,7 +987,7 @@ def test_padded_transform_non_constant_value():
                         vi == 3 and 2 <= vj, vi + vj, A[vi * 4 + vj], dtype="int32"
                     )
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "B",
@@ -1038,7 +1038,7 @@ def test_padded_transform_repeated_buffer_element():
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi // 4, vi % 4]
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     A = sch.get(sch.get_sblock("block")).reads[0].buffer
     sch.transform_layout(
         "block",
@@ -1067,10 +1067,10 @@ def test_pad_value_may_not_reference_other_buffer():
                     vi = T.axis.remap("S", [i])
                     B[vi] = A[vi]
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     A = sch.get(sch.get_sblock("block")).reads[0].buffer
     other = tir.decl_buffer(1, A.dtype, name="other")
-    with pytest.raises(tvm.tir.schedule.schedule.ScheduleError):
+    with pytest.raises(tvm.s_tir.schedule.schedule.ScheduleError):
         sch.transform_layout(
             "block",
             "A",
@@ -1113,7 +1113,7 @@ def test_transform_layout_with_var():
                         dtype="int32",
                     )
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     n = sch.mod["main"].params[1]
     sch.transform_layout(
         "block",
@@ -1148,7 +1148,7 @@ def test_transform_with_axis_separators():
                     vi, vj = T.axis.remap("SS", [i, j])
                     A[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, 0, 42, dtype="int32")
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "A",
@@ -1180,7 +1180,7 @@ def test_transform_with_axis_separators_opaque_block():
                 with T.sblock("block"):
                     A[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, 42, dtype="int32")
 
-    sch = tir.Schedule(Before)
+    sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
         "block",
         "A",
@@ -1202,7 +1202,7 @@ def test_index_map_dtype_legalize():
                 T.writes(A[vi])
                 A[vi] = 0
 
-    sch = tir.Schedule(func)
+    sch = tvm.s_tir.Schedule(func)
 
     # # The following error is raised from the IterVar constructor without the dtype legalization.
     # # TVMError: Check failed: dom->extent.dtype() == var.dtype() (int64 vs. int32) :
@@ -1225,7 +1225,7 @@ def test_index_map_dtype_legalize_with_constant():
                 vi = T.axis.remap("S", [i])
                 A[vi] = 0
 
-    sch = tir.Schedule(func)
+    sch = tvm.s_tir.Schedule(func)
 
     # Triggering the error requires an IndexMap that introduces padding
     func = lambda i: [
@@ -1286,7 +1286,7 @@ def test_transform_layout_with_symbolic_bound():
     # fmt: on
     # pylint: disable=invalid-name
     _, _, n, _ = before.buffer_map[before.params[1]].shape
-    sch = tvm.tir.Schedule(before)
+    sch = tvm.s_tir.Schedule(before)
     block = sch.get_sblock("NT_matmul")
     sch.transform_layout(
         block,
@@ -1336,7 +1336,7 @@ def test_transform_block_layout_with_symbolic_bound():
     # fmt: on
     # pylint: disable=invalid-name
     _, _, n, _ = before.buffer_map[before.params[1]].shape
-    sch = tvm.tir.Schedule(before)
+    sch = tvm.s_tir.Schedule(before)
     block = sch.get_sblock("NT_matmul")
     sch.transform_block_layout(
         block,

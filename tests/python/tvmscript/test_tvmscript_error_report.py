@@ -455,10 +455,10 @@ def elementwise_non_single_branch(a: T.handle, b: T.handle) -> None:
 
 
 def test_reorder_fail_block():
-    sch = tir.Schedule(elementwise_not_affine, debug_mask="all")
+    sch = tvm.s_tir.Schedule(elementwise_not_affine, debug_mask="all")
     block_b = sch.get_sblock("B")
     i, j, k, l = sch.get_loops(block_b)
-    with pytest.raises(tvm.tir.ScheduleError) as execinfo:
+    with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.reorder(l, i)
     expected_sub_error_message = (
         "                            # tir.SBlock#0\n"
@@ -469,10 +469,10 @@ def test_reorder_fail_block():
 
 
 def test_reorder_fail_nested_loop_inner():
-    sch = tir.Schedule(elementwise_non_single_branch, debug_mask="all")
+    sch = tvm.s_tir.Schedule(elementwise_non_single_branch, debug_mask="all")
     block_b = sch.get_sblock("B")
     i, j, k = sch.get_loops(block_b)
-    with pytest.raises(tvm.tir.ScheduleError) as execinfo:
+    with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.reorder(k, i)
     expected_sub_error_message = (
         "            for i in range(128):\n"
@@ -484,10 +484,10 @@ def test_reorder_fail_nested_loop_inner():
 
 
 def test_fuse_fail_nested_loop_outer():
-    sch = tir.Schedule(elementwise_non_single_branch, debug_mask="all")
+    sch = tvm.s_tir.Schedule(elementwise_non_single_branch, debug_mask="all")
     block_b = sch.get_sblock("B")
     i, j, k = sch.get_loops(block_b)
-    with pytest.raises(tvm.tir.ScheduleError) as execinfo:
+    with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.fuse(k, i)
     expected_sub_error_message = (
         "            # tir.For#1\n"
@@ -499,9 +499,9 @@ def test_fuse_fail_nested_loop_outer():
 
 
 def test_report_error_root_block():
-    sch = tir.Schedule(elementwise_non_single_branch, debug_mask="all")
+    sch = tvm.s_tir.Schedule(elementwise_non_single_branch, debug_mask="all")
     root = sch.get_sblock("root")
-    with pytest.raises(tvm.tir.ScheduleError) as execinfo:
+    with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.compute_inline(root)
     expected_sub_error_message = (
         "        # tir.SBlock#0\n"

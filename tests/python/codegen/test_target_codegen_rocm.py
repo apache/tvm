@@ -27,7 +27,7 @@ def test_rocm_inf_nan():
         A = te.placeholder((n,), name="A", dtype=dtype)
         inf_value = tvm.tir.const(value, dtype=dtype)
         C = te.compute((n,), lambda i: inf_value, name="C")
-        sch = tvm.tir.Schedule(te.create_prim_func([A, C]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, C]))
         xo, xi = sch.split(sch.get_loops("C")[0], factors=[None, 128])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
@@ -72,7 +72,7 @@ def test_rocm_vectorize_add():
     def check_rocm(dtype, n, lanes):
         A = te.placeholder((n,), name="A", dtype="%sx%d" % (dtype, lanes))
         B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
-        sch = tir.Schedule(te.create_prim_func([A, B]))
+        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
         xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, 4])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")

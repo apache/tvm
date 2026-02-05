@@ -29,8 +29,8 @@ import tvm.testing
 from tvm import te, tir
 from tvm.topi.math import cast
 from tvm.script import tir as T, ir as I
-from tvm.tir import TensorIntrin, IntImm, Cast, Schedule
-from tvm.tir.tensor_intrin.cuda import (
+from tvm.tir import TensorIntrin, IntImm, Cast
+from tvm.s_tir.tensor_intrin.cuda import (
     WMMA_LOAD_16x16x16_F16_A_INTRIN,
     WMMA_LOAD_16x16x16_F16_B_INTRIN,
     WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
@@ -74,7 +74,7 @@ def test_vector_comparison(target, dev, dtype):
 
     # Create IRModule
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
     (bx, tx) = sch.split(sch.get_loops("B")[0], factors=[None, 128])
     (tx, vx) = sch.split(tx, factors=[None, 4])
     sch.bind(bx, "blockIdx.x")
@@ -117,7 +117,7 @@ def test_array_vectorize_add(target, dev, dtype):
     A = te.placeholder((arr_size,), name="A", dtype="%sx%d" % (dtype, lanes))
     B = te.compute(A.shape, lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
 
-    sch = tir.Schedule(te.create_prim_func([A, B]))
+    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
     xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, 4])
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")
@@ -138,7 +138,7 @@ def test_vulkan_bool_load(target, dev):
     A = te.placeholder((arr_size,), name="A", dtype="bool")
     B = te.compute(A.shape, lambda i: A[i].astype("int32"), name="B")
 
-    sch = tir.Schedule(te.create_prim_func([A, B]))
+    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
     xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, 128])
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")
@@ -192,7 +192,7 @@ def test_vulkan_constant_passing(target, dev, vulkan_parameter_impl, vulkan_para
     A = te.placeholder((n,), name="A", dtype=dtype)
     B = te.compute(A.shape, lambda i: scalar_sum + A[i], name="B")
 
-    sch = tvm.tir.Schedule(te.create_prim_func(scalars + [A, B]))
+    sch = tvm.s_tir.Schedule(te.create_prim_func(scalars + [A, B]))
     xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, 64])
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")
@@ -241,7 +241,7 @@ def test_vulkan_while_if(target, dev):
 
     # Create IRModule
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Build
     func = tvm.compile(sch.mod, target=target)
@@ -289,7 +289,7 @@ def test_vulkan_local_threadidx(target, dev):
 
     # Create IRModule
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
-    sch = tir.Schedule(mod)
+    sch = tvm.s_tir.Schedule(mod)
 
     # Build
     func = tvm.compile(sch.mod, target=target)
@@ -422,7 +422,7 @@ def test_negative_operand_divmod(target, dev):
                 A[v_i, 1] = T.floormod(v_i - offset, divisor)
 
     if "gpu" in tvm.target.Target(target).keys:
-        sch = tvm.tir.Schedule(func)
+        sch = tvm.s_tir.Schedule(func)
         sch.bind(sch.get_loops("A")[0], "threadIdx.x")
         func = sch.mod["main"]
 
@@ -463,7 +463,7 @@ def test_cooperative_matrix(out_dtype):
 
     M, N, K = 16, 16, 32
     func = get_matmul(M, N, K, out_dtype)
-    sch = Schedule(func)
+    sch = tvm.s_tir.Schedule(func)
     block = sch.get_sblock("compute")
 
     i, j, k = sch.get_loops(block)
@@ -594,7 +594,7 @@ def test_unary():
         B = te.compute((m,), lambda *i: tvm_intrin(A(*i)), name="B")
 
         mod = te.create_prim_func([A, B])
-        sch = tir.Schedule(mod)
+        sch = tvm.s_tir.Schedule(mod)
 
         block = sch.get_sblock("B")
         loop = sch.get_loops(block)[0]
