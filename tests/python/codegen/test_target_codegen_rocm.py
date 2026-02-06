@@ -16,24 +16,30 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
 import numpy as np
-from tvm.script import tir as T
+from tvm.script import tir as T, ir as I
 
 
 @tvm.testing.requires_rocm
 def test_rocm_inf_nan():
     def check_inf_nan(dev, n, value, dtype):
-        A = te.placeholder((n,), name="A", dtype=dtype)
-        inf_value = tvm.tir.const(value, dtype=dtype)
-        C = te.compute((n,), lambda i: inf_value, name="C")
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, C]))
-        xo, xi = sch.split(sch.get_loops("C")[0], factors=[None, 128])
-        sch.bind(xo, "blockIdx.x")
-        sch.bind(xi, "threadIdx.x")
-        fun = tvm.compile(sch.mod, "rocm")
-        a = tvm.runtime.empty((n,), A.dtype, dev)
-        c = tvm.runtime.empty((n,), A.dtype, dev)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(1, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(128, thread="threadIdx.x"):
+                        with T.sblock("C"):
+                            v_i = T.axis.spatial(1, i_0 * 128 + i_1)
+                            T.where(i_0 * 128 + i_1 < 1)
+                            T.reads()
+                            T.writes(C[v_i])
+                            C[v_i] = T.Cast(dtype, value)
+
+        fun = tvm.compile(Module, "rocm")
+        a = tvm.runtime.empty((n,), dtype, dev)
+        c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -50,10 +56,9 @@ def test_rocm_inf_nan():
 @tvm.testing.requires_rocm
 def test_rocm_copy():
     def check_rocm(dtype, n):
-        A = te.placeholder((n,), name="A", dtype=dtype)
         dev = tvm.rocm(0)
-        a_np = np.random.uniform(size=(n,)).astype(A.dtype)
-        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(a_np)
+        a_np = np.random.uniform(size=(n,)).astype(dtype)
+        a = tvm.runtime.empty((n,), dtype, dev).copyfrom(a_np)
         b_np = a.numpy()
         tvm.testing.assert_allclose(a_np, b_np)
         tvm.testing.assert_allclose(a_np, a.numpy())
@@ -67,20 +72,28 @@ def test_rocm_copy():
 
 @tvm.testing.requires_rocm
 def test_rocm_vectorize_add():
-    num_thread = 8
-
     def check_rocm(dtype, n, lanes):
-        A = te.placeholder((n,), name="A", dtype="%sx%d" % (dtype, lanes))
-        B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-        xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, 4])
-        sch.bind(xo, "blockIdx.x")
-        sch.bind(xi, "threadIdx.x")
-        fun = tvm.compile(sch.mod, target="rocm")
+        vec_dtype = "%sx%d" % (dtype, lanes)
+        num_blocks = n // 4
+
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(4, thread="threadIdx.x"):
+                        with T.sblock("B"):
+                            v_i = T.axis.spatial(n, i_0 * 4 + i_1)
+                            T.reads(A[v_i])
+                            T.writes(B[v_i])
+                            B[v_i] = A[v_i] + T.Broadcast(T.Cast(dtype, 1), lanes)
+
+        fun = tvm.compile(Module, target="rocm")
 
         dev = tvm.rocm(0)
-        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
-        c = tvm.runtime.empty((n,), B.dtype, dev)
+        a = tvm.runtime.empty((n,), vec_dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
+        c = tvm.runtime.empty((n,), vec_dtype, dev)
         fun(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 

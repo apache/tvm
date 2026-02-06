@@ -20,7 +20,7 @@ import re
 import pytest
 
 import tvm
-from tvm import te
+from tvm.script import tir as T, ir as I
 
 llvm_version = tvm.target.codegen.llvm_version_major()
 machine = platform.machine()
@@ -34,12 +34,24 @@ if machine not in ["i386", "x86_64", "AMD64", "amd64"]:
 def test_fp16_to_fp32():
     def fp16_to_fp32(target, width, match=None, not_match=None):
         elements = 64
-        n = tvm.runtime.convert(elements)
-        A = te.placeholder((n, width), dtype="float16", name="A")
-        B = te.compute(A.shape, lambda *i: A(*i).astype("float32"), name="B")
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-        sch.vectorize(sch.get_loops("B")[1])
-        f = tvm.tir.build(sch.mod, target=target)
+
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((elements, width), "float16"),
+                B: T.Buffer((elements, width), "float32"),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i0 in range(elements):
+                    for i1 in T.vectorized(width):
+                        with T.sblock("B"):
+                            v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                            T.reads(A[v_i0, v_i1])
+                            T.writes(B[v_i0, v_i1])
+                            B[v_i0, v_i1] = T.Cast("float32", A[v_i0, v_i1])
+
+        f = tvm.tir.build(Module, target=target)
 
         assembly = f.inspect_source("asm").splitlines()
         if match:

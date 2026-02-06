@@ -18,7 +18,7 @@ import re
 
 import tvm
 import tvm.testing
-from tvm import te
+from tvm.script import tir as T, ir as I
 
 target = "opencl"
 
@@ -27,38 +27,54 @@ target = "opencl"
 @tvm.testing.requires_opencl
 def test_opencl_ternary_expression():
     def check_if_then_else(dev, n, dtype):
-        A = te.placeholder((n,), name="A", dtype=dtype)
-        true_value = tvm.tir.const(1, dtype=dtype)
-        false_value = tvm.tir.const(3, dtype=dtype)
-        max_lhs = tvm.tir.const(2, dtype=dtype)
-        max_rhs = tvm.tir.if_then_else(A[0] > 0, true_value, false_value)
-        C = te.compute((n,), lambda i: tvm.te.max(max_lhs, max_rhs), name="C")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i in T.thread_binding(1, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(1, i)
+                        T.reads(A[0])
+                        T.writes(C[v_i])
+                        C[v_i] = T.max(
+                            T.Cast(dtype, 2),
+                            T.if_then_else(
+                                0 < T.Cast("int32", A[0]),
+                                T.Cast(dtype, 1),
+                                T.Cast(dtype, 3),
+                            ),
+                        )
 
-        func = te.create_prim_func([A, C])
-        sch = tvm.s_tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_sblock("C"))
-        sch.bind(x, "threadIdx.x")
-        fun = tvm.tir.build(sch.mod, target=target)
-        a = tvm.runtime.empty((n,), A.dtype, dev)
-        c = tvm.runtime.empty((n,), A.dtype, dev)
+        fun = tvm.tir.build(Module, target=target)
+        a = tvm.runtime.empty((n,), dtype, dev)
+        c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
     def check_select(dev, n, dtype):
-        A = te.placeholder((n,), name="A", dtype=dtype)
-        true_value = tvm.tir.const(1, dtype=dtype)
-        false_value = tvm.tir.const(3, dtype=dtype)
-        max_lhs = tvm.tir.const(2, dtype=dtype)
-        max_rhs = tvm.tir.Select(A[0] > 0, true_value, false_value)
-        C = te.compute((n,), lambda i: tvm.te.max(max_lhs, max_rhs), name="C")
-        func = te.create_prim_func([A, C])
-        sch = tvm.s_tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_sblock("C"))
-        sch.bind(x, "threadIdx.x")
-        fun = tvm.tir.build(sch.mod, target=target)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i in T.thread_binding(1, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(1, i)
+                        T.reads(A[0])
+                        T.writes(C[v_i])
+                        C[v_i] = T.max(
+                            T.Cast(dtype, 2),
+                            T.Select(
+                                0 < T.Cast("int32", A[0]),
+                                T.Cast(dtype, 1),
+                                T.Cast(dtype, 3),
+                            ),
+                        )
 
-        a = tvm.runtime.empty((n,), A.dtype, dev)
-        c = tvm.runtime.empty((n,), A.dtype, dev)
+        fun = tvm.tir.build(Module, target=target)
+        a = tvm.runtime.empty((n,), dtype, dev)
+        c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -78,16 +94,21 @@ def test_opencl_ternary_expression():
 @tvm.testing.requires_opencl
 def test_opencl_inf_nan():
     def check_inf_nan(dev, n, value, dtype):
-        A = te.placeholder((n,), name="A", dtype=dtype)
-        inf_value = tvm.tir.const(value, dtype=dtype)
-        C = te.compute((n,), lambda i: inf_value, name="C")
-        func = te.create_prim_func([A, C])
-        sch = tvm.s_tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_sblock("C"))
-        sch.bind(x, "threadIdx.x")
-        fun = tvm.tir.build(sch.mod, target=target)
-        a = tvm.runtime.empty((n,), A.dtype, dev)
-        c = tvm.runtime.empty((n,), A.dtype, dev)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i in T.thread_binding(1, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(1, i)
+                        T.reads()
+                        T.writes(C[v_i])
+                        C[v_i] = T.Cast(dtype, value)
+
+        fun = tvm.tir.build(Module, target=target)
+        a = tvm.runtime.empty((n,), dtype, dev)
+        c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -105,18 +126,21 @@ def test_opencl_inf_nan():
 @tvm.testing.requires_opencl
 def test_opencl_max():
     def check_max(dev, n, dtype):
-        A = te.placeholder((n,), name="A", dtype=dtype)
-        max_lhs = A[0] + tvm.tir.const(1, dtype=dtype)
-        max_rhs = tvm.tir.const(0, dtype=dtype)
-        C = te.compute((n,), lambda i: tvm.te.max(max_lhs, max_rhs), name="C")
-        func = te.create_prim_func([A, C])
-        sch = tvm.s_tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_sblock("C"))
-        sch.bind(x, "threadIdx.x")
-        fun = tvm.tir.build(sch.mod, target=target)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i in T.thread_binding(1, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(1, i)
+                        T.reads(A[0])
+                        T.writes(C[v_i])
+                        C[v_i] = T.max(A[0] + T.Cast(dtype, 1), T.Cast(dtype, 0))
 
-        a = tvm.runtime.empty((n,), A.dtype, dev)
-        c = tvm.runtime.empty((n,), A.dtype, dev)
+        fun = tvm.tir.build(Module, target=target)
+        a = tvm.runtime.empty((n,), dtype, dev)
+        c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -132,13 +156,19 @@ def test_opencl_max():
 
 def test_opencl_erf():
     def check_erf(dev, n, dtype):
-        A = te.placeholder((n,), name="A", dtype=dtype)
-        C = te.compute(A.shape, lambda *i: te.erf(A(*i)), name="C")
-        func = te.create_prim_func([A, C])
-        sch = tvm.s_tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_sblock("C"))
-        sch.bind(x, "threadIdx.x")
-        fun = tvm.tir.build(sch.mod, target=target)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i0 in T.thread_binding(1, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i0 = T.axis.spatial(1, i0)
+                        T.reads(A[v_i0])
+                        T.writes(C[v_i0])
+                        C[v_i0] = T.erf(A[v_i0])
+
+        fun = tvm.tir.build(Module, target=target)
 
         source_str = fun.imports[0].inspect_source()
         matches = re.findall("erf", source_str)
@@ -154,31 +184,23 @@ def test_opencl_erf():
 @tvm.testing.requires_gpu
 @tvm.testing.requires_opencl
 def test_opencl_type_casting():
-    def check_type_casting(ctx, n, dtype):
-        block_size = 4
-        C = te.compute(
-            (n,),
-            lambda i: tvm.tir.Select(
-                tvm.tir.all(
-                    *[
-                        i // block_size == tvm.tir.const(3, "int32"),
-                        i % 3 == tvm.tir.const(1, "int32"),
-                    ]
-                ),
-                tvm.tir.const(1, dtype),
-                tvm.tir.const(0, dtype),
-            ),
-            name="C",
-        )
-        # NOTE: test simple convert pattern
-        func = te.create_prim_func([C])
-        sch = tvm.s_tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_sblock("C"))
-        tx, vx = sch.split(x, factors=[None, block_size])
-        sch.bind(tx, "threadIdx.x")
-        sch.vectorize(vx)
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(C: T.Buffer((32,), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i_0 in T.thread_binding(8, thread="threadIdx.x"):
+                for i_1 in T.vectorized(4):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(32, i_0 * 4 + i_1)
+                        T.reads()
+                        T.writes(C[v_i])
+                        C[v_i] = T.Select(
+                            v_i // 4 == 3 and v_i % 3 == 1, T.float32(1.0), T.float32(0.0)
+                        )
 
-        fun = tvm.tir.build(sch.mod, target=target)
+    def check_type_casting(ctx, n, dtype):
+        fun = tvm.tir.build(Module, target=target)
         c = tvm.runtime.empty((n,), dtype, ctx)
         assembly = fun.imports[0].inspect_source()
         lcond = "convert_int4(((convert_uint4(((uint4)(((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3)))))"
@@ -199,24 +221,27 @@ def test_opencl_type_casting():
 @tvm.testing.parametrize_targets("opencl", "opencl -device=adreno")
 def test_opencl_ceil_log2(target):
     def _check(target, n, dtype):
-        with tvm.target.Target(target):
-            C = te.compute(
-                (n,),
-                lambda i: tvm.topi.ceil_log2(i),
-                name="C",
-            )
-            func = te.create_prim_func([C])
-            sch = tvm.s_tir.Schedule(func)
-            (x,) = sch.get_loops(sch.get_sblock("C"))
-            sch.bind(x, "threadIdx.x")
+        inter_dtype = "float32" if "adreno" in target else "float64"
 
-            fun = tvm.tir.build(sch.mod, target=target)
-            assembly = fun.imports[0].inspect_source()
-            if "adreno" in target:
-                pattern = "convert_float"
-            else:
-                pattern = "convert_double"
-            assert assembly.count(pattern) != 0
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(C: T.Buffer((n,), "int32")):
+                T.func_attr({"tir.noalias": True})
+                for i in T.thread_binding(n, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(n, i)
+                        T.reads()
+                        T.writes(C[v_i])
+                        C[v_i] = T.Cast("int32", T.ceil(T.log2(T.Cast(inter_dtype, v_i))))
+
+        fun = tvm.tir.build(Module, target=target)
+        assembly = fun.imports[0].inspect_source()
+        if "adreno" in target:
+            pattern = "convert_float"
+        else:
+            pattern = "convert_double"
+        assert assembly.count(pattern) != 0
 
     _check(target, 32, "float32")
 

@@ -15,42 +15,36 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
-from tvm.contrib import utils
 import numpy as np
 import tvm.testing
-from tvm import tir
+from tvm.script import tir as T, ir as I
 
 
 @tvm.testing.requires_gpu
 def test_large_uint_imm():
     value = (1 << 63) + 123
-    other = tvm.tir.const(3, "uint64")
-    n = 12
-    num_thread = 2
+    value_const = tvm.tir.const(value, "uint64")
 
-    A = te.compute((n,), lambda *i: tvm.tir.const(value, "uint64") + other, name="A")
-
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A])
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Get block and loop
-    block = sch.get_sblock("A")
-    loop = sch.get_loops(block)[0]
-
-    # Split and bind
-    xo, xi = sch.split(loop, factors=[None, num_thread])
-    sch.bind(xi, "threadIdx.x")
-    sch.bind(xo, "blockIdx.x")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((12,), "uint64")):
+            T.func_attr({"tir.noalias": True})
+            for i0_0 in T.thread_binding(6, thread="blockIdx.x"):
+                for i0_1 in T.thread_binding(2, thread="threadIdx.x"):
+                    with T.sblock("A"):
+                        v_i0 = T.axis.spatial(12, i0_0 * 2 + i0_1)
+                        T.reads()
+                        T.writes(A[v_i0])
+                        A[v_i0] = value_const + T.uint64(3)
 
     def check_target(device):
         if not tvm.testing.device_enabled(device):
             return
         dev = tvm.device(device, 0)
-        f = tvm.compile(sch.mod, target=device)
+        f = tvm.compile(Module, target=device)
         # launch the kernel.
-        a = tvm.runtime.empty((n,), dtype=A.dtype, device=dev)
+        a = tvm.runtime.empty((12,), dtype="uint64", device=dev)
         f(a)
         assert a.numpy()[0] == value + 3
 
@@ -60,47 +54,44 @@ def test_large_uint_imm():
 
 @tvm.testing.requires_gpu
 def test_add_pipeline():
-    n = te.size_var("n")
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((), name="B")
-    C = te.compute(A.shape, lambda *i: A(*i) + B(), name="C")
-    D = te.compute(A.shape, lambda *i: C(*i) + 1, name="D")
-
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A, B, D])
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Get blocks and loops
-    c_block = sch.get_sblock("C")
-    d_block = sch.get_sblock("D")
-    c_loop = sch.get_loops(c_block)[0]
-    d_loop = sch.get_loops(d_block)[0]
-
-    # GPU schedule have to split by gridIdx and threadIdx
-    num_thread = 256
-
-    # Schedule C
-    c_xo, c_xi = sch.split(c_loop, factors=[None, num_thread])
-    sch.bind(c_xi, "threadIdx.x")
-    sch.bind(c_xo, "blockIdx.x")
-
-    # Schedule D
-    d_xo, d_xi = sch.split(d_loop, factors=[None, num_thread])
-    sch.bind(d_xi, "threadIdx.x")
-    sch.bind(d_xo, "blockIdx.x")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(var_A: T.handle, B: T.Buffer((), "float32"), var_D: T.handle):
+            T.func_attr({"tir.noalias": True})
+            n = T.int32(is_size_var=True)
+            A = T.match_buffer(var_A, (n,))
+            D = T.match_buffer(var_D, (n,))
+            C = T.alloc_buffer((n,))
+            for i0_0 in T.thread_binding((n + 255) // 256, thread="blockIdx.x"):
+                for i0_1 in T.thread_binding(256, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i0 = T.axis.spatial(n, i0_0 * 256 + i0_1)
+                        T.where(i0_0 * 256 + i0_1 < n)
+                        T.reads(A[v_i0], B[()])
+                        T.writes(C[v_i0])
+                        C[v_i0] = A[v_i0] + B[()]
+            for i0_0 in T.thread_binding((n + 255) // 256, thread="blockIdx.x"):
+                for i0_1 in T.thread_binding(256, thread="threadIdx.x"):
+                    with T.sblock("D"):
+                        v_i0 = T.axis.spatial(n, i0_0 * 256 + i0_1)
+                        T.where(i0_0 * 256 + i0_1 < n)
+                        T.reads(C[v_i0])
+                        T.writes(D[v_i0])
+                        D[v_i0] = C[v_i0] + T.float32(1.0)
 
     def check_target(device, host):
         if not tvm.testing.device_enabled(device) or not tvm.testing.device_enabled(host):
             return
         dev = tvm.device(device, 0)
         target = tvm.target.Target(device, host)
-        mhost = tvm.tir.build(sch.mod, target=target)
+        mhost = tvm.tir.build(Module, target=target)
         f = mhost.main
         # launch the kernel.
         n = 1027
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.random.uniform(size=()).astype(B.dtype), dev)
-        d = tvm.runtime.tensor(np.zeros(n, dtype=D.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=()).astype("float32"), dev)
+        d = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
         f(a, b, d)
         tvm.testing.assert_allclose(d.numpy(), a.numpy() + b.numpy() + 1)
 
