@@ -144,13 +144,13 @@ if __name__ == "__main__":
                 logging.info(f"No new image found")
             else:
                 logging.info(f"Using new image {new_image}")
-                new_line = f'        "tag": "{new_image}",'
+                new_line = f'        "tag": "{new_image}",\n'
                 replacements[line] = new_line
 
     # Re-generate the Jenkinsfiles
     command = f"python3 {shlex.quote(str(GENERATE_SCRIPT))}"
 
-    content = "\n".join(content)
+    content = "".join(content)
     for old_line, new_line in replacements.items():
         content = content.replace(old_line, new_line)
 
