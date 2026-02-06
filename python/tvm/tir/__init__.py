@@ -115,7 +115,6 @@ from .op import dp4a
 from .op import ignore_loop_partition
 from .generic import add, subtract, multiply
 
-from . import ir_builder
 from . import transform
 from . import analysis
 from . import backend

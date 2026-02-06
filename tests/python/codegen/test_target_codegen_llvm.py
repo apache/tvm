@@ -31,26 +31,24 @@ from tvm.target.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
 
 @tvm.testing.requires_llvm
 def test_llvm_intrin():
-    ib = tvm.tir.ir_builder.create()
-    n = tvm.runtime.convert(4)
-    A = ib.pointer("float32", name="A")
-    args = [tvm.tir.call_intrin("handle", "tir.address_of", A[0]), 0, 3, 1]
-    ib.emit(tvm.tir.Evaluate(tvm.tir.Call("void", "tir.prefetch", args)))
-    body = ib.get()
+    @T.prim_func
+    def prefetch(A: T.handle("float32")):
+        T.func_attr({"global_symbol": "prefetch"})
+        A_buf = T.Buffer((4,), "float32", data=A)
+        T.evaluate(T.Call("void", "tir.prefetch", [T.address_of(A_buf[0]), 0, 3, 1]))
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "prefetch"))
+    mod = tvm.IRModule.from_expr(prefetch)
     fcode = tvm.compile(mod)
 
 
 @tvm.testing.requires_llvm
 def test_llvm_void_intrin():
-    ib = tvm.tir.ir_builder.create()
-    A = ib.pointer("uint8", name="A")
-    # Create an intrinsic that returns void.
-    x = tvm.tir.call_llvm_intrin("", "llvm.assume", tvm.tir.const(1, "int1"))
-    ib.emit(x)
-    body = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
+    @T.prim_func
+    def main(A: T.handle("uint8")):
+        # Create an intrinsic that returns void.
+        T.call_llvm_intrin("", "llvm.assume", T.bool(True))
+
+    mod = tvm.IRModule.from_expr(main)
     fcode = tvm.compile(mod)
 
 
@@ -69,38 +67,29 @@ def test_llvm_overloaded_intrin():
     if tvm.target.codegen.llvm_version_major() < 5:
         return
 
-    def use_llvm_intrinsic(A, C):
-        ib = tvm.tir.ir_builder.create()
-        L = A.vload((0, 0))
-        I = tvm.tir.call_llvm_pure_intrin("int32", "llvm.ctlz", L, tvm.tir.const(0, "int1"))
-        S = C.vstore((0, 0), I)
-        ib.emit(S)
-        return ib.get()
+    # int1 is the type for the is_zero_undef parameter
+    int1_zero = tvm.tir.const(0, "int1")
 
-    A = tvm.te.placeholder((1, 1), dtype="int32", name="A")
-    C = tvm.te.extern(
-        (1, 1), [A], lambda ins, outs: use_llvm_intrinsic(ins[0], outs[0]), name="C", dtype="int32"
-    )
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((1, 1), "int32"), C: T.Buffer((1, 1), "int32")):
+            with T.sblock("C"):
+                T.reads()
+                T.writes()
+                C[0, 0] = T.call_llvm_pure_intrin("int32", "llvm.ctlz", A[0, 0], int1_zero)
 
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A, C])
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Build from scheduled TIR
-    f = tvm.compile(sch.mod, target="llvm")
+    f = tvm.compile(Module, target="llvm")
 
 
 @tvm.testing.requires_llvm
 def test_llvm_lookup_intrin():
-    ib = tvm.tir.ir_builder.create()
-    A = ib.pointer("uint8x8", name="A")
-    z = tvm.tir.const(0, "int32")
-    x = tvm.tir.call_llvm_pure_intrin(
-        "uint8x8", "llvm.ctpop.v8i8", tvm.tir.const(1, "uint32"), A[z]
-    )
-    ib.emit(x)
-    body = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
+    @T.prim_func
+    def main(A: T.handle("uint8x8")):
+        A_buf = T.Buffer((1,), "uint8x8", data=A)
+        T.evaluate(T.call_llvm_pure_intrin("uint8x8", "llvm.ctpop.v8i8", T.uint32(1), A_buf[0]))
+
+    mod = tvm.IRModule.from_expr(main)
     fcode = tvm.compile(mod, None)
 
 
@@ -813,23 +802,24 @@ def test_llvm_order_functions():
 
     # Note: the order is alphabetical because that's a predictable ordering. Any predictable
     # ordering will work fine, but if the ordering changes, this test will need to be updated.
-    def make_call_extern(caller, callee):
-        # Create a function:
-        #   float32 caller(float32 v) { return callee(v); }
-        ib = tvm.tir.ir_builder.create()
-        v = tvm.te.var("v", dtype="float32")
-        t = tvm.tir.call_extern("float32", callee, v)
-        ib.emit(t)
-        return tvm.tir.PrimFunc([v], ib.get()).with_attr("global_symbol", caller)
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def Danny(v: T.float32) -> T.float32:
+            T.func_attr({"global_symbol": "Danny"})
+            T.ret(T.call_extern("float32", "Dave", v))
 
-    # Create some functions in a random order.
-    functions = {
-        "Danny": make_call_extern("Danny", "Dave"),
-        "Sammy": make_call_extern("Sammy", "Eve"),
-        "Kirby": make_call_extern("Kirby", "Fred"),
-    }
-    mod = tvm.IRModule(functions=functions)
-    ir_text = tvm.tir.build(mod, target="llvm").inspect_source("ll")
+        @T.prim_func
+        def Sammy(v: T.float32) -> T.float32:
+            T.func_attr({"global_symbol": "Sammy"})
+            T.ret(T.call_extern("float32", "Eve", v))
+
+        @T.prim_func
+        def Kirby(v: T.float32) -> T.float32:
+            T.func_attr({"global_symbol": "Kirby"})
+            T.ret(T.call_extern("float32", "Fred", v))
+
+    ir_text = tvm.tir.build(Module, target="llvm").inspect_source("ll")
     # Skip functions whose names start with _.
     matches = re.findall(r"^define[^@]*@([a-zA-Z][a-zA-Z0-9_]*)", ir_text, re.MULTILINE)
     assert matches == sorted(matches)

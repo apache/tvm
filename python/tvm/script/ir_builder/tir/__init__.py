@@ -18,3 +18,4 @@
 from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
 from .ir import boolean as bool  # pylint: disable=redefined-builtin
 from .ir import buffer as Buffer
+from .utils import buffer_proxy, frame_scope, seq_scope

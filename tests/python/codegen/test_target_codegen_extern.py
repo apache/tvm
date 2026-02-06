@@ -15,66 +15,47 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
-import numpy as np
 import tvm.testing
-import pytest
-from tvm import tir
+import numpy as np
+from tvm.script import tir as T, ir as I
 
 
 @tvm.testing.uses_gpu
 def test_add_pipeline():
+    """Test extern-style add pipeline with vectorized operations."""
     nn = 64
     max_threads = 4
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A")
 
-    def extern_generator(ins, outs):
-        """Manually write the IR for the extern function, add pipeline"""
-        ib = tvm.tir.ir_builder.create()
-        with ib.for_range(0, (n + 1) // 2) as i:
-            ib.emit(
-                outs[0].vstore(
-                    i * 2, ins[0].vload(i * 2, "float32x2") + tvm.tir.const(1, "float32x2")
-                )
-            )
-        return ib.get()
+    # CPU version: serial loop with vectorized operations
+    @I.ir_module
+    class ModuleCPU:
+        @T.prim_func
+        def main(A: T.Buffer((64,), "float32"), C: T.Buffer((64,), "float32")):
+            for i in T.serial((64 + 1) // 2):
+                C[T.Ramp(i * 2, 1, 2)] = A[T.Ramp(i * 2, 1, 2)] + T.Broadcast(T.float32(1), 2)
 
-    def extern_generator_gpu(ins, outs):
-        """Manually write the IR for the extern function, add pipeline"""
-        ib = tvm.tir.ir_builder.create()
-        bx = te.thread_axis("blockIdx.x")
-        tx = te.thread_axis("threadIdx.x")
-        ib.scope_attr(bx, "thread_extent", (nn + max_threads - 1) // max_threads)
-        ib.scope_attr(tx, "thread_extent", max_threads)
-        idx = bx.var * max_threads + tx.var
-        with ib.if_scope(ib.likely(idx < n)):
-            ib.emit(
-                outs[0].vstore(
-                    idx * 2, ins[0].vload(idx * 2, "float32x2") + tvm.tir.const(1, "float32x2")
-                )
-            )
-        return ib.get()
-
-    C_cpu = te.extern(A.shape, [A], extern_generator, name="C")
-    C_gpu = te.extern(A.shape, [A], extern_generator_gpu, name="C")
-
-    # Create IRModules directly
-    mod_cpu = tvm.IRModule.from_expr(te.create_prim_func([A, C_cpu]))
-    mod_gpu = tvm.IRModule.from_expr(te.create_prim_func([A, C_gpu]))
+    # GPU version: thread bindings with vectorized operations
+    @I.ir_module
+    class ModuleGPU:
+        @T.prim_func
+        def main(A: T.Buffer((64,), "float32"), C: T.Buffer((64,), "float32")):
+            bx = T.launch_thread("blockIdx.x", (64 + 4 - 1) // 4)
+            tx = T.launch_thread("threadIdx.x", 4)
+            idx = bx * 4 + tx
+            if T.likely(idx < 64):
+                C[T.Ramp(idx * 2, 1, 2)] = A[T.Ramp(idx * 2, 1, 2)] + T.Broadcast(T.float32(1), 2)
 
     def check_target(target):
         if not tvm.testing.device_enabled(target):
             return
-        mod = mod_gpu if target in ["opencl", "cuda"] else mod_cpu
-        C = C_gpu if target in ["opencl", "cuda"] else C_cpu
+        mod = ModuleGPU if target in ["opencl", "cuda"] else ModuleCPU
         # build and invoke the kernel.
         f = tvm.compile(mod, target=target)
         dev = tvm.device(target, 0)
         # launch the kernel.
         n = nn
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+        c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
         f(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
@@ -84,18 +65,14 @@ def test_add_pipeline():
 
 
 def test_pack_buffer_simple():
+    """Test call_packed with buffer arguments."""
     nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A")
 
-    def extern_generator(ins, outs):
-        """Manually write the IR for the extern function, add pipeline."""
-        return tvm.tir.call_packed("my_extern_array_func1", ins[0], outs[0])
-
-    C = te.extern(A.shape, [A], extern_generator, name="C")
-
-    # Create IRModule directly
-    mod = tvm.IRModule.from_expr(te.create_prim_func([A, C]))
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((1024,), "float32"), C: T.Buffer((1024,), "float32")):
+            T.evaluate(T.call_packed("my_extern_array_func1", A, C))
 
     @tvm.register_global_func
     def my_extern_array_func1(aa, bb):
@@ -105,12 +82,12 @@ def test_pack_buffer_simple():
         if not tvm.testing.device_enabled(target):
             return
         # build and invoke the kernel.
-        f = tvm.compile(mod, target=target)
+        f = tvm.compile(Module, target=target)
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+        c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
 
         f(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy())
@@ -118,44 +95,5 @@ def test_pack_buffer_simple():
     check_target("llvm")
 
 
-@pytest.mark.skip("LEGACY-TO-FIX: limitation of create_prim_func with intermediate buffer")
-def test_pack_buffer_intermediate():
-    nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A")
-    B = te.compute((n,), lambda i: A[i] + 1, name="B")
-
-    def extern_generator(ins, outs):
-        """Manually write the IR for the extern function, add pipeline."""
-        return tvm.tir.call_packed("my_extern_array_func2", ins[0], outs[0])
-
-    C = te.extern(B.shape, [B], extern_generator, name="C")
-    mod = tvm.IRModule.from_expr(te.create_prim_func([A, C]))
-
-    def check_target(target):
-        if not tvm.testing.device_enabled(target):
-            return
-        # build and invoke the kernel.
-        f = tvm.compile(mod, target=target)
-        dev = tvm.cpu(0)
-        # launch the kernel.
-        n = nn
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
-
-        @tvm.register_global_func
-        def my_extern_array_func2(aa, bb):
-            assert aa.shape == a.shape
-            tvm.testing.assert_allclose(aa.numpy(), a.numpy() + 1)
-            aa.copyto(bb)
-
-        f(a, c)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
-
-    check_target("llvm")
-
-
 if __name__ == "__main__":
-    test_pack_buffer_simple()
-    test_pack_buffer_intermediate()
-    test_add_pipeline()
+    tvm.testing.main()
