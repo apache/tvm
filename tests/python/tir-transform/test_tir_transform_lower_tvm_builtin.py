@@ -128,17 +128,21 @@ def test_call_packed_return_non_i32():
 
     def build_tir():
         Ab = tvm.tir.decl_buffer((2,), "float32")
-        ib = tvm.tir.ir_builder.create()
-        Aptr = ib.buffer_ptr(Ab)
-        # return f32
-        # Aptr[0] = testing.echo(expected_value[0])
-        Aptr[0] = packed_echo(tvm.tir.const(expected_value[0], "float32"))
-        # return handle
-        # let Aptr_var = testing.echo(Aptr) in Aptr_var[1] = expected_value[1]
-        Aptr_var = ib.let("Aptr_dup", packed_echo(Aptr.asobject().data))
-        ib.emit(tvm.tir.BufferStore(Aptr, tvm.tir.const(expected_value[1], "float32"), [1]))
 
-        stmt = ib.get()
+        # Build statements using direct TIR construction (no ir_builder)
+        # 1. Store packed_echo(const) result into Ab[0]
+        store0 = tvm.tir.BufferStore(
+            Ab, packed_echo(tvm.tir.const(expected_value[0], "float32")), [0]
+        )
+
+        # 2. Let binding: Aptr_dup = packed_echo(Ab.data), then store const into Ab[1]
+        Aptr_dup = tvm.tir.Var("Aptr_dup", "handle")
+        store1 = tvm.tir.BufferStore(Ab, tvm.tir.const(expected_value[1], "float32"), [1])
+        let_stmt = tvm.tir.LetStmt(Aptr_dup, packed_echo(Ab.data), store1)
+
+        # Combine into sequence
+        stmt = tvm.tir.SeqStmt([store0, let_stmt])
+
         return tvm.IRModule.from_expr(
             tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "packed_test")
         )

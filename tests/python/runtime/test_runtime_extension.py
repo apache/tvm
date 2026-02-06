@@ -15,24 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 import numpy as np
+from tvm.script import ir as I, tir as T
 
 
 def test_dltensor_compatible():
-    dtype = "int64"
-    n = te.var("n")
-    Ab = tvm.tir.decl_buffer((n,), dtype)
-    i = te.var("i")
-    ib = tvm.tir.ir_builder.create()
-    A = ib.buffer_ptr(Ab)
-    with ib.for_range(0, n - 1, "i") as i:
-        A[i + 1] = A[i] + 1
-    stmt = ib.get()
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def arange(A: T.handle):
+            n = T.int32()
+            Ab = T.match_buffer(A, (n,), "int64")
+            for i in T.serial(n - 1):
+                Ab[i + 1] = Ab[i] + T.int64(1)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "arange"))
+    mod = Module
     f = tvm.compile(mod, target="llvm")
-    a = tvm.runtime.tensor(np.zeros(10, dtype=dtype))
+    a = tvm.runtime.tensor(np.zeros(10, dtype="int64"))
     f(a)
     np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
 

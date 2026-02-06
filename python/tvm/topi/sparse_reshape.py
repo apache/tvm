@@ -16,8 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Sparse_Reshape operator"""
-from ..tir import decl_buffer, ir_builder, Cast
-from ..te import extern, div, floordiv, floormod
+from tvm.tir import decl_buffer, Cast
+from tvm.te import extern, div, floordiv, floormod
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tir as T
 
 
 def sparse_reshape(
@@ -75,105 +77,163 @@ def sparse_reshape(
         new_sparse_indices_ptr,
         out_new_shape_ptr,
     ):
-        ib = ir_builder.create()
+        with IRBuilder() as ib:
+            sparse_indices = T.buffer_proxy(sparse_indices_ptr)
+            prev_shape = T.buffer_proxy(prev_shape_ptr)
 
-        sparse_indices = ib.buffer_ptr(sparse_indices_ptr)
-        prev_shape = ib.buffer_ptr(prev_shape_ptr)
+            new_shape = T.buffer_proxy(new_shape_ptr)
+            out_new_shape = T.buffer_proxy(out_new_shape_ptr)
+            new_sparse_indices = T.buffer_proxy(new_sparse_indices_ptr)
 
-        new_shape = ib.buffer_ptr(new_shape_ptr)
-        out_new_shape = ib.buffer_ptr(out_new_shape_ptr)
-        new_sparse_indices = ib.buffer_ptr(new_sparse_indices_ptr)
-        out_new_shape = ib.buffer_ptr(out_new_shape_ptr)
+            prev_shape_size = prev_shape_ptr.shape[0]
+            new_shape_size = new_shape_ptr.shape[0]
 
-        prev_shape_size = prev_shape_ptr.shape[0]
-        new_shape_size = new_shape_ptr.shape[0]
-
-        multipliers = ib.allocate(
-            new_shape_ptr.dtype, (prev_shape_size,), name="multipliers", scope="local"
-        )
-        dividers = ib.allocate(
-            new_shape_ptr.dtype, (new_shape_size,), name="dividers", scope="local"
-        )
-        flattened_indices = ib.allocate(
-            new_shape_ptr.dtype,
-            (sparse_indices_ptr.shape[0],),
-            name="flattened_indices",
-            scope="local",
-        )
-
-        total_ele = ib.allocate(new_shape_ptr.dtype, (1,), name="total_ele", scope="local")
-        total_ele[0] = prev_shape[0]
-
-        # Cumulative Reverse Exclusive Multiply
-        multipliers[prev_shape_size - 1] = Cast(new_shape_ptr.dtype, 1)
-        with ib.for_range(0, prev_shape_size - 1) as i_:
-            i = i_ + 1
-            multipliers[prev_shape_size - 1 - i] = (
-                prev_shape[prev_shape_size - i] * multipliers[prev_shape_size - i]
-            )
-            total_ele[0] *= prev_shape[prev_shape_size - i]
-
-        division_total_ele = ib.allocate(
-            new_shape_ptr.dtype, (1,), name="division_total_ele", scope="local"
-        )
-        division_total_ele[0] = Cast(new_shape_ptr.dtype, 1)
-        with ib.for_range(0, new_shape_size) as i:
-            with ib.if_scope(new_shape[i] != -1):
-                division_total_ele[0] *= new_shape[i]
-
-        # Compute true output shape (replace negative ones)
-        with ib.for_range(0, new_shape_size) as i:
-            with ib.if_scope(new_shape[i] == -1):
-                out_new_shape[i] = Cast(
-                    new_shape_ptr.dtype, div(total_ele[0], division_total_ele[0])
-                )
-            with ib.else_scope():
-                out_new_shape[i] = new_shape[i]
-
-        equal_shape = ib.allocate("bool", (1,), name="equal_shape", scope="local")
-
-        # Check if prev_shape and new_shape are equal
-        equal_shape[0] = True
-        with ib.if_scope(prev_shape_size == new_shape_size):
-            with ib.for_range(0, prev_shape_size) as i:
-                with ib.if_scope(prev_shape[i] != out_new_shape[i]):
-                    equal_shape[0] = False
-        with ib.else_scope():
-            equal_shape[0] = False
-
-        # Return same inputs if shapes are equal
-        with ib.if_scope(equal_shape[0]):
-            with ib.for_range(0, sparse_indices_ptr.shape[0], kind="parallel") as i:
-                with ib.for_range(0, sparse_indices_ptr.shape[1]) as j:
-                    new_sparse_indices[i, j] = sparse_indices[i, j]
-
-        # Else compute new_sparse_indices
-        with ib.else_scope():
-            dividers[new_shape_size - 1] = Cast(new_shape_ptr.dtype, 1)
-            with ib.for_range(0, new_shape_size - 1) as i_:
-                i = i_ + 1
-                dividers[new_shape_size - 1 - i] = (
-                    dividers[new_shape_size - i] * out_new_shape[new_shape_size - i]
-                )
-
-            with ib.for_range(0, sparse_indices_ptr.shape[0], kind="parallel") as i:
-                flattened_indices[i] = Cast(new_shape_ptr.dtype, 0)
-                with ib.for_range(0, sparse_indices_ptr.shape[1]) as j:
-                    flattened_indices[i] += sparse_indices[i, j] * multipliers[j]
-
-            with ib.for_range(0, new_sparse_indices_ptr.shape[0], kind="parallel") as i:
-                current_element = ib.allocate(
-                    new_shape_ptr.dtype, (1,), name="current_element", scope="local"
-                )
-                current_element[0] = flattened_indices[i]
-
-                with ib.for_range(0, new_sparse_indices_ptr.shape[1]) as j:
-                    new_sparse_indices[i, j] = Cast(
-                        sparse_indices_ptr.dtype, floordiv(current_element[0], dividers[j])
+            with T.frame_scope(
+                [
+                    T.allocate([prev_shape_size], new_shape_ptr.dtype, scope="local"),
+                    T.allocate([new_shape_size], new_shape_ptr.dtype, scope="local"),
+                    T.allocate([sparse_indices_ptr.shape[0]], new_shape_ptr.dtype, scope="local"),
+                    T.allocate([1], new_shape_ptr.dtype, scope="local"),
+                    T.allocate([1], new_shape_ptr.dtype, scope="local"),
+                    T.allocate([1], "bool", scope="local"),
+                ]
+            ) as (
+                multipliers_ptr,
+                dividers_ptr,
+                flattened_indices_ptr,
+                total_ele_ptr,
+                division_total_ele_ptr,
+                equal_shape_ptr,
+            ):
+                multipliers = T.buffer_proxy(
+                    decl_buffer(
+                        [prev_shape_size],
+                        new_shape_ptr.dtype,
+                        "multipliers",
+                        data=multipliers_ptr,
+                        scope="local",
                     )
-                    current_element[0] = floormod(current_element[0], dividers[j])
+                )
+                dividers = T.buffer_proxy(
+                    decl_buffer(
+                        [new_shape_size],
+                        new_shape_ptr.dtype,
+                        "dividers",
+                        data=dividers_ptr,
+                        scope="local",
+                    )
+                )
+                flattened_indices = T.buffer_proxy(
+                    decl_buffer(
+                        [sparse_indices_ptr.shape[0]],
+                        new_shape_ptr.dtype,
+                        "flattened_indices",
+                        data=flattened_indices_ptr,
+                        scope="local",
+                    )
+                )
+                total_ele = T.buffer_proxy(
+                    decl_buffer(
+                        [1], new_shape_ptr.dtype, "total_ele", data=total_ele_ptr, scope="local"
+                    )
+                )
+                division_total_ele = T.buffer_proxy(
+                    decl_buffer(
+                        [1],
+                        new_shape_ptr.dtype,
+                        "division_total_ele",
+                        data=division_total_ele_ptr,
+                        scope="local",
+                    )
+                )
+                equal_shape = T.buffer_proxy(
+                    decl_buffer([1], "bool", "equal_shape", data=equal_shape_ptr, scope="local")
+                )
 
-        return ib.get()
+                total_ele[0] = prev_shape[0]
+
+                # Cumulative Reverse Exclusive Multiply
+                multipliers[prev_shape_size - 1] = Cast(new_shape_ptr.dtype, 1)
+                with T.serial(0, prev_shape_size - 1) as i_:
+                    i = i_ + 1
+                    multipliers[prev_shape_size - 1 - i] = (
+                        prev_shape[prev_shape_size - i] * multipliers[prev_shape_size - i]
+                    )
+                    total_ele[0] *= prev_shape[prev_shape_size - i]
+
+                division_total_ele[0] = Cast(new_shape_ptr.dtype, 1)
+                with T.serial(0, new_shape_size) as i:
+                    with T.If(new_shape[i] != -1):
+                        with T.Then():
+                            division_total_ele[0] *= new_shape[i]
+
+                # Compute true output shape (replace negative ones)
+                with T.serial(0, new_shape_size) as i:
+                    with T.If(new_shape[i] == -1):
+                        with T.Then():
+                            out_new_shape[i] = Cast(
+                                new_shape_ptr.dtype, div(total_ele[0], division_total_ele[0])
+                            )
+                        with T.Else():
+                            out_new_shape[i] = new_shape[i]
+
+                # Check if prev_shape and new_shape are equal
+                equal_shape[0] = True
+                with T.If(prev_shape_size == new_shape_size):
+                    with T.Then():
+                        with T.serial(0, prev_shape_size) as i:
+                            with T.If(prev_shape[i] != out_new_shape[i]):
+                                with T.Then():
+                                    equal_shape[0] = False
+                    with T.Else():
+                        equal_shape[0] = False
+
+                # Return same inputs if shapes are equal
+                with T.If(equal_shape[0]):
+                    with T.Then():
+                        with T.parallel(0, sparse_indices_ptr.shape[0]) as i:
+                            with T.serial(0, sparse_indices_ptr.shape[1]) as j:
+                                new_sparse_indices[i, j] = sparse_indices[i, j]
+
+                    # Else compute new_sparse_indices
+                    with T.Else():
+                        dividers[new_shape_size - 1] = Cast(new_shape_ptr.dtype, 1)
+                        with T.serial(0, new_shape_size - 1) as i_:
+                            i = i_ + 1
+                            dividers[new_shape_size - 1 - i] = (
+                                dividers[new_shape_size - i] * out_new_shape[new_shape_size - i]
+                            )
+
+                        with T.parallel(0, sparse_indices_ptr.shape[0]) as i:
+                            flattened_indices[i] = Cast(new_shape_ptr.dtype, 0)
+                            with T.serial(0, sparse_indices_ptr.shape[1]) as j:
+                                flattened_indices[i] += sparse_indices[i, j] * multipliers[j]
+
+                        with T.parallel(0, new_sparse_indices_ptr.shape[0]) as i:
+                            with T.frame_scope(
+                                [
+                                    T.allocate([1], new_shape_ptr.dtype, scope="local"),
+                                ]
+                            ) as current_element_ptr:
+                                current_element = T.buffer_proxy(
+                                    decl_buffer(
+                                        [1],
+                                        new_shape_ptr.dtype,
+                                        "current_element",
+                                        data=current_element_ptr,
+                                        scope="local",
+                                    )
+                                )
+                                current_element[0] = flattened_indices[i]
+
+                                with T.serial(0, new_sparse_indices_ptr.shape[1]) as j:
+                                    new_sparse_indices[i, j] = Cast(
+                                        sparse_indices_ptr.dtype,
+                                        floordiv(current_element[0], dividers[j]),
+                                    )
+                                    current_element[0] = floormod(current_element[0], dividers[j])
+
+            return ib.get()
 
     new_sparse_indices_buf = decl_buffer(
         new_sparse_indices_shape, sparse_indices.dtype, "new_sparse_indices_buf"

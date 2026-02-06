@@ -19,9 +19,11 @@
 from typing import Callable, Optional
 
 import tvm
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tir as T
 
 from ..te import extern
-from ..tir import decl_buffer, generic, ir_builder
+from ..tir import decl_buffer, generic
 from .math import cast
 from . import utils
 
@@ -112,28 +114,28 @@ def scanop(
                 axis_mul_after *= value
 
     def gen_ir(data_buf, out_buf):
-        ib = ir_builder.create()
-        data_buf = ib.buffer_ptr(data_buf)
-        out_buf = ib.buffer_ptr(out_buf)
+        with IRBuilder() as ib:
+            data_buf = T.buffer_proxy(data_buf)
+            out_buf = T.buffer_proxy(out_buf)
 
-        with ib.for_range(0, axis_mul_before * axis_mul_after, "fused", kind="parallel") as fused:
-            i = fused // axis_mul_after
-            j = fused % axis_mul_after
-            base_idx = i * cumsum_axis_len * axis_mul_after + j
-            if exclusive:
-                out_buf[base_idx] = cast(identity_value, dtype)
-            else:
-                out_buf[base_idx] = maybe_cast(data_buf[base_idx])
-            with ib.for_range(0, cumsum_axis_len - 1, "_k") as _k:
-                k = _k + 1
-                cur_idx = base_idx + k * axis_mul_after
-                prev_idx = base_idx + (k - 1) * axis_mul_after
+            with T.parallel(0, axis_mul_before * axis_mul_after) as fused:
+                i = fused // axis_mul_after
+                j = fused % axis_mul_after
+                base_idx = i * cumsum_axis_len * axis_mul_after + j
                 if exclusive:
-                    out_buf[cur_idx] = binop(out_buf[prev_idx], maybe_cast(data_buf[prev_idx]))
+                    out_buf[base_idx] = cast(identity_value, dtype)
                 else:
-                    out_buf[cur_idx] = binop(out_buf[prev_idx], maybe_cast(data_buf[cur_idx]))
+                    out_buf[base_idx] = maybe_cast(data_buf[base_idx])
+                with T.serial(0, cumsum_axis_len - 1) as _k:
+                    k = _k + 1
+                    cur_idx = base_idx + k * axis_mul_after
+                    prev_idx = base_idx + (k - 1) * axis_mul_after
+                    if exclusive:
+                        out_buf[cur_idx] = binop(out_buf[prev_idx], maybe_cast(data_buf[prev_idx]))
+                    else:
+                        out_buf[cur_idx] = binop(out_buf[prev_idx], maybe_cast(data_buf[cur_idx]))
 
-        return ib.get()
+            return ib.get()
 
     out_buf = decl_buffer(shape, dtype, "out_buf")
 

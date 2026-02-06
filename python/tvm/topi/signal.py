@@ -18,6 +18,8 @@
 """STFT operator"""
 from math import pi
 from tvm import te, tir
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tir as T
 
 
 def stft(
@@ -75,37 +77,36 @@ def stft(
         output_ptr,
         loop_kind,
     ):
-        ib = tir.ir_builder.create()
-        data = ib.buffer_ptr(data_ptr)
-        window = ib.buffer_ptr(window_ptr)
-        output = ib.buffer_ptr(output_ptr)
-        # https://librosa.org/doc/0.7.2/_modules/librosa/core/spectrum.html#stft
-        with ib.for_range(
-            0, output_ptr.shape[0] * output_ptr.shape[1], kind="parallel"
-        ) as batch_row:
-            with ib.for_range(0, output_ptr.shape[2], kind=loop_kind) as col:
-                batch = ib.allocate("int32", (1), name="batch", scope="local")
-                row = ib.allocate("int32", (1), name="row", scope="local")
-                batch = tir.floordiv(batch_row, output_ptr.shape[1])
-                row = tir.floormod(batch_row, output_ptr.shape[1])
-                output[batch, row, col, 0] = tir.Cast(data_ptr.dtype, 0)
-                output[batch, row, col, 1] = tir.Cast(data_ptr.dtype, 0)
-                with ib.for_range(0, win_length) as wlen:
-                    output[batch, row, col, 0] += (
-                        window[wlen]
-                        * data[batch, col * hop_length + wlen]
-                        * tir.cos(2 * pi * row * wlen / win_length)
-                    )
-                    output[batch, row, col, 1] -= (
-                        window[wlen]
-                        * data[batch, col * hop_length + wlen]
-                        * tir.sin(2 * pi * row * wlen / win_length)
-                    )
-                with ib.if_scope(normalized):
-                    output[batch, row, col, 0] /= tir.sqrt(tir.const(n_fft, "float32"))
-                    output[batch, row, col, 1] /= tir.sqrt(tir.const(n_fft, "float32"))
+        col_loop = T.vectorized if loop_kind == "vectorize" else T.serial
 
-        return ib.get()
+        with IRBuilder() as ib:
+            data = T.buffer_proxy(data_ptr)
+            window = T.buffer_proxy(window_ptr)
+            output = T.buffer_proxy(output_ptr)
+            # https://librosa.org/doc/0.7.2/_modules/librosa/core/spectrum.html#stft
+            with T.parallel(0, output_ptr.shape[0] * output_ptr.shape[1]) as batch_row:
+                with col_loop(0, output_ptr.shape[2]) as col:
+                    batch = tir.floordiv(batch_row, output_ptr.shape[1])
+                    row = tir.floormod(batch_row, output_ptr.shape[1])
+                    output[batch, row, col, 0] = tir.Cast(data_ptr.dtype, 0)
+                    output[batch, row, col, 1] = tir.Cast(data_ptr.dtype, 0)
+                    with T.serial(0, win_length) as wlen:
+                        output[batch, row, col, 0] += (
+                            window[wlen]
+                            * data[batch, col * hop_length + wlen]
+                            * tir.cos(2 * pi * row * wlen / win_length)
+                        )
+                        output[batch, row, col, 1] -= (
+                            window[wlen]
+                            * data[batch, col * hop_length + wlen]
+                            * tir.sin(2 * pi * row * wlen / win_length)
+                        )
+                    with T.If(normalized):
+                        with T.Then():
+                            output[batch, row, col, 0] /= tir.sqrt(tir.const(n_fft, "float32"))
+                            output[batch, row, col, 1] /= tir.sqrt(tir.const(n_fft, "float32"))
+
+            return ib.get()
 
     output_buf = tir.decl_buffer(output_shape, data.dtype, "output_buf")
     loop_kind = "vectorize"
@@ -160,40 +161,44 @@ def dft(
         re_output_buf,
         im_output_buf,
     ):
-        ib = tir.ir_builder.create()
-        re_data_ptr = ib.buffer_ptr(re_data_buf)
-        im_data_ptr = ib.buffer_ptr(im_data_buf)
-        re_output_ptr = ib.buffer_ptr(re_output_buf)
-        im_output_ptr = ib.buffer_ptr(im_output_buf)
+        with IRBuilder() as ib:
+            re_data_ptr = T.buffer_proxy(re_data_buf)
+            im_data_ptr = T.buffer_proxy(im_data_buf)
+            re_output_ptr = T.buffer_proxy(re_output_buf)
+            im_output_ptr = T.buffer_proxy(im_output_buf)
 
-        shape = re_data.shape
-        n_fft = shape[len(shape) - 1]
-        base_range = 1
-        for i in range(len(shape) - 1):
-            base_range *= shape[i]
+            shape = re_data.shape
+            n_fft = shape[len(shape) - 1]
+            base_range = 1
+            for i in range(len(shape) - 1):
+                base_range *= shape[i]
 
-        sign = -1 if inverse else 1
-        factor = 1.0 / n_fft if inverse else 1.0
+            sign = -1 if inverse else 1
+            factor = 1.0 / n_fft if inverse else 1.0
 
-        with ib.for_range(0, base_range, kind="parallel") as i:
-            base_idx = i * n_fft
-            with ib.for_range(0, n_fft) as n:
-                n_idx = base_idx + n
-                re_output_ptr[n_idx] = tir.Cast(re_output_ptr.dtype, 0)
-                im_output_ptr[n_idx] = tir.Cast(im_output_ptr.dtype, 0)
-                _w = sign * -2 * pi * n / n_fft
-                with ib.for_range(0, n_fft) as k:
-                    k_idx = base_idx + k
-                    w = _w * k
-                    cos_w = tir.Cast(re_output_ptr.dtype, tir.cos(w))
-                    sin_w = tir.Cast(re_output_ptr.dtype, tir.sin(w))
-                    re_output_ptr[n_idx] += re_data_ptr[k_idx] * cos_w - im_data_ptr[k_idx] * sin_w
-                    im_output_ptr[n_idx] += re_data_ptr[k_idx] * sin_w + im_data_ptr[k_idx] * cos_w
+            with T.parallel(0, base_range) as i:
+                base_idx = i * n_fft
+                with T.serial(0, n_fft) as n:
+                    n_idx = base_idx + n
+                    re_output_ptr[n_idx] = tir.Cast(re_output_ptr.dtype, 0)
+                    im_output_ptr[n_idx] = tir.Cast(im_output_ptr.dtype, 0)
+                    _w = sign * -2 * pi * n / n_fft
+                    with T.serial(0, n_fft) as k:
+                        k_idx = base_idx + k
+                        w = _w * k
+                        cos_w = tir.Cast(re_output_ptr.dtype, tir.cos(w))
+                        sin_w = tir.Cast(re_output_ptr.dtype, tir.sin(w))
+                        re_output_ptr[n_idx] += (
+                            re_data_ptr[k_idx] * cos_w - im_data_ptr[k_idx] * sin_w
+                        )
+                        im_output_ptr[n_idx] += (
+                            re_data_ptr[k_idx] * sin_w + im_data_ptr[k_idx] * cos_w
+                        )
 
-                re_output_ptr[n_idx] *= tir.Cast(re_output_ptr.dtype, factor)
-                im_output_ptr[n_idx] *= tir.Cast(im_output_ptr.dtype, factor)
+                    re_output_ptr[n_idx] *= tir.Cast(re_output_ptr.dtype, factor)
+                    im_output_ptr[n_idx] *= tir.Cast(im_output_ptr.dtype, factor)
 
-        return ib.get()
+            return ib.get()
 
     output_shape = [re_data.shape] * 2
 

@@ -15,18 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
+from tvm.script import ir as I, tir as T
 
 
 def test_ir_transform():
-    ib = tvm.tir.ir_builder.create()
-    n = te.var("n")
-    with ib.for_range(0, n, name="i") as i:
-        with ib.for_range(0, 10, name="j") as j:
-            x = tvm.tir.call_extern("int32", "TestA", i * 3 + j * 1)
-            ib.emit(tvm.tir.call_extern("int32", "TestB", x))
-            ib.emit(tvm.tir.call_extern("int32", "TestC", x))
-    body = ib.get()
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(n: T.int32):
+            for i in T.serial(n):
+                for j in T.serial(10):
+                    # Inline call_extern to avoid Let binding (x must be the Call node itself)
+                    T.evaluate(
+                        T.call_extern(
+                            "int32", "TestB", T.call_extern("int32", "TestA", i * 3 + j * 1)
+                        )
+                    )
+                    T.evaluate(
+                        T.call_extern(
+                            "int32", "TestC", T.call_extern("int32", "TestA", i * 3 + j * 1)
+                        )
+                    )
+
+    body = Module["main"].body
     builtin_call_extern = tvm.ir.Op.get("tir.call_extern")
 
     def preorder(op):

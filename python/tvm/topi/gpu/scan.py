@@ -21,6 +21,8 @@ from typing import Callable, Optional, Union
 import tvm
 from tvm import te
 from tvm.contrib.thrust import can_use_rocthrust, can_use_thrust
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tir as T
 
 from ..math import cast, ceil_log2
 from ..transform import expand_dims, reshape, squeeze, transpose
@@ -77,119 +79,164 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
     batch_size = cast(prod(data.shape[:-1]), "int32")
     scan_axis_size = cast(data.shape[-1], "int32")
 
-    ib = tvm.tir.ir_builder.create()
+    with IRBuilder() as ib:
+        data = T.buffer_proxy(data)
+        output = T.buffer_proxy(output)
+        out_dtype = output.dtype
 
-    data = ib.buffer_ptr(data)
-    output = ib.buffer_ptr(output)
+        if reduction is not None:
+            reduction = T.buffer_proxy(reduction)
 
-    out_dtype = output.dtype
+        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
 
-    if reduction is not None:
-        reduction = ib.buffer_ptr(reduction)
+        with T.If(scan_axis_size == 0):
+            with T.Then():
+                bx = te.thread_axis("blockIdx.x")
+                with T.attr(bx, "thread_extent", batch_size):
+                    with T.If(bx < batch_size):
+                        with T.Then():
+                            if reduction is not None:
+                                reduction[bx] = cast(identity_value, out_dtype)
+            with T.Else():
+                nthread_tx = max_threads
+                nthread_bx = ceil_div(scan_axis_size, max_threads)
+                nthread_by = batch_size
 
-    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-
-    with ib.if_scope(scan_axis_size == 0):
-        with ib.new_scope():
-            bx = te.thread_axis("blockIdx.x")
-            ib.scope_attr(bx, "thread_extent", batch_size)
-            with ib.if_scope(bx < batch_size):
-                if reduction is not None:
-                    reduction[bx] = cast(identity_value, out_dtype)
-    with ib.else_scope():
-        with ib.new_scope():
-            nthread_tx = max_threads
-            nthread_bx = ceil_div(scan_axis_size, max_threads)
-            nthread_by = batch_size
-            tx = te.thread_axis("threadIdx.x")
-            bx = te.thread_axis("blockIdx.x")
-            by = te.thread_axis("blockIdx.y")
-            ib.scope_attr(tx, "thread_extent", nthread_tx)
-            ib.scope_attr(bx, "thread_extent", nthread_bx)
-            ib.scope_attr(by, "thread_extent", nthread_by)
-            tid = bx * nthread_tx + tx
-            with ib.if_scope(tid < scan_axis_size):
-                output[by * scan_axis_size + tid] = cast(data[by * scan_axis_size + tid], out_dtype)
-
-        nthread_tx = max_threads
-        nthread_bx = ceil_div(scan_axis_size, max_threads)
-        nthread_by = batch_size
-
-        # The following algorithm performs parallel exclusive scan
-        # Up Sweep of exclusive scan
-        lim = ceil_log2(scan_axis_size)
-
-        with ib.for_range(0, cast(lim, "int32"), dtype="int32") as l2_width:
-            width = 2 << l2_width
-
-            with ib.new_scope():
+                # Copy data to output
                 tx = te.thread_axis("threadIdx.x")
                 bx = te.thread_axis("blockIdx.x")
-                ib.scope_attr(tx, "thread_extent", nthread_tx)
-                ib.scope_attr(
-                    bx,
-                    "thread_extent",
-                    tvm.tir.generic.cast(ceil_div(scan_axis_size, max_threads * width), "int32"),
-                )
-                tid = bx * nthread_tx + tx
-
                 by = te.thread_axis("blockIdx.y")
-                ib.scope_attr(by, "thread_extent", nthread_by)
-                start = ib.allocate("int32", (1,), name="start", scope="local")
-                middle = ib.allocate("int32", (1,), name="middle", scope="local")
-                end = ib.allocate("int32", (1,), name="end", scope="local")
-                start[0] = width * tid
-                with ib.if_scope(start[0] < scan_axis_size):
-                    middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
-                    end[0] = tvm.te.min(start[0] + width, scan_axis_size)
-                    with ib.if_scope(middle[0] < scan_axis_size):
-                        output[by * scan_axis_size + end[0] - 1] = binop(
-                            output[by * scan_axis_size + end[0] - 1],
-                            output[by * scan_axis_size + middle[0] - 1],
-                        )
+                with T.frame_scope(
+                    [
+                        T.attr(tx, "thread_extent", nthread_tx),
+                        T.attr(bx, "thread_extent", nthread_bx),
+                        T.attr(by, "thread_extent", nthread_by),
+                    ]
+                ):
+                    tid = bx * nthread_tx + tx
+                    with T.If(tid < scan_axis_size):
+                        with T.Then():
+                            output[by * scan_axis_size + tid] = cast(
+                                data[by * scan_axis_size + tid], out_dtype
+                            )
 
-        # Down Sweep of exclusive scan
-        with ib.new_scope():
-            bx = te.thread_axis("blockIdx.x")
-            ib.scope_attr(bx, "thread_extent", batch_size)
-            with ib.if_scope(bx < batch_size):
-                if reduction is not None:
-                    reduction[bx] = output[(bx + 1) * scan_axis_size - 1]
-                output[(bx + 1) * scan_axis_size - 1] = cast(identity_value, out_dtype)
+                # The following algorithm performs parallel exclusive scan
+                # Up Sweep of exclusive scan
+                lim = ceil_log2(scan_axis_size)
 
-        with ib.for_range(0, cast(lim, "int32"), dtype="int32") as l2_width:
-            width = 2 << (lim - l2_width - 1)
+                with T.serial(0, cast(lim, "int32")) as l2_width:
+                    width = 2 << l2_width
 
-            with ib.new_scope():
-                tx = te.thread_axis("threadIdx.x")
-                bx = te.thread_axis("blockIdx.x")
-                ib.scope_attr(tx, "thread_extent", nthread_tx)
-                ib.scope_attr(
-                    bx,
-                    "thread_extent",
-                    tvm.tir.generic.cast(ceil_div(scan_axis_size, max_threads * width), "int32"),
-                )
-                tid = bx * nthread_tx + tx
-
-                by = te.thread_axis("blockIdx.y")
-                ib.scope_attr(by, "thread_extent", nthread_by)
-                start = ib.allocate("int32", (1,), name="start", scope="local")
-                middle = ib.allocate("int32", (1,), name="middle", scope="local")
-                end = ib.allocate("int32", (1,), name="end", scope="local")
-                tmp = ib.allocate(out_dtype, (1,), name="end", scope="local")
-                start[0] = width * tid
-                with ib.if_scope(tvm.tir.all(start[0] < scan_axis_size)):
-                    middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
-                    end[0] = tvm.tir.min(start[0] + width, scan_axis_size)
-                    with ib.if_scope(middle[0] < scan_axis_size):
-                        tmp[0] = output[by * scan_axis_size + middle[0] - 1]
-                        output[by * scan_axis_size + middle[0] - 1] = output[
-                            by * scan_axis_size + end[0] - 1
+                    tx = te.thread_axis("threadIdx.x")
+                    bx = te.thread_axis("blockIdx.x")
+                    by = te.thread_axis("blockIdx.y")
+                    with T.frame_scope(
+                        [
+                            T.attr(tx, "thread_extent", nthread_tx),
+                            T.attr(
+                                bx,
+                                "thread_extent",
+                                tvm.tir.generic.cast(
+                                    ceil_div(scan_axis_size, max_threads * width), "int32"
+                                ),
+                            ),
+                            T.attr(by, "thread_extent", nthread_by),
+                            T.allocate([1], "int32", scope="local"),
+                            T.allocate([1], "int32", scope="local"),
+                            T.allocate([1], "int32", scope="local"),
                         ]
-                        output[by * scan_axis_size + end[0] - 1] = binop(
-                            output[by * scan_axis_size + end[0] - 1], tmp[0]
+                    ) as (_, _, _, start_ptr, middle_ptr, end_ptr):
+                        tid = bx * nthread_tx + tx
+                        start = T.buffer_proxy(
+                            tvm.tir.decl_buffer(
+                                [1], "int32", "start", data=start_ptr, scope="local"
+                            )
                         )
-    return ib.get()
+                        middle = T.buffer_proxy(
+                            tvm.tir.decl_buffer(
+                                [1], "int32", "middle", data=middle_ptr, scope="local"
+                            )
+                        )
+                        end = T.buffer_proxy(
+                            tvm.tir.decl_buffer([1], "int32", "end", data=end_ptr, scope="local")
+                        )
+                        start[0] = width * tid
+                        with T.If(start[0] < scan_axis_size):
+                            with T.Then():
+                                middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
+                                end[0] = tvm.te.min(start[0] + width, scan_axis_size)
+                                with T.If(middle[0] < scan_axis_size):
+                                    with T.Then():
+                                        output[by * scan_axis_size + end[0] - 1] = binop(
+                                            output[by * scan_axis_size + end[0] - 1],
+                                            output[by * scan_axis_size + middle[0] - 1],
+                                        )
+
+                # Down Sweep of exclusive scan
+                bx = te.thread_axis("blockIdx.x")
+                with T.attr(bx, "thread_extent", batch_size):
+                    with T.If(bx < batch_size):
+                        with T.Then():
+                            if reduction is not None:
+                                reduction[bx] = output[(bx + 1) * scan_axis_size - 1]
+                            output[(bx + 1) * scan_axis_size - 1] = cast(identity_value, out_dtype)
+
+                with T.serial(0, cast(lim, "int32")) as l2_width:
+                    width = 2 << (lim - l2_width - 1)
+
+                    tx = te.thread_axis("threadIdx.x")
+                    bx = te.thread_axis("blockIdx.x")
+                    by = te.thread_axis("blockIdx.y")
+                    with T.frame_scope(
+                        [
+                            T.attr(tx, "thread_extent", nthread_tx),
+                            T.attr(
+                                bx,
+                                "thread_extent",
+                                tvm.tir.generic.cast(
+                                    ceil_div(scan_axis_size, max_threads * width), "int32"
+                                ),
+                            ),
+                            T.attr(by, "thread_extent", nthread_by),
+                            T.allocate([1], "int32", scope="local"),
+                            T.allocate([1], "int32", scope="local"),
+                            T.allocate([1], "int32", scope="local"),
+                            T.allocate([1], out_dtype, scope="local"),
+                        ]
+                    ) as (_, _, _, start_ptr, middle_ptr, end_ptr, tmp_ptr):
+                        tid = bx * nthread_tx + tx
+                        start = T.buffer_proxy(
+                            tvm.tir.decl_buffer(
+                                [1], "int32", "start", data=start_ptr, scope="local"
+                            )
+                        )
+                        middle = T.buffer_proxy(
+                            tvm.tir.decl_buffer(
+                                [1], "int32", "middle", data=middle_ptr, scope="local"
+                            )
+                        )
+                        end = T.buffer_proxy(
+                            tvm.tir.decl_buffer([1], "int32", "end", data=end_ptr, scope="local")
+                        )
+                        tmp = T.buffer_proxy(
+                            tvm.tir.decl_buffer([1], out_dtype, "tmp", data=tmp_ptr, scope="local")
+                        )
+                        start[0] = width * tid
+                        with T.If(tvm.tir.all(start[0] < scan_axis_size)):
+                            with T.Then():
+                                middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
+                                end[0] = tvm.tir.min(start[0] + width, scan_axis_size)
+                                with T.If(middle[0] < scan_axis_size):
+                                    with T.Then():
+                                        tmp[0] = output[by * scan_axis_size + middle[0] - 1]
+                                        output[by * scan_axis_size + middle[0] - 1] = output[
+                                            by * scan_axis_size + end[0] - 1
+                                        ]
+                                        output[by * scan_axis_size + end[0] - 1] = binop(
+                                            output[by * scan_axis_size + end[0] - 1], tmp[0]
+                                        )
+
+        return ib.get()
 
 
 def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generic.add):
@@ -219,35 +266,40 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
         data = expand_dims(data, axis=0)
         ex_scan_output = expand_dims(ex_scan_output, axis=0)
 
-    def ir(data, data_ex_scan, reduction):
-        batch_size = cast(prod(data.shape[:-1]), "int32")
-        scan_axis_size = cast(data.shape[-1], "int32")
-
-        ib = tvm.tir.ir_builder.create()
-
-        data = ib.buffer_ptr(data)
-        data_ex_scan = ib.buffer_ptr(data_ex_scan)
-        reduction = ib.buffer_ptr(reduction)
+    def ir(data_buf, data_ex_scan_buf, reduction_buf):
+        batch_size = cast(prod(data_buf.shape[:-1]), "int32")
+        scan_axis_size = cast(data_buf.shape[-1], "int32")
 
         max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-        with ib.new_scope():
+
+        with IRBuilder() as ib:
+            data = T.buffer_proxy(data_buf)
+            data_ex_scan = T.buffer_proxy(data_ex_scan_buf)
+            reduction = T.buffer_proxy(reduction_buf)
+
             nthread_tx = max_threads
             nthread_bx = ceil_div(batch_size, max_threads)
             tx = te.thread_axis("threadIdx.x")
             bx = te.thread_axis("blockIdx.x")
-            ib.scope_attr(tx, "thread_extent", nthread_tx)
-            ib.scope_attr(bx, "thread_extent", nthread_bx)
-            tid = bx * max_threads + tx
-            with ib.if_scope(tid < batch_size):
-                with ib.if_scope(scan_axis_size > 0):
-                    reduction[tid] = binop(
-                        data_ex_scan[tid * scan_axis_size + scan_axis_size - 1],
-                        data[tid * scan_axis_size + scan_axis_size - 1],
-                    )
-                with ib.else_scope():
-                    reduction[tid] = cast(0, reduction.dtype)
+            with T.frame_scope(
+                [
+                    T.attr(tx, "thread_extent", nthread_tx),
+                    T.attr(bx, "thread_extent", nthread_bx),
+                ]
+            ):
+                tid = bx * max_threads + tx
+                with T.If(tid < batch_size):
+                    with T.Then():
+                        with T.If(scan_axis_size > 0):
+                            with T.Then():
+                                reduction[tid] = binop(
+                                    data_ex_scan[tid * scan_axis_size + scan_axis_size - 1],
+                                    data[tid * scan_axis_size + scan_axis_size - 1],
+                                )
+                            with T.Else():
+                                reduction[tid] = cast(0, reduction_buf.dtype)
 
-        return ib.get()
+            return ib.get()
 
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "valid_indices_buf", data_alignment=8)
     ex_scan_output_buf = tvm.tir.decl_buffer(

@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument, no-else-return
-"""Sort related operators """
+"""Sort related operators"""
 import tvm
 from tvm import te
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tir as T
 
 from ..transform import strided_slice, transpose
 from ..utils import ceil_div, swap, prod
@@ -25,19 +27,14 @@ from ..math import cast, ceil_log2
 from ..searchsorted import binary_search
 
 
-def _get_threads(ib, nthread_tx, nthread_bx, nthread_by):
+def _get_threads(nthread_tx, nthread_bx, nthread_by):
     tx = te.thread_axis("threadIdx.x")
     bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", nthread_tx)
-    ib.scope_attr(bx, "thread_extent", nthread_bx)
-
     by = te.thread_axis("blockIdx.y")
-    ib.scope_attr(by, "thread_extent", nthread_by)
-
-    return tx, bx, by
+    return tx, bx, by, nthread_tx, nthread_bx, nthread_by
 
 
-def _sort_init(ib, shape, axis, keys_in, keys_out, values_out=None, value_init_func=None):
+def _sort_init(shape, axis, keys_in, keys_out, values_out=None, value_init_func=None):
     """Initialize the output buffers by copying from inputs"""
     axis_mul_before = 1
     axis_mul_after = 1
@@ -56,15 +53,23 @@ def _sort_init(ib, shape, axis, keys_in, keys_out, values_out=None, value_init_f
     nthread_by = axis_mul_before * axis_mul_after
 
     # Copy the keys_in to initial output
-    with ib.new_scope():
-        tx, bx, by = _get_threads(ib, nthread_tx, nthread_bx, nthread_by)
+    tx, bx, by, ntx, nbx, nby = _get_threads(nthread_tx, nthread_bx, nthread_by)
+    with T.frame_scope(
+        [
+            T.attr(tx, "thread_extent", ntx),
+            T.attr(bx, "thread_extent", nbx),
+            T.attr(by, "thread_extent", nby),
+        ]
+    ):
         tid = bx * nthread_tx + tx
-        by, bz = by % axis_mul_before, by // axis_mul_before
-        idx = (by * shape[axis] + tid) * axis_mul_after + bz
-        with ib.if_scope(tid < shape[axis]):
-            keys_out[idx] = keys_in[idx]
-            if values_out is not None:
-                values_out[idx] = value_init_func(idx, tid)
+        by_val = by % axis_mul_before
+        bz = by // axis_mul_before
+        idx = (by_val * shape[axis] + tid) * axis_mul_after + bz
+        with T.If(tid < shape[axis]):
+            with T.Then():
+                keys_out[idx] = keys_in[idx]
+                if values_out is not None:
+                    values_out[idx] = value_init_func(idx, tid)
 
     return axis_mul_before, axis_mul_after
 
@@ -76,7 +81,6 @@ thread_work = 4
 
 
 def _odd_even_sort(
-    ib,
     size,
     axis_mul_before,
     axis_mul_after,
@@ -89,81 +93,149 @@ def _odd_even_sort(
     nthread_tx = block_size // 2
     nthread_bx = ceil_div(size, block_size)
     nthread_by = axis_mul_before * axis_mul_after
-    with ib.new_scope():
-        ib.scope_attr(tvm.tir.const(0), "hand_threaded", 0)
-        tx, bx, by = _get_threads(ib, nthread_tx, nthread_bx, nthread_by)
-        by, bz = by % axis_mul_before, by // axis_mul_before
+
+    tx, bx, by, ntx, nbx, nby = _get_threads(nthread_tx, nthread_bx, nthread_by)
+    with T.frame_scope(
+        [
+            T.attr(tvm.tir.const(0), "hand_threaded", 0),
+            T.attr(tx, "thread_extent", ntx),
+            T.attr(bx, "thread_extent", nbx),
+            T.attr(by, "thread_extent", nby),
+        ]
+    ):
+        by_val = by % axis_mul_before
+        bz = by // axis_mul_before
         tid = 2 * tx
         start = bx * block_size
 
-        ## Create shared memory as syncable thread scratch space
-        tmp_keys_swap = ib.allocate(
-            keys_swap.dtype,
-            (block_size,),
-            name="temp_keys_swap",
-            scope="shared",
-        )
+        # Build list of allocations
+        alloc_frames = [
+            T.allocate([block_size], keys_swap.dtype, scope="shared"),  # tmp_keys_swap
+            T.allocate([1], keys_swap.dtype, scope="local"),  # temp_keys
+            T.allocate([1], keys_swap.dtype, scope="local"),  # temp_cond1
+            T.allocate([1], keys_swap.dtype, scope="local"),  # temp_cond2
+        ]
         if values_swap is not None:
-            tmp_values_swap = ib.allocate(
-                values_swap.dtype,
-                (block_size,),
-                name="temp_values_swap",
+            alloc_frames.append(
+                T.allocate([block_size], values_swap.dtype, scope="shared")
+            )  # tmp_values_swap
+            alloc_frames.append(T.allocate([1], values_swap.dtype, scope="local"))  # temp_values
+
+        with T.frame_scope(alloc_frames) as allocs:
+            if values_swap is not None:
+                (
+                    tmp_keys_swap_ptr,
+                    temp_keys_ptr,
+                    temp_cond1_ptr,
+                    temp_cond2_ptr,
+                    tmp_values_swap_ptr,
+                    temp_values_ptr,
+                ) = allocs
+            else:
+                (
+                    tmp_keys_swap_ptr,
+                    temp_keys_ptr,
+                    temp_cond1_ptr,
+                    temp_cond2_ptr,
+                ) = allocs
+                tmp_values_swap_ptr = None
+                temp_values_ptr = None
+
+            # Create buffer views
+            tmp_keys_swap = tvm.tir.decl_buffer(
+                [block_size],
+                keys_swap.dtype,
+                "tmp_keys_swap",
+                data=tmp_keys_swap_ptr,
                 scope="shared",
             )
+            temp_keys = tvm.tir.decl_buffer(
+                [1], keys_swap.dtype, "temp_keys", data=temp_keys_ptr, scope="local"
+            )
+            temp_cond1 = tvm.tir.decl_buffer(
+                [1], keys_swap.dtype, "temp_cond1", data=temp_cond1_ptr, scope="local"
+            )
+            temp_cond2 = tvm.tir.decl_buffer(
+                [1], keys_swap.dtype, "temp_cond2", data=temp_cond2_ptr, scope="local"
+            )
+            if values_swap is not None:
+                tmp_values_swap = tvm.tir.decl_buffer(
+                    [block_size],
+                    values_swap.dtype,
+                    "tmp_values_swap",
+                    data=tmp_values_swap_ptr,
+                    scope="shared",
+                )
+                temp_values = tvm.tir.decl_buffer(
+                    [1],
+                    values_swap.dtype,
+                    "temp_values",
+                    data=temp_values_ptr,
+                    scope="local",
+                )
 
-        ## Create thread local data for swapping
-        temp_keys = ib.allocate(keys_swap.dtype, (1,), name="temp_keys", scope="local")
-        if values_swap is not None:
-            temp_values = ib.allocate(values_swap.dtype, (1,), name="temp_values", scope="local")
+            # Copy data to scratch space
+            base_idx = by_val * size * axis_mul_after + bz
+            with T.serial(0, 2) as n:
+                with T.If((tid + n + start) < size):
+                    with T.Then():
+                        T.buffer_store(
+                            tmp_keys_swap,
+                            keys[base_idx + (tid + n + start) * axis_mul_after],
+                            [tid + n],
+                        )
+                        if values_swap is not None:
+                            T.buffer_store(
+                                tmp_values_swap,
+                                values[base_idx + (tid + n + start) * axis_mul_after],
+                                [tid + n],
+                            )
 
-        temp_cond1 = ib.allocate(keys_swap.dtype, (1,), name="temp_cond1", scope="local")
-        temp_cond2 = ib.allocate(keys_swap.dtype, (1,), name="temp_cond2", scope="local")
-        # Copy data to scratch space
-        base_idx = by * size * axis_mul_after + bz
-        with ib.for_range(0, 2) as n:
-            with ib.if_scope((tid + n + start) < size):
-                tmp_keys_swap[tid + n] = keys[base_idx + (tid + n + start) * axis_mul_after]
-                if values_swap is not None:
-                    tmp_values_swap[tid + n] = values[base_idx + (tid + n + start) * axis_mul_after]
+            T.evaluate(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
 
-        ib.emit(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
+            idxm = tvm.tir.indexmod
+            # OddEvenTransposeSort
+            current_sort_num = tvm.tir.min(block_size, size - start)
+            with T.serial(0, current_sort_num) as k:
+                n = idxm(tid + k, 2)
+                with T.If(tid + n < current_sort_num - 1):
+                    with T.Then():
+                        T.buffer_store(temp_cond1, tmp_keys_swap[tid + n], [0])
+                        T.buffer_store(temp_cond2, tmp_keys_swap[tid + n + 1], [0])
+                        if is_ascend:
+                            cond = temp_cond1[0] > temp_cond2[0]
+                        else:
+                            cond = temp_cond1[0] < temp_cond2[0]
+                        with T.If(cond):
+                            with T.Then():
+                                T.buffer_store(temp_keys, tmp_keys_swap[tid + n], [0])
+                                T.buffer_store(tmp_keys_swap, tmp_keys_swap[tid + n + 1], [tid + n])
+                                T.buffer_store(tmp_keys_swap, temp_keys[0], [tid + n + 1])
+                                if values_swap is not None:
+                                    T.buffer_store(temp_values, tmp_values_swap[tid + n], [0])
+                                    T.buffer_store(
+                                        tmp_values_swap,
+                                        tmp_values_swap[tid + n + 1],
+                                        [tid + n],
+                                    )
+                                    T.buffer_store(tmp_values_swap, temp_values[0], [tid + n + 1])
+                T.evaluate(
+                    tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"]))
+                )
 
-        idxm = tvm.tir.indexmod
-        # OddEvenTransposeSort
-        current_sort_num = tvm.tir.min(block_size, size - start)
-        with ib.for_range(0, current_sort_num) as k:
-            n = idxm(tid + k, 2)
-            with ib.if_scope(tid + n < current_sort_num - 1):
-                temp_cond1[0] = tmp_keys_swap[tid + n]
-                temp_cond2[0] = tmp_keys_swap[tid + n + 1]
-                if is_ascend:
-                    cond = temp_cond1[0] > temp_cond2[0]
-                else:
-                    cond = temp_cond1[0] < temp_cond2[0]
-                with ib.if_scope(cond):
-                    temp_keys[0] = tmp_keys_swap[tid + n]
-                    tmp_keys_swap[tid + n] = tmp_keys_swap[tid + n + 1]
-                    tmp_keys_swap[tid + n + 1] = temp_keys[0]
-                    if values_swap is not None:
-                        temp_values[0] = tmp_values_swap[tid + n]
-                        tmp_values_swap[tid + n] = tmp_values_swap[tid + n + 1]
-                        tmp_values_swap[tid + n + 1] = temp_values[0]
-            ib.emit(tvm.tir.Call(None, "tir.tvm_storage_sync", tvm.runtime.convert(["shared"])))
-
-        ## Copy sorted data to output
-        with ib.for_range(0, 2) as n:
-            with ib.if_scope(tid + n + start < size):
-                keys[base_idx + (tid + n + start) * axis_mul_after] = tmp_keys_swap[tid + n]
-                keys_swap[base_idx + (tid + n + start) * axis_mul_after] = tmp_keys_swap[tid + n]
-                if values_swap is not None:
-                    values[base_idx + (tid + n + start) * axis_mul_after] = tmp_values_swap[tid + n]
-                    values_swap[base_idx + (tid + n + start) * axis_mul_after] = tmp_values_swap[
-                        tid + n
-                    ]
+            ## Copy sorted data to output
+            with T.serial(0, 2) as n:
+                with T.If(tid + n + start < size):
+                    with T.Then():
+                        out_idx = base_idx + (tid + n + start) * axis_mul_after
+                        keys[out_idx] = tmp_keys_swap[tid + n]
+                        keys_swap[out_idx] = tmp_keys_swap[tid + n]
+                        if values_swap is not None:
+                            values[out_idx] = tmp_values_swap[tid + n]
+                            values_swap[out_idx] = tmp_values_swap[tid + n]
 
 
 def _sort_common(
-    ib,
     size,
     axis_mul_before,
     axis_mul_after,
@@ -186,15 +258,16 @@ def _sort_common(
     ##    finds the start/end locations of the inner mergepath so that we can split
     ##    the merge into more blocks
 
-    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+    target = tvm.target.Target.current(allow_none=False)
+    max_threads = int(target.max_num_threads)
+    is_webgpu = "webgpu" in str(target)
+    target_dtype = "int32" if is_webgpu else "int64"
     nthread_by = axis_mul_before * axis_mul_after
     nthread_tx = max_threads
     nthread_bx = ceil_div(size, nthread_tx)
 
     def compare(a, b):
-        """
-        Compare a and b in proper ascending or descending order
-        """
+        """Compare a and b in proper ascending or descending order"""
         if is_ascend:
             out = a <= b
         else:
@@ -205,7 +278,6 @@ def _sort_common(
     lower_lim = ceil_log2(block_size)
 
     _odd_even_sort(
-        ib,
         size,
         axis_mul_before * axis_mul_after,
         1,
@@ -218,14 +290,7 @@ def _sort_common(
 
     upper_lim = ceil_log2(size)
 
-    def get_merge_begin(source, base_idx, aCount, bCount, aStart, bStart, diag, step_count):
-        target = tvm.target.Target.current()
-        is_webgpu = "webgpu" in str(target)
-        target_dtype = "int32" if is_webgpu else "int64"
-
-        first = ib.allocate(target_dtype, (1,), name="first", scope="local")
-        mid = ib.allocate(target_dtype, (1,), name="mid", scope="local")
-        last = ib.allocate(target_dtype, (1,), name="last", scope="local")
+    def get_merge_begin(source, base_idx, aCount, bCount, aStart, bStart, diag, first, last):
         max_val = tvm.te.max(0, diag - bCount)
         min_val = tvm.te.min(diag, aCount)
         if is_webgpu:
@@ -234,16 +299,15 @@ def _sort_common(
         else:
             first[0] = max_val
             last[0] = min_val
-
-        with ib.while_loop(first[0] < last[0]):
+        with T.While(first[0] < last[0]):
             mid = (first[0] + last[0]) >> 1
             a = source[base_idx + (aStart + mid)]
             b = source[base_idx + (bStart + diag - 1 - mid)]
-            with ib.if_scope(compare(a, b)):
-                first[0] = mid + 1
-            with ib.else_scope():
-                last[0] = mid
-        return first[0], last[0]
+            with T.If(compare(a, b)):
+                with T.Then():
+                    first[0] = mid + 1
+                with T.Else():
+                    last[0] = mid
 
     def serial_merge(
         source,
@@ -260,109 +324,97 @@ def _sort_common(
         step_count,
         first,
         last,
+        i_buf,
+        j_buf,
     ):
-        target = tvm.target.Target.current()
-        is_webgpu = "webgpu" in str(target)
-        target_dtype = "int32" if is_webgpu else "int64"
-        i = ib.allocate(target_dtype, (1,), name="i", scope="local")
-        j = ib.allocate(target_dtype, (1,), name="j", scope="local")
-        i_val = aStart + first
-        j_val = bStart + diag - last
+        i_val = aStart + first[0]
+        j_val = bStart + diag - last[0]
         if is_webgpu:
-            i[0] = cast(i_val, target_dtype)
-            j[0] = cast(j_val, target_dtype)
+            i_buf[0] = cast(i_val, target_dtype)
+            j_buf[0] = cast(j_val, target_dtype)
         else:
-            i[0] = i_val
-            j[0] = j_val
+            i_buf[0] = i_val
+            j_buf[0] = j_val
 
-        with ib.for_range(0, tvm.te.min(aCount + bCount - diag, step_count)) as count:
-            i_idx = base_idx + i[0]
-            j_idx = base_idx + j[0]
+        with T.serial(0, tvm.te.min(aCount + bCount - diag, step_count)) as count:
+            i_idx = base_idx + i_buf[0]
+            j_idx = base_idx + j_buf[0]
             k_idx = base_idx + (kStart + diag + count)
 
-            def assign_i():
-                """assign i value to current output"""
-                dest[k_idx] = source[i_idx]
-                if values is not None:
-                    dest_idx[k_idx] = source_idx[i_idx]
-                i[0] += 1
+            with T.If(tvm.tir.all(i_buf[0] < aStart + aCount, j_buf[0] < bStart + bCount)):
+                with T.Then():
+                    with T.If(compare(source[i_idx], source[j_idx])):
+                        with T.Then():
+                            dest[k_idx] = source[i_idx]
+                            if values is not None:
+                                dest_idx[k_idx] = source_idx[i_idx]
+                            i_buf[0] = i_buf[0] + 1
+                        with T.Else():
+                            dest[k_idx] = source[j_idx]
+                            if values is not None:
+                                dest_idx[k_idx] = source_idx[j_idx]
+                            j_buf[0] = j_buf[0] + 1
+                with T.Else():
+                    with T.If(i_buf[0] < aStart + aCount):
+                        with T.Then():
+                            dest[k_idx] = source[i_idx]
+                            if values is not None:
+                                dest_idx[k_idx] = source_idx[i_idx]
+                            i_buf[0] = i_buf[0] + 1
+                        with T.Else():
+                            dest[k_idx] = source[j_idx]
+                            if values is not None:
+                                dest_idx[k_idx] = source_idx[j_idx]
+                            j_buf[0] = j_buf[0] + 1
 
-            def assign_j():
-                """assign j value to current output"""
-                dest[k_idx] = source[j_idx]
-                if values is not None:
-                    dest_idx[k_idx] = source_idx[j_idx]
-                j[0] += 1
+    def mergepath(
+        source,
+        dest,
+        source_idx,
+        dest_idx,
+        base_idx,
+        aCount,
+        bCount,
+        aStart,
+        bStart,
+        kStart,
+        tx,
+        step_count,
+        even,
+    ):
+        with T.frame_scope(
+            [
+                T.allocate([1], target_dtype, scope="local"),  # first
+                T.allocate([1], target_dtype, scope="local"),  # last
+                T.allocate([1], target_dtype, scope="local"),  # i_buf
+                T.allocate([1], target_dtype, scope="local"),  # j_buf
+            ]
+        ) as (first_ptr, last_ptr, i_ptr, j_ptr):
+            first = T.buffer_proxy(
+                tvm.tir.decl_buffer([1], target_dtype, "first", data=first_ptr, scope="local")
+            )
+            last = T.buffer_proxy(
+                tvm.tir.decl_buffer([1], target_dtype, "last", data=last_ptr, scope="local")
+            )
+            i_buf = T.buffer_proxy(
+                tvm.tir.decl_buffer([1], target_dtype, "i", data=i_ptr, scope="local")
+            )
+            j_buf = T.buffer_proxy(
+                tvm.tir.decl_buffer([1], target_dtype, "j", data=j_ptr, scope="local")
+            )
 
-            ## if both of the iterators are in range
-            with ib.if_scope(tvm.tir.all(i[0] < aStart + aCount, j[0] < bStart + bCount)):
-                # compare them and insert whichever is next into the output
-                with ib.if_scope(compare(source[i_idx], source[j_idx])):
-                    assign_i()
-                with ib.else_scope():
-                    assign_j()
-            # otherwise, simply copy the remainder of the valid iterator to the output
-            with ib.else_scope():
-                with ib.if_scope(i[0] < aStart + aCount):
-                    assign_i()
-                with ib.else_scope():
-                    assign_j()
-
-    target = tvm.target.Target.current()
-    target_dtype = "int32" if "webgpu" in str(target) else "int64"
-    with ib.for_range(0, cast(upper_lim - lower_lim, target_dtype), dtype=target_dtype) as l2_width:
-        width = 2 << (l2_width + lower_lim)
-        # Define and launch the cuda kernel
-        with ib.new_scope():
-            target = tvm.target.Target.current()
-            if "vulkan" in str(target):
-                # Vulkan can't handle dynamic nthread, so we thread slightly differently
-                # for vulkan. We don't do this generally because it causes a 15% perf
-                # regression on other platforms
-                ntx = max_threads
-                nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
-                nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
-                tx, bx, by = _get_threads(ib, ntx, nbx, nthread_by * nbz)
-            else:
-                ntx = tvm.tir.generic.cast(tvm.te.min(max_threads, width), "int32")
-                nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
-                nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
-                tx, bx, by = _get_threads(ib, ntx, nbx, nthread_by * nbz)
-            by, bz = by % nthread_by, by // nthread_by
-
-            def mergepath(
-                source,
-                dest,
-                source_idx,
-                dest_idx,
-                aCount,
-                bCount,
-                aStart,
-                bStart,
-                kStart,
-                step_count,
-                even,
-            ):
-                # pylint: disable=arguments-out-of-order
-                def merge(source, dest, source_idx, dest_idx):
-                    diag = tx * step_count
-                    first, last = get_merge_begin(
-                        source,
-                        by * size,
-                        aCount,
-                        bCount,
-                        aStart,
-                        bStart,
-                        diag,
-                        step_count,
+            diag = tx * step_count
+            with T.If(even):
+                with T.Then():
+                    get_merge_begin(
+                        source, base_idx, aCount, bCount, aStart, bStart, diag, first, last
                     )
-                    # iterate over the output loop
                     serial_merge(
                         source,
                         dest,
                         source_idx,
                         dest_idx,
-                        by * size,
+                        base_idx,
                         aCount,
                         bCount,
                         aStart,
@@ -372,111 +424,247 @@ def _sort_common(
                         step_count,
                         first,
                         last,
+                        i_buf,
+                        j_buf,
+                    )
+                with T.Else():
+                    get_merge_begin(
+                        dest, base_idx, aCount, bCount, aStart, bStart, diag, first, last
+                    )
+                    # Intentionally swap source/dest for reverse direction merge
+                    serial_merge(  # pylint: disable=arguments-out-of-order
+                        dest,
+                        source,
+                        dest_idx,
+                        source_idx,
+                        base_idx,
+                        aCount,
+                        bCount,
+                        aStart,
+                        bStart,
+                        kStart,
+                        diag,
+                        step_count,
+                        first,
+                        last,
+                        i_buf,
+                        j_buf,
                     )
 
-                with ib.if_scope(even):
-                    merge(source, dest, source_idx, dest_idx)
-                with ib.else_scope():
-                    merge(dest, source, dest_idx, source_idx)
+    def dual_mergepath(
+        source,
+        dest,
+        source_idx,
+        dest_idx,
+        base_idx,
+        start_pos,
+        middle,
+        end,
+        bx,
+        tx,
+        step_count,
+        even,
+    ):
+        with T.frame_scope(
+            [
+                T.allocate([1], target_dtype, scope="local"),  # outer_first
+                T.allocate([1], target_dtype, scope="local"),  # outer_last
+                T.allocate([1], target_dtype, scope="local"),  # first
+                T.allocate([1], target_dtype, scope="local"),  # last
+                T.allocate([1], target_dtype, scope="local"),  # i_buf
+                T.allocate([1], target_dtype, scope="local"),  # j_buf
+            ]
+        ) as (outer_first_ptr, outer_last_ptr, first_ptr, last_ptr, i_ptr, j_ptr):
+            outer_first = T.buffer_proxy(
+                tvm.tir.decl_buffer(
+                    [1], target_dtype, "outer_first", data=outer_first_ptr, scope="local"
+                )
+            )
+            outer_last = T.buffer_proxy(
+                tvm.tir.decl_buffer(
+                    [1], target_dtype, "outer_last", data=outer_last_ptr, scope="local"
+                )
+            )
+            first = T.buffer_proxy(
+                tvm.tir.decl_buffer([1], target_dtype, "first", data=first_ptr, scope="local")
+            )
+            last = T.buffer_proxy(
+                tvm.tir.decl_buffer([1], target_dtype, "last", data=last_ptr, scope="local")
+            )
+            i_buf = T.buffer_proxy(
+                tvm.tir.decl_buffer([1], target_dtype, "i", data=i_ptr, scope="local")
+            )
+            j_buf = T.buffer_proxy(
+                tvm.tir.decl_buffer([1], target_dtype, "j", data=j_ptr, scope="local")
+            )
 
-            def mergesort(source, dest, source_idx, dest_idx, size, width, even):
-                # calculate the start, mid, and end points of this section
-                start = width * bz
-                target = tvm.target.Target.current()
-                target_dtype = "int32" if "webgpu" in str(target) else "int64"
-                middle = cast(tvm.te.min(start + tvm.tir.indexdiv(width, 2), size), target_dtype)
-                end = cast(tvm.te.min(start + width, size), target_dtype)
-                with ib.if_scope(start < size):
-                    with ib.if_scope(nbx == 1):
-                        ## merge the start->middle and middle->end arrays
-                        aCount = middle - start
-                        bCount = end - middle
-                        mergepath(
-                            source,
-                            dest,
-                            source_idx,
-                            dest_idx,
-                            aCount,
-                            bCount,
-                            start,
-                            middle,
-                            start,
-                            ceil_div(width, ntx),
-                            even,
-                        )
-                    with ib.else_scope():
-                        step_count = max_threads * thread_work
-                        diag = bx * step_count
+            diag = bx * step_count
+            with T.If(even):
+                with T.Then():
+                    get_merge_begin(
+                        source,
+                        base_idx,
+                        middle - start_pos,
+                        end - middle,
+                        start_pos,
+                        middle,
+                        diag,
+                        outer_first,
+                        outer_last,
+                    )
+                    aStart = start_pos + outer_first[0]
+                    bStart = middle + diag - outer_last[0]
+                    aCount = tvm.te.min(middle - aStart, step_count)
+                    bCount = tvm.te.min(end - bStart, step_count)
+                    inner_diag = tx * thread_work
+                    get_merge_begin(
+                        source, base_idx, aCount, bCount, aStart, bStart, inner_diag, first, last
+                    )
+                    serial_merge(
+                        source,
+                        dest,
+                        source_idx,
+                        dest_idx,
+                        base_idx,
+                        aCount,
+                        bCount,
+                        aStart,
+                        bStart,
+                        start_pos + diag,
+                        inner_diag,
+                        thread_work,
+                        first,
+                        last,
+                        i_buf,
+                        j_buf,
+                    )
+                with T.Else():
+                    get_merge_begin(
+                        dest,
+                        base_idx,
+                        middle - start_pos,
+                        end - middle,
+                        start_pos,
+                        middle,
+                        diag,
+                        outer_first,
+                        outer_last,
+                    )
+                    aStart = start_pos + outer_first[0]
+                    bStart = middle + diag - outer_last[0]
+                    aCount = tvm.te.min(middle - aStart, step_count)
+                    bCount = tvm.te.min(end - bStart, step_count)
+                    inner_diag = tx * thread_work
+                    get_merge_begin(
+                        dest, base_idx, aCount, bCount, aStart, bStart, inner_diag, first, last
+                    )
+                    serial_merge(
+                        dest,
+                        source,
+                        dest_idx,
+                        source_idx,
+                        base_idx,
+                        aCount,
+                        bCount,
+                        aStart,
+                        bStart,
+                        start_pos + diag,
+                        inner_diag,
+                        thread_work,
+                        first,
+                        last,
+                        i_buf,
+                        j_buf,
+                    )
 
-                        def do_merge(first, last):
-                            aStart = start + first
-                            bStart = middle + diag - last
-                            aCount = tvm.te.min(middle - aStart, step_count)
-                            bCount = tvm.te.min(end - bStart, step_count)
+    with T.serial(0, cast(upper_lim - lower_lim, target_dtype)) as l2_width:
+        width = 2 << (l2_width + lower_lim)
+        # Define and launch the cuda kernel
+        target = tvm.target.Target.current()
+        if "vulkan" in str(target):
+            ntx = max_threads
+            nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
+            nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
+        else:
+            ntx = tvm.tir.generic.cast(tvm.te.min(max_threads, width), "int32")
+            nbx = tvm.tir.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
+            nbz = tvm.tir.generic.cast(ceil_div(size, width), "int32")
+
+        tx, bx, by, _, _, _ = _get_threads(ntx, nbx, nthread_by * nbz)
+        with T.frame_scope(
+            [
+                T.attr(tx, "thread_extent", ntx),
+                T.attr(bx, "thread_extent", nbx),
+                T.attr(by, "thread_extent", nthread_by * nbz),
+            ]
+        ):
+            by_val = by % nthread_by
+            bz = by // nthread_by
+            base_idx = by_val * size
+
+            # calculate the start, mid, and end points of this section
+            start_pos = width * bz
+            middle = cast(tvm.te.min(start_pos + tvm.tir.indexdiv(width, 2), size), target_dtype)
+            end = cast(tvm.te.min(start_pos + width, size), target_dtype)
+
+            with T.If(start_pos < size):
+                with T.Then():
+                    even = tvm.tir.indexmod(l2_width, 2) == 0
+                    with T.If(nbx == 1):
+                        with T.Then():
+                            ## merge the start->middle and middle->end arrays
+                            aCount = middle - start_pos
+                            bCount = end - middle
                             mergepath(
-                                source,
-                                dest,
-                                source_idx,
-                                dest_idx,
+                                keys,
+                                keys_swap,
+                                values,
+                                values_swap,
+                                base_idx,
                                 aCount,
                                 bCount,
-                                aStart,
-                                bStart,
-                                start + diag,
-                                thread_work,
+                                start_pos,
+                                middle,
+                                start_pos,
+                                tx,
+                                ceil_div(width, ntx),
+                                even,
+                            )
+                        with T.Else():
+                            dual_mergepath(
+                                keys,
+                                keys_swap,
+                                values,
+                                values_swap,
+                                base_idx,
+                                start_pos,
+                                middle,
+                                end,
+                                bx,
+                                tx,
+                                max_threads * thread_work,
                                 even,
                             )
 
-                        with ib.if_scope(even):
-                            first, last = get_merge_begin(
-                                source,
-                                by * size,
-                                middle - start,
-                                end - middle,
-                                start,
-                                middle,
-                                diag,
-                                step_count,
-                            )
-                            do_merge(first, last)
-                        with ib.else_scope():
-                            first, last = get_merge_begin(
-                                dest,
-                                by * size,
-                                middle - start,
-                                end - middle,
-                                start,
-                                middle,
-                                diag,
-                                step_count,
-                            )
-                            do_merge(first, last)
-
-            # Call the kernel
-            mergesort(
-                keys,
-                keys_swap,
-                values,
-                values_swap,
-                size,
-                width,
-                tvm.tir.indexmod(l2_width, 2) == 0,
-            )
-    nthread_by = axis_mul_before * axis_mul_after
-    nthread_tx = max_threads
-    nthread_bx = ceil_div(size, nthread_tx)
     ## if the final sorted data ended up in the swap, copy it to the real output
-    with ib.if_scope(
-        tvm.tir.all(upper_lim > lower_lim, tvm.tir.indexmod(upper_lim - lower_lim, 2) == 1)
-    ):
-        with ib.new_scope():
-            tx, bx, by = _get_threads(ib, nthread_tx, nthread_bx, nthread_by)
-            tid = bx * nthread_tx + tx
-            idx = by * size + tid
-            with ib.if_scope(tid < size):
-                keys[idx] = keys_swap[idx]
-                if values is not None:
-                    values[idx] = values_swap[idx]
+    nthread_bx = ceil_div(size, nthread_tx)
+    with T.If(tvm.tir.all(upper_lim > lower_lim, tvm.tir.indexmod(upper_lim - lower_lim, 2) == 1)):
+        with T.Then():
+            tx2, bx2, by2, _, _, _ = _get_threads(nthread_tx, nthread_bx, nthread_by)
+            with T.frame_scope(
+                [
+                    T.attr(tx2, "thread_extent", nthread_tx),
+                    T.attr(bx2, "thread_extent", nthread_bx),
+                    T.attr(by2, "thread_extent", nthread_by),
+                ]
+            ):
+                tid = bx2 * nthread_tx + tx2
+                idx = by2 * size + tid
+                with T.If(tid < size):
+                    with T.Then():
+                        keys[idx] = keys_swap[idx]
+                        if values is not None:
+                            values[idx] = values_swap[idx]
 
 
 def sort_ir(
@@ -512,41 +700,47 @@ def sort_ir(
     stmt : Stmt
         The result IR statement.
     """
-    ib = tvm.tir.ir_builder.create()
-    shape = data.shape
+    with IRBuilder() as ib:
+        shape = data.shape
 
-    data = ib.buffer_ptr(data)
-    values_out = ib.buffer_ptr(values_out)
-    values_out_swap = ib.buffer_ptr(values_out_swap)
-    if indices_out is not None:
-        indices_out = ib.buffer_ptr(indices_out)
-        assert indices_out_swap is not None
-        indices_out_swap = ib.buffer_ptr(indices_out_swap)
+        data = T.buffer_proxy(data)
+        values_out = T.buffer_proxy(values_out)
+        values_out_swap = T.buffer_proxy(values_out_swap)
+        if indices_out is not None:
+            indices_out_orig = indices_out
+            indices_out = T.buffer_proxy(indices_out)
+            assert indices_out_swap is not None
+            indices_out_swap = T.buffer_proxy(indices_out_swap)
 
-    with ib.if_scope(shape[axis] > 0):
-        axis_mul_before, axis_mul_after = _sort_init(
-            ib,
-            shape,
-            axis,
-            data,
-            values_out,
-            indices_out,
-            value_init_func=lambda _, tid: tvm.tir.generic.cast(tid, indices_out.dtype),
-        )
+        with T.If(shape[axis] > 0):
+            with T.Then():
+                axis_mul_before, axis_mul_after = _sort_init(
+                    shape,
+                    axis,
+                    data,
+                    values_out,
+                    indices_out,
+                    value_init_func=(
+                        lambda _, tid: (
+                            tvm.tir.generic.cast(tid, indices_out_orig.dtype)
+                            if indices_out is not None
+                            else None
+                        )
+                    ),
+                )
 
-        _sort_common(
-            ib,
-            shape[axis],
-            axis_mul_before,
-            axis_mul_after,
-            is_ascend,
-            values_out,
-            values_out_swap,
-            values=indices_out,
-            values_swap=indices_out_swap,
-        )
+                _sort_common(
+                    shape[axis],
+                    axis_mul_before,
+                    axis_mul_after,
+                    is_ascend,
+                    values_out,
+                    values_out_swap,
+                    values=indices_out,
+                    values_swap=indices_out_swap,
+                )
 
-    return ib.get()
+        return ib.get()
 
 
 def sort(data, axis=-1, is_ascend=1):
@@ -622,7 +816,6 @@ def sort_thrust(data, axis=-1, is_ascend=1, workspace=None):
         The output of this function.
     """
     dtype = "float32"
-
     ndim = len(data.shape)
     axis = ndim + axis if axis < 0 else axis
 
@@ -824,15 +1017,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         output = te.extern(
             [data.shape, data.shape, data.shape, data.shape],
             [data],
-            lambda ins, outs: sort_ir(
-                ins[0],
-                outs[0],
-                outs[2],
-                -1,
-                is_ascend,
-                indices_out=outs[1],
-                indices_out_swap=outs[3],
-            ),
+            lambda ins, outs: sort_ir(ins[0], outs[0], outs[2], -1, is_ascend, outs[1], outs[3]),
             out_buffers=[values_buf, indices_buf, values_swap_buf, indices_swap_buf],
             name="topk_gpu",
             tag="topk_gpu",
@@ -1004,43 +1189,47 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
             ), "Outer dimensions of sorted_sequence and values must match for N-D searchsorted"
 
     def ir(sorted_sequence_buf, values_buf, indices_buf):
-        ib = tvm.tir.ir_builder.create()
-        sorted_sequence_shape = sorted_sequence_buf.shape
-        values_shape = values_buf.shape
-        num_search = prod(values_shape)
-        search_range = sorted_sequence_shape[-1]
+        with IRBuilder() as ib:
+            sorted_sequence_shape = sorted_sequence_buf.shape
+            values_shape = values_buf.shape
+            num_search = prod(values_shape)
+            search_range = sorted_sequence_shape[-1]
 
-        sorted_sequence_ptr = ib.buffer_ptr(sorted_sequence_buf)
-        values_ptr = ib.buffer_ptr(values_buf)
-        indices_ptr = ib.buffer_ptr(indices_buf)
+            sorted_sequence_ptr = T.buffer_proxy(sorted_sequence_buf)
+            values_ptr = T.buffer_proxy(values_buf)
+            indices_ptr = T.buffer_proxy(indices_buf)
 
-        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-        nthread_tx = max_threads
-        nthread_bx = ceil_div(num_search, nthread_tx)
-        tx = te.thread_axis("threadIdx.x")
-        bx = te.thread_axis("blockIdx.x")
-        ib.scope_attr(tx, "thread_extent", nthread_tx)
-        ib.scope_attr(bx, "thread_extent", nthread_bx)
-        tid = bx * nthread_tx + tx
+            max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+            nthread_tx = max_threads
+            nthread_bx = ceil_div(num_search, nthread_tx)
+            tx = te.thread_axis("threadIdx.x")
+            bx = te.thread_axis("blockIdx.x")
+            with T.frame_scope(
+                [
+                    T.attr(tx, "thread_extent", nthread_tx),
+                    T.attr(bx, "thread_extent", nthread_bx),
+                ]
+            ):
+                tid = bx * nthread_tx + tx
 
-        with ib.if_scope(tid < num_search):
-            if len(sorted_sequence_shape) == 1:
-                sequence_offset = 0
-            else:
-                sequence_id = tid // values_shape[-1]
-                sequence_offset = sequence_id * search_range
+                with T.If(tid < num_search):
+                    with T.Then():
+                        if len(sorted_sequence_shape) == 1:
+                            sequence_offset = 0
+                        else:
+                            sequence_id = tid // values_shape[-1]
+                            sequence_offset = sequence_id * search_range
 
-            indices_ptr[tid] = binary_search(
-                ib,
-                sequence_offset,
-                search_range,
-                sorted_sequence_ptr,
-                values_ptr[tid],
-                right,
-                out_dtype,
-            )
+                        indices_ptr[tid] = binary_search(
+                            sequence_offset,
+                            search_range,
+                            sorted_sequence_ptr,
+                            values_ptr[tid],
+                            right,
+                            out_dtype,
+                        )
 
-        return ib.get()
+            return ib.get()
 
     return te.extern(
         values.shape,

@@ -18,6 +18,8 @@
 """Non-maximum suppression operator"""
 import tvm
 from tvm import te
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tir as T
 
 from tvm.tir import if_then_else
 
@@ -71,7 +73,6 @@ def get_valid_counts(
 
 
 def _nms_loop(
-    ib,
     batch_size,
     top_k,
     iou_threshold,
@@ -85,82 +86,91 @@ def _nms_loop(
     num_valid_boxes,
     score_threshold=None,
 ):
-    def nms_inner_loop(ib, i, j, nkeep, num_valid_boxes_local):
-        on_new_valid_box_func(ib, 0, num_valid_boxes_local[0], i, j)
-        num_valid_boxes_local[0] += 1
+    """NMS loop using modern IRBuilder. Must be called within IRBuilder context."""
+    out_scores = T.buffer_proxy(out_scores)
+    num_valid_boxes = T.buffer_proxy(num_valid_boxes)
+
+    def nms_inner_loop(i, j, nkeep, num_valid_boxes_local):
+        on_new_valid_box_func(0, num_valid_boxes_local[0], i, j)
+        num_valid_boxes_local[0] = num_valid_boxes_local[0] + 1
 
         num_boxes_to_check = nkeep - (j + 1)
 
-        with ib.for_range(0, num_boxes_to_check, name="_k", kind="parallel") as _k:
+        with T.parallel(0, num_boxes_to_check) as _k:
             k = j + 1 + _k
 
-            with ib.if_scope(
+            with T.If(
                 tvm.tir.all(
                     k < nkeep,
                     out_scores[i, k] > 0,  # is the box k still valid?
                     needs_bbox_check_func(i, j, k),
                 )
             ):
-                iou = calc_overlap_func(i, j, k)
+                with T.Then():
+                    iou = calc_overlap_func(i, j, k)
 
-                with ib.if_scope(iou >= iou_threshold):
-                    out_scores[i, k] = -1.0
-                    on_new_invalidated_box_func(i, k)
+                    with T.If(iou >= iou_threshold):
+                        with T.Then():
+                            out_scores[i, k] = T.float32(-1.0)
+                            on_new_invalidated_box_func(i, k)
 
-    with ib.for_range(0, batch_size, name="i") as i:
+    with T.serial(0, batch_size) as i:
         nkeep = if_then_else(tvm.tir.all(top_k > 0, top_k < valid_count[i]), top_k, valid_count[i])
-        # Use max_output_size directly without if_then_else
-        # max_output_size = if_then_else(max_output_size > te.const(0), max_output_size, nkeep)
 
-        with ib.if_scope(tvm.tir.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
-            num_valid_boxes_local = ib.allocate(
-                "int32", (1,), name="num_valid_boxes_local", scope="local"
-            )
-            num_valid_boxes_local[0] = 0
-
-            # Use for_range to iterate through all boxes, but limit selection count
-            with ib.for_range(0, nkeep, name="j") as j:
-                with ib.if_scope(
-                    tvm.tir.all(
-                        out_scores[i, j] > -1.0,  # box is still valid
-                        num_valid_boxes_local[0] < max_output_size,  # haven't reached max limit
+        with T.If(tvm.tir.all(iou_threshold > te.const(0), valid_count[i] > te.const(0))):
+            with T.Then():
+                with T.allocate([1], "int32", scope="local") as num_valid_boxes_local_ptr:
+                    num_valid_boxes_local = T.buffer_proxy(
+                        tvm.tir.decl_buffer(
+                            [1],
+                            "int32",
+                            "num_valid_boxes_local",
+                            data=num_valid_boxes_local_ptr,
+                            scope="local",
+                        )
                     )
-                ):
-                    if score_threshold is not None:
-                        with ib.if_scope(out_scores[i, j] > score_threshold[()]):
-                            nms_inner_loop(ib, i, j, nkeep, num_valid_boxes_local)
-                    else:
-                        nms_inner_loop(ib, i, j, nkeep, num_valid_boxes_local)
+                    num_valid_boxes_local[0] = T.int32(0)
 
-            num_valid_boxes[i] = num_valid_boxes_local[0]
+                    with T.serial(0, nkeep) as j:
+                        with T.If(
+                            tvm.tir.all(
+                                out_scores[i, j] > -1.0,  # box is still valid
+                                num_valid_boxes_local[0]
+                                < max_output_size,  # haven't reached max limit
+                            )
+                        ):
+                            with T.Then():
+                                if score_threshold is not None:
+                                    with T.If(out_scores[i, j] > score_threshold[()]):
+                                        with T.Then():
+                                            nms_inner_loop(i, j, nkeep, num_valid_boxes_local)
+                                else:
+                                    nms_inner_loop(i, j, nkeep, num_valid_boxes_local)
 
-        with ib.else_scope():
-            num_valid_boxes[i] = 0
+                    num_valid_boxes[i] = num_valid_boxes_local[0]
 
-    return ib.get()
+            with T.Else():
+                num_valid_boxes[i] = T.int32(0)
 
 
 def _get_valid_box_count(scores, score_threshold):
     batch_classes, num_boxes = scores.shape
 
-    def searchsorted_ir(scores, score_thresh, valid_count):
-        ib = tvm.tir.ir_builder.create()
-        scores = ib.buffer_ptr(scores)
-        valid_count = ib.buffer_ptr(valid_count)
-
-        with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
-            if hasattr(score_threshold, "shape"):
-                if len(score_threshold.shape) == 0:
-                    score_thresh_scalar = score_thresh[()]
-                elif len(score_threshold.shape) == 1 and score_threshold.shape[0] > 0:
-                    score_thresh_scalar = score_thresh[0]
+    def searchsorted_ir(scores_buf, score_thresh_buf, valid_count_buf):
+        with IRBuilder() as ib:
+            with T.parallel(0, batch_classes) as i:
+                if hasattr(score_threshold, "shape"):
+                    if len(score_threshold.shape) == 0:
+                        score_thresh_scalar = score_thresh_buf[()]
+                    elif len(score_threshold.shape) == 1 and score_threshold.shape[0] > 0:
+                        score_thresh_scalar = score_thresh_buf[0]
+                    else:
+                        score_thresh_scalar = tvm.tir.FloatImm("float32", 0.0)
                 else:
-                    score_thresh_scalar = tvm.tir.FloatImm("float32", 0.0)
-            else:
-                score_thresh_scalar = score_threshold
-            binary_search(ib, i, num_boxes, scores, score_thresh_scalar, valid_count)
+                    score_thresh_scalar = score_threshold
+                binary_search(i, num_boxes, scores_buf, score_thresh_scalar, valid_count_buf)
 
-        return ib.get()
+            return ib.get()
 
     scores_buf = tvm.tir.decl_buffer(scores.shape, scores.dtype, "scores_buf", data_alignment=8)
     searchsorted_buf = tvm.tir.decl_buffer(
@@ -183,24 +193,21 @@ def _get_valid_box_count(scores, score_threshold):
         )
     else:
 
-        def searchsorted_ir_scalar(scores, valid_count):
-            ib = tvm.tir.ir_builder.create()
-            scores = ib.buffer_ptr(scores)
-            valid_count = ib.buffer_ptr(valid_count)
-
-            with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
-                if isinstance(score_threshold, te.Tensor):
-                    if len(score_threshold.shape) == 0:
-                        score_thresh_tir = score_threshold()
-                    elif len(score_threshold.shape) == 1 and score_threshold.shape[0] == 1:
-                        score_thresh_tir = score_threshold[0]
+        def searchsorted_ir_scalar(scores_buf, valid_count_buf):
+            with IRBuilder() as ib:
+                with T.parallel(0, batch_classes) as i:
+                    if isinstance(score_threshold, te.Tensor):
+                        if len(score_threshold.shape) == 0:
+                            score_thresh_tir = score_threshold()
+                        elif len(score_threshold.shape) == 1 and score_threshold.shape[0] == 1:
+                            score_thresh_tir = score_threshold[0]
+                        else:
+                            score_thresh_tir = tvm.tir.FloatImm("float32", 0.0)
                     else:
-                        score_thresh_tir = tvm.tir.FloatImm("float32", 0.0)
-                else:
-                    score_thresh_tir = tvm.tir.FloatImm("float32", float(score_threshold))
-                binary_search(ib, i, num_boxes, scores, score_thresh_tir, valid_count)
+                        score_thresh_tir = tvm.tir.FloatImm("float32", float(score_threshold))
+                    binary_search(i, num_boxes, scores_buf, score_thresh_tir, valid_count_buf)
 
-            return ib.get()
+                return ib.get()
 
         return te.extern(
             [(batch_classes,)],
@@ -219,48 +226,45 @@ def _collect_selected_indices_ir(
 ):
     batch_classes, _ = selected_indices.shape
 
-    ib = tvm.tir.ir_builder.create()
+    with IRBuilder() as ib:
+        with T.seq_scope():
+            out = T.buffer_proxy(out)
 
-    selected_indices = ib.buffer_ptr(selected_indices)
-    num_detections = ib.buffer_ptr(num_detections)
-    row_offsets = ib.buffer_ptr(row_offsets)
-    out = ib.buffer_ptr(out)
-
-    # Initialize output buffer to zero
-    # Calculate the actual output shape based on max_output_boxes_per_class
-    if isinstance(max_output_boxes_per_class, int):
-        max_output_rows = batch_classes * max_output_boxes_per_class
-    else:
-        # Fallback to a reasonable default if max_output_boxes_per_class is not an integer
-        max_output_rows = batch_classes * 10
-    with ib.for_range(0, max_output_rows, name="init_i") as init_i:
-        with ib.for_range(0, 3, name="init_j") as init_j:  # 3 columns
-            out[init_i, init_j] = cast(0, "int64")
-
-    with ib.for_range(0, batch_classes, name="i", kind="parallel") as i:
-        i = cast(i, "int64")
-        batch_id = i // num_class
-        class_id = i % num_class
-
-        if isinstance(max_output_boxes_per_class, int):
-            limit = tvm.tir.min(
-                num_detections[i], tvm.tir.IntImm("int32", max_output_boxes_per_class)
-            )
-        elif isinstance(max_output_boxes_per_class, te.Tensor):
-            if len(max_output_boxes_per_class.shape) == 0:
-                max_boxes_val = max_output_boxes_per_class[()]
+            # Initialize output buffer to zero
+            # Calculate the actual output shape based on max_output_boxes_per_class
+            if isinstance(max_output_boxes_per_class, int):
+                max_output_rows = batch_classes * max_output_boxes_per_class
             else:
-                max_boxes_val = max_output_boxes_per_class[0]
-            limit = tvm.tir.min(num_detections[i], max_boxes_val)
-        else:
-            limit = num_detections[i]
+                # Fallback to a reasonable default if max_output_boxes_per_class is not an integer
+                max_output_rows = batch_classes * 10
+            with T.serial(0, max_output_rows) as init_i:
+                with T.serial(0, 3) as init_j:  # 3 columns
+                    out[init_i, init_j] = cast(0, "int64")
 
-        with ib.for_range(0, limit, name="j") as j:
-            out[row_offsets[i] + j, 0] = batch_id
-            out[row_offsets[i] + j, 1] = class_id
-            out[row_offsets[i] + j, 2] = cast(selected_indices[i, j], "int64")
+            with T.parallel(0, batch_classes) as i:
+                i_64 = cast(i, "int64")
+                batch_id = i_64 // num_class
+                class_id = i_64 % num_class
 
-    return ib.get()
+                if isinstance(max_output_boxes_per_class, int):
+                    limit = tvm.tir.min(
+                        num_detections[i], tvm.tir.IntImm("int32", max_output_boxes_per_class)
+                    )
+                elif isinstance(max_output_boxes_per_class, te.Tensor):
+                    if len(max_output_boxes_per_class.shape) == 0:
+                        max_boxes_val = max_output_boxes_per_class[()]
+                    else:
+                        max_boxes_val = max_output_boxes_per_class[0]
+                    limit = tvm.tir.min(num_detections[i], max_boxes_val)
+                else:
+                    limit = num_detections[i]
+
+                with T.serial(0, limit) as j:
+                    out[row_offsets[i] + j, 0] = batch_id
+                    out[row_offsets[i] + j, 1] = class_id
+                    out[row_offsets[i] + j, 2] = cast(selected_indices[i, j], "int64")
+
+        return ib.get()
 
 
 def _collect_selected_indices_and_scores_ir(
@@ -275,41 +279,38 @@ def _collect_selected_indices_and_scores_ir(
     batch_size, num_class = row_offsets.shape
     num_boxes = selected_indices.shape[1]
 
-    ib = tvm.tir.ir_builder.create()
+    with IRBuilder() as ib:
+        collected_indices = T.buffer_proxy(collected_indices)
+        collected_scores = T.buffer_proxy(collected_scores)
+        zero = cast(0, "int64")
 
-    selected_indices = ib.buffer_ptr(selected_indices)
-    selected_scores = ib.buffer_ptr(selected_scores)
-    num_detections = ib.buffer_ptr(num_detections)
-    row_offsets = ib.buffer_ptr(row_offsets)
-    num_total_detections = ib.buffer_ptr(num_total_detections)
-    collected_indices = ib.buffer_ptr(collected_indices)
-    collected_scores = ib.buffer_ptr(collected_scores)
-    zero = cast(0, "int64")
+        with T.parallel(0, batch_size * num_class) as i:
+            i_64 = cast(i, "int64")
+            batch_id = i_64 // num_class
+            class_id = i_64 % num_class
 
-    with ib.for_range(0, batch_size * num_class, name="i", kind="parallel") as i:
-        i = cast(i, "int64")
-        batch_id = i // num_class
-        class_id = i % num_class
+            with T.serial(0, num_boxes) as j:
+                with T.If(j < num_detections[batch_id, class_id]):
+                    with T.Then():
+                        offset = row_offsets[batch_id, class_id] + j
+                        collected_indices[batch_id, offset, 0] = class_id
+                        collected_indices[batch_id, offset, 1] = cast(
+                            selected_indices[i, j], "int64"
+                        )
+                        collected_scores[batch_id, offset] = selected_scores[i, j]
+                    with T.Else():
+                        offset = (
+                            num_total_detections[batch_id]
+                            + class_id * num_boxes
+                            - row_offsets[batch_id, class_id]
+                            + j
+                            - num_detections[batch_id, class_id]
+                        )
+                        collected_indices[batch_id, offset, 0] = zero
+                        collected_indices[batch_id, offset, 1] = zero
+                        collected_scores[batch_id, offset] = T.float32(0.0)
 
-        with ib.for_range(0, num_boxes, name="j") as j:
-            with ib.if_scope(j < num_detections[batch_id, class_id]):
-                offset = row_offsets[batch_id, class_id] + j
-                collected_indices[batch_id, offset, 0] = class_id
-                collected_indices[batch_id, offset, 1] = cast(selected_indices[i, j], "int64")
-                collected_scores[batch_id, offset] = selected_scores[i, j]
-            with ib.else_scope():
-                offset = (
-                    num_total_detections[batch_id]
-                    + class_id * num_boxes
-                    - row_offsets[batch_id, class_id]
-                    + j
-                    - num_detections[batch_id, class_id]
-                )
-                collected_indices[batch_id, offset, 0] = zero
-                collected_indices[batch_id, offset, 1] = zero
-                collected_scores[batch_id, offset] = 0.0
-
-    return ib.get()
+        return ib.get()
 
 
 def all_class_non_max_suppression(

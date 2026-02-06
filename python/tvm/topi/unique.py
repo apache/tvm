@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name
 """Unique operator"""
 from tvm import te, tir
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tir as T
 
 
 def _calc_adjacent_diff_ir(data, output, binop=tir.Sub):
@@ -37,15 +39,16 @@ def _calc_adjacent_diff_ir(data, output, binop=tir.Sub):
         TIR expressions and produce a new TIR expression. By default it uses tvm.tir.Sub to
         compute the adjacent difference.
     """
-    ib = tir.ir_builder.create()
-    data_ptr = ib.buffer_ptr(data)
-    output_ptr = ib.buffer_ptr(output)
-    with ib.for_range(0, data.shape[0], kind="parallel") as i:
-        with ib.if_scope(i == 0):
-            output_ptr[0] = 0
-        with ib.else_scope():
-            output_ptr[i] = tir.Cast(output.dtype, binop(data_ptr[i], data_ptr[i - 1]))
-    return ib.get()
+    with IRBuilder() as ib:
+        data_ptr = T.buffer_proxy(data)
+        output_ptr = T.buffer_proxy(output)
+        with T.parallel(0, data.shape[0]) as i:
+            with T.If(i == 0):
+                with T.Then():
+                    output_ptr[0] = 0
+                with T.Else():
+                    output_ptr[i] = tir.Cast(output.dtype, binop(data_ptr[i], data_ptr[i - 1]))
+        return ib.get()
 
 
 def _calc_adjacent_diff(data, out_dtype="int32", binop=tir.Sub):

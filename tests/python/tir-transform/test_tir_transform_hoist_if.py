@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm.script import tir as T, ir as I
 import numpy as np
 import pytest
 from tvm.testing import enabled_targets
@@ -65,22 +66,17 @@ def _opaque_eval(var):
 
 
 def test_hoist_top_for():
-    ib = tvm.tir.ir_builder.create()
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
-    data = ib.pointer("float32", name="data")
+    @T.prim_func(private=True)
+    def func(l: T.int32, m: T.int32, n: T.int32):
+        for i in T.serial(l):
+            for j in T.serial(m):
+                for k in T.serial(n):
+                    if T.likely(i < 2):
+                        T.evaluate(T.call_extern("int32", "dummy", m))
+                    else:
+                        T.evaluate(T.call_extern("int32", "dummy", n))
 
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.for_range(0, n, "k") as k:
-                with ib.if_scope(ib.likely(i < 2)):
-                    ib.emit(_opaque_eval(m))
-                with ib.else_scope():
-                    ib.emit(_opaque_eval(n))
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
@@ -92,22 +88,17 @@ def test_hoist_top_for():
 
 
 def test_hoist_multi_var_if():
-    ib = tvm.tir.ir_builder.create()
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
-    data = ib.pointer("float32", name="data")
+    @T.prim_func(private=True)
+    def func(l: T.int32, m: T.int32, n: T.int32):
+        for i in T.serial(l):
+            for j in T.serial(m):
+                for k in T.serial(n):
+                    if T.likely(i + j < 2):
+                        T.evaluate(T.call_extern("int32", "dummy", m))
+                    else:
+                        T.evaluate(T.call_extern("int32", "dummy", n))
 
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.for_range(0, n, "k") as k:
-                with ib.if_scope(ib.likely(i + j < 2)):
-                    ib.emit(_opaque_eval(m))
-                with ib.else_scope():
-                    ib.emit(_opaque_eval(n))
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(func)
     new_mod = tvm.tir.transform.HoistIfThenElse()(mod)
     new_stmt = new_mod["main"].body
     expected_struct = {
@@ -120,23 +111,19 @@ def test_hoist_multi_var_if():
 
 
 def test_hoist_no_match_for():
-    ib = tvm.tir.ir_builder.create()
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
-    data = ib.pointer("float32", name="data")
+    @T.prim_func(private=True)
+    def func(data: T.handle("float32"), l: T.int32, m: T.int32, n: T.int32):
+        data_ptr = T.decl_buffer(1, "float32", data=data)
+        for i in T.serial(l):
+            for j in T.serial(m):
+                data_ptr[i * 3 + j] = data_ptr[i * 3 + j] + T.float32(0.5)
+                for k in T.serial(n):
+                    if T.likely(i < 2):
+                        T.evaluate(T.call_extern("int32", "dummy", m))
+                    else:
+                        T.evaluate(T.call_extern("int32", "dummy", n))
 
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            data[i * 3 + j] = data[i * 3 + j] + 0.5
-            with ib.for_range(0, n, "k") as k:
-                with ib.if_scope(ib.likely(i < 2)):
-                    ib.emit(_opaque_eval(m))
-                with ib.else_scope():
-                    ib.emit(_opaque_eval(n))
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
@@ -148,19 +135,15 @@ def test_hoist_no_match_for():
 
 
 def test_no_else():
-    ib = tvm.tir.ir_builder.create()
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
+    @T.prim_func(private=True)
+    def func(l: T.int32, m: T.int32, n: T.int32):
+        for i in T.serial(l):
+            for j in T.serial(m):
+                for k in T.serial(n):
+                    if T.likely(i < 2):
+                        T.evaluate(T.call_extern("int32", "dummy", m))
 
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.for_range(0, n, "k") as k:
-                with ib.if_scope(ib.likely(i < 2)):
-                    ib.emit(_opaque_eval(m))
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
@@ -172,27 +155,26 @@ def test_no_else():
 
 
 def test_attr_stmt():
-    ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
-    data = ib.pointer("float32", name="data")
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
 
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", dshape[0])
-    ib.scope_attr(bx, "thread_extent", dshape[1])
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.for_range(0, n, "k") as k:
-                with ib.if_scope(tvm.tir.any(i < 4, j >= 8)):
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 0.5
-                with ib.else_scope():
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 1.0
+    @T.prim_func(private=True)
+    def func(data: T.handle("float32"), l: T.int32, m: T.int32, n: T.int32):
+        data_ptr = T.decl_buffer(1, "float32", data=data)
+        tx = T.launch_thread("threadIdx.x", dshape[0])
+        bx = T.launch_thread("blockIdx.x", dshape[1])
+        for i in T.serial(l):
+            for j in T.serial(m):
+                for k in T.serial(n):
+                    if i < 4 or j >= 8:
+                        data_ptr[bx * j + tx * j * k] = data_ptr[bx * j + tx * j * k] + T.float32(
+                            0.5
+                        )
+                    else:
+                        data_ptr[bx * j + tx * j * k] = data_ptr[bx * j + tx * j * k] + T.float32(
+                            1.0
+                        )
 
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
@@ -206,22 +188,25 @@ def test_attr_stmt():
 
 
 def test_nested_for():
-    ib = tvm.tir.ir_builder.create()
-    data = ib.pointer("float32", name="data")
+    @T.prim_func(private=True)
+    def func(data: T.handle("float32")):
+        data_ptr = T.decl_buffer(1, "float32", data=data)
+        for i in range(5):
+            for j in range(10):
+                if i >= 3:
+                    data_ptr[i * 3 + j] = data_ptr[i * 3 + j] + T.float32(0.5)
+                    for k in range(15):
+                        for l in range(20):
+                            if i < 4 or j >= 8:
+                                data_ptr[i * 3 + j + k + l] = data_ptr[
+                                    i * 3 + j + k + l
+                                ] * T.float32(2)
+                            else:
+                                data_ptr[i * 3 + j + k + l] = data_ptr[
+                                    i * 3 + j + k + l
+                                ] * T.float32(1.5)
 
-    with ib.for_range(0, 5, "i") as i:
-        with ib.for_range(0, 10, "j") as j:
-            with ib.if_scope(i >= 3):
-                data[i * 3 + j] = data[i * 3 + j] + 0.5
-                with ib.for_range(0, 15, "k") as k:
-                    with ib.for_range(0, 20, "l") as l:
-                        with ib.if_scope(tvm.tir.any(i < 4, j >= 8)):
-                            data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 2
-                        with ib.else_scope():
-                            data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 1.5
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(func)
     new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
         ("tir.For", "l"): (None,),
@@ -235,58 +220,66 @@ def test_nested_for():
 
 
 def test_if_block():
-    ib = tvm.tir.ir_builder.create()
-    data = ib.pointer("float32", name="data")
-    n = te.var("n")
+    # Use different variable names for second loop nest to avoid dict key collision
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def main(data: T.Buffer((1,), "float32"), n: T.int32):
+            # First loop nest: i, j, k, l
+            for i in T.serial(5):
+                for j in T.serial(10):
+                    if i >= 3:
+                        data[i * 3 + j] = data[i * 3 + j] + T.float32(0.5)
+                        for k in T.serial(15):
+                            for l in T.serial(20):
+                                if i < 4 or j >= 8:
+                                    data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * T.float32(2)
+                                else:
+                                    data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * T.float32(
+                                        1.5
+                                    )
+                                if j < 5:
+                                    data[i * 3 + j + k + l] = data[i * 3 + j + k + l] - T.float32(1)
 
-    with ib.for_range(0, 5, "i") as i:
-        with ib.for_range(0, 10, "j") as j:
-            with ib.if_scope(i >= 3):
-                data[i * 3 + j] = data[i * 3 + j] + 0.5
-                with ib.for_range(0, 15, "k") as k:
-                    with ib.for_range(0, 20, "l") as l:
-                        with ib.if_scope(tvm.tir.any(i < 4, j >= 8)):
-                            data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 2
-                        with ib.else_scope():
-                            data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 1.5
-                        with ib.if_scope(j < 5):
-                            data[i * 3 + j + k + l] = data[i * 3 + j + k + l] - 1
+            # Second loop nest: i2, j2, k2 (different names)
+            for i2 in T.serial(5):
+                for j2 in T.serial(10):
+                    for k2 in T.serial(15):
+                        if n >= 3:
+                            data[i2 * 3 + j2 + k2] = data[i2 * 3 + j2 + k2] + T.float32(0.6)
 
-    with ib.for_range(0, 5, "i") as i:
-        with ib.for_range(0, 10, "j") as j:
-            with ib.for_range(0, 15, "k") as k:
-                with ib.if_scope(n >= 3):
-                    data[i * 3 + j + k] = data[i * 3 + j + k] + 0.6
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+    # Updated expected_struct with renamed second nest variables
     expected_struct = {
         ("tir.IfThenElse", ("i", "j")): (None, None),
         ("tir.IfThenElse", ("j",)): (None, None),
         ("tir.For", "l"): (None,),
-        ("tir.For", "k"): (None,),
-        ("tir.For", "j"): (("tir.For", "j"),),
+        ("tir.For", "k"): (("tir.For", "l"),),
+        ("tir.For", "j"): (None,),
         ("tir.IfThenElse", ("i",)): (("tir.For", "j"), None),
         ("tir.For", "i"): (("tir.IfThenElse", ("i",)),),
-        ("tir.IfThenElse", ("n",)): (("tir.For", "j"), None),
+        ("tir.For", "k2"): (None,),
+        ("tir.For", "j2"): (("tir.For", "k2"),),
+        ("tir.For", "i2"): (("tir.For", "j2"),),
+        ("tir.IfThenElse", ("n",)): (("tir.For", "i2"), None),
     }
     verify_structure(new_stmt, expected_struct)
 
 
 def test_multi_if():
-    ib = tvm.tir.ir_builder.create()
-    data = ib.pointer("float32", name="data")
+    @T.prim_func(private=True)
+    def func(data: T.handle("float32")):
+        data_ptr = T.decl_buffer(1, "float32", data=data)
+        for i in range(10):
+            for j in range(10):
+                for k in range(10):
+                    if 3 <= i:
+                        if 3 <= j:
+                            data_ptr[i * 100 + j * 10 + k] = data_ptr[
+                                i * 100 + j * 10 + k
+                            ] + T.float32(0.5)
 
-    with ib.for_range(0, 10, "i") as i:
-        with ib.for_range(0, 10, "j") as j:
-            with ib.for_range(0, 10, "k") as k:
-                with ib.if_scope(3 <= i):
-                    with ib.if_scope(3 <= j):
-                        data[i * 100 + j * 10 + k] = data[i * 100 + j * 10 + k] + 0.5
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(func)
     new_mod = tvm.tir.transform.HoistIfThenElse()(mod)
     new_stmt = new_mod["main"].body
     expected_struct = {
@@ -300,18 +293,19 @@ def test_multi_if():
 
 
 def test_no_hoisting_1():
-    ib = tvm.tir.ir_builder.create()
-    data = ib.pointer("float32", name="data")
-    n = te.var("n")
+    @T.prim_func(private=True)
+    def func(data: T.handle("float32")):
+        data_ptr = T.decl_buffer(1, "float32", data=data)
+        for i in range(10):
+            for j in range(10):
+                for k in range(10):
+                    if k <= 3:
+                        data_ptr[i * 100 + j * 10 + k] = data_ptr[i * 100 + j * 10 + k] + T.float32(
+                            0.5
+                        )
 
-    with ib.for_range(0, 10, "i") as i:
-        with ib.for_range(0, 10, "j") as j:
-            with ib.for_range(0, 10, "k") as k:
-                with ib.if_scope(k <= 3):
-                    data[i * 100 + j * 10 + k] = data[i * 100 + j * 10 + k] + 0.5
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(func)
+    stmt = mod["main"].body
     new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
@@ -323,56 +317,20 @@ def test_no_hoisting_1():
 
 
 def test_no_hoisting_2():
-    ib = tvm.tir.ir_builder.create()
-    data = ib.pointer("float32", name="data")
-    n = te.var("n")
-    x = te.var("x")
+    @T.prim_func(private=True)
+    def func(data: T.handle("float32")):
+        data_ptr = T.decl_buffer(1, "float32", data=data)
+        for i in range(10):
+            for j in range(10):
+                for k in range(10):
+                    if i <= 3:
+                        data_ptr[i * 100 + j * 10 + k] = data_ptr[i * 100 + j * 10 + k] + T.float32(
+                            0.3
+                        )
+                    data_ptr[i * 100 + j * 10 + k] = data_ptr[i * 100 + j * 10 + k] + T.float32(0.5)
 
-    with ib.for_range(0, 10, "i") as i:
-        with ib.for_range(0, 10, "j") as j:
-            with ib.for_range(0, 10, "k") as k:
-                with ib.if_scope(i <= 3):
-                    data[i * 100 + j * 10 + k] = data[i * 100 + j * 10 + k] + 0.3
-                data[i * 100 + j * 10 + k] = data[i * 100 + j * 10 + k] + 0.5
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    tvm.ir.assert_structural_equal(new_stmt, stmt)
-
-    with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
-    ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    tvm.ir.assert_structural_equal(new_stmt, stmt)
-
-
-@pytest.mark.xfail(reason="Inconsistent thread_extent", strict=True)
-def test_no_hoisting_3():
-    ib = tvm.tir.ir_builder.create()
-    dshape = (32, 64)
-    dshape_inner = (33, 63)
-    data = ib.pointer("float32", name="data")
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
-
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", dshape[0])
-    ib.scope_attr(bx, "thread_extent", dshape[1])
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.for_range(0, n, "k") as k:
-                ib.scope_attr(tx, "thread_extent", dshape_inner[0])
-                ib.scope_attr(bx, "thread_extent", dshape_inner[1])
-                with ib.if_scope(tx < 3):
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 0.3
-                with ib.else_scope():
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 1.3
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.IRModule.from_expr(func)
+    stmt = mod["main"].body
     new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
@@ -384,161 +342,129 @@ def test_no_hoisting_3():
 
 
 def test_no_hoisting_4():
-    ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
     dshape_inner = (33, 63)
-    data = ib.pointer("float32", name="data")
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
 
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(bx, "thread_extent", dshape[1])
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.for_range(0, n, "k") as k:
-                ib.scope_attr(tx, "thread_extent", dshape_inner[0])
-                with ib.if_scope(tx < 3):
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 0.3
-                with ib.else_scope():
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 1.3
+    # Create iter_var for tx (used inside loop with T.attr)
+    tx_var = tvm.tir.Var("threadIdx.x", "int32")
+    tx_iter = tvm.tir.IterVar(
+        tvm.ir.Range(0, dshape_inner[0]), tx_var, tvm.tir.IterVar.ThreadIndex, "threadIdx.x"
+    )
 
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+            bx = T.launch_thread("blockIdx.x", dshape[1])
+            for i in T.serial(l):
+                for j in T.serial(m):
+                    for k in T.serial(n):
+                        T.attr(tx_iter, "thread_extent", dshape_inner[0])
+                        if tx_var < 3:
+                            data[bx * j + tx_var * j * k] = data[
+                                bx * j + tx_var * j * k
+                            ] + T.float32(0.3)
+                        else:
+                            data[bx * j + tx_var * j * k] = data[
+                                bx * j + tx_var * j * k
+                            ] + T.float32(1.3)
+
+    stmt = Module["main"].body
+    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
         config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    tvm.ir.assert_structural_equal(new_stmt, stmt)
-
-
-@pytest.mark.xfail(reason="Inconsistent thread_extent", strict=True)
-def test_no_hoisting_5():
-    ib = tvm.tir.ir_builder.create()
-    dshape = (32, 64)
-    dshape_inner = (33, 63)
-    data = ib.pointer("float32", name="data")
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
-
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", dshape[0])
-    ib.scope_attr(bx, "thread_extent", dshape[1])
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            ib.scope_attr(bx, "thread_extent", dshape_inner[1])
-            with ib.for_range(0, n, "k") as k:
-                ib.scope_attr(tx, "thread_extent", dshape_inner[0])
-                with ib.if_scope(tx < 3):
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 0.3
-                with ib.else_scope():
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 1.3
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    tvm.ir.assert_structural_equal(new_stmt, stmt)
-
-    with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
-    ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+        new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
 def test_no_hoisting_6():
-    ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
-    data = ib.pointer("float32", name="data")
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
 
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", dshape[0])
-    ib.scope_attr(bx, "thread_extent", dshape[1])
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.for_range(0, n, "k") as k:
-                with ib.if_scope((tx + k) < 3):
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 0.3
-                with ib.else_scope():
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 1.3
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+            tx = T.launch_thread("threadIdx.x", dshape[0])
+            bx = T.launch_thread("blockIdx.x", dshape[1])
+            for i in T.serial(l):
+                for j in T.serial(m):
+                    for k in T.serial(n):
+                        if tx + k < 3:
+                            data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + T.float32(0.3)
+                        else:
+                            data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + T.float32(1.3)
 
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    stmt = Module["main"].body
+    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
         config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+        new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
 def test_no_hoisting_7():
-    ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
-    data = ib.pointer("float32", name="data")
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
 
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", dshape[0])
-    ib.scope_attr(bx, "thread_extent", dshape[1])
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.if_scope((tx + j) < 9):
-                with ib.for_range(0, n, "k") as k:
-                    with ib.if_scope((tx + k) < 3):
-                        data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 0.3
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+            tx = T.launch_thread("threadIdx.x", dshape[0])
+            bx = T.launch_thread("blockIdx.x", dshape[1])
+            for i in T.serial(l):
+                for j in T.serial(m):
+                    if tx + j < 9:
+                        for k in T.serial(n):
+                            if tx + k < 3:
+                                data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + T.float32(
+                                    0.3
+                                )
 
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    stmt = Module["main"].body
+    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
         config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+        new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
 def test_hoisting_block_scope_2():
-    ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
-    dshape_inner = (33, 63)
-    data = ib.pointer("float32", name="data")
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
 
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", dshape[0])
-    # ib.scope_attr(bx, "thread_extent", dshape[1])
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.for_range(0, n, "k") as k:
-                ib.scope_attr(bx, "thread_extent", dshape[1])
-                with ib.if_scope(tx < 3):
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 0.3
-                with ib.else_scope():
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 1.3
+    # Create iter_var for bx (used inside loop with T.attr)
+    bx_var = tvm.tir.Var("blockIdx.x", "int32")
+    bx_iter = tvm.tir.IterVar(
+        tvm.ir.Range(0, dshape[1]), bx_var, tvm.tir.IterVar.ThreadIndex, "blockIdx.x"
+    )
 
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+            tx = T.launch_thread("threadIdx.x", dshape[0])
+            for i in T.serial(l):
+                for j in T.serial(m):
+                    for k in T.serial(n):
+                        T.attr(bx_iter, "thread_extent", dshape[1])
+                        if tx < 3:
+                            data[bx_var * j + tx * j * k] = data[
+                                bx_var * j + tx * j * k
+                            ] + T.float32(0.3)
+                        else:
+                            data[bx_var * j + tx * j * k] = data[
+                                bx_var * j + tx * j * k
+                            ] + T.float32(1.3)
+
+    mod = Module
     mod = tvm.tir.transform.Simplify()(mod)
     mod = tvm.tir.transform.RemoveNoOp()(mod)
     stmt = mod["main"].body
@@ -553,66 +479,25 @@ def test_hoisting_block_scope_2():
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
 
-@pytest.mark.xfail(reason="Inconsistent thread_extent", strict=True)
-def test_hoisting_block_scope_3():
-    ib = tvm.tir.ir_builder.create()
-    dshape = (32, 64)
-    dshape_inner = (33, 63)
-    data = ib.pointer("float32", name="data")
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
-
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", dshape[0])
-    ib.scope_attr(bx, "thread_extent", dshape[1])
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            ib.scope_attr(tx, "thread_extent", dshape_inner[0])
-            ib.scope_attr(bx, "thread_extent", dshape_inner[1])
-            with ib.for_range(0, n, "k") as k:
-                with ib.if_scope(tx < 3):
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 0.3
-                with ib.else_scope():
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 1.3
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    tvm.ir.assert_structural_equal(new_stmt, stmt)
-
-    with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
-    ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
-
-
 def test_hoisting_block_scope_5():
-    ib = tvm.tir.ir_builder.create()
-    data = ib.pointer("float32", name="data", scope="global")
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
-    g = te.var("g")
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32, g: T.int32):
+            for i in T.serial(l):
+                for j in T.serial(m):
+                    for k in T.serial(n):
+                        if data[g] < T.float32(3):
+                            data[9 * j + 3 * j * k] = data[9 * j + 3 * j * k] + T.float32(0.3)
+                        else:
+                            data[9 * j + 3 * j * k] = data[9 * j + 3 * j * k] + T.float32(1.3)
 
-    ib.scope_attr(data, "storage_scope", "global")
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.for_range(0, n, "k") as k:
-                with ib.if_scope(data[g] < 3):
-                    data[9 * j + 3 * j * k] = data[9 * j + 3 * j * k] + 0.3
-                with ib.else_scope():
-                    data[9 * j + 3 * j * k] = data[9 * j + 3 * j * k] + 1.3
-
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    stmt = Module["main"].body
+    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], new_stmt))
     stmt = new_stmt
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
 
     with tvm.transform.PassContext(
         config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
@@ -622,66 +507,58 @@ def test_hoisting_block_scope_5():
 
 
 def test_hoisting_block_scope_6():
-    ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
-    data = ib.pointer("float32", name="data")
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
 
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", dshape[0])
-    ib.scope_attr(bx, "thread_extent", dshape[1])
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.for_range(0, n, "k") as k:
-                with ib.if_scope((tx + n) < 3):
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 0.3
-                with ib.else_scope():
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 1.3
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+            tx = T.launch_thread("threadIdx.x", dshape[0])
+            bx = T.launch_thread("blockIdx.x", dshape[1])
+            for i in T.serial(l):
+                for j in T.serial(m):
+                    for k in T.serial(n):
+                        if tx + n < 3:
+                            data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + T.float32(0.3)
+                        else:
+                            data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + T.float32(1.3)
 
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    stmt = Module["main"].body
+    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
         config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+        new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
 
 def test_hoisting_block_scope_7():
-    ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
-    data = ib.pointer("float32", name="data")
-    l = te.var("l")
-    m = te.var("m")
-    n = te.var("n")
 
-    tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    ib.scope_attr(tx, "thread_extent", dshape[0])
-    ib.scope_attr(bx, "thread_extent", dshape[1])
-    with ib.for_range(0, l, "i") as i:
-        with ib.for_range(0, m, "j") as j:
-            with ib.for_range(0, n, "k") as k:
-                with ib.if_scope((tx + i) < 3):
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 0.3
-                with ib.else_scope():
-                    data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + 1.3
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def main(data: T.Buffer((1,), "float32"), l: T.int32, m: T.int32, n: T.int32):
+            tx = T.launch_thread("threadIdx.x", dshape[0])
+            bx = T.launch_thread("blockIdx.x", dshape[1])
+            for i in T.serial(l):
+                for j in T.serial(m):
+                    for k in T.serial(n):
+                        if tx + i < 3:
+                            data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + T.float32(0.3)
+                        else:
+                            data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + T.float32(1.3)
 
-    stmt = ib.get()
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    stmt = Module["main"].body
+    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
         config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+        new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
 

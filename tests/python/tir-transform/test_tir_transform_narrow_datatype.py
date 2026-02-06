@@ -28,80 +28,124 @@ def lower_stmt(params, stmt, target_bits):
     return stmt
 
 
+def lower_func_body(func, target_bits):
+    """Lower a TVMScript function and return the body (navigating past DeclBuffer)."""
+    mod = tvm.IRModule.from_expr(func)
+    gvar = list(mod.functions.keys())[0]
+    func = tvm.tir.transform.NarrowDataType(target_bits)(mod)[gvar]
+    body = func.body
+    while hasattr(body, "body") and not isinstance(body, tvm.tir.For):
+        body = body.body
+    return body
+
+
 def test_basic():
-    def check(m, n, target_bits, target_dtype):
-        ib = tvm.tir.ir_builder.create()
-        Ab = tvm.tir.decl_buffer([m * n], name="A")
-        A = ib.buffer_ptr(Ab)
-        Bb = tvm.tir.decl_buffer([m * n], name="B")
-        B = ib.buffer_ptr(Bb)
-        with ib.for_range(0, m, name="i") as i:
-            with ib.for_range(0, n, name="j") as j:
-                B[i * n + j] = A[i * n + j] + 1
-        stmt = ib.get()
-        stmt = lower_stmt([Ab, Bb], stmt, target_bits)
+    def check_const(m, n, target_bits, target_dtype):
+        """Check with constant values using TVMScript closure."""
+
+        @T.prim_func
+        def func(A: T.Buffer((m * n,), "float32"), B: T.Buffer((m * n,), "float32")):
+            for i in T.serial(m):
+                for j in T.serial(n):
+                    B[i * n + j] = A[i * n + j] + T.float32(1)
+
+        stmt = lower_func_body(func, target_bits)
+        assert stmt.loop_var.dtype == target_dtype
+        assert stmt.body.loop_var.dtype == target_dtype
+
+    def check_symbolic(m_dtype, n_dtype, target_bits, target_dtype):
+        """Check with symbolic shapes as function parameters."""
+        if m_dtype == "int32":
+
+            @T.prim_func
+            def func(A: T.handle("float32"), B: T.handle("float32"), m: T.int32, n: T.int32):
+                A_buf = T.decl_buffer((m * n,), "float32", data=A)
+                B_buf = T.decl_buffer((m * n,), "float32", data=B)
+                for i in T.serial(m):
+                    for j in T.serial(n):
+                        B_buf[i * n + j] = A_buf[i * n + j] + T.float32(1)
+
+        else:
+
+            @T.prim_func
+            def func(A: T.handle("float32"), B: T.handle("float32"), m: T.int64, n: T.int64):
+                A_buf = T.decl_buffer((m * n,), "float32", data=A)
+                B_buf = T.decl_buffer((m * n,), "float32", data=B)
+                for i in T.serial(m):
+                    for j in T.serial(n):
+                        B_buf[i * n + j] = A_buf[i * n + j] + T.float32(1)
+
+        stmt = lower_func_body(func, target_bits)
         assert stmt.loop_var.dtype == target_dtype
         assert stmt.body.loop_var.dtype == target_dtype
 
     # const shape
     # i32 -> i32
-    check(2, 2, 32, "int32")
+    check_const(2, 2, 32, "int32")
     # i64 -> i32
-    check(const(2, dtype="int64"), const(2, dtype="int64"), 32, "int32")
-    check(const(2**16, dtype="int64"), const(2**16, dtype="int64"), 32, "int64")
+    check_const(const(2, dtype="int64"), const(2, dtype="int64"), 32, "int32")
+    check_const(const(2**16, dtype="int64"), const(2**16, dtype="int64"), 32, "int64")
     # i32 -> i16
-    check(2, 2, 16, "int16")
-    check(2**10, 2**10, 16, "int32")
+    check_const(2, 2, 16, "int16")
+    check_const(2**10, 2**10, 16, "int32")
 
     # symbolic shape
-    check(te.size_var(name="m", dtype="int32"), te.size_var(name="n", dtype="int32"), 32, "int32")
-    check(te.size_var(name="m", dtype="int64"), te.size_var(name="n", dtype="int64"), 32, "int64")
+    check_symbolic("int32", "int32", 32, "int32")
+    check_symbolic("int64", "int64", 32, "int64")
 
 
 def test_thread_axis():
-    def check(m, n, target_bits, target_dtype):
-        ib = tvm.tir.ir_builder.create()
-        Ab = tvm.tir.decl_buffer([m * n], name="A")
-        A = ib.buffer_ptr(Ab)
-        Bb = tvm.tir.decl_buffer([m * n], name="B")
-        B = ib.buffer_ptr(Bb)
-        bx = te.thread_axis("blockIdx.x")
-        tx = te.thread_axis("threadIdx.x")
-        ib.scope_attr(bx, "thread_extent", m)
-        ib.scope_attr(tx, "thread_extent", n)
-        B[bx * n + tx] = A[bx * n + tx] + 1
-        stmt = ib.get()
-        stmt = lower_stmt([Ab, Bb], stmt, target_bits)
+    # This test uses launch_thread to create AttrStmt nodes with "thread_extent"
+    # and checks the dtype of thread axis variables after narrowing.
+    def check_const(m, n, target_bits, target_dtype):
+        @T.prim_func
+        def func(A: T.Buffer((m * n,), "float32"), B: T.Buffer((m * n,), "float32")):
+            bx = T.launch_thread("blockIdx.x", m)
+            tx = T.launch_thread("threadIdx.x", n)
+            B[bx * n + tx] = A[bx * n + tx] + T.float32(1)
+
+        mod = tvm.IRModule.from_expr(func)
+        gvar = list(mod.functions.keys())[0]
+        func_narrowed = tvm.tir.transform.NarrowDataType(target_bits)(mod)[gvar]
+        stmt = func_narrowed.body
         assert stmt.node.var.dtype == target_dtype
         assert stmt.body.node.var.dtype == target_dtype
 
     # i32 -> i32
-    check(2, 32, target_bits=32, target_dtype="int32")
+    check_const(2, 32, target_bits=32, target_dtype="int32")
     # i64 -> i32
-    check(const(2, dtype="int64"), const(32, dtype="int64"), target_bits=32, target_dtype="int32")
-    check(
+    check_const(
+        const(2, dtype="int64"), const(32, dtype="int64"), target_bits=32, target_dtype="int32"
+    )
+    check_const(
         const(2**30, dtype="int64"),
         const(32, dtype="int64"),
         target_bits=32,
         target_dtype="int64",
     )
     # i32 -> i16
-    check(2, 32, target_bits=16, target_dtype="int16")
-    check(2**14, 32, target_bits=16, target_dtype="int32")
+    check_const(2, 32, target_bits=16, target_dtype="int16")
+    check_const(2**14, 32, target_bits=16, target_dtype="int32")
 
 
 def test_multilanes():
+    # Test narrowing with vector types. Uses closure capture for m and lanes.
     def check(m, lanes, target_bits, target_dtype):
-        ib = tvm.tir.ir_builder.create()
-        Ab = tvm.tir.decl_buffer((m,), dtype="float32x{}".format(lanes), name="A")
-        A = ib.buffer_ptr(Ab)
-        Bb = tvm.tir.decl_buffer((m,), dtype="float32x{}".format(lanes), name="B")
-        B = ib.buffer_ptr(Bb)
-        with ib.for_range(0, m, name="i", dtype=m.dtype) as i:
-            B[i] = A[i] + 1
-        A[0] = B[1]
-        stmt = ib.get()
-        stmt = lower_stmt([Ab, Bb], stmt, target_bits)
+        vec_dtype = "float32x{}".format(lanes)
+
+        @T.prim_func
+        def func(
+            A: T.Buffer((m,), vec_dtype),
+            B: T.Buffer((m,), vec_dtype),
+        ):
+            for i in T.serial(m):
+                B[i] = A[i] + T.Broadcast(T.float32(1), lanes)
+            A[0] = B[1]
+
+        mod = tvm.IRModule.from_expr(func)
+        gvar = list(mod.functions.keys())[0]
+        func_narrowed = tvm.tir.transform.NarrowDataType(target_bits)(mod)[gvar]
+        stmt = func_narrowed.body
         assert stmt.seq[0].loop_var.dtype == target_dtype
 
     # i32 -> i32
@@ -115,18 +159,19 @@ def test_multilanes():
 
 
 def test_slice():
+    # Test narrowing with slice indexing where buffer B has different index ranges.
     def check(m, n, target_bits, target_dtype):
         # The index may overflow in B, while not in A
-        ib = tvm.tir.ir_builder.create()
-        Ab = tvm.tir.decl_buffer([m * n], name="A")
-        A = ib.buffer_ptr(Ab)
-        Bb = tvm.tir.decl_buffer([m * n * 2], name="B")
-        B = ib.buffer_ptr(Bb)
-        with ib.for_range(0, m, name="i") as i:
-            with ib.for_range(0, n, name="j") as j:
-                A[i * n + j] = B[i * 2 * n + 2 * j] + 1
-        stmt = ib.get()
-        stmt = lower_stmt([Ab, Bb], stmt, target_bits)
+        @T.prim_func
+        def func(
+            A: T.Buffer((m * n,), "float32"),
+            B: T.Buffer((m * n * 2,), "float32"),
+        ):
+            for i in T.serial(m):
+                for j in T.serial(n):
+                    A[i * n + j] = B[i * 2 * n + 2 * j] + T.float32(1)
+
+        stmt = lower_func_body(func, target_bits)
         assert stmt.loop_var.dtype == target_dtype
         assert stmt.body.loop_var.dtype == target_dtype
 

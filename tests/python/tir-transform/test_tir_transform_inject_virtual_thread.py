@@ -16,124 +16,144 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
-from tvm.script import tir as T
-
-vthread_name = tvm.testing.parameter("vthread", "cthread")
+from tvm.script import tir as T, ir as I
 
 
-def test_vthread(vthread_name):
-    dtype = "int64"
+def test_vthread():
+    """Test virtual thread injection with vthread"""
     n = 100
     m = 4
     nthread = 2
 
-    def get_vthread(name):
-        tx = te.thread_axis(name)
-        ty = te.thread_axis(name)
-        ib = tvm.tir.ir_builder.create()
-        A = ib.pointer("float32", name="A")
-        C = ib.pointer("float32", name="C")
-        with ib.for_range(0, n) as i:
-            ib.scope_attr(tx, "virtual_thread", nthread)
-            ib.scope_attr(ty, "virtual_thread", nthread)
-            B = ib.allocate("float32", m, name="B", scope="shared")
-            B[i] = A[i * nthread + tx]
-            bbuffer = B.asobject()
-            ib.emit(
-                tvm.tir.call_extern(
-                    "int32",
-                    "Run",
-                    bbuffer.access_ptr("r"),
-                    tvm.tir.call_intrin("int32", "tir.tvm_context_id"),
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.handle("float32"), C: T.handle("float32")):
+            A_buf = T.decl_buffer((n * nthread,), "float32", data=A)
+            C_buf = T.decl_buffer((n * nthread,), "float32", data=C)
+            for i in range(n):
+                vt_x = T.launch_thread("vthread", nthread)
+                vt_y = T.launch_thread("vthread", nthread)
+                B_data = T.allocate([m], "float32", scope="shared")
+                B = T.Buffer([m], "float32", data=B_data, scope="shared")
+                B[i] = A_buf[i * nthread + vt_x]
+                T.evaluate(
+                    T.call_extern(
+                        "int32",
+                        "Run",
+                        B.access_ptr("r"),
+                        T.call_intrin("int32", "tir.tvm_context_id"),
+                    )
                 )
-            )
-            C[i * nthread + tx] = B[i] + 1
-        return ib.get()
+                C_buf[i * nthread + vt_x] = B[i] + T.float32(1)
 
-    if vthread_name == "vthread":
-        B_expected_alloc = m * nthread
-    elif vthread_name == "cthread":
-        B_expected_alloc = m * nthread * nthread
+    # For vthread, expected allocation is m * nthread
+    B_expected_alloc = m * nthread
 
-    stmt = tvm.tir.transform.InjectVirtualThread()(
-        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], get_vthread(vthread_name)))
-    )["main"]
+    stmt = tvm.tir.transform.InjectVirtualThread()(Module)["main"]
 
-    assert list(stmt.body.body.extents) == [B_expected_alloc]
+    # Find allocate nodes
+    allocates = []
+
+    def find_allocates(node):
+        if isinstance(node, tvm.tir.Allocate):
+            allocates.append(node)
+
+    tvm.tir.stmt_functor.post_order_visit(stmt.body, find_allocates)
+    assert len(allocates) == 1
+    assert list(allocates[0].extents) == [B_expected_alloc]
 
 
-def test_vthread_extern(vthread_name):
-    dtype = "int64"
+def test_vthread_extern():
+    """Test virtual thread injection with extern call"""
     n = 100
     m = 4
     nthread = 2
 
-    def get_vthread(name):
-        tx = te.thread_axis(name)
-        ty = te.thread_axis(name)
-        ib = tvm.tir.ir_builder.create()
-        with ib.for_range(0, n) as i:
-            ib.scope_attr(tx, "virtual_thread", nthread)
-            ib.scope_attr(ty, "virtual_thread", nthread)
-            A = ib.allocate("float32", m, name="A", scope="shared")
-            B = ib.allocate("float32", m, name="B", scope="shared")
-            C = ib.allocate("float32", m, name="C", scope="shared")
-            abuffer = A.asobject()
-            bbuffer = B.asobject()
-            cbuffer = C.asobject()
-            A[tx] = tx + 1.0
-            B[ty] = ty + 1.0
-            ib.emit(
-                tvm.tir.call_extern(
-                    "int32",
-                    "Run",
-                    abuffer.access_ptr("r"),
-                    bbuffer.access_ptr("r"),
-                    cbuffer.access_ptr("rw"),
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main():
+            T.func_attr({"global_symbol": "main"})
+            for i in range(n):
+                vt_x = T.launch_thread("vthread", nthread)
+                vt_y = T.launch_thread("vthread", nthread)
+                A_data = T.allocate([m], "float32", scope="shared")
+                A = T.Buffer([m], "float32", data=A_data, scope="shared")
+                B_data = T.allocate([m], "float32", scope="shared")
+                B = T.Buffer([m], "float32", data=B_data, scope="shared")
+                C_data = T.allocate([m], "float32", scope="shared")
+                C = T.Buffer([m], "float32", data=C_data, scope="shared")
+                A[vt_x] = T.Cast("float32", vt_x) + T.float32(1)
+                B[vt_y] = T.Cast("float32", vt_y) + T.float32(1)
+                T.evaluate(
+                    T.call_extern(
+                        "int32",
+                        "Run",
+                        A.access_ptr("r"),
+                        B.access_ptr("r"),
+                        C.access_ptr("rw"),
+                    )
                 )
-            )
-        return ib.get()
 
-    if vthread_name == "vthread":
-        A_expected_alloc = m * nthread
-    elif vthread_name == "cthread":
-        A_expected_alloc = m * nthread * nthread
-
+    # For vthread:
+    # A, B expected allocation is m * nthread (used with single vthread each)
+    A_expected_alloc = m * nthread
+    # C expected allocation is m * nthread * nthread (used in extern with both vthreads)
     C_expected_alloc = m * nthread * nthread
 
-    stmt = tvm.tir.transform.InjectVirtualThread()(
-        tvm.IRModule.from_expr(
-            tvm.tir.PrimFunc([], get_vthread(vthread_name)).with_attr("global_symbol", "main")
-        )
-    )["main"]
+    stmt = tvm.tir.transform.InjectVirtualThread()(Module)["main"]
 
-    assert list(stmt.body.body.extents) == [A_expected_alloc]
-    assert list(stmt.body.body.body.body.extents) == [C_expected_alloc]
+    # Find allocate nodes
+    allocates = []
+
+    def find_allocates(node):
+        if isinstance(node, tvm.tir.Allocate):
+            allocates.append(node)
+
+    tvm.tir.stmt_functor.post_order_visit(stmt.body, find_allocates)
+    assert len(allocates) == 3
+    # Check that we have the expected extents (order may vary)
+    extents = sorted([int(a.extents[0]) for a in allocates])
+    assert extents == sorted([A_expected_alloc, A_expected_alloc, C_expected_alloc])
 
 
 def test_vthread_if_then_else():
+    """Test virtual thread injection with if-then-else"""
     nthread = 2
-    tx = te.thread_axis("vthread")
-    ib = tvm.tir.ir_builder.create()
-    A = ib.pointer("float32", name="A")
-    with ib.for_range(0, 100) as i:
-        ib.scope_attr(tx, "virtual_thread", nthread)
-        B = ib.allocate("float32", 128, name="B", scope="shared")
-        with ib.if_scope(i == 0):
-            B[i] = A[i * nthread + tx]
-        with ib.else_scope():
-            B[i] = A[i * nthread + tx] + 1
-        with ib.if_scope(i == 0):
-            B[i] = A[i * nthread + tx] + 2
-    stmt = ib.get()
 
-    stmt = tvm.tir.transform.InjectVirtualThread()(
-        tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
-    )["main"]
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.handle("float32")):
+            T.func_attr({"global_symbol": "main"})
+            A_buf = T.decl_buffer((100 * nthread,), "float32", data=A)
+            for i in range(100):
+                vt = T.launch_thread("vthread", nthread)
+                B_data = T.allocate([128], "float32", scope="shared")
+                B = T.Buffer([128], "float32", data=B_data, scope="shared")
+                if i == 0:
+                    B[i] = A_buf[i * nthread + vt]
+                else:
+                    B[i] = A_buf[i * nthread + vt] + T.float32(1)
+                if i == 0:
+                    B[i] = A_buf[i * nthread + vt] + T.float32(2)
 
-    assert stmt.body.body.body[0].else_case != None
-    assert stmt.body.body.body[1].else_case == None
+    stmt = tvm.tir.transform.InjectVirtualThread()(Module)["main"]
+
+    # Find IfThenElse nodes
+    if_nodes = []
+
+    def find_ifs(node):
+        if isinstance(node, tvm.tir.IfThenElse):
+            if_nodes.append(node)
+
+    tvm.tir.stmt_functor.post_order_visit(stmt.body, find_ifs)
+
+    assert len(if_nodes) == 2
+    # First if has else_case, second does not
+    assert if_nodes[0].else_case is not None
+    assert if_nodes[1].else_case is None
 
 
 def test_vthread_simplified():

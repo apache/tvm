@@ -19,29 +19,29 @@ import tvm
 import tvm.testing
 
 from tvm.script import tir as T, ir as I
-from tvm import te
 
 
 def test_double_buffer():
-    dtype = "int64"
     n = 100
     m = 4
-    tx = te.thread_axis("threadIdx.x")
-    ib = tvm.tir.ir_builder.create()
-    A = ib.pointer("float32", name="A")
-    C = ib.pointer("float32", name="C")
-    ib.scope_attr(tx, "thread_extent", 1)
-    with ib.for_range(0, n) as i:
-        B = ib.allocate("float32", m, name="B", scope="shared")
-        with ib.new_scope():
-            ib.scope_attr(B.asobject().data, "double_buffer_scope", 1)
-            with ib.for_range(0, m) as j:
-                B[j] = A[i * 4 + j]
-        with ib.for_range(0, m) as j:
-            C[j] = B[j] + 1
 
-    stmt = ib.get()
-    mod = tvm.IRModule({"db": tvm.tir.PrimFunc([A.asobject(), C.asobject()], stmt)})
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def db(A: T.handle("float32"), C: T.handle("float32")):
+            A_buf = T.decl_buffer((n * m,), "float32", data=A)
+            C_buf = T.decl_buffer((m,), "float32", data=C)
+            tx = T.launch_thread("threadIdx.x", 1)
+            for i in range(n):
+                B_data = T.allocate([m], "float32", scope="shared")
+                B = T.Buffer([m], "float32", data=B_data, scope="shared")
+                with T.attr(B_data, "double_buffer_scope", 1):
+                    for j in range(m):
+                        B[j] = A_buf[i * 4 + j]
+                for j in range(m):
+                    C_buf[j] = B[j] + T.float32(1.0)
+
+    mod = Module
 
     opt = tvm.transform.Sequential(
         [tvm.tir.transform.InjectDoubleBuffer(), tvm.tir.transform.Simplify()]
@@ -51,8 +51,17 @@ def test_double_buffer():
         mod = opt(mod)
     stmt = mod["db"].body
 
-    assert isinstance(stmt.body, tvm.tir.Allocate)
-    assert list(stmt.body.extents) == [m * 2]
+    # After transformation, the buffer allocation should be doubled
+    allocate_node = None
+
+    def visitor(op):
+        nonlocal allocate_node
+        if isinstance(op, tvm.tir.Allocate) and "B" in str(op.buffer_var):
+            allocate_node = op
+
+    tvm.tir.stmt_functor.post_order_visit(stmt, visitor)
+    assert allocate_node is not None
+    assert list(allocate_node.extents) == [m * 2]
 
     f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
     count = [0]
