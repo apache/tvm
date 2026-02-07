@@ -3598,7 +3598,7 @@ def multi_env_threads():
         for i in T.thread_binding(128, thread="threadIdx.x"):
             C[i] = B[i] + 2.0
 
-    mod = tvm.tir.transform.LowerOpaqueBlock()(
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(
         tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     )
     return mod["main"]
