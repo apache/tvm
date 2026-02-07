@@ -855,7 +855,7 @@ def test_mutual_recursion_unused_params():
             z = R.full([32, 32], R.const(2.0, dtype="float32"), "float32")
             return Expected.func_a(x, z)
 
-    verify(Input, Input)
+    verify(Input, Expected)
 
 
 def test_deep_recursion_chain():
