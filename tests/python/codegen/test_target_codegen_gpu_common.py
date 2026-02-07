@@ -21,7 +21,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import te
+from tvm.script import tir as T, ir as I
 
 
 @tvm.testing.requires_gpu
@@ -29,26 +29,33 @@ from tvm import te
 @pytest.mark.parametrize("dtype", ["int32", "uint32", "int64", "uint64"])
 def test_int_intrin(target, dev, dtype):
     test_funcs = [
-        (tvm.tir.clz, lambda x, dtype: int(dtype[-2:]) - (len(bin(x)) - 2)),
+        (T.clz, lambda x, dtype: int(dtype[-2:]) - (len(bin(x)) - 2)),
     ]
 
-    def run_test(tvm_intrin, np_func, dtype):
+    for tvm_intrin, np_func in test_funcs:
         n = 128
-        A = te.placeholder((n,), name="A", dtype=dtype)
-        B = te.compute(A.shape, lambda *i: tvm_intrin(A(*i)), name="B")
-        func = te.create_prim_func([A, B])
-        sch = tvm.s_tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_sblock("B"))
-        sch.bind(x, "threadIdx.x")
-        f = tvm.compile(sch.mod, target=target)
-        a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(B.dtype), dev)
+
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((n,), dtype),
+                B: T.Buffer((n,), dtype),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i0 in T.thread_binding(n, thread="threadIdx.x"):
+                    with T.sblock("B"):
+                        v_i0 = T.axis.spatial(n, i0)
+                        T.reads(A[v_i0])
+                        T.writes(B[v_i0])
+                        B[v_i0] = tvm_intrin(A[v_i0])
+
+        f = tvm.compile(Module, target=target)
+        a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
         f(a, b)
         ref = np.vectorize(partial(np_func, dtype=dtype))(a.numpy())
         tvm.testing.assert_allclose(b.numpy(), ref)
-
-    for func in test_funcs:
-        run_test(*func, dtype)
 
 
 if __name__ == "__main__":

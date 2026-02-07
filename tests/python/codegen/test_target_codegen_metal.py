@@ -17,10 +17,8 @@
 import numpy as np
 
 import tvm
-import tvm.script
 import tvm.testing
-from tvm import te
-from tvm.script import tir as T
+from tvm.script import tir as T, ir as I
 
 
 @tvm.testing.requires_gpu
@@ -29,16 +27,24 @@ def test_metal_inf_nan():
     target = "metal"
 
     def check_inf_nan(dev, n, value, dtype):
-        A = te.placeholder((n,), name="A", dtype=dtype)
-        inf_value = tvm.tir.const(value, dtype=dtype)
-        C = te.compute((n,), lambda i: inf_value, name="C")
-        prim_func = te.create_prim_func([A, C])
-        sch = tvm.s_tir.Schedule(prim_func)
-        (x,) = sch.get_loops(sch.get_sblock("C"))
-        sch.bind(x, "threadIdx.x")
-        fun = tvm.compile(sch.mod, target=target)
-        a = tvm.runtime.empty((n,), A.dtype, dev)
-        c = tvm.runtime.empty((n,), A.dtype, dev)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((1,), dtype),
+                C: T.Buffer((1,), dtype),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i in T.thread_binding(1, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(1, i)
+                        T.reads()
+                        T.writes(C[v_i])
+                        C[v_i] = T.Cast(dtype, value)
+
+        fun = tvm.compile(Module, target=target)
+        a = tvm.runtime.empty((n,), dtype, dev)
+        c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -83,15 +89,24 @@ def test_metal_erf():
     target = "metal"
 
     def check_erf(dev, n, dtype):
-        A = te.placeholder((n,), name="A", dtype=dtype)
-        C = te.compute(A.shape, lambda *i: te.erf(A(*i)), name="C")
-        func = te.create_prim_func([A, C])
-        sch = tvm.s_tir.Schedule(func)
-        (x,) = sch.get_loops(sch.get_sblock("C"))
-        sch.bind(x, "threadIdx.x")
-        fun = tvm.compile(sch.mod, target=target)
-        a = tvm.runtime.empty((n,), A.dtype, dev)
-        c = tvm.runtime.empty((n,), A.dtype, dev)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((1,), dtype),
+                C: T.Buffer((1,), dtype),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i0 in T.thread_binding(1, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i0 = T.axis.spatial(1, i0)
+                        T.reads(A[v_i0])
+                        T.writes(C[v_i0])
+                        C[v_i0] = T.erf(A[v_i0])
+
+        fun = tvm.compile(Module, target=target)
+        a = tvm.runtime.empty((n,), dtype, dev)
+        c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 

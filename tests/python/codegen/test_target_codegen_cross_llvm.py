@@ -17,26 +17,35 @@
 """Test cross compilation"""
 import tvm
 import tvm.testing
-from tvm import te
 import os
 import struct
 from tvm import rpc
 from tvm.contrib import utils, cc
+from tvm.script import tir as T, ir as I
 import numpy as np
+
+
+@I.ir_module
+class AddModule:
+    @T.prim_func
+    def main(
+        A: T.Buffer((1024,), "float32"),
+        B: T.Buffer((1024,), "float32"),
+        C: T.Buffer((1024,), "float32"),
+    ):
+        T.func_attr({"tir.noalias": True})
+        for i0_0 in T.parallel(256):
+            for i0_1 in T.vectorized(4):
+                with T.sblock("C"):
+                    v_i0 = T.axis.spatial(1024, i0_0 * 4 + i0_1)
+                    T.reads(A[v_i0], B[v_i0])
+                    T.writes(C[v_i0])
+                    C[v_i0] = A[v_i0] + B[v_i0]
 
 
 @tvm.testing.requires_llvm
 def test_llvm_add_pipeline():
     nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-
-    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B, C]))
-    xo, xi = sch.split(sch.get_loops("C")[0], factors=[None, 4])
-    sch.parallel(xo)
-    sch.vectorize(xi)
 
     def verify_elf(path, e_machine):
         with open(path, "rb") as fi:
@@ -49,7 +58,7 @@ def test_llvm_add_pipeline():
     def build_i386():
         temp = utils.tempdir()
         target = "llvm -mtriple=i386-pc-linux-gnu"
-        f = tvm.tir.build(sch.mod, target=target)
+        f = tvm.tir.build(AddModule, target=target)
         path = temp.relpath("myadd.o")
         f.write_to_file(path)
         verify_elf(path, 0x03)
@@ -60,7 +69,7 @@ def test_llvm_add_pipeline():
             print("Skip because %s is not enabled.." % target)
             return
         temp = utils.tempdir()
-        f = tvm.tir.build(sch.mod, target=target)
+        f = tvm.tir.build(AddModule, target=target)
         path = temp.relpath("myadd.o")
         f.write_to_file(path)
         verify_elf(path, 0x28)
@@ -81,9 +90,9 @@ def test_llvm_add_pipeline():
             farm = remote.load_module("myadd.o")
             dev = remote.cpu(0)
             n = nn
-            a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-            b = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-            c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
+            a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+            b = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+            c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
             farm(a, b, c)
             tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
             print("Verification finish on remote..")

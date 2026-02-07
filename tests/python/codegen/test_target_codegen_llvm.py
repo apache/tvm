@@ -22,7 +22,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import te, tir
 from tvm.contrib import clang, utils
 from tvm.script import ir as I
 from tvm.script import tir as T
@@ -31,25 +30,26 @@ from tvm.target.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
 
 @tvm.testing.requires_llvm
 def test_llvm_intrin():
-    @T.prim_func
-    def prefetch(A: T.handle("float32")):
-        T.func_attr({"global_symbol": "prefetch"})
-        A_buf = T.Buffer((4,), "float32", data=A)
-        T.evaluate(T.Call("void", "tir.prefetch", [T.address_of(A_buf[0]), 0, 3, 1]))
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.handle("float32")):
+            A_buf = T.Buffer((4,), "float32", data=A)
+            T.evaluate(T.Call("void", "tir.prefetch", [T.address_of(A_buf[0]), 0, 3, 1]))
 
-    mod = tvm.IRModule.from_expr(prefetch)
-    fcode = tvm.compile(mod)
+    fcode = tvm.compile(Module)
 
 
 @tvm.testing.requires_llvm
 def test_llvm_void_intrin():
-    @T.prim_func
-    def main(A: T.handle("uint8")):
-        # Create an intrinsic that returns void.
-        T.call_llvm_intrin("", "llvm.assume", T.bool(True))
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.handle("uint8")):
+            # Create an intrinsic that returns void.
+            T.call_llvm_intrin("", "llvm.assume", T.bool(True))
 
-    mod = tvm.IRModule.from_expr(main)
-    fcode = tvm.compile(mod)
+    fcode = tvm.compile(Module)
 
 
 @tvm.testing.requires_llvm
@@ -84,108 +84,94 @@ def test_llvm_overloaded_intrin():
 
 @tvm.testing.requires_llvm
 def test_llvm_lookup_intrin():
-    @T.prim_func
-    def main(A: T.handle("uint8x8")):
-        A_buf = T.Buffer((1,), "uint8x8", data=A)
-        T.evaluate(T.call_llvm_pure_intrin("uint8x8", "llvm.ctpop.v8i8", T.uint32(1), A_buf[0]))
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.handle("uint8x8")):
+            A_buf = T.Buffer((1,), "uint8x8", data=A)
+            T.evaluate(T.call_llvm_pure_intrin("uint8x8", "llvm.ctpop.v8i8", T.uint32(1), A_buf[0]))
 
-    mod = tvm.IRModule.from_expr(main)
-    fcode = tvm.compile(mod, None)
+    fcode = tvm.compile(Module, None)
 
 
 @tvm.testing.requires_llvm
 def test_llvm_large_uintimm():
     value = (1 << 63) + 123
-    other = tvm.tir.const(3, "uint64")
-    A = te.compute((), lambda: tvm.tir.const(value, "uint64") + other, name="A")
+    large_val = tvm.tir.const(value, "uint64")
 
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A])
-    sch = tvm.s_tir.Schedule(mod)
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((), "uint64")):
+            T.func_attr({"tir.noalias": True})
+            with T.sblock("A"):
+                vi = T.axis.spatial(1, 0)
+                T.reads()
+                T.writes(A[()])
+                A[()] = large_val + T.uint64(3)
 
-    def check_llvm():
-        f = tvm.compile(sch.mod, target="llvm")
-        dev = tvm.cpu(0)
-        # launch the kernel.
-        a = tvm.runtime.empty((), dtype=A.dtype, device=dev)
-        f(a)
-        assert a.numpy() == value + 3
-
-    check_llvm()
+    f = tvm.compile(Module, target="llvm")
+    dev = tvm.cpu(0)
+    a = tvm.runtime.empty((), dtype="uint64", device=dev)
+    f(a)
+    assert a.numpy() == value + 3
 
 
 @tvm.testing.requires_llvm
 def test_llvm_multi_parallel():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((128,), "float32"), C: T.Buffer((128,), "float32")):
+            T.func_attr({"tir.noalias": True})
+            B = T.alloc_buffer((128,))
+            for i0_0_0 in T.parallel(1):
+                for ax0 in range(128):
+                    with T.sblock("B"):
+                        v_i0 = T.axis.spatial(128, ax0)
+                        T.reads(A[v_i0])
+                        T.writes(B[v_i0])
+                        B[v_i0] = A[v_i0] + T.float32(1.0)
+                for i0_0_1 in range(16):
+                    for i0_1 in T.parallel(8):
+                        with T.sblock("C"):
+                            v_i0 = T.axis.spatial(128, i0_0_0 * 128 + i0_0_1 * 8 + i0_1)
+                            T.reads(B[v_i0])
+                            T.writes(C[v_i0])
+                            C[v_i0] = T.sqrt(B[v_i0]) * T.float32(2.0) + T.float32(2.0)
+
     n = 128
-    A = te.placeholder((n,), name="A")
-    B = te.compute(A.shape, lambda *i: A(*i) + 1, name="B")
-    C = te.compute(A.shape, lambda *i: te.sqrt(B(*i)) * 2 + 2, name="C")
-
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A, C])
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Get blocks and loops
-    c_block = sch.get_sblock("C")
-    b_block = sch.get_sblock("B")
-    c_loop = sch.get_loops(c_block)[0]
-
-    # Split and parallelize
-    xo, xi = sch.split(c_loop, factors=[None, 8])
-    xo1, xo2 = sch.split(xo, factors=[1, None])
-
-    # Move computation of B
-    sch.compute_at(b_block, xo1)
-
-    # Get B's loop after compute_at
-    b_loop = sch.get_loops(b_block)[0]
-
-    # Apply parallel scheduling
-    sch.parallel(b_loop)
-    sch.parallel(xi)
-
-    def check_llvm():
-        # BUILD and invoke the kernel.
-        f = tvm.compile(sch.mod, target="llvm")
-        dev = tvm.cpu(0)
-        # launch the kernel.
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
-        f(a, c)
-        tvm.testing.assert_allclose(c.numpy(), np.sqrt(a.numpy() + 1) * 2 + 2, rtol=1e-5)
-
-    check_llvm()
+    f = tvm.compile(Module, target="llvm")
+    dev = tvm.cpu(0)
+    a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+    f(a, c)
+    tvm.testing.assert_allclose(c.numpy(), np.sqrt(a.numpy() + 1) * 2 + 2, rtol=1e-5)
 
 
 @tvm.testing.requires_llvm
 def test_llvm_flip_pipeline():
     def check_llvm(nn, base):
-        n = tvm.runtime.convert(nn)
-        A = te.placeholder((n + base), name="A")
-        C = te.compute((n,), lambda i: A(nn + base - i - 1), name="C")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((nn + base,), "float32"), C: T.Buffer((nn,), "float32")):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.parallel((nn + 3) // 4):
+                    for i_1 in T.vectorized(4):
+                        with T.sblock("C"):
+                            v_i = T.axis.spatial(nn, i_0 * 4 + i_1)
+                            T.where(i_0 * 4 + i_1 < nn)
+                            T.reads(A[nn + base - 1 - v_i])
+                            T.writes(C[v_i])
+                            C[v_i] = A[nn + base - 1 - v_i]
 
-        # Convert to TIR and create schedule
-        mod = te.create_prim_func([A, C])
-        sch = tvm.s_tir.Schedule(mod)
-
-        # Get block and loop
-        block = sch.get_sblock("C")
-        loop = sch.get_loops(block)[0]
-
-        # Split and parallelize
-        xo, xi = sch.split(loop, factors=[None, 4])
-        sch.parallel(xo)
-        sch.vectorize(xi)
-
-        # build and invoke the kernel.
-        f = tvm.compile(sch.mod, target="llvm")
+        f = tvm.compile(Module, target="llvm")
         dev = tvm.cpu(0)
-        # launch the kernel.
-        n = nn
-        a = tvm.runtime.tensor(np.random.uniform(size=(n + base)).astype(A.dtype), dev)
-        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=(nn + base)).astype("float32"), dev)
+        c = tvm.runtime.tensor(np.zeros(nn, dtype="float32"), dev)
         f(a, c)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy()[::-1][:n])
+        tvm.testing.assert_allclose(c.numpy(), a.numpy()[::-1][:nn])
 
     check_llvm(4, 0)
     check_llvm(128, 8)
@@ -195,29 +181,30 @@ def test_llvm_flip_pipeline():
 
 @tvm.testing.requires_llvm
 def test_llvm_vadd_pipeline():
-    n = te.size_var("n")
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    C = te.compute((n,), lambda i: A[i] + B[i], name="C")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+            T.func_attr({"tir.noalias": True})
+            n = T.int32(is_size_var=True)
+            A = T.match_buffer(var_A, (n,))
+            B = T.match_buffer(var_B, (n,))
+            C = T.match_buffer(var_C, (n,))
+            for i_0 in range((n + 3) // 4):
+                for i_1 in T.vectorized(4):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(n, i_0 * 4 + i_1)
+                        T.where(i_0 * 4 + i_1 < n)
+                        T.reads(A[v_i], B[v_i])
+                        T.writes(C[v_i])
+                        C[v_i] = A[v_i] + B[v_i]
 
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A, B, C])
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Get block and loop
-    block = sch.get_sblock("C")
-    loop = sch.get_loops(block)[0]
-
-    # Split the loop
-    _, inner = sch.split(loop, factors=[None, 4])
-    sch.vectorize(inner)
-    # Build and verify
-    f = tvm.compile(sch.mod, target="llvm")
+    f = tvm.compile(Module, target="llvm")
     dev = tvm.cpu(0)
     n = 128
-    a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-    b = tvm.runtime.tensor(np.random.uniform(size=n).astype(B.dtype), dev)
-    c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    b = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
     f(a, b, c)
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
@@ -225,30 +212,29 @@ def test_llvm_vadd_pipeline():
 @tvm.testing.requires_llvm
 def test_llvm_madd_pipeline():
     def check_llvm(nn, base, stride):
-        n = tvm.runtime.convert(nn)
-        A = te.placeholder((n + base, stride), name="A")
-        C = te.compute((n, stride), lambda i, j: A(base + i, j) + 1, name="C")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((nn + base, stride), "float32"),
+                C: T.Buffer((nn, stride), "float32"),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.parallel((nn + 3) // 4):
+                    for i_1 in T.vectorized(4):
+                        for j in range(stride):
+                            with T.sblock("C"):
+                                v_i = T.axis.spatial(nn, i_0 * 4 + i_1)
+                                v_j = T.axis.spatial(stride, j)
+                                T.where(i_0 * 4 + i_1 < nn)
+                                T.reads(A[v_i + base, v_j])
+                                T.writes(C[v_i, v_j])
+                                C[v_i, v_j] = A[v_i + base, v_j] + T.float32(1.0)
 
-        # Convert to TIR and create schedule
-        mod = te.create_prim_func([A, C])
-        sch = tvm.s_tir.Schedule(mod)
-
-        # Get block and loops
-        block = sch.get_sblock("C")
-        i_loop, j_loop = sch.get_loops(block)
-
-        # Split and parallelize
-        xo, xi = sch.split(i_loop, factors=[None, 4])
-        sch.parallel(xo)
-        sch.vectorize(xi)
-
-        # build and invoke the kernel.
-        f = tvm.compile(sch.mod, target="llvm")
+        f = tvm.compile(Module, target="llvm")
         dev = tvm.cpu(0)
-        # launch the kernel.
-        n = nn
-        a = tvm.runtime.tensor(np.random.uniform(size=(n + base, stride)).astype(A.dtype), dev)
-        c = tvm.runtime.tensor(np.zeros((n, stride), dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=(nn + base, stride)).astype("float32"), dev)
+        c = tvm.runtime.tensor(np.zeros((nn, stride), dtype="float32"), dev)
         f(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy()[base:] + 1)
 
@@ -261,59 +247,73 @@ def test_llvm_madd_pipeline():
 
 @tvm.testing.requires_llvm
 def test_llvm_temp_space():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((1024,), "float32"), C: T.Buffer((1024,), "float32")):
+            T.func_attr({"tir.noalias": True})
+            B = T.alloc_buffer((1024,))
+            for i in range(1024):
+                with T.sblock("B"):
+                    v_i = T.axis.spatial(1024, i)
+                    T.reads(A[v_i])
+                    T.writes(B[v_i])
+                    B[v_i] = A[v_i] + T.float32(1.0)
+            for i in range(1024):
+                with T.sblock("C"):
+                    v_i = T.axis.spatial(1024, i)
+                    T.reads(B[v_i])
+                    T.writes(C[v_i])
+                    C[v_i] = B[v_i] + T.float32(1.0)
+
     nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A")
-    B = te.compute(A.shape, lambda i: A(i) + 1, name="B")
-    C = te.compute(A.shape, lambda i: B(i) + 1, name="C")
-
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A, C])
-    sch = tvm.s_tir.Schedule(mod)
-
-    def check_llvm():
-        # build and invoke the kernel.
-        f = tvm.compile(sch.mod, target="llvm")
-        dev = tvm.cpu(0)
-        # launch the kernel.
-        n = nn
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
-        f(a, c)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1 + 1)
-
-    check_llvm()
+    f = tvm.compile(Module, target="llvm")
+    dev = tvm.cpu(0)
+    a = tvm.runtime.tensor(np.random.uniform(size=nn).astype("float32"), dev)
+    c = tvm.runtime.tensor(np.zeros(nn, dtype="float32"), dev)
+    f(a, c)
+    tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1 + 1)
 
 
 @tvm.testing.requires_llvm
 def test_multiple_func():
-    # Define the computation
-    n = te.size_var("n")
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    C = te.compute((n,), lambda i: A[i] + B[i], name="C")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def fadd1(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+            T.func_attr({"tir.noalias": True})
+            n = T.int32(is_size_var=True)
+            A = T.match_buffer(var_A, (n,))
+            B = T.match_buffer(var_B, (n,))
+            C = T.match_buffer(var_C, (n,))
+            for i in range(n):
+                with T.sblock("C"):
+                    v_i = T.axis.spatial(n, i)
+                    T.reads(A[v_i], B[v_i])
+                    T.writes(C[v_i])
+                    C[v_i] = A[v_i] + B[v_i]
 
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A, B, C])
-    sch = tvm.s_tir.Schedule(mod)
+        @T.prim_func
+        def fadd2(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+            T.func_attr({"tir.noalias": True})
+            n = T.int32(is_size_var=True)
+            A = T.match_buffer(var_A, (n,))
+            B = T.match_buffer(var_B, (n,))
+            C = T.match_buffer(var_C, (n,))
+            for i in range(n):
+                with T.sblock("C"):
+                    v_i = T.axis.spatial(n, i)
+                    T.reads(A[v_i], B[v_i])
+                    T.writes(C[v_i])
+                    C[v_i] = A[v_i] + B[v_i]
 
-    # Create two functions with different names
-    mod = tvm.IRModule(
-        {
-            "fadd1": sch.mod["main"].with_attr("global_symbol", "fadd1"),
-            "fadd2": sch.mod["main"].with_attr("global_symbol", "fadd2"),
-        }
-    )
-
-    # Build and verify
-    f = tvm.compile(mod, target="llvm")
+    f = tvm.compile(Module, target="llvm")
     dev = tvm.cpu(0)
     n = 10
-    a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-    b = tvm.runtime.tensor(np.random.uniform(size=n).astype(B.dtype), dev)
-    c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    b = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+    c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
 
-    # Test both functions
     f["fadd1"](a, b, c)
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
     f["fadd2"](a, b, c)
@@ -322,126 +322,145 @@ def test_multiple_func():
 
 @tvm.testing.requires_llvm
 def test_llvm_condition():
-    def check_llvm(n, offset):
-        A = te.placeholder((n,), name="A")
-        C = te.compute((n,), lambda i: tvm.tir.if_then_else(i >= offset, A[i], 0.0), name="C")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((64,), "float32"), C: T.Buffer((64,), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i in range(64):
+                with T.sblock("C"):
+                    v_i = T.axis.spatial(64, i)
+                    T.reads(A[v_i])
+                    T.writes(C[v_i])
+                    C[v_i] = T.if_then_else(8 <= v_i, A[v_i], T.float32(0.0))
 
-        # Convert to TIR and create schedule
-        mod = te.create_prim_func([A, C])
-        sch = tvm.s_tir.Schedule(mod)
-
-        # build and invoke the kernel.
-        f = tvm.compile(sch.mod, target="llvm")
-        dev = tvm.cpu(0)
-        # launch the kernel.
-        a = tvm.runtime.tensor(np.random.uniform(size=(n,)).astype(A.dtype), dev)
-        c = tvm.runtime.empty((n,), A.dtype, dev)
-        f(a, c)
-        c_np = a.numpy()
-        c_np[:offset] = 0
-        tvm.testing.assert_allclose(c.numpy(), c_np)
-
-    check_llvm(64, 8)
+    n = 64
+    offset = 8
+    f = tvm.compile(Module, target="llvm")
+    dev = tvm.cpu(0)
+    a = tvm.runtime.tensor(np.random.uniform(size=(n,)).astype("float32"), dev)
+    c = tvm.runtime.empty((n,), "float32", dev)
+    f(a, c)
+    c_np = a.numpy()
+    c_np[:offset] = 0
+    tvm.testing.assert_allclose(c.numpy(), c_np)
 
 
 @tvm.testing.requires_llvm
 def test_llvm_bool():
-    def check_llvm(n):
-        A = te.placeholder((n,), name="A", dtype="int32")
-        C = te.compute((n,), lambda i: A[i].equal(1).astype("float"), name="C")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((64,), "int32"), C: T.Buffer((64,), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i in range(64):
+                with T.sblock("C"):
+                    v_i = T.axis.spatial(64, i)
+                    T.reads(A[v_i])
+                    T.writes(C[v_i])
+                    C[v_i] = T.Cast("float32", A[v_i] == 1)
 
-        # Convert to TIR and create schedule
-        mod = te.create_prim_func([A, C])
-        sch = tvm.s_tir.Schedule(mod)
-
-        # build and invoke the kernel.
-        f = tvm.compile(sch.mod, target="llvm")
-        dev = tvm.cpu(0)
-        # launch the kernel.
-        a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
-        c = tvm.runtime.empty((n,), C.dtype, dev)
-        f(a, c)
-        c_np = a.numpy() == 1
-        tvm.testing.assert_allclose(c.numpy(), c_np)
-
-    check_llvm(64)
+    n = 64
+    f = tvm.compile(Module, target="llvm")
+    dev = tvm.cpu(0)
+    a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype("int32"), dev)
+    c = tvm.runtime.empty((n,), "float32", dev)
+    f(a, c)
+    c_np = a.numpy() == 1
+    tvm.testing.assert_allclose(c.numpy(), c_np)
 
 
 @tvm.testing.requires_llvm
 def test_rank_zero():
-    def check_llvm(n):
-        A = te.placeholder((n,), name="A")
-        scale = te.placeholder((), name="scale")
-        k = te.reduce_axis((0, n), name="k")
-        C = te.compute((), lambda: te.sum(A[k] * scale(), axis=k), name="C")
-        D = te.compute((), lambda: C() + 1)
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(
+            A: T.Buffer((64,), "float32"),
+            scale: T.Buffer((), "float32"),
+            compute: T.Buffer((), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            C = T.alloc_buffer(())
+            for k in range(64):
+                with T.sblock("C"):
+                    v_k = T.axis.reduce(64, k)
+                    T.reads(A[v_k], scale[()])
+                    T.writes(C[()])
+                    with T.init():
+                        C[()] = T.float32(0.0)
+                    C[()] = C[()] + A[v_k] * scale[()]
+            with T.sblock("compute"):
+                vi = T.axis.spatial(1, 0)
+                T.reads(C[()])
+                T.writes(compute[()])
+                compute[()] = C[()] + T.float32(1.0)
 
-        # Convert to TIR and create schedule
-        mod = te.create_prim_func([A, scale, D])
-        sch = tvm.s_tir.Schedule(mod)
-
-        # build and invoke the kernel.
-        f = tvm.compile(sch.mod, target="llvm")
-        dev = tvm.cpu(0)
-        # launch the kernel.
-        a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
-        sc = tvm.runtime.tensor(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
-        d = tvm.runtime.empty((), D.dtype, dev)
-        f(a, sc, d)
-        d_np = np.sum(a.numpy()) * sc.numpy() + 1
-        tvm.testing.assert_allclose(d.numpy(), d_np)
-
-    check_llvm(64)
+    n = 64
+    f = tvm.compile(Module, target="llvm")
+    dev = tvm.cpu(0)
+    a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype("float32"), dev)
+    sc = tvm.runtime.tensor(np.random.randint(0, 2, size=()).astype("float32"), dev)
+    d = tvm.runtime.empty((), "float32", dev)
+    f(a, sc, d)
+    d_np = np.sum(a.numpy()) * sc.numpy() + 1
+    tvm.testing.assert_allclose(d.numpy(), d_np)
 
 
 @tvm.testing.requires_llvm
 def test_rank_zero_bound_checkers():
-    def check_llvm(n):
-        with tvm.transform.PassContext(config={"tir.instrument_bound_checkers": True}):
-            A = te.placeholder((n,), name="A")
-            scale = te.placeholder((), name="scale")
-            k = te.reduce_axis((0, n), name="k")
-            C = te.compute((), lambda: te.sum(A[k] * scale(), axis=k), name="C")
-            D = te.compute((), lambda: C() + 1)
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(
+            A: T.Buffer((64,), "float32"),
+            scale: T.Buffer((), "float32"),
+            compute: T.Buffer((), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            C = T.alloc_buffer(())
+            for k in range(64):
+                with T.sblock("C"):
+                    v_k = T.axis.reduce(64, k)
+                    T.reads(A[v_k], scale[()])
+                    T.writes(C[()])
+                    with T.init():
+                        C[()] = T.float32(0.0)
+                    C[()] = C[()] + A[v_k] * scale[()]
+            with T.sblock("compute"):
+                vi = T.axis.spatial(1, 0)
+                T.reads(C[()])
+                T.writes(compute[()])
+                compute[()] = C[()] + T.float32(1.0)
 
-            # Convert to TIR and create schedule
-            mod = te.create_prim_func([A, scale, D])
-            sch = tvm.s_tir.Schedule(mod)
-
-            # build and invoke the kernel.
-            f = tvm.compile(sch.mod, target="llvm")
-            dev = tvm.cpu(0)
-            # launch the kernel.
-            a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
-            sc = tvm.runtime.tensor(np.random.randint(0, 2, size=()).astype(scale.dtype), dev)
-            d = tvm.runtime.empty((), D.dtype, dev)
-            f(a, sc, d)
-            d_np = np.sum(a.numpy()) * sc.numpy() + 1
-            tvm.testing.assert_allclose(d.numpy(), d_np)
-
-    check_llvm(64)
+    n = 64
+    with tvm.transform.PassContext(config={"tir.instrument_bound_checkers": True}):
+        f = tvm.compile(Module, target="llvm")
+        dev = tvm.cpu(0)
+        a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype("float32"), dev)
+        sc = tvm.runtime.tensor(np.random.randint(0, 2, size=()).astype("float32"), dev)
+        d = tvm.runtime.empty((), "float32", dev)
+        f(a, sc, d)
+        d_np = np.sum(a.numpy()) * sc.numpy() + 1
+        tvm.testing.assert_allclose(d.numpy(), d_np)
 
 
 @tvm.testing.requires_llvm
 def test_alignment():
-    n = tvm.runtime.convert(1024)
-    A = te.placeholder((n,), name="A")
-    B = te.compute(A.shape, lambda i: A[i] * 3, name="B")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def test_alignment(A: T.Buffer((1024,), "float32"), B: T.Buffer((1024,), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i_0 in range(128):
+                for i_1 in T.vectorized(8):
+                    with T.sblock("B"):
+                        v_i = T.axis.spatial(1024, i_0 * 8 + i_1)
+                        T.reads(A[v_i])
+                        T.writes(B[v_i])
+                        B[v_i] = A[v_i] * T.float32(3.0)
 
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A, B]).with_attr("global_symbol", "test_alignment")
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Get block and loop
-    block = sch.get_sblock("B")
-    loop = sch.get_loops(block)[0]
-
-    # Split and vectorize
-    _, tx = sch.split(loop, factors=[None, 8])
-    sch.vectorize(tx)
-
-    # Build with name
-    f = tvm.tir.build(sch.mod, target="llvm")
+    f = tvm.tir.build(Module, target="llvm")
 
     lines = f.inspect_source().split("\n")
 
@@ -479,57 +498,63 @@ def test_llvm_div():
     """Check that the semantics of div and mod is correct"""
 
     def check(start, end, dstart, dend, dtype, floor_div=False):
-        div = tvm.te.floordiv if floor_div else tvm.tir.truncdiv
-        mod = tvm.te.floormod if floor_div else tvm.tir.truncmod
+        a_size = end - start + 1
+        b_size = dend - dstart + 1
 
-        # A are dividends, B are divisors. Note that we add 1 to make include end in the range.
-        A = te.placeholder((end - start + 1,), name="A", dtype=dtype)
-        B = te.placeholder((dend - dstart + 1,), name="B", dtype=dtype)
-        # We clip values with min and max so that simplifiers know the ranges of values
+        div_fn = tvm.tir.floordiv if floor_div else tvm.tir.truncdiv
+        mod_fn = tvm.tir.floormod if floor_div else tvm.tir.truncmod
 
-        def clipa(x):
-            return tvm.te.min(tvm.tir.const(end, dtype), tvm.te.max(tvm.tir.const(start, dtype), x))
+        # Build clipping helpers — capture TIR const values from env
+        _start = tvm.tir.const(start, dtype)
+        _end = tvm.tir.const(end, dtype)
+        _dstart = tvm.tir.const(dstart, dtype)
+        _dend = tvm.tir.const(dend, dtype)
 
-        def clipb(x):
-            return tvm.te.min(
-                tvm.tir.const(dend, dtype), tvm.te.max(tvm.tir.const(dstart, dtype), x)
-            )
-
-        # If the range is just a single point, use the constant itself
         if start == end:
-
-            def clipa(x):
-                return tvm.tir.const(start, dtype)
+            clipa = lambda x: _start
+        else:
+            clipa = lambda x: T.min(_end, T.max(_start, x))
 
         if dstart == dend:
+            clipb = lambda x: _dstart
+        else:
+            clipb = lambda x: T.min(_dend, T.max(_dstart, x))
 
-            def clipb(x):
-                return tvm.tir.const(dstart, dtype)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((a_size,), dtype),
+                B: T.Buffer((b_size,), dtype),
+                D: T.Buffer((a_size, b_size), dtype),
+                M: T.Buffer((a_size, b_size), dtype),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i, j in T.grid(a_size, b_size):
+                    with T.sblock("D"):
+                        v_i, v_j = T.axis.remap("SS", [i, j])
+                        T.reads(A[v_i], B[v_j])
+                        T.writes(D[v_i, v_j])
+                        D[v_i, v_j] = div_fn(clipa(A[v_i]), clipb(B[v_j]))
+                    with T.sblock("M"):
+                        v_i, v_j = T.axis.remap("SS", [i, j])
+                        T.reads(A[v_i], B[v_j])
+                        T.writes(M[v_i, v_j])
+                        M[v_i, v_j] = mod_fn(clipa(A[v_i]), clipb(B[v_j]))
 
-        # D are division results and M are modulo results
-        [D, M] = te.compute(
-            (end - start + 1, dend - dstart + 1),
-            lambda i, j: (div(clipa(A[i]), clipb(B[j])), mod(clipa(A[i]), clipb(B[j]))),
-        )
-
-        # Convert to TIR and create schedule
-        mod = te.create_prim_func([A, B, D, M])
-        sch = tvm.s_tir.Schedule(mod)
-
-        # Build from scheduled TIR
-        f = tvm.compile(sch.mod, target="llvm")
+        f = tvm.compile(Module, target="llvm")
 
         # Fill input arrays with values
-        A_arr = tvm.runtime.empty((end - start + 1,), dtype)
-        B_arr = tvm.runtime.empty((dend - dstart + 1,), dtype)
+        A_arr = tvm.runtime.empty((a_size,), dtype)
+        B_arr = tvm.runtime.empty((b_size,), dtype)
         A_arr.copyfrom(np.arange(start, end + 1, dtype=dtype))
         B_np = np.arange(dstart, dend + 1, dtype=dtype)
         # If the range of the divisor contains 0, replace it with 1 to avoid division by zero
         if dend >= 0 and dstart <= 0:
             B_np[-dstart] = 1
         B_arr.copyfrom(B_np)
-        D_arr = tvm.runtime.empty((end - start + 1, dend - dstart + 1), dtype)
-        M_arr = tvm.runtime.empty((end - start + 1, dend - dstart + 1), dtype)
+        D_arr = tvm.runtime.empty((a_size, b_size), dtype)
+        M_arr = tvm.runtime.empty((a_size, b_size), dtype)
 
         # Run the function and convert the results to numpy
         f(A_arr, B_arr, D_arr, M_arr)
@@ -560,7 +585,7 @@ def test_llvm_div():
                     raise AssertionError(
                         "Incorrect division result: {}({}, {}) is {} "
                         "but should be {}".format(
-                            div.__name__, i, j, D_arr[i - start, j - dstart], dref
+                            div_fn.__name__, i, j, D_arr[i - start, j - dstart], dref
                         )
                     )
                 if M_arr[i - start, j - dstart] != mref:
@@ -568,7 +593,7 @@ def test_llvm_div():
                     raise AssertionError(
                         "Incorrect modulo result: {}({}, {}) is {} "
                         "but should be {}".format(
-                            mod.__name__, i, j, M_arr[i - start, j - dstart], mref
+                            mod_fn.__name__, i, j, M_arr[i - start, j - dstart], mref
                         )
                     )
 
@@ -614,67 +639,73 @@ def test_llvm_div():
 
 @tvm.testing.requires_llvm
 def test_llvm_fp_math():
-    def check_llvm_reciprocal(n):
-        A = te.placeholder((n,), name="A")
-        B = te.compute((n,), lambda i: te.div(1.0, (1e37 * A[i])), name="B")
+    @I.ir_module
+    class RecipModule:
+        @T.prim_func
+        def main(var_A: T.handle, var_B: T.handle):
+            T.func_attr({"tir.noalias": True})
+            n = T.int32(is_size_var=True)
+            A = T.match_buffer(var_A, (n,))
+            B = T.match_buffer(var_B, (n,))
+            for i in range(n):
+                with T.sblock("B"):
+                    v_i = T.axis.spatial(n, i)
+                    T.reads(A[v_i])
+                    T.writes(B[v_i])
+                    B[v_i] = T.float32(1.0) / (
+                        T.float32(9999999999999999538762658202121142272.0) * A[v_i]
+                    )
 
-        # Convert to TIR and create schedule
-        mod = te.create_prim_func([A, B])
-        sch = tvm.s_tir.Schedule(mod)
+    f_recip = tvm.compile(RecipModule, target="llvm")
 
-        # Build from scheduled TIR
-        f = tvm.compile(sch.mod, target="llvm")
-
+    for n in [4, 8, 16]:
         a = tvm.runtime.tensor(np.full((n,), 100, "float32"))
         b = tvm.runtime.empty((n,), "float32")
-        f(a, b)
+        f_recip(a, b)
         tvm.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
 
-    check_llvm_reciprocal(4)
-    check_llvm_reciprocal(8)
-    check_llvm_reciprocal(16)
+    @I.ir_module
+    class SigmoidModule:
+        @T.prim_func
+        def main(var_A: T.handle, var_B: T.handle):
+            T.func_attr({"tir.noalias": True})
+            n = T.int32(is_size_var=True)
+            A = T.match_buffer(var_A, (n,))
+            B = T.match_buffer(var_B, (n,))
+            for i in range(n):
+                with T.sblock("B"):
+                    v_i = T.axis.spatial(n, i)
+                    T.reads(A[v_i])
+                    T.writes(B[v_i])
+                    B[v_i] = T.sigmoid(A[v_i])
 
-    def check_llvm_sigmoid(n):
-        A = te.placeholder((n,), name="A")
-        B = te.compute((n,), lambda i: te.sigmoid(A[i]), name="B")
+    f_sigmoid = tvm.compile(SigmoidModule, target="llvm")
 
-        # Convert to TIR and create schedule
-        mod = te.create_prim_func([A, B])
-        sch = tvm.s_tir.Schedule(mod)
-
-        # Build from scheduled TIR
-        f = tvm.compile(sch.mod, target="llvm")
-
+    for n in [4, 8, 16]:
         a = tvm.runtime.tensor(np.full((n,), -1000, "float32"))
         b = tvm.runtime.empty((n,), "float32")
-        f(a, b)
+        f_sigmoid(a, b)
         tvm.testing.assert_allclose(b.numpy(), np.zeros((n,), "float32"))
-
-    check_llvm_sigmoid(4)
-    check_llvm_sigmoid(8)
-    check_llvm_sigmoid(16)
 
 
 @tvm.testing.requires_llvm
 def test_dwarf_debug_information():
-    nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A, B, C])
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Get block and loop
-    block = sch.get_sblock("C")
-    loop = sch.get_loops(block)[0]
-
-    # Split and parallelize
-    xo, xi = sch.split(loop, factors=[None, 4])
-    sch.parallel(xo)
-    sch.vectorize(xi)
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(
+            A: T.Buffer((1024,), "float32"),
+            B: T.Buffer((1024,), "float32"),
+            C: T.Buffer((1024,), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i0_0 in T.parallel(256):
+                for i0_1 in T.vectorized(4):
+                    with T.sblock("C"):
+                        v_i0 = T.axis.spatial(1024, i0_0 * 4 + i0_1)
+                        T.reads(A[v_i0], B[v_i0])
+                        T.writes(C[v_i0])
+                        C[v_i0] = A[v_i0] + B[v_i0]
 
     def check_llvm_object():
         if tvm.target.codegen.llvm_version_major() < 5:
@@ -684,8 +715,8 @@ def test_dwarf_debug_information():
         # build two functions
         mod = tvm.IRModule(
             {
-                "fadd1": sch.mod["main"].with_attr("global_symbol", "fadd1"),
-                "fadd2": sch.mod["main"].with_attr("global_symbol", "fadd2"),
+                "fadd1": Module["main"].with_attr("global_symbol", "fadd1"),
+                "fadd2": Module["main"].with_attr("global_symbol", "fadd2"),
             }
         )
         m = tvm.compile(mod, target="llvm")
@@ -722,8 +753,8 @@ def test_dwarf_debug_information():
         # build two functions
         mod = tvm.IRModule(
             {
-                "fadd1": sch.mod["main"].with_attr("global_symbol", "fadd1"),
-                "fadd2": sch.mod["main"].with_attr("global_symbol", "fadd2"),
+                "fadd1": Module["main"].with_attr("global_symbol", "fadd1"),
+                "fadd2": Module["main"].with_attr("global_symbol", "fadd2"),
             }
         )
         m = tvm.tir.build(mod, target="llvm -mtriple=aarch64-linux-gnu")
@@ -748,24 +779,26 @@ def test_dwarf_debug_information():
 @tvm.testing.requires_llvm
 def test_llvm_bf16():
     def dotest(do_vectorize):
+        loop_kind = T.vectorized if do_vectorize else T.serial
+
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((32,), "bfloat16"),
+                B: T.Buffer((32,), "bfloat16"),
+                D: T.Buffer((32,), "bfloat16"),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for x in loop_kind(32):
+                    with T.sblock("D"):
+                        v_x = T.axis.spatial(32, x)
+                        T.reads(A[v_x], B[v_x])
+                        T.writes(D[v_x])
+                        D[v_x] = A[v_x] + B[v_x]
+
         np.random.seed(122)
-        A = te.placeholder((32,), dtype="bfloat16")
-        B = te.placeholder((32,), dtype="bfloat16")
-        D = te.compute((32,), lambda x: A[x] + B[x], name="D")
-
-        # Convert to TIR and create schedule
-        mod = te.create_prim_func([A, B, D])
-        sch = tvm.s_tir.Schedule(mod)
-
-        # Get block and loop
-        block = sch.get_sblock("D")
-        loop = sch.get_loops(block)[0]
-
-        # Apply vectorization if requested
-        if do_vectorize:
-            sch.vectorize(loop)
-
-        module = tvm.compile(sch.mod, target="llvm")
+        module = tvm.compile(Module, target="llvm")
         npa = np.random.rand(32).astype("bfloat16")
         npb = np.random.rand(32).astype("bfloat16")
         res = npa + npb
@@ -783,12 +816,24 @@ def test_llvm_bf16():
 
 @tvm.testing.requires_llvm
 def test_llvm_crt_static_lib():
-    A = te.placeholder((32,), dtype="bfloat16")
-    B = te.placeholder((32,), dtype="bfloat16")
-    d = te.compute((32,), lambda x: A[x] + B[x])
-    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B, d]))
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(
+            A: T.Buffer((32,), "bfloat16"),
+            B: T.Buffer((32,), "bfloat16"),
+            C: T.Buffer((32,), "bfloat16"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for x in range(32):
+                with T.sblock("compute"):
+                    v_x = T.axis.spatial(32, x)
+                    T.reads(A[v_x], B[v_x])
+                    T.writes(C[v_x])
+                    C[v_x] = A[v_x] + B[v_x]
+
     module = tvm.tir.build(
-        mod.with_attr("system_lib_prefix", ""),
+        Module.with_attr("system_lib_prefix", ""),
         target=tvm.target.Target("llvm"),
     )
     module.inspect_source()
@@ -806,17 +851,14 @@ def test_llvm_order_functions():
     class Module:
         @T.prim_func
         def Danny(v: T.float32) -> T.float32:
-            T.func_attr({"global_symbol": "Danny"})
             T.ret(T.call_extern("float32", "Dave", v))
 
         @T.prim_func
         def Sammy(v: T.float32) -> T.float32:
-            T.func_attr({"global_symbol": "Sammy"})
             T.ret(T.call_extern("float32", "Eve", v))
 
         @T.prim_func
         def Kirby(v: T.float32) -> T.float32:
-            T.func_attr({"global_symbol": "Kirby"})
             T.ret(T.call_extern("float32", "Fred", v))
 
     ir_text = tvm.tir.build(Module, target="llvm").inspect_source("ll")
@@ -835,11 +877,6 @@ def test_llvm_import():
       return x + y;
     }
     """
-    n = 10
-    A = te.placeholder((n,), name="A")
-    B = te.compute(
-        (n,), lambda *i: tvm.tir.call_pure_extern("float32", "my_add", A(*i), 1.0), name="B"
-    )
 
     def check_llvm(use_file):
         if not clang.find_clang(required=False):
@@ -848,18 +885,24 @@ def test_llvm_import():
         temp = utils.tempdir()
         ll_path = temp.relpath("temp.ll")
         ll_code = clang.create_llvm(cc_code, output=ll_path)
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
+        import_val = ll_path if use_file else ll_code
 
-        if use_file:
-            sch.annotate(sch.get_loops("B")[0], "pragma_import_llvm", ll_path)
-        else:
-            sch.annotate(sch.get_loops("B")[0], "pragma_import_llvm", ll_code)
-        # BUILD and invoke the kernel.
-        f = tvm.compile(sch.mod, target="llvm")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32")):
+                T.func_attr({"tir.noalias": True})
+                for i in T.serial(10, annotations={"pragma_import_llvm": import_val}):
+                    with T.sblock("B"):
+                        v_i = T.axis.spatial(10, i)
+                        T.reads(A[v_i])
+                        T.writes(B[v_i])
+                        B[v_i] = T.call_pure_extern("float32", "my_add", A[v_i], T.float32(1.0))
+
+        f = tvm.compile(Module, target="llvm")
         dev = tvm.cpu(0)
-        # launch the kernel.
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.random.uniform(size=n).astype(B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=10).astype("float32"), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=10).astype("float32"), dev)
         f(a, b)
         tvm.testing.assert_allclose(b.numpy(), a.numpy() + 1.0)
 
@@ -869,33 +912,31 @@ def test_llvm_import():
 
 @tvm.testing.requires_llvm
 def test_llvm_scalar_concat():
-    x = tvm.tir.Var("x", "int32")
-    y = tvm.tir.Var("y", "int32")
-    z = tvm.tir.decl_buffer((1,), "int32x2")
-    s = tvm.tir.Shuffle([x, y], [0, 1])
-    f = tvm.tir.PrimFunc([x, y, z], z.vstore(0, s))
-
-    mod = tvm.ir.IRModule.from_expr(f.with_attr("global_symbol", "codegen_scalar_concat"))
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(x: T.int32, y: T.int32, buffer: T.Buffer((1,), "int32x2")):
+            buffer[0] = T.Shuffle([x, y], [0, 1])
 
     # This will crash in LLVM codegen if CodeGenLLVM::CreateVecConcat doesn't convert
     # scalars to single-lane LLVM vectors.
     with tvm.transform.PassContext(config={"tir.disable_assert": True}):
-        m = tvm.compile(mod, target="llvm")
+        m = tvm.compile(Module, target="llvm")
 
 
 @tvm.testing.requires_llvm
 def test_raise_exception_during_codegen():
-    @T.prim_func
-    def threadpool_nested_parallel_loop(
-        A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")
-    ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        for i in T.parallel(4):
-            for j in T.parallel(4):
-                B[i, j] = A[i, j] * 2.0
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")) -> None:
+            T.func_attr({"tir.noalias": True})
+            for i in T.parallel(4):
+                for j in T.parallel(4):
+                    B[i, j] = A[i, j] * 2.0
 
     with pytest.raises(tvm.TVMError) as e:
-        tvm.compile(tvm.IRModule.from_expr(threadpool_nested_parallel_loop), target="llvm")
+        tvm.compile(Module, target="llvm")
     msg = str(e)
     assert msg.find("Nested parallel loop is not supported") != -1
 
@@ -905,20 +946,33 @@ def test_llvm_target_attributes():
     """Check that when LLVM codegen creates new functions, they get the same target
     attributes as the original function.
     """
-    n = te.var()
-    A = te.placeholder((n,), name="A", dtype="float32")
-    B = te.compute((n,), lambda i: A[i], name="B")
-    C = te.compute((n,), lambda i: B[i] + tvm.tir.const(1, A.dtype), name="C")
 
-    sch = tvm.s_tir.Schedule(
-        te.create_prim_func([A, B, C, n]).with_attr("global_symbol", "test_func")
-    )
-    xo, xi = sch.split(sch.get_loops("C")[0], factors=[2, None])
-    sch.parallel(xo)
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def test_func(var_A: T.handle, var_B: T.handle, var_C: T.handle, tindex: T.int32):
+            T.func_attr({"tir.noalias": True})
+            A = T.match_buffer(var_A, (tindex,))
+            B = T.match_buffer(var_B, (tindex,))
+            C = T.match_buffer(var_C, (tindex,))
+            for i in range(tindex):
+                with T.sblock("B"):
+                    v_i = T.axis.spatial(tindex, i)
+                    T.reads(A[v_i])
+                    T.writes(B[v_i])
+                    B[v_i] = A[v_i]
+            for i_0 in T.parallel(2):
+                for i_1 in range((tindex + 1) // 2):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(tindex, i_0 * ((tindex + 1) // 2) + i_1)
+                        T.where(i_0 * ((tindex + 1) // 2) + i_1 < tindex)
+                        T.reads(B[v_i])
+                        T.writes(C[v_i])
+                        C[v_i] = B[v_i] + T.float32(1.0)
 
     target_llvm = "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake -mattr=+avx512f"
     target = tvm.target.Target(target_llvm, host=target_llvm)
-    module = tvm.tir.build(sch.mod, target=target)
+    module = tvm.tir.build(Module, target=target)
 
     llvm_ir = module.inspect_source()
     llvm_ir_lines = llvm_ir.split("\n")
@@ -959,20 +1013,19 @@ def test_llvm_assume():
     related instructions get removed during optimizations
     """
 
-    @T.prim_func
-    def tir_assume_func(A: T.Buffer((4, 4), "int32"), B: T.Buffer((14,), "int32")):
-        T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A_1 = T.Buffer((16,), "int32", data=A.data)
-        for axis0, axis1 in T.grid(4, 4):
-            T.assume(axis0 < 3 or axis1 < 2 or A_1[axis0 * 4 + axis1] == 0)
-        for i in range(14):
-            B_1 = T.Buffer((14,), "int32", data=B.data)
-            B_1[i] = A_1[i] * 2
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((4, 4), "int32"), B: T.Buffer((14,), "int32")):
+            T.func_attr({"tir.noalias": True})
+            A_1 = T.Buffer((16,), "int32", data=A.data)
+            for axis0, axis1 in T.grid(4, 4):
+                T.assume(axis0 < 3 or axis1 < 2 or A_1[axis0 * 4 + axis1] == 0)
+            for i in range(14):
+                B_1 = T.Buffer((14,), "int32", data=B.data)
+                B_1[i] = A_1[i] * 2
 
-    mod = tvm.IRModule.from_expr(tir_assume_func)
-    inp = te.placeholder((4, 4), name="A", dtype="int32")
-    out = te.placeholder((14,), name="B", dtype="int32")
-    m = tvm.compile(mod, target="llvm")
+    m = tvm.compile(Module, target="llvm")
 
 
 @tvm.testing.requires_llvm
@@ -984,38 +1037,39 @@ def test_debug_symbol_for_float64():
     prevents lowering to the PackedFunc API.
     """
 
-    @T.prim_func
-    def func(a: T.handle("float64"), b: T.handle("float64"), n: T.int64):
-        T.func_attr({"calling_conv": 2})
-        A = T.Buffer(16, "float64", data=a)
-        B = T.Buffer(16, "float64", data=b)
-        for i in range(n):
-            B[i] = A[i]
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(a: T.handle("float64"), b: T.handle("float64"), n: T.int64):
+            T.func_attr({"calling_conv": 2})
+            A = T.Buffer(16, "float64", data=a)
+            B = T.Buffer(16, "float64", data=b)
+            for i in range(n):
+                B[i] = A[i]
 
-    tvm.compile(func, target="llvm")
+    tvm.compile(Module, target="llvm")
 
 
 @tvm.testing.requires_llvm
 def test_subroutine_call():
     @I.ir_module
-    class mod:
+    class Module:
         @T.prim_func
         def main(A: T.Buffer(1, dtype="float32")):
-            T.func_attr({"global_symbol": "main"})
-            mod.subroutine(A.data)
+            Module.subroutine(A.data)
 
         @T.prim_func
         def subroutine(A_data: T.handle("float32")):
             # The calling_conv parameter is to prevent MakePackedAPI
             # from changing the call signature of the subroutine.
-            T.func_attr({"global_symbol": "subroutine", "calling_conv": -1})
+            T.func_attr({"calling_conv": -1})
             A = T.decl_buffer(1, dtype="float32", data=A_data)
             A[0] = 42.0
 
     target = "llvm"
     dev = tvm.cpu()
 
-    built = tvm.compile(mod)
+    built = tvm.compile(Module)
 
     arr = tvm.runtime.tensor(np.zeros([1], "float32"), device=dev)
     built["main"](arr)
@@ -1038,17 +1092,19 @@ def test_call_packed_returning_void():
     for the packed function call.
     """
 
-    @T.prim_func
-    def func():
-        T.Call(
-            "void",
-            tvm.ir.Op.get("tir.tvm_call_packed"),
-            ["dummy_function_name"],
-        )
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main():
+            T.Call(
+                "void",
+                tvm.ir.Op.get("tir.tvm_call_packed"),
+                ["dummy_function_name"],
+            )
 
     # Error occurred during build, as part of
     # CodeGenCPU::MakeCallPackedLowered.
-    built = tvm.compile(func, target="llvm")
+    built = tvm.compile(Module, target="llvm")
 
 
 @tvm.testing.requires_llvm
@@ -1061,68 +1117,76 @@ def test_call_packed_without_string_arg():
     a segfault during codegen.
     """
 
-    @T.prim_func
-    def func(A: T.Buffer(1, "float32")):
-        T.func_attr({"global_symbol": "func"})
-        T.Call("int32", tvm.ir.Op.get("tir.tvm_call_packed"), [A.data])
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer(1, "float32")):
+            T.Call("int32", tvm.ir.Op.get("tir.tvm_call_packed"), [A.data])
 
     with pytest.raises(tvm.TVMError):
-        built = tvm.compile(func, target="llvm")
+        built = tvm.compile(Module, target="llvm")
 
 
 @tvm.testing.requires_llvm
 def test_call_extern_returning_void():
     """Like test_call_packed_returning_void, but for call_extern"""
 
-    @T.prim_func
-    def func():
-        T.func_attr({"global_symbol": "func"})
-        T.Call("void", tvm.ir.Op.get("tir.call_extern"), ["dummy_function_name"])
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main():
+            T.Call("void", tvm.ir.Op.get("tir.call_extern"), ["dummy_function_name"])
 
-    built = tvm.compile(func, target="llvm")
+    built = tvm.compile(Module, target="llvm")
 
 
 def test_invalid_volatile_masked_buffer_load():
-    @T.prim_func
-    def func(b: T.handle):
-        B = T.match_buffer(b, [4])
-        a = T.allocate([4], "float32", scope="global")
-        T.attr(a, "volatile_scope", 1)
-        A = T.Buffer([4], data=a)
-        B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(b: T.handle):
+            B = T.match_buffer(b, [4])
+            a = T.allocate([4], "float32", scope="global")
+            T.attr(a, "volatile_scope", 1)
+            A = T.Buffer([4], data=a)
+            B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
     with pytest.raises(tvm.TVMError, match=err_msg):
         with tvm.target.Target("llvm"):
-            tvm.compile(func)
+            tvm.compile(Module)
 
 
 def test_invalid_volatile_masked_buffer_store():
-    @T.prim_func
-    def func():
-        a = T.allocate([4], "float32", scope="global")
-        T.attr(a, "volatile_scope", 1)
-        A = T.Buffer([4], data=a)
-        A.vstore([T.Ramp(0, 1, 4)], T.Broadcast(0.0, 4), predicate=T.Broadcast(T.bool(True), 4))
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main():
+            a = T.allocate([4], "float32", scope="global")
+            T.attr(a, "volatile_scope", 1)
+            A = T.Buffer([4], data=a)
+            A.vstore([T.Ramp(0, 1, 4)], T.Broadcast(0.0, 4), predicate=T.Broadcast(T.bool(True), 4))
 
     err_msg = "The masked store intrinsic does not support declaring store as volatile."
     with pytest.raises(tvm.TVMError, match=err_msg):
         with tvm.target.Target("llvm"):
-            tvm.compile(func)
+            tvm.compile(Module)
 
 
 def test_int_parameter():
     """Boolean may be passed to functions accepting int"""
 
-    @T.prim_func
-    def func(arg: T.int32) -> T.int32:
-        T.func_attr({"target": T.target("llvm")})
-        if arg > 0:
-            return 10
-        else:
-            return 20
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(arg: T.int32) -> T.int32:
+            T.func_attr({"target": T.target("llvm")})
+            if arg > 0:
+                return 10
+            else:
+                return 20
 
-    built = tvm.compile(func)
+    built = tvm.compile(Module)
     output = built(True)
     assert output == 10
 
@@ -1133,15 +1197,17 @@ def test_int_parameter():
 def test_bool_parameter():
     """Integers may be passed to functions accepting bool"""
 
-    @T.prim_func
-    def func(arg: T.bool) -> T.int32:
-        T.func_attr({"target": T.target("llvm")})
-        if arg:
-            return 10
-        else:
-            return 20
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(arg: T.bool) -> T.int32:
+            T.func_attr({"target": T.target("llvm")})
+            if arg:
+                return 10
+            else:
+                return 20
 
-    built = tvm.compile(func)
+    built = tvm.compile(Module)
     output = built(1)
     assert output == 10
 
@@ -1155,12 +1221,14 @@ def test_bool_parameter():
 def test_bool_return_value():
     """Booleans may be returned from a PrimFunc"""
 
-    @T.prim_func
-    def func(value: T.int32) -> T.bool:
-        T.func_attr({"target": T.target("llvm")})
-        return value < 10
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(value: T.int32) -> T.bool:
+            T.func_attr({"target": T.target("llvm")})
+            return value < 10
 
-    built = tvm.compile(func)
+    built = tvm.compile(Module)
     assert isinstance(built(0), bool)
     assert built(0)
 
@@ -1171,12 +1239,14 @@ def test_bool_return_value():
 def test_invalid_arguments():
     """Integers may be passed to functions accepting bool"""
 
-    @T.prim_func
-    def func(a0: T.bool, a1: T.Buffer([10], "float32")) -> T.int32:
-        T.func_attr({"target": T.target("llvm")})
-        return 0
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(a0: T.bool, a1: T.Buffer([10], "float32")) -> T.int32:
+            T.func_attr({"target": T.target("llvm")})
+            return 0
 
-    built = tvm.compile(func)
+    built = tvm.compile(Module)
     with pytest.raises(RuntimeError):
         built(1, 1)
 

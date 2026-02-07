@@ -18,7 +18,6 @@
 import tvm
 import tvm.testing
 
-from tvm import te
 from tvm.contrib import utils
 from tvm.script import tir as T, ir as I
 
@@ -27,29 +26,35 @@ import numpy as np
 
 def test_add():
     nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def test_fadd(
+            A: T.Buffer((1024,), "float32"),
+            B: T.Buffer((1024,), "float32"),
+            C: T.Buffer((1024,), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i0 in range(1024):
+                with T.sblock("C"):
+                    v_i0 = T.axis.spatial(1024, i0)
+                    T.reads(A[v_i0], B[v_i0])
+                    T.writes(C[v_i0])
+                    C[v_i0] = A[v_i0] + B[v_i0]
 
     def check_c():
-        mhost = tvm.compile(
-            tvm.IRModule.from_expr(
-                te.create_prim_func([A, B, C]).with_attr("global_symbol", "test_fadd")
-            ),
-            target="c",
-        )
+        mhost = tvm.compile(Module, target="c")
         temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
         m = tvm.runtime.load_module(path_dso)
         fadd = m["test_fadd"]
         dev = tvm.cpu(0)
-        # launch the kernel.
         n = nn
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.random.uniform(size=n).astype(B.dtype), dev)
-        c = tvm.runtime.tensor(np.zeros(n, dtype=C.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+        c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
         fadd(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
@@ -58,19 +63,24 @@ def test_add():
 
 def test_reinterpret():
     nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A", dtype="int32")
-    B = te.compute(
-        A.shape, lambda *i: tvm.tir.call_intrin("float32", "tir.reinterpret", 2 + A(*i)), name="B"
-    )
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def test_reinterpret(
+            A: T.Buffer((1024,), "int32"),
+            B: T.Buffer((1024,), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i0 in range(1024):
+                with T.sblock("B"):
+                    v_i0 = T.axis.spatial(1024, i0)
+                    T.reads(A[v_i0])
+                    T.writes(B[v_i0])
+                    B[v_i0] = T.reinterpret("float32", A[v_i0] + 2)
 
     def check_c():
-        mhost = tvm.compile(
-            tvm.IRModule.from_expr(
-                te.create_prim_func([A, B]).with_attr("global_symbol", "test_reinterpret")
-            ),
-            target="c",
-        )
+        mhost = tvm.compile(Module, target="c")
         temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
@@ -78,8 +88,8 @@ def test_reinterpret():
         fadd = m["test_reinterpret"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.runtime.tensor(np.random.randint(-(2**30), 2**30, size=n).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(n, dtype=B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.randint(-(2**30), 2**30, size=n).astype("int32"), dev)
+        b = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
         fadd(a, b)
         tvm.testing.assert_allclose(b.numpy(), (2 + a.numpy()).view("float32"))
 
@@ -88,17 +98,24 @@ def test_reinterpret():
 
 def test_ceil():
     nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A", dtype="float32")
-    B = te.compute(A.shape, lambda *i: tvm.tir.call_intrin("float32", "tir.ceil", A(*i)), name="B")
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def test_ceil(
+            A: T.Buffer((1024,), "float32"),
+            B: T.Buffer((1024,), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i0 in range(1024):
+                with T.sblock("B"):
+                    v_i0 = T.axis.spatial(1024, i0)
+                    T.reads(A[v_i0])
+                    T.writes(B[v_i0])
+                    B[v_i0] = T.ceil(A[v_i0])
 
     def check_c():
-        mhost = tvm.compile(
-            tvm.IRModule.from_expr(
-                te.create_prim_func([A, B]).with_attr("global_symbol", "test_ceil")
-            ),
-            target="c",
-        )
+        mhost = tvm.compile(Module, target="c")
         temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
@@ -106,8 +123,8 @@ def test_ceil():
         fceil = m["test_ceil"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.runtime.tensor(np.random.rand(n).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(n, dtype=B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.rand(n).astype("float32"), dev)
+        b = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
         fceil(a, b)
         tvm.testing.assert_allclose(b.numpy(), (np.ceil(a.numpy()).view("float32")))
 
@@ -116,17 +133,24 @@ def test_ceil():
 
 def test_floor():
     nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A", dtype="float32")
-    B = te.compute(A.shape, lambda *i: tvm.tir.call_intrin("float32", "tir.floor", A(*i)), name="B")
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def test_floor(
+            A: T.Buffer((1024,), "float32"),
+            B: T.Buffer((1024,), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i0 in range(1024):
+                with T.sblock("B"):
+                    v_i0 = T.axis.spatial(1024, i0)
+                    T.reads(A[v_i0])
+                    T.writes(B[v_i0])
+                    B[v_i0] = T.floor(A[v_i0])
 
     def check_c():
-        mhost = tvm.compile(
-            tvm.IRModule.from_expr(
-                te.create_prim_func([A, B]).with_attr("global_symbol", "test_floor")
-            ),
-            target="c",
-        )
+        mhost = tvm.compile(Module, target="c")
         temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
@@ -134,8 +158,8 @@ def test_floor():
         ffloor = m["test_floor"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.runtime.tensor(np.random.rand(n).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(n, dtype=B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.rand(n).astype("float32"), dev)
+        b = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
         ffloor(a, b)
         tvm.testing.assert_allclose(b.numpy(), (np.floor(a.numpy()).view("float32")))
 
@@ -144,17 +168,24 @@ def test_floor():
 
 def test_round():
     nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A", dtype="float32")
-    B = te.compute(A.shape, lambda *i: tvm.tir.call_intrin("float32", "tir.round", A(*i)), name="B")
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def test_round(
+            A: T.Buffer((1024,), "float32"),
+            B: T.Buffer((1024,), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i0 in range(1024):
+                with T.sblock("B"):
+                    v_i0 = T.axis.spatial(1024, i0)
+                    T.reads(A[v_i0])
+                    T.writes(B[v_i0])
+                    B[v_i0] = T.round(A[v_i0])
 
     def check_c():
-        mhost = tvm.compile(
-            tvm.IRModule.from_expr(
-                te.create_prim_func([A, B]).with_attr("global_symbol", "test_round")
-            ),
-            target="c",
-        )
+        mhost = tvm.compile(Module, target="c")
         temp = utils.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)
@@ -162,8 +193,8 @@ def test_round():
         fround = m["test_round"]
         dev = tvm.cpu(0)
         n = nn
-        a = tvm.runtime.tensor(np.random.rand(n).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(n, dtype=B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.rand(n).astype("float32"), dev)
+        b = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
         fround(a, b)
         tvm.testing.assert_allclose(b.numpy(), (np.round(a.numpy()).view("float32")))
 
@@ -172,17 +203,17 @@ def test_round():
 
 def test_subroutine_call():
     @I.ir_module
-    class mod:
+    class Module:
         @T.prim_func
         def main(A: T.Buffer(1, dtype="float32")):
-            mod.subroutine(A.data)
+            Module.subroutine(A.data)
 
         @T.prim_func(private=True)
         def subroutine(A_data: T.handle("float32")):
             A = T.decl_buffer(1, dtype="float32", data=A_data)
             A[0] = 42.0
 
-    built = tvm.tir.build(mod, target="c")
+    built = tvm.tir.build(Module, target="c")
 
     source = built.inspect_source()
     assert (
