@@ -207,7 +207,7 @@ def get_nodes_json_string(graph_json):
 
 @tvm_ffi.register_global_func("tvm.mrvl.ModifyConstNames")
 def modify_const_names(nodes_json_str, consts_json_str):
-    """This takes the graph module returned by build an generates nodes and constant
+    """This takes the graph module returned by build and generates nodes and constant
        meta data suitable for compilation by the back end.
 
     Parameters
@@ -222,7 +222,7 @@ def modify_const_names(nodes_json_str, consts_json_str):
     -------
     modified_nodes_consts: string
         This returns a concatenated string of the nodes_json and modified
-        consts json file, seperated by a delimiter |. The modification to the
+        consts json file, separated by a delimiter |. The modification to the
         consts file is necessary since we have added the Merge Compiler Pass
         which names the constants in a form unsuitable for the backend.
     """

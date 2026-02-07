@@ -1618,13 +1618,13 @@ def AllocateWorkspace() -> tvm.ir.transform.Pass:
 
 def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
     """This pass updates the var_buffer mapping of PrimFunctions from the call_tir info.
-    Primarily used to update the VDevice information if any changes occured from the caller.
+    Primarily used to update the VDevice information if any changes occurred from the caller.
     This pass recreates the buffers and updates the map.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
-        The registered pass for allocating workspace.
+        The registered pass for specializing PrimFuncs based on call site.
     """
     return _ffi_api.SpecializePrimFuncBasedOnCallSite()  # type: ignore
 
