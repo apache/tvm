@@ -24,7 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/runtime/object.h>
-#include <tvm/tir/schedule/schedule.h>
+#include <tvm/s_tir/schedule/schedule.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -33,7 +33,7 @@ namespace meta_schedule {
 class MeasureCandidateNode : public runtime::Object {
  public:
   /*! \brief The schedule for measurement. */
-  tir::Schedule sch;
+  s_tir::Schedule sch;
   /*! \brief The argument information, e.g., (shape, dtype) for tensors. */
   ffi::Array<ArgInfo> args_info;
 
@@ -57,7 +57,7 @@ class MeasureCandidate : public runtime::ObjectRef {
    * \param sch The schedule for measurement.
    * \param args_info The argument information, e.g., (shape, dtype) for tensors.
    */
-  TVM_DLL MeasureCandidate(tir::Schedule sch, ffi::Array<ArgInfo> args_info);
+  TVM_DLL MeasureCandidate(s_tir::Schedule sch, ffi::Array<ArgInfo> args_info);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MeasureCandidate, ObjectRef, MeasureCandidateNode);
 };
 

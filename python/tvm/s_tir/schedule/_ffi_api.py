@@ -17,4 +17,4 @@
 """FFI APIs for tvm.s_tir.schedule"""
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("tir.schedule", __name__)  # pylint: disable=protected-access
+tvm_ffi.init_ffi_api("s_tir.schedule", __name__)  # pylint: disable=protected-access

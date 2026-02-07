@@ -29,8 +29,8 @@
 #include <unordered_set>
 
 #include "../../support/utils.h"
-#include "../../tir/schedule/utils.h"
 #include "../../tir/transforms/ir_utils.h"
+#include "../schedule/utils.h"
 
 namespace tvm {
 namespace s_tir {

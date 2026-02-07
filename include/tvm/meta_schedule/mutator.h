@@ -24,9 +24,9 @@
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/object.h>
+#include <tvm/s_tir/schedule/schedule.h>
+#include <tvm/s_tir/schedule/trace.h>
 #include <tvm/support/random_engine.h>
-#include <tvm/tir/schedule/schedule.h>
-#include <tvm/tir/schedule/trace.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -58,8 +58,8 @@ class MutatorNode : public runtime::Object {
    * \param rand_state The random state for mutation.
    * \return None if mutator failed, otherwise return the mutated trace.
    */
-  virtual ffi::Optional<tir::Trace> Apply(
-      const tir::Trace& trace, support::LinearCongruentialEngine::TRandState* rand_state) = 0;
+  virtual ffi::Optional<s_tir::Trace> Apply(
+      const s_tir::Trace& trace, support::LinearCongruentialEngine::TRandState* rand_state) = 0;
 
   /*!
    * \brief Clone the mutator.
@@ -87,8 +87,8 @@ class Mutator : public runtime::ObjectRef {
    * \param trace The given trace for mutation.
    * \return None if mutator failed, otherwise return the mutated trace.
    */
-  using FApply = ffi::TypedFunction<ffi::Optional<tir::Trace>(
-      const tir::Trace&, support::LinearCongruentialEngine::TRandState rand_state)>;
+  using FApply = ffi::TypedFunction<ffi::Optional<s_tir::Trace>(
+      const s_tir::Trace&, support::LinearCongruentialEngine::TRandState rand_state)>;
   /*!
    * \brief Clone the mutator.
    * \return The cloned mutator.
@@ -168,8 +168,8 @@ class PyMutatorNode : public MutatorNode {
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;
-  ffi::Optional<tir::Trace> Apply(const tir::Trace& trace,
-                                  support::LinearCongruentialEngine::TRandState* rand_state) final;
+  ffi::Optional<s_tir::Trace> Apply(
+      const s_tir::Trace& trace, support::LinearCongruentialEngine::TRandState* rand_state) final;
   Mutator Clone() const final;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyMutator", PyMutatorNode, MutatorNode);
 };

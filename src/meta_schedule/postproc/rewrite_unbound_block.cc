@@ -22,7 +22,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 /*! \brief Find all the blocks that are not bound */
 class UnboundBlockFinder : private StmtVisitor {
@@ -77,7 +78,7 @@ class UnboundBlockFinder : private StmtVisitor {
   ffi::String global_var_name_;
 };
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm
 
 namespace tvm {
@@ -97,7 +98,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
   }
 
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
     ObjectPtr<RewriteUnboundBlockNode> n = ffi::make_object<RewriteUnboundBlockNode>(*this);
@@ -118,17 +119,17 @@ class RewriteUnboundBlockNode : public PostprocNode {
                                     PostprocNode);
 };
 
-bool RewriteUnboundBlockNode::Apply(const tir::Schedule& sch) {
-  using tir::ExprRV;
-  using tir::LoopRV;
-  using tir::SBlockRV;
-  using tir::Schedule;
+bool RewriteUnboundBlockNode::Apply(const s_tir::Schedule& sch) {
+  using s_tir::ExprRV;
+  using s_tir::LoopRV;
+  using s_tir::SBlockRV;
+  using s_tir::Schedule;
   ICHECK_NE(this->max_threads_per_block_, -1);
   auto get_factor = [t = this->max_threads_per_block_](int max_extent) -> ExprRV {
     return Integer(std::min(t, max_extent));
   };
   std::vector<std::pair<tir::StmtSRef, ffi::String>> unbound_blocks =
-      tir::UnboundBlockFinder::Find(sch->state());
+      s_tir::UnboundBlockFinder::Find(sch->state());
   for (const auto& kv : unbound_blocks) {
     tir::StmtSRef block_sref = kv.first;
     ffi::String global_var_name = kv.second;

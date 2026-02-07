@@ -29,7 +29,7 @@
 #include <tvm/meta_schedule/measure_candidate.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/runtime/object.h>
-#include <tvm/tir/schedule/schedule.h>
+#include <tvm/s_tir/schedule/schedule.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -98,7 +98,7 @@ class SearchStrategyNode : public runtime::Object {
    *  and reset the search strategy.
    */
   virtual void PreTuning(int max_trials, int num_trials_per_iter,
-                         const ffi::Array<tir::Schedule>& design_spaces,
+                         const ffi::Array<s_tir::Schedule>& design_spaces,
                          const ffi::Optional<Database>& database,
                          const ffi::Optional<CostModel>& cost_model) = 0;
 
@@ -148,7 +148,7 @@ class SearchStrategy : public runtime::ObjectRef {
    * \brief The function type of `PreTuning` method.
    */
   using FPreTuning = ffi::TypedFunction<void(
-      int max_trials, int num_trials_per_iter, const ffi::Array<tir::Schedule>&,
+      int max_trials, int num_trials_per_iter, const ffi::Array<s_tir::Schedule>&,
       const ffi::Optional<Database>&, const ffi::Optional<CostModel>&)>;
   /*! \brief The function type of `PostTuning` method. */
   using FPostTuning = ffi::TypedFunction<void()>;
@@ -255,7 +255,7 @@ class PySearchStrategyNode : public SearchStrategyNode {
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   void PreTuning(int max_trials, int num_trials_per_iter,
-                 const ffi::Array<tir::Schedule>& design_spaces,
+                 const ffi::Array<s_tir::Schedule>& design_spaces,
                  const ffi::Optional<Database>& database,
                  const ffi::Optional<CostModel>& cost_model) final;
   void PostTuning() final;

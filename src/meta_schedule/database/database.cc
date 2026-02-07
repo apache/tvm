@@ -73,7 +73,7 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
 
 /******** TuningRecord ********/
 
-TuningRecord::TuningRecord(tir::Trace trace, Workload workload,
+TuningRecord::TuningRecord(s_tir::Trace trace, Workload workload,
                            ffi::Optional<ffi::Array<FloatImm>> run_secs,
                            ffi::Optional<Target> target,
                            ffi::Optional<ffi::Array<ArgInfo>> args_info) {
@@ -91,8 +91,8 @@ bool WorkloadEqual::operator()(const Workload& a, const Workload& b) const {
 }
 
 MeasureCandidate TuningRecordNode::AsMeasureCandidate() const {
-  tir::Schedule sch =
-      tir::Schedule::Traced(workload->mod, -1, 0, tir::ScheduleErrorRenderLevel::kDetail);
+  s_tir::Schedule sch =
+      s_tir::Schedule::Traced(workload->mod, -1, 0, s_tir::ScheduleErrorRenderLevel::kDetail);
   trace->ApplyToSchedule(sch, false, nullptr);
   return MeasureCandidate(sch, ArgInfo::FromEntryFunc(sch->mod(), /*remove_preproc=*/true));
 }
@@ -133,7 +133,7 @@ bool TuningRecordNode::IsValid() const {
 }
 
 TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& workload) {
-  tir::Trace trace{ffi::UnsafeInit()};
+  s_tir::Trace trace{ffi::UnsafeInit()};
   ffi::Optional<ffi::Array<FloatImm>> run_secs;
   ffi::Optional<Target> target;
   ffi::Optional<ffi::Array<ArgInfo>> args_info;
@@ -161,10 +161,10 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
     // Load json[0] => trace
     {
       auto json_trace = json_array->at(0).cast<ObjectRef>();
-      tir::Schedule sch =
-          tir::Schedule::Traced(workload->mod, /*seed=*/-1, /*debug_mask=*/0,
-                                /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
-      tir::Trace::ApplyJSONToSchedule(json_trace, sch);
+      s_tir::Schedule sch =
+          s_tir::Schedule::Traced(workload->mod, /*seed=*/-1, /*debug_mask=*/0,
+                                  /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kNone);
+      s_tir::Trace::ApplyJSONToSchedule(json_trace, sch);
       trace = sch->trace().value();
     }
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
@@ -194,14 +194,15 @@ ffi::Optional<TuningRecord> DatabaseNode::QueryTuningRecord(const IRModule& mod,
   return records[0];
 }
 
-ffi::Optional<tir::Schedule> DatabaseNode::QuerySchedule(const IRModule& mod, const Target& target,
-                                                         const ffi::String& workload_name) {
+ffi::Optional<s_tir::Schedule> DatabaseNode::QuerySchedule(const IRModule& mod,
+                                                           const Target& target,
+                                                           const ffi::String& workload_name) {
   if (ffi::Optional<TuningRecord> opt_record =
           this->QueryTuningRecord(mod, target, workload_name)) {
     TuningRecord record = opt_record.value();
-    tir::Schedule sch =
-        tir::Schedule::Traced(record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
-                              /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
+    s_tir::Schedule sch =
+        s_tir::Schedule::Traced(record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
+                                /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kDetail);
     record->trace->ApplyToSchedule(sch, false);
     return sch;
   } else {
@@ -211,7 +212,7 @@ ffi::Optional<tir::Schedule> DatabaseNode::QuerySchedule(const IRModule& mod, co
 
 ffi::Optional<IRModule> DatabaseNode::QueryIRModule(const IRModule& mod, const Target& target,
                                                     const ffi::String& workload_name) {
-  if (ffi::Optional<tir::Schedule> opt_sch = this->QuerySchedule(mod, target, workload_name)) {
+  if (ffi::Optional<s_tir::Schedule> opt_sch = this->QuerySchedule(mod, target, workload_name)) {
     return opt_sch.value()->mod();
   } else {
     return std::nullopt;
@@ -299,7 +300,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("meta_schedule.WorkloadAsJSON", &WorkloadNode::AsJSON)
       .def("meta_schedule.WorkloadFromJSON", &Workload::FromJSON)
       .def("meta_schedule.TuningRecord",
-           [](tir::Trace trace, Workload workload, ffi::Optional<ffi::Array<FloatImm>> run_secs,
+           [](s_tir::Trace trace, Workload workload, ffi::Optional<ffi::Array<FloatImm>> run_secs,
               ffi::Optional<Target> target, ffi::Optional<ffi::Array<ArgInfo>> args_info) {
              return TuningRecord(trace, workload, run_secs, target, args_info);
            })

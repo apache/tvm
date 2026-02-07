@@ -36,18 +36,19 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) final {
+  ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
+                                    const s_tir::SBlockRV& block_rv) final {
     CHECK(this->target_.defined())
         << "ValueError: ApplyCustomRule is not initialized with TuneContext that has a Target.";
     ffi::Array<ffi::String> keys = this->target_.value()->keys;
     if (ffi::Optional<ffi::String> ann =
-            tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), "schedule_rule")) {
+            s_tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), "schedule_rule")) {
       if (ann.value() != "None") {
         for (const ffi::String& key : keys) {
           if (const auto custom_schedule_fn =
                   tvm::ffi::Function::GetGlobal(GetCustomRuleName(ann.value(), key))) {
-            ffi::Array<tir::Schedule> result =
-                (*custom_schedule_fn)(sch, block_rv).cast<ffi::Array<tir::Schedule>>();
+            ffi::Array<s_tir::Schedule> result =
+                (*custom_schedule_fn)(sch, block_rv).cast<ffi::Array<s_tir::Schedule>>();
             return result;
           }
         }

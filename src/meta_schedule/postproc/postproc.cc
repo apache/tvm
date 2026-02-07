@@ -29,7 +29,7 @@ void PyPostprocNode::InitializeWithTuneContext(const TuneContext& context) {
   f_initialize_with_tune_context(context);
 }
 
-bool PyPostprocNode::Apply(const tir::Schedule& sch) {
+bool PyPostprocNode::Apply(const s_tir::Schedule& sch) {
   ICHECK(f_apply != nullptr) << "PyPostproc's Apply method not implemented!";
   return f_apply(sch);
 }

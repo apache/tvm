@@ -31,11 +31,11 @@ namespace transform {
  * \param max_thread_per_block The maximum number of threads per block.
  * \param max_threadblocks The maximum number of threadblocks.
  */
-void ThreadBind(tir::Schedule sch, const tir::SBlockRV& block, int64_t max_thread_per_block,
+void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_thread_per_block,
                 int64_t max_threadblocks = 256) {
   // fetch the loops
-  ffi::Array<tir::LoopRV> loops = sch->GetLoops(block);
-  for (const tir::LoopRV& loop : loops) {
+  ffi::Array<s_tir::LoopRV> loops = sch->GetLoops(block);
+  for (const s_tir::LoopRV& loop : loops) {
     // skip block if already scheduled
     if (sch->Get(loop)->thread_binding.defined()) {
       return;
@@ -47,7 +47,7 @@ void ThreadBind(tir::Schedule sch, const tir::SBlockRV& block, int64_t max_threa
   // so loops.size() == 0 && iters.size() == 1
   ICHECK(loops.size() == iters.size() || (loops.size() == 0 && iters.size() == 1));
 
-  ffi::Array<tir::LoopRV> data_parallel_loops;
+  ffi::Array<s_tir::LoopRV> data_parallel_loops;
   // only fuse data parallel loops
   for (size_t i = 0; i < loops.size(); ++i) {
     if (iters[i]->iter_type == tir::IterVarType::kDataPar) {
@@ -61,21 +61,21 @@ void ThreadBind(tir::Schedule sch, const tir::SBlockRV& block, int64_t max_threa
                                                 : sch->AddUnitLoop(loops[0]));
   }
   // fuse all data parallel loops
-  tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
+  s_tir::LoopRV fused = sch->Fuse(data_parallel_loops, /*preserve_unit_iters=*/false);
   int64_t product = std::numeric_limits<int64_t>::max();
   if (sch->Get(fused)->extent->IsInstance<tir::IntImmNode>()) {
     product = sch->Get(fused)->extent.as<tir::IntImmNode>()->value;
   }
   // schedule the fused loop
   if (product > max_thread_per_block * max_threadblocks) {
-    ffi::Array<tir::LoopRV> splits = sch->Split(
+    ffi::Array<s_tir::LoopRV> splits = sch->Split(
         fused,
         /*factors=*/{std::nullopt, Integer(max_threadblocks), Integer(max_thread_per_block)});
     sch->Reorder(/*ordered_loop_rvs=*/{splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");
     sch->Bind(splits[2], "threadIdx.x");
   } else {
-    ffi::Array<tir::LoopRV> splits = sch->Split(
+    ffi::Array<s_tir::LoopRV> splits = sch->Split(
         fused, /*factors=*/{std::nullopt, Integer(std::min(product, max_thread_per_block))});
     sch->Bind(splits[0], "blockIdx.x");
     sch->Bind(splits[1], "threadIdx.x");
@@ -123,8 +123,8 @@ bool IsScheduledOnGPU(const BaseFunc& func) {
 Pass DefaultGPUSchedule() {
   auto pass_func =  //
       [=](IRModule m, PassContext pc) {
-        tir::Schedule sch = tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
-                                                  tir::ScheduleErrorRenderLevel::kDetail);
+        s_tir::Schedule sch = s_tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
+                                                      s_tir::ScheduleErrorRenderLevel::kDetail);
         for (const auto& [gv, func] : m->functions) {
           if (func->IsInstance<tir::PrimFuncNode>() && !func->HasNonzeroAttr(attr::kIsScheduled) &&
               IsScheduledOnGPU(func)) {
@@ -146,8 +146,8 @@ Pass DefaultGPUSchedule() {
             int64_t max_thread_per_block = opt_max_thread_per_block.value().IntValue();
 
             sch->WorkOn(gv->name_hint);
-            ffi::Array<tir::SBlockRV> blocks = meta_schedule::SBlockCollector::Collect(sch);
-            for (const tir::SBlockRV& block : blocks) {
+            ffi::Array<s_tir::SBlockRV> blocks = meta_schedule::SBlockCollector::Collect(sch);
+            for (const s_tir::SBlockRV& block : blocks) {
               auto childs = sch->GetChildBlocks(block);
               if (!childs.empty()) {
                 continue;

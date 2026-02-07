@@ -28,9 +28,14 @@ namespace tvm {
 namespace meta_schedule {
 
 using namespace tvm::tir;
+using s_tir::ExprRV;
+using s_tir::LoopRV;
+using s_tir::SBlockRV;
+using s_tir::Schedule;
 
-static ffi::Array<tir::LoopRV> ScheduleDataPack(tir::Schedule sch, tir::SBlockRV block,
-                                                std::vector<int> tiled, std::vector<int> unrolled) {
+static ffi::Array<s_tir::LoopRV> ScheduleDataPack(s_tir::Schedule sch, s_tir::SBlockRV block,
+                                                  std::vector<int> tiled,
+                                                  std::vector<int> unrolled) {
   // This method is used for NHWC layout only. Will likely be refactored into a more schedule
   using namespace tvm::tir;
   ICHECK_EQ(tiled.size(), 2);

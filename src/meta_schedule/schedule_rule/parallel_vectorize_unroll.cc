@@ -21,7 +21,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 bool IsRootBlock(const Schedule& sch, const SBlockRV& block_rv) {
   StmtSRef block_sref = sch->GetSRef(block_rv);
@@ -33,7 +34,7 @@ bool CheckSpatialPrimFunc(const Schedule& sch, const SBlockRV& root_block_rv) {
       ffi::GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sch->Get(root_block_rv).get(), nullptr)));
 }
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm
 
 namespace tvm {
@@ -51,9 +52,9 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& root_rv) {
+  ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch, const s_tir::SBlockRV& root_rv) {
     // Currently only mark the root block with annotations.
-    if (!tir::IsRootBlock(sch, root_rv)) {
+    if (!s_tir::IsRootBlock(sch, root_rv)) {
       return {sch};
     }
 
@@ -67,7 +68,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
       sch->Annotate(root_rv, tir::attr::meta_schedule_vectorize, Integer(max_vectorize_extent));
     }
     // Unroll
-    if (!unroll_max_steps.empty() && !tir::CheckSpatialPrimFunc(sch, root_rv)) {
+    if (!unroll_max_steps.empty() && !s_tir::CheckSpatialPrimFunc(sch, root_rv)) {
       int n = unroll_max_steps.size();
       double prob = 1.0 / n;
       ffi::Array<FloatImm> probs(n, FloatImm(DataType::Float(32), prob));

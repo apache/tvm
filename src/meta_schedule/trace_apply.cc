@@ -29,13 +29,25 @@
 #include <utility>
 #include <vector>
 
-#include "../tir/schedule/analysis.h"
+#include "../s_tir/schedule/analysis.h"
 #include "utils.h"
 
 namespace tvm {
 namespace meta_schedule {
 
 using namespace tir;
+using s_tir::GetSBlockNames;
+using s_tir::Instruction;
+using s_tir::InstructionKind;
+using s_tir::IsSpatial;
+using s_tir::LoopRV;
+using s_tir::LoopRVNode;
+using s_tir::SBlockRV;
+using s_tir::SBlockRVNode;
+using s_tir::Schedule;
+using s_tir::Trace;
+using s_tir::TranslateAddOutputRVs;
+using s_tir::TranslateInputRVs;
 
 // Returns true if b1 is an ancestor of b2
 bool IsAncestor(SBlockRV b1, SBlockRV b2, Schedule sch) {

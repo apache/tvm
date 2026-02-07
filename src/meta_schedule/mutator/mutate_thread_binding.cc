@@ -23,9 +23,9 @@
 namespace tvm {
 namespace meta_schedule {
 
-using tir::Instruction;
-using tir::InstructionKind;
-using tir::Trace;
+using s_tir::Instruction;
+using s_tir::InstructionKind;
+using s_tir::Trace;
 
 /*! \brief A mutator that mutates the thread binding factor decision of SampleCategorical */
 class MutateThreadBindingNode : public MutatorNode {
@@ -82,15 +82,15 @@ class MutateThreadBindingNode : public MutatorNode {
  */
 std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCandidates(
     const Trace& trace, TRandState* rand_state) {
-  using tir::InstructionNode;
+  using s_tir::InstructionNode;
 
   static InstructionKind inst_sample_categorical = InstructionKind::Get("SampleCategorical");
   static InstructionKind inst_split = InstructionKind::Get("Split");
   static InstructionKind inst_bind = InstructionKind::Get("Bind");
 
   std::vector<MutateThreadBindingNode::Candidate> candidates;
-  std::unordered_map<const PrimExprNode*, const tir::InstructionNode*> sample_insts;
-  std::unordered_map<const tir::LoopRVNode*, const tir::InstructionNode*> sampled_split_insts;
+  std::unordered_map<const PrimExprNode*, const s_tir::InstructionNode*> sample_insts;
+  std::unordered_map<const s_tir::LoopRVNode*, const s_tir::InstructionNode*> sampled_split_insts;
   std::vector<const InstructionNode*> bind_insts;
 
   auto is_split_by_sample = [&sample_insts](const Instruction& inst) -> bool {
@@ -112,7 +112,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     ICHECK_EQ(inst->attrs.size(), 1);
     if (Downcast<ffi::String>(inst->attrs[0]) != "threadIdx.x") return false;
 
-    return sampled_split_insts.find(Downcast<tir::LoopRV>(inst->inputs[0]).get()) !=
+    return sampled_split_insts.find(Downcast<s_tir::LoopRV>(inst->inputs[0]).get()) !=
            sampled_split_insts.end();
   };
 
@@ -124,7 +124,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     } else if (is_split_by_sample(inst)) {
       CHECK_EQ(inst->outputs.size(), 2);
       // Only consider the inner loop, which can be bound to threadIdx.x
-      const tir::LoopRVNode* var_rv = TVM_TYPE_AS(inst->outputs[1], tir::LoopRVNode);
+      const s_tir::LoopRVNode* var_rv = TVM_TYPE_AS(inst->outputs[1], s_tir::LoopRVNode);
       sampled_split_insts[var_rv] = inst.get();
     } else if (is_thread_binding_by_sample(inst)) {
       bind_insts.push_back(inst.get());
@@ -132,7 +132,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
   }
 
   for (const InstructionNode* bind_inst : bind_insts) {
-    const auto* loop_rv = TVM_TYPE_AS(bind_inst->inputs[0], tir::LoopRVNode);
+    const auto* loop_rv = TVM_TYPE_AS(bind_inst->inputs[0], s_tir::LoopRVNode);
     auto split_it = sampled_split_insts.find(loop_rv);
     ICHECK(split_it != sampled_split_insts.end());
     const InstructionNode* split_inst = split_it->second;
@@ -157,10 +157,10 @@ ffi::Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandSta
   if (candidates.empty()) {
     return std::nullopt;
   }
-  Candidate candidate = candidates[tir::SampleInt(rand_state, 0, candidates.size())];
+  Candidate candidate = candidates[s_tir::SampleInt(rand_state, 0, candidates.size())];
   // Remove the current decision
   candidate.probs.erase(candidate.probs.begin() + candidate.decision);
-  int result = tir::MakeMultinomialSampler(rand_state, candidate.probs)();
+  int result = s_tir::MakeMultinomialSampler(rand_state, candidate.probs)();
   if (result >= candidate.decision) {
     result += 1;
   }

@@ -30,8 +30,8 @@
 #include <stack>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tir/schedule/utils.h"
 #include "../../tir/transforms/ir_utils.h"
+#include "../schedule/utils.h"
 #include "./memhammer_rewrite_rule.h"
 #include "tvm/tir/stmt.h"
 

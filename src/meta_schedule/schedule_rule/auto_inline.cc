@@ -23,6 +23,19 @@
 namespace tvm {
 namespace meta_schedule {
 
+using s_tir::AnalyzeReadWritePattern;
+using s_tir::CanComputeInline;
+using s_tir::CanReverseComputeInline;
+using s_tir::GetAnn;
+using s_tir::GetConsumers;
+using s_tir::GetProducers;
+using s_tir::GetRootPrimFunc;
+using s_tir::GetSBlockRealize;
+using s_tir::HasIfThenElse;
+using s_tir::HasOp;
+using s_tir::IsSpatialPrimFunc;
+using s_tir::ScheduleState;
+
 /*! \brief The type of inline to be performed on a specific block */
 enum class InlineType : int32_t {
   /*! \brief No inline opportunity */
@@ -33,7 +46,7 @@ enum class InlineType : int32_t {
   kInlineIntoProducer = 2,
 };
 
-bool IsInSpatialPrimFunc(const tir::Schedule& sch, const tir::StmtSRef& block_sref) {
+bool IsInSpatialPrimFunc(const s_tir::Schedule& sch, const tir::StmtSRef& block_sref) {
   using namespace tvm::tir;
   const StmtSRefNode* sref = block_sref.get();
   for (; sref->parent != nullptr; sref = sref->parent) {
@@ -46,13 +59,14 @@ bool IsInSpatialPrimFunc(const tir::Schedule& sch, const tir::StmtSRef& block_sr
 class AutoInlineNode : public ScheduleRuleNode {
  public:
   /*! \brief Checks if the specific block should be inlined */
-  inline InlineType CheckInline(const tir::Schedule& sch, const tir::SBlockRV& block_rv);
+  inline InlineType CheckInline(const s_tir::Schedule& sch, const s_tir::SBlockRV& block_rv);
 
   // Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) final {
+  ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
+                                    const s_tir::SBlockRV& block_rv) final {
     InlineType inline_type = CheckInline(sch, block_rv);
     if (inline_type == InlineType::kInlineIntoConsumer) {
       sch->ComputeInline(block_rv);
@@ -98,8 +112,8 @@ class AutoInlineNode : public ScheduleRuleNode {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.AutoInline", AutoInlineNode, ScheduleRuleNode);
 };
 
-inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
-                                              const tir::SBlockRV& block_rv) {
+inline InlineType AutoInlineNode::CheckInline(const s_tir::Schedule& sch,
+                                              const s_tir::SBlockRV& block_rv) {
   using namespace tvm::tir;
   StmtSRef block_sref = sch->GetSRef(block_rv);
   bool is_pure_sptial = IsInSpatialPrimFunc(sch, block_sref);
@@ -143,12 +157,12 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
   }
   // Cond 6. The block is disallowed for auto inline
   if (ffi::Optional<ffi::String> ann =
-          tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_inline_rule)) {
+          s_tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_inline_rule)) {
     if (ann.value() == "disable") return InlineType::kNoInline;
   }
   // Last cond: Check inline into the consumers or the spatial producer
-  tir::StmtSRef scope_block = tir::GetScopeRoot(sch->state(), block_sref,
-                                                /*require_stage_pipeline=*/false);
+  tir::StmtSRef scope_block = s_tir::GetScopeRoot(sch->state(), block_sref,
+                                                  /*require_stage_pipeline=*/false);
   if (into_consumer) {
     ffi::Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
     if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {
@@ -158,7 +172,7 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
   if (into_producer) {
     ffi::Array<tir::StmtSRef> producer_srefs = GetProducers(state, block_sref);
     if (producer_srefs.size() == 1 &&
-        tir::IsCompleteBlock(sch->state(), producer_srefs[0], scope_block) &&
+        s_tir::IsCompleteBlock(sch->state(), producer_srefs[0], scope_block) &&
         CanReverseComputeInline(state, block_sref) &&
         !GetAnn<ffi::String>(producer_srefs[0], tir::attr::meta_schedule_auto_tensorize)
              .has_value()) {
@@ -205,7 +219,8 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
  public:
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) final {
+  ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
+                                    const s_tir::SBlockRV& block_rv) final {
     // Look for a block of the form
     // block compile_engine_const(iter_var(vi, range(min=0, ext=1))) {
     //   reads([])
@@ -216,7 +231,8 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
     if (block->reads.size() == 0 && block->writes.size() == 1 &&
         block->writes[0]->buffer->shape.size() == 0) {
       auto sref = sch->GetSRef(block_rv);
-      if (!tir::IsOutputBlock(sch->state(), sref, tir::GetScopeRoot(sch->state(), sref, true))) {
+      if (!s_tir::IsOutputBlock(sch->state(), sref,
+                                s_tir::GetScopeRoot(sch->state(), sref, true))) {
         sch->ComputeInline(block_rv);
       }
     }

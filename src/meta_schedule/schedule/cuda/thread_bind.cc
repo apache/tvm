@@ -17,8 +17,8 @@
  * under the License.
  */
 #include <tvm/meta_schedule/schedule/cuda/thread_bind.h>
+#include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/tir/op.h>
-#include <tvm/tir/schedule/schedule.h>
 
 #include <algorithm>
 #include <limits>
@@ -30,6 +30,17 @@ namespace tvm {
 namespace meta_schedule {
 
 using namespace tvm::tir;
+using s_tir::ExprRV;
+using s_tir::GetLoopIterType;
+using s_tir::GetLoops;
+using s_tir::GetThreadScope;
+using s_tir::HasBeenMultiLevelTiled;
+using s_tir::IsBlockIdx;
+using s_tir::IsSingleStmt;
+using s_tir::IsThreadIdx;
+using s_tir::LoopRV;
+using s_tir::SBlockRV;
+using s_tir::Schedule;
 
 std::function<ExprRV(int64_t)> MakeFactorSampler(Schedule sch, ffi::Array<Integer> thread_extents) {
   return [sch = std::move(sch),
@@ -84,18 +95,17 @@ ffi::Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_thread
   }
 }
 
-void BindBlockThreadIdx(tir::Schedule sch, tir::SBlockRV block_rv,  //
+void BindBlockThreadIdx(Schedule sch, SBlockRV block_rv,  //
                         int64_t max_threadblocks, int64_t max_threads_per_block,
-                        std::function<tir::ExprRV(int64_t)> get_factor) {
-  using namespace tvm::tir;
+                        std::function<ExprRV(int64_t)> get_factor) {
   StmtSRef block_sref = sch->GetSRef(block_rv);
   if (block_sref->parent == nullptr) {
     return;
   }
-  if (tir::HasBeenMultiLevelTiled(block_sref)) {
+  if (HasBeenMultiLevelTiled(block_sref)) {
     return;
   }
-  ffi::Array<StmtSRef> loops = tir::GetLoops(block_sref);
+  ffi::Array<StmtSRef> loops = GetLoops(block_sref);
   int n = loops.size();
   int i_block_idx = -1;
   int i_thread_idx = -1;

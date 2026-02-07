@@ -36,7 +36,7 @@ class AddRFactorNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv);
+  ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch, const s_tir::SBlockRV& block_rv);
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const final {
@@ -77,8 +77,8 @@ ScheduleRule ScheduleRule::AddRFactor(int max_jobs_per_core,
   return ScheduleRule(n);
 }
 
-ffi::Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch,
-                                                const tir::SBlockRV& block_rv) {
+ffi::Array<s_tir::Schedule> AddRFactorNode::Apply(const s_tir::Schedule& sch,
+                                                  const s_tir::SBlockRV& block_rv) {
   tir::StmtSRef block_sref = sch->GetSRef(block_rv);
   if (!NeedsRFactorOrCrossThreadReduction(sch->state(), block_sref, max_parallel_extent_,
                                           max_parallel_basic_)) {
@@ -86,28 +86,28 @@ ffi::Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch,
   }
 
   // Make a copy of the original schedule.
-  tir::Schedule ori_sch = sch->Copy();
+  s_tir::Schedule ori_sch = sch->Copy();
   ori_sch->Seed(sch->ForkSeed());
 
   // Reorder the loop axes if reduction loops are not innermost.
   // After the reordering, fuse all the reduction loops.
   size_t num_spatial_loops;
-  tir::LoopRV fused_reduce_loop;
+  s_tir::LoopRV fused_reduce_loop;
   ReorderAndFuseReductionLoops(sch, block_rv, &fused_reduce_loop, &num_spatial_loops);
 
   // Split the fused reduction loop.
-  ffi::Array<tir::ExprRV> factors =
+  ffi::Array<s_tir::ExprRV> factors =
       sch->SamplePerfectTile(fused_reduce_loop, 2, max_innermost_factor);
-  ffi::Array<tir::LoopRV> split_loops =
+  ffi::Array<s_tir::LoopRV> split_loops =
       sch->Split(fused_reduce_loop, {factors.begin(), factors.end()});
 
-  ffi::Array<tir::Schedule> res;
-  for (const tir::LoopRV& split_loop : split_loops) {
-    tir::Schedule sch_tmp = sch->Copy();
+  ffi::Array<s_tir::Schedule> res;
+  for (const s_tir::LoopRV& split_loop : split_loops) {
+    s_tir::Schedule sch_tmp = sch->Copy();
     sch_tmp->Seed(sch->ForkSeed());
     try {
-      const tir::SBlockRV& block_rf = sch_tmp->RFactor(split_loop, num_spatial_loops);
-      ffi::Array<tir::LoopRV> axes = sch_tmp->GetLoops(block_rf);
+      const s_tir::SBlockRV& block_rf = sch_tmp->RFactor(split_loop, num_spatial_loops);
+      ffi::Array<s_tir::LoopRV> axes = sch_tmp->GetLoops(block_rf);
       ICHECK_GT(axes.size(), num_spatial_loops);
 
       // Annotate that the rfactor block, which is now the producer of the original block, needs to

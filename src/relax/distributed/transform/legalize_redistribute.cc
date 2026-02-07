@@ -30,7 +30,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../../../tir/schedule/transform.h"
+#include "../../../s_tir/schedule/transform.h"
 #include "../../op/ccl/ccl.h"
 #include "../../op/distributed/distributed.h"
 

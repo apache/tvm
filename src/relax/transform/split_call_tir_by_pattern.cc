@@ -31,7 +31,7 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../../tir/schedule/ir_comparator.h"
+#include "../../s_tir/schedule/ir_comparator.h"
 
 namespace tvm {
 
@@ -45,6 +45,8 @@ namespace tir {
 using relax::FCodegen;
 using relax::MatchResult;
 using relax::TIRPattern;
+using s_tir::ExprComparator;
+using s_tir::TensorizeComparator;
 
 /*! \brief helper to match a for stmt to a pattern*/
 class ForMatcher : public TensorizeComparator {

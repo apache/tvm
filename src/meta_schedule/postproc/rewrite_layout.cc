@@ -24,7 +24,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 /*!
  * \brief Collect the block and index where the buffer is read.
@@ -120,7 +121,7 @@ class LayoutFreeBufferCollector : public StmtVisitor {
 ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
   // Only rewrite PrimFuncs with attr "layout_free_buffers"
   ffi::Array<Integer> layout_free_buffer_index =
-      func->GetAttr(attr::layout_free_buffers, ffi::Array<Integer>()).value();
+      func->GetAttr(tir::attr::layout_free_buffers, ffi::Array<Integer>()).value();
 
   ffi::Array<Buffer> layout_free_buffers;
   for (const Integer& index : layout_free_buffer_index) {
@@ -185,7 +186,7 @@ bool RewriteLayout(const Schedule& sch) {
   std::vector<std::pair<StmtSRef, ffi::String>> results;
   auto add_layout_rewrite_block = [&sch](SBlockRV consumer_block_rv, int buffer_index) {
     SBlockRV rewrite_block_rv = sch->CacheRead(consumer_block_rv, buffer_index, "global");
-    sch->Annotate(rewrite_block_rv, attr::meta_schedule_layout_rewrite_preproc, true);
+    sch->Annotate(rewrite_block_rv, tir::attr::meta_schedule_layout_rewrite_preproc, true);
   };
 
   for (const auto& [g_var, base_func] : sch->mod()->functions) {
@@ -242,7 +243,7 @@ bool RewriteLayout(const Schedule& sch) {
   return true;
 }
 
-}  // namespace tir
+}  // namespace s_tir
 
 namespace meta_schedule {
 /*! \brief Layout Rewrite. */
@@ -252,9 +253,9 @@ class RewriteLayoutNode : public PostprocNode {
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch) final {
+  bool Apply(const s_tir::Schedule& sch) final {
     try {
-      return tir::RewriteLayout(sch);
+      return s_tir::RewriteLayout(sch);
     } catch (const std::runtime_error& e) {
       return false;
     }

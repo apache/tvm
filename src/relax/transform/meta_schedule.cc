@@ -106,19 +106,19 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
         if (ffi::Optional<meta_schedule::TuningRecord> opt_record =
                 database->QueryTuningRecord(tir_mod, target, gv->name_hint)) {
           meta_schedule::TuningRecord record = opt_record.value();
-          tir::Schedule sch{nullptr};
+          s_tir::Schedule sch{nullptr};
           if (!mod_eq_structural->Equal(tir_mod, record->workload->mod)) {
             // When the database lookup succeeds while structural equality check fails,
             // it implies that the anchor block based equality has been used during tuning.
             // The trace in the record cannot directly be applied to this query module.
-            sch = tir::Schedule::Traced(
+            sch = s_tir::Schedule::Traced(
                 tir_mod, /*seed=*/-1, /*debug_mask=*/0,
-                /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
+                /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kDetail);
             meta_schedule::ScheduleUsingAnchorTrace(sch, record->trace, target);
           } else {
-            sch = tir::Schedule::Traced(
+            sch = s_tir::Schedule::Traced(
                 record->workload->mod, /*seed=*/-1, /*debug_mask=*/0,
-                /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
+                /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kDetail);
             record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
           }
           IRModule new_mod = sch->mod();

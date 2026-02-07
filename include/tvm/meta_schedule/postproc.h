@@ -23,7 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/object.h>
-#include <tvm/tir/schedule/schedule.h>
+#include <tvm/s_tir/schedule/schedule.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -56,7 +56,7 @@ class PostprocNode : public runtime::Object {
    * \param sch The schedule to be post processed.
    * \return Whether the postprocessor was successfully applied.
    */
-  virtual bool Apply(const tir::Schedule& sch) = 0;
+  virtual bool Apply(const s_tir::Schedule& sch) = 0;
 
   /*!
    * \brief Clone the postprocessor.
@@ -84,7 +84,7 @@ class Postproc : public runtime::ObjectRef {
    * \param sch The schedule to be post processed.
    * \return Whether the postprocessor was successfully applied.
    */
-  using FApply = ffi::TypedFunction<bool(const tir::Schedule&)>;
+  using FApply = ffi::TypedFunction<bool(const s_tir::Schedule&)>;
   /*!
    * \brief Clone the postprocessor.
    * \return The cloned postprocessor.
@@ -205,7 +205,7 @@ class PyPostprocNode : public PostprocNode {
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const s_tir::Schedule& sch) final;
   Postproc Clone() const final;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PyPostproc", PyPostprocNode, PostprocNode);
 };

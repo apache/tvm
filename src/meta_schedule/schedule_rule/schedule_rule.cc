@@ -30,8 +30,8 @@ void PyScheduleRuleNode::InitializeWithTuneContext(const TuneContext& context) {
   f_initialize_with_tune_context(context);
 }
 
-ffi::Array<tir::Schedule> PyScheduleRuleNode::Apply(const tir::Schedule& sch,
-                                                    const tir::SBlockRV& block) {
+ffi::Array<s_tir::Schedule> PyScheduleRuleNode::Apply(const s_tir::Schedule& sch,
+                                                      const s_tir::SBlockRV& block) {
   ICHECK(f_apply != nullptr) << "PyScheduleRule's Apply method not implemented!";
   return f_apply(sch, block);
 }

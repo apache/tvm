@@ -28,7 +28,7 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
   explicit ScheduleFnDatabaseNode(ffi::String mod_eq_name = "structural")
       : DatabaseNode(mod_eq_name) {}
 
-  ffi::TypedFunction<bool(tir::Schedule)> schedule_fn;
+  ffi::TypedFunction<bool(s_tir::Schedule)> schedule_fn;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -41,7 +41,7 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
  public:
   ffi::Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
                                                 const ffi::String& workload_name) final {
-    if (ffi::Optional<tir::Schedule> sch = this->QuerySchedule(mod, target, workload_name)) {
+    if (ffi::Optional<s_tir::Schedule> sch = this->QuerySchedule(mod, target, workload_name)) {
       return TuningRecord(sch.value()->trace().value(),
                           /*workload=*/Workload(mod, 0),  //
                           /*run_secs=*/std::nullopt,      //
@@ -51,13 +51,13 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
     return std::nullopt;
   }
 
-  ffi::Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
-                                             const ffi::String& workload_name) final {
-    tir::Schedule sch =
-        tir::Schedule::Traced(WithAttr<IRModule>(mod, "task_name", workload_name),
-                              /*rand_state=*/-1,
-                              /*debug_mode=*/0,
-                              /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
+  ffi::Optional<s_tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
+                                               const ffi::String& workload_name) final {
+    s_tir::Schedule sch =
+        s_tir::Schedule::Traced(WithAttr<IRModule>(mod, "task_name", workload_name),
+                                /*rand_state=*/-1,
+                                /*debug_mode=*/0,
+                                /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kDetail);
     if (!schedule_fn(sch)) {
       return std::nullopt;
     }
@@ -95,7 +95,7 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
   }
 };
 
-Database Database::ScheduleFnDatabase(ffi::TypedFunction<bool(tir::Schedule)> schedule_fn,
+Database Database::ScheduleFnDatabase(ffi::TypedFunction<bool(s_tir::Schedule)> schedule_fn,
                                       ffi::String mod_eq_name) {
   ObjectPtr<ScheduleFnDatabaseNode> n = ffi::make_object<ScheduleFnDatabaseNode>(mod_eq_name);
   n->schedule_fn = std::move(schedule_fn);

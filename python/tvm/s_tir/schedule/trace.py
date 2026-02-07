@@ -54,7 +54,7 @@ def _json_from_tvm(obj):
         raise TypeError("Not supported type: " + str(type(obj)))
 
 
-@_register_object("tir.Trace")
+@_register_object("s_tir.Trace")
 class Trace(Object):
     """An execution trace of a scheduling program.
 
