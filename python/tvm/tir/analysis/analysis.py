@@ -302,7 +302,7 @@ def find_anchor_sblock(mod: IRModule) -> SBlock:
 
 
 def has_if_then_else(stmt: Stmt) -> bool:
-    return tvm.ffi.get_global_func("tir.schedule.HasIfThenElse")(stmt)
+    return tvm.ffi.get_global_func("s_tir.schedule.HasIfThenElse")(stmt)
 
 
 def get_vtcm_compaction_passes() -> List[tvm.transform.Pass]:
