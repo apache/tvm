@@ -123,6 +123,25 @@ def test_relax_dynamo():
     tvm.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
 
 
+def test_relax_dynamo_scalar_params():
+    class ScalarParams(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.x = torch.nn.Parameter(torch.tensor(1.0))
+            self.y = torch.nn.Parameter(torch.tensor(2.0))
+
+        def forward(self):
+            return self.x + self.y
+
+    model = ScalarParams()
+
+    opt_model = torch.compile(model, backend=relax_dynamo())
+
+    default_output = model().detach().numpy()
+    optimized_output = opt_model().detach().numpy()
+    tvm.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
+
+
 def test_relax_dynamo_dynamic():
     class Input1(torch.nn.Module):
         def __init__(self):
