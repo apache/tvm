@@ -65,7 +65,7 @@ def test_simple():
         def main(
             x: R.Tensor((2, 3, 28, 28), dtype="float32"),
             w: R.Tensor((4, 3, 3, 3), dtype="float32"),
-            bias: R.Tensor((26, 26), dtype="float32"),
+            # bias: R.Tensor((26, 26), dtype="float32"),    REMOVED after dead parameter elimination pass
         ):
             with R.dataflow():
                 gv: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(x, axes=[0, 2, 3, 1])
@@ -127,7 +127,7 @@ def test_2block():
         def main(
             x: R.Tensor((2, 3, 28, 28), dtype="float32"),
             w: R.Tensor((4, 3, 3, 3), dtype="float32"),
-            bias: R.Tensor((26, 26), dtype="float32"),
+            # bias: R.Tensor((26, 26), dtype="float32"),    REMOVED after dead parameter elimination pass
         ):
             with R.dataflow():
                 gv: R.Tensor((2, 28, 28, 3), dtype="float32") = R.permute_dims(x, axes=[0, 2, 3, 1])
@@ -797,6 +797,118 @@ def test_recursively_defined_closure():
     Expected = Before
 
     verify(Before, Expected)
+
+
+def test_mutual_recursion_unused_params():
+    """Test that unused parameters are removed even in mutual recursion"""
+
+    @tvm.script.ir_module
+    class Input:
+        @R.function
+        def func_a(
+            x: R.Tensor([32, 32], "float32"),
+            y: R.Tensor([32, 32], "float32"),  # Unused in both
+            z: R.Tensor([32, 32], "float32"),
+        ):
+            cls = Input
+            out = R.add(x, z)
+            result = cls.func_b(out, y, z)  # y passed but func_b doesn't use it
+            return result
+
+        @R.function
+        def func_b(
+            a: R.Tensor([32, 32], "float32"),
+            b: R.Tensor([32, 32], "float32"),  # Unused
+            c: R.Tensor([32, 32], "float32"),
+        ):
+            cls = Input
+            out = R.add(a, c)
+            result = cls.func_a(out, b, c)
+            return result
+
+        @R.function
+        def main():
+            x = R.zeros([32, 32], "float32")
+            y = R.ones([32, 32], "float32")
+            z = R.full([32, 32], R.const(2.0, dtype="float32"), "float32")
+            return Input.func_a(x, y, z)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def func_a(x: R.Tensor([32, 32], "float32"), z: R.Tensor([32, 32], "float32")):
+            cls = Expected
+            out = R.add(x, z)
+            result = cls.func_b(out, z)
+            return result
+
+        @R.function
+        def func_b(a: R.Tensor([32, 32], "float32"), c: R.Tensor([32, 32], "float32")):
+            cls = Expected
+            out = R.add(a, c)
+            result = cls.func_a(out, c)
+            return result
+
+        @R.function
+        def main():
+            x = R.zeros([32, 32], "float32")
+            z = R.full([32, 32], R.const(2.0, dtype="float32"), "float32")
+            return Expected.func_a(x, z)
+
+    verify(Input, Input)
+
+
+def test_deep_recursion_chain():
+    """Test parameter removal through a chain of recursive calls"""
+
+    @tvm.script.ir_module
+    class Input:
+        @R.function
+        def depth_1(x: R.Tensor([32], "float32"), dead1: R.Tensor([32], "float32")):  # Unused
+            out = R.add(x, x)
+            result = Input.depth_2(out, dead1)
+            return result
+
+        @R.function
+        def depth_2(a: R.Tensor([32], "float32"), dead2: R.Tensor([32], "float32")):  # Unused
+            out = R.multiply(a, a)
+            result = Input.depth_3(out, dead2)
+            return result
+
+        @R.function
+        def depth_3(b: R.Tensor([32], "float32"), dead3: R.Tensor([32], "float32")):  # Unused
+            return R.subtract(b, b)
+
+        @R.function
+        def main():
+            x = R.zeros([32], "float32")
+            dead = R.ones([32], "float32")
+            return Input.depth_1(x, dead)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def depth_1(x: R.Tensor([32], "float32")):
+            out = R.add(x, x)
+            result = Expected.depth_2(out)
+            return result
+
+        @R.function
+        def depth_2(a: R.Tensor([32], "float32")):
+            out = R.multiply(a, a)
+            result = Expected.depth_3(out)
+            return result
+
+        @R.function
+        def depth_3(b: R.Tensor([32], "float32")):  # Unused
+            return R.subtract(b, b)
+
+        @R.function
+        def main():
+            x = R.zeros([32], "float32")
+            return Expected.depth_1(x)
+
+    verify(Input, Expected)
 
 
 if __name__ == "__main__":

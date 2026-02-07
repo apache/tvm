@@ -152,6 +152,9 @@ void IRModuleNode::Add(const GlobalVar& var, const BaseFunc& f, bool update) {
 void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
   this->functions.Set(var, func);
 
+  auto* var_node = const_cast<GlobalVarNode*>(var.get());
+  var_node->struct_info_ = func->struct_info_;
+
   auto it = global_var_map_.find(var->name_hint);
   if (it != global_var_map_.end()) {
     ICHECK_EQ((*it).second, var);
