@@ -336,4 +336,3 @@ tests in TVM. The easiest way to install GTest is from source.
     sudo make install
 
 After installing GTest, the C++ tests can be built and started with ``./tests/scripts/task_cpp_unittest.sh`` or just built with ``make cpptest``.
-
