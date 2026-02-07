@@ -19,7 +19,7 @@
 """The TIR backend compilation pipeline for Adreno"""
 
 import tvm
-from tvm import tir
+from tvm import tir, s_tir
 from tvm.tir import pipeline as tir_pipeline
 
 
@@ -33,31 +33,31 @@ def default_tir_pipeline():
         config = pass_ctx.config
         passes = [
             tir.backend.adreno.transform.TextureFlatten(),
-            tir.transform.CanonicalizeLoop(),
-            tir.transform.LowerCrossThreadReduction(),
-            tir.transform.LowerInitBlock(),
-            tir.transform.PlanAndUpdateBufferAllocationLocation(),
-            tir.transform.ConvertBlocksToOpaque(),
-            tir.transform.LiftThreadBinding(),
-            tir.transform.ManifestSharedMemoryLocalStage(),
-            tir.transform.CompactBufferAllocation(),
-            tir.transform.LowerAutoCopy(),
-            tir.transform.UnifyThreadBinding(),
-            tir.transform.LowerMatchBuffer(),
+            s_tir.transform.CanonicalizeLoop(),
+            s_tir.transform.LowerCrossThreadReduction(),
+            s_tir.transform.LowerInitBlock(),
+            s_tir.transform.PlanAndUpdateBufferAllocationLocation(),
+            s_tir.transform.ConvertBlocksToOpaque(),
+            s_tir.transform.LiftThreadBinding(),
+            s_tir.transform.ManifestSharedMemoryLocalStage(),
+            s_tir.transform.CompactBufferAllocation(),
+            s_tir.transform.LowerAutoCopy(),
+            s_tir.transform.UnifyThreadBinding(),
+            s_tir.transform.LowerMatchBuffer(),
             tir.transform.Simplify(),
-            tir.transform.InjectPermutedLayout(),
-            tir.transform.AnnotateIrregularLoop(),
-            tir.transform.InjectSoftwarePipeline(),
-            tir.transform.TransformMmaBufferLayout(),
-            tir.transform.LowerOpaqueBlock(),
+            s_tir.transform.InjectPermutedLayout(),
+            s_tir.transform.AnnotateIrregularLoop(),
+            s_tir.transform.InjectSoftwarePipeline(),
+            s_tir.transform.TransformMmaBufferLayout(),
+            s_tir.transform.LowerOpaqueBlock(),
             tir.backend.adreno.transform.InjectTextureAlloc(),
             tir.transform.FlattenBuffer(),
             tir.transform.BF16ComputeLegalize(),
             tir.transform.NarrowDataType(32),
-            tir.transform.LoopPartition(),
+            s_tir.transform.LoopPartition(),
             tir.transform.VectorizeLoop(not bool(config.get("tir.disable_vectorize", False))),
-            tir.transform.InjectVirtualThread(),
-            tir.transform.InjectDoubleBuffer(),
+            s_tir.transform.InjectVirtualThread(),
+            s_tir.transform.InjectDoubleBuffer(),
         ]
         if not bool(config.get("tir.disable_storage_rewrite", False)):
             passes.append(tir.transform.StorageRewrite())

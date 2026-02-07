@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/transform.h>
 
 #include "../utils.h"
@@ -154,27 +155,27 @@ class VerifyGPUCodeNode : public PostprocNode {
         try {
           auto pass_list = ffi::Array<tvm::transform::Pass>();
           // Phase 1
-          pass_list.push_back(tir::transform::LowerCrossThreadReduction());
-          pass_list.push_back(tir::transform::LowerInitBlock());
-          pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
-          pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
-          pass_list.push_back(tir::transform::LiftThreadBinding());
-          pass_list.push_back(tir::transform::ManifestSharedMemoryLocalStage());
-          pass_list.push_back(tir::transform::CompactBufferAllocation());
+          pass_list.push_back(s_tir::transform::LowerCrossThreadReduction());
+          pass_list.push_back(s_tir::transform::LowerInitBlock());
+          pass_list.push_back(s_tir::transform::PlanAndUpdateBufferAllocationLocation());
+          pass_list.push_back(s_tir::transform::ConvertBlocksToOpaque());
+          pass_list.push_back(s_tir::transform::LiftThreadBinding());
+          pass_list.push_back(s_tir::transform::ManifestSharedMemoryLocalStage());
+          pass_list.push_back(s_tir::transform::CompactBufferAllocation());
           pass_list.push_back(tir::transform::Simplify());
-          pass_list.push_back(tir::transform::LowerAutoCopy());
-          pass_list.push_back(tir::transform::UnifyThreadBinding());
-          pass_list.push_back(tir::transform::LowerMatchBuffer());
-          pass_list.push_back(tir::transform::InjectSoftwarePipeline());
-          pass_list.push_back(tir::transform::LowerOpaqueBlock());
+          pass_list.push_back(s_tir::transform::LowerAutoCopy());
+          pass_list.push_back(s_tir::transform::UnifyThreadBinding());
+          pass_list.push_back(s_tir::transform::LowerMatchBuffer());
+          pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
+          pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
           pass_list.push_back(tir::transform::FlattenBuffer());
           pass_list.push_back(tir::transform::BF16ComputeLegalize());
           pass_list.push_back(tir::transform::NarrowDataType(32));
           pass_list.push_back(tir::transform::Simplify());
           // Phase 2
           pass_list.push_back(tir::transform::VectorizeLoop(true));
-          pass_list.push_back(tir::transform::InjectVirtualThread());
-          pass_list.push_back(tir::transform::InjectDoubleBuffer());
+          pass_list.push_back(s_tir::transform::InjectVirtualThread());
+          pass_list.push_back(s_tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tir::transform::StorageRewrite());
           pass_list.push_back(tir::transform::MergeSharedMemoryAllocations());
           pass_list.push_back(tir::transform::LowerIntrin());

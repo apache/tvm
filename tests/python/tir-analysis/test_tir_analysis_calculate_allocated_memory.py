@@ -60,8 +60,8 @@ def test_scale_by(primFunc, size):
     sch.compute_at(cache_block, flat)
 
     mod = sch.mod
-    mod = tvm.tir.transform.ConvertBlocksToOpaque()(mod)
-    mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
+    mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(mod)
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
     sizes = tvm.tir.analysis.calculate_allocated_bytes(mod["main"])
     assert "main" in sizes, 'Calls with PrimFunc is expected to return with function key as "main"'
     sizes = sizes["main"]
@@ -102,9 +102,9 @@ def matmul_mix_scope(a: T.handle, b: T.handle, c: T.handle) -> None:
 def test_matmul_mix_scope(scope, size):
     """Test calculate allocated bytes per scope"""
     mod = tvm.IRModule({"main": matmul_mix_scope})
-    mod = tvm.tir.transform.LowerInitBlock()(mod)
-    mod = tvm.tir.transform.ConvertBlocksToOpaque()(mod)
-    mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
+    mod = tvm.s_tir.transform.LowerInitBlock()(mod)
+    mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(mod)
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
     sizes = tvm.tir.analysis.calculate_allocated_bytes(mod["main"])
     assert "main" in sizes, 'Calls with PrimFunc is expected to return with function key as "main"'
     sizes = sizes["main"]
@@ -120,8 +120,8 @@ def test_full_mod_calculator():
     sch = tvm.s_tir.Schedule(Module, debug_mask="all")
     apply_schedule(sch, "scale_by_two")
     apply_schedule(sch, "scale_by_two_three")
-    mod = tvm.tir.transform.ConvertBlocksToOpaque()(sch.mod)
-    mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
+    mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(sch.mod)
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
     sizes = tvm.tir.analysis.calculate_allocated_bytes(mod)
     assert "scale_by_two" in sizes, "Values for scale_by_two not found"
     scale_by_two_sizes = sizes["scale_by_two"]

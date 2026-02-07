@@ -25,6 +25,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
@@ -148,13 +149,13 @@ int64_t GetVTCMCapacity(Target target, const transform::PassContext& pass_ctx) {
 
 ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
   auto pass_list = ffi::Array<tvm::transform::Pass>();
-  pass_list.push_back(tir::transform::LowerInitBlock());
-  pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
-  pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
-  pass_list.push_back(tir::transform::CompactBufferAllocation());
-  pass_list.push_back(tir::transform::LowerMatchBuffer());
-  pass_list.push_back(tir::transform::InjectSoftwarePipeline());
-  pass_list.push_back(tir::transform::LowerOpaqueBlock());
+  pass_list.push_back(s_tir::transform::LowerInitBlock());
+  pass_list.push_back(s_tir::transform::PlanAndUpdateBufferAllocationLocation());
+  pass_list.push_back(s_tir::transform::ConvertBlocksToOpaque());
+  pass_list.push_back(s_tir::transform::CompactBufferAllocation());
+  pass_list.push_back(s_tir::transform::LowerMatchBuffer());
+  pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
+  pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tir::transform::FlattenBuffer());
   pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::VectorizeLoop(true));

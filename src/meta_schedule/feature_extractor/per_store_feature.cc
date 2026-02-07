@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/transform.h>
 
 #include <cmath>
@@ -311,15 +312,15 @@ Sequential PassListForPerStoreFeature() {
   return Sequential({
       tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_tensor_rewrite*/ true),
       tir::transform::SimplifyForFeatureExtraction(),
-      tir::transform::LowerCrossThreadReduction(),
-      tir::transform::LowerInitBlock(),
-      tir::transform::PlanAndUpdateBufferAllocationLocation(),
-      tir::transform::ConvertBlocksToOpaque(),
-      tir::transform::CompactBufferAllocation(),
+      s_tir::transform::LowerCrossThreadReduction(),
+      s_tir::transform::LowerInitBlock(),
+      s_tir::transform::PlanAndUpdateBufferAllocationLocation(),
+      s_tir::transform::ConvertBlocksToOpaque(),
+      s_tir::transform::CompactBufferAllocation(),
       tir::transform::Simplify(),
-      tir::transform::LowerAutoCopy(),
-      tir::transform::UnifyThreadBinding(),
-      tir::transform::LowerMatchBuffer(),
+      s_tir::transform::LowerAutoCopy(),
+      s_tir::transform::UnifyThreadBinding(),
+      s_tir::transform::LowerMatchBuffer(),
       tir::transform::Simplify(),
   });
 }
