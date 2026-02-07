@@ -99,7 +99,7 @@ def test_codegen_loop_step(target):
         for i in T.serial(3, 1024, step=96):
             C[i] = A[i] + B[i]
 
-    with tvm.transform.PassContext(disabled_pass=["tir.CanonicalizeLoop"]):
+    with tvm.transform.PassContext(disabled_pass=["s_tir.CanonicalizeLoop"]):
         lib = tvm.compile(test_loop_step, target=target)
 
     src = lib.mod.inspect_source()
