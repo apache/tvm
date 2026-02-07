@@ -14,14 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
-"""S-TIR namespace for scheduable TensorIR"""
+"""Namespace of all S-TIR transformations"""
+# pylint: disable=wildcard-import, invalid-name
 
-from tvm.tir.function import TensorIntrin
-
-from . import backend
-from . import pipeline
-from . import transform
-from . import schedule
-from .schedule import StmtSRef, SBlockScope, ScheduleState, Schedule, ScheduleError, Trace
-from .block_dependence_info import SBlockDependenceInfo
+from .transform import *

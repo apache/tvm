@@ -1049,7 +1049,7 @@ def test_cuda_loop_step():
                     C[i] = A[i] + B[i]
 
     target = tvm.target.Target({"kind": "cuda"})
-    with tvm.transform.PassContext(disabled_pass=["tir.CanonicalizeLoop"]):
+    with tvm.transform.PassContext(disabled_pass=["s_tir.CanonicalizeLoop"]):
         lib = tvm.compile(cuda_loop_step, target=target)
 
     cuda_src = lib.mod.imports[0].inspect_source()
