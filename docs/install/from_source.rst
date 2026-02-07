@@ -243,16 +243,12 @@ File Encoding
 .............
 - Ensure Python files are saved as **UTF-8 without BOM** (Byte Order Mark)
 - BOM characters cause ``SyntaxError: invalid non-printable character U+FEFF``
-- In VS Code: Bottom-right encoding → "Save with Encoding" → "UTF-8"
+- Use a text editor that supports saving as UTF-8 without BOM.
 
 Path Conventions
 ................
 - Use forward slashes (``/``) in Python/CMake paths, not Windows backslashes
 - Example: ``python cmake/config.cmake`` not ``python cmake\\config.cmake``
-
-Common Windows Build Issues
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
 Advanced Build Configuration
 ----------------------------
@@ -309,7 +305,7 @@ For CUDA support on Windows:
 
 CMake & Compiler Setup
 ......................
-- Use CMake GUI or specify generator: ``cmake -G "Visual Studio 16 2019" -A x64 ..``
+- Specify generator: ``cmake -G "Visual Studio 16 2019" -A x64 ..``
 - Ensure Python is in PATH or specify: ``-DPython_EXECUTABLE=C:\Python39\python.exe``
 
 
@@ -340,3 +336,4 @@ tests in TVM. The easiest way to install GTest is from source.
     sudo make install
 
 After installing GTest, the C++ tests can be built and started with ``./tests/scripts/task_cpp_unittest.sh`` or just built with ``make cpptest``.
+
