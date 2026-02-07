@@ -137,10 +137,9 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
             args = [a.contiguous() for a in i_args if isinstance(a, torch.Tensor)]
             vm_args = list()
             for arg in args:
-                if arg.dim() != 0:
-                    if arg.requires_grad:
-                        arg = arg.detach()
-                    vm_args.append(to_tvm_tensor(arg))
+                if arg.requires_grad:
+                    arg = arg.detach()
+                vm_args.append(to_tvm_tensor(arg))
             outputs = vm["main"](*vm_args)
             return to_torch_tensor(outputs)
 
