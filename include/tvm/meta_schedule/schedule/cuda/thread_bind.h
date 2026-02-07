@@ -19,7 +19,7 @@
 #ifndef TVM_META_SCHEDULE_SCHEDULE_CUDA_THREAD_BIND_H_
 #define TVM_META_SCHEDULE_SCHEDULE_CUDA_THREAD_BIND_H_
 
-#include <tvm/tir/schedule/schedule.h>
+#include <tvm/s_tir/schedule/schedule.h>
 
 #include <algorithm>
 #include <limits>
@@ -35,8 +35,8 @@ namespace meta_schedule {
  * \param thread_extents The candidate thread extents.
  * \return A sampler that returns a random thread extent.
  */
-std::function<tir::ExprRV(int64_t)> MakeFactorSampler(tir::Schedule sch,
-                                                      ffi::Array<Integer> thread_extents);
+std::function<s_tir::ExprRV(int64_t)> MakeFactorSampler(s_tir::Schedule sch,
+                                                        ffi::Array<Integer> thread_extents);
 
 /*!
  * \brief Bind blockIdx.x and threadIdx.x to the given loop
@@ -47,9 +47,10 @@ std::function<tir::ExprRV(int64_t)> MakeFactorSampler(tir::Schedule sch,
  * \param get_factor A function that returns the tiling factor.
  * \return The binded loops in the order of blockIdx.x, threadIdx.x, and the rest.
  */
-ffi::Array<tir::LoopRV> BindSpatialLoop(tir::Schedule sch, tir::LoopRV loop,  //
-                                        int64_t max_threadblocks, int64_t max_threads_per_block,
-                                        std::function<tir::ExprRV(int64_t)> get_factor = nullptr);
+ffi::Array<s_tir::LoopRV> BindSpatialLoop(
+    s_tir::Schedule sch, s_tir::LoopRV loop,  //
+    int64_t max_threadblocks, int64_t max_threads_per_block,
+    std::function<s_tir::ExprRV(int64_t)> get_factor = nullptr);
 
 /*!
  * \brief Bind the given block if it is not bound to blockIdx or threadIdx.
@@ -59,9 +60,9 @@ ffi::Array<tir::LoopRV> BindSpatialLoop(tir::Schedule sch, tir::LoopRV loop,  //
  * \param max_threads_per_block The maximum number of threads allowed.
  * \param get_factor A function that returns the tiling factor.
  */
-void BindBlockThreadIdx(tir::Schedule sch, tir::SBlockRV block,  //
+void BindBlockThreadIdx(s_tir::Schedule sch, s_tir::SBlockRV block,  //
                         int64_t max_threadblocks, int64_t max_threads_per_block,
-                        std::function<tir::ExprRV(int64_t max_extent)> get_factor = nullptr);
+                        std::function<s_tir::ExprRV(int64_t max_extent)> get_factor = nullptr);
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -28,11 +28,12 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../../../tir/schedule/transform.h"
+#include "../../../s_tir/schedule/transform.h"
 #include "utils.h"
 namespace tvm {
 namespace tir {
 using namespace tvm::relax::distributed;
+using s_tir::ReplaceBuffer;
 
 class DistBufferReplacer : public StmtExprMutator {
  public:

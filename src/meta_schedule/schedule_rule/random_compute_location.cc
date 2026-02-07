@@ -29,7 +29,8 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) final {
+  ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
+                                    const s_tir::SBlockRV& block_rv) final {
     if (!CheckConditions(sch, block_rv)) {
       return {sch};
     }
@@ -40,16 +41,16 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     // decision of Sample-Compute-Location is "compute-inline" for the input block, we can no longer
     // access the input block. Hence we collect its producer ahead of time.
     // - Note that only single producer is allowed in this case.
-    ffi::Array<tir::SBlockRV> producers{nullptr};
-    if (tir::HasAnn(sch->GetSRef(block_rv), tir::attr::meta_schedule_random_compute_producer,
-                    true)) {
+    ffi::Array<s_tir::SBlockRV> producers{nullptr};
+    if (s_tir::HasAnn(sch->GetSRef(block_rv), tir::attr::meta_schedule_random_compute_producer,
+                      true)) {
       producers = sch->GetProducers(block_rv);
       sch->Unannotate(block_rv, tir::attr::meta_schedule_random_compute_producer);
       ICHECK_EQ(producers.size(), 1);
     }
 
     // Step 2. Transform the input block.
-    tir::Schedule res = RandomlyComputeAt(sch, block_rv);
+    s_tir::Schedule res = RandomlyComputeAt(sch, block_rv);
 
     // Step 3. Transform the producer block if compute-location sampling is needed.
     if (producers.defined()) {
@@ -66,7 +67,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
   }
 
  private:
-  bool CheckConditions(const tir::Schedule sch, const tir::SBlockRV& block_rv) const {
+  bool CheckConditions(const s_tir::Schedule sch, const s_tir::SBlockRV& block_rv) const {
     tir::StmtSRef block_sref = sch->GetSRef(block_rv);
     TVM_SREF_TO_SBLOCK(block_sref);
 
@@ -75,26 +76,26 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
       return false;
     }
     // Cond 2. The block should be the direct child block of the root block.
-    if (GetScopeRoot(sch->state(), block_sref,
-                     /*require_stage_pipeline=*/false)
+    if (s_tir::GetScopeRoot(sch->state(), block_sref,
+                            /*require_stage_pipeline=*/false)
             ->parent != nullptr) {
       return false;
     }
     // Cond 3 & 4. The block has at least one outer loop, and the outermost loop has only one child
     // block.
-    ffi::Array<tir::StmtSRef> loop_srefs = tir::GetLoops(block_sref);
+    ffi::Array<tir::StmtSRef> loop_srefs = s_tir::GetLoops(block_sref);
     if (loop_srefs.empty()) {
       return false;
     }
-    if (tir::GetChildBlockSRefOnSRefTree(sch->state(), loop_srefs[0]).size() > 1) {
+    if (s_tir::GetChildBlockSRefOnSRefTree(sch->state(), loop_srefs[0]).size() > 1) {
       return false;
     }
     // Cond 5. The block is not tiled. We check this condition by examine the block's annotation.
-    if (tir::HasBeenMultiLevelTiled(block_sref)) {
+    if (s_tir::HasBeenMultiLevelTiled(block_sref)) {
       return false;
     }
     // Cond 6. The block has at lease one consumer.
-    if (tir::GetConsumers(sch->state(), sch->GetSRef(block_rv)).empty()) {
+    if (s_tir::GetConsumers(sch->state(), sch->GetSRef(block_rv)).empty()) {
       return false;
     }
     return true;
@@ -106,8 +107,8 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
    * \param block_rv The block whose compute-at location is to be sampled
    * \return The TIR schedule after transformation
    */
-  tir::Schedule RandomlyComputeAt(const tir::Schedule& sch, const tir::SBlockRV& block_rv) {
-    tir::LoopRV compute_at_loc = sch->SampleComputeLocation(block_rv);
+  s_tir::Schedule RandomlyComputeAt(const s_tir::Schedule& sch, const s_tir::SBlockRV& block_rv) {
+    s_tir::LoopRV compute_at_loc = sch->SampleComputeLocation(block_rv);
     sch->ComputeAt(block_rv, compute_at_loc, true);
     return sch;
   }

@@ -30,10 +30,11 @@
 namespace tvm {
 namespace meta_schedule {
 
+using s_tir::GetSBlockVarTypes;
+using s_tir::LoopRV;
+using s_tir::SBlockRV;
+using s_tir::Schedule;
 using tir::IterVarType;
-using tir::LoopRV;
-using tir::SBlockRV;
-using tir::Schedule;
 
 struct TensorCoreIntrinGroup {
   ffi::String init_intrin;
@@ -77,13 +78,13 @@ class TensorCoreStateNode : public StateNode {
   /*! \brief The tensor core intrinsic group. */
   TensorCoreIntrinGroup intrin_group;
   /*! \brief The auto tensorization maping info. */
-  tir::AutoTensorizeMappingInfo mapping_info{ffi::UnsafeInit()};
+  s_tir::AutoTensorizeMappingInfo mapping_info{ffi::UnsafeInit()};
   /*! \brief The Tensor Core reindex block A for Tensor Core computation */
-  tir::SBlockRV tensor_core_reindex_A;
+  s_tir::SBlockRV tensor_core_reindex_A;
   /*! \brief The Tensor Core reindex block B for Tensor Core computation */
-  tir::SBlockRV tensor_core_reindex_B;
+  s_tir::SBlockRV tensor_core_reindex_B;
   /*! \brief The Tensor Core reindex store block for Tensor Core computation */
-  tir::SBlockRV tensor_core_reindex_store;
+  s_tir::SBlockRV tensor_core_reindex_store;
   /*! \brief Flag to indicate its a WMMA or MMA intrin group */
   bool is_mma;
   /*! \brief Flag to indicate whether to use async software pipeline */
@@ -103,15 +104,15 @@ class TensorCoreStateNode : public StateNode {
 class TensorCoreState : public State {
  public:
   explicit TensorCoreState(TensorCoreIntrinGroup intrin_group,
-                           tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
+                           s_tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
                            SBlockRV block_rv, bool use_async,
-                           ffi::Array<ffi::Array<tir::LoopRV>> tiles = {});
+                           ffi::Array<ffi::Array<s_tir::LoopRV>> tiles = {});
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorCoreState, State, TensorCoreStateNode);
 };
 
 TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
-                                 tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
+                                 s_tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
                                  SBlockRV block_rv, bool use_async,
                                  ffi::Array<ffi::Array<LoopRV>> tiles) {
   ObjectPtr<TensorCoreStateNode> node = ffi::make_object<TensorCoreStateNode>();
@@ -153,7 +154,7 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   // Subrule: Add software pipeline
   inline std::vector<State> AddSoftwarePipeline(TensorCoreState state) const;
   // Subrule: split loop for mma using sample partitioned tile
-  inline std::pair<ffi::Array<tir::ExprRV>, ffi::Array<tir::LoopRV>> MMASplitLoop(
+  inline std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>> MMASplitLoop(
       const Schedule& sch, SBlockRV block, LoopRV loop, int n_tiles, int partition_pos,
       int innerpart_factor) const;
   // Subrule: tile loop nest for mma
@@ -216,12 +217,13 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
     return {sch};
   }
 
-  std::unordered_map<int, tir::AutoTensorizeMappingInfo> intrin_group_to_mapping_info;
+  std::unordered_map<int, s_tir::AutoTensorizeMappingInfo> intrin_group_to_mapping_info;
   for (int i = 0, n = intrin_groups.size(); i < n; ++i) {
     TensorCoreIntrinGroup intrin_group = intrin_groups[i];
-    ffi::Optional<tir::AutoTensorizeMappingInfo> mapping_info = tir::GetAutoTensorizeMappingInfo(
-        sch->state(), sch->GetSRef(block_rv),
-        tir::TensorIntrin::Get(intrin_groups[i].compute_intrin).value()->desc);
+    ffi::Optional<s_tir::AutoTensorizeMappingInfo> mapping_info =
+        s_tir::GetAutoTensorizeMappingInfo(
+            sch->state(), sch->GetSRef(block_rv),
+            tir::TensorIntrin::Get(intrin_groups[i].compute_intrin).value()->desc);
     if (mapping_info.defined()) {
       intrin_group_to_mapping_info.emplace(i, mapping_info.value());
     }
@@ -239,7 +241,7 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
   std::vector<State> initial_states;
   for (const auto& kv : intrin_group_to_mapping_info) {
     const TensorCoreIntrinGroup& intrin_group = intrin_groups[kv.first];
-    const tir::AutoTensorizeMappingInfo& mapping_info = kv.second;
+    const s_tir::AutoTensorizeMappingInfo& mapping_info = kv.second;
     Schedule new_sch = sch->Copy();
     new_sch->Annotate(block_rv, tir::attr::meta_schedule_tiling_structure, structure);
     initial_states.push_back(TensorCoreState(intrin_group, mapping_info, new_sch, block_rv, true));
@@ -288,7 +290,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::ApplySubRules(std::vector<Sta
 void MultiLevelTilingTensorCoreNode::TileAndAnnotateTensorize(
     Schedule* sch, const SBlockRV& block_rv, const ffi::String& intrin_name,
     const ffi::String& permuted_layout_annotate_value) const {
-  ffi::Optional<LoopRV> loop = TileWithTensorIntrin(*sch, block_rv, intrin_name).value();
+  ffi::Optional<LoopRV> loop = s_tir::TileWithTensorIntrin(*sch, block_rv, intrin_name).value();
   ICHECK(loop.defined());
   SBlockRV blockized_outer = (*sch)->Blockize(loop.value());
   (*sch)->Annotate(blockized_outer, tir::attr::meta_schedule_auto_tensorize, intrin_name);
@@ -311,7 +313,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMAAddReadReuse(TensorCoreSta
     Schedule& sch = new_state->sch;
     const LoopRV& loop_rv = state->tiles[level - 1].back();
     // Enumerate all buffers that are read but not written
-    std::vector<int> read_buffer_ndims = tir::GetReadBufferNDims(sch->GetSRef(block_rv));
+    std::vector<int> read_buffer_ndims = s_tir::GetReadBufferNDims(sch->GetSRef(block_rv));
     for (int i = 0, n_reads = read_buffer_ndims.size(); i < n_reads; ++i) {
       int buffer_ndim = read_buffer_ndims[i];
       if (buffer_ndim == -1) {
@@ -331,17 +333,17 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMAAddReadReuse(TensorCoreSta
   return results;
 }
 
-std::pair<ffi::Array<tir::ExprRV>, ffi::Array<tir::LoopRV>>
+std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>>
 MultiLevelTilingTensorCoreNode::MMASplitLoop(const Schedule& sch, SBlockRV block, LoopRV loop,
                                              int n_tiles, int partition_pos,
                                              int innerpart_factor) const {
-  ffi::Array<tir::ExprRV> factors = sch->SamplePartitionedTile(
+  ffi::Array<s_tir::ExprRV> factors = sch->SamplePartitionedTile(
       /*loop=*/loop,
       /*n=*/n_tiles,
       /*partition_pos=*/partition_pos,
       /*innerpart_factor=*/innerpart_factor);
-  ffi::Array<tir::LoopRV> splits = sch->Split(/*loop=*/loop,
-                                              /*factors=*/{factors.begin(), factors.end()});
+  ffi::Array<s_tir::LoopRV> splits = sch->Split(/*loop=*/loop,
+                                                /*factors=*/{factors.begin(), factors.end()});
   return {factors, splits};
 }
 
@@ -360,7 +362,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
   int64_t spatial_loop_product = 1;
   std::vector<ffi::Array<LoopRV>> tiles(s_indices_.size() + r_indices_.size());
   state->tile_factors.resize(tiles.size());
-  std::vector<ffi::Array<tir::ExprRV>> tile_factors;
+  std::vector<ffi::Array<s_tir::ExprRV>> tile_factors;
   tile_factors.resize(tiles.size());
   for (int i = 0, n = loops.size(); i < n; ++i) {
     LoopRV loop = loops[i];
@@ -369,7 +371,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
     if (iter_types[i] == IterVarType::kDataPar) {
       idx = &s_indices_;
       if (spatial_loop_product != -1) {
-        if (const int64_t* extent = tir::GetLoopIntExtent(sch->Get(loop).get())) {
+        if (const int64_t* extent = s_tir::GetLoopIntExtent(sch->Get(loop).get())) {
           spatial_loop_product *= *extent;
         } else {
           spatial_loop_product = -1;
@@ -460,7 +462,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
   // This function computes the product of tile_factors[i][loop_idx] for i > tile_index_warp_id.
   // `loop_idx` can be negative, in which case it is counted from the end.
   auto f_get_inner_tile_product = [&](int loop_idx) {
-    ffi::Array<tir::ExprRV> factors;
+    ffi::Array<s_tir::ExprRV> factors;
     for (int i = tile_index_warp_id + 1; i < static_cast<int>(s_indices_.size()); ++i) {
       auto s_factors = state->tile_factors[s_indices_[i]];
       if (loop_idx < 0) {
@@ -515,7 +517,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
                                 result.push_back(accum_n);
                                 return result;
                               });
-  sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite, index_map,
+  sch->TransformLayout(state->block_rv, 0, s_tir::BufferIndexType::kWrite, index_map,
                        /*pad_value=*/std::nullopt, /*assume_injective_transform=*/true);
 
   return {state};
@@ -613,12 +615,13 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
                    state->intrin_group.load_b_intrin);
 
   for (int i = 0; i < 2; ++i) {
-    const tir::SBlockRV cache_read = state->read_reuse.at(i);
+    const s_tir::SBlockRV cache_read = state->read_reuse.at(i);
     // Inline the reindex / padding block
     sch->ComputeInline(sch->GetProducers(cache_read)[0]);
     const tir::SBlockNode* cache_read_block = sch->GetSRef(cache_read)->StmtAs<tir::SBlockNode>();
-    tir::Buffer cache_read_buffer = tir::GetNthAccessBuffer(
-        sch->state(), ffi::GetRef<tir::SBlock>(cache_read_block), 0, tir::BufferIndexType::kWrite);
+    tir::Buffer cache_read_buffer =
+        s_tir::GetNthAccessBuffer(sch->state(), ffi::GetRef<tir::SBlock>(cache_read_block), 0,
+                                  s_tir::BufferIndexType::kWrite);
     const DataType& dtype = cache_read_buffer->dtype;
     if (dtype.is_float16()) {
       sch->StorageAlign(cache_read, 0, -2, 32, 8);
@@ -658,7 +661,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
   }
 
   for (int i = 0; i < 2; ++i) {
-    const tir::SBlockRV cache_read = state->read_reuse.at(i);
+    const s_tir::SBlockRV cache_read = state->read_reuse.at(i);
     if (state->is_mma) {
       // Add vector bytes for memhammer
       sch->Annotate(cache_read, tir::attr::vector_bytes, Integer(16));
@@ -764,7 +767,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
 ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     TensorCoreStateNode* state, const ffi::String& intrin_name) const {
   SBlockRV block_rv = state->block_rv;
-  const tir::AutoTensorizeMappingInfo& mapping_info = state->mapping_info;
+  const s_tir::AutoTensorizeMappingInfo& mapping_info = state->mapping_info;
   tir::StmtSRef block_sref = state->sch->GetSRef(state->block_rv);
 
   // Add reindex stages
@@ -776,11 +779,11 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     return std::nullopt;
   }
   state->tensor_core_reindex_store =
-      state->sch->ReIndex(state->block_rv, 0, tir::BufferIndexType::kWrite);
+      state->sch->ReIndex(state->block_rv, 0, s_tir::BufferIndexType::kWrite);
   state->tensor_core_reindex_A =
-      state->sch->ReIndex(state->block_rv, 0, tir::BufferIndexType::kRead);
+      state->sch->ReIndex(state->block_rv, 0, s_tir::BufferIndexType::kRead);
   state->tensor_core_reindex_B =
-      state->sch->ReIndex(state->block_rv, 1, tir::BufferIndexType::kRead);
+      state->sch->ReIndex(state->block_rv, 1, s_tir::BufferIndexType::kRead);
 
   // Transform the layout of reindex buffers accordingly.
   // The index map defines the mapping for the computation block. We need to extract the sub index
@@ -840,8 +843,8 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   ffi::Map<tir::Buffer, tir::IndexMap> buffer_sub_index_map;  // cache of the sub index map
                                                               // associated with each buffer
 
-  auto f_transform_buffer_layout = [&](tir::BufferIndexType index_type, int buffer_index) {
-    const tir::Buffer& lhs_buffer = tir::GetNthAccessBuffer(
+  auto f_transform_buffer_layout = [&](s_tir::BufferIndexType index_type, int buffer_index) {
+    const tir::Buffer& lhs_buffer = s_tir::GetNthAccessBuffer(
         state->sch->state(), block_before_reindex, buffer_index, index_type);
     if (visited_buffers.count(lhs_buffer)) {
       return;
@@ -849,7 +852,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     visited_buffers.insert(lhs_buffer);
     // Refresh block pointer (block sref is not invalidated)
     block = TVM_SREF_TO_SBLOCK(block_sref);
-    const tir::BufferRegion& reindexed_buffer_region = tir::GetNthAccessBufferRegion(
+    const tir::BufferRegion& reindexed_buffer_region = s_tir::GetNthAccessBufferRegion(
         state->sch->state(), ffi::GetRef<tir::SBlock>(block), buffer_index, index_type);
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);
     buffer_sub_index_map.Set(lhs_buffer, sub_index_map);
@@ -858,26 +861,27 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   };
 
   for (int i = 0, n = block_before_reindex->reads.size(); i < n; ++i) {
-    f_transform_buffer_layout(tir::BufferIndexType::kRead, i);
+    f_transform_buffer_layout(s_tir::BufferIndexType::kRead, i);
   }
   for (int i = 0, n = block_before_reindex->writes.size(); i < n; ++i) {
-    f_transform_buffer_layout(tir::BufferIndexType::kWrite, i);
+    f_transform_buffer_layout(s_tir::BufferIndexType::kWrite, i);
   }
 
   // Transform the layout of current block and reindex blocks
   auto f_transform_reindex_block_layout = [&](const SBlockRV& block_rv,
-                                              tir::BufferIndexType buffer_type) {
+                                              s_tir::BufferIndexType buffer_type) {
     tir::Buffer buffer =
-        tir::GetNthAccessBuffer(state->sch->state(), state->sch->Get(block_rv), 0, buffer_type);
+        s_tir::GetNthAccessBuffer(state->sch->state(), state->sch->Get(block_rv), 0, buffer_type);
     const auto& sub_index_map = buffer_sub_index_map.at(buffer);
     state->sch->TransformBlockLayout(block_rv, sub_index_map);
   };
-  f_transform_reindex_block_layout(state->tensor_core_reindex_store, tir::BufferIndexType::kWrite);
-  f_transform_reindex_block_layout(state->tensor_core_reindex_A, tir::BufferIndexType::kRead);
-  f_transform_reindex_block_layout(state->tensor_core_reindex_B, tir::BufferIndexType::kRead);
+  f_transform_reindex_block_layout(state->tensor_core_reindex_store,
+                                   s_tir::BufferIndexType::kWrite);
+  f_transform_reindex_block_layout(state->tensor_core_reindex_A, s_tir::BufferIndexType::kRead);
+  f_transform_reindex_block_layout(state->tensor_core_reindex_B, s_tir::BufferIndexType::kRead);
   state->sch->TransformBlockLayout(state->block_rv, index_map);
-  return tir::TileWithTensorIntrin(state->sch, state->block_rv, intrin_name,
-                                   /*allow_padding=*/true);
+  return s_tir::TileWithTensorIntrin(state->sch, state->block_rv, intrin_name,
+                                     /*allow_padding=*/true);
 }
 
 inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorization(

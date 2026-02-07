@@ -38,8 +38,8 @@
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/node.h>
 #include <tvm/node/serialization.h>
+#include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/support/parallel_for.h>
-#include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
@@ -49,13 +49,13 @@
 #include <utility>
 #include <vector>
 
+#include "../s_tir/schedule/primitive.h"
+#include "../s_tir/schedule/utils.h"
 #include "../support/array.h"
 #include "../support/base64.h"
 #include "../support/nd_int_set.h"
 #include "../support/table_printer.h"
 #include "../support/utils.h"
-#include "../tir/schedule/primitive.h"
-#include "../tir/schedule/utils.h"
 
 #define TVM_PY_LOG(logging_level, logger)                                \
   ::tvm::meta_schedule::PyLogMessage(__FILE__, __LINE__, logger,         \
@@ -291,8 +291,8 @@ inline std::string Concat(const ffi::Array<ffi::String>& strs, const std::string
  * \param global_var_name The global variable name
  * \return The SBlockRV
  */
-inline tir::SBlockRV GetRVFromSRef(const tir::Schedule& sch, const tir::StmtSRef& block_sref,
-                                   const ffi::String& global_var_name) {
+inline s_tir::SBlockRV GetRVFromSRef(const s_tir::Schedule& sch, const tir::StmtSRef& block_sref,
+                                     const ffi::String& global_var_name) {
   const tir::SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   return sch->GetSBlock(block->name_hint, global_var_name);
 }
@@ -321,13 +321,13 @@ struct ThreadedTraceApply {
    * \param rand_state The random seed
    * \return The schedule created, or std::nullopt if any postprocessor fails
    */
-  ffi::Optional<tir::Schedule> Apply(const IRModule& mod, const tir::Trace& trace,
-                                     TRandState* rand_state) {
-    tir::Schedule sch =
-        tir::Schedule::Traced(mod,
-                              /*rand_state=*/ForkSeed(rand_state),
-                              /*debug_mode=*/0,
-                              /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+  ffi::Optional<s_tir::Schedule> Apply(const IRModule& mod, const s_tir::Trace& trace,
+                                       TRandState* rand_state) {
+    s_tir::Schedule sch =
+        s_tir::Schedule::Traced(mod,
+                                /*rand_state=*/ForkSeed(rand_state),
+                                /*debug_mode=*/0,
+                                /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kNone);
 
     trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
     sch->EnterPostproc();
@@ -339,7 +339,7 @@ struct ThreadedTraceApply {
         if (!item.postproc->Apply(sch)) {
           success = false;
         }
-      } catch (const tir::ScheduleError& e) {
+      } catch (const s_tir::ScheduleError& e) {
         DLOG(WARNING) << "Postproc #" << i << " failed with ScheduleError: " << e.what();
         success = false;
       } catch (const std::exception& e) {
@@ -580,15 +580,15 @@ inline double Sum(const ffi::Array<FloatImm>& arr) {
 /*! \brief Collecting all the blocks */
 class SBlockCollector : public tir::StmtVisitor {
  public:
-  static ffi::Array<tir::SBlockRV> Collect(const tir::Schedule& sch,
-                                           const ffi::Function f_block_filter = nullptr) {  //
+  static ffi::Array<s_tir::SBlockRV> Collect(const s_tir::Schedule& sch,
+                                             const ffi::Function f_block_filter = nullptr) {  //
     return SBlockCollector(sch, f_block_filter).Run();
   }
 
  private:
   /*! \brief Entry point */
-  ffi::Array<tir::SBlockRV> Run() {
-    std::vector<tir::SBlockRV> results;
+  ffi::Array<s_tir::SBlockRV> Run() {
+    std::vector<s_tir::SBlockRV> results;
     auto f_collect = [this, &results](tir::PrimFunc func, ffi::String func_name) {
       func_name_ = func_name;
       block_names_.clear();
@@ -615,7 +615,7 @@ class SBlockCollector : public tir::StmtVisitor {
     return results;
   }
   /*! \brief Constructor */
-  explicit SBlockCollector(const tir::Schedule& sch, const ffi::Function f_block_filter = nullptr)
+  explicit SBlockCollector(const s_tir::Schedule& sch, const ffi::Function f_block_filter = nullptr)
       : sch_(sch), f_block_filter_(f_block_filter) {}
   /*! \brief Override the Stmt visiting behaviour */
   void VisitStmt_(const tir::SBlockNode* block) override {
@@ -637,7 +637,7 @@ class SBlockCollector : public tir::StmtVisitor {
   }
 
   /*! \brief The schedule to be collected */
-  const tir::Schedule& sch_;
+  const s_tir::Schedule& sch_;
   /*! \brief An optional packed func that allows only certain blocks to be collected. */
   const ffi::Function f_block_filter_;
   /*! \brief The set of func name and block name pair */

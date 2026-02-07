@@ -46,21 +46,21 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
     this->rand_state_ = ForkSeed(&context->rand_state);
   }
 
-  ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
-    using ScheduleAndUnvisitedBlocks = std::pair<tir::Schedule, ffi::Array<tir::SBlockRV>>;
+  ffi::Array<s_tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
+    using ScheduleAndUnvisitedBlocks = std::pair<s_tir::Schedule, ffi::Array<s_tir::SBlockRV>>;
     CHECK(sch_rules.defined()) << "ValueError: `sch_rules` is not set in PostOrderApply";
-    tir::Schedule sch = tir::Schedule::Traced(
+    s_tir::Schedule sch = s_tir::Schedule::Traced(
         /*mod=*/mod,
         /*rand_state=*/ForkSeed(&this->rand_state_),
         /*debug_mode=*/0,
-        /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
+        /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kDetail);
 
     std::vector<ScheduleAndUnvisitedBlocks> stack;
-    ffi::Array<tir::Schedule> result{sch};
-    ffi::Array<tir::SBlockRV> all_blocks = SBlockCollector::Collect(sch, f_block_filter_);
+    ffi::Array<s_tir::Schedule> result{sch};
+    ffi::Array<s_tir::SBlockRV> all_blocks = SBlockCollector::Collect(sch, f_block_filter_);
 
     for (ScheduleRule sch_rule : sch_rules.value()) {
-      for (const tir::Schedule& sch : result) {
+      for (const s_tir::Schedule& sch : result) {
         stack.emplace_back(sch, all_blocks);
       }
       result.clear();
@@ -74,20 +74,20 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
           continue;
         }
         // otherwise, get the last block that is not visited
-        tir::SBlockRV block_rv = blocks.back();
+        s_tir::SBlockRV block_rv = blocks.back();
         blocks.pop_back();
         if (!sch->HasBlock(block_rv)) {
           stack.emplace_back(sch, blocks);
           continue;
         }
         if (!ScheduleRule::IsApplyCustomRule(sch_rule)) {
-          if (tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), "schedule_rule").has_value()) {
+          if (s_tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), "schedule_rule").has_value()) {
             stack.emplace_back(sch, blocks);
             continue;
           }
         }
-        ffi::Array<tir::Schedule> applied = sch_rule->Apply(sch, /*block=*/block_rv);
-        for (const tir::Schedule& sch : applied) {
+        ffi::Array<s_tir::Schedule> applied = sch_rule->Apply(sch, /*block=*/block_rv);
+        for (const s_tir::Schedule& sch : applied) {
           stack.emplace_back(sch, blocks);
         }
       }

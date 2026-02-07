@@ -27,9 +27,9 @@
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/runtime/object.h>
+#include <tvm/s_tir/schedule/schedule.h>
+#include <tvm/s_tir/schedule/trace.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/schedule/schedule.h>
-#include <tvm/tir/schedule/trace.h>
 
 #include <filesystem>
 #include <memory>
@@ -114,7 +114,7 @@ class MeasureCandidate;
 class TuningRecordNode : public runtime::Object {
  public:
   /*! \brief The trace tuned. */
-  tir::Trace trace;
+  s_tir::Trace trace;
   /*! \brief The workload. */
   Workload workload{ffi::UnsafeInit()};
   /*! \brief The profiling result in seconds. */
@@ -166,7 +166,7 @@ class TuningRecord : public runtime::ObjectRef {
    \param target The target of the tuning record.
    \param args_info The argument information of the tuning record.
   */
-  TVM_DLL explicit TuningRecord(tir::Trace trace, Workload workload,
+  TVM_DLL explicit TuningRecord(s_tir::Trace trace, Workload workload,
                                 ffi::Optional<ffi::Array<FloatImm>> run_secs,
                                 ffi::Optional<Target> target,
                                 ffi::Optional<ffi::Array<ArgInfo>> args_info);
@@ -251,8 +251,8 @@ class DatabaseNode : public runtime::Object {
    * \param workload_name The name of the workload to be searched for.
    * \return The schedule in the best schedule of the given workload; std::nullopt if not found.
    */
-  virtual ffi::Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
-                                                     const ffi::String& workload_name);
+  virtual ffi::Optional<s_tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
+                                                       const ffi::String& workload_name);
   /*!
    * \brief Query the best IRModule of the given workload from the database.
    * \param mod The IRModule to be searched for.
@@ -343,7 +343,7 @@ class PyDatabaseNode : public DatabaseNode {
    * \param workload_name The name of the workload to be searched for.
    * \return The schedule in the best schedule of the given workload; std::nullopt if not found.
    */
-  using FQuerySchedule = ffi::TypedFunction<ffi::Optional<tir::Schedule>(
+  using FQuerySchedule = ffi::TypedFunction<ffi::Optional<s_tir::Schedule>(
       const IRModule&, const Target&, const ffi::String&)>;
   /*!
    * \brief The function type of `QueryIRModule` method.
@@ -432,8 +432,8 @@ class PyDatabaseNode : public DatabaseNode {
     }
   }
 
-  ffi::Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
-                                             const ffi::String& workload_name) final {
+  ffi::Optional<s_tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
+                                               const ffi::String& workload_name) final {
     if (f_query_schedule == nullptr) {
       return DatabaseNode::QuerySchedule(mod, target, workload_name);
     } else {
@@ -483,7 +483,7 @@ class Database : public runtime::ObjectRef {
    * and returns a boolean indicating if the schedule is successful.
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    */
-  TVM_DLL static Database ScheduleFnDatabase(ffi::TypedFunction<bool(tir::Schedule)> schedule_fn,
+  TVM_DLL static Database ScheduleFnDatabase(ffi::TypedFunction<bool(s_tir::Schedule)> schedule_fn,
                                              ffi::String mod_eq_name = "structural");
   /*!
    * \brief Create a default database that uses JSON file for tuning records.

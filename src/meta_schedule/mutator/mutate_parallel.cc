@@ -24,7 +24,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 /*!
  * \brief Check if the instruction is annotation with `meta_schedule_parallel`
@@ -38,7 +39,7 @@ bool IsAnnotateWithParallel(const Instruction& inst) {
   }
   ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
-  return ann_key == attr::meta_schedule_parallel;
+  return ann_key == tir::attr::meta_schedule_parallel;
 }
 
 /*!
@@ -82,7 +83,7 @@ std::vector<std::vector<int64_t>> AnalyzeParallel(const ScheduleState& self,
                                                   const ffi::String& block_name,
                                                   const ffi::String& func_name, int64_t limit) {
   ffi::Array<StmtSRef> block_srefs =
-      tir::GetSBlocks(self, block_name, self->mod->GetGlobalVar(func_name));
+      GetSBlocks(self, block_name, self->mod->GetGlobalVar(func_name));
   ICHECK_EQ(block_srefs.size(), 1);
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_srefs[0]);
   ScopeBlockLoopInfo info = GetScopeBlockLoopInfo(ffi::GetRef<SBlock>(block));
@@ -148,14 +149,14 @@ std::vector<int> GetNumFusedLoops(const std::vector<std::vector<int64_t>>& loop_
   return results;
 }
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm
 
 namespace tvm {
 namespace meta_schedule {
 
-using tir::Instruction;
-using tir::Trace;
+using s_tir::Instruction;
+using s_tir::Trace;
 
 /*! \brief Create a Mutator that mutates the parallel extent */
 class MutateParallelNode : public MutatorNode {
@@ -217,17 +218,17 @@ struct MutateParallelNode::Candidate {
  */
 bool FindParallelDecision(const Trace& trace, TRandState* rand_state,
                           MutateParallelNode::Candidate* candidate) {
-  using tir::InstructionNode;
-  using tir::SBlockRVNode;
+  using s_tir::InstructionNode;
+  using s_tir::SBlockRVNode;
   std::unordered_map<const SBlockRVNode*, const InstructionNode*> get_sblock_insts;
   std::vector<const InstructionNode*> ann_insts;
   get_sblock_insts.reserve(trace->insts.size());
   ann_insts.reserve(trace->insts.size());
   for (const Instruction& inst : trace->insts) {
-    if (tir::IsAnnotateWithParallel(inst)) {
+    if (s_tir::IsAnnotateWithParallel(inst)) {
       ann_insts.push_back(inst.get());
     }
-    if (const SBlockRVNode* block_rv = tir::GetInstGetSBlockOutput(inst)) {
+    if (const SBlockRVNode* block_rv = s_tir::GetInstGetSBlockOutput(inst)) {
       get_sblock_insts[block_rv] = inst.get();
     }
   }
@@ -235,10 +236,10 @@ bool FindParallelDecision(const Trace& trace, TRandState* rand_state,
   if (n_ann_insts == 0) {
     return false;
   }
-  const InstructionNode* ann_inst = ann_insts[tir::SampleInt(rand_state, 0, n_ann_insts)];
+  const InstructionNode* ann_inst = ann_insts[s_tir::SampleInt(rand_state, 0, n_ann_insts)];
   ICHECK_EQ(ann_inst->inputs.size(), 2);
   const InstructionNode* get_sblock_inst =
-      get_sblock_insts.at(Downcast<tir::SBlockRV>(ann_inst->inputs[0]).get());
+      get_sblock_insts.at(Downcast<s_tir::SBlockRV>(ann_inst->inputs[0]).get());
   ICHECK_EQ(get_sblock_inst->attrs.size(), 2);
   candidate->inst = ffi::GetRef<Instruction>(ann_inst);
   candidate->parallel_extent = Downcast<IntImm>(ann_inst->inputs[1])->value;
@@ -254,21 +255,21 @@ ffi::Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* r
     return std::nullopt;
   }
   // Step 2. Replay the instructions to recover loop extents
-  tir::Schedule sch = tir::Schedule::Traced(               //
+  s_tir::Schedule sch = s_tir::Schedule::Traced(           //
       /*mod=*/LoadJSON(this->json_mod_).cast<IRModule>(),  //
       /*rand_state=*/ForkSeed(rand_state),                 //
       /*debug_mode=*/0,
-      /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+      /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kNone);
   trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
   // Step 3. Find all possible parallel plans
-  std::vector<std::vector<int64_t>> loop_extent_prods = tir::AnalyzeParallel(
+  std::vector<std::vector<int64_t>> loop_extent_prods = s_tir::AnalyzeParallel(
       sch->state(), candidate.block_name, candidate.func_name, this->max_parallel_extent_);
   std::unordered_map<int64_t, std::vector<int>> limit2plan;
   std::map<std::vector<int>, int64_t> plan2limit;
   for (const std::vector<int64_t>& prods : loop_extent_prods) {
     for (int64_t limit : prods) {
       if (limit <= this->max_parallel_extent_ && !limit2plan.count(limit)) {
-        std::vector<int> plan = tir::GetNumFusedLoops(loop_extent_prods, limit);
+        std::vector<int> plan = s_tir::GetNumFusedLoops(loop_extent_prods, limit);
         limit2plan[limit] = plan;
         plan2limit[plan] = limit;
       }
@@ -276,7 +277,7 @@ ffi::Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* r
   }
   // Step 4. Remove the original plan and remove it
   std::vector<int> original_plan =
-      tir::GetNumFusedLoops(loop_extent_prods, candidate.parallel_extent);
+      s_tir::GetNumFusedLoops(loop_extent_prods, candidate.parallel_extent);
   auto it = plan2limit.find(original_plan);
   if (it != plan2limit.end()) {
     plan2limit.erase(it);
@@ -287,7 +288,7 @@ ffi::Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* r
     return std::nullopt;
   }
   it = plan2limit.begin();
-  for (int i = 0, n = tir::SampleInt(rand_state, 0, n_plans); i < n; ++i) {
+  for (int i = 0, n = s_tir::SampleInt(rand_state, 0, n_plans); i < n; ++i) {
     ++it;
   }
   int64_t limit = it->second;
@@ -296,7 +297,7 @@ ffi::Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* r
   insts.reserve(trace->insts.size());
   for (const Instruction& inst : trace->insts) {
     if (inst.same_as(candidate.inst)) {
-      insts.push_back(tir::ReplaceAnnValue(candidate.inst, limit));
+      insts.push_back(s_tir::ReplaceAnnValue(candidate.inst, limit));
     } else if (inst->kind->IsPostproc()) {
       break;
     } else {

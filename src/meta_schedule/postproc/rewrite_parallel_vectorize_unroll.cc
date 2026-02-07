@@ -21,7 +21,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 /*!
  * \brief Check whether the loop has any annotation
@@ -106,22 +107,22 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
   bool found = false;
   *parsed = ParsedAnnotation{-1, -1, -1, -1, -1, -1};
   for (const auto& ann : block->annotations) {
-    if (ann.first == attr::meta_schedule_parallel) {
+    if (ann.first == tir::attr::meta_schedule_parallel) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_parallel_extent = (*opt_int_imm)->value;
       }
-    } else if (ann.first == attr::meta_schedule_vectorize) {
+    } else if (ann.first == tir::attr::meta_schedule_vectorize) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_vectorize_extent = (*opt_int_imm)->value;
       }
-    } else if (ann.first == attr::meta_schedule_unroll_explicit) {
+    } else if (ann.first == tir::attr::meta_schedule_unroll_explicit) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_explicit = (*opt_int_imm)->value;
       }
-    } else if (ann.first == attr::meta_schedule_unroll_implicit) {
+    } else if (ann.first == tir::attr::meta_schedule_unroll_implicit) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_implicit = (*opt_int_imm)->value;
@@ -134,16 +135,16 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
 void RemoveParsedAnn(const Schedule& sch, const SBlockRV& block_rv,
                      const ParsedAnnotation& parsed) {
   if (parsed.max_parallel_extent != -1) {
-    sch->Unannotate(block_rv, attr::meta_schedule_parallel);
+    sch->Unannotate(block_rv, tir::attr::meta_schedule_parallel);
   }
   if (parsed.max_vectorize_extent != -1) {
-    sch->Unannotate(block_rv, attr::meta_schedule_vectorize);
+    sch->Unannotate(block_rv, tir::attr::meta_schedule_vectorize);
   }
   if (parsed.unroll_explicit != -1) {
-    sch->Unannotate(block_rv, attr::meta_schedule_unroll_explicit);
+    sch->Unannotate(block_rv, tir::attr::meta_schedule_unroll_explicit);
   }
   if (parsed.unroll_implicit != -1) {
-    sch->Unannotate(block_rv, attr::meta_schedule_unroll_implicit);
+    sch->Unannotate(block_rv, tir::attr::meta_schedule_unroll_implicit);
   }
 }
 
@@ -400,44 +401,45 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
     return;
   }
 
-  sch->Annotate(loop, attr::pragma_auto_unroll_max_step, IntImm(DataType::Int(32), max_step));
-  sch->Annotate(loop, attr::pragma_unroll_explicit, IntImm(DataType::Int(32), unroll_explicit));
+  sch->Annotate(loop, tir::attr::pragma_auto_unroll_max_step, IntImm(DataType::Int(32), max_step));
+  sch->Annotate(loop, tir::attr::pragma_unroll_explicit,
+                IntImm(DataType::Int(32), unroll_explicit));
 }
 
-}  // namespace tir
+}  // namespace s_tir
 
 namespace meta_schedule {
 
-using tir::Schedule;
+using s_tir::Schedule;
 
 class RewriteParallelVectorizeUnrollNode : public PostprocNode {
  public:
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   bool Apply(const Schedule& sch) final {
-    tir::ParsedAnnotation parsed_root;
-    tir::SBlockRV root_rv{ffi::UnsafeInit()};
-    while (tir::FindAnnotatedRootBlock(sch, &parsed_root, &root_rv)) {
-      for (tir::SBlockRV block_rv : sch->GetChildBlocks(root_rv)) {
-        ffi::Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
+    s_tir::ParsedAnnotation parsed_root;
+    s_tir::SBlockRV root_rv{ffi::UnsafeInit()};
+    while (s_tir::FindAnnotatedRootBlock(sch, &parsed_root, &root_rv)) {
+      for (s_tir::SBlockRV block_rv : sch->GetChildBlocks(root_rv)) {
+        ffi::Array<s_tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
         if (loop_rvs.empty()) {
           continue;
         }
-        tir::ParsedAnnotation parsed = parsed_root;
-        tir::AdjustParallelVectorize(sch, block_rv, loop_rvs, &parsed);
+        s_tir::ParsedAnnotation parsed = parsed_root;
+        s_tir::AdjustParallelVectorize(sch, block_rv, loop_rvs, &parsed);
         const int loops_num = loop_rvs.size();
         try {
           if (parsed.num_parallel_loops == loops_num && parsed.num_vectorize_loops == loops_num) {
             // Fuse, split, vectorize and parallelize
-            tir::RewriteFuseSplitParallelVectorize(sch, &loop_rvs, parsed.max_vectorize_extent);
+            s_tir::RewriteFuseSplitParallelVectorize(sch, &loop_rvs, parsed.max_vectorize_extent);
           } else {
             // Parallel
             if (parsed.num_parallel_loops > 0) {
-              tir::RewriteParallel(sch, parsed.num_parallel_loops, &loop_rvs);
+              s_tir::RewriteParallel(sch, parsed.num_parallel_loops, &loop_rvs);
             }
             // Vectorize
             if (parsed.num_vectorize_loops > 0) {
-              tir::RewriteVectorize(sch, parsed.num_vectorize_loops, &loop_rvs);
+              s_tir::RewriteVectorize(sch, parsed.num_vectorize_loops, &loop_rvs);
             }
           }
           // AutoUnroll
@@ -445,9 +447,9 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
             ICHECK(parsed.unroll_explicit == -1 || parsed.unroll_implicit == -1);
             int unroll_explicit = parsed.unroll_explicit != -1;
             int max_step = parsed.unroll_explicit + parsed.unroll_implicit + 1;
-            tir::RewriteUnroll(sch, unroll_explicit, max_step, block_rv, loop_rvs[0]);
+            s_tir::RewriteUnroll(sch, unroll_explicit, max_step, block_rv, loop_rvs[0]);
           }
-        } catch (const tir::ScheduleError& e) {
+        } catch (const s_tir::ScheduleError& e) {
           DLOG(WARNING) << "Failed to apply parallelization/vectorization: " << e.what();
           return false;
         }

@@ -52,7 +52,7 @@ def main(p0: T.Buffer((), "int32"), T_stack: T.Buffer((T.int64(3),), "int32")):
 @tvm.testing.requires_cuda
 def test_normalize_primfunc_with_scalar():
     sch = tvm.s_tir.Schedule(main)
-    f_normalize_prim_func = tvm.get_global_func("tir.schedule.NormalizePrimFunc")
+    f_normalize_prim_func = tvm.get_global_func("s_tir.schedule.NormalizePrimFunc")
     assert f_normalize_prim_func(sch)
 
 

@@ -43,7 +43,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
     return true;
   }
 
-  bool Apply(const tir::Schedule& sch) final {
+  bool Apply(const s_tir::Schedule& sch) final {
     IRModule mod = sch->mod();
     IRModule lowered{nullptr};
     auto pass_list = tir::GetVTCMCompactionPasses();

@@ -26,9 +26,9 @@
 namespace tvm {
 namespace meta_schedule {
 
-using tir::Instruction;
-using tir::InstructionKind;
-using tir::Trace;
+using s_tir::Instruction;
+using s_tir::InstructionKind;
+using s_tir::Trace;
 
 /*!
  * \brief Downcast the decision of Sample-Perfect-Tile to an array of integers
@@ -119,7 +119,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
       ICHECK_EQ(inst->attrs.size(), 1);
       ICHECK_EQ(inst->inputs.size(), 2);
       if (Downcast<ffi::String>(inst->attrs[0]) == tir::attr::meta_schedule_cooperative_fetch) {
-        const auto* ann_val = inst->inputs[1].as<tir::ExprRVNode>();
+        const auto* ann_val = inst->inputs[1].as<s_tir::ExprRVNode>();
         ICHECK(ann_val);
         annotated.insert(ann_val);
       }
@@ -197,11 +197,11 @@ ffi::Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
   int x, y;
   // select source
   while (true) {
-    x = tir::SampleInt(rand_state, 0, n_splits);
+    x = s_tir::SampleInt(rand_state, 0, n_splits);
     if (tiles[x] <= 1) {
       continue;
     }
-    y = tir::SampleInt(rand_state, 0, n_splits - 1);
+    y = s_tir::SampleInt(rand_state, 0, n_splits - 1);
     if (y >= x) {
       ++y;
     }
@@ -209,7 +209,7 @@ ffi::Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
     // Step 2. Choose the divide factor
     int64_t divide_factor;
     if (y != n_splits - 1) {
-      divide_factor = factors[tir::SampleInt(rand_state, 1, factors.size())];
+      divide_factor = factors[s_tir::SampleInt(rand_state, 1, factors.size())];
     } else {
       int64_t limit = Downcast<Integer>(inst->attrs[1])->value;
       int max_factor_index = static_cast<int>(factors.size()) - 1;
@@ -225,7 +225,7 @@ ffi::Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
         // Failed on this dst_idx, try next one.
         continue;
       }
-      divide_factor = factors[tir::SampleInt(rand_state, 1, max_factor_index + 1)];
+      divide_factor = factors[s_tir::SampleInt(rand_state, 1, max_factor_index + 1)];
     }
     tiles[x] /= divide_factor;
     tiles[y] *= divide_factor;
@@ -240,7 +240,7 @@ ffi::Optional<Trace> MutateSampleVectorize(const Trace& trace, Instruction inst,
   std::vector<double> probs =
       support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(inst->attrs[1]));
   probs.erase(probs.begin() + original_decision);
-  int result = tir::MakeMultinomialSampler(rand_state, probs)();
+  int result = s_tir::MakeMultinomialSampler(rand_state, probs)();
   if (result >= original_decision) {
     result += 1;
   }
@@ -259,7 +259,7 @@ ffi::Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* r
   if (size_a == 0 && size_b == 0) {
     return std::nullopt;
   }
-  int n = tir::SampleInt(rand_state, 0, size_a + size_b);
+  int n = s_tir::SampleInt(rand_state, 0, size_a + size_b);
   if (n < size_a) {
     return MutateSampleTileSize(trace, sample_perfect_tile_insts[n], sample_perfect_tile_tiles[n],
                                 rand_state);

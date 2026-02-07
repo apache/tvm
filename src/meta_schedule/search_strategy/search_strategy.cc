@@ -23,7 +23,7 @@
 namespace tvm {
 namespace meta_schedule {
 
-MeasureCandidate::MeasureCandidate(tir::Schedule sch, ffi::Array<ArgInfo> args_info) {
+MeasureCandidate::MeasureCandidate(s_tir::Schedule sch, ffi::Array<ArgInfo> args_info) {
   ObjectPtr<MeasureCandidateNode> n = ffi::make_object<MeasureCandidateNode>();
   n->sch = sch;
   n->args_info = args_info;
@@ -37,7 +37,7 @@ void PySearchStrategyNode::InitializeWithTuneContext(const TuneContext& context)
 }
 
 void PySearchStrategyNode::PreTuning(int max_trials, int num_trials_per_iter,
-                                     const ffi::Array<tir::Schedule>& design_spaces,
+                                     const ffi::Array<s_tir::Schedule>& design_spaces,
                                      const ffi::Optional<Database>& database,
                                      const ffi::Optional<CostModel>& cost_model) {
   ICHECK(f_pre_tuning != nullptr) << "PySearchStrategy's PreTuning method not implemented!";
@@ -94,9 +94,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("meta_schedule.MeasureCandidate",
-           [](tir::Schedule sch, ffi::Optional<ffi::Array<ArgInfo>> args_info) -> MeasureCandidate {
-             return MeasureCandidate(sch, args_info.value_or({}));
-           })
+           [](s_tir::Schedule sch, ffi::Optional<ffi::Array<ArgInfo>> args_info)
+               -> MeasureCandidate { return MeasureCandidate(sch, args_info.value_or({})); })
       .def("meta_schedule.SearchStrategyPySearchStrategy", SearchStrategy::PySearchStrategy)
       .def_method("meta_schedule.SearchStrategyInitializeWithTuneContext",
                   &SearchStrategyNode::InitializeWithTuneContext)

@@ -85,7 +85,7 @@ class ReplayFuncNode : public SearchStrategyNode {
   }
 
   void PreTuning(int max_trials, int num_trials_per_iter,
-                 const ffi::Array<tir::Schedule>& design_spaces,
+                 const ffi::Array<s_tir::Schedule>& design_spaces,
                  const ffi::Optional<Database>& database,
                  const ffi::Optional<CostModel>& cost_model) final {
     CHECK(this->state_ == nullptr)
@@ -131,9 +131,9 @@ ReplayFuncNode::State::GenerateMeasureCandidates() {
   ffi::Array<Postproc> postprocs = self->space_generator_.value()->postprocs.value_or({});
   for (int i = st; i < ed; i++) {
     for (;;) {
-      ffi::Array<tir::Schedule> schs = self->space_generator_.value()->GenerateDesignSpace(mod);
-      int design_space_index = tir::SampleInt(&self->rand_state_, 0, schs.size());
-      tir::Schedule sch = schs[design_space_index];
+      ffi::Array<s_tir::Schedule> schs = self->space_generator_.value()->GenerateDesignSpace(mod);
+      int design_space_index = s_tir::SampleInt(&self->rand_state_, 0, schs.size());
+      s_tir::Schedule sch = schs[design_space_index];
       sch->EnterPostproc();
       bool failed = false;
       for (const Postproc& proc : postprocs) {

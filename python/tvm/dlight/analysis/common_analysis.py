@@ -63,7 +63,7 @@ class IterInfo:
         return str(self)
 
 
-get_sblockrealize = get_global_func("tir.schedule.GetSBlockRealize")
+get_sblockrealize = get_global_func("s_tir.schedule.GetSBlockRealize")
 # BufferIndex Types
 Index = namedtuple("Index", ["sub"])  # c
 RemIndex = namedtuple("RemIndex", ["sub", "div"])  # c%len
@@ -242,7 +242,7 @@ class SBlockInfo:
             and len(self.write_bufs(sch)) == 1
             and len(self.read_bufs(sch)) == 1
             and not self.is_elementwise(sch)
-            and not get_global_func("tir.schedule.HasIfThenElse")(sch.get(self.block_rv))
+            and not get_global_func("s_tir.schedule.HasIfThenElse")(sch.get(self.block_rv))
         )
 
     def is_data_pad(self, sch: s_tir.Schedule) -> bool:
@@ -254,7 +254,7 @@ class SBlockInfo:
             and not self.is_elementwise(sch)
             and len(self.write_bufs(sch)[0].buf_region.region)
             == len(self.read_bufs(sch)[0].buf_region.region)
-            and get_global_func("tir.schedule.HasIfThenElse")(sch.get(self.block_rv))
+            and get_global_func("s_tir.schedule.HasIfThenElse")(sch.get(self.block_rv))
         )
 
     def is_convolution(self) -> bool:
@@ -280,7 +280,7 @@ class SBlockInfo:
         return str(self)
 
 
-_normalize_prim_func = get_global_func("tir.schedule.NormalizePrimFunc")
+_normalize_prim_func = get_global_func("s_tir.schedule.NormalizePrimFunc")
 
 
 def normalize_prim_func(sch: s_tir.Schedule) -> Optional[List[SBlockInfo]]:

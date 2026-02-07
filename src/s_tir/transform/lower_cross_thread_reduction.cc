@@ -28,8 +28,8 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"
-#include "../../tir/schedule/analysis.h"
 #include "../../tir/transforms/ir_utils.h"
+#include "../schedule/analysis.h"
 
 namespace tvm {
 namespace s_tir {
@@ -102,7 +102,7 @@ bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
  * \param scope_block The scope block of the input block
  * \param analyzer The analyzer
  * \return A boolean indicating whether the input block is a reduction block.
- * \note A similar check has been implemented in "src/tir/schedule/analysis.h", but that check is
+ * \note A similar check has been implemented in "src/s_tir/schedule/analysis.h", but that check is
  * based on `tir.Schedule`. Here we have no schedule information, and thus we must implement the
  * check again.
  */

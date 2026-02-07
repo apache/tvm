@@ -28,7 +28,7 @@
 #include <tvm/meta_schedule/measure_candidate.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/runtime/object.h>
-#include <tvm/tir/schedule/schedule.h>
+#include <tvm/s_tir/schedule/schedule.h>
 
 #include <vector>
 

@@ -29,8 +29,8 @@ void PyMutatorNode::InitializeWithTuneContext(const TuneContext& context) {
   f_initialize_with_tune_context(context);
 }
 
-ffi::Optional<tir::Trace> PyMutatorNode::Apply(
-    const tir::Trace& trace, support::LinearCongruentialEngine::TRandState* rand_state) {
+ffi::Optional<s_tir::Trace> PyMutatorNode::Apply(
+    const s_tir::Trace& trace, support::LinearCongruentialEngine::TRandState* rand_state) {
   ICHECK(f_apply != nullptr) << "PyMutator's Apply method not implemented!";
   return f_apply(trace, *rand_state);
 }
@@ -98,7 +98,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("meta_schedule.MutatorInitializeWithTuneContext",
                   &MutatorNode::InitializeWithTuneContext)
       .def("meta_schedule.MutatorApply",
-           [](Mutator self, tir::Trace trace, TRandState seed) -> ffi::Optional<tir::Trace> {
+           [](Mutator self, s_tir::Trace trace, TRandState seed) -> ffi::Optional<s_tir::Trace> {
              TRandState seed_ =
                  (seed != -1) ? seed : support::LinearCongruentialEngine::DeviceRandom();
              return self->Apply(trace, &seed_);

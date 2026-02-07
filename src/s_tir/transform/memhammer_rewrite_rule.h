@@ -29,7 +29,7 @@
 
 #include <utility>
 
-#include "../../tir/schedule/utils.h"
+#include "../schedule/utils.h"
 
 namespace tvm {
 namespace s_tir {

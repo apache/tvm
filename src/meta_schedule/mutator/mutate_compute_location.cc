@@ -23,9 +23,9 @@
 namespace tvm {
 namespace meta_schedule {
 
-using tir::Instruction;
-using tir::InstructionKind;
-using tir::Trace;
+using s_tir::Instruction;
+using s_tir::InstructionKind;
+using s_tir::Trace;
 
 /*! \brief A mutator that mutates the compute-at location decision of SampleComputeLocation */
 class MutateComputeLocationNode : public MutatorNode {
@@ -75,24 +75,24 @@ class MutateComputeLocationNode : public MutatorNode {
  */
 std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::FindCandidates(
     const Trace& trace, TRandState* rand_state) {
-  tir::Schedule sch = tir::Schedule::Traced(               //
+  s_tir::Schedule sch = s_tir::Schedule::Traced(           //
       /*mod=*/LoadJSON(this->json_mod_).cast<IRModule>(),  //
       /*rand_state=*/ForkSeed(rand_state),                 //
       /*debug_mode=*/0,                                    //
-      /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+      /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kNone);
 
   static InstructionKind inst_sample_compute_location =
       InstructionKind::Get("SampleComputeLocation");
   std::vector<MutateComputeLocationNode::Candidate> candidates;
 
-  auto f_decision_provider = [&](const tir::Instruction& inst,   //
-                                 const ffi::Array<Any>& inputs,  //
-                                 const ffi::Array<Any>& attrs,   //
+  auto f_decision_provider = [&](const s_tir::Instruction& inst,  //
+                                 const ffi::Array<Any>& inputs,   //
+                                 const ffi::Array<Any>& attrs,    //
                                  const Any& decision) -> Any {
     if (inst->kind.same_as(inst_sample_compute_location)) {
       // Step 1. Extract the instruction input and the old decision.
       ICHECK_EQ(inputs.size(), 1);
-      tir::StmtSRef block_sref = sch->GetSRef(Downcast<tir::SBlockRV>(inputs[0]));
+      tir::StmtSRef block_sref = sch->GetSRef(Downcast<s_tir::SBlockRV>(inputs[0]));
       int old_decision = Downcast<Integer>(decision)->value;
 
       // Step 2. Collect all the compute_at locations.
@@ -122,8 +122,8 @@ ffi::Optional<Trace> MutateComputeLocationNode::Apply(const Trace& trace, TRandS
   if (candidates.empty()) {
     return std::nullopt;
   }
-  const Candidate& candidate = candidates[tir::SampleInt(rand_state, 0, candidates.size())];
-  int loc = candidate.locs[tir::SampleInt(rand_state, 0, candidate.locs.size())];
+  const Candidate& candidate = candidates[s_tir::SampleInt(rand_state, 0, candidates.size())];
+  int loc = candidate.locs[s_tir::SampleInt(rand_state, 0, candidate.locs.size())];
   return trace->WithDecision(candidate.inst, Integer(loc), /*remove_postproc=*/true);
 }
 

@@ -35,8 +35,8 @@
 #include "../../support/arena.h"
 #include "../../support/nd_int_set.h"
 #include "../../support/utils.h"
-#include "../../tir/schedule/utils.h"
 #include "../../tir/transforms/ir_utils.h"
+#include "../schedule/utils.h"
 
 namespace tvm {
 namespace s_tir {

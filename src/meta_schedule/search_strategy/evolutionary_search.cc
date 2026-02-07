@@ -29,7 +29,7 @@
 namespace tvm {
 namespace meta_schedule {
 
-using tir::Schedule;
+using s_tir::Schedule;
 
 /**************** Data Structure ****************/
 
@@ -125,7 +125,7 @@ struct PerThreadData {
    */
   void Set(const std::vector<double>& scores, double genetic_mutate_prob,
            const ffi::Map<Mutator, FloatImm>& mutator_probs) {
-    trace_sampler = tir::MakeMultinomialSampler(&rand_state, scores);
+    trace_sampler = s_tir::MakeMultinomialSampler(&rand_state, scores);
     mutator_sampler = MakeMutatorSampler(genetic_mutate_prob, mutator_probs, &rand_state);
   }
 
@@ -164,7 +164,7 @@ struct PerThreadData {
         masses[i] /= total_mass_mutator;
       }
     }
-    return [idx_sampler = tir::MakeMultinomialSampler(rand_state, masses),
+    return [idx_sampler = s_tir::MakeMultinomialSampler(rand_state, masses),
             mutators = std::move(mutators)]() -> ffi::Optional<Mutator> {
       int i = idx_sampler();
       return mutators[i];
@@ -261,7 +261,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     /*! \brief The counter of returning empty results. */
     int num_empty_iters;
     /*! \brief The design spaces. Decisions are not used so traces only. */
-    ffi::Array<tir::Trace> design_spaces;
+    ffi::Array<s_tir::Trace> design_spaces;
     /*! \brief Pre thread data including module to be tuned and random state. */
     std::vector<PerThreadData> per_thread_data_;
     /*!
@@ -471,7 +471,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
 
 std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int num) {
   auto _ = Profiler::TimedScope("EvoSearch/PickBestFromDatabase");
-  std::vector<tir::Trace> measured_traces;
+  std::vector<s_tir::Trace> measured_traces;
   measured_traces.reserve(num);
   ffi::Array<TuningRecord> top_records = this->database_->GetTopK(this->token_, num);
   for (TuningRecord record : top_records) {
@@ -485,7 +485,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
     PerThreadData& data = this->per_thread_data_.at(thread_id);
     TRandState* rand_state = &data.rand_state;
     const IRModule& mod = data.mod;
-    tir::Trace trace = measured_traces.at(trace_id);
+    s_tir::Trace trace = measured_traces.at(trace_id);
     Schedule& result = results.at(trace_id);
     ICHECK(!result.defined());
     if (ffi::Optional<Schedule> sch = pp.Apply(mod, trace, rand_state)) {
@@ -513,8 +513,8 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
       const IRModule& mod = data.mod;
       Schedule& result = results.at(trace_id);
       ICHECK(!result.defined());
-      int design_space_index = tir::SampleInt(rand_state, 0, design_spaces.size());
-      tir::Trace trace(design_spaces[design_space_index]->insts, {});
+      int design_space_index = s_tir::SampleInt(rand_state, 0, design_spaces.size());
+      s_tir::Trace trace(design_spaces[design_space_index]->insts, {});
       if (ffi::Optional<Schedule> sch = pp.Apply(mod, trace, rand_state)) {
         result = sch.value();
       }
@@ -591,11 +591,11 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
         for (int fail_count = 0; fail_count <= self->genetic_max_fail_count; ++fail_count) {
           sampled_trace_id = trace_sampler();
           sampled_trace_id = sampled_trace_id % self->population_size;
-          tir::Trace trace = population.at(sampled_trace_id)->trace().value();
+          s_tir::Trace trace = population.at(sampled_trace_id)->trace().value();
           if (ffi::Optional<Mutator> opt_mutator = mutator_sampler()) {
             // Decision: mutate
             Mutator mutator = opt_mutator.value();
-            if (ffi::Optional<tir::Trace> new_trace = mutator->Apply(trace, rand_state)) {
+            if (ffi::Optional<s_tir::Trace> new_trace = mutator->Apply(trace, rand_state)) {
               if (ffi::Optional<Schedule> sch = pp.Apply(mod, new_trace.value(), rand_state)) {
                 // note that sch's trace is different from new_trace
                 // because it contains post-processing information
@@ -657,7 +657,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
   int num_rands = num * self->eps_greedy;
   int num_bests = num - num_rands;
   std::vector<int> rands =
-      tir::SampleWithoutReplacement(&self->rand_state_, unmeasured.size(), unmeasured.size());
+      s_tir::SampleWithoutReplacement(&self->rand_state_, unmeasured.size(), unmeasured.size());
   std::vector<Schedule> results;
   results.reserve(num);
   IRModuleSet& measured_workloads = this->measured_workloads_;

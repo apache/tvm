@@ -21,7 +21,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 /*!
  * \brief Parse instruction: sch.bind(..., axis)
@@ -61,7 +62,7 @@ ffi::Optional<SBlockRV> ParseAnnotate(const Schedule& sch, const Instruction& in
   ICHECK_EQ(inst->inputs.size(), 2);
   ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
-  if (ann_key != attr::meta_schedule_cooperative_fetch) {
+  if (ann_key != tir::attr::meta_schedule_cooperative_fetch) {
     return std::nullopt;
   }
   *vector_lane = Downcast<Integer>(sch->Get(Downcast<ExprRV>(inst->inputs[1])))->value;
@@ -82,7 +83,7 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
   ICHECK_EQ(inst->inputs.size(), 2);
   ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
-  return ann_key == attr::warp_execution;
+  return ann_key == tir::attr::warp_execution;
 }
 
 size_t GetMaxUsedDtypeBytes(SBlock block) {
@@ -108,7 +109,7 @@ size_t GetMaxUsedDtypeBytes(SBlock block) {
   return max_bytes;
 }
 
-}  // namespace tir
+}  // namespace s_tir
 
 namespace meta_schedule {
 
@@ -133,7 +134,7 @@ class RewriteCooperativeFetchNode : public PostprocNode {
   }
 
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
     ObjectPtr<RewriteCooperativeFetchNode> n = ffi::make_object<RewriteCooperativeFetchNode>(*this);
@@ -147,37 +148,37 @@ class RewriteCooperativeFetchNode : public PostprocNode {
   int thread_warp_size_ = -1;
 };
 
-bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
-  tir::Trace trace = sch->trace().value();
+bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
+  s_tir::Trace trace = sch->trace().value();
   int64_t thread_extent_x = -1;
   int64_t thread_extent_y = -1;
   int64_t vector_lane = 1;
   std::vector<std::function<void()>> tasks;
-  for (const tir::Instruction& inst : trace->insts) {
+  for (const s_tir::Instruction& inst : trace->insts) {
     if (ffi::Optional<Integer> new_thread_extent =
-            tir::ParseThreadBinding(sch, inst, "threadIdx.x")) {
+            s_tir::ParseThreadBinding(sch, inst, "threadIdx.x")) {
       thread_extent_x = new_thread_extent.value()->value;
       continue;
     }
     if (ffi::Optional<Integer> new_thread_extent =
-            tir::ParseThreadBinding(sch, inst, "threadIdx.y")) {
+            s_tir::ParseThreadBinding(sch, inst, "threadIdx.y")) {
       thread_extent_y = new_thread_extent.value()->value;
       continue;
     }
-    if (tir::ParseWarpExecutionAnn(sch, inst)) {
+    if (s_tir::ParseWarpExecutionAnn(sch, inst)) {
       thread_extent_x = thread_warp_size_;
       continue;
     }
-    ffi::Optional<tir::SBlockRV> opt_block_rv = tir::ParseAnnotate(sch, inst, &vector_lane);
+    ffi::Optional<s_tir::SBlockRV> opt_block_rv = s_tir::ParseAnnotate(sch, inst, &vector_lane);
     if (!opt_block_rv.defined()) {
       continue;
     }
     auto task = [thread_extent_x, thread_extent_y, vector_lane, sch,
                  block = opt_block_rv.value()]() mutable -> void {
       sch->Unannotate(block, tir::attr::meta_schedule_cooperative_fetch);
-      tir::LoopRV fused = sch->GetLoops(block).back();
+      s_tir::LoopRV fused = sch->GetLoops(block).back();
       int64_t fused_extent = -1;
-      if (const int64_t* extent = tir::GetLoopIntExtent(sch->Get(fused).get())) {
+      if (const int64_t* extent = s_tir::GetLoopIntExtent(sch->Get(fused).get())) {
         fused_extent = *extent;
       } else {
         return;
@@ -189,34 +190,34 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
       // vectorization of 64 bit values does not work well on CUDA.
       // TODO(masahi, vinx13): Decouple epilogue fusion computation and shared to global store, so
       // that we can always vectorize the latter.
-      if (tir::GetMaxUsedDtypeBytes(sch->Get(block)) > 4) {
+      if (s_tir::GetMaxUsedDtypeBytes(sch->Get(block)) > 4) {
         vector_lane = 1;
       }
       if (thread_extent_y != -1) {
         if (vector_lane > 1) {
-          ffi::Array<tir::LoopRV> split = sch->Split(fused, {std::nullopt,              //
-                                                             Integer(thread_extent_y),  //
-                                                             Integer(thread_extent_x),  //
-                                                             Integer(vector_lane)});
+          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,              //
+                                                               Integer(thread_extent_y),  //
+                                                               Integer(thread_extent_x),  //
+                                                               Integer(vector_lane)});
           sch->Vectorize(split[3]);
           sch->Bind(split[2], "threadIdx.x");
           sch->Bind(split[1], "threadIdx.y");
         } else {
-          ffi::Array<tir::LoopRV> split = sch->Split(fused, {std::nullopt,              //
-                                                             Integer(thread_extent_y),  //
-                                                             Integer(thread_extent_x)});
+          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,              //
+                                                               Integer(thread_extent_y),  //
+                                                               Integer(thread_extent_x)});
           sch->Bind(split[2], "threadIdx.x");
           sch->Bind(split[1], "threadIdx.y");
         }
       } else {
         if (vector_lane > 1) {
-          ffi::Array<tir::LoopRV> split = sch->Split(fused, {std::nullopt,              //
-                                                             Integer(thread_extent_x),  //
-                                                             Integer(vector_lane)});
+          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,              //
+                                                               Integer(thread_extent_x),  //
+                                                               Integer(vector_lane)});
           sch->Vectorize(split[2]);
           sch->Bind(split[1], "threadIdx.x");
         } else {
-          ffi::Array<tir::LoopRV> split =
+          ffi::Array<s_tir::LoopRV> split =
               sch->Split(fused, {std::nullopt, Integer(thread_extent_x)});
           sch->Bind(split[1], "threadIdx.x");
         }

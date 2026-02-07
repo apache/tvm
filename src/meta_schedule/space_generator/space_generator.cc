@@ -174,7 +174,7 @@ void PySpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context)
   f_initialize_with_tune_context(context);
 }
 
-ffi::Array<tir::Schedule> PySpaceGeneratorNode::GenerateDesignSpace(const IRModule& mod) {
+ffi::Array<s_tir::Schedule> PySpaceGeneratorNode::GenerateDesignSpace(const IRModule& mod) {
   ICHECK(f_generate_design_space != nullptr)
       << "PySpaceGenerator's GenerateDesignSpace method not implemented!";
   return f_generate_design_space(mod);

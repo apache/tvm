@@ -22,7 +22,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 /*! \brief Check if an IRModule has any async strided mem copies. */
 struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
@@ -114,7 +115,7 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
   ffi::Map<Var, Range> input_iters = ffi::Map<Var, Range>();
 };
 
-}  // namespace tir
+}  // namespace s_tir
 
 namespace meta_schedule {
 
@@ -128,7 +129,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
     this->target = context->target.value();
   }
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch) final {
+  bool Apply(const s_tir::Schedule& sch) final {
     IRModule mod = sch->mod();
     for (const auto& kv : mod->functions) {
       const GlobalVar& g_var = kv.first;
@@ -161,7 +162,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
         } catch (const dmlc::Error& e) {
           return false;
         }
-        if (tir::AsyncStridedMemCopyFinder::Find(lowered)) {
+        if (s_tir::AsyncStridedMemCopyFinder::Find(lowered)) {
           return false;
         }
       }

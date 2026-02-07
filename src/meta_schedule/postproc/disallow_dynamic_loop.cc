@@ -21,7 +21,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 /*! \brief Check if an IRModule has any dynamic loop. */
 struct DynamicExtentFinder : private StmtVisitor {
@@ -58,7 +59,7 @@ struct DynamicExtentFinder : private StmtVisitor {
   bool found_ = false;
 };
 
-}  // namespace tir
+}  // namespace s_tir
 
 namespace meta_schedule {
 
@@ -68,7 +69,9 @@ class DisallowDynamicLoopNode : public PostprocNode {
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {}
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch) final { return !tir::DynamicExtentFinder::Find(sch->mod()); }
+  bool Apply(const s_tir::Schedule& sch) final {
+    return !s_tir::DynamicExtentFinder::Find(sch->mod());
+  }
   // Inherited from PostprocNode
   Postproc Clone() const {
     ObjectPtr<DisallowDynamicLoopNode> n = ffi::make_object<DisallowDynamicLoopNode>(*this);

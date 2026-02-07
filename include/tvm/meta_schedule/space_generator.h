@@ -27,8 +27,8 @@
 #include <tvm/meta_schedule/postproc.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/runtime/object.h>
+#include <tvm/s_tir/schedule/schedule.h>
 #include <tvm/target/target.h>
-#include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -105,7 +105,7 @@ class SpaceGeneratorNode : public runtime::Object {
    * \param mod The module used for design space generation.
    * \return The generated design spaces, i.e., schedules.
    */
-  virtual ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) = 0;
+  virtual ffi::Array<s_tir::Schedule> GenerateDesignSpace(const IRModule& mod) = 0;
 
   /*!
    * \brief Clone the space generator.
@@ -140,7 +140,7 @@ class SpaceGenerator : public runtime::ObjectRef {
    * \param mod The module used for design space generation.
    * \return The generated design spaces, i.e., schedules.
    */
-  using FGenerateDesignSpace = ffi::TypedFunction<ffi::Array<tir::Schedule>(const IRModule&)>;
+  using FGenerateDesignSpace = ffi::TypedFunction<ffi::Array<s_tir::Schedule>(const IRModule&)>;
   /*!
    * \brief The function type of `Clone` method.
    * \return The cloned space generator.
@@ -232,7 +232,7 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;
-  ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final;
+  ffi::Array<s_tir::Schedule> GenerateDesignSpace(const IRModule& mod) final;
   SpaceGenerator Clone() const final;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("meta_schedule.PySpaceGenerator", PySpaceGeneratorNode,
                                     SpaceGeneratorNode);

@@ -49,7 +49,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   }
 
   // Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) final {
+  ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
+                                    const s_tir::SBlockRV& block_rv) final {
     // Step 0. Check the conditions of this rule.
     if (max_threads_per_block == -1 || warp_size == -1) {
       return {sch};
@@ -61,7 +62,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     }
 
     // Step 1. Make a copy of the original schedule. The new copy is used for scheduling.
-    tir::Schedule tmp_sch = sch->Copy();
+    s_tir::Schedule tmp_sch = sch->Copy();
     tmp_sch->Seed(sch->ForkSeed());
 
     // Step 2. Check the opportunity for block fusion. We say "fusible", if we can compute-at the
@@ -77,7 +78,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     // Step 3. Try block fusion.
     int n_candidate = static_cast<int>(thread_extents.size());
     ffi::Array<FloatImm> probs(n_candidate, FloatImm(DataType::Float(32), 1.0 / n_candidate));
-    tir::ExprRV thread_extent = tmp_sch->SampleCategorical(thread_extents, probs);
+    s_tir::ExprRV thread_extent = tmp_sch->SampleCategorical(thread_extents, probs);
     if (fusible) {
       ICHECK(target_sblock.defined());
       ICHECK(target_loop.defined());
@@ -89,7 +90,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
       //   the loop before binding.
       // - Otherwise, we search for the extent of "threadIdx.x" and use it as the split factor.
       if (!InThreadScope(tmp_sch, target_sblock)) {
-        const ffi::Array<tir::LoopRV>& split_res =
+        const ffi::Array<s_tir::LoopRV>& split_res =
             tmp_sch->Split(tgt_block_innermost_loop, {std::nullopt, thread_extent});
         tmp_sch->Bind(split_res[1], "threadIdx.x");
         if (tgt_block_innermost_loop.same_as(target_loop)) {
@@ -107,10 +108,10 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     // Step 4. Reorder the loop axes if reduction loops are not innermost. After the reordering,
     // fuse all the reduction loops.
     size_t num_spatial_loops;
-    tir::LoopRV fused_reduce_loop;
+    s_tir::LoopRV fused_reduce_loop;
     ReorderAndFuseReductionLoops(tmp_sch, block_rv, &fused_reduce_loop, &num_spatial_loops);
     // Step 5. Split the fused reduction loop and bind the inner one to threadIdx.
-    const ffi::Array<tir::LoopRV>& split_res =
+    const ffi::Array<s_tir::LoopRV>& split_res =
         tmp_sch->Split(fused_reduce_loop, {std::nullopt, thread_extent});
     tmp_sch->Bind(split_res[1], "threadIdx.x");
 
@@ -131,12 +132,12 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    * \param block The block to be checked
    * \return A boolean indicating whether the block is in thread scope.
    */
-  bool InThreadScope(const tir::Schedule& sch, const tir::SBlockRV& block) {
-    const ffi::Array<tir::LoopRV>& axes = sch->GetLoops(block);
-    for (const tir::LoopRV& loop_rv : axes) {
+  bool InThreadScope(const s_tir::Schedule& sch, const s_tir::SBlockRV& block) {
+    const ffi::Array<s_tir::LoopRV>& axes = sch->GetLoops(block);
+    for (const s_tir::LoopRV& loop_rv : axes) {
       const tir::For& loop = sch->Get(loop_rv);
-      runtime::ThreadScope thread_scope = tir::GetThreadScope(loop.get());
-      if (tir::IsThreadIdx(thread_scope)) {
+      runtime::ThreadScope thread_scope = s_tir::GetThreadScope(loop.get());
+      if (s_tir::IsThreadIdx(thread_scope)) {
         return true;
       }
     }
@@ -150,16 +151,16 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    * \param extent The finding result
    * \return Whether the find is successful.
    */
-  bool GetLoopRVExtentSource(const tir::Trace& trace, const tir::LoopRV& loop,
-                             tir::ExprRV* extent) {
-    for (const tir::Instruction& inst : trace->insts) {
+  bool GetLoopRVExtentSource(const s_tir::Trace& trace, const s_tir::LoopRV& loop,
+                             s_tir::ExprRV* extent) {
+    for (const s_tir::Instruction& inst : trace->insts) {
       if (inst->kind->name == "Split") {
         auto fcheck = [&](const Any& a) -> bool { return a.as<Object>() == loop.get(); };
         int i = std::find_if(inst->outputs.begin(), inst->outputs.end(), fcheck) -
                 inst->outputs.begin();
         CHECK(inst->inputs[1 + i] != nullptr)
             << "ValueError: Extracting an extent which needs inference is not supported so far";
-        *extent = Downcast<tir::ExprRV>(inst->inputs[1 + i]);
+        *extent = Downcast<s_tir::ExprRV>(inst->inputs[1 + i]);
         return true;
       }
     }
@@ -171,11 +172,11 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    * \param trace The trace of the schedule, where the extent is to be found
    * \return The extent of "threadIdx.x" in the input schedule
    */
-  tir::ExprRV GetThreadIdxExtentFromTrace(const tir::Trace& trace) {
-    tir::ExprRV extent{ffi::UnsafeInit()};
-    for (const tir::Instruction& inst : trace->insts) {
+  s_tir::ExprRV GetThreadIdxExtentFromTrace(const s_tir::Trace& trace) {
+    s_tir::ExprRV extent{ffi::UnsafeInit()};
+    for (const s_tir::Instruction& inst : trace->insts) {
       if (inst->kind->name == "Bind" && Downcast<ffi::String>(inst->attrs[0]) == "threadIdx.x") {
-        if (GetLoopRVExtentSource(trace, Downcast<tir::LoopRV>(inst->inputs[0]), &extent)) {
+        if (GetLoopRVExtentSource(trace, Downcast<s_tir::LoopRV>(inst->inputs[0]), &extent)) {
           return extent;
         }
       }
@@ -194,23 +195,24 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    * 3. the first block under the target loop when fusible, or a null block random variable;
    * 4. the innermost loop outside the target block when fusible, or a null block random variable.
    */
-  std::tuple<bool, tir::LoopRV, tir::SBlockRV, tir::LoopRV> GetComputeTargetLoopAndBlock(
-      const tir::Schedule& sch, const tir::SBlockRV& block_rv) {
+  std::tuple<bool, s_tir::LoopRV, s_tir::SBlockRV, s_tir::LoopRV> GetComputeTargetLoopAndBlock(
+      const s_tir::Schedule& sch, const s_tir::SBlockRV& block_rv) {
     // Step 0. Due to technical reason of some primitives (e.g., compute-at), if the block is doing
     // a tuple reduction, fusion is temporarily not supported.
     if (sch->Get(block_rv)->writes.size() != 1) {
-      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()},
-                             tir::SBlockRV{ffi::UnsafeInit()}, tir::LoopRV{ffi::UnsafeInit()});
+      return std::make_tuple(false, s_tir::LoopRV{ffi::UnsafeInit()},
+                             s_tir::SBlockRV{ffi::UnsafeInit()}, s_tir::LoopRV{ffi::UnsafeInit()});
     }
 
     // Step 1. Get all the consumers of the input block.
-    ffi::Array<tir::SBlockRV> consumers = sch->GetConsumers(block_rv);
+    ffi::Array<s_tir::SBlockRV> consumers = sch->GetConsumers(block_rv);
 
     // Step 2. If the block has no consumer or the first consumer needs multi-level tiling, it is
     // not fusible.
-    if (consumers.empty() || tir::NeedsMultiLevelTiling(sch->state(), sch->GetSRef(consumers[0]))) {
-      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()},
-                             tir::SBlockRV{ffi::UnsafeInit()}, tir::LoopRV{ffi::UnsafeInit()});
+    if (consumers.empty() ||
+        s_tir::NeedsMultiLevelTiling(sch->state(), sch->GetSRef(consumers[0]))) {
+      return std::make_tuple(false, s_tir::LoopRV{ffi::UnsafeInit()},
+                             s_tir::SBlockRV{ffi::UnsafeInit()}, s_tir::LoopRV{ffi::UnsafeInit()});
     }
 
     // Step 3. Calculate the lowest common ancestor of all the consumers.
@@ -220,20 +222,20 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     //     fusible;
     // - If the lowest common ancestor is a loop, the target block is also the first consumer.
     const tir::StmtSRef& lca_sref =
-        tir::GetSRefLowestCommonAncestor(tir::SBlockRVs2StmtSRefs(sch, consumers));
+        s_tir::GetSRefLowestCommonAncestor(s_tir::SBlockRVs2StmtSRefs(sch, consumers));
     if (consumers.size() > 1 && lca_sref->StmtAs<tir::SBlockNode>() != nullptr) {
-      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()},
-                             tir::SBlockRV{ffi::UnsafeInit()}, tir::LoopRV{ffi::UnsafeInit()});
+      return std::make_tuple(false, s_tir::LoopRV{ffi::UnsafeInit()},
+                             s_tir::SBlockRV{ffi::UnsafeInit()}, s_tir::LoopRV{ffi::UnsafeInit()});
     }
 
     // Step 4. Get the outer loops of the target block, and get the compute-at position index.
-    ffi::Array<tir::LoopRV> tgt_block_loops = sch->GetLoops(consumers[0]);
+    ffi::Array<s_tir::LoopRV> tgt_block_loops = sch->GetLoops(consumers[0]);
     int pos = GetComputePosition(sch, sch->GetLoops(block_rv), tgt_block_loops, lca_sref);
 
     // Step 5. A negative position index means not fusible, and vice-versa.
     if (pos < 0) {
-      return std::make_tuple(false, tir::LoopRV{ffi::UnsafeInit()},
-                             tir::SBlockRV{ffi::UnsafeInit()}, tir::LoopRV{ffi::UnsafeInit()});
+      return std::make_tuple(false, s_tir::LoopRV{ffi::UnsafeInit()},
+                             s_tir::SBlockRV{ffi::UnsafeInit()}, s_tir::LoopRV{ffi::UnsafeInit()});
     } else {
       return std::make_tuple(true, tgt_block_loops[pos], consumers[0], tgt_block_loops.back());
     }
@@ -250,14 +252,14 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
    * \param lca_sref The lowest common ancestor of all the consumers of the input block
    * \return The compute-at position index of the input block
    */
-  int GetComputePosition(const tir::Schedule& sch, const ffi::Array<tir::LoopRV>& block_loops,
-                         const ffi::Array<tir::LoopRV>& tgt_block_loops,
+  int GetComputePosition(const s_tir::Schedule& sch, const ffi::Array<s_tir::LoopRV>& block_loops,
+                         const ffi::Array<s_tir::LoopRV>& tgt_block_loops,
                          const tir::StmtSRef& lca_sref) {
     int n_block_loop = static_cast<int>(block_loops.size());
     int n_tgt_block_loop = static_cast<int>(tgt_block_loops.size());
 
     for (int i = 0; i < n_block_loop && i < n_tgt_block_loop; ++i) {
-      if (tir::GetLoopIterType(sch->GetSRef(block_loops[i])) != tir::IterVarType::kDataPar) {
+      if (s_tir::GetLoopIterType(sch->GetSRef(block_loops[i])) != tir::IterVarType::kDataPar) {
         return i - 1;
       } else if (sch->GetSRef(tgt_block_loops[i]).same_as(lca_sref)) {
         // If the lowest common ancestor is a loop, the compute location of the input block should

@@ -36,7 +36,7 @@
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tir/schedule/transform.h"
+#include "../schedule/transform.h"
 #include "tvm/tir/stmt.h"
 
 namespace tvm {

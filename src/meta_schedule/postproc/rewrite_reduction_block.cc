@@ -21,7 +21,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 /*! \brief The visitor that finds all the reduction block to be decomposed */
 struct ReductionBlockFinder : private StmtVisitor {
@@ -102,7 +103,7 @@ int FindDecomposePoint(const StmtSRef& block_sref) {
   return -1;
 }
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm
 
 namespace tvm {
@@ -119,7 +120,7 @@ class RewriteReductionBlockNode : public PostprocNode {
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {}
   // Inherited from PostprocNode
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
     ObjectPtr<RewriteReductionBlockNode> n = ffi::make_object<RewriteReductionBlockNode>(*this);
@@ -130,29 +131,29 @@ class RewriteReductionBlockNode : public PostprocNode {
                                     RewriteReductionBlockNode, PostprocNode);
 };
 
-bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {
+bool RewriteReductionBlockNode::Apply(const s_tir::Schedule& sch) {
   for (;;) {
     std::vector<std::pair<tir::StmtSRef, ffi::String>> results =
-        tir::ReductionBlockFinder::Find(sch->state());
+        s_tir::ReductionBlockFinder::Find(sch->state());
     int rewritten = 0;
     for (const auto& kv : results) {
       const tir::StmtSRef& block_sref = kv.first;
       const ffi::String& global_var_name = kv.second;
-      int decompose_point = tir::FindDecomposePoint(block_sref);
+      int decompose_point = s_tir::FindDecomposePoint(block_sref);
       if (decompose_point == -1) {
         continue;
       }
-      tir::SBlockRV block_rv = GetRVFromSRef(sch, block_sref, global_var_name);
-      ffi::Array<tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
-      tir::SBlockRV init_block_rv = sch->DecomposeReduction(block_rv, loop_rvs[decompose_point]);
+      s_tir::SBlockRV block_rv = GetRVFromSRef(sch, block_sref, global_var_name);
+      ffi::Array<s_tir::LoopRV> loop_rvs = sch->GetLoops(block_rv);
+      s_tir::SBlockRV init_block_rv = sch->DecomposeReduction(block_rv, loop_rvs[decompose_point]);
 
       // Rewrite auto tensorization related annotations
-      if (tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_auto_tensorize)
+      if (s_tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_auto_tensorize)
               .has_value()) {
         // Remove tensorization annotation as it shouldn't be propagated to the init block.
         sch->Unannotate(init_block_rv, tir::attr::meta_schedule_auto_tensorize);
         ffi::Optional<ffi::String> tensorize_init =
-            tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_auto_tensorize_init);
+            s_tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_auto_tensorize_init);
         // The annotation of tensorization of the init statement should be moved to the init block
         // after 'DecomposeReduction'.
         // Annotate to hint `RewriteTensorize` postprocessor even if tensorize_init is std::nullopt.

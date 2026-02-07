@@ -42,26 +42,26 @@ class ScheduleFnNode : public SpaceGeneratorNode {
     this->rand_state_ = ForkSeed(&context->rand_state);
   }
 
-  ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
-    tir::Schedule sch = tir::Schedule::Traced(
+  ffi::Array<s_tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
+    s_tir::Schedule sch = s_tir::Schedule::Traced(
         /*mod=*/mod,
         /*rand_state=*/ForkSeed(&this->rand_state_),
         /*debug_mode=*/0,
-        /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
+        /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kDetail);
     ffi::Any rv;
     rv = this->schedule_fn_(sch);
     if (rv == nullptr) {
       return {sch};
     }
     ObjectRef obj = rv.cast<ObjectRef>();
-    if (auto sch = obj.as<tir::Schedule>()) {
+    if (auto sch = obj.as<s_tir::Schedule>()) {
       return {sch.value()};
     }
     if (const auto* arr = obj.as<ffi::ArrayObj>()) {
-      ffi::Array<tir::Schedule> result;
+      ffi::Array<s_tir::Schedule> result;
       result.reserve(arr->size());
       for (Any val : *arr) {
-        if (auto sch = val.as<tir::Schedule>()) {
+        if (auto sch = val.as<s_tir::Schedule>()) {
           result.push_back(sch.value());
         } else {
           LOG(FATAL) << "TypeError: Expect return type of ScheduleFn to be None, Schedule or "

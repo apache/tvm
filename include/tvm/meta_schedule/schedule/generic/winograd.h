@@ -19,7 +19,7 @@
 #ifndef TVM_META_SCHEDULE_SCHEDULE_GENERIC_WINOGRAD_H_
 #define TVM_META_SCHEDULE_SCHEDULE_GENERIC_WINOGRAD_H_
 
-#include <tvm/tir/schedule/schedule.h>
+#include <tvm/s_tir/schedule/schedule.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -29,7 +29,7 @@ namespace meta_schedule {
  * If there is a constant winograd transform matrix, inline it.
  * \return The only producer block.
  */
-tir::SBlockRV GetWinogradProducerAndInlineConst(tir::Schedule sch, tir::SBlockRV block);
+s_tir::SBlockRV GetWinogradProducerAndInlineConst(s_tir::Schedule sch, s_tir::SBlockRV block);
 
 }  // namespace meta_schedule
 }  // namespace tvm

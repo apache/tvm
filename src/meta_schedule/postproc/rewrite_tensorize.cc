@@ -26,21 +26,21 @@
 namespace tvm {
 namespace meta_schedule {
 
-using tir::LoopRV;
-using tir::SBlockRV;
+using s_tir::LoopRV;
+using s_tir::SBlockRV;
 
 void CollectTensorizationJobs(
-    const tir::Schedule& sch, const ffi::String& func_name, const tir::PrimFuncNode* func,
+    const s_tir::Schedule& sch, const ffi::String& func_name, const tir::PrimFuncNode* func,
     bool vectorize_init_loop,
-    std::vector<std::tuple<ffi::String, ffi::String, std::function<void(tir::SBlockRV)>>>* jobs) {
+    std::vector<std::tuple<ffi::String, ffi::String, std::function<void(s_tir::SBlockRV)>>>* jobs) {
   tir::PostOrderVisit(func->body, [=, &jobs](const ObjectRef& obj) {
     if (const auto* block = obj.as<tir::SBlockNode>()) {
       tir::StmtSRef block_sref = sch->GetSRef(block);
       std::string block_name = block_sref->StmtAs<tir::SBlockNode>()->name_hint;
       if (ffi::Optional<ffi::String> intrin_name =
-              tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_auto_tensorize)) {
+              s_tir::GetAnn<ffi::String>(block_sref, tir::attr::meta_schedule_auto_tensorize)) {
         if (intrin_name.value() != "") {
-          jobs->emplace_back(block_name, func_name, [sch, intrin_name](tir::SBlockRV block) {
+          jobs->emplace_back(block_name, func_name, [sch, intrin_name](s_tir::SBlockRV block) {
             try {
               sch->Tensorize(block, intrin_name.value());
             } catch (const std::exception& e) {
@@ -48,7 +48,7 @@ void CollectTensorizationJobs(
             }
           });
         } else if (block_name.find("init") && vectorize_init_loop) {
-          jobs->emplace_back(block_name, func_name, [sch](tir::SBlockRV block) {
+          jobs->emplace_back(block_name, func_name, [sch](s_tir::SBlockRV block) {
             ffi::Array<SBlockRV> child_blocks = sch->GetChildBlocks(block);
             ICHECK(child_blocks.size() == 1);
             ffi::Array<LoopRV> init_loops = sch->GetLoops(child_blocks[0]);
@@ -70,7 +70,7 @@ class RewriteTensorizeNode : public PostprocNode {
 
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
-  bool Apply(const tir::Schedule& sch) final;
+  bool Apply(const s_tir::Schedule& sch) final;
 
   Postproc Clone() const {
     ObjectPtr<RewriteTensorizeNode> n = ffi::make_object<RewriteTensorizeNode>(*this);
@@ -83,9 +83,9 @@ class RewriteTensorizeNode : public PostprocNode {
                                     PostprocNode);
 };
 
-bool RewriteTensorizeNode::Apply(const tir::Schedule& sch) {
+bool RewriteTensorizeNode::Apply(const s_tir::Schedule& sch) {
   // The rewriting jobs, 3-tuple (block_name, func_name, job_func)
-  std::vector<std::tuple<ffi::String, ffi::String, std::function<void(tir::SBlockRV)>>> jobs;
+  std::vector<std::tuple<ffi::String, ffi::String, std::function<void(s_tir::SBlockRV)>>> jobs;
   for (const auto& kv : sch->mod()->functions) {
     GlobalVar g_var = kv.first;
     BaseFunc base_func = kv.second;

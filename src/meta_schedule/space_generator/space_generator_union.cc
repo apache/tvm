@@ -42,11 +42,11 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
     }
   }
 
-  ffi::Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
-    ffi::Array<tir::Schedule> design_spaces;
+  ffi::Array<s_tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
+    ffi::Array<s_tir::Schedule> design_spaces;
     for (const SpaceGenerator& space_generator : space_generators) {
       // Generate partial design spaces from each design space generator.
-      ffi::Array<tir::Schedule> partial = space_generator->GenerateDesignSpace(mod);
+      ffi::Array<s_tir::Schedule> partial = space_generator->GenerateDesignSpace(mod);
       // Merge the partial design spaces.
       design_spaces.insert(design_spaces.end(), partial.begin(), partial.end());
     }

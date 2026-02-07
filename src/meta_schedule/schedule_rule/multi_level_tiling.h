@@ -21,7 +21,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/schedule_rule.h>
-#include <tvm/tir/schedule/schedule.h>
+#include <tvm/s_tir/schedule/schedule.h>
 
 #include <unordered_map>
 #include <utility>
@@ -30,7 +30,8 @@
 #include "../../support/array.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 /*!
  * \brief Get the buffer dimensions for all the read buffers of a block, but marks the reduction
  * buffers' dimensions as -1
@@ -41,7 +42,7 @@ namespace tir {
  */
 std::vector<int> GetReadBufferNDims(const StmtSRef& block_sref);
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm
 
 namespace tvm {
@@ -105,17 +106,17 @@ class State;
 class StateNode : public Object {
  public:
   /*! \brief The schedule to date */
-  tir::Schedule sch;
+  s_tir::Schedule sch;
   /*! \brief The block to be tiled */
-  tir::SBlockRV block_rv;
+  s_tir::SBlockRV block_rv;
   /*! \brief The loop tiles */
-  ffi::Array<ffi::Array<tir::LoopRV>> tiles;
+  ffi::Array<ffi::Array<s_tir::LoopRV>> tiles;
   /*! \brief The factors of the loop tiles. */
-  ffi::Array<ffi::Array<tir::ExprRV>> tile_factors;
+  ffi::Array<ffi::Array<s_tir::ExprRV>> tile_factors;
   /*! \brief The mapping from buffer index to read cache block. */
-  std::unordered_map<int, tir::SBlockRV> read_reuse;
+  std::unordered_map<int, s_tir::SBlockRV> read_reuse;
   /*! \brief The mapping from buffer index to write cache block. */
-  std::unordered_map<int, tir::SBlockRV> write_reuse;
+  std::unordered_map<int, s_tir::SBlockRV> write_reuse;
 
   /*!
    * \brief Create a copy of the state. The underlying schedule is copied. Schedule rules that
@@ -131,8 +132,8 @@ class StateNode : public Object {
 class State : public ObjectRef {
  public:
   /*! \brief Default constructor */
-  explicit State(tir::Schedule sch, tir::SBlockRV block_rv,
-                 ffi::Array<ffi::Array<tir::LoopRV>> tiles = {});
+  explicit State(s_tir::Schedule sch, s_tir::SBlockRV block_rv,
+                 ffi::Array<ffi::Array<s_tir::LoopRV>> tiles = {});
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(State, ObjectRef, StateNode);
 };
 
@@ -174,7 +175,8 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   void InitializeWithTuneContext(const TuneContext& context) final;
 
   // Entry of the mega rule; Inherited from ScheduleRuleNode
-  ffi::Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::SBlockRV& block_rv) override;
+  ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
+                                    const s_tir::SBlockRV& block_rv) override;
 
   // Inherited from ScheduleRuleNode
   ScheduleRule Clone() const override;
@@ -182,11 +184,11 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
  protected:
   virtual std::vector<State> ApplySubRules(std::vector<State> states);
 
-  virtual std::pair<ffi::Array<tir::ExprRV>, ffi::Array<tir::LoopRV>> SplitLoop(
-      const tir::Schedule& sch, tir::SBlockRV block, tir::LoopRV loop, int n_tiles) const;
+  virtual std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>> SplitLoop(
+      const s_tir::Schedule& sch, s_tir::SBlockRV block, s_tir::LoopRV loop, int n_tiles) const;
 
   // Annotate a block to use cooperative fetching
-  void AnnotateCooperativeFetching(tir::Schedule* sch, const tir::SBlockRV& block) const;
+  void AnnotateCooperativeFetching(s_tir::Schedule* sch, const s_tir::SBlockRV& block) const;
 
  public:
   /*!

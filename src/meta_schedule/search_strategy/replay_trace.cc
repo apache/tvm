@@ -31,7 +31,7 @@ class ReplayTraceNode : public SearchStrategyNode {
     /*! \brief The search strategy itself */
     ReplayTraceNode* self;
     /*! \brief The design spaces. */
-    ffi::Array<tir::Trace> design_spaces;
+    ffi::Array<s_tir::Trace> design_spaces;
     /*! \brief The number of total trials. */
     int max_trials;
     /*! \brief The number of trials per iteration. */
@@ -44,7 +44,7 @@ class ReplayTraceNode : public SearchStrategyNode {
     /*! \brief The module to be tuned. */
     ffi::Array<IRModule> per_thread_mod_{nullptr};
 
-    explicit State(ReplayTraceNode* self, ffi::Array<tir::Trace> design_spaces, int max_trials,
+    explicit State(ReplayTraceNode* self, ffi::Array<s_tir::Trace> design_spaces, int max_trials,
                    int num_trials_per_iter)
         : self(self),
           design_spaces(design_spaces),
@@ -102,15 +102,15 @@ class ReplayTraceNode : public SearchStrategyNode {
   }
 
   void PreTuning(int max_trials, int num_trials_per_iter,
-                 const ffi::Array<tir::Schedule>& design_spaces,
+                 const ffi::Array<s_tir::Schedule>& design_spaces,
                  const ffi::Optional<Database>& database,
                  const ffi::Optional<CostModel>& cost_model) final {
     ICHECK(!design_spaces.empty());
     CHECK(this->state_ == nullptr)
         << "ValueError: `PreTuning` is already invoked without corresponding `PostTuning`.";
-    ffi::Array<tir::Trace> design_space_traces;
+    ffi::Array<s_tir::Trace> design_space_traces;
     design_space_traces.reserve(design_spaces.size());
-    for (const tir::Schedule& space : design_spaces) {
+    for (const s_tir::Schedule& space : design_spaces) {
       design_space_traces.push_back(space->trace().value()->Simplified(true));
     }
     this->state_ =
@@ -158,11 +158,11 @@ ReplayTraceNode::State::GenerateMeasureCandidates() {
     IRModule mod = this->per_thread_mod_[thread_id];
 
     for (int fail_count = 0; fail_count < self->max_fail_count; fail_count++) {
-      int design_space_index = tir::SampleInt(&rand_state, 0, design_spaces.size());
-      tir::Trace trace = design_spaces[design_space_index];
-      tir::Trace new_trace = tir::Trace(trace->insts, {});
-      if (ffi::Optional<tir::Schedule> opt_sch = pp.Apply(mod, new_trace, &rand_state)) {
-        tir::Schedule sch = opt_sch.value();
+      int design_space_index = s_tir::SampleInt(&rand_state, 0, design_spaces.size());
+      s_tir::Trace trace = design_spaces[design_space_index];
+      s_tir::Trace new_trace = s_tir::Trace(trace->insts, {});
+      if (ffi::Optional<s_tir::Schedule> opt_sch = pp.Apply(mod, new_trace, &rand_state)) {
+        s_tir::Schedule sch = opt_sch.value();
         ffi::Array<ArgInfo> args_info = ArgInfo::FromEntryFunc(sch->mod(), /*remove_preproc=*/true);
         per_task_result.Set(task_id, MeasureCandidate(sch, args_info));
         break;

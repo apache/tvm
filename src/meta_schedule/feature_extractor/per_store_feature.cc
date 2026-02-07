@@ -31,7 +31,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 using support::NDIntSet;
 
@@ -308,10 +309,10 @@ Pass SimplifyForFeatureExtraction() {
  * \brief Create a list of passes that preprocesses the IR for feature extraction
  * \return The list of passes created
  */
-Sequential PassListForPerStoreFeature() {
-  return Sequential({
+tvm::transform::Sequential PassListForPerStoreFeature() {
+  return tvm::transform::Sequential({
       tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_tensor_rewrite*/ true),
-      tir::transform::SimplifyForFeatureExtraction(),
+      s_tir::transform::SimplifyForFeatureExtraction(),
       s_tir::transform::LowerCrossThreadReduction(),
       s_tir::transform::LowerInitBlock(),
       s_tir::transform::PlanAndUpdateBufferAllocationLocation(),
@@ -1356,7 +1357,7 @@ class PerStoreFeatureCollector : private StmtVisitor {
   std::unordered_map<const BufferNode*, Feature> buffer_features_ = {};
 };
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm
 
 namespace tvm {
@@ -1382,14 +1383,14 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
   }
 
   void ExtractSingle(IRModule mod, bool is_gpu, std::vector<std::vector<double>>* results) {
-    static transform::Sequential passes = tir::transform::PassListForPerStoreFeature();
+    static transform::Sequential passes = s_tir::transform::PassListForPerStoreFeature();
     mod = passes(std::move(mod));
-    std::vector<tir::Feature> features = tir::PerStoreFeatureCollector::Collect(
+    std::vector<s_tir::Feature> features = s_tir::PerStoreFeatureCollector::Collect(
         is_gpu, this->cache_line_bytes, this->arith_intensity_curve_num_samples, mod);
     int n_features = features.size();
     results->resize(n_features);
     for (int i = 0; i < n_features; ++i) {
-      const tir::Feature& feature = features[i];
+      const s_tir::Feature& feature = features[i];
       std::vector<double>& result = (*results)[i];
       result.reserve(feature_vector_length);
       feature.group1->Export(&result);
@@ -1406,9 +1407,9 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     bool is_gpu = std::find(target_keys.begin(), target_keys.end(), "gpu") != target_keys.end();
     std::vector<runtime::Tensor> results;
     results.resize(candidates.size());
-    std::unique_ptr<tir::group6::Feature> feature_group6 = nullptr;
+    std::unique_ptr<s_tir::group6::Feature> feature_group6 = nullptr;
     if (extract_workload) {
-      feature_group6 = std::make_unique<tir::group6::Feature>(tune_context->mod.value());
+      feature_group6 = std::make_unique<s_tir::group6::Feature>(tune_context->mod.value());
     }
     auto f = [this, is_gpu, &feature_group6, &candidates, &results](int, int task_id) -> void {
       const auto& candidate = candidates[task_id];
@@ -1419,7 +1420,7 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
           feature_group6->Export(&feature);
         }
       }
-      results[task_id] = tir::utils::AsTensor(features, this->feature_vector_length);
+      results[task_id] = s_tir::utils::AsTensor(features, this->feature_vector_length);
     };
     support::parallel_for_dynamic(0, candidates.size(), tune_context->num_threads, f);
     return results;
@@ -1436,13 +1437,13 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
   n->arith_intensity_curve_num_samples = arith_intensity_curve_num_samples;
   n->cache_line_bytes = cache_line_bytes;
   n->extract_workload = extract_workload;
-  n->feature_vector_length = tir::group1::Feature::kCount +                                  //
-                             tir::group2::Feature::SubFeature::kCount * buffers_per_store +  //
-                             arith_intensity_curve_num_samples +                             //
-                             tir::group4::Feature::kCount +                                  //
-                             tir::group5::Feature::kCount;
+  n->feature_vector_length = s_tir::group1::Feature::kCount +                                  //
+                             s_tir::group2::Feature::SubFeature::kCount * buffers_per_store +  //
+                             arith_intensity_curve_num_samples +                               //
+                             s_tir::group4::Feature::kCount +                                  //
+                             s_tir::group5::Feature::kCount;
   if (extract_workload) {
-    n->feature_vector_length += tir::group6::Feature::kCount;
+    n->feature_vector_length += s_tir::group6::Feature::kCount;
   }
   return FeatureExtractor(n);
 }

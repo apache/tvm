@@ -21,7 +21,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 /*!
  * \brief Check if an instruction is annotate with
@@ -36,18 +37,18 @@ bool IsAnnotateWithUnroll(const Instruction& inst) {
   }
   ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
-  return ann_key == attr::meta_schedule_unroll_explicit ||
-         ann_key == attr::meta_schedule_unroll_implicit;
+  return ann_key == tir::attr::meta_schedule_unroll_explicit ||
+         ann_key == tir::attr::meta_schedule_unroll_implicit;
 }
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm
 
 namespace tvm {
 namespace meta_schedule {
 
-using tir::Instruction;
-using tir::Trace;
+using s_tir::Instruction;
+using s_tir::Trace;
 
 /*! \brief Create a Mutator that mutates auto unroll step */
 class MutateUnrollNode : public MutatorNode {
@@ -90,8 +91,8 @@ struct MutateUnrollNode::Candidate {
  */
 bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
                         MutateUnrollNode::Candidate* candidate) {
-  using tir::InstructionKind;
-  using tir::InstructionNode;
+  using s_tir::InstructionKind;
+  using s_tir::InstructionNode;
   static const InstructionKind& inst_sample_categorical = InstructionKind::Get("SampleCategorical");
   std::unordered_map<const PrimExprNode*, const InstructionNode*> sample_insts;
   std::vector<const InstructionNode*> ann_insts;
@@ -110,7 +111,7 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   if (n_ann_insts == 0) {
     return false;
   }
-  const InstructionNode* ann_inst = ann_insts[tir::SampleInt(rand_state, 0, n_ann_insts)];
+  const InstructionNode* ann_inst = ann_insts[s_tir::SampleInt(rand_state, 0, n_ann_insts)];
   ICHECK_EQ(ann_inst->inputs.size(), 2);
   const auto* var_rv = TVM_TYPE_AS(ann_inst->inputs[1], PrimExprNode);
   ICHECK(sample_insts.count(var_rv));
@@ -133,7 +134,7 @@ ffi::Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* ran
     return std::nullopt;
   }
   candidate.probs.erase(candidate.probs.begin() + candidate.decision);
-  int result = tir::MakeMultinomialSampler(rand_state, candidate.probs)();
+  int result = s_tir::MakeMultinomialSampler(rand_state, candidate.probs)();
   if (result >= candidate.decision) {
     result += 1;
   }

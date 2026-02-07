@@ -111,7 +111,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
     auto min_grad = std::min_element(grad.begin(), grad.end());
     int task_id = -1;
     if (*max_grad == *min_grad) {
-      task_id = tasks_alive[tir::SampleInt(&this->rand_state, 0, tasks_alive.size())];
+      task_id = tasks_alive[s_tir::SampleInt(&this->rand_state, 0, tasks_alive.size())];
     } else {
       task_id = tasks_alive[std::distance(grad.begin(), max_grad)];
     }

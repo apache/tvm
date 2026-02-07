@@ -23,7 +23,8 @@
 #include "../utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 class ThreadExtentChecker : private StmtVisitor {
  public:
@@ -71,13 +72,13 @@ class ThreadExtentChecker : private StmtVisitor {
 
   void VisitStmt_(const SBlockNode* block) {
     int old_thread_idx_x = thread_idx_x;
-    if (block->annotations.count(attr::warp_execution)) {
+    if (block->annotations.count(tir::attr::warp_execution)) {
       thread_idx_x = thread_warp_size_;
     }
     if (ffi::Optional<Integer> low_inclusive =
-            GetAnn<Integer>(block, attr::meta_schedule_thread_extent_low_inclusive)) {
+            GetAnn<Integer>(block, tir::attr::meta_schedule_thread_extent_low_inclusive)) {
       if (ffi::Optional<Integer> high_inclusive =
-              GetAnn<Integer>(block, attr::meta_schedule_thread_extent_high_inclusive)) {
+              GetAnn<Integer>(block, tir::attr::meta_schedule_thread_extent_high_inclusive)) {
         int64_t low = low_inclusive.value()->value;
         int64_t high = high_inclusive.value()->value;
         int64_t thread_extent_product = thread_idx_x * thread_idx_y * thread_idx_z;
@@ -96,7 +97,7 @@ class ThreadExtentChecker : private StmtVisitor {
   int thread_warp_size_ = -1;
 };
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm
 
 namespace tvm {
@@ -142,13 +143,13 @@ class VerifyGPUCodeNode : public PostprocNode {
     return true;
   }
 
-  bool Apply(const tir::Schedule& sch) final {
+  bool Apply(const s_tir::Schedule& sch) final {
     IRModule mod = sch->mod();
     for (const auto& kv : mod->functions) {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
       if (const auto* prim_func = base_func.as<tir::PrimFuncNode>()) {
-        if (!tir::ThreadExtentChecker::Check(prim_func->body, thread_warp_size_)) {
+        if (!s_tir::ThreadExtentChecker::Check(prim_func->body, thread_warp_size_)) {
           return false;
         }
         IRModule lowered{ffi::UnsafeInit()};

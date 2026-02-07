@@ -25,7 +25,7 @@
 #include <tvm/tir/transform.h>
 
 #include "../../arith/ir_visitor_with_analyzer.h"
-#include "../schedule/error.h"
+#include "../../s_tir/schedule/error.h"
 
 namespace tvm {
 namespace tir {
@@ -38,7 +38,7 @@ struct OOBLocation {
   arith::IntSet shape_bounds;
 };
 
-class OOBError : public ScheduleError {
+class OOBError : public s_tir::ScheduleError {
  public:
   OOBError(IRModule mod, std::vector<OOBLocation> locations) : mod_(mod), locations_(locations) {}
   ffi::String FastErrorString() const final { return "Out of bound memory access"; }

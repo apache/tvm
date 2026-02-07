@@ -22,6 +22,10 @@ namespace tvm {
 namespace meta_schedule {
 
 using namespace tvm::tir;
+using s_tir::ExprRV;
+using s_tir::LoopRV;
+using s_tir::SBlockRV;
+using s_tir::Schedule;
 
 /*!
  * \brief Get the producer block of a given block.

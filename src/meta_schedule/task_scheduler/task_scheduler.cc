@@ -124,7 +124,7 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const ffi::Array<RunnerResul
     }
     self->latency_ms.push_back(run_ms);
     if (error_msg) {
-      const tir::Schedule& sch = candidate->sch;
+      const s_tir::Schedule& sch = candidate->sch;
       std::string err = error_msg.value();
       TVM_PY_LOG(INFO, logger) << std::fixed << std::setprecision(4)  //
                                << "[Task #" << task_id << ": " << name << "] Trial #" << trials
@@ -168,13 +168,13 @@ void TaskSchedulerNode::Tune(ffi::Array<TuneContext> ctxs, ffi::Array<FloatImm> 
     TVM_PY_LOG(INFO, this->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
     TVM_PY_LOG(INFO, ctx->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
     this->tasks_.push_back(TaskRecord(ctx, weight));
-    ffi::Array<tir::Schedule> design_spaces =
+    ffi::Array<s_tir::Schedule> design_spaces =
         ctx->space_generator.value()->GenerateDesignSpace(ctx->mod.value());
     TVM_PY_LOG(INFO, ctx->logger) << "Total " << design_spaces.size()
                                   << " design space(s) generated";
     for (int i = 0, n = design_spaces.size(); i < n; ++i) {
-      tir::Schedule sch = design_spaces[i];
-      tir::Trace trace = sch->trace().value();
+      s_tir::Schedule sch = design_spaces[i];
+      s_tir::Trace trace = sch->trace().value();
       trace = trace->Simplified(true);
       TVM_PY_LOG(INFO, ctx->logger) << "Design space #" << i << ":\n"
                                     << sch->mod() << "\n"

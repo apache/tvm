@@ -32,7 +32,7 @@ else:
     INPUT_RV_TYPE = OUTPUT_RV_TYPE = ATTR_TYPE = Any
 
 
-@_register_object("tir.InstructionKind")
+@_register_object("s_tir.InstructionKind")
 class InstructionKind(Object):
     """Kind of an instruction, e.g. Split, Reorder, etc.
     Besides the name, every kind of instruction has its own properties, including:
@@ -88,7 +88,7 @@ class InstructionKind(Object):
         return _ffi_api.InstructionKindGet(name)  # type: ignore # pylint: disable=no-member
 
 
-@_register_object("tir.Instruction")
+@_register_object("s_tir.Instruction")
 class Instruction(Object):
     """Schedule instructions each corresponds to a schedule primitive
 
