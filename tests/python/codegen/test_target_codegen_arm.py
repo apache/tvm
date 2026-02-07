@@ -15,20 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 import re
+from tvm.script import tir as T, ir as I
 
 
 def test_popcount():
     target = "llvm -mtriple=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon"
 
     def check_correct_assembly(type, elements, counts):
-        n = tvm.runtime.convert(elements)
-        A = te.placeholder(n, dtype=type, name="A")
-        B = te.compute(A.shape, lambda i: tvm.tir.popcount(A[i]), name="B")
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-        sch.vectorize(sch.get_loops("B")[0])
-        f = tvm.tir.build(sch.mod, target=target)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((elements,), type), B: T.Buffer((elements,), type)):
+                T.func_attr({"tir.noalias": True})
+                for i in T.vectorized(elements):
+                    with T.sblock("B"):
+                        v_i = T.axis.spatial(elements, i)
+                        T.reads(A[v_i])
+                        T.writes(B[v_i])
+                        B[v_i] = T.popcount(A[v_i])
+
+        f = tvm.tir.build(Module, target=target)
         # Verify we see the correct number of vpaddl and vcnt instructions in the assembly
         assembly = f.inspect_source("asm")
         matches = re.findall("vpaddl", assembly)
@@ -47,18 +54,27 @@ def test_vmlal_s16():
     target = "llvm -mtriple=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon"
 
     def check_correct_assembly(N):
-        K = te.size_var("K")
-        A = te.placeholder((K, N), dtype="int8", name="A")
-        B = te.placeholder((K, N), dtype="int8", name="B")
-        k = te.reduce_axis((0, K))
-        C = te.compute(
-            (N,),
-            lambda n: te.sum(A[k, n].astype("int32") * B[k, n].astype("int32"), axis=[k]),
-            name="C",
-        )
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B, C]))
-        sch.vectorize(sch.get_loops("C")[0])
-        f = tvm.tir.build(sch.mod, target=target)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
+                T.func_attr({"tir.noalias": True})
+                K = T.int32(is_size_var=True)
+                A = T.match_buffer(var_A, (K, N), "int8")
+                B = T.match_buffer(var_B, (K, N), "int8")
+                for n in T.vectorized(N):
+                    for rv in range(K):
+                        with T.sblock("C"):
+                            v_n, v_rv = T.axis.remap("SR", [n, rv])
+                            T.reads(A[v_rv, v_n], B[v_rv, v_n])
+                            T.writes(C[v_n])
+                            with T.init():
+                                C[v_n] = 0
+                            C[v_n] = C[v_n] + T.Cast("int32", A[v_rv, v_n]) * T.Cast(
+                                "int32", B[v_rv, v_n]
+                            )
+
+        f = tvm.tir.build(Module, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.inspect_source("asm")
@@ -71,18 +87,27 @@ def test_vmlal_s16():
     check_correct_assembly(64)
 
     def check_broadcast_correct_assembly(N):
-        K = te.size_var("K")
-        A = te.placeholder((K, N), dtype="int8", name="A")
-        B = te.placeholder((K,), dtype="int8", name="B")
-        k = te.reduce_axis((0, K))
-        C = te.compute(
-            (N,),
-            lambda n: te.sum(A[k, n].astype("int32") * B[k].astype("int32"), axis=[k]),
-            name="C",
-        )
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B, C]))
-        sch.vectorize(sch.get_loops("C")[0])
-        f = tvm.tir.build(sch.mod, target=target)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
+                T.func_attr({"tir.noalias": True})
+                K = T.int32(is_size_var=True)
+                A = T.match_buffer(var_A, (K, N), "int8")
+                B = T.match_buffer(var_B, (K,), "int8")
+                for n in T.vectorized(N):
+                    for rv in range(K):
+                        with T.sblock("C"):
+                            v_n, v_rv = T.axis.remap("SR", [n, rv])
+                            T.reads(A[v_rv, v_n], B[v_rv])
+                            T.writes(C[v_n])
+                            with T.init():
+                                C[v_n] = 0
+                            C[v_n] = C[v_n] + T.Cast("int32", A[v_rv, v_n]) * T.Cast(
+                                "int32", B[v_rv]
+                            )
+
+        f = tvm.tir.build(Module, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.inspect_source("asm")

@@ -47,29 +47,31 @@ except ImportError:
 def test_fp8_conversions(input):
     dtype, nv_dtype = input
 
-    @T.prim_func
-    def add(
-        A: T.Buffer((64,), dtype),
-        B: T.Buffer((64,), dtype),
-        C: T.Buffer((64,), dtype),
-    ):
-        T.func_attr({"tir.noalias": True})
-        for i in range(64):
-            with T.sblock("C"):
-                v_i = T.axis.spatial(64, i)
-                T.reads(A[v_i], B[v_i])
-                T.writes(C[v_i])
-                C[v_i] = T.Cast(dtype, T.Cast("float16", A[v_i]) + T.Cast("float16", B[v_i]))
+    def _create_mod(dtype):
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((64,), dtype),
+                B: T.Buffer((64,), dtype),
+                C: T.Buffer((64,), dtype),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                        with T.sblock("C"):
+                            v_i = T.axis.spatial(64, i_0 * 32 + i_1)
+                            T.reads(A[v_i], B[v_i])
+                            T.writes(C[v_i])
+                            C[v_i] = T.Cast(
+                                dtype, T.Cast("float16", A[v_i]) + T.Cast("float16", B[v_i])
+                            )
 
-    sch = tvm.s_tir.Schedule(add)
-    block = sch.get_sblock("C")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 32])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+        return Module
 
+    mod = _create_mod(dtype)
     target = "cuda"
-    fadd = tvm.tir.build(sch.mod, target=target)
+    fadd = tvm.tir.build(mod, target=target)
 
     cuda_src = fadd.imports[0].inspect_source()
     assert nv_dtype in cuda_src, f"{nv_dtype} datatype not found in generated CUDA"
@@ -96,41 +98,36 @@ def test_fp8_packing(dtype):
     vector_length = 4
     native_dtype, packed_dtype = (f"{dtype}x{vector_length}", "uint32")
 
-    @T.prim_func
-    def add(
-        A: T.Buffer((length,), native_dtype),
-        R: T.Buffer((length,), packed_dtype),
-        B: T.Buffer((length,), native_dtype),
-    ):
-        T.func_attr({"tir.noalias": True})
-        # with T.sblock("root"):
-        for i in range(length):
-            with T.sblock("R"):
-                v_i = T.axis.spatial(length, i)
-                T.reads(A[v_i])
-                T.writes(R[v_i])
-                R[v_i] = T.reinterpret(packed_dtype, A[v_i])
-        for i in range(length):
-            with T.sblock("B"):
-                v_i = T.axis.spatial(length, i)
-                T.reads(R[v_i])
-                T.writes(B[v_i])
-                B[v_i] = T.reinterpret(native_dtype, R[v_i])
+    def _create_mod(native_dtype, packed_dtype, length):
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((length,), native_dtype),
+                R: T.Buffer((length,), packed_dtype),
+                B: T.Buffer((length,), native_dtype),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                        with T.sblock("R"):
+                            v_i = T.axis.spatial(length, i_0 * 32 + i_1)
+                            T.reads(A[v_i])
+                            T.writes(R[v_i])
+                            R[v_i] = T.reinterpret(packed_dtype, A[v_i])
+                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                        with T.sblock("B"):
+                            v_i = T.axis.spatial(length, i_0 * 32 + i_1)
+                            T.reads(R[v_i])
+                            T.writes(B[v_i])
+                            B[v_i] = T.reinterpret(native_dtype, R[v_i])
 
-    sch = tvm.s_tir.Schedule(add)
-    block = sch.get_sblock("R")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 32])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
-    block = sch.get_sblock("B")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 32])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+        return Module
 
+    mod = _create_mod(native_dtype, packed_dtype, length)
     target = "cuda"
-    f = tvm.compile(sch.mod, target=target)
+    f = tvm.compile(mod, target=target)
     dev = tvm.device(target, 0)
 
     np_shape = (length, vector_length)
@@ -164,32 +161,32 @@ native_dtype, promoted_dtype, numpytype = tvm.testing.parameters(
 def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
     vector_length = 64
 
-    @T.prim_func
-    def add(
-        A: T.Buffer((vector_length,), native_dtype),
-        B: T.Buffer((vector_length,), native_dtype),
-        C: T.Buffer((vector_length,), native_dtype),
-    ):
-        T.func_attr({"tir.noalias": True})
-        # with T.sblock("root"):
-        for i in range(vector_length):
-            with T.sblock("C"):
-                v_i = T.axis.spatial(vector_length, i)
-                T.reads(A[v_i], B[v_i])
-                T.writes(C[v_i])
-                C[v_i] = T.Cast(
-                    native_dtype, T.Cast(promoted_dtype, A[v_i]) + T.Cast(promoted_dtype, B[v_i])
-                )
+    def _create_mod(native_dtype, promoted_dtype):
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((64,), native_dtype),
+                B: T.Buffer((64,), native_dtype),
+                C: T.Buffer((64,), native_dtype),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                        with T.sblock("C"):
+                            v_i = T.axis.spatial(64, i_0 * 32 + i_1)
+                            T.reads(A[v_i], B[v_i])
+                            T.writes(C[v_i])
+                            C[v_i] = T.Cast(
+                                native_dtype,
+                                T.Cast(promoted_dtype, A[v_i]) + T.Cast(promoted_dtype, B[v_i]),
+                            )
 
-    sch = tvm.s_tir.Schedule(add)
-    block = sch.get_sblock("C")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 32])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+        return Module
 
+    mod = _create_mod(native_dtype, promoted_dtype)
     target = "cuda"
-    fadd = tvm.tir.build(sch.mod, target=target)
+    fadd = tvm.tir.build(mod, target=target)
     cuda_src = fadd.imports[0].inspect_source()
     dev = tvm.device(target, 0)
 
@@ -225,21 +222,21 @@ bcast_length = tvm.testing.parameter(2, 4, 6, 8)
 def test_half_broadcast(bcast_length):
     dtype = "float16"
 
-    @T.prim_func
-    def vector_broadcast(a: T.Buffer((), dtype), vec: T.Buffer((bcast_length,), dtype)):
-        for t in range(1):
-            with T.sblock("broadcast"):
-                vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
+    def _create_mod(bcast_length, dtype):
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(a: T.Buffer((), dtype), vec: T.Buffer((bcast_length,), dtype)):
+                for i_0 in T.thread_binding(1, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(1, thread="threadIdx.x"):
+                        with T.sblock("broadcast"):
+                            vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
 
-    sch = tvm.s_tir.Schedule(vector_broadcast)
-    block = sch.get_sblock("broadcast")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 1])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+        return Module
 
+    mod = _create_mod(bcast_length, dtype)
     target = "cuda"
-    func = tvm.compile(sch.mod, target=target)
+    func = tvm.compile(mod, target=target)
     dev = tvm.device(target, 0)
 
     a_np = np.random.uniform(low=0, high=4, size=()).astype(dtype)
@@ -298,30 +295,25 @@ def test_half4_vector_add():
     vector_length = 4
     vec_dtype = dtype + "x" + str(vector_length)
 
-    @T.prim_func
-    def add(
-        A: T.Buffer((length,), vec_dtype),
-        B: T.Buffer((length,), vec_dtype),
-        C: T.Buffer((length,), vec_dtype),
-    ):
-        T.func_attr({"tir.noalias": True})
-        # with T.sblock("root"):
-        for i in range(length):
-            with T.sblock("C"):
-                v_i = T.axis.spatial(length, i)
-                T.reads(A[v_i], B[v_i])
-                T.writes(C[v_i])
-                C[v_i] = A[v_i] + B[v_i]
-
-    sch = tvm.s_tir.Schedule(add)
-    block = sch.get_sblock("C")
-    b = sch.get_loops(block)
-    bx, tx = sch.split(b[0], factors=[None, 32])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(
+            A: T.Buffer((64,), "float16x4"),
+            B: T.Buffer((64,), "float16x4"),
+            C: T.Buffer((64,), "float16x4"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i_0 in T.thread_binding(2, thread="blockIdx.x"):
+                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(64, i_0 * 32 + i_1)
+                        T.reads(A[v_i], B[v_i])
+                        T.writes(C[v_i])
+                        C[v_i] = A[v_i] + B[v_i]
 
     target = "cuda"
-    fadd = tvm.compile(sch.mod, target=target)
+    fadd = tvm.compile(Module, target=target)
     dev = tvm.device(target, 0)
 
     a_np = np.random.uniform(-1, 1, (length, vector_length)).astype(dtype)
@@ -976,26 +968,29 @@ def test_moe_gemv_shfl_down_illegal_instr():
 @pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
 @tvm.testing.requires_cuda_compute_version(8, 9)
 def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
-    @T.prim_func
-    def func_vectorize(
-        A: T.Buffer((128,), "float8_e4m3fn"),
-        B: T.Buffer((128,), dtype),
-        C: T.Buffer((128,), dtype),
-    ) -> None:
-        for i in T.serial(128):
-            with T.sblock("compute"):
-                vi = T.axis.remap("S", [i])
-                C[vi] = (A[vi].astype(dtype) * B[vi]) + T.bfloat16(3.0)
+    def _create_mod(vec_length, dtype):
+        num_threads = 128 // vec_length
 
-    sch = tvm.s_tir.Schedule(func_vectorize)
-    (l,) = sch.get_loops(sch.get_sblock("compute"))
-    lo, li = sch.split(l, [None, vec_length])
-    sch.bind(lo, "threadIdx.x")
-    sch.vectorize(li)
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((128,), "float8_e4m3fn"),
+                B: T.Buffer((128,), dtype),
+                C: T.Buffer((128,), dtype),
+            ) -> None:
+                for i_0 in T.thread_binding(num_threads, thread="threadIdx.x"):
+                    for i_1 in T.vectorized(vec_length):
+                        with T.sblock("compute"):
+                            vi = T.axis.spatial(128, i_0 * vec_length + i_1)
+                            C[vi] = (A[vi].astype(dtype) * B[vi]) + T.bfloat16(3.0)
 
+        return Module
+
+    mod = _create_mod(vec_length, dtype)
     device = tvm.cuda()
     target = tvm.target.Target.from_device(device)
-    f = tir.build(sch.mod, target=target)
+    f = tvm.tir.build(mod, target=target)
 
     a_np = np.random.rand(128).astype("float8_e4m3fn")
     b_np = np.random.rand(128).astype(dtype)

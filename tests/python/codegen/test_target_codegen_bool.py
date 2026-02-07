@@ -16,49 +16,75 @@
 # under the License.
 """codegen related to bool types"""
 
+import numpy as np
+
 import tvm
 import tvm.testing
-from tvm import te
-import numpy as np
-import tvm.testing
-
-arr_size = tvm.testing.parameter(32)
-
-
-@tvm.testing.fixture
-def compute(arr_size):
-    A = te.placeholder((arr_size,), name="A")
-    B = te.placeholder((arr_size,), name="B")
-    C = te.compute(A.shape, lambda *i: A(*i) > B(*i), name="C")
-    D = te.compute(C.shape, lambda *i: tvm.tir.all(C(*i), A(*i) > 1).astype("float32"), name="D")
-    return [A, B, C, D]
-
-
-@tvm.testing.fixture
-def get_module(target, compute):
-    target = tvm.target.Target(target)
-    A, B, C, D = compute
-    if target.kind.name == "llvm":
-        return tvm.IRModule.from_expr(te.create_prim_func([A, B, D]))
-
-    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B, D]))
-    for stage in ["C", "D"]:
-        xo, xi = sch.split(sch.get_loops(stage)[0], factors=[None, 4])
-        sch.bind(xo, "blockIdx.x")
-        sch.bind(xi, "blockIdx.x")
-    return sch.mod
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 @tvm.testing.uses_gpu
-def test_cmp_load_store(target, dev, arr_size, compute, get_module):
-    A, B, _, D = compute
-    f = tvm.compile(get_module, target=target)
+def test_cmp_load_store(target, dev):
+    @I.ir_module
+    class GPUModule:
+        @T.prim_func
+        def main(
+            A: T.Buffer((32,), "float32"),
+            B: T.Buffer((32,), "float32"),
+            D: T.Buffer((32,), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            C = T.alloc_buffer((32,), "bool")
+            for i0_0 in T.thread_binding(8, thread="blockIdx.x"):
+                for i0_1 in T.thread_binding(4, thread="blockIdx.x"):
+                    with T.sblock("C"):
+                        v_i0 = T.axis.spatial(32, i0_0 * 4 + i0_1)
+                        T.reads(B[v_i0], A[v_i0])
+                        T.writes(C[v_i0])
+                        C[v_i0] = B[v_i0] < A[v_i0]
+            for i0_0 in T.thread_binding(8, thread="blockIdx.x"):
+                for i0_1 in T.thread_binding(4, thread="blockIdx.x"):
+                    with T.sblock("D"):
+                        v_i0 = T.axis.spatial(32, i0_0 * 4 + i0_1)
+                        T.reads(C[v_i0], A[v_i0])
+                        T.writes(D[v_i0])
+                        D[v_i0] = T.Cast("float32", C[v_i0] and T.float32(1.0) < A[v_i0])
 
-    a_np = np.random.uniform(size=arr_size).astype(A.dtype)
-    b_np = np.random.uniform(size=arr_size).astype(B.dtype)
+    @I.ir_module
+    class CPUModule:
+        @T.prim_func
+        def main(
+            A: T.Buffer((32,), "float32"),
+            B: T.Buffer((32,), "float32"),
+            D: T.Buffer((32,), "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            C = T.alloc_buffer((32,), "bool")
+            for i0 in range(32):
+                with T.sblock("C"):
+                    v_i0 = T.axis.spatial(32, i0)
+                    T.reads(B[v_i0], A[v_i0])
+                    T.writes(C[v_i0])
+                    C[v_i0] = B[v_i0] < A[v_i0]
+            for i0 in range(32):
+                with T.sblock("D"):
+                    v_i0 = T.axis.spatial(32, i0)
+                    T.reads(C[v_i0], A[v_i0])
+                    T.writes(D[v_i0])
+                    D[v_i0] = T.Cast("float32", C[v_i0] and T.float32(1.0) < A[v_i0])
+
+    arr_size = 32
+    is_gpu = tvm.target.Target(target).kind.name != "llvm"
+    mod = GPUModule if is_gpu else CPUModule
+
+    f = tvm.compile(mod, target=target)
+
+    a_np = np.random.uniform(size=arr_size).astype("float32")
+    b_np = np.random.uniform(size=arr_size).astype("float32")
     a = tvm.runtime.tensor(a_np, dev)
     b = tvm.runtime.tensor(b_np, dev)
-    d = tvm.runtime.tensor(np.zeros(arr_size, dtype=D.dtype), dev)
+    d = tvm.runtime.tensor(np.zeros(arr_size, dtype="float32"), dev)
     f(a, b, d)
     np.testing.assert_equal(
         d.numpy(),
