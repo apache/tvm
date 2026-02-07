@@ -15,15 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 import re
-import sys
-import numpy as np
 import pytest
 import tvm
 import tvm.testing
 import tvm.contrib.hexagon as hexagon
-from tvm import te
+from tvm.script import tir as T, ir as I
 
 
 @pytest.fixture(autouse=True)
@@ -40,27 +37,45 @@ def register_linker():
 def test_basic():
     target = tvm.target.hexagon("v66", hvx=128)
 
-    def check_add():
-        A = tvm.te.placeholder((128,), dtype="uint8", name="A")
-        B = tvm.te.placeholder((128,), dtype="uint8", name="A")
-        C = tvm.te.compute((128,), lambda i: A[i] + B[i], name="C")
-        mod = tvm.IRModule.from_expr(te.create_prim_func([C, A, B]))
-        hexm = tvm.compile(mod, target=tvm.target.Target(target, target))
-        asm = hexm.inspect_source("s")
-        vadds = re.findall(r"v[0-9]+.b = vadd\(v[0-9]+.b,v[0-9]+.b\)", asm)
-        assert vadds  # Check that it's non-empty
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(
+            C: T.Buffer((128,), "uint8"),
+            A: T.Buffer((128,), "uint8"),
+            A_1: T.Buffer((128,), "uint8"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i in range(128):
+                with T.sblock("C"):
+                    v_i = T.axis.spatial(128, i)
+                    T.reads(A[v_i], A_1[v_i])
+                    T.writes(C[v_i])
+                    C[v_i] = A[v_i] + A_1[v_i]
 
-    check_add()
+    hexm = tvm.compile(Module, target=tvm.target.Target(target, target))
+    asm = hexm.inspect_source("s")
+    vadds = re.findall(r"v[0-9]+.b = vadd\(v[0-9]+.b,v[0-9]+.b\)", asm)
+    assert vadds  # Check that it's non-empty
 
 
 @tvm.testing.requires_hexagon
 def test_llvm_target_features():
     target = tvm.target.hexagon("v66", hvx=128)
-    # Define some trivial compute
-    A = tvm.te.placeholder((128,), dtype="uint8", name="A")
-    C = tvm.te.compute((128,), lambda i: A[i] + 1, name="C")
-    mod = tvm.IRModule.from_expr(te.create_prim_func([C, A]).with_attr("global_symbol", "add_one"))
-    m = tvm.compile(mod, target=tvm.target.Target(target, target))
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def add_one(C: T.Buffer((128,), "int32"), A: T.Buffer((128,), "uint8")):
+            T.func_attr({"tir.noalias": True})
+            for i in range(128):
+                with T.sblock("C"):
+                    v_i = T.axis.spatial(128, i)
+                    T.reads(A[v_i])
+                    T.writes(C[v_i])
+                    C[v_i] = T.Cast("int32", A[v_i]) + 1
+
+    m = tvm.compile(Module, target=tvm.target.Target(target, target))
     llvm_ir = m.inspect_source("ll")
     # Make sure we find +hvx-length128b in "attributes".
     fs = re.findall(r"attributes.*\+hvx-length128b", llvm_ir)
@@ -70,11 +85,22 @@ def test_llvm_target_features():
 @tvm.testing.requires_hexagon
 def test_llvm_options():
     target = tvm.target.hexagon("v66", llvm_options="-hexagon-noopt")
-    Zero = tvm.te.compute((10,), lambda _: tvm.tir.const(0, "int32"))
-    mod = tvm.IRModule.from_expr(te.create_prim_func([Zero]))
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(compute: T.Buffer((10,), "int32")):
+            T.func_attr({"tir.noalias": True})
+            for _ in range(10):
+                with T.sblock("compute"):
+                    v__ = T.axis.spatial(10, _)
+                    T.reads()
+                    T.writes(compute[v__])
+                    compute[v__] = 0
+
     # Check that BuildHexagon hasn't crashed because of target attribute
     # type mismatch.
-    tvm.compile(mod, target=tvm.target.Target(target, target))
+    tvm.compile(Module, target=tvm.target.Target(target, target))
     assert re.search("-hexagon-noopt", str(target))
 
 

@@ -22,7 +22,6 @@ import pytest
 import tvm
 import tvm.contrib.nvcc
 import tvm.testing
-from tvm import te, topi
 from tvm.contrib.nvcc import have_bf16, have_fp16, have_int8
 from tvm.script import ir as I
 from tvm.script import tir as T
@@ -65,18 +64,29 @@ def test_cuda_vectorize_add():
         if dtype == "int8" and not have_int8(tvm.cuda(0).compute_version):
             print("skip because gpu does not support int8")
             return
-        A = te.placeholder((n,), name="A", dtype="%sx%d" % (dtype, lanes))
-        B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
+        vec_dtype = "%sx%d" % (dtype, lanes)
+        one = tvm.tir.const(1, vec_dtype)
+        num_blocks = (n + num_thread - 1) // num_thread
 
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-        xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
-        sch.bind(xo, "blockIdx.x")
-        sch.bind(xi, "threadIdx.x")
-        fun = tvm.compile(sch.mod, target="cuda")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
+                        with T.sblock("B"):
+                            v_i = T.axis.spatial(n, i_0 * num_thread + i_1)
+                            T.where(i_0 * num_thread + i_1 < n)
+                            T.reads(A[v_i])
+                            T.writes(B[v_i])
+                            B[v_i] = A[v_i] + one
+
+        fun = tvm.compile(Module, target="cuda")
 
         dev = tvm.cuda(0)
-        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
-        c = tvm.runtime.empty((n,), B.dtype, dev)
+        a = tvm.runtime.empty((n,), vec_dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
+        c = tvm.runtime.empty((n,), vec_dtype, dev)
         fun(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
@@ -117,22 +127,32 @@ def test_cuda_bf16_vectorize_add():
         return u32.view("<f4")
 
     def check_cuda(n, lanes):
-        A = te.placeholder((n,), name="A", dtype="bfloat16x%d" % lanes)
-        B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name="B")
+        vec_dtype = "bfloat16x%d" % lanes
+        num_blocks = n // num_thread
+        one = tvm.tir.Broadcast(tvm.tir.const(1, "bfloat16"), lanes)
 
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-        xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
-        sch.bind(xo, "blockIdx.x")
-        sch.bind(xi, "threadIdx.x")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
+                        with T.sblock("B"):
+                            v_i = T.axis.spatial(n, i_0 * num_thread + i_1)
+                            T.reads(A[v_i])
+                            T.writes(B[v_i])
+                            B[v_i] = A[v_i] + one
+
         with tvm.transform.PassContext(
             disabled_pass=["tir.BF16Promote", "tir.BF16CastElimination", "tir.BF16TypeLowering"]
         ):
-            fun = tvm.compile(sch.mod, target="cuda")
+            fun = tvm.compile(Module, target="cuda")
         dev = tvm.cuda(0)
         np_a = np.random.uniform(size=(n, lanes)).astype("float32")
         np_a = np_bf162np_float(np_float2np_bf16(np_a))
-        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(np_float2np_bf16(np_a))
-        c = tvm.runtime.empty((n,), B.dtype, dev)
+        a = tvm.runtime.empty((n,), vec_dtype, dev).copyfrom(np_float2np_bf16(np_a))
+        c = tvm.runtime.empty((n,), vec_dtype, dev)
         fun(a, c)
         c = tvm.runtime.empty((n, lanes), "uint16", dev).copyfrom(c)
         tvm.testing.assert_allclose(c.numpy(), np_float2np_bf16(np_a + 1))
@@ -152,27 +172,38 @@ def test_cuda_multiply_add():
         if dtype == "int8" and not have_int8(tvm.cuda(0).compute_version):
             print("skip because gpu does not support int8")
             return
-        A = te.placeholder((n,), name="A", dtype="%sx%d" % (dtype, lanes))
-        B = te.placeholder((n,), name="B", dtype="%sx%d" % (dtype, lanes))
-        C = te.placeholder((n,), name="C", dtype="int32")
-        D = te.compute(
-            (n,), lambda i: tvm.tir.call_pure_extern("int32", "__dp4a", A[i], B[i], C[i]), name="D"
-        )
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B, C, D]))
-        xo, xi = sch.split(sch.get_loops("D")[0], factors=[None, num_thread])
-        sch.bind(xo, "blockIdx.x")
-        sch.bind(xi, "threadIdx.x")
-        fun = tvm.compile(sch.mod, target="cuda")
+        vec_dtype = "%sx%d" % (dtype, lanes)
+        num_blocks = n // num_thread
+
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Buffer((n,), vec_dtype),
+                B: T.Buffer((n,), vec_dtype),
+                C: T.Buffer((n,), "int32"),
+                D: T.Buffer((n,), "int32"),
+            ):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
+                        with T.sblock("D"):
+                            v_i = T.axis.spatial(n, i_0 * num_thread + i_1)
+                            T.reads(A[v_i], B[v_i], C[v_i])
+                            T.writes(D[v_i])
+                            D[v_i] = T.call_pure_extern("int32", "__dp4a", A[v_i], B[v_i], C[v_i])
+
+        fun = tvm.compile(Module, target="cuda")
 
         np_a = np.random.randint(low=-128, high=127, size=(n, lanes))
         np_b = np.random.randint(low=-128, high=127, size=(n, lanes))
         np_c = np.random.randint(low=0, high=127, size=(n,))
         np_d = [sum(x * y) + z for x, y, z in zip(np_a, np_b, np_c)]
         dev = tvm.cuda(0)
-        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(np_a)
-        b = tvm.runtime.empty((n,), B.dtype, dev).copyfrom(np_b)
-        c = tvm.runtime.empty((n,), C.dtype, dev).copyfrom(np_c)
-        d = tvm.runtime.empty((n,), D.dtype, dev)
+        a = tvm.runtime.empty((n,), vec_dtype, dev).copyfrom(np_a)
+        b = tvm.runtime.empty((n,), vec_dtype, dev).copyfrom(np_b)
+        c = tvm.runtime.empty((n,), "int32", dev).copyfrom(np_c)
+        d = tvm.runtime.empty((n,), "int32", dev)
         fun(a, b, c, d)
         tvm.testing.assert_allclose(d.numpy(), np_d)
 
@@ -186,18 +217,27 @@ def test_cuda_vectorize_load():
 
     def check_cuda(dtype, n, lanes):
         dev = tvm.cuda(0)
-        A = te.placeholder((n,), name="A", dtype="%sx%d" % (dtype, lanes))
-        B = te.compute((n,), lambda i: A[i], name="B")
+        vec_dtype = "%sx%d" % (dtype, lanes)
+        num_blocks = n // num_thread
 
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-        xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
-        sch.bind(xo, "blockIdx.x")
-        sch.bind(xi, "threadIdx.x")
-        fun = tvm.compile(sch.mod, target="cuda")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
+                        with T.sblock("B"):
+                            v_i = T.axis.spatial(n, i_0 * num_thread + i_1)
+                            T.reads(A[v_i])
+                            T.writes(B[v_i])
+                            B[v_i] = A[v_i]
+
+        fun = tvm.compile(Module, target="cuda")
 
         np_a = np.random.randint(low=-128, high=127, size=(n, lanes))
-        a = tvm.runtime.empty((n,), A.dtype, dev).copyfrom(np_a)
-        b = tvm.runtime.empty((n,), B.dtype, dev)
+        a = tvm.runtime.empty((n,), vec_dtype, dev).copyfrom(np_a)
+        b = tvm.runtime.empty((n,), vec_dtype, dev)
         fun(a, b)
         tvm.testing.assert_allclose(a.numpy(), b.numpy())
 
@@ -214,13 +254,22 @@ def test_cuda_make_int8():
     def check_cuda(n, value, lanes):
         dtype = "int8"
         dev = tvm.cuda(0)
-        A = te.compute((n, lanes), lambda i, j: tvm.tir.const(value, dtype=dtype), name="A")
+        const_value = tvm.tir.const(value, dtype=dtype)
 
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A]))
-        y, x = sch.get_loops("A")
-        sch.vectorize(x)
-        sch.bind(y, "blockIdx.x")
-        fun = tvm.compile(sch.mod, target="cuda")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((n, lanes), dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i in T.thread_binding(n, thread="blockIdx.x"):
+                    for j in T.vectorized(lanes):
+                        with T.sblock("A"):
+                            v_i, v_j = T.axis.remap("SS", [i, j])
+                            T.reads()
+                            T.writes(A[v_i, v_j])
+                            A[v_i, v_j] = const_value
+
+        fun = tvm.compile(Module, target="cuda")
 
         np_a = np.full((n, lanes), value, dtype=dtype)
         a = tvm.runtime.empty(np_a.shape, dtype, dev)
@@ -244,18 +293,26 @@ def test_cuda_inf_nan():
     target = "cuda"
 
     def check_inf_nan(dev, n, value, dtype):
-        A = te.placeholder((n,), name="A", dtype=dtype)
         inf_value = tvm.tir.const(value, dtype=dtype)
-        C = te.compute((n,), lambda i: inf_value, name="C")
 
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, C]))
-        xo, xi = sch.split(sch.get_loops("C")[0], factors=[None, 8])
-        sch.bind(xo, "blockIdx.x")
-        sch.bind(xi, "threadIdx.x")
-        fun = tvm.compile(sch.mod, target="cuda")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((n,), dtype), C: T.Buffer((n,), dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(1, thread="blockIdx.x"):
+                    for i_1 in T.thread_binding(8, thread="threadIdx.x"):
+                        with T.sblock("C"):
+                            v_i = T.axis.spatial(n, i_0 * 8 + i_1)
+                            T.where(i_0 * 8 + i_1 < n)
+                            T.reads()
+                            T.writes(C[v_i])
+                            C[v_i] = inf_value
 
-        a = tvm.runtime.empty((n,), A.dtype, dev)
-        c = tvm.runtime.empty((n,), A.dtype, dev)
+        fun = tvm.compile(Module, target="cuda")
+
+        a = tvm.runtime.empty((n,), dtype, dev)
+        c = tvm.runtime.empty((n,), dtype, dev)
         # Only need to test compiling here
         fun(a, c)
 
@@ -271,19 +328,29 @@ def test_cuda_inf_nan():
 
 @tvm.testing.parametrize_targets("cuda", "rocm")
 def test_crossthread_reduction1(target, dev):
-    n = te.var("n")
-    m = te.var("m")
-    A = te.placeholder((n, m), name="A")
-    k = te.reduce_axis((0, m), "m")
-    B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
-
     def sched(nthd):
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-        x, k = sch.get_loops("B")
-        ko, _ = sch.split(k, factors=[nthd, None])
-        sch.bind(ko, "threadIdx.x")
-        sch.bind(x, "blockIdx.x")
-        fun = tvm.compile(sch.mod, target="cuda")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(var_A: T.handle, var_B: T.handle):
+                T.func_attr({"tir.noalias": True})
+                n, m = T.int32(), T.int32()
+                A = T.match_buffer(var_A, (n, m))
+                B = T.match_buffer(var_B, (n,))
+                for i in T.thread_binding(n, thread="blockIdx.x"):
+                    for m_0 in T.thread_binding(nthd, thread="threadIdx.x"):
+                        for m_1 in range((m + nthd - 1) // nthd):
+                            with T.sblock("B"):
+                                v_i = T.axis.spatial(n, i)
+                                v_m = T.axis.reduce(m, m_0 * ((m + nthd - 1) // nthd) + m_1)
+                                T.where(m_0 * ((m + nthd - 1) // nthd) + m_1 < m)
+                                T.reads(A[v_i, v_m])
+                                T.writes(B[v_i])
+                                with T.init():
+                                    B[v_i] = T.float32(0.0)
+                                B[v_i] = B[v_i] + A[v_i, v_m]
+
+        fun = tvm.compile(Module, target="cuda")
         return fun
 
     def verify(nthd):
@@ -293,8 +360,8 @@ def test_crossthread_reduction1(target, dev):
         vals = [nthd - 1, nthd, nthd + 1]
         for kk in [x for x in vals]:
             size = (nn, kk)
-            a = tvm.runtime.tensor(np.random.uniform(size=size).astype(A.dtype), dev)
-            b = tvm.runtime.tensor(np.zeros(nn, dtype=B.dtype), dev)
+            a = tvm.runtime.tensor(np.random.uniform(size=size).astype("float32"), dev)
+            b = tvm.runtime.tensor(np.zeros(nn, dtype="float32"), dev)
             func(a, b)
             tvm.testing.assert_allclose(b.numpy(), np.sum(a.numpy(), axis=1), rtol=1e-3)
 
@@ -305,23 +372,39 @@ def test_crossthread_reduction1(target, dev):
 
 @tvm.testing.parametrize_targets("cuda", "rocm")
 def test_crossthread_reduction2(target, dev):
-    n = te.var("n")
-    k0 = te.var("k0")
-    k1 = te.var("k1")
-    A = te.placeholder((n, k0, k1), name="A")
-    k0 = te.reduce_axis((0, k0), "k0")
-    k1 = te.reduce_axis((0, k1), "k1")
-    B = te.compute((n,), lambda i: te.sum(A[i, k0, k1], axis=(k0, k1)), name="B")
-
     def sched(nthdx, nthdy):
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-        x, k0, k1 = sch.get_loops("B")
-        k0o, _ = sch.split(k0, factors=[nthdx, None])
-        k1o, _ = sch.split(k1, factors=[nthdy, None])
-        sch.bind(k0o, "threadIdx.x")
-        sch.bind(k1o, "threadIdx.y")
-        sch.bind(x, "blockIdx.x")
-        func = tvm.compile(sch.mod, target="cuda")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(var_A: T.handle, var_B: T.handle):
+                T.func_attr({"tir.noalias": True})
+                n, k0, k1 = T.int32(), T.int32(), T.int32()
+                A = T.match_buffer(var_A, (n, k0, k1))
+                B = T.match_buffer(var_B, (n,))
+                for i in T.thread_binding(n, thread="blockIdx.x"):
+                    for k0_0 in T.thread_binding(nthdx, thread="threadIdx.x"):
+                        for k0_1 in range((k0 + nthdx - 1) // nthdx):
+                            for k1_0 in T.thread_binding(nthdy, thread="threadIdx.y"):
+                                for k1_1 in range((k1 + nthdy - 1) // nthdy):
+                                    with T.sblock("B"):
+                                        v_i = T.axis.spatial(n, i)
+                                        v_k0 = T.axis.reduce(
+                                            k0, k0_0 * ((k0 + nthdx - 1) // nthdx) + k0_1
+                                        )
+                                        v_k1 = T.axis.reduce(
+                                            k1, k1_0 * ((k1 + nthdy - 1) // nthdy) + k1_1
+                                        )
+                                        T.where(
+                                            k0_0 * ((k0 + nthdx - 1) // nthdx) + k0_1 < k0
+                                            and k1_0 * ((k1 + nthdy - 1) // nthdy) + k1_1 < k1
+                                        )
+                                        T.reads(A[v_i, v_k0, v_k1])
+                                        T.writes(B[v_i])
+                                        with T.init():
+                                            B[v_i] = T.float32(0.0)
+                                        B[v_i] = B[v_i] + A[v_i, v_k0, v_k1]
+
+        func = tvm.compile(Module, target="cuda")
         return func
 
     def verify(nthdx, nthdy):
@@ -332,8 +415,8 @@ def test_crossthread_reduction2(target, dev):
         vy = [nthdy - 1, nthdy, nthdy + 1]
         for kk0, kk1 in [(x, y) for x in vx for y in vy]:
             size = (nn, kk0, kk1)
-            a = tvm.runtime.tensor(np.random.uniform(size=size).astype(A.dtype), dev)
-            b = tvm.runtime.tensor(np.zeros(nn, dtype=B.dtype), dev)
+            a = tvm.runtime.tensor(np.random.uniform(size=size).astype("float32"), dev)
+            b = tvm.runtime.tensor(np.zeros(nn, dtype="float32"), dev)
             func(a, b)
             tvm.testing.assert_allclose(b.numpy(), np.sum(a.numpy(), axis=(1, 2)), rtol=1e-3)
 
@@ -346,16 +429,24 @@ def test_crossthread_reduction2(target, dev):
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_reduction_binding():
-    k = te.reduce_axis((0, 32), "k")
-    A = te.placeholder((96, 32), name="A")
-    B = te.compute((96,), lambda m: te.sum(A[m, k], axis=k), name="B")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((96, 32), "float32"), B: T.Buffer((96,), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for k in range(32):
+                for m_0 in T.thread_binding(3, thread="blockIdx.x"):
+                    for m_1 in range(32):
+                        with T.sblock("B"):
+                            v_m = T.axis.spatial(96, m_0 * 32 + m_1)
+                            v_k = T.axis.reduce(32, k)
+                            T.reads(A[v_m, v_k])
+                            T.writes(B[v_m])
+                            with T.init():
+                                B[v_m] = T.float32(0.0)
+                            B[v_m] = B[v_m] + A[v_m, v_k]
 
-    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-    x, k = sch.get_loops("B")
-    sch.reorder(k, x)
-    mo, _ = sch.split(x, factors=[None, 32])
-    sch.bind(mo, "blockIdx.x")
-    func = tvm.compile(sch.mod, target="cuda")
+    func = tvm.compile(Module, target="cuda")
 
 
 @tvm.testing.requires_gpu
@@ -364,24 +455,34 @@ def test_cuda_const_float_to_half():
     # This import is required to use nvcc to perform code gen;
     # otherwise it is found that the code gen is done by nvrtc.
 
-    shape = (2, 3, 4)
-    a = te.placeholder(shape, dtype="float16", name="a")
-    b = tvm.tir.const(0.5, dtype="float16")
-    c = te.compute(shape, lambda i, j, k: a[i, j, k] > b, name="C")
+    half_const = tvm.tir.const(0.5, dtype="float16")
 
-    sch = tvm.s_tir.Schedule(te.create_prim_func([a, c]))
-    xo, xi = sch.split(sch.fuse(*sch.get_loops("C")), factors=[None, 64])
-    sch.bind(xo, "blockIdx.x")
-    sch.bind(xi, "threadIdx.x")
-    func = tvm.compile(sch.mod, target="cuda")
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(a: T.Buffer((2, 3, 4), "float16"), C: T.Buffer((2, 3, 4), "bool")):
+            T.func_attr({"tir.noalias": True})
+            for i_j_k_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
+                for i_j_k_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(2, (i_j_k_fused_0 * 64 + i_j_k_fused_1) // 12)
+                        v_j = T.axis.spatial(3, (i_j_k_fused_0 * 64 + i_j_k_fused_1) % 12 // 4)
+                        v_k = T.axis.spatial(4, (i_j_k_fused_0 * 64 + i_j_k_fused_1) % 4)
+                        T.where(i_j_k_fused_0 * 64 + i_j_k_fused_1 < 24)
+                        T.reads(a[v_i, v_j, v_k])
+                        T.writes(C[v_i, v_j, v_k])
+                        C[v_i, v_j, v_k] = half_const < a[v_i, v_j, v_k]
+
+    func = tvm.compile(Module, target="cuda")
 
     dev = tvm.cuda(0)
-    a_np = np.random.uniform(size=shape).astype(a.dtype)
-    c_np = np.zeros(shape=shape, dtype=c.dtype)
+    shape = (2, 3, 4)
+    a_np = np.random.uniform(size=shape).astype("float16")
+    c_np = np.zeros(shape=shape, dtype="bool")
     a = tvm.runtime.tensor(a_np, dev)
     c = tvm.runtime.tensor(c_np, dev)
     func(a, c)
-    np.testing.assert_equal(c.numpy(), a_np > b.value)
+    np.testing.assert_equal(c.numpy(), a_np > 0.5)
 
 
 @tvm.testing.requires_gpu
@@ -391,19 +492,25 @@ def test_cuda_floordiv_with_vectorization():
         # B[i] = A[floordiv(i, k)]
         n = 256
         k = 37
-        A = te.placeholder((n,), name="A")
-        B = te.compute((n,), lambda i: A[tvm.tir.floordiv(i, k)], name="B")
 
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-        xo, xi = sch.split(sch.get_loops("B")[0], factors=[1, None])
-        xio, xii = sch.split(xi, factors=[None, 4])
-        sch.vectorize(xii)
-        sch.bind(xo, "blockIdx.x")
-        sch.bind(xio, "threadIdx.x")
-        func = tvm.compile(sch.mod, target="cuda")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((256,), "float32"), B: T.Buffer((256,), "float32")):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(1, thread="blockIdx.x"):
+                    for i_1_0 in T.thread_binding(64, thread="threadIdx.x"):
+                        for i_1_1 in T.vectorized(4):
+                            with T.sblock("B"):
+                                v_i = T.axis.spatial(256, i_0 * 256 + i_1_0 * 4 + i_1_1)
+                                T.reads(A[v_i // 37])
+                                T.writes(B[v_i])
+                                B[v_i] = A[v_i // 37]
+
+        func = tvm.compile(Module, target="cuda")
 
         dev = tvm.cuda(0)
-        a_np = np.random.uniform(size=(n,)).astype(A.dtype)
+        a_np = np.random.uniform(size=(n,)).astype("float32")
         b_np = np.array([a_np[i // k] for i in range(0, n)])
         a_nd = tvm.runtime.tensor(a_np, dev)
         b_nd = tvm.runtime.tensor(np.zeros(b_np.shape, dtype=b_np.dtype), dev)
@@ -418,18 +525,25 @@ def test_cuda_floormod_with_vectorization():
         # B[i] = A[floormod(i, k)]
         n = 256
         k = 37
-        A = te.placeholder((n,), name="A")
-        B = te.compute((n,), lambda i: A[tvm.tir.floormod(i, k)], name="B")
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-        xo, xi = sch.split(sch.get_loops("B")[0], factors=[1, None])
-        xio, xii = sch.split(xi, factors=[None, 4])
-        sch.vectorize(xii)
-        sch.bind(xo, "blockIdx.x")
-        sch.bind(xio, "threadIdx.x")
-        func = tvm.compile(sch.mod, target="cuda")
+
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((256,), "float32"), B: T.Buffer((256,), "float32")):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(1, thread="blockIdx.x"):
+                    for i_1_0 in T.thread_binding(64, thread="threadIdx.x"):
+                        for i_1_1 in T.vectorized(4):
+                            with T.sblock("B"):
+                                v_i = T.axis.spatial(256, i_0 * 256 + i_1_0 * 4 + i_1_1)
+                                T.reads(A[v_i % 37])
+                                T.writes(B[v_i])
+                                B[v_i] = A[v_i % 37]
+
+        func = tvm.compile(Module, target="cuda")
 
         dev = tvm.cuda(0)
-        a_np = np.random.uniform(size=(n,)).astype(A.dtype)
+        a_np = np.random.uniform(size=(n,)).astype("float32")
         b_np = np.array([a_np[i % k] for i in range(0, n)])
         a_nd = tvm.runtime.tensor(a_np, dev)
         b_nd = tvm.runtime.tensor(np.zeros(b_np.shape, dtype=b_np.dtype), dev)
@@ -445,25 +559,30 @@ def test_vectorized_casts():
             print("Skip because gpu does not have fp16 support")
             return
 
-        # compute
         n = 128
-        A = te.placeholder((n,), dtype=t0, name="A")
-        B = te.placeholder((n,), dtype=t1, name="B")
-        C = te.compute((n,), lambda i: A[i] + topi.cast(B[i], A.dtype), name="C")
+        num_thread = n // factor
 
-        # schedule
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B, C]))
-        ob, ib = sch.split(sch.get_loops("C")[0], factors=[None, factor])
-        sch.vectorize(ib)
-        sch.bind(ob, "threadIdx.x")
-        func = tvm.compile(sch.mod, target="cuda")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((n,), t0), B: T.Buffer((n,), t1), C: T.Buffer((n,), t0)):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(num_thread, thread="threadIdx.x"):
+                    for i_1 in T.vectorized(factor):
+                        with T.sblock("C"):
+                            v_i = T.axis.spatial(n, i_0 * factor + i_1)
+                            T.reads(A[v_i], B[v_i])
+                            T.writes(C[v_i])
+                            C[v_i] = A[v_i] + T.Cast(t0, B[v_i])
+
+        func = tvm.compile(Module, target="cuda")
 
         # correctness
         dev = tvm.cuda(0)
         low, high = (0, 20) if t0.startswith("u") or t1.startswith("u") else (-10, 10)
-        a_np = np.random.randint(low, high, size=n).astype(A.dtype)
-        b_np = np.random.randint(low, high, size=n).astype(B.dtype)
-        c_np = (a_np + b_np).astype(A.dtype)
+        a_np = np.random.randint(low, high, size=n).astype(t0)
+        b_np = np.random.randint(low, high, size=n).astype(t1)
+        c_np = (a_np + b_np).astype(t0)
         a_nd = tvm.runtime.tensor(a_np, dev)
         b_nd = tvm.runtime.tensor(b_np, dev)
         c_nd = tvm.runtime.tensor(np.zeros(c_np.shape, dtype=c_np.dtype), dev)
@@ -501,16 +620,30 @@ def test_vectorized_casts():
     check("uint8", "int8", 16)
 
 
-def sched(A, B):
-    # schedule
-    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-    io, ii = sch.split(sch.get_loops("B")[0], factors=[1, None])
-    iio, iii = sch.split(ii, factors=[32, None])
-    _, iiii = sch.split(iii, factors=[None, 4])
-    sch.vectorize(iiii)
-    sch.bind(io, "blockIdx.x")
-    sch.bind(iio, "threadIdx.x")
-    return tvm.compile(sch.mod, target="cuda")
+def sched(compute_fn, dtype, n=128):
+    """Create a vectorized CUDA module with the given compute function.
+
+    The schedule structure is: split [1, None] -> split [32, None] -> split [None, 4]
+    then vectorize innermost, bind blockIdx.x and threadIdx.x.
+    For n=128 this gives: blockIdx.x=1, threadIdx.x=32, serial=1, vectorized=4.
+    """
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((n,), dtype), B: T.Buffer((n,), dtype)):
+            T.func_attr({"tir.noalias": True})
+            for i0_0 in T.thread_binding(1, thread="blockIdx.x"):
+                for i0_1_0 in T.thread_binding(32, thread="threadIdx.x"):
+                    for i0_1_1_0 in range(1):
+                        for i0_1_1_1 in T.vectorized(4):
+                            with T.sblock("B"):
+                                v_i0 = T.axis.spatial(n, i0_1_0 * 4 + i0_1_1_0 * 4 + i0_1_1_1)
+                                T.reads(A[v_i0])
+                                T.writes(B[v_i0])
+                                B[v_i0] = compute_fn(A[v_i0])
+
+    return tvm.compile(Module, target="cuda")
 
 
 @tvm.testing.requires_gpu
@@ -557,12 +690,10 @@ def test_vectorized_intrin1():
             return
 
         n = 128
-        A = te.placeholder((n,), dtype=dtype, name="A")
-        B = te.compute((n,), lambda *i: tvm_intrin(A(*i)), name="B")
-        f = sched(A, B)
+        f = sched(tvm_intrin, dtype, n)
         dev = tvm.cuda(0)
-        a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
         f(a, b)
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-3, rtol=1e-3)
 
@@ -582,12 +713,10 @@ def test_vectorized_intrin2(dtype="float32"):
 
     def run_test(tvm_intrin, np_func):
         n = 128
-        A = te.placeholder((n,), dtype=dtype, name="A")
-        B = te.compute((n,), lambda i: tvm_intrin(A[i], c2), name="B")
-        f = sched(A, B)
+        f = sched(lambda x: tvm_intrin(x, c2), dtype, n)
         dev = tvm.cuda(0)
-        a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(A.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
         f(a, b)
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-3, rtol=1e-3)
 
@@ -607,12 +736,10 @@ def test_vectorized_popcount():
 
     def run_test(dtype):
         n = 128
-        A = te.placeholder((n,), dtype=dtype, name="A")
-        B = te.compute((n,), lambda i: tvm.tir.popcount(A[i]), name="B")
-        f = sched(A, B)
+        f = sched(lambda x: tvm.tir.popcount(x), dtype, n)
         dev = tvm.cuda(0)
-        a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(B.dtype), dev)
+        a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
         f(a, b)
         ref = np.vectorize(ref_popcount)(a.numpy())
         tvm.testing.assert_allclose(b.numpy(), ref)
@@ -630,27 +757,33 @@ def test_cuda_vectorize_load_permute_pad():
             return
 
         dev = tvm.cuda(0)
-        A = tvm.te.placeholder((n, l), name="A", dtype=dtype)
-        B = tvm.te.compute(
-            (n // lanes, l + 2 * padding, lanes),
-            lambda i, j, k: tvm.te.if_then_else(
-                tvm.te.any(j < padding, j >= l + padding),
-                tvm.tir.const(0, dtype),
-                A[i * lanes + k, j - padding],
-            ),
-            name="B",
-        )
+        zero = tvm.tir.const(0, dtype)
+        dim0 = n // lanes
+        dim1 = l + 2 * padding
 
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
-        block, thread, vectorize = sch.get_loops("B")
-        sch.bind(block, "blockIdx.x")
-        sch.bind(thread, "threadIdx.x")
-        sch.vectorize(vectorize)
-        fun = tvm.compile(sch.mod, target="cuda")
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((n, l), dtype), B: T.Buffer((dim0, dim1, lanes), dtype)):
+                T.func_attr({"tir.noalias": True})
+                for i in T.thread_binding(dim0, thread="blockIdx.x"):
+                    for j in T.thread_binding(dim1, thread="threadIdx.x"):
+                        for k in T.vectorized(lanes):
+                            with T.sblock("B"):
+                                v_i, v_j, v_k = T.axis.remap("SSS", [i, j, k])
+                                T.reads(A[v_i * lanes + v_k, v_j - padding])
+                                T.writes(B[v_i, v_j, v_k])
+                                B[v_i, v_j, v_k] = T.if_then_else(
+                                    v_j < padding or l + padding <= v_j,
+                                    zero,
+                                    A[v_i * lanes + v_k, v_j - padding],
+                                )
 
-        np_a = np.random.randint(low=-128, high=127, size=(n, l)).astype(A.dtype)
-        a = tvm.runtime.empty((n, l), A.dtype, dev).copyfrom(np_a)
-        b = tvm.runtime.empty((n // lanes, l + padding * 2, lanes), B.dtype, dev)
+        fun = tvm.compile(Module, target="cuda")
+
+        np_a = np.random.randint(low=-128, high=127, size=(n, l)).astype(dtype)
+        a = tvm.runtime.empty((n, l), dtype, dev).copyfrom(np_a)
+        b = tvm.runtime.empty((dim0, dim1, lanes), dtype, dev)
         fun(a, b)
         np_a_reshape = np_a.reshape(n // lanes, lanes, l).transpose(0, 2, 1)
         ref = np.pad(
@@ -670,48 +803,45 @@ def test_cuda_vectorize_load_permute_pad():
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_try_unaligned_vector_load():
-    def get_compute(N, C_N, offset):
-        A = te.placeholder((N,), name="A", dtype="float16")
-        C = te.compute((C_N,), lambda i: A[i + offset], name="C")
-        return N, C_N, A, C
+    def build(N, C_N, offset):
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(A: T.Buffer((N,), "float16"), C: T.Buffer((C_N,), "float16")):
+                T.func_attr({"tir.noalias": True})
+                for i_0 in T.thread_binding(C_N // 2, thread="threadIdx.x"):
+                    for i_1 in T.vectorized(2):
+                        with T.sblock("C"):
+                            v_i = T.axis.spatial(C_N, i_0 * 2 + i_1)
+                            T.reads(A[v_i + offset])
+                            T.writes(C[v_i])
+                            C[v_i] = A[v_i + offset]
 
-    def get_compute_unaligned():
-        return get_compute(3, 2, 1)
-
-    def get_compute_aligned():
-        return get_compute(4, 2, 2)
-
-    def build(A, C, N, C_N):
-        sch = tvm.s_tir.Schedule(te.create_prim_func([A, C]))
-        oi, ii = sch.split(sch.get_loops("C")[0], factors=[None, 2])
-        sch.bind(oi, "threadIdx.x")
-        sch.vectorize(ii)  # BUG: misalignment
-
-        f = tvm.tir.build(sch.mod, target="cuda")
+        f = tvm.tir.build(Module, target="cuda")
 
         kernel_source = f.imports[0].inspect_source()
         dev = tvm.cuda()
-        a_data = np.arange(0, N).astype(A.dtype)
+        a_data = np.arange(0, N).astype("float16")
         a = tvm.runtime.tensor(a_data, dev)
-        c = tvm.runtime.tensor(np.zeros(C_N, dtype=C.dtype), dev)
+        c = tvm.runtime.tensor(np.zeros(C_N, dtype="float16"), dev)
         f(a, c)
 
         return a_data, c.numpy(), kernel_source
 
-    N, C_N, A, C = get_compute_unaligned()
-    a_data, c, kernel_source = build(A, C, N, C_N)
+    # Unaligned case: N=3, C_N=2, offset=1
+    a_data, c, kernel_source = build(3, 2, 1)
     # (uint1*)(A + (1)) is invalid
     assert "A + (1)" not in kernel_source
 
-    expected = a_data[1 : C_N + 1]
+    expected = a_data[1 : 2 + 1]
     assert np.allclose(c, expected), f"expected={expected}\nactual={c}"
 
-    N, C_N, A, C = get_compute_aligned()
-    a_data, c, kernel_source = build(A, C, N, C_N)
+    # Aligned case: N=4, C_N=2, offset=2
+    a_data, c, kernel_source = build(4, 2, 2)
     # (uint1*)(A + (2)) is a valid vector load
     assert "A + 2" in kernel_source
 
-    expected = a_data[2 : C_N + 2]
+    expected = a_data[2 : 2 + 2]
     assert np.allclose(c, expected), f"expected={expected}\nactual={c}"
 
 
