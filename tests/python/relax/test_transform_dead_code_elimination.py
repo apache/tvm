@@ -900,7 +900,7 @@ def test_deep_recursion_chain():
             return result
 
         @R.function
-        def depth_3(b: R.Tensor([32], "float32")):  # Unused
+        def depth_3(b: R.Tensor([32], "float32")):
             return R.subtract(b, b)
 
         @R.function
