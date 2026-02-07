@@ -505,9 +505,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             lhs, rhs = self.retrieve_args(node)
             if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
                 return call_binary_op(relax_op, lhs, rhs)
-            elif isinstance(lhs, relax.expr.Constant):
+            elif isinstance(lhs, relax.expr.Constant) and not isinstance(rhs, relax.expr.Constant):
                 return call_binary_op(relax_op, lhs, relax.const(rhs, dtype=lhs.struct_info.dtype))
-            elif isinstance(rhs, relax.expr.Constant):
+            elif isinstance(rhs, relax.expr.Constant) and not isinstance(lhs, relax.expr.Constant):
                 return call_binary_op(relax_op, relax.const(lhs, dtype=rhs.struct_info.dtype), rhs)
             return intrinsic_op(lhs, rhs)
 
