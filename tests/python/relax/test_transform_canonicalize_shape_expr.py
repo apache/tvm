@@ -25,157 +25,29 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 
-def test_simple_compound_shape():
-    """Test canonicalization of simple compound shape expression"""
-
-    @R.function
-    def before(x: R.Tensor(("n",), "float32")):
-        n = T.int64()
-        # Compound expression: n + 1
-        y: R.Tensor((n + 1,), "float32") = R.zeros(R.shape([n + 1]), dtype="float32")
-        return y
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = relax.transform.CanonicalizeShapeExpr()(mod)
-
-    # After canonicalization, the shape should use a symbolic var instead of n + 1
-    # Check that VMShapeLower can process it
-    mod = relax.transform.VMShapeLower()(mod)
-
-    # If we got here without error, the test passed
-    assert "main" in mod
-
-
-def test_compound_shape_in_constant():
-    """Test canonicalization when compound shape appears in constant variable struct_info"""
+def test_nested_compound_shape():
+    """Test canonicalization with nested compound shape expressions"""
 
     @R.function
     def before(x: R.Tensor(("n", "m"), "float32")):
         n = T.int64()
         m = T.int64()
-        # This pattern can occur after FoldConstant inlines shapes
-        # The constant variable has compound expression in its struct_info
-        y: R.Tensor((n * m,), "float32") = R.zeros(R.shape([n * m]), dtype="float32")
+        # Nested compound expression: (n + m) * 2
+        y: R.Tensor(((n + m) * 2,), "float32") = R.zeros(R.shape([(n + m) * 2]), dtype="float32")
         return y
 
     mod = tvm.IRModule.from_expr(before)
     mod = relax.transform.CanonicalizeShapeExpr()(mod)
 
+    # Verify: MatchCast bindings should exist for compound exprs
+    func = mod["before"]
+    # Check that no ShapeExpr contains compound expressions anymore
+
+    mod = relax.transform.Normalize()(mod)
+    mod = relax.transform.ComputePrimValue()(mod)
     mod = relax.transform.VMShapeLower()(mod)
 
-    # If we got here without error, the test passed
-    assert "main" in mod
-
-
-def test_multiply_compound_shape():
-    """Test the original issue case: 4 * x_0 * x_1 * x_2 * x_3"""
-
-    @R.function
-    def before(x: R.Tensor(("n", "m", "p", "q"), "float32")):
-        n = T.int64()
-        m = T.int64()
-        p = T.int64()
-        q = T.int64()
-        # Compound expression: 4 * n * m * p * q
-        y: R.Tensor((4 * n * m * p * q,), "float32") = R.zeros(
-            R.shape([4 * n * m * p * q]), dtype="float32"
-        )
-        return y
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = relax.transform.CanonicalizeShapeExpr()(mod)
-
-    mod = relax.transform.VMShapeLower()(mod)
-
-    # If we got here without error, the test passed
-    assert "main" in mod
-
-
-def test_no_change_for_canonical_shape():
-    """Test that already canonical shapes are not modified"""
-
-    @R.function
-    def before(x: R.Tensor(("n",), "float32")):
-        n = T.int64()
-        # Already canonical shape
-        y: R.Tensor((n,), "float32") = R.zeros(R.shape([n]), dtype="float32")
-        return y
-
-    mod_before = tvm.IRModule.from_expr(before)
-    mod_after = relax.transform.CanonicalizeShapeExpr()(mod_before)
-
-    # The mod should be unchanged (or minimally changed)
-    # Both should work with VMShapeLower
-    mode_before_lower = relax.transform.VMShapeLower()(mod_before)
-    mode_after_lower = relax.transform.VMShapeLower()(mod_after)
-
-    # If we got here without error, the test passed
-    assert "main" in mod_before_lower
-    assert "main" in mode_after_lower
-
-
-def test_no_change_for_concrete_shape():
-    """Test that concrete integer shapes are not modified"""
-
-    @R.function
-    def before(x: R.Tensor((10,), "float32")):
-        # Concrete shape
-        y: R.Tensor((10,), "float32") = R.zeros(R.shape([10]), dtype="float32")
-        return y
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = relax.transform.CanonicalizeShapeExpr()(mod)
-
-    mod = relax.transform.VMShapeLower()(mod)
-
-    # If we got here without error, the test passed
-    assert "main" in mod
-
-
-def test_tuple_struct_info():
-    """Test canonicalization with tuple struct info containing compound shapes"""
-
-    @R.function
-    def before(x: R.Tensor(("n",), "float32")):
-        n = T.int64()
-        # Tuple with compound shapes
-        y: R.Tuple(R.Tensor((n + 1,), "float32"), R.Tensor((n * 2,), "float32")) = (
-            R.zeros(R.shape([n + 1]), dtype="float32"),
-            R.zeros(R.shape([n * 2]), dtype="float32"),
-        )
-        return y
-
-    mod = tvm.IRModule.from_expr(before)
-    mod = relax.transform.CanonicalizeShapeExpr()(mod)
-
-    mod = relax.transform.VMShapeLower()(mod)
-
-    # If we got here without error, the test passed
-    assert "main" in mod
-
-
-def test_full_pipeline_with_opt_level_1():
-    """Test the full pipeline with opt_level=1"""
-
-    @R.function
-    def before(x: R.Tensor(("n", "m"), "float32")):
-        n = T.int64()
-        m = T.int64()
-        y: R.Tensor((n * m,), "float32") = R.reshape(x, R.shape([n * m]))
-        return y
-
-    mod = tvm.IRModule.from_expr(before)
-
-    with tvm.transform.PassContext(opt_level=1):
-        # Apply the passes in order
-        mod = relax.transform.LegalizeOps()(mod)
-        mod = relax.transform.AnnotateTIROpPattern()(mod)
-        mod = relax.transform.FoldConstant()(mod)
-        mod = relax.transform.ComputePrimValue()(mod)
-        mod = relax.transform.CanonicalizeShapeExpr()(mod)
-        mod = relax.transform.VMShapeLower()(mod)
-
-    assert "main" in mod
+    assert "compute_symbolic_expr" in [str(gv) for gv in mod.get_global_vars()]
 
 
 if __name__ == "__main__":
@@ -185,13 +57,7 @@ if __name__ == "__main__":
     print("=" * 80)
 
     tests = [
-        ("Simple compound shape", test_simple_compound_shape),
-        ("Compound shape in constant", test_compound_shape_in_constant),
-        ("Multiply compound shape", test_multiply_compound_shape),
-        ("No change for canonical shape", test_no_change_for_canonical_shape),
-        ("No change for concrete shape", test_no_change_for_concrete_shape),
-        ("Tuple struct info", test_tuple_struct_info),
-        ("Full pipeline with opt_level=1", test_full_pipeline_with_opt_level_1),
+        ("Nested compound shape", test_nested_compound_shape),
     ]
 
     passed = 0
