@@ -24,7 +24,7 @@ import copy
 
 from tvm import relax, rpc
 from tvm.relax import transform
-from tvm import dlight as dl
+from tvm.s_tir import dlight as dl
 from tvm.contrib import utils, ndk
 from tvm.relax.backend.adreno.clml import OpenCLMLOffLoad
 

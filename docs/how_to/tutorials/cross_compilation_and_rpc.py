@@ -513,7 +513,7 @@ def run_pytorch_model_via_rpc():
     #
     #    .. code-block:: python
     #
-    #       from tvm import dlight as dl
+    #       from tvm.s_tir import dlight as dl
     #       with target:
     #           mod = dl.ApplyDefaultSchedule()(mod)
     #

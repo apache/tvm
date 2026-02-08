@@ -16,7 +16,6 @@
 # under the License.
 """The Relax generic GPU backend compilation pipeline and other passes."""
 import tvm
-from tvm import dlight as dl
 from tvm import relax
 
 
@@ -30,6 +29,8 @@ def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unuse
 
 def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
     """The default legalization passes for generic GPU backend."""
+    from tvm.s_tir import dlight as dl  # pylint: disable=import-outside-toplevel
+
     return [
         tvm.relax.transform.LegalizeOps(),
         tvm.relax.transform.AnnotateTIROpPattern(),

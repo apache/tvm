@@ -174,7 +174,7 @@ if os.getenv("CI", "") != "true":
 # e.g. language model, DLight provides excellent performance, while for generic models,
 # it achieves a balance between performance and compilation time.
 
-from tvm import dlight as dl
+from tvm.s_tir import dlight as dl
 
 # Apply DLight rules
 with target:

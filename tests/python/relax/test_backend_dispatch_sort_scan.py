@@ -21,7 +21,8 @@ import pytest
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import dlight, relax, tir, topi
+from tvm import relax, tir, topi
+from tvm.s_tir import dlight
 from tvm.contrib.thrust import can_use_thrust
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.backend import DispatchSortScan

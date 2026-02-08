@@ -24,7 +24,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import DataType, DataTypeCode, IRModule
-from tvm import dlight as dl
+from tvm.s_tir import dlight as dl
 from tvm import relax, te, tir, topi
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -926,12 +926,12 @@ def test_moe_gemv_shfl_down_illegal_instr():
         seq = tvm.transform.Sequential(
             [
                 tvm.relax.transform.LegalizeOps(),
-                tvm.dlight.ApplyDefaultSchedule(
-                    tvm.dlight.gpu.Matmul(),
-                    tvm.dlight.gpu.GEMV(),
-                    tvm.dlight.gpu.Reduction(),
-                    tvm.dlight.gpu.GeneralReduction(),
-                    tvm.dlight.gpu.Fallback(),
+                dl.ApplyDefaultSchedule(
+                    dl.gpu.Matmul(),
+                    dl.gpu.GEMV(),
+                    dl.gpu.Reduction(),
+                    dl.gpu.GeneralReduction(),
+                    dl.gpu.Fallback(),
                 ),
             ]
         )

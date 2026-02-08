@@ -16,7 +16,7 @@
 # under the License.
 """
 GPU-generic schedule rules.
-For CUDA/ROCm/Vulkan/Metal-specific rules, use `tvm.dlight.cuda/rocm/vulkan/metal` instead
+For CUDA/ROCm/Vulkan/Metal-specific rules, use `tvm.s_tir.dlight.cuda/rocm/vulkan/metal` instead
 """
 from .gemv import GEMV
 from .low_batch_gemv import LowBatchGEMV

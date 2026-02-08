@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.dlight
-----------
-.. automodule:: tvm.dlight
+tvm.s_tir.dlight
+----------------
+.. automodule:: tvm.s_tir.dlight
    :members:
    :imported-members:

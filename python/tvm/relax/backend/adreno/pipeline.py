@@ -16,7 +16,6 @@
 # under the License.
 """The Relax Adreno GPU backend compilation pipeline and other passes."""
 import tvm
-from tvm import dlight as dl
 from tvm import relax
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 
@@ -83,6 +82,8 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
                 relax.transform.SpecializePrimFuncBasedOnCallSite(),
             ]
         )
+    from tvm.s_tir import dlight as dl  # pylint: disable=import-outside-toplevel
+
     pass_list.extend([relax.transform.Normalize()])
     pass_list.extend(
         [

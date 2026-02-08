@@ -17,7 +17,7 @@
 # pylint: disable=missing-docstring
 import tvm
 import tvm.testing
-from tvm import dlight as dl
+from tvm.s_tir import dlight as dl
 from tvm.ir import IRModule, assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import tir as T

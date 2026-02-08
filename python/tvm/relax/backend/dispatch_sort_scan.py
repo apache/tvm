@@ -21,7 +21,7 @@ from functools import reduce
 from operator import mul
 from typing import Dict
 
-from tvm import DataType, dlight, relax, topi
+from tvm import DataType, relax, topi
 from tvm.contrib.thrust import can_use_thrust
 from tvm.ir import GlobalVar, Op
 from tvm.ir.module import IRModule
@@ -46,6 +46,8 @@ class SortScanDispatcher(BackendDispatcher):
         self,
     ) -> None:
         """Apply DLight rules for all the calls that need to be updated."""
+        from tvm.s_tir import dlight  # pylint: disable=import-outside-toplevel
+
         for gvar, target in self.calls_to_update.items():
             func = self.builder_.get()[gvar]
             sch = dlight.base.transform._apply_rules(

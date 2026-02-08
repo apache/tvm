@@ -49,6 +49,7 @@ TEST_FILES=(
   "testing"
   "s_tir/base"
   "s_tir/schedule"
+  "s_tir/dlight"
   "tir-analysis"
   "tir-base"
   "tir-transform"

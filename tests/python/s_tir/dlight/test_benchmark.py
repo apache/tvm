@@ -26,7 +26,7 @@ from tvm.script import tir as T
 from tvm.script import relax as R
 
 
-from tvm.dlight.benchmark import (
+from tvm.s_tir.dlight.benchmark import (
     benchmark,
     benchmark_prim_func,
     benchmark_relax_func,

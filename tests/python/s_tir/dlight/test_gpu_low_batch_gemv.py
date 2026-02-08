@@ -17,7 +17,7 @@
 # pylint: disable=missing-docstring
 
 import tvm.testing
-from tvm import dlight as dl
+from tvm.s_tir import dlight as dl
 from tvm.script import tir as T
 from tvm.target import Target
 

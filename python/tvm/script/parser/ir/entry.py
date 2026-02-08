@@ -14,14 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=import-outside-toplevel
 """The entry point of TVM parser for ir module."""
 
 import inspect
 from typing import Callable, Optional, Type
 
 from tvm.ir import IRModule, GlobalVar
-from tvm.relax.expr import ExternFunc
-from tvm.relax.base_py_module import BasePyModule
 from tvm import cpu, ir
 
 from .._core import parse, utils
@@ -57,6 +56,13 @@ def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRM
         m = parse(mod, utils.inspect_class_capture(mod), check_well_formed=check_well_formed)
 
         if base_py_module_inherited:
+            # Lazy import: tvm.relax cannot be imported at module level in tvm.script.parser
+            # because tvm.script is loaded before tvm.relax during tvm initialization.
+            from tvm.relax.expr import ExternFunc  # pylint: disable=import-outside-toplevel
+            from tvm.relax.base_py_module import (
+                BasePyModule,
+            )
+
             # Collect pyfunc methods
             pyfunc_methods = [
                 name

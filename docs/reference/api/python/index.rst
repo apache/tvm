@@ -63,6 +63,7 @@ Python API
     :caption: tvm.s_tir
 
     s_tir/schedule
+    s_tir/dlight
 
 .. toctree::
     :maxdepth: 1
@@ -77,11 +78,7 @@ Python API
 
     meta_schedule
 
-.. toctree::
-    :maxdepth: 1
-    :caption: tvm.dlight
 
-    dlight
 
 .. toctree::
     :maxdepth: 1

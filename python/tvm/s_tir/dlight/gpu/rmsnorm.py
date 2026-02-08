@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring
 """A RMS norm schedule rule for GPU operators."""
+from __future__ import annotations
 
 import tvm
 from tvm import tir
