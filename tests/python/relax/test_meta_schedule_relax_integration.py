@@ -22,7 +22,7 @@ import tempfile
 import tvm
 import tvm.testing
 from tvm import IRModule
-from tvm import meta_schedule as ms
+from tvm.s_tir import meta_schedule as ms
 from tvm import relax, tir
 from tvm.ir import transform
 

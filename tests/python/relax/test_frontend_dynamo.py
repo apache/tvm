@@ -20,7 +20,8 @@ pytest.importorskip("torch._dynamo")
 
 
 import tvm
-from tvm import relax, meta_schedule as ms, tir
+from tvm import relax, tir
+from tvm.s_tir import meta_schedule as ms
 import tvm.testing
 import torch
 import torch._dynamo as dynamo

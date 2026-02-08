@@ -332,8 +332,8 @@ and then integrate it into the IRModule.
 While possible to construct operators directly via TIR or tensor expressions (TE) for each use case, it is tedious to do so.
 `topi` (Tensor operator inventory) provides a set of pre-defined operators defined by numpy and found in common deep learning workloads.
 
-tvm/meta_schedule
------------------
+tvm/s_tir/meta_schedule
+-----------------------
 
 MetaSchedule is a system for automated search-based program optimization. It is designed to be a drop-in replacement for AutoTVM and AutoScheduler,
 and can be used to optimize TensorIR schedules. Note that MetaSchedule only works with static-shape workloads.

@@ -17,7 +17,7 @@
 import tvm
 from tvm.script import ir as I
 from tvm.script import tir as T
-from tvm.meta_schedule.testing import te_workload
+from tvm.s_tir.meta_schedule.testing import te_workload
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,missing-class-docstring,missing-function-docstring
 # fmt: off

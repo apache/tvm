@@ -25,3 +25,4 @@ from . import transform
 from . import schedule
 from .schedule import StmtSRef, SBlockScope, ScheduleState, Schedule, ScheduleError, Trace
 from .block_dependence_info import SBlockDependenceInfo
+from . import meta_schedule

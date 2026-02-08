@@ -73,7 +73,7 @@ Python API
 
 .. toctree::
     :maxdepth: 1
-    :caption: tvm.meta_schedule
+    :caption: tvm.s_tir.meta_schedule
 
     meta_schedule
 

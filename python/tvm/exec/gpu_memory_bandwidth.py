@@ -22,7 +22,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm.meta_schedule.runner import EvaluatorConfig, RPCConfig
+from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
 from tvm.testing import local_run, rpc_run
 
 

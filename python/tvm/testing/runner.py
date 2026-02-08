@@ -23,7 +23,7 @@ from typing_extensions import Literal
 if TYPE_CHECKING:
     import numpy as np
 
-    from tvm.meta_schedule.runner import EvaluatorConfig, RPCConfig
+    from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
     from tvm.runtime import Device, Module, Tensor
 
 # pylint: disable=import-outside-toplevel,protected-access
@@ -117,7 +117,7 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     import os.path as osp
     import tempfile
 
-    from tvm.meta_schedule.runner import EvaluatorConfig
+    from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
     from tvm.runtime import device, load_module
 
     evaluator_config = EvaluatorConfig._normalized(evaluator_config)
@@ -198,7 +198,7 @@ def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
     import os.path as osp
     import tempfile
 
-    from tvm.meta_schedule.runner import EvaluatorConfig, RPCConfig
+    from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
 
     evaluator_config = EvaluatorConfig._normalized(evaluator_config)
     rpc_config = RPCConfig._normalized(rpc_config)

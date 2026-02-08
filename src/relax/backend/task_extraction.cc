@@ -18,23 +18,23 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/meta_schedule/extracted_task.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/s_tir/meta_schedule/extracted_task.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../../meta_schedule/module_equality.h"
+#include "../../s_tir/meta_schedule/module_equality.h"
 
 namespace tvm {
 namespace relax {
 namespace backend {
 
-using meta_schedule::ExtractedTask;
-using meta_schedule::ModuleEqual;
-using meta_schedule::ModuleEquality;
-using meta_schedule::ModuleHash;
+using s_tir::meta_schedule::ExtractedTask;
+using s_tir::meta_schedule::ModuleEqual;
+using s_tir::meta_schedule::ModuleEquality;
+using s_tir::meta_schedule::ModuleHash;
 
 /*!
  * \brief Extract the Meta-Schedule tuning task from a given IRModule.
@@ -89,7 +89,7 @@ class TaskExtractor : public ExprVisitor {
         target_(std::move(target)),
         mod_eq_(ModuleEquality::Create(mod_eq_name)),
         func2task_(/*bucket_count*/ 0, ModuleHash(*mod_eq_), ModuleEqual(*mod_eq_)) {
-    normalize_mod_func_ = tvm::ffi::Function::GetGlobal("tvm.meta_schedule.normalize_mod");
+    normalize_mod_func_ = tvm::ffi::Function::GetGlobal("tvm.s_tir.meta_schedule.normalize_mod");
     ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
   }
 

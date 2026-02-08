@@ -23,8 +23,8 @@ import tvm
 from tvm import relax
 from tvm.ir import IRModule
 from tvm.tir import PrimFunc
-from tvm.meta_schedule.runner import EvaluatorConfig
-from tvm.meta_schedule.testing.tune_utils import generate_input_data
+from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
+from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
 
 from .extract import extract_all_func_info_from_relax, extract_func_info_from_prim_func
 from .utils import (
@@ -36,7 +36,7 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
-    from tvm.meta_schedule.runner import RPCConfig
+    from tvm.s_tir.meta_schedule.runner import RPCConfig
 
 
 def benchmark(

@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm import meta_schedule as ms
+from tvm.s_tir import meta_schedule as ms
 from tvm import relax
 from tvm.script import ir as I, tir as T
 
