@@ -26,15 +26,15 @@ from tvm.target import Target
 from tvm.driver import build as tvm_build
 from tvm.tir.transform import RemoveWeightLayoutRewriteBlock
 from tvm.contrib.popen_pool import PopenPoolExecutor
-from tvm.meta_schedule.utils import cpu_count, derived_object
-from tvm.meta_schedule.builder import LocalBuilder
-from tvm.meta_schedule.runner import (
+from tvm.s_tir.meta_schedule.utils import cpu_count, derived_object
+from tvm.s_tir.meta_schedule.builder import LocalBuilder
+from tvm.s_tir.meta_schedule.runner import (
     EvaluatorConfig,
     RunnerInput,
     RunnerFuture,
     PyRunner,
 )
-from tvm.meta_schedule.runner.rpc_runner import (
+from tvm.s_tir.meta_schedule.runner.rpc_runner import (
     default_alloc_argument,
     default_run_evaluator,
     RPCRunnerFuture,

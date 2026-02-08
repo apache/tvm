@@ -20,7 +20,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/transform.h>
 
-#include "../../meta_schedule/utils.h"
+#include "../../s_tir/meta_schedule/utils.h"
 
 namespace tvm {
 namespace relax {
@@ -30,36 +30,38 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
                                   int64_t valid_count, bool benchmark) {
   // fetch a local builder
   static const auto f_get_local_builder =
-      tvm::ffi::Function::GetGlobalRequired("meta_schedule.builder.get_local_builder");
-  meta_schedule::Builder builder = f_get_local_builder().cast<meta_schedule::Builder>();
+      tvm::ffi::Function::GetGlobalRequired("s_tir.meta_schedule.builder.get_local_builder");
+  s_tir::meta_schedule::Builder builder =
+      f_get_local_builder().cast<s_tir::meta_schedule::Builder>();
   ICHECK(builder.defined()) << "ValueError: The local builder is not defined!";
   // fetch a local runner
-  meta_schedule::Runner runner{ffi::UnsafeInit()};
+  s_tir::meta_schedule::Runner runner{ffi::UnsafeInit()};
   if (benchmark) {
     static const auto f_get_local_runner =
-        tvm::ffi::Function::GetGlobalRequired("meta_schedule.runner.get_local_runner");
-    runner = f_get_local_runner().cast<meta_schedule::Runner>();
+        tvm::ffi::Function::GetGlobalRequired("s_tir.meta_schedule.runner.get_local_runner");
+    runner = f_get_local_runner().cast<s_tir::meta_schedule::Runner>();
     ICHECK(runner.defined()) << "ValueError: The local runner is not defined!";
   }
   // create an IRModule
   IRModule mod = IRModule(ffi::Map<GlobalVar, BaseFunc>(
       {{GlobalVar("main"), WithAttr(prim_func, tvm::attr::kGlobalSymbol, ffi::String("main"))}}));
   // fetch the number of physical cores
-  static const auto f_cpu_count = tvm::ffi::Function::GetGlobalRequired("meta_schedule.cpu_count");
+  static const auto f_cpu_count =
+      tvm::ffi::Function::GetGlobalRequired("s_tir.meta_schedule.cpu_count");
   int num_threads = f_cpu_count(false).cast<int>();
   // store the results
   ffi::Array<IRModule> results;
   std::vector<double> costs;
   // create a TuneContext
-  meta_schedule::TuneContext task = meta_schedule::TuneContext(
+  s_tir::meta_schedule::TuneContext task = s_tir::meta_schedule::TuneContext(
       /*mod=*/mod,
       /*target=*/target,
       /*space_generator=*/
-      meta_schedule::SpaceGenerator::PostOrderApply(/*f_block_filter=*/nullptr,
-                                                    /*sch_rules=*/std::nullopt,
-                                                    /*postprocs=*/std::nullopt,
-                                                    /*mutator_probs=*/std::nullopt),
-      /*search_strategy=*/meta_schedule::SearchStrategy::ReplayTrace(/*max_fail_count=*/100),
+      s_tir::meta_schedule::SpaceGenerator::PostOrderApply(/*f_block_filter=*/nullptr,
+                                                           /*sch_rules=*/std::nullopt,
+                                                           /*postprocs=*/std::nullopt,
+                                                           /*mutator_probs=*/std::nullopt),
+      /*search_strategy=*/s_tir::meta_schedule::SearchStrategy::ReplayTrace(/*max_fail_count=*/100),
       /*task_name=*/std::nullopt,
       /*num_threads=*/num_threads,  // use all available local threads
       /*rand_state=*/-1,            // -1 means use random seed
@@ -72,20 +74,21 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
       /*cost_model=*/std::nullopt);
   int fail_count = 0, max_fail_count = 100;
   while (valid_count > 0 && fail_count < max_fail_count) {
-    ffi::Optional<ffi::Array<meta_schedule::MeasureCandidate>> candidates =
+    ffi::Optional<ffi::Array<s_tir::meta_schedule::MeasureCandidate>> candidates =
         task->search_strategy.value()->GenerateMeasureCandidates();
     if (!candidates.defined()) break;
-    ffi::Array<meta_schedule::BuilderInput> builder_inputs;
-    for (const meta_schedule::MeasureCandidate& candidate : candidates.value()) {
-      builder_inputs.push_back(meta_schedule::BuilderInput(
+    ffi::Array<s_tir::meta_schedule::BuilderInput> builder_inputs;
+    for (const s_tir::meta_schedule::MeasureCandidate& candidate : candidates.value()) {
+      builder_inputs.push_back(s_tir::meta_schedule::BuilderInput(
           /*mod=*/candidate->sch->mod(),
           /*target=*/target));
     }
-    ffi::Array<meta_schedule::BuilderResult> builder_results = builder->Build(builder_inputs);
+    ffi::Array<s_tir::meta_schedule::BuilderResult> builder_results =
+        builder->Build(builder_inputs);
     ICHECK_EQ(builder_results.size(), candidates.value().size());
     int idx = 0;
     bool no_valid = true;  // whether there is no valid schedule in this iteration
-    for (const meta_schedule::BuilderResult& builder_result : builder_results) {
+    for (const s_tir::meta_schedule::BuilderResult& builder_result : builder_results) {
       if (!builder_result->error_msg.has_value()) {
         results.push_back(candidates.value()[idx]->sch->mod());
         valid_count--;
@@ -95,20 +98,20 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
     }
     fail_count += no_valid;  // increase fail_count if there is no valid schedule
     if (benchmark) {
-      ffi::Array<meta_schedule::RunnerInput> runner_inputs;
+      ffi::Array<s_tir::meta_schedule::RunnerInput> runner_inputs;
       int idx = 0;
-      for (const meta_schedule::BuilderResult& builder_result : builder_results) {
+      for (const s_tir::meta_schedule::BuilderResult& builder_result : builder_results) {
         if (!builder_result->error_msg.has_value()) {
-          runner_inputs.push_back(meta_schedule::RunnerInput(
+          runner_inputs.push_back(s_tir::meta_schedule::RunnerInput(
               /*artifact_path=*/builder_result->artifact_path.value(),
               /*device_type=*/target->kind->name,
               /*args_info=*/candidates.value()[idx]->args_info));
         }
         idx++;
       }
-      ffi::Array<meta_schedule::RunnerFuture> runner_futures = runner->Run(runner_inputs);
-      for (const meta_schedule::RunnerFuture& runner_future : runner_futures) {
-        meta_schedule::RunnerResult runner_result = runner_future->Result();
+      ffi::Array<s_tir::meta_schedule::RunnerFuture> runner_futures = runner->Run(runner_inputs);
+      for (const s_tir::meta_schedule::RunnerFuture& runner_future : runner_futures) {
+        s_tir::meta_schedule::RunnerResult runner_result = runner_future->Result();
         if (runner_result->error_msg.has_value()) {
           costs.push_back(1e10);
         } else {

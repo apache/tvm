@@ -24,7 +24,7 @@ as it is or serves as a basis to do further composition.
 from typing import Union, Optional
 
 import tvm
-from tvm import meta_schedule as ms
+from tvm.s_tir import meta_schedule as ms
 
 from . import backend, transform
 from .backend.utils import BackendDispatcher

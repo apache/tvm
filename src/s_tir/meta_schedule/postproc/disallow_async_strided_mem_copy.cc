@@ -1,0 +1,207 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
+
+#include "../utils.h"
+
+namespace tvm {
+namespace s_tir {
+using namespace tvm::tir;
+
+/*! \brief Check if an IRModule has any async strided mem copies. */
+struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
+ public:
+  static bool Find(const IRModule& mod) {
+    AsyncStridedMemCopyFinder finder;
+    for (const auto& kv : mod->functions) {
+      if (const auto* prim_func = kv.second.as<PrimFuncNode>()) {
+        finder(prim_func->body);
+        if (finder.found_) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+ private:
+  void VisitStmt_(const ForNode* loop) final {
+    if (!found_) {
+      input_iters.Set(loop->loop_var, Range(loop->min, loop->extent));
+      StmtExprVisitor::VisitStmt_(loop);
+    }
+  }
+
+  void VisitStmt_(const AttrStmtNode* attrStmt) final {
+    if (!found_) {
+      if (attrStmt->attr_key == tir::attr::async_commit_queue_scope) {
+        auto async_scope = attrStmt->body.as<AttrStmtNode>();
+        if (!async_scope) {
+          StmtExprVisitor::VisitStmt_(attrStmt);
+        }
+
+        auto for_loop = async_scope->body.as<ForNode>();
+        if (!for_loop) {
+          StmtExprVisitor::VisitStmt_(attrStmt);
+        }
+
+        input_iters.Set(for_loop->loop_var, Range(for_loop->min, for_loop->extent));
+
+        auto bufferstorenode = for_loop->body.as<BufferStoreNode>();
+        if (!bufferstorenode) {
+          StmtExprVisitor::VisitStmt_(attrStmt);
+        }
+
+        auto bufferloadnode = bufferstorenode->value.as<BufferLoadNode>();
+        if (!bufferloadnode) {
+          StmtExprVisitor::VisitStmt_(attrStmt);
+        }
+
+        // get store buffer; assert it exists and is contiguous given it uses a single index
+        auto bufferstore = bufferstorenode->buffer.as<BufferNode>();
+
+        // get load buffer; assert it exists and is contiguous given it uses a single index
+        auto bufferload = bufferloadnode->buffer.as<BufferNode>();
+
+        if (!bufferstore || !bufferload) {
+          StmtExprVisitor::VisitStmt_(attrStmt);
+        }
+
+        // map loop variable to zero for the store index & simplify
+        ffi::Array<PrimExpr> store_index = bufferstorenode->indices;
+
+        // Use DetectIterMap to detect whether store index is non-contiguous.
+        arith::Analyzer analyzer;
+        auto store_iter_map = DetectIterMap(store_index, input_iters, 1,
+                                            arith::IterMapLevel::Surjective, &analyzer, false);
+        if (!store_iter_map->errors.empty()) {
+          found_ = true;
+        }
+
+        // map loop variable to zero for the load index & simplify
+        ffi::Array<PrimExpr> load_index = bufferloadnode->indices;
+
+        // Use DetectIterMap to detect whether load index is non-contiguous.
+        auto load_iter_map = DetectIterMap(load_index, input_iters, 1,
+                                           arith::IterMapLevel::Surjective, &analyzer, false);
+        if (!load_iter_map->errors.empty()) {
+          found_ = true;
+        }
+      }
+      if (!found_) {
+        StmtExprVisitor::VisitStmt_(attrStmt);
+      }
+    }
+  }
+
+  bool found_ = false;
+  ffi::Map<Var, Range> input_iters = ffi::Map<Var, Range>();
+};
+
+}  // namespace s_tir
+
+namespace s_tir {
+namespace meta_schedule {
+
+/*! \brief Check if the IRModule has any loop with non-constant extent. */
+class DisallowAsyncStridedMemCopyNode : public PostprocNode {
+ public:
+  // Inherited from PostprocNode
+  void InitializeWithTuneContext(const TuneContext& context) final {
+    /* Null check */
+    ICHECK(context->target) << "Context must contain a target";
+    this->target = context->target.value();
+  }
+  // Inherited from PostprocNode
+  bool Apply(const s_tir::Schedule& sch) final {
+    IRModule mod = sch->mod();
+    for (const auto& kv : mod->functions) {
+      const GlobalVar& g_var = kv.first;
+      const BaseFunc& base_func = kv.second;
+      if (const auto* prim_func = base_func.as<tir::PrimFuncNode>()) {
+        IRModule lowered{ffi::UnsafeInit()};
+        try {
+          auto pass_list = ffi::Array<tvm::transform::Pass>();
+          pass_list.push_back(tir::transform::BindTarget(this->target));
+          pass_list.push_back(s_tir::transform::LowerInitBlock());
+          pass_list.push_back(s_tir::transform::PlanAndUpdateBufferAllocationLocation());
+          pass_list.push_back(s_tir::transform::ConvertBlocksToOpaque());
+          pass_list.push_back(s_tir::transform::CompactBufferAllocation());
+          pass_list.push_back(s_tir::transform::LowerMatchBuffer());
+          pass_list.push_back(s_tir::transform::InjectSoftwarePipeline());
+          pass_list.push_back(s_tir::transform::LowerOpaqueBlock());
+          pass_list.push_back(tir::transform::FlattenBuffer());
+          pass_list.push_back(tir::transform::BF16ComputeLegalize());
+          pass_list.push_back(tir::transform::NarrowDataType(32));
+          pass_list.push_back(tir::transform::Simplify());
+          pass_list.push_back(s_tir::transform::InjectVirtualThread());
+          pass_list.push_back(s_tir::transform::InjectDoubleBuffer());
+          pass_list.push_back(tir::transform::VectorizeLoop(true));
+          pass_list.push_back(tir::transform::StorageRewrite());
+          tir::PrimFunc f = WithAttr(ffi::GetRef<tir::PrimFunc>(prim_func), "global_symbol",
+                                     ffi::String(g_var->name_hint));
+          IRModule mod =
+              IRModule(ffi::Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
+          lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
+        } catch (const dmlc::Error& e) {
+          return false;
+        }
+        if (s_tir::AsyncStridedMemCopyFinder::Find(lowered)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+  // Inherited from PostprocNode
+  Postproc Clone() const {
+    ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
+        ffi::make_object<DisallowAsyncStridedMemCopyNode>(*this);
+    return Postproc(n);
+  }
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DisallowAsyncStridedMemCopyNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.DisallowAsyncStridedMemCopy",
+                                    DisallowAsyncStridedMemCopyNode, PostprocNode);
+
+ private:
+  tvm::Target target;
+};
+
+Postproc Postproc::DisallowAsyncStridedMemCopy() {
+  ObjectPtr<DisallowAsyncStridedMemCopyNode> n =
+      ffi::make_object<DisallowAsyncStridedMemCopyNode>();
+  return Postproc(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  DisallowAsyncStridedMemCopyNode::RegisterReflection();
+  refl::GlobalDef().def("s_tir.meta_schedule.PostprocDisallowAsyncStridedMemCopy",
+                        Postproc::DisallowAsyncStridedMemCopy);
+}
+
+}  // namespace meta_schedule
+}  // namespace s_tir
+}  // namespace tvm

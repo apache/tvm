@@ -20,7 +20,7 @@ from typing import List
 import pytest
 import tvm
 import tvm.testing
-from tvm.meta_schedule.testing import te_workload
+from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.script import tir as T
 from tvm.te import create_prim_func
 from tvm.s_tir import Schedule

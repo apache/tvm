@@ -22,8 +22,8 @@ import tvm
 from tvm.script import tir as T
 from tvm.s_tir.tensor_intrin.cuda import *  # pylint: disable=wildcard-import,unused-wildcard-import
 from tvm.s_tir.tensor_intrin.x86 import *  # pylint: disable=wildcard-import,unused-wildcard-import
-from tvm.meta_schedule.testing.tune_utils import generate_input_data
-from tvm.meta_schedule.arg_info import ArgInfo
+from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
+from tvm.s_tir.meta_schedule.arg_info import ArgInfo
 from tvm.relax.transform import FewShotTuning
 import tvm.testing
 

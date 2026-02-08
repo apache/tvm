@@ -22,7 +22,7 @@ import tvm
 import tvm.testing
 import tvm.s_tir.tensor_intrin.cuda
 from tvm import TVMError, te, tir
-from tvm.meta_schedule.testing import te_workload
+from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.script import tir as T
 from tvm.testing.tir import mma_schedule
 from tvm.s_tir.tensor_intrin.cuda import (

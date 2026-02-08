@@ -22,8 +22,8 @@ import numpy as np
 import pytest
 import tvm.testing
 import tvm.topi.testing
-from tvm import meta_schedule as ms
-from tvm.meta_schedule.builder import LocalBuilder
+from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir.meta_schedule.builder import LocalBuilder
 from tvm.script import tir as T
 
 from .infrastructure import get_android_gpu_target, get_rpc_runner
@@ -46,7 +46,9 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 def test_tune_tir_on_android():
     """Test tune_tir on Android through RPC."""
     max_workers = 4
-    builder = LocalBuilder(f_export="meta_schedule.builder.export_ndk", max_workers=max_workers)
+    builder = LocalBuilder(
+        f_export="s_tir.meta_schedule.builder.export_ndk", max_workers=max_workers
+    )
     runner = get_rpc_runner()
     target = get_android_gpu_target()
     with tempfile.TemporaryDirectory() as work_dir:

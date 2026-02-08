@@ -15,9 +15,9 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.meta_schedule
-------------------
-.. automodule:: tvm.meta_schedule
+tvm.s_tir.meta_schedule
+------------------------
+.. automodule:: tvm.s_tir.meta_schedule
    :members:
    :imported-members:
    :autosummary:

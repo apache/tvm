@@ -22,16 +22,16 @@ import numpy as np
 import pytest
 import tvm.testing
 import tvm.topi.testing
-from tvm import meta_schedule as ms
+from tvm.s_tir import meta_schedule as ms
 from tvm import te
 from tvm.contrib.hexagon.meta_schedule import (
     get_hexagon_local_builder,
     get_hexagon_rpc_runner,
 )
-from tvm.meta_schedule import postproc, schedule_rule
-from tvm.meta_schedule.arg_info import TensorInfo
-from tvm.meta_schedule.builder import BuilderInput
-from tvm.meta_schedule.runner import RunnerInput
+from tvm.s_tir.meta_schedule import postproc, schedule_rule
+from tvm.s_tir.meta_schedule.arg_info import TensorInfo
+from tvm.s_tir.meta_schedule.builder import BuilderInput
+from tvm.s_tir.meta_schedule.runner import RunnerInput
 from tvm.script import tir as T
 from tvm.tir import FloatImm
 from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN

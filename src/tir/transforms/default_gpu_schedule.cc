@@ -19,7 +19,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 
-#include "../../meta_schedule/utils.h"
+#include "../../s_tir/meta_schedule/utils.h"
 
 namespace tvm {
 namespace tir {
@@ -146,7 +146,8 @@ Pass DefaultGPUSchedule() {
             int64_t max_thread_per_block = opt_max_thread_per_block.value().IntValue();
 
             sch->WorkOn(gv->name_hint);
-            ffi::Array<s_tir::SBlockRV> blocks = meta_schedule::SBlockCollector::Collect(sch);
+            ffi::Array<s_tir::SBlockRV> blocks =
+                s_tir::meta_schedule::SBlockCollector::Collect(sch);
             for (const s_tir::SBlockRV& block : blocks) {
               auto childs = sch->GetChildBlocks(block);
               if (!childs.empty()) {

@@ -19,8 +19,8 @@
 import tempfile
 import pytest
 
-from tvm import meta_schedule as ms
-from tvm.meta_schedule.testing.local_rpc import LocalRPC
+from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
 from tvm.script import ir as I
 from tvm.script import tir as T
 from tvm.script import relax as R
