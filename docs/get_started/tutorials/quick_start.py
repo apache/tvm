@@ -74,8 +74,8 @@ to show how to use Apache TVM to compile a simple neural network.
 # Construct or Import a Model
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Before we get started, let's construct a neural network model first.
-# In this tutorial, to make things simple, we will defined a two-layer MLP networks
-# directly in this script with TVM Relax frontend, which is a similar API to PyTorch.
+# In this tutorial, to make things simple, we will define a two-layer MLP network
+# directly in this script with the TVM Relax frontend, which is a similar API to PyTorch.
 #
 
 import tvm
