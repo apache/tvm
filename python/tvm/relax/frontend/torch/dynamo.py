@@ -67,7 +67,7 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
         def to_tvm_tensor(torch_tensor):
             """A helper function to transfer a torch.tensor to Tensor."""
             if not isinstance(torch_tensor, torch._subclasses.fake_tensor.FakeTensor):
-                return tvm.runtime.tensor(torch_tensor.numpy())
+                return tvm.runtime.from_dlpack(torch.utils.dlpack.to_dlpack(torch_tensor))
             # Fake Tensor
             real_tensor = torch.randn(torch_tensor.shape, dtype=torch_tensor.dtype)
             return tvm.runtime.tensor(real_tensor.numpy())
@@ -128,6 +128,10 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
 
         mod = mod.with_attr("target", target)
         mod = seq(mod)
+
+        if device.type == "cuda":
+            with target:
+                mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
 
         ex = relax_build(mod, target=target)
 
