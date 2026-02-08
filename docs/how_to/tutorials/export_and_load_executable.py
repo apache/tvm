@@ -274,11 +274,13 @@ if RUN_EXAMPLE:
 # To run on GPU instead of CPU, make the following changes:
 #
 # 1. **Compile for GPU** (earlier in the tutorial, around line 112):
+#
 #    .. code-block:: python
 #
 #       TARGET = tvm.target.Target("cuda")  # Change from "llvm" to "cuda"
 #
 # 2. **Use GPU device in the script**:
+#
 #    .. code-block:: python
 #
 #       device = tvm.cuda(0)  # Use CUDA device instead of CPU
