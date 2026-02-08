@@ -183,10 +183,10 @@ def test_max_pool1d_stride_padding_dilation_int64():
     x = relax.Var("x", R.Tensor((2, 3, 28), "float32"))
     max_pool1d = relax.op.nn.max_pool1d(x, pool_size=3, strides=1, padding=1, dilation=1)
 
-    assert max_pool1d.attrs.strides[0].dtype == "int64"
-    assert max_pool1d.attrs.padding[0].dtype == "int64"
-    assert max_pool1d.attrs.padding[1].dtype == "int64"
-    assert max_pool1d.attrs.dilation[0].dtype == "int64"
+    assert isinstance(max_pool1d.attrs.strides[0], int)
+    assert isinstance(max_pool1d.attrs.padding[0], int)
+    assert isinstance(max_pool1d.attrs.padding[1], int)
+    assert isinstance(max_pool1d.attrs.dilation[0], int)
 
 
 def test_max_pool1d_wrong_pool_size_strides_padding_dilation_length():
@@ -412,14 +412,14 @@ def test_max_pool2d_stride_padding_dilation_int64():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
     max_pool2d = relax.op.nn.max_pool2d(x, (3, 3), strides=(1, 1), padding=(1, 1), dilation=(1, 1))
 
-    assert max_pool2d.attrs.strides[0].dtype == "int64"
-    assert max_pool2d.attrs.strides[1].dtype == "int64"
-    assert max_pool2d.attrs.padding[0].dtype == "int64"
-    assert max_pool2d.attrs.padding[1].dtype == "int64"
-    assert max_pool2d.attrs.padding[2].dtype == "int64"
-    assert max_pool2d.attrs.padding[3].dtype == "int64"
-    assert max_pool2d.attrs.dilation[0].dtype == "int64"
-    assert max_pool2d.attrs.dilation[1].dtype == "int64"
+    assert isinstance(max_pool2d.attrs.strides[0], int)
+    assert isinstance(max_pool2d.attrs.strides[1], int)
+    assert isinstance(max_pool2d.attrs.padding[0], int)
+    assert isinstance(max_pool2d.attrs.padding[1], int)
+    assert isinstance(max_pool2d.attrs.padding[2], int)
+    assert isinstance(max_pool2d.attrs.padding[3], int)
+    assert isinstance(max_pool2d.attrs.dilation[0], int)
+    assert isinstance(max_pool2d.attrs.dilation[1], int)
 
 
 def test_max_pool2d_wrong_pool_size_strides_padding_dilation_length():
@@ -660,17 +660,17 @@ def test_max_pool3d_stride_padding_dilation_int64():
         x, (3, 3, 3), strides=(1, 1, 1), padding=(1, 1, 1), dilation=(1, 1, 1)
     )
 
-    assert max_pool3d.attrs.strides[0].dtype == "int64"
-    assert max_pool3d.attrs.strides[1].dtype == "int64"
-    assert max_pool3d.attrs.strides[2].dtype == "int64"
-    assert max_pool3d.attrs.padding[0].dtype == "int64"
-    assert max_pool3d.attrs.padding[1].dtype == "int64"
-    assert max_pool3d.attrs.padding[2].dtype == "int64"
-    assert max_pool3d.attrs.padding[3].dtype == "int64"
-    assert max_pool3d.attrs.padding[4].dtype == "int64"
-    assert max_pool3d.attrs.dilation[0].dtype == "int64"
-    assert max_pool3d.attrs.dilation[1].dtype == "int64"
-    assert max_pool3d.attrs.dilation[2].dtype == "int64"
+    assert isinstance(max_pool3d.attrs.strides[0], int)
+    assert isinstance(max_pool3d.attrs.strides[1], int)
+    assert isinstance(max_pool3d.attrs.strides[2], int)
+    assert isinstance(max_pool3d.attrs.padding[0], int)
+    assert isinstance(max_pool3d.attrs.padding[1], int)
+    assert isinstance(max_pool3d.attrs.padding[2], int)
+    assert isinstance(max_pool3d.attrs.padding[3], int)
+    assert isinstance(max_pool3d.attrs.padding[4], int)
+    assert isinstance(max_pool3d.attrs.dilation[0], int)
+    assert isinstance(max_pool3d.attrs.dilation[1], int)
+    assert isinstance(max_pool3d.attrs.dilation[2], int)
 
 
 def test_max_pool3d_wrong_pool_size_strides_padding_dilation_length():
@@ -875,10 +875,10 @@ def test_avg_pool1d_stride_padding_dilation_int64():
     x = relax.Var("x", R.Tensor((2, 3, 28), "float32"))
     avg_pool1d = relax.op.nn.avg_pool1d(x, 3, strides=1, padding=1, dilation=1)
 
-    assert avg_pool1d.attrs.strides[0].dtype == "int64"
-    assert avg_pool1d.attrs.padding[0].dtype == "int64"
-    assert avg_pool1d.attrs.padding[1].dtype == "int64"
-    assert avg_pool1d.attrs.dilation[0].dtype == "int64"
+    assert isinstance(avg_pool1d.attrs.strides[0], int)
+    assert isinstance(avg_pool1d.attrs.padding[0], int)
+    assert isinstance(avg_pool1d.attrs.padding[1], int)
+    assert isinstance(avg_pool1d.attrs.dilation[0], int)
 
 
 def test_avg_pool1d_wrong_pool_size_strides_padding_dilation_length():
@@ -1101,14 +1101,14 @@ def test_avg_pool2d_stride_padding_dilation_int64():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
     avg_pool2d = relax.op.nn.avg_pool2d(x, (3, 3), strides=(1, 1), padding=(1, 1), dilation=(1, 1))
 
-    assert avg_pool2d.attrs.strides[0].dtype == "int64"
-    assert avg_pool2d.attrs.strides[1].dtype == "int64"
-    assert avg_pool2d.attrs.padding[0].dtype == "int64"
-    assert avg_pool2d.attrs.padding[1].dtype == "int64"
-    assert avg_pool2d.attrs.padding[2].dtype == "int64"
-    assert avg_pool2d.attrs.padding[3].dtype == "int64"
-    assert avg_pool2d.attrs.dilation[0].dtype == "int64"
-    assert avg_pool2d.attrs.dilation[1].dtype == "int64"
+    assert isinstance(avg_pool2d.attrs.strides[0], int)
+    assert isinstance(avg_pool2d.attrs.strides[1], int)
+    assert isinstance(avg_pool2d.attrs.padding[0], int)
+    assert isinstance(avg_pool2d.attrs.padding[1], int)
+    assert isinstance(avg_pool2d.attrs.padding[2], int)
+    assert isinstance(avg_pool2d.attrs.padding[3], int)
+    assert isinstance(avg_pool2d.attrs.dilation[0], int)
+    assert isinstance(avg_pool2d.attrs.dilation[1], int)
 
 
 def test_avg_pool2d_wrong_pool_size_strides_padding_dilation_length():
@@ -1356,15 +1356,15 @@ def test_avg_pool3d_stride_padding_dilation_int64():
         x, (3, 3, 3), strides=(1, 1, 1), padding=(1, 1, 1), dilation=(1, 1, 1)
     )
 
-    assert avg_pool3d.attrs.strides[0].dtype == "int64"
-    assert avg_pool3d.attrs.strides[1].dtype == "int64"
-    assert avg_pool3d.attrs.strides[2].dtype == "int64"
-    assert avg_pool3d.attrs.padding[0].dtype == "int64"
-    assert avg_pool3d.attrs.padding[1].dtype == "int64"
-    assert avg_pool3d.attrs.padding[2].dtype == "int64"
-    assert avg_pool3d.attrs.dilation[0].dtype == "int64"
-    assert avg_pool3d.attrs.dilation[1].dtype == "int64"
-    assert avg_pool3d.attrs.dilation[2].dtype == "int64"
+    assert isinstance(avg_pool3d.attrs.strides[0], int)
+    assert isinstance(avg_pool3d.attrs.strides[1], int)
+    assert isinstance(avg_pool3d.attrs.strides[2], int)
+    assert isinstance(avg_pool3d.attrs.padding[0], int)
+    assert isinstance(avg_pool3d.attrs.padding[1], int)
+    assert isinstance(avg_pool3d.attrs.padding[2], int)
+    assert isinstance(avg_pool3d.attrs.dilation[0], int)
+    assert isinstance(avg_pool3d.attrs.dilation[1], int)
+    assert isinstance(avg_pool3d.attrs.dilation[2], int)
 
 
 def test_avg_pool3d_wrong_pool_size_strides_padding_dilation_length():

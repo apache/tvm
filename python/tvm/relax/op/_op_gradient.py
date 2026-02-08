@@ -1202,7 +1202,7 @@ kernel_layout, out_layout, out_dtype)`
     out_h = (grad_h - 1) * stride_h - pad_top - pad_bottom + filter_h
     out_w = (grad_w - 1) * stride_w - pad_left - pad_right + filter_w
 
-    output_padding = (in_h - out_h, in_w - out_w)
+    output_padding = (int(in_h - out_h), int(in_w - out_w))
 
     data_grad = conv2d_transpose(  # type: ignore
         output_grad,

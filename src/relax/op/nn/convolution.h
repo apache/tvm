@@ -36,10 +36,10 @@ namespace tvm {
 namespace relax {
 
 template <typename T>
-inline Expr MakeConv(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
-                     ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
-                     ffi::String kernel_layout, ffi::String out_layout, DataType out_dtype,
-                     std::string op_name) {
+inline Expr MakeConv(Expr data, Expr weight, ffi::Array<int64_t> strides,
+                     ffi::Array<int64_t> padding, ffi::Array<int64_t> dilation, int groups,
+                     ffi::String data_layout, ffi::String kernel_layout, ffi::String out_layout,
+                     DataType out_dtype, std::string op_name) {
   auto attrs = ffi::make_object<T>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);

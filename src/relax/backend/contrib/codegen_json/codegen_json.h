@@ -115,8 +115,12 @@ class OpAttrExtractor {
     if (const auto* an = (*value).as<ffi::ArrayObj>()) {
       std::vector<std::string> attr;
       for (size_t i = 0; i < an->size(); ++i) {
-        if (const auto* im = (*an)[i].as<IntImmNode>()) {
+        if (auto opt_int = (*an)[i].try_cast<int64_t>()) {
+          attr.push_back(std::to_string(opt_int.value()));
+        } else if (const auto* im = (*an)[i].as<IntImmNode>()) {
           attr.push_back(std::to_string(im->value));
+        } else if (auto opt_float = (*an)[i].try_cast<double>()) {
+          attr.push_back(Fp2String(opt_float.value()));
         } else if (const auto* fm = (*an)[i].as<FloatImmNode>()) {
           attr.push_back(Fp2String(fm->value));
         } else if (auto opt_str = (*an)[i].as<ffi::String>()) {

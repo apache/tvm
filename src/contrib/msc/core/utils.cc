@@ -275,11 +275,13 @@ const ffi::String StringUtils::ToString(const ffi::Any& obj) {
     obj_string = *opt_str;
   } else if (const auto* n = obj.as<IntImmNode>()) {
     obj_string = std::to_string(n->value);
+  } else if (obj.type_index() == kTVMFFIInt) {
+    obj_string = std::to_string(obj.cast<int64_t>());
   } else if (const auto* n = obj.as<FloatImmNode>()) {
     obj_string = std::to_string(n->value);
   } else if (const auto* n = obj.as<ffi::ArrayObj>()) {
     for (size_t i = 0; i < n->size(); i++) {
-      obj_string = obj_string + ToString((*n)[i].cast<ObjectRef>());
+      obj_string = obj_string + ToString((*n)[i]);
       if (n->size() == 1 || i < n->size() - 1) {
         obj_string = obj_string + ",";
       }

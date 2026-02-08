@@ -39,9 +39,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.max_pool1d */
 
 Expr MakePool1d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
-                ffi::Array<int64_t> strides, ffi::Array<int64_t> padding, ffi::Array<int64_t> dilation,
-                bool ceil_mode, bool count_include_pad, ffi::String layout,
-                ffi::Optional<ffi::String> out_layout) {
+                ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+                ffi::Array<int64_t> dilation, bool ceil_mode, bool count_include_pad,
+                ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   padding = GetCompletePadding1D(std::move(padding));
 
   CHECK_EQ(pool_size.size(), 1)
@@ -107,8 +107,7 @@ StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
   out_NCW_shape[0] = data_NCW_shape[0];
   out_NCW_shape[1] = data_NCW_shape[1];
 
-  PrimExpr numerator_w =
-      input_w + padding_w - Integer(attrs->dilation[0]) * (kernel_w - 1) - 1;
+  PrimExpr numerator_w = input_w + padding_w - Integer(attrs->dilation[0]) * (kernel_w - 1) - 1;
   if (attrs->ceil_mode) {
     numerator_w += Integer(attrs->strides[0]) - 1;
   }
@@ -154,9 +153,9 @@ TVM_REGISTER_OP("relax.nn.max_pool1d")
 /* relax.nn.max_pool2d */
 
 Expr MakePool2d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
-                ffi::Array<int64_t> strides, ffi::Array<int64_t> padding, ffi::Array<int64_t> dilation,
-                bool ceil_mode, bool count_include_pad, ffi::String layout,
-                ffi::Optional<ffi::String> out_layout) {
+                ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+                ffi::Array<int64_t> dilation, bool ceil_mode, bool count_include_pad,
+                ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   padding = GetCompletePadding2D(std::move(padding));
   if (pool_size.size() == 1) {
     pool_size.push_back(pool_size[0]);
@@ -234,10 +233,8 @@ StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
   out_NCHW_shape[0] = data_NCHW_shape[0];
   out_NCHW_shape[1] = data_NCHW_shape[1];
 
-  PrimExpr numerator_h =
-      input_h + padding_h - Integer(attrs->dilation[0]) * (kernel_h - 1) - 1;
-  PrimExpr numerator_w =
-      input_w + padding_w - Integer(attrs->dilation[1]) * (kernel_w - 1) - 1;
+  PrimExpr numerator_h = input_h + padding_h - Integer(attrs->dilation[0]) * (kernel_h - 1) - 1;
+  PrimExpr numerator_w = input_w + padding_w - Integer(attrs->dilation[1]) * (kernel_w - 1) - 1;
   if (attrs->ceil_mode) {
     numerator_h += Integer(attrs->strides[0]) - 1;
     numerator_w += Integer(attrs->strides[1]) - 1;
@@ -307,9 +304,9 @@ TVM_REGISTER_OP("relax.nn.max_pool2d")
 /* relax.nn.max_pool3d */
 
 Expr MakePool3d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
-                ffi::Array<int64_t> strides, ffi::Array<int64_t> padding, ffi::Array<int64_t> dilation,
-                bool ceil_mode, bool count_include_pad, ffi::String layout,
-                ffi::Optional<ffi::String> out_layout) {
+                ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+                ffi::Array<int64_t> dilation, bool ceil_mode, bool count_include_pad,
+                ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   padding = GetCompletePadding3D(std::move(padding));
   if (pool_size.size() == 1) {
     pool_size.push_back(pool_size[0]);
@@ -393,12 +390,9 @@ StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
   out_NCDHW_shape[0] = data_NCDHW_shape[0];
   out_NCDHW_shape[1] = data_NCDHW_shape[1];
 
-  PrimExpr numerator_d =
-      input_d + padding_d - Integer(attrs->dilation[0]) * (kernel_d - 1) - 1;
-  PrimExpr numerator_h =
-      input_h + padding_h - Integer(attrs->dilation[1]) * (kernel_h - 1) - 1;
-  PrimExpr numerator_w =
-      input_w + padding_w - Integer(attrs->dilation[2]) * (kernel_w - 1) - 1;
+  PrimExpr numerator_d = input_d + padding_d - Integer(attrs->dilation[0]) * (kernel_d - 1) - 1;
+  PrimExpr numerator_h = input_h + padding_h - Integer(attrs->dilation[1]) * (kernel_h - 1) - 1;
+  PrimExpr numerator_w = input_w + padding_w - Integer(attrs->dilation[2]) * (kernel_w - 1) - 1;
   if (attrs->ceil_mode) {
     numerator_d += Integer(attrs->strides[0]) - 1;
     numerator_h += Integer(attrs->strides[1]) - 1;

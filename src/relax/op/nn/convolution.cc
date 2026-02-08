@@ -700,7 +700,8 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
   out_NCW_shape[1] = weight_IOW_shape[1] * attrs->groups;
 
   PrimExpr out_w = (input_w - 1) * Integer(attrs->strides[0]) - padding_w +
-                   Integer(attrs->dilation[0]) * (kernel_w - 1) + Integer(attrs->output_padding[0]) + 1;
+                   Integer(attrs->dilation[0]) * (kernel_w - 1) +
+                   Integer(attrs->output_padding[0]) + 1;
   out_NCW_shape[2] = analyzer->Simplify(out_w);
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
@@ -895,9 +896,11 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
   out_NCHW_shape[1] = weight_IOHW_shape[1] * attrs->groups;
 
   PrimExpr out_h = (input_h - 1) * Integer(attrs->strides[0]) - padding_h +
-                   Integer(attrs->dilation[0]) * (kernel_h - 1) + Integer(attrs->output_padding[0]) + 1;
+                   Integer(attrs->dilation[0]) * (kernel_h - 1) +
+                   Integer(attrs->output_padding[0]) + 1;
   PrimExpr out_w = (input_w - 1) * Integer(attrs->strides[1]) - padding_w +
-                   Integer(attrs->dilation[1]) * (kernel_w - 1) + Integer(attrs->output_padding[1]) + 1;
+                   Integer(attrs->dilation[1]) * (kernel_w - 1) +
+                   Integer(attrs->output_padding[1]) + 1;
   out_NCHW_shape[2] = analyzer->Simplify(out_h);
   out_NCHW_shape[3] = analyzer->Simplify(out_w);
 
