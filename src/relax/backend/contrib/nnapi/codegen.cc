@@ -107,10 +107,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     std::vector<std::string> strides;
     if (!conv2d_attr->strides.empty()) {
       for (auto stride : conv2d_attr->strides) {
-        const auto* stride_val = stride.as<IntImmNode>();
-        ICHECK(stride_val) << "convertion failed";
-
-        strides.push_back(std::to_string(stride_val->value));
+        strides.push_back(std::to_string(stride));
       }
     } else {
       strides = {"1", "1"};
@@ -118,9 +115,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
     std::vector<std::string> padding;
     for (auto pad : conv2d_attr->padding) {
-      const auto* padding_val = pad.as<IntImmNode>();
-
-      padding.push_back(std::to_string(padding_val->value));
+      padding.push_back(std::to_string(pad));
     }
 
     std::vector<std::string> groups;
@@ -147,10 +142,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     std::vector<std::string> strides;
     if (!max_pool_2d_attr->strides.empty()) {
       for (auto stride : max_pool_2d_attr->strides) {
-        const auto* stride_val = stride.as<IntImmNode>();
-        ICHECK(stride_val) << "convertion failed";
-
-        strides.push_back(std::to_string(stride_val->value));
+        strides.push_back(std::to_string(stride));
       }
     } else {
       strides.push_back("1");
@@ -159,16 +151,12 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
     std::vector<std::string> padding;
     for (auto pad : max_pool_2d_attr->padding) {
-      const auto* padding_val = pad.as<IntImmNode>();
-
-      padding.push_back(std::to_string(padding_val->value));
+      padding.push_back(std::to_string(pad));
     }
 
     std::vector<std::string> pool_size;
     for (auto size : max_pool_2d_attr->pool_size) {
-      const auto* pooling_val = size.as<IntImmNode>();
-
-      pool_size.push_back(std::to_string(pooling_val->value));
+      pool_size.push_back(std::to_string(size));
     }
 
     std::vector<dmlc::any> strides_attr;

@@ -465,7 +465,7 @@ inline ffi::Array<IntImm> ConvertIntImmToInt64(const ffi::Array<IntImm>& int_imm
  * \return The completed padding.
  * \throws Throws error if the input padding length is neither 1 or 2.
  */
-inline ffi::Array<IntImm> GetCompletePadding1D(ffi::Array<IntImm> padding) {
+inline ffi::Array<int64_t> GetCompletePadding1D(ffi::Array<int64_t> padding) {
   if (padding.size() == 1) {
     return {padding[0], padding[0]};
   } else if (padding.size() == 2) {
@@ -486,7 +486,7 @@ inline ffi::Array<IntImm> GetCompletePadding1D(ffi::Array<IntImm> padding) {
  * \return The completed padding.
  * \throws Throws error if the input padding length is neither 1, 2 or 4.
  */
-inline ffi::Array<IntImm> GetCompletePadding2D(ffi::Array<IntImm> padding) {
+inline ffi::Array<int64_t> GetCompletePadding2D(ffi::Array<int64_t> padding) {
   if (padding.size() == 1) {
     return {padding[0], padding[0], padding[0], padding[0]};
   } else if (padding.size() == 2) {
@@ -511,7 +511,7 @@ inline ffi::Array<IntImm> GetCompletePadding2D(ffi::Array<IntImm> padding) {
  * \return The completed padding.
  * \throws Throws error if the input padding length is neither 1, 3 or 6.
  */
-inline ffi::Array<IntImm> GetCompletePadding3D(ffi::Array<IntImm> padding) {
+inline ffi::Array<int64_t> GetCompletePadding3D(ffi::Array<int64_t> padding) {
   if (padding.size() == 1) {
     return {padding[0], padding[0], padding[0], padding[0], padding[0], padding[0]};
   } else if (padding.size() == 3) {

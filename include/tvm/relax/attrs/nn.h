@@ -31,9 +31,9 @@ namespace relax {
 
 /*! \brief Attributes used in Conv1d operator */
 struct Conv1DAttrs : public AttrsNodeReflAdapter<Conv1DAttrs> {
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   int groups;
   ffi::String data_layout;
   ffi::String kernel_layout;
@@ -75,9 +75,9 @@ struct Conv1DAttrs : public AttrsNodeReflAdapter<Conv1DAttrs> {
 
 /*! \brief Attributes used in Conv2d operator */
 struct Conv2DAttrs : public AttrsNodeReflAdapter<Conv2DAttrs> {
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   int groups;
   ffi::String data_layout;
   ffi::String kernel_layout;
@@ -121,9 +121,9 @@ struct Conv2DAttrs : public AttrsNodeReflAdapter<Conv2DAttrs> {
 
 /*! \brief Attributes used in Conv3d operator */
 struct Conv3DAttrs : public AttrsNodeReflAdapter<Conv3DAttrs> {
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   int groups;
   ffi::String data_layout;
   ffi::String kernel_layout;
@@ -169,10 +169,10 @@ struct Conv3DAttrs : public AttrsNodeReflAdapter<Conv3DAttrs> {
 
 /*! \brief Attributes used in Conv1DTranspose operator */
 struct Conv1DTransposeAttrs : public AttrsNodeReflAdapter<Conv1DTransposeAttrs> {
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> output_padding;
-  ffi::Array<IntImm> dilation;
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> output_padding;
+  ffi::Array<int64_t> dilation;
   int groups;
   ffi::String data_layout;
   ffi::String kernel_layout;
@@ -218,10 +218,10 @@ struct Conv1DTransposeAttrs : public AttrsNodeReflAdapter<Conv1DTransposeAttrs> 
 
 /*! \brief Attributes used in Conv2d operator */
 struct Conv2DTransposeAttrs : public AttrsNodeReflAdapter<Conv2DTransposeAttrs> {
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> output_padding;
-  ffi::Array<IntImm> dilation;
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> output_padding;
+  ffi::Array<int64_t> dilation;
   int groups;
   ffi::String data_layout;
   ffi::String kernel_layout;
@@ -269,10 +269,10 @@ struct Conv2DTransposeAttrs : public AttrsNodeReflAdapter<Conv2DTransposeAttrs> 
 
 /*! \brief Attributes used in max_pool1d and avg_pool1d operator */
 struct Pool1DAttrs : public AttrsNodeReflAdapter<Pool1DAttrs> {
-  ffi::Array<IntImm> pool_size;
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+  ffi::Array<int64_t> pool_size;
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   bool ceil_mode;
   bool count_include_pad;
   ffi::String layout;
@@ -310,10 +310,10 @@ struct Pool1DAttrs : public AttrsNodeReflAdapter<Pool1DAttrs> {
 
 /*! \brief Attributes used in max_pool2d and avg_pool2d operator */
 struct Pool2DAttrs : public AttrsNodeReflAdapter<Pool2DAttrs> {
-  ffi::Array<IntImm> pool_size;
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+  ffi::Array<int64_t> pool_size;
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   bool ceil_mode;
   bool count_include_pad;
   ffi::String layout;
@@ -353,10 +353,10 @@ struct Pool2DAttrs : public AttrsNodeReflAdapter<Pool2DAttrs> {
 
 /*! \brief Attributes used in max_pool3d and avg_pool3d operator */
 struct Pool3DAttrs : public AttrsNodeReflAdapter<Pool3DAttrs> {
-  ffi::Array<IntImm> pool_size;
-  ffi::Array<IntImm> strides;
-  ffi::Array<IntImm> padding;
-  ffi::Array<IntImm> dilation;
+  ffi::Array<int64_t> pool_size;
+  ffi::Array<int64_t> strides;
+  ffi::Array<int64_t> padding;
+  ffi::Array<int64_t> dilation;
   bool ceil_mode;
   bool count_include_pad;
   ffi::String layout;
@@ -396,7 +396,7 @@ struct Pool3DAttrs : public AttrsNodeReflAdapter<Pool3DAttrs> {
 
 /*! \brief Attributes for 1d adaptive pool operator */
 struct AdaptivePool1DAttrs : public AttrsNodeReflAdapter<AdaptivePool1DAttrs> {
-  ffi::Optional<ffi::Array<IntImm>> output_size;
+  ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
 
@@ -421,7 +421,7 @@ struct AdaptivePool1DAttrs : public AttrsNodeReflAdapter<AdaptivePool1DAttrs> {
 
 /*! \brief Attributes for 2d adaptive pool operator */
 struct AdaptivePool2DAttrs : public AttrsNodeReflAdapter<AdaptivePool2DAttrs> {
-  ffi::Optional<ffi::Array<IntImm>> output_size;
+  ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
 
@@ -446,7 +446,7 @@ struct AdaptivePool2DAttrs : public AttrsNodeReflAdapter<AdaptivePool2DAttrs> {
 
 /*! \brief Attributes for 3d adaptive pool operator */
 struct AdaptivePool3DAttrs : public AttrsNodeReflAdapter<AdaptivePool3DAttrs> {
-  ffi::Optional<ffi::Array<IntImm>> output_size;
+  ffi::Optional<ffi::Array<int64_t>> output_size;
   ffi::String layout;
   ffi::String out_layout;
 
