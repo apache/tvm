@@ -121,10 +121,6 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
         mod = mod.with_attr("target", target)
         mod = seq(mod)
 
-        if device.type == "cuda":
-            with target:
-                mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
-
         ex = relax_build(mod, target=target)
 
         vm = tvm.relax.VirtualMachine(ex.mod, device=dev)
