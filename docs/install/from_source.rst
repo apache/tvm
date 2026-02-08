@@ -239,12 +239,6 @@ Windows-Specific Build Notes
 
 If you're building TVM on Windows, note these platform-specific considerations:
 
-File Encoding
-.............
-- Ensure Python files are saved as **UTF-8 without BOM** (Byte Order Mark)
-- BOM characters cause ``SyntaxError: invalid non-printable character U+FEFF``
-- Use a text editor that supports saving as UTF-8 without BOM.
-
 Path Conventions
 ................
 - Use forward slashes (``/``) in Python/CMake paths, not Windows backslashes
