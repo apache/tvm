@@ -535,8 +535,6 @@ class PR:
             "tvm-cpu",
             "tvm-docker",
             "tvm-gpu",
-            "tvm-hexagon",
-            "tvm-i386",
             "tvm-lint",
             "tvm-wasm",
             "tvm-unity",
