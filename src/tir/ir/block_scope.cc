@@ -17,8 +17,8 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/block_scope.h>
-#include <tvm/tir/utils.h>
+#include <tvm/s_tir/sblock_scope.h>
+#include <tvm/s_tir/utils.h>
 
 namespace tvm {
 namespace tir {
@@ -196,18 +196,18 @@ void SRefTreeCreator::VisitStmt_(const SeqStmtNode* seq_stmt) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.StmtSRefStmt",
+      .def("s_tir.StmtSRefStmt",
            [](StmtSRef sref) -> ffi::Optional<Stmt> {
              return ffi::GetRef<ffi::Optional<Stmt>>(sref->stmt);
            })
-      .def("tir.StmtSRefParent",
+      .def("s_tir.StmtSRefParent",
            [](StmtSRef sref) -> ffi::Optional<StmtSRef> {
              return ffi::GetRef<ffi::Optional<StmtSRef>>(sref->parent);
            })
-      .def("tir.StmtSRefRootMark", StmtSRef::RootMark)
-      .def("tir.StmtSRefInlineMark", StmtSRef::InlineMark)
-      .def_method("tir.SBlockScopeGetDepsBySrc", &SBlockScopeNode::GetDepsBySrc)
-      .def_method("tir.SBlockScopeGetDepsByDst", &SBlockScopeNode::GetDepsByDst);
+      .def("s_tir.StmtSRefRootMark", StmtSRef::RootMark)
+      .def("s_tir.StmtSRefInlineMark", StmtSRef::InlineMark)
+      .def_method("s_tir.SBlockScopeGetDepsBySrc", &SBlockScopeNode::GetDepsBySrc)
+      .def_method("s_tir.SBlockScopeGetDepsByDst", &SBlockScopeNode::GetDepsByDst);
 }
 
 }  // namespace tir

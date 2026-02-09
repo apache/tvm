@@ -26,7 +26,7 @@
 
 #include <dmlc/json.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/data_layout.h>
+#include <tvm/s_tir/data_layout.h>
 
 #include <string>
 #include <unordered_map>

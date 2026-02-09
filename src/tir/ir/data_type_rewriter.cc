@@ -22,8 +22,9 @@
  * \brief Rewrite the data type of expressions.
  */
 
+#include "data_type_rewriter.h"
+
 #include <tvm/tir/builtin.h>
-#include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/op.h>
 
 #include "./functor_common.h"

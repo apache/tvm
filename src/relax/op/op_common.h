@@ -27,7 +27,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/tir/data_layout.h>
+#include <tvm/s_tir/data_layout.h>
 
 #include <optional>
 #include <tuple>

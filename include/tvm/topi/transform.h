@@ -25,8 +25,8 @@
 #define TVM_TOPI_TRANSFORM_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/s_tir/data_layout.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/data_layout.h>
 #include <tvm/tir/index_map.h>
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/detail/broadcast.h>

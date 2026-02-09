@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file tvm/tir/data_layout.h
+ * \file tvm/s_tir/data_layout.h
  * \brief Layout expression to describe the data organization of a tensor.
  *  And BijectiveLayout to mapping two data layouts between each other.
  */
-#ifndef TVM_TIR_DATA_LAYOUT_H_
-#define TVM_TIR_DATA_LAYOUT_H_
+#ifndef TVM_S_TIR_DATA_LAYOUT_H_
+#define TVM_S_TIR_DATA_LAYOUT_H_
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
@@ -114,7 +114,7 @@ class LayoutNode : public Object {
         .def_ro("name", &LayoutNode::name)
         .def_ro("axes", &LayoutNode::axes);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Layout", LayoutNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Layout", LayoutNode, Object);
 };
 
 /*!
@@ -321,7 +321,7 @@ class BijectiveLayoutNode : public Object {
         .def_ro("shape_forward_rule", &BijectiveLayoutNode::shape_forward_rule)
         .def_ro("shape_backward_rule", &BijectiveLayoutNode::shape_backward_rule);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BijectiveLayout", BijectiveLayoutNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.BijectiveLayout", BijectiveLayoutNode, Object);
 };
 
 /*!
@@ -354,4 +354,4 @@ class BijectiveLayout : public ObjectRef {
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_DATA_LAYOUT_H_
+#endif  // TVM_S_TIR_DATA_LAYOUT_H_
