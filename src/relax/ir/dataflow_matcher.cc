@@ -55,38 +55,6 @@ namespace relax {
 using tvm::arith::Analyzer;
 
 /*!
- * \brief Normalize a value so that IntImm becomes boxed int64_t
- * and FloatImm becomes boxed double. This allows StructuralEqual
- * to compare pattern values (which may contain IntImm from Python)
- * against attr field values that use boxed primitives (e.g. Array<int64_t>).
- */
-ffi::Any NormalizeImmToPrimitive(const ffi::Any& value) {
-  if (const auto* int_imm = value.as<IntImmNode>()) {
-    return ffi::Any(int_imm->value);
-  }
-  if (const auto* float_imm = value.as<FloatImmNode>()) {
-    return ffi::Any(float_imm->value);
-  }
-  if (const auto* arr = value.as<ffi::ArrayObj>()) {
-    bool needs_conversion = false;
-    for (size_t i = 0; i < arr->size(); ++i) {
-      if ((*arr)[i].as<IntImmNode>() || (*arr)[i].as<FloatImmNode>()) {
-        needs_conversion = true;
-        break;
-      }
-    }
-    if (needs_conversion) {
-      ffi::Array<ffi::Any> result;
-      for (size_t i = 0; i < arr->size(); ++i) {
-        result.push_back(NormalizeImmToPrimitive((*arr)[i]));
-      }
-      return ffi::Any(result);
-    }
-  }
-  return value;
-}
-
-/*!
  * \brief Match the attributes of an object.
  * \param attrs The attributes of the object.
  * \param attributes The attributes to match.
@@ -121,12 +89,7 @@ bool MatchAttrs(const Any& attrs, const ffi::Map<ffi::String, ffi::Any>& attribu
           if (attributes.count(field_name)) {
             ffi::reflection::FieldGetter field_getter(field_info);
             ffi::Any field_value = field_getter(obj);
-            // Normalize IntImm/FloatImm to boxed primitives so that
-            // pattern values from Python match typed attr fields
-            // (e.g. Array<int64_t>) and ObjectRef fields storing IntImm.
-            ffi::Any normalized_pattern = NormalizeImmToPrimitive(attributes[field_name]);
-            ffi::Any normalized_field = NormalizeImmToPrimitive(field_value);
-            if (!StructuralEqual()(normalized_pattern, normalized_field)) {
+            if (!StructuralEqual()(attributes[field_name], field_value)) {
               success = false;
               return true;
             }
