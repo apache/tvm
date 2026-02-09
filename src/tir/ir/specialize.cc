@@ -30,7 +30,7 @@
 
 #include <functional>
 
-#include "../transforms/ir_utils.h"
+#include "../transform/ir_utils.h"
 #include "functor_common.h"
 
 namespace tvm {

@@ -21,8 +21,8 @@
  * \file ir_utils.h
  * \brief Helper functions to construct and compose IR nodes.
  */
-#ifndef TVM_TIR_TRANSFORMS_IR_UTILS_H_
-#define TVM_TIR_TRANSFORMS_IR_UTILS_H_
+#ifndef TVM_TIR_TRANSFORM_IR_UTILS_H_
+#define TVM_TIR_TRANSFORM_IR_UTILS_H_
 
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
@@ -356,4 +356,4 @@ std::optional<bool> IsHostFunc(const PrimFunc& func);
 
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORMS_IR_UTILS_H_
+#endif  // TVM_TIR_TRANSFORM_IR_UTILS_H_
