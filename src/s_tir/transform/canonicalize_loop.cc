@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tir/transforms/canonicalize_loop.cc
+ * \file s_tir/transform/canonicalize_loop.cc
  * \brief Canonicalize all loops to start from zero and step one.
  */
 #include <tvm/arith/analyzer.h>

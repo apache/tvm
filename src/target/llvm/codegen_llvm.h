@@ -70,7 +70,7 @@
 #include <vector>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tir/transforms/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 #include "codegen_params.h"
 #include "llvm_instance.h"
 

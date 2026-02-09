@@ -21,8 +21,8 @@
  * \file update_pointer_storage_scope.h
  * \brief A pass to update storage scopes for buffer variables.
  */
-#ifndef TVM_TIR_TRANSFORMS_UPDATE_POINTER_STORAGE_SCOPE_H_
-#define TVM_TIR_TRANSFORMS_UPDATE_POINTER_STORAGE_SCOPE_H_
+#ifndef TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_
+#define TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -56,4 +56,4 @@ class UpdatePointerStorageScope : public StmtExprMutator {
 
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORMS_UPDATE_POINTER_STORAGE_SCOPE_H_
+#endif  // TVM_TIR_TRANSFORM_UPDATE_POINTER_STORAGE_SCOPE_H_

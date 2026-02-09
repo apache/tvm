@@ -19,7 +19,7 @@
 
 /*!
  *
- * \file src/tir/transforms/replace_global_vars.cc
+ * \file src/tir/transform/replace_global_vars.cc
  *
  * \brief GlobalVar replacement across IR types
  */

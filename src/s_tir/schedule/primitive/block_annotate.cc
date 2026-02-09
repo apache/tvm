@@ -19,7 +19,7 @@
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/tir/expr.h>
 
-#include "../../../tir/transforms/ir_utils.h"
+#include "../../../tir/transform/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {

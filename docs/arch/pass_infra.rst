@@ -578,7 +578,7 @@ loop unrolling pass
 
     TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", UnrollLoopConfig);
 
-Please refer to `src/tir/transforms/unroll_loop.cc`_ for more details.
+Please refer to `src/tir/transform/unroll_loop.cc`_ for more details.
 
 .. _pass_instrument_py_frontend:
 
@@ -661,7 +661,7 @@ new ``PassInstrument`` are called.
 
 .. _python/tvm/ir/instrument.py: https://github.com/apache/tvm/blob/main/python/tvm/ir/instrument.py
 
-.. _src/tir/transforms/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tir/transforms/unroll_loop.cc
+.. _src/tir/transform/unroll_loop.cc: https://github.com/apache/tvm/blob/main/src/tir/transform/unroll_loop.cc
 
 .. _use pass infra: https://github.com/apache/tvm/blob/main/tutorials/dev/use_pass_infra.py
 

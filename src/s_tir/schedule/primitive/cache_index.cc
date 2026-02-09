@@ -18,8 +18,8 @@
  */
 #include <tvm/arith/int_set.h>
 
-#include "../../../tir/transforms/common_subexpr_elim_tools.h"
-#include "../../../tir/transforms/replace_selected_expr.h"
+#include "../../../tir/transform/common_subexpr_elim_tools.h"
+#include "../../../tir/transform/replace_selected_expr.h"
 #include "../utils.h"
 
 namespace tvm {

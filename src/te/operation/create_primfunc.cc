@@ -38,7 +38,7 @@
 
 #include "../../support/array.h"
 #include "../../tir/ir/functor_common.h"
-#include "../../tir/transforms/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 #include "graph.h"
 
 namespace tvm {

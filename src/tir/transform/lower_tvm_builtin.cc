@@ -19,7 +19,7 @@
 
 /*!
  *  Lower TVM related builtin intrinsics such as packed call.
- * \file tir/transforms/lower_tvm_buildin.cc
+ * \file tir/transform/lower_tvm_builtin.cc
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
