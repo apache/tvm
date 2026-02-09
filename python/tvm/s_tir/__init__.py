@@ -19,10 +19,17 @@
 
 from tvm.tir.function import TensorIntrin
 
+# dlight depends on compiler-only C++ functions (e.g. s_tir.schedule.GetSBlockRealize),
+# so skip it in runtime-only builds.
+from tvm.base import _RUNTIME_ONLY
+
 from . import backend
 from . import pipeline
 from . import transform
 from . import schedule
 from .schedule import StmtSRef, SBlockScope, ScheduleState, Schedule, ScheduleError, Trace
 from .block_dependence_info import SBlockDependenceInfo
-from . import meta_schedule
+
+if not _RUNTIME_ONLY:
+    from . import meta_schedule
+    from . import dlight

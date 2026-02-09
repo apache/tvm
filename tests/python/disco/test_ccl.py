@@ -24,7 +24,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import dlight as dl
+from tvm.s_tir import dlight as dl
 from tvm import get_global_func
 from tvm import relax as rx
 from tvm.runtime import disco as di

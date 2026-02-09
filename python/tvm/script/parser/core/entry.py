@@ -19,7 +19,6 @@ import inspect
 from typing import Any, Dict, Union
 
 import tvm
-from tvm.relax import ExternFunc
 from ....ir.module import IRModule
 from ...ir_builder import IRBuilder
 from . import doc
@@ -36,6 +35,7 @@ WELL_FORMED_ERROR_MESSAGE = (
 
 
 def _default_globals() -> Dict[str, Any]:
+    # lazy import here to avoid circular deps
     from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
     from tvm.script.parser import relax  # pylint: disable=import-outside-toplevel
     from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
@@ -169,7 +169,7 @@ def _attach_pyfuncs_to_irmodule(irmodule, all_pyfuncs):
         irmodule.pyfuncs = {}
 
     for global_var, func in irmodule.functions_items():
-        if not isinstance(func, ExternFunc):
+        if not isinstance(func, tvm.relax.ExternFunc):
             continue
         if not func.attrs.get("is_pyfunc", False):
             continue

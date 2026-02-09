@@ -32,7 +32,7 @@ import tvm
 from tvm import relax
 from tvm.script import tir as T
 
-from tvm.dlight.benchmark import benchmark_prim_func
+from tvm.s_tir.dlight.benchmark import benchmark_prim_func
 
 MODEL_NAME = "{model_name}"
 RELAX_FUNC_NAME = "{relax_func_name}"

@@ -21,7 +21,7 @@ import torch
 
 import tvm
 import tvm.testing
-from tvm import dlight as dl
+from tvm.s_tir import dlight as dl
 from tvm import relax
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,

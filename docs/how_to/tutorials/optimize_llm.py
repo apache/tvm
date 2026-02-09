@@ -63,7 +63,8 @@ from pprint import pprint
 from typing import List, Optional
 
 import tvm
-from tvm import dlight, relax, te, tir
+from tvm import relax, te, tir
+from tvm.s_tir import dlight
 from tvm.relax import register_pipeline
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op

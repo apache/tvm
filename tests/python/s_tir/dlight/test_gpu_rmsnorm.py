@@ -18,7 +18,7 @@
 import tvm.testing
 
 from tvm.ir import IRModule, assert_structural_equal
-from tvm import dlight as dl
+from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
 from tvm.target import Target
 from tvm.script import tir as T

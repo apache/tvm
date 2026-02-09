@@ -87,7 +87,7 @@ TAG_DICT = {
     "unity": "Relax",
     "transform": "Relax",
     "kvcache": "Relax",
-    "dlight": "Dlight",
+    "s_tir": "S-TIR",
     "disco": "Disco",
     "tvmscript": "TVMScript",
     "tvmscripts": "TVMScript",

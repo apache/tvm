@@ -23,7 +23,7 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import dlight as dl
+from tvm.s_tir import dlight as dl
 from tvm import relax as rx
 from tvm_ffi import register_global_func
 from tvm.contrib import tvmjs
