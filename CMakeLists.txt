@@ -759,7 +759,10 @@ if(TVM_IS_DEBUG_BUILD)
 endif()
 
 tvm_ffi_add_apple_dsymutil(tvm)
-tvm_ffi_add_apple_dsymutil(tvm_runtime)
+# Only run dsymutil on shared libraries, not static libraries
+if(NOT BUILD_STATIC_RUNTIME)
+  tvm_ffi_add_apple_dsymutil(tvm_runtime)
+endif()
 
 if(BUILD_FOR_HEXAGON)
   # Wrap pthread_create to allow setting custom stack size.
