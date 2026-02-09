@@ -21,8 +21,8 @@
  * \file remove_no_op.h
  * \brief Helper functions to construct and compose IR nodes.
  */
-#ifndef TVM_TIR_TRANSFORMS_REMOVE_NO_OP_H_
-#define TVM_TIR_TRANSFORMS_REMOVE_NO_OP_H_
+#ifndef TVM_TIR_TRANSFORM_REMOVE_NO_OP_H_
+#define TVM_TIR_TRANSFORM_REMOVE_NO_OP_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/stmt.h>
@@ -57,4 +57,4 @@ Stmt RemoveNoOp(Stmt stmt, arith::Analyzer* analyzer,
 
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORMS_REMOVE_NO_OP_H_
+#endif  // TVM_TIR_TRANSFORM_REMOVE_NO_OP_H_

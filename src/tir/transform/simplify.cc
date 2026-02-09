@@ -22,7 +22,7 @@
  * \brief Statement simplifier based on analyzer
  */
 
-#include "../../tir/transforms/simplify.h"
+#include "../../tir/transform/simplify.h"
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
