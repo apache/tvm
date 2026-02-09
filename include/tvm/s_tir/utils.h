@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_TIR_UTILS_H_
-#define TVM_TIR_UTILS_H_
+#ifndef TVM_S_TIR_UTILS_H_
+#define TVM_S_TIR_UTILS_H_
 
-#include <tvm/tir/block_scope.h>
+#include <tvm/s_tir/sblock_scope.h>
 #include <tvm/tir/stmt.h>
 
 #include <unordered_map>
@@ -138,4 +138,4 @@ inline void SetSeqIndexInChildren(
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_UTILS_H_
+#endif  // TVM_S_TIR_UTILS_H_

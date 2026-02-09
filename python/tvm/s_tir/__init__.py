@@ -28,8 +28,10 @@ from . import pipeline
 from . import transform
 from . import schedule
 from .schedule import StmtSRef, SBlockScope, ScheduleState, Schedule, ScheduleError, Trace
-from .block_dependence_info import SBlockDependenceInfo
+from .sblock_dependence_info import SBlockDependenceInfo
+from .data_layout import Layout, BijectiveLayout, bijective_layout, layout
 
 if not _RUNTIME_ONLY:
+    from . import analysis
     from . import meta_schedule
     from . import dlight

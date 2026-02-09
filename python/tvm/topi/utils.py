@@ -23,7 +23,8 @@ from numbers import Integral
 import numpy as np
 import tvm
 from tvm import te
-from tvm.tir import SizeVar, bijective_layout, layout
+from tvm.tir import SizeVar
+from tvm.s_tir import bijective_layout, layout
 
 from . import cpp, tag
 

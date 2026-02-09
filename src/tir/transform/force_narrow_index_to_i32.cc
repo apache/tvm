@@ -24,9 +24,10 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
+
+#include "../ir/data_type_rewriter.h"
 
 namespace tvm {
 namespace tir {

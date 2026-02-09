@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/tir/data_type_rewriter.h>
 
 #include <functional>
 
+#include "../../../tir/ir/data_type_rewriter.h"
 #include "../../../tir/transform/simplify.h"
 #include "../ir_comparator.h"
 #include "../utils.h"

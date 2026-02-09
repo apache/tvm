@@ -20,7 +20,7 @@ import logging
 import math
 from typing import Optional
 
-from tvm import te, tir, topi
+from tvm import s_tir, te, tir, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
@@ -42,8 +42,8 @@ def _nn_conv1d(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     if call.attrs.groups != 1:
-        data_layout = tir.layout(call.attrs.data_layout)
-        kernel_layout = tir.layout(call.attrs.kernel_layout)
+        data_layout = s_tir.layout(call.attrs.data_layout)
+        kernel_layout = s_tir.layout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
@@ -83,8 +83,8 @@ def _nn_conv2d(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     if call.attrs.groups != 1:
-        data_layout = tir.layout(call.attrs.data_layout)
-        kernel_layout = tir.layout(call.attrs.kernel_layout)
+        data_layout = s_tir.layout(call.attrs.data_layout)
+        kernel_layout = s_tir.layout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
@@ -124,8 +124,8 @@ def _nn_conv3d(bb: BlockBuilder, call: Call) -> Expr:
         )
         return call
     if call.attrs.groups != 1:
-        data_layout = tir.layout(call.attrs.data_layout)
-        kernel_layout = tir.layout(call.attrs.kernel_layout)
+        data_layout = s_tir.layout(call.attrs.data_layout)
+        kernel_layout = s_tir.layout(call.attrs.kernel_layout)
         ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
         oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tir.IntImm) or not isinstance(oc, tir.IntImm):
@@ -407,7 +407,7 @@ def _nn_adaptive_avg_pool1d(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_adaptive_avg_pool1d(data, output_size, layout_str):
         if output_size is None:
-            layout = tir.layout(layout_str)
+            layout = s_tir.layout(layout_str)
             idx_W = layout.index_of("W")
             assert idx_W != -1
             output_size = data.shape[idx_W]
@@ -434,7 +434,7 @@ def _nn_adaptive_avg_pool2d(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_adaptive_avg_pool2d(data, output_size, layout_str):
         if output_size is None:
-            layout = tir.layout(layout_str)
+            layout = s_tir.layout(layout_str)
             idx_H = layout.index_of("H")
             idx_W = layout.index_of("W")
             assert idx_H != -1 and idx_W != -1
@@ -462,7 +462,7 @@ def _nn_adaptive_avg_pool3d(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_adaptive_avg_pool3d(data, output_size, layout_str):
         if output_size is None:
-            layout = tir.layout(layout_str)
+            layout = s_tir.layout(layout_str)
             idx_D = layout.index_of("D")
             idx_H = layout.index_of("H")
             idx_W = layout.index_of("W")

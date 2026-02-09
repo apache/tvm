@@ -17,13 +17,13 @@
  * under the License.
  */
 /*!
- * \file tvm/tir/block_scope.h
+ * \file tvm/s_tir/sblock_scope.h
  * \brief Definition of two pillar data structure for TensorIR scheduling: StmtSRef, SBlockScope.
  * \sa StmtSRefNode
  * \sa SBlockScopeNode
  */
-#ifndef TVM_TIR_BLOCK_SCOPE_H_
-#define TVM_TIR_BLOCK_SCOPE_H_
+#ifndef TVM_S_TIR_SBLOCK_SCOPE_H_
+#define TVM_S_TIR_SBLOCK_SCOPE_H_
 
 #include <tvm/ir/module.h>
 #include <tvm/tir/function.h>
@@ -73,7 +73,7 @@ class StmtSRefNode : public Object {
   }
 
   static constexpr const bool _type_mutable = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.StmtSRef", StmtSRefNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.StmtSRef", StmtSRefNode, Object);
 
   /*! \brief Reset the object inplace to the invalid state */
   void Reset() {
@@ -223,7 +223,7 @@ class DependencyNode : public Object {
         .def_ro("dst", &DependencyNode::dst)
         .def_ro("kind", &DependencyNode::kind);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.Dependency", DependencyNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.Dependency", DependencyNode, Object);
 };
 
 /*!
@@ -267,7 +267,7 @@ class SBlockScopeNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SBlockScopeNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SBlockScope", SBlockScopeNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockScope", SBlockScopeNode, Object);
 
  public:
   /******** Dependency ********/
@@ -314,4 +314,4 @@ class SBlockScope : public ObjectRef {
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_BLOCK_SCOPE_H_
+#endif  // TVM_S_TIR_SBLOCK_SCOPE_H_

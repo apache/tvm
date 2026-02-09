@@ -29,7 +29,6 @@
 #define NPY_MAXARGS 16
 
 #include <tvm/te/operation.h>
-#include <tvm/tir/data_layout.h>
 #include <tvm/topi/detail/constant_utils.h>
 #include <tvm/topi/detail/ravel_unravel.h>
 #include <tvm/topi/detail/tensor_utils.h>

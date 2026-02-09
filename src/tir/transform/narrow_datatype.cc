@@ -25,12 +25,12 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/builtin.h>
-#include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../arith/ir_visitor_with_analyzer.h"
+#include "../ir/data_type_rewriter.h"
 
 namespace tvm {
 namespace tir {

@@ -26,7 +26,7 @@ from tvm.ir import IRModule
 from tvm.script import tir as T
 from tvm.tir import PrimFunc
 from tvm.s_tir import SBlockDependenceInfo
-from tvm.s_tir.block_scope import DepKind
+from tvm.s_tir.sblock_scope import DepKind
 from tvm.tir.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable

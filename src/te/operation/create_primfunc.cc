@@ -25,7 +25,6 @@
 #include <tvm/ir/name_supply.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/analysis.h>
-#include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -37,6 +36,7 @@
 #include <vector>
 
 #include "../../support/array.h"
+#include "../../tir/ir/data_type_rewriter.h"
 #include "../../tir/ir/functor_common.h"
 #include "../../tir/transform/ir_utils.h"
 #include "graph.h"

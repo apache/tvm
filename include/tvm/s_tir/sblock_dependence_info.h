@@ -17,10 +17,10 @@
  * under the License.
  */
 /*!
- * \file tvm/tir/block_dependence_info.h
- * \brief Define BlockDependenceInfoNode that uses the SBlockScope and StmtSRef objects to
+ * \file tvm/s_tir/sblock_dependence_info.h
+ * \brief Define SBlockDependenceInfoNode that uses the SBlockScope and StmtSRef objects to
  * store the block level dependences
- * \sa BlockDependenceInfoNode
+ * \sa SBlockDependenceInfoNode
  */
 
 /**
@@ -28,11 +28,11 @@
  * analysis
  */
 
-#ifndef TVM_TIR_BLOCK_DEPENDENCE_INFO_H_
-#define TVM_TIR_BLOCK_DEPENDENCE_INFO_H_
+#ifndef TVM_S_TIR_SBLOCK_DEPENDENCE_INFO_H_
+#define TVM_S_TIR_SBLOCK_DEPENDENCE_INFO_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/block_scope.h>
+#include <tvm/s_tir/sblock_scope.h>
 
 #include <unordered_map>
 
@@ -51,7 +51,7 @@ namespace tir {
  * dependences. This provides the advantage that the scope block (parent block) for a given block
  * sref can be directly accessed using the sref->parent member
  */
-class BlockDependenceInfoNode : public Object {
+class SBlockDependenceInfoNode : public Object {
  public:
   /*!
    * \brief Mapping from a block sref to its corresponding SBlockScope,
@@ -63,9 +63,9 @@ class BlockDependenceInfoNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BlockDependenceInfoNode>();
+    refl::ObjectDef<SBlockDependenceInfoNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.SBlockDependenceInfo", BlockDependenceInfoNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.SBlockDependenceInfo", SBlockDependenceInfoNode, Object);
 
   /*!
    * \brief Get the SBlockScope corresponding to the sref of scope root block
@@ -82,23 +82,23 @@ class BlockDependenceInfoNode : public Object {
 };
 
 /*!
- * \brief Managed reference to BlockDependenceInfoNode
- * \sa BlockDependenceInfo
+ * \brief Managed reference to SBlockDependenceInfoNode
+ * \sa SBlockDependenceInfo
  */
-class BlockDependenceInfo : public ObjectRef {
-  /*! \brief Construct an empty BlockDependenceInfo
+class SBlockDependenceInfo : public ObjectRef {
+  /*! \brief Construct an empty SBlockDependenceInfo
    */
-  TVM_DLL BlockDependenceInfo();
+  TVM_DLL SBlockDependenceInfo();
 
  public:
-  /*! \brief Construct a BlockDependenceInfo from IRModule
+  /*! \brief Construct a SBlockDependenceInfo from IRModule
    */
-  TVM_DLL BlockDependenceInfo(IRModule mod);
+  TVM_DLL SBlockDependenceInfo(IRModule mod);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BlockDependenceInfo, ObjectRef,
-                                                BlockDependenceInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockDependenceInfo, ObjectRef,
+                                                SBlockDependenceInfoNode);
 };
 
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_BLOCK_DEPENDENCE_INFO_H_
+#endif  // TVM_S_TIR_SBLOCK_DEPENDENCE_INFO_H_
