@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file tvm/node/structural_equal.h
+ * \file tvm/node/structural_hash.h
  * \brief Structural hash class.
  */
 #ifndef TVM_NODE_STRUCTURAL_HASH_H_

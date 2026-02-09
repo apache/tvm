@@ -188,7 +188,7 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     See Also
     --------
     structural_hash
-    assert_strucural_equal
+    assert_structural_equal
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
@@ -289,7 +289,7 @@ def structural_hash(node, map_free_vars=False):
 
     See Also
     --------
-    structrual_equal
+    structural_equal
     """
     return _ffi_node_api.StructuralHash(node, map_free_vars)  # type: ignore # pylint: disable=no-member
 
