@@ -30,7 +30,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include "../../tir/ir/functor_common.h"
-#include "../../tir/transforms/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {

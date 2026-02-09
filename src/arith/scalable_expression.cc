@@ -30,7 +30,7 @@
 #include <vector>
 
 #include "../tir/analysis/check_contains.h"
-#include "../tir/transforms/replace_selected_expr.h"
+#include "../tir/transform/replace_selected_expr.h"
 #include "./pattern_match.h"
 
 namespace tvm {

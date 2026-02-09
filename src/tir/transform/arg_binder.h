@@ -21,8 +21,8 @@
  * \file arg_binder.h
  * \brief Helper utility to match and bind arguments.
  */
-#ifndef TVM_TIR_TRANSFORMS_ARG_BINDER_H_
-#define TVM_TIR_TRANSFORMS_ARG_BINDER_H_
+#ifndef TVM_TIR_TRANSFORM_ARG_BINDER_H_
+#define TVM_TIR_TRANSFORM_ARG_BINDER_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/buffer.h>
@@ -166,4 +166,4 @@ class ArgBinder {
 };
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORMS_ARG_BINDER_H_
+#endif  // TVM_TIR_TRANSFORM_ARG_BINDER_H_

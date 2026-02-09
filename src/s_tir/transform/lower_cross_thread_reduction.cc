@@ -28,7 +28,7 @@
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"
-#include "../../tir/transforms/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 #include "../schedule/analysis.h"
 
 namespace tvm {

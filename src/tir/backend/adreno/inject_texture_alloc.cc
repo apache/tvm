@@ -28,7 +28,7 @@
 
 #include "../../../arith/ir_mutator_with_analyzer.h"
 #include "../../../runtime/texture.h"
-#include "../../transforms/ir_utils.h"
+#include "../../transform/ir_utils.h"
 
 namespace tvm {
 namespace tir {

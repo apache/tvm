@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../../../tir/transforms/ir_utils.h"
+#include "../../../tir/transform/ir_utils.h"
 #include "../utils.h"
 
 namespace tvm {

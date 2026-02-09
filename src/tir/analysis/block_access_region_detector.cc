@@ -29,7 +29,7 @@
 
 #include <unordered_map>
 
-#include "../transforms/ir_utils.h"
+#include "../transform/ir_utils.h"
 namespace tvm {
 namespace tir {
 

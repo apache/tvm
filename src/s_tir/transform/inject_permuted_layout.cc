@@ -31,7 +31,7 @@
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/utils.h"
-#include "../../tir/transforms/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {

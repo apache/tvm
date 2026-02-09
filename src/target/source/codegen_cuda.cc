@@ -33,7 +33,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../tir/transforms/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 #include "literal/cuda_half_t.h"
 #include "literal/cuda_int8_t.h"
 #include "ptx.h"

@@ -21,8 +21,8 @@
  * \file storage_access.h
  * \brief Common data structure for storage access analysis.
  */
-#ifndef TVM_TIR_TRANSFORMS_STORAGE_ACCESS_H_
-#define TVM_TIR_TRANSFORMS_STORAGE_ACCESS_H_
+#ifndef TVM_TIR_TRANSFORM_STORAGE_ACCESS_H_
+#define TVM_TIR_TRANSFORM_STORAGE_ACCESS_H_
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ir/attrs.h>
@@ -142,4 +142,4 @@ class StorageAccessVisitor : public StmtExprVisitor {
 };
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORMS_STORAGE_ACCESS_H_
+#endif  // TVM_TIR_TRANSFORM_STORAGE_ACCESS_H_

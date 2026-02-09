@@ -24,8 +24,8 @@
            with a predicate by another expression.
  */
 
-#ifndef TVM_TIR_TRANSFORMS_REPLACE_SELECTED_EXPR_H_
-#define TVM_TIR_TRANSFORMS_REPLACE_SELECTED_EXPR_H_
+#ifndef TVM_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_
+#define TVM_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
@@ -72,4 +72,4 @@ class ReplaceSelectedExpr : public StmtExprMutator {
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_TRANSFORMS_REPLACE_SELECTED_EXPR_H_
+#endif  // TVM_TIR_TRANSFORM_REPLACE_SELECTED_EXPR_H_

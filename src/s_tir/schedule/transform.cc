@@ -19,7 +19,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 
-#include "../../tir/transforms/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 #include "./utils.h"
 
 namespace tvm {

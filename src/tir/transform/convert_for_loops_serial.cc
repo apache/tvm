@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tir/transforms/convert_for_loops_serial.cc
+ * \file tir/transform/convert_for_loops_serial.cc
  * \brief Convert all for loops to serial for lesser memory consumption
  */
 #include <tvm/arith/analyzer.h>

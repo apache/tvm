@@ -20,7 +20,7 @@
 
 #include <functional>
 
-#include "../../../tir/transforms/simplify.h"
+#include "../../../tir/transform/simplify.h"
 #include "../ir_comparator.h"
 #include "../utils.h"
 

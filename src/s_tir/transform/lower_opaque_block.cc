@@ -25,7 +25,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../../tir/transforms/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 
 namespace tvm {
 namespace s_tir {

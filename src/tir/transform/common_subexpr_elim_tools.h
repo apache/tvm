@@ -23,8 +23,8 @@
            by the Common Subexpression Elimination (CSE) pass.
  */
 
-#ifndef TVM_TIR_TRANSFORMS_COMMON_SUBEXPR_ELIM_TOOLS_H_
-#define TVM_TIR_TRANSFORMS_COMMON_SUBEXPR_ELIM_TOOLS_H_
+#ifndef TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_TOOLS_H_
+#define TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_TOOLS_H_
 
 #include <tvm/ffi/string.h>
 #include <tvm/tir/analysis.h>  // For the ExprDeepEqual analysis
@@ -220,4 +220,4 @@ void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, si
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_TRANSFORMS_COMMON_SUBEXPR_ELIM_TOOLS_H_
+#endif  // TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_TOOLS_H_

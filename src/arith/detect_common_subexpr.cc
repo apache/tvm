@@ -26,7 +26,7 @@
 
 #include <limits>
 
-#include "../tir/transforms/common_subexpr_elim_tools.h"
+#include "../tir/transform/common_subexpr_elim_tools.h"
 
 namespace tvm {
 namespace arith {

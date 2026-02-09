@@ -25,8 +25,8 @@
            places where the expression was used are replaced with the freshly introduced variable.
  */
 
-#ifndef TVM_TIR_TRANSFORMS_COMMON_SUBEXPR_ELIM_H_
-#define TVM_TIR_TRANSFORMS_COMMON_SUBEXPR_ELIM_H_
+#ifndef TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_H_
+#define TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_H_
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
@@ -91,4 +91,4 @@ class CommonSubexpressionEliminator : public StmtExprMutator {
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_TRANSFORMS_COMMON_SUBEXPR_ELIM_H_
+#endif  // TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_H_
