@@ -671,10 +671,10 @@ class HoistedLetBindings(enum.Flag):
     """ Bindings that are used by a hoisted conditional """
 
     LetStmt = 2
-    """ Bindings occuring in LetStmt """
+    """ Bindings occurring in LetStmt """
 
     LetExpr = 4
-    """ Bindings occuring in Let expressions """
+    """ Bindings occurring in Let expressions """
 
     All = RequiredByConditional | LetStmt | LetExpr
     """ Enable all hoisting of let bindings """
