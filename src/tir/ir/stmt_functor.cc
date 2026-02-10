@@ -22,12 +22,12 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <functional>
 
+#include "data_type_rewriter.h"
 #include "functor_common.h"
 
 namespace tvm {
