@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir
+from tvm import s_tir
 from tvm.script import tir as T
 
 
@@ -110,7 +110,7 @@ def test_buffer_load_store():
     func = buffer_load_store_func
     A, B = [func.buffer_map[x] for x in func.params]
     C, D = func.body.block.alloc_buffers
-    lca = tir.analysis.detect_buffer_access_lca(func)
+    lca = s_tir.analysis.detect_buffer_access_lca(func)
 
     # LCA of Buffer A is root
     root_block = func.body.block
@@ -133,7 +133,7 @@ def test_buffer_load_store():
 def test_opaque_access():
     func = buffer_opaque_access
     B, C = [func.buffer_map[x] for x in func.params]
-    lca = tir.analysis.detect_buffer_access_lca(func)
+    lca = s_tir.analysis.detect_buffer_access_lca(func)
 
     # Cannot detect buffer A since it is define by low-level Allocate
 
@@ -148,14 +148,14 @@ def test_opaque_access():
 def test_lca_func_root():
     func = lca_is_func_root
     (A,) = [func.buffer_map[x] for x in func.params]
-    lca = tir.analysis.detect_buffer_access_lca(func)
+    lca = s_tir.analysis.detect_buffer_access_lca(func)
     assert lca[A] is None
 
 
 def test_match_buffer():
     func = match_buffer_func
     A, B = [func.buffer_map[x] for x in func.params]
-    lca = tir.analysis.detect_buffer_access_lca(func)
+    lca = s_tir.analysis.detect_buffer_access_lca(func)
 
     root_block = func.body.block
     block = root_block.body.body.body.block
@@ -171,7 +171,7 @@ def test_match_buffer():
 def test_global_buffer_with_blockidx():
     func = global_buffer_with_blockidx
     A, B = [func.buffer_map[x] for x in func.params]
-    lca = tir.analysis.detect_buffer_access_lca(func)
+    lca = s_tir.analysis.detect_buffer_access_lca(func)
 
     root_block = func.body.block
     blockidx_loop = root_block.body

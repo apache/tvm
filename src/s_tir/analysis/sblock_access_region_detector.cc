@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file tir/analysis/block_region_detector.cc
- * \brief Detect block read/write regions by visiting its body
+ * \file s_tir/analysis/sblock_access_region_detector.cc
+ * \brief Detect sblock read/write regions by visiting its body
  */
 
 #include <tvm/arith/analyzer.h>
@@ -29,7 +29,7 @@
 
 #include <unordered_map>
 
-#include "../transform/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 namespace tvm {
 namespace tir {
 
@@ -414,8 +414,8 @@ ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tir.analysis.GetSBlockAccessRegion", GetSBlockAccessRegion)
-      .def("tir.analysis.GetSBlockReadWriteRegion", GetSBlockReadWriteRegion);
+      .def("s_tir.analysis.GetSBlockAccessRegion", GetSBlockAccessRegion)
+      .def("s_tir.analysis.GetSBlockReadWriteRegion", GetSBlockReadWriteRegion);
 }
 
 }  // namespace tir

@@ -25,7 +25,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/tir/block_scope.h>
+#include <tvm/s_tir/sblock_scope.h>
 #include <tvm/tir/function.h>
 
 #include <unordered_map>
