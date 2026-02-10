@@ -35,10 +35,10 @@ endif()
 
 ExternalProject_Add(project_libbacktrace
   PREFIX libbacktrace
-  SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/libbacktrace
-  BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace
+  SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/libbacktrace"
+  BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace"
   CONFIGURE_COMMAND "${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/libbacktrace/configure"
-                    "--prefix=${CMAKE_CURRENT_BINARY_DIR}/libbacktrace"
+                    "--prefix=\"${CMAKE_CURRENT_BINARY_DIR}/libbacktrace\""
                     --with-pic
                     "CC=${c_compiler}"
                     "CFLAGS=${CMAKE_C_FLAGS}"
@@ -63,4 +63,4 @@ ExternalProject_Add_Step(project_libbacktrace checkout
 )
 
 # create include directory so cmake doesn't complain
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include)
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include")
