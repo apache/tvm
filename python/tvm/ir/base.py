@@ -260,7 +260,7 @@ def structural_hash(node, map_free_vars=False):
 
     - Normal node: the hash value is defined by its content and type only.
     - Graph node: each graph node will be assigned a unique index ordered by the
-      first occurence during the visit. The hash value of a graph node is
+      first occurrence during the visit. The hash value of a graph node is
       combined from the hash values of its contents and the index.
 
     structural_hash is made to be concistent with structural_equal.

@@ -50,7 +50,7 @@ def call_packed_lowered(*args, span=None):
     The argument to packed function can be Expr or Buffer.
     The argument is the corresponding POD type when Expr is presented.
     When the argument is Buffer, the corresponding PackedFunc
-    will recieve an TVMArrayHandle whose content is valid during the callback period.
+    will receive an TVMArrayHandle whose content is valid during the callback period.
     If the PackedFunc is a python callback, then the corresponding argument is Tensor.
 
     Parameters
