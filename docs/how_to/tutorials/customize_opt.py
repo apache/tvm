@@ -1,4 +1,4 @@
-﻿# Licensed to the Apache Software Foundation (ASF) under one
+# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -103,24 +103,7 @@ mod.show()
 
 
 # Import cublas pattern
-try:
-    try:
-    import tvm.relax.backend.cuda.cublas as _cublas
-except ImportError as e:
-    raise ImportError(
-        "This tutorial requires TVM built with CUDA support.\n"
-        "If you hit missing 'tvm_ffi', try: pip install apache-tvm-ffi\n"
-        "Otherwise build TVM with CUDA enabled:\n"
-        "  https://tvm.apache.org/docs/install/from_source.html\n"
-        f"Original error: {e}"
-    ) from e
-except ImportError as e:
-    raise ImportError(
-        "This tutorial requires TVM built with CUDA support.\n"
-        "Otherwise build TVM with CUDA enabled:\n"
-        "  https://tvm.apache.org/docs/install/from_source.html\n"
-        f"Original error: {e}"
-    ) from e
+import tvm.relax.backend.cuda.cublas as _cublas
 
 
 # Define a new pass for CUBLAS dispatch
@@ -240,6 +223,3 @@ print(gpu_out)
 # of the computation graph. The flexibility of the optimization pipeline enables us to quickly
 # iterate the optimization and improve the performance of the model.
 #
-
-
-
