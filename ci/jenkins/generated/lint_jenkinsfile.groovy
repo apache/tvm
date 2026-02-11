@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-06-03T18:16:35.827692
+// Generated at 2026-02-09T16:32:44.083887
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -70,10 +70,8 @@ ci_gpu = ''
 ci_cpu = ''
 ci_minimal = ''
 ci_wasm = ''
-ci_i386 = ''
 ci_cortexm = ''
 ci_arm = ''
-ci_hexagon = ''
 ci_riscv = ''
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -84,8 +82,6 @@ properties([
     string(name: 'ci_arm_param', defaultValue: ''),
     string(name: 'ci_cpu_param', defaultValue: ''),
     string(name: 'ci_gpu_param', defaultValue: ''),
-    string(name: 'ci_hexagon_param', defaultValue: ''),
-    string(name: 'ci_i386_param', defaultValue: ''),
     string(name: 'ci_lint_param', defaultValue: ''),
     string(name: 'ci_wasm_param', defaultValue: ''),
   ])
@@ -96,8 +92,6 @@ properties([
   built_ci_arm = null;
   built_ci_cpu = null;
   built_ci_gpu = null;
-  built_ci_hexagon = null;
-  built_ci_i386 = null;
   built_ci_lint = null;
   built_ci_wasm = null;
 
@@ -368,7 +362,7 @@ def prepare(node_type) {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_hexagon ci_i386 ci_lint ci_wasm ",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_lint ci_wasm ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
@@ -387,16 +381,6 @@ def prepare(node_type) {
             label: "Find docker image name for ci_gpu",
             returnStdout: true,
           ).trim()
-          ci_hexagon = sh(
-            script: "cat .docker-image-names/ci_hexagon",
-            label: "Find docker image name for ci_hexagon",
-            returnStdout: true,
-          ).trim()
-          ci_i386 = sh(
-            script: "cat .docker-image-names/ci_i386",
-            label: "Find docker image name for ci_i386",
-            returnStdout: true,
-          ).trim()
           ci_lint = sh(
             script: "cat .docker-image-names/ci_lint",
             label: "Find docker image name for ci_lint",
@@ -412,8 +396,6 @@ def prepare(node_type) {
         ci_arm = params.ci_arm_param ?: ci_arm
         ci_cpu = params.ci_cpu_param ?: ci_cpu
         ci_gpu = params.ci_gpu_param ?: ci_gpu
-        ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
-        ci_i386 = params.ci_i386_param ?: ci_i386
         ci_lint = params.ci_lint_param ?: ci_lint
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
@@ -422,8 +404,6 @@ def prepare(node_type) {
           echo " ci_arm = ${ci_arm}"
           echo " ci_cpu = ${ci_cpu}"
           echo " ci_gpu = ${ci_gpu}"
-          echo " ci_hexagon = ${ci_hexagon}"
-          echo " ci_i386 = ${ci_i386}"
           echo " ci_lint = ${ci_lint}"
           echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')

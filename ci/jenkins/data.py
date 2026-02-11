@@ -62,14 +62,6 @@ docker_images = {
         "tag": "tlcpack/ci-gpu:20251130-061900-c429a2b1",
         "platform": "GPU",
     },
-    "ci_hexagon": {
-        "tag": "tlcpack/ci-hexagon:20251130-061900-c429a2b1",
-        "platform": "CPU",
-    },
-    "ci_i386": {
-        "tag": "tlcpack/ci-i386:20251130-061900-c429a2b1",
-        "platform": "CPU",
-    },
     "ci_lint": {
         "tag": "tlcpack/ci-lint:20251130-061900-c429a2b1",
         "platform": "CPU",
