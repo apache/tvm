@@ -323,7 +323,6 @@ fi
 if [[ ${COMMAND[@]+"${COMMAND[@]}"} = bash ]]; then
     INTERACTIVE=true
     TTY=true
-    USE_NET_HOST=true
 fi
 
 
