@@ -109,7 +109,7 @@ i, j, k = sch.get_loops(block_Y)
 ######################################################################
 # We now proceed to execute the transformations. The initial modification involves
 # splitting loop ``j`` into two separate loops, with the inner loop possessing a
-# length of 4. It is crucial to understand that the transformation process is procedural;
+# length of 8. It is crucial to understand that the transformation process is procedural;
 # thus, inadvertent execution of the block twice will yield an error stating the
 # non-existence of variable ``j``.
 
@@ -122,7 +122,7 @@ sch.mod.show()
 
 ######################################################################
 # Following the initial transformation phase, two supplementary loops, ``j_0`` and ``j_1``,
-# have been generated with respective ranges of 32 and 4. The subsequent
+# have been generated with respective ranges of 16 and 8. The subsequent
 # action involves reordering these two loops.
 
 sch.reorder(j0, k, j1)
