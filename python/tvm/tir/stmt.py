@@ -31,7 +31,7 @@ from typing import List, Mapping, Optional, Union
 
 import tvm_ffi
 from tvm.ir import PrimExpr, Range, Span
-from tvm.runtime import Object, Scriptable, const, Tensor
+from tvm.runtime import Object, Scriptable, const
 
 from . import _ffi_api
 from .buffer import Buffer
@@ -354,68 +354,6 @@ class Allocate(Stmt):
             dtype,
             extents,
             condition,
-            body,
-            annotations,
-            span,
-        )
-
-
-@tvm_ffi.register_object("tir.AllocateConst")
-class AllocateConst(Stmt):
-    """Allocate constant node.
-
-    Parameters
-    ----------
-    buffer_var : Var
-        The buffer variable.
-
-    dtype : str
-        The data type of the buffer.
-
-    extents : list of Expr
-        The extents of the allocate
-
-    data_or_idx : Union[Tensor, int]
-        If an Tensor, this is the const data associated with the
-        constant.  If an integer, this is the index into the
-        "constants" attribute of the `IRModule` that contains the
-        `AllocateConst`.
-
-    body : Stmt
-        The body statement.
-
-    annotations : Optional[Mapping[str, Object]]
-        Additional annotations about the allocation.
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    buffer_var: Var
-    dtype: str
-    extents: List[PrimExpr]
-    data: Optional[Tensor]
-    irmod_storage_idx: Optional[int]
-    body: Stmt
-    annotations: Mapping[str, Object]
-    span: Optional[Span]
-
-    def __init__(
-        self,
-        buffer_var: Var,
-        dtype: str,
-        extents: List[PrimExpr],
-        data_or_idx: Union[Tensor, int],
-        body: Stmt,
-        annotations: Optional[Mapping[str, Object]] = None,
-        span: Optional[Span] = None,
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.AllocateConst,  # type: ignore
-            buffer_var,
-            dtype,
-            extents,
-            data_or_idx,
             body,
             annotations,
             span,

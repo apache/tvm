@@ -2769,73 +2769,6 @@ def test_opaque_block():
     assert len(root_block.body.body[1].block.iter_vars) == 0
 
 
-def module_const():
-    @tvm.script.ir_module
-    class Module4:
-        # There is an ongoing (python)dict->(c++)Map->(python)dict issue which potentially
-        # changes order of the items in dict after roundtrip due to map not support order
-        # of insertion while dict does. Hence func 'def A(a: T.handle, c: T.handle) -> None'
-        # is commented
-        #
-        #  test:
-        #  d = {"B": 1, "A": 2}
-        #  m = tvm.runtime.convert(d)
-        #  assert d.keys() == m.keys(), f"Order changed from {list(d.keys())} to {list(m.keys())}"
-
-        """
-        @T.prim_func
-        def A(a: T.handle, c: T.handle) -> None:
-            A = T.match_buffer(a, (10), "int32")
-            C = T.match_buffer(c, (10), "int32")
-            B = T.alloc_buffer((10), "int32")
-
-            K1 = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-            for x in T.serial(0, 10):
-                B[x] = A[x] + T.load("int32", K1, x)
-
-            for x in T.serial(0, 10):
-                C[x] = B[x]
-        """
-
-        @T.prim_func
-        def B(a: T.handle, c: T.handle) -> None:
-            A = T.match_buffer(a, (10), "int32")
-            C = T.match_buffer(c, (10), "int32")
-            B = T.alloc_buffer((10), "int32")
-
-            K1_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-            K1 = T.Buffer(shape=[10], dtype="int32", data=K1_data)
-            for x in T.serial(0, 10):
-                B[x] = A[x] + K1[x]
-
-            K2_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-            K2 = T.Buffer(shape=[10], dtype="int32", data=K2_data)
-            for x in T.serial(0, 10):
-                B[x] = B[x] + K2[x]
-
-            for x in T.serial(0, 10):
-                C[x] = B[x]
-
-    return Module4
-
-
-def constant():
-    @T.prim_func
-    def constant(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (10), "int32")
-        C = T.match_buffer(c, (10), "int32")
-        B = T.alloc_buffer((10), "int32")
-        K_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-        K = T.Buffer(shape=[10], dtype="int32", data=K_data)
-        for x in T.serial(0, 10):
-            B[x] = A[x] + K[x]
-
-        for x in T.serial(0, 10):
-            C[x] = B[x]
-
-    return constant
-
-
 def rank0():
     @T.prim_func
     def rank0(a: T.handle) -> None:
@@ -4180,8 +4113,6 @@ ir_generator = tvm.testing.parameter(
     opt_conv_tensorcore_mod_host,
     vthread_func,
     matmul,
-    module_const,
-    constant,
     rank0,
     rank0_block,
     select,

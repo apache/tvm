@@ -100,7 +100,6 @@ class RenewDefMutator : public StmtExprMutator {
  private:
   STMT_REGENERATE_VAR_DEF(LetStmtNode, var);
   STMT_REGENERATE_VAR_DEF(AllocateNode, buffer_var);
-  STMT_REGENERATE_VAR_DEF(AllocateConstNode, buffer_var);
   STMT_REGENERATE_VAR_DEF(ForNode, loop_var);
 
   Stmt VisitStmt_(const SBlockNode* op) final {

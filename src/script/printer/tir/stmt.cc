@@ -251,87 +251,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
         });
 
-template <typename T>
-ExprDoc PrintTensor(::tvm::runtime::Tensor arr) {
-  // FIXME(@junrushao): this is a hack and can be wrong in most of the cases
-  constexpr int NUM_PRINT = 200;
-  int ndim = arr->ndim;
-  int tot_dim = 1;
-  for (int i = 0; i < ndim; i++) {
-    tot_dim *= arr->shape[i];
-  }
-  ffi::Array<ExprDoc> result;
-  T* data_ptr = reinterpret_cast<T*>(arr->data);
-  runtime::DataType dtype = arr.DataType();
-  for (int i = 0; i < tot_dim; i++) {
-    if (dtype.is_float()) {
-      result.push_back(LiteralDoc::Float(data_ptr[i], std::nullopt));
-    } else {
-      result.push_back(LiteralDoc::Int(data_ptr[i], std::nullopt));
-    }
-    if (i == NUM_PRINT) {
-      break;
-    }
-  }
-  return ListDoc(result);
-}
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::AllocateConst>(
-        "", [](tir::AllocateConst stmt, AccessPath stmt_p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d, stmt);
-          ffi::String storage_scope = tir::GetPtrStorageScope(stmt->buffer_var);
-          ffi::Array<ExprDoc> args;
-          ffi::Array<ffi::String> kwargs_keys;
-          ffi::Array<ExprDoc> kwargs_values;
-          ExprDoc data_doc{ffi::UnsafeInit()};
-          if (stmt->dtype.is_int()) {
-            if (stmt->dtype.bits() == 8) {
-              data_doc = PrintTensor<int8_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 16) {
-              data_doc = PrintTensor<int16_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintTensor<int32_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintTensor<int64_t>(stmt->data.value());
-            } else {
-              LOG(FATAL) << "DataType not supported";
-            }
-          } else if (stmt->dtype.is_uint()) {
-            if (stmt->dtype.bits() == 8) {
-              data_doc = PrintTensor<uint8_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 16) {
-              data_doc = PrintTensor<uint16_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintTensor<uint32_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintTensor<uint64_t>(stmt->data.value());
-            } else {
-              LOG(FATAL) << "DataType not supported";
-            }
-          } else if (stmt->dtype.is_float()) {
-            if (stmt->dtype.bits() == 16) {
-              data_doc = PrintTensor<int16_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintTensor<float>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintTensor<double>(stmt->data.value());
-            } else {
-              LOG(FATAL) << "DataType not supported";
-            }
-          } else {
-            LOG(FATAL) << "DataType not supported";
-          }
-          args.push_back(data_doc);
-          args.push_back(LiteralDoc::DataType(stmt->dtype, stmt_p->Attr("dtype")));
-          args.push_back(d->AsDoc<ExprDoc>(stmt->extents, stmt_p->Attr("extents")));
-          ExprDoc rhs = TIR(d, "allocate_const")->Call(args, kwargs_keys, kwargs_values);
-          With<TIRFrame> f(d, stmt);
-          ExprDoc lhs = DefineVar(stmt->buffer_var, *f, d);
-          AsDocBody(stmt->body, stmt_p->Attr("body"), f->get(), d);
-          return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
-        });
-
 ExprDoc DocsifyBufferRealize(const tir::BufferRealizeNode* stmt, ffi::Optional<ExprDoc> value,  //
                              AccessPath p, IRDocsifier d) {
   ExprDoc buffer = d->AsDoc<ExprDoc>(stmt->buffer, p->Attr("buffer"));
@@ -451,7 +370,6 @@ TVM_SCRIPT_REPR(tir::AttrStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AssertStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::WhileNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AllocateNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::AllocateConstNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::DeclBufferNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::SeqStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::IfThenElseNode, ReprPrintTIR);

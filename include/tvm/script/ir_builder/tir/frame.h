@@ -527,59 +527,6 @@ class AllocateFrame : public TIRFrame {
 };
 
 /*!
- * \brief A frame represents the allocate constant.
- *
- * \sa AllocateConstFrame
- */
-class AllocateConstFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The data type of the buffer. */
-  DataType dtype;
-  /*! \brief The extents of the allocate. */
-  ffi::Array<PrimExpr> extents;
-  /*! \brief The data associated with the constant. */
-  tvm::runtime::Tensor data;
-  /*! \brief The buffer var */
-  tvm::tir::Var buffer_var;
-  /*! \brief Additional annotations about the allocation. */
-  ffi::Map<ffi::String, Any> annotations;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocateConstFrameNode>()
-        .def_ro("dtype", &AllocateConstFrameNode::dtype)
-        .def_ro("extents", &AllocateConstFrameNode::extents)
-        .def_ro("data", &AllocateConstFrameNode::data)
-        .def_ro("buffer_var", &AllocateConstFrameNode::buffer_var)
-        .def_ro("annotations", &AllocateConstFrameNode::annotations);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocateConstFrame",
-                                    AllocateConstFrameNode, TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to AllocateConstFrameNode.
- *
- * \sa AllocateConstFrameNode
- */
-class AllocateConstFrame : public TIRFrame {
- public:
-  explicit AllocateConstFrame(ObjectPtr<AllocateConstFrameNode> data)
-      : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocateConstFrame, TIRFrame,
-                                                AllocateConstFrameNode);
-};
-/*!
  * \brief A frame that represents attribute node.
  *
  * \sa AttrFrame

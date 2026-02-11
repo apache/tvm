@@ -232,12 +232,6 @@ void TIRVisitorWithPath::VisitStmt_(const AllocateNode* op, AccessPath path) {
   Visit(op->body, path->Attr("body"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const AllocateConstNode* op, AccessPath path) {
-  Visit(op->extents, path->Attr("extents"));
-  auto context = WithDef(op->buffer_var, path->Attr("buffer_var"));
-  Visit(op->body, path->Attr("body"));
-}
-
 void TIRVisitorWithPath::VisitStmt_(const DeclBufferNode* op, AccessPath path) {
   auto context = WithDef(op->buffer, path->Attr("buffer"));
   Visit(op->body, path->Attr("body"));

@@ -281,15 +281,10 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
   }
   if (const auto* block = sref->StmtAs<SBlockNode>()) {
     auto body = block->body;
-    // Peel off AllocateConst nodes at the beginning of the block body.
+    // Peel off DeclBuffer nodes at the beginning of the block body.
     std::vector<Stmt> allocs;
     while (true) {
-      if (auto opt = body.as<AllocateConst>()) {
-        auto alloc = opt.value();
-        body = alloc->body;
-        alloc.CopyOnWrite()->body = Evaluate(0);
-        allocs.push_back(alloc);
-      } else if (auto opt = body.as<DeclBuffer>()) {
+      if (auto opt = body.as<DeclBuffer>()) {
         auto decl_buffer = opt.value();
         body = decl_buffer->body;
         decl_buffer.CopyOnWrite()->body = Evaluate(0);
@@ -302,7 +297,7 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
     if (const auto* seq = body.as<SeqStmtNode>()) {
       ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block);
       auto new_seq = RemoveFromSeqStmt(ffi::GetRef<SeqStmt>(seq), ffi::GetRef<Stmt>(last_stmt));
-      // Re-attach AllocateConst nodes
+      // Re-attach DeclBuffer nodes
       auto new_body = MergeNest(allocs, new_seq);
       n->body = new_body;
       *src_stmt = ffi::GetRef<Stmt>(block);

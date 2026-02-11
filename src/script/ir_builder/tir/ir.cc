@@ -521,18 +521,6 @@ AllocateFrame Allocate(ffi::Array<PrimExpr> extents, DataType dtype, ffi::String
   return AllocateFrame(n);
 }
 
-AllocateConstFrame AllocateConst(tvm::runtime::Tensor data, DataType dtype,
-                                 ffi::Array<PrimExpr> extents,
-                                 ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {
-  ObjectPtr<AllocateConstFrameNode> n = ffi::make_object<AllocateConstFrameNode>();
-  n->dtype = dtype;
-  n->extents = extents;
-  n->data = data;
-  n->annotations = annotations.value_or(ffi::Map<ffi::String, Any>());
-  n->buffer_var = Var("", tvm::PointerType(tvm::PrimType(dtype)));
-  return AllocateConstFrame(n);
-}
-
 AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value) {
   // convert POD value to PrimExpr
   if (node.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
@@ -747,7 +735,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.LetStmt", LetStmt)
       .def("script.ir_builder.tir.LegacyLetStmt", LegacyLetStmt)
       .def("script.ir_builder.tir.Allocate", Allocate)
-      .def("script.ir_builder.tir.AllocateConst", AllocateConst)
       .def("script.ir_builder.tir.Realize", Realize)
       .def("script.ir_builder.tir.Attr", Attr)
       .def("script.ir_builder.tir.While", While)
