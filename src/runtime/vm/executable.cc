@@ -266,6 +266,8 @@ void VMExecutable::SaveMemoryScopeSection(dmlc::Stream* strm) const {
 }
 
 void VMExecutable::SaveConstantSection(dmlc::Stream* strm) const {
+  // NOTE: pay close attention to the explicit type in write here
+  // so the load/save is 32/64 bit compatible
   strm->Write(static_cast<uint64_t>(this->constants.size()));
   for (const auto& it : this->constants) {
     if (auto opt_nd = it.as<runtime::Tensor>()) {
@@ -274,23 +276,19 @@ void VMExecutable::SaveConstantSection(dmlc::Stream* strm) const {
     } else if (auto opt_shape = it.as<ffi::Shape>()) {
       ffi::Shape shape = opt_shape.value();
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIShape);
-      strm->Write(shape.size());
-      for (size_t i = 0; i < shape.size(); ++i) {
-        strm->Write(shape.at(i));
-      }
+      strm->Write<uint64_t>(shape.size());
+      strm->WriteArray<int64_t>(shape.data(), shape.size());
     } else if (auto opt_str = it.as<ffi::String>()) {
       ffi::String str = opt_str.value();
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIStr);
-      strm->Write(str.size());
-      for (size_t i = 0; i < str.size(); ++i) {
-        strm->Write(str.at(i));
-      }
+      strm->Write<uint64_t>(str.size());
+      strm->WriteArray<uint8_t>(reinterpret_cast<const uint8_t*>(str.data()), str.size());
     } else if (auto opt_int = it.as<int64_t>()) {
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIInt);
-      strm->Write(opt_int.value());
+      strm->Write<int64_t>(opt_int.value());
     } else if (auto opt_float = it.as<double>()) {
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIFloat);
-      strm->Write(opt_float.value());
+      strm->Write<double>(opt_float.value());
     } else if (auto opt_dtype = it.as<DLDataType>()) {
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIDataType);
       strm->Write(opt_dtype.value());
@@ -351,9 +349,7 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       uint64_t size;
       strm->Read(&size);
       std::vector<ffi::Shape::index_type> data(size);
-      for (size_t i = 0; i < size; ++i) {
-        strm->Read(&(data[i]));
-      }
+      strm->ReadArray(data.data(), size);
       ffi::Any cell;
       cell = ffi::Shape(data);
       this->constants.push_back(cell);
@@ -366,9 +362,8 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       uint64_t size;
       strm->Read(&size);
       std::vector<char> data(size);
-      for (size_t i = 0; i < size; ++i) {
-        strm->Read(&(data[i]));
-      }
+      STREAM_CHECK(strm->ReadArray(reinterpret_cast<uint8_t*>(data.data()), size),
+                   "constant string");
       ffi::Any cell;
       cell = ffi::String(std::string(data.begin(), data.end()));
       this->constants.push_back(cell);
