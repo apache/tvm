@@ -25,8 +25,8 @@ from tvm.script import tir as T, ir as I
 llvm_version = tvm.target.codegen.llvm_version_major()
 machine = platform.machine()
 
-if machine not in ["i386", "x86_64", "AMD64", "amd64"]:
-    pytest.skip(f"Requires x86_64/i386, but machine is {machine}", allow_module_level=True)
+if machine not in ["x86_64", "AMD64", "amd64"]:
+    pytest.skip(f"Requires x86_64, but machine is {machine}", allow_module_level=True)
 
 
 @tvm.testing.requires_llvm
