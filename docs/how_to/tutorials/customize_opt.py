@@ -103,7 +103,16 @@ mod.show()
 
 
 # Import cublas pattern
-import tvm.relax.backend.cuda.cublas as _cublas
+try:
+    import tvm.relax.backend.cuda.cublas as _cublas
+except ImportError as e:
+    raise ImportError(
+        "This tutorial requires TVM built with CUDA support.\n"
+        "If you hit missing 'tvm_ffi', try: pip install apache-tvm-ffi\n"
+        "Otherwise build TVM with CUDA enabled:\n"
+        "  https://tvm.apache.org/docs/install/from_source.html\n"
+        f"Original error: {e}"
+    ) from e
 
 
 # Define a new pass for CUBLAS dispatch
