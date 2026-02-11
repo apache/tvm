@@ -85,13 +85,10 @@ if __name__ == "__main__":
     available_cpus = nproc // executors
     num_cpus = max(available_cpus, 1)
 
-    if build_platform == "i386":
-        sh.run("cmake ..", cwd=build_dir)
+    if args.debug:
+        sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..", cwd=build_dir)
     else:
-        if args.debug:
-            sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..", cwd=build_dir)
-        else:
-            sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+        sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
 
     target = ""
     if args.cmake_target:
@@ -102,13 +99,7 @@ if __name__ == "__main__":
     if verbose:
         ninja_args.append("-v")
 
-    if build_platform == "i386":
-        if args.cmake_target:
-            sh.run(f"make {args.cmake_target} -j{num_cpus}", cwd=build_dir)
-        else:
-            sh.run(f"make -j{num_cpus}", cwd=build_dir)
-    else:
-        sh.run(f"cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
+    sh.run("cmake --build . -- " + " ".join(ninja_args), cwd=build_dir)
 
     if use_sccache:
         logging.info("===== sccache stats =====")

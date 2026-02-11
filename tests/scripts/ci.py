@@ -171,10 +171,8 @@ def docker(
         "ci_gpu",
         "ci_cpu",
         # "ci_wasm",
-        # "ci_i386",
         "ci_cortexm",
         "ci_arm",
-        "ci_hexagon",
         "ci_riscv",
         "ci_adreno",
     }
@@ -627,20 +625,6 @@ generated = [
                 "run unit tests",
                 [
                     "./tests/scripts/task_python_unittest.sh",
-                ],
-            ),
-        },
-    ),
-    generate_command(
-        name="i386",
-        help="Run i386 build and test(s)",
-        options={
-            "cpp": CPP_UNITTEST,
-            "integration": (
-                "run integration tests",
-                [
-                    "./tests/scripts/task_python_unittest.sh",
-                    "./tests/scripts/task_python_integration_i386only.sh",
                 ],
             ),
         },

@@ -55,14 +55,6 @@ def test_llvm_add_pipeline():
             endian = "<" if endian == 1 else ">"
             assert struct.unpack(endian + "h", arr[0x12:0x14])[0] == e_machine
 
-    def build_i386():
-        temp = utils.tempdir()
-        target = "llvm -mtriple=i386-pc-linux-gnu"
-        f = tvm.tir.build(AddModule, target=target)
-        path = temp.relpath("myadd.o")
-        f.write_to_file(path)
-        verify_elf(path, 0x03)
-
     def build_arm():
         target = "llvm -mtriple=armv7-none-linux-gnueabihf"
         if not tvm.runtime.enabled(target):
@@ -97,7 +89,6 @@ def test_llvm_add_pipeline():
             tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
             print("Verification finish on remote..")
 
-    build_i386()
     build_arm()
 
 
