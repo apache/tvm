@@ -60,8 +60,8 @@ class SBlockDependenceInfo(Object):
 
         Parameters
         ----------
-        stmt : Block
-            The block for which the sref is to be retrived
+        block : SBlock
+            The block for which the sref is to be retrieved
 
         Returns
         -------
@@ -80,7 +80,7 @@ class SBlockDependenceInfo(Object):
 
         Returns
         -------
-        scope : StmtSRef
+        scope : SBlockScope
             The corresponding SBlockScope
         """
         return _ffi_api.SBlockDependenceInfoGetSBlockScope(  # type: ignore # pylint: disable=no-member
