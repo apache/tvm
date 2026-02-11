@@ -21,5 +21,3 @@ export PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS"
 export TVM_RELAY_TEST_TARGETS="cuda;opencl"
 export TVM_INTEGRATION_TESTSUITE_NAME=python-integration-gpu
 export TVM_INTEGRATION_GPU_ONLY=1
-
-./tests/scripts/unity/task_python_relax.sh

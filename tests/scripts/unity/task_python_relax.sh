@@ -24,20 +24,3 @@ export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 # to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0
 export TVM_NUM_THREADS=2
-
-# setup tvm-ffi into python folder
-python3 -m pip install  -v --target=python ./3rdparty/tvm-ffi/
-
-# Run Relax tests
-TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/relax
-
-# Run Relax examples
-# python3 ./apps/relax_examples/mlp.py
-# python3 ./apps/relax_examples/nn_module.py
-# python3 ./apps/relax_examples/resnet.py
-
-# Test for MSC
-pytest tests/python/contrib/test_msc
-
-# Test for OpenCLML
-pytest tests/python/relax/backend/clml/

@@ -55,6 +55,7 @@ TEST_FILES=(
   "tir-base"
   "tir-transform"
   "tvmscript"
+  "relax"
 )
 
 for TEST_FILE in ${TEST_FILES[@]}; do

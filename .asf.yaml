@@ -58,7 +58,6 @@ github:
     main:
       required_status_checks:
         contexts:
-          - unity/pr-head
           - arm/pr-head
           - cpu/pr-head
           - docker/pr-head
