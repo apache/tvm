@@ -90,12 +90,10 @@ def commits_query(user: str, repo: str, cursor: str = None):
 EXPECTED_CI_JOBS = [
     "cross-isa-minimal/branch",
     "gpu/branch",
-    "hexagon/branch",
     "arm/branch",
     "cortexm/branch",
     "cpu/branch",
     "docker/branch",
-    "i386/branch",
     "lint/branch",
     "minimal/branch",
     "riscv/branch",
