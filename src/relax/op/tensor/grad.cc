@@ -141,15 +141,15 @@ TVM_REGISTER_OP("relax.grad.nll_loss_backward")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.grad.max_pool2d_backward */
-Expr max_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_size,
-                         ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-                         ffi::Array<IntImm> dilation, bool ceil_mode, bool count_include_pad,
+Expr max_pool2d_backward(Expr output_grad, Expr data, ffi::Array<int64_t> pool_size,
+                         ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+                         ffi::Array<int64_t> dilation, bool ceil_mode, bool count_include_pad,
                          ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   auto attrs = ffi::make_object<Pool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
-  attrs->strides = ConvertIntImmToInt64(strides);
-  attrs->padding = ConvertIntImmToInt64(padding);
-  attrs->dilation = ConvertIntImmToInt64(dilation);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->dilation = std::move(dilation);
   attrs->ceil_mode = ceil_mode;
   attrs->count_include_pad = count_include_pad;
   attrs->layout = layout;
@@ -176,15 +176,15 @@ TVM_REGISTER_OP("relax.grad.max_pool2d_backward")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.grad.avg_pool2d_backward */
-Expr avg_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_size,
-                         ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-                         ffi::Array<IntImm> dilation, bool ceil_mode, bool count_include_pad,
+Expr avg_pool2d_backward(Expr output_grad, Expr data, ffi::Array<int64_t> pool_size,
+                         ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+                         ffi::Array<int64_t> dilation, bool ceil_mode, bool count_include_pad,
                          ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   auto attrs = ffi::make_object<Pool2DAttrs>();
   attrs->pool_size = std::move(pool_size);
-  attrs->strides = ConvertIntImmToInt64(strides);
-  attrs->padding = ConvertIntImmToInt64(padding);
-  attrs->dilation = ConvertIntImmToInt64(dilation);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->dilation = std::move(dilation);
   attrs->ceil_mode = ceil_mode;
   attrs->count_include_pad = count_include_pad;
   attrs->layout = layout;

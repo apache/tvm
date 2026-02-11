@@ -656,8 +656,8 @@ class PrimArrPattern(DFPattern):
 
 @register_df_node
 class AttrPattern(DFPattern):
-    """Get match an expression with a certain attributes.
-    Currently only supports Op Attributes, not call Attributes.
+    """Match an expression with certain attributes.
+    Supports Op attributes, Call attributes, and Function attributes.
 
     Parameters
     ----------

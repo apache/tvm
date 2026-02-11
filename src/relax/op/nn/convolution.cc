@@ -41,8 +41,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /* relax.nn.conv1d */
 
-Expr conv1d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+Expr conv1d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+            ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
             ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
             ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding1D(std::move(padding));
@@ -125,15 +125,15 @@ StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
 
   PrimExpr input_w = data_NCW_shape[2];
   PrimExpr kernel_w = weight_OIW_shape[2];
-  PrimExpr padding_w = attrs->padding[0] + attrs->padding[1];
+  PrimExpr padding_w = Integer(attrs->padding[0]) + Integer(attrs->padding[1]);
 
   std::vector<PrimExpr> out_NCW_shape;
   out_NCW_shape.resize(3);
   out_NCW_shape[0] = data_NCW_shape[0];
   out_NCW_shape[1] = weight_OIW_shape[0];
 
-  PrimExpr numerator_w = input_w + padding_w - attrs->dilation[0] * (kernel_w - 1) - 1;
-  out_NCW_shape[2] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[0]) + 1);
+  PrimExpr numerator_w = input_w + padding_w - Integer(attrs->dilation[0]) * (kernel_w - 1) - 1;
+  out_NCW_shape[2] = analyzer->Simplify(floordiv(numerator_w, Integer(attrs->strides[0])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
@@ -202,8 +202,8 @@ TVM_REGISTER_OP("relax.nn.conv1d")
 
 /* relax.nn.conv2d */
 
-Expr conv2d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+Expr conv2d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+            ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
             ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
             ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding2D(std::move(padding));
@@ -294,18 +294,18 @@ StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
   PrimExpr input_w = data_NCHW_shape[3];
   PrimExpr kernel_h = weight_OIHW_shape[2];
   PrimExpr kernel_w = weight_OIHW_shape[3];
-  PrimExpr padding_h = attrs->padding[0] + attrs->padding[2];
-  PrimExpr padding_w = attrs->padding[1] + attrs->padding[3];
+  PrimExpr padding_h = Integer(attrs->padding[0]) + Integer(attrs->padding[2]);
+  PrimExpr padding_w = Integer(attrs->padding[1]) + Integer(attrs->padding[3]);
 
   std::vector<PrimExpr> out_NCHW_shape;
   out_NCHW_shape.resize(4);
   out_NCHW_shape[0] = data_NCHW_shape[0];
   out_NCHW_shape[1] = weight_OIHW_shape[0];
 
-  PrimExpr numerator_h = input_h + padding_h - attrs->dilation[0] * (kernel_h - 1) - 1;
-  PrimExpr numerator_w = input_w + padding_w - attrs->dilation[1] * (kernel_w - 1) - 1;
-  out_NCHW_shape[2] = analyzer->Simplify(floordiv(numerator_h, attrs->strides[0]) + 1);
-  out_NCHW_shape[3] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[1]) + 1);
+  PrimExpr numerator_h = input_h + padding_h - Integer(attrs->dilation[0]) * (kernel_h - 1) - 1;
+  PrimExpr numerator_w = input_w + padding_w - Integer(attrs->dilation[1]) * (kernel_w - 1) - 1;
+  out_NCHW_shape[2] = analyzer->Simplify(floordiv(numerator_h, Integer(attrs->strides[0])) + 1);
+  out_NCHW_shape[3] = analyzer->Simplify(floordiv(numerator_w, Integer(attrs->strides[1])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
@@ -409,8 +409,8 @@ TVM_REGISTER_OP("relax.nn.conv2d")
 
 /* relax.nn.conv3d */
 
-Expr conv3d(Expr data, Expr weight, ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-            ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+Expr conv3d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+            ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
             ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
             ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding3D(std::move(padding));
@@ -506,21 +506,21 @@ StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
   PrimExpr kernel_d = weight_OIDHW_shape[2];
   PrimExpr kernel_h = weight_OIDHW_shape[3];
   PrimExpr kernel_w = weight_OIDHW_shape[4];
-  PrimExpr padding_d = attrs->padding[0] + attrs->padding[3];
-  PrimExpr padding_h = attrs->padding[1] + attrs->padding[4];
-  PrimExpr padding_w = attrs->padding[2] + attrs->padding[5];
+  PrimExpr padding_d = Integer(attrs->padding[0]) + Integer(attrs->padding[3]);
+  PrimExpr padding_h = Integer(attrs->padding[1]) + Integer(attrs->padding[4]);
+  PrimExpr padding_w = Integer(attrs->padding[2]) + Integer(attrs->padding[5]);
 
   std::vector<PrimExpr> out_NCDHW_shape;
   out_NCDHW_shape.resize(5);
   out_NCDHW_shape[0] = data_NCDHW_shape[0];
   out_NCDHW_shape[1] = weight_OIDHW_shape[0];
 
-  PrimExpr numerator_d = input_d + padding_d - attrs->dilation[0] * (kernel_d - 1) - 1;
-  PrimExpr numerator_h = input_h + padding_h - attrs->dilation[1] * (kernel_h - 1) - 1;
-  PrimExpr numerator_w = input_w + padding_w - attrs->dilation[2] * (kernel_w - 1) - 1;
-  out_NCDHW_shape[2] = analyzer->Simplify(floordiv(numerator_d, attrs->strides[0]) + 1);
-  out_NCDHW_shape[3] = analyzer->Simplify(floordiv(numerator_h, attrs->strides[1]) + 1);
-  out_NCDHW_shape[4] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[2]) + 1);
+  PrimExpr numerator_d = input_d + padding_d - Integer(attrs->dilation[0]) * (kernel_d - 1) - 1;
+  PrimExpr numerator_h = input_h + padding_h - Integer(attrs->dilation[1]) * (kernel_h - 1) - 1;
+  PrimExpr numerator_w = input_w + padding_w - Integer(attrs->dilation[2]) * (kernel_w - 1) - 1;
+  out_NCDHW_shape[2] = analyzer->Simplify(floordiv(numerator_d, Integer(attrs->strides[0])) + 1);
+  out_NCDHW_shape[3] = analyzer->Simplify(floordiv(numerator_h, Integer(attrs->strides[1])) + 1);
+  out_NCDHW_shape[4] = analyzer->Simplify(floordiv(numerator_w, Integer(attrs->strides[2])) + 1);
 
   ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
   return TensorStructInfo(ShapeExpr(out_shape), out_dtype, vdevice);
@@ -587,9 +587,9 @@ TVM_REGISTER_OP("relax.nn.conv3d")
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3d)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
-                      ffi::Array<IntImm> padding, ffi::Array<IntImm> output_padding,
-                      ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
+                      ffi::Array<int64_t> padding, ffi::Array<int64_t> output_padding,
+                      ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
                       ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
                       ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding1D(std::move(padding));
@@ -607,10 +607,10 @@ Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
       << dilation;
 
   auto attrs = ffi::make_object<Conv1DTransposeAttrs>();
-  attrs->strides = ConvertIntImmToInt64(strides);
-  attrs->padding = ConvertIntImmToInt64(padding);
-  attrs->output_padding = ConvertIntImmToInt64(output_padding);
-  attrs->dilation = ConvertIntImmToInt64(dilation);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->output_padding = std::move(output_padding);
+  attrs->dilation = std::move(dilation);
   attrs->groups = groups;
   attrs->data_layout = data_layout;
   attrs->kernel_layout = std::move(kernel_layout);
@@ -680,27 +680,28 @@ StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& 
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
   }
-  if (analyzer->CanProve(attrs->output_padding[0]->value >= attrs->strides[0]->value)) {
+  if (attrs->output_padding[0] >= attrs->strides[0]) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Conv1dTranspose expects the output padding less than the strides, but the "
                         "output padding is"
                      << attrs->output_padding << " while the strides are" << attrs->strides);
-  } else if (!analyzer->CanProve(attrs->output_padding[0]->value < attrs->strides[0]->value)) {
+  } else if (!(attrs->output_padding[0] < attrs->strides[0])) {
     // Todo(relax-team): Trust the input padding at this moment, and revisit
     // this condition with runtime shape check
   }
 
   PrimExpr input_w = data_NCW_shape[2];
   PrimExpr kernel_w = weight_IOW_shape[2];
-  PrimExpr padding_w = attrs->padding[0] + attrs->padding[1];
+  PrimExpr padding_w = Integer(attrs->padding[0]) + Integer(attrs->padding[1]);
 
   std::vector<PrimExpr> out_NCW_shape;
   out_NCW_shape.resize(3);
   out_NCW_shape[0] = data_NCW_shape[0];
   out_NCW_shape[1] = weight_IOW_shape[1] * attrs->groups;
 
-  PrimExpr out_w = (input_w - 1) * attrs->strides[0] - padding_w +
-                   attrs->dilation[0] * (kernel_w - 1) + attrs->output_padding[0] + 1;
+  PrimExpr out_w = (input_w - 1) * Integer(attrs->strides[0]) - padding_w +
+                   Integer(attrs->dilation[0]) * (kernel_w - 1) +
+                   Integer(attrs->output_padding[0]) + 1;
   out_NCW_shape[2] = analyzer->Simplify(out_w);
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
@@ -767,9 +768,9 @@ TVM_REGISTER_OP("relax.nn.conv1d_transpose")
 
 /* relax.nn.conv2d_transpose */
 
-Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
-                      ffi::Array<IntImm> padding, ffi::Array<IntImm> output_padding,
-                      ffi::Array<IntImm> dilation, int groups, ffi::String data_layout,
+Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
+                      ffi::Array<int64_t> padding, ffi::Array<int64_t> output_padding,
+                      ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
                       ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
                       ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding2D(std::move(padding));
@@ -796,10 +797,10 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<IntImm> strides,
       << dilation;
 
   auto attrs = ffi::make_object<Conv2DTransposeAttrs>();
-  attrs->strides = ConvertIntImmToInt64(strides);
-  attrs->padding = ConvertIntImmToInt64(padding);
-  attrs->output_padding = ConvertIntImmToInt64(output_padding);
-  attrs->dilation = ConvertIntImmToInt64(dilation);
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->output_padding = std::move(output_padding);
+  attrs->dilation = std::move(dilation);
   attrs->groups = groups;
   attrs->data_layout = data_layout;
   attrs->kernel_layout = std::move(kernel_layout);
@@ -870,14 +871,14 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
     // Todo(relax-team): Trust the input shape at this moment, and revisit
     // this condition with runtime shape check
   }
-  if (analyzer->CanProve(attrs->output_padding[0]->value >= attrs->strides[0]->value ||
-                         attrs->output_padding[1]->value >= attrs->strides[1]->value)) {
+  if (attrs->output_padding[0] >= attrs->strides[0] ||
+      attrs->output_padding[1] >= attrs->strides[1]) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Conv2dTranspose expects the output padding less than the strides, but the "
                         "output padding is"
                      << attrs->output_padding << " while the strides are" << attrs->strides);
-  } else if (!analyzer->CanProve(attrs->output_padding[0]->value < attrs->strides[0]->value &&
-                                 attrs->output_padding[1]->value < attrs->strides[1]->value)) {
+  } else if (!(attrs->output_padding[0] < attrs->strides[0] &&
+               attrs->output_padding[1] < attrs->strides[1])) {
     // Todo(relax-team): Trust the input padding at this moment, and revisit
     // this condition with runtime shape check
   }
@@ -886,18 +887,20 @@ StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& 
   PrimExpr input_w = data_NCHW_shape[3];
   PrimExpr kernel_h = weight_IOHW_shape[2];
   PrimExpr kernel_w = weight_IOHW_shape[3];
-  PrimExpr padding_h = attrs->padding[0] + attrs->padding[2];
-  PrimExpr padding_w = attrs->padding[1] + attrs->padding[3];
+  PrimExpr padding_h = Integer(attrs->padding[0]) + Integer(attrs->padding[2]);
+  PrimExpr padding_w = Integer(attrs->padding[1]) + Integer(attrs->padding[3]);
 
   std::vector<PrimExpr> out_NCHW_shape;
   out_NCHW_shape.resize(4);
   out_NCHW_shape[0] = data_NCHW_shape[0];
   out_NCHW_shape[1] = weight_IOHW_shape[1] * attrs->groups;
 
-  PrimExpr out_h = (input_h - 1) * attrs->strides[0] - padding_h +
-                   attrs->dilation[0] * (kernel_h - 1) + attrs->output_padding[0] + 1;
-  PrimExpr out_w = (input_w - 1) * attrs->strides[1] - padding_w +
-                   attrs->dilation[1] * (kernel_w - 1) + attrs->output_padding[1] + 1;
+  PrimExpr out_h = (input_h - 1) * Integer(attrs->strides[0]) - padding_h +
+                   Integer(attrs->dilation[0]) * (kernel_h - 1) +
+                   Integer(attrs->output_padding[0]) + 1;
+  PrimExpr out_w = (input_w - 1) * Integer(attrs->strides[1]) - padding_w +
+                   Integer(attrs->dilation[1]) * (kernel_w - 1) +
+                   Integer(attrs->output_padding[1]) + 1;
   out_NCHW_shape[2] = analyzer->Simplify(out_h);
   out_NCHW_shape[3] = analyzer->Simplify(out_w);
 

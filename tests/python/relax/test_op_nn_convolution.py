@@ -352,10 +352,10 @@ def test_conv1d_stride_padding_dilation_int64():
     w = relax.Var("w", R.Tensor((4, 3, 3), "float32"))
     conv1d = relax.op.nn.conv1d(x, w, strides=(1,), padding=(1, 1), dilation=(1,))
 
-    assert conv1d.attrs.strides[0].dtype == "int64"
-    assert conv1d.attrs.padding[0].dtype == "int64"
-    assert conv1d.attrs.padding[1].dtype == "int64"
-    assert conv1d.attrs.dilation[0].dtype == "int64"
+    assert isinstance(conv1d.attrs.strides[0], int)
+    assert isinstance(conv1d.attrs.padding[0], int)
+    assert isinstance(conv1d.attrs.padding[1], int)
+    assert isinstance(conv1d.attrs.dilation[0], int)
 
 
 def test_conv1d_wrong_strides_padding_dilation_length():
@@ -711,9 +711,9 @@ def test_conv1d_transpose_stride_padding_dilation_int64():
     w = relax.Var("w", R.Tensor((3, 4, 3), "float32"))
     conv1d = relax.op.nn.conv1d_transpose(x, w, strides=1, padding=1, dilation=1)
 
-    assert conv1d.attrs.strides[0].dtype == "int64"
-    assert conv1d.attrs.padding[0].dtype == "int64"
-    assert conv1d.attrs.dilation[0].dtype == "int64"
+    assert isinstance(conv1d.attrs.strides[0], int)
+    assert isinstance(conv1d.attrs.padding[0], int)
+    assert isinstance(conv1d.attrs.dilation[0], int)
 
 
 def test_conv1d_transpose_wrong_strides_padding_dilation_length():
@@ -1122,14 +1122,14 @@ def test_conv2d_stride_padding_dilation_int64():
     w = relax.Var("w", R.Tensor((4, 3, 3, 3), "float32"))
     conv2d = relax.op.nn.conv2d(x, w, strides=(1, 1), padding=(1, 1), dilation=(1, 1))
 
-    assert conv2d.attrs.strides[0].dtype == "int64"
-    assert conv2d.attrs.strides[1].dtype == "int64"
-    assert conv2d.attrs.padding[0].dtype == "int64"
-    assert conv2d.attrs.padding[1].dtype == "int64"
-    assert conv2d.attrs.padding[2].dtype == "int64"
-    assert conv2d.attrs.padding[3].dtype == "int64"
-    assert conv2d.attrs.dilation[0].dtype == "int64"
-    assert conv2d.attrs.dilation[1].dtype == "int64"
+    assert isinstance(conv2d.attrs.strides[0], int)
+    assert isinstance(conv2d.attrs.strides[1], int)
+    assert isinstance(conv2d.attrs.padding[0], int)
+    assert isinstance(conv2d.attrs.padding[1], int)
+    assert isinstance(conv2d.attrs.padding[2], int)
+    assert isinstance(conv2d.attrs.padding[3], int)
+    assert isinstance(conv2d.attrs.dilation[0], int)
+    assert isinstance(conv2d.attrs.dilation[1], int)
 
 
 def test_conv2d_wrong_strides_padding_dilation_length():
@@ -1510,16 +1510,16 @@ def test_conv2d_transpose_stride_padding_dilation_int64():
         x, w, strides=(1, 1), padding=(1, 1), output_padding=(1, 2), dilation=(1, 1)
     )
 
-    assert conv2d_transpose.attrs.strides[0].dtype == "int64"
-    assert conv2d_transpose.attrs.strides[1].dtype == "int64"
-    assert conv2d_transpose.attrs.padding[0].dtype == "int64"
-    assert conv2d_transpose.attrs.padding[1].dtype == "int64"
-    assert conv2d_transpose.attrs.padding[2].dtype == "int64"
-    assert conv2d_transpose.attrs.padding[3].dtype == "int64"
-    assert conv2d_transpose.attrs.output_padding[0].dtype == "int64"
-    assert conv2d_transpose.attrs.output_padding[1].dtype == "int64"
-    assert conv2d_transpose.attrs.dilation[0].dtype == "int64"
-    assert conv2d_transpose.attrs.dilation[1].dtype == "int64"
+    assert isinstance(conv2d_transpose.attrs.strides[0], int)
+    assert isinstance(conv2d_transpose.attrs.strides[1], int)
+    assert isinstance(conv2d_transpose.attrs.padding[0], int)
+    assert isinstance(conv2d_transpose.attrs.padding[1], int)
+    assert isinstance(conv2d_transpose.attrs.padding[2], int)
+    assert isinstance(conv2d_transpose.attrs.padding[3], int)
+    assert isinstance(conv2d_transpose.attrs.output_padding[0], int)
+    assert isinstance(conv2d_transpose.attrs.output_padding[1], int)
+    assert isinstance(conv2d_transpose.attrs.dilation[0], int)
+    assert isinstance(conv2d_transpose.attrs.dilation[1], int)
 
 
 def test_conv2d_transpose_wrong_strides_padding_dilation_length():

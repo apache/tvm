@@ -2567,7 +2567,7 @@ class Pool(OnnxOpConverter):
             pads = []
             if cls.name == "avg_pool":
                 for axis in range(len(input_shape) - 2):
-                    axis_shape = input_shape[2 + axis]
+                    axis_shape = int(input_shape[2 + axis])
                     stride = strides[axis]
                     kernel = kernel_shape[axis]
                     pad = cls.get_pad_pair(axis_shape, kernel, stride, auto_pad)

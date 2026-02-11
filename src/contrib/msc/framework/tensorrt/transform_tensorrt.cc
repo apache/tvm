@@ -429,10 +429,9 @@ Expr RewriteConv1d(BlockBuilder builder, const Var& var, const Call& src_call,
     // change to conv2d
     static const Op& conv2d_op = Op::Get("relax.nn.conv2d");
     auto conv_attrs = ffi::make_object<Conv2DAttrs>();
-    conv_attrs->strides = ffi::Array<IntImm>{src_attrs->strides[0], Integer(1)};
-    conv_attrs->padding =
-        ffi::Array<IntImm>{Integer(0), src_attrs->padding[0], Integer(0), src_attrs->padding[1]};
-    conv_attrs->dilation = ffi::Array<IntImm>{src_attrs->dilation[0], Integer(1)};
+    conv_attrs->strides = ffi::Array<int64_t>{src_attrs->strides[0], 1};
+    conv_attrs->padding = ffi::Array<int64_t>{0, src_attrs->padding[0], 0, src_attrs->padding[1]};
+    conv_attrs->dilation = ffi::Array<int64_t>{src_attrs->dilation[0], 1};
     conv_attrs->groups = src_attrs->groups;
     conv_attrs->data_layout = "NCHW";
     conv_attrs->kernel_layout = "OIHW";
@@ -706,9 +705,9 @@ Expr RewriteMatmul(BlockBuilder builder, const Var& var, const Call& src_call,
     // to conv2d
     static const Op& conv2d_op = Op::Get("relax.nn.conv2d");
     auto conv_attrs = ffi::make_object<Conv2DAttrs>();
-    conv_attrs->strides = ffi::Array<IntImm>{Integer(1), Integer(1)};
-    conv_attrs->padding = ffi::Array<IntImm>{Integer(0), Integer(0), Integer(0), Integer(0)};
-    conv_attrs->dilation = ffi::Array<IntImm>{Integer(1), Integer(1)};
+    conv_attrs->strides = ffi::Array<int64_t>{1, 1};
+    conv_attrs->padding = ffi::Array<int64_t>{0, 0, 0, 0};
+    conv_attrs->dilation = ffi::Array<int64_t>{1, 1};
     conv_attrs->groups = 1;
     conv_attrs->data_layout = "NCHW";
     conv_attrs->kernel_layout = "OIHW";
