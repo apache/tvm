@@ -442,5 +442,56 @@ def test_fold_shape_computation():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_fold_tuple_output():
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def split(
+            A: T.Buffer((4, 4), "float32"),
+            B: T.Buffer((2, 4), "float32"),
+            C: T.Buffer((2, 4), "float32"),
+        ) -> None:
+            for i, j in T.grid(2, 4):
+                with T.sblock("upper"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj]
+            for i, j in T.grid(2, 4):
+                with T.sblock("lower"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    C[vi, vj] = A[vi + 2, vj]
+
+        @R.function
+        def before(c0: R.Tensor((4, 4), "float32")):
+            cls = Module
+            lv0 = relax.call_tir(
+                cls.split,
+                (c0,),
+                out_sinfo=[
+                    R.Tensor((2, 4), dtype="float32"),
+                    R.Tensor((2, 4), dtype="float32"),
+                ],
+            )
+            return lv0
+
+        @R.function
+        def expected(
+            c1: R.Tensor((2, 4), "float32"), c2: R.Tensor((2, 4), "float32")
+        ) -> R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")):
+            lv0: R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")) = (
+                c1,
+                c2,
+            )
+            return lv0
+
+    c0_np = np.arange(16).astype("float32").reshape(4, 4)
+    c1_np = c0_np[:2]
+    c2_np = c0_np[2:]
+    before = gen_mod(Module, "before", {"c0": c0_np})
+    expected = gen_mod(Module, "expected", {"c1": c1_np, "c2": c2_np})
+
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
