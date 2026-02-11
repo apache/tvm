@@ -20,7 +20,7 @@ TVM_ROOT=$(realpath $(shell dirname $(firstword $(MAKEFILE_LIST))))/../
 INCLUDE_FLAGS = -I$(TVM_ROOT) -I$(TVM_ROOT)/include\
 	-I$(TVM_ROOT)/3rdparty/tvm-ffi/include\
 	-I$(TVM_ROOT)/3rdparty/tvm-ffi/3rdparty/dlpack/include -I$(TVM_ROOT)/3rdparty/dmlc-core/include\
-	-I$(TVM_ROOT)/3rdparty/compiler-rt -I$(TVM_ROOT)/3rdparty/picojson
+	-I$(TVM_ROOT)/3rdparty/compiler-rt
 
 .PHONY: clean all rmtypedep preparetest
 

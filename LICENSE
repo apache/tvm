@@ -220,7 +220,6 @@ Apache Software Foundation License 2.0
 BSD 2-clause License
 --------------------
 
-3rdparty/picojson
 3rdparty/dmlc-core/include/dmlc/concurrentqueue.h
 
 
