@@ -493,5 +493,94 @@ def test_fold_tuple_output():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_skip_folding_large_creation_op():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def before():
+            with R.dataflow():
+                # 2048 elements > 1024 threshold, no tensor input
+                gv = R.zeros((2048,), "float32")
+                R.output(gv)
+            return gv
+
+    before = Module
+    after = relax.transform.FoldConstant()(before)
+    # The zeros op should NOT be folded because the output is large
+    tvm.ir.assert_structural_equal(after, before)
+
+
+def test_fold_small_creation_op():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def before():
+            with R.dataflow():
+                # 16 elements <= 1024 threshold
+                gv = R.zeros((4, 4), "float32")
+                R.output(gv)
+            return gv
+
+        @R.function
+        def expected(c0: R.Tensor((4, 4), "float32")):
+            return c0
+
+    before = gen_mod(Module, "before", {})
+    expected = gen_mod(Module, "expected", {"c0": np.zeros((4, 4), dtype="float32")})
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_fold_boundary_creation_op():
+    @tvm.script.ir_module
+    class Module:
+        @R.function
+        def before():
+            with R.dataflow():
+                # Exactly 1024 elements == threshold, should fold
+                gv = R.zeros((1024,), "float32")
+                R.output(gv)
+            return gv
+
+        @R.function
+        def expected(c0: R.Tensor((1024,), "float32")):
+            return c0
+
+    before = gen_mod(Module, "before", {})
+    expected = gen_mod(Module, "expected", {"c0": np.zeros((1024,), dtype="float32")})
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_fold_large_op_with_tensor_input():
+    """Ops with tensor inputs should be folded even if output is large."""
+
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func
+        def addone(A: T.Buffer((2048,), "float32"), B: T.Buffer((2048,), "float32")) -> None:
+            for i in range(2048):
+                with T.sblock("addone"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi] + T.float32(1)
+
+        @R.function
+        def before(c0: R.Tensor((2048,), "float32")):
+            cls = Module
+            lv0 = relax.call_tir(cls.addone, (c0,), R.Tensor((2048,), dtype="float32"))
+            return lv0
+
+        @R.function
+        def expected(c1: R.Tensor((2048,), "float32")):
+            return c1
+
+    c0_np = np.arange(2048).astype("float32")
+    c1_np = c0_np + 1
+    before = gen_mod(Module, "before", {"c0": c0_np})
+    expected = gen_mod(Module, "expected", {"c1": c1_np})
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

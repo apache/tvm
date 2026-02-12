@@ -136,10 +136,59 @@ class ConstantFolder : public ExprMutator {
    * folding iota ops could result in large constants being materialized, thus increasing the size
    * of the program.
    */
+  static bool ExprContainsTensor(const Expr& expr) {
+    if (GetStructInfo(expr).as<TensorStructInfoNode>()) {
+      return true;
+    }
+    if (const auto* tuple = expr.as<TupleNode>()) {
+      for (const auto& field : tuple->fields) {
+        if (ExprContainsTensor(field)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   bool ShouldBeFolded(Expr expr) {
-    // TODO(prakalp): Implement a heuristic to check if folding this expr is actually useful or
-    // not.
-    return true;
+    // Skip folding for creation ops (no tensor inputs) that produce large outputs.
+    // These ops (e.g., zeros, ones, full, arange) are cheap to compute at runtime,
+    // and folding them would materialize large constants in the binary.
+    static constexpr int64_t kMaxFoldElements = 1024;
+
+    const auto* call = expr.as<CallNode>();
+    if (!call) return true;
+
+    const auto* tensor_sinfo = call->struct_info_.as<TensorStructInfoNode>();
+    if (!tensor_sinfo) return true;
+
+    auto opt_shape = tensor_sinfo->GetShape();
+    if (!opt_shape) return true;
+
+    int64_t num_elements = 1;
+    for (const auto& dim : opt_shape.value()) {
+      const auto* int_dim = dim.as<IntImmNode>();
+      if (!int_dim) return true;
+      int64_t d = int_dim->value;
+      if (d <= 0) return true;
+      if (num_elements > kMaxFoldElements / d) {
+        num_elements = kMaxFoldElements + 1;
+        break;
+      }
+      num_elements *= d;
+    }
+
+    if (num_elements <= kMaxFoldElements) return true;
+
+    // Large output. Only skip if there are no tensor inputs,
+    // i.e., this is a pure creation op.
+    for (const auto& arg : call->args) {
+      if (ExprContainsTensor(arg)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // Try constant evaluate a call_tir with a single tensor output.
