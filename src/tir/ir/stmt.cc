@@ -40,7 +40,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   BufferStoreNode::RegisterReflection();
   BufferRealizeNode::RegisterReflection();
   AllocateNode::RegisterReflection();
-  AllocateConstNode::RegisterReflection();
   DeclBufferNode::RegisterReflection();
   SeqStmtNode::RegisterReflection();
   EvaluateNode::RegisterReflection();
@@ -293,70 +292,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       [](Var buffer_var, DataType type, ffi::Array<PrimExpr> extents, PrimExpr condition, Stmt body,
          ffi::Map<ffi::String, Any> annotations, Span span) {
         return Allocate(buffer_var, type, extents, condition, body, annotations, span);
-      });
-}
-
-// Const
-// The constructor to create a IRNode with constant data
-// depending on the type of ObjectRef, it will either
-// create AllocateConstNode with irmod_storage_idx or data
-AllocateConst::AllocateConst(Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents,
-                             ObjectRef data_or_idx, Stmt body,
-                             ffi::Map<ffi::String, Any> annotations, Span span) {
-  ICHECK(IsPointerType(buffer_var->type_annotation, dtype))
-      << "The allocated data type (" << dtype
-      << ") does not match the type annotation of the buffer " << buffer_var << " ("
-      << buffer_var->type_annotation
-      << "). The data type should be an element of the pointer type.";
-
-  for (size_t i = 0; i < extents.size(); ++i) {
-    ICHECK(extents[i].defined());
-    ICHECK(extents[i].dtype().is_scalar());
-  }
-  ICHECK(body.defined());
-  ICHECK(data_or_idx.defined());
-
-  ObjectPtr<AllocateConstNode> node = ffi::make_object<AllocateConstNode>();
-  node->buffer_var = std::move(buffer_var);
-  node->dtype = dtype;
-  node->extents = std::move(extents);
-  node->body = std::move(body);
-  node->annotations = annotations;
-  node->span = std::move(span);
-  if (data_or_idx->IsInstance<runtime::Tensor::ContainerType>()) {
-    node->data = ffi::Optional<tvm::runtime::Tensor>(Downcast<runtime::Tensor>(data_or_idx));
-    node->irmod_storage_idx = ffi::Optional<Integer>();
-  } else if (data_or_idx->IsInstance<IntImmNode>()) {
-    node->data = ffi::Optional<tvm::runtime::Tensor>();
-    node->irmod_storage_idx = ffi::Optional<Integer>(Downcast<Integer>(data_or_idx));
-  } else {
-    LOG(FATAL) << "Data type not supported: " << data_or_idx->GetTypeKey();
-  }
-  data_ = std::move(node);
-}
-
-int64_t AllocateConstNode::ConstantAllocationSize(const ffi::Array<PrimExpr>& extents) {
-  int64_t result = 1;
-  for (size_t i = 0; i < extents.size(); ++i) {
-    if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
-      result *= int_size->value;
-      if (result > std::numeric_limits<int64_t>::max()) {
-        return 0;
-      }
-    } else {
-      return 0;
-    }
-  }
-  return static_cast<int64_t>(result);
-}
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tir.AllocateConst",
-      [](Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents, ObjectRef data_or_idx,
-         Stmt body, ffi::Optional<ffi::Map<ffi::String, Any>> annotations, Span span) {
-        return AllocateConst(buffer_var, dtype, extents, data_or_idx, body,
-                             annotations.value_or({}), span);
       });
 }
 

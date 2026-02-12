@@ -1053,8 +1053,7 @@ struct BufferVarInfo {
     kPrimFuncParam = (1 << 0),
     kPrimFuncBufferMap = (1 << 1),
     kAllocateNode = (1 << 2),
-    kAllocateConstNode = (1 << 3),
-    kLetNode = (1 << 4),
+    kLetNode = (1 << 3),
   };
 
   // The tir::Var that represents this buffer.
@@ -1200,14 +1199,6 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     const ffi::Array<PrimExpr>& extents = op->extents;
     PrimExpr extent = extents[extents.size() - 1];
     OnArrayDeclaration(op->buffer_var, op->dtype, extent, BufferVarInfo::kAllocateNode);
-
-    StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitStmt_(const AllocateConstNode* op) final {
-    const ffi::Array<PrimExpr>& extents = op->extents;
-    PrimExpr extent = extents.size() ? extents[extents.size() - 1] : NullValue<PrimExpr>();
-    OnArrayDeclaration(op->buffer_var, op->dtype, extent, BufferVarInfo::kAllocateConstNode);
 
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -1418,7 +1409,7 @@ class VectorTypeRewriter : public StmtExprMutator {
   VectorTypeRewriter(const std::unordered_map<const VarNode*, BufferVarInfo>& info_map,
                      bool rewrite_params = true, bool rewrite_buffer_map = true,
                      bool rewrite_allocate_node = true, bool rewrite_indices = true,
-                     bool rewrite_let_node = true, bool rewrite_allocate_const_node = true,
+                     bool rewrite_let_node = true,
                      bool rewrite_scalar_read_to_vector_shuffle = true)
       : rewrite_indices_(rewrite_indices) {
     int rewrite_mask = 0;
@@ -1434,10 +1425,6 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (rewrite_let_node) {
       rewrite_mask |= BufferVarInfo::kLetNode;
     }
-    if (rewrite_allocate_const_node) {
-      rewrite_mask |= BufferVarInfo::kAllocateConstNode;
-    }
-
     // Rewrite any buffer variables whose preferred type isn't their current type.
     for (const auto& pair : info_map) {
       const auto& var_info = pair.second;
@@ -1619,27 +1606,6 @@ class VectorTypeRewriter : public StmtExprMutator {
     return Allocate(new_buffer_var, info.new_element_dtype, extents, op->condition, op->body);
   }
 
-  Stmt VisitStmt_(const AllocateConstNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<AllocateConstNode>();
-
-    auto it = rewrite_map_.find(op->buffer_var.get());
-    if (it == rewrite_map_.end()) {
-      return stmt;
-    }
-
-    const auto& info = it->second;
-
-    Var new_buffer_var = info.new_buffer_var;
-
-    int factor = info.new_element_dtype.lanes() / op->dtype.lanes();
-
-    ffi::Array<PrimExpr> extents = op->extents;
-    extents.Set(extents.size() - 1,
-                extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
-    return AllocateConst(new_buffer_var, info.new_element_dtype, extents, op->data, op->body);
-  }
-
   /* Update the parameters and all remaining variable references
    *
    * Should be called after calling operator() on the body of the
@@ -1713,7 +1679,6 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f, bool allow_untyped_pointers = false
                                  bool rewrite_params = true, bool rewrite_buffer_map = true,
                                  bool rewrite_allocate_node = true, bool rewrite_indices = true,
                                  bool rewrite_let_node = true,
-                                 bool rewrite_allocate_const_node = true,
                                  bool rewrite_scalar_read_to_vector_shuffle = true) {
   VectorTypeAccessChecker checker(f->params, f->buffer_map, allow_untyped_pointers,
                                   rewrite_scalar_read_to_vector_shuffle);
@@ -1721,7 +1686,7 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f, bool allow_untyped_pointers = false
 
   VectorTypeRewriter rewriter(checker.info_map_, rewrite_params, rewrite_buffer_map,
                               rewrite_allocate_node, rewrite_indices, rewrite_let_node,
-                              rewrite_allocate_const_node, rewrite_scalar_read_to_vector_shuffle);
+                              rewrite_scalar_read_to_vector_shuffle);
   PrimFuncNode* n = f.CopyOnWrite();
   n->body = rewriter(std::move(n->body));
   rewriter.Finalize(&f);
@@ -1753,13 +1718,7 @@ Pass StorageRewrite() {
     n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true, enable_reuse,
                                             reuse_require_exact_matched_dtype);
     // Parameters may not be rewritten, but internal allocations may.
-    // Vectorization of AllocateConst is currently disabled, as it has
-    // indexing issues for types that include padding (e.g. int8x3
-    // padded out to 32 bits) would require either rewriting
-    // AllocateConst::data, or would require the code generators to
-    // handle vectorized constants.
-    return PointerValueTypeRewrite(std::move(f), true, false, false, true, true, true, false,
-                                   false);
+    return PointerValueTypeRewrite(std::move(f), true, false, false, true, true, true, false);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.StorageRewrite", {});
 }

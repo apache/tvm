@@ -38,7 +38,6 @@
 #include "../../support/array.h"
 #include "../../tir/ir/data_type_rewriter.h"
 #include "../../tir/ir/functor_common.h"
-#include "../../tir/transform/ir_utils.h"
 #include "graph.h"
 
 namespace tvm {
@@ -753,9 +752,8 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
   return func;
 }
 
-PrimFunc CreatePrimFuncWithConstants(const ffi::Array<te::Tensor>& arg_list,
-                                     const ffi::Array<runtime::Tensor>& constants,
-                                     std::optional<DataType> index_dtype_override) {
+PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
+                        std::optional<DataType> index_dtype_override) {
   // Information used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
@@ -776,17 +774,11 @@ PrimFunc CreatePrimFuncWithConstants(const ffi::Array<te::Tensor>& arg_list,
 
   // Step 4. Create func and complete prim func.
   auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
-  func = tir::BindParams(func, constants);
   if (index_dtype_override.has_value()) {
     func = IndexDataTypeNormalizer(index_dtype_override.value()).Rewrite(std::move(func));
   }
   auto result = LayoutFreePlaceholdersNormalizer().Process(std::move(func));
   return result;
-}
-
-PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
-                        std::optional<DataType> index_dtype_override) {
-  return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -830,9 +822,8 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ObjectRef>& arg_tir_var_li
   return func;
 }
 
-PrimFunc CreatePrimFuncWithConstants(const ffi::Array<ObjectRef>& arg_list,
-                                     const ffi::Array<runtime::Tensor>& constants,
-                                     std::optional<DataType> index_dtype_override) {
+PrimFunc CreatePrimFunc(const ffi::Array<ObjectRef>& arg_list,
+                        std::optional<DataType> index_dtype_override) {
   ffi::Array<te::Tensor> tensor_arg_list;
   for (const ObjectRef& x : arg_list) {
     if (auto tensor_node = x.as<te::TensorNode>()) {
@@ -840,7 +831,7 @@ PrimFunc CreatePrimFuncWithConstants(const ffi::Array<ObjectRef>& arg_list,
       tensor_arg_list.push_back(tensor);
     }
   }
-  // Infomations used in CreatePrimFunc and its sub-functions.
+  // Information used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(tensor_arg_list);
   // Root body stmts.
   ffi::Array<Stmt> root_stmts;
@@ -858,17 +849,11 @@ PrimFunc CreatePrimFuncWithConstants(const ffi::Array<ObjectRef>& arg_list,
     RewriteStageToBlock(op, &info, &root_stmts, &analyzer);
   }
   auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
-  func = tir::BindParams(func, constants);
   if (index_dtype_override.has_value()) {
     func = IndexDataTypeNormalizer(index_dtype_override.value()).Rewrite(std::move(func));
   }
   auto result = LayoutFreePlaceholdersNormalizer().Process(std::move(func));
   return result;
-}
-
-PrimFunc CreatePrimFunc(const ffi::Array<ObjectRef>& arg_list,
-                        std::optional<DataType> index_dtype_override) {
-  return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
 }
 
 }  // namespace tir

@@ -73,8 +73,8 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
     for (const Buffer& buffer : op->alloc_buffers) {
       buffer_alloc_recorder_.push_back(buffer);
     }
-    // Also visit match_buffers to collect constant buffers associated with AllocateConst nodes.
-    // These buffers only appear in read and match_buffer regions.
+    // Also visit match_buffers to collect buffers that only appear in read and match_buffer
+    // regions.
     for (const auto& region : op->match_buffers) {
       if (!find(region->source->buffer)) {
         buffer_alloc_recorder_.push_back(region->source->buffer);

@@ -60,7 +60,6 @@ from .expr import (
 )
 from .stmt import (
     Allocate,
-    AllocateConst,
     AssertStmt,
     AttrStmt,
     SBlock,
@@ -165,7 +164,6 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
         f_visit_for: Callable = None,
         f_visit_while: Callable = None,
         f_visit_allocate: Callable = None,
-        f_visit_allocate_const: Callable = None,
         f_visit_decl_buffer: Callable = None,
         f_visit_buffer_store: Callable = None,
         f_visit_buffer_realize: Callable = None,
@@ -221,7 +219,6 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
             f_visit_for,
             f_visit_while,
             f_visit_allocate,
-            f_visit_allocate_const,
             f_visit_decl_buffer,
             f_visit_buffer_store,
             f_visit_buffer_realize,
@@ -286,7 +283,6 @@ class PyStmtExprVisitor:
             "visit_for_",
             "visit_while_",
             "visit_allocate_",
-            "visit_allocate_const_",
             "visit_decl_buffer_",
             "visit_buffer_store_",
             "visit_buffer_realize_",
@@ -428,19 +424,6 @@ class PyStmtExprVisitor:
             The Allocate to be visited.
         """
         print("visit_allocate_", op)
-        _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
-
-    def visit_allocate_const_(self, op: AllocateConst) -> None:
-        """Visit AllocateConst.
-        Users can customize this function to overwrite VisitStmt_(const AllocateConstNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : AllocateConst
-            The AllocateConst to be visited.
-        """
-        print("visit_allocate_const_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_decl_buffer_(self, op: DeclBuffer) -> None:
@@ -999,7 +982,6 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
         f_visit_for: Callable = None,
         f_visit_while: Callable = None,
         f_visit_allocate: Callable = None,
-        f_visit_allocate_const: Callable = None,
         f_visit_decl_buffer: Callable = None,
         f_visit_buffer_store: Callable = None,
         f_visit_buffer_realize: Callable = None,
@@ -1055,7 +1037,6 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
             f_visit_for,
             f_visit_while,
             f_visit_allocate,
-            f_visit_allocate_const,
             f_visit_decl_buffer,
             f_visit_buffer_store,
             f_visit_buffer_realize,
@@ -1120,7 +1101,6 @@ class PyStmtExprMutator:
             "visit_for_",
             "visit_while_",
             "visit_allocate_",
-            "visit_allocate_const_",
             "visit_decl_buffer_",
             "visit_buffer_store_",
             "visit_buffer_realize_",
@@ -1294,23 +1274,6 @@ class PyStmtExprMutator:
         ----------
         op : Allocate
             The Allocate to be visited.
-
-        Returns
-        -------
-        result : Stmt
-            The mutated Stmt.
-        """
-        return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
-
-    def visit_allocate_const_(self, op: AllocateConst) -> Stmt:
-        """Visit AllocateConst.
-        Users can customize this function to overwrite VisitStmt_(const AllocateConstNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : AllocateConst
-            The AllocateConst to be visited.
 
         Returns
         -------

@@ -1420,46 +1420,6 @@ def test_cache_read_fail_invalid_storage_scope(use_block_name):
         sch.cache_read(block_b, 0, "test_scope")
 
 
-def test_cache_read_allocate_const():
-    @T.prim_func
-    def before(A: T.Buffer((8), "float32"), C: T.Buffer((8), "float32")):
-        B = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-        B_buf = T.decl_buffer((8), dtype="float32", data=B)
-        for i in range(8):
-            with T.sblock("C"):
-                vi = T.axis.spatial(8, i)
-                C[vi] = A[vi] + B_buf[vi]
-
-    @T.prim_func
-    def expected(A: T.Buffer((8), "float32"), C: T.Buffer((8), "float32")):
-        B_buf_global = T.alloc_buffer((8), dtype="float32")
-        A_global = T.alloc_buffer((8), dtype="float32")
-        B = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-        B_buf = T.decl_buffer((8), data=B)
-        for ax0 in range(8):
-            with T.sblock("A_global"):
-                v0 = T.axis.spatial(8, ax0)
-                A_global[v0] = A[v0]
-        for ax0 in range(8):
-            with T.sblock("B_buf_global"):
-                v0 = T.axis.spatial(8, ax0)
-                B_buf_global[v0] = B_buf[v0]
-        for i in range(8):
-            with T.sblock("C"):
-                vi = T.axis.spatial(8, i)
-                C[vi] = A_global[vi] + B_buf_global[vi]
-
-    sch = tvm.s_tir.Schedule(before)
-    block_c = sch.get_sblock("C")
-    sch.cache_read(block_c, 1, "global")
-    sch.cache_read(block_c, 0, "global")
-
-    after = sch.mod["main"]
-
-    assert_structural_equal_ignore_global_symbol(expected, after)
-    verify_trace_roundtrip(sch=sch, mod=before)
-
-
 def test_inplace_cache_read():
     sch = tvm.s_tir.Schedule(inplace_func, debug_mask="all")
     block = sch.get_sblock("copy_in")
@@ -1622,81 +1582,6 @@ def test_cache_write_fail_invalid_storage_scope(use_block_name):
     block_b = "B" if use_block_name else sch.get_sblock("B")
     with pytest.raises(tvm.s_tir.ScheduleError):
         sch.cache_write(block_b, 0, "test_scope")
-
-
-@pytest.mark.parametrize("use_decl_buffer", [True, False])
-def test_cache_write_allocate_const(use_decl_buffer):
-    def apply_decl_buffer(*args, **kwargs):
-        if use_decl_buffer:
-            return T.decl_buffer(*args, **kwargs)
-        else:
-            return T.Buffer(*args, **kwargs)
-
-    @T.prim_func
-    def before(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float16")):
-        B = T.alloc_buffer([128, 128], dtype="float32")
-        const1 = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-        const1_buf = apply_decl_buffer([8], dtype="float32", data=const1)
-        const2 = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-        const2_buf = apply_decl_buffer([8], dtype="float32", data=const2)
-        for i, j in T.grid(128, 128):
-            for x in range(8):
-                with T.sblock("B"):
-                    vi, vj, vx = T.axis.remap("SSS", [i, j, x])
-                    T.reads(A[vi, vj], const1_buf[vx], const2_buf[vx])
-                    T.writes(B[vi, vj])
-                    B[vi, vj] = A[vi, vj] * const1_buf[vx] + const2_buf[vx]
-        for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                T.reads(B[vi, vj])
-                T.writes(C[vi, vj])
-                C[vi, vj] = B[vi, vj] + 1.0
-
-    @T.prim_func
-    def expected(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float16")):
-        B = T.alloc_buffer([128, 128], dtype="float32")
-        A_global = T.alloc_buffer([128, 128], dtype="float32")
-        C_global = T.alloc_buffer([128, 128], dtype="float16")
-        const1 = T.allocate_const([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-        const1_buf = apply_decl_buffer([8], dtype="float32", data=const1)
-        const2 = T.allocate_const([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
-        const2_buf = apply_decl_buffer([8], dtype="float32", data=const2)
-        for ax0, ax1 in T.grid(128, 128):
-            with T.sblock("A_global"):
-                v0, v1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads(A[v0, v1])
-                T.writes(A_global[v0, v1])
-                A_global[v0, v1] = A[v0, v1]
-        for i, j, x in T.grid(128, 128, 8):
-            with T.sblock("B"):
-                vi, vj, vx = T.axis.remap("SSS", [i, j, x])
-                T.reads(A_global[vi, vj], const1_buf[vx], const2_buf[vx])
-                T.writes(B[vi, vj])
-                B[vi, vj] = A_global[vi, vj] * const1_buf[vx] + const2_buf[vx]
-        for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                T.reads(B[vi, vj])
-                T.writes(C_global[vi, vj])
-                C_global[vi, vj] = B[vi, vj] + T.float32(1)
-        for ax0, ax1 in T.grid(128, 128):
-            with T.sblock("C_global"):
-                v0, v1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads(C_global[v0, v1])
-                T.writes(C[v0, v1])
-                C[v0, v1] = C_global[v0, v1]
-
-    sch = tvm.s_tir.Schedule(before)
-    block_b = sch.get_sblock("B")
-    block_c = sch.get_sblock("C")
-    sch.cache_read(block_b, 0, "global")
-    sch.cache_write(block_c, 0, "global")
-
-    after = sch.mod["main"]
-
-    assert_structural_equal_ignore_global_symbol(expected, after)
-    verify_trace_roundtrip(sch=sch, mod=before)
 
 
 def test_reindex_cache_read():

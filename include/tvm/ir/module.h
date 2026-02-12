@@ -316,15 +316,6 @@ namespace attr {
  */
 constexpr const char* kModuleName = "mod_name";
 
-/*
- * \brief All the runtime::Tensors extracted from PrimFunc tir::AllocateConst nodes. The
- * node will record the index into this array. See also kConstNameToConstant below, which is
- * the analog for Realy Functions.
- *
- * Type: ffi::Array<runtime::Tensor>
- */
-constexpr const char* kConstants = "constants";
-
 /*!
  * \brief All the runtime::Modules accumulated during compilation by external codegen. These
  * modules must be either directly linked or captured in the final compilation artifact.
@@ -366,7 +357,6 @@ constexpr const char* kSystemLibPrefix = "system_lib_prefix";
  * \brief All the named runtime::Tensors accumulated during compilation by external codegen.
  * Generally the associated runtime::Module will indicate it requires bindings for these names,
  * and during module initialization these bindings will be recovered from a ConstLoaderModule.
- * See also kConstantsArray above, which is the analog for PrimFuncs.
  *
  * Type: ffi::Map<ffi::String, runtime::Tensor>
  */

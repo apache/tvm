@@ -190,19 +190,5 @@ def test_free_var_equal():
     tvm.ir.assert_structural_equal(x, z, map_free_vars=True)
 
 
-def test_alloc_const():
-    dev = tvm.cpu(0)
-    dtype = "float32"
-    shape = (16,)
-    buf = tvm.tir.decl_buffer(shape, dtype)
-    np_data = np.random.rand(*shape).astype(dtype)
-    data = tvm.runtime.tensor(np_data, device=dev)
-    body = tvm.tir.Evaluate(0)
-    alloc_const = tvm.tir.AllocateConst(buf.data, dtype, shape, data, body)
-    alloc_const2 = tvm.ir.load_json(tvm.ir.save_json(alloc_const))
-    tvm.ir.assert_structural_equal(alloc_const, alloc_const2)
-    np.testing.assert_array_equal(np_data, alloc_const2.data.numpy())
-
-
 if __name__ == "__main__":
     tvm.testing.main()

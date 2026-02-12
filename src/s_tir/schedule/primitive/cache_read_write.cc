@@ -462,12 +462,7 @@ Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
   std::vector<Stmt> nest;
   Stmt body = stmt;
   while (true) {
-    if (auto opt = body.as<AllocateConst>()) {
-      auto alloc = opt.value();
-      body = alloc->body;
-      alloc.CopyOnWrite()->body = Evaluate(0);
-      nest.push_back(alloc);
-    } else if (auto opt = body.as<DeclBuffer>()) {
+    if (auto opt = body.as<DeclBuffer>()) {
       auto decl_buffer = opt.value();
       body = decl_buffer->body;
       decl_buffer.CopyOnWrite()->body = Evaluate(0);
@@ -640,11 +635,9 @@ class CacheLocDetector : public StmtVisitor {
       info->loc_sref = scope_sref;
 
       auto block_body = scope_sref->StmtAs<SBlockNode>()->body;
-      // Find the SeqStmtNode within (potentially nested) AllocateConstNodes
+      // Find the SeqStmtNode within (potentially nested) DeclBufferNodes
       while (true) {
-        if (auto* ptr = block_body.as<AllocateConstNode>()) {
-          block_body = ptr->body;
-        } else if (auto* ptr = block_body.as<DeclBufferNode>()) {
+        if (auto* ptr = block_body.as<DeclBufferNode>()) {
           block_body = ptr->body;
         } else {
           break;

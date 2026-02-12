@@ -39,7 +39,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   LaunchThreadFrameNode::RegisterReflection();
   RealizeFrameNode::RegisterReflection();
   AllocateFrameNode::RegisterReflection();
-  AllocateConstFrameNode::RegisterReflection();
   AttrFrameNode::RegisterReflection();
   WhileFrameNode::RegisterReflection();
   IfFrameNode::RegisterReflection();
@@ -155,11 +154,6 @@ void AllocateFrameNode::ExitWithScope() {
       tvm::tir::Allocate(buffer_var, dtype, extents, condition, AsStmt(stmts), annotations));
 }
 
-void AllocateConstFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  AddToParent(
-      tvm::tir::AllocateConst(buffer_var, dtype, extents, data, AsStmt(stmts), annotations));
-}
 void AttrFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   AddToParent(tvm::tir::AttrStmt(node, attr_key, value, AsStmt(stmts)));
