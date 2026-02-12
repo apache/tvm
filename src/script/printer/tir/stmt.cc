@@ -251,35 +251,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
         });
 
-ExprDoc DocsifyBufferRealize(const tir::BufferRealizeNode* stmt, ffi::Optional<ExprDoc> value,  //
-                             AccessPath p, IRDocsifier d) {
-  ExprDoc buffer = d->AsDoc<ExprDoc>(stmt->buffer, p->Attr("buffer"));
-  {
-    ffi::Array<Doc> bounds;
-    bounds.reserve(stmt->bounds.size());
-    for (int i = 0, n = stmt->bounds.size(); i < n; ++i) {
-      Range range = stmt->bounds[i];
-      AccessPath range_p = p->Attr("bounds")->ArrayItem(i);
-      bounds.push_back(
-          SliceDoc(d->AsDoc<ExprDoc>(range->min, range_p->Attr("min")),
-                   d->AsDoc<ExprDoc>(range->min + range->extent, range_p->Attr("extent")),  //
-                   std::nullopt));
-    }
-    buffer = buffer[bounds];
-  }
-  ffi::Array<ExprDoc> args{buffer};
-  ffi::Array<ffi::String> kwargs_keys;
-  ffi::Array<ExprDoc> kwargs_values;
-  if (value.defined()) {
-    args.push_back(value.value());
-  }
-  if (!tir::is_one(stmt->condition)) {
-    kwargs_keys.push_back("condition");
-    kwargs_values.push_back(d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition")));
-  }
-  return TIR(d, "realize")->Call(args, kwargs_keys, kwargs_values);
-}
-
 void InsertEnvThread(const tir::IterVar& iter_var, const AccessPath& iter_var_p,
                      const IRDocsifier& d) {
   Frame f = FindLowestVarDef(iter_var->var, d).value();
@@ -314,16 +285,6 @@ ExprDoc DocsifyLaunchThread(const tir::AttrStmt& attr_stmt, const AccessPath& at
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::BufferRealize>(  //
-        "", [](tir::BufferRealize stmt, AccessPath p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d, stmt);
-          ExprDoc rhs = DocsifyBufferRealize(stmt.get(), std::nullopt, p, d);
-          With<TIRFrame> f(d, stmt);
-          AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-          return DoConciseScoping(std::nullopt, rhs, &(*f)->stmts, concise);
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AttrStmt>(  //
         "", [](tir::AttrStmt stmt, AccessPath stmt_p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d, stmt);
@@ -332,19 +293,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ffi::Optional<tir::Var> define_var = std::nullopt;
           tir::Stmt body = stmt->body;
           AccessPath body_p = stmt_p->Attr("body");
-          if (stmt->attr_key == "realize_scope") {
-            if (const auto* realize = stmt->body.as<tir::BufferRealizeNode>()) {
-              // TODO(tqchen): add any.same_as(ObjectRef)
-              if (realize->buffer.same_as(stmt->node.cast<ObjectRef>())) {
-                rhs = DocsifyBufferRealize(
-                    realize,
-                    /*value=*/d->AsDoc<ExprDoc>(stmt->value, stmt_p->Attr("value")),
-                    /*p=*/stmt_p->Attr("body"), d);
-                body = realize->body;
-                body_p = stmt_p->Attr("body")->Attr("body");
-              }
-            }
-          }
           if (stmt->attr_key == "thread_extent" || stmt->attr_key == "virtual_thread") {
             if (stmt->node.as<tir::IterVarNode>()) {
               rhs = DocsifyLaunchThread(stmt, stmt_p, &define_var, d);
@@ -374,8 +322,6 @@ TVM_SCRIPT_REPR(tir::DeclBufferNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::SeqStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::IfThenElseNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::EvaluateNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::BufferRealizeNode, ReprPrintTIR);
-
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

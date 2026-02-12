@@ -186,8 +186,6 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   ffi::Function f_visit_decl_buffer{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const BufferStoreNode* op)` function. */
   ffi::Function f_visit_buffer_store{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BufferRealizeNode* op)` function. */
-  ffi::Function f_visit_buffer_realize{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const AssertStmtNode* op)` function. */
   ffi::Function f_visit_assert_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const SeqStmtNode* op)` function. */
@@ -230,7 +228,6 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   PY_STMT_VISITOR_DISPATCH(AllocateNode, f_visit_allocate);
   PY_STMT_VISITOR_DISPATCH(DeclBufferNode, f_visit_decl_buffer);
   PY_STMT_VISITOR_DISPATCH(BufferStoreNode, f_visit_buffer_store);
-  PY_STMT_VISITOR_DISPATCH(BufferRealizeNode, f_visit_buffer_realize);
   PY_STMT_VISITOR_DISPATCH(AssertStmtNode, f_visit_assert_stmt);
   PY_STMT_VISITOR_DISPATCH(SeqStmtNode, f_visit_seq_stmt);
   PY_STMT_VISITOR_DISPATCH(EvaluateNode, f_visit_evaluate);
@@ -322,7 +319,6 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
     PY_STMT_VISITOR_DEFAULT_DISPATCH(AllocateNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(DeclBufferNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(BufferStoreNode);
-    PY_STMT_VISITOR_DEFAULT_DISPATCH(BufferRealizeNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(AssertStmtNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(SeqStmtNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(EvaluateNode);
@@ -352,7 +348,6 @@ class PyStmtExprVisitor : public ObjectRef {
                                                          ffi::Function f_visit_allocate,        //
                                                          ffi::Function f_visit_decl_buffer,     //
                                                          ffi::Function f_visit_buffer_store,    //
-                                                         ffi::Function f_visit_buffer_realize,  //
                                                          ffi::Function f_visit_assert_stmt,     //
                                                          ffi::Function f_visit_seq_stmt,        //
                                                          ffi::Function f_visit_evaluate,        //
@@ -403,7 +398,6 @@ class PyStmtExprVisitor : public ObjectRef {
     n->f_visit_allocate = std::move(f_visit_allocate);
     n->f_visit_decl_buffer = std::move(f_visit_decl_buffer);
     n->f_visit_buffer_store = std::move(f_visit_buffer_store);
-    n->f_visit_buffer_realize = std::move(f_visit_buffer_realize);
     n->f_visit_assert_stmt = std::move(f_visit_assert_stmt);
     n->f_visit_seq_stmt = std::move(f_visit_seq_stmt);
     n->f_visit_evaluate = std::move(f_visit_evaluate);
@@ -547,8 +541,6 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   ffi::Function f_visit_decl_buffer{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const BufferStoreNode* op)` function. */
   ffi::Function f_visit_buffer_store{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const BufferRealizeNode* op)` function. */
-  ffi::Function f_visit_buffer_realize{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const AssertStmtNode* op)` function. */
   ffi::Function f_visit_assert_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const SeqStmtNode* op)` function. */
@@ -591,7 +583,6 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   PY_STMT_MUTATOR_DISPATCH(AllocateNode, f_visit_allocate);
   PY_STMT_MUTATOR_DISPATCH(DeclBufferNode, f_visit_decl_buffer);
   PY_STMT_MUTATOR_DISPATCH(BufferStoreNode, f_visit_buffer_store);
-  PY_STMT_MUTATOR_DISPATCH(BufferRealizeNode, f_visit_buffer_realize);
   PY_STMT_MUTATOR_DISPATCH(AssertStmtNode, f_visit_assert_stmt);
   PY_STMT_MUTATOR_DISPATCH(SeqStmtNode, f_visit_seq_stmt);
   PY_STMT_MUTATOR_DISPATCH(EvaluateNode, f_visit_evaluate);
@@ -683,7 +674,6 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(AllocateNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(DeclBufferNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(BufferStoreNode);
-    PY_STMT_MUTATOR_DEFAULT_DISPATCH(BufferRealizeNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(AssertStmtNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(SeqStmtNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(EvaluateNode);
@@ -714,7 +704,6 @@ class PyStmtExprMutator : public ObjectRef {
                                                          ffi::Function f_visit_allocate,        //
                                                          ffi::Function f_visit_decl_buffer,     //
                                                          ffi::Function f_visit_buffer_store,    //
-                                                         ffi::Function f_visit_buffer_realize,  //
                                                          ffi::Function f_visit_assert_stmt,     //
                                                          ffi::Function f_visit_seq_stmt,        //
                                                          ffi::Function f_visit_evaluate,        //
@@ -765,7 +754,6 @@ class PyStmtExprMutator : public ObjectRef {
     n->f_visit_allocate = std::move(f_visit_allocate);
     n->f_visit_decl_buffer = std::move(f_visit_decl_buffer);
     n->f_visit_buffer_store = std::move(f_visit_buffer_store);
-    n->f_visit_buffer_realize = std::move(f_visit_buffer_realize);
     n->f_visit_assert_stmt = std::move(f_visit_assert_stmt);
     n->f_visit_seq_stmt = std::move(f_visit_seq_stmt);
     n->f_visit_evaluate = std::move(f_visit_evaluate);

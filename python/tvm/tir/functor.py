@@ -64,7 +64,6 @@ from .stmt import (
     AttrStmt,
     SBlock,
     SBlockRealize,
-    BufferRealize,
     BufferStore,
     DeclBuffer,
     Evaluate,
@@ -166,7 +165,6 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
         f_visit_allocate: Callable = None,
         f_visit_decl_buffer: Callable = None,
         f_visit_buffer_store: Callable = None,
-        f_visit_buffer_realize: Callable = None,
         f_visit_assert_stmt: Callable = None,
         f_visit_seq_stmt: Callable = None,
         f_visit_evaluate: Callable = None,
@@ -221,7 +219,6 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
             f_visit_allocate,
             f_visit_decl_buffer,
             f_visit_buffer_store,
-            f_visit_buffer_realize,
             f_visit_assert_stmt,
             f_visit_seq_stmt,
             f_visit_evaluate,
@@ -285,7 +282,6 @@ class PyStmtExprVisitor:
             "visit_allocate_",
             "visit_decl_buffer_",
             "visit_buffer_store_",
-            "visit_buffer_realize_",
             "visit_assert_stmt_",
             "visit_seq_stmt_",
             "visit_evaluate_",
@@ -450,19 +446,6 @@ class PyStmtExprVisitor:
             The BufferStore to be visited.
         """
         print("visit_buffer_store_", op)
-        _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
-
-    def visit_buffer_realize_(self, op: BufferRealize) -> None:
-        """Visit BufferRealize.
-        Users can customize this function to overwrite VisitStmt_(const BufferRealizeNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : BufferRealize
-            The BufferRealize to be visited.
-        """
-        print("visit_buffer_realize_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_assert_stmt_(self, op: AssertStmt) -> None:
@@ -984,7 +967,6 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
         f_visit_allocate: Callable = None,
         f_visit_decl_buffer: Callable = None,
         f_visit_buffer_store: Callable = None,
-        f_visit_buffer_realize: Callable = None,
         f_visit_assert_stmt: Callable = None,
         f_visit_seq_stmt: Callable = None,
         f_visit_evaluate: Callable = None,
@@ -1039,7 +1021,6 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
             f_visit_allocate,
             f_visit_decl_buffer,
             f_visit_buffer_store,
-            f_visit_buffer_realize,
             f_visit_assert_stmt,
             f_visit_seq_stmt,
             f_visit_evaluate,
@@ -1103,7 +1084,6 @@ class PyStmtExprMutator:
             "visit_allocate_",
             "visit_decl_buffer_",
             "visit_buffer_store_",
-            "visit_buffer_realize_",
             "visit_assert_stmt_",
             "visit_seq_stmt_",
             "visit_evaluate_",
@@ -1308,23 +1288,6 @@ class PyStmtExprMutator:
         ----------
         op : BufferStore
             The BufferStore to be visited.
-
-        Returns
-        -------
-        result : Stmt
-            The mutated Stmt.
-        """
-        return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
-
-    def visit_buffer_realize_(self, op: BufferRealize) -> Stmt:
-        """Visit BufferRealize.
-        Users can customize this function to overwrite VisitStmt_(const BufferRealizeNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : BufferRealize
-            The BufferRealize to be visited.
 
         Returns
         -------
