@@ -30,7 +30,6 @@ from .expr import Call, CallEffectKind, Let, IterVar, CommReducer
 from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
 from .stmt import (
     BufferStore,
-    BufferRealize,
     Allocate,
     AttrStmt,
     DeclBuffer,

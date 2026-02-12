@@ -67,17 +67,6 @@ def VectorizeLoop(enable_vectorize: bool = True):
     return _ffi_api.VectorizeLoop(enable_vectorize)  # type: ignore
 
 
-def InjectRollingBuffer():
-    """Inject rolling buffer statements.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectRollingBuffer()  # type: ignore
-
-
 def StorageRewrite():
     """Rewrite storage allocation pattern.
 

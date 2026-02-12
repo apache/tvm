@@ -499,15 +499,6 @@ LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
   return LaunchThread(EnvThread(thread_tag, extent.dtype()), extent);
 }
 
-RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, ffi::String storage_scope,
-                     PrimExpr condition) {
-  ObjectPtr<RealizeFrameNode> n = ffi::make_object<RealizeFrameNode>();
-  n->buffer_slice = buffer_slice;
-  n->storage_scope = storage_scope;
-  n->condition = condition;
-  return RealizeFrame(n);
-}
-
 AllocateFrame Allocate(ffi::Array<PrimExpr> extents, DataType dtype, ffi::String storage_scope,
                        ffi::Optional<PrimExpr> condition,
                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations) {
@@ -735,7 +726,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.LetStmt", LetStmt)
       .def("script.ir_builder.tir.LegacyLetStmt", LegacyLetStmt)
       .def("script.ir_builder.tir.Allocate", Allocate)
-      .def("script.ir_builder.tir.Realize", Realize)
       .def("script.ir_builder.tir.Attr", Attr)
       .def("script.ir_builder.tir.While", While)
       .def("script.ir_builder.tir.If", If)

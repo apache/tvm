@@ -304,16 +304,6 @@ LetFrame LetStmt(PrimExpr value, ffi::Optional<Type> type_annotation = std::null
                  ffi::Optional<Var> var = std::nullopt);
 
 /*!
- * \brief The realization.
- * \param buffer_slice The region of buffer access.
- * \param storage_scope The storage scope associated with this realization.
- * \param condition The condition expression.
- * \return The result RealizeFrame.
- */
-RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, ffi::String storage_scope,
-                     PrimExpr condition);
-
-/*!
  * \brief The allocate node.
  * \param extents The extents of the allocate.
  * \param dtype The data type of the buffer.

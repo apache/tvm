@@ -259,47 +259,6 @@ class BufferStore(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.BufferRealize")
-class BufferRealize(Stmt):
-    """Buffer realize node.
-
-    Parameters
-    ----------
-    buffer : Buffer
-        The buffer.
-
-    bounds : List[Range]
-        The value we to be stored.
-
-    condition : PrimExpr
-        The realize condition.
-
-    body : Stmt
-        The body of the statement.
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    buffer: Buffer
-    bounds: List[Range]
-    condition: PrimExpr
-    body: Stmt
-    span: Optional[Span]
-
-    def __init__(
-        self,
-        buffer: Buffer,
-        bounds: List[Range],
-        condition: PrimExpr,
-        body: Stmt,
-        span: Optional[Span] = None,
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.BufferRealize, buffer, bounds, condition, body, span  # type: ignore
-        )
-
-
 @tvm_ffi.register_object("tir.Allocate")
 class Allocate(Stmt):
     """Allocate node.
