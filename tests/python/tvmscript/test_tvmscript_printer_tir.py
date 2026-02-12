@@ -429,22 +429,6 @@ T.evaluate(0)
     )
 
 
-def test_buffer_realize():
-    with IRBuilder() as ib:
-        a = tir.decl_buffer((128, 128), "float32", name="A")
-        with T.realize(a[0:128, 0:128], "test_storage_scope", True):
-            T.evaluate(0)
-    obj = ib.get()
-    _assert_print(
-        obj,
-        """
-A = T.Buffer((128, 128))
-with T.realize(A[0:128, 0:128], "test_storage_scope"):
-    T.evaluate(0)
-""",
-    )
-
-
 def test_var():
     a = tir.Var("a", "float32")
     _assert_print(

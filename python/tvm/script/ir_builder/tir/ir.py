@@ -1020,34 +1020,6 @@ def let(
         return let_expr(v, value, body)
 
 
-def realize(
-    buffer_slice: BufferRegion,
-    storage_scope: str,
-    condition: PrimExpr = True,
-) -> frame.RealizeFrame:
-    """Create a realization.
-
-    Parameters
-    ----------
-    buffer_slice : BufferRegion
-        The region of buffer access.
-
-    storage_scope : str
-        The storage scope associated with this realization.
-
-    condition: PrimExpr
-        The condition expression, the default is True.
-
-    Returns
-    -------
-    res : frame.RealizeFrame
-        The result RealizeFrame.
-    """
-    return _ffi_api.Realize(  # type: ignore[attr-defined] # pylint: disable=no-member
-        buffer_slice, storage_scope, condition
-    )
-
-
 def allocate(
     extents: List[PrimExpr],
     dtype: str,
@@ -2145,7 +2117,6 @@ __all__ = float_types + [
     "thread_binding",
     "grid",
     "Assert",
-    "realize",
     "allocate",
     "attr",
     "While",

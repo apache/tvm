@@ -62,11 +62,6 @@ class LetFrame(TIRFrame):
         return self.var
 
 
-@_register_object("script.ir_builder.tir.RealizeFrame")
-class RealizeFrame(TIRFrame):
-    ...
-
-
 @_register_object("script.ir_builder.tir.AllocateFrame")
 class AllocateFrame(TIRFrame):
     def __enter__(self) -> Buffer:
