@@ -32,7 +32,6 @@
 namespace tvm {
 namespace tir {
 
-// TODO(Siyuan): move it to somewhere under tir folder
 /*!
  * \brief Match symbolic vars according to the given PrimExpr, and update the var_remap.
  * Will throw errors if there is a mismatch.
