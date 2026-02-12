@@ -74,13 +74,6 @@ class AllocateFrame(TIRFrame):
         return self.buffer_var
 
 
-@_register_object("script.ir_builder.tir.AllocateConstFrame")
-class AllocateConstFrame(TIRFrame):
-    def __enter__(self) -> Buffer:
-        super().__enter__()
-        return self.buffer_var
-
-
 @_register_object("script.ir_builder.tir.AttrFrame")
 class AttrFrame(TIRFrame):
     ...

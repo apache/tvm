@@ -761,38 +761,6 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs,
   }
 }
 
-void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
-  std::string symbol_name = AllocVarID(op->buffer_var.get());
-
-  int64_t num_elements = 1;
-  const auto& data = op->data.value();
-
-  for (int64_t dim : data.Shape()) {
-    num_elements *= dim;
-  }
-
-  decl_stream << "\n"
-              << "#ifdef __cplusplus\n"
-              << "extern \"C\" {\n"
-              << "#endif\n"
-              << "static const ";
-
-  PrintType(data.DataType(), decl_stream);
-
-  // Allocate the global static variable
-  decl_stream << " __attribute__((section(\".rodata.tvm\"), "
-              << "aligned(" << constants_byte_alignment_->value << "))) " << symbol_name << "["
-              << num_elements << "] = {\n";
-  TensorDataToC(data, 4, decl_stream);
-
-  decl_stream << "};\n"
-              << "#ifdef __cplusplus\n"
-              << "}  // extern \"C\"\n"
-              << "#endif\n";
-  var_idmap_[op->buffer_var.operator->()] = symbol_name;
-  this->PrintStmt(op->body);
-}
-
 void CodeGenC::VisitStmt_(const DeclBufferNode* op) { this->PrintStmt(op->body); }
 
 void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)

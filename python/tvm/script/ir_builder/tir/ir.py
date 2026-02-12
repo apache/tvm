@@ -29,12 +29,10 @@ from typing_extensions import Literal
 
 # isort: on
 
-import numpy as np  # type: ignore
-
 from tvm import ir, tir
 from tvm.ir import Type
 from tvm.ir.base import deprecated
-from tvm.runtime import String, convert, tensor
+from tvm.runtime import String, convert
 from tvm.target import Target
 
 # pylint: disable=unused-import
@@ -1080,43 +1078,6 @@ def allocate(
         condition = IntImm("bool", condition)
     return _ffi_api.Allocate(  # type: ignore[attr-defined] # pylint: disable=no-member
         extents, dtype, scope, condition, annotations
-    )
-
-
-def allocate_const(
-    data: List[PrimExpr],
-    dtype: str,
-    extents: List[PrimExpr],
-    annotations=None,
-) -> frame.AllocateConstFrame:
-    """Allocate constant node.
-
-    Parameters
-    ----------
-    data : List[PrimExpr]
-        The data associated with the constant.
-
-    dtype : str
-        The data type of the buffer.
-
-    extents : List[PrimExpr]
-        The extents of the allocate.
-
-    annotations : Optional[Map]
-        Additional annotations about the allocation.
-    """
-    np_data = np.asarray(data, dtype=dtype)
-    prod_extent = 1
-    for extent in extents:
-        prod_extent *= extent
-    prod_shape = 1
-    for shape in np_data.shape:
-        prod_shape *= shape
-    if prod_extent == prod_shape:
-        np_data = np_data.reshape(extents)
-
-    return _ffi_api.AllocateConst(  # type: ignore[attr-defined] # pylint: disable=no-member
-        tensor(np_data), dtype, extents, annotations
     )
 
 
@@ -2186,7 +2147,6 @@ __all__ = float_types + [
     "Assert",
     "realize",
     "allocate",
-    "allocate_const",
     "attr",
     "While",
     "If",

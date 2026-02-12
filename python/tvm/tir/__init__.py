@@ -32,7 +32,6 @@ from .stmt import (
     BufferStore,
     BufferRealize,
     Allocate,
-    AllocateConst,
     AttrStmt,
     DeclBuffer,
 )
