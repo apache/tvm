@@ -41,9 +41,6 @@ fi
 
 echo set\(USE_TENSORFLOW_PATH \"/tensorflow\"\) >> config.cmake
 echo set\(USE_FLATBUFFERS_PATH \"/flatbuffers\"\) >> config.cmake
-echo set\(USE_LIBBACKTRACE COMPILE\) >> config.cmake
-echo set\(BACKTRACE_ON_SEGFAULT ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(USE_UMA ON\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
 echo set\(USE_MSC ON\) >> config.cmake

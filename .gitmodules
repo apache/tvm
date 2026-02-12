@@ -10,18 +10,12 @@
 [submodule "3rdparty/OpenCL-Headers"]
 	path = 3rdparty/OpenCL-Headers
 	url = https://github.com/KhronosGroup/OpenCL-Headers.git
-[submodule "3rdparty/cnpy"]
-	path = 3rdparty/cnpy
-	url = https://github.com/rogersce/cnpy.git
 [submodule "3rdparty/cutlass_fpA_intB_gemm"]
 	path = 3rdparty/cutlass_fpA_intB_gemm
 	url = https://github.com/tlc-pack/cutlass_fpA_intB_gemm
 [submodule "3rdparty/libflash_attn"]
 	path = 3rdparty/libflash_attn
 	url = https://github.com/tlc-pack/libflash_attn
-[submodule "3rdparty/zlib"]
-	path = 3rdparty/zlib
-	url = https://github.com/madler/zlib.git
 [submodule "3rdparty/tvm-ffi"]
 	path = 3rdparty/tvm-ffi
 	url = https://github.com/apache/tvm-ffi

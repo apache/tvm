@@ -126,15 +126,6 @@ set(USE_CPP_RTVM OFF)
 # Whether to build the iOS RPC server application
 set(USE_IOS_RPC OFF)
 
-# Whether embed stackvm into the runtime
-set(USE_STACKVM_RUNTIME OFF)
-
-# Whether enable pipeline executor.
-set(USE_PIPELINE_EXECUTOR OFF)
-
-# Whether to enable the profiler for the graph executor and vm
-set(USE_PROFILER ON)
-
 # Whether build with LLVM support
 # Requires LLVM version >= 4.0
 #
@@ -285,15 +276,6 @@ set(USE_THRUST OFF)
 # Whether use cuRAND
 set(USE_CURAND OFF)
 
-# Whether to build the TensorFlow TVMDSOOp module
-set(USE_TF_TVMDSOOP OFF)
-
-# Whether to build the PyTorch custom class module
-set(USE_PT_TVMDSOOP OFF)
-
-# Whether to use STL's std::unordered_map or TVM's POD compatible Map
-set(USE_FALLBACK_STL_MAP OFF)
-
 # Whether to enable Hexagon support
 set(USE_HEXAGON OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
@@ -390,14 +372,6 @@ set(FLASHINFER_GEN_CASUALS "false" "true")
 
 # Enable to show a summary of TVM options
 set(SUMMARIZE OFF)
-
-# Whether to use LibTorch as backend
-# To enable pass the path to the root libtorch (or PyTorch) directory
-# OFF or /path/to/torch/
-set(USE_LIBTORCH OFF)
-
-# Whether to use the Universal Modular Accelerator Interface
-set(USE_UMA OFF)
 
 # Set custom Alloc Alignment for device allocated memory ndarray points to
 set(USE_KALLOC_ALIGNMENT 64)
