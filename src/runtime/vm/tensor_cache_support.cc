@@ -34,11 +34,7 @@
  * We will keep the impact minimum by puting it as a private
  * runtime builtin provide as in this file.
  */
-#define PICOJSON_USE_INT64
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS
-#endif
-#include <picojson.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
@@ -54,89 +50,76 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
-template <typename ExpectedType>
-inline ExpectedType AsType(const picojson::value& json) {
-  ICHECK(json.is<ExpectedType>());
-  return json.get<ExpectedType>();
-}
+namespace json = tvm::ffi::json;
 
-template <typename ValueType>
-inline ValueType GetValue(const picojson::object& json, const std::string& key) {
-  return AsType<ValueType>(json.at(key));
-}
-
-TensorCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::object& json) {
+TensorCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const json::Object& json) {
   std::vector<ffi::Shape::index_type> shape;
   {
-    picojson::array shape_json = GetValue<picojson::array>(json, "shape");
+    json::Array shape_json = json["shape"].cast<json::Array>();
     shape.reserve(shape_json.size());
-    for (const picojson::value& d : shape_json) {
-      shape.push_back(AsType<int64_t>(d));
+    for (const ffi::Any& d : shape_json) {
+      shape.push_back(d.cast<int64_t>());
     }
   }
   TensorCacheMetadata::FileRecord::ParamRecord result;
-  std::string dtype = GetValue<std::string>(json, "dtype");
-  result.name = GetValue<std::string>(json, "name");
+  std::string dtype = json["dtype"].cast<ffi::String>();
+  result.name = json["name"].cast<ffi::String>();
   result.dtype = DataType(ffi::StringToDLDataType(dtype));
-  result.format = GetValue<std::string>(json, "format");
-  result.nbytes = GetValue<int64_t>(json, "nbytes");
-  result.byte_offset = GetValue<int64_t>(json, "byteOffset");
+  result.format = json["format"].cast<ffi::String>();
+  result.nbytes = json["nbytes"].cast<int64_t>();
+  result.byte_offset = json["byteOffset"].cast<int64_t>();
   result.shape = ffi::Shape(std::move(shape));
   return result;
 }
 
-TensorCacheMetadata::FileRecord JSONAsFileRecord(const picojson::object& json) {
-  picojson::array records = GetValue<picojson::array>(json, "records");
+TensorCacheMetadata::FileRecord JSONAsFileRecord(const json::Object& json) {
+  json::Array records = json["records"].cast<json::Array>();
   TensorCacheMetadata::FileRecord result;
-  result.data_path = GetValue<std::string>(json, "dataPath");
-  result.format = GetValue<std::string>(json, "format");
-  result.nbytes = GetValue<int64_t>(json, "nbytes");
+  result.data_path = json["dataPath"].cast<ffi::String>();
+  result.format = json["format"].cast<ffi::String>();
+  result.nbytes = json["nbytes"].cast<int64_t>();
   result.records.reserve(records.size());
-  for (const picojson::value& item : records) {
-    result.records.push_back(JSONAsParamRecord(AsType<picojson::object>(item)));
+  for (const ffi::Any& item : records) {
+    result.records.push_back(JSONAsParamRecord(item.cast<json::Object>()));
   }
   return result;
 }
 
-TensorCacheMetadata JSONAsTensorCacheMetadata(const picojson::object& json) {
-  picojson::array records = GetValue<picojson::array>(json, "records");
+TensorCacheMetadata JSONAsTensorCacheMetadata(const json::Object& json) {
+  json::Array records = json["records"].cast<json::Array>();
   TensorCacheMetadata result;
   result.records.reserve(records.size());
-  for (const picojson::value& item : records) {
-    result.records.push_back(JSONAsFileRecord(AsType<picojson::object>(item)));
+  for (const ffi::Any& item : records) {
+    result.records.push_back(JSONAsFileRecord(item.cast<json::Object>()));
   }
   return result;
 }
 
 TensorCacheMetadata TensorCacheMetadata::LoadFromStr(const std::string& json_str,
                                                      const std::string& path) {
-  picojson::value json_info;
-  {
-    std::string err = picojson::parse(json_info, json_str);
-    if (!err.empty()) {
-      LOG(FATAL) << "Failed to parse JSON: err. The JSON string is:" << json_str;
-    }
-    CHECK(json_info.is<picojson::object>())
-        << "ValueError: The given string is not a JSON object: " << json_str;
+  ffi::String err;
+  json::Value json_info = json::Parse(json_str, &err);
+  if (!err.empty()) {
+    LOG(FATAL) << "Failed to parse JSON: " << err << ". The JSON string is:" << json_str;
   }
-  TensorCacheMetadata result = JSONAsTensorCacheMetadata(AsType<picojson::object>(json_info));
+  CHECK(json_info.as<json::Object>())
+      << "ValueError: The given string is not a JSON object: " << json_str;
+  TensorCacheMetadata result = JSONAsTensorCacheMetadata(json_info.cast<json::Object>());
   result.path = path;
   return result;
 }
 
 TVM_DLL TensorCacheMetadata TensorCacheMetadata::Load(const std::string& path) {
-  picojson::value json_info;
-  {
-    std::string json_str;
-    LoadBinaryFromFile(path + "/tensor-cache.json", &json_str);
-    std::string err = picojson::parse(json_info, json_str);
-    if (!err.empty()) {
-      LOG(FATAL) << "Failed to parse JSON: err. The JSON string is:" << json_str;
-    }
-    CHECK(json_info.is<picojson::object>())
-        << "ValueError: The given string is not a JSON object: " << json_str;
+  std::string json_str;
+  LoadBinaryFromFile(path + "/tensor-cache.json", &json_str);
+  ffi::String err;
+  json::Value json_info = json::Parse(json_str, &err);
+  if (!err.empty()) {
+    LOG(FATAL) << "Failed to parse JSON: " << err << ". The JSON string is:" << json_str;
   }
-  TensorCacheMetadata result = JSONAsTensorCacheMetadata(AsType<picojson::object>(json_info));
+  CHECK(json_info.as<json::Object>())
+      << "ValueError: The given string is not a JSON object: " << json_str;
+  TensorCacheMetadata result = JSONAsTensorCacheMetadata(json_info.cast<json::Object>());
   result.path = path;
   return result;
 }

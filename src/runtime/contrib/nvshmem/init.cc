@@ -19,7 +19,7 @@
 #include <cuda.h>
 #include <nvshmem.h>
 #include <nvshmemx.h>
-#include <picojson.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/disco_worker.h>
@@ -82,28 +82,27 @@ void InitNVSHMEM(ffi::Shape uid_64, int num_workers, int worker_id_start) {
 }
 
 void InitNVSHMEMWrapper(ffi::String args) {
-  picojson::value v;
-  std::string err = picojson::parse(v, args);
+  namespace json = tvm::ffi::json;
+  ffi::String err;
+  json::Value v = json::Parse(args, &err);
   if (!err.empty()) {
     LOG(FATAL) << "JSON parse error: " << err;
   }
 
-  if (!v.is<picojson::object>()) {
-    LOG(FATAL) << "JSON is not an object";
-  }
+  CHECK(v.as<json::Object>()) << "JSON is not an object";
+  json::Object obj = v.cast<json::Object>();
 
-  picojson::object& obj = v.get<picojson::object>();
-
-  picojson::array uid_array = obj["uid"].get<picojson::array>();
+  json::Array uid_array = obj["uid"].cast<json::Array>();
   std::vector<int64_t> uid_vector;
-  for (const auto& elem : uid_array) {
-    uid_vector.push_back(elem.get<int64_t>());
+  uid_vector.reserve(uid_array.size());
+  for (const ffi::Any& elem : uid_array) {
+    uid_vector.push_back(elem.cast<int64_t>());
   }
 
   ffi::Shape uid_64(uid_vector);
 
-  int num_workers = static_cast<int>(obj["npes"].get<int64_t>());
-  int worker_id_start = static_cast<int>(obj["pe_start"].get<int64_t>());
+  int num_workers = static_cast<int>(obj["npes"].cast<int64_t>());
+  int worker_id_start = static_cast<int>(obj["pe_start"].cast<int64_t>());
 
   InitNVSHMEM(uid_64, num_workers, worker_id_start);
 }

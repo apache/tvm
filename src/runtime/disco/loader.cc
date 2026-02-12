@@ -16,11 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#define PICOJSON_USE_INT64
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS
-#endif
-#include <picojson.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
@@ -39,6 +35,8 @@
 namespace tvm {
 namespace runtime {
 
+namespace json = tvm::ffi::json;
+
 using vm::TensorCacheMetadata;
 using FileRecord = TensorCacheMetadata::FileRecord;
 using ParamRecord = TensorCacheMetadata::FileRecord::ParamRecord;
@@ -56,57 +54,46 @@ struct ShardInfo {
   std::vector<ShardFunc> funcs;
 };
 
-template <typename ExpectedType>
-inline ExpectedType AsType(const picojson::value& json) {
-  ICHECK(json.is<ExpectedType>());
-  return json.get<ExpectedType>();
-}
-
-template <typename ValueType>
-inline ValueType GetValue(const picojson::object& json, const std::string& key) {
-  return AsType<ValueType>(json.at(key));
-}
-
 std::unordered_map<std::string, ShardInfo> LoadShardInfoFromStr(const std::string& json_str);
-ShardInfo::TensorInfo LoadTensorInfoFromJSON(const picojson::array& json_tensor_info) {
+
+ShardInfo::TensorInfo LoadTensorInfoFromJSON(const json::Array& json_tensor_info) {
   CHECK_EQ(json_tensor_info.size(), 2) << "ValueError: Invalid tensor info JSON";
-  picojson::array shape_json = AsType<picojson::array>(json_tensor_info[0]);
+  json::Array shape_json = json_tensor_info[0].cast<json::Array>();
   int ndim = shape_json.size();
   std::vector<int64_t> shape;
   shape.reserve(ndim);
   for (int i = 0; i < ndim; ++i) {
-    shape.push_back(AsType<int64_t>(shape_json[i]));
+    shape.push_back(shape_json[i].cast<int64_t>());
   }
-  std::string dtype = AsType<std::string>(json_tensor_info[1]);
+  std::string dtype = json_tensor_info[1].cast<ffi::String>();
   return ShardInfo::TensorInfo{ffi::Shape(std::move(shape)),
                                DataType(ffi::StringToDLDataType(dtype))};
 }
 
-ShardInfo::ShardFunc LoadShardFuncFromJSON(const picojson::array& json_shard_func) {
+ShardInfo::ShardFunc LoadShardFuncFromJSON(const json::Array& json_shard_func) {
   int n = json_shard_func.size();
   ShardInfo::ShardFunc shard_info;
-  shard_info.name = AsType<std::string>(json_shard_func[0]);
-  shard_info.output_info = LoadTensorInfoFromJSON(AsType<picojson::array>(json_shard_func[1]));
+  shard_info.name = json_shard_func[0].cast<ffi::String>();
+  shard_info.output_info = LoadTensorInfoFromJSON(json_shard_func[1].cast<json::Array>());
   shard_info.params.reserve(n - 2);
   for (int i = 2; i < n; ++i) {
-    shard_info.params.push_back(AsType<int64_t>(json_shard_func[i]));
+    shard_info.params.push_back(json_shard_func[i].cast<int64_t>());
   }
   return shard_info;
 }
 
 std::unordered_map<std::string, ShardInfo> LoadShardInfoFromStr(const std::string& json_str) {
-  picojson::value json_info;
-  picojson::parse(json_info, json_str);
-  picojson::object json_obj = AsType<picojson::object>(json_info);
+  json::Value json_info = json::Parse(json_str);
+  json::Object json_obj = json_info.cast<json::Object>();
   std::unordered_map<std::string, ShardInfo> result;
-  for (auto kv : json_obj) {
-    std::string name = kv.first;
-    picojson::array json_shard_funcs = AsType<picojson::array>(kv.second);
+  for (const auto& [k, v] : json_obj) {
+    std::string name = k.cast<ffi::String>();
+    json::Array json_shard_funcs = v.cast<json::Array>();
     ShardInfo info;
     std::vector<ShardInfo::ShardFunc>& shard_funcs = info.funcs;
     shard_funcs.reserve(json_shard_funcs.size());
-    for (const picojson::value& json_shard_func : json_shard_funcs) {
-      shard_funcs.push_back(LoadShardFuncFromJSON(AsType<picojson::array>(json_shard_func)));
+    for (const ffi::Any& json_shard_func : json_shard_funcs) {
+      shard_funcs.push_back(LoadShardFuncFromJSON(json_shard_func.cast<json::Array>()));
     }
     result[name] = info;
   }
