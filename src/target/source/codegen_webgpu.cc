@@ -694,10 +694,6 @@ void CodeGenWebGPU::VisitStmt_(const AssertStmtNode* op) {
   PrintStmt(op->body);
 }
 
-void CodeGenWebGPU::VisitStmt_(const AllocateConstNode* op) {
-  LOG(FATAL) << "WebGPU: do not support alloc const";
-}
-
 void CodeGenWebGPU::VisitStmt_(const WhileNode* op) {
   PrintIndent();
   stream << "while (true) {\n";

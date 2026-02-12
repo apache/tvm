@@ -443,15 +443,6 @@ TVM_DLL Pass ConvertForLoopsToSerial();
  */
 TVM_DLL Pass UnifiedStaticMemoryPlanner();
 
-TVM_DLL Pass BindParams(const ffi::Array<runtime::Tensor>& constants);
-
-/*!
- * \brief Pass to collect tir non-scalar constants into module's 'Constants' attribute.
- *
- * \return The pass.
- */
-TVM_DLL Pass ExtractPrimFuncConstants();
-
 /*!
  * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
  * \return The pass.

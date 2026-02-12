@@ -2078,18 +2078,6 @@ void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
   builder_->SetInsertPoint(end_block);
 }
 
-void CodeGenLLVM::VisitStmt_(const AllocateConstNode* op) {
-  EmitDebugLocation(op);
-  auto data = op->data.value();
-  auto array = TensorToLLVMArray(llvm_target_->GetContext(), data);
-  std::string symbol_name = op->buffer_var->name_hint;
-  llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
-      *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);
-
-  var_map_[op->buffer_var.operator->()] = param_symbol;
-  this->VisitStmt(op->body);
-}
-
 void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
   EmitDebugLocation(op);
   ICHECK_EQ(op->extents.size(), 1)
