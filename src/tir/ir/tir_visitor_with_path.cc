@@ -243,14 +243,6 @@ void TIRVisitorWithPath::VisitStmt_(const BufferStoreNode* op, AccessPath path) 
   Visit(op->indices, path->Attr("indices"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const BufferRealizeNode* op, AccessPath path) {
-  Visit(op->condition, path->Attr("condition"));
-  Visit(op->bounds, path->Attr("bounds"));
-  auto context = WithDefIfUndefined(op->buffer->data, path->Attr("buffer")->Attr("data"));
-  Visit(op->buffer, path->Attr("buffer"));
-  Visit(op->body, path->Attr("body"));
-}
-
 void TIRVisitorWithPath::VisitStmt_(const IfThenElseNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
   Visit(op->then_case, path->Attr("then_case"));

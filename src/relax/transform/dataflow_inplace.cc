@@ -716,13 +716,6 @@ tir::Stmt RemapBuffers(const tir::Stmt& stmt,
       return node;
     }
 
-    tir::Stmt VisitStmt_(const tir::BufferRealizeNode* op) final {
-      auto node = Downcast<tir::BufferRealize>(tir::StmtExprMutator::VisitStmt_(op));
-      auto* node_cow = node.CopyOnWrite();
-      node_cow->buffer = AttemptRemap(node->buffer);
-      return node;
-    }
-
     tir::Stmt VisitStmt_(const tir::DeclBufferNode* op) final {
       auto node = Downcast<tir::DeclBuffer>(tir::StmtExprMutator::VisitStmt_(op));
       auto* node_cow = node.CopyOnWrite();

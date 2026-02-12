@@ -426,52 +426,6 @@ class LaunchThreadFrame : public TIRFrame {
 };
 
 /*!
- * \brief A frame that represents realization.
- *
- * \sa RealizeFrame
- */
-class RealizeFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The region of buffer access. */
-  tvm::tir::BufferRegion buffer_slice;
-  /*! \brief The storage scope associated with this realization. */
-  ffi::String storage_scope;
-  /*! \brief The condition expression. */
-  PrimExpr condition;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RealizeFrameNode>()
-        .def_ro("buffer_slice", &RealizeFrameNode::buffer_slice)
-        .def_ro("storage_scope", &RealizeFrameNode::storage_scope)
-        .def_ro("condition", &RealizeFrameNode::condition);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.RealizeFrame", RealizeFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to RealizeFrameNode.
- *
- * \sa RealizeFrameNode
- */
-class RealizeFrame : public TIRFrame {
- public:
-  explicit RealizeFrame(ObjectPtr<RealizeFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RealizeFrame, TIRFrame, RealizeFrameNode);
-};
-
-/*!
  * \brief A frame represents the allocate.
  *
  * \sa AllocateFrame

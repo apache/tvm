@@ -391,18 +391,6 @@ class ComputeLegalizer : public StmtExprMutator {
     return ret;
   }
 
-  Stmt VisitStmt_(const BufferRealizeNode* op) final {
-    Stmt ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<BufferRealizeNode>();
-
-    Buffer new_buf = GetRemappedBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer)) {
-      return ret;
-    } else {
-      return BufferRealize(new_buf, op->bounds, op->condition, op->body);
-    }
-  }
-
   Stmt VisitStmt_(const DeclBufferNode* op) final {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<DeclBufferNode>();
@@ -625,10 +613,6 @@ class StorageLegalizer : public StmtExprMutator {
       }
     }
     return ret;
-  }
-
-  Stmt VisitStmt_(const BufferRealizeNode* op) final {
-    LOG(FATAL) << "Do not expect buffer realize";
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {

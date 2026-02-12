@@ -228,57 +228,6 @@ class BufferStore : public Stmt {
 };
 
 /*!
- * \brief Annotate the region where the buffer need to
- *  be read and write in the body.
- *  We only need to allocate the space for the corresponding region.
- *
- * \note There should be at most one BufferRealize for each buffer.
- *       BufferRealize is not necessary for external buffers,
- *       since they are assumed to be fully allocated.
- *
- * \sa BufferLoad, BufferStore
- */
-class BufferRealizeNode : public StmtNode {
- public:
-  /*! \brief The buffer variable. */
-  Buffer buffer;
-  /*! \brief Bounds to be realized */
-  ffi::Array<Range> bounds;
-  /*! \brief Only realize if condition holds. */
-  PrimExpr condition;
-  /*! \brief The body of realization. */
-  Stmt body;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BufferRealizeNode>()
-        .def_ro("buffer", &BufferRealizeNode::buffer)
-        .def_ro("bounds", &BufferRealizeNode::bounds)
-        .def_ro("condition", &BufferRealizeNode::condition)
-        .def_ro("body", &BufferRealizeNode::body);
-  }
-
-  BufferRealizeNode() = default;
-  BufferRealizeNode(Buffer buffer, ffi::Array<Range> bounds, PrimExpr condition, Stmt body,
-                    Span span = Span())
-      : StmtNode(span), buffer(buffer), bounds(bounds), condition(condition), body(body) {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BufferRealize", BufferRealizeNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to BufferRealizeNode.
- * \sa BufferRealizeNode
- */
-class BufferRealize : public Stmt {
- public:
-  TVM_DLL explicit BufferRealize(Buffer buffer, ffi::Array<Range> bounds, PrimExpr condition,
-                                 Stmt body, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferRealize, Stmt, BufferRealizeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRealizeNode);
-};
-
-/*!
  * \brief Allocate a buffer that can be used in body.
  */
 class AllocateNode : public StmtNode {
@@ -989,8 +938,6 @@ constexpr const char* extern_scope = "extern_scope";
 constexpr const char* compute_scope = "compute_scope";
 /*! \brief Mark storage alignment requirement of buffers */
 constexpr const char* storage_alignment = "storage_alignment";
-/*! \brief Mark storage scope of realization */
-constexpr const char* realize_scope = "realize_scope";
 /*! \brief The allocation device for global malloc in host. */
 constexpr const char* device_id = "device_id";
 /*! \brief The device type. */
@@ -1034,8 +981,6 @@ constexpr const char* double_buffer_scope = "double_buffer_scope";
  * \brief Marks region used by double buffer write
  */
 constexpr const char* double_buffer_write = "double_buffer_write";
-/*! \brief Mark realization for rolling buffer optimization */
-constexpr const char* rolling_buffer_scope = "rolling_buffer_scope";
 /*! \brief Mark of scan update scope */
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */

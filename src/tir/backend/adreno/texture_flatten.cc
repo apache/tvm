@@ -91,50 +91,6 @@ class TextureFlattener : public TextureLoweringBase {
                             IRVisitorWithAnalyzer* bound_analyzer)
       : TextureLoweringBase(extern_buffer_map, bound_analyzer) {}
 
-  Stmt VisitStmt_(const BufferRealizeNode* op) final {
-    if (extern_buf_.count(op->buffer)) {
-      return this->VisitStmt(op->body);
-    }
-
-    std::string storage_scope = GetStorageScope(op->buffer);
-    Var buffer_var(op->buffer->data->name_hint,
-                   PointerType(PrimType(op->buffer->dtype), ffi::String(storage_scope)));
-    let_binding_.insert({op->buffer->data, buffer_var});
-
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<BufferRealizeNode>();
-
-    // Rewrite any buffer realizations with storage scope to 2d texture allocations
-    if (IsTextureStorage(storage_scope)) {
-      Stmt body = this->VisitStmt(op->body);
-      ICHECK(op->bounds.size() >= 3) << "Only 2d RGBA texture is currently supported";
-      const int bits = op->buffer->dtype.bits(),
-                lanes = static_cast<int>(op->bounds.back()->extent.as<IntImmNode>()->value);
-      const int channel_size = bits * lanes;
-      ICHECK(channel_size == 128 || channel_size == 64)
-          << "Invalid Channel Size: " << channel_size << " bits";
-
-      struct ShapeFromRange {
-        const ffi::Array<Range>& bounds;
-        PrimExpr operator[](size_t i) const { return bounds[i]->extent; }
-      };
-      size_t axis = DefaultTextureLayoutSeparator(op->bounds.size(), storage_scope);
-      auto texture =
-          ApplyTexture2DFlattening<PrimExpr>(ShapeFromRange{op->bounds}, op->bounds.size(), axis);
-      ffi::Array<PrimExpr> args;
-      args.push_back(StringImm(storage_scope));
-      args.push_back(IntImm(DataType::Int(64), 3));  // 2D-Array
-      args.push_back(Call(DataType::Handle(), builtin::tvm_stack_make_shape(),
-                          {texture.width, texture.height, texture.depth}));
-      args.push_back(IntImm(DataType::Int(64), channel_size));
-
-      stmt = LetStmt(buffer_var, Call(buffer_var.dtype(), builtin::nd_mem_alloc_with_scope(), args),
-                     body);
-    }
-
-    return stmt;
-  }
-
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();

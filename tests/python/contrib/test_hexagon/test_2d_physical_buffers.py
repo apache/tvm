@@ -170,7 +170,7 @@ def extract_buffers(stmt):
     buffers = []
 
     def visitor(node):
-        if isinstance(node, (tvm.tir.BufferLoad, tvm.tir.BufferStore, tvm.tir.BufferRealize)):
+        if isinstance(node, (tvm.tir.BufferLoad, tvm.tir.BufferStore)):
             buffers.append(node.buffer)
 
     post_order_visit(stmt, visitor)

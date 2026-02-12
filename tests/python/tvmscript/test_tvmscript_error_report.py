@@ -76,26 +76,22 @@ def test_undefined_buffer():
     def undefined_buffer(a: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
 
-        T.attr(A, "realize_scope", "")
-        T.realize(C[0:16, 0:16], "")  # error
         for i in T.serial(16):
             for j in T.serial(0, 16):
-                A[i, j] = 0.0
+                C[i, j] = 0.0  # error
 
-    check_error(undefined_buffer, 5)
+    check_error(undefined_buffer, 6)
 
 
 def test_unsupported_function_call():
     def unsupported_function_call(a: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
 
-        T.attr(A, "realize_scope", "")
-        T.realize(A[0:16, 0:16], "")
         for i in T.const_range(16):  # error
             for j in T.serial(0, 16):
                 A[i, j] = 0.0
 
-    check_error(unsupported_function_call, 6)
+    check_error(unsupported_function_call, 4)
 
 
 def test_missing_type_annotation():

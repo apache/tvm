@@ -261,12 +261,6 @@ class LCADetector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const BufferRealizeNode* op) final {
-    buffer_var_map_.emplace(op->buffer->data.get(), op->buffer.get());
-    UpdateBufferLCA(op->buffer.get(), ancestor_scopes_.back());
-    StmtExprVisitor::VisitStmt_(op);
-  }
-
   // Works for Load/Store and opaque access.
   void VisitExpr_(const VarNode* op) final { VisitBufferVar(op); }
 

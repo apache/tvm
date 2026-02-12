@@ -202,11 +202,6 @@ class BufferAllocationLocator : public StmtExprMutator {
     return Stmt(n);
   }
 
-  Stmt VisitStmt_(const BufferRealizeNode* op) final {
-    ICHECK(false) << "Internal Error: BufferRealizeNode is not allowed in TensorIR.";
-    throw;
-  }
-
   Stmt InjectOpaqueBlock(Stmt body, const ffi::Array<Buffer>& alloc_buffers) {
     ICHECK(!alloc_buffers.empty());
     SBlock opaque_block(/*iter_vars=*/{},

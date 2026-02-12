@@ -314,37 +314,6 @@ def test_block_match_buffer_defines_symbolic_variables():
     tvm.tir.analysis.verify_well_formed(mod)
 
 
-def test_buffer_realize_on_external_buffer_is_annotation():
-    """A T.realize statement on an existing buffer annotates the region used"""
-
-    @I.ir_module
-    class mod:
-        @T.prim_func
-        def func(A: T.Buffer(256, "int32")):
-            T.realize(A[0:16], "global")
-
-            for i in range(16):
-                A[i] = 1
-
-    tvm.tir.analysis.verify_well_formed(mod)
-
-
-def test_buffer_realize_is_allocation():
-    """A T.realize statement on an fresh buffer allocates the buffer"""
-
-    @I.ir_module
-    class mod:
-        @T.prim_func
-        def func():
-            A = T.Buffer(256, "int32")
-            T.realize(A[0:16], "global")
-
-            for i in range(16):
-                A[i] = 1
-
-    tvm.tir.analysis.verify_well_formed(mod)
-
-
 def test_error_message_without_previous_definition_location():
     """Test case 1: Error message without 'It was first defined at'
 

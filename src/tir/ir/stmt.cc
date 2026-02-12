@@ -38,7 +38,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   AttrStmtNode::RegisterReflection();
   AssertStmtNode::RegisterReflection();
   BufferStoreNode::RegisterReflection();
-  BufferRealizeNode::RegisterReflection();
   AllocateNode::RegisterReflection();
   DeclBufferNode::RegisterReflection();
   SeqStmtNode::RegisterReflection();
@@ -465,20 +464,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                            ffi::Optional<PrimExpr> predicate, Span span) {
                           return BufferStore(buffer, value, indices, predicate, span);
                         });
-}
-
-// BufferRealize
-BufferRealize::BufferRealize(Buffer buffer, ffi::Array<Range> bounds, PrimExpr condition, Stmt body,
-                             Span span) {
-  data_ = ffi::make_object<BufferRealizeNode>(buffer, bounds, condition, body, span);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.BufferRealize", [](Buffer buffer, ffi::Array<Range> bounds,
-                                                PrimExpr condition, Stmt body, Span span) {
-    return BufferRealize(buffer, bounds, condition, body, span);
-  });
 }
 
 // BufferRegion
