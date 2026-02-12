@@ -185,6 +185,8 @@ def get_const_tuple(in_tuple):
     out_tuple : tuple of int
         The output.
     """
+    if not isinstance(in_tuple, (tuple, list)):
+        return (in_tuple,)
     ret = []
     ana = None
     for elem in in_tuple:
