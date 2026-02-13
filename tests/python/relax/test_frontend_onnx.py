@@ -923,6 +923,14 @@ def test_gelu():
     verify_unary("Gelu", [32, 32], domain="com.microsoft")
 
 
+def test_gelu_approximate():
+    """Test Gelu with approximate attribute from ONNX Opset 20."""
+    # Test Gelu with approximate="tanh"
+    verify_unary("Gelu", [32, 32], attrs={"approximate": "tanh"}, opset=20)
+    # Test Gelu with approximate="none" (default, same as standard Gelu)
+    verify_unary("Gelu", [32, 32], attrs={"approximate": "none"}, opset=20)
+
+
 def test_bias_gelu():
     verify_binary("BiasGelu", [32, 32], [32], [32, 32], domain="com.microsoft")
 
