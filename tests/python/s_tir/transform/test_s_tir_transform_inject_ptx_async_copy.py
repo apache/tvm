@@ -18,6 +18,7 @@
 import tvm
 import tvm_ffi
 import tvm.testing
+from tvm import s_tir
 from tvm.script import tir as T, ir as I
 
 import pytest
@@ -135,7 +136,7 @@ def test_inject_async_copy():
         mod = tvm.tir.transform.FlattenBuffer()(mod)
         if vec_size > 1:
             mod = tvm.tir.transform.VectorizeLoop()(mod)
-        mod = tvm.tir.transform.InjectPTXAsyncCopy()(mod)
+        mod = tvm.s_tir.transform.InjectPTXAsyncCopy()(mod)
 
         assert count_cp_async(mod["main"].body) == 1
 
@@ -162,8 +163,8 @@ def test_inject_async_copy_shared_dyn():
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
     mod = tvm.tir.transform.FlattenBuffer()(mod)
     mod = tvm.tir.transform.VectorizeLoop()(mod)
-    mod = tvm.tir.transform.MergeSharedMemoryAllocations()(mod)
-    mod = tvm.tir.transform.InjectPTXAsyncCopy()(mod)
+    mod = tvm.s_tir.transform.MergeSharedMemoryAllocations()(mod)
+    mod = tvm.s_tir.transform.InjectPTXAsyncCopy()(mod)
 
     assert count_cp_async(mod["main"].body) == 2
 
@@ -223,7 +224,7 @@ def test_inject_async_copy_barrier():
     mod = tvm.IRModule.from_expr(f)
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
     mod = tvm.tir.transform.FlattenBuffer()(mod)
-    mod = tvm.tir.transform.InjectPTXAsyncCopy()(mod)
+    mod = tvm.s_tir.transform.InjectPTXAsyncCopy()(mod)
 
     assert count_cp_async(mod["main"].body) == 1
 
@@ -981,7 +982,7 @@ def test_multiplication_nodes_are_inlined():
             T.ptx_commit_group()
             T.ptx_wait_group(0)
 
-    After = tvm.tir.transform.InjectPTXAsyncCopy()(Before)
+    After = tvm.s_tir.transform.InjectPTXAsyncCopy()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 

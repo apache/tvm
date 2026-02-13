@@ -23,17 +23,18 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../arith/pattern_match.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 using namespace arith;
 
@@ -203,15 +204,15 @@ Pass RenormalizeSplitPattern() {
     n->body = SplitPatternReNormalizer(&analyzer)(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.RenormalizeSplitPattern", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.RenormalizeSplitPattern", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.RenormalizeSplitPattern", RenormalizeSplitPattern);
+  refl::GlobalDef().def("s_tir.transform.RenormalizeSplitPattern", RenormalizeSplitPattern);
 }
 
 }  // namespace transform
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm
