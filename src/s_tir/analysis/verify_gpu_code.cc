@@ -32,10 +32,11 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../transform/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 class GPUCodeVerifier : public StmtExprVisitor {
  public:
@@ -85,7 +86,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
+    if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
       if (nest_level_ == 0) {
         // enter a new kernel, reset statistics
         Reset_();
@@ -326,7 +327,7 @@ bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr> constra
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.verify_gpu_code", VerifyGPUCode);
+  refl::GlobalDef().def("s_tir.analysis.verify_gpu_code", VerifyGPUCode);
 }
 
 namespace transform {
@@ -349,14 +350,14 @@ Pass VerifyGPUCode(ffi::Map<ffi::String, PrimExpr> constraints) {
     }
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifyGPUCode", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.VerifyGPUCode", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.VerifyGPUCode", VerifyGPUCode);
+  refl::GlobalDef().def("s_tir.transform.VerifyGPUCode", VerifyGPUCode);
 }
 
 }  // namespace transform
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

@@ -19,10 +19,11 @@
 
 #include <tvm/ffi/reflection/registry.h>
 
-#include "../../s_tir/meta_schedule/utils.h"
+#include "../meta_schedule/utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 namespace transform {
 /*!
  * \brief A helper function to do default thread binding for a block.
@@ -126,8 +127,8 @@ Pass DefaultGPUSchedule() {
         s_tir::Schedule sch = s_tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
                                                       s_tir::ScheduleErrorRenderLevel::kDetail);
         for (const auto& [gv, func] : m->functions) {
-          if (func->IsInstance<tir::PrimFuncNode>() && !func->HasNonzeroAttr(attr::kIsScheduled) &&
-              IsScheduledOnGPU(func)) {
+          if (func->IsInstance<tir::PrimFuncNode>() &&
+              !func->HasNonzeroAttr(tir::attr::kIsScheduled) && IsScheduledOnGPU(func)) {
             // get the target from context.
             tvm::Target target = tvm::Target::Current();
             // get the target from kTarget attribute
@@ -159,18 +160,18 @@ Pass DefaultGPUSchedule() {
         }
         return MarkScheduled(sch->mod());
       };
-  return CreateModulePass(/*pass_function=*/pass_func,         //
-                          /*opt_level=*/0,                     //
-                          /*pass_name=*/"DefaultGPUSchedule",  //
-                          /*required=*/{});
+  return tvm::transform::CreateModulePass(/*pass_function=*/pass_func,         //
+                                          /*opt_level=*/0,                     //
+                                          /*pass_name=*/"DefaultGPUSchedule",  //
+                                          /*required=*/{});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.DefaultGPUSchedule", DefaultGPUSchedule);
+  refl::GlobalDef().def("s_tir.transform.DefaultGPUSchedule", DefaultGPUSchedule);
 }
 
 }  // namespace transform
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

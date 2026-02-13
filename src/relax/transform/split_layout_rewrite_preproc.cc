@@ -25,6 +25,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <algorithm>
@@ -94,7 +95,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     DictAttrs attrs(dict);
     PrimFunc func = PrimFunc(params, body, VoidType(), buffer_map, attrs);
 
-    return RenewDefs(func);
+    return s_tir::RenewDefs(func);
   }
 
   PrimFunc create_compute_func() const {
@@ -140,7 +141,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     DictAttrs attrs(dict);
     PrimFunc func = PrimFunc(original_func_->params, body, VoidType(), buffer_map, attrs);
 
-    return RenewDefs(func);
+    return s_tir::RenewDefs(func);
   }
 
   void visit_root_block(const SBlockNode* op) {

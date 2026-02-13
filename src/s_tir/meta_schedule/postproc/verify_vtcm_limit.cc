@@ -17,7 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tir/transform.h>
+#include <tvm/s_tir/analysis.h>
 
 #include "../utils.h"
 
@@ -38,7 +38,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
   }
 
   bool Verify(const IRModule& mod) const {
-    if (!tir::VerifyVTCMLimit(mod, vtcm_capacity)) {
+    if (!s_tir::VerifyVTCMLimit(mod, vtcm_capacity)) {
       return false;
     }
     return true;
@@ -47,7 +47,7 @@ class VerifyVTCMLimitNode : public PostprocNode {
   bool Apply(const s_tir::Schedule& sch) final {
     IRModule mod = sch->mod();
     IRModule lowered{nullptr};
-    auto pass_list = tir::GetVTCMCompactionPasses();
+    auto pass_list = s_tir::GetVTCMCompactionPasses();
     tvm::transform::PassContext pass_ctx = tvm::transform::PassContext::Current();
     lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
     if (!Verify(lowered)) {

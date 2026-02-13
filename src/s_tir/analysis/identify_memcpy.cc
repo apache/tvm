@@ -38,7 +38,8 @@
 #include "../../arith/ir_visitor_with_analyzer.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
                                                             arith::Analyzer* analyzer) {
@@ -285,7 +286,7 @@ std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, arith::Analyzer* an
 // Expose the IdentifyMemCpy functionality to Python API for purpose of unit testing.
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis._identify_memcpy", [](const Stmt& stmt) {
+  refl::GlobalDef().def("s_tir.analysis._identify_memcpy", [](const Stmt& stmt) {
     ffi::Array<ObjectRef> output;
 
     struct Visitor : arith::IRVisitorWithAnalyzer {
@@ -316,5 +317,5 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

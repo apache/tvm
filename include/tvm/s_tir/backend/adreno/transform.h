@@ -18,35 +18,30 @@
  */
 
 /*!
- * \file tvm/tir/backend/adreno/transform.h
- * \brief TIR specific Adreno GPU transformation passes.
+ * \file tvm/s_tir/backend/adreno/transform.h
+ * \brief S-TIR specific Adreno GPU transformation passes.
  */
-#ifndef TVM_TIR_BACKEND_ADRENO_TRANSFORM_H_
-#define TVM_TIR_BACKEND_ADRENO_TRANSFORM_H_
+#ifndef TVM_S_TIR_BACKEND_ADRENO_TRANSFORM_H_
+#define TVM_S_TIR_BACKEND_ADRENO_TRANSFORM_H_
 
 #include <tvm/ir/transform.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
-#include <tvm/tir/transform.h>
 
 #include <string>
 #include <vector>
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
 namespace backend {
 namespace adreno {
 namespace transform {
 
-using tvm::tir::transform::CreatePrimFuncPass;
+using tir::transform::CreatePrimFuncPass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
-using tvm::transform::PassContextNode;
-using tvm::transform::PassInfo;
-using tvm::transform::PassInfoNode;
-using tvm::transform::PassNode;
-using tvm::transform::Sequential;
 
 /*!
  * \brief Texture flattening pass.
@@ -63,7 +58,7 @@ TVM_DLL Pass InjectTextureAlloc();
 }  // namespace transform
 }  // namespace adreno
 }  // namespace backend
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_BACKEND_ADRENO_TRANSFORM_H_
+#endif  // TVM_S_TIR_BACKEND_ADRENO_TRANSFORM_H_

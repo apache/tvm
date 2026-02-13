@@ -24,8 +24,8 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/backend/adreno/transform.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
@@ -37,9 +37,10 @@
 #include "../../../runtime/thread_storage_scope.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
 namespace backend {
 namespace adreno {
+using namespace tvm::tir;
 using arith::IRVisitorWithAnalyzer;
 using runtime::ApplyTexture2DFlattening;
 using runtime::DefaultTextureLayoutSeparator;
@@ -172,17 +173,18 @@ Pass TextureFlatten() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return TextureFlattenHandler(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.backend.adreno.TextureFlatten", {});
+  return tir::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.backend.adreno.TextureFlatten",
+                                            {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.backend.adreno.transform.TextureFlatten", TextureFlatten);
+  refl::GlobalDef().def("s_tir.backend.adreno.transform.TextureFlatten", TextureFlatten);
 }
 
 }  // namespace transform
 
 }  // namespace adreno
 }  // namespace backend
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

@@ -1717,7 +1717,7 @@ def test_rms_norm():
     # i.e., it does remove the global symbol of PrimFunc, which would be no longer used,
     # and thus, the following DCE cannot remove this. Revisit when resolved.
     with tvm.target.Target("cuda"):
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
     mod = relax.transform.RunCodegen(
         {"cutlass": {"rms_eps": 1e-6}},
@@ -1782,7 +1782,7 @@ def test_conv2d_cuda_graph():
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
 
     with tvm.target.Target("cuda"):
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
     out = build_and_run(mod, inputs, "cuda", cuda_graph=True)
     ref = build_and_run(Conv2d, inputs, "llvm", legalize=True)
@@ -2167,7 +2167,7 @@ def _test_batched_var_len_attention(
 
     with tvm.target.Target("cuda"):
         mod = relax.transform.LegalizeOps()(mod)
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
     out = build_and_run(
         mod,

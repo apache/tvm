@@ -155,7 +155,7 @@ def test_capture_error_is_recoverable():
         Module = tvm.ir.transform.Sequential(
             [
                 tvm.relax.transform.LegalizeOps(),
-                tvm.tir.transform.DefaultGPUSchedule(),
+                tvm.s_tir.transform.DefaultGPUSchedule(),
                 tvm.relax.transform.RemovePurityChecking(),
                 tvm.relax.transform.CallTIRRewrite(),
                 tvm.relax.transform.StaticPlanBlockMemory(),

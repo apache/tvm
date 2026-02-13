@@ -14,8 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI APIs for tvm.tir.backend.adreno.transform"""
-import tvm_ffi
+import tvm
+from tvm import te
 
 
-tvm_ffi.init_ffi_api("tir.backend.adreno.transform", __name__)
+def test_decorate_device():
+    x = te.var("x")
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([x], tvm.tir.Evaluate(x)))
+
+    stmt = tvm.s_tir.transform.DecorateDeviceScope()(mod)["main"].body
+    assert stmt.attr_key == "device_scope"
+
+
+if __name__ == "__main__":
+    test_decorate_device()

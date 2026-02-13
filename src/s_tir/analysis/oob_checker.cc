@@ -25,10 +25,11 @@
 #include <tvm/tir/transform.h>
 
 #include "../../arith/ir_visitor_with_analyzer.h"
-#include "../../s_tir/schedule/error.h"
+#include "../schedule/error.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 namespace transform {
 struct OOBLocation {
   Buffer buf;
@@ -110,8 +111,8 @@ class OOBCheckerVisitor final : public arith::IRVisitorWithAnalyzer {
   std::vector<OOBLocation> errors;
 };
 
-transform::Pass OOBChecker() {
-  auto pass_func = [=](tir::PrimFunc func, IRModule mod, transform::PassContext ctx) {
+tvm::transform::Pass OOBChecker() {
+  auto pass_func = [=](tir::PrimFunc func, IRModule mod, tvm::transform::PassContext ctx) {
     OOBCheckerVisitor checker;
     checker(func->body);
     if (checker.errors.size() > 0) {
@@ -121,13 +122,13 @@ transform::Pass OOBChecker() {
     }
     return func;
   };
-  return transform::CreatePrimFuncPass(pass_func, 0, "tir.analysis.OOBChecker", {});
+  return tir::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.analysis.OOBChecker", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.OOBChecker", OOBChecker);
+  refl::GlobalDef().def("s_tir.analysis.OOBChecker", OOBChecker);
 }
 }  // namespace transform
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

@@ -23,15 +23,16 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/index_map.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 #include <unordered_set>
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 class RemoveLayoutRewriteBlock : public StmtMutator {
  public:
@@ -51,7 +52,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
   Stmt VisitStmt_(const SBlockNode* op) final {
     SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
 
-    auto it = block->annotations.find(attr::meta_schedule_layout_rewrite_preproc);
+    auto it = block->annotations.find(tir::attr::meta_schedule_layout_rewrite_preproc);
     if (it == block->annotations.end() || !is_one(Downcast<PrimExpr>((*it).second))) {
       // The block is not a weight layout block
       // Remove allocates if needed
@@ -144,16 +145,16 @@ Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite) {
   auto pass_func = [skip_tensor_rewrite](PrimFunc f, IRModule m, PassContext ctx) {
     return WeightLayoutRewriteBlockRemover::Remove(std::move(f), skip_tensor_rewrite);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.RemoveWeightLayoutRewriteBlock", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.RemoveWeightLayoutRewriteBlock", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.RemoveWeightLayoutRewriteBlock",
+  refl::GlobalDef().def("s_tir.transform.RemoveWeightLayoutRewriteBlock",
                         RemoveWeightLayoutRewriteBlock);
 }
 
 }  // namespace transform
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

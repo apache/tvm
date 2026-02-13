@@ -23,13 +23,14 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
-#include "../ir/functor_common.h"
+#include "../../tir/ir/functor_common.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 #define STMT_REGENERATE_VAR_DEF(NODE, FIELD)     \
   Stmt VisitStmt_(const NODE* op) final {        \
@@ -292,8 +293,8 @@ PrimFunc RenewDefs(const PrimFunc& func) { return RenewDefMutator::Transform(fun
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.RenewDefs", RenewDefs);
+  refl::GlobalDef().def("s_tir.RenewDefs", RenewDefs);
 }
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

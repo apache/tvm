@@ -37,7 +37,7 @@ def test_remove_store_undef():
         def main(A: T.Buffer(1, "int32")):
             T.evaluate(0)
 
-    After = tvm.tir.transform.RemoveStoreUndef()(Before)
+    After = tvm.s_tir.transform.RemoveStoreUndef()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -56,7 +56,7 @@ def test_remove_store_undef_expression():
         def main(A: T.Buffer(1, "int32")):
             T.evaluate(0)
 
-    After = tvm.tir.transform.RemoveStoreUndef()(Before)
+    After = tvm.s_tir.transform.RemoveStoreUndef()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -71,7 +71,7 @@ def test_keep_other_call_nodes():
 
     Expected = Before
 
-    After = tvm.tir.transform.RemoveStoreUndef()(Before)
+    After = tvm.s_tir.transform.RemoveStoreUndef()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -91,7 +91,7 @@ def test_remove_let_undef():
         def main(A: T.Buffer(1, "int32")):
             T.evaluate(0)
 
-    After = tvm.tir.transform.RemoveStoreUndef()(Before)
+    After = tvm.s_tir.transform.RemoveStoreUndef()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -106,7 +106,7 @@ def test_raise_error_for_undef_as_store_indices():
             A[val] = 5
 
     with pytest.raises(TVMError):
-        tvm.tir.transform.RemoveStoreUndef()(Before)
+        tvm.s_tir.transform.RemoveStoreUndef()(Before)
 
 
 def test_raise_error_for_undef_as_load_indices():
@@ -123,7 +123,7 @@ def test_raise_error_for_undef_as_load_indices():
             B[0] = A[T.undef(dtype="int32")]
 
     with pytest.raises(TVMError):
-        tvm.tir.transform.RemoveStoreUndef()(Before)
+        tvm.s_tir.transform.RemoveStoreUndef()(Before)
 
 
 if __name__ == "__main__":

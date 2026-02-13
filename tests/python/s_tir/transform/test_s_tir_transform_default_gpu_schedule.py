@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,,missing-function-docstring
 import tvm
-from tvm.tir.transform import DefaultGPUSchedule
+from tvm.s_tir.transform import DefaultGPUSchedule
 from tvm.script import tir as T
 import tvm.testing
 

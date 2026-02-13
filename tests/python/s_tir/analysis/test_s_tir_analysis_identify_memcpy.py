@@ -25,7 +25,7 @@ from tvm.tir import BufferRegion, StringImm
 
 from tvm.script import ir as I, tir as T
 
-identify_memcpy = tvm.tir.analysis._ffi_api._identify_memcpy
+identify_memcpy = tvm.s_tir.analysis._ffi_api._identify_memcpy
 
 
 def _check_memcpy_results(func, expected):

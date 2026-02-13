@@ -32,7 +32,7 @@ def default_tir_pipeline():
         pass_ctx = tvm.transform.PassContext.current()
         config = pass_ctx.config
         passes = [
-            tir.backend.adreno.transform.TextureFlatten(),
+            s_tir.backend.adreno.transform.TextureFlatten(),
             s_tir.transform.CanonicalizeLoop(),
             s_tir.transform.LowerCrossThreadReduction(),
             s_tir.transform.LowerInitBlock(),
@@ -50,7 +50,7 @@ def default_tir_pipeline():
             s_tir.transform.InjectSoftwarePipeline(),
             s_tir.transform.TransformMmaBufferLayout(),
             s_tir.transform.LowerOpaqueBlock(),
-            tir.backend.adreno.transform.InjectTextureAlloc(),
+            s_tir.backend.adreno.transform.InjectTextureAlloc(),
             tir.transform.FlattenBuffer(),
             tir.transform.BF16ComputeLegalize(),
             tir.transform.NarrowDataType(32),

@@ -17,3 +17,4 @@
 """The S-TIR Adreno pipeline passes"""
 
 from . import pipeline
+from . import transform

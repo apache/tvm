@@ -18,7 +18,7 @@
 import numpy as np
 import tvm
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, s_tir, tir
 from tvm.relax.frontend.nn import Module, Tensor, op, spec
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -976,7 +976,7 @@ def test_multinomial_from_uniform():
     target = tvm.target.Target("cuda", host="llvm")
     with target:
         mod = relax.backend.DispatchSampling()(mod)
-        mod = tir.transform.DefaultGPUSchedule()(mod)
+        mod = s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target)
     dev = tvm.device(str(target), 0)
     vm = relax.VirtualMachine(ex, dev)
@@ -1109,7 +1109,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
 
     target = tvm.target.Target("cuda -libs=thrust", host="llvm")
     with target:
-        mod = tir.transform.DefaultGPUSchedule()(mod)
+        mod = s_tir.transform.DefaultGPUSchedule()(mod)
 
     ex = tvm.compile(mod, target)
     dev = tvm.cuda(0)
@@ -1227,7 +1227,7 @@ def test_renormalize_top_p_top_k_prob():
     target = tvm.target.Target("cuda -libs=thrust", host="llvm")
     with target:
         mod = relax.transform.LegalizeOps()(mod)
-        mod = tir.transform.DefaultGPUSchedule()(mod)
+        mod = s_tir.transform.DefaultGPUSchedule()(mod)
 
     ex = tvm.compile(mod, target)
     dev = tvm.cuda(0)

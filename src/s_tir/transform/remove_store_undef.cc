@@ -23,15 +23,16 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 class StoreUndefLocator : public StmtExprVisitor {
  public:
@@ -146,16 +147,16 @@ class ContainsUndefChecker : public StmtExprVisitor {
 
 namespace transform {
 Pass RemoveStoreUndefInternal() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](PrimFunc f, IRModule m, tvm::transform::PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = StoreUndefRemover::Apply(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.RemoveStoreUndefInternal", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.RemoveStoreUndefInternal", {});
 }
 
 Pass ValidateAllUndefRemoved() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](PrimFunc f, IRModule m, tvm::transform::PassContext ctx) {
     bool contains_undef = ContainsUndefChecker::Check(f->body);
     ICHECK(!contains_undef) << "Expected removal of BufferStore containing builtin::undef() "
                             << "to remove all instances of builtin::undef().  "
@@ -164,20 +165,21 @@ Pass ValidateAllUndefRemoved() {
                             << f;
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.ValidateAllUndefRemoved", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.ValidateAllUndefRemoved", {});
 }
 
 Pass RemoveStoreUndef() {
-  return Sequential({RemoveStoreUndefInternal(), RemoveNoOp(), ValidateAllUndefRemoved()},
-                    "tir.RemoveStoreUndef");
+  return tvm::transform::Sequential(
+      {RemoveStoreUndefInternal(), tir::transform::RemoveNoOp(), ValidateAllUndefRemoved()},
+      "s_tir.RemoveStoreUndef");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.RemoveStoreUndef", RemoveStoreUndef);
+  refl::GlobalDef().def("s_tir.transform.RemoveStoreUndef", RemoveStoreUndef);
 }
 
 }  // namespace transform
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

@@ -20,7 +20,7 @@ import pytest
 import tvm.testing
 from tvm.script import tir as T
 
-from tvm.tir.analysis import is_pure_function, assert_pure_function
+from tvm.s_tir.analysis import is_pure_function, assert_pure_function
 
 
 class CheckPureFunction:

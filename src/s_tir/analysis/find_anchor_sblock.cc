@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -94,7 +95,7 @@ const SBlockNode* FindAnchorBlock(const IRModule& mod) {
     int best_idx = 0;
     for (size_t i = 0; i < candidates.size(); ++i) {
       auto loop = GetEnclosingLoop(candidates[i], prim_func->body);
-      auto flops = EstimateTIRFlops(loop);
+      auto flops = s_tir::EstimateTIRFlops(loop);
       if (flops > best_flops) {
         best_flops = flops;
         best_idx = i;

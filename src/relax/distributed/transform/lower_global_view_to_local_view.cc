@@ -26,6 +26,7 @@
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/distributed/transform.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include "../../../s_tir/schedule/transform.h"
@@ -150,7 +151,7 @@ class DistributedBufferCompactor : StmtExprMutator {
  public:
   static std::tuple<PrimFunc, std::string> DistBufferCompact(
       const std::vector<ShardingSpec>& sharding_specs, PrimFunc prim_func) {
-    prim_func = RenewDefs(prim_func);
+    prim_func = s_tir::RenewDefs(prim_func);
     DistributedBufferCompactor compactor(sharding_specs, prim_func);
     ffi::Map<Var, Buffer> new_func_buffer_map;
     ffi::Map<Buffer, Buffer> replace_buffer_map;

@@ -33,6 +33,16 @@
 
 namespace tvm {
 namespace s_tir {
+
+/*!
+ * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
+ *        This pass works as a simple DeepCopy to duplicate a function with different Vars and
+ *        Buffers but the same behavior
+ * \param func The input PrimFunc.
+ * \return The renewed func.
+ */
+TVM_DLL tir::PrimFunc RenewDefs(const tir::PrimFunc& func);
+
 namespace transform {
 
 using tir::transform::CreatePrimFuncPass;
@@ -325,6 +335,37 @@ TVM_DLL Pass InjectPTXAsyncCopy();
  * \return The pass.
  */
 TVM_DLL Pass MergeSharedMemoryAllocations();
+
+/*!
+ * \brief Set default thread bindings for GPU PrimFuncs.
+ * \return The pass.
+ */
+TVM_DLL Pass DefaultGPUSchedule();
+
+/*!
+ * \brief Remove weight layout rewrite block before benchmark.
+ * \param skip_tensor_rewrite Whether to skip tensor rewrite.
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite = false);
+
+/*!
+ * \brief Remove stores of tir::builtin::undef.
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveStoreUndef();
+
+/*!
+ * \brief Decorate all the function's body as device function.
+ * \return The pass.
+ */
+TVM_DLL Pass DecorateDeviceScope();
+
+/*!
+ * \brief Eliminate branches by leveraging buffer assumptions (T.assume).
+ * \return The pass.
+ */
+TVM_DLL Pass UseAssumeToReduceBranches();
 
 }  // namespace transform
 }  // namespace s_tir

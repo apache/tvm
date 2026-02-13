@@ -63,7 +63,7 @@ def test_double_buffer():
     assert allocate_node is not None
     assert list(allocate_node.extents) == [m * 2]
 
-    f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
+    f = tvm.s_tir.transform.ThreadSync("shared")(mod)["db"]
     count = [0]
 
     def count_sync(op):

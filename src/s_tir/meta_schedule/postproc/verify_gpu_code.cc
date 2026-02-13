@@ -136,7 +136,7 @@ class VerifyGPUCodeNode : public PostprocNode {
   bool Verify(const IRModule& mod) const {
     for (const auto& kv : mod->functions) {
       if (auto prim_func = kv.second.as<tir::PrimFunc>()) {
-        if (!tir::VerifyGPUCode(prim_func.value(), this->target_constraints_)) {
+        if (!s_tir::VerifyGPUCode(prim_func.value(), this->target_constraints_)) {
           return false;
         }
       }

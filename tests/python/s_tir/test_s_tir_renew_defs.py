@@ -63,7 +63,7 @@ def test_simple():
                 B[vi, vj] = A[vi, vj] * 2.0
 
     f1 = elementwise
-    f2 = tvm.tir.stmt_functor.renew_defs(f1)
+    f2 = tvm.s_tir.renew_defs(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
     _check_func_signature_remap(f1, f2)
@@ -105,7 +105,7 @@ def test_match_buffer():
                     B[vi, vj] = A0[vi, vj] * 2.0
 
     f1 = func_match_buffer
-    f2 = tvm.tir.stmt_functor.renew_defs(f1)
+    f2 = tvm.s_tir.renew_defs(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
     _check_func_signature_remap(f1, f2)
@@ -143,7 +143,7 @@ def test_undefined_buffer():
             A[i] = A[i] + T.float16(1.0)
 
     f1 = access_alloc
-    f2 = tvm.tir.stmt_functor.renew_defs(f1)
+    f2 = tvm.s_tir.renew_defs(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
     assert f1.body.buffer_var != f2.body.buffer_var
@@ -165,7 +165,7 @@ def test_symbolic_func():
             B[i, j * 2 + 1] = A[i, j]
 
     f1 = symbolic_func
-    f2 = tvm.tir.stmt_functor.renew_defs(f1)
+    f2 = tvm.s_tir.renew_defs(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
 
@@ -181,7 +181,7 @@ def test_buffer_map():
                 B[vi, vj] = A[vi * 2 + vj]
 
     f1 = main
-    f2 = tvm.tir.stmt_functor.renew_defs(main)
+    f2 = tvm.s_tir.renew_defs(main)
     tvm.ir.assert_structural_equal(f1, f2)
     assert f1.buffer_map[f1.params[1]].shape[0] != f2.buffer_map[f2.params[1]].shape[0]
 
@@ -201,7 +201,7 @@ def test_gather():
                 T_take[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
 
     f1 = take
-    f2 = tvm.tir.stmt_functor.renew_defs(take)
+    f2 = tvm.s_tir.renew_defs(take)
     tvm.ir.assert_structural_equal(f1, f2)
 
 
