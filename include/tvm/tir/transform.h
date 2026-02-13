@@ -142,17 +142,6 @@ TVM_DLL Pass ConvertSSA();
 TVM_DLL Pass MakePackedAPI();
 
 /*!
- * \brief Transform the high-level PrimFunc to a C signature that can be used
- *   to call the operator directly.
- *
- *  The main task of this function is to create code that maps the values in the
- *  api_args to Var that is required by body
- *
- * \return The pass.
- */
-TVM_DLL Pass MakeUnpackedAPI();
-
-/*!
  * \brief Remap the thread axis
  *
  *  This can be used to get equivalent program which uses
@@ -250,22 +239,6 @@ TVM_DLL Pass LowerIntrin();
 TVM_DLL Pass LowerWarpMemory();
 
 /*!
- * \brief Lower attached storage access information on device.
- *
- * \note Run this pass after all storage access analysis finish.
- *
- * \return The pass.
- */
-TVM_DLL Pass LowerDeviceStorageAccessInfo();
-
-/*!
- * \brief Combine context calls in the host function.
- *
- * \return The pass.
- */
-TVM_DLL Pass CombineContextCall();
-
-/*!
  * \brief Narrow down PrimExpr datatype in stmt to target_bits.
  *
  * \param target_bits The target bits
@@ -344,15 +317,6 @@ TVM_DLL Pass FlattenBuffer();
  * \return The pass.
  */
 TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true, bool identify_equiv_terms = false);
-
-/*!
- * \brief This pass is post-scheduling pass to convert all
- *        Parallel For loops to Serial ones. This is run
- *        to attain lesser memory and/or executor/backend
- *        does not support parallel launch of For loops.
- * \return The pass.
- */
-TVM_DLL Pass ConvertForLoopsToSerial();
 
 /*!
  * \brief This is the unified static memory planner pass that will

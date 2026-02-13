@@ -28,8 +28,6 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tir.transform.LowerTVMBuiltin(),
         tir.transform.LowerCustomDatatypes(),
         tir.transform.LowerIntrin(),
-        tir.transform.LowerDeviceStorageAccessInfo(),
-        tir.transform.CombineContextCall(),
     ]
     return tvm.ir.transform.Sequential(host_pass_list)
 
@@ -40,7 +38,6 @@ def finalize_device_passes():  # pylint: disable=unused-argument
         tir.transform.LowerWarpMemory(),
         tir.transform.Simplify(),
         tir.transform.LowerCustomDatatypes(),
-        tir.transform.LowerDeviceStorageAccessInfo(),
         tir.transform.LowerIntrin(),
     ]
     return tvm.ir.transform.Sequential(device_pass_list)

@@ -125,22 +125,6 @@ def UnrollLoop():
     return _ffi_api.UnrollLoop()  # type: ignore
 
 
-@_ffi.register_object("tir.transform.ReduceBranchingThroughOvercomputeConfig")
-class ReduceBranchingThroughOvercomputeConfig(_ir.Attrs):
-    """Config for reduce branching through overcompute pass"""
-
-
-def ReduceBranchingThroughOvercompute():
-    """Reduce branching by introducing overcompute
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.ReduceBranchingThroughOvercompute()  # type: ignore
-
-
 @_ffi.register_object("tir.transform.RemoveNoOpConfig")
 class RemoveNoOpConfig(_ir.Attrs):
     """Config for remove no op pass"""
@@ -306,27 +290,6 @@ def MakePackedAPI():
     return _ffi_api.MakePackedAPI()  # type: ignore
 
 
-def MakeUnpackedAPI():
-    """Transform the PrimFuncs in the module to a C API compatible with internal calls.
-
-    Prior to this pass, the PrimFunc may have Buffer arguments defined in
-    the `PrimFuncNode::buffer_map`.  This pass consumes the `buffer_map`,
-    using it to generate `T*` arguments (e.g. `float32*`) that can be
-    directly called by a C API.
-
-    For static shapes, no runtime validation is performed to confirm that
-    the argument buffer's shape matches the expected shape.  For dynamic
-    shapes, `MakeUnpackedAPI` requires that the dynamic parameters be
-    passed as separate `tir.Var` parameters.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.MakeUnpackedAPI()  # type: ignore
-
-
 def AnnotateDeviceRegions():
     """Annotate locations that should be run on the device
 
@@ -418,32 +381,6 @@ def LowerIntrin():
         The result pass
     """
     return _ffi_api.LowerIntrin()  # type: ignore
-
-
-def LowerDeviceStorageAccessInfo():
-    """Lower attached storage access information on device.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-
-    Note
-    ----
-    Run this pass after all storage access analysis finish.
-    """
-    return _ffi_api.LowerDeviceStorageAccessInfo()  # type: ignore
-
-
-def CombineContextCall():
-    """Combine context calls in the host function.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.CombineContextCall()  # type: ignore
 
 
 def NarrowDataType(target_bits: int):
@@ -561,17 +498,6 @@ def FlattenBuffer():
         The result pass
     """
     return _ffi_api.FlattenBuffer()  # type: ignore
-
-
-def ConvertForLoopsToSerial():
-    """Convert Parallel For Loops to Serial For Loops.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.ConvertForLoopsToSerial()  # type: ignore
 
 
 def BindTarget(target):

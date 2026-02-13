@@ -23,6 +23,7 @@
  */
 #include "intrin_rule.h"
 
+#include <tvm/tir/buffer.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/op_attr_types.h>
 
@@ -120,6 +121,25 @@ TVM_REGISTER_OP("tir.nearbyint")
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
                                                      DispatchPureExtern<FloatSuffix>);
+
+TVM_REGISTER_OP("tir.tvm_access_ptr")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+      const CallNode* call = e.as<CallNode>();
+      ICHECK(call != nullptr);
+      ICHECK_EQ(call->args.size(), 5U);
+      DataType dtype = call->args[0].dtype();
+      Var buffer_var = Downcast<Var>(call->args[1]);
+      PrimExpr offset = call->args[2];
+      ICHECK(call->dtype.is_handle());
+      if (dtype.lanes() != 1) {
+        offset = offset * make_const(offset.dtype(), dtype.lanes());
+        offset = Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
+      }
+      Buffer dummy_buf(buffer_var, dtype.element_of(), {offset + 1}, {}, 0, buffer_var->name_hint,
+                       0, 0, kDefault);
+      BufferLoad buf_load(dummy_buf, {offset});
+      return Call(DataType::Handle(), builtin::address_of(), {buf_load});
+    });
 
 PrimExpr DispatchFastErf(const PrimExpr& e) {
   DLOG(WARNING) << "fast_erf will be used instead of erf";

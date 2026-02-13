@@ -404,19 +404,6 @@ TVM_DLL const Op& tvm_call_cpacked();
 TVM_DLL const Op& tvm_call_trace_packed();
 
 /*!
- * \brief See pesudo code
- *  Mark the content as thread local context, can get optimized
- *  by only call the call once at thread start.
- *
- *  Do not allow nesting(getting a thread context from another).
- *
- *  Handle tvm_thread_context(Expr call) {
- *     return call;
- *  }
- */
-TVM_DLL const Op& tvm_thread_context();
-
-/*!
  * \brief Mark a condition to be thread invariant.
  *  This means the condition must be the same for all threads.
  */

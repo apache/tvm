@@ -134,8 +134,6 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tir.transform.LowerTVMBuiltin(),
         tir.transform.LowerCustomDatatypes(),
         tir.transform.LowerIntrin(),
-        tir.transform.LowerDeviceStorageAccessInfo(),
-        tir.transform.CombineContextCall(),
     ]
     return tvm.ir.transform.Sequential(host_pass_list)
 
