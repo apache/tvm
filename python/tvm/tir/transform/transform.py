@@ -585,7 +585,7 @@ def VerifyVTCMLimit(limit=None):
     return _ffi_api.VerifyVTCMLimit(limit)  # type: ignore
 
 
-@_ffi.register_object("tir.transform.HoistIfThenElseConfig")
+@_ffi.register_object("s_tir.transform.HoistIfThenElseConfig")
 class HoistIfThenElseConfig(_ir.Attrs):
     """Config for hoist if then else pass"""
 
@@ -669,7 +669,7 @@ class HoistedLetBindings(enum.Flag):
     """ Enable all hoisting of let bindings """
 
 
-@_ffi.register_object("tir.transform.HoistExpressionConfig")
+@_ffi.register_object("s_tir.transform.HoistExpressionConfig")
 class HoistExpressionConfig(_ir.Attrs):
     """Config for hoist expression pass"""
 
