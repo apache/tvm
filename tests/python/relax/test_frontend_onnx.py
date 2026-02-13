@@ -2654,6 +2654,17 @@ def test_split(fp_arith, dynamic):
     # Test that the default case modifies nothing when split list has length one
     verify_split((1, 2), [[2]], [2], axis=1)
     verify_split((1, 2), [[2]], [1])
+    # Uneven split: 10 / 3 -> [4, 4, 2] (ceil-based per ONNX Opset 18 spec)
+    verify_split(10, [[4], [4], [2]], False, pass_split=False, opset=18)
+    # Uneven split 2D along axis 1: 7 / 3 -> [3, 3, 1]
+    verify_split(
+        (4, 7),
+        [[4, 3], [4, 3], [4, 1]],
+        False,
+        axis=1,
+        pass_split=False,
+        opset=18,
+    )
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
