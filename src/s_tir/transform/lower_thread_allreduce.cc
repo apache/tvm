@@ -24,20 +24,21 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "ir_utils.h"
-#include "update_pointer_storage_scope.h"
+#include "../../tir/transform/ir_utils.h"
+#include "../../tir/transform/update_pointer_storage_scope.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
@@ -47,12 +48,12 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         max_num_threads_(target->GetAttr<Integer>("max_num_threads", -1).value().IntValue()) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent) {
+    if (op->attr_key == tir::attr::thread_extent) {
       thread_extents_.push_back(op);
       Stmt ret = StmtExprMutator::VisitStmt_(op);
       thread_extents_.pop_back();
       return ret;
-    } else if (op->attr_key == attr::reduce_scope) {
+    } else if (op->attr_key == tir::attr::reduce_scope) {
       const CommReducerNode* combiner = op->node.as<CommReducerNode>();
       ICHECK(combiner);
       reduce_combiner_.push_back(combiner);
@@ -86,7 +87,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
       if (buf.scope() == "shared") {
         // Use volatile access to shared buffer.
-        write_ptr->body = AttrStmt(buf->data, attr::volatile_scope, 1, write_ptr->body);
+        write_ptr->body = AttrStmt(buf->data, tir::attr::volatile_scope, 1, write_ptr->body);
       }
     }
     return node;
@@ -807,14 +808,14 @@ Pass LowerThreadAllreduce() {
     n->body = thread_all_reduce(n->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.LowerThreadAllreduce", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerThreadAllreduce", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.LowerThreadAllreduce", LowerThreadAllreduce);
+  refl::GlobalDef().def("s_tir.transform.LowerThreadAllreduce", LowerThreadAllreduce);
 }
 
 }  // namespace transform
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

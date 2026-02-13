@@ -22,21 +22,22 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 #include <unordered_map>
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 #include "storage_access.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 class ThreadSyncPlanner : public StorageAccessVisitor {
  public:
@@ -291,7 +292,7 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
   explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::async_wait_queue_scope) {
+    if (op->attr_key == tir::attr::async_wait_queue_scope) {
       auto sync = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
                                 {StringImm(sync_scope_.to_string())}));
       auto inner = op->body.as<AttrStmtNode>();
@@ -346,7 +347,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent) {
+    if (op->attr_key == tir::attr::thread_extent) {
       bool temp = true;
       std::swap(temp, in_thread_env_);
       thread_extents_.push_back(op);
@@ -407,7 +408,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     for (const auto& kv : rw_stats_) {
       const auto& e = kv.second;
       if (e.read_count != 0 && e.write_count != 0) {
-        body = AttrStmt(kv.first, attr::volatile_scope, 1, body);
+        body = AttrStmt(kv.first, tir::attr::volatile_scope, 1, body);
       }
     }
     rw_stats_.clear();
@@ -466,17 +467,18 @@ namespace transform {
 Pass ThreadSync(ffi::String storage_scope) {
   auto pass_func = [storage_scope](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ThreadSync(std::move(n->body), storage_scope);
+    n->body = s_tir::ThreadSync(std::move(n->body), storage_scope);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.ThreadSync", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.ThreadSync", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.ThreadSync", ThreadSync);
+  refl::GlobalDef().def("s_tir.transform.ThreadSync",
+                        static_cast<Pass (*)(ffi::String)>(ThreadSync));
 }
 
 }  // namespace transform
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

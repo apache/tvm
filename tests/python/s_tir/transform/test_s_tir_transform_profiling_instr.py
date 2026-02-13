@@ -17,15 +17,15 @@
 
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, s_tir
 from tvm.ir.module import IRModule
 from tvm.script import tir as T
 import numpy
 
 default_lwp_test_config = {
     "tir.instrument_lwp": True,
-    "tir.lwp_disable_func_prof": True,
-    "tir.reset_start_id": True,
+    "s_tir.lwp_disable_func_prof": True,
+    "s_tir.reset_start_id": True,
 }
 
 
@@ -278,7 +278,7 @@ def test6_expected_output(a: T.handle, b: T.handle, c: T.handle, d: T.handle) ->
 def test1():
     with tvm.transform.PassContext(config=default_lwp_test_config):
         mod = tvm.IRModule.from_expr(input1.with_attr("global_symbol", "main"))
-        mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
+        mod = tvm.s_tir.transform.InstrumentProfileIntrinsics()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], test1_expected_output.with_attr("global_symbol", "main")
     )
@@ -288,10 +288,10 @@ def test1():
 # doesn't have any effect unless 'instr_siblings' is set to False (ex: test3).
 def test2():
     test2_config = default_lwp_test_config.copy()
-    test2_config.update({"tir.lwp_max_depth": 3})
+    test2_config.update({"s_tir.lwp_max_depth": 3})
     with tvm.transform.PassContext(config=test2_config):
         mod = tvm.IRModule.from_expr(input1.with_attr("global_symbol", "main"))
-        mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
+        mod = tvm.s_tir.transform.InstrumentProfileIntrinsics()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], test1_expected_output.with_attr("global_symbol", "main")
     )
@@ -303,10 +303,10 @@ def test2():
 # 'lwp_min_height' (ex: test5)
 def test3():
     test3_config = default_lwp_test_config.copy()
-    test3_config.update({"tir.lwp_max_depth": 3, "tir.instr_siblings": False})
+    test3_config.update({"s_tir.lwp_max_depth": 3, "s_tir.instr_siblings": False})
     with tvm.transform.PassContext(config=test3_config):
         mod = tvm.IRModule.from_expr(input1.with_attr("global_symbol", "main"))
-        mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
+        mod = tvm.s_tir.transform.InstrumentProfileIntrinsics()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], test3_expected_output.with_attr("global_symbol", "main")
     )
@@ -317,7 +317,7 @@ def test3():
 def test4():
     with tvm.transform.PassContext(config=default_lwp_test_config):
         mod = tvm.IRModule.from_expr(input2.with_attr("global_symbol", "main"))
-        mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
+        mod = tvm.s_tir.transform.InstrumentProfileIntrinsics()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], test4_expected_output.with_attr("global_symbol", "main")
     )
@@ -328,11 +328,11 @@ def test4():
 def test5():
     test5_config = default_lwp_test_config.copy()
     test5_config.update(
-        {"tir.lwp_max_depth": 3, "tir.instr_siblings": False, "tir.lwp_min_height": 2}
+        {"s_tir.lwp_max_depth": 3, "s_tir.instr_siblings": False, "s_tir.lwp_min_height": 2}
     )
     with tvm.transform.PassContext(config=test5_config):
         mod = tvm.IRModule.from_expr(input1.with_attr("global_symbol", "main"))
-        mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
+        mod = tvm.s_tir.transform.InstrumentProfileIntrinsics()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], test5_expected_output.with_attr("global_symbol", "main")
     )
@@ -342,7 +342,7 @@ def test5():
 def test6():
     with tvm.transform.PassContext(config=default_lwp_test_config):
         mod = tvm.IRModule.from_expr(input3.with_attr("global_symbol", "main"))
-        mod = tvm.tir.transform.InstrumentProfileIntrinsics()(mod)
+        mod = tvm.s_tir.transform.InstrumentProfileIntrinsics()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], test6_expected_output.with_attr("global_symbol", "main")
     )

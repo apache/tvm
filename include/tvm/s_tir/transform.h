@@ -230,6 +230,102 @@ TVM_DLL Pass InjectVirtualThread();
  */
 TVM_DLL Pass InjectDoubleBuffer();
 
+/*!
+ * \brief Hoist loop-invariant IfThenElse nodes to
+ * outside the eligible loops.
+ *
+ * \param variant The variant of the pass.
+ *        variant can have any one of following values ["basic", ""(Default)].
+ * \return The pass.
+ */
+TVM_DLL Pass HoistIfThenElse(tvm::ffi::String variant = "");
+
+/*!
+ * \brief Hoist loop-invariant expressions to outside the eligible loops.
+ *
+ * Can hoist conditionals used in IfThenElse statements and
+ * expressions, bindings of variables in Let statements and
+ * expressions, or boolean expressions, configurable to enable/disable
+ * each hoistable type.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass HoistExpression();
+
+/*!
+ * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv()).
+ * \return The pass.
+ */
+TVM_DLL Pass RenormalizeSplitPattern();
+
+/*!
+ * \brief Detect and rewrite unsafe select that contains memory access.
+ * \return The pass.
+ */
+TVM_DLL Pass RewriteUnsafeSelect();
+
+/*!
+ * \brief Instruments bound checkers.
+ * \return The pass.
+ */
+TVM_DLL Pass InstrumentBoundCheckers();
+
+/*!
+ * \brief Rewrite global to local memory copy on CUDA with ldg32 instruction.
+ * \param enable_inject Whether to enable injection.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPTXLDG32(bool enable_inject = true);
+
+/*!
+ * \brief Insert intrinsic calls to instrument function and loop level profiling.
+ * \return The pass.
+ */
+TVM_DLL Pass InstrumentProfileIntrinsics();
+
+/*!
+ * \brief Lower VTCM allocations.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerVtcmAlloc();
+
+/*!
+ * \brief Insert sync between parallel read/write of shared buffers.
+ * \param storage_scope The storage scope considered.
+ * \return The pass.
+ */
+TVM_DLL Pass ThreadSync(tvm::ffi::String storage_scope);
+
+/*!
+ * \brief Infer the TensorCore fragment information using tensor intrinsics.
+ * \return The pass.
+ */
+TVM_DLL Pass InferFragment();
+
+/*!
+ * \brief Lower cross thread allreduce.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerThreadAllreduce();
+
+/*!
+ * \brief Lower Async TIR primitives to DMA copy and wait builtins.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerAsyncDMA();
+
+/*!
+ * \brief Rewrite global to shared memory copy on CUDA with asynchronous copy.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPTXAsyncCopy();
+
+/*!
+ * \brief Merge multiple TIR-level shared memory allocations into one.
+ * \return The pass.
+ */
+TVM_DLL Pass MergeSharedMemoryAllocations();
+
 }  // namespace transform
 }  // namespace s_tir
 }  // namespace tvm

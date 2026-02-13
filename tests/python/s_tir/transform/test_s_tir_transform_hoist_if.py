@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
+from tvm import te, s_tir
 from tvm.script import tir as T, ir as I
 import numpy as np
 import pytest
@@ -77,7 +77,7 @@ def test_hoist_top_for():
                         T.evaluate(T.call_extern("int32", "dummy", n))
 
     mod = tvm.IRModule.from_expr(func)
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
         ("tir.For", "j"): (("tir.For", "k"),),
@@ -99,7 +99,7 @@ def test_hoist_multi_var_if():
                         T.evaluate(T.call_extern("int32", "dummy", n))
 
     mod = tvm.IRModule.from_expr(func)
-    new_mod = tvm.tir.transform.HoistIfThenElse()(mod)
+    new_mod = tvm.s_tir.transform.HoistIfThenElse()(mod)
     new_stmt = new_mod["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
@@ -124,7 +124,7 @@ def test_hoist_no_match_for():
                         T.evaluate(T.call_extern("int32", "dummy", n))
 
     mod = tvm.IRModule.from_expr(func)
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
         ("tir.IfThenElse", ("i",)): (("tir.For", "k"), ("tir.For", "k")),
@@ -144,7 +144,7 @@ def test_no_else():
                         T.evaluate(T.call_extern("int32", "dummy", m))
 
     mod = tvm.IRModule.from_expr(func)
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
         ("tir.For", "j"): (("tir.For", "k"),),
@@ -175,7 +175,7 @@ def test_attr_stmt():
                         )
 
     mod = tvm.IRModule.from_expr(func)
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
         ("tir.IfThenElse", ("i", "j")): (("tir.For", "k"), ("tir.For", "k")),
@@ -207,7 +207,7 @@ def test_nested_for():
                                 ] * T.float32(1.5)
 
     mod = tvm.IRModule.from_expr(func)
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     expected_struct = {
         ("tir.For", "l"): (None,),
         ("tir.For", "k"): (("tir.For", "l"),),
@@ -248,7 +248,7 @@ def test_if_block():
                         if n >= 3:
                             data[i2 * 3 + j2 + k2] = data[i2 * 3 + j2 + k2] + T.float32(0.6)
 
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     # Updated expected_struct with renamed second nest variables
     expected_struct = {
         ("tir.IfThenElse", ("i", "j")): (None, None),
@@ -280,7 +280,7 @@ def test_multi_if():
                             ] + T.float32(0.5)
 
     mod = tvm.IRModule.from_expr(func)
-    new_mod = tvm.tir.transform.HoistIfThenElse()(mod)
+    new_mod = tvm.s_tir.transform.HoistIfThenElse()(mod)
     new_stmt = new_mod["main"].body
     expected_struct = {
         ("tir.For", "k"): (None,),
@@ -306,13 +306,13 @@ def test_no_hoisting_1():
 
     mod = tvm.IRModule.from_expr(func)
     stmt = mod["main"].body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
+        config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+        new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
@@ -331,13 +331,13 @@ def test_no_hoisting_2():
 
     mod = tvm.IRModule.from_expr(func)
     stmt = mod["main"].body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
+        config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+        new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
@@ -370,13 +370,13 @@ def test_no_hoisting_4():
                             ] + T.float32(1.3)
 
     stmt = Module["main"].body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
+        config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+        new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
@@ -398,13 +398,13 @@ def test_no_hoisting_6():
                             data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + T.float32(1.3)
 
     stmt = Module["main"].body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
+        config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+        new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
@@ -427,13 +427,13 @@ def test_no_hoisting_7():
                                 )
 
     stmt = Module["main"].body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
+        config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+        new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
@@ -469,13 +469,13 @@ def test_hoisting_block_scope_2():
     mod = tvm.tir.transform.RemoveNoOp()(mod)
     stmt = mod["main"].body
 
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
+        config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+        new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
 
@@ -493,16 +493,16 @@ def test_hoisting_block_scope_5():
                             data[9 * j + 3 * j * k] = data[9 * j + 3 * j * k] + T.float32(1.3)
 
     stmt = Module["main"].body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], new_stmt))
     stmt = new_stmt
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
+        config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
+        new_stmt = tvm.s_tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
@@ -524,13 +524,13 @@ def test_hoisting_block_scope_6():
                             data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + T.float32(1.3)
 
     stmt = Module["main"].body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
+        config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+        new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
 
@@ -552,13 +552,13 @@ def test_hoisting_block_scope_7():
                             data[bx * j + tx * j * k] = data[bx * j + tx * j * k] + T.float32(1.3)
 
     stmt = Module["main"].body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+    new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
     with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
+        config={"s_tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
     ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(Module)["main"].body
+        new_stmt = tvm.s_tir.transform.HoistIfThenElse()(Module)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
 
 

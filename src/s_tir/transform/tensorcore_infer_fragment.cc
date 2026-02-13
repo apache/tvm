@@ -23,19 +23,20 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 #include <unordered_map>
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 #include "storage_access.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 // Get fragment information from tensor intrinsics
 class FragmentGetter : public StmtExprVisitor {
@@ -113,11 +114,17 @@ class FragmentGetter : public StmtExprVisitor {
   std::unordered_map<const VarNode*, FragmentInfo> fragments;
 };
 
+}  // namespace s_tir
+
+namespace tir {
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt) {
-  FragmentGetter getter;
+  s_tir::FragmentGetter getter;
   getter(stmt);
   return std::move(getter.fragments);
 }
+}  // namespace tir
+
+namespace s_tir {
 
 // Check shape of fragment making sure it is a valid shape for tvm_mma_sync
 class FragmentChecker : public StmtExprVisitor {
@@ -180,11 +187,11 @@ class InferFragmenter : public StmtMutator {
       std::string shape =
           std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
       PrimExpr shape_expr = StringImm(shape);
-      Stmt shape_attr = AttrStmt(op->buffer_var, attr::fragment_shape, shape_expr, stmt);
+      Stmt shape_attr = AttrStmt(op->buffer_var, tir::attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
         // Add shape attribute to matrix_a and matrix_b
-        Stmt layout_attr =
-            AttrStmt(op->buffer_var, attr::fragment_layout, StringImm(info.layout), shape_attr);
+        Stmt layout_attr = AttrStmt(op->buffer_var, tir::attr::fragment_layout,
+                                    StringImm(info.layout), shape_attr);
         return layout_attr;
       } else {
         return shape_attr;
@@ -212,17 +219,17 @@ namespace transform {
 Pass InferFragment() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = InferFragment(std::move(n->body));
+    n->body = s_tir::InferFragment(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.InferFragment", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.InferFragment", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.InferFragment", InferFragment);
+  refl::GlobalDef().def("s_tir.transform.InferFragment", static_cast<Pass (*)()>(InferFragment));
 }
 
 }  // namespace transform
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

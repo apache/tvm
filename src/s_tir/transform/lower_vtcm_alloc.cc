@@ -18,14 +18,15 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/tir/transform.h>
 
 #include "../../arith/ir_visitor_with_analyzer.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 inline bool IsVtcmStorage(std::string scope) {
   return scope.find("global.vtcm") != std::string::npos;
@@ -68,17 +69,17 @@ namespace transform {
 
 Pass LowerVtcmAlloc() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    return LowerVtcmAlloc(std::move(f));
+    return s_tir::LowerVtcmAlloc(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.LowerVtcmAlloc", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerVtcmAlloc", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.LowerVtcmAlloc", LowerVtcmAlloc);
+  refl::GlobalDef().def("s_tir.transform.LowerVtcmAlloc", static_cast<Pass (*)()>(LowerVtcmAlloc));
 }
 
 }  // namespace transform
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

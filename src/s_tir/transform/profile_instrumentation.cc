@@ -25,21 +25,22 @@
 // and can be used to capture profiling information such as processor cycles.
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 namespace lwp {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.lwp_disable_func_prof", Bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.lwp_max_depth", Integer);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.lwp_min_height", Integer);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.instr_siblings", Bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.reset_start_id", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.lwp_disable_func_prof", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.lwp_max_depth", Integer);
+TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.lwp_min_height", Integer);
+TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.instr_siblings", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.reset_start_id", Bool);
 
 static int32_t start_id = 0;
 
@@ -259,12 +260,12 @@ Pass InstrumentProfileIntrinsics() {
     // In addition, loops with siblings are also instrumented provided
     // their loop depth is >= min_instr_height. This is done to avoid
     // instrumenting inner-most loops.
-    auto max_instr_depth = ctx->GetConfig<Integer>("tir.lwp_max_depth", Integer(0)).value();
-    auto min_instr_height = ctx->GetConfig<Integer>("tir.lwp_min_height", Integer(1)).value();
-    bool instr_siblings = ctx->GetConfig<Bool>("tir.instr_siblings", Bool(true)).value();
+    auto max_instr_depth = ctx->GetConfig<Integer>("s_tir.lwp_max_depth", Integer(0)).value();
+    auto min_instr_height = ctx->GetConfig<Integer>("s_tir.lwp_min_height", Integer(1)).value();
+    bool instr_siblings = ctx->GetConfig<Bool>("s_tir.instr_siblings", Bool(true)).value();
     bool disable_func_instrumentation =
-        ctx->GetConfig<Bool>("tir.lwp_disable_func_prof", Bool(false)).value();
-    bool reset_start_id = ctx->GetConfig<Bool>("tir.reset_start_id", Bool(false)).value();
+        ctx->GetConfig<Bool>("s_tir.lwp_disable_func_prof", Bool(false)).value();
+    bool reset_start_id = ctx->GetConfig<Bool>("s_tir.reset_start_id", Bool(false)).value();
     if (reset_start_id) lwp::start_id = 0;
     std::vector<std::pair<GlobalVar, PrimFunc>> updates;
     for (const auto& kv : mptr->functions) {
@@ -281,15 +282,15 @@ Pass InstrumentProfileIntrinsics() {
     return m;
   };
 
-  return tvm::transform::CreateModulePass(pass_func, 0, "tir.InstrumentProfileIntrinsics", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.InstrumentProfileIntrinsics", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.InstrumentProfileIntrinsics", InstrumentProfileIntrinsics);
+  refl::GlobalDef().def("s_tir.transform.InstrumentProfileIntrinsics", InstrumentProfileIntrinsics);
 }
 
 }  // namespace transform
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

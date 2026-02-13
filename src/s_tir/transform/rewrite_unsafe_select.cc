@@ -23,14 +23,15 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 // For now, rewrite unsafe select expression to if_then_else
 // TODO(tqchen) pattern matching to support masked load
@@ -137,15 +138,15 @@ Pass RewriteUnsafeSelect() {
     n->body = UnsafeSelectRewriter()(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.RewriteUnsafeSelect", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.RewriteUnsafeSelect", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.RewriteUnsafeSelect", RewriteUnsafeSelect);
+  refl::GlobalDef().def("s_tir.transform.RewriteUnsafeSelect", RewriteUnsafeSelect);
 }
 
 }  // namespace transform
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

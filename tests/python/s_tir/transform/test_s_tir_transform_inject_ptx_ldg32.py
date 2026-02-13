@@ -17,6 +17,7 @@
 
 import tvm
 import tvm.testing
+from tvm import s_tir
 from tvm.script import tir as T
 
 
@@ -60,7 +61,7 @@ def test_inject_ptx_ldg32_inserts_alloc_for_no_alloc_func():
     mod = tvm.IRModule.from_expr(where_no_alloc)
     assert _count_alloc(mod["main"].body) == 0
 
-    mod = tvm.tir.transform.InjectPTXLDG32()(mod)
+    mod = tvm.s_tir.transform.InjectPTXLDG32()(mod)
     assert _count_alloc(mod["main"].body) > 0
     assert _count_ptx_ldg32(mod["main"].body) == 1
 
@@ -71,7 +72,7 @@ def test_inject_ptx_ldg32_skip_non_cuda_target():
     mod = tvm.IRModule({"main": mod["main"].with_attr("target", cpu_target)})
     assert _count_alloc(mod["main"].body) == 0
 
-    mod = tvm.tir.transform.InjectPTXLDG32()(mod)
+    mod = tvm.s_tir.transform.InjectPTXLDG32()(mod)
     assert _count_alloc(mod["main"].body) == 0
     assert _count_ptx_ldg32(mod["main"].body) == 0
 

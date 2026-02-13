@@ -16,8 +16,9 @@
 # under the License.
 import tvm
 import tvm.testing
+from tvm import s_tir
 from tvm.script import tir as T
-from tvm.tir.transform import HoistedConditionals, HoistedLetBindings
+from tvm.s_tir.transform import HoistedConditionals, HoistedLetBindings
 
 
 def _run_transform(before, hoisted_conditionals, hoisted_let_bindings):
@@ -25,14 +26,14 @@ def _run_transform(before, hoisted_conditionals, hoisted_let_bindings):
     before_mod = tvm.IRModule.from_expr(before)
 
     config = {
-        "tir.HoistExpression": {
+        "s_tir.HoistExpression": {
             "hoisted_conditionals": hoisted_conditionals.value,
             "hoisted_let_bindings": hoisted_let_bindings.value,
         }
     }
 
     with tvm.transform.PassContext(config=config):
-        after_mod = tvm.tir.transform.HoistExpression()(before_mod)
+        after_mod = tvm.s_tir.transform.HoistExpression()(before_mod)
 
     return after_mod["main"]
 

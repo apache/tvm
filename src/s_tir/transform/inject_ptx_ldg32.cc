@@ -21,17 +21,18 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 #include "../../arith/const_fold.h"
 #include "../../arith/pattern_match.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 class PTXRewriter : public StmtMutator {
  public:
@@ -145,16 +146,16 @@ Pass InjectPTXLDG32(bool enable_inject_ptx_intrin) {
     }
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.InjectPTXLDG32", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectPTXLDG32", {});
 }
 
 // The pass can now be invoked via the pass infrastructure, but we also add a
 // Python binding for it
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.InjectPTXLDG32", InjectPTXLDG32);
+  refl::GlobalDef().def("s_tir.transform.InjectPTXLDG32", InjectPTXLDG32);
 }
 
 }  // namespace transform
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

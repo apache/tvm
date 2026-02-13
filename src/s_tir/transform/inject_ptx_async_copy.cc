@@ -22,19 +22,20 @@
  * \file inject_ptx_async_copy.cc
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
-#include "../ir/buffer_common.h"
+#include "../../tir/ir/buffer_common.h"
 #include "storage_access.h"
 #include "tvm/tir/stmt.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 class PTXAsyncCopyInjector : public StmtMutator {
  public:
@@ -197,15 +198,15 @@ Pass InjectPTXAsyncCopy() {
     n->body = PTXAsyncCopyInjector()(n->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.InjectPTXAsyncCopy", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectPTXAsyncCopy", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.InjectPTXAsyncCopy", InjectPTXAsyncCopy);
+  refl::GlobalDef().def("s_tir.transform.InjectPTXAsyncCopy", InjectPTXAsyncCopy);
 }
 
 }  // namespace transform
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

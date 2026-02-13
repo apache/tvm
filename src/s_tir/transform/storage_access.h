@@ -21,8 +21,8 @@
  * \file storage_access.h
  * \brief Common data structure for storage access analysis.
  */
-#ifndef TVM_TIR_TRANSFORM_STORAGE_ACCESS_H_
-#define TVM_TIR_TRANSFORM_STORAGE_ACCESS_H_
+#ifndef TVM_S_TIR_TRANSFORM_STORAGE_ACCESS_H_
+#define TVM_S_TIR_TRANSFORM_STORAGE_ACCESS_H_
 
 #include <tvm/arith/int_set.h>
 #include <tvm/ir/attrs.h>
@@ -35,7 +35,8 @@
 #include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tir;
 
 using runtime::StorageRank;
 using runtime::StorageScope;
@@ -140,6 +141,6 @@ class StorageAccessVisitor : public StmtExprVisitor {
   // The involving threads
   ffi::Array<IterVar> env_threads_;
 };
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORM_STORAGE_ACCESS_H_
+#endif  // TVM_S_TIR_TRANSFORM_STORAGE_ACCESS_H_

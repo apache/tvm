@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import s_tir
 from tvm.script import ir as I, tir as T
 
 
@@ -27,7 +28,7 @@ def test_rewrite_Select():
             A = T.Buffer(100, "float32", data=A_data)
             T.evaluate(T.Select(i > 1, A[i - 1], T.float32(1.0)))
 
-    yy = tvm.tir.transform.RewriteUnsafeSelect()(ModuleY)["main"].body.body.value
+    yy = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleY)["main"].body.body.value
 
     @I.ir_module
     class ModuleZ:
@@ -41,7 +42,7 @@ def test_rewrite_Select():
                 )
             )
 
-    zz = tvm.tir.transform.RewriteUnsafeSelect()(ModuleZ)["main"].body.body.value
+    zz = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleZ)["main"].body.body.value
 
     @I.ir_module
     class ModuleA:
@@ -62,7 +63,7 @@ def test_rewrite_Select():
                 )
             )
 
-    aa = tvm.tir.transform.RewriteUnsafeSelect()(ModuleA)["main"].body.body.value
+    aa = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleA)["main"].body.body.value
     builtin_if_then_else = tvm.ir.Op.get("tir.if_then_else")
 
     assert yy.op.same_as(builtin_if_then_else)

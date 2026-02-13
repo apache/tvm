@@ -17,11 +17,12 @@
 
 import tvm
 import tvm.testing
+from tvm import s_tir
 from tvm.script import tir as T, ir as I
 
 
 def test_basic():
-    transform = tvm.tir.transform.LowerThreadAllreduce()
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
     class Before:
@@ -97,7 +98,7 @@ def test_basic():
 
 
 def test_basic_with_decl_buffer():
-    transform = tvm.tir.transform.LowerThreadAllreduce()
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
     class Before:
@@ -171,7 +172,7 @@ def test_basic_with_decl_buffer():
 
 
 def test_reduce_summation():
-    transform = tvm.tir.transform.LowerThreadAllreduce()
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
     class Before:
@@ -261,7 +262,7 @@ def test_reduce_summation():
 
 
 def test_multi_group_reduction():
-    transform = tvm.tir.transform.LowerThreadAllreduce()
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
     class Before:
@@ -330,7 +331,7 @@ def test_multi_group_reduction():
 
 
 def test_multi_group_mask1():
-    transform = tvm.tir.transform.LowerThreadAllreduce()
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
     class Before:
@@ -393,7 +394,7 @@ def test_multi_group_mask1():
 
 
 def test_multi_warp_reduce1():
-    transform = tvm.tir.transform.LowerThreadAllreduce()
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
     class Before:
@@ -478,7 +479,7 @@ def test_multi_warp_reduce1():
 
 
 def test_multi_warp_reduce2():
-    transform = tvm.tir.transform.LowerThreadAllreduce()
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
     class Before:
@@ -563,7 +564,7 @@ def test_multi_warp_reduce2():
 
 
 def test_multi_group_multi_warp_reduction():
-    transform = tvm.tir.transform.LowerThreadAllreduce()
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
     class Before:
@@ -648,7 +649,7 @@ def test_multi_group_multi_warp_reduction():
 
 
 def test_multi_group_multi_warp_predicated_reduction():
-    transform = tvm.tir.transform.LowerThreadAllreduce()
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
     class Before:
@@ -743,7 +744,7 @@ def test_multi_group_multi_warp_predicated_reduction():
 
 
 def test_metal_no_mask():
-    transform = tvm.tir.transform.LowerThreadAllreduce()
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
 
     @I.ir_module
     class Before:
