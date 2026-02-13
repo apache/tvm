@@ -18,7 +18,7 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, s_tir
 from tvm.topi.math import cast
 from tvm.script import ir as I, tir as T
 
@@ -30,7 +30,7 @@ def test_matmul_t_buffer():
     test_matmul_dyn_shared, using `T.Buffer` (Allocate without
     DeclBuffer) for the replaced allocations.
     """
-    transform = tvm.tir.transform.MergeSharedMemoryAllocations()
+    transform = tvm.s_tir.transform.MergeSharedMemoryAllocations()
     buffer_func = T.Buffer
 
     @I.ir_module
@@ -145,7 +145,7 @@ def test_matmul_decl_buffer():
     test_matmul_dyn_shared, using `T.decl_buffer` (Allocate followed by DeclBuffer)
     for the replaced allocations.
     """
-    transform = tvm.tir.transform.MergeSharedMemoryAllocations()
+    transform = tvm.s_tir.transform.MergeSharedMemoryAllocations()
     buffer_func = T.decl_buffer
 
     @I.ir_module
@@ -255,7 +255,7 @@ def test_matmul_decl_buffer():
 
 def test_simple_alloc_no_reuse():
     """Test alloc and free within the same scope."""
-    transform = tvm.tir.transform.MergeSharedMemoryAllocations()
+    transform = tvm.s_tir.transform.MergeSharedMemoryAllocations()
 
     @I.ir_module
     class Before:
@@ -284,7 +284,7 @@ def test_simple_alloc_no_reuse():
 
 def test_simple_alloc_reuse():
     """Test alloc and free within the same scope with a reuse chance."""
-    transform = tvm.tir.transform.MergeSharedMemoryAllocations()
+    transform = tvm.s_tir.transform.MergeSharedMemoryAllocations()
 
     @I.ir_module
     class Before:
@@ -315,7 +315,7 @@ def test_simple_alloc_reuse():
 
 def test_async_copy():
     """Test async copy in shared memory."""
-    transform = tvm.tir.transform.MergeSharedMemoryAllocations()
+    transform = tvm.s_tir.transform.MergeSharedMemoryAllocations()
 
     @I.ir_module
     class Before:

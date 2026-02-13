@@ -253,3 +253,192 @@ def InjectDoubleBuffer():
         The result pass
     """
     return _ffi_api.InjectDoubleBuffer()  # type: ignore
+
+
+def HoistIfThenElse(variant=None):
+    """Hoist loop-invariant IfThenElse nodes to outside the eligible loops.
+
+    Parameters
+    ----------
+    variant : Optional[String]
+        The variant of the pass.
+        variant can have any one of following values ["basic", None(Default)].
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    if variant == "basic":
+        return _ffi_api.HoistIfThenElseBasic()  # type: ignore
+    elif variant is None:
+        return _ffi_api.HoistIfThenElse()  # type: ignore
+    else:
+        raise ValueError("wrong variant of HoistIfThenElse, " + variant)
+
+
+def HoistExpression():
+    """Hoist loop-invariant expressions to outside the eligible loops.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.HoistExpression()  # type: ignore
+
+
+def RenormalizeSplitPattern():
+    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RenormalizeSplitPattern()  # type: ignore
+
+
+def RewriteUnsafeSelect():
+    """Detect and rewrite unsafe select that contains memory access.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RewriteUnsafeSelect()  # type: ignore
+
+
+def InstrumentBoundCheckers():
+    """Instruments bound checkers.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InstrumentBoundCheckers()  # type: ignore
+
+
+def InjectPTXLDG32(enable_inject_ptx_intrin=True):
+    """Inject ptx.ldg.32 intrinsics.
+
+    Parameters
+    ----------
+    enable_inject_ptx_intrin : bool
+        If True, inject ptx.ldg.32 intrinsics.
+    """
+    return _ffi_api.InjectPTXLDG32(enable_inject_ptx_intrin)  # type: ignore
+
+
+def InstrumentProfileIntrinsics():
+    """Insert intrinsic calls to instrument function and loop level profiling.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InstrumentProfileIntrinsics()  # type: ignore
+
+
+def VerifyVTCMLimit(default_target=None):
+    """Verify if the size of the allocated vtcm memory satisfies the limit.
+
+    The limit is determined from the "vtcm-capacity" attribute of the target.
+
+    Parameters
+    ----------
+    default_target : Optional[tvm.target.Target]
+        The default target to use if a PrimFunc does not have a target attribute.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.VerifyVTCMLimit(default_target)  # type: ignore
+
+
+def LowerVtcmAlloc():
+    """Lower vtcm allocation.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerVtcmAlloc()  # type: ignore
+
+
+def ThreadSync(storage_scope):
+    """Insert sync between parallel read/write of shared buffers.
+
+    Parameters
+    ----------
+    storage_scope: str
+        The target storage scope.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ThreadSync(storage_scope)  # type: ignore
+
+
+def InferFragment():
+    """Infer the TensorCore fragment information using tensor intrinsics.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InferFragment()  # type: ignore
+
+
+def LowerThreadAllreduce():
+    """Lower cross thread allreduce.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerThreadAllreduce()  # type: ignore
+
+
+def LowerAsyncDMA():
+    """Lower async DMA to DMA.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerAsyncDMA()  # type: ignore
+
+
+def InjectPTXAsyncCopy():
+    """Rewrite global to shared memory copy on CUDA with asynchronous copy.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
+
+
+def MergeSharedMemoryAllocations():
+    """This pass merges multiple TIR-level shared memory allocations
+    into one allocation.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.MergeSharedMemoryAllocations()  # type: ignore

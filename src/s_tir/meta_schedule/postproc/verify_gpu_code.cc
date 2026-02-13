@@ -179,7 +179,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(s_tir::transform::InjectVirtualThread());
           pass_list.push_back(s_tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tir::transform::StorageRewrite());
-          pass_list.push_back(tir::transform::MergeSharedMemoryAllocations());
+          pass_list.push_back(s_tir::transform::MergeSharedMemoryAllocations());
           pass_list.push_back(tir::transform::LowerIntrin());
           // Convert Function to IRModule
           tvm::transform::PassContext pass_ctx = tvm::transform::PassContext::Current();

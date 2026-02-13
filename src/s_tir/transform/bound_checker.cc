@@ -25,11 +25,11 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 #include <unordered_map>
 #include <utility>
@@ -38,7 +38,8 @@
 #include "../../arith/unwrap_vector_expr.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 // TODO(Lunderberg): Move this pass to be before
 // FlattenBuffer.  That will simplify this pass,
@@ -254,15 +255,16 @@ Pass InstrumentBoundCheckers() {
     n->body = BoundChecker(bound_collector.mem_to_shape)(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.InstrumentBoundCheckers", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.InstrumentBoundCheckers", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.InstrumentBoundCheckers", InstrumentBoundCheckers);
+  refl::GlobalDef().def("s_tir.transform.InstrumentBoundCheckers",
+                        static_cast<Pass (*)()>(InstrumentBoundCheckers));
 }
 
 }  // namespace transform
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

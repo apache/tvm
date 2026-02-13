@@ -17,6 +17,7 @@
 
 import tvm
 import tvm.testing
+from tvm import s_tir
 from tvm.script import tir as T
 
 # fmt: off
@@ -119,7 +120,7 @@ class After_simplified:
 
 
 def test_renormalize_split_pattern():
-    after = tvm.tir.transform.RenormalizeSplitPattern()(Before)
+    after = tvm.s_tir.transform.RenormalizeSplitPattern()(Before)
     tvm.ir.assert_structural_equal(after, After)
     after = tvm.tir.transform.Simplify()(after)
     tvm.ir.assert_structural_equal(after, After_simplified)
@@ -168,7 +169,7 @@ def test_analyze_inside_integer_conditional(integer_condition):
     # exception, as it rewrites the integer conditionals first.  These
     # tests are written using RenormalizeSplitPattern as it is the
     # first case identified.
-    transform = tvm.tir.transform.RenormalizeSplitPattern()
+    transform = tvm.s_tir.transform.RenormalizeSplitPattern()
 
     # Issue would result in an error through while applying the transformation.
     mod = tvm.IRModule.from_expr(integer_condition)

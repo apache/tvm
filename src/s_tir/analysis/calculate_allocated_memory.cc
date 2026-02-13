@@ -198,12 +198,13 @@ Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
     }
     return mod;
   };
-  return tvm::transform::CreateModulePass(pass_func, 0, "tir.calculate_allocated_bytes", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "s_tir.VerifyVTCMLimit", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.transform.VerifyVTCMLimit", VerifyVTCMLimit);
+  refl::GlobalDef().def("s_tir.transform.VerifyVTCMLimit", VerifyVTCMLimit);
 }
 
 }  // namespace transform

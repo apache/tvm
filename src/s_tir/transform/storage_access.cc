@@ -28,10 +28,11 @@
 #include <string>
 #include <utility>
 
-#include "ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
   Var buf = op->buffer->data;
@@ -109,7 +110,7 @@ void StorageAccessVisitor::VisitStmt_(const LetStmtNode* op) {
 }
 
 void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == attr::double_buffer_write) {
+  if (op->attr_key == tir::attr::double_buffer_write) {
     ICHECK(double_buffer_write_ == nullptr);
     double_buffer_write_ = op->node.as<VarNode>();
     scope_.push_back(std::vector<StmtEntry>());
@@ -127,12 +128,12 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
       scope_.back().emplace_back(std::move(s));
     }
     double_buffer_write_ = nullptr;
-  } else if (op->attr_key == attr::coproc_scope) {
+  } else if (op->attr_key == tir::attr::coproc_scope) {
     IterVar iv = Downcast<IterVar>(op->node);
     env_threads_.push_back(iv);
     StmtExprVisitor::VisitStmt_(op);
     env_threads_.pop_back();
-  } else if (op->attr_key == attr::thread_extent) {
+  } else if (op->attr_key == tir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     env_threads_.push_back(iv);
     if (!in_device_env_) {
@@ -147,7 +148,7 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
       StmtExprVisitor::VisitStmt_(op);
     }
     env_threads_.pop_back();
-  } else if (op->attr_key == attr::hand_threaded) {
+  } else if (op->attr_key == tir::attr::hand_threaded) {
     // skip this pass on blocks that were hand_threaded
     // this avoids control flow and read/write conflicts
     // between hand-threaded kernels and automatic threading
@@ -293,5 +294,5 @@ StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
   return StorageScope();  // global by default
 }
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

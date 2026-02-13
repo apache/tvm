@@ -25,20 +25,21 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 #include <unordered_map>
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
-#include "ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 using runtime::StorageRank;
 using runtime::StorageScope;
@@ -207,13 +208,13 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) final {
     // Only record the outer most thread extent.
-    if (op->attr_key == attr::thread_extent && !in_thread_env_) {
+    if (op->attr_key == tir::attr::thread_extent && !in_thread_env_) {
       in_thread_env_ = true;
       VisitNewScope(op);
       in_thread_env_ = false;
-    } else if (op->attr_key == attr::extern_scope) {
+    } else if (op->attr_key == tir::attr::extern_scope) {
       VisitNewScope(op);
-    } else if (op->attr_key == attr::virtual_thread) {
+    } else if (op->attr_key == tir::attr::virtual_thread) {
       VisitNewScope(op);
     } else {
       StmtExprVisitor::VisitStmt_(op);
@@ -273,7 +274,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
  private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent && !allocated_) {
+    if (op->attr_key == tir::attr::thread_extent && !allocated_) {
       // Allocate one dynamic shared memory allocation at the beginning of thread scope
       int max_layer_num = 0;
       std::vector<const StorageEntry*> all_entry;
@@ -690,17 +691,18 @@ Pass MergeSharedMemoryAllocations() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     bool merge_static_smem = ctx->GetConfig<Bool>("tir.merge_static_smem", Bool(false)).value();
     auto* n = f.CopyOnWrite();
-    n->body = MergeSharedMemoryAllocations(std::move(n->body), merge_static_smem);
+    n->body = s_tir::MergeSharedMemoryAllocations(std::move(n->body), merge_static_smem);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.MergeSharedMemoryAllocations", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.MergeSharedMemoryAllocations", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.MergeSharedMemoryAllocations", MergeSharedMemoryAllocations);
+  refl::GlobalDef().def("s_tir.transform.MergeSharedMemoryAllocations",
+                        static_cast<Pass (*)()>(MergeSharedMemoryAllocations));
 }
 
 }  // namespace transform
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

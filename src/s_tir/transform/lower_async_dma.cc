@@ -25,19 +25,20 @@
 #include <tvm/arith/bound.h>
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 #include <optional>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
-#include "ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
  public:
@@ -174,14 +175,14 @@ Pass LowerAsyncDMA() {
     fptr->body = AsyncDMALowerer(dma_bypass_cache, &analyzer)(std::move(fptr->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.LowerAsyncDMA", {});
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerAsyncDMA", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.LowerAsyncDMA", LowerAsyncDMA);
+  refl::GlobalDef().def("s_tir.transform.LowerAsyncDMA", LowerAsyncDMA);
 }
 }  // namespace transform
 
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, s_tir
 from tvm.script import tir as T
 
 
@@ -31,7 +31,7 @@ def run_passes(func: tvm.tir.PrimFunc):
 
     mod = tvm.tir.transform.AnnotateDeviceRegions()(mod)
     mod = tvm.tir.transform.SplitHostDevice()(mod)
-    return tvm.tir.transform.ThreadSync("shared")(mod)
+    return tvm.s_tir.transform.ThreadSync("shared")(mod)
 
 
 @tvm.testing.requires_cuda
@@ -94,7 +94,7 @@ def test_sync_shared_dyn():
         E_1[threadIdx_x] = D_1_1[threadIdx_x]
 
     mod = tvm.IRModule({"main": func})
-    mod = tvm.tir.transform.ThreadSync("shared.dyn")(mod)
+    mod = tvm.s_tir.transform.ThreadSync("shared.dyn")(mod)
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
@@ -170,7 +170,7 @@ def test_sync_let_stmt():
         )
 
     mod = tvm.IRModule({"main": func})
-    mod = tvm.tir.transform.ThreadSync("shared")(mod)
+    mod = tvm.s_tir.transform.ThreadSync("shared")(mod)
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
