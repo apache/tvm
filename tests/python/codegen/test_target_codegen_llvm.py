@@ -371,6 +371,30 @@ def test_llvm_bool():
 
 
 @tvm.testing.requires_llvm
+def test_llvm_cast_float_to_bool():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((4,), "float32"), C: T.Buffer((4,), "bool")):
+            T.func_attr({"tir.noalias": True})
+            for i in range(4):
+                with T.sblock("C"):
+                    v_i = T.axis.spatial(4, i)
+                    T.reads(A[v_i])
+                    T.writes(C[v_i])
+                    C[v_i] = T.Cast("bool", A[v_i])
+
+    n = 4
+    f = tvm.compile(Module, target="llvm")
+    dev = tvm.cpu(0)
+    a = tvm.runtime.tensor(np.array([0.0, 1.0, np.nan, np.inf], dtype="float32"), dev)
+    c = tvm.runtime.empty((n,), dtype="bool", device=dev)
+    f(a, c)
+    c_np = np.array([False, True, True, True], dtype="bool")
+    tvm.testing.assert_allclose(c.numpy(), c_np)
+
+
+@tvm.testing.requires_llvm
 def test_rank_zero():
     @I.ir_module
     class Module:
