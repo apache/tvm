@@ -7382,7 +7382,16 @@ def test_split():
         dtype = np.dtype(fp_arith).name
         input_shape = expected_input_shape(indata_shape)
         if not pass_split:
-            indices_or_sections = len(outdata_shapes)
+            n_outputs = len(outdata_shapes)
+            axis_dim = shape_tuple(indata_shape)[axis]
+            # relax.op.split with an integer splits evenly, so an uneven
+            # num_outputs split lowers to explicit indices instead. Only when
+            # the axis is static: a dynamic one keeps the integer form.
+            if not dynamic and axis_dim % n_outputs:
+                block_size = -(-axis_dim // n_outputs)
+                indices_or_sections = [block_size * i for i in range(1, n_outputs)]
+            else:
+                indices_or_sections = n_outputs
         elif len(outdata_shapes) == 1:
             indices_or_sections = 1
         else:
@@ -7448,6 +7457,11 @@ def test_split():
         (1, [[1]], [1], 0, True, 11),
         ((1, 2), [[2]], [2], 1, True, 11),
         ((1, 2), [[2]], [1], 0, True, 11),
+        # Uneven num_outputs splits (opset 18): ceil-based blocks per the spec.
+        # 10 / 3 -> [4, 4, 2]
+        (10, [[4], [4], [2]], False, 0, False, 18),
+        # 7 / 3 along axis 1 -> [3, 3, 1]
+        ((4, 7), [[4, 3], [4, 3], [4, 1]], False, 1, False, 18),
     ]
 
     for fp_arith in [np.float16, np.float32]:
