@@ -514,15 +514,6 @@ TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
                            const std::function<bool(const ObjectRef&)>& fvisit);
 
 /*!
- * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
- *        This pass works as a simple DeepCopy to duplicate a function with different Vars and
- *        Buffers but the same behavior
- * \param func The input PrimFunc.
- * \return The renewed func.
- */
-TVM_DLL PrimFunc RenewDefs(const PrimFunc& func);
-
-/*!
  * \brief Check if the statement contains the specified node type.
  *
  * This utility potentially walks the entire statement, and should
