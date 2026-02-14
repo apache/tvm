@@ -96,10 +96,10 @@ ffi::Module CreatePipeClient(std::vector<std::string> cmd) {
     std::string swrite_pipe = std::to_string(child_write);
     std::vector<char*> argv;
     for (auto& str : cmd) {
-      argv.push_back(dmlc::BeginPtr(str));
+      argv.push_back(str.data());
     }
-    argv.push_back(dmlc::BeginPtr(sread_pipe));
-    argv.push_back(dmlc::BeginPtr(swrite_pipe));
+    argv.push_back(sread_pipe.data());
+    argv.push_back(swrite_pipe.data());
     argv.push_back(nullptr);
     execvp(argv[0], &argv[0]);
   }

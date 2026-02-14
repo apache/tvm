@@ -26,6 +26,7 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
 
+#include <map>
 #include <unordered_set>
 
 #include "../../support/utils.h"

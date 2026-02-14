@@ -22,7 +22,6 @@
  */
 #include "miopen_utils.h"
 
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 
 #include <string>
@@ -51,11 +50,10 @@ MIOpenThreadEntry::MIOpenThreadEntry() {
 
 MIOpenThreadEntry::~MIOpenThreadEntry() { MIOPEN_CALL(miopenDestroy(handle)); }
 
-typedef dmlc::ThreadLocalStore<MIOpenThreadEntry> MIOpenThreadStore;
-
 MIOpenThreadEntry* MIOpenThreadEntry::ThreadLocal(Device curr_device) {
   // Need to update stream per fetch to avoid stream switching
-  MIOpenThreadEntry* res = MIOpenThreadStore::Get();
+  static thread_local MIOpenThreadEntry inst;
+  MIOpenThreadEntry* res = &inst;
   TVMFFIStreamHandle stream = TVMFFIEnvGetStream(curr_device.device_type, curr_device.device_id);
   MIOPEN_CALL(miopenSetStream(res->handle, stream));
   return res;

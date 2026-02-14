@@ -32,6 +32,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <optional>
+#include <set>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../tir/transform/ir_utils.h"

@@ -30,6 +30,8 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <list>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 

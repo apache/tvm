@@ -22,7 +22,6 @@
  */
 #include "rocblas.h"
 
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
@@ -63,7 +62,10 @@ struct RocBlasThreadEntry {
   rocblas_handle handle;
 };  // RocBlasThreadEntry
 
-typedef dmlc::ThreadLocalStore<RocBlasThreadEntry> RocBlasThreadStore;
+static RocBlasThreadEntry* RocBlasThreadStoreGet() {
+  static thread_local RocBlasThreadEntry inst;
+  return &inst;
+}
 
 // matrix multiplication for row major
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -105,7 +107,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             size_t ldb = transb ? K : N;
             size_t ldc = N;
 
-            CHECK_ROCBLAS_ERROR(rocblas_sgemm(RocBlasThreadStore::Get()->handle, roc_trans_B,
+            CHECK_ROCBLAS_ERROR(rocblas_sgemm(RocBlasThreadStoreGet()->handle, roc_trans_B,
                                               roc_trans_A, N, M, K, &alpha, B_ptr, ldb, A_ptr, lda,
                                               &beta, C_ptr, ldc));
           })
@@ -142,8 +144,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         size_t ldc = N;
 
         CHECK_ROCBLAS_ERROR(rocblas_sgemm_strided_batched(
-            RocBlasThreadStore::Get()->handle, roc_trans_B, roc_trans_A, N, M, K, &alpha, B_ptr,
-            ldb, K * N, A_ptr, lda, M * K, &beta, C_ptr, ldc, M * N, batch_size));
+            RocBlasThreadStoreGet()->handle, roc_trans_B, roc_trans_A, N, M, K, &alpha, B_ptr, ldb,
+            K * N, A_ptr, lda, M * K, &beta, C_ptr, ldc, M * N, batch_size));
       });
 }
 }  // namespace contrib

@@ -24,7 +24,7 @@
 #ifndef TVM_CONTRIB_MSC_CORE_IR_PLUGIN_H_
 #define TVM_CONTRIB_MSC_CORE_IR_PLUGIN_H_
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/data_layout.h>
 
@@ -48,31 +48,30 @@ struct JsonPluginAttr {
   std::string default_value;
   std::string describe;
 
-  void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("type", type);
-    writer->WriteObjectKeyValue("default_value", default_value);
-    writer->WriteObjectKeyValue("describe", describe);
-    writer->EndObject();
+  ffi::json::Value SaveToJSON() const {
+    ffi::json::Object obj;
+    obj.Set(ffi::String("name"), ffi::String(name));
+    obj.Set(ffi::String("type"), ffi::String(type));
+    obj.Set(ffi::String("default_value"), ffi::String(default_value));
+    obj.Set(ffi::String("describe"), ffi::String(describe));
+    return obj;
   }
 
-  void Load(dmlc::JSONReader* reader) {
+  void Load(ffi::json::Object obj) {
     int bitmask = 0;
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "name") {
-        reader->Read(&name);
-        bitmask |= 1;
-      } else if (key == "type") {
-        reader->Read(&type);
-        bitmask |= 2;
-      } else if (key == "default_value") {
-        reader->Read(&default_value);
-      } else if (key == "describe") {
-        reader->Read(&describe);
-      }
+    if (auto it = obj.find(ffi::String("name")); it != obj.end()) {
+      name = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 1;
+    }
+    if (auto it = obj.find(ffi::String("type")); it != obj.end()) {
+      type = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 2;
+    }
+    if (auto it = obj.find(ffi::String("default_value")); it != obj.end()) {
+      default_value = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("describe")); it != obj.end()) {
+      describe = std::string((*it).second.cast<ffi::String>());
     }
     ICHECK_EQ(bitmask, 1 | 2) << "name and type should be given for plugin attr";
     if (describe.size() == 0) {
@@ -91,33 +90,33 @@ struct JsonPluginTensor {
   std::string device{"default"};
   std::string describe;
 
-  void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("dtype", dtype);
-    writer->WriteObjectKeyValue("ndim", ndim);
-    writer->WriteObjectKeyValue("device", device);
-    writer->WriteObjectKeyValue("describe", describe);
-    writer->EndObject();
+  ffi::json::Value SaveToJSON() const {
+    ffi::json::Object obj;
+    obj.Set(ffi::String("name"), ffi::String(name));
+    obj.Set(ffi::String("dtype"), ffi::String(dtype));
+    obj.Set(ffi::String("ndim"), ndim);
+    obj.Set(ffi::String("device"), ffi::String(device));
+    obj.Set(ffi::String("describe"), ffi::String(describe));
+    return obj;
   }
 
-  void Load(dmlc::JSONReader* reader) {
+  void Load(ffi::json::Object obj) {
     int bitmask = 0;
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "name") {
-        reader->Read(&name);
-        bitmask |= 1;
-      } else if (key == "dtype") {
-        reader->Read(&dtype);
-      } else if (key == "ndim") {
-        reader->Read(&ndim);
-      } else if (key == "device") {
-        reader->Read(&device);
-      } else if (key == "describe") {
-        reader->Read(&describe);
-      }
+    if (auto it = obj.find(ffi::String("name")); it != obj.end()) {
+      name = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 1;
+    }
+    if (auto it = obj.find(ffi::String("dtype")); it != obj.end()) {
+      dtype = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("ndim")); it != obj.end()) {
+      ndim = (*it).second.cast<int64_t>();
+    }
+    if (auto it = obj.find(ffi::String("device")); it != obj.end()) {
+      device = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("describe")); it != obj.end()) {
+      describe = std::string((*it).second.cast<ffi::String>());
     }
     ICHECK_EQ(bitmask, 1) << "name should be given for plugin tensor";
     if (describe.size() == 0) {
@@ -136,33 +135,33 @@ struct JsonPluginExtern {
   std::string lib;
   std::string describe;
 
-  void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("header", header);
-    writer->WriteObjectKeyValue("source", source);
-    writer->WriteObjectKeyValue("lib", lib);
-    writer->WriteObjectKeyValue("describe", describe);
-    writer->EndObject();
+  ffi::json::Value SaveToJSON() const {
+    ffi::json::Object obj;
+    obj.Set(ffi::String("name"), ffi::String(name));
+    obj.Set(ffi::String("header"), ffi::String(header));
+    obj.Set(ffi::String("source"), ffi::String(source));
+    obj.Set(ffi::String("lib"), ffi::String(lib));
+    obj.Set(ffi::String("describe"), ffi::String(describe));
+    return obj;
   }
 
-  void Load(dmlc::JSONReader* reader) {
+  void Load(ffi::json::Object obj) {
     int bitmask = 0;
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "name") {
-        reader->Read(&name);
-        bitmask |= 1;
-      } else if (key == "header") {
-        reader->Read(&header);
-      } else if (key == "source") {
-        reader->Read(&source);
-      } else if (key == "lib") {
-        reader->Read(&lib);
-      } else if (key == "describe") {
-        reader->Read(&describe);
-      }
+    if (auto it = obj.find(ffi::String("name")); it != obj.end()) {
+      name = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 1;
+    }
+    if (auto it = obj.find(ffi::String("header")); it != obj.end()) {
+      header = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("source")); it != obj.end()) {
+      source = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("lib")); it != obj.end()) {
+      lib = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("describe")); it != obj.end()) {
+      describe = std::string((*it).second.cast<ffi::String>());
     }
     ICHECK_EQ(bitmask, 1) << "name should be given for plugin extern";
     if (describe.size() == 0) {
@@ -186,49 +185,154 @@ struct JsonPlugin {
   std::unordered_map<std::string, std::vector<std::string>> support_dtypes;
   std::unordered_map<std::string, std::string> options;
 
-  void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("version", version);
-    writer->WriteObjectKeyValue("describe", describe);
-    writer->WriteObjectKeyValue("attrs", attrs);
-    writer->WriteObjectKeyValue("inputs", inputs);
-    writer->WriteObjectKeyValue("outputs", outputs);
-    writer->WriteObjectKeyValue("buffers", buffers);
-    writer->WriteObjectKeyValue("externs", externs);
-    writer->WriteObjectKeyValue("support_dtypes", support_dtypes);
-    writer->WriteObjectKeyValue("options", options);
-    writer->EndObject();
+  ffi::json::Value SaveToJSON() const {
+    ffi::json::Object obj;
+    obj.Set(ffi::String("name"), ffi::String(name));
+    obj.Set(ffi::String("version"), ffi::String(version));
+    obj.Set(ffi::String("describe"), ffi::String(describe));
+    {
+      ffi::json::Array arr;
+      for (const auto& item : attrs) {
+        arr.push_back(item.SaveToJSON());
+      }
+      obj.Set(ffi::String("attrs"), std::move(arr));
+    }
+    {
+      ffi::json::Array arr;
+      for (const auto& item : inputs) {
+        arr.push_back(item.SaveToJSON());
+      }
+      obj.Set(ffi::String("inputs"), std::move(arr));
+    }
+    {
+      ffi::json::Array arr;
+      for (const auto& item : outputs) {
+        arr.push_back(item.SaveToJSON());
+      }
+      obj.Set(ffi::String("outputs"), std::move(arr));
+    }
+    {
+      ffi::json::Array arr;
+      for (const auto& item : buffers) {
+        arr.push_back(item.SaveToJSON());
+      }
+      obj.Set(ffi::String("buffers"), std::move(arr));
+    }
+    {
+      ffi::json::Object inner;
+      for (const auto& kv : externs) {
+        inner.Set(ffi::String(kv.first), kv.second.SaveToJSON());
+      }
+      obj.Set(ffi::String("externs"), std::move(inner));
+    }
+    // support_dtypes: map<string, vector<string>>
+    {
+      ffi::json::Object sd_obj;
+      for (const auto& kv : support_dtypes) {
+        ffi::json::Array arr;
+        for (const auto& s : kv.second) {
+          arr.push_back(ffi::String(s));
+        }
+        sd_obj.Set(ffi::String(kv.first), std::move(arr));
+      }
+      obj.Set(ffi::String("support_dtypes"), std::move(sd_obj));
+    }
+    {
+      ffi::json::Object inner;
+      for (const auto& kv : options) {
+        inner.Set(ffi::String(kv.first), ffi::String(kv.second));
+      }
+      obj.Set(ffi::String("options"), std::move(inner));
+    }
+    return obj;
   }
 
-  void Load(dmlc::JSONReader* reader) {
+  void Load(ffi::json::Object obj) {
     int bitmask = 0;
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "name") {
-        reader->Read(&name);
-        bitmask |= 1;
-      } else if (key == "version") {
-        reader->Read(&version);
-      } else if (key == "describe") {
-        reader->Read(&describe);
-      } else if (key == "attrs") {
-        reader->Read(&attrs);
-      } else if (key == "inputs") {
-        reader->Read(&inputs);
-        bitmask |= 2;
-      } else if (key == "outputs") {
-        reader->Read(&outputs);
-        bitmask |= 4;
-      } else if (key == "buffers") {
-        reader->Read(&buffers);
-      } else if (key == "externs") {
-        reader->Read(&externs);
-      } else if (key == "support_dtypes") {
-        reader->Read(&support_dtypes);
-      } else if (key == "options") {
-        reader->Read(&options);
+    if (auto it = obj.find(ffi::String("name")); it != obj.end()) {
+      name = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 1;
+    }
+    if (auto it = obj.find(ffi::String("version")); it != obj.end()) {
+      version = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("describe")); it != obj.end()) {
+      describe = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("attrs")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      attrs.clear();
+      attrs.reserve(arr.size());
+      for (const auto& elem : arr) {
+        JsonPluginAttr item;
+        item.Load(elem.cast<ffi::json::Object>());
+        attrs.push_back(std::move(item));
+      }
+    }
+    if (auto it = obj.find(ffi::String("inputs")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      inputs.clear();
+      inputs.reserve(arr.size());
+      for (const auto& elem : arr) {
+        JsonPluginTensor item;
+        item.Load(elem.cast<ffi::json::Object>());
+        inputs.push_back(std::move(item));
+      }
+      bitmask |= 2;
+    }
+    if (auto it = obj.find(ffi::String("outputs")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      outputs.clear();
+      outputs.reserve(arr.size());
+      for (const auto& elem : arr) {
+        JsonPluginTensor item;
+        item.Load(elem.cast<ffi::json::Object>());
+        outputs.push_back(std::move(item));
+      }
+      bitmask |= 4;
+    }
+    if (auto it = obj.find(ffi::String("buffers")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      buffers.clear();
+      buffers.reserve(arr.size());
+      for (const auto& elem : arr) {
+        JsonPluginTensor item;
+        item.Load(elem.cast<ffi::json::Object>());
+        buffers.push_back(std::move(item));
+      }
+    }
+    if (auto it = obj.find(ffi::String("externs")); it != obj.end()) {
+      auto inner = (*it).second.cast<ffi::json::Object>();
+      externs.clear();
+      for (const auto& kv : inner) {
+        JsonPluginExtern item;
+        item.Load(kv.second.cast<ffi::json::Object>());
+        externs[std::string(kv.first.cast<ffi::String>())] = std::move(item);
+      }
+    }
+    // support_dtypes: map<string, vector<string>>
+    {
+      auto it = obj.find(ffi::String("support_dtypes"));
+      if (it != obj.end()) {
+        auto inner = (*it).second.cast<ffi::json::Object>();
+        support_dtypes.clear();
+        for (const auto& kv : inner) {
+          auto arr = kv.second.cast<ffi::json::Array>();
+          std::vector<std::string> vec;
+          vec.reserve(arr.size());
+          for (const auto& elem : arr) {
+            vec.push_back(std::string(elem.cast<ffi::String>()));
+          }
+          support_dtypes[std::string(kv.first.cast<ffi::String>())] = std::move(vec);
+        }
+      }
+    }
+    if (auto it = obj.find(ffi::String("options")); it != obj.end()) {
+      auto inner = (*it).second.cast<ffi::json::Object>();
+      options.clear();
+      for (const auto& kv : inner) {
+        options[std::string(kv.first.cast<ffi::String>())] =
+            std::string(kv.second.cast<ffi::String>());
       }
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4) << "name, inputs and outputs should be given for plugin";

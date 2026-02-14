@@ -20,7 +20,6 @@
 /*!
  * \file External random functions for tensor.
  */
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
@@ -64,10 +63,9 @@ struct RandomThreadLocalEntry {
   static RandomThreadLocalEntry* ThreadLocal();
 };
 
-typedef dmlc::ThreadLocalStore<RandomThreadLocalEntry> RandomThreadLocalStore;
-
 RandomThreadLocalEntry* RandomThreadLocalEntry::ThreadLocal() {
-  return RandomThreadLocalStore::Get();
+  static thread_local RandomThreadLocalEntry inst;
+  return &inst;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -25,11 +25,14 @@
 #ifndef TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/io.h>
 
 #include <cstddef>
+#include <mutex>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -37,6 +40,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../../support/bytes_io.h"
 #include "json_node.h"
 
 namespace tvm {
@@ -85,6 +89,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
    */
   virtual std::string DebugDump(void) {
     LOG(FATAL) << "Not expected to be here : Debug dump w/o support ?";
+    return "";
   }
 
   /*!
@@ -152,34 +157,32 @@ class JSONRuntimeBase : public ffi::ModuleObj {
   }
 
   ffi::Bytes SaveToBytes() const override {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
+    std::string result;
+    support::BytesOutStream stream(&result);
     // Save the symbol
-    stream->Write(symbol_name_);
+    stream.Write(symbol_name_);
     // Save the graph
-    stream->Write(graph_json_);
+    stream.Write(graph_json_);
     // Save the required const names
     std::vector<std::string> consts;
     for (const auto& it : const_names_) {
       consts.push_back(it);
     }
-    stream->Write(consts);
-    return ffi::Bytes(buffer);
+    stream.Write(consts);
+    return ffi::Bytes(std::move(result));
   }
 
   template <typename T,
             typename = typename std::enable_if<std::is_base_of<JSONRuntimeBase, T>::value>::type>
   static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
-    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-    dmlc::Stream* stream = &ms;
+    support::BytesInStream stream(bytes);
     std::string symbol;
     std::string graph_json;
     std::vector<std::string> consts;
     // Load the symbol
-    ICHECK(stream->Read(&symbol)) << "Loading symbol name failed";
-    ICHECK(stream->Read(&graph_json)) << "Loading graph json failed";
-    ICHECK(stream->Read(&consts)) << "Loading the const name list failed";
+    ICHECK(stream.Read(&symbol)) << "Loading symbol name failed";
+    ICHECK(stream.Read(&graph_json)) << "Loading graph json failed";
+    ICHECK(stream.Read(&consts)) << "Loading the const name list failed";
     ffi::Array<ffi::String> const_names;
     for (const auto& it : consts) {
       const_names.push_back(it);
@@ -231,9 +234,9 @@ class JSONRuntimeBase : public ffi::ModuleObj {
    * \param graph_json The graph in the json format.
    */
   void LoadGraph(const std::string& graph_json) {
-    std::istringstream is(graph_json);
-    dmlc::JSONReader reader(&is);
-    this->Load(&reader);
+    namespace json = ::tvm::ffi::json;
+    auto root = json::Parse(graph_json).cast<json::Object>();
+    this->Load(root);
     std::vector<std::string> consts;
     for (size_t i = 0; i < input_nodes_.size(); i++) {
       uint32_t nid = input_nodes_[i];
@@ -277,21 +280,40 @@ class JSONRuntimeBase : public ffi::ModuleObj {
   }
 
   // Load the graph.
-  void Load(dmlc::JSONReader* reader) {
-    reader->BeginObject();
-    std::string key;
-    std::string symbol_;
-    while (reader->NextObjectItem(&key)) {
+  void Load(ffi::json::Object root) {
+    namespace json = ::tvm::ffi::json;
+    for (const auto& kv : root) {
+      std::string key = std::string(kv.first.cast<ffi::String>());
       if (key == "nodes") {
-        reader->Read(&nodes_);
+        auto arr = kv.second.cast<json::Array>();
+        nodes_.clear();
+        for (const auto& n : arr) {
+          JSONGraphNode node;
+          node.Load(n.cast<json::Object>());
+          nodes_.push_back(std::move(node));
+        }
       } else if (key == "arg_nodes") {
-        reader->Read(&input_nodes_);
+        auto arr = kv.second.cast<json::Array>();
+        input_nodes_.clear();
+        for (const auto& v : arr) {
+          input_nodes_.push_back(static_cast<uint32_t>(v.cast<int64_t>()));
+        }
       } else if (key == "node_row_ptr") {
-        reader->Read(&node_row_ptr_);
+        auto arr = kv.second.cast<json::Array>();
+        node_row_ptr_.clear();
+        for (const auto& v : arr) {
+          node_row_ptr_.push_back(static_cast<size_t>(v.cast<int64_t>()));
+        }
       } else if (key == "heads") {
-        reader->Read(&outputs_);
+        auto arr = kv.second.cast<json::Array>();
+        outputs_.clear();
+        for (const auto& e : arr) {
+          JSONGraphNodeEntry entry;
+          entry.Load(e.cast<ffi::json::Array>());
+          outputs_.push_back(entry);
+        }
       } else if (key == "symbol") {
-        reader->Read(&symbol_);
+        // ignored
       } else {
         LOG(FATAL) << "Unknown key: " << key;
       }

@@ -18,7 +18,6 @@
  */
 #include "../../../3rdparty/nvbench/l2_cache_flush.h"
 
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -30,9 +29,10 @@ namespace tvm {
 
 namespace runtime {
 
-typedef dmlc::ThreadLocalStore<L2Flush> L2FlushStore;
-
-L2Flush* L2Flush::ThreadLocal() { return L2FlushStore::Get(); }
+L2Flush* L2Flush::ThreadLocal() {
+  static thread_local L2Flush inst;
+  return &inst;
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

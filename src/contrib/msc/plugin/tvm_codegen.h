@@ -41,18 +41,14 @@ struct TVMPluginCodeGenConfig {
   bool as_relay{false};
   std::string tvm_root{"tvm"};
   PLUGIN_CODEGEN_CONFIG_MEMBERS
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "as_relay") {
-        reader->Read(&as_relay);
-      } else if (key == "tvm_root") {
-        reader->Read(&tvm_root);
-      } else {
-        PLUGIN_CODEGEN_CONFIG_PARSE
-      }
+  void Load(ffi::json::Object obj) {
+    if (auto it = obj.find(ffi::String("as_relay")); it != obj.end()) {
+      as_relay = (*it).second.cast<bool>();
     }
+    if (auto it = obj.find(ffi::String("tvm_root")); it != obj.end()) {
+      tvm_root = std::string((*it).second.cast<ffi::String>());
+    }
+    PLUGIN_CODEGEN_CONFIG_PARSE
   }
 };
 

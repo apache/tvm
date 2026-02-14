@@ -40,16 +40,11 @@ namespace msc {
 struct TensorRTPluginCodeGenConfig {
   std::string tensorrt_root{"/usr/local/cuda"};
   PLUGIN_CODEGEN_CONFIG_MEMBERS
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "tensorrt_root") {
-        reader->Read(&tensorrt_root);
-      } else {
-        PLUGIN_CODEGEN_CONFIG_PARSE
-      }
+  void Load(ffi::json::Object obj) {
+    if (auto it = obj.find(ffi::String("tensorrt_root")); it != obj.end()) {
+      tensorrt_root = std::string((*it).second.cast<ffi::String>());
     }
+    PLUGIN_CODEGEN_CONFIG_PARSE
   }
 };
 

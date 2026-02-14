@@ -162,7 +162,7 @@ RPCEnv::RPCEnv(const std::string& wd) {
                              size_t size = static_cast<size_t>(fs.tellg());
                              fs.seekg(0, std::ios::beg);
                              bin.resize(size);
-                             fs.read(dmlc::BeginPtr(bin), size);
+                             fs.read(bin.data(), size);
                              LOG(INFO) << "Send linked module " << file_name << " to client";
                              return ffi::Bytes(bin);
                            }));

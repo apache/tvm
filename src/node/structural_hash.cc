@@ -19,7 +19,6 @@
 /*!
  * \file src/node/structural_hash.cc
  */
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/extra/base64.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/extra/structural_hash.h>
@@ -30,12 +29,14 @@
 #include <tvm/node/node.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/profiling.h>
+#include <tvm/support/io.h>
 #include <tvm/target/codegen.h>
 
 #include <algorithm>
 #include <unordered_map>
 
 #include "../support/base64.h"
+#include "../support/bytes_io.h"
 #include "../support/str_escape.h"
 #include "../support/utils.h"
 
@@ -63,15 +64,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::TypeAttrDef<runtime::Tensor::Container>()
       .def("__data_to_json__",
            [](const runtime::Tensor::Container* node) {
-             std::string blob;
-             dmlc::MemoryStringStream mstrm(&blob);
+             std::string result;
+             support::BytesOutStream mstrm(&result);
              support::Base64OutStream b64strm(&mstrm);
              runtime::SaveDLTensor(&b64strm, node);
              b64strm.Finish();
-             return ffi::String(blob);
+             return ffi::String(std::move(result));
            })
       .def("__data_from_json__", [](const std::string& blob) {
-        dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+        support::BytesInStream mstrm(blob);
         support::Base64InStream b64strm(&mstrm);
         b64strm.InitPosition();
         runtime::Tensor temp;

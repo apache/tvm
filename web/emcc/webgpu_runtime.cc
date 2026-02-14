@@ -27,9 +27,8 @@
 #define TVM_LOG_DEBUG 0
 #define TVM_LOG_CUSTOMIZE 1
 #define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 1
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
-#include <dmlc/memory_io.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -39,6 +38,7 @@
 
 #include "../../src/runtime/meta_data.h"
 #include "../../src/runtime/workspace_pool.h"
+#include "../../src/support/bytes_io.h"
 
 namespace tvm {
 namespace runtime {
@@ -143,13 +143,11 @@ class WebGPUDeviceAPI : public DeviceAPI {
       copy_within_gpu_;
 };
 
-typedef dmlc::ThreadLocalStore<WebGPUThreadEntry> WebGPUThreadStore;
-
 WebGPUThreadEntry::WebGPUThreadEntry()
     : pool(static_cast<DLDeviceType>(kDLWebGPU), WebGPUDeviceAPI::Global()) {}
 
 WebGPUThreadEntry* WebGPUThreadEntry::ThreadLocal() {
-  static thread_local WebGPUThreadEntry inst = WebGPUThreadEntry();
+  static thread_local WebGPUThreadEntry inst;
   return &inst;
 }
 
@@ -169,10 +167,12 @@ class WebGPUModuleNode final : public ffi::ModuleObj {
     // special function
     if (name == "webgpu.get_fmap") {
       return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
-        std::ostringstream os;
-        dmlc::JSONWriter writer(&os);
-        writer.Write(fmap_);
-        *rv = os.str();
+        namespace json = ::tvm::ffi::json;
+        json::Object obj;
+        for (const auto& kv : fmap_) {
+          obj.Set(ffi::String(kv.first), kv.second.SaveToJSON());
+        }
+        *rv = std::string(json::Stringify(obj));
       });
     } else if (name == "webgpu.get_shader") {
       return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
@@ -198,10 +198,9 @@ class WebGPUModuleNode final : public ffi::ModuleObj {
     if (it != smap_.end()) {
       FunctionInfo info = fmap_.at(name);
       info.name = name;
-      std::ostringstream os;
-      dmlc::JSONWriter writer(&os);
-      info.Save(&writer);
-      return create_shader_(os.str(), it->second);
+      namespace json = ::tvm::ffi::json;
+      std::string info_json = std::string(json::Stringify(info.SaveToJSON()));
+      return create_shader_(info_json, it->second);
     } else {
       return std::nullopt;
     }
@@ -230,13 +229,12 @@ class WebGPUModuleNode final : public ffi::ModuleObj {
 };
 
 ffi::Module WebGPUModuleLoadFromBytes(const ffi::Bytes& bytes) {
-  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-  dmlc::Stream* stream = &ms;
+  support::BytesInStream stream(bytes);
   std::unordered_map<std::string, std::string> smap;
   std::unordered_map<std::string, FunctionInfo> fmap;
 
-  stream->Read(&fmap);
-  stream->Read(&smap);
+  stream.Read(&fmap);
+  stream.Read(&smap);
   return ffi::Module(ffi::make_object<WebGPUModuleNode>(smap, fmap));
 }
 

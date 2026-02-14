@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <dmlc/io.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/object.h>
+#include <tvm/support/io.h>
 
 #include <condition_variable>
 #include <cstdint>
@@ -38,7 +38,7 @@
 namespace tvm {
 namespace runtime {
 
-class DiscoThreadedMessageQueue : private dmlc::Stream,
+class DiscoThreadedMessageQueue : private support::Stream,
                                   private DiscoProtocol<DiscoThreadedMessageQueue> {
  public:
   void Send(const ffi::PackedArgs& args) {
@@ -104,10 +104,10 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
     return size;
   }
 
-  using dmlc::Stream::Read;
-  using dmlc::Stream::ReadArray;
-  using dmlc::Stream::Write;
-  using dmlc::Stream::WriteArray;
+  using support::Stream::Read;
+  using support::Stream::ReadArray;
+  using support::Stream::Write;
+  using support::Stream::WriteArray;
   friend struct RPCReference;
   friend struct DiscoProtocol<DiscoThreadedMessageQueue>;
 

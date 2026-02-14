@@ -24,7 +24,7 @@
 #ifndef TVM_CONTRIB_MSC_CORE_CODEGEN_BASE_CODEGEN_H_
 #define TVM_CONTRIB_MSC_CORE_CODEGEN_BASE_CODEGEN_H_
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/script/printer/doc.h>
 
 #include <memory>
@@ -151,9 +151,8 @@ class BaseCodeGen {
     graph_ = graph;
     config_.reset(new ConfigType());
     if (config.size() > 0) {
-      std::istringstream is(config);
-      dmlc::JSONReader reader(&is);
-      reader.Read(config_.get());
+      namespace json = ::tvm::ffi::json;
+      config_->Load(json::Parse(config).cast<json::Object>());
     }
     while (!scopes_.empty()) {
       scopes_.pop();

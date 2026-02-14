@@ -23,14 +23,15 @@
  */
 #include "hexagon_module.h"
 
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/io.h>
 
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "../../support/bytes_io.h"
 #include "../file_utils.h"
 
 namespace tvm {
@@ -80,13 +81,12 @@ void HexagonModuleNode::WriteToFile(const ffi::String& file_name, const ffi::Str
 }
 
 ffi::Bytes HexagonModuleNode::SaveToBytes() const {
-  std::string buffer;
-  dmlc::MemoryStringStream ms(&buffer);
-  dmlc::Stream* stream = &ms;
-  stream->Write(fmt_);
-  stream->Write(fmap_);
-  stream->Write(data_);
-  return ffi::Bytes(buffer);
+  std::string result;
+  support::BytesOutStream stream(&result);
+  stream.Write(fmt_);
+  stream.Write(fmap_);
+  stream.Write(data_);
+  return ffi::Bytes(std::move(result));
 }
 
 ffi::Module HexagonModuleCreate(std::string data, std::string fmt,

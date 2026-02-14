@@ -24,6 +24,7 @@
 #ifndef TVM_CONTRIB_MSC_CORE_CODEGEN_CODEGEN_UTILS_H_
 #define TVM_CONTRIB_MSC_CORE_CODEGEN_CODEGEN_UTILS_H_
 
+#include <tvm/ffi/extra/json.h>
 #include <tvm/script/printer/doc.h>
 
 #include <memory>
@@ -51,29 +52,42 @@ using namespace tvm::script::printer;
   std::string baseline_folder{"baseline"}; \
   std::vector<size_t> version{0, 0, 0};
 
-#define CODEGEN_CONFIG_PARSE                    \
-  if (key == "training") {                      \
-    reader->Read(&training);                    \
-  } else if (key == "use_tools") {              \
-    reader->Read(&use_tools);                   \
-  } else if (key == "use_plugin") {             \
-    reader->Read(&use_plugin);                  \
-  } else if (key == "need_test") {              \
-    reader->Read(&need_test);                   \
-  } else if (key == "tools_scope") {            \
-    reader->Read(&tools_scope);                 \
-  } else if (key == "tools_tag") {              \
-    reader->Read(&tools_tag);                   \
-  } else if (key == "test_device") {            \
-    reader->Read(&test_device);                 \
-  } else if (key == "prefix") {                 \
-    reader->Read(&prefix);                      \
-  } else if (key == "version") {                \
-    reader->Read(&version);                     \
-  } else if (key == "baseline_folder") {        \
-    reader->Read(&baseline_folder);             \
-  } else {                                      \
-    LOG(FATAL) << "Do not support key " << key; \
+#define CODEGEN_CONFIG_PARSE                                                 \
+  namespace json = ::tvm::ffi::json;                                         \
+  if (auto it = obj.find(ffi::String("training")); it != obj.end()) {        \
+    training = (*it).second.cast<bool>();                                    \
+  }                                                                          \
+  if (auto it = obj.find(ffi::String("use_tools")); it != obj.end()) {       \
+    use_tools = (*it).second.cast<bool>();                                   \
+  }                                                                          \
+  if (auto it = obj.find(ffi::String("use_plugin")); it != obj.end()) {      \
+    use_plugin = (*it).second.cast<bool>();                                  \
+  }                                                                          \
+  if (auto it = obj.find(ffi::String("need_test")); it != obj.end()) {       \
+    need_test = (*it).second.cast<bool>();                                   \
+  }                                                                          \
+  if (auto it = obj.find(ffi::String("tools_scope")); it != obj.end()) {     \
+    tools_scope = std::string((*it).second.cast<ffi::String>());             \
+  }                                                                          \
+  if (auto it = obj.find(ffi::String("tools_tag")); it != obj.end()) {       \
+    tools_tag = std::string((*it).second.cast<ffi::String>());               \
+  }                                                                          \
+  if (auto it = obj.find(ffi::String("test_device")); it != obj.end()) {     \
+    test_device = std::string((*it).second.cast<ffi::String>());             \
+  }                                                                          \
+  if (auto it = obj.find(ffi::String("prefix")); it != obj.end()) {          \
+    prefix = std::string((*it).second.cast<ffi::String>());                  \
+  }                                                                          \
+  if (auto it = obj.find(ffi::String("version")); it != obj.end()) {         \
+    auto arr = (*it).second.cast<json::Array>();                             \
+    version.clear();                                                         \
+    version.reserve(arr.size());                                             \
+    for (const auto& elem : arr) {                                           \
+      version.push_back(static_cast<size_t>(elem.cast<int64_t>()));          \
+    }                                                                        \
+  }                                                                          \
+  if (auto it = obj.find(ffi::String("baseline_folder")); it != obj.end()) { \
+    baseline_folder = std::string((*it).second.cast<ffi::String>());         \
   }
 
 #define DESCRIBE_PRIM_BINARY(OpType, Symbol, AsFunc)                                   \

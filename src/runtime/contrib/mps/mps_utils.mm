@@ -83,9 +83,10 @@ MetalThreadEntry::~MetalThreadEntry() {
   }
 }
 
-typedef dmlc::ThreadLocalStore<MetalThreadEntry> MetalThreadStore;
-
-MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get(); }
+MetalThreadEntry* MetalThreadEntry::ThreadLocal() {
+  static thread_local MetalThreadEntry inst;
+  return &inst;
+}
 
 }  // namespace contrib
 }  // namespace tvm

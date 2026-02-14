@@ -31,6 +31,8 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <unordered_set>
+
 #include "int_operator.h"
 
 namespace tvm {

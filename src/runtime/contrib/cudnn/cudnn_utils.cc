@@ -23,7 +23,6 @@
 
 #include "cudnn_utils.h"
 
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -121,10 +120,9 @@ CuDNNThreadEntry::CuDNNThreadEntry() {
 
 CuDNNThreadEntry::~CuDNNThreadEntry() {}
 
-typedef dmlc::ThreadLocalStore<CuDNNThreadEntry> CuDNNThreadStore;
-
 CuDNNThreadEntry* CuDNNThreadEntry::ThreadLocal(Device curr_device, bool check_exists) {
-  auto* res = CuDNNThreadStore::Get();
+  static thread_local CuDNNThreadEntry inst;
+  auto* res = &inst;
   if (check_exists) {
     ICHECK(res->exists()) << "CUDNN_STATUS_NOT_INITIALIZED";
   }

@@ -92,36 +92,46 @@ struct TensorRTCodeGenConfig {
   std::string tensorrt_root{"/usr/local/cuda"};
   std::vector<std::string> extern_libs;
   CODEGEN_CONFIG_MEMBERS
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "log_level") {
-        reader->Read(&log_level);
-      } else if (key == "profile_level") {
-        reader->Read(&profile_level);
-      } else if (key == "test_iter") {
-        reader->Read(&test_iter);
-      } else if (key == "max_workspace") {
-        reader->Read(&max_workspace);
-      } else if (key == "cmake_version") {
-        reader->Read(&cmake_version);
-      } else if (key == "dataset") {
-        reader->Read(&dataset);
-      } else if (key == "range_file") {
-        reader->Read(&range_file);
-      } else if (key == "precision") {
-        reader->Read(&precision);
-      } else if (key == "precision_mode") {
-        reader->Read(&precision_mode);
-      } else if (key == "tensorrt_root") {
-        reader->Read(&tensorrt_root);
-      } else if (key == "extern_libs") {
-        reader->Read(&extern_libs);
-      } else {
-        CODEGEN_CONFIG_PARSE
+  void Load(ffi::json::Object obj) {
+    if (auto it = obj.find(ffi::String("log_level")); it != obj.end()) {
+      log_level = static_cast<int>((*it).second.cast<int64_t>());
+    }
+    if (auto it = obj.find(ffi::String("profile_level")); it != obj.end()) {
+      profile_level = static_cast<int>((*it).second.cast<int64_t>());
+    }
+    if (auto it = obj.find(ffi::String("test_iter")); it != obj.end()) {
+      test_iter = static_cast<int>((*it).second.cast<int64_t>());
+    }
+    if (auto it = obj.find(ffi::String("max_workspace")); it != obj.end()) {
+      max_workspace = static_cast<size_t>((*it).second.cast<int64_t>());
+    }
+    if (auto it = obj.find(ffi::String("cmake_version")); it != obj.end()) {
+      cmake_version = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("dataset")); it != obj.end()) {
+      dataset = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("range_file")); it != obj.end()) {
+      range_file = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("precision")); it != obj.end()) {
+      precision = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("precision_mode")); it != obj.end()) {
+      precision_mode = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("tensorrt_root")); it != obj.end()) {
+      tensorrt_root = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("extern_libs")); it != obj.end()) {
+      auto arr = (*it).second.cast<::tvm::ffi::json::Array>();
+      extern_libs.clear();
+      extern_libs.reserve(arr.size());
+      for (const auto& elem : arr) {
+        extern_libs.push_back(std::string(elem.cast<ffi::String>()));
       }
     }
+    CODEGEN_CONFIG_PARSE
   }
 };
 

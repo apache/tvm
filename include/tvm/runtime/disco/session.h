@@ -34,6 +34,7 @@
  * workers' register files could be considered as "identical" (single program) although the values
  * may differ (multiple data).
  *
+ *
  * **DRef.** Following the design above, consider the program in SPMD in a virtual ISA, then each
  * worker is a virtual machine instance to execute the ISA maintaining its own register file.
  * The controler denotes each of their register files with a unique integer "register id",
@@ -77,6 +78,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/tensor.h>
 
+#include <mutex>
 #include <queue>
 #include <string>
 #include <utility>

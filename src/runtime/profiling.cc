@@ -22,7 +22,7 @@
  * \brief Runtime profiling including timers.
  */
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/c_backend_api.h>
@@ -35,8 +35,11 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include <numeric>
+#include <set>
 #include <thread>
+#include <unordered_set>
 
 namespace tvm {
 namespace runtime {
@@ -710,73 +713,58 @@ Report::Report(ffi::Array<ffi::Map<ffi::String, ffi::Any>> calls,
   data_ = std::move(node);
 }
 
-ffi::Map<ffi::String, ffi::Any> parse_metrics(dmlc::JSONReader* reader) {
-  reader->BeginObject();
-  std::string metric_name, metric_value_name;
+namespace json = ::tvm::ffi::json;
+
+ffi::Map<ffi::String, ffi::Any> parse_metrics(const json::Object& obj) {
   ffi::Map<ffi::String, ffi::Any> metrics;
-  while (reader->NextObjectItem(&metric_name)) {
+  for (const auto& [k, v] : obj) {
+    std::string metric_name = k.cast<ffi::String>();
+    json::Object metric_obj = v.cast<json::Object>();
     ffi::Any o;
-    reader->BeginObject();
-    reader->NextObjectItem(&metric_value_name);
-    if (metric_value_name == "microseconds") {
-      double microseconds;
-      reader->Read(&microseconds);
-      o = ObjectRef(ffi::make_object<DurationNode>(microseconds));
-    } else if (metric_value_name == "percent") {
-      double percent;
-      reader->Read(&percent);
-      o = ObjectRef(ffi::make_object<PercentNode>(percent));
-    } else if (metric_value_name == "count") {
-      int64_t count;
-      reader->Read(&count);
-      o = ObjectRef(ffi::make_object<CountNode>(count));
-    } else if (metric_value_name == "ratio") {
-      double ratio;
-      reader->Read(&ratio);
-      o = ObjectRef(ffi::make_object<RatioNode>(ratio));
-    } else if (metric_value_name == "string") {
-      std::string s;
-      reader->Read(&s);
-      o = ffi::String(s);
-    } else {
-      LOG(FATAL) << "Cannot parse metric of type " << metric_value_name
-                 << " valid types are microseconds, percent, count.";
+    // Each metric value is an object with a single key indicating the type
+    for (const auto& [type_key, type_val] : metric_obj) {
+      std::string metric_value_name = type_key.cast<ffi::String>();
+      if (metric_value_name == "microseconds") {
+        o = ObjectRef(ffi::make_object<DurationNode>(type_val.cast<double>()));
+      } else if (metric_value_name == "percent") {
+        o = ObjectRef(ffi::make_object<PercentNode>(type_val.cast<double>()));
+      } else if (metric_value_name == "count") {
+        o = ObjectRef(ffi::make_object<CountNode>(type_val.cast<int64_t>()));
+      } else if (metric_value_name == "ratio") {
+        o = ObjectRef(ffi::make_object<RatioNode>(type_val.cast<double>()));
+      } else if (metric_value_name == "string") {
+        o = ffi::String(type_val.cast<ffi::String>());
+      } else {
+        LOG(FATAL) << "Cannot parse metric of type " << metric_value_name
+                   << " valid types are microseconds, percent, count.";
+      }
     }
     metrics.Set(metric_name, o);
-    // Necessary to make sure that the parser hits the end of the object.
-    ICHECK(!reader->NextObjectItem(&metric_value_name));
-    // EndObject does not exist, leaving this here for clarity
-    // reader.EndObject();
   }
-  // reader.EndObject();
   return metrics;
 }
 
-Report Report::FromJSON(ffi::String json) {
-  std::stringstream input(json.operator std::string());
-  dmlc::JSONReader reader(&input);
-  std::string key;
+Report Report::FromJSON(ffi::String json_str) {
+  auto root = json::Parse(json_str).cast<json::Object>();
   ffi::Array<ffi::Map<ffi::String, ffi::Any>> calls;
   ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::Any>> device_metrics;
   ffi::Map<ffi::String, ffi::Any> configuration;
 
-  reader.BeginObject();
-  while (reader.NextObjectItem(&key)) {
+  for (const auto& [k, v] : root) {
+    std::string key = k.cast<ffi::String>();
     if (key == "calls") {
-      reader.BeginArray();
-      while (reader.NextArrayItem()) {
-        calls.push_back(parse_metrics(&reader));
+      json::Array calls_arr = v.cast<json::Array>();
+      for (const ffi::Any& item : calls_arr) {
+        calls.push_back(parse_metrics(item.cast<json::Object>()));
       }
-      // reader.EndArray();
     } else if (key == "device_metrics") {
-      reader.BeginObject();
-      std::string device_name;
-      while (reader.NextObjectItem(&device_name)) {
-        device_metrics.Set(device_name, parse_metrics(&reader));
+      json::Object dev_obj = v.cast<json::Object>();
+      for (const auto& [dev_key, dev_val] : dev_obj) {
+        std::string device_name = dev_key.cast<ffi::String>();
+        device_metrics.Set(device_name, parse_metrics(dev_val.cast<json::Object>()));
       }
-      // reader.EndObject();
     } else if (key == "configuration") {
-      configuration = parse_metrics(&reader);
+      configuration = parse_metrics(v.cast<json::Object>());
     }
   }
   return Report(calls, device_metrics, configuration);

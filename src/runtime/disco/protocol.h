@@ -19,11 +19,11 @@
 #ifndef TVM_RUNTIME_DISCO_PROTOCOL_H_
 #define TVM_RUNTIME_DISCO_PROTOCOL_H_
 
-#include <dmlc/io.h>
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/session.h>
+#include <tvm/support/io.h>
+#include <tvm/support/serializer.h>
 
 #include <memory>
 #include <string>
@@ -32,6 +32,7 @@
 
 #include "../../support/arena.h"
 #include "../../support/base64.h"
+#include "../../support/bytes_io.h"
 #include "../minrpc/rpc_reference.h"
 
 namespace tvm {
@@ -139,6 +140,7 @@ inline uint64_t DiscoProtocol<SubClassType>::GetFFIAnyProtocolBytes(const TVMFFI
     LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
                << any_view_ptr->GetTypeKey() << " (type_index = " << any_view_ptr->type_index()
                << ")";
+    return 0;
   }
 }
 template <class SubClassType>
@@ -221,7 +223,7 @@ inline std::string DiscoDebugObject::SaveToStr() const {
     Tensor array = opt_nd.value();
     std::string result;
     {
-      dmlc::MemoryStringStream mstrm(&result);
+      support::BytesOutStream mstrm(&result);
       support::Base64OutStream b64strm(&mstrm);
       runtime::SaveDLTensor(&b64strm, array.operator->());
       b64strm.Finish();
@@ -239,6 +241,7 @@ inline std::string DiscoDebugObject::SaveToStr() const {
   }
   LOG(FATAL) << "ValueError: Cannot serialize the following type code in non-debugging mode: "
              << this->data.GetTypeKey();
+  return "";
 }
 
 inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string json_str) {
@@ -251,7 +254,7 @@ inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string jso
     CHECK(f.has_value()) << "ValueError: Cannot deserialize object in non-debugging mode";
     result->data = (*f)(json_str);
   } else if (control_bit == '1') {
-    dmlc::MemoryStringStream mstrm(&json_str);
+    support::BytesInStream mstrm(json_str);
     support::Base64InStream b64strm(&mstrm);
     b64strm.InitPosition();
     runtime::Tensor array;

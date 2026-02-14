@@ -72,5 +72,4 @@ include_directories(
   "${LAUNCHER_SRC}"
   "${TVM_SOURCE_DIR}/include"
   "${TVM_SOURCE_DIR}/3rdparty/dlpack/include"
-  "${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include"
 )

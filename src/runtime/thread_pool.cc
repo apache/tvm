@@ -21,7 +21,6 @@
  * \file thread_pool.cc
  * \brief Threadpool for multi-threading runtime.
  */
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -122,7 +121,10 @@ class ParallelLauncher {
   // Signal that one job has finished.
   void SignalJobFinish() { num_pending_.fetch_sub(1); }
   // Get thread local version of the store.
-  static ParallelLauncher* ThreadLocal() { return dmlc::ThreadLocalStore<ParallelLauncher>::Get(); }
+  static ParallelLauncher* ThreadLocal() {
+    static thread_local ParallelLauncher inst;
+    return &inst;
+  }
   // The parallel lambda
   FTVMParallelLambda flambda;
   // The closure data
@@ -319,7 +321,10 @@ class ThreadPool {
     return res;
   }
 
-  static ThreadPool* ThreadLocal() { return dmlc::ThreadLocalStore<ThreadPool>::Get(); }
+  static ThreadPool* ThreadLocal() {
+    static thread_local ThreadPool inst;
+    return &inst;
+  }
 
   void UpdateWorkerConfiguration(threading::ThreadGroup::AffinityMode mode, int nthreads,
                                  const std::vector<unsigned int>& cpus) {

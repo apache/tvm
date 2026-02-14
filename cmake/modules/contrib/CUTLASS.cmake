@@ -39,7 +39,6 @@ if(USE_CUDA AND USE_CUTLASS)
   list(APPEND CUTLASS_FPA_INTB_RUNTIME_SRCS src/runtime/contrib/cutlass/weight_preprocess.cc)
   add_library(fpA_intB_cutlass_objs OBJECT ${CUTLASS_FPA_INTB_RUNTIME_SRCS})
   target_link_libraries(fpA_intB_cutlass_objs PRIVATE tvm_ffi_header)
-  target_compile_definitions(fpA_intB_cutlass_objs PRIVATE DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
   target_include_directories(fpA_intB_cutlass_objs PRIVATE
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm/cutlass/include
@@ -76,7 +75,6 @@ if(USE_CUDA AND USE_CUTLASS)
       ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm/cutlass_extensions/include
     )
     target_link_libraries(tvm_cutlass_objs PRIVATE tvm_ffi_header)
-    target_compile_definitions(tvm_cutlass_objs PRIVATE DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
     # Note: enable this to get more detailed logs for cutlass kernels
     # target_compile_definitions(tvm_cutlass_objs PRIVATE CUTLASS_DEBUG_TRACE_LEVEL=2)
     list(APPEND CUTLASS_RUNTIME_OBJS "$<${CUTLASS_GEN_COND}:$<TARGET_OBJECTS:tvm_cutlass_objs>>")

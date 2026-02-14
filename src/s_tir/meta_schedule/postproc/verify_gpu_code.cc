@@ -64,7 +64,7 @@ class ThreadExtentChecker : private StmtVisitor {
         }
         return;
       } else {
-        throw dmlc::Error("Dynamic thread extent");
+        throw std::runtime_error("Dynamic thread extent");
       }
     }
     StmtVisitor::VisitStmt_(loop);
@@ -83,7 +83,7 @@ class ThreadExtentChecker : private StmtVisitor {
         int64_t high = high_inclusive.value()->value;
         int64_t thread_extent_product = thread_idx_x * thread_idx_y * thread_idx_z;
         if (!(low <= thread_extent_product && thread_extent_product <= high)) {
-          throw dmlc::Error("Thread extent");
+          throw std::runtime_error("Thread extent");
         }
       }
     }

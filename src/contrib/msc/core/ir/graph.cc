@@ -94,10 +94,10 @@ void MSCTensorNode::FromJson(const JsonMSCTensor& j_tensor) {
 }
 
 void MSCTensorNode::FromJson(const std::string& json_str) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
+  namespace json = ::tvm::ffi::json;
+  auto parsed = json::Parse(json_str);
   JsonMSCTensor j_tensor;
-  reader.Read(&j_tensor);
+  j_tensor.Load(parsed.cast<json::Object>());
   FromJson(j_tensor);
 }
 
@@ -440,10 +440,10 @@ void MSCJointNode::FromJson(const JsonMSCJoint& j_joint,
 
 void MSCJointNode::FromJson(const std::string& json_str,
                             const ffi::Map<ffi::String, BaseJoint>& nodes) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
+  namespace json = ::tvm::ffi::json;
+  auto parsed = json::Parse(json_str);
   JsonMSCJoint j_joint;
-  reader.Read(&j_joint);
+  j_joint.Load(parsed.cast<json::Object>());
   FromJson(j_joint, nodes);
 }
 
@@ -579,10 +579,10 @@ void MSCPrimNode::FromJson(const JsonMSCPrim& j_prim,
 
 void MSCPrimNode::FromJson(const std::string& json_str,
                            const ffi::Map<ffi::String, BaseJoint>& prims) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
+  namespace json = ::tvm::ffi::json;
+  auto parsed = json::Parse(json_str);
   JsonMSCPrim j_prim;
-  reader.Read(&j_prim);
+  j_prim.Load(parsed.cast<json::Object>());
   FromJson(j_prim, prims);
 }
 
@@ -667,10 +667,10 @@ void WeightJointNode::FromJson(const JsonWeightJoint& j_joint,
 
 void WeightJointNode::FromJson(const std::string& json_str,
                                const ffi::Map<ffi::String, BaseJoint>& nodes) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
+  namespace json = ::tvm::ffi::json;
+  auto parsed = json::Parse(json_str);
   JsonWeightJoint j_joint;
-  reader.Read(&j_joint);
+  j_joint.Load(parsed.cast<json::Object>());
   FromJson(j_joint, nodes);
 }
 
@@ -771,10 +771,10 @@ void MSCGraphNode::FromJson(const JsonMSCGraph& j_graph) {
 }
 
 void MSCGraphNode::FromJson(const std::string& json_str) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
+  namespace json = ::tvm::ffi::json;
+  auto parsed = json::Parse(json_str);
   JsonMSCGraph j_graph;
-  reader.Read(&j_graph);
+  j_graph.Load(parsed.cast<json::Object>());
   FromJson(j_graph);
 }
 
@@ -1203,10 +1203,10 @@ void WeightGraphNode::FromJson(const JsonWeightGraph& j_graph) {
 }
 
 void WeightGraphNode::FromJson(const std::string& json_str) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
+  namespace json = ::tvm::ffi::json;
+  auto parsed = json::Parse(json_str);
   JsonWeightGraph j_graph;
-  reader.Read(&j_graph);
+  j_graph.Load(parsed.cast<json::Object>());
   FromJson(j_graph);
 }
 
@@ -1458,10 +1458,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("msc.core.MSCTensorToJson",
            [](const MSCTensor& tensor) -> ffi::String {
+             namespace json = ::tvm::ffi::json;
              const auto& tensor_json = tensor->ToJson();
              std::ostringstream os;
-             dmlc::JSONWriter writer(&os);
-             tensor_json.Save(&writer);
+             os << std::string(json::Stringify(tensor_json.SaveToJSON()));
              return os.str();
            })
       .def("msc.core.MSCTensorFromJson",
@@ -1570,10 +1570,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](const MSCGraph& graph) -> ffi::Array<MSCTensor> { return graph->GetOutputs(); })
       .def("msc.core.MSCGraphToJson",
            [](const MSCGraph& graph) -> ffi::String {
+             namespace json = ::tvm::ffi::json;
              const auto& graph_json = graph->ToJson();
              std::ostringstream os;
-             dmlc::JSONWriter writer(&os);
-             graph_json.Save(&writer);
+             os << std::string(json::Stringify(graph_json.SaveToJSON()));
              return os.str();
            })
       .def("msc.core.MSCGraphFromJson",
@@ -1596,10 +1596,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("msc.core.WeightGraphToJson",
            [](const WeightGraph& graph) -> ffi::String {
+             namespace json = ::tvm::ffi::json;
              const auto& graph_json = graph->ToJson();
              std::ostringstream os;
-             dmlc::JSONWriter writer(&os);
-             graph_json.Save(&writer);
+             os << std::string(json::Stringify(graph_json.SaveToJSON()));
              return os.str();
            })
       .def("msc.core.WeightGraphFromJson",

@@ -27,6 +27,8 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 
+#include <set>
+
 #include "../utils.h"
 
 namespace tvm {

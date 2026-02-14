@@ -48,8 +48,8 @@
 #include <unistd.h>
 #endif
 
-#include <dmlc/io.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/io.h>
 
 #include <cstring>
 #include <string>
@@ -371,7 +371,7 @@ class Socket {
 /*!
  * \brief a wrapper of TCP socket that hopefully be cross platform
  */
-class TCPSocket : public Socket, public dmlc::Stream {
+class TCPSocket : public Socket, public Stream {
  public:
   TCPSocket() : Socket(INVALID_SOCKET) {}
   /*!

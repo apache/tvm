@@ -21,13 +21,17 @@
  * \file metal_module.cc
  */
 #include "metal_module.h"
-#include <dmlc/memory_io.h>
+#include <tvm/support/io.h>
+
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <array>
 #include <mutex>
+#include <sstream>
 #include <string>
+#include "../../support/bytes_io.h"
 #include "../file_utils.h"
 #include "../meta_data.h"
 #include "../pack_args.h"
@@ -65,15 +69,14 @@ class MetalModuleNode final : public ffi::ModuleObj {
   }
 
   ffi::Bytes SaveToBytes() const final {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
+    std::string result;
+    support::BytesOutStream stream(&result);
     std::string version = kMetalModuleVersion;
-    stream->Write(version);
-    stream->Write(smap_);
-    stream->Write(fmap_);
-    stream->Write(fmt_);
-    return ffi::Bytes(buffer);
+    stream.Write(version);
+    stream.Write(smap_);
+    stream.Write(fmap_);
+    stream.Write(fmt_);
+    return ffi::Bytes(std::move(result));
   }
   ffi::String InspectSource(const ffi::String& format) const final {
     // return text source if available.
@@ -295,10 +298,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("runtime.module.create_metal_module",
                         [](ffi::Map<ffi::String, ffi::String> smap, std::string fmap_json,
                            std::string fmt, std::string source) {
-                          std::istringstream stream(fmap_json);
+                          namespace json = ::tvm::ffi::json;
+                          auto parsed = json::Parse(fmap_json).cast<json::Object>();
                           std::unordered_map<std::string, FunctionInfo> fmap;
-                          dmlc::JSONReader reader(&stream);
-                          reader.Read(&fmap);
+                          for (const auto& kv : parsed) {
+                            FunctionInfo info;
+                            info.LoadFromJSON(kv.second.cast<json::Object>());
+                            fmap[std::string(kv.first.cast<ffi::String>())] = info;
+                          }
 
                           return MetalModuleCreate(std::unordered_map<std::string, std::string>(
                                                        smap.begin(), smap.end()),
@@ -307,8 +314,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
-  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-  dmlc::Stream* stream = &ms;
+  support::BytesInStream stream(bytes);
   // version is reserved for future changes and
   // is discarded for now
   std::string ver;
@@ -316,10 +322,10 @@ ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt;
 
-  stream->Read(&ver);
-  stream->Read(&smap);
-  stream->Read(&fmap);
-  stream->Read(&fmt);
+  stream.Read(&ver);
+  stream.Read(&smap);
+  stream.Read(&fmap);
+  stream.Read(&fmt);
 
   return MetalModuleCreate(smap, fmap, fmt, "");
 }

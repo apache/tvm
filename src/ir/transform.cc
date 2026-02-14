@@ -21,7 +21,6 @@
  * \file src/ir/transform.cc
  * \brief Infrastructure for transformation passes.
  */
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
@@ -54,17 +53,20 @@ struct PassContextThreadLocalEntry {
 };
 
 /*! \brief Thread local store to hold the pass context. */
-typedef dmlc::ThreadLocalStore<PassContextThreadLocalEntry> PassContextThreadLocalStore;
+static PassContextThreadLocalEntry* PassContextThreadLocalStoreGet() {
+  static thread_local PassContextThreadLocalEntry inst;
+  return &inst;
+}
 
 void PassContext::EnterWithScope() {
   InstrumentEnterPassContext();
 
-  PassContextThreadLocalEntry* entry = PassContextThreadLocalStore::Get();
+  PassContextThreadLocalEntry* entry = PassContextThreadLocalStoreGet();
   entry->context_stack.push(*this);
 }
 
 void PassContext::ExitWithScope() {
-  PassContextThreadLocalEntry* entry = PassContextThreadLocalStore::Get();
+  PassContextThreadLocalEntry* entry = PassContextThreadLocalStoreGet();
   ICHECK(!entry->context_stack.empty());
   ICHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
@@ -73,7 +75,7 @@ void PassContext::ExitWithScope() {
 }
 
 PassContext PassContext::Current() {
-  PassContextThreadLocalEntry* entry = PassContextThreadLocalStore::Get();
+  PassContextThreadLocalEntry* entry = PassContextThreadLocalStoreGet();
   if (!entry->context_stack.empty()) {
     return entry->context_stack.top();
   } else {

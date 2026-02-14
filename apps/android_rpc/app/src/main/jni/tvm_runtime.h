@@ -25,7 +25,6 @@
 
 #include <fstream>
 
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 #define TVM_USE_LIBBACKTRACE 0
 /* Enable custom logging - this will cause TVM to use a custom implementation
  * of tvm::runtime::detail::LogMessage. We use this to pass TVM log messages to

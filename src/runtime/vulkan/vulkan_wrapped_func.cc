@@ -19,10 +19,11 @@
 
 #include "vulkan_wrapped_func.h"
 
-#include <dmlc/memory_io.h>
+#include <tvm/support/io.h>
 
 #include <utility>
 
+#include "../../support/bytes_io.h"
 #include "../file_utils.h"
 #include "vulkan_device_api.h"
 
@@ -408,23 +409,21 @@ void VulkanModuleNode::WriteToFile(const ffi::String& file_name, const ffi::Stri
   ICHECK_EQ(fmt, fmt_) << "Can only save to customized format vulkan";
   std::string meta_file = GetMetaFilePath(file_name);
   SaveMetaDataToFile(meta_file, fmap_);
-  std::string data_bin;
-  dmlc::MemoryStringStream fs(&data_bin);
-  dmlc::Stream* stream = &fs;
+  std::string result;
+  support::BytesOutStream stream(&result);
   uint32_t magic = kVulkanModuleMagic;
-  stream->Write(magic);
-  stream->Write(smap_);
-  SaveBinaryToFile(file_name, data_bin);
+  stream.Write(magic);
+  stream.Write(smap_);
+  SaveBinaryToFile(file_name, result);
 }
 
 ffi::Bytes VulkanModuleNode::SaveToBytes() const {
-  std::string buffer;
-  dmlc::MemoryStringStream ms(&buffer);
-  dmlc::Stream* stream = &ms;
-  stream->Write(fmt_);
-  stream->Write(fmap_);
-  stream->Write(smap_);
-  return ffi::Bytes(buffer);
+  std::string result;
+  support::BytesOutStream stream(&result);
+  stream.Write(fmt_);
+  stream.Write(fmap_);
+  stream.Write(smap_);
+  return ffi::Bytes(std::move(result));
 }
 
 ffi::String VulkanModuleNode::InspectSource(const ffi::String& format) const {

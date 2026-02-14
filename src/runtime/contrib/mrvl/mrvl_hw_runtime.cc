@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "../../../../src/support/base64.h"
+#include "../../../support/bytes_io.h"
 #include "mrvl_base64.h"
 
 #define MRVL_LIBMLDPC_DEFAULT_PATH "/usr/lib/libmldpc.so"
@@ -246,35 +247,33 @@ class MarvellHardwareModuleNode : public ffi::ModuleObj {
   }
 
   virtual ffi::Bytes SaveToBytes() const {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
+    std::string result;
+    support::BytesOutStream stream(&result);
     // Save the symbol name and other data and serialize them to
     // binary format.
-    stream->Write(symbol_name_);
-    stream->Write(nodes_json_);
-    stream->Write(bin_code_);
-    stream->Write(num_inputs_);
-    stream->Write(num_outputs_);
-    stream->Write(run_arg.num_batches);
-    return ffi::Bytes(buffer);
+    stream.Write(symbol_name_);
+    stream.Write(nodes_json_);
+    stream.Write(bin_code_);
+    stream.Write(num_inputs_);
+    stream.Write(num_outputs_);
+    stream.Write(run_arg.num_batches);
+    return ffi::Bytes(std::move(result));
   }
 
   static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
-    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-    dmlc::Stream* stream = &ms;
+    support::BytesInStream stream(bytes);
     std::string symbol_name;
     std::string nodes_json;
     std::string bin_code;
     int num_inputs, num_outputs, batch_size;
 
     // Load the symbol_name and other data to construct the module
-    ICHECK(stream->Read(&symbol_name)) << "Loading symbol name failed";
-    ICHECK(stream->Read(&nodes_json)) << "Loading nodes json failed";
-    ICHECK(stream->Read(&bin_code)) << "Loading binary code failed";
-    ICHECK(stream->Read(&num_inputs)) << "Loading num_inputs failed";
-    ICHECK(stream->Read(&num_outputs)) << "Loading num_outputs failed";
-    ICHECK(stream->Read(&batch_size)) << "Loading batch_size failed";
+    ICHECK(stream.Read(&symbol_name)) << "Loading symbol name failed";
+    ICHECK(stream.Read(&nodes_json)) << "Loading nodes json failed";
+    ICHECK(stream.Read(&bin_code)) << "Loading binary code failed";
+    ICHECK(stream.Read(&num_inputs)) << "Loading num_inputs failed";
+    ICHECK(stream.Read(&num_outputs)) << "Loading num_outputs failed";
+    ICHECK(stream.Read(&batch_size)) << "Loading batch_size failed";
     auto n = ffi::make_object<MarvellHardwareModuleNode>(symbol_name, nodes_json, bin_code,
                                                          num_inputs, num_outputs, batch_size);
     return ffi::Module(n);

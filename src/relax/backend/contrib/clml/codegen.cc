@@ -85,7 +85,7 @@ class CollectCLMLFromCompositeFunctionBody : public ExprVisitor {
   void SetGenericAttributes(const CallNode* call_node) {
     if (backend::IsOp(call_node, "relax.nn.relu")) {
       std::vector<std::string> activation_type = {"relu"};
-      std::vector<dmlc::any> act_attr;
+      std::vector<std::any> act_attr;
       act_attr.emplace_back(activation_type);
       node_->SetAttr("activation_type", act_attr);
     }
@@ -245,7 +245,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
 
     if (nodes.bn) {
       const auto* bn_attr = nodes.bn->attrs.as<BatchNormAttrs>();
-      std::vector<dmlc::any> bn_any_attr;
+      std::vector<std::any> bn_any_attr;
       std::vector<std::string> bn_args = {
           std::to_string(bn_attr->axis), std::to_string(bn_attr->epsilon),
           std::to_string(bn_attr->center), std::to_string(bn_attr->scale)};
@@ -264,14 +264,14 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
                                           std::to_string(p[6].as<IntImmNode>()->value),
                                           std::to_string(p[5].as<IntImmNode>()->value),
                                           std::to_string(p[7].as<IntImmNode>()->value)};
-      std::vector<dmlc::any> padding_attr;
+      std::vector<std::any> padding_attr;
       padding_attr.emplace_back(padding);
       json_node->SetAttr("padding", padding_attr);
     }
 
     if (nodes.activation) {
       std::vector<std::string> activation_type = {nodes.act_type};
-      std::vector<dmlc::any> act_attr;
+      std::vector<std::any> act_attr;
       act_attr.emplace_back(activation_type);
       json_node->SetAttr("activation_type", act_attr);
     }
@@ -285,7 +285,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
       cfg = AttrsWithDefaultValues<OpenCLMLCompilerConfig>();
     }
     std::vector<std::string> clml_version = {std::to_string(cfg.value()->clml_version.IntValue())};
-    std::vector<dmlc::any> clml_version_attr;
+    std::vector<std::any> clml_version_attr;
     clml_version_attr.emplace_back(clml_version);
     node->SetAttr("clml_version", clml_version_attr);
   }

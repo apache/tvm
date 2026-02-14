@@ -60,7 +60,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
         axes.push_back(std::to_string(axis.IntValue()));
       }
 
-      std::vector<dmlc::any> axes_attr;
+      std::vector<std::any> axes_attr;
       axes_attr.emplace_back(axes);
       node_->SetAttr("axes", axes_attr);
     }
@@ -70,7 +70,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     const auto* astype_attrs = call_node->attrs.as<AstypeAttrs>();
     ICHECK(astype_attrs);
 
-    std::vector<dmlc::any> dtype_attr;
+    std::vector<std::any> dtype_attr;
     auto dtype_str = runtime::DLDataTypeToString(astype_attrs->dtype);
     dtype_attr.emplace_back(std::vector<std::string>{dtype_str});
     node_->SetAttr("astype_dtype", dtype_attr);
@@ -87,14 +87,14 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
         axis.push_back(std::to_string(dim->value));
       }
 
-      std::vector<dmlc::any> axis_attr;
+      std::vector<std::any> axis_attr;
       axis_attr.emplace_back(axis);
       node_->SetAttr("axis", axis_attr);
     }
 
     {
       const std::vector<std::string> keepdims{mean_attrs->keepdims ? "1" : "0"};
-      std::vector<dmlc::any> keepdims_attr;
+      std::vector<std::any> keepdims_attr;
       keepdims_attr.emplace_back(keepdims);
       node_->SetAttr("keepdims", keepdims_attr);
     }
@@ -122,15 +122,15 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     const int group_val = conv2d_attr->groups;
     groups.push_back(std::to_string(group_val));
 
-    std::vector<dmlc::any> strides_attr;
+    std::vector<std::any> strides_attr;
     strides_attr.emplace_back(strides);
     node_->SetAttr("strides", strides_attr);
 
-    std::vector<dmlc::any> padding_attr;
+    std::vector<std::any> padding_attr;
     padding_attr.emplace_back(padding);
     node_->SetAttr("padding", padding_attr);
 
-    std::vector<dmlc::any> group_attr;
+    std::vector<std::any> group_attr;
     group_attr.emplace_back(groups);
     node_->SetAttr("group", group_attr);
   }
@@ -159,15 +159,15 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
       pool_size.push_back(std::to_string(size));
     }
 
-    std::vector<dmlc::any> strides_attr;
+    std::vector<std::any> strides_attr;
     strides_attr.emplace_back(strides);
     node_->SetAttr("strides", strides_attr);
 
-    std::vector<dmlc::any> padding_attr;
+    std::vector<std::any> padding_attr;
     padding_attr.emplace_back(padding);
     node_->SetAttr("padding", padding_attr);
 
-    std::vector<dmlc::any> pooling_attr;
+    std::vector<std::any> pooling_attr;
     pooling_attr.emplace_back(pool_size);
     node_->SetAttr("pool_size", pooling_attr);
   }

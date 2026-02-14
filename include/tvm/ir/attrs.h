@@ -28,7 +28,6 @@
 #ifndef TVM_IR_ATTRS_H_
 #define TVM_IR_ATTRS_H_
 
-#include <dmlc/common.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/accessor.h>

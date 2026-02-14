@@ -24,8 +24,8 @@
 #ifndef TVM_SUPPORT_PIPE_H_
 #define TVM_SUPPORT_PIPE_H_
 
-#include <dmlc/io.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/io.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -42,7 +42,7 @@ namespace tvm {
 namespace support {
 
 /*! \brief Platform independent pipe */
-class Pipe : public dmlc::Stream {
+class Pipe : public tvm::support::Stream {
  public:
 #ifdef _WIN32
   using PipeHandle = HANDLE;

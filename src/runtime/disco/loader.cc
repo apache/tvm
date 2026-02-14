@@ -220,6 +220,7 @@ std::string GetSiblingPath(const std::string& path, const std::string& filename)
     return path.substr(0, found + 1) + filename;
   }
   LOG(FATAL) << "ValueError: Cannot find the parent directory: " << path;
+  return "";
 }
 
 Tensor ShardLoaderObj::LoadParamOnWorker0(int weight_index) const {

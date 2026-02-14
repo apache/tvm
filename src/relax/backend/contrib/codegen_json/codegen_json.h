@@ -24,8 +24,6 @@
 #ifndef TVM_RELAX_BACKEND_CONTRIB_CODEGEN_JSON_CODEGEN_JSON_H_
 #define TVM_RELAX_BACKEND_CONTRIB_CODEGEN_JSON_CODEGEN_JSON_H_
 
-#include <dmlc/any.h>
-#include <dmlc/json.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/struct_info.h>
@@ -70,7 +68,7 @@ class OpAttrExtractor {
   }
 
   void SetNodeAttr(const char* key, const std::vector<std::string>& value) {
-    std::vector<dmlc::any> attr;
+    std::vector<std::any> attr;
     attr.emplace_back(value);
     node_->SetAttr(key, attr);
   }
@@ -222,10 +220,8 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
 
   /*!\brief Return the generated json. */
   std::string GetJSON() {
-    std::ostringstream os;
-    dmlc::JSONWriter writer(&os);
-    Save(&writer);
-    return os.str();
+    namespace json = ::tvm::ffi::json;
+    return std::string(json::Stringify(SaveToJSON()));
   }
 
  protected:
@@ -271,11 +267,11 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       dtype.emplace_back(DType2String(tensor_sinfo->dtype));
       ret.push_back(JSONGraphNodeEntry(node_id, 0));
     }
-    std::vector<dmlc::any> shape_attrs;
+    std::vector<std::any> shape_attrs;
     shape_attrs.emplace_back(shape);
     node->SetAttr("shape", shape_attrs);
 
-    std::vector<dmlc::any> type_attrs;
+    std::vector<std::any> type_attrs;
     type_attrs.emplace_back(dtype);
     node->SetAttr("dtype", type_attrs);
     return ret;
@@ -292,7 +288,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       ICHECK(pattern.has_value());
       std::vector<std::string> values;
       values.push_back(pattern.value());
-      std::vector<dmlc::any> attr;
+      std::vector<std::any> attr;
       attr.emplace_back(values);
       node->SetAttr("PartitionedFromPattern", attr);
     }
@@ -424,12 +420,8 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
     return {};
   }
 
-  /*!
-   * \brief Save to JSON graph
-   *
-   * \param writer A json writer
-   */
-  void Save(dmlc::JSONWriter* writer) {
+  ffi::json::Value SaveToJSON() {
+    namespace json = ::tvm::ffi::json;
     std::vector<size_t> arg_nodes;
     for (size_t i = 0; i < nodes_.size(); ++i) {
       auto node = nodes_[i];
@@ -443,12 +435,28 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       num_entry += node->GetNumOutput();
       node_row_ptr.push_back(num_entry);
     }
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("nodes", nodes_);
-    writer->WriteObjectKeyValue("arg_nodes", arg_nodes);
-    writer->WriteObjectKeyValue("heads", heads_);
-    writer->WriteObjectKeyValue("node_row_ptr", node_row_ptr);
-    writer->EndObject();
+    json::Object obj;
+    // nodes
+    json::Array nodes_arr;
+    for (auto& n : nodes_) {
+      nodes_arr.push_back(n->SaveToJSON());
+    }
+    obj.Set(ffi::String("nodes"), std::move(nodes_arr));
+    // arg_nodes
+    json::Array arg_arr;
+    for (auto x : arg_nodes) arg_arr.push_back(static_cast<int64_t>(x));
+    obj.Set(ffi::String("arg_nodes"), std::move(arg_arr));
+    // heads
+    json::Array heads_arr;
+    for (const auto& h : heads_) {
+      heads_arr.push_back(h.SaveToJSON());
+    }
+    obj.Set(ffi::String("heads"), std::move(heads_arr));
+    // node_row_ptr
+    json::Array nrp_arr;
+    for (auto x : node_row_ptr) nrp_arr.push_back(static_cast<int64_t>(x));
+    obj.Set(ffi::String("node_row_ptr"), std::move(nrp_arr));
+    return obj;
   }
 
  private:

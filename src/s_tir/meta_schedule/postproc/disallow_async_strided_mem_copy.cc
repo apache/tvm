@@ -160,7 +160,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           IRModule mod =
               IRModule(ffi::Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
-        } catch (const dmlc::Error& e) {
+        } catch (const std::runtime_error& e) {
           return false;
         }
         if (s_tir::AsyncStridedMemCopyFinder::Find(lowered)) {

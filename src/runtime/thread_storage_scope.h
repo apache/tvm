@@ -131,6 +131,7 @@ struct StorageScope {
         return "metal.simdgroup" + tag;
       default:
         LOG(FATAL) << "unknown storage scope";
+        return "";
     }
   }
   /*!

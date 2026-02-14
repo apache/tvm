@@ -21,7 +21,6 @@
  * \file rocm_device_api.cc
  * \brief GPU specific API
  */
-#include <dmlc/thread_local.h>
 #include <hip/hip_runtime_api.h>
 #include <hsa/hsa.h>
 #include <tvm/ffi/extra/c_env_api.h>
@@ -239,11 +238,12 @@ class ROCMDeviceAPI final : public DeviceAPI {
   }
 };
 
-typedef dmlc::ThreadLocalStore<ROCMThreadEntry> ROCMThreadStore;
-
 ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {}
 
-ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() { return ROCMThreadStore::Get(); }
+ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() {
+  static thread_local ROCMThreadEntry inst;
+  return &inst;
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

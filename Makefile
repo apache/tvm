@@ -36,7 +36,6 @@ TVM_BUILD_PATH := $(abspath $(TVM_BUILD_PATH))
 
 # Allow environment variables for 3rd-party libraries, default to
 # packaged version.
-DMLC_CORE_PATH ?= $(ROOTDIR)/3rdparty/dmlc-core
 DLPACK_PATH ?= $(ROOTDIR)/3rdparty/tvm-ffi/3rdparty/dlpack
 
 all: $(addsuffix /all,$(TVM_BUILD_PATH))
@@ -99,7 +98,7 @@ pylint:
 	tests/lint/pylint.sh
 
 jnilint:
-	python3 3rdparty/dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
+	python3 -m cpplint jvm/native/src
 
 mypy:
 	tests/scripts/task_mypy.sh
@@ -116,7 +115,7 @@ webclean:
 
 
 # JVM build rules
-INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include
+INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include
 PKG_CFLAGS = -Wall -O3 $(INCLUDE_FLAGS) -fPIC
 PKG_LDFLAGS =
 

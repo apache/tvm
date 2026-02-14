@@ -408,8 +408,7 @@ uint32_t VulkanDevice::SelectComputeQueueFamily() const {
   uint32_t queue_prop_count = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_prop_count, nullptr);
   std::vector<VkQueueFamilyProperties> queue_props(queue_prop_count);
-  vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_prop_count,
-                                           dmlc::BeginPtr(queue_props));
+  vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_prop_count, queue_props.data());
 
   std::vector<uint32_t> result;
   // Prefer compute-only queues. On certain devices supporting this (e.g. Mesa RADV), using
@@ -600,6 +599,7 @@ uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,
     type_bits >>= 1;
   }
   LOG(FATAL) << "Requested memory type not found";
+  return 0;
 }
 
 VulkanHostVisibleBuffer* GetOrAllocate(

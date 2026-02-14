@@ -23,7 +23,6 @@
  */
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -274,11 +273,12 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 };
 
-typedef dmlc::ThreadLocalStore<CUDAThreadEntry> CUDAThreadStore;
-
 CUDAThreadEntry::CUDAThreadEntry() : pool(kDLCUDA, CUDADeviceAPI::Global()) {}
 
-CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() { return CUDAThreadStore::Get(); }
+CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() {
+  static thread_local CUDAThreadEntry inst;
+  return &inst;
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

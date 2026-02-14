@@ -52,7 +52,6 @@ include_directories(SYSTEM
 
 link_directories(${DSPRPC_LIB_DIRS})
 
-add_definitions(-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 
 set(STUB_SRCS
   "${LAUNCHER_SRC}/launcher_android.cc"

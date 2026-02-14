@@ -24,6 +24,8 @@
 #ifndef TVM_CONTRIB_MSC_CORE_CODEGEN_CODEGEN_JSON_H_
 #define TVM_CONTRIB_MSC_CORE_CODEGEN_CODEGEN_JSON_H_
 
+#include <tvm/ffi/extra/json.h>
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -48,16 +50,14 @@ using JSONSerializer = backend::contrib::JSONSerializer;
 struct MSCCompileConfig {
   std::string graph_json;
   std::unordered_map<std::string, std::string> options;
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "graph_json") {
-        reader->Read(&graph_json);
-      } else {
-        std::string value;
-        reader->Read(&value);
-        options.insert({key, value});
+  void Load(ffi::json::Object obj) {
+    if (auto it = obj.find(ffi::String("graph_json")); it != obj.end()) {
+      graph_json = std::string((*it).second.cast<ffi::String>());
+    }
+    for (const auto& kv : obj) {
+      std::string k = std::string(kv.first.cast<ffi::String>());
+      if (k != "graph_json") {
+        options[k] = std::string(kv.second.cast<ffi::String>());
       }
     }
   }
@@ -72,10 +72,9 @@ class MSCJSONSerializer : public JSONSerializer {
   explicit MSCJSONSerializer(const ffi::Map<Constant, ffi::String>& constant_names,
                              const std::string& options)
       : JSONSerializer(constant_names) {
+    namespace json = ::tvm::ffi::json;
     MSCCompileConfig config;
-    std::istringstream is(options);
-    dmlc::JSONReader reader(&is);
-    reader.Read(&config);
+    config.Load(json::Parse(options).cast<json::Object>());
     ICHECK(config.graph_json.size() > 0) << "graph_json is needed to init MSCGraph";
     graph_ = MSCGraph(config.graph_json);
     for (const auto& pair : config.options) {

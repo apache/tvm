@@ -26,13 +26,13 @@
 #ifndef TVM_RUNTIME_MODULE_H_
 #define TVM_RUNTIME_MODULE_H_
 
-#include <dmlc/io.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/base.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 
 #include <utility>

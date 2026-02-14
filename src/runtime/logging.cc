@@ -274,8 +274,8 @@ std::string Backtrace() {
 
 namespace tvm {
 namespace runtime {
-// Fallback to the dmlc implementation when backtrace is not available.
-std::string Backtrace() { return dmlc::StackTrace(); }
+// Fallback when libbacktrace is not available.
+std::string Backtrace() { return ""; }
 }  // namespace runtime
 }  // namespace tvm
 

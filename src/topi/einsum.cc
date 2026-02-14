@@ -25,6 +25,9 @@
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/einsum.h>
 
+#include <map>
+#include <set>
+
 namespace tvm {
 namespace topi {
 

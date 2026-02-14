@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <set>
+
 #include "../utils.h"
 
 namespace tvm {

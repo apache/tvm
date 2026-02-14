@@ -278,7 +278,6 @@ void TVMPluginCodeGen::CodeGenCmake(const std::set<ffi::String>& devices) {
       .line("find_library(TVM_LIB NAMES tvm HINTS ${TVM_ROOT}/build NO_DEFAULT_PATH)");
   ffi::Array<ffi::String> includes, libs;
   includes.push_back("${TVM_ROOT}/include");
-  includes.push_back("${TVM_ROOT}/3rdparty/dmlc-core/include");
   includes.push_back("${TVM_ROOT}/3rdparty/dlpack/include");
   includes.push_back("${TVM_ROOT}/3rdparty/compiler-rt");
   libs.push_back("${TVM_LIB}");
