@@ -29,17 +29,17 @@ pip3 install --upgrade \
     numpy==1.21.* \
     orderedset \
     packaging \
-    Pillow==9.1.0 \
+    Pillow==12.1.1 \
     psutil \
     pytest \
     git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@768ec1dce349fe4708f6ad68be1ebb3f3dabafa1 \
     pytest-profiling \
     pytest-xdist \
-    pytest-rerunfailures==10.2 \
+    pytest-rerunfailures==16.1 \
     requests \
     scipy \
     Jinja2 \
-    junitparser==2.4.2 \
+    junitparser==4.0.2 \
     six \
     tornado \
     "ml_dtypes>=0.5.1"
