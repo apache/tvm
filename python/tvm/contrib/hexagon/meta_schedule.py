@@ -24,7 +24,7 @@ from tvm.ir.module import IRModule
 from tvm.runtime import Module, Tensor
 from tvm.target import Target
 from tvm.driver import build as tvm_build
-from tvm.tir.transform import RemoveWeightLayoutRewriteBlock
+from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
 from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.s_tir.meta_schedule.utils import cpu_count, derived_object
 from tvm.s_tir.meta_schedule.builder import LocalBuilder

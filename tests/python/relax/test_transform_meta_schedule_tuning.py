@@ -221,7 +221,7 @@ def test_ms_database_apply_fallback():
                 work_dir=work_dir, max_trials_global=0
             )
             out_mod = tuning_pass(mod)
-            default_pass = tvm.tir.transform.DefaultGPUSchedule()
+            default_pass = tvm.s_tir.transform.DefaultGPUSchedule()
             out_mod = default_pass(mod)
             tvm.ir.assert_structural_equal(out_mod, DefaultScheduledModule)
 

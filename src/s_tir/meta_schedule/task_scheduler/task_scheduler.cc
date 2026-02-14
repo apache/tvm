@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/analysis.h>
 
 #include "../utils.h"
 
@@ -43,7 +44,7 @@ TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
       << "ValueError: Require `context.search_strategy`, but it is not defined";
   TVM_PY_LOG(INFO, ctx->logger) << "\n" << ctx->mod;
   ctx->Initialize();
-  n->flop = std::max(1.0, tir::EstimateTIRFlops(ctx->mod.value()));
+  n->flop = std::max(1.0, s_tir::EstimateTIRFlops(ctx->mod.value()));
   this->data_ = std::move(n);
 }
 

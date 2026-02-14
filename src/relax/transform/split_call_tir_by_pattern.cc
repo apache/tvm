@@ -27,6 +27,7 @@
 #include <tvm/relax/tir_pattern.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -736,8 +737,8 @@ class SplitMutator : public ExprMutator {
       new_call->args = {lib_func, call->args[1]};
       return Call(new_call);
     }
-    tir::PrimFunc func1 = tir::RenewDefs(split_funcs.first);
-    tir::PrimFunc func2 = tir::RenewDefs(split_funcs.second.value());
+    tir::PrimFunc func1 = s_tir::RenewDefs(split_funcs.first);
+    tir::PrimFunc func2 = s_tir::RenewDefs(split_funcs.second.value());
     ICHECK(arg_partition.size() == 2);
     // emit the first call to the library kernel
     ffi::Array<Expr> args1;

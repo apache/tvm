@@ -24,7 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/tir/analysis.h>
+#include <tvm/s_tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
@@ -68,7 +68,7 @@ relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
     }
   }();
 
-  bool purity = prim_func->body.defined() ? IsPureFunction(prim_func) : false;
+  bool purity = prim_func->body.defined() ? s_tir::IsPureFunction(prim_func) : false;
 
   return relax::FuncStructInfo(params, ret, purity);
 }

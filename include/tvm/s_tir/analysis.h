@@ -25,8 +25,12 @@
 #define TVM_S_TIR_ANALYSIS_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/ir/transform.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
+
+#include <optional>
 
 namespace tvm {
 namespace tir {
@@ -84,5 +88,122 @@ TVM_DLL ffi::Map<Buffer, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFu
 const tir::SBlockNode* FindAnchorBlock(const IRModule& mod);
 
 }  // namespace tir
+
+namespace arith {
+class Analyzer;
+}
+
+namespace s_tir {
+
+using namespace tvm::tir;
+
+/*!
+ * \brief Estimate the FLOPs of a TIR fragment.
+ * \param stmt The TIR fragment to be estimated.
+ * \return The estimated FLOPs.
+ */
+TVM_DLL double EstimateTIRFlops(const Stmt& stmt);
+
+/*!
+ * \brief Estimate the FLOPs of TIRs in an IRModule.
+ * \param mod The IRModule to be estimated.
+ * \return The estimated FLOPs.
+ */
+TVM_DLL double EstimateTIRFlops(const IRModule& mod);
+
+/*!
+ * \brief Analyze the side effect of a function
+ * \param func The function to be checked.
+ * \param assert_on_error If true, an error will be thrown for an impure function.
+ * \return The purity of the function.
+ */
+TVM_DLL bool IsPureFunction(const PrimFunc& func, bool assert_on_error = false);
+
+/*!
+ * \brief Verify the correctness of a GPU code
+ * \param func The function to be checked.
+ * \param constraints The dict to specify constraints to check.
+ * \return valid Whether it is a valid GPU code.
+ */
+TVM_DLL bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr> constraints);
+
+/*! \brief Helper struct for return value of IdentifyMemCpy */
+struct MemCpyDetails {
+  BufferRegion source;
+  BufferRegion dest;
+};
+
+/*! \brief Identify whether a For loop is semantically equivalent to MemCpy
+ * \param loop The loop to be checked
+ * \param analyzer The analyzer with which to check any algebraic expressions
+ * \returns The source and destination regions being copied, if the loop is equivalent to memcpy.
+ */
+TVM_DLL std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, arith::Analyzer* analyzer);
+
+/*!
+ * \brief Calculate the allocated memory per scope in bytes needed inside the TIR PrimFunc
+ * \param func The TIR PrimFunc for which the allocated memory size to be calculated
+ * \return Allocated memory size per scope in bytes.
+ */
+TVM_DLL ffi::Map<ffi::String, ffi::Map<ffi::String, Integer>> CalculateAllocatedBytes(
+    const PrimFunc& func);
+
+/*!
+ * \brief Calculate the allocated memory per scope in bytes for each function inside the module
+ * \param mod The IRModule for which the allocated memory size has to be calculated
+ * \return Allocated memory size per scope in bytes for each function.
+ */
+TVM_DLL ffi::Map<ffi::String, ffi::Map<ffi::String, Integer>> CalculateAllocatedBytes(
+    const IRModule& mod);
+
+/**
+ * \brief Get the list of lowering passes to calculate the compacted VTCM allocation size.
+ * \return The list of passes.
+ */
+TVM_DLL ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses();
+
+/*!
+ * \brief Verifies that the VTCM usage for all prim_funcs in the given IRModule.
+ * \param mod The module to be checked.
+ * \param limit The limit to check.
+ * \return true if the VTCM usage is within the provided limit.
+ */
+TVM_DLL bool VerifyVTCMLimit(const IRModule& mod, Integer limit);
+
+/*!
+ * \brief Verifies that the VTCM usage of the given prim_func is within the provided limit.
+ * \param func The function to be checked.
+ * \param limit The limit to check.
+ * \return true if the VTCM usage is within the provided limit.
+ */
+TVM_DLL bool VerifyVTCMLimit(const PrimFunc& func, Integer limit);
+
+namespace transform {
+
+using tvm::transform::Pass;
+using tvm::transform::PassContext;
+
+/*!
+ * \brief Pass to verify GPU code constraints.
+ * \param constraints The dict to specify constraints.
+ * \return The pass.
+ */
+TVM_DLL Pass VerifyGPUCode(ffi::Map<ffi::String, PrimExpr> constraints);
+
+/*!
+ * \brief Pass to check if VTCM usage is within limit.
+ * \param default_target The default target for functions without target attribute.
+ * \return The pass.
+ */
+TVM_DLL Pass VerifyVTCMLimit(ffi::Optional<Target> default_target = std::nullopt);
+
+/*!
+ * \brief Statically check TIR code for out of bounds array access.
+ * \return The pass.
+ */
+TVM_DLL Pass OOBChecker();
+
+}  // namespace transform
+}  // namespace s_tir
 }  // namespace tvm
 #endif  // TVM_S_TIR_ANALYSIS_H_

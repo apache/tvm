@@ -20,6 +20,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt_functor.h>
@@ -48,7 +49,7 @@ class PrimValueComputeInjector : public ExprMutator {
 
     tir::PrimFunc func(param_vars, body, PrimType(ret_dtype), {},
                        DictAttrs({{tir::attr::kIsHostFunc, true}}));
-    func = tir::RenewDefs(func);
+    func = s_tir::RenewDefs(func);
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");
 

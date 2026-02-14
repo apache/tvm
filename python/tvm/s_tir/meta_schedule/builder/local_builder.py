@@ -255,7 +255,7 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, Ten
     # pylint: disable=import-outside-toplevel
     from tvm.driver import build as tvm_build
     import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
-    from tvm.tir.transform import RemoveWeightLayoutRewriteBlock
+    from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
 
     # pylint: enable=import-outside-toplevel
     mod = RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=True)(mod)

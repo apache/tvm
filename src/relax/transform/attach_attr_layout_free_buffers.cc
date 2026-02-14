@@ -24,6 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
@@ -82,7 +83,7 @@ class AttrAttacher : public ExprMutator {
     tir::PrimFunc func = WithAttr(Downcast<tir::PrimFunc>(mod_->Lookup(gv)), "layout_free_buffers",
                                   layout_free_buffers);
     // Renew defs
-    func = tir::RenewDefs(func);
+    func = s_tir::RenewDefs(func);
     // Add the updated tir::PrimFunc in the IRModule
     // Note the blockbuilder would automatically combine the same tir function
     // So we don't need to worry about the duplicate insertion

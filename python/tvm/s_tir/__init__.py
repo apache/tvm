@@ -23,6 +23,7 @@ from tvm.tir.function import TensorIntrin
 # so skip it in runtime-only builds.
 from tvm.base import _RUNTIME_ONLY
 
+from . import _ffi_api
 from . import backend
 from . import pipeline
 from . import transform
@@ -35,3 +36,21 @@ if not _RUNTIME_ONLY:
     from . import analysis
     from . import meta_schedule
     from . import dlight
+
+
+def renew_defs(func):
+    """Re-generate the definition nodes for a TIR, including VarDef, BufferDef.
+    This pass works as a simple DeepCopy to duplicate a function with different Vars and
+    Buffers but the same behavior
+
+    Parameters
+    ----------
+    func: PrimFunc
+        The input function
+
+    Returns
+    -------
+    result : PrimFunc
+        The new generated func.
+    """
+    return _ffi_api.RenewDefs(func)

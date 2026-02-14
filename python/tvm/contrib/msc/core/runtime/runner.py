@@ -1468,7 +1468,7 @@ class BYOCRunner(BaseRunner):
         elif self._device.startswith("cuda"):
             target = tvm.target.Target("cuda")
             with target:
-                model = tvm.tir.transform.DefaultGPUSchedule()(model)
+                model = tvm.s_tir.transform.DefaultGPUSchedule()(model)
             with tvm.transform.PassContext(opt_level=3):
                 self._executable = tvm.compile(model, target)
                 runnable = tvm.relax.VirtualMachine(self._executable, tvm.cuda())

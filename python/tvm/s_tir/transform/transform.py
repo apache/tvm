@@ -442,3 +442,63 @@ def MergeSharedMemoryAllocations():
         The result pass
     """
     return _ffi_api.MergeSharedMemoryAllocations()  # type: ignore
+
+
+def DefaultGPUSchedule():
+    """Set default thread bindings for GPU PrimFuncs.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.DefaultGPUSchedule()  # type: ignore
+
+
+def RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=False):
+    """Remove weight layout rewrite block before benchmarking during tuning stage.
+
+    Parameters
+    ----------
+    skip_tensor_rewrite : bool
+        If True, exact rewrite of Tensor, according to the given index map, will be skipped.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite)  # type: ignore
+
+
+def RemoveStoreUndef():
+    """Remove stores of undefined values from the Stmt.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveStoreUndef()  # type: ignore
+
+
+def DecorateDeviceScope():
+    """Decorate all the function's body as device function.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.DecorateDeviceScope()  # type: ignore
+
+
+def UseAssumeToReduceBranches():
+    """Eliminate layout specific pad branch by overcomputing values for padded region.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.UseAssumeToReduceBranches()  # type: ignore

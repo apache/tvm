@@ -36,7 +36,8 @@
 #include <unordered_map>
 
 namespace tvm {
-namespace tir {
+namespace s_tir {
+using namespace tvm::tir;
 
 template <typename T>
 class AllocationCalculator : public StmtExprVisitor {
@@ -103,7 +104,7 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > CalculateAlloca
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tir.analysis.calculate_allocated_bytes",
+      "s_tir.analysis.calculate_allocated_bytes",
       [](ObjectRef obj) -> tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > {
         if (auto func = obj.as<PrimFunc>()) {
           return CalculateAllocatedBytes(func.value());
@@ -138,7 +139,7 @@ bool VerifyVTCMLimit(const PrimFunc& func, Integer limit) {
   return true;
 }
 
-int64_t GetVTCMCapacity(Target target, const transform::PassContext& pass_ctx) {
+int64_t GetVTCMCapacity(Target target, const tvm::transform::PassContext& pass_ctx) {
   if (!target.defined()) target = Target::Current(/*allow_not_defined=*/true);
   if (target.defined() && target->kind->name == "hexagon") {
     auto value = target->GetAttr<Integer>("vtcm-capacity").value()->value;
@@ -165,7 +166,7 @@ ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.get_vtcm_compaction_passes",
+  refl::GlobalDef().def("s_tir.analysis.get_vtcm_compaction_passes",
                         []() { return GetVTCMCompactionPasses(); });
 }
 
@@ -203,10 +204,9 @@ Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.transform.VerifyVTCMLimit", VerifyVTCMLimit);
   refl::GlobalDef().def("s_tir.transform.VerifyVTCMLimit", VerifyVTCMLimit);
 }
 
 }  // namespace transform
-}  // namespace tir
+}  // namespace s_tir
 }  // namespace tvm

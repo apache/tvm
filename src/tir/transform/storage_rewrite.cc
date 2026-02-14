@@ -26,7 +26,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type.h>
-#include <tvm/target/target_info.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -668,14 +667,6 @@ class StoragePlanRewriter : public StmtExprMutator {
                 DeclBuffer(RemapBuffer(ptr->buffer, e->alloc_var), Evaluate(0)));
             hoisted_buffer_decls_.insert(ptr->buffer.get());
           }
-          if (IsSpecialTaggedMemory(e->scope)) {
-            MemoryInfo info = GetMemoryInfo(e->scope.to_string());
-            if (info.defined()) {
-              uint64_t total_elem = e->const_nbits / e->elem_type.bits();
-              ICHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)
-                  << "Allocation exceed bound of memory tag " << e->scope.to_string();
-            }
-          }
         } else {
           // Build a merged allocation
           PrimExpr combo_size;
@@ -716,14 +707,6 @@ class StoragePlanRewriter : public StmtExprMutator {
           combo_size = analyzer_.Simplify(combo_size);
           e->alloc_nest.push_back(
               Allocate(e->alloc_var, alloc_type, {combo_size}, const_true(), Evaluate(0)));
-          if (IsSpecialTaggedMemory(e->scope)) {
-            MemoryInfo info = GetMemoryInfo(e->scope.to_string());
-            if (info.defined()) {
-              uint64_t total_elem = e->const_nbits / e->elem_type.bits();
-              ICHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)
-                  << "Allocation exceed bound of memory tag " << e->scope.to_string();
-            }
-          }
         }
       }
     }
@@ -733,13 +716,9 @@ class StoragePlanRewriter : public StmtExprMutator {
     ICHECK_NE(e->scope.tag.length(), 0U);
     // allocate with element type.
     ICHECK_NE(e->const_nbits, 0U);
-    MemoryInfo info = GetMemoryInfo(e->scope.to_string());
     uint64_t total_bits = e->const_nbits;
     // By default, align to 32 bits.
     size_t align = 32;
-    if (info.defined()) {
-      align = info->max_simd_bits;
-    }
     // Always align to max_simd_bits
     // so we can remap types by keeping this property
     if (total_bits % align != 0) {
@@ -761,10 +740,6 @@ class StoragePlanRewriter : public StmtExprMutator {
         make_const(e->allocs[0]->extents[0].dtype(), (total_bits + type_bits - 1) / type_bits);
     e->alloc_nest.push_back(
         Allocate(e->alloc_var, e->elem_type, {alloc_size}, const_true(), Evaluate(0)));
-    if (info.defined()) {
-      ICHECK_LE(total_bits, info->max_num_bits)
-          << "Allocation exceed bound of memory tag " << e->scope.to_string();
-    }
   }
   // Liveness analysis to find gen and kill point of each variable.
   void LivenessAnalysis(const std::vector<StmtEntry>& seq) {

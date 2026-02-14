@@ -257,7 +257,7 @@ def _run_relax(relax_mod, target_name, data):
     relax_mod = tvm.relax.transform.LegalizeOps()(relax_mod)
     if target_name == "cuda":
         with target:
-            relax_mod = tvm.tir.transform.DefaultGPUSchedule()(relax_mod)
+            relax_mod = tvm.s_tir.transform.DefaultGPUSchedule()(relax_mod)
         device = tvm.cuda()
     else:
         device = tvm.cpu()

@@ -24,24 +24,8 @@ from tvm import te
 from tvm.script import tir as T, ir as I
 
 
-def register_mem(scope_tb, max_bits):
-    # Register mem
-    @tvm.register_global_func("tvm.info.mem.%s" % scope_tb)
-    def mem_info_inp_buffer():
-        return tvm.ir.make_node(
-            "target.MemoryInfo",
-            unit_bits=16,
-            max_simd_bits=32,
-            max_num_bits=max_bits,
-            head_address=None,
-        )
-
-
 def test_alloc_seq():
     scope_tb = "local.L0A"
-    max_bits = 1024 * 1024 * 1024
-
-    register_mem(scope_tb, max_bits)
 
     @T.prim_func
     def func(n: T.int32):
@@ -341,9 +325,6 @@ def test_alloc_seq_type():
 
 def test_alloc_seq_type2():
     scope_tb = "local.L0A2"
-    max_bits = 1024 * 1024 * 1024
-
-    register_mem(scope_tb, max_bits)
 
     @T.prim_func
     def func(n: T.int32):

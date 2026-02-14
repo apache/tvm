@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/transform.h>
 
 #include "./utils.h"
 
@@ -105,8 +106,7 @@ ffi::Array<ArgInfo> ArgInfo::FromPrimFunc(const tir::PrimFunc& func) {
 
 ffi::Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_preproc) {
   if (remove_preproc) {
-    IRModule new_mod =
-        tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_tensor_rewrite*/ true)(mod);
+    IRModule new_mod = transform::RemoveWeightLayoutRewriteBlock(/*skip_tensor_rewrite*/ true)(mod);
     return ArgInfo::FromPrimFunc(FindEntryFunc(new_mod));
   }
   return ArgInfo::FromPrimFunc(FindEntryFunc(mod));

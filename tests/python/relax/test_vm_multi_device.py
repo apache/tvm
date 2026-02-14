@@ -35,7 +35,7 @@ def compile(
     # compile the model
     mod = relax.transform.RealizeVDevice()(mod)
     mod = relax.transform.LegalizeOps()(mod)
-    mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+    mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
     # no need to feed target argument for mult-target compilation
     ex = tvm.compile(mod)
 

@@ -311,7 +311,7 @@ Pass SimplifyForFeatureExtraction() {
  */
 tvm::transform::Sequential PassListForPerStoreFeature() {
   return tvm::transform::Sequential({
-      tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_tensor_rewrite*/ true),
+      s_tir::transform::RemoveWeightLayoutRewriteBlock(/*skip_tensor_rewrite*/ true),
       s_tir::transform::SimplifyForFeatureExtraction(),
       s_tir::transform::LowerCrossThreadReduction(),
       s_tir::transform::LowerInitBlock(),
