@@ -36,6 +36,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/global_var_supply.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -303,7 +304,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
       if (called_by_host && called_by_device) {
         // Rule 4.1: Called by both host and device
         // Bind device target to current function
-        PrimFunc host_func = RenewDefs(prim_func);
+        PrimFunc host_func = s_tir::RenewDefs(prim_func);
         new_mod->Update(gvar,
                         WithAttr(std::move(prim_func), tvm::attr::kTarget, target_without_host));
 

@@ -16,9 +16,8 @@
 # under the License.
 """Wrapping existing analysis utils."""
 # pylint: disable=invalid-name
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
-import tvm
 from tvm.ir import IRModule
 from tvm.tir.expr import Var
 from tvm.tir.stmt import PrimExpr
@@ -97,66 +96,6 @@ def verify_memory(func: PrimFunc) -> bool:
     return _ffi_api.verify_memory(func)  # type: ignore
 
 
-def verify_gpu_code(func: PrimFunc, constraints: Dict[str, int]) -> None:
-    """Verify if module contains illegal host side direct memory access.
-
-    Parameters
-    ----------
-    func: tvm.tir.PrimFunc
-        The module to be verified.
-
-    constraints : Dict[str, int]
-        The attribute constraints.
-
-    Returns
-    -------
-    result : bool
-        The result of verification.
-    """
-    return _ffi_api.verify_gpu_code(func, constraints)  # type: ignore
-
-
-def calculate_allocated_bytes(
-    func_or_mod: Union[PrimFunc, IRModule],
-) -> Union[Dict[str, int], Dict[str, Dict[str, int]]]:
-    """Calculate allocated memory per memory scope required by TIR PrimFuncs.
-
-    Parameters
-    ----------
-    func_or_mod: Union[PrimFunc, IRModule]
-        The function or module to be detected. If a module is passed, allocated
-        memory is calculated for all PrimFuncs inside the module
-
-    Returns
-    -------
-    result : Union[Dict[str, int], Dict[str, Dict[str, int]]]
-        Allocated memory size per scope in bytes for each function in the IRModule returned as a
-        dict with function names as keys and a dict of allocated sizes as values. If a single
-        PrimFunc is passed, the function name is returned as "main"
-    """
-    if not isinstance(func_or_mod, (PrimFunc, IRModule)):
-        raise TypeError(
-            f"Expected argument to be PrimFunc or IRModule, but received {type(func_or_mod)}"
-        )
-    return _ffi_api.calculate_allocated_bytes(func_or_mod)  # type: ignore
-
-
-def estimate_tir_flops(stmt_or_mod: Union[Stmt, IRModule]) -> float:
-    """Estimate the FLOPs of a TIR fragment.
-
-    Parameters
-    ----------
-    stmt_or_mod: Union[Stmt, IRModule]
-        The TIR fragment or IRModule to be estimated.
-
-    Returns
-    -------
-    flops: float
-        The estimated FLOPs.
-    """
-    return _ffi_api.EstimateTIRFlops(stmt_or_mod)  # type: ignore # pylint: disable=no-member
-
-
 def undefined_vars(node: Union[Stmt, PrimExpr], defs: Optional[List[Var]] = None) -> List[Var]:
     """Find undefined vars in a TIR statement or expression.
 
@@ -195,40 +134,3 @@ def verify_well_formed(obj: Union[PrimFunc, IRModule], assert_mode: bool = True)
         Whether it is a well-formed TIR function.
     """
     return _ffi_api.VerifyWellFormed(obj, assert_mode)  # type: ignore # pylint: disable=no-member
-
-
-def OOBChecker():
-    """Detect out of bounds memory access in arrays.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.OOBChecker()  # type: ignore
-
-
-def has_if_then_else(stmt: Stmt) -> bool:
-    return tvm.ffi.get_global_func("s_tir.schedule.HasIfThenElse")(stmt)
-
-
-def get_vtcm_compaction_passes() -> List[tvm.transform.Pass]:
-    """Utility function to get the list of lowering passes to be applied to calculate the compacted
-    VTCM allocation size
-
-    Returns
-    -------
-    result : List[tvm.transform.Pass]
-        returns list of passes
-    """
-    return _ffi_api.get_vtcm_compaction_passes()  # type: ignore # pylint: disable=no-member
-
-
-def is_pure_function(func: PrimFunc) -> bool:
-    """Checks if the function is a pure function"""
-    return _ffi_api.is_pure_function(func, False)  # type: ignore # pylint: disable=no-member
-
-
-def assert_pure_function(func: PrimFunc) -> bool:
-    """Asserts that the function is a pure function"""
-    return _ffi_api.is_pure_function(func, True)  # type: ignore # pylint: disable=no-member

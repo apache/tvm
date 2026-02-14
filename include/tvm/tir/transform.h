@@ -94,13 +94,6 @@ TVM_DLL Pass UnrollLoop();
 TVM_DLL Pass RemoveNoOp();
 
 /*!
- * \brief Detect and rewrite unsafe select that contains memory access.
- *
- * \return The pass.
- */
-TVM_DLL Pass RewriteUnsafeSelect();
-
-/*!
  * \brief Run arithmetic simplifications on the statements and expressions.
  *
  * \return The pass.
@@ -119,13 +112,6 @@ TVM_DLL Pass Simplify();
  * \return The pass.
  */
 TVM_DLL Pass ConvertSSA();
-
-/*!
- * \brief Instruments bound checkers.
- *
- * \return The pass.
- */
-TVM_DLL Pass InstrumentBoundCheckers();
 
 /*!
  * \brief Transform the high-level PrimFunc to a low-level version
@@ -156,17 +142,6 @@ TVM_DLL Pass InstrumentBoundCheckers();
 TVM_DLL Pass MakePackedAPI();
 
 /*!
- * \brief Transform the high-level PrimFunc to a C signature that can be used
- *   to call the operator directly.
- *
- *  The main task of this function is to create code that maps the values in the
- *  api_args to Var that is required by body
- *
- * \return The pass.
- */
-TVM_DLL Pass MakeUnpackedAPI();
-
-/*!
  * \brief Remap the thread axis
  *
  *  This can be used to get equivalent program which uses
@@ -186,13 +161,6 @@ TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> axis_map);
  * \return The pass.
  */
 TVM_DLL Pass LowerCustomDatatypes();
-
-/*!
- * \brief Decorate all the function's body as device function.
- *
- * \return The pass.
- */
-TVM_DLL Pass DecorateDeviceScope();
 
 /*!
  * \brief Annotate locations that should be run on the device
@@ -247,28 +215,6 @@ TVM_DLL Pass LowerDeviceKernelLaunch();
 TVM_DLL Pass SkipAssert();
 
 /*!
- * \brief Insert sync between parallel read/write of shared buffers.
- *
- * \param storage_scope The storage scope considered.
- * \return The pass.
- */
-TVM_DLL Pass ThreadSync(ffi::String storage_scope);
-
-/*!
- * \brief Lower cross thread alleduce.
- *
- * \return The pass.
- */
-TVM_DLL Pass LowerThreadAllreduce();
-
-/*!
- * \brief Infer the TensorCore fragment infomation using tensor intrinsics
- *
- * \return The pass.
- */
-TVM_DLL Pass InferFragment();
-
-/*!
  * \brief This annotation is for nodes to be disabled for builtin lowering
  */
 static constexpr const char* kDisableLowerTVMBuiltin = "disable_lower_builtin";
@@ -291,22 +237,6 @@ TVM_DLL Pass LowerIntrin();
  * \return The pass.
  */
 TVM_DLL Pass LowerWarpMemory();
-
-/*!
- * \brief Lower attached storage access information on device.
- *
- * \note Run this pass after all storage access analysis finish.
- *
- * \return The pass.
- */
-TVM_DLL Pass LowerDeviceStorageAccessInfo();
-
-/*!
- * \brief Combine context calls in the host function.
- *
- * \return The pass.
- */
-TVM_DLL Pass CombineContextCall();
 
 /*!
  * \brief Narrow down PrimExpr datatype in stmt to target_bits.
@@ -373,44 +303,11 @@ TVM_DLL Pass InlinePrivateFunctions();
 TVM_DLL Pass PointerValueTypeRewrite();
 
 /*!
- * \brief Hoist loop-invariant IfThenElse nodes to
- * outside the elligible loops.
- *
- * \return The pass.
- */
-TVM_DLL Pass HoistIfThenElse();
-
-/*!
- * \brief Hoist loop-invariant expressions nodes to
- * outside the elligible loops.
- *
- * Can hoist conditionals used in IfThenElse statements and
- * expressions, bindings of variables in Let statements and
- * expressions, or boolean expressions, configurable to enable/disable
- * each hoistable type.
- *
- * \return The pass.
- */
-TVM_DLL Pass HoistExpression();
-
-/*!
  * \brief Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
  *        BufferLoad/BufferStore for the TIR not contains opaque block.
  * \return The pass.
  */
 TVM_DLL Pass FlattenBuffer();
-
-/*
- * \brief Lower VTCM allocations
- *
- * \return The Pass
- */
-TVM_DLL Pass LowerVtcmAlloc();
-
-/*!
- * \brief Lower Async TIR primitives to DMA copy and wait builtins
- */
-TVM_DLL Pass LowerAsyncDMA();
 
 /*!
  * \brief Implements a Common Subexpression Elimination (CSE) for TIR
@@ -422,32 +319,12 @@ TVM_DLL Pass LowerAsyncDMA();
 TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true, bool identify_equiv_terms = false);
 
 /*!
- *  A pass to merge multiple TIR-level shared memory allocations into one
- */
-TVM_DLL Pass MergeSharedMemoryAllocations();
-
-/*!
- * \brief This pass is post-scheduling pass to convert all
- *        Parallel For loops to Serial ones. This is run
- *        to attain lesser memory and/or executor/backend
- *        does not support parallel launch of For loops.
- * \return The pass.
- */
-TVM_DLL Pass ConvertForLoopsToSerial();
-
-/*!
  * \brief This is the unified static memory planner pass that will
  * plan for memory intra- and inter- PrimFuncs together. The pass
  * requires all the function to be PrimFuncs including the main.
  * \return The pass.
  */
 TVM_DLL Pass UnifiedStaticMemoryPlanner();
-
-/*!
- * \brief Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
- * \return The pass.
- */
-TVM_DLL Pass RenormalizeSplitPattern();
 
 /*!
  * \brief Annotate a PrimFunc with a given target.
@@ -468,18 +345,6 @@ TVM_DLL Pass AnnotateEntryFunc();
 TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
 
 /*!
- * \brief Pass to rewrite global to shared memory copy on CUDA with asyncronous copy.
- * \return The pass.
- */
-TVM_DLL Pass InjectPTXAsyncCopy();
-
-/*!
- * \brief Pass to rewrite global to local memory copy on CUDA with ldg32 instruction.
- * \return The pass.
- */
-TVM_DLL Pass InjectPTXLDG32(bool enable_ptx_ldg32 = true);
-
-/*!
  * \brief Remove the weight layout rewrite block
  * \param skip_tensor_rewrite If True, exact rewrite of Tensor, according to the given index map,
  *  will be skipped. Only the shape of the Tensor is transformed correctly, and the content of
@@ -491,34 +356,6 @@ TVM_DLL Pass InjectPTXLDG32(bool enable_ptx_ldg32 = true);
  *
  * \return The pass.
  */
-TVM_DLL Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite = false);
-
-/*!
- * \brief Insert intrinsic calls to instrument function and loop level profiling.
- * \return The pass.
- */
-TVM_DLL Pass InstrumentProfileIntrinsics();
-
-/*!
- * \brief The pass sets default thread bindings for PrimFuncs, including symbolic shape functions,
- *  allowing their build and execution on GPU devices. It examines all the blocks within the
- *  PrimFunc and conducts loop fusion, splitting, and reordering operations based on the loop extent
- *  and target information, such as the maximum thread block number and maximum thread per block.
- * \note The primary objective of this pass is not to optimize performance, but rather to
- *  generate a valid GPU kernel for unscheduled or symbolic shape PrimFuncs. The pass is
- *  currently only working for CUDA targets.
- * \return The Pass.
- */
-TVM_DLL Pass DefaultGPUSchedule();
-
-/*!
- * \brief This pass analyzes primfunc & eliminates branch introdued due to layout specific padding.
- *  It leverages from the buffer assumptions and use the information to eliminate the branch.
- * \note This creates more opportunity to vectorize the code.
- * \return The Pass.
- */
-TVM_DLL Pass UseAssumeToReduceBranches();
-
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm
