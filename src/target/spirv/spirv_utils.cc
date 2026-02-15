@@ -158,13 +158,13 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
 
     if (postproc) {
       TVMFFIByteArray arr;
-      arr.data = reinterpret_cast<const char*>(dmlc::BeginPtr(shader.data));
+      arr.data = reinterpret_cast<const char*>(shader.data.data());
       arr.size = shader.data.size() * sizeof(uint32_t);
       std::string transformed = (*postproc)(&arr, target).cast<std::string>();
       ICHECK_EQ(transformed.length() % 4U, 0U);
       shader.data.resize(transformed.size() / 4U);
       std::copy(transformed.begin(), transformed.end(),
-                reinterpret_cast<char*>(dmlc::BeginPtr(shader.data)));
+                reinterpret_cast<char*>(shader.data.data()));
     }
     code_data << spirv_tools.BinaryToText(shader.data);
     smap[f_name] = std::move(shader);

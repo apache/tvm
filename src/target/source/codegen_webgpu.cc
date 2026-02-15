@@ -22,9 +22,10 @@
  */
 #include "codegen_webgpu.h"
 
-#include <dmlc/memory_io.h>
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/io.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/transform.h>
 
@@ -38,6 +39,7 @@
 #include "../../arith/pattern_match.h"
 #include "../../runtime/meta_data.h"
 #include "../../runtime/thread_storage_scope.h"
+#include "../../support/bytes_io.h"
 #include "../build_common.h"
 
 namespace tvm {
@@ -722,22 +724,25 @@ class WebGPUSourceModuleNode final : public ffi::ModuleObj {
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
     LOG(FATAL) << "WebGPUSourceModule is not directly runnable, export and run through tvmjs";
+    return std::nullopt;
   }
 
   ffi::Bytes SaveToBytes() const final {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
-    stream->Write(fmap_);
-    stream->Write(smap_);
-    return ffi::Bytes(buffer);
+    std::string result;
+    support::BytesOutStream stream(&result);
+    stream.Write(fmap_);
+    stream.Write(smap_);
+    return ffi::Bytes(std::move(result));
   }
 
   ffi::String InspectSource(const ffi::String& format) const final {
     if (format == "func_info") {
-      std::ostringstream stream;
-      dmlc::JSONWriter(&stream).Write(fmap_);
-      return stream.str();
+      namespace json = ::tvm::ffi::json;
+      json::Object obj;
+      for (const auto& kv : fmap_) {
+        obj.Set(ffi::String(kv.first), kv.second.SaveToJSON());
+      }
+      return std::string(json::Stringify(obj));
     } else {
       std::ostringstream os;
       for (auto kv : smap_) {

@@ -24,10 +24,10 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/io.h>
 
 #include <array>
 #include <mutex>
@@ -35,6 +35,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../../support/bytes_io.h"
 #include "../file_utils.h"
 #include "../meta_data.h"
 #include "../pack_args.h"
@@ -95,13 +96,12 @@ class CUDAModuleNode : public ffi::ModuleObj {
   }
 
   ffi::Bytes SaveToBytes() const final {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
-    stream->Write(fmt_);
-    stream->Write(fmap_);
-    stream->Write(data_);
-    return ffi::Bytes(buffer);
+    std::string result;
+    support::BytesOutStream stream(&result);
+    stream.Write(fmt_);
+    stream.Write(fmap_);
+    stream.Write(data_);
+    return ffi::Bytes(std::move(result));
   }
 
   ffi::String InspectSource(const ffi::String& format) const final {
@@ -326,14 +326,13 @@ ffi::Module CUDAModuleLoadFile(const std::string& file_name, const ffi::String& 
 }
 
 ffi::Module CUDAModuleLoadFromBytes(const ffi::Bytes& bytes) {
-  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-  dmlc::Stream* stream = &ms;
+  support::BytesInStream stream(bytes);
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt;
-  stream->Read(&fmt);
-  stream->Read(&fmap);
-  stream->Read(&data);
+  stream.Read(&fmt);
+  stream.Read(&fmap);
+  stream.Read(&data);
   return CUDAModuleCreate(data, fmt, fmap, std::string());
 }
 

@@ -20,7 +20,6 @@
 /*!
  * \file metal_device_api.mm
  */
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/profiling.h>
@@ -348,9 +347,10 @@ id<MTLBuffer> MetalThreadEntry::GetTempBuffer(Device dev, size_t size) {
   return temp_buffer_[dev.device_id];
 }
 
-typedef dmlc::ThreadLocalStore<MetalThreadEntry> MetalThreadStore;
-
-MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get(); }
+MetalThreadEntry* MetalThreadEntry::ThreadLocal() {
+  static thread_local MetalThreadEntry inst;
+  return &inst;
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

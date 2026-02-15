@@ -21,12 +21,13 @@
  * \file codegen.cc
  * \brief Common utilities to generated C style code.
  */
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/module.h>
+#include <tvm/support/io.h>
+#include <tvm/support/serializer.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
@@ -37,6 +38,8 @@
 #include <sstream>
 #include <unordered_set>
 #include <vector>
+
+#include "../support/bytes_io.h"
 
 namespace tvm {
 namespace codegen {
@@ -60,7 +63,7 @@ class ModuleSerializer {
  public:
   explicit ModuleSerializer(ffi::Module mod) : mod_(mod) { Init(); }
 
-  void SerializeModuleToBytes(dmlc::Stream* stream, bool export_dso) {
+  void SerializeModuleToBytes(support::Stream* stream, bool export_dso) {
     // Always _import_tree
     stream->Write(import_tree_row_ptr_);
     stream->Write(import_tree_child_indices_);
@@ -212,39 +215,37 @@ class ModuleSerializer {
 };
 
 std::string SerializeModuleToBytes(const ffi::Module& mod, bool export_dso) {
-  std::string bin;
-  dmlc::MemoryStringStream ms(&bin);
-  dmlc::Stream* stream = &ms;
+  std::string result;
+  support::BytesOutStream stream(&result);
 
   ModuleSerializer module_serializer(mod);
-  module_serializer.SerializeModuleToBytes(stream, export_dso);
-  return bin;
+  module_serializer.SerializeModuleToBytes(&stream, export_dso);
+  return result;
 }
 
 ffi::Module DeserializeModuleFromBytes(std::string blob) {
-  dmlc::MemoryStringStream ms(&blob);
-  dmlc::Stream* stream = &ms;
+  support::BytesInStream stream(blob);
 
   std::vector<ffi::Module> modules;
   std::vector<uint64_t> import_tree_row_ptr;
   std::vector<uint64_t> import_tree_child_indices;
 
-  stream->Read(&import_tree_row_ptr);
-  stream->Read(&import_tree_child_indices);
+  stream.Read(&import_tree_row_ptr);
+  stream.Read(&import_tree_child_indices);
 
   uint64_t size = import_tree_row_ptr.size() - 1;
   for (uint64_t i = 0; i < size; ++i) {
     std::string tkey;
-    ICHECK(stream->Read(&tkey));
+    ICHECK(stream.Read(&tkey));
     // "_lib" serves as a placeholder in the module import tree to indicate where
     // to place the DSOModule
     ICHECK(tkey != "_lib") << "Should not contain any placeholder for DSOModule.";
     if (tkey == "_import_tree") {
-      ICHECK(stream->Read(&import_tree_row_ptr));
-      ICHECK(stream->Read(&import_tree_child_indices));
+      ICHECK(stream.Read(&import_tree_row_ptr));
+      ICHECK(stream.Read(&import_tree_child_indices));
     } else {
       std::string bytes;
-      ICHECK(stream->Read(&bytes));
+      ICHECK(stream.Read(&bytes));
       auto loader = ffi::Function::GetGlobal("ffi.Module.load_from_bytes." + tkey);
       ICHECK(loader.has_value()) << "ffi.Module.load_from_bytes." << tkey << " is not enabled";
       auto m = (*loader)(ffi::Bytes(bytes)).cast<ffi::Module>();

@@ -21,7 +21,6 @@
 
 #include "llvm_instance.h"
 
-#include <dmlc/base.h>
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/StringRef.h>
 #if TVM_LLVM_VERSION >= 150
@@ -145,7 +144,7 @@ std::string Join(std::string sep, llvm::ArrayRef<std::string> strings) {
 
 LLVMInstance::LLVMInstance() {
   // Call InitializeLLVM before anything else.
-  static const bool DMLC_ATTRIBUTE_UNUSED init_llvm = InitializeLLVM();
+  [[maybe_unused]] static const bool init_llvm = InitializeLLVM();
   ctx_ = std::make_shared<llvm::LLVMContext>();
 }
 

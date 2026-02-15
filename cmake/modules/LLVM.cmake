@@ -21,7 +21,7 @@
 #
 # See https://github.com/imageworks/OpenShadingLanguage/issues/1069
 # for more discussion.
-add_definitions(-DDMLC_USE_FOPEN64=0 -DNDEBUG=1)
+add_definitions(-DNDEBUG=1)
 # TODO(@jroesch, @tkonolige): if we actually use targets we can do this.
 # target_compile_definitions(tvm PRIVATE NDEBUG=1)
 
@@ -46,8 +46,6 @@ if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
   list(APPEND TVM_LINKER_LIBS ${LLVM_LIBS})
   list(APPEND COMPILER_SRCS ${COMPILER_LLVM_SRCS})
   if(NOT MSVC)
-    set_source_files_properties(${COMPILER_LLVM_SRCS}
-      PROPERTIES COMPILE_DEFINITIONS "DMLC_ENABLE_RTTI=0")
     set_source_files_properties(${COMPILER_LLVM_SRCS}
       PROPERTIES COMPILE_FLAGS "-fno-rtti")
   endif()

@@ -31,6 +31,7 @@
 #include <tvm/tir/op.h>
 
 #include <iterator>
+#include <list>
 #include <stack>
 
 #include "../../arith/pattern_match.h"
