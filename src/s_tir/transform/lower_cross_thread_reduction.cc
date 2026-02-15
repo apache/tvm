@@ -353,7 +353,6 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     // otherwise, directly remove given BlockRealize
     if (it_buffers.defined()) {
       ObjectPtr<SBlockNode> new_block = ffi::make_object<SBlockNode>(*block);
-      new_block->reads = std::move(new_block->reads);
       new_block->writes = it_buffer_regions.value();
       new_block->name_hint = new_block->name_hint + "_in_thread";
       new_block->body =
