@@ -111,14 +111,15 @@ def test_simplify_vscale_comparison_without_sve_target(capfd):
         with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"}):
             assert ana.can_prove(vs * 32 < vs * 64)
 
-    warning_msg = (
+    warning_prefix = (
         "Warning: The expression contains scalable values. An attempt to prove by substituting "
         "with known values of vscale was not performed. This proof currently only supports "
-        'VLA targets, but the target was {"kind":"llvm","tag":"","keys":["arm_cpu","cpu"],'
-        '"mtriple":"aarch64-linux-gnu"}'
+        "VLA targets, but the target was "
     )
     capture = capfd.readouterr().err
-    assert warning_msg in capture
+    assert warning_prefix in capture
+    assert '"kind":"llvm"' in capture
+    assert '"mtriple":"aarch64-linux-gnu"' in capture
 
 
 def test_regression_simplify_inf_recursion():

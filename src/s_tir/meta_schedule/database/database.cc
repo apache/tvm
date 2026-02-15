@@ -110,7 +110,7 @@ ObjectRef TuningRecordNode::AsJSON() const {
     json_args_info = info;
   }
   if (target.defined()) {
-    json_target = target.value()->Export();
+    json_target = target.value()->ToConfig();
   }
   return ffi::Array<ObjectRef>{trace->AsJSON(false),  //
                                run_secs,              //

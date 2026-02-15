@@ -46,10 +46,7 @@ class TargetInternal {
  public:
   static void EnterScope(Target target) { target.EnterWithScope(); }
   static void ExitScope(Target target) { target.ExitWithScope(); }
-  static ffi::Map<ffi::String, ffi::Any> Export(Target target) { return target->Export(); }
-  static const TargetKindNode::ValueTypeInfo& FindTypeInfo(const TargetKind& kind,
-                                                           const std::string& key);
-  static Any ParseType(const Any& obj, const TargetKindNode::ValueTypeInfo& info);
+  static ffi::Map<ffi::String, ffi::Any> ToConfig(Target target) { return target->ToConfig(); }
   static ObjectPtr<TargetNode> FromString(const ffi::String& tag_or_config_or_target_str);
   static ObjectPtr<TargetNode> FromConfigString(const ffi::String& config_str);
   static ObjectPtr<TargetNode> FromConfig(ffi::Map<ffi::String, ffi::Any> config);
@@ -66,6 +63,7 @@ class TargetInternal {
 };
 
 /**********  Helper functions  **********/
+
 Target Target::WithHost(const Target& target, const Target& host) {
   return TargetInternal::WithHost(target, host);
 }
@@ -92,16 +90,6 @@ static std::vector<ffi::String> DeduplicateKeys(const std::vector<ffi::String>& 
   return new_keys;
 }
 
-template <class T>
-static T ObjTypeCheck(const Any& obj, const std::string& expected_type) {
-  auto opt = obj.try_cast<T>();
-  if (!opt.has_value()) {
-    TVM_FFI_THROW(TypeError) << "Expects type \"" << expected_type << "\", but gets \""
-                             << obj.GetTypeKey() << "\" for object: " << obj;
-  }
-  return opt.value();
-}
-
 static TargetKind GetTargetKind(const ffi::String& name) {
   ffi::Optional<TargetKind> kind = TargetKind::Get(name);
   if (!kind.defined()) {
@@ -110,102 +98,9 @@ static TargetKind GetTargetKind(const ffi::String& name) {
   return kind.value();
 }
 
-const TargetKindNode::ValueTypeInfo& TargetInternal::FindTypeInfo(const TargetKind& kind,
-                                                                  const std::string& key) {
-  auto it = kind->key2vtype_.find(key);
-  if (it == kind->key2vtype_.end()) {
-    std::ostringstream os;
-    os << ": Cannot recognize \'" << key << "\'. Candidates are: ";
-    bool is_first = true;
-    for (const auto& kv : kind->key2vtype_) {
-      if (is_first) {
-        is_first = false;
-      } else {
-        os << ", ";
-      }
-      os << kv.first;
-    }
-    TVM_FFI_THROW(TypeError) << os.str();
-  }
-  return it->second;
-}
-
-/**********  Parsing  **********/
-
-Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInfo& info) {
-  if (info.type_index == ffi::TypeIndex::kTVMFFIInt) {
-    // Parsing integer
-    return ObjTypeCheck<int64_t>(obj, "int64_t");
-  } else if (info.type_index == ffi::TypeIndex::kTVMFFIBool) {
-    // Parsing boolean
-    return ObjTypeCheck<bool>(obj, "bool");
-  } else if (info.type_index == ffi::TypeIndex::kTVMFFIStr) {
-    // Parsing string
-    return ObjTypeCheck<ffi::String>(obj, "String");
-  } else if (info.type_index == Target::ContainerType::RuntimeTypeIndex()) {
-    // Parsing target
-    if (auto opt = obj.as<Target>()) {
-      return opt.value();
-    } else if (auto str = obj.try_cast<ffi::String>()) {
-      return Target(TargetInternal::FromString(str.value()));
-    } else if (const auto* ptr = obj.as<ffi::MapObj>()) {
-      for (const auto& kv : *ptr) {
-        if (!kv.first.as<ffi::String>()) {
-          TVM_FFI_THROW(TypeError)
-              << "Target object requires key of dict to be str, but get: " << kv.first.GetTypeKey();
-        }
-      }
-      ffi::Map<ffi::String, ffi::Any> config = ffi::GetRef<ffi::Map<ffi::String, ffi::Any>>(ptr);
-      return Target(TargetInternal::FromConfig({config.begin(), config.end()}));
-    }
-    TVM_FFI_THROW(TypeError) << "Expect type 'dict' or 'str' to construct Target, but get: " +
-                                    obj.GetTypeKey();
-  } else if (info.type_index == ffi::ArrayObj::RuntimeTypeIndex()) {
-    // Parsing array
-    const auto* array = ObjTypeCheck<const ffi::ArrayObj*>(obj, "Array");
-    std::vector<Any> result;
-    for (const Any& e : *array) {
-      try {
-        result.push_back(TargetInternal::ParseType(e, *info.key));
-      } catch (const Error& e) {
-        std::string index = '[' + std::to_string(result.size()) + ']';
-        throw Error(e.kind(), index + e.message(), e.backtrace());
-      }
-    }
-    return ffi::Array<Any>(result);
-  } else if (info.type_index == ffi::MapObj::RuntimeTypeIndex()) {
-    // Parsing map
-    const auto* map = ObjTypeCheck<const ffi::MapObj*>(obj, "Map");
-    std::unordered_map<Any, Any, ffi::AnyHash, ffi::AnyEqual> result;
-    for (const auto& kv : *map) {
-      Any key, val;
-      try {
-        key = TargetInternal::ParseType(kv.first, *info.key);
-      } catch (const Error& e) {
-        throw Error(e.kind(), e.message() + ", during parse key of map", e.backtrace());
-      }
-      try {
-        val = TargetInternal::ParseType(kv.second, *info.val);
-      } catch (const Error& e) {
-        std::ostringstream os;
-        os << ", during parseing value of map[\"" << key << "\"]";
-        throw Error(e.kind(), e.message() + os.str(), e.backtrace());
-      }
-      result[key] = val;
-    }
-    return ffi::Map<Any, Any>(result);
-  }
-  if (info.type_index != obj.type_index()) {
-    TVM_FFI_THROW(TypeError) << "Parsing type \"" << info.type_key
-                             << "\" is not supported for the given object of type \""
-                             << obj.GetTypeKey() << "\". The object is: " << obj;
-  }
-  return obj;
-}
-
 const std::string& TargetNode::str() const {
   if (str_repr_.empty()) {
-    str_repr_ = std::string(ffi::json::Stringify(Export()));
+    str_repr_ = std::string(ffi::json::Stringify(ToConfig()));
   }
   return str_repr_;
 }
@@ -227,7 +122,7 @@ Target::Target(const ffi::String& tag_or_config_or_target_str) {
 Target::Target(const ffi::Map<ffi::String, ffi::Any>& config) {
   ObjectPtr<Object> target;
   try {
-    target = TargetInternal::FromConfig({config.begin(), config.end()});
+    target = TargetInternal::FromConfig(config);
   } catch (const Error& e) {
     std::ostringstream os;
     os << ". Target creation from config dict failed: " << config;
@@ -253,34 +148,14 @@ Target::Target(TargetKind kind, ffi::Optional<ObjectRef> host, ffi::String tag,
   data_ = std::move(data);
 }
 
-std::vector<std::string> TargetNode::GetKeys() const {
-  std::vector<std::string> result;
-  for (auto& expr : keys) {
-    result.push_back(expr);
-  }
-  return result;
-}
-
-std::unordered_set<std::string> TargetNode::GetLibs() const {
-  ffi::Optional<ffi::Array<ffi::String>> libs = this->GetAttr<ffi::Array<ffi::String>>("libs");
-  if (!libs.defined()) {
-    return {};
-  }
-  std::unordered_set<std::string> result;
-  for (const auto& item : libs.value()) {
-    result.insert(item);
-  }
-  return result;
-}
-
-ffi::Map<ffi::String, ffi::Any> TargetNode::Export() const {
+ffi::Map<ffi::String, ffi::Any> TargetNode::ToConfig() const {
   ffi::Map<ffi::String, ffi::Any> result = {
       {"kind", this->kind->name},
       {"tag", this->tag},
       {"keys", this->keys},
   };
   if (this->host.defined()) {
-    result.Set("host", this->GetHost().value_or(Target())->Export());
+    result.Set("host", this->GetHost().value_or(Target())->ToConfig());
   }
   for (const auto& kv : attrs) {
     result.Set(kv.first, kv.second);
@@ -310,45 +185,6 @@ int TargetNode::GetTargetDeviceType() const {
 bool TargetNode::HasKey(const std::string& query_key) const {
   return std::any_of(keys.begin(), keys.end(),
                      [&query_key](const auto& key) { return key == query_key; });
-}
-
-ffi::String TargetNode::ToDebugString() const {
-  std::ostringstream os;
-  os << "Target(";
-  os << "id=" << std::hex << reinterpret_cast<size_t>(this);
-  os << ", kind='" << kind->name << "'";
-  if (!tag.empty()) {
-    os << ", tag='" << tag << "'";
-  }
-  if (!keys.empty()) {
-    os << ", keys={";
-    bool first = true;
-    for (const auto& key : keys) {
-      if (!first) {
-        os << ", ";
-      }
-      os << "'" << key << "'";
-      first = false;
-    }
-    os << "}";
-  }
-  if (!attrs.empty()) {
-    os << ", attrs={";
-    bool first = true;
-    for (const auto& pair : attrs) {
-      if (!first) {
-        os << ", ";
-      }
-      os << "'" << pair.first << "': " << pair.second;
-      first = false;
-    }
-    os << "}";
-  }
-  if (host.defined()) {
-    os << ", host=" << GetHost().value()->ToDebugString();
-  }
-  os << ")";
-  return os.str();
 }
 
 /*! \brief Entry to hold the Target context stack. */
@@ -430,7 +266,7 @@ ObjectPtr<TargetNode> TargetInternal::FromString(const ffi::String& tag_or_confi
         << "\". CLI target string form (e.g. \"llvm -mcpu=xxx\") is no longer supported. "
         << "Please use JSON dict form (e.g. {\"kind\": \"llvm\", \"mcpu\": \"xxx\"}) instead.";
   }
-  return TargetInternal::FromConfig({{"kind", ffi::String(s)}});
+  return TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String(s)}});
 }
 
 ObjectPtr<TargetNode> TargetInternal::FromConfigString(const ffi::String& config_str) {
@@ -443,7 +279,7 @@ ObjectPtr<TargetNode> TargetInternal::FromConfigString(const ffi::String& config
   if (!config.has_value()) {
     TVM_FFI_THROW(ValueError) << "Target JSON config must be a dict, got: " << config_str;
   }
-  return TargetInternal::FromConfig({config.value().begin(), config.value().end()});
+  return TargetInternal::FromConfig(config.value());
 }
 
 ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any> config) {
@@ -452,29 +288,13 @@ ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any>
   const ffi::String kKeys = "keys";
   const ffi::String kDeviceName = "device";
   const ffi::String kHost = "host";
-  const ffi::String kFeatures = "features";
+  const ffi::String kFromDevice = "from_device";
   ObjectPtr<TargetNode> target = ffi::make_object<TargetNode>();
 
-  ICHECK(!config.count(kFeatures)) << "Target Features should be generated by Target parser";
-
-  // parse 'kind'
+  // Step 1: Parse 'kind' (needed to look up the schema, but kept in config for canonicalizer)
   if (config.count(kKind)) {
     if (auto kind = config[kKind].try_cast<ffi::String>()) {
       target->kind = GetTargetKind(kind.value());
-      ICHECK(!(target->kind->preprocessor != nullptr && target->kind->target_parser != nullptr))
-          << "Cannot use both set_attrs_preprocessor and set_target_parser";
-
-      // Run JSON Parser over JSON input
-      if (target->kind->target_parser != nullptr) {
-        VLOG(9) << "TargetInternal::FromConfig - Running target_parser";
-        config = target->kind->target_parser(config);
-        if (config.count(kFeatures)) {
-          target->features = Downcast<ffi::Map<ffi::String, ffi::Any>>(config[kFeatures]);
-          config.erase(kFeatures);
-        }
-      }
-
-      config.erase(kKind);
     } else {
       TVM_FFI_THROW(TypeError) << "Expect type of field \"kind\" is String, but get type: "
                                << config[kKind].GetTypeKey();
@@ -482,82 +302,69 @@ ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any>
   } else {
     TVM_FFI_THROW(ValueError) << "Field \"kind\" is not found";
   }
-  // parse "tag"
-  if (config.count(kTag)) {
-    if (auto tag = config[kTag].try_cast<ffi::String>()) {
-      target->tag = tag.value();
-      config.erase(kTag);
-    } else {
-      TVM_FFI_THROW(TypeError) << "Expect type of field \"tag\" is String, but get type: "
-                               << config[kTag].GetTypeKey();
-    }
-  } else {
-    target->tag = "";
-  }
-  // parse "keys"
-  {
-    std::vector<ffi::String> keys;
-    bool has_user_keys = config.count(kKeys);
-    if (has_user_keys) {
-      // user provided keys
-      if (const auto* cfg_keys = config[kKeys].as<ffi::ArrayObj>()) {
-        for (const Any& e : *cfg_keys) {
-          if (auto key = e.try_cast<ffi::String>()) {
-            keys.push_back(key.value());
-          } else {
-            TVM_FFI_THROW(TypeError) << "Expect 'keys' to be an array of strings, but it "
-                                     << "contains an element of type: " << e.GetTypeKey();
-          }
-        }
-      } else {
-        TVM_FFI_THROW(TypeError) << "Expect type of field \"keys\" is Array, but get type: "
-                                 << config[kKeys].GetTypeKey();
-      }
-    }
-    // add device name
-    if (config.count(kDeviceName)) {
-      if (auto device = config.at(kDeviceName).try_cast<ffi::String>()) {
-        keys.push_back(device.value());
-      }
-    }
-    if (!has_user_keys) {
-      // add default keys
-      for (const auto& key : target->kind->default_keys) {
-        keys.push_back(key);
-      }
-    }
-    // de-duplicate keys
-    target->keys = DeduplicateKeys(keys);
-    config.erase(kKeys);
-  }
-  // parse host
+
+  // Step 2: Extract "host" before schema validation (needs special recursive parsing)
   if (config.count(kHost)) {
     target->host = ffi::Function(ConstructorDispatcher)(config[kHost]).cast<Target>();
     config.erase(kHost);
   } else {
     target->host = std::nullopt;
   }
-  // parse attrs
-  std::unordered_map<ffi::String, ffi::Any> attrs;
-  for (const auto& cfg_kv : config) {
-    const ffi::String& key = cfg_kv.first;
-    const ffi::Any& value = cfg_kv.second;
-    try {
-      const TargetKindNode::ValueTypeInfo& info = TargetInternal::FindTypeInfo(target->kind, key);
-      attrs[key] = TargetInternal::ParseType(value, info);
-    } catch (const Error& e) {
-      throw Error(e.kind(), std::string(e.message()) + ", during parsing target[\"" + key + "\"]",
-                  e.backtrace());
+
+  // Step 3: Use ConfigSchema to validate types, apply defaults, and run canonicalizer
+  // Note: structural keys (kind, tag, keys, device) pass through to canonicalizer
+  ffi::Map<ffi::String, ffi::Any> resolved = target->kind->schema_.Resolve(config);
+
+  // Step 4: Extract structural fields from resolved config
+  if (resolved.count(kTag)) {
+    if (auto tag = resolved[kTag].try_cast<ffi::String>()) {
+      target->tag = tag.value();
     }
+    resolved.erase(kTag);
+  } else {
+    target->tag = "";
   }
 
-  // If requested, query attributes from the device.  User-specified
-  // parameters take precedence over queried parameters.
-  if (attrs.count("from_device")) {
-    int device_id = attrs.at("from_device").cast<int64_t>();
-    attrs.erase("from_device");
-    auto device_params = QueryDevice(device_id, target.get());
+  {
+    std::vector<ffi::String> keys;
+    bool has_keys = resolved.count(kKeys);
+    if (has_keys) {
+      ffi::Array<ffi::String> cfg_keys = Downcast<ffi::Array<ffi::String>>(resolved.at(kKeys));
+      for (const ffi::String& key : cfg_keys) {
+        keys.push_back(key);
+      }
+    }
+    if (resolved.count(kDeviceName)) {
+      if (auto device = resolved.at(kDeviceName).try_cast<ffi::String>()) {
+        keys.push_back(device.value());
+      }
+    }
+    if (!has_keys) {
+      for (const auto& key : target->kind->default_keys) {
+        keys.push_back(key);
+      }
+    }
+    target->keys = DeduplicateKeys(keys);
+    resolved.erase(kKeys);
+  }
 
+  // Step 5: Build attrs from resolved entries (excluding structural keys)
+  resolved.erase(kKind);
+  std::unordered_map<ffi::String, ffi::Any> attrs;
+  for (const auto& kv : resolved) {
+    attrs[kv.first] = kv.second;
+  }
+
+  // Step 6: If requested, query attributes from the device. User-specified
+  // parameters take precedence over queried parameters.
+  int64_t from_device_id = -1;
+  if (auto it = attrs.find(kFromDevice); it != attrs.end()) {
+    from_device_id = it->second.cast<int64_t>();
+    attrs.erase(it);
+  }
+
+  if (from_device_id >= 0) {
+    auto device_params = QueryDevice(from_device_id, target.get());
     for (const auto& kv : device_params) {
       if (attrs.count(kv.first) == 0) {
         attrs[kv.first] = kv.second;
@@ -565,22 +372,9 @@ ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any>
     }
   }
 
-  // set default attribute values if they do not exist
-  for (const auto& kv : target->kind->key2default_) {
-    if (!attrs.count(kv.first)) {
-      attrs[kv.first] = kv.second;
-    }
-  }
-  // do extra pre-processing
-  if (target->kind->preprocessor != nullptr) {
-    target->attrs = target->kind->preprocessor(ffi::Map<ffi::String, ffi::Any>(attrs))
-                        .cast<ffi::Map<ffi::String, ffi::Any>>();
-  } else {
-    target->attrs = attrs;
-  }
-
+  target->attrs = attrs;
   return target;
-}  // namespace tvm
+}
 
 std::unordered_map<ffi::String, ffi::Any> TargetInternal::QueryDevice(int device_id,
                                                                       const TargetNode* target) {
@@ -606,12 +400,12 @@ std::unordered_map<ffi::String, ffi::Any> TargetInternal::QueryDevice(int device
     return output;
   }
 
-  for (const auto& kv : target->kind->key2vtype_) {
-    const ffi::String& key = kv.first;
-
+  for (const auto& e : target->kind->schema_.ListOptions()) {
     ffi::Any ret;
-    api->GetTargetProperty(device, key, &ret);
-    output[key] = ret;
+    api->GetTargetProperty(device, e.key, &ret);
+    if (ret.type_index() != kTVMFFINone) {
+      output[e.key] = ret;
+    }
   }
 
   return output;
@@ -626,17 +420,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("target.TargetEnterScope", TargetInternal::EnterScope)
       .def("target.TargetExitScope", TargetInternal::ExitScope)
       .def("target.TargetCurrent", Target::Current)
-      .def("target.TargetExport", TargetInternal::Export)
+      .def("target.TargetExport", TargetInternal::ToConfig)
       .def("target.WithHost", TargetInternal::WithHost)
       .def("target.TargetGetDeviceType",
            [](const Target& target) { return target->GetTargetDeviceType(); })
       .def("target.TargetGetFeature",
            [](const Target& target, const ffi::String& feature_key) -> Any {
-             if (auto opt_any = target->GetFeature<Any>(feature_key)) {
-               return opt_any.value();
-             } else {
-               return Any();
+             ffi::String full_key = "feature." + std::string(feature_key);
+             auto it = target->attrs.find(full_key);
+             if (it != target->attrs.end()) {
+               return (*it).second;
              }
+             return Any();
            });
 }
 

@@ -719,9 +719,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 ffi::String DeviceScopeCompatibilityFromTarget(Target target, ffi::String memory_scope) {
-  auto prototype_keys = target->GetKeys();
-  bool is_adreno =
-      std::find(prototype_keys.begin(), prototype_keys.end(), "adreno") != prototype_keys.end();
+  bool is_adreno = target->HasKey("adreno");
   if (is_adreno) {
     return ffi::String("global");
   }

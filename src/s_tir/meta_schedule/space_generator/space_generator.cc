@@ -18,7 +18,7 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 
-#include "../../../target/parsers/aprofile.h"
+#include "../../../target/canonicalizer/llvm/arm_aprofile.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -45,13 +45,13 @@ ffi::String GetRuleKindFromTarget(const Target& target) {
       return "rvv";
     }
 
-    TargetJSON target_json = target::parsers::aprofile::ParseTarget(target->Export());
-    TargetFeatures afeatures = Downcast<TargetFeatures>(target_json.at("features"));
+    ffi::Map<ffi::String, ffi::Any> target_json =
+        target::canonicalizer::llvm::aprofile::Canonicalize(target->ToConfig());
 
-    if (Downcast<Bool>(afeatures.at("has_dotprod"))) {
+    if (Downcast<Bool>(target_json.at("feature.has_dotprod"))) {
       return "dotprod";
     }
-    if (Downcast<Bool>(afeatures.at("has_asimd"))) {
+    if (Downcast<Bool>(target_json.at("feature.has_asimd"))) {
       return "asimd";
     }
     return "llvm";

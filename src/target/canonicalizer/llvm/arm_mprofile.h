@@ -18,26 +18,28 @@
  */
 
 /*!
- * \file tvm/target/parsers/aprofile.h
- * \brief Target Parser for Arm(R) Cortex(R) A-Profile CPUs
+ * \file tvm/target/canonicalizer/llvm/arm_mprofile.h
+ * \brief Target canonicalizer for Arm(R) Cortex(R) M-Profile CPUs
  */
 
-#ifndef TVM_TARGET_PARSERS_APROFILE_H_
-#define TVM_TARGET_PARSERS_APROFILE_H_
+#ifndef TVM_TARGET_CANONICALIZER_LLVM_ARM_MPROFILE_H_
+#define TVM_TARGET_CANONICALIZER_LLVM_ARM_MPROFILE_H_
 
 #include <tvm/target/target.h>
 
 namespace tvm {
 namespace target {
-namespace parsers {
-namespace aprofile {
+namespace canonicalizer {
+namespace llvm {
+namespace mprofile {
 
-bool IsArch(TargetJSON target);
-TargetJSON ParseTarget(TargetJSON target);
+bool IsArch(ffi::Map<ffi::String, ffi::Any> target);
+ffi::Map<ffi::String, ffi::Any> Canonicalize(ffi::Map<ffi::String, ffi::Any> target);
 
-}  // namespace aprofile
-}  // namespace parsers
+}  // namespace mprofile
+}  // namespace llvm
+}  // namespace canonicalizer
 }  // namespace target
 }  // namespace tvm
 
-#endif  // TVM_TARGET_PARSERS_APROFILE_H_
+#endif  // TVM_TARGET_CANONICALIZER_LLVM_ARM_MPROFILE_H_

@@ -18,22 +18,26 @@
  */
 
 /*!
- * \file tvm/target/parsers/mprofile.cc
- * \brief Target Parser for Arm(R) Cortex(R) M-Profile CPUs
+ * \file tvm/target/canonicalizer/llvm/arm_mprofile.cc
+ * \brief Target canonicalizer for Arm(R) Cortex(R) M-Profile CPUs
  */
 
-#include "mprofile.h"
+#include "arm_mprofile.h"
 
 #include <string>
 
 namespace tvm {
 namespace target {
-namespace parsers {
+namespace canonicalizer {
+namespace llvm {
 namespace mprofile {
 
-const TargetFeatures kNoExt = {{"has_dsp", false}, {"has_mve", false}};
-const TargetFeatures kHasDSP = {{"has_dsp", true}, {"has_mve", false}};
-const TargetFeatures kHasMVE = {{"has_dsp", true}, {"has_mve", true}};
+const ffi::Map<ffi::String, ffi::Any> kNoExt = {{"feature.has_dsp", false},
+                                                {"feature.has_mve", false}};
+const ffi::Map<ffi::String, ffi::Any> kHasDSP = {{"feature.has_dsp", true},
+                                                 {"feature.has_mve", false}};
+const ffi::Map<ffi::String, ffi::Any> kHasMVE = {{"feature.has_dsp", true},
+                                                 {"feature.has_mve", true}};
 
 static const char* baseCPUs[] = {"cortex-m0", "cortex-m3"};
 static const char* dspCPUs[] = {"cortex-m55", "cortex-m4",   "cortex-m7",
@@ -74,7 +78,7 @@ static inline bool HasFlag(ffi::Optional<ffi::Array<ffi::String>> attr, std::str
   return matching_attr != attr_array.end();
 }
 
-bool IsArch(TargetJSON attrs) {
+bool IsArch(ffi::Map<ffi::String, ffi::Any> attrs) {
   ffi::Optional<ffi::String> mcpu = Downcast<ffi::Optional<ffi::String>>(attrs.Get("mcpu"));
   if (mcpu) {
     bool matches_base = MatchesCpu(mcpu, baseCPUs);
@@ -85,7 +89,7 @@ bool IsArch(TargetJSON attrs) {
   return false;
 }
 
-static TargetFeatures GetFeatures(TargetJSON target) {
+static ffi::Map<ffi::String, ffi::Any> GetFeatures(ffi::Map<ffi::String, ffi::Any> target) {
   ffi::Optional<ffi::String> mcpu = Downcast<ffi::Optional<ffi::String>>(target.Get("mcpu"));
   ffi::Optional<ffi::Array<ffi::String>> mattr =
       Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("mattr"));
@@ -122,8 +126,11 @@ static ffi::Array<ffi::String> MergeKeys(ffi::Optional<ffi::Array<ffi::String>> 
   return keys;
 }
 
-TargetJSON ParseTarget(TargetJSON target) {
-  target.Set("features", GetFeatures(target));
+ffi::Map<ffi::String, ffi::Any> Canonicalize(ffi::Map<ffi::String, ffi::Any> target) {
+  ffi::Map<ffi::String, ffi::Any> features = GetFeatures(target);
+  for (const auto& kv : features) {
+    target.Set(kv.first, kv.second);
+  }
   target.Set("keys",
              MergeKeys(Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("keys"))));
 
@@ -131,6 +138,7 @@ TargetJSON ParseTarget(TargetJSON target) {
 }
 
 }  // namespace mprofile
-}  // namespace parsers
+}  // namespace llvm
+}  // namespace canonicalizer
 }  // namespace target
 }  // namespace tvm
