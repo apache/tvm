@@ -32,7 +32,8 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/serializer.h>
+#include <tvm/support/io.h>
+#include <tvm/support/serializer.h>
 
 #include <atomic>
 #include <functional>
@@ -121,12 +122,12 @@ class Tensor : public tvm::ffi::Tensor {
    * \param stream The input data stream
    * \return Whether load is successful
    */
-  inline bool Load(dmlc::Stream* stream);
+  inline bool Load(support::Stream* stream);
   /*!
    * \brief Save Tensor to stream
    * \param stream The output data stream
    */
-  inline void Save(dmlc::Stream* stream) const;
+  inline void Save(support::Stream* stream) const;
 
   /*!
    * \brief Create a Tensor that shares the data memory with the current one.
@@ -195,7 +196,7 @@ class Tensor : public tvm::ffi::Tensor {
  * \param strm The output stream
  * \param tensor The tensor to be saved.
  */
-inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor);
+inline bool SaveDLTensor(support::Stream* strm, const DLTensor* tensor);
 
 inline void Tensor::CopyFrom(const DLTensor* other) {
   ICHECK(data_ != nullptr);
@@ -222,7 +223,7 @@ inline void Tensor::CopyTo(const Tensor& other) const {
 /*! \brief Magic number for Tensor file */
 constexpr uint64_t kTVMTensorMagic = 0xDD5E40F096B4A13F;
 
-inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
+inline bool SaveDLTensor(support::Stream* strm, const DLTensor* tensor) {
   uint64_t header = kTVMTensorMagic, reserved = 0;
   strm->Write(header);
   strm->Write(reserved);
@@ -251,24 +252,24 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
   int64_t data_byte_size = type_bytes * num_elems;
   strm->Write(data_byte_size);
 
-  if (DMLC_IO_NO_ENDIAN_SWAP && tensor->device.device_type == kDLCPU &&
+  if (TVM_FFI_IO_NO_ENDIAN_SWAP && tensor->device.device_type == kDLCPU &&
       ffi::IsContiguous(*tensor) && tensor->byte_offset == 0) {
     // quick path
     strm->Write(tensor->data, data_byte_size);
   } else {
     std::vector<uint8_t> bytes(data_byte_size);
-    Tensor::CopyToBytes(const_cast<DLTensor*>(tensor), dmlc::BeginPtr(bytes), data_byte_size);
-    if (!DMLC_IO_NO_ENDIAN_SWAP) {
-      dmlc::ByteSwap(dmlc::BeginPtr(bytes), type_bytes, num_elems);
+    Tensor::CopyToBytes(const_cast<DLTensor*>(tensor), bytes.data(), data_byte_size);
+    if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
+      ffi::ByteSwap(bytes.data(), type_bytes, num_elems);
     }
-    strm->Write(dmlc::BeginPtr(bytes), data_byte_size);
+    strm->Write(bytes.data(), data_byte_size);
   }
   return true;
 }
 
-inline void Tensor::Save(dmlc::Stream* strm) const { SaveDLTensor(strm, operator->()); }
+inline void Tensor::Save(support::Stream* strm) const { SaveDLTensor(strm, operator->()); }
 
-inline bool Tensor::Load(dmlc::Stream* strm) {
+inline bool Tensor::Load(support::Stream* strm) {
   uint64_t header, reserved;
   ICHECK(strm->Read(&header)) << "Invalid DLTensor file format";
   ICHECK(strm->Read(&reserved)) << "Invalid DLTensor file format";
@@ -298,8 +299,8 @@ inline bool Tensor::Load(dmlc::Stream* strm) {
   if (ndim > 0 && shape[0] != 0) {
     ICHECK(read_ret) << "Invalid DLTensor file format";
   }
-  if (!DMLC_IO_NO_ENDIAN_SWAP) {
-    dmlc::ByteSwap(ret->data, elem_bytes, num_elems);
+  if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
+    ffi::ByteSwap(ret->data, elem_bytes, num_elems);
   }
   *this = ret;
   return true;

@@ -33,7 +33,6 @@
 #include <dlfcn.h>
 #endif
 
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 #include <tvm/runtime/logging.h>
 
 #include <cstring>

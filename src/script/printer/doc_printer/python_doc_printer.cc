@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <string>
 
 #include "../../../support/str_escape.h"

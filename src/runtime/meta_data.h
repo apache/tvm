@@ -24,11 +24,12 @@
 #ifndef TVM_RUNTIME_META_DATA_H_
 #define TVM_RUNTIME_META_DATA_H_
 
-#include <dmlc/io.h>
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/io.h>
+#include <tvm/support/serializer.h>
 
 #include <string>
 #include <unordered_map>
@@ -64,15 +65,23 @@ struct FunctionInfo {
   enum class ArgExtraTags : int { kNone = 0, kTensorMap = 1 };
   std::vector<ArgExtraTags> arg_extra_tags;
 
-  void Save(dmlc::JSONWriter* writer) const;
-  void Load(dmlc::JSONReader* reader);
-  void Save(dmlc::Stream* writer) const;
-  bool Load(dmlc::Stream* reader);
+  ffi::json::Value SaveToJSON() const;
+  void LoadFromJSON(ffi::json::Object src);
+  void Save(support::Stream* writer) const;
+  bool Load(support::Stream* reader);
 };
 }  // namespace runtime
 }  // namespace tvm
 
-namespace dmlc {
-DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::FunctionInfo, true);
-}  // namespace dmlc
+namespace tvm {
+namespace support {
+template <>
+struct Serializer<::tvm::runtime::FunctionInfo> {
+  static constexpr bool enabled = true;
+  static void Write(Stream* strm, const ::tvm::runtime::FunctionInfo& data) { data.Save(strm); }
+  static bool Read(Stream* strm, ::tvm::runtime::FunctionInfo* data) { return data->Load(strm); }
+};
+}  // namespace support
+}  // namespace tvm
+
 #endif  // TVM_RUNTIME_META_DATA_H_

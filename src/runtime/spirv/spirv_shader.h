@@ -20,11 +20,12 @@
 #ifndef TVM_RUNTIME_SPIRV_SPIRV_SHADER_H_
 #define TVM_RUNTIME_SPIRV_SPIRV_SHADER_H_
 
-#include <dmlc/io.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/io.h>
+#include <tvm/support/serializer.h>
 
 #include <vector>
 
@@ -38,11 +39,11 @@ struct SPIRVShader {
   /*! \brief Data segment */
   std::vector<uint32_t> data;
 
-  void Save(dmlc::Stream* writer) const {
+  void Save(support::Stream* writer) const {
     writer->Write(flag);
     writer->Write(data);
   }
-  bool Load(dmlc::Stream* reader) {
+  bool Load(support::Stream* reader) {
     if (!reader->Read(&flag)) return false;
     if (!reader->Read(&data)) return false;
     return true;
@@ -55,7 +56,18 @@ using spirv::SPIRVShader;
 }  // namespace runtime
 }  // namespace tvm
 
-namespace dmlc {
-DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::spirv::SPIRVShader, true);
-}  // namespace dmlc
+namespace tvm {
+namespace support {
+template <>
+struct Serializer<::tvm::runtime::spirv::SPIRVShader> {
+  static constexpr bool enabled = true;
+  static void Write(Stream* strm, const ::tvm::runtime::spirv::SPIRVShader& data) {
+    data.Save(strm);
+  }
+  static bool Read(Stream* strm, ::tvm::runtime::spirv::SPIRVShader* data) {
+    return data->Load(strm);
+  }
+};
+}  // namespace support
+}  // namespace tvm
 #endif  // TVM_RUNTIME_SPIRV_SPIRV_SHADER_H_

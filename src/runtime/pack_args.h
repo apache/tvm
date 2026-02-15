@@ -151,6 +151,7 @@ inline ArgConvertCode GetArgConvertCode(DLDataType t) {
     return HANDLE_TO_HANDLE;
   }
   LOG(FATAL) << "Cannot handle " << t << " as device function argument";
+  TVM_FFI_UNREACHABLE();
 }
 
 template <int N, typename F>

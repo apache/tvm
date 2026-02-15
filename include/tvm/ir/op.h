@@ -293,7 +293,7 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
 };
 
 // internal macros to make
-#define TVM_OP_REGISTER_VAR_DEF static DMLC_ATTRIBUTE_UNUSED ::tvm::OpRegEntry& __make_##Op
+#define TVM_OP_REGISTER_VAR_DEF static TVM_ATTRIBUTE_UNUSED ::tvm::OpRegEntry& __make_##Op
 
 /*!
  * \def TVM_REGISTER_OP

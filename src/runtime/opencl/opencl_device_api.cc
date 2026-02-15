@@ -20,14 +20,13 @@
 /*!
  * \file opencl_device_api.cc
  */
-#include <dmlc/parameter.h>
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/profiling.h>
 
 #include <sstream>
 
+#include "../../support/env.h"
 #include "../memory/pooled_allocator.h"
 #include "opencl_common.h"
 
@@ -157,7 +156,7 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
                corresponding to the number of SIMD entries the heardware configures.
                We need to figure out a way to query this information from the hardware.
       */
-      const int warp_size = dmlc::GetEnv("TVM_OPENCL_WARP_SIZE", 1);
+      const int warp_size = support::GetEnv("TVM_OPENCL_WARP_SIZE", 1);
       *rv = warp_size;
       break;
     }
@@ -605,9 +604,10 @@ void OpenCLWorkspace::FreeWorkspace(Device dev, void* data) {
   MemoryManager::GetAllocator(dev, desc->mbuf.alloc_type)->Free(desc->mbuf);
 }
 
-typedef dmlc::ThreadLocalStore<OpenCLThreadEntry> OpenCLThreadStore;
-
-OpenCLThreadEntry* OpenCLThreadEntry::ThreadLocal() { return OpenCLThreadStore::Get(); }
+OpenCLThreadEntry* OpenCLThreadEntry::ThreadLocal() {
+  static thread_local OpenCLThreadEntry inst;
+  return &inst;
+}
 
 std::string GetPlatformInfo(cl_platform_id pid, cl_platform_info param_name) {
   size_t ret_size;

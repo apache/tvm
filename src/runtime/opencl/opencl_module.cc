@@ -22,14 +22,15 @@
  */
 #include "opencl_module.h"
 
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/io.h>
 
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "../../support/bytes_io.h"
 #include "../source_utils.h"
 #include "opencl_common.h"
 
@@ -169,13 +170,12 @@ void OpenCLModuleNode::WriteToFile(const ffi::String& file_name, const ffi::Stri
 }
 
 ffi::Bytes OpenCLModuleNode::SaveToBytes() const {
-  std::string buffer;
-  dmlc::MemoryStringStream ms(&buffer);
-  dmlc::Stream* stream = &ms;
-  stream->Write(fmt_);
-  stream->Write(fmap_);
-  stream->Write(data_);
-  return ffi::Bytes(buffer);
+  std::string result;
+  support::BytesOutStream stream(&result);
+  stream.Write(fmt_);
+  stream.Write(fmap_);
+  stream.Write(data_);
+  return ffi::Bytes(std::move(result));
 }
 
 ffi::String OpenCLModuleNode::InspectSource(const ffi::String& format) const {
@@ -279,18 +279,16 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
 
 void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
   workspace_->Init();
-  std::string data = bytes;
-  dmlc::MemoryStringStream reader(&data);
-  dmlc::Stream* strm = &reader;
+  support::BytesInStream strm(bytes);
   uint64_t kernels_num;
-  strm->Read(&kernels_num);
+  strm.Read(&kernels_num);
   cl::OpenCLThreadEntry* t = workspace_->GetThreadEntry();
   int device_id = t->device.device_id;
   for (size_t i = 0; i < kernels_num; ++i) {
     std::string name;
     std::vector<unsigned char> bin_vector;
-    strm->Read(&name);
-    strm->Read(&bin_vector);
+    strm.Read(&name);
+    strm.Read(&bin_vector);
     if (!IsProgramCreated(name, device_id)) {
       cl_int err = 0;
       cl_int binaryStatus;
@@ -322,10 +320,9 @@ void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
 
 std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   workspace_->Init();
-  std::string data;
-  dmlc::MemoryStringStream writer(&data);
-  dmlc::Stream* strm = &writer;
-  strm->Write(static_cast<uint64_t>(parsed_kernels_.size()));
+  std::string result;
+  support::BytesOutStream strm(&result);
+  strm.Write(static_cast<uint64_t>(parsed_kernels_.size()));
   for (auto& it : parsed_kernels_) {
     std::string name = it.first;
     cl::OpenCLThreadEntry* t = workspace_->GetThreadEntry();
@@ -343,10 +340,10 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
     clGetProgramInfo(programs_[name][device_id], CL_PROGRAM_BINARIES, sizeof(unsigned char*),
                      &binary, nullptr);
 
-    strm->Write(name);
-    strm->Write(bin_vector);
+    strm.Write(name);
+    strm.Write(bin_vector);
   }
-  return data;
+  return result;
 }
 
 ffi::Optional<ffi::Function> OpenCLModuleNode::GetFunction(const ffi::String& name) {
@@ -384,14 +381,13 @@ ffi::Module OpenCLModuleLoadFile(const std::string& file_name, const ffi::String
 }
 
 ffi::Module OpenCLModuleLoadFromBytes(const ffi::Bytes& bytes) {
-  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-  dmlc::Stream* stream = &ms;
+  support::BytesInStream stream(bytes);
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt;
-  stream->Read(&fmt);
-  stream->Read(&fmap);
-  stream->Read(&data);
+  stream.Read(&fmt);
+  stream.Read(&fmap);
+  stream.Read(&data);
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 

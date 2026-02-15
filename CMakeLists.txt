@@ -73,7 +73,6 @@ tvm_option(USE_ALTERNATIVE_LINKER "Use 'mold' or 'lld' if found when invoking co
 tvm_option(USE_CCACHE "Use ccache if found when invoking compiler" AUTO)
 
 # 3rdparty libraries
-tvm_option(DMLC_PATH "Path to DMLC" "3rdparty/dmlc-core/include")
 tvm_option(RANG_PATH "Path to RANG" "3rdparty/rang/include")
 tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
 # Contrib library options
@@ -119,7 +118,6 @@ tvm_option(TVM_BUILD_PYTHON_MODULE "Build Python module with scikit-build-core" 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
-include_directories(SYSTEM ${DMLC_PATH})
 include_directories(SYSTEM ${RANG_PATH})
 include_directories(SYSTEM ${COMPILER_RT_PATH})
 
@@ -140,7 +138,7 @@ endif()
 if(TVM_LOG_BEFORE_THROW)
   # log error before throw as
   # when system have issues with stack trace
-  add_definitions(-DDMLC_LOG_BEFORE_THROW=1)
+  add_definitions(-DTVM_LOG_BEFORE_THROW=1)
 endif()
 
 # Generic compilation options
@@ -335,7 +333,6 @@ if(BUILD_FOR_HEXAGON)
   endif()
 
   add_definitions(-D_MACH_I32=int)
-  add_definitions(-DDMLC_CXX11_THREAD_LOCAL=0)
 endif()
 
 # distributed disco runtime are disabled for hexagon
@@ -346,7 +343,6 @@ endif()
 
 # Package runtime rules
 if(NOT USE_RTTI)
-  add_definitions(-DDMLC_ENABLE_RTTI=0)
 endif()
 
 if (INDEX_DEFAULT_I64)
@@ -534,11 +530,6 @@ endif()
 target_include_directories(tvm_runtime PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 
-target_compile_definitions(tvm_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
-target_compile_definitions(tvm_runtime_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
-target_compile_definitions(tvm_libinfo_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
-target_compile_definitions(tvm PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
-target_compile_definitions(tvm_runtime PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 
 # logging option for libbacktrace
 include(cmake/modules/Logging.cmake)
@@ -665,11 +656,6 @@ if (INSTALL_DEV)
     FILES_MATCHING
     PATTERN "*.h"
   )
-  install(
-    DIRECTORY "3rdparty/dmlc-core/include/" DESTINATION "include"
-    FILES_MATCHING
-    PATTERN "*.h"
-    )
 else(INSTALL_DEV)
   install(
     DIRECTORY "include/tvm/runtime/" DESTINATION "include/tvm/runtime"
