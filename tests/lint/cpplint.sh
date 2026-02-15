@@ -18,11 +18,6 @@
 
 set -e
 
-echo "Running cpplint..."
-# TODO: replace dmlc-core lint script with cpplint
-echo "cpplint skipped (dmlc-core removed)"
-
-
 if find src -name "*.cc" -exec grep -Hn '^#include <regex>$' {} +; then
     echo "The <regex> header file may not be used in TVM," 1>&2
     echo "because it causes ABI incompatibility with most pytorch installations." 1>&2

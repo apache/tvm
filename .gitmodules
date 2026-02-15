@@ -1,9 +1,3 @@
-[submodule "dmlc-core"]
-	path = 3rdparty/dmlc-core
-	url = https://github.com/dmlc/dmlc-core.git
-[submodule "3rdparty/rang"]
-	path = 3rdparty/rang
-	url = https://github.com/agauniyal/rang.git
 [submodule "3rdparty/cutlass"]
 	path = 3rdparty/cutlass
 	url = https://github.com/NVIDIA/cutlass.git

@@ -17,6 +17,3 @@
 # under the License.
 
 set -e
-
-# TODO: replace dmlc-core lint script with cpplint
-echo "jnilint skipped (dmlc-core removed)"

@@ -75,9 +75,6 @@ function run_lint_step() {
                 cmd=( tests/lint/git-black.sh -i --rev origin/main )
             fi
             ;;
-        jnilint)
-            cmd=( tests/lint/jnilint.sh )
-            ;;
         cppdocs)
             cmd=( tests/lint/cppdocs.sh )
             ;;
