@@ -24,6 +24,7 @@
 #include <tvm/relax/exec_builder.h>
 
 #include <sstream>
+#include <unordered_set>
 
 namespace tvm {
 namespace relax {

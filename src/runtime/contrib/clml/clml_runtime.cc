@@ -23,9 +23,13 @@
  */
 #include "clml_runtime.h"
 
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/io.h>
 
 #include <unordered_map>
+
+#include "../../../support/bytes_io.h"
 
 #ifdef TVM_GRAPH_EXECUTOR_CLML
 #include "clml_memory_planner.h"
@@ -133,9 +137,10 @@ CLMLWorkspace::CLMLWorkspace() {
   if (!(tuning_file = getenv("CLML_TUNING_CACHE"))) this->is_tuning_run = 0;
 }
 
-typedef dmlc::ThreadLocalStore<CLMLThreadEntry> CLMLThreadStore;
-
-CLMLThreadEntry* CLMLThreadEntry::ThreadLocal() { return CLMLThreadStore::Get(); }
+CLMLThreadEntry* CLMLThreadEntry::ThreadLocal() {
+  static thread_local CLMLThreadEntry inst;
+  return &inst;
+}
 #endif
 
 class CLMLRuntime : public JSONRuntimeBase {
@@ -234,21 +239,20 @@ class CLMLRuntime : public JSONRuntimeBase {
       std::vector<unsigned char> tune_buffer;
       std::string tune_blob;
       LoadBinaryFromFile(cws->tuning_file, &tune_blob);
-      dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&tune_blob));
-      dmlc::Stream* strm = &mstrm;
+      support::BytesInStream strm(tune_blob);
 
       uint64_t header, reserve;
       std::string tune_symbol;
-      while (strm->Read(&header)) {
+      while (strm.Read(&header)) {
         if (header != kTVMCLMLTuningCacheMagic) break;
-        if (!strm->Read(&reserve)) break;
-        if (!strm->Read(&tune_symbol)) break;
+        if (!strm.Read(&reserve)) break;
+        if (!strm.Read(&tune_symbol)) break;
         if (tune_symbol == clml_symbol) {
-          strm->Read(&tune_buffer);
+          strm.Read(&tune_buffer);
           break;
         } else {
           std::vector<unsigned char> tmp_buf;
-          if (!strm->Read(&tmp_buf)) break;
+          if (!strm.Read(&tmp_buf)) break;
         }
       }
 
@@ -269,13 +273,12 @@ class CLMLRuntime : public JSONRuntimeBase {
       LOG(FATAL) << "Debugging over recordable queues is not supported yet. You may disable the "
                     "same by exporting CLML_DISABLE_RECORDABLE_QUEUE at runtime.";
     }
+    namespace json = ::tvm::ffi::json;
     cl_command_queue queue = CLML_QUEUE;
     ffi::Map<ffi::String, Tensor> dump_tensors;
-    std::ostringstream os;
-    dmlc::JSONWriter writer(&os);
-    writer.BeginObject();
+    json::Object obj;
 
-    writer.WriteObjectKeyValue("graph", graph_json_);
+    obj.Set(ffi::String("graph"), ffi::String(graph_json_));
 
     int op_index = 0;
     for (auto it = this->layer_.storage_map.begin(); it != this->layer_.storage_map.end(); it++) {
@@ -321,11 +324,10 @@ class CLMLRuntime : public JSONRuntimeBase {
       for (size_t i = 0; i < dump_bytes.size(); ++i) {
         oss << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(dump_bytes[i]);
       }
-      writer.WriteObjectKeyValue("tensors", oss.str());
+      obj.Set(ffi::String("tensors"), ffi::String(oss.str()));
     }
 
-    writer.EndObject();
-    return os.str();
+    return std::string(json::Stringify(obj));
   }
 
   void RunProfile(profiling::Profiler* prof) override {
@@ -944,18 +946,16 @@ class CLMLRuntime : public JSONRuntimeBase {
                 saved_cache.data(), &len_ret);
 
       std::string tune_str;
-      dmlc::MemoryStringStream mstrm(&tune_str);
-      dmlc::Stream* strm = &mstrm;
+      support::BytesOutStream strm(&tune_str);
       uint64_t header = kTVMCLMLTuningCacheMagic;
       uint64_t reserved = 0x0;
-      strm->Write(header);
-      strm->Write(reserved);
-      strm->Write(clml_symbol);
-      strm->Write(saved_cache);
-
+      strm.Write(header);
+      strm.Write(reserved);
+      strm.Write(clml_symbol);
+      strm.Write(saved_cache);
       std::ofstream fs(cws->tuning_file, std::ios::app | std::ios::binary);
       ICHECK(!fs.fail()) << "Cannot open " << cws->tuning_file;
-      fs.write(&tune_str[0], tune_str.length());
+      fs.write(tune_str.data(), tune_str.size());
       LOG_CLML << "CLML: Tuning cache dumped to:" << cws->tuning_file << " size"
                << tune_str.length() << " with tuning blob len " << saved_cache.size();
     }

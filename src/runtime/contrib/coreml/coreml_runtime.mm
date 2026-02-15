@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 
+#include "../../../support/bytes_io.h"
 #include "coreml_runtime.h"
 
 namespace tvm {
@@ -199,18 +200,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 ffi::Bytes CoreMLRuntime::SaveToBytes() const {
-  std::string buffer;
-  dmlc::MemoryStringStream ms(&buffer);
-  dmlc::Stream* stream = &ms;
+  std::string result;
+  support::BytesOutStream stream(&result);
   NSURL* url = model_->url_;
   NSFileWrapper* dirWrapper = [[[NSFileWrapper alloc] initWithURL:url options:0
                                                             error:nil] autorelease];
   NSData* dirData = [dirWrapper serializedRepresentation];
-  stream->Write(symbol_);
-  stream->Write((uint64_t)[dirData length]);
-  stream->Write([dirData bytes], [dirData length]);
+  stream.Write(symbol_);
+  stream.Write((uint64_t)[dirData length]);
+  stream.Write([dirData bytes], [dirData length]);
   DLOG(INFO) << "Save " << symbol_ << " (" << [dirData length] << " bytes)";
-  return ffi::Bytes(buffer);
+  return ffi::Bytes(std::move(result));
 }
 
 /*!
@@ -221,8 +221,7 @@ ffi::Bytes CoreMLRuntime::SaveToBytes() const {
  * \return The created CoreML module.
  */
 ffi::Module CoreMLRuntimeLoadFromBytes(const ffi::Bytes& bytes) {
-  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-  dmlc::Stream* stream = &ms;
+  support::BytesInStream stream(bytes);
 
   NSString* tempBaseDir = NSTemporaryDirectory();
   if (tempBaseDir == nil) tempBaseDir = @"/tmp";
@@ -236,11 +235,11 @@ ffi::Module CoreMLRuntimeLoadFromBytes(const ffi::Bytes& bytes) {
   NSString* tempDir = [NSString stringWithUTF8String:result];
 
   std::string symbol;
-  stream->Read(&symbol);
+  stream.Read(&symbol);
   uint64_t length;
-  stream->Read(&length);
+  stream.Read(&length);
   void* ptr = new char[length];
-  stream->Read(ptr, length);
+  stream.Read(ptr, length);
   NSData* data = [[NSData alloc] initWithBytesNoCopy:ptr length:length];
   NSFileWrapper* dirWrapper =
       [[[NSFileWrapper alloc] initWithSerializedRepresentation:data] autorelease];

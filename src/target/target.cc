@@ -20,7 +20,6 @@
  *  Compile executable modules.
  * \file src/target/target.cc
  */
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
@@ -718,22 +717,25 @@ struct TVMTargetThreadLocalEntry {
 };
 
 /*! \brief Thread local store to hold the Target context stack. */
-using TVMTargetThreadLocalStore = dmlc::ThreadLocalStore<TVMTargetThreadLocalEntry>;
+static TVMTargetThreadLocalEntry* TVMTargetThreadLocalStoreGet() {
+  static thread_local TVMTargetThreadLocalEntry inst;
+  return &inst;
+}
 
 void Target::EnterWithScope() {
-  TVMTargetThreadLocalEntry* entry = TVMTargetThreadLocalStore::Get();
+  TVMTargetThreadLocalEntry* entry = TVMTargetThreadLocalStoreGet();
   entry->context_stack.push(*this);
 }
 
 void Target::ExitWithScope() {
-  TVMTargetThreadLocalEntry* entry = TVMTargetThreadLocalStore::Get();
+  TVMTargetThreadLocalEntry* entry = TVMTargetThreadLocalStoreGet();
   ICHECK(!entry->context_stack.empty());
   ICHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 }
 
 Target Target::Current(bool allow_not_defined) {
-  TVMTargetThreadLocalEntry* entry = TVMTargetThreadLocalStore::Get();
+  TVMTargetThreadLocalEntry* entry = TVMTargetThreadLocalStoreGet();
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();
   }

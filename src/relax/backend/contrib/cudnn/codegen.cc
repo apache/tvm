@@ -118,13 +118,13 @@ class cuDNNJSONSerializer : public JSONSerializer {
     SetCallNodeAttribute(node, root_call);
 
     auto to_str_array = [](int val) {
-      return std::vector<dmlc::any>{std::vector<std::string>{std::to_string(val)}};
+      return std::vector<std::any>{std::vector<std::string>{std::to_string(val)}};
     };
     node->SetAttr("num_heads", to_str_array(num_heads));
     node->SetAttr("num_kv_heads", to_str_array(num_kv_heads));
     node->SetAttr("head_size", to_str_array(head_size));
     node->SetAttr("head_size_v", to_str_array(head_size_v));
-    node->SetAttr("layout", std::vector<dmlc::any>{std::vector<std::string>{layout}});
+    node->SetAttr("layout", std::vector<std::any>{std::vector<std::string>{layout}});
     return AddNode(node, ffi::GetRef<Expr>(call_node));
   }
 

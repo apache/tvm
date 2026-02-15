@@ -26,11 +26,10 @@
 #define TVM_RUNTIME_CONTRIB_JSON_JSON_NODE_H_
 
 #include <dlpack/dlpack.h>
-#include <dmlc/any.h>
-#include <dmlc/json.h>
-#include <dmlc/memory_io.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/runtime/data_type.h>
 
+#include <any>
 #include <cstdint>
 #include <cstdio>
 #include <memory>
@@ -43,7 +42,7 @@ namespace tvm {
 namespace runtime {
 namespace json {
 
-using JSONGraphAttrs = std::unordered_map<std::string, dmlc::any>;
+using JSONGraphAttrs = std::unordered_map<std::string, std::any>;
 
 /*!
  * \brief The node entry in the serialized json graph.
@@ -57,29 +56,24 @@ class JSONGraphNodeEntry {
 
   /*!
    * \brief Serialize a node entry.
-   * \param writer The json writer.
    */
-  void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginArray();
-    writer->WriteArrayItem(id_);
-    writer->WriteArrayItem(index_);
-    writer->WriteArrayItem(version_);
-    writer->EndArray();
+  ffi::json::Value SaveToJSON() const {
+    ffi::json::Array arr;
+    arr.push_back(static_cast<int64_t>(id_));
+    arr.push_back(static_cast<int64_t>(index_));
+    arr.push_back(static_cast<int64_t>(version_));
+    return arr;
   }
 
   /*!
-   * \brief Deserialize the json string into a node entry.
-   * \param reader The json reader.
+   * \brief Deserialize the json array into a node entry.
    */
-  void Load(dmlc::JSONReader* reader) {
-    reader->BeginArray();
-    ICHECK(reader->NextArrayItem()) << "invalid json format";
-    reader->Read(&id_);
-    ICHECK(reader->NextArrayItem()) << "invalid json format";
-    reader->Read(&index_);
-    if (reader->NextArrayItem()) {
-      reader->Read(&version_);
-      ICHECK(!reader->NextArrayItem()) << "invalid json format";
+  void Load(ffi::json::Array arr) {
+    ICHECK_GE(arr.size(), 2) << "invalid json format";
+    id_ = static_cast<uint32_t>(arr[0].cast<int64_t>());
+    index_ = static_cast<uint32_t>(arr[1].cast<int64_t>());
+    if (arr.size() > 2) {
+      version_ = static_cast<uint32_t>(arr[2].cast<int64_t>());
     } else {
       version_ = 0;
     }
@@ -91,6 +85,85 @@ class JSONGraphNodeEntry {
   uint32_t index_;
   uint32_t version_;
 };
+
+namespace {
+
+template <typename T>
+bool SameType(const std::any& data) {
+  return data.type() == typeid(T);
+}
+
+ffi::json::Value AnyVecToJson(const std::vector<std::any>& data) {
+  ffi::json::Array arr;
+  for (const auto& v : data) {
+    if (SameType<std::string>(v)) {
+      arr.push_back(ffi::String(std::any_cast<std::string>(v)));
+    } else if (SameType<int>(v)) {
+      arr.push_back(static_cast<int64_t>(std::any_cast<int>(v)));
+    } else if (SameType<std::vector<size_t>>(v)) {
+      const auto& sv = std::any_cast<const std::vector<size_t>&>(v);
+      ffi::json::Array inner;
+      for (auto x : sv) inner.push_back(static_cast<int64_t>(x));
+      arr.push_back(std::move(inner));
+    } else if (SameType<std::vector<std::vector<int64_t>>>(v)) {
+      const auto& vv = std::any_cast<const std::vector<std::vector<int64_t>>&>(v);
+      ffi::json::Array inner;
+      for (const auto& row : vv) {
+        ffi::json::Array r;
+        for (auto x : row) r.push_back(x);
+        inner.push_back(std::move(r));
+      }
+      arr.push_back(std::move(inner));
+    } else if (SameType<std::vector<std::string>>(v)) {
+      const auto& sv = std::any_cast<const std::vector<std::string>&>(v);
+      ffi::json::Array inner;
+      for (const auto& s : sv) inner.push_back(ffi::String(s));
+      arr.push_back(std::move(inner));
+    } else {
+      LOG(FATAL) << "Not supported type in std::any vector";
+    }
+  }
+  return arr;
+}
+
+ffi::json::Value AttrsToJson(const std::unordered_map<std::string, std::any>& data) {
+  ffi::json::Object obj;
+  for (const auto& kv : data) {
+    const auto& k = kv.first;
+    const auto& v = kv.second;
+    if (SameType<std::string>(v)) {
+      obj.Set(ffi::String(k), ffi::String(std::any_cast<std::string>(v)));
+    } else if (SameType<int>(v)) {
+      obj.Set(ffi::String(k), static_cast<int64_t>(std::any_cast<int>(v)));
+    } else if (SameType<std::vector<size_t>>(v)) {
+      const auto& sv = std::any_cast<const std::vector<size_t>&>(v);
+      ffi::json::Array arr;
+      for (auto x : sv) arr.push_back(static_cast<int64_t>(x));
+      obj.Set(ffi::String(k), std::move(arr));
+    } else if (SameType<std::vector<std::vector<int64_t>>>(v)) {
+      const auto& vv = std::any_cast<const std::vector<std::vector<int64_t>>&>(v);
+      ffi::json::Array arr;
+      for (const auto& row : vv) {
+        ffi::json::Array r;
+        for (auto x : row) r.push_back(x);
+        arr.push_back(std::move(r));
+      }
+      obj.Set(ffi::String(k), std::move(arr));
+    } else if (SameType<std::vector<std::string>>(v)) {
+      const auto& sv = std::any_cast<const std::vector<std::string>&>(v);
+      ffi::json::Array arr;
+      for (const auto& s : sv) arr.push_back(ffi::String(s));
+      obj.Set(ffi::String(k), std::move(arr));
+    } else if (SameType<std::vector<std::any>>(v)) {
+      obj.Set(ffi::String(k), AnyVecToJson(std::any_cast<const std::vector<std::any>&>(v)));
+    } else {
+      LOG(FATAL) << "Not supported type in attrs";
+    }
+  }
+  return obj;
+}
+
+}  // namespace
 
 /*!
  * \brief The node of the serialized json graph. It includes an array of
@@ -111,79 +184,90 @@ class JSONGraphNode {
 
   /*!
    * \brief Serialize a node so that it can be saved to disk.
-   * \param writer The json writer.
    */
-  void Save(dmlc::JSONWriter* writer) {
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("op", op_type_);
-    writer->WriteObjectKeyValue("name", name_);
+  ffi::json::Value SaveToJSON() {
     if (!inputs_.empty()) {
       SetAttr("num_inputs", std::to_string(inputs_.size()));
       SetAttr("num_outputs", std::to_string(num_outputs_));
-      writer->WriteObjectKeyValue("inputs", this->inputs_);
+    }
+    ffi::json::Object obj;
+    obj.Set(ffi::String("op"), ffi::String(op_type_));
+    obj.Set(ffi::String("name"), ffi::String(name_));
+    if (!inputs_.empty()) {
+      ffi::json::Array inputs_arr;
+      for (const auto& e : inputs_) {
+        inputs_arr.push_back(e.SaveToJSON());
+      }
+      obj.Set(ffi::String("inputs"), std::move(inputs_arr));
     }
     if (!attrs_.empty()) {
-      writer->WriteObjectKeyValue("attrs", attrs_);
+      obj.Set(ffi::String("attrs"), AttrsToJson(attrs_));
     }
-    writer->EndObject();
+    return obj;
   }
 
   /*!
-   * \brief Load the attribute of a node in the json string.
-   * \param reader The json reader.
+   * \brief Load the attribute of a node from a json object.
    */
-  void LoadAttrs(dmlc::JSONReader* reader) {
-    std::string key, value;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
+  void LoadAttrs(ffi::json::Object obj) {
+    for (const auto& kv : obj) {
+      std::string key = std::string(kv.first.cast<ffi::String>());
       if (key == "num_inputs") {
-        reader->Read(&value);
+        std::string value = std::string(kv.second.cast<ffi::String>());
         num_inputs_ = strtoul(value.c_str(), nullptr, 10);
       } else if (key == "num_outputs") {
-        reader->Read(&value);
+        std::string value = std::string(kv.second.cast<ffi::String>());
         num_outputs_ = strtoul(value.c_str(), nullptr, 10);
       } else if (key == "dtype") {
-        std::vector<std::string> tmp;
-        reader->BeginArray();
-        ICHECK(reader->NextArrayItem());
-        reader->Read(&tmp);
-        ICHECK(!reader->NextArrayItem());
-        for (const auto& it : tmp) {
-          dtype_.push_back(ffi::StringToDLDataType(it));
+        auto outer = kv.second.cast<ffi::json::Array>();
+        ICHECK_EQ(outer.size(), 1);
+        auto inner = outer[0].cast<ffi::json::Array>();
+        for (const auto& it : inner) {
+          dtype_.push_back(ffi::StringToDLDataType(std::string(it.cast<ffi::String>())));
         }
       } else if (key == "shape") {
-        reader->BeginArray();
-        ICHECK(reader->NextArrayItem());
-        reader->Read(&shape_);
-        ICHECK(!reader->NextArrayItem());
+        auto outer = kv.second.cast<ffi::json::Array>();
+        ICHECK_EQ(outer.size(), 1);
+        auto shapes_arr = outer[0].cast<ffi::json::Array>();
+        shape_.clear();
+        for (const auto& s : shapes_arr) {
+          auto row = s.cast<ffi::json::Array>();
+          std::vector<int64_t> shape_vec;
+          for (const auto& v : row) shape_vec.push_back(v.cast<int64_t>());
+          shape_.push_back(shape_vec);
+        }
       } else {
-        reader->BeginArray();
-        ICHECK(reader->NextArrayItem());
+        auto outer = kv.second.cast<ffi::json::Array>();
+        ICHECK_EQ(outer.size(), 1);
+        auto inner = outer[0].cast<ffi::json::Array>();
         std::vector<std::string> tmp;
-        reader->Read(&tmp);
+        for (const auto& v : inner) tmp.push_back(std::string(v.cast<ffi::String>()));
         attrs_[key] = tmp;
-        ICHECK(!reader->NextArrayItem());
       }
     }
     ICHECK_EQ(shape_.size(), dtype_.size());
   }
 
   /*!
-   * \brief Load a node in the json string.
-   * \param reader The json reader.
+   * \brief Load a node from a json object.
    */
-  void Load(dmlc::JSONReader* reader) {
-    reader->BeginObject();
-    std::string key;
-    while (reader->NextObjectItem(&key)) {
+  void Load(ffi::json::Object obj) {
+    for (const auto& kv : obj) {
+      std::string key = std::string(kv.first.cast<ffi::String>());
       if (key == "op") {
-        reader->Read(&op_type_);
+        op_type_ = std::string(kv.second.cast<ffi::String>());
       } else if (key == "name") {
-        reader->Read(&name_);
+        name_ = std::string(kv.second.cast<ffi::String>());
       } else if (key == "inputs") {
-        reader->Read(&inputs_);
+        auto arr = kv.second.cast<ffi::json::Array>();
+        inputs_.clear();
+        for (const auto& e : arr) {
+          JSONGraphNodeEntry entry;
+          entry.Load(e.cast<ffi::json::Array>());
+          inputs_.push_back(entry);
+        }
       } else if (key == "attr" || key == "attrs") {
-        this->LoadAttrs(reader);
+        this->LoadAttrs(kv.second.cast<ffi::json::Object>());
       } else {
         LOG(FATAL) << "Unknown key: " << key;
       }
@@ -257,7 +341,7 @@ class JSONGraphNode {
   template <typename T>
   T GetAttr(const std::string& key) const {
     ICHECK_GT(attrs_.count(key), 0U) << "Key: " << key << " is not found";
-    return dmlc::get<T>(attrs_.at(key));
+    return std::any_cast<T>(attrs_.at(key));
   }
 
   /*!
@@ -326,85 +410,5 @@ class JSONGraphNode {
 }  // namespace json
 }  // namespace runtime
 }  // namespace tvm
-
-namespace dmlc {
-namespace json {
-template <typename T>
-inline bool SameType(const dmlc::any& data) {
-  return std::type_index(data.type()) == std::type_index(typeid(T));
-}
-
-template <>
-struct Handler<std::shared_ptr<tvm::runtime::json::JSONGraphNode>> {
-  inline static void Write(dmlc::JSONWriter* writer,
-                           const std::shared_ptr<tvm::runtime::json::JSONGraphNode>& data) {
-    data->Save(writer);
-  }
-
-  inline static void Read(dmlc::JSONReader* reader,
-                          std::shared_ptr<tvm::runtime::json::JSONGraphNode>* data) {
-    (*data)->Load(reader);
-  }
-};
-
-template <>
-struct Handler<std::unordered_map<std::string, dmlc::any>> {
-  inline static void Write(dmlc::JSONWriter* writer,
-                           const std::unordered_map<std::string, dmlc::any>& data) {
-    writer->BeginObject();
-    for (const auto& kv : data) {
-      auto k = kv.first;
-      const dmlc::any& v = kv.second;
-      if (SameType<std::string>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<std::string>(v));
-      } else if (SameType<int>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<int>(v));
-      } else if (SameType<std::vector<size_t>>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<std::vector<size_t>>(v));
-      } else if (SameType<std::vector<std::vector<int64_t>>>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<std::vector<std::vector<int64_t>>>(v));
-      } else if (SameType<std::vector<std::string>>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<std::vector<std::string>>(v));
-      } else if (SameType<std::vector<dmlc::any>>(v)) {
-        writer->WriteObjectKeyValue(k, dmlc::get<std::vector<dmlc::any>>(v));
-      } else {
-        LOG(FATAL) << "Not supported";
-      }
-    }
-    writer->EndObject();
-  }
-  inline static void Read(dmlc::JSONReader* reader,
-                          std::unordered_map<std::string, dmlc::any>* data) {
-    LOG(FATAL) << "Not implemented.";
-  }
-};
-
-template <>
-struct Handler<std::vector<dmlc::any>> {
-  inline static void Write(dmlc::JSONWriter* writer, const std::vector<dmlc::any>& data) {
-    writer->BeginArray();
-    for (const auto& v : data) {
-      if (SameType<std::string>(v)) {
-        writer->WriteArrayItem(dmlc::get<std::string>(v));
-      } else if (SameType<int>(v)) {
-        writer->WriteArrayItem(dmlc::get<int>(v));
-      } else if (SameType<std::vector<size_t>>(v)) {
-        writer->WriteArrayItem(dmlc::get<std::vector<size_t>>(v));
-      } else if (SameType<std::vector<std::vector<int64_t>>>(v)) {
-        writer->WriteArrayItem(dmlc::get<std::vector<std::vector<int64_t>>>(v));
-      } else if (SameType<std::vector<std::string>>(v)) {
-        writer->WriteArrayItem(dmlc::get<std::vector<std::string>>(v));
-      } else {
-        LOG(FATAL) << "Not supported";
-      }
-    }
-    writer->EndArray();
-  }
-  inline static void Read(dmlc::JSONReader* reader, std::vector<dmlc::any>* data) {
-    LOG(FATAL) << "Not implemented.";
-  }
-};
-}  // namespace json
-}  // namespace dmlc
 
 #endif  // TVM_RUNTIME_CONTRIB_JSON_JSON_NODE_H_

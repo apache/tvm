@@ -35,6 +35,8 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
+namespace json = ::tvm::ffi::json;
+
 PluginAttr::PluginAttr(const ffi::String& name, const ffi::String& type,
                        const ffi::String& default_value, const ffi::String& describe) {
   ObjectPtr<PluginAttrNode> n = ffi::make_object<PluginAttrNode>();
@@ -74,10 +76,9 @@ void PluginAttrNode::FromJson(const JsonPluginAttr& j_attr) {
 }
 
 void PluginAttrNode::FromJson(const std::string& json_str) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
+  auto parsed = json::Parse(json_str);
   JsonPluginAttr j_attr;
-  reader.Read(&j_attr);
+  j_attr.Load(parsed.cast<json::Object>());
   FromJson(j_attr);
 }
 
@@ -123,10 +124,9 @@ void PluginTensorNode::FromJson(const JsonPluginTensor& j_tensor) {
 }
 
 void PluginTensorNode::FromJson(const std::string& json_str) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
+  auto parsed = json::Parse(json_str);
   JsonPluginTensor j_tensor;
-  reader.Read(&j_tensor);
+  j_tensor.Load(parsed.cast<json::Object>());
   FromJson(j_tensor);
 }
 
@@ -173,10 +173,9 @@ void PluginExternNode::FromJson(const JsonPluginExtern& j_extern) {
 }
 
 void PluginExternNode::FromJson(const std::string& json_str) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
+  auto parsed = json::Parse(json_str);
   JsonPluginExtern j_extern;
-  reader.Read(&j_extern);
+  j_extern.Load(parsed.cast<json::Object>());
   FromJson(j_extern);
 }
 
@@ -277,10 +276,9 @@ void PluginNode::FromJson(const JsonPlugin& j_plugin) {
 }
 
 void PluginNode::FromJson(const std::string& json_str) {
-  std::istringstream is(json_str);
-  dmlc::JSONReader reader(&is);
+  auto parsed = json::Parse(json_str);
   JsonPlugin j_plugin;
-  reader.Read(&j_plugin);
+  j_plugin.Load(parsed.cast<json::Object>());
   FromJson(j_plugin);
 }
 

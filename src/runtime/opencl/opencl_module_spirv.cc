@@ -17,13 +17,14 @@
  * under the License.
  */
 
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/io.h>
 
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "../../support/bytes_io.h"
 #include "../source_utils.h"
 #include "../spirv/spirv_shader.h"
 #include "opencl_common.h"
@@ -59,12 +60,11 @@ void OpenCLSPIRVModuleNode::WriteToFile(const ffi::String& file_name,
 }
 
 ffi::Bytes OpenCLSPIRVModuleNode::SaveToBytes() const {
-  std::string buffer;
-  dmlc::MemoryStringStream ms(&buffer);
-  dmlc::Stream* stream = &ms;
-  stream->Write(fmap_);
-  stream->Write(shaders_);
-  return ffi::Bytes(buffer);
+  std::string result;
+  support::BytesOutStream stream(&result);
+  stream.Write(fmap_);
+  stream.Write(shaders_);
+  return ffi::Bytes(std::move(result));
 }
 
 void OpenCLSPIRVModuleNode::Init() {

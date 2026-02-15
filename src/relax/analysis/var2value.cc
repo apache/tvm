@@ -22,6 +22,8 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 
+#include <map>
+
 namespace tvm {
 namespace relax {
 class Var2ValAnalysis : public relax::ExprVisitor {

@@ -291,10 +291,8 @@ def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: st
         f"-O3",
         f"-I{tvm_dir / 'include'}",
         f"-I{tvm_dir / '3rdparty' / 'dlpack' / 'include'}",
-        f"-I{tvm_dir / '3rdparty' / 'dmlc-core' / 'include'}",
         f"-I{pathlib.Path(HEXAGON_SDK_ROOT) / 'rtos' / 'qurt' / compute_arch / 'include'/ 'posix'}",
         f"-I{pathlib.Path(HEXAGON_SDK_ROOT) / 'rtos' / 'qurt' / compute_arch / 'include' / 'qurt'}",
-        f"-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
         f"-D_MACH_I32=int",
     ]
 

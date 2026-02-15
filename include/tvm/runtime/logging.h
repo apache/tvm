@@ -29,8 +29,6 @@
 #ifndef TVM_RUNTIME_LOGGING_H_
 #define TVM_RUNTIME_LOGGING_H_
 
-#include <dmlc/common.h>
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/error.h>
 #include <tvm/runtime/base.h>
 
@@ -333,11 +331,8 @@ class LogFatal {
       this->file_ = file;
       this->lineno_ = lineno;
     }
-    [[noreturn]] TVM_NO_INLINE dmlc::Error Finalize() TVM_THROW_EXCEPTION {
+    [[noreturn]] TVM_NO_INLINE Error Finalize() TVM_THROW_EXCEPTION {
       InternalError error(file_, lineno_, stream_.str());
-#if DMLC_LOG_BEFORE_THROW
-      std::cerr << error.what() << std::endl;
-#endif
       throw error;
     }
     std::ostringstream stream_;
@@ -488,8 +483,11 @@ class VLogContext {
   std::vector<std::stringstream*> context_stack_;
 };
 
-/*! \brief Thread local \p VLogContext for tracking a stack of VLOG context messages. */
-using ThreadLocalVLogContext = dmlc::ThreadLocalStore<VLogContext>;
+/*! \brief Get thread local \p VLogContext for tracking a stack of VLOG context messages. */
+inline VLogContext* ThreadLocalVLogContext() {
+  static thread_local VLogContext inst;
+  return &inst;
+}
 
 /*!
  * \brief A RAII class to push/pos a VLOG context message onto the thread-local stack.
@@ -498,8 +496,8 @@ using ThreadLocalVLogContext = dmlc::ThreadLocalStore<VLogContext>;
  */
 class VLogContextEntry {
  public:
-  VLogContextEntry() { ThreadLocalVLogContext::Get()->Push(&sstream_); }
-  ~VLogContextEntry() { ThreadLocalVLogContext::Get()->Pop(); }
+  VLogContextEntry() { ThreadLocalVLogContext()->Push(&sstream_); }
+  ~VLogContextEntry() { ThreadLocalVLogContext()->Pop(); }
   std::ostream& stream() { return sstream_; }
 
  private:
@@ -633,7 +631,7 @@ TVM_CHECK_FUNC(_NE, !=)
  */
 #define VLOG(level)                                                               \
   DLOG_IF(INFO, ::tvm::runtime::detail::VerboseLoggingEnabled(__FILE__, (level))) \
-      << ::tvm::runtime::detail::ThreadLocalVLogContext::Get()->str()
+      << ::tvm::runtime::detail::ThreadLocalVLogContext()->str()
 
 #if TVM_LOG_DEBUG
 #define DCHECK(x) CHECK(x)

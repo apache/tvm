@@ -24,7 +24,7 @@
 #ifndef TVM_CONTRIB_MSC_CORE_IR_GRAPH_BUILDER_H_
 #define TVM_CONTRIB_MSC_CORE_IR_GRAPH_BUILDER_H_
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -68,41 +68,60 @@ struct MSCRBuildConfig {
   std::vector<std::string> output_aliases;
   std::unordered_map<std::string, std::vector<std::string>> input_types;
 
-  void LoadInputTypes(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      std::vector<std::string> types;
-      reader->Read(&types);
-      input_types[key] = types;
+  void LoadInputTypes(ffi::json::Object obj) {
+    namespace json = ::tvm::ffi::json;
+    for (const auto& kv : obj) {
+      auto arr = kv.second.cast<json::Array>();
+      std::vector<std::string> vec;
+      vec.reserve(arr.size());
+      for (const auto& elem : arr) {
+        vec.push_back(std::string(elem.cast<ffi::String>()));
+      }
+      input_types[std::string(kv.first.cast<ffi::String>())] = std::move(vec);
     }
   }
 
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "prune_graph") {
-        reader->Read(&prune_graph);
-      } else if (key == "use_var_name") {
-        reader->Read(&use_var_name);
-      } else if (key == "float_precision") {
-        reader->Read(&float_precision);
-      } else if (key == "byoc_entry") {
-        reader->Read(&byoc_entry);
-      } else if (key == "sort_by") {
-        reader->Read(&sort_by);
-      } else if (key == "target") {
-        reader->Read(&target);
-      } else if (key == "graph_name") {
-        reader->Read(&graph_name);
-      } else if (key == "input_aliases") {
-        reader->Read(&input_aliases);
-      } else if (key == "output_aliases") {
-        reader->Read(&output_aliases);
-      } else if (key == "input_types") {
-        this->LoadInputTypes(reader);
+  void Load(ffi::json::Object obj) {
+    namespace json = ::tvm::ffi::json;
+    if (auto it = obj.find(ffi::String("prune_graph")); it != obj.end()) {
+      prune_graph = (*it).second.cast<bool>();
+    }
+    if (auto it = obj.find(ffi::String("use_var_name")); it != obj.end()) {
+      use_var_name = (*it).second.cast<bool>();
+    }
+    if (auto it = obj.find(ffi::String("float_precision")); it != obj.end()) {
+      float_precision = static_cast<int>((*it).second.cast<int64_t>());
+    }
+    if (auto it = obj.find(ffi::String("byoc_entry")); it != obj.end()) {
+      byoc_entry = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("sort_by")); it != obj.end()) {
+      sort_by = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("target")); it != obj.end()) {
+      target = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("graph_name")); it != obj.end()) {
+      graph_name = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("input_aliases")); it != obj.end()) {
+      auto arr = (*it).second.cast<json::Array>();
+      input_aliases.clear();
+      input_aliases.reserve(arr.size());
+      for (const auto& elem : arr) {
+        input_aliases.push_back(std::string(elem.cast<ffi::String>()));
       }
+    }
+    if (auto it = obj.find(ffi::String("output_aliases")); it != obj.end()) {
+      auto arr = (*it).second.cast<json::Array>();
+      output_aliases.clear();
+      output_aliases.reserve(arr.size());
+      for (const auto& elem : arr) {
+        output_aliases.push_back(std::string(elem.cast<ffi::String>()));
+      }
+    }
+    if (auto it = obj.find(ffi::String("input_types")); it != obj.end()) {
+      LoadInputTypes((*it).second.cast<ffi::json::Object>());
     }
   }
 };
@@ -267,9 +286,8 @@ class GraphBuilder : public ExprVisitor {
       : ExprVisitor() {
     ref_module_ = ref_module;
     if (options.size() > 0) {
-      std::istringstream is(options);
-      dmlc::JSONReader reader(&is);
-      reader.Read(&config_);
+      namespace json = ::tvm::ffi::json;
+      config_.Load(json::Parse(options).cast<json::Object>());
     }
     name_ = config_.graph_name.size() > 0 ? ffi::String(config_.graph_name) : name;
     if (config_.byoc_entry.size() > 0) {

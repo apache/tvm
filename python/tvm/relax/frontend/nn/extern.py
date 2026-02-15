@@ -309,7 +309,6 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         tvm_home = SourceModule.tvm_home()
         results = [
             tvm_home / "include",
-            tvm_home / "3rdparty/dmlc-core/include",
             tvm_home / "3rdparty/tvm-ffi/include",
             tvm_home / "3rdparty/tvm-ffi/3rdparty/dlpack/include",
         ]
@@ -352,18 +351,12 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
                 "-c",  # generate object file
                 "-O3",
                 "-std=c++17",
-                # DMLC default
-                "-DDMLC_USE_FOPEN64=0",
-                "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
             ]
         elif source_format == "cu":
             host_flags = [
                 "-c",  # generate object file
                 "-O3",
                 "-std=c++17",
-                # DMLC default
-                "-DDMLC_USE_FOPEN64=0",
-                "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
                 # Enable `-fPIC` for the host compiler
                 "-Xcompiler=-fPIC",
             ]

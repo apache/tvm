@@ -116,7 +116,7 @@ ffi::Map<ffi::String, Tensor> LoadParams(const std::string& param_blob);
  * \param strm Stream to load parameters from.
  * \return Map of parameter name to parameter value.
  */
-ffi::Map<ffi::String, Tensor> LoadParams(dmlc::Stream* strm);
+ffi::Map<ffi::String, Tensor> LoadParams(support::Stream* strm);
 /*!
  * \brief Serialize parameters to a byte array.
  * \param params Parameters to save.
@@ -128,12 +128,12 @@ std::string SaveParams(const ffi::Map<ffi::String, Tensor>& params);
  * \param strm Stream to write to.
  * \param params Parameters to save.
  */
-void SaveParams(dmlc::Stream* strm, const ffi::Map<ffi::String, Tensor>& params);
+void SaveParams(support::Stream* strm, const ffi::Map<ffi::String, Tensor>& params);
 
 /*!
  * \brief A dmlc stream which wraps standard file operations.
  */
-struct SimpleBinaryFileStream : public dmlc::Stream {
+struct SimpleBinaryFileStream : public support::Stream {
  public:
   SimpleBinaryFileStream(const std::string& path, std::string mode) {
     const char* fname = path.c_str();

@@ -235,7 +235,7 @@ class TensorCache {
     for (const TensorCacheMetadata::FileRecord& shard_rec : metadata.records) {
       try {
         params = shard_rec.Load(device, cache_path, &raw_data, &staging_buffer);
-      } catch (const dmlc::Error& e) {
+      } catch (const std::runtime_error& e) {
         LOG(FATAL) << "ValueError: Error when loading parameters from " << shard_rec.data_path
                    << ": " << e.what();
       }

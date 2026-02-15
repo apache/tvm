@@ -19,9 +19,11 @@
 
 #include "launcher_core.h"
 
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/c_backend_api.h>
 
+#include <algorithm>
 #include <fstream>
 #include <ios>
 #include <iterator>
@@ -46,20 +48,25 @@ std::string tensor_meta::to_string() const {
   return out.str();
 }
 
-void TensorConfig::Load(dmlc::JSONReader* reader) {
-  reader->BeginObject();
-  std::string key;
-  while (!bad && reader->NextObjectItem(&key)) {
+void TensorConfig::Load(tvm::ffi::json::Object obj) {
+  namespace json = ::tvm::ffi::json;
+  for (const auto& kv : obj) {
+    std::string key = std::string(kv.first.cast<tvm::ffi::String>());
     if (key == file_key) {
-      reader->Read(&file_name);
+      file_name = std::string(kv.second.cast<tvm::ffi::String>());
     } else if (key == shape_key) {
-      reader->Read(&shape);
+      auto arr = kv.second.cast<json::Array>();
+      shape.clear();
+      shape.reserve(arr.size());
+      for (const auto& elem : arr) {
+        shape.push_back(static_cast<int>(elem.cast<int64_t>()));
+      }
       if (shape.empty()) {
         std::cout << "error: empty shape\n";
         bad = true;
       }
     } else if (key == dtype_key) {
-      reader->Read(&dtype);
+      dtype = std::string(kv.second.cast<tvm::ffi::String>());
     } else {
       std::cout << "unknown tensor config key: " << key << '\n';
       bad = true;
@@ -67,24 +74,36 @@ void TensorConfig::Load(dmlc::JSONReader* reader) {
   }
 }
 
-void TensorConfig::Save(dmlc::JSONWriter* writer) const {
-  writer->BeginObject(true);
-  writer->WriteObjectKeyValue(file_key, file_name);
-  writer->WriteObjectKeyValue(shape_key, shape);
-  writer->WriteObjectKeyValue(dtype_key, dtype);
-  writer->EndObject();
+tvm::ffi::json::Value TensorConfig::SaveToJSON() const {
+  namespace json = ::tvm::ffi::json;
+  json::Object obj;
+  obj.Set(tvm::ffi::String(file_key), tvm::ffi::String(file_name));
+  json::Array shape_arr;
+  for (int v : shape) {
+    shape_arr.push_back(static_cast<int64_t>(v));
+  }
+  obj.Set(tvm::ffi::String(shape_key), std::move(shape_arr));
+  obj.Set(tvm::ffi::String(dtype_key), tvm::ffi::String(dtype));
+  return obj;
 }
 
-void ModelConfig::Load(dmlc::JSONReader* reader) {
-  reader->BeginObject();
-  std::string key;
-  while (!bad && reader->NextObjectItem(&key)) {
+void ModelConfig::Load(tvm::ffi::json::Object obj) {
+  namespace json = ::tvm::ffi::json;
+  for (const auto& kv : obj) {
+    std::string key = std::string(kv.first.cast<tvm::ffi::String>());
     if (key == "model-library") {
-      reader->Read(&model_library);
+      model_library = std::string(kv.second.cast<tvm::ffi::String>());
     } else if (key == "model-json") {
-      reader->Read(&model_json);
+      model_json = std::string(kv.second.cast<tvm::ffi::String>());
     } else if (key == "inputs") {
-      reader->Read(&inputs);
+      auto arr = kv.second.cast<json::Array>();
+      inputs.clear();
+      inputs.reserve(arr.size());
+      for (const auto& elem : arr) {
+        TensorConfig tc;
+        tc.Load(elem.cast<json::Object>());
+        inputs.push_back(std::move(tc));
+      }
       bad = std::any_of(inputs.begin(), inputs.end(), [](auto t) { return t.bad; });
     } else {
       std::cout << "unknown model config key: " << key << '\n';
@@ -93,15 +112,21 @@ void ModelConfig::Load(dmlc::JSONReader* reader) {
   }
 }
 
-void OutputConfig::Save(dmlc::JSONWriter* writer) const {
-  writer->BeginObject(true);
-  writer->WriteObjectKeyValue("pcycles", pcycles);
-  writer->WriteObjectKeyValue("usecs", usecs);
-  writer->WriteObjectKeyValue("outputs", outputs);
-  writer->EndObject();
+tvm::ffi::json::Value OutputConfig::SaveToJSON() const {
+  namespace json = ::tvm::ffi::json;
+  json::Object obj;
+  obj.Set(tvm::ffi::String("pcycles"), static_cast<int64_t>(pcycles));
+  obj.Set(tvm::ffi::String("usecs"), static_cast<int64_t>(usecs));
+  json::Array outputs_arr;
+  for (const auto& tc : outputs) {
+    outputs_arr.push_back(tc.SaveToJSON());
+  }
+  obj.Set(tvm::ffi::String("outputs"), std::move(outputs_arr));
+  return obj;
 }
 
 bool read_model_config(const std::string& file_name, ModelConfig* model_config) {
+  namespace json = ::tvm::ffi::json;
   if (model_config == nullptr) {
     return false;
   }
@@ -109,21 +134,22 @@ bool read_model_config(const std::string& file_name, ModelConfig* model_config) 
   if (!mfc.is_open()) {
     return false;
   }
-  dmlc::JSONReader reader(&mfc);
-  model_config->Load(&reader);
-  if (model_config->bad || !mfc) {
+  std::string content((std::istreambuf_iterator<char>(mfc)), std::istreambuf_iterator<char>());
+  auto parsed = json::Parse(content);
+  model_config->Load(parsed.cast<json::Object>());
+  if (model_config->bad) {
     return false;
   }
   return true;
 }
 
 bool write_output_config(const std::string& file_name, OutputConfig* output_config) {
+  namespace json = ::tvm::ffi::json;
   std::ofstream ofc(file_name);
   if (!ofc.is_open()) {
     return false;
   }
-  dmlc::JSONWriter writer(&ofc);
-  output_config->Save(&writer);
+  ofc << std::string(json::Stringify(output_config->SaveToJSON(), 2));
   if (!ofc) {
     return false;
   }

@@ -28,7 +28,6 @@
 #define TVM_LOG_CUSTOMIZE 1
 #define TVM_FFI_USE_LIBBACKTRACE 0
 #define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 1
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/reflection/registry.h>

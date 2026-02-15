@@ -231,6 +231,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     };
 #else
     LOG(FATAL) << "Please build with CUDNN frontend to use attention op";
+    return nullptr;
 #endif
   }
 

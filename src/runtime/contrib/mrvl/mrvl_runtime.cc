@@ -34,6 +34,7 @@
 #include <string>
 #include <vector>
 
+#include "../../../support/bytes_io.h"
 #include "../json/json_node.h"
 #include "mrvl_sw_runtime_lib.h"
 
@@ -89,29 +90,27 @@ class MarvellSimulatorModuleNode : public ffi::ModuleObj {
   }
 
   virtual ffi::Bytes SaveToBytes() const {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
+    std::string result;
+    support::BytesOutStream stream(&result);
     // Save the symbol name and other data and serialize them to
     // binary format.
-    stream->Write(symbol_name_);
-    stream->Write(nodes_json_);
-    stream->Write(bin_code_);
-    return ffi::Bytes(buffer);
+    stream.Write(symbol_name_);
+    stream.Write(nodes_json_);
+    stream.Write(bin_code_);
+    return ffi::Bytes(std::move(result));
   }
 
   static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
-    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-    dmlc::Stream* stream = &ms;
+    support::BytesInStream stream(bytes);
     std::string symbol_name;
     std::string nodes_json;
     std::string bin_code;
     // Load the symbol_name and other data to construct the module
-    ICHECK(stream->Read(&symbol_name))
+    ICHECK(stream.Read(&symbol_name))
         << "Marvell-Compiler-ERROR-Internal::Loading symbol name failed";
-    ICHECK(stream->Read(&nodes_json))
+    ICHECK(stream.Read(&nodes_json))
         << "Marvell-Compiler-ERROR-Internal::Loading nodes json failed";
-    ICHECK(stream->Read(&bin_code)) << "Marvell-Compiler-ERROR-Internal::Loading bin code failed";
+    ICHECK(stream.Read(&bin_code)) << "Marvell-Compiler-ERROR-Internal::Loading bin code failed";
     auto n = ffi::make_object<MarvellSimulatorModuleNode>(symbol_name, nodes_json, bin_code);
     return ffi::Module(n);
   }

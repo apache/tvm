@@ -24,7 +24,6 @@
 #ifndef TVM_CONTRIB_MSC_CORE_CODEGEN_CPP_CODEGEN_H_
 #define TVM_CONTRIB_MSC_CORE_CODEGEN_CPP_CODEGEN_H_
 
-#include <dmlc/json.h>
 #include <tvm/script/printer/doc.h>
 
 #include <set>

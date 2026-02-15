@@ -189,7 +189,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
     std::vector<std::string> max_workspace_size = {std::to_string(cfg.value()->max_workspace_size)};
     std::vector<std::string> use_fp16 = {std::to_string(cfg.value()->use_fp16)};
     std::vector<std::string> use_uint8 = {std::to_string(cfg.value()->use_uint8)};
-    std::vector<dmlc::any> tensorrt_version_attr, use_implicit_batch_attr, max_workspace_size_attr,
+    std::vector<std::any> tensorrt_version_attr, use_implicit_batch_attr, max_workspace_size_attr,
         use_fp16_attr, use_uint8_attr;
     tensorrt_version_attr.emplace_back(tensorrt_version);
     use_implicit_batch_attr.emplace_back(use_implicit_batch);

@@ -27,7 +27,6 @@
  * code and constants significantly reduces the efforts for handling external
  * codegen and runtimes.
  */
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/module.h>
@@ -35,8 +34,11 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/io.h>
 
 #include <cstdint>
+
+#include "../support/bytes_io.h"
 
 namespace tvm {
 namespace runtime {
@@ -152,9 +154,8 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
   }
 
   ffi::Bytes SaveToBytes() const final {
-    std::string bytes_buffer;
-    dmlc::MemoryStringStream ms(&bytes_buffer);
-    dmlc::Stream* stream = &ms;
+    std::string result;
+    support::BytesOutStream stream(&result);
 
     std::vector<std::string> variables;
     std::vector<Tensor> const_var_tensor;
@@ -165,12 +166,12 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     }
 
     // Save all variables in the function.
-    stream->Write(variables);
+    stream.Write(variables);
     // Save all constant data.
     uint64_t sz = static_cast<uint64_t>(const_var_tensor.size());
-    stream->Write(sz);
+    stream.Write(sz);
     for (uint64_t i = 0; i < sz; i++) {
-      const_var_tensor[i].Save(stream);
+      const_var_tensor[i].Save(&stream);
     }
 
     // Save the symbol to list of required constant variables mapping
@@ -181,31 +182,30 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
       const_vars.push_back(it.second);
     }
 
-    stream->Write(symbols);
+    stream.Write(symbols);
     sz = static_cast<uint64_t>(const_vars_by_symbol_.size());
-    stream->Write(sz);
+    stream.Write(sz);
     for (uint64_t i = 0; i < sz; i++) {
-      stream->Write(const_vars[i]);
+      stream.Write(const_vars[i]);
     }
-    return ffi::Bytes(bytes_buffer);
+    return ffi::Bytes(std::move(result));
   }
 
   static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
-    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-    dmlc::Stream* stream = &ms;
+    support::BytesInStream stream(bytes);
 
     // Load the variables.
     std::vector<std::string> variables;
-    ICHECK(stream->Read(&variables)) << "Loading variable names failed";
+    ICHECK(stream.Read(&variables)) << "Loading variable names failed";
     uint64_t sz;
-    ICHECK(stream->Read(&sz, sizeof(sz))) << "Loading number of vars failed";
+    ICHECK(stream.Read(&sz, sizeof(sz))) << "Loading number of vars failed";
     ICHECK_EQ(static_cast<size_t>(sz), variables.size())
         << "The number of variables and ndarray counts must match";
     // Load the list of ndarray.
     std::vector<Tensor> arrays;
     for (uint64_t i = 0; i < sz; i++) {
       Tensor temp;
-      temp.Load(stream);
+      temp.Load(&stream);
       arrays.push_back(temp);
     }
 
@@ -217,13 +217,13 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
 
     // Load the symbol to list of required constant variables mapping
     std::vector<std::string> symbols;
-    ICHECK(stream->Read(&symbols)) << "Loading symbols failed";
-    ICHECK(stream->Read(&sz, sizeof(sz))) << "Loading number of symbols failed";
+    ICHECK(stream.Read(&symbols)) << "Loading symbols failed";
+    ICHECK(stream.Read(&sz, sizeof(sz))) << "Loading number of symbols failed";
     ICHECK_EQ(static_cast<size_t>(sz), symbols.size());
     std::vector<std::vector<std::string>> const_vars;
     for (uint64_t i = 0; i < sz; i++) {
       std::vector<std::string> vars;
-      ICHECK(stream->Read(&vars)) << "Loading const variables failed";
+      ICHECK(stream.Read(&vars)) << "Loading const variables failed";
       const_vars.push_back(vars);
     }
 

@@ -26,6 +26,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
+#include <tvm/support/io.h>
+#include <tvm/support/serializer.h>
 
 #include <string>
 #include <unordered_map>
@@ -75,8 +77,8 @@ struct VMFuncInfo {
   std::vector<std::string> param_names;
 
   // defined customized loader save
-  void Save(dmlc::Stream* writer) const;
-  bool Load(dmlc::Stream* reader);
+  void Save(support::Stream* writer) const;
+  bool Load(support::Stream* reader);
 };
 
 /*!
@@ -178,59 +180,66 @@ class VMExecutable : public ffi::ModuleObj {
    * \brief Save the globals.
    * \param strm The input stream.
    */
-  void SaveGlobalSection(dmlc::Stream* strm) const;
+  void SaveGlobalSection(support::Stream* strm) const;
   /*!
    * \brief Save the memory scopes.
    * \param strm The output stream.
    */
-  void SaveMemoryScopeSection(dmlc::Stream* strm) const;
+  void SaveMemoryScopeSection(support::Stream* strm) const;
   /*!
    * \brief Save the constant pool.
    * \param strm The input stream.
    */
-  void SaveConstantSection(dmlc::Stream* strm) const;
+  void SaveConstantSection(support::Stream* strm) const;
   /*!
    * \brief Save the instructions.
    * \param strm The input stream.
    */
-  void SaveCodeSection(dmlc::Stream* strm) const;
+  void SaveCodeSection(support::Stream* strm) const;
   /*!
    * \brief Save the packed functions.
    * \param strm The input stream.
    */
-  void SavePackedFuncNames(dmlc::Stream* strm) const;
+  void SavePackedFuncNames(support::Stream* strm) const;
   /*!
    * \brief Load the globals.
    * \param strm The input stream.
    */
-  void LoadGlobalSection(dmlc::Stream* strm);
+  void LoadGlobalSection(support::Stream* strm);
   /*!
    * \brief Load the memory scopes.
    * \param strm The input stream.
    */
-  void LoadMemoryScopeSection(dmlc::Stream* strm);
+  void LoadMemoryScopeSection(support::Stream* strm);
   /*!
    * \brief Load the constant pool.
    * \param strm The input stream.
    */
-  void LoadConstantSection(dmlc::Stream* strm);
+  void LoadConstantSection(support::Stream* strm);
   /*!
    * \brief Load the instructions.
    * \param strm The input stream.
    */
-  void LoadCodeSection(dmlc::Stream* strm);
+  void LoadCodeSection(support::Stream* strm);
   /*!
    * \brief Save the packed functions.
    * \param strm The input stream.
    */
-  void LoadPackedFuncNames(dmlc::Stream* strm);
+  void LoadPackedFuncNames(support::Stream* strm);
 };
 
 }  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
-namespace dmlc {
-DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::vm::VMFuncInfo, true);
-}  // namespace dmlc
+namespace tvm {
+namespace support {
+template <>
+struct Serializer<::tvm::runtime::vm::VMFuncInfo> {
+  static constexpr bool enabled = true;
+  static void Write(Stream* strm, const ::tvm::runtime::vm::VMFuncInfo& data) { data.Save(strm); }
+  static bool Read(Stream* strm, ::tvm::runtime::vm::VMFuncInfo* data) { return data->Load(strm); }
+};
+}  // namespace support
+}  // namespace tvm
 #endif  // TVM_RUNTIME_VM_EXECUTABLE_H_

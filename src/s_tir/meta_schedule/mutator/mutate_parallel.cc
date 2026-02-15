@@ -19,6 +19,7 @@
 #include <tvm/ffi/reflection/registry.h>
 
 #include <algorithm>
+#include <map>
 #include <unordered_map>
 
 #include "../utils.h"

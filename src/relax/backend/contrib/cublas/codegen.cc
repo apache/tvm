@@ -93,7 +93,7 @@ class CublasJSONSerializer : public JSONSerializer {
         }
 
         std::vector<std::string> dq_scale = {backend::to_str(alpha)};
-        std::vector<dmlc::any> dq_scale_attr;
+        std::vector<std::any> dq_scale_attr;
         dq_scale_attr.emplace_back(dq_scale);
         node->SetAttr("dq_scale", dq_scale_attr);
       }

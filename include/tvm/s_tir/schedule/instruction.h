@@ -208,7 +208,7 @@ class Instruction : public runtime::ObjectRef {
  * \sa TVM_REGISTER_INST_KIND
  */
 #define TVM_INST_KIND_REGISTER_VAR_DEF \
-  static DMLC_ATTRIBUTE_UNUSED ::tvm::s_tir::InstructionKindRegEntry& __make_##InstructionKind
+  static TVM_ATTRIBUTE_UNUSED ::tvm::s_tir::InstructionKindRegEntry& __make_##InstructionKind
 
 /*!
  * \brief Register an InstructionKind

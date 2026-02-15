@@ -19,7 +19,6 @@
 #ifndef TVM_S_TIR_META_SCHEDULE_UTILS_H_
 #define TVM_S_TIR_META_SCHEDULE_UTILS_H_
 
-#include <dmlc/memory_io.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/node/node.h>
@@ -39,7 +38,9 @@
 #include <tvm/s_tir/meta_schedule/task_scheduler.h>
 #include <tvm/s_tir/meta_schedule/tune_context.h>
 #include <tvm/s_tir/schedule/schedule.h>
+#include <tvm/support/io.h>
 #include <tvm/support/parallel_for.h>
+#include <tvm/support/serializer.h>
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
@@ -51,6 +52,7 @@
 
 #include "../../support/array.h"
 #include "../../support/base64.h"
+#include "../../support/bytes_io.h"
 #include "../../support/nd_int_set.h"
 #include "../../support/table_printer.h"
 #include "../../support/utils.h"
@@ -174,12 +176,12 @@ using TRandState = support::LinearCongruentialEngine::TRandState;
  * \return The base64 encoded string.
  */
 inline std::string Base64Encode(std::string str) {
-  std::string result;
-  dmlc::MemoryStringStream m_stream(&result);
+  std::string m_buffer;
+  support::BytesOutStream m_stream(&m_buffer);
   support::Base64OutStream b64stream(&m_stream);
-  static_cast<dmlc::Stream*>(&b64stream)->Write(str);
+  static_cast<support::Stream*>(&b64stream)->Write(str);
   b64stream.Finish();
-  return result;
+  return m_buffer;
 }
 
 /*!
@@ -189,10 +191,10 @@ inline std::string Base64Encode(std::string str) {
  */
 inline std::string Base64Decode(std::string str) {
   std::string result;
-  dmlc::MemoryStringStream m_stream(&str);
+  support::BytesInStream m_stream(str);
   support::Base64InStream b64stream(&m_stream);
   b64stream.InitPosition();
-  static_cast<dmlc::Stream*>(&b64stream)->Read(&result);
+  static_cast<support::Stream*>(&b64stream)->Read(&result);
   return result;
 }
 

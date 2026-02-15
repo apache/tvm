@@ -24,7 +24,7 @@
 #ifndef TVM_CONTRIB_MSC_CORE_PRINTER_MSC_BASE_PRINTER_H_
 #define TVM_CONTRIB_MSC_CORE_PRINTER_MSC_BASE_PRINTER_H_
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/script/printer/doc.h>
 
 #include <string>
@@ -47,21 +47,18 @@ struct MSCPrinterConfig {
   size_t float_precision{6};
   std::string indent_space{"  "};
   std::string separator{", "};
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "indent") {
-        reader->Read(&indent);
-      } else if (key == "float_precision") {
-        reader->Read(&float_precision);
-      } else if (key == "indent_space") {
-        reader->Read(&indent_space);
-      } else if (key == "separator") {
-        reader->Read(&separator);
-      } else {
-        LOG(FATAL) << "Do not support config " << key << " in printer";
-      }
+  void Load(ffi::json::Object obj) {
+    if (auto it = obj.find(ffi::String("indent")); it != obj.end()) {
+      indent = static_cast<size_t>((*it).second.cast<int64_t>());
+    }
+    if (auto it = obj.find(ffi::String("float_precision")); it != obj.end()) {
+      float_precision = static_cast<size_t>((*it).second.cast<int64_t>());
+    }
+    if (auto it = obj.find(ffi::String("indent_space")); it != obj.end()) {
+      indent_space = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("separator")); it != obj.end()) {
+      separator = std::string((*it).second.cast<ffi::String>());
     }
   }
 };
@@ -78,9 +75,8 @@ class MSCBasePrinter {
    */
   explicit MSCBasePrinter(const std::string& options = "") {
     if (options.size() > 0) {
-      std::istringstream is(options);
-      dmlc::JSONReader reader(&is);
-      reader.Read(&config_);
+      namespace json = ::tvm::ffi::json;
+      config_.Load(json::Parse(options).cast<json::Object>());
     }
     indent_ = config_.indent;
   }

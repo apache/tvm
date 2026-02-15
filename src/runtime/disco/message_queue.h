@@ -19,7 +19,7 @@
 #ifndef TVM_RUNTIME_DISCO_MESSAGE_QUEUE_H_
 #define TVM_RUNTIME_DISCO_MESSAGE_QUEUE_H_
 
-#include <dmlc/io.h>
+#include <tvm/support/io.h>
 
 #include <string>
 #include <vector>
@@ -29,10 +29,10 @@
 namespace tvm {
 namespace runtime {
 
-class DiscoStreamMessageQueue : private dmlc::Stream,
+class DiscoStreamMessageQueue : private support::Stream,
                                 private DiscoProtocol<DiscoStreamMessageQueue> {
  public:
-  explicit DiscoStreamMessageQueue(Stream* stream) : stream_(stream) {}
+  explicit DiscoStreamMessageQueue(support::Stream* stream) : stream_(stream) {}
 
   ~DiscoStreamMessageQueue() = default;
 
@@ -113,10 +113,10 @@ class DiscoStreamMessageQueue : private dmlc::Stream,
     return size;
   }
 
-  using dmlc::Stream::Read;
-  using dmlc::Stream::ReadArray;
-  using dmlc::Stream::Write;
-  using dmlc::Stream::WriteArray;
+  using support::Stream::Read;
+  using support::Stream::ReadArray;
+  using support::Stream::Write;
+  using support::Stream::WriteArray;
   friend struct RPCReference;
   friend struct DiscoProtocol<DiscoStreamMessageQueue>;
 
@@ -124,7 +124,7 @@ class DiscoStreamMessageQueue : private dmlc::Stream,
   std::string write_buffer_;
   std::string read_buffer_;
   size_t read_offset_ = 0;
-  dmlc::Stream* stream_;
+  support::Stream* stream_;
 };
 
 }  // namespace runtime

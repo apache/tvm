@@ -41,18 +41,14 @@ struct TorchPluginCodeGenConfig {
   bool is_training{false};
   std::string torch_prefix{"torch"};
   PLUGIN_CODEGEN_CONFIG_MEMBERS
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "is_training") {
-        reader->Read(&is_training);
-      } else if (key == "torch_prefix") {
-        reader->Read(&torch_prefix);
-      } else {
-        PLUGIN_CODEGEN_CONFIG_PARSE
-      }
+  void Load(ffi::json::Object obj) {
+    if (auto it = obj.find(ffi::String("is_training")); it != obj.end()) {
+      is_training = (*it).second.cast<bool>();
     }
+    if (auto it = obj.find(ffi::String("torch_prefix")); it != obj.end()) {
+      torch_prefix = std::string((*it).second.cast<ffi::String>());
+    }
+    PLUGIN_CODEGEN_CONFIG_PARSE
   }
 };
 

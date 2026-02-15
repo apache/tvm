@@ -22,7 +22,7 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <dmlc/logging.h>
+#include <tvm/runtime/logging.h>
 
 namespace tvm {
 namespace runtime {

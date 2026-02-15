@@ -22,7 +22,6 @@
  * \brief JSON runtime implementation for TensorRT.
  */
 
-#include <dmlc/parameter.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>

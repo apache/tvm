@@ -21,7 +21,6 @@
  * \file relax/ir/transform.cc
  * \brief Relax specific transformation passes.
  */
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>

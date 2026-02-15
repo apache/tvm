@@ -28,6 +28,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <unordered_map>
+#include <unordered_set>
 
 #include "../../tir/transform/ir_utils.h"
 namespace tvm {

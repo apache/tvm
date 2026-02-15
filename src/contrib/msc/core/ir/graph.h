@@ -24,7 +24,7 @@
 #ifndef TVM_CONTRIB_MSC_CORE_IR_GRAPH_H_
 #define TVM_CONTRIB_MSC_CORE_IR_GRAPH_H_
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/data_layout.h>
 
@@ -51,37 +51,60 @@ struct JsonMSCTensor {
   std::vector<int64_t> shape;
   std::vector<std::string> prims;
 
-  void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("alias", alias);
-    writer->WriteObjectKeyValue("dtype", dtype);
-    writer->WriteObjectKeyValue("layout", layout);
-    writer->WriteObjectKeyValue("shape", shape);
-    writer->WriteObjectKeyValue("prims", prims);
-    writer->EndObject();
+  ffi::json::Value SaveToJSON() const {
+    ffi::json::Object obj;
+    obj.Set(ffi::String("name"), ffi::String(name));
+    obj.Set(ffi::String("alias"), ffi::String(alias));
+    obj.Set(ffi::String("dtype"), ffi::String(dtype));
+    obj.Set(ffi::String("layout"), ffi::String(layout));
+    {
+      ffi::json::Array arr;
+      for (const auto& v : shape) {
+        arr.push_back(static_cast<int64_t>(v));
+      }
+      obj.Set(ffi::String("shape"), std::move(arr));
+    }
+    {
+      ffi::json::Array arr;
+      for (const auto& s : prims) {
+        arr.push_back(ffi::String(s));
+      }
+      obj.Set(ffi::String("prims"), std::move(arr));
+    }
+    return obj;
   }
 
-  void Load(dmlc::JSONReader* reader) {
+  void Load(ffi::json::Object obj) {
     int bitmask = 0;
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "name") {
-        reader->Read(&name);
-        bitmask |= 1;
-      } else if (key == "alias") {
-        reader->Read(&alias);
-      } else if (key == "dtype") {
-        reader->Read(&dtype);
-        bitmask |= 2;
-      } else if (key == "layout") {
-        reader->Read(&layout);
-      } else if (key == "shape") {
-        reader->Read(&shape);
-        bitmask |= 4;
-      } else if (key == "prims") {
-        reader->Read(&prims);
+    if (auto it = obj.find(ffi::String("name")); it != obj.end()) {
+      name = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 1;
+    }
+    if (auto it = obj.find(ffi::String("alias")); it != obj.end()) {
+      alias = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("dtype")); it != obj.end()) {
+      dtype = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 2;
+    }
+    if (auto it = obj.find(ffi::String("layout")); it != obj.end()) {
+      layout = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("shape")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      shape.clear();
+      shape.reserve(arr.size());
+      for (const auto& elem : arr) {
+        shape.push_back(elem.cast<int64_t>());
+      }
+      bitmask |= 4;
+    }
+    if (auto it = obj.find(ffi::String("prims")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      prims.clear();
+      prims.reserve(arr.size());
+      for (const auto& elem : arr) {
+        prims.push_back(std::string(elem.cast<ffi::String>()));
       }
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4) << "name, dtype and shape should be given";
@@ -105,47 +128,109 @@ struct JsonMSCJoint {
   std::unordered_map<std::string, std::string> attrs;
   std::unordered_map<std::string, JsonMSCTensor> weights;
 
-  void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("index", index);
-    writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("shared_ref", shared_ref);
-    writer->WriteObjectKeyValue("optype", optype);
-    writer->WriteObjectKeyValue("parents", parents);
-    writer->WriteObjectKeyValue("inputs", inputs);
-    writer->WriteObjectKeyValue("outputs", outputs);
-    writer->WriteObjectKeyValue("attrs", attrs);
-    writer->WriteObjectKeyValue("weights", weights);
-    writer->EndObject();
+  ffi::json::Value SaveToJSON() const {
+    ffi::json::Object obj;
+    obj.Set(ffi::String("index"), static_cast<int64_t>(index));
+    obj.Set(ffi::String("name"), ffi::String(name));
+    obj.Set(ffi::String("shared_ref"), ffi::String(shared_ref));
+    obj.Set(ffi::String("optype"), ffi::String(optype));
+    {
+      ffi::json::Array arr;
+      for (const auto& s : parents) {
+        arr.push_back(ffi::String(s));
+      }
+      obj.Set(ffi::String("parents"), std::move(arr));
+    }
+    {
+      ffi::json::Array arr;
+      for (const auto& s : inputs) {
+        arr.push_back(ffi::String(s));
+      }
+      obj.Set(ffi::String("inputs"), std::move(arr));
+    }
+    {
+      ffi::json::Array arr;
+      for (const auto& item : outputs) {
+        arr.push_back(item.SaveToJSON());
+      }
+      obj.Set(ffi::String("outputs"), std::move(arr));
+    }
+    {
+      ffi::json::Object inner;
+      for (const auto& kv : attrs) {
+        inner.Set(ffi::String(kv.first), ffi::String(kv.second));
+      }
+      obj.Set(ffi::String("attrs"), std::move(inner));
+    }
+    {
+      ffi::json::Object inner;
+      for (const auto& kv : weights) {
+        inner.Set(ffi::String(kv.first), kv.second.SaveToJSON());
+      }
+      obj.Set(ffi::String("weights"), std::move(inner));
+    }
+    return obj;
   }
 
-  void Load(dmlc::JSONReader* reader) {
+  void Load(ffi::json::Object obj) {
     int bitmask = 0;
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "index") {
-        reader->Read(&index);
-        bitmask |= 1;
-      } else if (key == "name") {
-        reader->Read(&name);
-        bitmask |= 2;
-      } else if (key == "shared_ref") {
-        reader->Read(&shared_ref);
-      } else if (key == "optype") {
-        reader->Read(&optype);
-        bitmask |= 4;
-      } else if (key == "parents") {
-        reader->Read(&parents);
-      } else if (key == "inputs") {
-        reader->Read(&inputs);
-      } else if (key == "outputs") {
-        reader->Read(&outputs);
-        bitmask |= 8;
-      } else if (key == "attrs") {
-        reader->Read(&attrs);
-      } else if (key == "weights") {
-        reader->Read(&weights);
+    if (auto it = obj.find(ffi::String("index")); it != obj.end()) {
+      index = static_cast<size_t>((*it).second.cast<int64_t>());
+      bitmask |= 1;
+    }
+    if (auto it = obj.find(ffi::String("name")); it != obj.end()) {
+      name = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 2;
+    }
+    if (auto it = obj.find(ffi::String("shared_ref")); it != obj.end()) {
+      shared_ref = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("optype")); it != obj.end()) {
+      optype = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 4;
+    }
+    if (auto it = obj.find(ffi::String("parents")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      parents.clear();
+      parents.reserve(arr.size());
+      for (const auto& elem : arr) {
+        parents.push_back(std::string(elem.cast<ffi::String>()));
+      }
+    }
+    if (auto it = obj.find(ffi::String("inputs")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      inputs.clear();
+      inputs.reserve(arr.size());
+      for (const auto& elem : arr) {
+        inputs.push_back(std::string(elem.cast<ffi::String>()));
+      }
+    }
+    if (auto it = obj.find(ffi::String("outputs")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      outputs.clear();
+      outputs.reserve(arr.size());
+      for (const auto& elem : arr) {
+        JsonMSCTensor item;
+        item.Load(elem.cast<ffi::json::Object>());
+        outputs.push_back(std::move(item));
+      }
+      bitmask |= 8;
+    }
+    if (auto it = obj.find(ffi::String("attrs")); it != obj.end()) {
+      auto inner = (*it).second.cast<ffi::json::Object>();
+      attrs.clear();
+      for (const auto& kv : inner) {
+        attrs[std::string(kv.first.cast<ffi::String>())] =
+            std::string(kv.second.cast<ffi::String>());
+      }
+    }
+    if (auto it = obj.find(ffi::String("weights")); it != obj.end()) {
+      auto inner = (*it).second.cast<ffi::json::Object>();
+      weights.clear();
+      for (const auto& kv : inner) {
+        JsonMSCTensor item;
+        item.Load(kv.second.cast<ffi::json::Object>());
+        weights[std::string(kv.first.cast<ffi::String>())] = std::move(item);
       }
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "index, name, optype and outputs should be given";
@@ -163,34 +248,56 @@ struct JsonMSCPrim {
   std::vector<std::string> parents;
   std::unordered_map<std::string, std::string> attrs;
 
-  void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("index", index);
-    writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("optype", optype);
-    writer->WriteObjectKeyValue("parents", parents);
-    writer->WriteObjectKeyValue("attrs", attrs);
-    writer->EndObject();
+  ffi::json::Value SaveToJSON() const {
+    ffi::json::Object obj;
+    obj.Set(ffi::String("index"), static_cast<int64_t>(index));
+    obj.Set(ffi::String("name"), ffi::String(name));
+    obj.Set(ffi::String("optype"), ffi::String(optype));
+    {
+      ffi::json::Array arr;
+      for (const auto& s : parents) {
+        arr.push_back(ffi::String(s));
+      }
+      obj.Set(ffi::String("parents"), std::move(arr));
+    }
+    {
+      ffi::json::Object inner;
+      for (const auto& kv : attrs) {
+        inner.Set(ffi::String(kv.first), ffi::String(kv.second));
+      }
+      obj.Set(ffi::String("attrs"), std::move(inner));
+    }
+    return obj;
   }
 
-  void Load(dmlc::JSONReader* reader) {
+  void Load(ffi::json::Object obj) {
     int bitmask = 0;
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "index") {
-        reader->Read(&index);
-        bitmask |= 1;
-      } else if (key == "name") {
-        reader->Read(&name);
-        bitmask |= 2;
-      } else if (key == "optype") {
-        reader->Read(&optype);
-        bitmask |= 4;
-      } else if (key == "parents") {
-        reader->Read(&parents);
-      } else if (key == "attrs") {
-        reader->Read(&attrs);
+    if (auto it = obj.find(ffi::String("index")); it != obj.end()) {
+      index = static_cast<size_t>((*it).second.cast<int64_t>());
+      bitmask |= 1;
+    }
+    if (auto it = obj.find(ffi::String("name")); it != obj.end()) {
+      name = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 2;
+    }
+    if (auto it = obj.find(ffi::String("optype")); it != obj.end()) {
+      optype = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 4;
+    }
+    if (auto it = obj.find(ffi::String("parents")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      parents.clear();
+      parents.reserve(arr.size());
+      for (const auto& elem : arr) {
+        parents.push_back(std::string(elem.cast<ffi::String>()));
+      }
+    }
+    if (auto it = obj.find(ffi::String("attrs")); it != obj.end()) {
+      auto inner = (*it).second.cast<ffi::json::Object>();
+      attrs.clear();
+      for (const auto& kv : inner) {
+        attrs[std::string(kv.first.cast<ffi::String>())] =
+            std::string(kv.second.cast<ffi::String>());
       }
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4) << "index, name and optype should be given";
@@ -212,44 +319,80 @@ struct JsonWeightJoint {
   std::vector<std::string> friends;
   std::unordered_map<std::string, std::string> attrs;
 
-  void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("index", index);
-    writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("shared_ref", shared_ref);
-    writer->WriteObjectKeyValue("weight_type", weight_type);
-    writer->WriteObjectKeyValue("weight", weight);
-    writer->WriteObjectKeyValue("parents", parents);
-    writer->WriteObjectKeyValue("friends", friends);
-    writer->WriteObjectKeyValue("attrs", attrs);
-    writer->EndObject();
+  ffi::json::Value SaveToJSON() const {
+    ffi::json::Object obj;
+    obj.Set(ffi::String("index"), static_cast<int64_t>(index));
+    obj.Set(ffi::String("name"), ffi::String(name));
+    obj.Set(ffi::String("shared_ref"), ffi::String(shared_ref));
+    obj.Set(ffi::String("weight_type"), ffi::String(weight_type));
+    obj.Set(ffi::String("weight"), weight.SaveToJSON());
+    {
+      ffi::json::Array arr;
+      for (const auto& s : parents) {
+        arr.push_back(ffi::String(s));
+      }
+      obj.Set(ffi::String("parents"), std::move(arr));
+    }
+    {
+      ffi::json::Array arr;
+      for (const auto& s : friends) {
+        arr.push_back(ffi::String(s));
+      }
+      obj.Set(ffi::String("friends"), std::move(arr));
+    }
+    {
+      ffi::json::Object inner;
+      for (const auto& kv : attrs) {
+        inner.Set(ffi::String(kv.first), ffi::String(kv.second));
+      }
+      obj.Set(ffi::String("attrs"), std::move(inner));
+    }
+    return obj;
   }
 
-  void Load(dmlc::JSONReader* reader) {
+  void Load(ffi::json::Object obj) {
     int bitmask = 0;
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "index") {
-        reader->Read(&index);
-        bitmask |= 1;
-      } else if (key == "name") {
-        reader->Read(&name);
-        bitmask |= 2;
-      } else if (key == "shared_ref") {
-        reader->Read(&shared_ref);
-      } else if (key == "weight_type") {
-        reader->Read(&weight_type);
-        bitmask |= 4;
-      } else if (key == "weight") {
-        reader->Read(&weight);
-        bitmask |= 8;
-      } else if (key == "parents") {
-        reader->Read(&parents);
-      } else if (key == "friends") {
-        reader->Read(&friends);
-      } else if (key == "attrs") {
-        reader->Read(&attrs);
+    if (auto it = obj.find(ffi::String("index")); it != obj.end()) {
+      index = static_cast<size_t>((*it).second.cast<int64_t>());
+      bitmask |= 1;
+    }
+    if (auto it = obj.find(ffi::String("name")); it != obj.end()) {
+      name = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 2;
+    }
+    if (auto it = obj.find(ffi::String("shared_ref")); it != obj.end()) {
+      shared_ref = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("weight_type")); it != obj.end()) {
+      weight_type = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 4;
+    }
+    if (auto it = obj.find(ffi::String("weight")); it != obj.end()) {
+      weight.Load((*it).second.cast<ffi::json::Object>());
+      bitmask |= 8;
+    }
+    if (auto it = obj.find(ffi::String("parents")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      parents.clear();
+      parents.reserve(arr.size());
+      for (const auto& elem : arr) {
+        parents.push_back(std::string(elem.cast<ffi::String>()));
+      }
+    }
+    if (auto it = obj.find(ffi::String("friends")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      friends.clear();
+      friends.reserve(arr.size());
+      for (const auto& elem : arr) {
+        friends.push_back(std::string(elem.cast<ffi::String>()));
+      }
+    }
+    if (auto it = obj.find(ffi::String("attrs")); it != obj.end()) {
+      auto inner = (*it).second.cast<ffi::json::Object>();
+      attrs.clear();
+      for (const auto& kv : inner) {
+        attrs[std::string(kv.first.cast<ffi::String>())] =
+            std::string(kv.second.cast<ffi::String>());
       }
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "index, name, weight_type and weight should be given";
@@ -268,35 +411,83 @@ struct JsonMSCGraph {
   std::vector<JsonMSCJoint> nodes;
   std::vector<JsonMSCPrim> prims;
 
-  void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("inputs", inputs);
-    writer->WriteObjectKeyValue("outputs", outputs);
-    writer->WriteObjectKeyValue("nodes", nodes);
-    writer->WriteObjectKeyValue("prims", prims);
-    writer->EndObject();
+  ffi::json::Value SaveToJSON() const {
+    ffi::json::Object obj;
+    obj.Set(ffi::String("name"), ffi::String(name));
+    {
+      ffi::json::Array arr;
+      for (const auto& s : inputs) {
+        arr.push_back(ffi::String(s));
+      }
+      obj.Set(ffi::String("inputs"), std::move(arr));
+    }
+    {
+      ffi::json::Array arr;
+      for (const auto& s : outputs) {
+        arr.push_back(ffi::String(s));
+      }
+      obj.Set(ffi::String("outputs"), std::move(arr));
+    }
+    {
+      ffi::json::Array arr;
+      for (const auto& item : nodes) {
+        arr.push_back(item.SaveToJSON());
+      }
+      obj.Set(ffi::String("nodes"), std::move(arr));
+    }
+    {
+      ffi::json::Array arr;
+      for (const auto& item : prims) {
+        arr.push_back(item.SaveToJSON());
+      }
+      obj.Set(ffi::String("prims"), std::move(arr));
+    }
+    return obj;
   }
 
-  void Load(dmlc::JSONReader* reader) {
+  void Load(ffi::json::Object obj) {
     int bitmask = 0;
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "name") {
-        reader->Read(&name);
-        bitmask |= 1;
-      } else if (key == "inputs") {
-        reader->Read(&inputs);
-        bitmask |= 2;
-      } else if (key == "outputs") {
-        reader->Read(&outputs);
-        bitmask |= 4;
-      } else if (key == "nodes") {
-        reader->Read(&nodes);
-        bitmask |= 8;
-      } else if (key == "prims") {
-        reader->Read(&prims);
+    if (auto it = obj.find(ffi::String("name")); it != obj.end()) {
+      name = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 1;
+    }
+    if (auto it = obj.find(ffi::String("inputs")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      inputs.clear();
+      inputs.reserve(arr.size());
+      for (const auto& elem : arr) {
+        inputs.push_back(std::string(elem.cast<ffi::String>()));
+      }
+      bitmask |= 2;
+    }
+    if (auto it = obj.find(ffi::String("outputs")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      outputs.clear();
+      outputs.reserve(arr.size());
+      for (const auto& elem : arr) {
+        outputs.push_back(std::string(elem.cast<ffi::String>()));
+      }
+      bitmask |= 4;
+    }
+    if (auto it = obj.find(ffi::String("nodes")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      nodes.clear();
+      nodes.reserve(arr.size());
+      for (const auto& elem : arr) {
+        JsonMSCJoint item;
+        item.Load(elem.cast<ffi::json::Object>());
+        nodes.push_back(std::move(item));
+      }
+      bitmask |= 8;
+    }
+    if (auto it = obj.find(ffi::String("prims")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      prims.clear();
+      prims.reserve(arr.size());
+      for (const auto& elem : arr) {
+        JsonMSCPrim item;
+        item.Load(elem.cast<ffi::json::Object>());
+        prims.push_back(std::move(item));
       }
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "name, inputs, outputs and nodes should be given";
@@ -312,25 +503,35 @@ struct JsonWeightGraph {
   std::string name;
   std::vector<JsonWeightJoint> nodes;
 
-  void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("name", name);
-    writer->WriteObjectKeyValue("nodes", nodes);
-    writer->EndObject();
+  ffi::json::Value SaveToJSON() const {
+    ffi::json::Object obj;
+    obj.Set(ffi::String("name"), ffi::String(name));
+    {
+      ffi::json::Array arr;
+      for (const auto& item : nodes) {
+        arr.push_back(item.SaveToJSON());
+      }
+      obj.Set(ffi::String("nodes"), std::move(arr));
+    }
+    return obj;
   }
 
-  void Load(dmlc::JSONReader* reader) {
+  void Load(ffi::json::Object obj) {
     int bitmask = 0;
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "name") {
-        reader->Read(&name);
-        bitmask |= 1;
-      } else if (key == "nodes") {
-        reader->Read(&nodes);
-        bitmask |= 2;
+    if (auto it = obj.find(ffi::String("name")); it != obj.end()) {
+      name = std::string((*it).second.cast<ffi::String>());
+      bitmask |= 1;
+    }
+    if (auto it = obj.find(ffi::String("nodes")); it != obj.end()) {
+      auto arr = (*it).second.cast<ffi::json::Array>();
+      nodes.clear();
+      nodes.reserve(arr.size());
+      for (const auto& elem : arr) {
+        JsonWeightJoint item;
+        item.Load(elem.cast<ffi::json::Object>());
+        nodes.push_back(std::move(item));
       }
+      bitmask |= 2;
     }
     ICHECK_EQ(bitmask, 1 | 2) << "name and nodes should be given";
   }

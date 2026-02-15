@@ -21,7 +21,7 @@
 #define TVM_RUNTIME_HEXAGON_LAUNCHER_LAUNCHER_CORE_H_
 
 #include <dlpack/dlpack.h>
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/module.h>
@@ -59,8 +59,8 @@ struct TensorConfig {
   std::string dtype;
   bool bad = false;
 
-  void Load(dmlc::JSONReader* reader);
-  void Save(dmlc::JSONWriter* writer) const;
+  void Load(tvm::ffi::json::Object obj);
+  tvm::ffi::json::Value SaveToJSON() const;
 };
 
 struct ModelConfig {
@@ -69,7 +69,7 @@ struct ModelConfig {
   std::vector<TensorConfig> inputs;
   bool bad = false;
 
-  void Load(dmlc::JSONReader* reader);
+  void Load(tvm::ffi::json::Object obj);
 };
 
 struct OutputConfig {
@@ -77,7 +77,7 @@ struct OutputConfig {
   uint64_t usecs;
   std::vector<TensorConfig> outputs;
 
-  void Save(dmlc::JSONWriter* writer) const;
+  tvm::ffi::json::Value SaveToJSON() const;
 };
 
 struct Model {

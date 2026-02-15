@@ -22,7 +22,7 @@
  * \brief Pass for transform the function to tensorrt.
  */
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/sorting.h>
 #include <tvm/relax/expr.h>
@@ -43,16 +43,17 @@ struct TensorRTTransConfig {
   bool linear_to_conv{true};
   std::vector<size_t> version{0, 0, 0};
 
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "linear_to_conv") {
-        reader->Read(&linear_to_conv);
-      } else if (key == "version") {
-        reader->Read(&version);
-      } else {
-        LOG(FATAL) << "Do not support key " << key;
+  void Load(ffi::json::Object obj) {
+    namespace json = ::tvm::ffi::json;
+    if (auto it = obj.find(ffi::String("linear_to_conv")); it != obj.end()) {
+      linear_to_conv = (*it).second.cast<bool>();
+    }
+    if (auto it = obj.find(ffi::String("version")); it != obj.end()) {
+      auto arr = (*it).second.cast<json::Array>();
+      version.clear();
+      version.reserve(arr.size());
+      for (const auto& elem : arr) {
+        version.push_back(static_cast<size_t>(elem.cast<int64_t>()));
       }
     }
   }
@@ -61,9 +62,8 @@ struct TensorRTTransConfig {
 const TensorRTTransConfig ParseConfig(const ffi::String& config_str) {
   TensorRTTransConfig config;
   if (config_str.size() > 0) {
-    std::istringstream is(config_str);
-    dmlc::JSONReader reader(&is);
-    reader.Read(&config);
+    namespace json = ::tvm::ffi::json;
+    config.Load(json::Parse(std::string(config_str)).cast<json::Object>());
   }
   return config;
 }

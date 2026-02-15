@@ -22,11 +22,11 @@
  * \brief Source code module, only for viewing
  */
 
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/io.h>
 
 #include <algorithm>
 #include <functional>
@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "../../runtime/file_utils.h"
+#include "../../support/bytes_io.h"
 #include "codegen_source_base.h"
 
 namespace tvm {
@@ -112,32 +113,30 @@ class CSourceModuleNode : public ffi::ModuleObj {
   ffi::Array<ffi::String> GetWriteFormats() const override { return {fmt_}; }
 
   ffi::Bytes SaveToBytes() const final {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
-    stream->Write(code_);
-    stream->Write(fmt_);
+    std::string result;
+    support::BytesOutStream stream(&result);
+    stream.Write(code_);
+    stream.Write(fmt_);
 
     std::vector<std::string> func_names;
     for (const auto func_name : func_names_) func_names.push_back(func_name);
     std::vector<std::string> const_vars;
     for (auto const_var : const_vars_) const_vars.push_back(const_var);
-    stream->Write(func_names);
-    stream->Write(const_vars);
-    return ffi::Bytes(buffer);
+    stream.Write(func_names);
+    stream.Write(const_vars);
+    return ffi::Bytes(std::move(result));
   }
 
   static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
-    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-    dmlc::Stream* stream = &ms;
+    support::BytesInStream stream(bytes);
 
     std::string code, fmt;
-    ICHECK(stream->Read(&code)) << "Loading code failed";
-    ICHECK(stream->Read(&fmt)) << "Loading format failed";
+    ICHECK(stream.Read(&code)) << "Loading code failed";
+    ICHECK(stream.Read(&fmt)) << "Loading format failed";
 
     std::vector<std::string> tmp_func_names, tmp_const_vars;
-    CHECK(stream->Read(&tmp_func_names)) << "Loading func names failed";
-    CHECK(stream->Read(&tmp_const_vars)) << "Loading const vars failed";
+    CHECK(stream.Read(&tmp_func_names)) << "Loading func names failed";
+    CHECK(stream.Read(&tmp_const_vars)) << "Loading const vars failed";
 
     ffi::Array<ffi::String> func_names;
     for (auto func_name : tmp_func_names) func_names.push_back(ffi::String(func_name));
@@ -238,13 +237,12 @@ class DeviceSourceModuleNode final : public ffi::ModuleObj {
   }
 
   ffi::Bytes SaveToBytes() const final {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
-    stream->Write(fmt_);
-    stream->Write(fmap_);
-    stream->Write(data_);
-    return ffi::Bytes(buffer);
+    std::string result;
+    support::BytesOutStream stream(&result);
+    stream.Write(fmt_);
+    stream.Write(fmap_);
+    stream.Write(data_);
+    return ffi::Bytes(std::move(result));
   }
 
  private:

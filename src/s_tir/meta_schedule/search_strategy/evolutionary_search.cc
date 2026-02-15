@@ -19,6 +19,8 @@
 
 #include <tvm/ffi/reflection/registry.h>
 
+#include <mutex>
+
 #include "../module_equality.h"
 #include "../utils.h"
 

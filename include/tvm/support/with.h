@@ -25,8 +25,6 @@
 #ifndef TVM_SUPPORT_WITH_H_
 #define TVM_SUPPORT_WITH_H_
 
-#include <dmlc/common.h>
-
 #include <functional>
 #include <utility>
 
@@ -66,7 +64,7 @@ class With {
     ctx_.EnterWithScope();
   }
   /*! \brief destructor, leaves the scope of the context. */
-  ~With() DMLC_THROW_EXCEPTION { ctx_.ExitWithScope(); }
+  ~With() noexcept(false) { ctx_.ExitWithScope(); }
 
   // Disable copy and move construction.  `With` is intended only for
   // use in nested contexts that are exited in the reverse order of

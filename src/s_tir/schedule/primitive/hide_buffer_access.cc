@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <set>
+
 #include "../../../tir/transform/ir_utils.h"
 #include "../utils.h"
 

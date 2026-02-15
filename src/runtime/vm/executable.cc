@@ -21,15 +21,16 @@
  * \file src/runtime/vm/executable.cc
  */
 
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/executable.h>
 #include <tvm/runtime/vm/vm.h>
+#include <tvm/support/io.h>
 
 #include <functional>
 #include <sstream>
 
+#include "../../support/bytes_io.h"
 #include "../file_utils.h"
 
 namespace tvm {
@@ -143,14 +144,14 @@ Instruction VMExecutable::GetInstruction(Index i) const {
   return Instruction();
 }
 
-void SaveHeader(dmlc::Stream* strm) {
+void SaveHeader(support::Stream* strm) {
   uint64_t header = kTVMVMBytecodeMagicV2;
   strm->Write(header);
   std::string version = VM_VERSION;
   strm->Write(version);
 }
 
-uint64_t LoadHeader(dmlc::Stream* strm) {
+uint64_t LoadHeader(support::Stream* strm) {
   // Check header.
   uint64_t header;
   STREAM_CHECK(strm->Read(&header), "header");
@@ -165,9 +166,8 @@ uint64_t LoadHeader(dmlc::Stream* strm) {
 }
 
 ffi::Bytes VMExecutable::SaveToBytes() const {
-  std::string code;
-  // Initialize the stream object.
-  dmlc::MemoryStringStream strm(&code);
+  std::string result;
+  support::BytesOutStream strm(&result);
 
   // Save header
   SaveHeader(&strm);
@@ -184,7 +184,7 @@ ffi::Bytes VMExecutable::SaveToBytes() const {
   // Code section.
   SaveCodeSection(&strm);
 
-  return ffi::Bytes(code);
+  return ffi::Bytes(std::move(result));
 }
 
 void VMExecutable::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
@@ -192,8 +192,7 @@ void VMExecutable::WriteToFile(const ffi::String& file_name, const ffi::String& 
 }
 
 ffi::Module VMExecutable::LoadFromBytes(const ffi::Bytes& bytes) {
-  std::string code;
-  dmlc::MemoryFixedSizeStream strm(const_cast<char*>(bytes.data()), bytes.size());
+  support::BytesInStream strm(bytes);
 
   ObjectPtr<VMExecutable> exec = ffi::make_object<VMExecutable>();
 
@@ -230,7 +229,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("ffi.Module.load_from_bytes.relax.VMExecutable", VMExecutable::LoadFromBytes);
 }
 
-void VMFuncInfo::Save(dmlc::Stream* strm) const {
+void VMFuncInfo::Save(support::Stream* strm) const {
   int32_t temp_kind = static_cast<int32_t>(kind);
   strm->Write(temp_kind);
   strm->Write(name);
@@ -241,7 +240,7 @@ void VMFuncInfo::Save(dmlc::Stream* strm) const {
   strm->Write(param_names);
 }
 
-bool VMFuncInfo::Load(dmlc::Stream* strm) {
+bool VMFuncInfo::Load(support::Stream* strm) {
   int32_t temp_kind;
   if (!strm->Read(&temp_kind)) return false;
   this->kind = static_cast<VMFuncInfo::FuncKind>(temp_kind);
@@ -254,9 +253,9 @@ bool VMFuncInfo::Load(dmlc::Stream* strm) {
   return true;
 }
 
-void VMExecutable::SaveGlobalSection(dmlc::Stream* strm) const { strm->Write(func_table); }
+void VMExecutable::SaveGlobalSection(support::Stream* strm) const { strm->Write(func_table); }
 
-void VMExecutable::SaveMemoryScopeSection(dmlc::Stream* strm) const {
+void VMExecutable::SaveMemoryScopeSection(support::Stream* strm) const {
   strm->Write(static_cast<uint64_t>(this->memory_scopes.size()));
   for (auto it = this->memory_scopes.begin(); it != this->memory_scopes.end(); it++) {
     LOG(WARNING) << "Scope Saving:" << it->second;
@@ -265,7 +264,7 @@ void VMExecutable::SaveMemoryScopeSection(dmlc::Stream* strm) const {
   }
 }
 
-void VMExecutable::SaveConstantSection(dmlc::Stream* strm) const {
+void VMExecutable::SaveConstantSection(support::Stream* strm) const {
   // NOTE: pay close attention to the explicit type in write here
   // so the load/save is 32/64 bit compatible
   strm->Write(static_cast<uint64_t>(this->constants.size()));
@@ -298,12 +297,12 @@ void VMExecutable::SaveConstantSection(dmlc::Stream* strm) const {
   }
 }
 
-void VMExecutable::SaveCodeSection(dmlc::Stream* strm) const {
+void VMExecutable::SaveCodeSection(support::Stream* strm) const {
   strm->Write(instr_offset);
   strm->Write(instr_data);
 }
 
-void VMExecutable::LoadGlobalSection(dmlc::Stream* strm) {
+void VMExecutable::LoadGlobalSection(support::Stream* strm) {
   STREAM_CHECK(strm->Read(&func_table), "Global Section");
   // setup func map
   for (size_t i = 0; i < func_table.size(); ++i) {
@@ -311,7 +310,7 @@ void VMExecutable::LoadGlobalSection(dmlc::Stream* strm) {
   }
 }
 
-void VMExecutable::LoadMemoryScopeSection(dmlc::Stream* strm) {
+void VMExecutable::LoadMemoryScopeSection(support::Stream* strm) {
   uint64_t sz;
   // Load the number of memory scope entries.
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "memory scopes");
@@ -328,7 +327,7 @@ void VMExecutable::LoadMemoryScopeSection(dmlc::Stream* strm) {
   }
 }
 
-void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
+void VMExecutable::LoadConstantSection(support::Stream* strm) {
   uint64_t sz;
   // Load the number of constants.
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
@@ -386,7 +385,7 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
   }
 }
 
-void VMExecutable::LoadCodeSection(dmlc::Stream* strm) {
+void VMExecutable::LoadCodeSection(support::Stream* strm) {
   STREAM_CHECK(strm->Read(&(this->instr_offset)), "instr offset");
   STREAM_CHECK(strm->Read(&(this->instr_data)), "instr data");
 }

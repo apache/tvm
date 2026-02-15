@@ -390,8 +390,6 @@ void ServerLoopFromChild(SOCKET socket) {
 void RPCServerCreate(std::string host, int port, int port_end, std::string tracker_addr,
                      std::string key, std::string custom_addr, std::string work_dir, bool silent) {
   if (silent) {
-    // Only errors and fatal is logged
-    dmlc::InitLogging("--minloglevel=2");
   }
   // Start the rpc server
   RPCServer rpc(std::move(host), port, port_end, std::move(tracker_addr), std::move(key),

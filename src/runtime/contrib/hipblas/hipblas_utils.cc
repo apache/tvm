@@ -22,7 +22,6 @@
  */
 #include "hipblas_utils.h"
 
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 
@@ -40,10 +39,9 @@ HipBlasThreadEntry::~HipBlasThreadEntry() {
   }
 }
 
-typedef dmlc::ThreadLocalStore<HipBlasThreadEntry> HipBlasThreadStore;
-
 HipBlasThreadEntry* HipBlasThreadEntry::ThreadLocal(DLDevice curr_device) {
-  HipBlasThreadEntry* retval = HipBlasThreadStore::Get();
+  static thread_local HipBlasThreadEntry inst;
+  HipBlasThreadEntry* retval = &inst;
   TVMFFIStreamHandle stream = TVMFFIEnvGetStream(curr_device.device_type, curr_device.device_id);
   CHECK_HIPBLAS_ERROR(hipblasSetStream(retval->handle, static_cast<hipStream_t>(stream)));
   return retval;
@@ -70,10 +68,9 @@ HipBlasLtThreadEntry::~HipBlasLtThreadEntry() {
   }
 }
 
-typedef dmlc::ThreadLocalStore<HipBlasLtThreadEntry> HipBlasLtThreadStore;
-
 HipBlasLtThreadEntry* HipBlasLtThreadEntry::ThreadLocal(DLDevice curr_device) {
-  return HipBlasLtThreadStore::Get();
+  static thread_local HipBlasLtThreadEntry inst;
+  return &inst;
 }
 
 }  // namespace contrib

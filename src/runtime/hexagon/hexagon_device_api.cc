@@ -23,7 +23,6 @@
 
 #include "hexagon_device_api.h"
 
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
@@ -143,9 +142,14 @@ struct HexagonWorkspacePool : public WorkspacePool {
       : WorkspacePool(static_cast<DLDeviceType>(kDLHexagon), HexagonDeviceAPI::Global()) {}
 };
 
+static HexagonWorkspacePool* HexagonWorkspacePoolThreadLocal() {
+  static thread_local HexagonWorkspacePool inst;
+  return &inst;
+}
+
 void* HexagonDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
   CHECK(IsValidDevice(dev)) << "dev.device_type: " << dev.device_type;
-  return dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->AllocWorkspace(dev, size);
+  return HexagonWorkspacePoolThreadLocal()->AllocWorkspace(dev, size);
 }
 
 void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
@@ -155,7 +159,7 @@ void HexagonDeviceAPI::FreeWorkspace(Device dev, void* data) {
                           << "Please call HexagonDeviceAPI::AcquireResources";
   CHECK(runtime_hexbuffs->FindHexagonBuffer(data) != nullptr)
       << "Attempt made to free unknown or already freed workspace allocation";
-  dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, data);
+  HexagonWorkspacePoolThreadLocal()->FreeWorkspace(dev, data);
 }
 
 void HexagonDeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {

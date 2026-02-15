@@ -53,7 +53,7 @@ namespace runtime {
  * - SendPackedSeq: send the arguments over to the peer
  * - HandleNextEvent: handle the next request from the peer(RPCCode followed by per code protocol).
  */
-class RPCEndpoint::EventHandler : public dmlc::Stream {
+class RPCEndpoint::EventHandler : public support::Stream {
  public:
   EventHandler(support::RingBuffer* reader, support::RingBuffer* writer, std::string name,
                std::string* remote_key, std::function<void()> flush_writer)
@@ -204,14 +204,12 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   }
 
   // Endian aware IO handling
-  using Stream::Read;
-  using Stream::ReadArray;
-  using Stream::Write;
-  using Stream::WriteArray;
-
   void MessageStart(uint64_t packet_nbytes) {
     // Unused here, implemented for microTVM framing layer.
   }
+
+  using Stream::Read;
+  using Stream::Write;
 
   bool Read(RPCCode* code) {
     int32_t cdata;
@@ -500,7 +498,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 
     // When session is local, we can directly treat handle
     // as the cpu pointer without allocating a temp space.
-    if (arr->device.device_type == kDLCPU && sess->IsLocalSession() && DMLC_IO_NO_ENDIAN_SWAP) {
+    if (arr->device.device_type == kDLCPU && sess->IsLocalSession() && TVM_FFI_IO_NO_ENDIAN_SWAP) {
       char* data_ptr = reinterpret_cast<char*>(arr->data) + arr->byte_offset;
       fcopyack(data_ptr, data_bytes);
     } else {
@@ -512,8 +510,8 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
           this->SwitchToState(kRecvPacketNumBytes);
         } else {
           // endian aware handling
-          if (!DMLC_IO_NO_ENDIAN_SWAP) {
-            dmlc::ByteSwap(temp_data, elem_bytes, data_bytes / elem_bytes);
+          if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
+            ffi::ByteSwap(temp_data, elem_bytes, data_bytes / elem_bytes);
           }
           fcopyack(temp_data, data_bytes);
         }
@@ -537,8 +535,8 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       char* dptr = reinterpret_cast<char*>(arr->data) + arr->byte_offset;
       this->ReadArray(dptr, data_bytes);
 
-      if (!DMLC_IO_NO_ENDIAN_SWAP) {
-        dmlc::ByteSwap(dptr, elem_bytes, data_bytes / elem_bytes);
+      if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
+        ffi::ByteSwap(dptr, elem_bytes, data_bytes / elem_bytes);
       }
       this->ReturnVoid();
       this->SwitchToState(kRecvPacketNumBytes);
@@ -546,8 +544,8 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       char* temp_data = this->ArenaAlloc<char>(data_bytes);
       this->ReadArray(temp_data, data_bytes);
 
-      if (!DMLC_IO_NO_ENDIAN_SWAP) {
-        dmlc::ByteSwap(temp_data, elem_bytes, data_bytes / elem_bytes);
+      if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
+        ffi::ByteSwap(temp_data, elem_bytes, data_bytes / elem_bytes);
       }
 
       auto on_copy_complete = [this](RPCCode status, ffi::PackedArgs args) {
@@ -591,7 +589,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     uint64_t len;
     this->Read(&len);
     client_protocol_ver.resize(len);
-    this->Read(dmlc::BeginPtr(client_protocol_ver), len);
+    this->Read(client_protocol_ver.data(), len);
 
     ffi::PackedArgs args = RecvPackedSeq();
 
@@ -911,7 +909,7 @@ void RPCEndpoint::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) 
   std::lock_guard<std::mutex> lock(mutex_);
   RPCCode code = RPCCode::kCopyToRemote;
 
-  uint64_t tensor_total_size_bytes = static_cast<uint64_t>(GetDataSize(*to));
+  uint64_t tensor_total_size_bytes = static_cast<uint64_t>(ffi::GetDataSize(*to));
   ICHECK_LE(to->byte_offset + nbytes, tensor_total_size_bytes)
       << "CopyToRemote: overflow in tensor size: (byte_offset=" << to->byte_offset
       << ", nbytes=" << nbytes << ", tensor_total_size=" << tensor_total_size_bytes << ")";
@@ -931,7 +929,7 @@ void RPCEndpoint::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes
   std::lock_guard<std::mutex> lock(mutex_);
   RPCCode code = RPCCode::kCopyFromRemote;
 
-  uint64_t tensor_total_size_bytes = static_cast<uint64_t>(GetDataSize(*from));
+  uint64_t tensor_total_size_bytes = static_cast<uint64_t>(ffi::GetDataSize(*from));
   ICHECK_LE(from->byte_offset + nbytes, tensor_total_size_bytes)
       << "CopyFromRemote: overflow in tensor size: (byte_offset=" << from->byte_offset
       << ", nbytes=" << nbytes << ", tensor_total_size=" << tensor_total_size_bytes << ")";

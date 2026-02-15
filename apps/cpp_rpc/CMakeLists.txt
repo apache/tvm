@@ -45,7 +45,6 @@ endif()
 target_include_directories(
   tvm_rpc
   PUBLIC "../../include"
-  PUBLIC DMLC_PATH
 )
 
 target_link_libraries(tvm_rpc PUBLIC tvm_ffi_header)
