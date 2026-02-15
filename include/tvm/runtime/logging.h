@@ -19,12 +19,7 @@
 
 /*!
  * \file tvm/runtime/logging.h
- * \brief logging utilities
- *
- * We define our own CHECK and LOG macros to replace those from dmlc-core.
- * These macros are then injected into dmlc-core via the
- * DMLC_USE_LOGGING_LIBRARY define. dmlc-core will #include this file wherever
- * it needs logging.
+ * \brief logging utilitiesß
  */
 #ifndef TVM_RUNTIME_LOGGING_H_
 #define TVM_RUNTIME_LOGGING_H_
@@ -364,7 +359,6 @@ class LogMessage {
 
 #endif
 
-// Below is from dmlc-core
 // This class is used to explicitly ignore values in the conditional
 // logging macros.  This avoids compiler warnings like "value computed
 // is not used" and "statement has no effect".
@@ -431,7 +425,6 @@ class TvmLogDebugSettings {
  * \endcode
  * or a valid setting as described by \p VerboseLoggingEnabled below.
  */
-// Also from dmlc-core
 inline bool DebugLoggingEnabled() {
   static int state = 0;
   if (state == 0) {
