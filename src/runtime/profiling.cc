@@ -325,8 +325,7 @@ void metric_as_json(std::ostream& os, ffi::Any o) {
 
 ffi::String ReportNode::AsJSON() const {
   std::ostringstream s;
-  // DMLC's JSONWriter does not allow us to write a key value pair without
-  // implementing Write for the value. We want a specific write for the value,
+  // We want a specific write for the value,
   // so we would have to implement a custom data structure for each type of
   // value we want to print. Instead we construct the json by hand because it
   // is easier.

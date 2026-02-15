@@ -25,8 +25,6 @@
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/source_map.h>
 
-#include <rang.hpp>
-
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -220,41 +218,34 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 std::ostream& EmitDiagnosticHeader(std::ostream& out, const Span& span, DiagnosticLevel level,
                                    std::string msg) {
-  rang::fg diagnostic_color = rang::fg::reset;
   std::string diagnostic_type;
 
   switch (level) {
     case DiagnosticLevel::kWarning: {
-      diagnostic_color = rang::fg::yellow;
       diagnostic_type = "warning";
       break;
     }
     case DiagnosticLevel::kError: {
-      diagnostic_color = rang::fg::red;
       diagnostic_type = "error";
       break;
     }
     case DiagnosticLevel::kBug: {
-      diagnostic_color = rang::fg::blue;
       diagnostic_type = "bug";
       break;
     }
     case DiagnosticLevel::kNote: {
-      diagnostic_color = rang::fg::reset;
       diagnostic_type = "note";
       break;
     }
     case DiagnosticLevel::kHelp: {
-      diagnostic_color = rang::fg::reset;
       diagnostic_type = "help";
       break;
     }
   }
 
-  out << rang::style::bold << diagnostic_color << diagnostic_type << ": " << rang::fg::reset << msg
-      << std::endl
-      << rang::fg::blue << " --> " << rang::fg::reset << rang::style::reset
-      << span->source_name->name << ":" << span->line << ":" << span->column << std::endl;
+  out << diagnostic_type << ": " << msg << std::endl
+      << " --> " << span->source_name->name << ":" << span->line << ":" << span->column
+      << std::endl;
 
   return out;
 }

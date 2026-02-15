@@ -209,23 +209,11 @@ and 3rdparty/tvm-ffi/licenses/ for text of these licenses.
 Apache Software Foundation License 2.0
 --------------------------------------
 
-3rdparty/dmlc-core
 3rdparty/OpenCL-Headers
 3rdparty/nvbench (with LLVM exception)
 3rdparty/cutlass_fpA_intB_gemm
 3rdparty/tensorrt_llm
 3rdparty/tvm-ffi/3rdparty/dlpack
-
-BSD 2-clause License
---------------------
-
-3rdparty/dmlc-core/include/dmlc/concurrentqueue.h
-
-
-BSD 2-clause License + zlib License
------------------------------------
-
-3rdparty/dmlc-core/include/dmlc/blockingconcurrentqueue.h
 
 
 MIT License
@@ -233,10 +221,6 @@ MIT License
 
 3rdparty/compiler-rt/builtin_fp16.h
 
-The Unlicense
--------------
-
-3rdparty/rang
 
 BSD 3-Clause "New" or "Revised" License
 ---------------------------------------

@@ -48,9 +48,6 @@ function shard1 {
 
   echo "Checking for non-inclusive language with blocklint..."
   tests/lint/blocklint.sh
-
-  echo "Linting the JNI code..."
-  tests/lint/jnilint.sh
 }
 
 function shard2 {

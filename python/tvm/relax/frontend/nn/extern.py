@@ -292,7 +292,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
     @staticmethod
     def get_includes(tvm_pkg: Optional[List[str]] = None) -> List[Path]:
         """Returns the default include paths according to `tvm_home()`.
-        By default, it includes TVM, DLPack, and DMLC-Core. With `tvm_pkg` provided, it also
+        By default, it includes TVM, DLPack. With `tvm_pkg` provided, it also
         includes the specified package under `tvm_home/3rdparty`.
 
         Parameters
@@ -326,7 +326,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         tvm_pkg: Optional[List[str]] = None,
     ) -> List[str]:
         """Returns the default compile options depending on `source_format`, including the default
-        inlcude paths w.r.t. `tvm_home()`, default flags to configure DMLC-Core, and by default,
+        inlcude paths w.r.t. `tvm_home()`, and by default,
         it uses "-O3" and "-std=c++17".
 
         Parameters
