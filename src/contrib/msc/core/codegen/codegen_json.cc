@@ -44,7 +44,7 @@ std::vector<JSONGraphNodeEntry> MSCJSONSerializer::VisitExpr_(const CallNode* ca
     AddNodeAttr(node, pair.first, pair.second);
   }
   if (!global_options_set_) {
-    AddNodeAttr(node, "msc_global_options_num", std::to_string(options_.size()));
+    AddNodeAttr(node, "msc_global_options_num", ffi::String(std::to_string(options_.size())));
     for (const auto& pair : options_) {
       AddNodeAttr(node, "msc_global_" + pair.first, pair.second);
     }
@@ -55,10 +55,7 @@ std::vector<JSONGraphNodeEntry> MSCJSONSerializer::VisitExpr_(const CallNode* ca
 
 void MSCJSONSerializer::AddNodeAttr(JSONGraphObjectPtr node, const ffi::String& key,
                                     const ffi::String& value) {
-  std::vector<std::string> array_value{std::string(value)};
-  std::vector<std::any> dmlc_value;
-  dmlc_value.emplace_back(array_value);
-  node->SetAttr(std::string(key), dmlc_value);
+  node->SetAttr(std::string(key), value);
 }
 
 }  // namespace msc

@@ -44,7 +44,8 @@ arm_compute::Tensor MakeACLTensor(const JSONGraphNode& tensor_rep, void* data,
                                   bool apply_dim_correction, bool increase_dim_unit,
                                   uint32_t entry_index) {
   arm_compute::Tensor tensor;
-  std::vector<int64_t> shape = tensor_rep.GetOpShape()[entry_index];
+  auto shape_arr = tensor_rep.GetOpShape()[entry_index];
+  std::vector<int64_t> shape(shape_arr.begin(), shape_arr.end());
   DLDataType dtype = tensor_rep.GetOpDataType()[entry_index];
   arm_compute::TensorInfo info =
       MakeACLTensorInfo(shape, dtype, scale, offset, apply_dim_correction, increase_dim_unit);
@@ -86,33 +87,32 @@ std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeACLMemoryManager() {
   return std::make_shared<arm_compute::MemoryManagerOnDemand>(lifetime_mgr, pool_mgr);
 }
 
-arm_compute::PadStrideInfo MakeACLPadStride(const std::vector<std::string>& pad,
-                                            const std::vector<std::string>& stride,
-                                            bool ceil_mode) {
+arm_compute::PadStrideInfo MakeACLPadStride(const ffi::Array<int64_t>& pad,
+                                            const ffi::Array<int64_t>& stride, bool ceil_mode) {
   int pad_0 = 0, pad_1 = 0, pad_2 = 0, pad_3 = 0;
-  int stride_0 = std::stoi(stride[0]), stride_1 = std::stoi(stride[1]);
+  int stride_0 = static_cast<int>(stride[0]), stride_1 = static_cast<int>(stride[1]);
   auto dimensions_rounding = arm_compute::DimensionRoundingType::FLOOR;
   size_t size = pad.size();
   if (size == 1) {
-    int pad_v = std::stoi(pad[0]);
+    int pad_v = static_cast<int>(pad[0]);
     pad_0 = pad_v;
     pad_1 = pad_v;
     pad_2 = pad_v;
     pad_3 = pad_v;
   } else if (size == 2) {
     // TVM: height, width -> ACL: left, right, top, bottom
-    int pad_h = std::stoi(pad[0]);
-    int pad_w = std::stoi(pad[1]);
+    int pad_h = static_cast<int>(pad[0]);
+    int pad_w = static_cast<int>(pad[1]);
     pad_0 = pad_w;
     pad_1 = pad_w;
     pad_2 = pad_h;
     pad_3 = pad_h;
   } else if (size == 4) {
     // TVM: top, left, bottom, right -> ACL: left, right, top, bottom
-    pad_0 = std::stoi(pad[1]);
-    pad_1 = std::stoi(pad[3]);
-    pad_2 = std::stoi(pad[0]);
-    pad_3 = std::stoi(pad[2]);
+    pad_0 = static_cast<int>(pad[1]);
+    pad_1 = static_cast<int>(pad[3]);
+    pad_2 = static_cast<int>(pad[0]);
+    pad_3 = static_cast<int>(pad[2]);
   } else {
     LOG(FATAL) << "Unsupported padding dimensions";
   }

@@ -247,6 +247,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       LOG(FATAL) << "PrimValue should only contain constant after  VMShapeLower, "
                  << "but received " << ffi::GetRef<Expr>(op) << " with type "
                  << op->value->GetTypeKey();
+      TVM_FFI_UNREACHABLE();
     }
   }
 

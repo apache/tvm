@@ -29,7 +29,6 @@
 #include <tvm/support/io.h>
 
 #include <fstream>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -38,78 +37,73 @@
 namespace tvm {
 namespace runtime {
 
-ffi::json::Value FunctionInfo::SaveToJSON() const {
+FunctionInfo::FunctionInfo(ffi::String name, ffi::Array<DLDataType> arg_types,
+                           ffi::Array<ffi::String> launch_param_tags,
+                           ffi::Array<ArgExtraTags> arg_extra_tags) {
+  auto n = ffi::make_object<FunctionInfoObj>();
+  n->name = std::move(name);
+  n->arg_types = std::move(arg_types);
+  n->launch_param_tags = std::move(launch_param_tags);
+  n->arg_extra_tags = std::move(arg_extra_tags);
+  data_ = std::move(n);
+}
+
+ffi::json::Value FunctionInfoObj::SaveToJSON() const {
   namespace json = ::tvm::ffi::json;
   json::Object obj;
-  obj.Set(ffi::String("name"), ffi::String(name));
+  obj.Set("name", name);
   // arg_types: convert DLDataType to string
   json::Array sarg_types;
   for (const auto& t : arg_types) {
     sarg_types.push_back(ffi::String(DLDataTypeToString(t)));
   }
-  obj.Set(ffi::String("arg_types"), std::move(sarg_types));
+  obj.Set("arg_types", std::move(sarg_types));
   {
     json::Array tags;
-    for (const auto& s : launch_param_tags) tags.push_back(ffi::String(s));
-    obj.Set(ffi::String("launch_param_tags"), std::move(tags));
+    for (const auto& s : launch_param_tags) tags.push_back(s);
+    obj.Set("launch_param_tags", std::move(tags));
   }
-  // arg_extra_tags: convert enum to int
+  // arg_extra_tags: store as int
   json::Array iarg_extra_tags;
   for (const auto& t : arg_extra_tags) {
     iarg_extra_tags.push_back(static_cast<int64_t>(t));
   }
-  obj.Set(ffi::String("arg_extra_tags"), std::move(iarg_extra_tags));
+  obj.Set("arg_extra_tags", std::move(iarg_extra_tags));
   return obj;
 }
 
-void FunctionInfo::LoadFromJSON(ffi::json::Object src) {
+void FunctionInfoObj::LoadFromJSON(ffi::json::Object src) {
   namespace json = ::tvm::ffi::json;
-  name = std::string(src.at(ffi::String("name")).cast<ffi::String>());
+  name = src.at("name").cast<ffi::String>();
   // arg_types
-  auto sarg_types_arr = src.at(ffi::String("arg_types")).cast<json::Array>();
-  arg_types.resize(sarg_types_arr.size());
+  auto sarg_types_arr = src.at("arg_types").cast<json::Array>();
+  arg_types = ffi::Array<DLDataType>();
   for (size_t i = 0; i < sarg_types_arr.size(); ++i) {
-    arg_types[i] = StringToDLDataType(std::string(sarg_types_arr[i].cast<ffi::String>()));
+    arg_types.push_back(StringToDLDataType(std::string(sarg_types_arr[i].cast<ffi::String>())));
   }
   // launch_param_tags (optional, also support legacy "thread_axis_tags")
-  auto lt = src.find(ffi::String("launch_param_tags"));
+  auto lt = src.find("launch_param_tags");
   if (lt != src.end()) {
     auto arr = (*lt).second.cast<json::Array>();
-    launch_param_tags.clear();
-    for (const auto& elem : arr) launch_param_tags.push_back(std::string(elem.cast<ffi::String>()));
+    launch_param_tags = ffi::Array<ffi::String>();
+    for (const auto& elem : arr) launch_param_tags.push_back(elem.cast<ffi::String>());
   } else {
-    auto tt = src.find(ffi::String("thread_axis_tags"));
+    auto tt = src.find("thread_axis_tags");
     if (tt != src.end()) {
       auto arr = (*tt).second.cast<json::Array>();
-      launch_param_tags.clear();
-      for (const auto& elem : arr)
-        launch_param_tags.push_back(std::string(elem.cast<ffi::String>()));
+      launch_param_tags = ffi::Array<ffi::String>();
+      for (const auto& elem : arr) launch_param_tags.push_back(elem.cast<ffi::String>());
     }
   }
   // arg_extra_tags (optional)
-  auto et = src.find(ffi::String("arg_extra_tags"));
+  auto et = src.find("arg_extra_tags");
   if (et != src.end()) {
     auto earr = (*et).second.cast<json::Array>();
-    arg_extra_tags.resize(earr.size());
+    arg_extra_tags = ffi::Array<ArgExtraTags>();
     for (size_t i = 0; i < earr.size(); ++i) {
-      arg_extra_tags[i] = static_cast<ArgExtraTags>(earr[i].cast<int64_t>());
+      arg_extra_tags.push_back(static_cast<ArgExtraTags>(earr[i].cast<int64_t>()));
     }
   }
-}
-
-void FunctionInfo::Save(support::Stream* writer) const {
-  writer->Write(name);
-  writer->Write(arg_types);
-  writer->Write(launch_param_tags);
-  writer->Write(arg_extra_tags);
-}
-
-bool FunctionInfo::Load(support::Stream* reader) {
-  if (!reader->Read(&name)) return false;
-  if (!reader->Read(&arg_types)) return false;
-  if (!reader->Read(&launch_param_tags)) return false;
-  if (!reader->Read(&arg_extra_tags)) return false;
-  return true;
 }
 
 std::string GetFileFormat(const std::string& file_name, const std::string& format) {
@@ -171,23 +165,22 @@ void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
 }
 
 void SaveMetaDataToFile(const std::string& file_name,
-                        const std::unordered_map<std::string, FunctionInfo>& fmap) {
+                        const ffi::Map<ffi::String, FunctionInfo>& fmap) {
   namespace json = ::tvm::ffi::json;
   json::Object root;
-  root.Set(ffi::String("tvm_version"), ffi::String("0.1.0"));
+  root.Set("tvm_version", ffi::String("0.1.0"));
   json::Object func_info;
   for (const auto& kv : fmap) {
-    func_info.Set(ffi::String(kv.first), kv.second.SaveToJSON());
+    func_info.Set(kv.first, kv.second->SaveToJSON());
   }
-  root.Set(ffi::String("func_info"), std::move(func_info));
+  root.Set("func_info", std::move(func_info));
   std::ofstream fs(file_name.c_str());
   ICHECK(!fs.fail()) << "Cannot open file " << file_name;
   fs << std::string(json::Stringify(root, 2));
   fs.close();
 }
 
-void LoadMetaDataFromFile(const std::string& file_name,
-                          std::unordered_map<std::string, FunctionInfo>* fmap) {
+void LoadMetaDataFromFile(const std::string& file_name, ffi::Map<ffi::String, FunctionInfo>* fmap) {
   namespace json = ::tvm::ffi::json;
   std::ifstream fs(file_name.c_str());
   ICHECK(!fs.fail()) << "Cannot open file " << file_name;
@@ -195,11 +188,11 @@ void LoadMetaDataFromFile(const std::string& file_name,
   fs.close();
   auto root = json::Parse(content).cast<json::Object>();
   // tvm_version is ignored
-  auto func_info_obj = root.at(ffi::String("func_info")).cast<json::Object>();
+  auto func_info_obj = root.at("func_info").cast<json::Object>();
   for (const auto& kv : func_info_obj) {
-    FunctionInfo info;
-    info.LoadFromJSON(kv.second.cast<json::Object>());
-    (*fmap)[std::string(kv.first.cast<ffi::String>())] = info;
+    auto info_node = ffi::make_object<FunctionInfoObj>();
+    info_node->LoadFromJSON(kv.second.cast<json::Object>());
+    fmap->Set(kv.first.cast<ffi::String>(), FunctionInfo(std::move(info_node)));
   }
 }
 
@@ -281,6 +274,11 @@ std::string SaveParams(const ffi::Map<ffi::String, Tensor>& params) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<FunctionInfoObj>()
+      .def_ro("name", &FunctionInfoObj::name)
+      .def_ro("arg_types", &FunctionInfoObj::arg_types)
+      .def_ro("launch_param_tags", &FunctionInfoObj::launch_param_tags)
+      .def_ro("arg_extra_tags", &FunctionInfoObj::arg_extra_tags);
   refl::GlobalDef()
       .def("runtime.SaveParams",
            [](const ffi::Map<ffi::String, Tensor>& params) {

@@ -27,9 +27,8 @@
 #include <memory>
 #include <set>
 #include <string>
-#include <unordered_map>
 
-#include "../meta_data.h"
+#include "../metadata.h"
 
 namespace tvm {
 namespace runtime {
@@ -45,9 +44,8 @@ namespace runtime {
  * \param bc_str        ffi::String with the bitcode LLVM IR.
  */
 ffi::Module HexagonModuleCreate(std::string data, std::string fmt,
-                                std::unordered_map<std::string, FunctionInfo> fmap,
-                                std::string asm_str, std::string obj_str, std::string ir_str,
-                                std::string bc_str);
+                                ffi::Map<ffi::String, FunctionInfo> fmap, std::string asm_str,
+                                std::string obj_str, std::string ir_str, std::string bc_str);
 
 /*!
   \brief Module implementation for compiled Hexagon binaries. It is suitable
@@ -57,9 +55,9 @@ ffi::Module HexagonModuleCreate(std::string data, std::string fmt,
  */
 class HexagonModuleNode : public ffi::ModuleObj {
  public:
-  HexagonModuleNode(std::string data, std::string fmt,
-                    std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
-                    std::string obj_str, std::string ir_str, std::string bc_str);
+  HexagonModuleNode(std::string data, std::string fmt, ffi::Map<ffi::String, FunctionInfo> fmap,
+                    std::string asm_str, std::string obj_str, std::string ir_str,
+                    std::string bc_str);
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;
   ffi::String InspectSource(const ffi::String& format) const final;
   const char* kind() const final { return "hexagon"; }
@@ -74,7 +72,7 @@ class HexagonModuleNode : public ffi::ModuleObj {
  protected:
   std::string data_;
   std::string fmt_;
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   std::string asm_;
   std::string obj_;
   std::string ir_;

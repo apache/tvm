@@ -222,19 +222,19 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     auto dl_weight_shape = nodes_[wgh_entry.id_].GetOpShape()[wgh_entry.index_];
     BNNS::Shape input_shape{dl_input_shape.begin(), dl_input_shape.end()};
     BNNS::Shape weight_shape{dl_weight_shape.begin(), dl_weight_shape.end()};
-    std::vector<std::string> str_strides = node.GetAttr<std::vector<std::string>>("strides");
-    std::vector<std::string> str_dilation = node.GetAttr<std::vector<std::string>>("dilation");
-    std::vector<std::string> str_padding = node.GetAttr<std::vector<std::string>>("padding");
-    BNNS::Dim groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
+    auto strides = node.GetAttr<ffi::Array<int64_t>>("strides");
+    auto dilation = node.GetAttr<ffi::Array<int64_t>>("dilation");
+    auto padding = node.GetAttr<ffi::Array<int64_t>>("padding");
+    BNNS::Dim groups = static_cast<BNNS::Dim>(node.GetAttr<int64_t>("groups"));
 
-    BNNS::Dim PH_L = std::stoi(str_padding[0]),  // height padding: left
-        PH_R = std::stoi(str_padding[2]),        // height padding: right
-        PW_L = std::stoi(str_padding[1]),        // width padding: left
-        PW_R = std::stoi(str_padding[3]),        // width padding: right
-        SH = std::stoi(str_strides[0]),          // height-wise stride
-        SW = std::stoi(str_strides[1]),          // weight-wise stride
-        DH = std::stoi(str_dilation[0]),         // height kernel dilation
-        DW = std::stoi(str_dilation[1]);         // width kernel dilation
+    BNNS::Dim PH_L = static_cast<BNNS::Dim>(padding[0]),  // height padding: left
+        PH_R = static_cast<BNNS::Dim>(padding[2]),        // height padding: right
+        PW_L = static_cast<BNNS::Dim>(padding[1]),        // width padding: left
+        PW_R = static_cast<BNNS::Dim>(padding[3]),        // width padding: right
+        SH = static_cast<BNNS::Dim>(strides[0]),          // height-wise stride
+        SW = static_cast<BNNS::Dim>(strides[1]),          // weight-wise stride
+        DH = static_cast<BNNS::Dim>(dilation[0]),         // height kernel dilation
+        DW = static_cast<BNNS::Dim>(dilation[1]);         // width kernel dilation
 
     // Memory descriptions.
     const auto& src_t = GetBNNSTensor(src_entry);
@@ -388,10 +388,10 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
   void InstanceNormalization(const size_t& nid) {
     auto node = nodes_[nid];
-    size_t axis = std::stoi(node.GetAttr<std::vector<std::string>>("axis")[0]);
-    float epsilon = std::stof(node.GetAttr<std::vector<std::string>>("epsilon")[0]);
-    bool center = std::stoi(node.GetAttr<std::vector<std::string>>("center")[0]);
-    bool scale = std::stoi(node.GetAttr<std::vector<std::string>>("scale")[0]);
+    size_t axis = static_cast<size_t>(node.GetAttr<int64_t>("axis"));
+    float epsilon = static_cast<float>(node.GetAttr<double>("epsilon"));
+    bool center = static_cast<bool>(node.GetAttr<int64_t>("center"));
+    bool scale = static_cast<bool>(node.GetAttr<int64_t>("scale"));
 
     // Setup attributes.
     auto src_entry = node.GetInputs()[0];
@@ -483,15 +483,15 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     size_t y_stride = 1;
     size_t x_stride = 1;
     if (!global) {
-      std::vector<std::string> pool_size = node.GetAttr<std::vector<std::string>>("pool_size");
-      std::vector<std::string> padding = node.GetAttr<std::vector<std::string>>("padding");
-      std::vector<std::string> strides = node.GetAttr<std::vector<std::string>>("strides");
-      k_height = std::stoi(pool_size[0]);
-      k_width = std::stoi(pool_size[1]);
-      y_padding = std::stoi(padding[0]);
-      x_padding = std::stoi(padding[1]);
-      y_stride = std::stoi(strides[0]);
-      x_stride = std::stoi(strides[1]);
+      auto pool_size = node.GetAttr<ffi::Array<int64_t>>("pool_size");
+      auto padding = node.GetAttr<ffi::Array<int64_t>>("padding");
+      auto strides = node.GetAttr<ffi::Array<int64_t>>("strides");
+      k_height = static_cast<size_t>(pool_size[0]);
+      k_width = static_cast<size_t>(pool_size[1]);
+      y_padding = static_cast<size_t>(padding[0]);
+      x_padding = static_cast<size_t>(padding[1]);
+      y_stride = static_cast<size_t>(strides[0]);
+      x_stride = static_cast<size_t>(strides[1]);
     } else {
       auto sv = src_view.get_bnns_view();
       k_height = sv.size[1];

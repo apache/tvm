@@ -33,7 +33,7 @@
 #include <string>
 #include "../../support/bytes_io.h"
 #include "../file_utils.h"
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "metal_common.h"
@@ -52,7 +52,7 @@ static constexpr const char* kMetalModuleVersion = "0.1.0";
 class MetalModuleNode final : public ffi::ModuleObj {
  public:
   explicit MetalModuleNode(std::unordered_map<std::string, std::string> smap,
-                           std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
+                           ffi::Map<ffi::String, FunctionInfo> fmap, std::string fmt,
                            std::string source)
       : smap_(smap), fmap_(fmap), fmt_(fmt), source_(source) {}
   const char* kind() const final { return "metal"; }
@@ -164,7 +164,7 @@ class MetalModuleNode final : public ffi::ModuleObj {
   // the source shader data, can be mtl or binary
   std::unordered_map<std::string, std::string> smap_;
   // function information table.
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   // The format
   std::string fmt_;
   // The source
@@ -181,7 +181,7 @@ class MetalWrappedFunc {
   // initialize the METAL function.
   void Init(MetalModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
-            const std::vector<std::string>& launch_param_tags) {
+            const ffi::Array<ffi::String>& launch_param_tags) {
     w_ = metal::MetalWorkspace::Global();
     m_ = m;
     sptr_ = sptr;
@@ -271,22 +271,22 @@ ffi::Optional<ffi::Function> MetalModuleNode::GetFunction(const ffi::String& nam
   AUTORELEASEPOOL {
     ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     ICHECK_EQ(sptr_to_self.get(), this);
-    auto it = fmap_.find(name);
-    if (it == fmap_.end()) {
+    auto opt_info = fmap_.Get(name);
+    if (!opt_info.has_value()) {
       return;
     }
-    const FunctionInfo& info = it->second;
+    FunctionInfo info = opt_info.value();
     MetalWrappedFunc f;
-    size_t num_buffer_args = NumBufferArgs(info.arg_types);
-    f.Init(this, sptr_to_self, name, num_buffer_args, info.arg_types.size() - num_buffer_args,
-           info.launch_param_tags);
-    ret = PackFuncNonBufferArg(f, info.arg_types);
+    size_t num_buffer_args = NumBufferArgs(info->arg_types);
+    f.Init(this, sptr_to_self, name, num_buffer_args, info->arg_types.size() - num_buffer_args,
+           info->launch_param_tags);
+    ret = PackFuncNonBufferArg(f, info->arg_types);
   };
   return ret;
 }
 
 ffi::Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
-                              std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
+                              ffi::Map<ffi::String, FunctionInfo> fmap, std::string fmt,
                               std::string source) {
   ObjectPtr<MetalModuleNode> n;
   AUTORELEASEPOOL { n = ffi::make_object<MetalModuleNode>(smap, fmap, fmt, source); };
@@ -295,22 +295,23 @@ ffi::Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.module.create_metal_module",
-                        [](ffi::Map<ffi::String, ffi::String> smap, std::string fmap_json,
-                           std::string fmt, std::string source) {
-                          namespace json = ::tvm::ffi::json;
-                          auto parsed = json::Parse(fmap_json).cast<json::Object>();
-                          std::unordered_map<std::string, FunctionInfo> fmap;
-                          for (const auto& kv : parsed) {
-                            FunctionInfo info;
-                            info.LoadFromJSON(kv.second.cast<json::Object>());
-                            fmap[std::string(kv.first.cast<ffi::String>())] = info;
-                          }
+  refl::GlobalDef().def(
+      "runtime.module.create_metal_module",
+      [](ffi::Map<ffi::String, ffi::String> smap, std::string fmap_json, std::string fmt,
+         std::string source) {
+        namespace json = ::tvm::ffi::json;
+        auto parsed = json::Parse(fmap_json).cast<json::Object>();
+        ffi::Map<ffi::String, FunctionInfo> fmap;
+        for (const auto& kv : parsed) {
+          auto info_node = ffi::make_object<FunctionInfoObj>();
+          info_node->LoadFromJSON(kv.second.cast<json::Object>());
+          fmap.Set(kv.first.cast<ffi::String>(), FunctionInfo(std::move(info_node)));
+        }
 
-                          return MetalModuleCreate(std::unordered_map<std::string, std::string>(
-                                                       smap.begin(), smap.end()),
-                                                   fmap, fmt, source);
-                        });
+        return MetalModuleCreate(
+            std::unordered_map<std::string, std::string>(smap.begin(), smap.end()), fmap, fmt,
+            source);
+      });
 }
 
 ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
@@ -319,12 +320,12 @@ ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
   // is discarded for now
   std::string ver;
   std::unordered_map<std::string, std::string> smap;
-  std::unordered_map<std::string, FunctionInfo> fmap;
+  ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt;
 
   stream.Read(&ver);
   stream.Read(&smap);
-  stream.Read(&fmap);
+  ICHECK(stream.Read(&fmap));
   stream.Read(&fmt);
 
   return MetalModuleCreate(smap, fmap, fmt, "");

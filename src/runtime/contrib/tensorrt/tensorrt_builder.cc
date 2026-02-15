@@ -156,7 +156,7 @@ void TensorRTBuilder::AddLayer(int nid, const JSONGraphNode& node) {
 
   // Get outputs.
   node_output_map_[nid] = {};
-  std::vector<DLDataType> dtype = node.GetOpDataType();
+  auto dtype = node.GetOpDataType();
   ICHECK_EQ(params.outputs.size(), dtype.size()) << params.op_name << ": Mismatched output sizes";
   for (size_t i = 0; i < params.outputs.size(); ++i) {
     auto out = params.outputs[i];

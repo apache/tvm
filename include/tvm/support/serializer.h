@@ -34,7 +34,10 @@
 #define TVM_SUPPORT_SERIALIZER_H_
 
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/endian.h>
+#include <tvm/ffi/string.h>
 #include <tvm/support/io.h>
 
 #include <cstdint>
@@ -183,6 +186,82 @@ struct Serializer<std::unordered_map<K, V>> {
     if (!Serializer<std::vector<std::pair<K, V>>>::Read(strm, &vec)) return false;
     data->clear();
     data->insert(vec.begin(), vec.end());
+    return true;
+  }
+};
+
+// ---- ffi::String ----
+template <>
+struct Serializer<ffi::String> {
+  static constexpr bool enabled = true;
+
+  static void Write(Stream* strm, const ffi::String& data) {
+    uint64_t sz = static_cast<uint64_t>(data.size());
+    Serializer<uint64_t>::Write(strm, sz);
+    if (sz != 0) {
+      strm->Write(data.data(), data.size());
+    }
+  }
+
+  static bool Read(Stream* strm, ffi::String* data) {
+    std::string s;
+    if (!Serializer<std::string>::Read(strm, &s)) return false;
+    *data = ffi::String(std::move(s));
+    return true;
+  }
+};
+
+// ---- ffi::Array<T> (binary-compatible with std::vector<T>) ----
+template <typename T>
+struct Serializer<ffi::Array<T>> {
+  static constexpr bool enabled = true;
+
+  static void Write(Stream* strm, const ffi::Array<T>& arr) {
+    uint64_t sz = static_cast<uint64_t>(arr.size());
+    Serializer<uint64_t>::Write(strm, sz);
+    for (size_t i = 0; i < arr.size(); ++i) {
+      Serializer<T>::Write(strm, arr[i]);
+    }
+  }
+
+  static bool Read(Stream* strm, ffi::Array<T>* arr) {
+    uint64_t sz;
+    if (!Serializer<uint64_t>::Read(strm, &sz)) return false;
+    *arr = ffi::Array<T>();
+    for (uint64_t i = 0; i < sz; ++i) {
+      T val;
+      if (!Serializer<T>::Read(strm, &val)) return false;
+      arr->push_back(std::move(val));
+    }
+    return true;
+  }
+};
+
+// ---- ffi::Map<K, V> (binary format: uint64_t count, then key/value pairs) ----
+template <typename K, typename V>
+struct Serializer<ffi::Map<K, V>> {
+  static constexpr bool enabled = true;
+
+  static void Write(Stream* strm, const ffi::Map<K, V>& data) {
+    uint64_t sz = static_cast<uint64_t>(data.size());
+    Serializer<uint64_t>::Write(strm, sz);
+    for (const auto& kv : data) {
+      Serializer<K>::Write(strm, kv.first);
+      Serializer<V>::Write(strm, kv.second);
+    }
+  }
+
+  static bool Read(Stream* strm, ffi::Map<K, V>* data) {
+    uint64_t sz;
+    if (!Serializer<uint64_t>::Read(strm, &sz)) return false;
+    *data = ffi::Map<K, V>();
+    for (uint64_t i = 0; i < sz; ++i) {
+      K key;
+      V val;
+      if (!Serializer<K>::Read(strm, &key)) return false;
+      if (!Serializer<V>::Read(strm, &val)) return false;
+      data->Set(std::move(key), std::move(val));
+    }
     return true;
   }
 };

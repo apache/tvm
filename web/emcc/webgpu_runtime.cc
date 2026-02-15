@@ -36,7 +36,8 @@
 #include <iostream>
 #include <string>
 
-#include "../../src/runtime/meta_data.h"
+#include "../../src/runtime/file_utils.h"
+#include "../../src/runtime/metadata.h"
 #include "../../src/runtime/workspace_pool.h"
 #include "../../src/support/bytes_io.h"
 
@@ -154,7 +155,7 @@ WebGPUThreadEntry* WebGPUThreadEntry::ThreadLocal() {
 class WebGPUModuleNode final : public ffi::ModuleObj {
  public:
   explicit WebGPUModuleNode(std::unordered_map<std::string, std::string> smap,
-                            std::unordered_map<std::string, FunctionInfo> fmap)
+                            ffi::Map<ffi::String, FunctionInfo> fmap)
       : smap_(smap), fmap_(fmap) {
     auto fp = tvm::ffi::Function::GetGlobal("wasm.WebGPUCreateShader");
     CHECK(fp.has_value());
@@ -170,7 +171,7 @@ class WebGPUModuleNode final : public ffi::ModuleObj {
         namespace json = ::tvm::ffi::json;
         json::Object obj;
         for (const auto& kv : fmap_) {
-          obj.Set(ffi::String(kv.first), kv.second.SaveToJSON());
+          obj.Set(kv.first, kv.second->SaveToJSON());
         }
         *rv = std::string(json::Stringify(obj));
       });
@@ -196,10 +197,13 @@ class WebGPUModuleNode final : public ffi::ModuleObj {
 
     auto it = smap_.find(name);
     if (it != smap_.end()) {
-      FunctionInfo info = fmap_.at(name);
-      info.name = name;
+      auto opt_info = fmap_.Get(name);
+      ICHECK(opt_info.has_value());
+      FunctionInfo orig_info = opt_info.value();
+      FunctionInfo info(name, orig_info->arg_types, orig_info->launch_param_tags,
+                        orig_info->arg_extra_tags);
       namespace json = ::tvm::ffi::json;
-      std::string info_json = std::string(json::Stringify(info.SaveToJSON()));
+      std::string info_json = std::string(json::Stringify(info->SaveToJSON()));
       return create_shader_(info_json, it->second);
     } else {
       return std::nullopt;
@@ -219,7 +223,7 @@ class WebGPUModuleNode final : public ffi::ModuleObj {
   // code table
   std::unordered_map<std::string, std::string> smap_;
   // function information table.
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   // The source
   std::string source_;
   // prebuild_ functions
@@ -231,9 +235,9 @@ class WebGPUModuleNode final : public ffi::ModuleObj {
 ffi::Module WebGPUModuleLoadFromBytes(const ffi::Bytes& bytes) {
   support::BytesInStream stream(bytes);
   std::unordered_map<std::string, std::string> smap;
-  std::unordered_map<std::string, FunctionInfo> fmap;
 
-  stream.Read(&fmap);
+  ffi::Map<ffi::String, FunctionInfo> fmap;
+  ICHECK(stream.Read(&fmap));
   stream.Read(&smap);
   return ffi::Module(ffi::make_object<WebGPUModuleNode>(smap, fmap));
 }

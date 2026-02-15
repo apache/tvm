@@ -27,7 +27,7 @@ namespace tvm {
 namespace runtime {
 
 ffi::Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
-                              std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
+                              ffi::Map<ffi::String, FunctionInfo> fmap, std::string fmt,
                               std::string source) {
   LOG(WARNING) << "Metal runtime not enabled, return a source module...";
   return codegen::DeviceSourceModuleCreate(source, fmt, fmap, "metal");

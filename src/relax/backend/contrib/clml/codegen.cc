@@ -84,10 +84,7 @@ class CollectCLMLFromCompositeFunctionBody : public ExprVisitor {
 
   void SetGenericAttributes(const CallNode* call_node) {
     if (backend::IsOp(call_node, "relax.nn.relu")) {
-      std::vector<std::string> activation_type = {"relu"};
-      std::vector<std::any> act_attr;
-      act_attr.emplace_back(activation_type);
-      node_->SetAttr("activation_type", act_attr);
+      node_->SetAttr("activation_type", ffi::String("relu"));
     }
 
     OpAttrExtractor extractor(node_);
@@ -245,12 +242,10 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
 
     if (nodes.bn) {
       const auto* bn_attr = nodes.bn->attrs.as<BatchNormAttrs>();
-      std::vector<std::any> bn_any_attr;
-      std::vector<std::string> bn_args = {
-          std::to_string(bn_attr->axis), std::to_string(bn_attr->epsilon),
-          std::to_string(bn_attr->center), std::to_string(bn_attr->scale)};
-      bn_any_attr.emplace_back(bn_args);
-      json_node->SetAttr("batchnorm", bn_any_attr);
+      json_node->SetAttr(
+          "batchnorm",
+          ffi::Array<ffi::String>{std::to_string(bn_attr->axis), std::to_string(bn_attr->epsilon),
+                                  std::to_string(bn_attr->center), std::to_string(bn_attr->scale)});
     }
 
     // Override attributes
@@ -260,20 +255,14 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
       auto p = pad_attr->pad_width;
       // Pad layout for TVM: dimension wise pre and post padding.
       // CLML takes dimension wise pre-padding followed by dimension wise post-padding for W, H.
-      std::vector<std::string> padding = {std::to_string(p[4].as<IntImmNode>()->value),
-                                          std::to_string(p[6].as<IntImmNode>()->value),
-                                          std::to_string(p[5].as<IntImmNode>()->value),
-                                          std::to_string(p[7].as<IntImmNode>()->value)};
-      std::vector<std::any> padding_attr;
-      padding_attr.emplace_back(padding);
-      json_node->SetAttr("padding", padding_attr);
+      json_node->SetAttr(
+          "padding",
+          ffi::Array<int64_t>{p[4].as<IntImmNode>()->value, p[6].as<IntImmNode>()->value,
+                              p[5].as<IntImmNode>()->value, p[7].as<IntImmNode>()->value});
     }
 
     if (nodes.activation) {
-      std::vector<std::string> activation_type = {nodes.act_type};
-      std::vector<std::any> act_attr;
-      act_attr.emplace_back(activation_type);
-      json_node->SetAttr("activation_type", act_attr);
+      json_node->SetAttr("activation_type", ffi::String(nodes.act_type));
     }
     return json_node;
   }
@@ -284,10 +273,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     if (!cfg.defined()) {
       cfg = AttrsWithDefaultValues<OpenCLMLCompilerConfig>();
     }
-    std::vector<std::string> clml_version = {std::to_string(cfg.value()->clml_version.IntValue())};
-    std::vector<std::any> clml_version_attr;
-    clml_version_attr.emplace_back(clml_version);
-    node->SetAttr("clml_version", clml_version_attr);
+    node->SetAttr("clml_version", static_cast<int64_t>(cfg.value()->clml_version.IntValue()));
   }
 
  private:

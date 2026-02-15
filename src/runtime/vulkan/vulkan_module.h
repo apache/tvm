@@ -25,15 +25,14 @@
 #include <string>
 #include <unordered_map>
 
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../spirv/spirv_shader.h"
 
 namespace tvm {
 namespace runtime {
 namespace vulkan {
 ffi::Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShader> smap,
-                               std::unordered_map<std::string, FunctionInfo> fmap,
-                               std::string source);
+                               ffi::Map<ffi::String, FunctionInfo> fmap, std::string source);
 
 }  // namespace vulkan
 
