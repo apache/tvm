@@ -63,6 +63,7 @@ function in this module. Then targets using this node should be added to the
 
 """
 import inspect
+import json
 import copy
 import copyreg
 import ctypes
@@ -407,7 +408,10 @@ def _get_targets(target_names=None):
 
     targets = []
     for target in target_names:
-        target_kind = target.split()[0]
+        if isinstance(target, dict):
+            target_kind = target["kind"]
+        else:
+            target_kind = target.split()[0]
 
         if target_kind == "cuda" and "cudnn" in tvm.target.Target(target).attrs.get("libs", []):
             is_enabled = tvm.support.libinfo()["USE_CUDNN"].lower() in ["on", "true", "1"]
@@ -451,10 +455,10 @@ DEFAULT_TEST_TARGETS = [
     "llvm",
     "cuda",
     "nvptx",
-    "vulkan -from_device=0",
+    {"kind": "vulkan", "from_device": 0},
     "opencl",
-    "opencl -device=mali",
-    "opencl -device=intel_graphics",
+    {"kind": "opencl", "device": "mali"},
+    {"kind": "opencl", "device": "intel_graphics"},
     "metal",
     "rocm",
     "hexagon",
@@ -492,9 +496,12 @@ def device_enabled(target):
     Here, `test_body` will only be reached by with `target="cuda"` on gpu test
     nodes and `target="llvm"` on cpu test nodes.
     """
-    assert isinstance(target, str), "device_enabled requires a target as a string"
-    # only check if device name is found, sometime there are extra flags
-    target_kind = target.split(" ")[0]
+    if isinstance(target, dict):
+        target_kind = target["kind"]
+    elif hasattr(target, "kind"):
+        target_kind = str(target.kind)
+    else:
+        target_kind = target
     return any(target_kind == t["target_kind"] for t in _get_targets() if t["is_runnable"])
 
 
@@ -519,7 +526,7 @@ def enabled_targets():
         A list of pairs of all enabled devices and the associated context
 
     """
-    return [(t["target"], tvm.device(t["target"])) for t in _get_targets() if t["is_runnable"]]
+    return [(t["target"], tvm.device(t["target_kind"])) for t in _get_targets() if t["is_runnable"]]
 
 
 class Feature:
@@ -658,8 +665,12 @@ class Feature:
 
         if self.target_kind_enabled is not None:
             target_kind = self.target_kind_enabled.split()[0]
+
+            def _get_target_kind(t):
+                return t["kind"] if isinstance(t, dict) else t.split()[0]
+
             yield pytest.mark.skipif(
-                all(enabled.split()[0] != target_kind for enabled in _tvm_test_targets()),
+                all(_get_target_kind(enabled) != target_kind for enabled in _tvm_test_targets()),
                 reason=(
                     f"{self.target_kind_enabled} tests disabled "
                     f"by TVM_TEST_TARGETS environment variable"
@@ -1032,7 +1043,7 @@ requires_aprofile_aem_fvp = Feature(
 def _has_cpu_feat(features):
     cpu = codegen.llvm_get_system_cpu()
     triple = codegen.llvm_get_system_triple()
-    target = "llvm -mtriple=%s -mcpu=%s" % (triple, cpu)
+    target = {"kind": "llvm", "mtriple": triple, "mcpu": cpu}
     has_feat = codegen.target_has_features(features, tvm.target.Target(target))
 
     return has_feat
@@ -1097,12 +1108,35 @@ def _cmake_flag_enabled(flag):
     return flag.lower() not in ["off", "false", "0"]
 
 
+def _parse_target_entry(entry):
+    """Parse a target entry from TVM_TEST_TARGETS env var.
+
+    Entries can be plain kind names (e.g. "llvm") or JSON dicts
+    (e.g. '{"kind": "opencl", "device": "mali"}').
+    """
+    entry = entry.strip()
+    if entry.startswith("{"):
+        return json.loads(entry)
+    return entry
+
+
 def _tvm_test_targets():
     target_str = os.environ.get("TVM_TEST_TARGETS", "").strip()
     if target_str:
         # Use dict instead of set for de-duplication so that the
         # targets stay in the order specified.
-        return list({t.strip(): None for t in target_str.split(";") if t.strip()})
+        targets = []
+        seen = set()
+        for t in target_str.split(";"):
+            t = t.strip()
+            if not t:
+                continue
+            parsed = _parse_target_entry(t)
+            key = str(parsed)
+            if key not in seen:
+                seen.add(key)
+                targets.append(parsed)
+        return targets
 
     return DEFAULT_TEST_TARGETS
 

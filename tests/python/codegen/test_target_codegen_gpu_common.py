@@ -25,7 +25,9 @@ from tvm.script import tir as T, ir as I
 
 
 @tvm.testing.requires_gpu
-@tvm.testing.parametrize_targets("cuda", "metal", "vulkan -supports_int64=1", "opencl")
+@tvm.testing.parametrize_targets(
+    "cuda", "metal", {"kind": "vulkan", "supports_int64": True}, "opencl"
+)
 @pytest.mark.parametrize("dtype", ["int32", "uint32", "int64", "uint64"])
 def test_int_intrin(target, dev, dtype):
     test_funcs = [

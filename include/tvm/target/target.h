@@ -62,9 +62,8 @@ class TargetNode : public Object {
   ffi::Map<ffi::String, Any> features;
 
   /*!
-   * \brief The raw string representation of the target
-   * \return the full device string to pass to codegen::Build
-   * \note It will be deprecated after the Target RFC is fully landed.
+   * \brief The JSON string representation of the target
+   * \return JSON string of the target configuration (e.g. {"kind": "llvm", "mcpu": "cortex-a53"})
    */
   TVM_DLL const std::string& str() const;
   /*! \return Export target to JSON-like configuration */

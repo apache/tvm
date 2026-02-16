@@ -40,13 +40,13 @@ def test_all_targets_device_type_verify():
 
 
 def test_target_string_parse():
-    target = tvm.target.Target("cuda -model=unknown -libs=cublas,cudnn")
+    target = tvm.target.Target({"kind": "cuda", "model": "unknown", "libs": ["cublas", "cudnn"]})
 
     assert target.kind.name == "cuda"
     assert target.model == "unknown"
     assert set(target.keys) == set(["cuda", "gpu"])
     assert set(target.libs) == set(["cublas", "cudnn"])
-    assert str(target) == str(tvm.target.cuda(options="-libs=cublas,cudnn"))
+    assert str(target) == str(tvm.target.cuda(libs=["cublas", "cudnn"]))
 
     assert tvm.target.intel_graphics().device_name == "intel_graphics"
     assert tvm.target.mali().device_name == "mali"
@@ -55,7 +55,7 @@ def test_target_string_parse():
 
 def test_target_string_with_spaces():
     target = tvm.target.Target(
-        "vulkan -device_name='Name of GPU with spaces' -device_type=discrete"
+        {"kind": "vulkan", "device_name": "Name of GPU with spaces", "device_type": "discrete"}
     )
     assert target.attrs["device_name"] == "Name of GPU with spaces"
     assert target.attrs["device_type"] == "discrete"
@@ -67,23 +67,25 @@ def test_target_string_with_spaces():
 
 
 def test_target_llvm_options():
-    target = tvm.target.Target("llvm -cl-opt='-unroll-threshold:uint=100,-unroll-count:uint=3'")
+    target = tvm.target.Target(
+        {"kind": "llvm", "cl-opt": ["-unroll-threshold:uint=100", "-unroll-count:uint=3"]}
+    )
     assert sorted(target.attrs["cl-opt"]) == sorted(
         ["-unroll-threshold:uint=100", "-unroll-count:uint=3"]
     )
 
 
 def test_target_llvm_jit_options():
-    target = tvm.target.Target("llvm -jit=mcjit")
+    target = tvm.target.Target({"kind": "llvm", "jit": "mcjit"})
     assert target.attrs["jit"] == "mcjit"
-    target = tvm.target.Target("llvm -jit=orcjit")
+    target = tvm.target.Target({"kind": "llvm", "jit": "orcjit"})
     assert target.attrs["jit"] == "orcjit"
 
 
 def test_target_llvm_vector_width():
-    target = tvm.target.Target("llvm -vector-width=256")
+    target = tvm.target.Target({"kind": "llvm", "vector-width": 256})
     assert target.attrs["vector-width"] == 256
-    target = tvm.target.Target("llvm -vector-width=1024")
+    target = tvm.target.Target({"kind": "llvm", "vector-width": 1024})
     assert target.attrs["vector-width"] == 1024
 
 
@@ -129,7 +131,9 @@ def test_config_map():
 
 
 def test_composite_target():
-    tgt = tvm.target.Target("composite --host=llvm --devices=cuda,opencl")
+    tgt = tvm.target.Target(
+        {"kind": "composite", "host": {"kind": "llvm"}, "devices": ["cuda", "opencl"]}
+    )
     assert tgt.kind.name == "composite"
     assert tgt.host.kind.name == "llvm"
     assert len(tgt.attrs["devices"]) == 2
@@ -204,13 +208,13 @@ def test_target_host_single_dict():
 
 
 def test_target_host_single_string():
-    tgt = tvm.target.Target("cuda --host llvm")
+    tgt = tvm.target.Target({"kind": "cuda", "host": {"kind": "llvm"}})
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
 
 
 def test_target_host_single_string_with_tag():
-    tgt = tvm.target.Target("cuda --host nvidia/jetson-nano")
+    tgt = tvm.target.Target({"kind": "cuda", "host": "nvidia/jetson-nano"})
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
@@ -221,7 +225,7 @@ def test_target_host_single_string_with_tag():
 
 
 def test_target_host_merge_0():
-    tgt = tvm.target.Target(tvm.target.Target("cuda --host nvidia/jetson-nano"), None)
+    tgt = tvm.target.Target(tvm.target.Target({"kind": "cuda", "host": "nvidia/jetson-nano"}), None)
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "cuda"
     assert tgt.host.attrs["arch"] == "sm_53"
@@ -232,7 +236,7 @@ def test_target_host_merge_0():
 
 
 def test_target_host_merge_1():
-    tgt = tvm.target.Target("cuda --host llvm")
+    tgt = tvm.target.Target({"kind": "cuda", "host": {"kind": "llvm"}})
     tgt = tvm.target.Target(tgt, tgt.host)
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
@@ -240,7 +244,10 @@ def test_target_host_merge_1():
 
 def test_target_host_merge_2():
     """Test picking the same host is ok."""
-    tgt = tvm.target.Target(tvm.target.Target("cuda --host llvm"), tvm.target.Target("llvm"))
+    tgt = tvm.target.Target(
+        tvm.target.Target({"kind": "cuda", "host": {"kind": "llvm"}}),
+        tvm.target.Target("llvm"),
+    )
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
 
@@ -248,7 +255,7 @@ def test_target_host_merge_2():
 def test_target_tvm_object():
     """Test creating Target by using TVM Objects"""
     String = tvm.runtime.container.String
-    tgt = tvm.target.Target(target=String("cuda --host llvm"))
+    tgt = tvm.target.Target(target={"kind": "cuda", "host": {"kind": "llvm"}})
     assert tgt.kind.name == "cuda"
     assert tgt.host.kind.name == "llvm"
     tgt = tvm.target.Target(target=String("cuda"), host=String("llvm"))
@@ -259,7 +266,7 @@ def test_target_tvm_object():
 @pytest.mark.skip(reason="Causing infinite loop because of pytest and handle issue")
 def test_target_host_merge_3():
     with pytest.raises(ValueError, match=r"target host has to be a string or dictionary."):
-        tvm.target.Target(tvm.target.Target("cuda --host llvm"), 12.34)
+        tvm.target.Target(tvm.target.Target({"kind": "cuda", "host": {"kind": "llvm"}}), 12.34)
 
 
 def test_target_with_host():
@@ -384,13 +391,13 @@ def test_canon_target_map_and_host():
 
 
 def test_target_attr_bool_value():
-    target0 = Target("vulkan --supports_float16=True")
+    target0 = Target({"kind": "vulkan", "supports_float16": True})
     assert target0.attrs["supports_float16"] == 1
-    target1 = Target("vulkan --supports_float16=true")
+    target1 = Target({"kind": "vulkan", "supports_float16": True})
     assert target1.attrs["supports_float16"] == 1
-    target2 = Target("vulkan --supports_float16=False")
+    target2 = Target({"kind": "vulkan", "supports_float16": False})
     assert target2.attrs["supports_float16"] == 0
-    target3 = Target("vulkan --supports_float16=false")
+    target3 = Target({"kind": "vulkan", "supports_float16": False})
     assert target3.attrs["supports_float16"] == 0
 
 
@@ -482,6 +489,35 @@ def test_module_dict_from_deserialized_targets():
     mod = tvm.IRModule({"main": func})
     lib = tvm.compile(mod, target=target2)
     lib["func"]()
+
+
+def test_json_roundtrip():
+    """Test that Target(str(target)) roundtrips correctly."""
+    target = Target({"kind": "llvm", "mcpu": "cortex-a53"})
+    target2 = Target(str(target))
+    assert target2.kind.name == "llvm"
+    assert target2.attrs["mcpu"] == "cortex-a53"
+
+    # Test with more complex target
+    target = Target({"kind": "cuda", "arch": "sm_80", "max_threads_per_block": 1024})
+    target2 = Target(str(target))
+    assert target2.kind.name == "cuda"
+    assert target2.attrs["arch"] == "sm_80"
+
+
+def test_str_is_json():
+    """Test that str() output is valid JSON."""
+    target = Target({"kind": "llvm", "mcpu": "cortex-a53"})
+    s = str(target)
+    parsed = json.loads(s)
+    assert parsed["kind"] == "llvm"
+    assert parsed["mcpu"] == "cortex-a53"
+
+
+def test_cli_string_rejected():
+    """Test that CLI string form is rejected."""
+    with pytest.raises(ValueError):
+        Target("llvm -mcpu=cortex-a53")
 
 
 if __name__ == "__main__":

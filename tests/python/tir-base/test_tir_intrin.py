@@ -249,7 +249,7 @@ def test_ldexp():
 dtype = tvm.testing.parameter("int32", "int64")
 
 
-@tvm.testing.parametrize_targets("llvm", "vulkan -from_device=0")
+@tvm.testing.parametrize_targets("llvm", {"kind": "vulkan", "from_device": 0})
 def test_clz(target, dev, dtype):
     target = tvm.target.Target(target)
     if (

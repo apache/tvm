@@ -38,18 +38,19 @@ def test_large_uint_imm():
                         T.writes(A[v_i0])
                         A[v_i0] = value_const + T.uint64(3)
 
-    def check_target(device):
-        if not tvm.testing.device_enabled(device):
+    def check_target(target):
+        target_kind = target["kind"] if isinstance(target, dict) else target
+        if not tvm.testing.device_enabled(target_kind):
             return
-        dev = tvm.device(device, 0)
-        f = tvm.compile(Module, target=device)
+        dev = tvm.device(target_kind, 0)
+        f = tvm.compile(Module, target=target)
         # launch the kernel.
         a = tvm.runtime.empty((12,), dtype="uint64", device=dev)
         f(a)
         assert a.numpy()[0] == value + 3
 
     check_target("cuda")
-    check_target("vulkan -from_device=0")
+    check_target({"kind": "vulkan", "from_device": 0})
 
 
 @tvm.testing.requires_gpu
