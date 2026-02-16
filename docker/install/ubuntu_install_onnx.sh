@@ -20,25 +20,25 @@ set -e
 set -u
 set -o pipefail
 
-# Get the Python version
-PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-
 # Set default value for first argument
 DEVICE=${1:-cpu}
 
 # Install the onnx package
 pip3 install \
-    onnx==1.20.1 \
-    onnxruntime==1.23.2 \
-    onnxoptimizer==0.4.2
+    future \
+    onnx==1.16.0 \
+    onnxruntime==1.19.2 \
+    onnxoptimizer==0.2.7
 
+# Install PyTorch
 if [ "$DEVICE" == "cuda" ]; then
     pip3 install \
-        torch==2.10.0 \
-        torchvision==0.25.0
+        torch==2.7.0 \
+        torchvision==0.22.0 \
+        --index-url https://download.pytorch.org/whl/cu118
 else
     pip3 install \
-        torch==2.10.0 \
-        torchvision==0.25.0 \
+        torch==2.7.0 \
+        torchvision==0.22.0 \
         --extra-index-url https://download.pytorch.org/whl/cpu
 fi
