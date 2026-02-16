@@ -37,6 +37,8 @@
 #include <cstring>
 #include <vector>
 
+#include "metadata.h"
+
 namespace tvm {
 namespace runtime {
 /*!
@@ -70,9 +72,8 @@ union ArgUnion64 {
  * \return The wrapped packed function.
  */
 template <typename F>
-inline ffi::Function PackFuncVoidAddr(
-    F f, const std::vector<DLDataType>& arg_types,
-    const std::vector<FunctionInfo::ArgExtraTags>& arg_extra_tags = {});
+inline ffi::Function PackFuncVoidAddr(F f, const ffi::Array<DLDataType>& arg_types,
+                                      const ffi::Array<ArgExtraTags>& arg_extra_tags = {});
 /*!
  * \brief Create a packed function that from function only packs buffer arguments.
  *
@@ -83,7 +84,7 @@ inline ffi::Function PackFuncVoidAddr(
  * \return The wrapped packed function.
  */
 template <typename F>
-inline ffi::Function PackFuncNonBufferArg(F f, const std::vector<DLDataType>& arg_types);
+inline ffi::Function PackFuncNonBufferArg(F f, const ffi::Array<DLDataType>& arg_types);
 /*!
  * \brief Create a packed function that from function that takes a packed arguments.
  *
@@ -97,13 +98,13 @@ inline ffi::Function PackFuncNonBufferArg(F f, const std::vector<DLDataType>& ar
  * \return The wrapped packed function.
  */
 template <typename F>
-inline ffi::Function PackFuncPackedArgAligned(F f, const std::vector<DLDataType>& arg_types);
+inline ffi::Function PackFuncPackedArgAligned(F f, const ffi::Array<DLDataType>& arg_types);
 /*!
  * \brief Extract number of buffer argument from the argument types.
  * \param arg_types The argument types.
  * \return number of buffer arguments
  */
-inline size_t NumBufferArgs(const std::vector<DLDataType>& arg_types);
+inline size_t NumBufferArgs(const ffi::Array<DLDataType>& arg_types);
 
 // implementations details
 namespace detail {
@@ -308,12 +309,11 @@ inline ffi::Function PackFuncPackedArgAligned_(F f, const std::vector<ArgConvert
 }  // namespace detail
 
 template <typename F>
-inline ffi::Function PackFuncVoidAddr(
-    F f, const std::vector<DLDataType>& arg_types,
-    const std::vector<FunctionInfo::ArgExtraTags>& arg_extra_tags) {
+inline ffi::Function PackFuncVoidAddr(F f, const ffi::Array<DLDataType>& arg_types,
+                                      const ffi::Array<ArgExtraTags>& arg_extra_tags) {
   std::vector<detail::ArgConvertCode> codes(arg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
-    if (arg_extra_tags.size() > i && arg_extra_tags[i] == FunctionInfo::ArgExtraTags::kTensorMap) {
+    if (arg_extra_tags.size() > i && arg_extra_tags[i] == ArgExtraTags::kTensorMap) {
       codes[i] = detail::HANDLE_TO_TENSORMAP;
     } else {
       codes[i] = detail::GetArgConvertCode(arg_types[i]);
@@ -330,7 +330,7 @@ inline ffi::Function PackFuncVoidAddr(
   }
 }
 
-inline size_t NumBufferArgs(const std::vector<DLDataType>& arg_types) {
+inline size_t NumBufferArgs(const ffi::Array<DLDataType>& arg_types) {
   size_t base = arg_types.size();
   for (size_t i = 0; i < arg_types.size(); ++i) {
     if (arg_types[i].code != kDLOpaqueHandle) {
@@ -345,7 +345,7 @@ inline size_t NumBufferArgs(const std::vector<DLDataType>& arg_types) {
 }
 
 template <typename F>
-inline ffi::Function PackFuncNonBufferArg(F f, const std::vector<DLDataType>& arg_types) {
+inline ffi::Function PackFuncNonBufferArg(F f, const ffi::Array<DLDataType>& arg_types) {
   size_t num_buffer = NumBufferArgs(arg_types);
   std::vector<detail::ArgConvertCode> codes;
   for (size_t i = num_buffer; i < arg_types.size(); ++i) {
@@ -362,7 +362,7 @@ inline ffi::Function PackFuncNonBufferArg(F f, const std::vector<DLDataType>& ar
 }
 
 template <typename F>
-inline ffi::Function PackFuncPackedArgAligned(F f, const std::vector<DLDataType>& arg_types) {
+inline ffi::Function PackFuncPackedArgAligned(F f, const ffi::Array<DLDataType>& arg_types) {
   std::vector<detail::ArgConvertCode> codes;
   for (size_t i = 0; i < arg_types.size(); ++i) {
     codes.push_back(detail::GetArgConvertCode(arg_types[i]));

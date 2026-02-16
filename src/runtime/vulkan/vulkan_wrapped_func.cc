@@ -34,7 +34,7 @@ namespace vulkan {
 void VulkanWrappedFunc::Init(VulkanModuleNode* m, ObjectPtr<Object> sptr,
                              const std::string& func_name, size_t num_buffer_args,
                              size_t num_pack_args,
-                             const std::vector<std::string>& launch_param_tags) {
+                             const ffi::Array<ffi::String>& launch_param_tags) {
   m_ = m;
   sptr_ = sptr;
   func_name_ = func_name;
@@ -209,14 +209,14 @@ VulkanModuleNode::~VulkanModuleNode() {
 ffi::Optional<ffi::Function> VulkanModuleNode::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   ICHECK_EQ(sptr_to_self.get(), this);
-  auto it = fmap_.find(name);
-  if (it == fmap_.end()) return std::nullopt;
-  const FunctionInfo& info = it->second;
+  auto opt_info = fmap_.Get(name);
+  if (!opt_info.has_value()) return std::nullopt;
+  FunctionInfo info = opt_info.value();
   VulkanWrappedFunc f;
-  size_t num_buffer_args = NumBufferArgs(info.arg_types);
-  f.Init(this, sptr_to_self, name, num_buffer_args, info.arg_types.size() - num_buffer_args,
-         info.launch_param_tags);
-  return PackFuncNonBufferArg(std::move(f), info.arg_types);
+  size_t num_buffer_args = NumBufferArgs(info->arg_types);
+  f.Init(this, sptr_to_self, name, num_buffer_args, info->arg_types.size() - num_buffer_args,
+         info->launch_param_tags);
+  return PackFuncNonBufferArg(std::move(f), info->arg_types);
 }
 
 std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
@@ -286,9 +286,10 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   };
 
   {
-    auto fit = fmap_.find(func_name);
-    ICHECK(fit != fmap_.end());
-    for (DLDataType arg_type : fit->second.arg_types) {
+    auto opt_info = fmap_.Get(func_name);
+    ICHECK(opt_info.has_value());
+    FunctionInfo finfo = opt_info.value();
+    for (DLDataType arg_type : finfo->arg_types) {
       if (arg_type.code == kDLOpaqueHandle) {
         push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
         ++num_buffer;

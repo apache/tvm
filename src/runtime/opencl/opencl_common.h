@@ -71,7 +71,7 @@
 #include <vector>
 
 #include "../file_utils.h"
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../pack_args.h"
 #include "../texture.h"
 #include "../thread_storage_scope.h"
@@ -466,7 +466,7 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
     size_t kernel_id;
     size_t version;
   };
-  explicit OpenCLModuleNodeBase(std::unordered_map<std::string, FunctionInfo> fmap) : fmap_(fmap) {}
+  explicit OpenCLModuleNodeBase(ffi::Map<ffi::String, FunctionInfo> fmap) : fmap_(fmap) {}
   // destructor
   ~OpenCLModuleNodeBase();
 
@@ -495,7 +495,7 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
   // In case of static destruction order problem.
   cl::OpenCLWorkspace* workspace_;
   // function information table.
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   // Module local mutex
   std::mutex build_lock_;
   // Mapping from primitive name to cl program for each device.
@@ -509,7 +509,7 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
 class OpenCLModuleNode : public OpenCLModuleNodeBase {
  public:
   explicit OpenCLModuleNode(std::string data, std::string fmt,
-                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
+                            ffi::Map<ffi::String, FunctionInfo> fmap, std::string source)
       : OpenCLModuleNodeBase(fmap), data_(data), fmt_(fmt), source_(source) {}
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;

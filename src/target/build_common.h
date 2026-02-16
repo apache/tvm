@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_BUILD_COMMON_H_
 #define TVM_TARGET_BUILD_COMMON_H_
 
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/target/codegen.h>
@@ -32,23 +33,23 @@
 #include <tvm/tir/stmt.h>
 
 #include <string>
-#include <unordered_map>
 
-#include "../runtime/meta_data.h"
+#include "../runtime/metadata.h"
 
 namespace tvm {
 namespace codegen {
 
-inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(const IRModule& mod) {
-  std::unordered_map<std::string, runtime::FunctionInfo> fmap;
+inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModule& mod) {
+  ffi::Map<ffi::String, runtime::FunctionInfo> fmap;
 
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<tir::PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
     auto f = Downcast<tir::PrimFunc>(kv.second);
 
-    runtime::FunctionInfo info;
+    ffi::Array<DLDataType> arg_types;
+    ffi::Array<runtime::ArgExtraTags> arg_extra_tags;
     for (size_t i = 0; i < f->params.size(); ++i) {
-      info.arg_types.push_back(f->params[i].dtype());
+      arg_types.push_back(f->params[i].dtype());
       auto is_tensormap = [](const tir::Var& var) -> bool {
         const auto* type = var->type_annotation.as<PointerTypeNode>();
         if (type == nullptr) {
@@ -56,18 +57,20 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
         }
         return type->element_type.as<TensorMapTypeNode>() != nullptr;
       };
-      info.arg_extra_tags.push_back(is_tensormap(f->params[i])
-                                        ? runtime::FunctionInfo::ArgExtraTags::kTensorMap
-                                        : runtime::FunctionInfo::ArgExtraTags::kNone);
+      arg_extra_tags.push_back(is_tensormap(f->params[i]) ? runtime::ArgExtraTags::kTensorMap
+                                                          : runtime::ArgExtraTags::kNone);
     }
+    ffi::Array<ffi::String> launch_param_tags;
     if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tir::attr::kKernelLaunchParams)) {
       for (const auto& tag : opt.value()) {
-        info.launch_param_tags.push_back(tag);
+        launch_param_tags.push_back(tag);
       }
     }
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     if (global_symbol) {
-      fmap[static_cast<std::string>(global_symbol.value())] = info;
+      fmap.Set(global_symbol.value(),
+               runtime::FunctionInfo(global_symbol.value(), std::move(arg_types),
+                                     std::move(launch_param_tags), std::move(arg_extra_tags)));
     }
   }
   return fmap;

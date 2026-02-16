@@ -32,8 +32,7 @@ namespace runtime {
 namespace vulkan {
 
 ffi::Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShader> smap,
-                               std::unordered_map<std::string, FunctionInfo> fmap,
-                               std::string source) {
+                               ffi::Map<ffi::String, FunctionInfo> fmap, std::string source) {
   auto n = ffi::make_object<VulkanModuleNode>(smap, fmap, source);
   return ffi::Module(n);
 }
@@ -41,7 +40,7 @@ ffi::Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShader> smap
 ffi::Module VulkanModuleLoadFile(const std::string& file_name, const ffi::String& format) {
   std::string data;
   std::unordered_map<std::string, SPIRVShader> smap;
-  std::unordered_map<std::string, FunctionInfo> fmap;
+  ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
@@ -57,11 +56,11 @@ ffi::Module VulkanModuleLoadFile(const std::string& file_name, const ffi::String
 ffi::Module VulkanModuleLoadFromBytes(const ffi::Bytes& bytes) {
   support::BytesInStream stream(bytes);
   std::unordered_map<std::string, SPIRVShader> smap;
-  std::unordered_map<std::string, FunctionInfo> fmap;
 
   std::string fmt;
   stream.Read(&fmt);
-  stream.Read(&fmap);
+  ffi::Map<ffi::String, FunctionInfo> fmap;
+  ICHECK(stream.Read(&fmap));
   stream.Read(&smap);
   return VulkanModuleCreate(smap, fmap, "");
 }
