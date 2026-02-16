@@ -46,7 +46,8 @@ class TestTargetAutoParametrization:
         self.devices_used.append(dev)
 
     def test_all_targets_used(self):
-        assert sorted(self.targets_used) == sorted(self.enabled_targets)
+        sort_key = lambda t: str(t)
+        assert sorted(self.targets_used, key=sort_key) == sorted(self.enabled_targets, key=sort_key)
 
     def test_all_devices_used(self):
         sort_key = lambda dev: (dev.dlpack_device_type(), dev.index)
@@ -69,12 +70,18 @@ class TestTargetAutoParametrization:
 
     @tvm.testing.exclude_targets("llvm")
     def test_exclude_target(self, target):
-        assert "llvm" not in target
+        target_kind = target["kind"] if isinstance(target, dict) else target
+        assert "llvm" not in target_kind
         self.targets_with_exclusion.append(target)
 
     def test_all_nonexcluded_targets_ran(self):
-        assert sorted(self.targets_with_exclusion) == sorted(
-            [target for target in self.enabled_targets if not target.startswith("llvm")]
+        def _get_kind(t):
+            return t["kind"] if isinstance(t, dict) else t
+
+        sort_key = lambda t: str(t)
+        assert sorted(self.targets_with_exclusion, key=sort_key) == sorted(
+            [target for target in self.enabled_targets if not _get_kind(target).startswith("llvm")],
+            key=sort_key,
         )
 
     run_targets_with_known_failure = []
@@ -85,10 +92,14 @@ class TestTargetAutoParametrization:
         # llvm.  The behavior is working correctly if this test shows
         # up as an expected failure, xfail.
         self.run_targets_with_known_failure.append(target)
-        assert "llvm" not in target
+        target_kind = target["kind"] if isinstance(target, dict) else target
+        assert "llvm" not in target_kind
 
     def test_all_targets_ran(self):
-        assert sorted(self.run_targets_with_known_failure) == sorted(self.enabled_targets)
+        sort_key = lambda t: str(t)
+        assert sorted(self.run_targets_with_known_failure, key=sort_key) == sorted(
+            self.enabled_targets, key=sort_key
+        )
 
     @tvm.testing.known_failing_targets("llvm")
     @tvm.testing.parametrize_targets("llvm")

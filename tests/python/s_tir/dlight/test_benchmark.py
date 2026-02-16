@@ -251,7 +251,7 @@ def test_benchmark_prim_func_full_rpc():
 
 
 def test_benchmark_relax_func():
-    with tvm.target.Target("llvm -num-cores=4"):
+    with tvm.target.Target({"kind": "llvm", "num-cores": 4}):
         benchmark_relax_func(Module, "test")
 
 
@@ -266,7 +266,7 @@ def test_extract_prim_func_full1():
             dym_var_dict={"n": "int32"},
             weight=2,
             sample_number=10,
-            target="llvm -num-cores=4",
+            target={"kind": "llvm", "num-cores": 4},
         )
     )
 
@@ -280,13 +280,13 @@ def test_extract_prim_func_matmul1():
             func=Module["matmul1"],  # type: ignore
             weight=2,
             sample_number=10,
-            target="llvm -num-cores=4",
+            target={"kind": "llvm", "num-cores": 4},
         )
     )
 
 
 def test_extract_from_relax():
-    with tvm.target.Target("llvm -num-cores=4"):
+    with tvm.target.Target({"kind": "llvm", "num-cores": 4}):
         with tempfile.TemporaryDirectory() as filepath:
             extract_from_relax(
                 Module,

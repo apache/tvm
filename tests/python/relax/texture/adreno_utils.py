@@ -114,7 +114,7 @@ def build_run(mod, inputs, backend, is_adreno=False):
     if remote is None:
         tgt = tvm.target.Target(target, host="llvm")
     else:
-        tgt = tvm.target.Target(target, host="llvm -mtriple=aarch64-linux-gnu")
+        tgt = tvm.target.Target(target, host={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
     relax_pipeline = relax.pipeline.get_default_pipeline(tgt)
     tir_pipeline = tvm.tir.get_default_tir_pipeline(tgt)
     mod = relax_pipeline(mod)

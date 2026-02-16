@@ -22,7 +22,7 @@ from tvm.s_tir import meta_schedule as ms
 from tvm import relax
 from tvm.script import ir as I, tir as T
 
-target = tvm.target.Target("llvm --num-cores=16")
+target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
 
 def test_apply_to_func_with_different_block_name():

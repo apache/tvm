@@ -39,7 +39,7 @@ def test_llvm_targets(capfd):
     assert str(codegen.llvm_get_targets()) == str(_ffi_api.llvm_get_targets())
 
     tvm.target.codegen.llvm_get_cpu_features(
-        tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=dummy")
+        tvm.target.Target({"kind": "llvm", "mtriple": "x86_64-linux-gnu", "mcpu": "dummy"})
     )
     expected_str = (
         " with `-mcpu=dummy` is not valid in "
@@ -68,7 +68,7 @@ min_llvm_version, llvm_target, cpu_arch, cpu_features, is_supported = tvm.testin
 
 
 def test_target_features(min_llvm_version, llvm_target, cpu_arch, cpu_features, is_supported):
-    target = Target("llvm -mtriple=%s-- -mcpu=%s" % (llvm_target, cpu_arch))
+    target = Target({"kind": "llvm", "mtriple": f"{llvm_target}--", "mcpu": cpu_arch})
 
     ##
     ## legalize llvm_target

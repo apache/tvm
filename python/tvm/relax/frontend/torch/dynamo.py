@@ -200,8 +200,8 @@ def llvm_target():
     import platform
     import subprocess
 
-    AVX512_TARGET = "llvm -mcpu=skylake-avx512"
-    AVX2_TARGET = "llvm -mcpu=core-avx2"
+    AVX512_TARGET = {"kind": "llvm", "mcpu": "skylake-avx512"}
+    AVX2_TARGET = {"kind": "llvm", "mcpu": "core-avx2"}
     DEFAULT_TARGET = "llvm"
 
     system = platform.system()

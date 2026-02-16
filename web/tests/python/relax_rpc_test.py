@@ -54,7 +54,9 @@ def test_rpc():
     dtype = "float32"
     temp = utils.tempdir()
     wasm_path = temp.relpath("relax.wasm")
-    target = tvm.target.Target("webgpu", host="llvm -mtriple=wasm32-unknown-unknown-wasm")
+    target = tvm.target.Target(
+        "webgpu", host={"kind": "llvm", "mtriple": "wasm32-unknown-unknown-wasm"}
+    )
 
     mod = get_model()
     ex = relax.build(mod, target)

@@ -32,8 +32,14 @@ from tvm.target.codegen import llvm_version_major
     llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
 @tvm.testing.parametrize_targets(
-    "llvm -mtriple=aarch64-linux-gnu -mattr=+sve",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]},
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_codegen_vscale(target):
     vscale = tvm.tir.vscale()
@@ -54,8 +60,14 @@ def test_codegen_vscale(target):
     llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
 @tvm.testing.parametrize_targets(
-    "llvm -mtriple=aarch64-linux-gnu -mattr=+sve",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]},
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_scalable_buffer_load_store(target):
     @T.prim_func
@@ -77,8 +89,14 @@ def test_scalable_buffer_load_store(target):
     llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
 @tvm.testing.parametrize_targets(
-    "llvm -mtriple=aarch64-linux-gnu -mattr=+sve",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]},
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_scalable_broadcast(target):
     @T.prim_func
@@ -101,8 +119,14 @@ def test_scalable_broadcast(target):
     reason="Vscale and get.active.lane.mask are not supported in earlier versions of LLVM",
 )
 @tvm.testing.parametrize_targets(
-    "llvm -mtriple=aarch64-linux-gnu -mattr=+sve",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]},
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_get_active_lane_mask(target):
     @T.prim_func
@@ -122,8 +146,14 @@ def test_get_active_lane_mask(target):
     reason="Vscale and get.active.lane.mask are not supported in earlier versions of LLVM",
 )
 @tvm.testing.parametrize_targets(
-    "llvm -mtriple=aarch64-linux-gnu -mattr=+sve",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]},
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_predicated_scalable_buffer(target):
     @T.prim_func

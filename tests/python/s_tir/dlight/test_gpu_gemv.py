@@ -771,7 +771,7 @@ def test_outer_reduction_adreno():
                         p_output0_intermediate[0, 0, v0] = lv570[0, 0, v0] + var_matmul_intermediate_local[0, 0, v0]
     # fmt: on
     mod = tvm.IRModule({"main": before})
-    with Target("opencl", host="llvm -mtriple=aarch64-linux-android"):
+    with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
@@ -913,7 +913,7 @@ def test_outer_reduction_adreno_dynamic():
     # fmt: on
 
     mod = tvm.IRModule({"main": before})
-    with Target("opencl", host="llvm -mtriple=aarch64-linux-android"):
+    with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
         tvm.ir.assert_structural_equal(mod["main"], expected)
 

@@ -218,10 +218,12 @@ def test_opencl_type_casting():
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_opencl
-@tvm.testing.parametrize_targets("opencl", "opencl -device=adreno")
+@tvm.testing.parametrize_targets("opencl", {"kind": "opencl", "device": "adreno"})
 def test_opencl_ceil_log2(target):
     def _check(target, n, dtype):
-        inter_dtype = "float32" if "adreno" in target else "float64"
+        target_obj = tvm.target.Target(target)
+        is_adreno = "adreno" in target_obj.attrs.get("device", "")
+        inter_dtype = "float32" if is_adreno else "float64"
 
         @I.ir_module
         class Module:
@@ -237,7 +239,7 @@ def test_opencl_ceil_log2(target):
 
         fun = tvm.tir.build(Module, target=target)
         assembly = fun.imports[0].inspect_source()
-        if "adreno" in target:
+        if is_adreno:
             pattern = "convert_float"
         else:
             pattern = "convert_double"

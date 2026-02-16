@@ -110,7 +110,7 @@ def test_cpu_matmul():
     actual = generate_design_space(
         kind="llvm",
         mod=mod,
-        target=Target("llvm --num-cores=32"),
+        target=Target({"kind": "llvm", "num-cores": 32}),
         types=ms.schedule_rule.AddRFactor,
     )
     check_sketches(
@@ -274,7 +274,7 @@ def test_cpu_argmax():
     actual = generate_design_space(
         kind="llvm",
         mod=mod,
-        target=Target("llvm --num-cores=32"),
+        target=Target({"kind": "llvm", "num-cores": 32}),
         types=ms.schedule_rule.AddRFactor,
     )
     check_sketches(

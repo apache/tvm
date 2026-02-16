@@ -889,7 +889,7 @@ class TestScalableIndex(BaseCompare):
     )
 
     def test_simplify(self, test_case):
-        with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+        with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
             super().test_simplify(test_case)
 
 

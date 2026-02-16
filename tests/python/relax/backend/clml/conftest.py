@@ -30,7 +30,7 @@ def rpc():
         host = os.getenv("TVM_TRACKER_HOST", "localhost")
         port = int(os.getenv("TVM_TRACKER_PORT", 9090))
         target = "opencl"
-        target_host = "llvm -mtriple=aarch64-linux-gnu"
+        target_host = {"kind": "llvm", "mtriple": "aarch64-linux-gnu"}
         device_key = os.getenv("RPC_DEVICE_KEY", "android")
         cross_compile = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
         tracker = _rpc.connect_tracker(host, port)

@@ -468,7 +468,7 @@ def _create_context(mod, target, postprocs) -> ms.TuneContext:
 
 def test_rewrite_tensorize_conv2d_nchwc_vnni():
     mod = Conv2dNCHWcVNNIModuleTiled
-    target = tvm.target.Target("llvm -mcpu=cascadelake -num-cores 4")
+    target = tvm.target.Target({"kind": "llvm", "mcpu": "cascadelake", "num-cores": 4})
     ctx = _create_context(
         mod,
         target,

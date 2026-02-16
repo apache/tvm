@@ -313,7 +313,7 @@ class Module:
 
 
 def _target() -> tvm.target.Target:
-    return tvm.target.Target("llvm -num-cores=4")
+    return tvm.target.Target({"kind": "llvm", "num-cores": 4})
     # for local testing only
     # return tvm.target.Target("nvidia/geforce-rtx-3070")
 

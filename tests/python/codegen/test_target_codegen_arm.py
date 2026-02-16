@@ -20,7 +20,12 @@ from tvm.script import tir as T, ir as I
 
 
 def test_popcount():
-    target = "llvm -mtriple=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon"
+    target = {
+        "kind": "llvm",
+        "mtriple": "armv7l-none-linux-gnueabihf",
+        "mcpu": "cortex-a53",
+        "mattr": ["+neon"],
+    }
 
     def check_correct_assembly(type, elements, counts):
         @I.ir_module
@@ -51,7 +56,12 @@ def test_popcount():
 
 
 def test_vmlal_s16():
-    target = "llvm -mtriple=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon"
+    target = {
+        "kind": "llvm",
+        "mtriple": "armv7l-none-linux-gnueabihf",
+        "mcpu": "cortex-a53",
+        "mattr": ["+neon"],
+    }
 
     def check_correct_assembly(N):
         @I.ir_module

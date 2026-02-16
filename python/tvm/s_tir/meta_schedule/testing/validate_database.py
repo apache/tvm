@@ -56,7 +56,7 @@ def _parse_args():
     args.add_argument(
         "--baseline-target",
         type=Target,
-        default="llvm -num-cores=1",
+        default='{"kind": "llvm", "num-cores": 1}',
         required=False,
         help="The baseline target to compile the original module.",
     )

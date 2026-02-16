@@ -88,7 +88,7 @@ def test_bigendian_rpc():
 
     print("Test RPC connection to PowerPC...")
     remote = rpc.connect(host, port)
-    target = "llvm -mtriple=powerpc-linux-gnu"
+    target = {"kind": "llvm", "mtriple": "powerpc-linux-gnu"}
     for dtype in ["float32", "float64", "int32", "int8"]:
         verify_rpc(remote, target, (10,), dtype)
 
@@ -320,7 +320,7 @@ def test_rpc_remote_module():
         xo, xi = s.split(x, factors=[None, 32])
         s.bind(xo, "blockIdx.x")
         s.bind(xi, "threadIdx.x")
-        f = tvm.compile(s.mod, "opencl --host=llvm")
+        f = tvm.compile(s.mod, tvm.target.Target("opencl", host="llvm"))
         path_tar = temp.relpath("myadd.tar")
         f.export_library(path_tar)
         remote.upload(path_tar)

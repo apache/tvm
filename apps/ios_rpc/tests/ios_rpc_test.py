@@ -33,7 +33,7 @@ from tvm.contrib import utils, xcode
 # Change target configuration, this is setting for iphone6s
 arch = "arm64"
 sdk = "iphoneos"
-target = "llvm -mtriple=%s-apple-darwin" % arch
+target = {"kind": "llvm", "mtriple": f"{arch}-apple-darwin"}
 
 MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "standalone": rpc.connect}
 

@@ -697,7 +697,7 @@ def test_sve_scalable_split_predicated(num_elements):
     compile-time, we don't know if vscale is a multiple of the extent of the
     loop to be split.
     """
-    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
         outer_extent = tvm.arith.Analyzer().simplify(T.ceildiv(num_elements, 4 * T.vscale()))
 
         @T.prim_func
@@ -733,7 +733,7 @@ def test_sve_scalable_split_assume_exact_multiple():
     a predicate is not created. This can be used to ensure predication is not
     inserted.
     """
-    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
         outer_extent = tvm.arith.Analyzer().simplify(T.ceildiv(128, 4 * T.vscale()))
 
         @T.prim_func
@@ -785,7 +785,7 @@ def test_sve_split_over_scalable_loop():
                 T.where(i_0 * (T.vscale() * 2) + i_1 < T.vscale() * 4)
                 A[v_i] = 1.0
 
-    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
         sch = tvm.s_tir.Schedule(before)
         (a,) = sch.get_loops("A")
         sch.split(

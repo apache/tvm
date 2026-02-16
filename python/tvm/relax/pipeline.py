@@ -151,7 +151,7 @@ def static_shape_tuning_pipeline(
 
         mod = relax.pipeline.static_shape_tuning_pipeline(
             total_trials=1000,
-            target="llvm -num-cores 16",
+            target={"kind": "llvm", "num-cores": 16},
             work_dir="tuning_logs",
             cpu_weight_prepack=True,
             max_trials_per_task=64,

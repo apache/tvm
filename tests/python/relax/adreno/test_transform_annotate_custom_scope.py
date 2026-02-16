@@ -72,7 +72,7 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
 
 
 def verify(mod, expected):
-    tgt = tvm.target.Target("opencl --device=adreno", host="llvm")
+    tgt = tvm.target.Target({"kind": "opencl", "device": "adreno"}, host="llvm")
     skip_ops = [
         "relax.nn.conv2d",
         "relax.nn.max_pool2d",

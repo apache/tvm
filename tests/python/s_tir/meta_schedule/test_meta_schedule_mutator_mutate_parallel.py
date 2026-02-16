@@ -93,7 +93,7 @@ def _make_mutator(target: Target, max_jobs_per_core: int) -> ms.Mutator:
 
 def test_mutate_parallel_matmul():
     mutator = _make_mutator(
-        target=Target("llvm --num-cores=16"),
+        target=Target({"kind": "llvm", "num-cores": 16}),
         max_jobs_per_core=256,
     )
     sch = _sch(

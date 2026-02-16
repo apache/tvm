@@ -65,7 +65,12 @@ def pytest_configure(config):
     for feature in utils.Feature._all_features.values():
         feature._register_marker(config)
 
-    print("enabled targets:", "; ".join(map(lambda x: x[0], utils.enabled_targets())))
+    print(
+        "enabled targets:",
+        "; ".join(
+            map(lambda x: str(x[0]) if isinstance(x[0], dict) else x[0], utils.enabled_targets())
+        ),
+    )
     print("pytest marker:", config.option.markexpr)
 
 
@@ -97,6 +102,8 @@ def pytest_collection_modifyitems(config, items):
 @pytest.fixture
 def dev(target):
     """Give access to the device to tests that need it."""
+    if isinstance(target, dict):
+        return tvm.device(target["kind"])
     return tvm.device(target)
 
 
@@ -182,7 +189,12 @@ def _add_target_specific_marks(metafunc):
 
                 if mark in metafunc.definition.own_markers:
                     xfail_targets = getattr(metafunc.function, "tvm_known_failing_targets", [])
-                    target_kind = target.split()[0] if isinstance(target, str) else target.kind.name
+                    if isinstance(target, str):
+                        target_kind = target.split()[0]
+                    elif isinstance(target, dict):
+                        target_kind = target["kind"]
+                    else:
+                        target_kind = target.kind.name
                     if target_kind in xfail_targets:
                         additional_marks.append(
                             pytest.mark.xfail(
@@ -279,7 +291,7 @@ def _sort_tests(items):
 
 
 def _target_to_requirement(target):
-    if isinstance(target, str):
+    if isinstance(target, (str, dict)):
         target = tvm.target.Target(target)
 
     # mapping from target to decorator

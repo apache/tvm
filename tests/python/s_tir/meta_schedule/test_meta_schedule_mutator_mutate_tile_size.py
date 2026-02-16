@@ -81,7 +81,7 @@ def _make_mutator(target: Target) -> ms.Mutator:
 
 def test_mutate_tile_size_matmul():
     mutator = _make_mutator(
-        target=Target("llvm --num-cores=16"),
+        target=Target({"kind": "llvm", "num-cores": 16}),
     )
     results = {}
     sch = _sch(decisions=[[4, 32, 4, 1]])
@@ -97,7 +97,7 @@ def test_mutate_tile_size_matmul():
 
 def test_mutate_sample_categorical_single_candidate():
     mutator = _make_mutator(
-        target=Target("llvm --num-cores=16"),
+        target=Target({"kind": "llvm", "num-cores": 16}),
     )
     sch = Schedule(matmul, debug_mask="all")
     sch.sample_categorical(candidates=[1], probs=[1.0], decision=0)

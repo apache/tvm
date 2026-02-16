@@ -35,7 +35,7 @@ from tvm.target.codegen import llvm_version_major
     ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
 )
 def test_mul(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -74,7 +74,7 @@ def test_mul(dtype):
     ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
 )
 def test_add(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -113,7 +113,7 @@ def test_add(dtype):
     ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
 )
 def test_sub(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -152,7 +152,7 @@ def test_sub(dtype):
     ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
 )
 def test_muladd(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -192,7 +192,7 @@ def test_muladd(dtype):
     ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
 )
 def test_max(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -235,7 +235,7 @@ def test_max(dtype):
     ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
 )
 def test_min(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -278,7 +278,7 @@ def test_min(dtype):
     ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
 )
 def test_div(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -316,7 +316,7 @@ def test_div(dtype):
     "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
 )
 def test_mod(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -355,7 +355,7 @@ def test_mod(dtype):
     ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
 )
 def test_eq(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -394,7 +394,7 @@ def test_eq(dtype):
     ["float", "float16", "uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"],
 )
 def test_neq(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -432,7 +432,7 @@ def test_neq(dtype):
     "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
 )
 def test_or(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -470,7 +470,7 @@ def test_or(dtype):
     "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
 )
 def test_and(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -508,7 +508,7 @@ def test_and(dtype):
     "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
 )
 def test_not(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -549,7 +549,7 @@ def test_not(dtype):
     "dtype", ["uint8", "uint16", "uint32", "uint64", "int8", "int16", "int32", "int64"]
 )
 def test_memcpy(dtype):
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
 
     @I.ir_module
     class Module:
@@ -590,7 +590,7 @@ def test_memcpy(dtype):
     ],
 )
 def test_vscale_range_function_attribute(mattr, expect_attr):
-    target = f"llvm -mtriple=aarch64-linux-gnu -mattr={mattr}"
+    target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": [mattr]}
 
     @I.ir_module
     class Module:

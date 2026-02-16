@@ -31,7 +31,7 @@ def test_update():
         VDevice("llvm"),
         VDevice("cuda", 0),
         VDevice("metal", 0, "global"),
-        VDevice("cuda -arch=sm_80", 0),
+        VDevice({"kind": "cuda", "arch": "sm_80"}, 0),
         VDevice("metal", 1, "global"),
         VDevice("llvm", 1),
     ]
@@ -45,7 +45,7 @@ def test_update():
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
                     I.vdevice("metal", 0, "global"),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
