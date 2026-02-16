@@ -35,16 +35,14 @@ fuzz_seed = tvm.testing.parameter(range(25))
 # Explicitly specify a target, as this test is looking at the
 # generated shader code, and is not running on an actual device.
 @tvm.testing.parametrize_targets(
-    " ".join(
-        [
-            "vulkan",
-            "-supports_int8=1",
-            "-supports_8bit_buffer=1",
-            "-supports_storage_buffer_storage_class=1",
-            "-supports_float16=1",
-            "-supports_16bit_buffer=1",
-        ]
-    )
+    {
+        "kind": "vulkan",
+        "supports_int8": 1,
+        "supports_8bit_buffer": 1,
+        "supports_storage_buffer_storage_class": 1,
+        "supports_float16": 1,
+        "supports_16bit_buffer": 1,
+    }
 )
 def test_vector_comparison(target, dev, dtype):
     target = tvm.target.Target(target)
@@ -150,7 +148,7 @@ vulkan_parameter_dtype = tvm.testing.parameter("int32", "float32", "int64")
 
 # Only run on vulkan because extremely large numbers of input
 # parameters can crash cuda/llvm compiler.
-@tvm.testing.parametrize_targets("vulkan -from_device=0")
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_vulkan_constant_passing(target, dev, vulkan_parameter_impl, vulkan_parameter_dtype):
     target = tvm.target.Target(target)
     dtype = vulkan_parameter_dtype
@@ -285,7 +283,7 @@ def test_vulkan_local_threadidx(target, dev):
     tvm.testing.assert_allclose(b.numpy(), a_np)
 
 
-@tvm.testing.parametrize_targets("vulkan -from_device=0")
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_vectorized_index_ramp(target, dev):
     """Test vectorized copy with ramp indices (load N values, write to N locations)"""
     n = 4
@@ -315,7 +313,7 @@ def test_vectorized_index_ramp(target, dev):
     tvm.testing.assert_allclose(b.numpy(), a_np)
 
 
-@tvm.testing.parametrize_targets("vulkan -from_device=0")
+@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
 def test_vectorized_index_broadcast(target, dev):
     """Test broadcast index (load 1 value, write to N locations)"""
     n = 4
@@ -478,7 +476,7 @@ def test_cooperative_matrix(out_dtype):
                     T.tvm_store_matrix_sync(A.data, 16, 16, 16, A.elem_offset // A.strides[0] // 16 * (A.strides[0] // 16) + A.elem_offset % A.strides[0] // 16, T.tvm_access_ptr(T.type_annotation(out_dtype), C.data, C.elem_offset, C.strides[0] * 16, 2), C.strides[0], "row_major")
     # fmt: on
 
-    target = "vulkan -from_device=0"
+    target = {"kind": "vulkan", "from_device": 0}
     tgt_attrs = tvm.target.Target(target).attrs
 
     if tgt_attrs.get("supports_cooperative_matrix"):

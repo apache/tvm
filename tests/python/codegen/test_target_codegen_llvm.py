@@ -781,7 +781,7 @@ def test_dwarf_debug_information():
                 "fadd2": Module["main"].with_attr("global_symbol", "fadd2"),
             }
         )
-        m = tvm.tir.build(mod, target="llvm -mtriple=aarch64-linux-gnu")
+        m = tvm.tir.build(mod, target={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
         ll = m.inspect_source("ll")
 
         # On non-Darwin OS, don't explicitly specify DWARF version.
@@ -791,7 +791,7 @@ def test_dwarf_debug_information():
         assert re.search(r"""llvm.dbg.value""", ll)
 
         # Try Darwin, require DWARF-2
-        m = tvm.tir.build(mod, target="llvm -mtriple=x86_64-apple-darwin-macho")
+        m = tvm.tir.build(mod, target={"kind": "llvm", "mtriple": "x86_64-apple-darwin-macho"})
         ll = m.inspect_source("ll")
         assert re.search(r"""i32 4, !"Dwarf Version", i32 2""", ll)
         assert re.search(r"""llvm.dbg.value""", ll)
@@ -994,7 +994,12 @@ def test_llvm_target_attributes():
                         T.writes(C[v_i])
                         C[v_i] = B[v_i] + T.float32(1.0)
 
-    target_llvm = "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake -mattr=+avx512f"
+    target_llvm = {
+        "kind": "llvm",
+        "mtriple": "x86_64-linux-gnu",
+        "mcpu": "skylake",
+        "mattr": ["+avx512f"],
+    }
     target = tvm.target.Target(target_llvm, host=target_llvm)
     module = tvm.tir.build(Module, target=target)
 

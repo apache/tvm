@@ -23,10 +23,34 @@ from tvm.target.codegen import target_has_features
 
 @tvm.testing.requires_llvm_minimum_version(14)
 @tvm.testing.parametrize_targets(
-    "llvm -device=riscv_cpu -mtriple=riscv32-linux-gnu -mcpu=generic-rv32 -mattr=+i,+m",
-    "llvm -device=riscv_cpu -mtriple=riscv32-linux-gnu -mcpu=generic-rv32 -mattr=+i,+m,+v",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv32-linux-gnu",
+        "mcpu": "generic-rv32",
+        "mattr": ["+i", "+m"],
+    },
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv32-linux-gnu",
+        "mcpu": "generic-rv32",
+        "mattr": ["+i", "+m", "+v"],
+    },
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m"],
+    },
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_rvv(target):
     def check_rvv_presence(N, extent):
@@ -49,8 +73,20 @@ def test_rvv(target):
 
 @tvm.testing.requires_llvm_minimum_version(14)
 @tvm.testing.parametrize_targets(
-    "llvm -device=riscv_cpu -mtriple=riscv32-linux-gnu -mcpu=generic-rv32 -mattr=+i,+m,+v",
-    "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v",
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv32-linux-gnu",
+        "mcpu": "generic-rv32",
+        "mattr": ["+i", "+m", "+v"],
+    },
+    {
+        "kind": "llvm",
+        "device": "riscv_cpu",
+        "mtriple": "riscv64-linux-gnu",
+        "mcpu": "generic-rv64",
+        "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+    },
 )
 def test_rvv_vscale_llvm_dbginfo(target):
     # fmt: off

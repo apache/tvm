@@ -17,6 +17,7 @@
 
 # pylint: disable=invalid-name, unused-import, import-outside-toplevel, inconsistent-return-statements
 """Runtime Module namespace."""
+import json
 import os
 import struct
 from typing import Sequence
@@ -215,7 +216,7 @@ class Module(_Module):
         is_system_lib = False
         has_c_module = False
         system_lib_prefix = None
-        llvm_target_string = None
+        llvm_target = None
         global_object_format = "o"
 
         def get_source_format_from_module(module):
@@ -250,7 +251,7 @@ class Module(_Module):
             files.append(path_obj)
             if module.kind == "llvm":
                 is_system_lib = module.get_function("__tvm_is_system_module")()
-                llvm_target_string = module.get_function("_get_target_string")()
+                llvm_target = module.get_function("_get_target_string")()
                 system_lib_prefix = module.get_function("__tvm_get_system_lib_prefix")()
 
         if not fcompile:
@@ -261,10 +262,10 @@ class Module(_Module):
             else:
                 fcompile = _cc.create_shared
 
-        if llvm_target_string is None and hasattr(fcompile, "get_target_triple"):
+        if llvm_target is None and hasattr(fcompile, "get_target_triple"):
             triple = fcompile.get_target_triple()
             assert triple, "Target triple should not be empty"
-            llvm_target_string = "llvm -mtriple " + triple
+            llvm_target = json.dumps({"kind": "llvm", "mtriple": triple.strip()})
 
         if getattr(fcompile, "need_system_lib", False) and not is_system_lib:
             raise ValueError(f"{str(fcompile)} need --system-lib option")
@@ -275,12 +276,12 @@ class Module(_Module):
             if fpack_imports is not None:
                 path_out = fpack_imports(self, is_system_lib, pack_lib_prefix, workspace_dir)
                 files.append(path_out)
-            elif _ffi_api.RuntimeEnabled("llvm") and llvm_target_string:
+            elif _ffi_api.RuntimeEnabled("llvm") and llvm_target:
                 path_obj = os.path.join(
                     workspace_dir, f"{pack_lib_prefix}devc.{global_object_format}"
                 )
                 m = _ffi_api.ModulePackImportsToLLVM(
-                    self, is_system_lib, llvm_target_string, pack_lib_prefix
+                    self, is_system_lib, llvm_target, pack_lib_prefix
                 )
                 m.write_to_file(path_obj)
                 files.append(path_obj)
@@ -472,6 +473,10 @@ def enabled(target):
 
     >>> tvm.runtime.enabled("gpu")
     """
+    if isinstance(target, dict):
+        target = target.get("kind", "")
+    elif hasattr(target, "kind"):
+        target = str(target.kind)
     return _ffi_api.RuntimeEnabled(target)
 
 
