@@ -1197,10 +1197,12 @@ class Gelu(OnnxOpConverter):
 
     @classmethod
     def _impl_v20(cls, bb, inputs, attr, params):
-        approximate = attr.get("approximate", "none")
+        approximate = attr.get("approximate", b"none").decode("utf-8")
         if approximate == "tanh":
             return relax.op.nn.gelu_tanh(inputs[0])
-        return relax.op.nn.gelu(inputs[0])
+        if approximate == "none":
+            return relax.op.nn.gelu(inputs[0])
+        raise ValueError(f"Unsupported approximate mode for Gelu: {approximate}")
 
 
 class FastGelu(OnnxOpConverter):
