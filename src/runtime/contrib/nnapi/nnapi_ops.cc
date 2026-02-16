@@ -245,9 +245,9 @@ void TransposeOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNo
 
   std::vector<int32_t> axes;
   if (node.HasAttr("axes")) {
-    const auto axes_attr = node.GetAttr<std::vector<std::string>>("axes");
-    for (auto str_axis : axes_attr) {
-      axes.push_back(std::stoi(str_axis));
+    const auto axes_attr = node.GetAttr<ffi::Array<int64_t>>("axes");
+    for (auto axis : axes_attr) {
+      axes.push_back(static_cast<int32_t>(axis));
     }
   } else {
     for (size_t i = 0; i < inputs[0].GetDimensions().size(); ++i) {
@@ -272,10 +272,8 @@ void CastOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& n
   auto output_indices = ExtractOperandIndices(outputs);
 
   // Extract the dtype attribute and check that the output operand type matches the dtype specified.
-  const auto dtype_attr = node.GetAttr<std::vector<std::string>>("astype_dtype");
-  ICHECK(dtype_attr.size() == 1);
-  const auto dtype_str = dtype_attr[0];
-  const DLDataType dtype = StringToDLDataType(dtype_str);
+  const auto dtype_str = node.GetAttr<ffi::String>("astype_dtype");
+  const DLDataType dtype = StringToDLDataType(std::string(dtype_str));
   ICHECK(outputs.size() == 1);
   const auto output_tensor_type = outputs[0].GetTensorType();
   ICHECK(TensorTypeFromDLDataType(dtype) == output_tensor_type)
@@ -343,10 +341,10 @@ void Conv2dOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode&
   }
   // padding operand
   std::vector<int32_t> padding;
-  const auto padding_attr = node.GetAttr<std::vector<std::string>>("padding");
+  const auto padding_attr = node.GetAttr<ffi::Array<int64_t>>("padding");
 
-  for (auto str_pad : padding_attr) {
-    padding.push_back(std::stoi(str_pad));
+  for (size_t i = 0; i < padding_attr.size(); ++i) {
+    padding.push_back(static_cast<int32_t>(padding_attr[i]));
   }
 
   ICHECK(padding.size() == 4) << "NNAPI runtime currently only supports 4-way padding for Conv2D";
@@ -368,9 +366,9 @@ void Conv2dOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode&
 
   // stride operand
   std::vector<int32_t> stride;
-  const auto stride_attr = node.GetAttr<std::vector<std::string>>("strides");
-  for (auto str_stride : stride_attr) {
-    stride.push_back(std::stoi(str_stride));
+  const auto stride_attr = node.GetAttr<ffi::Array<int64_t>>("strides");
+  for (size_t i = 0; i < stride_attr.size(); ++i) {
+    stride.push_back(static_cast<int32_t>(stride_attr[i]));
   }
 
   ICHECK(stride.size() == 2);
@@ -383,11 +381,7 @@ void Conv2dOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode&
   input_indices.push_back(stride_height_operand.GetOperandIndex());
 
   // group
-  int32_t group;
-  const auto group_attr = node.GetAttr<std::vector<std::string>>("group");
-  for (auto str_group : group_attr) {
-    group = std::stoi(str_group);
-  }
+  int32_t group = static_cast<int32_t>(node.GetAttr<int64_t>("group"));
 
   if (group > 1) {
     const NNAPIOperand group_operand =
@@ -423,10 +417,10 @@ void MaxPool2dOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNo
 
   // padding operand
   std::vector<int32_t> padding;
-  const auto padding_attr = node.GetAttr<std::vector<std::string>>("padding");
+  const auto padding_attr = node.GetAttr<ffi::Array<int64_t>>("padding");
 
-  for (auto str_pad : padding_attr) {
-    padding.push_back(std::stoi(str_pad));
+  for (size_t i = 0; i < padding_attr.size(); ++i) {
+    padding.push_back(static_cast<int32_t>(padding_attr[i]));
   }
 
   const NNAPIOperand padding_left_operand =
@@ -447,9 +441,9 @@ void MaxPool2dOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNo
 
   // stride operand
   std::vector<int32_t> stride;
-  const auto stride_attr = node.GetAttr<std::vector<std::string>>("strides");
-  for (auto str_stride : stride_attr) {
-    stride.push_back(std::stoi(str_stride));
+  const auto stride_attr = node.GetAttr<ffi::Array<int64_t>>("strides");
+  for (size_t i = 0; i < stride_attr.size(); ++i) {
+    stride.push_back(static_cast<int32_t>(stride_attr[i]));
   }
 
   const NNAPIOperand stride_width_operand =
@@ -462,9 +456,9 @@ void MaxPool2dOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNo
 
   // filter operand
   std::vector<int32_t> pool_size;
-  const auto pool_size_attr = node.GetAttr<std::vector<std::string>>("pool_size");
-  for (auto size : pool_size_attr) {
-    pool_size.push_back(std::stoi(size));
+  const auto pool_size_attr = node.GetAttr<ffi::Array<int64_t>>("pool_size");
+  for (size_t i = 0; i < pool_size_attr.size(); ++i) {
+    pool_size.push_back(static_cast<int32_t>(pool_size_attr[i]));
   }
 
   const NNAPIOperand pool_size_width_operand = builder.CreateScalarOperandWithValue(
@@ -532,10 +526,10 @@ void MeanOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& n
   auto output_indices = ExtractOperandIndices(outputs);
 
   // Extract the axis attribute and create an operand for it.
-  const auto axis_attr = node.GetAttr<std::vector<std::string>>("axis");
+  const auto axis_attr = node.GetAttr<ffi::Array<int64_t>>("axis");
   std::vector<int32_t> axis;
-  for (auto dim : axis_attr) {
-    axis.push_back(std::stoi(dim));
+  for (size_t i = 0; i < axis_attr.size(); ++i) {
+    axis.push_back(static_cast<int32_t>(axis_attr[i]));
   }
   const std::vector<int64_t> dim_of_axis{static_cast<int64_t>(axis.size())};
 
@@ -545,9 +539,7 @@ void MeanOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& n
   input_indices.push_back(axis_operand.GetOperandIndex());
 
   // Extract the keepdims attribute and create an operand for it.
-  const auto keepdims_attr = node.GetAttr<std::vector<std::string>>("keepdims");
-  ICHECK(keepdims_attr.size() == 1);
-  const int32_t keepdims = keepdims_attr[0] == "1";
+  const int32_t keepdims = static_cast<int32_t>(node.GetAttr<int64_t>("keepdims"));
 
   const NNAPIOperand keepdims_operand =
       builder.CreateScalarOperandWithValue(ANEURALNETWORKS_INT32, &keepdims, sizeof keepdims);

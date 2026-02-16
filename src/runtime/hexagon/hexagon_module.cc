@@ -38,9 +38,8 @@ namespace tvm {
 namespace runtime {
 
 HexagonModuleNode::HexagonModuleNode(std::string data, std::string fmt,
-                                     std::unordered_map<std::string, FunctionInfo> fmap,
-                                     std::string asm_str, std::string obj_str, std::string ir_str,
-                                     std::string bc_str)
+                                     ffi::Map<ffi::String, FunctionInfo> fmap, std::string asm_str,
+                                     std::string obj_str, std::string ir_str, std::string bc_str)
     : data_(data), fmt_(fmt), fmap_(fmap), asm_(asm_str), obj_(obj_str), ir_(ir_str), bc_(bc_str) {}
 
 ffi::Optional<ffi::Function> HexagonModuleNode::GetFunction(const ffi::String& name) {
@@ -90,9 +89,8 @@ ffi::Bytes HexagonModuleNode::SaveToBytes() const {
 }
 
 ffi::Module HexagonModuleCreate(std::string data, std::string fmt,
-                                std::unordered_map<std::string, FunctionInfo> fmap,
-                                std::string asm_str, std::string obj_str, std::string ir_str,
-                                std::string bc_str) {
+                                ffi::Map<ffi::String, FunctionInfo> fmap, std::string asm_str,
+                                std::string obj_str, std::string ir_str, std::string bc_str) {
   auto n = ffi::make_object<HexagonModuleNode>(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str);
   return ffi::Module(n);
 }

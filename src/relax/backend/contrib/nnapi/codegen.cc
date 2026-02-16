@@ -55,25 +55,18 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     const auto* permute_dims_attr = call_node->attrs.as<PermuteDimsAttrs>();
     ICHECK(permute_dims_attr);
     if (permute_dims_attr->axes) {
-      std::vector<std::string> axes;
+      ffi::Array<int64_t> axes;
       for (auto axis : permute_dims_attr->axes.value()) {
-        axes.push_back(std::to_string(axis.IntValue()));
+        axes.push_back(axis.IntValue());
       }
-
-      std::vector<std::any> axes_attr;
-      axes_attr.emplace_back(axes);
-      node_->SetAttr("axes", axes_attr);
+      node_->SetAttr("axes", std::move(axes));
     }
   }
 
   void SetAstypeAttribute(const CallNode* call_node) {
     const auto* astype_attrs = call_node->attrs.as<AstypeAttrs>();
     ICHECK(astype_attrs);
-
-    std::vector<std::any> dtype_attr;
-    auto dtype_str = runtime::DLDataTypeToString(astype_attrs->dtype);
-    dtype_attr.emplace_back(std::vector<std::string>{dtype_str});
-    node_->SetAttr("astype_dtype", dtype_attr);
+    node_->SetAttr("astype_dtype", ffi::String(runtime::DLDataTypeToString(astype_attrs->dtype)));
   }
 
   void SetMeanAttribute(const CallNode* call_node) {
@@ -82,94 +75,66 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     ICHECK(mean_attrs->axis.defined());
 
     {
-      std::vector<std::string> axis;
+      ffi::Array<int64_t> axis;
       for (auto dim : mean_attrs->axis.value()) {
-        axis.push_back(std::to_string(dim->value));
+        axis.push_back(dim->value);
       }
-
-      std::vector<std::any> axis_attr;
-      axis_attr.emplace_back(axis);
-      node_->SetAttr("axis", axis_attr);
+      node_->SetAttr("axis", std::move(axis));
     }
-
-    {
-      const std::vector<std::string> keepdims{mean_attrs->keepdims ? "1" : "0"};
-      std::vector<std::any> keepdims_attr;
-      keepdims_attr.emplace_back(keepdims);
-      node_->SetAttr("keepdims", keepdims_attr);
-    }
+    node_->SetAttr("keepdims", static_cast<int64_t>(mean_attrs->keepdims ? 1 : 0));
   }
 
   void SetConv2dAttribute(const CallNode* call_node) {
     const auto* conv2d_attr = call_node->attrs.as<Conv2DAttrs>();
     ICHECK(conv2d_attr) << "didn't catch attributes";
 
-    std::vector<std::string> strides;
+    ffi::Array<int64_t> strides;
     if (!conv2d_attr->strides.empty()) {
       for (auto stride : conv2d_attr->strides) {
-        strides.push_back(std::to_string(stride));
+        strides.push_back(static_cast<int64_t>(stride));
       }
     } else {
-      strides = {"1", "1"};
+      strides.push_back(1);
+      strides.push_back(1);
     }
 
-    std::vector<std::string> padding;
+    ffi::Array<int64_t> padding;
     for (auto pad : conv2d_attr->padding) {
-      padding.push_back(std::to_string(pad));
+      padding.push_back(static_cast<int64_t>(pad));
     }
 
-    std::vector<std::string> groups;
-    const int group_val = conv2d_attr->groups;
-    groups.push_back(std::to_string(group_val));
-
-    std::vector<std::any> strides_attr;
-    strides_attr.emplace_back(strides);
-    node_->SetAttr("strides", strides_attr);
-
-    std::vector<std::any> padding_attr;
-    padding_attr.emplace_back(padding);
-    node_->SetAttr("padding", padding_attr);
-
-    std::vector<std::any> group_attr;
-    group_attr.emplace_back(groups);
-    node_->SetAttr("group", group_attr);
+    node_->SetAttr("strides", std::move(strides));
+    node_->SetAttr("padding", std::move(padding));
+    node_->SetAttr("group", static_cast<int64_t>(conv2d_attr->groups));
   }
 
   void SetMaxPool2dAttribute(const CallNode* call_node) {
     const auto* max_pool_2d_attr = call_node->attrs.as<Pool2DAttrs>();
     ICHECK(max_pool_2d_attr) << "didn't catch attributes";
 
-    std::vector<std::string> strides;
+    ffi::Array<int64_t> strides;
     if (!max_pool_2d_attr->strides.empty()) {
       for (auto stride : max_pool_2d_attr->strides) {
-        strides.push_back(std::to_string(stride));
+        strides.push_back(static_cast<int64_t>(stride));
       }
     } else {
-      strides.push_back("1");
-      strides.push_back("1");
+      strides.push_back(1);
+      strides.push_back(1);
     }
 
-    std::vector<std::string> padding;
+    ffi::Array<int64_t> padding;
     for (auto pad : max_pool_2d_attr->padding) {
-      padding.push_back(std::to_string(pad));
+      padding.push_back(static_cast<int64_t>(pad));
     }
 
-    std::vector<std::string> pool_size;
+    ffi::Array<int64_t> pool_size;
     for (auto size : max_pool_2d_attr->pool_size) {
-      pool_size.push_back(std::to_string(size));
+      pool_size.push_back(static_cast<int64_t>(size));
     }
 
-    std::vector<std::any> strides_attr;
-    strides_attr.emplace_back(strides);
-    node_->SetAttr("strides", strides_attr);
-
-    std::vector<std::any> padding_attr;
-    padding_attr.emplace_back(padding);
-    node_->SetAttr("padding", padding_attr);
-
-    std::vector<std::any> pooling_attr;
-    pooling_attr.emplace_back(pool_size);
-    node_->SetAttr("pool_size", pooling_attr);
+    node_->SetAttr("strides", std::move(strides));
+    node_->SetAttr("padding", std::move(padding));
+    node_->SetAttr("pool_size", std::move(pool_size));
   }
 
   NNAPIJSONSerializer* serializer_;

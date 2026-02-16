@@ -767,40 +767,31 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
            {{DNNL_ARG_SRC_0, lhs_tr}, {DNNL_ARG_SRC_1, rhs_tr}, {DNNL_ARG_DST, dst_tr}});
   }
 
-  template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
-  T AttrConvert(std::vector<std::string> val) {
-    ICHECK_EQ(val.size(), 1);
-    return std::stol(val[0]);
-  }
-
-  template <typename T, std::enable_if_t<std::is_floating_point<T>::value, int> = 0>
-  T AttrConvert(std::vector<std::string> val) {
-    ICHECK_EQ(val.size(), 1);
-    return std::stof(val[0]);
-  }
-
-  template <typename T, std::enable_if_t<std::is_same<T, std::string>::value, int> = 0>
-  T AttrConvert(std::vector<std::string> val) {
-    ICHECK_EQ(val.size(), 1);
-    return val[0];
-  }
-
-  template <typename T,
-            std::enable_if_t<std::is_same<T, std::vector<typename T::value_type>>::value, int> = 0>
-  T AttrConvert(std::vector<std::string> val) {
-    T res;
-    for (const auto& el : val) res.push_back(AttrConvert<typename T::value_type>({el}));
-    return res;
-  }
-
   /*!
    * \brief Helper to extract node attribute with ability to specify default value and result type.
    */
   template <typename T>
-  const T GetNodeAttr(const json::JSONGraphNode& node, std::string name,
-                      std::vector<std::string> def = {}) {
-    auto attr = node.HasAttr(name) ? node.GetAttr<std::vector<std::string>>(name) : def;
-    return AttrConvert<T>(attr);
+  const T GetNodeAttr(const json::JSONGraphNode& node, const std::string& name, T def = {}) {
+    if (!node.HasAttr(name)) return def;
+    if constexpr (std::is_same_v<T, bool>) {
+      return static_cast<bool>(node.GetAttr<int64_t>(name));
+    } else if constexpr (std::is_integral_v<T>) {
+      return static_cast<T>(node.GetAttr<int64_t>(name));
+    } else if constexpr (std::is_floating_point_v<T>) {
+      return static_cast<T>(node.GetAttr<double>(name));
+    } else if constexpr (std::is_same_v<T, std::string>) {
+      return std::string(node.GetAttr<ffi::String>(name));
+    } else if constexpr (std::is_same_v<T, std::vector<int64_t>>) {
+      auto arr = node.GetAttr<ffi::Array<int64_t>>(name);
+      std::vector<int64_t> res;
+      for (size_t i = 0; i < arr.size(); ++i) res.push_back(arr[i]);
+      return res;
+    } else if constexpr (std::is_same_v<T, std::vector<std::string>>) {
+      auto arr = node.GetAttr<ffi::Array<ffi::String>>(name);
+      std::vector<std::string> res;
+      for (size_t i = 0; i < arr.size(); ++i) res.push_back(std::string(arr[i]));
+      return res;
+    }
   }
 
   TensorRequisite GetInput(const size_t& nid, const int idx) {
@@ -811,11 +802,12 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     ICHECK_LT(idx, node.GetInputs().size());
     auto data_entry = node.GetInputs()[idx];
 
-    auto shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
+    auto shape_arr = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
     auto dtype = nodes_[data_entry.id_].GetOpDataType()[data_entry.index_];
     auto eid = node_row_ptr_[data_entry.id_] + data_entry.index_;
     auto const_dl_tensor = data_entry_[eid];
 
+    std::vector<int64_t> shape(shape_arr.begin(), shape_arr.end());
     auto desc = MakePlainDesc(shape, dtype);
 
     TensorRequisite res;
@@ -831,7 +823,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   TensorRequisite GetInputByName(const size_t& nid, const std::string& name) {
-    auto idx = GetNodeAttr<int>(nodes_[nid], name, {"-1"});
+    auto idx = GetNodeAttr<int>(nodes_[nid], name, -1);
     return GetInput(nid, idx);
   }
 
@@ -840,12 +832,13 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     const JSONGraphNode& node = nodes_[nid];
 
     ICHECK_LT(idx, node.GetNumOutput());
-    auto shape = node.GetOpShape()[idx];
+    auto shape_arr = node.GetOpShape()[idx];
     auto dtype = node.GetOpDataType()[idx];
     auto eid = node_row_ptr_[nid] + static_cast<uint32_t>(idx);
 
     ICHECK(data_entry_[eid] == nullptr);
 
+    std::vector<int64_t> shape(shape_arr.begin(), shape_arr.end());
     auto desc = MakePlainDesc(shape, dtype);
 
     return TensorRequisite::AsIs(desc, eid).Backward();

@@ -28,6 +28,7 @@
 #include <arm_compute/core/Types.h>
 #include <arm_compute/runtime/MemoryManagerOnDemand.h>
 #include <arm_compute/runtime/Tensor.h>
+#include <tvm/ffi/container/array.h>
 
 #include <memory>
 #include <string>
@@ -99,8 +100,8 @@ std::shared_ptr<arm_compute::MemoryManagerOnDemand> MakeACLMemoryManager();
  * \param ceil_mode Dimensions rounding.
  * \return arm_compute::PadStrideInfo
  */
-arm_compute::PadStrideInfo MakeACLPadStride(const std::vector<std::string>& pad,
-                                            const std::vector<std::string>& stride,
+arm_compute::PadStrideInfo MakeACLPadStride(const ffi::Array<int64_t>& pad,
+                                            const ffi::Array<int64_t>& stride,
                                             bool ceil_mode = false);
 
 /*!

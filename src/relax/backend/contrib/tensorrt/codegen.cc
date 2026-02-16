@@ -181,26 +181,14 @@ class TensorRTJSONSerializer : public JSONSerializer {
       cfg = AttrsWithDefaultValues<TensorRTCompilerConfig>();
     }
     ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
-    std::vector<std::string> tensorrt_version = {
-        std::to_string(cfg.value()->tensorrt_version[0].IntValue()),
-        std::to_string(cfg.value()->tensorrt_version[1].IntValue()),
-        std::to_string(cfg.value()->tensorrt_version[2].IntValue())};
-    std::vector<std::string> use_implicit_batch = {std::to_string(cfg.value()->use_implicit_batch)};
-    std::vector<std::string> max_workspace_size = {std::to_string(cfg.value()->max_workspace_size)};
-    std::vector<std::string> use_fp16 = {std::to_string(cfg.value()->use_fp16)};
-    std::vector<std::string> use_uint8 = {std::to_string(cfg.value()->use_uint8)};
-    std::vector<std::any> tensorrt_version_attr, use_implicit_batch_attr, max_workspace_size_attr,
-        use_fp16_attr, use_uint8_attr;
-    tensorrt_version_attr.emplace_back(tensorrt_version);
-    use_implicit_batch_attr.emplace_back(use_implicit_batch);
-    max_workspace_size_attr.emplace_back(max_workspace_size);
-    use_fp16_attr.emplace_back(use_fp16);
-    use_uint8_attr.emplace_back(use_uint8);
-    node->SetAttr("tensorrt_version", tensorrt_version_attr);
-    node->SetAttr("use_implicit_batch", use_implicit_batch_attr);
-    node->SetAttr("max_workspace_size", max_workspace_size_attr);
-    node->SetAttr("use_fp16", use_fp16_attr);
-    node->SetAttr("use_uint8", use_uint8_attr);
+    ffi::Array<int64_t> tensorrt_version = {cfg.value()->tensorrt_version[0].IntValue(),
+                                            cfg.value()->tensorrt_version[1].IntValue(),
+                                            cfg.value()->tensorrt_version[2].IntValue()};
+    node->SetAttr("tensorrt_version", std::move(tensorrt_version));
+    node->SetAttr("use_implicit_batch", static_cast<int64_t>(cfg.value()->use_implicit_batch));
+    node->SetAttr("max_workspace_size", static_cast<int64_t>(cfg.value()->max_workspace_size));
+    node->SetAttr("use_fp16", static_cast<int64_t>(cfg.value()->use_fp16));
+    node->SetAttr("use_uint8", static_cast<int64_t>(cfg.value()->use_uint8));
   }
 
  private:

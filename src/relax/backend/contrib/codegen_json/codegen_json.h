@@ -30,7 +30,6 @@
 #include <tvm/tir/op.h>
 
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -59,83 +58,112 @@ class OpAttrExtractor {
  public:
   explicit OpAttrExtractor(JSONGraphObjectPtr node) : node_(node) {}
 
-  template <typename T = double, typename = std::enable_if_t<std::is_floating_point<T>::value>>
-  std::string Fp2String(const T value) {
-    std::ostringstream out;
-    out.precision(std::numeric_limits<T>::max_digits10);
-    out << value;
-    return out.str();
-  }
+  void SetNodeAttr(const char* key, ffi::Any value) { node_->SetAttr(key, std::move(value)); }
 
-  void SetNodeAttr(const char* key, const std::vector<std::string>& value) {
-    std::vector<std::any> attr;
-    attr.emplace_back(value);
-    node_->SetAttr(key, attr);
-  }
+  void Visit(const char* key, double* value) { SetNodeAttr(key, *value); }
 
-  void Visit(const char* key, double* value) { SetNodeAttr(key, {Fp2String(*value)}); }
+  void Visit(const char* key, int64_t* value) { SetNodeAttr(key, *value); }
 
-  void Visit(const char* key, int64_t* value) { SetNodeAttr(key, {std::to_string(*value)}); }
+  void Visit(const char* key, uint64_t* value) { SetNodeAttr(key, static_cast<int64_t>(*value)); }
 
-  void Visit(const char* key, uint64_t* value) { SetNodeAttr(key, {std::to_string(*value)}); }
+  void Visit(const char* key, int* value) { SetNodeAttr(key, static_cast<int64_t>(*value)); }
 
-  void Visit(const char* key, int* value) { SetNodeAttr(key, {std::to_string(*value)}); }
+  void Visit(const char* key, bool* value) { SetNodeAttr(key, static_cast<int64_t>(*value)); }
 
-  void Visit(const char* key, bool* value) { SetNodeAttr(key, {std::to_string(*value)}); }
-
-  void Visit(const char* key, std::string* value) { SetNodeAttr(key, {*value}); }
+  void Visit(const char* key, std::string* value) { SetNodeAttr(key, ffi::String(*value)); }
 
   void Visit(const char* key, ffi::Optional<double>* value) {
     if (value->has_value()) {
-      SetNodeAttr(key, {Fp2String(value->value())});
+      SetNodeAttr(key, value->value());
     } else {
-      SetNodeAttr(key, {""});
+      SetNodeAttr(key, ffi::String(""));
     }
   }
 
   void Visit(const char* key, ffi::Optional<int64_t>* value) {
     if (value->has_value()) {
-      SetNodeAttr(key, {std::to_string(value->value())});
+      SetNodeAttr(key, value->value());
     } else {
-      SetNodeAttr(key, {""});
+      SetNodeAttr(key, ffi::String(""));
     }
   }
 
   void Visit(const char* key, DataType* value) {
     if (!value->is_void()) {
-      SetNodeAttr(key, {runtime::DLDataTypeToString(*value)});
+      SetNodeAttr(key, ffi::String(runtime::DLDataTypeToString(*value)));
     } else {
-      SetNodeAttr(key, {""});
+      SetNodeAttr(key, ffi::String(""));
     }
   }
 
   void Visit(const char* key, ffi::Any* value) {
     if (const auto* an = (*value).as<ffi::ArrayObj>()) {
-      std::vector<std::string> attr;
+      // Determine element type from first element and build typed array
+      if (an->size() == 0) {
+        SetNodeAttr(key, ffi::Array<int64_t>{});
+        return;
+      }
+      // Classify elements: check if all are int, or all are numeric (int or float)
+      bool can_be_int = true;
+      bool can_be_double = true;
       for (size_t i = 0; i < an->size(); ++i) {
-        if (auto opt_int = (*an)[i].try_cast<int64_t>()) {
-          attr.push_back(std::to_string(opt_int.value()));
-        } else if (const auto* im = (*an)[i].as<IntImmNode>()) {
-          attr.push_back(std::to_string(im->value));
-        } else if (auto opt_float = (*an)[i].try_cast<double>()) {
-          attr.push_back(Fp2String(opt_float.value()));
-        } else if (const auto* fm = (*an)[i].as<FloatImmNode>()) {
-          attr.push_back(Fp2String(fm->value));
-        } else if (auto opt_str = (*an)[i].as<ffi::String>()) {
-          attr.push_back(*opt_str);
-        } else {
-          LOG(FATAL) << "Not supported type: " << (*an)[i].GetTypeKey();
+        const auto& elem = (*an)[i];
+        bool is_int = elem.try_cast<int64_t>() || elem.as<IntImmNode>();
+        bool is_float = elem.try_cast<double>() || elem.as<FloatImmNode>();
+        if (!is_int) {
+          can_be_int = false;
+        }
+        if (!is_int && !is_float) {
+          can_be_double = false;
+          break;
         }
       }
-      SetNodeAttr(key, attr);
+      if (can_be_int) {
+        ffi::Array<int64_t> attr;
+        for (size_t i = 0; i < an->size(); ++i) {
+          if (auto opt_int = (*an)[i].try_cast<int64_t>()) {
+            attr.push_back(opt_int.value());
+          } else if (const auto* im = (*an)[i].as<IntImmNode>()) {
+            attr.push_back(im->value);
+          }
+        }
+        SetNodeAttr(key, std::move(attr));
+      } else if (can_be_double) {
+        // Mixed int/float array: promote all to double
+        ffi::Array<double> attr;
+        for (size_t i = 0; i < an->size(); ++i) {
+          const auto& elem = (*an)[i];
+          if (auto opt_float = elem.try_cast<double>()) {
+            attr.push_back(opt_float.value());
+          } else if (const auto* fm = elem.as<FloatImmNode>()) {
+            attr.push_back(fm->value);
+          } else if (auto opt_int = elem.try_cast<int64_t>()) {
+            attr.push_back(static_cast<double>(opt_int.value()));
+          } else if (const auto* im = elem.as<IntImmNode>()) {
+            attr.push_back(static_cast<double>(im->value));
+          }
+        }
+        SetNodeAttr(key, std::move(attr));
+      } else {
+        // Fall back to string array
+        ffi::Array<ffi::String> attr;
+        for (size_t i = 0; i < an->size(); ++i) {
+          if (auto opt_str = (*an)[i].as<ffi::String>()) {
+            attr.push_back(*opt_str);
+          } else {
+            LOG(FATAL) << "Not supported type: " << (*an)[i].GetTypeKey();
+          }
+        }
+        SetNodeAttr(key, std::move(attr));
+      }
     } else if (*value == nullptr) {  // Skip NullValue
-      SetNodeAttr(key, std::vector<std::string>{""});
+      SetNodeAttr(key, ffi::String(""));
     } else if (const auto* im = (*value).as<IntImmNode>()) {
-      SetNodeAttr(key, std::vector<std::string>{std::to_string(im->value)});
+      SetNodeAttr(key, static_cast<int64_t>(im->value));
     } else if (const auto* fm = (*value).as<FloatImmNode>()) {
-      SetNodeAttr(key, std::vector<std::string>{Fp2String(fm->value)});
+      SetNodeAttr(key, static_cast<double>(fm->value));
     } else if (const auto opt_str = (*value).as<ffi::String>()) {
-      SetNodeAttr(key, std::vector<std::string>{*opt_str});
+      SetNodeAttr(key, *opt_str);
     } else {
       LOG(FATAL) << "Not yet supported type: " << (*value).GetTypeKey();
     }
@@ -157,7 +185,7 @@ class OpAttrExtractor {
       Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
       switch (field_value.type_index()) {
         case ffi::TypeIndex::kTVMFFINone: {
-          SetNodeAttr(field_info->name.data, {""});
+          SetNodeAttr(field_info->name.data, ffi::String(""));
           break;
         }
         case ffi::TypeIndex::kTVMFFIBool:
@@ -267,13 +295,14 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       dtype.emplace_back(DType2String(tensor_sinfo->dtype));
       ret.push_back(JSONGraphNodeEntry(node_id, 0));
     }
-    std::vector<std::any> shape_attrs;
-    shape_attrs.emplace_back(shape);
-    node->SetAttr("shape", shape_attrs);
-
-    std::vector<std::any> type_attrs;
-    type_attrs.emplace_back(dtype);
-    node->SetAttr("dtype", type_attrs);
+    node->SetShape(shape);
+    {
+      std::vector<DLDataType> dl_dtypes;
+      for (const auto& dt : dtype) {
+        dl_dtypes.push_back(ffi::StringToDLDataType(dt));
+      }
+      node->SetDType(dl_dtypes);
+    }
     return ret;
   }
 
@@ -286,11 +315,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       ICHECK(false);
       auto pattern = fn->GetAttr<ffi::String>(attr::kPartitionedFromPattern);
       ICHECK(pattern.has_value());
-      std::vector<std::string> values;
-      values.push_back(pattern.value());
-      std::vector<std::any> attr;
-      attr.emplace_back(values);
-      node->SetAttr("PartitionedFromPattern", attr);
+      node->SetAttr("PartitionedFromPattern", pattern.value());
     }
   }
 

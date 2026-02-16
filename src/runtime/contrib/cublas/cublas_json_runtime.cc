@@ -139,7 +139,7 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 
         std::optional<float> dq_scale = std::nullopt;
         if (op_name.find("dequantize") != std::string::npos) {
-          dq_scale = std::stof(node.GetAttr<std::vector<std::string>>("dq_scale")[0]);
+          dq_scale = static_cast<float>(node.GetAttr<double>("dq_scale"));
         }
 
         tvm::contrib::CallCublasLt(entry_ptr->handle, stream, entry_ptr->matmul_pref_desc, a_ptr,

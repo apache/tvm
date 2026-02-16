@@ -29,7 +29,7 @@
 #include <string>
 #include <vector>
 
-#include "meta_data.h"
+#include "metadata.h"
 
 namespace tvm {
 namespace runtime {
@@ -239,11 +239,11 @@ struct ThreadWorkLoad {
 /*! \brief Launch parameters configuration */
 class LaunchParamConfig {
  public:
-  void Init(size_t base, const std::vector<std::string>& launch_param_tags) {
+  void Init(size_t base, const ffi::Array<ffi::String>& launch_param_tags) {
     base_ = base;
     std::vector<bool> filled(6, false);
     for (size_t i = 0; i < launch_param_tags.size(); ++i) {
-      const std::string& tag = launch_param_tags[i];
+      std::string tag(launch_param_tags[i]);
       if (tag == launch_param::kUseDynamicSharedMemoryTag) {
         ICHECK_EQ(i, launch_param_tags.size() - 1)
             << "kUseDynamicSharedMemoryTag should be the last tag in launch_param_tags.";

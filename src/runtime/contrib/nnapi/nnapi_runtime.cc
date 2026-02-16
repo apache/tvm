@@ -89,7 +89,8 @@ class NNAPIRuntime : public JSONRuntimeBase {
       const uint32_t nid = input_nodes_[i];
       if (nodes_[nid].GetOpType() == "input") {
         for (size_t j = 0; j < nodes_[nid].GetOpShape().size(); ++j) {
-          const std::vector<int64_t> input_shape = nodes_[nid].GetOpShape()[j];
+          const auto input_shape_arr = nodes_[nid].GetOpShape()[j];
+          const std::vector<int64_t> input_shape(input_shape_arr.begin(), input_shape_arr.end());
           const auto input_dtype = nodes_[nid].GetOpDataType()[j];
           const NNAPIOperand operand =
               builder.CreateOperand(input_shape.data(), input_shape.size(), input_dtype);

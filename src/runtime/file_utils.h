@@ -28,9 +28,8 @@
 #include <tvm/ffi/string.h>
 
 #include <string>
-#include <unordered_map>
 
-#include "meta_data.h"
+#include "metadata.h"
 
 namespace tvm {
 namespace runtime {
@@ -80,15 +79,14 @@ void SaveBinaryToFile(const std::string& file_name, const std::string& data);
  * \param fmap The function info map.
  */
 void SaveMetaDataToFile(const std::string& file_name,
-                        const std::unordered_map<std::string, FunctionInfo>& fmap);
+                        const ffi::Map<ffi::String, FunctionInfo>& fmap);
 
 /*!
  * \brief Load meta data to file.
  * \param file_name The name of the file.
  * \param fmap The function info map.
  */
-void LoadMetaDataFromFile(const std::string& file_name,
-                          std::unordered_map<std::string, FunctionInfo>* fmap);
+void LoadMetaDataFromFile(const std::string& file_name, ffi::Map<ffi::String, FunctionInfo>* fmap);
 
 /*!
  * \brief Copy the content of an existing file to another file.
@@ -135,6 +133,9 @@ void SaveParams(support::Stream* strm, const ffi::Map<ffi::String, Tensor>& para
  */
 struct SimpleBinaryFileStream : public support::Stream {
  public:
+  using Stream::Read;
+  using Stream::Write;
+
   SimpleBinaryFileStream(const std::string& path, std::string mode) {
     const char* fname = path.c_str();
 

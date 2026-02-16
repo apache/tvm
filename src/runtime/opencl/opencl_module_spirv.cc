@@ -21,7 +21,6 @@
 #include <tvm/support/io.h>
 
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "../../support/bytes_io.h"
@@ -37,7 +36,7 @@ class OpenCLSPIRVModuleNode : public OpenCLModuleNodeBase {
  public:
   explicit OpenCLSPIRVModuleNode(const std::unordered_map<std::string, SPIRVShader>& shaders,
                                  const std::string& spirv_text,
-                                 std::unordered_map<std::string, FunctionInfo> fmap)
+                                 ffi::Map<ffi::String, FunctionInfo> fmap)
       : OpenCLModuleNodeBase(fmap), shaders_(shaders), spirv_text_(spirv_text) {}
 
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
@@ -132,7 +131,7 @@ cl_kernel OpenCLSPIRVModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenC
 
 ffi::Module OpenCLModuleCreate(const std::unordered_map<std::string, SPIRVShader>& shaders,
                                const std::string& spirv_text,
-                               std::unordered_map<std::string, FunctionInfo> fmap) {
+                               ffi::Map<ffi::String, FunctionInfo> fmap) {
   auto n = ffi::make_object<OpenCLSPIRVModuleNode>(shaders, spirv_text, fmap);
   n->Init();
   return ffi::Module(n);

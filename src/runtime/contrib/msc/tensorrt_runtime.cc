@@ -104,10 +104,10 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
     // op nodes. Read from first one.
     for (size_t i = 0; i < nodes_.size(); ++i) {
       if (nodes_[i].HasAttr("msc_global_options_num")) {
-        engine_file_ = nodes_[i].GetAttr<std::vector<std::string>>("msc_global_engine")[0];
-        graph_name_ = nodes_[i].GetAttr<std::vector<std::string>>("msc_global_graph_name")[0];
+        engine_file_ = std::string(nodes_[i].GetAttr<ffi::String>("msc_global_engine"));
+        graph_name_ = std::string(nodes_[i].GetAttr<ffi::String>("msc_global_graph_name"));
         if (nodes_[i].HasAttr("msc_global_tool_tag")) {
-          tool_tag_ = nodes_[i].GetAttr<std::vector<std::string>>("msc_global_tool_tag")[0];
+          tool_tag_ = std::string(nodes_[i].GetAttr<ffi::String>("msc_global_tool_tag"));
         } else {
           tool_tag_ = "";
         }

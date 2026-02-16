@@ -27,7 +27,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../pack_args.h"
 #include "../spirv/spirv_shader.h"
 #include "../thread_storage_scope.h"
@@ -58,7 +58,7 @@ class VulkanWrappedFunc {
  public:
   void Init(VulkanModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
-            const std::vector<std::string>& launch_param_tags);
+            const ffi::Array<ffi::String>& launch_param_tags);
 
   void operator()(ffi::PackedArgs args, ffi::Any* rv, const ArgUnion64* pack_args) const;
 
@@ -83,7 +83,7 @@ class VulkanWrappedFunc {
 class VulkanModuleNode final : public ffi::ModuleObj {
  public:
   explicit VulkanModuleNode(std::unordered_map<std::string, SPIRVShader> smap,
-                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
+                            ffi::Map<ffi::String, FunctionInfo> fmap, std::string source)
       : smap_(smap), fmap_(fmap), source_(source) {}
   ~VulkanModuleNode();
 
@@ -108,7 +108,7 @@ class VulkanModuleNode final : public ffi::ModuleObj {
   // function information table.
   std::unordered_map<std::string, SPIRVShader> smap_;
   // function information table.
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   // The format
   std::string fmt_{"vulkan"};
   // The source

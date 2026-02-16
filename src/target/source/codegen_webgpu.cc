@@ -31,13 +31,13 @@
 
 #include <algorithm>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "../../arith/pattern_match.h"
-#include "../../runtime/meta_data.h"
+#include "../../runtime/file_utils.h"
+#include "../../runtime/metadata.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/bytes_io.h"
 #include "../build_common.h"
@@ -146,8 +146,9 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   header_stream << "//----------------------------------------\n"
                 << "// Function: " << global_symbol.value() << "\n"
                 << "//----------------------------------------\n";
-  runtime::FunctionInfo func_info;
-  func_info.name = global_symbol.value();
+  ffi::String func_name = global_symbol.value();
+  ffi::Array<DLDataType> func_arg_types;
+  ffi::Array<ffi::String> func_launch_param_tags;
 
   WebGPUWorkGroupInfo info = WebGPUWorkgroupInfoCollector::Collect(f->body);
 
@@ -160,7 +161,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   // setup buffer argumemts
   for (Var arg : f->params) {
     DataType t = arg.dtype();
-    func_info.arg_types.push_back(t);
+    func_arg_types.push_back(t);
 
     if (t.is_handle()) {
       auto* ptr = arg->type_annotation.as<PointerTypeNode>();
@@ -237,11 +238,11 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   // setup thread tags and param access in launch param tags;
   if (auto opt = f->GetAttr<ffi::Array<ffi::String>>(tir::attr::kKernelLaunchParams)) {
     for (const auto& thread_tag : opt.value()) {
-      func_info.launch_param_tags.push_back(thread_tag);
+      func_launch_param_tags.push_back(thread_tag);
     }
   }
   os_param_access << "]";
-  func_info.launch_param_tags.push_back(os_param_access.str());
+  func_launch_param_tags.push_back(os_param_access.str());
 
   ICHECK(!info.has_block_index_z)
       << "blockIdx.z is not supported in WebGPU to accomodate large blockIdx.x";
@@ -251,7 +252,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
 
   // add to alloc buffer type.
   // Function header.
-  this->stream << "fn " << func_info.name << "(\n"
+  this->stream << "fn " << func_name << "(\n"
                << "  @builtin(workgroup_id) blockIdx : vec3<u32>,\n"
                << "  @builtin(num_workgroups) gridDim : vec3<u32>,\n"
                << "  @builtin(local_invocation_id) threadIdx : vec3<u32>\n"
@@ -265,7 +266,8 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";
-  return func_info;
+  return runtime::FunctionInfo(std::move(func_name), std::move(func_arg_types),
+                               std::move(func_launch_param_tags), {});
 }
 
 void CodeGenWebGPU::BindThreadIndex(const IterVar& iv) {
@@ -715,7 +717,7 @@ void CodeGenWebGPU::VisitStmt_(const WhileNode* op) {
 class WebGPUSourceModuleNode final : public ffi::ModuleObj {
  public:
   explicit WebGPUSourceModuleNode(std::unordered_map<std::string, std::string> smap,
-                                  std::unordered_map<std::string, runtime::FunctionInfo> fmap)
+                                  ffi::Map<ffi::String, runtime::FunctionInfo> fmap)
       : smap_(smap), fmap_(fmap) {}
 
   const char* kind() const final { return "webgpu"; }
@@ -740,7 +742,7 @@ class WebGPUSourceModuleNode final : public ffi::ModuleObj {
       namespace json = ::tvm::ffi::json;
       json::Object obj;
       for (const auto& kv : fmap_) {
-        obj.Set(ffi::String(kv.first), kv.second.SaveToJSON());
+        obj.Set(kv.first, kv.second->SaveToJSON());
       }
       return std::string(json::Stringify(obj));
     } else {
@@ -756,7 +758,7 @@ class WebGPUSourceModuleNode final : public ffi::ModuleObj {
   // function shader code table.
   std::unordered_map<std::string, std::string> smap_;
   // function information table.
-  std::unordered_map<std::string, runtime::FunctionInfo> fmap_;
+  ffi::Map<ffi::String, runtime::FunctionInfo> fmap_;
 };
 
 //-------------------------------------------------
@@ -767,7 +769,7 @@ ffi::Module BuildWebGPU(IRModule mod, Target target) {
   bool output_ssa = false;
   bool skip_readonly_decl = false;
   std::unordered_map<std::string, std::string> smap;
-  std::unordered_map<std::string, runtime::FunctionInfo> fmap;
+  ffi::Map<ffi::String, runtime::FunctionInfo> fmap;
 
   // narrow all i64 to i32
   mod = tir::transform::ForceNarrowIndexToInt32()(std::move(mod));
@@ -784,7 +786,7 @@ ffi::Module BuildWebGPU(IRModule mod, Target target) {
         << "CodeGenWebGPU: Expect PrimFunc to have the global_symbol attribute";
     std::string f_name = global_symbol.value();
     cg.Init(output_ssa);
-    fmap[f_name] = cg.AddFunction(f, skip_readonly_decl);
+    fmap.Set(f_name, cg.AddFunction(f, skip_readonly_decl));
     std::string code = cg.Finish();
     smap[f_name] = code;
   }

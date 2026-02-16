@@ -27,14 +27,13 @@ namespace tvm {
 namespace runtime {
 
 ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
-                               std::unordered_map<std::string, FunctionInfo> fmap,
-                               std::string source) {
+                               ffi::Map<ffi::String, FunctionInfo> fmap, std::string source) {
   return codegen::DeviceSourceModuleCreate(data, fmt, fmap, "opencl");
 }
 
 ffi::Module OpenCLModuleCreate(const std::unordered_map<std::string, SPIRVShader>& shaders,
                                const std::string& spirv_text,
-                               std::unordered_map<std::string, FunctionInfo> fmap) {
+                               ffi::Map<ffi::String, FunctionInfo> fmap) {
   LOG(FATAL) << "OpenCLModuleCreate is called but OpenCL is not enabled.";
   TVM_FFI_UNREACHABLE();
 }

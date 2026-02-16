@@ -93,10 +93,11 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
   }
 
   std::vector<int> vstr2vint(const JSONGraphNode& node, const std::string& attrStr) {
-    auto string_to_int = [](const std::string& str) { return std::stoi(str); };
-    auto string_vec = node.GetAttr<std::vector<std::string>>(attrStr);
-    std::vector<int> int_vec(string_vec.size());
-    std::transform(string_vec.begin(), string_vec.end(), int_vec.begin(), string_to_int);
+    auto int_vec_any = node.GetAttr<ffi::Array<int64_t>>(attrStr);
+    std::vector<int> int_vec(int_vec_any.size());
+    for (size_t i = 0; i < int_vec_any.size(); ++i) {
+      int_vec[i] = static_cast<int>(int_vec_any[i]);
+    }
     return int_vec;
   }
 
@@ -121,12 +122,12 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
       output_dims.emplace_back(static_cast<int>(_i));
     }
     bool has_bias = attr_in_name(op_name, "bias");
-    int groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
+    int groups = static_cast<int>(node.GetAttr<int64_t>("groups"));
     std::vector<int> padding = vstr2vint(node, "padding");
     std::vector<int> strides = vstr2vint(node, "strides");
     std::vector<int> dilation = vstr2vint(node, "dilation");
-    auto conv_dtype = node.GetAttr<std::vector<std::string>>("out_dtype")[0];
-    std::string layout = node.GetAttr<std::vector<std::string>>("out_layout")[0];
+    auto conv_dtype = std::string(node.GetAttr<ffi::String>("out_dtype"));
+    std::string layout = std::string(node.GetAttr<ffi::String>("out_layout"));
     int dims = layout.size() - 2;  // remove O and I dims
 
     int format = CUDNN_TENSOR_NHWC;
@@ -194,11 +195,11 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
   std::function<void()> GetAttentionExec(const JSONGraphNode& node) {
 #ifdef TVM_USE_CUDNN_FRONTEND
     auto dtype = node.GetOpDataType()[0];
-    int num_heads = vstr2vint(node, "num_heads")[0];
-    int num_kv_heads = vstr2vint(node, "num_kv_heads")[0];
-    int head_size = vstr2vint(node, "head_size")[0];
-    int head_size_v = vstr2vint(node, "head_size_v")[0];
-    std::string layout = node.GetAttr<std::vector<std::string>>("layout")[0];
+    int num_heads = static_cast<int>(node.GetAttr<int64_t>("num_heads"));
+    int num_kv_heads = static_cast<int>(node.GetAttr<int64_t>("num_kv_heads"));
+    int head_size = static_cast<int>(node.GetAttr<int64_t>("head_size"));
+    int head_size_v = static_cast<int>(node.GetAttr<int64_t>("head_size_v"));
+    std::string layout = std::string(node.GetAttr<ffi::String>("layout"));
     const auto& input_qkv_node = nodes_[EntryID(node.GetInputs()[0])];
     auto qkv_shapes = input_qkv_node.GetOpShape()[0];
 
@@ -215,9 +216,8 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
       LOG(FATAL) << "Unsupported layout: " << layout;
     }
     double scale = 1 / std::sqrt(head_size);
-    std::string scale_attr = node.GetAttr<std::vector<std::string>>("scale")[0];
-    if (scale_attr.size()) {
-      scale = std::stod(scale_attr);
+    if (node.HasAttr("scale")) {
+      scale = node.GetAttr<double>("scale");
     }
 
     auto runner = tvm::contrib::CuDNNSDPARunner::Create();

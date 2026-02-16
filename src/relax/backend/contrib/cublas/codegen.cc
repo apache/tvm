@@ -92,10 +92,7 @@ class CublasJSONSerializer : public JSONSerializer {
           alpha = static_cast<float*>(const_expr->data->data)[0];
         }
 
-        std::vector<std::string> dq_scale = {backend::to_str(alpha)};
-        std::vector<std::any> dq_scale_attr;
-        dq_scale_attr.emplace_back(dq_scale);
-        node->SetAttr("dq_scale", dq_scale_attr);
+        node->SetAttr("dq_scale", static_cast<double>(alpha));
       }
     }
 

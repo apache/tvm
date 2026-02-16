@@ -182,7 +182,7 @@ class TensorRTOpConverter {
    * \param prepadding Prepadding value or symmetric padding values if !padding_is_asymmetric.
    * \param postpadding Postpadding value if padding_is_asymmetric.
    */
-  void GetPadding(const std::vector<std::string>& padding, bool* use_asymmetric_padding,
+  void GetPadding(const ffi::Array<int64_t>& padding, bool* use_asymmetric_padding,
                   nvinfer1::DimsHW* prepadding, nvinfer1::DimsHW* postpadding) const;
 
   /*!
@@ -192,7 +192,7 @@ class TensorRTOpConverter {
    * \param prepadding Prepadding value or symmetric padding values if !padding_is_asymmetric.
    * \param postpadding Postpadding value if padding_is_asymmetric.
    */
-  void GetPadding3D(const std::vector<std::string>& padding, bool* use_asymmetric_padding,
+  void GetPadding3D(const ffi::Array<int64_t>& padding, bool* use_asymmetric_padding,
                     nvinfer1::Dims* prepadding, nvinfer1::Dims* postpadding) const;
 };
 

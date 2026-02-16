@@ -31,12 +31,11 @@
 #include <array>
 #include <mutex>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "../../support/bytes_io.h"
 #include "../file_utils.h"
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "rocm_common.h"
@@ -51,8 +50,8 @@ namespace runtime {
 class ROCMModuleNode : public ffi::ModuleObj {
  public:
   explicit ROCMModuleNode(std::string data, std::string fmt,
-                          std::unordered_map<std::string, FunctionInfo> fmap,
-                          std::string hip_source, std::string assembly)
+                          ffi::Map<ffi::String, FunctionInfo> fmap, std::string hip_source,
+                          std::string assembly)
       : data_(data), fmt_(fmt), fmap_(fmap), hip_source_(hip_source), assembly_(assembly) {
     std::fill(module_.begin(), module_.end(), nullptr);
   }
@@ -140,7 +139,7 @@ class ROCMModuleNode : public ffi::ModuleObj {
   // The format
   std::string fmt_;
   // function information table.
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   // The hip source.
   std::string hip_source_;
   // The gcn asm.
@@ -156,7 +155,7 @@ class ROCMWrappedFunc {
  public:
   // initialize the ROCM function.
   void Init(ROCMModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
-            size_t num_void_args, const std::vector<std::string>& launch_param_tags) {
+            size_t num_void_args, const ffi::Array<ffi::String>& launch_param_tags) {
     m_ = m;
     sptr_ = sptr;
     func_name_ = func_name;
@@ -201,24 +200,24 @@ class ROCMWrappedFunc {
 ffi::Optional<ffi::Function> ROCMModuleNode::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   ICHECK_EQ(sptr_to_self.get(), this);
-  auto it = fmap_.find(name);
-  if (it == fmap_.end()) return std::nullopt;
-  const FunctionInfo& info = it->second;
+  auto opt_info = fmap_.Get(name);
+  if (!opt_info.has_value()) return std::nullopt;
+  FunctionInfo info = opt_info.value();
   ROCMWrappedFunc f;
-  f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
-  return PackFuncPackedArgAligned(f, info.arg_types);
+  f.Init(this, sptr_to_self, name, info->arg_types.size(), info->launch_param_tags);
+  return PackFuncPackedArgAligned(f, info->arg_types);
 }
 
 ffi::Module ROCMModuleCreate(std::string data, std::string fmt,
-                             std::unordered_map<std::string, FunctionInfo> fmap,
-                             std::string hip_source, std::string assembly) {
+                             ffi::Map<ffi::String, FunctionInfo> fmap, std::string hip_source,
+                             std::string assembly) {
   auto n = ffi::make_object<ROCMModuleNode>(data, fmt, fmap, hip_source, assembly);
   return ffi::Module(n);
 }
 
 ffi::Module ROCMModuleLoadFile(const std::string& file_name, const std::string& format) {
   std::string data;
-  std::unordered_map<std::string, FunctionInfo> fmap;
+  ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
@@ -229,10 +228,10 @@ ffi::Module ROCMModuleLoadFile(const std::string& file_name, const std::string& 
 ffi::Module ROCMModuleLoadFromBytes(const ffi::Bytes& bytes) {
   support::BytesInStream stream(bytes);
   std::string data;
-  std::unordered_map<std::string, FunctionInfo> fmap;
+  ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt;
   stream.Read(&fmt);
-  stream.Read(&fmap);
+  ICHECK(stream.Read(&fmap));
   stream.Read(&data);
   return ROCMModuleCreate(data, fmt, fmap, std::string(), std::string());
 }
