@@ -149,8 +149,15 @@ class JSONGraphNode {
         attrs_.Set(key, kv.second);
       }
     }
-    if (HasAttr("shape") && HasAttr("dtype")) {
-      ICHECK_EQ(GetOpShape().size(), GetOpDataType().size());
+    // Populate cached shape/dtype from attrs for fast access
+    if (HasAttr("shape")) {
+      shape_ = GetAttr<ffi::Array<ffi::Array<int64_t>>>("shape");
+    }
+    if (HasAttr("dtype")) {
+      dtype_ = GetAttr<ffi::Array<DLDataType>>("dtype");
+    }
+    if (shape_.defined() && dtype_.defined()) {
+      ICHECK_EQ(shape_.size(), dtype_.size());
     }
   }
 
@@ -220,20 +227,14 @@ class JSONGraphNode {
    *
    * \return The shapes.
    */
-  ffi::Array<ffi::Array<int64_t>> GetOpShape() const {
-    if (!HasAttr("shape")) return {};
-    return GetAttr<ffi::Array<ffi::Array<int64_t>>>("shape");
-  }
+  ffi::Array<ffi::Array<int64_t>> GetOpShape() const { return shape_; }
 
   /*!
    * \brief Return the op types.
    *
    * \return The types.
    */
-  ffi::Array<DLDataType> GetOpDataType() const {
-    if (!HasAttr("dtype")) return {};
-    return GetAttr<ffi::Array<DLDataType>>("dtype");
-  }
+  ffi::Array<DLDataType> GetOpDataType() const { return dtype_; }
 
   /*!
    * \brief Set the number of outputs of the node.
@@ -274,6 +275,7 @@ class JSONGraphNode {
       for (auto x : s) row.push_back(x);
       arr.push_back(std::move(row));
     }
+    shape_ = arr;
     SetAttr("shape", std::move(arr));
   }
 
@@ -281,11 +283,14 @@ class JSONGraphNode {
    * \brief Set dtype for the node.
    */
   void SetDType(const std::vector<DLDataType>& dtype) {
-    ffi::Array<ffi::String> arr;
+    ffi::Array<ffi::String> str_arr;
+    ffi::Array<DLDataType> dt_arr;
     for (const auto& d : dtype) {
-      arr.push_back(ffi::String(ffi::DLDataTypeToString(d)));
+      str_arr.push_back(ffi::String(ffi::DLDataTypeToString(d)));
+      dt_arr.push_back(d);
     }
-    SetAttr("dtype", std::move(arr));
+    dtype_ = std::move(dt_arr);
+    SetAttr("dtype", std::move(str_arr));
   }
 
   /*!
@@ -318,6 +323,10 @@ class JSONGraphNode {
   std::vector<JSONGraphNodeEntry> inputs_;
   /*! \brief Attribute of the node, including shape and dtype. */
   JSONGraphAttrs attrs_;
+  /*! \brief Cached shape for fast access (also stored in attrs_). */
+  ffi::Array<ffi::Array<int64_t>> shape_;
+  /*! \brief Cached dtype for fast access (also stored in attrs_ as strings). */
+  ffi::Array<DLDataType> dtype_;
 
   friend class JSONRuntimeBase;
 };
