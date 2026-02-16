@@ -146,9 +146,12 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
     mod = TextureCopy
 
     if remote is None:
-        target = Target(backend + " -device=adreno")
+        target = Target({"kind": backend, "device": "adreno"})
     else:
-        target = Target(backend + " -device=adreno", "llvm -mtriple=aarch64-linux-android")
+        target = Target(
+            {"kind": backend, "device": "adreno"},
+            {"kind": "llvm", "mtriple": "aarch64-linux-android"},
+        )
 
     with target:
         mod = preprocess_pipeline(mod)

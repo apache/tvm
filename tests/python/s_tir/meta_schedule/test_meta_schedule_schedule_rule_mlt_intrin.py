@@ -30,7 +30,9 @@ from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
 from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 
-def test_x86_conv2d_nchwc(intrin=VNNI_INTRIN, target="llvm -mcpu=cascadelake -num-cores=4"):
+def test_x86_conv2d_nchwc(
+    intrin=VNNI_INTRIN, target={"kind": "llvm", "mcpu": "cascadelake", "num-cores": 4}
+):
     @T.prim_func
     def conv2d_nchwc(
         placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
@@ -277,7 +279,7 @@ def _check_dp4a_dense(m, n, k, in_dtype, out_dtype, expected_mods, expected_deci
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
-        target=Target("cuda --arch=sm_70"),
+        target=Target({"kind": "cuda", "arch": "sm_70"}),
         types=None,
         sch_rules=[
             ms.schedule_rule.MultiLevelTilingWithIntrin(
@@ -418,7 +420,7 @@ def test_dp4a_dense_no_tensorize_2():
 
 if __name__ == "__main__":
     test_x86_conv2d_nchwc()
-    test_x86_conv2d_nchwc(AVX512_INTRIN, "llvm -mcpu=skylake-avx512 -num-cores=4")
+    test_x86_conv2d_nchwc(AVX512_INTRIN, {"kind": "llvm", "mcpu": "skylake-avx512", "num-cores": 4})
     test_dp4a_dense()
     test_dp4a_dense_no_tensorize_1()
     test_dp4a_dense_no_tensorize_2()

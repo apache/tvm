@@ -28,7 +28,7 @@ from tvm.ir.transform import PassContext
 from tvm.script import relax as R
 from tvm.script import tir as T
 
-target = tvm.target.Target("llvm --num-cores=16")
+target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
 
 @tvm.script.ir_module

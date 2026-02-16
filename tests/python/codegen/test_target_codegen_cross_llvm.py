@@ -56,8 +56,8 @@ def test_llvm_add_pipeline():
             assert struct.unpack(endian + "h", arr[0x12:0x14])[0] == e_machine
 
     def build_arm():
-        target = "llvm -mtriple=armv7-none-linux-gnueabihf"
-        if not tvm.runtime.enabled(target):
+        target = {"kind": "llvm", "mtriple": "armv7-none-linux-gnueabihf"}
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because %s is not enabled.." % target)
             return
         temp = utils.tempdir()

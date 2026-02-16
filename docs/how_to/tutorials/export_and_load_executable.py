@@ -336,7 +336,7 @@ if RUN_EXAMPLE:
 #    from tvm import relax
 #
 #    # Step 1: Cross-compile for ARM target (on local machine)
-#    TARGET = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
+#    TARGET = tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
 #    executable = tvm.compile(built_mod, target=TARGET)
 #    executable.export_library("mlp_arm.so")
 #

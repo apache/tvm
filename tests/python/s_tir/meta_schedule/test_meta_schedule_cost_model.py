@@ -182,7 +182,7 @@ def test_meta_schedule_xgb_model_no_feature():
     model = XGBModel(num_warmup_samples=0)
     tune_ctx = TuneContext(
         FullModule,
-        target="llvm --num-cores 16",
+        target={"kind": "llvm", "num-cores": 16},
         space_generator="post-order-apply",
         search_strategy="evolutionary",
     )

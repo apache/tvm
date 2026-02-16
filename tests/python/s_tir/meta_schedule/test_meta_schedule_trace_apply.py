@@ -2720,7 +2720,7 @@ def test_conv2d_int8_vnni():
         Conv2dInt8_NCHWc,
         apply_trace,
         Conv2dInt8_NCHWc_target,
-        "llvm -mcpu=cascadelake",
+        {"kind": "llvm", "mcpu": "cascadelake"},
         get_conv2d_vnni_mod(vnni_id),
     )
 

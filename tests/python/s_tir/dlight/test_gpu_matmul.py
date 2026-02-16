@@ -702,7 +702,7 @@ def test_matmul_android():
                                     matmul[v0, v1, v2] = matmul_pad_local[v0, v1, v2]
 
     mod = tvm.IRModule({"main": before})
-    with Target("opencl", host="llvm -mtriple=aarch64-linux-android"):
+    with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
@@ -848,7 +848,7 @@ def test_fused_dequant_matmul_android():
     # fmt: on
 
     mod = tvm.IRModule({"main": before})
-    with Target("opencl", host="llvm -mtriple=aarch64-linux-android"):
+    with Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-android"}):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Matmul())(mod)
     tvm.ir.assert_structural_equal(mod["main"], expected)
 

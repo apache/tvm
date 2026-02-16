@@ -97,7 +97,7 @@ def _make_mutator(target: Target) -> ms.Mutator:
 
 
 def test_mutate_unroll_matmul():
-    mutator = _make_mutator(target=Target("llvm --num-cores=16"))
+    mutator = _make_mutator(target=Target({"kind": "llvm", "num-cores": 16}))
     sch = _sch(
         decisions=[
             [4, 32, 4, 1],

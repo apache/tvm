@@ -15,13 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target data structure."""
-import json
 import re
 import warnings
 from typing import Union
 
 import tvm_ffi
-from tvm_ffi import register_global_func as _register_global_func
 from tvm.runtime import Device
 from tvm.runtime import Object, convert
 from tvm.runtime.container import String
@@ -118,12 +116,6 @@ class Target(Object):
             When using a dictionary or json string to configure target, the possible values are
             same as target.
         """
-        if isinstance(target, str) and "-libs=mkldnn" in target:
-            target = target.replace("mkldnn", "dnnl")
-            warnings.warn(
-                "Legacy support of mkldnn is going to be deprecated. "
-                "Please use -libs=dnnl instead.",
-            )
         if isinstance(target, (dict, str)):
             target = convert(target)
         if isinstance(host, (dict, str)):
@@ -302,7 +294,7 @@ class Target(Object):
         Can convert from:
         - None (to None).
         - An existing TVM Target object.
-        - A string, eg "cuda" or "cuda -arch=sm_80"
+        - A string, eg "cuda"
         - A Python dictionary, eg {"kind": "cuda", "arch": "sm_80" }
         """
         if target is None:
@@ -415,19 +407,7 @@ class Target(Object):
         return target
 
 
-# TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.
-def _merge_opts(opts, new_opts):
-    """Helper function to merge options"""
-    if isinstance(new_opts, str):
-        new_opts = new_opts.split()
-    if new_opts:
-        opt_set = set(opts)
-        new_opts = [opt for opt in new_opts if opt not in opt_set]
-        return opts + new_opts
-    return opts
-
-
-def cuda(model="unknown", arch=None, options=None):
+def cuda(model="unknown", arch=None, **kwargs):
     """Returns a cuda target.
 
     Parameters
@@ -436,79 +416,102 @@ def cuda(model="unknown", arch=None, options=None):
         The model of cuda device (e.g. 1080ti)
     arch: str
         The cuda architecture (e.g. sm_61)
-    options : str or list of str
-        Additional options
+    kwargs: dict
+        Additional target attributes
     """
-    opts = _merge_opts(["-model=%s" % model], options)
+    config = {"kind": "cuda", "model": model}
     if arch:
-        opts = _merge_opts(["-arch=%s" % arch], opts)
-    if not any(["-arch" in opt for opt in opts]):
-        warnings.warn("Try specifying cuda arch by adding 'arch=sm_xx' to your target.")
-    return Target(" ".join(["cuda"] + opts))
+        config["arch"] = arch
+    else:
+        warnings.warn("Try specifying cuda arch by adding arch='sm_xx' to your target.")
+    config.update(kwargs)
+    return Target(config)
 
 
-def rocm(model="unknown", options=None):
+def rocm(model="unknown", **kwargs):
     """Returns a ROCM target.
 
     Parameters
     ----------
     model: str
         The model of this device
-    options : str or list of str
-        Additional options
+    kwargs: dict
+        Additional target attributes
     """
-    opts = _merge_opts(["-model=%s" % model], options)
-    return Target(" ".join(["rocm"] + opts))
+    config = {"kind": "rocm", "model": model}
+    config.update(kwargs)
+    return Target(config)
 
 
-def mali(model="unknown", options=None):
+def mali(model="unknown", **kwargs):
     """Returns a ARM Mali GPU target.
 
     Parameters
     ----------
     model: str
         The model of this device
-    options : str or list of str
-        Additional options
+    kwargs: dict
+        Additional target attributes
     """
-    opts = ["-device=mali", "-model=%s" % model]
-    opts = _merge_opts(opts, options)
-    return Target(" ".join(["opencl"] + opts))
+    config = {"kind": "opencl", "device": "mali", "model": model}
+    config.update(kwargs)
+    return Target(config)
 
 
-def intel_graphics(model="unknown", options=None):
+def intel_graphics(model="unknown", **kwargs):
     """Returns an Intel Graphics target.
 
     Parameters
     ----------
     model: str
         The model of this device
-    options : str or list of str
-        Additional options
+    kwargs: dict
+        Additional target attributes
     """
-    opts = ["-device=intel_graphics", "-model=%s" % model, "-thread_warp_size=16"]
-    opts = _merge_opts(opts, options)
-    return Target(" ".join(["opencl"] + opts))
+    config = {
+        "kind": "opencl",
+        "device": "intel_graphics",
+        "model": model,
+        "thread_warp_size": 16,
+    }
+    config.update(kwargs)
+    return Target(config)
 
 
 MICRO_SUPPORTED_MODELS = {
-    "host": [],
-    "atsamd51": ["-mcpu=cortex-m4"],
-    "cxd5602gg": ["-mcpu=cortex-m4"],
-    "esp32": [],
-    "imxrt10xx": ["-mcpu=cortex-m7"],
-    "mps2_an521": ["-mcpu=cortex-m33"],
-    "mps3_an547": ["-mcpu=cortex-m55"],
-    "nrf52840": ["-mcpu=cortex-m4+nodsp"],
-    "nrf5340dk": ["-mcpu=cortex-m33"],
-    "rp2040": ["-mcpu=cortex-m0"],
-    "sam3x8e": ["-mcpu=cortex-m3"],
-    "stm32f746xx": ["-mcpu=cortex-m7", "-march=armv7e-m"],
-    "stm32h7xx": ["-mcpu=cortex-m7"],
-    "stm32l4r5zi": ["-mcpu=cortex-m4"],
-    "stm32u5xx": ["-mcpu=cortex-m33"],
-    "zynq_mp_r5": ["-mcpu=cortex-r5"],
+    "host": {},
+    "atsamd51": {"mcpu": "cortex-m4"},
+    "cxd5602gg": {"mcpu": "cortex-m4"},
+    "esp32": {},
+    "imxrt10xx": {"mcpu": "cortex-m7"},
+    "mps2_an521": {"mcpu": "cortex-m33"},
+    "mps3_an547": {"mcpu": "cortex-m55"},
+    "nrf52840": {"mcpu": "cortex-m4+nodsp"},
+    "nrf5340dk": {"mcpu": "cortex-m33"},
+    "rp2040": {"mcpu": "cortex-m0"},
+    "sam3x8e": {"mcpu": "cortex-m3"},
+    "stm32f746xx": {"mcpu": "cortex-m7", "march": "armv7e-m"},
+    "stm32h7xx": {"mcpu": "cortex-m7"},
+    "stm32l4r5zi": {"mcpu": "cortex-m4"},
+    "stm32u5xx": {"mcpu": "cortex-m33"},
+    "zynq_mp_r5": {"mcpu": "cortex-r5"},
 }
+
+
+def _parse_cli_opts_to_dict(opts):
+    """Convert a list of CLI-style options (e.g. ['-mcpu=cortex-a72']) to a dict."""
+    result = {}
+    for opt in opts:
+        opt = opt.lstrip("-")
+        if "=" in opt:
+            key, val = opt.split("=", 1)
+            # Handle comma-separated values as lists
+            if "," in val:
+                val = val.split(",")
+            result[key] = val
+        else:
+            result[opt] = True
+    return result
 
 
 def arm_cpu(model="unknown", options=None):
@@ -523,51 +526,63 @@ def arm_cpu(model="unknown", options=None):
         Additional options
     """
     trans_table = {
-        "pixel2": ["-model=snapdragon835", "-mtriple=arm64-linux-android", "-mattr=+neon"],
-        "mate10": ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
-        "mate10pro": ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
-        "p20": ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
-        "p20pro": ["-model=kirin970", "-mtriple=arm64-linux-android", "-mattr=+neon"],
-        "rasp3b": ["-model=bcm2837", "-mtriple=armv7l-linux-gnueabihf", "-mattr=+neon"],
-        "rasp4b": [
-            "-model=bcm2711",
-            "-mtriple=armv8l-linux-gnueabihf",
-            "-mattr=+neon",
-            "-mcpu=cortex-a72",
-        ],
-        "rasp4b64": [
-            "-model=bcm2711",
-            "-mtriple=aarch64-linux-gnu",
-            "-mattr=+neon",
-            "-mcpu=cortex-a72",
-        ],
-        "rk3399": ["-model=rk3399", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
-        "pynq": ["-model=pynq", "-mtriple=armv7a-linux-eabi", "-mattr=+neon"],
-        "ultra96": ["-model=ultra96", "-mtriple=aarch64-linux-gnu", "-mattr=+neon"],
-        "beagleai": [
-            "-model=beagleai",
-            "-mtriple=armv7a-linux-gnueabihf",
-            "-mattr=+neon,+vfp4,+thumb2",
-            "-mcpu=cortex-a15",
-        ],
-        "stm32mp1": [
-            "-model=stm32mp1",
-            "-mtriple=armv7a-linux-gnueabihf",
-            "-mattr=+neon,+vfp4,+thumb2",
-            "-mcpu=cortex-a7",
-        ],
-        "thunderx": [
-            "-model=thunderx",
-            "-mtriple=aarch64-linux-gnu",
-            "-mattr=+neon,+crc,+lse",
-            "-mcpu=thunderxt88",
-        ],
+        "pixel2": {"model": "snapdragon835", "mtriple": "arm64-linux-android", "mattr": ["+neon"]},
+        "mate10": {"model": "kirin970", "mtriple": "arm64-linux-android", "mattr": ["+neon"]},
+        "mate10pro": {"model": "kirin970", "mtriple": "arm64-linux-android", "mattr": ["+neon"]},
+        "p20": {"model": "kirin970", "mtriple": "arm64-linux-android", "mattr": ["+neon"]},
+        "p20pro": {"model": "kirin970", "mtriple": "arm64-linux-android", "mattr": ["+neon"]},
+        "rasp3b": {
+            "model": "bcm2837",
+            "mtriple": "armv7l-linux-gnueabihf",
+            "mattr": ["+neon"],
+        },
+        "rasp4b": {
+            "model": "bcm2711",
+            "mtriple": "armv8l-linux-gnueabihf",
+            "mattr": ["+neon"],
+            "mcpu": "cortex-a72",
+        },
+        "rasp4b64": {
+            "model": "bcm2711",
+            "mtriple": "aarch64-linux-gnu",
+            "mattr": ["+neon"],
+            "mcpu": "cortex-a72",
+        },
+        "rk3399": {"model": "rk3399", "mtriple": "aarch64-linux-gnu", "mattr": ["+neon"]},
+        "pynq": {"model": "pynq", "mtriple": "armv7a-linux-eabi", "mattr": ["+neon"]},
+        "ultra96": {"model": "ultra96", "mtriple": "aarch64-linux-gnu", "mattr": ["+neon"]},
+        "beagleai": {
+            "model": "beagleai",
+            "mtriple": "armv7a-linux-gnueabihf",
+            "mattr": ["+neon", "+vfp4", "+thumb2"],
+            "mcpu": "cortex-a15",
+        },
+        "stm32mp1": {
+            "model": "stm32mp1",
+            "mtriple": "armv7a-linux-gnueabihf",
+            "mattr": ["+neon", "+vfp4", "+thumb2"],
+            "mcpu": "cortex-a7",
+        },
+        "thunderx": {
+            "model": "thunderx",
+            "mtriple": "aarch64-linux-gnu",
+            "mattr": ["+neon", "+crc", "+lse"],
+            "mcpu": "thunderxt88",
+        },
     }
-    pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
+    pre_defined = trans_table.get(model, {"model": model})
 
-    opts = ["-keys=arm_cpu,cpu", "-device=arm_cpu"] + pre_defined_opt
-    opts = _merge_opts(opts, options)
-    return Target(" ".join(["llvm"] + opts))
+    config = {
+        "kind": "llvm",
+        "keys": ["arm_cpu", "cpu"],
+        "device": "arm_cpu",
+    }
+    config.update(pre_defined)
+    if options:
+        if isinstance(options, str):
+            options = options.split()
+        config.update(_parse_cli_opts_to_dict(options))
+    return Target(config)
 
 
 def rasp(options=None):
@@ -584,17 +599,19 @@ def rasp(options=None):
     return arm_cpu("rasp3b", options)
 
 
-def bifrost(model="unknown", options=None):
+def bifrost(model="unknown", **kwargs):
     """Return an ARM Mali GPU target (Bifrost architecture).
 
     Parameters
     ----------
-    options : str or list of str
-        Additional options
+    model: str
+        The model of this device
+    kwargs: dict
+        Additional target attributes
     """
-    opts = ["-device=bifrost", "-model=%s" % model]
-    opts = _merge_opts(opts, options)
-    return Target(" ".join(["opencl"] + opts))
+    config = {"kind": "opencl", "device": "bifrost", "model": model}
+    config.update(kwargs)
+    return Target(config)
 
 
 def riscv_cpu(model="sifive-u54", options=None):
@@ -609,48 +626,51 @@ def riscv_cpu(model="sifive-u54", options=None):
         Additional options
     """
     trans_table = {
-        "sifive-e31": [
-            "-model=sifive-e31",
-            "-mtriple=riscv32-unknown-linux-gnu",
-            "-mcpu=sifive-e31",
-            "-mabi=ilp32",
-            # cc: riscv64-unknown-linux-gnu-g++ -march=rv32imac -mabi=ilp32 -mcpu=sifive-e31
-        ],
-        "sifive-e76": [
-            "-model=sifive-e76",
-            "-mtriple=riscv32-unknown-linux-gnu",
-            "-mcpu=sifive-e76",
-            "-mabi=ilp32",
-            # cc: riscv64-unknown-linux-gnu-g++ -march=rv32imafc -mabi=ilp32 -mcpu=sifive-e76
-        ],
-        "sifive-u54": [
-            "-model=sifive-u54",
-            "-mtriple=riscv64-unknown-linux-gnu",
-            "-mcpu=sifive-u54",
-            "-mabi=lp64d",
-            # cc: riscv64-unknown-linux-gnu-g++ -march=rv64gc -mabi=lp64d -mcpu=sifive-u54
-        ],
-        "sifive-u74": [
-            "-model=sifive-u74",
-            "-mtriple=riscv64-unknown-linux-gnu",
-            "-mcpu=sifive-u74",
-            "-mabi=lp64d",
-            # cc: riscv64-unknown-linux-gnu-g++ -march=rv64gc -mabi=lp64d -mcpu=sifive-u74
-        ],
-        "licheepi3a": [
-            "-num-cores=8",
-            "-mtriple=riscv64-unknown-linux-gnu",
-            "-mcpu=spacemit-x60",
-            "-mfloat-abi=hard",
-            "-mabi=lp64d",
-            # cc: riscv64-unknown-linux-gnu-g++ -march=rv64gcv -mabi=lp64d -mcpu=spacemit-x60
-        ],
+        "sifive-e31": {
+            "model": "sifive-e31",
+            "mtriple": "riscv32-unknown-linux-gnu",
+            "mcpu": "sifive-e31",
+            "mabi": "ilp32",
+        },
+        "sifive-e76": {
+            "model": "sifive-e76",
+            "mtriple": "riscv32-unknown-linux-gnu",
+            "mcpu": "sifive-e76",
+            "mabi": "ilp32",
+        },
+        "sifive-u54": {
+            "model": "sifive-u54",
+            "mtriple": "riscv64-unknown-linux-gnu",
+            "mcpu": "sifive-u54",
+            "mabi": "lp64d",
+        },
+        "sifive-u74": {
+            "model": "sifive-u74",
+            "mtriple": "riscv64-unknown-linux-gnu",
+            "mcpu": "sifive-u74",
+            "mabi": "lp64d",
+        },
+        "licheepi3a": {
+            "num-cores": 8,
+            "mtriple": "riscv64-unknown-linux-gnu",
+            "mcpu": "spacemit-x60",
+            "mfloat-abi": "hard",
+            "mabi": "lp64d",
+        },
     }
-    pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
+    pre_defined = trans_table.get(model, {"model": model})
 
-    opts = ["-keys=arm_cpu,cpu", "-device=arm_cpu"] + pre_defined_opt
-    opts = _merge_opts(opts, options)
-    return Target(" ".join(["llvm"] + opts))
+    config = {
+        "kind": "llvm",
+        "keys": ["arm_cpu", "cpu"],
+        "device": "arm_cpu",
+    }
+    config.update(pre_defined)
+    if options:
+        if isinstance(options, str):
+            options = options.split()
+        config.update(_parse_cli_opts_to_dict(options))
+    return Target(config)
 
 
 def hexagon(cpu_ver="v68", **kwargs):
@@ -680,14 +700,6 @@ def hexagon(cpu_ver="v68", **kwargs):
     Note: Floating point support in HVX requires LLVM 14+.
     """
 
-    # Some of the target parameters correspond to target kind attributes
-    # listed in src/target/target_kind.cc. For those parameters, their
-    # names follow the attribute names with the exception of '_' being used
-    # in place of '-'.
-
-    # Example compiler arguments
-    # llvm -mtriple=hexagon -mcpu=hexagonv68 -mattr=+hvxv68,+hvx-length128b
-
     def get_arch_version(cpu_ver):
         m = re.match(r"v([0-9]+).*", cpu_ver)
         assert m
@@ -714,110 +726,89 @@ def hexagon(cpu_ver="v68", **kwargs):
         }
         return default_vtcm_sizes.get(cpu_ver, 0)
 
-    # Target configuration:
     arch_version = get_arch_version(cpu_ver)
-    config = {
+    local_config = {
         "hvx": 128,
         "llvm_options": None,
         "use_qfloat": arch_version >= 68,
         "use_ieee_fp": False,
         "vtcm_capacity": get_vtcm_capacity(cpu_ver),
     }
-    config.update(kwargs)
+    local_config.update(kwargs)
 
     # Warn about obsolete parameter names.
-    if config.get("sim_args") or config.get("sim_options"):
+    if local_config.get("sim_args") or local_config.get("sim_options"):
         msg = (
             "Setting simulator options in target is deprecated, set environment variable "
             "HEXAGON_SIM_ARGS instead"
         )
         warnings.warn(msg, stacklevel=2)
-    if config.get("llvm_args"):
+    if local_config.get("llvm_args"):
         msg = "The keyword parameter 'llvm_args' is deprecated, use 'llvm_options' instead"
         warnings.warn(msg, stacklevel=2)
-        config.update({"llvm_options": config["llvm_args"]})
+        local_config.update({"llvm_options": local_config["llvm_args"]})
 
-    # LLVM target string
-    def create_llvm_target(cpu_ver, config):
-        """Create LLVM target string."""
+    # Build mattr list from config
+    features_map = {
+        "use_qfloat": "hvx-qfloat",
+        "use_ieee_fp": "hvx-ieee-fp",
+    }
+    mattr = []
+    if local_config["hvx"] > 0:
+        valid_hvx = [0, 64, 128]
+        if local_config["hvx"] not in valid_hvx:
+            raise ValueError("Invalid hvx value, should be one of " + str(valid_hvx))
+        mattr += ["+hvx" + cpu_ver, "+hvx-length" + str(local_config["hvx"]) + "b"]
+    else:
+        mattr += ["-hvx"]
+    if arch_version >= 68:
+        for f, feat_name in features_map.items():
+            mattr.append(("-", "+")[local_config[f]] + feat_name)
 
-        target = " -mtriple=hexagon"
-        mcpu = " -mcpu=hexagon" + cpu_ver
+    # Build llvm-options list
+    llvm_options_list = []
+    llvm_options = local_config["llvm_options"]
+    if arch_version == 68:
+        if not llvm_options:
+            llvm_options = ""
+        llvm_options += " -force-hvx-float"
+    if llvm_options and len(llvm_options.strip()) > 0:
+        llvm_options_list = [s.replace("=", "@") for s in llvm_options.split()]
 
-        # Process the options that affect target features and return the
-        # target feature string.
-        def create_target_features(config):
-            features = {
-                "use_qfloat": "hvx-qfloat",
-                "use_ieee_fp": "hvx-ieee-fp",
-            }
-            tfs = []
-            if config["hvx"] > 0:
-                valid_hvx = [0, 64, 128]
-                if not config["hvx"] in valid_hvx:
-                    raise ValueError("Invalid hvx value, should be one of " + str(valid_hvx))
-                tfs += ["+hvx" + cpu_ver, "+hvx-length" + str(config["hvx"]) + "b"]
-            else:
-                tfs += ["-hvx"]
-            # All the additional features happen to only apply to v68+.
-            # Don't bother applying them (even with '-') to lower versions.
-            if arch_version >= 68:
-                tfs += ["-+"[config[f]] + features[f] for f in features]
+    num_cores = local_config["num_cores"] if "num_cores" in kwargs else 4
 
-            return "-mattr=" + ",".join(tfs) if tfs else ""
+    target_config = {
+        "kind": "hexagon",
+        "mtriple": "hexagon",
+        "mcpu": "hexagon" + cpu_ver,
+        "mattr": mattr,
+        "num-cores": num_cores,
+        "vtcm-capacity": local_config["vtcm_capacity"],
+    }
+    if llvm_options_list:
+        target_config["llvm-options"] = llvm_options_list
 
-        return target + mcpu + " " + create_target_features(config)
-
-    # LLVM options string
-    def create_llvm_options(cpu_ver, config):  # pylint: disable=unused-argument
-        """Create LLVM options string."""
-
-        llvm_options = config["llvm_options"]
-
-        # To enable auto-vectorization for v68 target added the below llvm-option by default
-        if arch_version == 68:
-            if not llvm_options:
-                llvm_options = ""
-            llvm_options += " -force-hvx-float"
-
-        # TVM's option parser doesn't allow '=' in values, but '=' can
-        # appear in LLVM flags. Replace it with '@', since it's unlikely
-        # that '@' will be used in another context.
-        if llvm_options is None or len(llvm_options.strip()) == 0:
-            return ""
-        args = [s.replace("=", "@") for s in llvm_options.split()]
-        return "--llvm-options=" + ",".join(args)
-
-    target_str = create_llvm_target(cpu_ver, config)
-    llvm_str = create_llvm_options(cpu_ver, config)
-
-    args_list = target_str.split() + llvm_str.split()
-
-    num_cores = config["num_cores"] if "num_cores" in kwargs else 4
-    args_list.append("--num-cores=%d" % num_cores)
-    args_list.append("--vtcm-capacity=%d" % config["vtcm_capacity"])
-
-    return Target(" ".join(["hexagon"] + args_list))
+    return Target(target_config)
 
 
 STM32_SUPPORTED_SERIES = {
     # High-Performance
-    "stm32H7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
-    "stm32F7xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m7"],
-    "stm32F4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32F2xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32H7xx": {"mcpu": "cortex-m7", "march": "armv7e-m"},
+    "stm32F7xx": {"mcpu": "cortex-m7"},
+    "stm32F4xx": {"mcpu": "cortex-m4"},
+    "stm32F2xx": {"mcpu": "cortex-m3"},
     # Mainstream
-    "stm32G0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
-    "stm32F0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0"],
-    "stm32F1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
-    "stm32G4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32F3xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32G0xx": {"mcpu": "cortex-m0+"},
+    "stm32F0xx": {"mcpu": "cortex-m0"},
+    "stm32F1xx": {"mcpu": "cortex-m3"},
+    "stm32G4xx": {"mcpu": "cortex-m4"},
+    "stm32F3xx": {"mcpu": "cortex-m4"},
     # Low-power
-    "stm32U5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
-    "stm32L5xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m33"],
-    "stm32L4xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m4"],
-    "stm32L1xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m3"],
-    "stm32L0xx": ["-keys=arm_cpu,cpu", "-device=arm_cpu", "-mcpu=cortex-m0+"],
+    "stm32U5xx": {"mcpu": "cortex-m33"},
+    "stm32L5xx": {"mcpu": "cortex-m33"},
+    "stm32L4xx": {"mcpu": "cortex-m4"},
+    "stm32L1xx": {"mcpu": "cortex-m3"},
+    "stm32L0xx": {"mcpu": "cortex-m0+"},
 }
 
 
@@ -831,11 +822,19 @@ def stm32(series="unknown", options=None):
     options : str or list of str
         Additional options
     """
-
     if series not in STM32_SUPPORTED_SERIES:
         raise ValueError(f"Series {series} is not supported by tvm.target.stm32.")
-    opts = _merge_opts(STM32_SUPPORTED_SERIES[series], options)
-    return Target(" ".join(["c"] + opts))
+    config = {
+        "kind": "c",
+        "keys": ["arm_cpu", "cpu"],
+        "device": "arm_cpu",
+    }
+    config.update(STM32_SUPPORTED_SERIES[series])
+    if options:
+        if isinstance(options, str):
+            options = options.split()
+        config.update(_parse_cli_opts_to_dict(options))
+    return Target(config)
 
 
 def adreno(model="unknown", options=None, cfg=None, backend="opencl"):
@@ -855,30 +854,24 @@ def adreno(model="unknown", options=None, cfg=None, backend="opencl"):
     if backend not in ["opencl", "vulkan"]:
         raise ValueError(f"Unsupported API: {backend}. Must be 'opencl' or 'vulkan'.")
 
-    keys = f"adreno,{backend},gpu"
+    keys = ["adreno", backend, "gpu"]
     if cfg:
-        keys += f",{cfg}"
+        keys.append(cfg)
 
-    opts = ["-device=adreno", f"--keys={keys}", f"-model={model}"]
-    opts = _merge_opts(opts, options)
-    return Target(" ".join([backend] + opts))
+    config = {
+        "kind": backend,
+        "device": "adreno",
+        "keys": keys,
+        "model": model,
+    }
+    if options:
+        if isinstance(options, str):
+            options = options.split()
+        config.update(_parse_cli_opts_to_dict(options))
+    return Target(config)
 
 
 def create(target):
     """Deprecated. Use the constructor of :py:mod:`tvm.target.Target` directly."""
     warnings.warn("tvm.target.create() is being deprecated. Please use tvm.target.Target() instead")
     return Target(target)
-
-
-@_register_global_func("target._load_config_dict")
-def _load_config_dict(config_dict_str):
-    try:
-        config = json.loads(config_dict_str)
-    except json.decoder.JSONDecodeError:
-        return None
-    if not isinstance(config, dict):
-        return None
-    for key in config.keys():
-        if not isinstance(key, str):
-            return None
-    return config

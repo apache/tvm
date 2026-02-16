@@ -36,7 +36,7 @@ key = "android"
 # Change target configuration.
 # Run `adb shell cat /proc/cpuinfo` to find the arch.
 arch = "arm64"
-target = "llvm -mtriple=%s-linux-android" % arch
+target = {"kind": "llvm", "mtriple": f"{arch}-linux-android"}
 
 # whether enable to execute test on OpenCL target
 test_opencl = False

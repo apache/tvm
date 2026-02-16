@@ -40,7 +40,7 @@ def _parse_args() -> argparse.Namespace:
         --vec "1,2,4" \
 
     Example for Android GPU: \
-    python -m tvm.exec.gpu_memory_bandwidth "opencl" --target_host "llvm -mtriple=arm64-linux-android" \
+    python -m tvm.exec.gpu_memory_bandwidth "opencl" --target_host '{"kind": "llvm", "mtriple": "arm64-linux-android"}' \
         --rpc_host "127.0.0.1" \
         --rpc_port 9190 \
         --rpc_key "android" \

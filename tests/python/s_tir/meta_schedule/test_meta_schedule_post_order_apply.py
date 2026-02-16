@@ -432,27 +432,53 @@ def test_target_sblocks_search_space():
     "target,mod,expected_intr",
     [
         (
-            Target("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon -num-cores 2"),
+            Target(
+                {
+                    "kind": "llvm",
+                    "device": "arm_cpu",
+                    "mtriple": "aarch64-linux-gnu",
+                    "mattr": ["+neon"],
+                    "num-cores": 2,
+                }
+            ),
             IRModule({"main": get_matmul_packed(128, 128, 128, "int8", "int8", "int32")}),
             "dot_4x4_i8i8s32_neon",
         ),
         (
             Target(
-                "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod -num-cores 2"
+                {
+                    "kind": "llvm",
+                    "device": "arm_cpu",
+                    "mtriple": "aarch64-linux-gnu",
+                    "mattr": ["+neon", "+v8.2a", "+dotprod"],
+                    "num-cores": 2,
+                }
             ),
             IRModule({"main": get_matmul_packed(128, 128, 128, "int8", "int8", "int32")}),
             "dot_4x4_i8i8s32_sdot",
         ),
         (
             Target(
-                "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod -num-cores 2"
+                {
+                    "kind": "llvm",
+                    "device": "arm_cpu",
+                    "mtriple": "aarch64-linux-gnu",
+                    "mattr": ["+neon", "+v8.2a", "+dotprod"],
+                    "num-cores": 2,
+                }
             ),
             IRModule({"main": get_matmul_packed(128, 128, 128, "uint8", "uint8", "uint32")}),
             "dot_4x4_u8u8u32_udot",
         ),
         (
             Target(
-                "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+neon,+v8.2a,+dotprod -num-cores 2"
+                {
+                    "kind": "llvm",
+                    "device": "arm_cpu",
+                    "mtriple": "aarch64-linux-gnu",
+                    "mattr": ["+neon", "+v8.2a", "+dotprod"],
+                    "num-cores": 2,
+                }
             ),
             IRModule({"main": get_matmul_packed(128, 128, 128, "uint8", "uint8", "int32")}),
             "dot_4x4_u8u8i32_hdot",

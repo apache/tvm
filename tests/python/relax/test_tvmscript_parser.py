@@ -314,7 +314,7 @@ def test_global_info_vdevice():
     vdevices = [
         VDevice("llvm"),
         VDevice("cuda", 0),
-        VDevice("cuda -arch=sm_80", 0),
+        VDevice({"kind": "cuda", "arch": "sm_80"}, 0),
         VDevice("metal", 0, "global"),
     ]
 
@@ -326,7 +326,7 @@ def test_global_info_vdevice():
                 "vdevice": [
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                     I.vdevice("metal", 0, "global"),
                 ]
             }
@@ -774,7 +774,7 @@ def test_tensor_with_vdevice():
         VDevice("llvm"),
         VDevice("cuda", 0),
         VDevice("metal", 0, "global"),
-        VDevice("cuda -arch=sm_80", 0),
+        VDevice({"kind": "cuda", "arch": "sm_80"}, 0),
     ]
 
     @I.ir_module
@@ -786,7 +786,7 @@ def test_tensor_with_vdevice():
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
                     I.vdevice("metal", 0, "global"),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
@@ -1093,7 +1093,7 @@ def test_local_function():
     ) -> R.Tensor((2, 3), "float32"):
         @R.function
         def outer_func(
-            c1: R.Tensor((2, 3), "float32")
+            c1: R.Tensor((2, 3), "float32"),
         ) -> R.Callable((R.Tensor(None, "float32", ndim=2),), R.Tensor(None, "float32", ndim=2)):
             @R.function
             def inner_func(x1: R.Tensor((2, 3), "float32")):

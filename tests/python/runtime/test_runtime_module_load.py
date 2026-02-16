@@ -42,7 +42,7 @@ print("Finish runtime checking...")
 
 
 @tvm.testing.requires_llvm
-@pytest.mark.parametrize("target", ["llvm", "llvm -jit=mcjit"])
+@pytest.mark.parametrize("target", ["llvm", {"kind": "llvm", "jit": "mcjit"}])
 def test_dso_module_load(target):
     dtype = "int64"
     temp = utils.tempdir()

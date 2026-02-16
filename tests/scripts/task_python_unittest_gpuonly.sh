@@ -21,14 +21,14 @@ set -euxo pipefail
 export PYTEST_ADDOPTS="-m gpu ${PYTEST_ADDOPTS:-}"
 
 # Test most of the enabled runtimes here.
-export TVM_TEST_TARGETS="cuda;opencl;metal;rocm;nvptx;opencl -device=mali"
+export TVM_TEST_TARGETS='cuda;opencl;metal;rocm;nvptx;{"kind":"opencl","device":"mali"}'
 export TVM_UNITTEST_TESTSUITE_NAME=python-unittest-gpu
 
 ./tests/scripts/task_python_unittest.sh
 
 # Kept separate to avoid increasing time needed to run CI, testing
 # only minimal functionality of Vulkan runtime.
-export TVM_TEST_TARGETS="vulkan -from_device=0"
+export TVM_TEST_TARGETS='{"kind":"vulkan","from_device":0}'
 export TVM_UNITTEST_TESTSUITE_NAME=python-codegen-vulkan
 
 source tests/scripts/setup-pytest-env.sh

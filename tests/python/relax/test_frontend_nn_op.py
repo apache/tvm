@@ -978,7 +978,7 @@ def test_multinomial_from_uniform():
         mod = relax.backend.DispatchSampling()(mod)
         mod = s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target)
-    dev = tvm.device(str(target), 0)
+    dev = tvm.device(target.kind.name, 0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
@@ -1107,7 +1107,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
 
     tvm.ir.assert_structural_equal(mod, Expected)
 
-    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
     with target:
         mod = s_tir.transform.DefaultGPUSchedule()(mod)
 
@@ -1224,7 +1224,7 @@ def test_renormalize_top_p_top_k_prob():
 
     tvm.ir.assert_structural_equal(mod, Expected)
 
-    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
     with target:
         mod = relax.transform.LegalizeOps()(mod)
         mod = s_tir.transform.DefaultGPUSchedule()(mod)

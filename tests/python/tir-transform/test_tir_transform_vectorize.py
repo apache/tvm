@@ -21,8 +21,15 @@ import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tir as T
 
-simple_target = tvm.target.Target("llvm -mtriple=x86_64-linux-gnu")
-sve_target = tvm.target.Target("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+sve")
+simple_target = tvm.target.Target({"kind": "llvm", "mtriple": "x86_64-linux-gnu"})
+sve_target = tvm.target.Target(
+    {
+        "kind": "llvm",
+        "device": "arm_cpu",
+        "mtriple": "aarch64-linux-gnu",
+        "mattr": ["+v8.2a", "+sve"],
+    }
+)
 
 
 @pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
@@ -504,10 +511,7 @@ def test_illegal_vscale_in_non_sve_compilation():
             for j in T.vectorized(0, 4 * T.vscale()):
                 A[j] = 13
 
-    msg = (
-        f"Failed to vectorize loop with extent T.vscale\\(\\) \\* 4 for target "
-        f"llvm -keys=cpu -mtriple=x86_64-linux-gnu"
-    )
+    msg = "Failed to vectorize loop with extent T.vscale\\(\\) \\* 4 for target"
     with tvm.target.Target(simple_target):
         with pytest.raises(tvm.error.InternalError, match=msg):
             tvm.tir.transform.VectorizeLoop()(Mod)

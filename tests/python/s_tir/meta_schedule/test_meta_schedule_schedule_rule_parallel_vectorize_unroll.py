@@ -258,7 +258,7 @@ def test_parallel_vectorize_unroll():
     actual = generate_design_space(
         kind="llvm",
         mod=mod,
-        target=Target("llvm --num-cores=32"),
+        target=Target({"kind": "llvm", "num-cores": 32}),
         types=None,
         sch_rules=[
             ms.schedule_rule.ParallelizeVectorizeUnroll(
@@ -282,7 +282,7 @@ def test_parallel_vectorize_unroll_spatial():
     actual = generate_design_space(
         kind="llvm",
         mod=mod,
-        target=Target("llvm --num-cores=32"),
+        target=Target({"kind": "llvm", "num-cores": 32}),
         types=None,
         sch_rules=[
             ms.schedule_rule.ParallelizeVectorizeUnroll(

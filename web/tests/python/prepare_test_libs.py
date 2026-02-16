@@ -34,7 +34,7 @@ def prepare_relax_lib(base_path):
             lv0 = R.add(x, y)
             return lv0
 
-    target = tvm.target.Target("llvm -mtriple=wasm32-unknown-unknown-wasm")
+    target = tvm.target.Target({"kind": "llvm", "mtriple": "wasm32-unknown-unknown-wasm"})
 
     mod = pipeline(Mod)
     ex = relax.build(mod, target)
@@ -43,8 +43,8 @@ def prepare_relax_lib(base_path):
 
 
 def prepare_tir_lib(base_path):
-    target = "llvm -mtriple=wasm32-unknown-unknown-wasm"
-    if not tvm.runtime.enabled(target):
+    target = {"kind": "llvm", "mtriple": "wasm32-unknown-unknown-wasm"}
+    if not tvm.runtime.enabled("llvm"):
         raise RuntimeError("Target %s is not enbaled" % target)
     n = te.var("n")
     A = te.placeholder((n,), name="A")

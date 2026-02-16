@@ -134,9 +134,9 @@ def benchmark(
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
-            f_preproc="cache_flush_cpu_non_first_arg"
-            if evaluator_config.enable_cpu_cache_flush
-            else "",
+            f_preproc=(
+                "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
+            ),
         )(*input_tensors)
     else:
         from tvm.testing import rpc_run  # pylint: disable=import-outside-toplevel
@@ -242,7 +242,7 @@ def benchmark_relax_func(
         [Dict[str, str]],
         Dict[str, int],
     ] = default_dym_var_sample_func,
-    target: Union[str, tvm.target.Target] = "llvm -num-cores=4",
+    target: Union[str, dict, tvm.target.Target] = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
 ) -> None:
@@ -268,6 +268,8 @@ def benchmark_relax_func(
     rpc_config : Optional["RPCConfig"]
         The RPC configuration to connect to the remote device.
     """
+    if target is None:
+        target = {"kind": "llvm", "num-cores": 4}
     # extract function information
     relax_funcs, dynamic_var_dict = extract_all_func_info_from_relax(mod)
     # find the relax function global var

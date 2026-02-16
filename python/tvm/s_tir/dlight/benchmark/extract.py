@@ -50,7 +50,7 @@ DYM_VAR_DICT = {dym_var_dict}
 {func_script}
 
 if __name__ == "__main__":
-    target = tvm.target.Target("{target}")
+    target = tvm.target.Target({target})
     benchmark_prim_func(
         main,
         args = INPUT_ARGS,
@@ -247,7 +247,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     dym_var_dict: Optional[Dict[str, str]] = None,
     weight: int = 1,
     sample_number: int = 5,
-    target: Optional[Union[str, tvm.target.Target]] = None,
+    target: Optional[Union[str, dict, tvm.target.Target]] = None,
 ) -> str:
     """Extract a self-contained PrimFunc test file from a Relax module.
 
@@ -272,7 +272,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
         The weight of the prim function, by default 1.
     sample_number: int
         The number of times to sample dynamic shape variables, by default 5.
-    target: Optional[Union[str, tvm.target.Target]]
+    target: Optional[Union[str, dict, tvm.target.Target]]
         The target device to run the PrimFunc. If None, will use target from the context.
 
     Returns
@@ -282,16 +282,13 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     """
     if target is None:
         target = tvm.target.Target.current()
-        target_str = str(target)
         if target is None:
             raise ValueError("Target is not specified.")
-    elif isinstance(target, str):
-        target_str = target
+    elif isinstance(target, (str, dict)):
         target = tvm.target.Target(target)
-    elif isinstance(target, tvm.target.Target):
-        target_str = str(target)
-    else:
+    elif not isinstance(target, tvm.target.Target):
         raise TypeError("Unsupported target type: " + str(type(target)))
+    target_json = str(target)
 
     return SKETCH.format(
         **{
@@ -309,7 +306,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
             + f"{cloudpickle.dumps(default_dym_var_sample_func)}"
             + ")",
             "func_script": func.script(),
-            "target": target_str,
+            "target": target_json,
         }
     )
 
@@ -318,7 +315,7 @@ def extract_from_relax(
     mod: tvm.ir.IRModule,
     model_name: str,
     file_path: str,
-    target: Optional[Union[str, tvm.target.Target]] = None,
+    target: Optional[Union[str, dict, tvm.target.Target]] = None,
 ) -> None:
     """Extract self-contained PrimFunc test files from a Relax module.
 

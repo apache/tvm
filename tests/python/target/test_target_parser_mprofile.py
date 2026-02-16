@@ -25,7 +25,7 @@ from tvm.target import Target
 
 @pytest.mark.parametrize(["cpu_target"], [["c"], ["llvm"]])
 def test_target_parser_mprofile(cpu_target):
-    parsed_target = Target(f"{cpu_target} -mcpu=cortex-m55")
+    parsed_target = Target({"kind": cpu_target, "mcpu": "cortex-m55"})
     assert len(parsed_target.keys) == 2
     assert parsed_target.keys[0] == "arm_cpu"
     assert parsed_target.keys[1] == "cpu"
@@ -36,7 +36,7 @@ def test_target_parser_mprofile(cpu_target):
 
 @pytest.mark.parametrize(["cpu_target"], [["c"], ["llvm"]])
 def test_target_parser_mprofile_no_mve(cpu_target):
-    parsed_target = Target(f"{cpu_target} -mcpu=cortex-m7")
+    parsed_target = Target({"kind": cpu_target, "mcpu": "cortex-m7"})
     assert len(parsed_target.keys) == 2
     assert parsed_target.keys[0] == "arm_cpu"
     assert parsed_target.keys[1] == "cpu"
@@ -47,7 +47,7 @@ def test_target_parser_mprofile_no_mve(cpu_target):
 
 @pytest.mark.parametrize(["cpu_target"], [["c"], ["llvm"]])
 def test_target_parser_mprofile_no_dsp(cpu_target):
-    parsed_target = Target(f"{cpu_target} -mcpu=cortex-m3")
+    parsed_target = Target({"kind": cpu_target, "mcpu": "cortex-m3"})
     assert len(parsed_target.keys) == 2
     assert parsed_target.keys[0] == "arm_cpu"
     assert parsed_target.keys[1] == "cpu"
@@ -58,7 +58,7 @@ def test_target_parser_mprofile_no_dsp(cpu_target):
 
 @pytest.mark.parametrize(["cpu_target"], [["llvm"]])
 def test_target_parser_mprofile_mattr(cpu_target):
-    parsed_target = Target(f"{cpu_target} -mcpu=cortex-m55 -mattr=+nomve,+woof")
+    parsed_target = Target({"kind": cpu_target, "mcpu": "cortex-m55", "mattr": ["+nomve", "+woof"]})
     assert len(parsed_target.keys) == 2
     assert parsed_target.keys[0] == "arm_cpu"
     assert parsed_target.keys[1] == "cpu"

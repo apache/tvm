@@ -54,6 +54,7 @@
 #include <llvm/Target/TargetOptions.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/logging.h>
@@ -456,114 +457,120 @@ std::string LLVMTargetInfo::GetTargetFeatureString() const {  //
 }
 
 std::string LLVMTargetInfo::str() const {
-  std::ostringstream os;
-  os << "llvm";
+  ffi::json::Object obj;
+
+  obj.Set(ffi::String("kind"), ffi::String("llvm"));
+
   if (!triple_.empty()) {
-    os << " -mtriple=" << triple_;
+    obj.Set(ffi::String("mtriple"), ffi::String(triple_));
   }
   if (!cpu_.empty() && cpu_ != defaults::cpu) {
-    os << " -mcpu=" << cpu_;
+    obj.Set(ffi::String("mcpu"), ffi::String(cpu_));
   }
   if (!attrs_.empty()) {
-    os << " -mattr=" << GetTargetFeatureString();
+    ffi::Array<ffi::Any> arr;
+    for (const auto& attr : attrs_) {
+      arr.push_back(ffi::String(attr));
+    }
+    obj.Set(ffi::String("mattr"), arr);
   }
 
   switch (target_options_.FloatABIType) {
     case llvm::FloatABI::Soft:
-      os << " -mfloat-abi=soft";
+      obj.Set(ffi::String("mfloat-abi"), ffi::String("soft"));
       break;
     case llvm::FloatABI::Hard:
-      os << " -mfloat-abi=hard";
+      obj.Set(ffi::String("mfloat-abi"), ffi::String("hard"));
       break;
     case llvm::FloatABI::Default:
       break;
   }
   if (!target_options_.MCOptions.ABIName.empty()) {
-    os << " -mabi=" << target_options_.MCOptions.ABIName;
+    obj.Set(ffi::String("mabi"), ffi::String(target_options_.MCOptions.ABIName));
   }
 
   bool do_individual = true;
 #if TVM_LLVM_VERSION >= 60
   if (fast_math_flags_.isFast()) {
-    os << " -fast-math";
+    obj.Set(ffi::String("fast-math"), true);
     do_individual = false;
   }
 #else
   if (fast_math_flags_.unsafeAlgebra()) {
-    os << " -fast-math";
+    obj.Set(ffi::String("fast-math"), true);
     do_individual = false;
   }
 #endif
 
   if (do_individual) {
-    if (fast_math_flags_.noNaNs()) os << " -fast-math-nnan";
-    if (fast_math_flags_.noInfs()) os << " -fast-math-ninf";
-    if (fast_math_flags_.noSignedZeros()) os << " -fast-math-nsz";
-    if (fast_math_flags_.allowReciprocal()) os << " -fast-math-arcp";
+    if (fast_math_flags_.noNaNs()) obj.Set(ffi::String("fast-math-nnan"), true);
+    if (fast_math_flags_.noInfs()) obj.Set(ffi::String("fast-math-ninf"), true);
+    if (fast_math_flags_.noSignedZeros()) obj.Set(ffi::String("fast-math-nsz"), true);
+    if (fast_math_flags_.allowReciprocal()) obj.Set(ffi::String("fast-math-arcp"), true);
 #if TVM_LLVM_VERSION >= 50
-    if (fast_math_flags_.allowContract()) os << " -fast-math-contract";
+    if (fast_math_flags_.allowContract()) obj.Set(ffi::String("fast-math-contract"), true);
 #endif
 #if TVM_LLVM_VERSION >= 60
-    if (fast_math_flags_.allowReassoc()) os << " -fast-math-reassoc";
-    if (fast_math_flags_.approxFunc()) os << " -fast-math-afn";
+    if (fast_math_flags_.allowReassoc()) obj.Set(ffi::String("fast-math-reassoc"), true);
+    if (fast_math_flags_.approxFunc()) obj.Set(ffi::String("fast-math-afn"), true);
 #endif
   }
 
 #if TVM_LLVM_VERSION <= 170
   if (opt_level_ != defaults::opt_level) {
-    os << " -opt-level=";
+    int64_t level = 0;
     switch (opt_level_) {
       case llvm::CodeGenOpt::None:
-        os << "0";
+        level = 0;
         break;
       case llvm::CodeGenOpt::Less:
-        os << "1";
+        level = 1;
         break;
       case llvm::CodeGenOpt::Default:
-        os << "2";
+        level = 2;
         break;
       case llvm::CodeGenOpt::Aggressive:
-        os << "3";
+        level = 3;
         break;
     }
+    obj.Set(ffi::String("opt-level"), level);
   }
 #else
   if (opt_level_ != defaults::opt_level) {
-    os << " -opt-level=";
+    int64_t level = 0;
     switch (opt_level_) {
       case llvm::CodeGenOptLevel::None:
-        os << "0";
+        level = 0;
         break;
       case llvm::CodeGenOptLevel::Less:
-        os << "1";
+        level = 1;
         break;
       case llvm::CodeGenOptLevel::Default:
-        os << "2";
+        level = 2;
         break;
       case llvm::CodeGenOptLevel::Aggressive:
-        os << "3";
+        level = 3;
         break;
     }
+    obj.Set(ffi::String("opt-level"), level);
   }
 #endif
 
-  if (size_t num = llvm_options_.size(); num > 0) {
-    os << " -cl-opt=";
-    std::vector<std::string> opts;
+  if (!llvm_options_.empty()) {
+    ffi::Array<ffi::Any> arr;
     for (const Option& opt : llvm_options_) {
-      std::stringstream os;
-      os << opt;
-      opts.emplace_back(os.str());
+      std::stringstream opt_s;
+      opt_s << opt;
+      arr.push_back(ffi::String(opt_s.str()));
     }
-    auto* quote = num > 1 ? "'" : "";
-    os << quote << Join(",", opts) << quote;
+    obj.Set(ffi::String("cl-opt"), arr);
   }
 
   if (jit_engine_ != "orcjit") {
-    os << " -jit=" << jit_engine_;
+    obj.Set(ffi::String("jit"), ffi::String(jit_engine_));
   }
 
-  return os.str();
+  return std::string(ffi::json::Stringify(obj));
 }
 
 LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str) {
@@ -973,18 +980,19 @@ std::string LLVMTarget::GetTargetMetadata(const llvm::Module& module) {
   if (llvm::Metadata* tvm_target = module.getModuleFlag("tvm_target")) {
     auto* mdstr = llvm::cast<llvm::MDString>(tvm_target);
     llvm::StringRef meta = mdstr->getString();
+    // Accept both JSON form (starts with '{') and legacy CLI form (starts with 'llvm')
 #if TVM_LLVM_VERSION >= 180
-    if (meta.starts_with("llvm")) {
+    if (meta.starts_with("{") || meta.starts_with("llvm")) {
 #else
-    if (meta.startswith("llvm")) {
+    if (meta.startswith("{") || meta.startswith("llvm")) {
 #endif
       return meta.str();
     }
   }
 #if TVM_LLVM_VERSION >= 210
-  return "llvm -mtriple " + module.getTargetTriple().str();
+  return "{\"kind\": \"llvm\", \"mtriple\": \"" + module.getTargetTriple().str() + "\"}";
 #else
-  return "llvm -mtriple " + module.getTargetTriple();
+  return "{\"kind\": \"llvm\", \"mtriple\": \"" + module.getTargetTriple() + "\"}";
 #endif
 }
 

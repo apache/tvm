@@ -48,7 +48,7 @@ class Module0:
 
 
 def test_extracting_tasks():
-    target = "llvm -mcpu=core-avx2 -num-cores=1"
+    target = {"kind": "llvm", "mcpu": "core-avx2", "num-cores": 1}
 
     relax_mod = Module0
     relax_mod = relax.transform.LegalizeOps()(relax_mod)

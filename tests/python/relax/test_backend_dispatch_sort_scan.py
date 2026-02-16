@@ -169,7 +169,7 @@ def test_dispatch_sort_cuda():
                 R.output(gv)
             return gv
 
-    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
 
     vdevices = [I.vdevice("cuda", 0)]
     x = relax.Var("x", R.Tensor((2, 3), "float32", vdevices[0]))
@@ -265,7 +265,7 @@ def test_dispatch_argsort_cuda():
                 R.output(gv)
             return gv
 
-    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
 
     vdevices = [I.vdevice("cuda", 0)]
     x = relax.Var("x", R.Tensor((2, 3), "float32", vdevices[0]))
@@ -350,7 +350,7 @@ def test_dispatch_topk_cuda():
                 R.output(gv)
             return gv
 
-    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    target = tvm.target.Target({"kind": "cuda", "libs": ["thrust"]}, host="llvm")
 
     vdevices = [I.vdevice("cuda", 0)]
     x = relax.Var("x", R.Tensor((2, 3), "float32", vdevices[0]))
@@ -409,7 +409,7 @@ def test_dispatch_topk_gpu():
     assert_structural_equal(mod, expected_mod)
 
 
-@tvm.testing.parametrize_targets("cuda", "vulkan -supports_int64=1")
+@tvm.testing.parametrize_targets("cuda", {"kind": "vulkan", "supports_int64": True})
 def test_dispatch_cumsum_gpu(target, dev):
     """Test cumsum kernel dispatch and numerical correctness"""
 

@@ -54,7 +54,7 @@ def test_custom_rule():
             space_gen = ms.space_generator.PostOrderApply(sch_rules=sch_rules)
             ms.tune_tir(
                 mod=Matmul,
-                target="llvm -num-cores=1",
+                target={"kind": "llvm", "num-cores": 1},
                 work_dir=tmpdir,
                 max_trials_global=10,
                 space=space_gen,

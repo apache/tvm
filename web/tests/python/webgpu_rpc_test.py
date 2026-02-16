@@ -34,7 +34,9 @@ def test_rpc():
     if not tvm.runtime.enabled("rpc"):
         return
     # generate the wasm library
-    target = tvm.target.Target("webgpu", host="llvm -mtriple=wasm32-unknown-unknown-wasm")
+    target = tvm.target.Target(
+        "webgpu", host={"kind": "llvm", "mtriple": "wasm32-unknown-unknown-wasm"}
+    )
 
     n = te.var("n")
     A = te.placeholder((n,), name="A")

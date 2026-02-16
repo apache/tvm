@@ -66,7 +66,7 @@ def two_step(a: T.handle, c: T.handle) -> None:
 @tvm.testing.requires_llvm
 def test_tune_matmul_cpu():
     with tempfile.TemporaryDirectory() as work_dir:
-        target = Target("llvm --num-cores=16")
+        target = Target({"kind": "llvm", "num-cores": 16})
         database = ms.tir_integration.tune_tir(
             mod=matmul,
             target=target,
@@ -163,7 +163,7 @@ def test_tune_block_cpu():
             return RemoveBlock()
 
     with tempfile.TemporaryDirectory() as work_dir:
-        target = Target("llvm --num-cores=16")
+        target = Target({"kind": "llvm", "num-cores": 16})
         database = ms.tir_integration.tune_tir(
             mod=two_step,
             target=target,

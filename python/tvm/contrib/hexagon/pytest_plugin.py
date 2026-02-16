@@ -16,8 +16,8 @@
 # under the License.
 
 # pylint: disable=invalid-name,redefined-outer-name
-""" Hexagon testing fixtures used to deduce testing argument
-    values from testing parameters """
+"""Hexagon testing fixtures used to deduce testing argument
+values from testing parameters"""
 
 import os
 import random
@@ -39,11 +39,13 @@ ANDROID_SERIAL_NUMBER = "ANDROID_SERIAL_NUMBER"
 ADB_SERVER_SOCKET = "ADB_SERVER_SOCKET"
 RNG_SEEDED = False
 
-HEXAGON_AOT_LLVM_TARGET = (
-    "llvm -keys=hexagon,cpu "
-    "-mattr=+hvxv68,+hvx-length128b,+hvx-qfloat,-hvx-ieee-fp "
-    "-mcpu=hexagonv68 -mtriple=hexagon"
-)
+HEXAGON_AOT_LLVM_TARGET = {
+    "kind": "llvm",
+    "keys": ["hexagon", "cpu"],
+    "mattr": ["+hvxv68", "+hvx-length128b", "+hvx-qfloat", "-hvx-ieee-fp"],
+    "mcpu": "hexagonv68",
+    "mtriple": "hexagon",
+}
 
 
 @tvm.testing.fixture
@@ -316,7 +318,9 @@ aot_host_target = tvm.testing.parameter(HEXAGON_AOT_LLVM_TARGET)
 def aot_target(aot_host_target):
     if aot_host_target == "c":
         yield tvm.target.hexagon("v68")
-    elif aot_host_target.startswith("llvm"):
+    elif isinstance(aot_host_target, dict) and aot_host_target.get("kind") == "llvm":
+        yield aot_host_target
+    elif isinstance(aot_host_target, str) and aot_host_target.startswith("llvm"):
         yield aot_host_target
     else:
         assert False, "Incorrect AoT host target: {aot_host_target}. Options are [c, llvm]."

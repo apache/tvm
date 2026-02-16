@@ -99,7 +99,7 @@ def test_simplify_symbolic_comparison():
 def test_simplify_vscale_comparison_with_sve_target(expression):
     ana = tvm.arith.Analyzer()
 
-    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
         assert ana.can_prove(expression)
 
 
@@ -108,13 +108,14 @@ def test_simplify_vscale_comparison_without_sve_target(capfd):
     vs = tvm.tir.vscale()
 
     with pytest.raises(AssertionError):
-        with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu"):
+        with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"}):
             assert ana.can_prove(vs * 32 < vs * 64)
 
     warning_msg = (
         "Warning: The expression contains scalable values. An attempt to prove by substituting "
         "with known values of vscale was not performed. This proof currently only supports "
-        "VLA targets, but the target was llvm -keys=arm_cpu,cpu -mtriple=aarch64-linux-gnu"
+        'VLA targets, but the target was {"kind":"llvm","tag":"","keys":["arm_cpu","cpu"],'
+        '"mtriple":"aarch64-linux-gnu"}'
     )
     capture = capfd.readouterr().err
     assert warning_msg in capture

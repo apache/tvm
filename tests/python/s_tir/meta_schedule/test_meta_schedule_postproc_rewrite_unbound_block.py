@@ -24,7 +24,7 @@ from tvm.target import Target
 
 
 def _target() -> Target:
-    return Target("cuda --max_threads_per_block=1024", host="llvm")
+    return Target({"kind": "cuda", "max_threads_per_block": 1024}, host="llvm")
 
 
 def _create_context(mod, target) -> ms.TuneContext:

@@ -140,7 +140,7 @@ def test_meta_schedule_measure_callback_update_cost_model_with_zero():
     with tempfile.TemporaryDirectory() as work_dir:
         ms.tune_tir(
             mod=Matmul,
-            target="llvm -num-cores=1",
+            target={"kind": "llvm", "num-cores": 1},
             work_dir=work_dir,
             max_trials_global=10,
             runner=AllZeroRunner(),
@@ -165,7 +165,7 @@ def test_meta_schedule_measure_callback_update_cost_model_with_runtime_error():
     with tempfile.TemporaryDirectory() as work_dir:
         ms.tune_tir(
             mod=Matmul,
-            target="llvm -num-cores=1",
+            target={"kind": "llvm", "num-cores": 1},
             work_dir=work_dir,
             max_trials_global=10,
             runner=EmptyRunner(),
