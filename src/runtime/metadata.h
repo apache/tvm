@@ -18,12 +18,14 @@
  */
 
 /*!
- * \file meta_data.h
+ * \file metadata.h
  * \brief Meta data related utilities
  */
-#ifndef TVM_RUNTIME_META_DATA_H_
-#define TVM_RUNTIME_META_DATA_H_
+#ifndef TVM_RUNTIME_METADATA_H_
+#define TVM_RUNTIME_METADATA_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
@@ -32,7 +34,6 @@
 #include <tvm/support/serializer.h>
 
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -56,32 +57,60 @@ constexpr const char* kUseCooperativeLaunch = "tir.use_cooperative_launch";
 
 }  // namespace launch_param
 
-/*! \brief function information needed by device */
-struct FunctionInfo {
-  std::string name;
-  std::vector<DLDataType> arg_types;
-  std::vector<std::string> launch_param_tags;
+/*! \brief Extra tags for function arguments */
+enum class ArgExtraTags : int { kNone = 0, kTensorMap = 1 };
 
-  enum class ArgExtraTags : int { kNone = 0, kTensorMap = 1 };
-  std::vector<ArgExtraTags> arg_extra_tags;
+/*! \brief function information needed by device */
+class FunctionInfoObj : public Object {
+ public:
+  ffi::String name;
+  ffi::Array<DLDataType> arg_types;
+  ffi::Array<ffi::String> launch_param_tags;
+  ffi::Array<ArgExtraTags> arg_extra_tags;
 
   ffi::json::Value SaveToJSON() const;
   void LoadFromJSON(ffi::json::Object src);
-  void Save(support::Stream* writer) const;
-  bool Load(support::Stream* reader);
-};
-}  // namespace runtime
-}  // namespace tvm
 
-namespace tvm {
-namespace support {
-template <>
-struct Serializer<::tvm::runtime::FunctionInfo> {
-  static constexpr bool enabled = true;
-  static void Write(Stream* strm, const ::tvm::runtime::FunctionInfo& data) { data.Save(strm); }
-  static bool Read(Stream* strm, ::tvm::runtime::FunctionInfo* data) { return data->Load(strm); }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("runtime.FunctionInfo", FunctionInfoObj, Object);
 };
+
+class FunctionInfo : public ObjectRef {
+ public:
+  FunctionInfo(ffi::String name, ffi::Array<DLDataType> arg_types,
+               ffi::Array<ffi::String> launch_param_tags, ffi::Array<ArgExtraTags> arg_extra_tags);
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FunctionInfo, ObjectRef, FunctionInfoObj);
+};
+
+}  // namespace runtime
+
+namespace support {
+
+// ---- Serializer for runtime::FunctionInfo ----
+template <>
+struct Serializer<runtime::FunctionInfo> {
+  static constexpr bool enabled = true;
+
+  static void Write(Stream* strm, const runtime::FunctionInfo& info) {
+    Serializer<ffi::String>::Write(strm, info->name);
+    Serializer<ffi::Array<DLDataType>>::Write(strm, info->arg_types);
+    Serializer<ffi::Array<ffi::String>>::Write(strm, info->launch_param_tags);
+    Serializer<ffi::Array<runtime::ArgExtraTags>>::Write(strm, info->arg_extra_tags);
+  }
+
+  static bool Read(Stream* strm, runtime::FunctionInfo* info) {
+    auto n = ffi::make_object<runtime::FunctionInfoObj>();
+    if (!Serializer<ffi::String>::Read(strm, &(n->name))) return false;
+    if (!Serializer<ffi::Array<DLDataType>>::Read(strm, &(n->arg_types))) return false;
+    if (!Serializer<ffi::Array<ffi::String>>::Read(strm, &(n->launch_param_tags))) return false;
+    if (!Serializer<ffi::Array<runtime::ArgExtraTags>>::Read(strm, &(n->arg_extra_tags)))
+      return false;
+    *info = runtime::FunctionInfo(std::move(n));
+    return true;
+  }
+};
+
 }  // namespace support
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_META_DATA_H_
+#endif  // TVM_RUNTIME_METADATA_H_

@@ -31,7 +31,6 @@
 #include <algorithm>
 #include <functional>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -207,7 +206,7 @@ class ConcreteCodegenSourceBase : public CodeGenSourceBase {
 class DeviceSourceModuleNode final : public ffi::ModuleObj {
  public:
   DeviceSourceModuleNode(std::string data, std::string fmt,
-                         std::unordered_map<std::string, FunctionInfo> fmap, std::string type_key,
+                         ffi::Map<ffi::String, FunctionInfo> fmap, std::string type_key,
                          std::function<std::string(const std::string&)> fget_source)
       : data_(data), fmt_(fmt), fmap_(fmap), type_key_(type_key), fget_source_(fget_source) {}
 
@@ -248,14 +247,13 @@ class DeviceSourceModuleNode final : public ffi::ModuleObj {
  private:
   std::string data_;
   std::string fmt_;
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   std::string type_key_;
   std::function<std::string(const std::string&)> fget_source_;
 };
 
 ffi::Module DeviceSourceModuleCreate(std::string data, std::string fmt,
-                                     std::unordered_map<std::string, FunctionInfo> fmap,
-                                     std::string type_key,
+                                     ffi::Map<ffi::String, FunctionInfo> fmap, std::string type_key,
                                      std::function<std::string(const std::string&)> fget_source) {
   auto n = ffi::make_object<DeviceSourceModuleNode>(data, fmt, fmap, type_key, fget_source);
   return ffi::Module(n);

@@ -27,7 +27,6 @@
 #include <tvm/support/io.h>
 
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "../../support/bytes_io.h"
@@ -42,7 +41,7 @@ class OpenCLWrappedFunc {
   // initialize the OpenCL function.
   void Init(OpenCLModuleNodeBase* m, ObjectPtr<Object> sptr, OpenCLModuleNode::KTRefEntry entry,
             std::string func_name, std::vector<size_t> arg_size,
-            const std::vector<std::string>& launch_param_tags) {
+            const ffi::Array<ffi::String>& launch_param_tags) {
     w_ = m->GetGlobalWorkspace();
     m_ = m;
     sptr_ = sptr;
@@ -139,13 +138,13 @@ cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
 ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   ICHECK_EQ(sptr_to_self.get(), this);
-  auto it = fmap_.find(name);
-  if (it == fmap_.end()) return std::nullopt;
-  const FunctionInfo& info = it->second;
+  auto opt_info = fmap_.Get(name);
+  if (!opt_info.has_value()) return std::nullopt;
+  FunctionInfo info = opt_info.value();
   OpenCLWrappedFunc f;
-  std::vector<size_t> arg_size(info.arg_types.size());
-  for (size_t i = 0; i < info.arg_types.size(); ++i) {
-    DLDataType t = info.arg_types[i];
+  std::vector<size_t> arg_size(info->arg_types.size());
+  for (size_t i = 0; i < info->arg_types.size(); ++i) {
+    DLDataType t = info->arg_types[i];
     ICHECK_EQ(t.lanes, 1U);
     if (t.code == kDLOpaqueHandle) {
       // specially store pointer type size in OpenCL driver
@@ -157,8 +156,8 @@ ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String
     }
   }
   // initialize the wrapped func.
-  f.Init(this, sptr_to_self, kid_map_.at(name), name, arg_size, info.launch_param_tags);
-  return PackFuncVoidAddr(f, info.arg_types);
+  f.Init(this, sptr_to_self, kid_map_.at(name), name, arg_size, info->launch_param_tags);
+  return PackFuncVoidAddr(f, info->arg_types);
 }
 
 void OpenCLModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
@@ -362,8 +361,7 @@ ffi::Optional<ffi::Function> OpenCLModuleNode::GetFunction(const ffi::String& na
 }
 
 ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
-                               std::unordered_map<std::string, FunctionInfo> fmap,
-                               std::string source) {
+                               ffi::Map<ffi::String, FunctionInfo> fmap, std::string source) {
   auto n = ffi::make_object<OpenCLModuleNode>(data, fmt, fmap, source);
   n->Init();
   return ffi::Module(n);
@@ -372,7 +370,7 @@ ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
 // Load module from module.
 ffi::Module OpenCLModuleLoadFile(const std::string& file_name, const ffi::String& format) {
   std::string data;
-  std::unordered_map<std::string, FunctionInfo> fmap;
+  ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
@@ -383,10 +381,10 @@ ffi::Module OpenCLModuleLoadFile(const std::string& file_name, const ffi::String
 ffi::Module OpenCLModuleLoadFromBytes(const ffi::Bytes& bytes) {
   support::BytesInStream stream(bytes);
   std::string data;
-  std::unordered_map<std::string, FunctionInfo> fmap;
+  ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt;
   stream.Read(&fmt);
-  stream.Read(&fmap);
+  ICHECK(stream.Read(&fmap));
   stream.Read(&data);
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }

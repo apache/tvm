@@ -35,7 +35,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../runtime/meta_data.h"
+#include "../../runtime/metadata.h"
 
 namespace tvm {
 namespace codegen {
@@ -176,7 +176,7 @@ ffi::Module CreateMetadataModule(const std::unordered_map<std::string, runtime::
  * \param fget_source a closure to replace default get source behavior.
  */
 ffi::Module DeviceSourceModuleCreate(
-    std::string data, std::string fmt, std::unordered_map<std::string, runtime::FunctionInfo> fmap,
+    std::string data, std::string fmt, ffi::Map<ffi::String, runtime::FunctionInfo> fmap,
     std::string type_key, std::function<std::string(const std::string&)> fget_source = nullptr);
 
 }  // namespace codegen
