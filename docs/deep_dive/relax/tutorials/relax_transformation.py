@@ -89,7 +89,7 @@ mod.show()
 #
 # Custom Passes
 # ~~~~~~~~~~~~~
-# We can also define our own passes. Let's taking an example of rewrite the ``relu``
+# We can also define our own passes. Let's take an example of rewriting the ``relu``
 # operator to ``gelu`` operator.
 #
 # First, we need to write a Relax IR Mutator to do the rewriting.

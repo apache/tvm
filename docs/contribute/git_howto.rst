@@ -122,7 +122,7 @@ Apply only k-Latest Commits on to the main
 Sometimes it is useful to only apply your k-latest changes on top of the main.
 This usually happens when you have other m-commits that are already merged
 before these k-commits. Directly rebase against the main might cause merge conflicts
-on these first m-commits(which are can be safely discarded).
+on these first m-commits (which can be safely discarded).
 
 You can instead use the following command
 
