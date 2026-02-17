@@ -142,8 +142,8 @@ Python Reference Documentation
 
 We use the `numpydoc <https://numpydoc.readthedocs.io/en/latest/>`_ format to
 document the function and classes. The following snippet gives an example
-docstring. We always document all the public functions, when necessary,
-provide an usage example of the features we support (as shown below).
+docstring. We always document all the public functions, and when necessary,
+provide a usage example of the features we support (as shown below).
 
 .. code:: python
 
@@ -180,7 +180,7 @@ above case, there has to be a blank line before ``Parameters``, ``Returns`` and
 ``Examples`` in order for the doc to be built correctly. To add a new function to
 the docs, we need to add the `sphinx.autodoc
 <http://www.sphinx-doc.org/en/master/ext/autodoc.html>`_ rules to
-`docs/reference/api/python <https://github.com/apache/tvm/tree/main/docs/reference/api/python>`_).
+`docs/reference/api/python <https://github.com/apache/tvm/tree/main/docs/reference/api/python>`_.
 You can refer to the existing files under this folder on how to add the
 functions.
 
