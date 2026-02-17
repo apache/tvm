@@ -39,7 +39,7 @@ jobs:
     if: ${{ github.repository == 'apache/tvm' }}
     runs-on: macOS-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: 'recursive'
       - name: Set up environment
@@ -79,7 +79,7 @@ jobs:
     if: ${{ github.repository == 'apache/tvm' }}
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: 'recursive'
       - name: Set up environment
