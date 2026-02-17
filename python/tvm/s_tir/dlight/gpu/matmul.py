@@ -1020,7 +1020,7 @@ class Matmul(GPUScheduleRule):
         # tensorization rule will not be applied.
         minimal_tensorize_threshold = 64
         block_stmt = sch.get(main_block)
-        if target.kind.name == "cuda" and check_sm_version(target.arch) >= 70:
+        if target.kind.name == "cuda" and check_sm_version(str(target.attrs.get("arch", ""))) >= 70:
             apply_tensorization: bool = True
             # the batch dimension is not taken into consideration.
             for item_var in block_stmt.iter_vars[1:]:

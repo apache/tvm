@@ -87,7 +87,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
         if reduction is not None:
             reduction = T.buffer_proxy(reduction)
 
-        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+        max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
 
         with T.If(scan_axis_size == 0):
             with T.Then():
@@ -270,7 +270,7 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
         batch_size = cast(prod(data_buf.shape[:-1]), "int32")
         scan_axis_size = cast(data_buf.shape[-1], "int32")
 
-        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+        max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
 
         with IRBuilder() as ib:
             data = T.buffer_proxy(data_buf)

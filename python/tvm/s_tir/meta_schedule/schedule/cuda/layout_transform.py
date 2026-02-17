@@ -496,8 +496,8 @@ def get_max_tile_size() -> int:
     """
     max_tile_size = 32
     cur_target = tvm.target.Target.current()
-    if cur_target is not None and hasattr(cur_target, "thread_warp_size"):
-        max_tile_size = int(cur_target.thread_warp_size)
+    if cur_target is not None and "thread_warp_size" in cur_target.attrs:
+        max_tile_size = int(cur_target.attrs["thread_warp_size"])
     return max_tile_size
 
 

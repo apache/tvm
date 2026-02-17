@@ -291,6 +291,24 @@ ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any>
   const ffi::String kFromDevice = "from_device";
   ObjectPtr<TargetNode> target = ffi::make_object<TargetNode>();
 
+  // Step 0: If "tag" is present without "kind", look up the tag config and merge overrides on top
+  if (!config.count(kKind) && config.count(kTag)) {
+    auto tag_name = config[kTag].try_cast<ffi::String>();
+    ICHECK(tag_name.has_value()) << "Expect type of field \"tag\" is String, but get type: "
+                                 << config[kTag].GetTypeKey();
+    auto tag_config = TargetTag::GetConfig(tag_name.value());
+    ICHECK(tag_config.has_value()) << "Unknown target tag: " << tag_name.value();
+    // Start from the tag's base config, then apply user overrides
+    ffi::Map<ffi::String, ffi::Any> merged = tag_config.value();
+    for (const auto& kv : config) {
+      if (kv.first != kTag) {
+        merged.Set(kv.first, kv.second);
+      }
+    }
+    merged.Set(kTag, ffi::String(tag_name.value()));
+    config = std::move(merged);
+  }
+
   // Step 1: Parse 'kind' (needed to look up the schema, but kept in config for canonicalizer)
   if (config.count(kKind)) {
     if (auto kind = config[kKind].try_cast<ffi::String>()) {

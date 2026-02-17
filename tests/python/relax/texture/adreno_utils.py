@@ -36,10 +36,13 @@ def get_target(backend, is_adreno=False):
     tvm.target.Target
         The target for the Adreno GPU.
     """
-    target = tvm.target.adreno(backend=backend)
-    if is_adreno:
-        target = tvm.target.adreno(cfg="texture", backend=backend)
-    return target
+    _TAG_MAP = {
+        ("opencl", False): "qcom/adreno-opencl",
+        ("opencl", True): "qcom/adreno-opencl-texture",
+        ("vulkan", False): "qcom/adreno-vulkan",
+        ("vulkan", True): "qcom/adreno-vulkan-texture",
+    }
+    return tvm.target.Target(_TAG_MAP[(backend, is_adreno)])
 
 
 def get_rpc():

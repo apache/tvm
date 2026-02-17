@@ -352,6 +352,24 @@ def quantize_np(arr_np: numpy.ndarray, dtype: str):
 
 
 def get_hexagon_target(cpu_ver: str, **kwargs) -> tvm.target.Target:
-    """Creates a Hexagon target"""
-    target = tvm.target.hexagon(cpu_ver, **kwargs)
+    """Creates a Hexagon target from a registered tag.
+
+    Parameters
+    ----------
+    cpu_ver : str
+        Hexagon CPU version, e.g. "v68", "v69".
+    **kwargs :
+        Optional target attribute overrides (e.g. vtcm_capacity=1024).
+    """
+    tag = "qcom/hexagon-" + cpu_ver
+    if kwargs:
+        config = {"tag": tag}
+        if "vtcm_capacity" in kwargs:
+            config["vtcm-capacity"] = kwargs.pop("vtcm_capacity")
+        if "num_cores" in kwargs:
+            config["num-cores"] = kwargs.pop("num_cores")
+        config.update(kwargs)
+        target = tvm.target.Target(config)
+    else:
+        target = tvm.target.Target(tag)
     return tvm.target.Target(target, host=target)

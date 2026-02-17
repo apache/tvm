@@ -14,7 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Target tags -- re-exported from tag_registry.registry."""
-from .tag_registry.registry import list_tags, register_tag
+"""Python-side target tag registry.
 
-__all__ = ["list_tags", "register_tag"]
+Importing this package registers all Python-defined target tags.
+"""
+from . import registry  # noqa: F401
+from . import cuda  # noqa: F401
+from . import arm_cpu  # noqa: F401
+from . import riscv_cpu  # noqa: F401
+from . import aws_cpu  # noqa: F401
+from . import metal  # noqa: F401
+from . import hexagon  # noqa: F401
+from . import adreno  # noqa: F401
+
+# Validate all tags at import time
+registry.list_tags()

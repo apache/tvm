@@ -46,7 +46,7 @@ def test_mobilenet_onnx(hexagon_session: Session):
     shape_dict = {"input": data_np.shape}
     relay_mod, _ = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
 
-    target_hexagon = tvm.target.hexagon("v68")
+    target_hexagon = tvm.target.Target("qcom/hexagon-v68")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
     relax_mod = onnx.from_onnx(onnx_model, shape_dict, freeze_params=True)
     relax_mod = relay_translator.from_relay(relay_mod["main"], target_hexagon)
@@ -79,7 +79,7 @@ def test_mobilenet(hexagon_session: Session):
     relay_mod, params = testing.mobilenet.get_workload(batch_size=1, dtype="float32")
     data_np = np.random.rand(1, 3, 224, 224).astype("float32")
 
-    target_hexagon = tvm.target.hexagon("v68")
+    target_hexagon = tvm.target.Target("qcom/hexagon-v68")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
 
     # translate the relay mobilenet and bind params

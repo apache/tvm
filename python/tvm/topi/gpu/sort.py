@@ -47,7 +47,7 @@ def _sort_init(shape, axis, keys_in, keys_out, values_out=None, value_init_func=
             axis_mul_after *= value
 
     # Set up threading
-    max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+    max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
     nthread_tx = max_threads
     nthread_bx = ceil_div(shape[axis], max_threads)
     nthread_by = axis_mul_before * axis_mul_after
@@ -259,7 +259,7 @@ def _sort_common(
     ##    the merge into more blocks
 
     target = tvm.target.Target.current(allow_none=False)
-    max_threads = int(target.max_num_threads)
+    max_threads = int(target.attrs["max_num_threads"])
     is_webgpu = "webgpu" in str(target)
     target_dtype = "int32" if is_webgpu else "int64"
     nthread_by = axis_mul_before * axis_mul_after
@@ -1199,7 +1199,7 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
             values_ptr = T.buffer_proxy(values_buf)
             indices_ptr = T.buffer_proxy(indices_buf)
 
-            max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+            max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
             nthread_tx = max_threads
             nthread_bx = ceil_div(num_search, nthread_tx)
             tx = te.thread_axis("threadIdx.x")

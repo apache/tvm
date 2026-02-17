@@ -24,7 +24,7 @@ from tvm.target import Target
 
 
 def _target() -> Target:
-    return Target("hexagon", host="llvm")
+    return Target("qcom/hexagon-v68", host="llvm")
 
 
 def _create_context(mod, target) -> ms.TuneContext:

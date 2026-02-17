@@ -187,7 +187,7 @@ def build(
     if target_to_bind is None:
         target_to_bind = "llvm"
     assert target_to_bind is not None
-    target_to_bind = Target.canon_target(target_to_bind)
+    target_to_bind = Target(target_to_bind)
 
     # Step 1: Determine the target to search for tir pipeline
     target = Target.current() if target is None else target
@@ -198,7 +198,7 @@ def build(
                 target = f_target
                 break
     if target is not None:
-        target = Target.canon_target(target)
+        target = Target(target)
 
     # Step 2: Determine the host target
     target_host = "llvm" if tvm.runtime.enabled("llvm") else "c"
@@ -209,7 +209,7 @@ def build(
             tvm.device(target.kind.name, 0).dlpack_device_type() == tvm.cpu(0).dlpack_device_type()
         ):
             target_host = target
-    target_host = Target.canon_target(target_host)
+    target_host = Target(target_host)
     target_to_bind = target_to_bind.with_host(target_host)
 
     # Step 3: Bind the target to the input module

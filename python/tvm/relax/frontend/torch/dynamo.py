@@ -103,7 +103,7 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
 
         if device.type == "cuda":
             dev = tvm.cuda(device.index)
-            target = tvm.target.cuda()
+            target = tvm.target.Target("cuda")
         else:
             dev = tvm.cpu(0)
             target = tvm.target.Target(llvm_target())
