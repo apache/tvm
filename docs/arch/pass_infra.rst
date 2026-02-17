@@ -362,7 +362,7 @@ indicates that no prerequisite is required for this pass. Otherwise, the pass
 developer has to identify and list them.
 
 Meanwhile, a pass API endpoint is registered with the name
-``relax.transform.FoldConstant``. This pass, therefore, becomes an entry in the
+``"relax.transform.FoldConstant"``. This pass, therefore, becomes an entry in the
 registry that can be accessed by both C++ (e.g. the ``GetPass`` above) and
 Python when needed.
 
