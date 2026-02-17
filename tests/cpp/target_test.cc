@@ -35,11 +35,11 @@ TVM_REGISTER_TARGET_KIND("TestTargetKind", kDLCPU)
     .add_attr_option<ffi::Array<ffi::String>>("your_names")
     .add_attr_option<ffi::Map<ffi::String, int64_t>>("her_maps");
 
-TargetJSON TestTargetParser(TargetJSON target) {
+ffi::Map<ffi::String, ffi::Any> TestTargetParser(ffi::Map<ffi::String, ffi::Any> target) {
   ffi::String mcpu = Downcast<ffi::String>(target.at("mcpu"));
   target.Set("mcpu", ffi::String("super_") + mcpu);
   target.Set("keys", ffi::Array<ffi::String>({"super"}));
-  target.Set("features", ffi::Map<ffi::String, ffi::Any>{{"test", true}});
+  target.Set("feature.test", true);
   return target;
 }
 
@@ -52,18 +52,18 @@ TVM_REGISTER_TARGET_KIND("TestTargetParser", kDLCPU)
     .add_attr_option<ffi::String>("mattr")
     .add_attr_option<ffi::String>("mcpu")
     .set_default_keys({"cpu"})
-    .set_target_parser(TestTargetParser);
+    .set_target_canonicalizer(TestTargetParser);
 
 TVM_REGISTER_TARGET_KIND("TestAttrsPreprocessor", kDLCPU)
     .add_attr_option<ffi::String>("mattr")
     .set_default_keys({"cpu"})
-    .set_target_parser(TestAttrsPreProcessor);
+    .set_target_canonicalizer(TestAttrsPreProcessor);
 
 TVM_REGISTER_TARGET_KIND("TestClashingPreprocessor", kDLCPU)
     .add_attr_option<ffi::String>("mattr")
     .add_attr_option<ffi::String>("mcpu")
     .set_default_keys({"cpu"})
-    .set_target_parser(TestTargetParser);
+    .set_target_canonicalizer(TestTargetParser);
 
 TEST(TargetKind, GetAttrMap) {
   auto map = tvm::TargetKind::GetAttrMap<std::string>("Attr1");
@@ -184,21 +184,24 @@ TEST(TargetCreation, TargetFeatures) {
       {"kind", ffi::String("TestTargetParser")},
       {"mcpu", ffi::String("woof")},
   });
-  ASSERT_EQ(test_target_with_parser->GetFeature<bool>("test").value(), true);
+  // Features are stored as "feature.xxx" keys in attrs
+  ASSERT_EQ(test_target_with_parser->GetAttr<bool>("feature.test").value(), true);
 
   Target test_target_no_parser("TestTargetKind");
-  ASSERT_EQ(test_target_no_parser->GetFeature<bool>("test"), std::nullopt);
-  ASSERT_EQ(test_target_no_parser->GetFeature<bool>("test", true).value(), true);
+  ASSERT_EQ(test_target_no_parser->GetAttr<bool>("feature.test"), std::nullopt);
+  ASSERT_EQ(test_target_no_parser->GetAttr<bool>("feature.test", true).value(), true);
 }
 
-TEST(TargetCreation, TargetFeaturesBeforeParser) {
-  ffi::Map<ffi::String, ffi::Any> features = {{"test", true}};
-  ffi::Map<ffi::String, ffi::Any> config = {
+TEST(TargetCreation, TargetFeaturesSetByCanonicalizer) {
+  // feature.* keys are set by the canonicalizer, not by user input.
+  Target test_target(ffi::Map<ffi::String, ffi::Any>{
       {"kind", ffi::String("TestTargetParser")},
       {"mcpu", ffi::String("woof")},
-      {"features", features},
-  };
-  EXPECT_THROW(Target test(config), ffi::Error);
+  });
+  // TestTargetParser sets "feature.test" = true
+  ASSERT_EQ(test_target->GetAttr<bool>("feature.test").value(), true);
+  // Non-existent features return nullopt
+  ASSERT_EQ(test_target->GetAttr<bool>("feature.nonexistent"), std::nullopt);
 }
 
 TEST(TargetCreation, TargetAttrsPreProcessor) {

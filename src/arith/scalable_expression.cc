@@ -93,7 +93,7 @@ bool TargetHasVLA(ffi::Optional<Target> target) {
   bool has_vla{false};
   if (target.defined()) {
     // aarch64
-    has_vla = Downcast<Target>(target)->GetFeature<Bool>("has_sve").value_or(Bool(false));
+    has_vla = Downcast<Target>(target)->GetAttr<Bool>("feature.has_sve").value_or(Bool(false));
     // riscv{32,64}
     static auto target_has_feature_fn =
         tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");

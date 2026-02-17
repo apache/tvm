@@ -53,7 +53,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
           if (need_sep) {
             p->stream << ", ";
           }
-          p->stream << "target=" << node->target->ToDebugString();
+          p->stream << "target=" << node->target->str();
           need_sep = true;
         }
         if (!node->memory_scope.empty()) {
@@ -69,8 +69,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 VirtualDevice::VirtualDevice(int device_type_int, int virtual_device_id, Target target,
                              MemoryScope memory_scope) {
   ICHECK(!target.defined() || device_type_int == target->GetTargetDeviceType())
-      << "target " << target->ToDebugString() << " has device type "
-      << target->GetTargetDeviceType() << " but virtual device has device type " << device_type_int;
+      << "target " << target->str() << " has device type " << target->GetTargetDeviceType()
+      << " but virtual device has device type " << device_type_int;
   auto node = ffi::make_object<VirtualDeviceNode>();
   node->device_type_int = device_type_int;
   node->virtual_device_id = virtual_device_id;

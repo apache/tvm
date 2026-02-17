@@ -482,7 +482,7 @@ def test_cooperative_matrix(out_dtype):
     if tgt_attrs.get("supports_cooperative_matrix"):
         f = tvm.compile(Module, target=target)
 
-        dev = tvm.device(target, 0)
+        dev = tvm.device("vulkan", 0)
 
         A = tvm.runtime.tensor(np.random.randn(M, K).astype("float16"), dev)
         B = tvm.runtime.tensor(np.random.randn(K, N).astype("float16"), dev)
