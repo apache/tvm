@@ -222,7 +222,7 @@ def test_subgraph_capture():
         @R.function
         def subgraph_0(
             inp_0: R.Tensor((10,), dtype="float32"), inp_1: R.Tensor((10,), dtype="float32")
-        ) -> R.Tuple(R.Tensor((10,), dtype="float32"), R.Tensor((), dtype="bool")):
+        ) -> R.Tuple(R.Tensor((), dtype="bool"), R.Tensor((10,), dtype="float32")):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((10,), dtype="float32") = R.sin(inp_0)
@@ -230,9 +230,9 @@ def test_subgraph_capture():
                 lv2: R.Tensor((10,), dtype="float32") = R.divide(inp_0, lv1)
                 lv3: R.Tensor((), dtype="float32") = R.sum(inp_1, axis=None, keepdims=False)
                 lv4: R.Tensor((), dtype="bool") = R.less(lv3, R.const(1.0, "float32"))
-                gv: R.Tuple(R.Tensor((10,), dtype="float32"), R.Tensor((), dtype="bool")) = (
-                    lv2,
+                gv: R.Tuple(R.Tensor((), dtype="bool"), R.Tensor((10,), dtype="float32")) = (
                     lv4,
+                    lv2,
                 )
                 R.output(gv)
             return gv
