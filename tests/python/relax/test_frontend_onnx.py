@@ -3536,6 +3536,7 @@ def test_nms():
     )
 
     model = helper.make_model(graph, producer_name="nms_test")
+    model.ir_version = 8
     model.opset_import[0].version = 11
 
     # Use deterministic random inputs for consistent testing
@@ -3700,6 +3701,7 @@ def test_nms_iou_suppression():
     )
 
     model = helper.make_model(graph, producer_name="nms_test_iou_suppression")
+    model.ir_version = 8
     model.opset_import[0].version = 11
 
     inputs = {
@@ -3794,6 +3796,7 @@ def test_nms_max_boxes_limit():
     )
 
     model = helper.make_model(graph, producer_name="nms_test_max_boxes_limit")
+    model.ir_version = 8
     model.opset_import[0].version = 11
 
     inputs = {
@@ -3885,6 +3888,7 @@ def test_nms_score_threshold():
     )
 
     model = helper.make_model(graph, producer_name="nms_test_score_threshold")
+    model.ir_version = 8
     model.opset_import[0].version = 11
 
     inputs = {
