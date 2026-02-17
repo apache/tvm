@@ -16,17 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "cpu.h"
+#include "canonicalize.h"
 
 #include <string>
 
-#include "aprofile.h"
-#include "mprofile.h"
+#include "arm_aprofile.h"
+#include "arm_mprofile.h"
 
 namespace tvm {
 namespace target {
-namespace parsers {
-namespace cpu {
+namespace canonicalizer {
+namespace llvm {
 
 ffi::Optional<ffi::String> DetectSystemTriple() {
 #ifdef TVM_LLVM_VERSION
@@ -38,7 +38,7 @@ ffi::Optional<ffi::String> DetectSystemTriple() {
   return {};
 }
 
-TargetJSON ParseTarget(TargetJSON target) {
+ffi::Map<ffi::String, ffi::Any> Canonicalize(ffi::Map<ffi::String, ffi::Any> target) {
   ffi::String kind = Downcast<ffi::String>(target.Get("kind").value());
   ffi::Optional<ffi::String> mtriple = Downcast<ffi::Optional<ffi::String>>(target.Get("mtriple"));
   ffi::Optional<ffi::String> mcpu = Downcast<ffi::Optional<ffi::String>>(target.Get("mcpu"));
@@ -50,17 +50,17 @@ TargetJSON ParseTarget(TargetJSON target) {
   }
 
   if (mprofile::IsArch(target)) {
-    return mprofile::ParseTarget(target);
+    return mprofile::Canonicalize(target);
   }
 
   if (aprofile::IsArch(target)) {
-    return aprofile::ParseTarget(target);
+    return aprofile::Canonicalize(target);
   }
 
   return target;
 }
 
-}  // namespace cpu
-}  // namespace parsers
+}  // namespace llvm
+}  // namespace canonicalizer
 }  // namespace target
 }  // namespace tvm

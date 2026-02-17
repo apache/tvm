@@ -200,9 +200,10 @@ std::ostream& operator<<(std::ostream& os, const LLVMTargetInfo::Option& opt) {
 }
 
 LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const Target& target)
-    : LLVMTargetInfo(instance, target->Export()) {}
+    : LLVMTargetInfo(instance, target->ToConfig()) {}
 
-LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target) {
+LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
+                               const ffi::Map<ffi::String, ffi::Any>& target) {
   triple_ = Downcast<ffi::String>(target.Get("mtriple").value_or(ffi::String("default")));
   if (triple_.empty() || triple_ == "default") {
     triple_ = llvm::sys::getDefaultTargetTriple();

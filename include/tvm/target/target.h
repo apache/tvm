@@ -27,15 +27,12 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
-#include <tvm/node/attr_registry_map.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/support/with.h>
 #include <tvm/target/target_kind.h>
 
 #include <string>
-#include <unordered_set>
-#include <vector>
 
 namespace tvm {
 
@@ -56,10 +53,8 @@ class TargetNode : public Object {
   ffi::String tag;
   /*! \brief Keys for this target */
   ffi::Array<ffi::String> keys;
-  /*! \brief Collection of attributes */
+  /*! \brief Collection of attributes (includes feature.* keys set by canonicalizer) */
   ffi::Map<ffi::String, Any> attrs;
-  /*! \brief Target features */
-  ffi::Map<ffi::String, Any> features;
 
   /*!
    * \brief The JSON string representation of the target
@@ -67,7 +62,7 @@ class TargetNode : public Object {
    */
   TVM_DLL const std::string& str() const;
   /*! \return Export target to JSON-like configuration */
-  TVM_DLL ffi::Map<ffi::String, ffi::Any> Export() const;
+  TVM_DLL ffi::Map<ffi::String, ffi::Any> ToConfig() const;
   /*! \return The ffi::Optional<Target> typed target host of the TargetNode */
   TVM_DLL ffi::Optional<Target> GetHost() const;
   /*! \return The device type for this target */
@@ -83,15 +78,6 @@ class TargetNode : public Object {
    */
   TVM_DLL bool HasKey(const std::string& query_key) const;
 
-  /*!
-   * \brief Returns a human readable representation of \p Target which includes all fields,
-   * especially the host. Useful for diagnostic messages and debugging.
-   *
-   * TODO(mbs): The ReprPrinter version should perhaps switch to this form, however currently
-   * code depends on str() and << being the same.
-   */
-  ffi::String ToDebugString() const;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TargetNode>()
@@ -99,7 +85,6 @@ class TargetNode : public Object {
         .def_ro("tag", &TargetNode::tag)
         .def_ro("keys", &TargetNode::keys)
         .def_ro("attrs", &TargetNode::attrs)
-        .def_ro("features", &TargetNode::features)
         .def_ro("host", &TargetNode::host);
   }
 
@@ -132,47 +117,6 @@ class TargetNode : public Object {
   ffi::Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
     return GetAttr<TObjectRef>(attr_key, ffi::Optional<TObjectRef>(default_value));
   }
-
-  /*!
-   * \brief Get a Target feature
-   *
-   * \param feature_key The feature key.
-   * \param default_value The default value if the key does not exist, defaults to nullptr.
-   *
-   * \return The result
-   *
-   * \tparam TOBjectRef the expected object type.
-   * \throw Error if the key exists but the value does not match TObjectRef
-   *
-   * \code
-   *
-   *  void GetTargetFeature(const Target& target) {
-   *    Bool has_feature = target->GetFeature<Bool>("has_feature", false).value();
-   *  }
-   *
-   * \endcode
-   */
-  template <typename TObjectRef>
-  ffi::Optional<TObjectRef> GetFeature(
-      const std::string& feature_key,
-      ffi::Optional<TObjectRef> default_value = std::nullopt) const {
-    if (auto feature = features.Get(feature_key)) {
-      return Downcast<TObjectRef>(feature.value());
-    } else {
-      return default_value;
-    }
-  }
-  // variant that uses TObjectRef to enable implicit conversion to default value.
-  template <typename TObjectRef>
-  ffi::Optional<TObjectRef> GetFeature(const std::string& attr_key,
-                                       TObjectRef default_value) const {
-    return GetFeature<TObjectRef>(attr_key, ffi::Optional<TObjectRef>(default_value));
-  }
-
-  /*! \brief Get the keys for this target as a vector of string */
-  TVM_DLL std::vector<std::string> GetKeys() const;
-  /*! \brief Get the keys for this target as an unordered_set of string */
-  TVM_DLL std::unordered_set<std::string> GetLibs() const;
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.Target", TargetNode, Object);
@@ -218,12 +162,7 @@ class Target : public ObjectRef {
    */
   TVM_DLL explicit Target(Target target, Target host);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Target, ObjectRef, TargetNode);
-  /*!
-   * \brief Create a new Target object with given target (w.o host) and target host.
-   * \param target The current Target typed object target, with or without host field.
-   * \param host The given Target typed object target host
-   * \return The new Target object with the given target and host field of given host.
-   */
+
   static Target WithHost(const Target& target, const Target& host);
 
   /*! \return The target with the host stripped out */
