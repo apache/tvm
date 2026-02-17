@@ -543,6 +543,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const BroadcastNode* op) {
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const BufferLoadNode* op) {
   ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
+  ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
   Var buffer_var = op->buffer->data;
   PrimExpr prim_index = op->indices[0];
 
@@ -627,6 +628,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const ShuffleNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
   ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
+  ICHECK(!op->predicate.defined()) << "Predicated buffer store is not supported.";
   Var buffer_var = op->buffer->data;
   PrimExpr prim_index = op->indices[0];
 

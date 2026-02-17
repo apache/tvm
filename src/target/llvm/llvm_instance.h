@@ -184,7 +184,7 @@ class LLVMTargetInfo {
    * \param target TVM JSON Target object for target "llvm"
    */
   // NOLINTNEXTLINE(runtime/references)
-  LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target);
+  LLVMTargetInfo(LLVMInstance& instance, const ffi::Map<ffi::String, ffi::Any>& target);
 
   /*!
    * \brief Destroys LLVMTargetInfo object

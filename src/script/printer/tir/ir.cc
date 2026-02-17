@@ -91,7 +91,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Target>("", [](Target target, AccessPath p, IRDocsifier d) -> Doc {
-      ffi::Map<ffi::String, ffi::Any> config = target->Export();
+      ffi::Map<ffi::String, ffi::Any> config = target->ToConfig();
       return TIR(d, "target")->Call({d->AsDoc<ExprDoc>(config, p)});
     });
 

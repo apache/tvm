@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/config_schema.h>
 #include <tvm/node/attr_registry_map.h>
 #include <tvm/node/node.h>
 
@@ -39,24 +40,13 @@ namespace tvm {
 class Target;
 
 /*!
- * \brief Map containing parsed features of a specific Target
- */
-using TargetFeatures = ffi::Map<ffi::String, ffi::Any>;
-
-/*!
- * \brief TargetParser to apply on instantiation of a given TargetKind
+ * \brief Target canonicalizer applied on instantiation of a given TargetKind.
  *
- * \param target_json Target in JSON format to be transformed during parsing.
- *
+ * \param target_json Target in JSON format to be transformed during canonicalization.
  * \return The transformed Target JSON object.
  */
-using TargetJSON = ffi::Map<ffi::String, ffi::Any>;
-using FTVMTargetParser = ffi::TypedFunction<TargetJSON(TargetJSON)>;
-
-namespace detail {
-template <typename, typename, typename>
-struct ValueTypeInfoMaker;
-}
+using FTargetCanonicalizer =
+    ffi::TypedFunction<ffi::Map<ffi::String, ffi::Any>(ffi::Map<ffi::String, ffi::Any>)>;
 
 class TargetInternal;
 
@@ -72,10 +62,8 @@ class TargetKindNode : public Object {
   int default_device_type;
   /*! \brief Default keys of the target */
   ffi::Array<ffi::String> default_keys;
-  /*! \brief Function used to preprocess on target creation */
-  ffi::Function preprocessor;
-  /*! \brief Function used to parse a JSON target during creation */
-  FTVMTargetParser target_parser;
+  /*! \brief Function used to canonicalize a JSON target during creation */
+  FTargetCanonicalizer target_canonicalizer;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -95,22 +83,11 @@ class TargetKindNode : public Object {
   uint32_t AttrRegistryIndex() const { return index_; }
   /*! \brief Return the name stored in attr registry */
   ffi::String AttrRegistryName() const { return name; }
-  /*! \brief Stores the required type_key and type_index of a specific attr of a target */
-  struct ValueTypeInfo {
-    ffi::String type_key;
-    int32_t type_index;
-    std::unique_ptr<ValueTypeInfo> key;
-    std::unique_ptr<ValueTypeInfo> val;
-  };
-  /*! \brief A hash table that stores the type information of each attr of the target key */
-  std::unordered_map<ffi::String, ValueTypeInfo> key2vtype_;
-  /*! \brief A hash table that stores the default value of each attr of the target key */
-  std::unordered_map<ffi::String, ffi::Any> key2default_;
+  /*! \brief ConfigSchema for validating and resolving target attributes */
+  ir::ConfigSchema schema_;
   /*! \brief Index used for internal lookup of attribute registry */
   uint32_t index_;
 
-  template <typename, typename, typename>
-  friend struct detail::ValueTypeInfoMaker;
   template <typename, typename>
   friend class AttrRegistry;
   template <typename>
@@ -203,32 +180,19 @@ class TargetKindRegEntry {
    */
   inline TargetKindRegEntry& set_default_keys(std::vector<ffi::String> keys);
   /*!
-   * \brief Set the pre-processing function applied upon target creation
-   * \tparam FLambda Type of the function
-   * \param f The pre-processing function
+   * \brief Set the canonicalizer function applied upon target creation.
+   * \param canonicalizer The target canonicalizer function.
    */
-  template <typename FLambda>
-  inline TargetKindRegEntry& set_attrs_preprocessor(FLambda f);
-  /*!
-   * \brief Set the parsing function applied upon target creation
-   * \param parser The Target parsing function
-   */
-  inline TargetKindRegEntry& set_target_parser(FTVMTargetParser parser);
+  inline TargetKindRegEntry& set_target_canonicalizer(FTargetCanonicalizer canonicalizer);
   /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
+   * \param traits Optional traits (e.g. refl::DefaultValue, doc string, or raw default value)
    * \tparam ValueType The value type to be registered
+   * \tparam Traits Optional trait types
    */
-  template <typename ValueType>
-  inline TargetKindRegEntry& add_attr_option(const ffi::String& key);
-  /*!
-   * \brief Register a valid configuration option and its ValueType for validation
-   * \param key The configuration key
-   * \param default_value The default value of the key
-   * \tparam ValueType The value type to be registered
-   */
-  template <typename ValueType>
-  inline TargetKindRegEntry& add_attr_option(const ffi::String& key, ffi::Any default_value);
+  template <typename ValueType, typename... Traits>
+  inline TargetKindRegEntry& add_attr_option(const ffi::String& key, Traits&&... traits);
   /*! \brief Set name of the TargetKind to be the same as registry if it is empty */
   inline TargetKindRegEntry& set_name();
   /*!
@@ -269,85 +233,6 @@ class TargetKindRegEntry {
   friend class TargetKind;
 };
 
-namespace detail {
-template <typename Type, template <typename...> class Container>
-struct is_specialized : std::false_type {
-  using type = std::false_type;
-};
-
-template <template <typename...> class Container, typename... Args>
-struct is_specialized<Container<Args...>, Container> : std::true_type {
-  using type = std::true_type;
-};
-
-template <typename ValueType,
-          typename IsArray = typename is_specialized<ValueType, ffi::Array>::type,
-          typename IsMap = typename is_specialized<ValueType, ffi::Map>::type>
-struct ValueTypeInfoMaker {};
-
-template <typename ValueType>
-struct ValueTypeInfoMaker<ValueType, std::false_type, std::false_type> {
-  using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
-
-  ValueTypeInfo operator()() const {
-    ValueTypeInfo info;
-    info.key = nullptr;
-    info.val = nullptr;
-    if constexpr (std::is_base_of_v<ObjectRef, ValueType>) {
-      int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
-      info.type_index = tindex;
-      info.type_key = runtime::Object::TypeIndex2Key(tindex);
-      return info;
-    } else if constexpr (std::is_same_v<ValueType, ffi::String>) {
-      // special handle string since it can be backed by multiple types.
-      info.type_index = ffi::TypeIndex::kTVMFFIStr;
-      info.type_key = ffi::TypeTraits<ValueType>::TypeStr();
-      return info;
-    } else {
-      // TODO(tqchen) consider upgrade to leverage any system to support union type
-      constexpr int32_t tindex = ffi::TypeToFieldStaticTypeIndex<ValueType>::value;
-      static_assert(tindex != ffi::TypeIndex::kTVMFFIAny, "Do not support union type for now");
-      info.type_index = tindex;
-      info.type_key = runtime::Object::TypeIndex2Key(tindex);
-      return info;
-    }
-  }
-};
-
-template <typename ValueType>
-struct ValueTypeInfoMaker<ValueType, std::true_type, std::false_type> {
-  using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
-
-  ValueTypeInfo operator()() const {
-    using key_type = ValueTypeInfoMaker<typename ValueType::value_type>;
-    uint32_t tindex = ValueType::ContainerType::_GetOrAllocRuntimeTypeIndex();
-    ValueTypeInfo info;
-    info.type_index = tindex;
-    info.type_key = runtime::Object::TypeIndex2Key(tindex);
-    info.key = std::make_unique<ValueTypeInfo>(key_type()());
-    info.val = nullptr;
-    return info;
-  }
-};
-
-template <typename ValueType>
-struct ValueTypeInfoMaker<ValueType, std::false_type, std::true_type> {
-  using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
-  ValueTypeInfo operator()() const {
-    using key_type = ValueTypeInfoMaker<typename ValueType::key_type>;
-    using val_type = ValueTypeInfoMaker<typename ValueType::mapped_type>;
-    uint32_t tindex = ValueType::ContainerType::_GetOrAllocRuntimeTypeIndex();
-    ValueTypeInfo info;
-    info.type_index = tindex;
-    info.type_key = runtime::Object::TypeIndex2Key(tindex);
-    info.key = std::make_unique<ValueTypeInfo>(key_type()());
-    info.val = std::make_unique<ValueTypeInfo>(val_type()());
-    return info;
-  }
-};
-
-}  // namespace detail
-
 template <typename ValueType>
 inline TargetKindAttrMap<ValueType> TargetKind::GetAttrMap(const ffi::String& attr_name) {
   return TargetKindAttrMap<ValueType>(GetAttrMapContainer(attr_name));
@@ -373,31 +258,17 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_default_keys(std::vector<ffi:
   return *this;
 }
 
-template <typename FLambda>
-inline TargetKindRegEntry& TargetKindRegEntry::set_attrs_preprocessor(FLambda f) {
-  LOG(WARNING) << "set_attrs_preprocessor is deprecated please use set_target_parser instead";
-  kind_->preprocessor = ffi::Function::FromTyped(std::move(f));
+inline TargetKindRegEntry& TargetKindRegEntry::set_target_canonicalizer(
+    FTargetCanonicalizer canonicalizer) {
+  kind_->target_canonicalizer = canonicalizer;
+  kind_->schema_.set_canonicalizer(canonicalizer);
   return *this;
 }
 
-inline TargetKindRegEntry& TargetKindRegEntry::set_target_parser(FTVMTargetParser parser) {
-  kind_->target_parser = parser;
-  return *this;
-}
-
-template <typename ValueType>
-inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const ffi::String& key) {
-  ICHECK(!kind_->key2vtype_.count(key))
-      << "AttributeError: add_attr_option failed because '" << key << "' has been set once";
-  kind_->key2vtype_[key] = detail::ValueTypeInfoMaker<ValueType>()();
-  return *this;
-}
-
-template <typename ValueType>
+template <typename ValueType, typename... Traits>
 inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const ffi::String& key,
-                                                               Any default_value) {
-  add_attr_option<ValueType>(key);
-  kind_->key2default_[key] = default_value;
+                                                               Traits&&... traits) {
+  kind_->schema_.def_option<ValueType>(key, std::forward<Traits>(traits)...);
   return *this;
 }
 
@@ -433,6 +304,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
       ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName)    \
           .set_name()                                             \
           .set_default_device_type(DeviceType)                    \
+          .add_attr_option<ffi::String>("kind")                   \
           .add_attr_option<ffi::Array<ffi::String>>("keys")       \
           .add_attr_option<ffi::String>("tag")                    \
           .add_attr_option<ffi::String>("device")                 \

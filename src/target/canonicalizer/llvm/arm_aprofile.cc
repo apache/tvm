@@ -18,21 +18,22 @@
  */
 
 /*!
- * \file tvm/target/parsers/aprofile.cc
- * \brief Target Parser for Arm(R) Cortex(R) A-Profile CPUs
+ * \file tvm/target/canonicalizer/llvm/arm_aprofile.cc
+ * \brief Target canonicalizer for Arm(R) Cortex(R) A-Profile CPUs
  */
 
-#include "aprofile.h"
+#include "arm_aprofile.h"
 
 #include <memory>
 #include <string>
 
-#include "../../support/utils.h"
-#include "../llvm/llvm_instance.h"
+#include "../../../support/utils.h"
+#include "../../llvm/llvm_instance.h"
 
 namespace tvm {
 namespace target {
-namespace parsers {
+namespace canonicalizer {
+namespace llvm {
 namespace aprofile {
 
 double GetArchVersion(ffi::Array<ffi::String> mattr) {
@@ -69,7 +70,7 @@ bool IsAArch64(ffi::Optional<ffi::String> mtriple) {
   return false;
 }
 
-bool IsArch(TargetJSON attrs) {
+bool IsArch(ffi::Map<ffi::String, ffi::Any> attrs) {
   ffi::Optional<ffi::String> mtriple =
       Downcast<ffi::Optional<ffi::String>>(attrs.Get("mtriple").value_or(nullptr));
   ffi::Optional<ffi::String> mcpu =
@@ -82,7 +83,7 @@ bool CheckContains(ffi::Array<ffi::String> array, ffi::String predicate) {
   return std::any_of(array.begin(), array.end(), [&](ffi::String var) { return var == predicate; });
 }
 
-static TargetFeatures GetFeatures(TargetJSON target) {
+static ffi::Map<ffi::String, ffi::Any> GetFeatures(ffi::Map<ffi::String, ffi::Any> target) {
 #ifdef TVM_LLVM_VERSION
   ffi::String kind = Downcast<ffi::String>(target.Get("kind").value());
   ICHECK_EQ(kind, "llvm") << "Expected target kind 'llvm', but got '" << kind << "'";
@@ -110,13 +111,13 @@ static TargetFeatures GetFeatures(TargetJSON target) {
     return features.find(feature) != features.end();
   };
 
-  return {{"is_aarch64", Bool(IsAArch64(mtriple))},
-          {"has_asimd", Bool(has_feature("neon"))},
-          {"has_sve", Bool(has_feature("sve"))},
-          {"has_dotprod", Bool(has_feature("dotprod"))},
-          {"has_matmul_i8", Bool(has_feature("i8mm"))},
-          {"has_fp16_simd", Bool(has_feature("fullfp16"))},
-          {"has_sme", Bool(has_feature("sme"))}};
+  return {{"feature.is_aarch64", static_cast<bool>(IsAArch64(mtriple))},
+          {"feature.has_asimd", static_cast<bool>(has_feature("neon"))},
+          {"feature.has_sve", static_cast<bool>(has_feature("sve"))},
+          {"feature.has_dotprod", static_cast<bool>(has_feature("dotprod"))},
+          {"feature.has_matmul_i8", static_cast<bool>(has_feature("i8mm"))},
+          {"feature.has_fp16_simd", static_cast<bool>(has_feature("fullfp16"))},
+          {"feature.has_sme", static_cast<bool>(has_feature("sme"))}};
 #endif
 
   LOG(WARNING) << "Cannot parse Arm(R)-based target features for target " << target
@@ -140,8 +141,11 @@ static ffi::Array<ffi::String> MergeKeys(ffi::Optional<ffi::Array<ffi::String>> 
   return keys;
 }
 
-TargetJSON ParseTarget(TargetJSON target) {
-  target.Set("features", GetFeatures(target));
+ffi::Map<ffi::String, ffi::Any> Canonicalize(ffi::Map<ffi::String, ffi::Any> target) {
+  ffi::Map<ffi::String, ffi::Any> features = GetFeatures(target);
+  for (const auto& kv : features) {
+    target.Set(kv.first, kv.second);
+  }
   target.Set("keys",
              MergeKeys(Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("keys"))));
 
@@ -149,6 +153,7 @@ TargetJSON ParseTarget(TargetJSON target) {
 }
 
 }  // namespace aprofile
-}  // namespace parsers
+}  // namespace llvm
+}  // namespace canonicalizer
 }  // namespace target
 }  // namespace tvm
