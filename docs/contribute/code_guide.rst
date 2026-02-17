@@ -98,7 +98,7 @@ Python Code Styles
 
   The pylint check ``no-else-return`` is disabled to allow for this
   distinction.  See further discussion `here
-  <https://github.com/apache/tvm/pull/11327>`.
+  <https://github.com/apache/tvm/pull/11327>`_.
 
   .. code:: python
 
