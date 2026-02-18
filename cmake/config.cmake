@@ -103,7 +103,7 @@ set(USE_METAL OFF)
 # - /path/to/vulkan-sdk: use specific path to vulkan-sdk
 set(USE_VULKAN OFF)
 
-# Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab.
+# Whether to use spirv-tools and SPIRV-Headers from Khronos GitHub or GitLab.
 #
 # Possible values:
 # - OFF: not to use

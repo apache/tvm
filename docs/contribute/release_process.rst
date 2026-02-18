@@ -51,7 +51,7 @@ Prepare the Release Notes
 
 Release note contains new features, improvement, bug fixes, known issues and deprecation, etc. TVM provides `monthly dev report <https://discuss.tvm.ai/search?q=TVM%20Monthly%20%23Announcement>`_ collects developing progress each month. It could be helpful to who writes the release notes.
 
-It is recommended to open a Github issue to collect feedbacks for the release note draft before cutting the release branch. See the scripts in ``tests/scripts/release`` for some starting points.
+It is recommended to open a GitHub issue to collect feedbacks for the release note draft before cutting the release branch. See the scripts in ``tests/scripts/release`` for some starting points.
 
 
 Prepare the Release Candidate
@@ -180,7 +180,7 @@ number.
 Upload the Release Candidate
 ----------------------------
 
-Edit the release page on Github and upload the artifacts created by the previous steps.
+Edit the release page on GitHub and upload the artifacts created by the previous steps.
 
 The release manager also needs to upload the artifacts to ASF SVN,
 
@@ -232,7 +232,7 @@ After the vote passes, to upload the binaries to Apache mirrors, you move the bi
 	curl "https://dist.apache.org/repos/dist/dev/tvm/KEYS" > svn-tvm/KEYS
 	(cd svn-tvm && svn ci --username $ASF_USERNAME --password "$ASF_PASSWORD" -m"Update KEYS")
 
-Remember to create a new release TAG (v0.6.0 in this case) on Github and remove the pre-release candidate TAG.
+Remember to create a new release TAG (v0.6.0 in this case) on GitHub and remove the pre-release candidate TAG.
 
  .. code-block:: bash
 
