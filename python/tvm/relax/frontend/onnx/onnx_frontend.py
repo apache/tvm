@@ -1181,14 +1181,28 @@ class LeakyRelu(OnnxOpConverter):
 
 
 class Gelu(OnnxOpConverter):
-    """Operator converter for Gelu from Microsoft onnxruntime contrib opset.
+    """Operator converter for Gelu.
+
+    Supports both Microsoft onnxruntime contrib opset and ONNX Opset 20+.
 
     gelu(x) = 0.5x(1 + erf(x/sqrt(2)))
+
+    When approximate="tanh" (ONNX Opset 20):
+    gelu(x) = 0.5x(1 + tanh(sqrt(2/pi)(x + 0.044715x^3)))
     """
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
         return relax.op.nn.gelu(inputs[0])
+
+    @classmethod
+    def _impl_v20(cls, bb, inputs, attr, params):
+        approximate = attr.get("approximate", b"none").decode("utf-8")
+        if approximate == "tanh":
+            return relax.op.nn.gelu_tanh(inputs[0])
+        if approximate == "none":
+            return relax.op.nn.gelu(inputs[0])
+        raise ValueError(f"Unsupported approximate mode for Gelu: {approximate}")
 
 
 class FastGelu(OnnxOpConverter):
