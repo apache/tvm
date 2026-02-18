@@ -1,13 +1,13 @@
 runs:
  using: "composite"
  steps:
-  - uses: actions/cache@v4
+  - uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
     env:
       CACHE_NUMBER: 2
     with:
       path: ~/conda_pkgs_dir
       key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('tests/conda/build-environment.yaml') }}
-  - uses: conda-incubator/setup-miniconda@v3
+  - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
     continue-on-error: true
     id: conda1
     with:
@@ -18,7 +18,7 @@ runs:
       miniforge-version: latest
       python-version: 3.9
       condarc-file: tests/conda/condarc
-  - uses: conda-incubator/setup-miniconda@v3
+  - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
     if: steps.conda1.outcome == 'failure'
     with:
       activate-environment: tvm-build
