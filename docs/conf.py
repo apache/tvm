@@ -508,7 +508,7 @@ header_links = [
     ("Community", "https://tvm.apache.org/community"),
     ("Download", "https://tvm.apache.org/download"),
     ("Docs", "https://tvm.apache.org/docs"),
-    ("Github", "https://github.com/apache/tvm/"),
+    ("GitHub", "https://github.com/apache/tvm/"),
 ]
 
 header_dropdown = {

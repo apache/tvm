@@ -80,7 +80,7 @@ Guidelines
 Commit Message Guideline
 ------------------------
 
-Apache TVM uses the Github (GH) platform for patch submission and code review
+Apache TVM uses the GitHub (GH) platform for patch submission and code review
 via Pull Requests (PRs). The final commit (title and body) that is merged into
 the Apache TVM main tree is composed of the PR's title and body and must be kept
 updated and reflecting the new changes in the code as per the reviews and
@@ -101,7 +101,7 @@ allowing fast log searches, bisecting, and so on.
 *PR/commit title*:
 
  - Guarantee a title exists (enforced);
- - Don’t use Github usernames in the title, like @username (enforced);
+ - Don’t use GitHub usernames in the title, like @username (enforced);
  - A tag must be present as a hint about what component(s) of the code
    the PRs / commits “touch” (enforced). For example [BugFix], [CI], [microTVM],
    and [TVMC]. Tags go between square brackets and appear first in the title. If
@@ -123,7 +123,7 @@ allowing fast log searches, bisecting, and so on.
 *PR/commit body*:
 
  - Guarantee a body exists (enforced);
- - Don’t use Github usernames in body text, like @username (enforced);
+ - Don’t use GitHub usernames in body text, like @username (enforced);
  - Avoid “bullet” commit message bodies: “bullet” commit message bodies are not
    bad per se, but “bullet” commit messages without any description or
    explanation is likely as bad as commits without any description, rationale,

@@ -61,9 +61,9 @@ one may simply use:
     conda activate tvm-build-venv
 
 
-Step 2. Get Source from Github
+Step 2. Get Source from GitHub
 ------------------------------
-You can also choose to clone the source repo from github.
+You can also choose to clone the source repo from GitHub.
 
 .. code:: bash
 

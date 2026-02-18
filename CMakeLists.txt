@@ -35,13 +35,13 @@ tvm_option(USE_OPENCL_GTEST "Path to OpenCL specific gtest version for runtime c
 tvm_option(USE_VULKAN "Build with Vulkan" OFF)
 
 
-# Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab.
+# Whether to use spirv-tools and SPIRV-Headers from Khronos GitHub or GitLab.
 #
 # Possible values:
 # - OFF: not to use
 # - /path/to/install: path to your khronis spirv-tools and SPIRV-Headers installation directory
 #
-tvm_option(USE_KHRONOS_SPIRV "Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab" OFF)
+tvm_option(USE_KHRONOS_SPIRV "Whether to use spirv-tools and SPIRV-Headers from Khronos GitHub or GitLab" OFF)
 tvm_option(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT "whether enable SPIRV_KHR_DOT_PRODUCT" OFF)
 tvm_option(USE_METAL "Build with Metal" OFF)
 tvm_option(USE_ROCM "Build with ROCM" OFF)

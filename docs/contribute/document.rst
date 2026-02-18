@@ -247,7 +247,7 @@ Image files created for TVM documentation should reside in the `<https://github.
 repository, while the `.rst` files *using* those images should reside in the main TVM repostitory
 (`<https://github.com/apache/tvm>`_).
 
-This will require two Github Pull Requests, one for the image files and another for the `.rst` files.
+This will require two GitHub Pull Requests, one for the image files and another for the `.rst` files.
 Discussion between the contributor and reviewers may be necessary to coordinate the review process.
 
 *IMPORTANT NOTE:* When using two Pull Requests as described above, please merge the
