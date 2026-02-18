@@ -849,7 +849,11 @@ def ceil_log2(x):
             return cast(res, x.dtype)
         return res
 
-    if "adreno" in target.device_name or target.kind.name in ["metal", "rocm", "webgpu"]:
+    if "adreno" in str(target.attrs.get("device", "")) or target.kind.name in [
+        "metal",
+        "rocm",
+        "webgpu",
+    ]:
         return cast(tvm.tir.ceil(tvm.tir.log2(cast(x, "float32"))), x.dtype)
 
     return cast(tvm.tir.ceil(tvm.tir.log2(cast(x, "float64"))), x.dtype)

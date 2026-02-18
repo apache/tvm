@@ -19,7 +19,7 @@ import json
 import pytest
 import tvm
 import tvm.testing
-from tvm.target import Target, arm_cpu, bifrost, cuda, intel_graphics, mali, rocm
+from tvm.target import Target
 
 
 def test_all_targets_device_type_verify():
@@ -43,14 +43,16 @@ def test_target_string_parse():
     target = tvm.target.Target({"kind": "cuda", "model": "unknown", "libs": ["cublas", "cudnn"]})
 
     assert target.kind.name == "cuda"
-    assert target.model == "unknown"
+    assert target.attrs["model"] == "unknown"
     assert set(target.keys) == set(["cuda", "gpu"])
-    assert set(target.libs) == set(["cublas", "cudnn"])
-    assert str(target) == str(tvm.target.cuda(libs=["cublas", "cudnn"]))
+    assert set(target.attrs["libs"]) == set(["cublas", "cudnn"])
 
-    assert tvm.target.intel_graphics().device_name == "intel_graphics"
-    assert tvm.target.mali().device_name == "mali"
-    assert tvm.target.arm_cpu().device_name == "arm_cpu"
+    assert (
+        Target({"kind": "opencl", "device": "intel_graphics"}).attrs.get("device", "")
+        == "intel_graphics"
+    )
+    assert Target({"kind": "opencl", "device": "mali"}).attrs.get("device", "") == "mali"
+    assert Target({"kind": "llvm", "device": "arm_cpu"}).attrs.get("device", "") == "arm_cpu"
 
 
 def test_target_string_with_spaces():
@@ -89,12 +91,6 @@ def test_target_llvm_vector_width():
     assert target.attrs["vector-width"] == 1024
 
 
-def test_target_create():
-    targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu("rk3399"), bifrost()]
-    for tgt in targets:
-        assert tgt is not None
-
-
 def test_target_config():
     """
     Test that constructing a target from a dictionary works.
@@ -114,8 +110,8 @@ def test_target_config():
         target = tvm.target.Target(config)
         assert target.kind.name == "llvm"
         assert all([key in target.keys for key in ["arm_cpu", "cpu"]])
-        assert target.device_name == "arm_cpu"
-        assert target.libs == ["cblas"]
+        assert target.attrs.get("device", "") == "arm_cpu"
+        assert list(target.attrs.get("libs", [])) == ["cblas"]
         assert target.attrs["mfloat-abi"] == "hard"
         assert all([attr in target.attrs["mattr"] for attr in ["+neon", "-avx512f"]])
 
@@ -160,6 +156,20 @@ def test_target_tag_1():
     assert tgt.attrs["max_threads_per_block"] == 1024
     assert tgt.attrs["thread_warp_size"] == 32
     assert tgt.attrs["registers_per_block"] == 32768
+
+
+def test_target_tag_override():
+    """Test creating a target from a tag with attribute overrides."""
+    tgt = tvm.target.Target({"tag": "nvidia/nvidia-a100", "l2_cache_size_bytes": 12345})
+    assert tgt.kind.name == "cuda"
+    assert tgt.attrs["arch"] == "sm_80"
+    # Override should take effect
+    assert int(tgt.attrs["l2_cache_size_bytes"]) == 12345
+    # Base tag fields should be preserved
+    assert tgt.attrs["max_shared_memory_per_block"] == 49152
+    assert tgt.attrs["thread_warp_size"] == 32
+    # Tag name should be recorded
+    assert tgt.tag == "nvidia/nvidia-a100"
 
 
 def test_list_kinds():
@@ -285,111 +295,6 @@ def test_target_with_host():
     assert tgt.host.attrs["registers_per_block"] == 32768
 
 
-def test_canon_target_and_host_0():
-    target = None
-    host = None
-    target, host = Target.canon_target_and_host(target, host)
-    assert target is None
-    assert host is None
-
-
-def test_canon_target_and_host_1():
-    target = None
-    host = "llvm"
-    with pytest.raises(AssertionError, match=r"Target host is not empty when target is empty."):
-        target, host = Target.canon_target_and_host(target, host)
-
-
-def test_canon_target_and_host_2():
-    target = Target("cuda")
-    host = Target("llvm")
-    target, host = Target.canon_target_and_host(target, host)
-    assert target.kind.name == "cuda"
-    assert target.host.kind.name == "llvm"
-
-
-def test_canon_target_and_host_3():
-    target = Target(target="cuda", host="llvm")
-    host = None
-    target, host = Target.canon_target_and_host(target, host)
-    assert target.kind.name == "cuda"
-    assert target.host.kind.name == "llvm"
-    assert host.kind.name == "llvm"
-    assert target.host == host
-
-
-def test_canon_multi_target_and_host_0():
-    with pytest.raises(AssertionError):
-        Target.canon_multi_target_and_host(None)
-
-
-def test_canon_multi_target_and_host_1():
-    raw_targets = Target.canon_multi_target_and_host({"kind": "llvm"})
-    assert len(raw_targets) == 1
-    assert raw_targets[0].kind.name == "llvm"
-
-
-def test_canon_multi_target_and_host_2():
-    raw_targets = Target.canon_multi_target_and_host({1: "llvm", 2: "cuda"})
-    assert len(raw_targets) == 2
-    assert raw_targets[0].kind.name == "llvm"
-    assert raw_targets[1].kind.name == "cuda"
-
-
-def test_canon_multi_target_and_host_3():
-    raw_targets = Target.canon_multi_target_and_host(["llvm", "cuda"])
-    assert len(raw_targets) == 2
-    assert raw_targets[0].kind.name == "llvm"
-    assert raw_targets[1].kind.name == "cuda"
-
-
-def test_canon_multi_target_and_host_4():
-    raw_targets = Target.canon_multi_target_and_host("llvm")
-    assert len(raw_targets) == 1
-    assert raw_targets[0].kind.name == "llvm"
-
-
-def test_canon_multi_target_and_host_5():
-    raw_targets = Target.canon_multi_target_and_host("cuda", "llvm")
-    assert len(raw_targets) == 1
-    assert raw_targets[0].kind.name == "cuda"
-    assert raw_targets[0].host.kind.name == "llvm"
-
-
-def test_canon_multi_target_and_host_6():
-    """Test `canon_target_and_host` by using TVM Objects"""
-    cuda_device_type = tvm.device("cuda").dlpack_device_type()
-    target = {cuda_device_type: Target(target="cuda", host="llvm")}
-    host = None
-    raw_targets_1 = Target.canon_multi_target_and_host(target, host)
-    assert len(raw_targets_1) == 1
-    assert raw_targets_1[0].kind.name == "cuda"
-    assert raw_targets_1[0].host.kind.name == "llvm"
-
-    target = {cuda_device_type: Target(tvm.runtime.container.String("cuda"))}
-    host = Target(tvm.runtime.container.String("llvm"))
-    target = tvm.runtime.convert(target)
-    assert isinstance(target, tvm.ir.container.Map)
-    raw_targets_2 = Target.canon_multi_target_and_host(target, host)
-    assert len(raw_targets_2) == 1
-    assert raw_targets_2[0].kind.name == "cuda"
-    assert raw_targets_2[0].host.kind.name == "llvm"
-
-
-def test_canon_target_map_and_host():
-    target_map = {"cuda": "cuda_module", "llvm": "cpu_module"}
-    target_map, host = Target.canon_target_map_and_host(target_map, "llvm")
-    assert host.kind.name == "llvm"
-    for t, v in target_map.items():
-        assert t.host.kind.name == "llvm"
-        if t.kind.name == "cuda":
-            assert v == "cuda_module"
-        elif t.kind.name == "llvm":
-            assert v == "cpu_module"
-        else:
-            assert False
-
-
 def test_target_attr_bool_value():
     target0 = Target({"kind": "vulkan", "supports_float16": True})
     assert target0.attrs["supports_float16"] == 1
@@ -403,9 +308,9 @@ def test_target_attr_bool_value():
 
 def test_target_attr_l2_cache_size_bytes():
     target0 = Target("nvidia/nvidia-a100")
-    assert target0.l2_cache_size_bytes == 41943040
+    assert int(target0.attrs.get("l2_cache_size_bytes", 0)) == 41943040
     target1 = Target("nvidia/geforce-rtx-4090")
-    assert target1.l2_cache_size_bytes == 75497472
+    assert int(target1.attrs.get("l2_cache_size_bytes", 0)) == 75497472
 
 
 def test_target_features():
@@ -426,9 +331,9 @@ def test_target_from_device_cuda(input_device):
     dev = tvm.cuda()
     assert target.kind.name == "cuda"
     assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
-    assert target.max_shared_memory_per_block == dev.max_shared_memory_per_block
-    assert target.thread_warp_size == dev.warp_size
-    assert target.arch == "sm_" + dev.compute_version.replace(".", "")
+    assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
+    assert int(target.attrs["thread_warp_size"]) == dev.warp_size
+    assert str(target.attrs.get("arch", "")) == "sm_" + dev.compute_version.replace(".", "")
 
 
 @tvm.testing.requires_rocm
@@ -440,21 +345,21 @@ def test_target_from_device_rocm(input_device):
     assert target.kind.name == "rocm"
     assert target.attrs["mtriple"] == "amdgcn-and-amdhsa-hcc"
     assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
-    assert target.max_shared_memory_per_block == dev.max_shared_memory_per_block
-    assert target.thread_warp_size == dev.warp_size
+    assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
+    assert int(target.attrs["thread_warp_size"]) == dev.warp_size
 
 
 @tvm.testing.requires_vulkan
 @pytest.mark.parametrize("input_device", ["vulkan", tvm.vulkan()])
-def test_target_from_device_rocm(input_device):
+def test_target_from_device_vulkan(input_device):
     target = Target.from_device(input_device)
 
     f_get_target_property = tvm.get_global_func("device_api.vulkan.get_target_property")
     dev = tvm.vulkan()
     assert target.kind.name == "vulkan"
     assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
-    assert target.max_shared_memory_per_block == dev.max_shared_memory_per_block
-    assert target.thread_warp_size == dev.warp_size
+    assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
+    assert int(target.attrs["thread_warp_size"]) == dev.warp_size
     assert target.attrs["supports_float16"] == f_get_target_property(dev, "supports_float16")
     assert target.attrs["supports_int16"] == f_get_target_property(dev, "supports_int16")
     assert target.attrs["supports_int8"] == f_get_target_property(dev, "supports_int8")
@@ -471,8 +376,8 @@ def test_target_from_device_opencl(input_device):
     dev = tvm.opencl()
     assert target.kind.name == "opencl"
     assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
-    assert target.max_shared_memory_per_block == dev.max_shared_memory_per_block
-    assert target.thread_warp_size == dev.warp_size
+    assert int(target.attrs["max_shared_memory_per_block"]) == dev.max_shared_memory_per_block
+    assert int(target.attrs["thread_warp_size"]) == dev.warp_size
 
 
 def test_module_dict_from_deserialized_targets():

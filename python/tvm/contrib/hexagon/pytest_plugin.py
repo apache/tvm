@@ -317,7 +317,7 @@ aot_host_target = tvm.testing.parameter(HEXAGON_AOT_LLVM_TARGET)
 @tvm.testing.fixture
 def aot_target(aot_host_target):
     if aot_host_target == "c":
-        yield tvm.target.hexagon("v68")
+        yield tvm.target.Target({"kind": "hexagon", "mtriple": "hexagon", "mcpu": "hexagonv68"})
     elif isinstance(aot_host_target, dict) and aot_host_target.get("kind") == "llvm":
         yield aot_host_target
     elif isinstance(aot_host_target, str) and aot_host_target.startswith("llvm"):

@@ -14,14 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Python bindings for creating CompilationConfigs."""
-import tvm
-from . import _ffi_api
+"""Apple Metal GPU target tags."""
+from .registry import register_tag
 
 
-def make_compilation_config(ctxt, target, target_host=None):
-    """Returns a CompilationConfig appropriate for target and target_host, using the same
-    representation conventions as for the standard build interfaces. Intended only for unit
-    testing."""
-    raw_targets = tvm.target.Target.canon_multi_target_and_host(target, target_host)
-    return _ffi_api.MakeCompilationConfig(ctxt, raw_targets)
+def _register_metal_tag(name, max_threads, shared_mem, warp_size):
+    register_tag(
+        name,
+        {
+            "kind": "metal",
+            "max_threads_per_block": max_threads,
+            "max_shared_memory_per_block": shared_mem,
+            "thread_warp_size": warp_size,
+            "host": {
+                "kind": "llvm",
+                "mtriple": "arm64-apple-macos",
+                "mcpu": "apple-m4",
+            },
+        },
+    )
+
+
+_register_metal_tag("apple/m1-gpu", 1024, 32768, 32)
+_register_metal_tag("apple/m1-gpu-restricted", 256, 32768, 32)
+_register_metal_tag("apple/m2-gpu", 1024, 32768, 32)

@@ -158,7 +158,7 @@ class GEMV(GPUScheduleRule):
             LOAD_V_SHARED = (
                 LOAD_V_SHARED
                 and isinstance(shared_mem_usage, tir.IntImm)
-                and shared_mem_usage.value <= target.max_shared_memory_per_block
+                and shared_mem_usage.value <= int(target.attrs["max_shared_memory_per_block"])
             )
 
             # vectorize load A
@@ -390,7 +390,7 @@ class GEMV(GPUScheduleRule):
             UNROLL = 64
             TS, TR = 1, 64
 
-        while TS * TR > target.max_num_threads:
+        while TS * TR > int(target.attrs["max_num_threads"]):
             if TS > 1:
                 TS //= 2
             else:

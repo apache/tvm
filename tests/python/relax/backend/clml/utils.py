@@ -92,7 +92,7 @@ def run_compare(mod, inputs, params_np):
     ref = build_and_run(
         mod,
         inputs,
-        tvm.target.adreno(),
+        tvm.target.Target("qcom/adreno-opencl"),
         rpc=rpc,
         load_path="vm_library_opencl.so",
     )
@@ -101,7 +101,7 @@ def run_compare(mod, inputs, params_np):
     out = build_and_run(
         clml_mod,
         inputs,
-        tvm.target.adreno(cfg="clml"),
+        tvm.target.Target("qcom/adreno-opencl-clml"),
         rpc=rpc,
         load_path="vm_library_clml.so",
     )

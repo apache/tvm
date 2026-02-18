@@ -21,7 +21,10 @@ from tvm_ffi import get_global_func
 
 
 def maybe_warn(target, func_name):
-    if "thrust" in target.libs and get_global_func(func_name, allow_missing=True) is None:
+    if (
+        "thrust" in list(target.attrs.get("libs", []))
+        and get_global_func(func_name, allow_missing=True) is None
+    ):
         logging.warning("thrust is requested but TVM is not built with thrust.")
 
 
@@ -29,7 +32,7 @@ def can_use_thrust(target, func_name):
     maybe_warn(target, func_name)
     return (
         target.kind.name in ["cuda", "nvptx"]
-        and "thrust" in target.libs
+        and "thrust" in list(target.attrs.get("libs", []))
         and get_global_func(func_name, allow_missing=True)
     )
 
@@ -38,6 +41,6 @@ def can_use_rocthrust(target, func_name):
     maybe_warn(target, func_name)
     return (
         target.kind.name == "rocm"
-        and "thrust" in target.libs
+        and "thrust" in list(target.attrs.get("libs", []))
         and get_global_func(func_name, allow_missing=True)
     )

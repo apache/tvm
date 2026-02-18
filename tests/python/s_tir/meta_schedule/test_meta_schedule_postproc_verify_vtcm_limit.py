@@ -111,7 +111,12 @@ class Conv2dNCHWcVTCM:
 
 def test_conv2d_vtcm():
     def get_target(vtcm_cap):
-        target = tvm.target.hexagon("v68", vtcm_capacity=vtcm_cap)
+        target = tvm.target.Target({
+            "kind": "hexagon", "mtriple": "hexagon", "mcpu": "hexagonv68",
+            "mattr": ["+hvxv68", "+hvx-length128b", "+hvx-qfloat", "-hvx-ieee-fp"],
+            "num-cores": 4, "vtcm-capacity": vtcm_cap,
+            "llvm-options": ["-force-hvx-float"],
+        })
         return tvm.target.Target(target, host=target)
 
     sch = tvm.s_tir.Schedule(Conv2dNCHWcVTCM, debug_mask="all")

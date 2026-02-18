@@ -76,7 +76,7 @@ def test_alloc_storage_with_scope_global(hexagon_launcher):
 
     mod = Module
 
-    target_hexagon = tvm.target.hexagon("v69", vtcm_capacity=4 * 2**20)
+    target_hexagon = tvm.target.Target({"tag": "qcom/hexagon-v69", "vtcm-capacity": 4 * 2**20})
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
     with tvm.transform.PassContext(opt_level=3):
         lib = tvm.compile(mod, target, exec_mode="compiled")

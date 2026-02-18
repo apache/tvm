@@ -269,7 +269,7 @@ def evaluate(
     use_async_copy=0,
 ):
     """Evaluate function."""
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
+    target_hexagon = tvm.target.Target("qcom/hexagon-v68")
     with tvm.transform.PassContext(
         config={
             "tir.use_async_copy": use_async_copy,

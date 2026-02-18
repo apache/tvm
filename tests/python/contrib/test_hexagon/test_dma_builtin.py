@@ -151,7 +151,7 @@ class TestDMACopyWait:
 
     @tvm.testing.requires_hexagon
     def test_vtcm_alloc_compute(self, hexagon_launcher, mode, module):
-        target_hexagon = tvm.target.hexagon("v69")
+        target_hexagon = tvm.target.Target("qcom/hexagon-v69")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         with tvm.transform.PassContext(opt_level=3, config=[]):
             ex = tvm.compile(mod=module, target=target, exec_mode=mode)

@@ -17,7 +17,7 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm.testing
 from tvm.s_tir import meta_schedule as ms
-from tvm import target, te
+from tvm import te
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
@@ -581,7 +581,7 @@ def test_multi_level_tiling_hexagon():
                     * weight[v_rh, v_rw, v_rc, v_co]
                 )
 
-    target_hexagon = target.hexagon("v69", num_cores=4)
+    target_hexagon = Target("qcom/hexagon-v69")
 
     I = 64
     O = 64

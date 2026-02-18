@@ -183,7 +183,7 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
     ##
 
     with Target(tvm_target):
-        mcpu = Target.current(False).mcpu
+        mcpu = str(Target.current(False).attrs.get("mcpu", ""))
         # check for feature via the python api (current context target)
         assert target_has_features(x86_feature) == is_supported
         # check for feature via the python api (with explicit target)
@@ -191,5 +191,5 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
         # check for feature via the ffi llvm api (current context target)
         (sum(_ffi_api.target_has_feature(feat, None) for feat in x86_feature) > 0) == is_supported
         # check for feature in target's llvm full x86 CPU feature list
-        if (not Target(tvm_target).mattr) and isinstance(x86_feature, str):
+        if (not list(Target(tvm_target).attrs.get("mattr", []))) and isinstance(x86_feature, str):
             assert (x86_feature in codegen.llvm_get_cpu_features()) == is_supported

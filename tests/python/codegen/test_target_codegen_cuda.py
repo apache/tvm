@@ -488,7 +488,7 @@ def test_cuda_const_float_to_half():
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_floordiv_with_vectorization():
-    with tvm.target.cuda():
+    with tvm.target.Target("cuda"):
         # B[i] = A[floordiv(i, k)]
         n = 256
         k = 37
@@ -521,7 +521,7 @@ def test_cuda_floordiv_with_vectorization():
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_cuda_floormod_with_vectorization():
-    with tvm.target.cuda():
+    with tvm.target.Target("cuda"):
         # B[i] = A[floormod(i, k)]
         n = 256
         k = 37

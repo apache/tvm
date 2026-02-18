@@ -14,7 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Target tags -- re-exported from tag_registry.registry."""
-from .tag_registry.registry import list_tags, register_tag
+"""AWS CPU instance target tags."""
+from .registry import register_tag
 
-__all__ = ["list_tags", "register_tag"]
+
+def _register_aws_c5(name, cores, arch):
+    register_tag(
+        name,
+        {
+            "kind": "llvm",
+            "keys": ["x86", "cpu"],
+            "mcpu": arch,
+            "num-cores": cores,
+        },
+    )
+
+
+_register_aws_c5("aws/cpu/c5.large", 1, "skylake-avx512")
+_register_aws_c5("aws/cpu/c5.xlarge", 2, "skylake-avx512")
+_register_aws_c5("aws/cpu/c5.2xlarge", 4, "skylake-avx512")
+_register_aws_c5("aws/cpu/c5.4xlarge", 8, "skylake-avx512")
+_register_aws_c5("aws/cpu/c5.9xlarge", 18, "skylake-avx512")
+_register_aws_c5("aws/cpu/c5.12xlarge", 24, "cascadelake")
+_register_aws_c5("aws/cpu/c5.18xlarge", 36, "skylake-avx512")
+_register_aws_c5("aws/cpu/c5.24xlarge", 48, "cascadelake")
