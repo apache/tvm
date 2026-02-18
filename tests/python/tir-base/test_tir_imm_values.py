@@ -237,7 +237,7 @@ def check_tir_const_fold(
     flaky_msg = (
         f"{dtype} ({x}, {y}, {expect}) const folding check failed.\n"
         + "This test is intentionally non-deterministic, "
-        + f"if it fails please report it in github issue together with this seed {seed}\n"
+        + f"if it fails please report it in GitHub issue together with this seed {seed}\n"
     )
     if dtype.startswith("float"):
         compare_float_value(calc_res, fold_res.value, flaky_msg)
