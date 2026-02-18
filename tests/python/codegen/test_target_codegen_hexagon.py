@@ -35,7 +35,7 @@ def register_linker():
 
 @tvm.testing.requires_hexagon
 def test_basic():
-    target = tvm.target.hexagon("v66", hvx=128)
+    target = tvm.target.Target("qcom/hexagon-v66")
 
     @I.ir_module
     class Module:
@@ -61,7 +61,7 @@ def test_basic():
 
 @tvm.testing.requires_hexagon
 def test_llvm_target_features():
-    target = tvm.target.hexagon("v66", hvx=128)
+    target = tvm.target.Target("qcom/hexagon-v66")
 
     @I.ir_module
     class Module:
@@ -84,7 +84,17 @@ def test_llvm_target_features():
 
 @tvm.testing.requires_hexagon
 def test_llvm_options():
-    target = tvm.target.hexagon("v66", llvm_options="-hexagon-noopt")
+    target = tvm.target.Target(
+        {
+            "kind": "hexagon",
+            "mtriple": "hexagon",
+            "mcpu": "hexagonv66",
+            "mattr": ["+hvxv66", "+hvx-length128b"],
+            "num-cores": 4,
+            "vtcm-capacity": 262144,
+            "llvm-options": ["-hexagon-noopt"],
+        }
+    )
 
     @I.ir_module
     class Module:
