@@ -894,10 +894,11 @@ def get_target_compute_version(target=None):
     # 1. input target object
     # 2. Target.current()
     target = target or Target.current()
-    if target and target.arch:
-        arch = target.arch.split("_")[1]
+    target_arch = str(target.attrs.get("arch", "")) if target else ""
+    if target_arch:
+        arch = target_arch.split("_")[1]
         if len(arch) < 2:
-            raise ValueError(f"The arch is not expected {target.arch}")
+            raise ValueError(f"The arch is not expected {target_arch}")
         if arch[-1].isalpha():
             # This is for arch like "sm_90a"
             suffix = arch[-1]
