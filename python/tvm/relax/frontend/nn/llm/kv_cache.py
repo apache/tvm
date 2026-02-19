@@ -879,10 +879,15 @@ def _var(dtype):
     return T.alloc_buffer((1,), dtype, scope="local")
 
 
-def _causal_mask(causal, row, col, kv_len, qo_len):
+def _causal_mask(causal, row, col, kv_len, qo_len, sliding_window_size=-1):
+    lower_bound_condition = T.if_then_else(
+        sliding_window_size > 0,
+        col >= kv_len - qo_len + row - sliding_window_size + 1,
+        True,
+    )
     return T.if_then_else(
         causal > 0,
-        col < kv_len - qo_len + row + 1,
+        tir.all(col < kv_len - qo_len + row + 1, lower_bound_condition),
         col < kv_len,
     )
 
@@ -2319,6 +2324,7 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dic
         var_k_rope_pos_offset: T.handle,  # [b]
         var_output: T.handle,  # [total_len, h_q, d_v]
         var_lse: T.handle,  # [total_len, h_q]
+        sliding_window_size: T.int32,
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -2383,6 +2389,7 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dic
                                 col=k_idx,
                                 kv_len=kv_indptr[b + 1] - kv_indptr[b],
                                 qo_len=q_indptr[b + 1] - q_indptr[b],
+                                sliding_window_size=sliding_window_size,
                             ):
                                 result[0] = 0.0
                                 for d_idx in T.serial(d_qk):
@@ -2461,6 +2468,7 @@ def _attention_prefill_ragged(
         var_k_rope_pos_offset: T.handle, # [b]
         var_output: T.handle, # [total_len, h_q, d_v]
         var_lse: T.handle, # [total_len, h_q]
+        sliding_window_size: T.int32,
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -2628,7 +2636,8 @@ def _attention_prefill_ragged(
                                                                 row=row_,
                                                                 col=L_kv_start + j,
                                                                 kv_len=kv_chunk_len[0],
-                                                                qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx]):
+                                                                qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx],
+                                                                sliding_window_size=sliding_window_size):
                                                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                                                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
 
@@ -2643,7 +2652,8 @@ def _attention_prefill_ragged(
                                                                 row=row_,
                                                                 col=L_kv_start + j,
                                                                 kv_len=kv_chunk_len[0],
-                                                                qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx]):
+                                                                qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx],
+                                                                sliding_window_size=sliding_window_size):
                                                             S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
                                                         else:
                                                             S_smem[row, j] = T.exp2(-5e4 - m_new[i])
