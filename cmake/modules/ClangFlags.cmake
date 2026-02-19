@@ -21,7 +21,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   EXECUTE_PROCESS(COMMAND ${CMAKE_CXX_COMPILER} --version OUTPUT_VARIABLE clang_full_version)
   string (REGEX REPLACE ".*clang version ([0-9]+\\.[0-9]+).*" "\\1" CLANG_VERSION ${clang_full_version})
   message(STATUS "CLANG_VERSION ${CLANG_VERSION}")
-  # cmake 3.2 does not support VERSION_GREATER_EQUAL
+  # CMake 3.2 does not support VERSION_GREATER_EQUAL
   set(CLANG_MINIMUM_VERSION 10.0)
   if ((CLANG_VERSION VERSION_GREATER ${CLANG_MINIMUM_VERSION})
       OR

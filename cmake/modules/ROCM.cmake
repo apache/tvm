@@ -20,7 +20,7 @@ find_rocm(${USE_ROCM})
 
 if(ROCM_FOUND)
   # always set the includedir
-  # avoid global retrigger of cmake
+  # avoid global retrigger of CMake
   include_directories(SYSTEM ${ROCM_INCLUDE_DIRS})
   add_definitions(-D__HIP_PLATFORM_HCC__=1)
   add_definitions(-D__HIP_PLATFORM_AMD__=1)
