@@ -31,10 +31,6 @@ from tvm.script.parser import ir as I, relax as R, tir as T
 from tvm.relax.frontend.tflite import from_tflite
 from tensorflow.keras import applications as keras_app
 
-import ssl
-
-ssl._create_default_https_context = ssl._create_unverified_context
-
 
 def _get_mod_from_cfunc(cfunc):
     converter = tf.lite.TFLiteConverter.from_concrete_functions([cfunc])
@@ -817,7 +813,7 @@ def test_networks(net, shape):
 
     class NetworkModule(tf.Module):
         def __init__(self):
-            self.model = net(weights="imagenet", include_top=True)
+            self.model = net(weights=None, include_top=True)
 
         @tf.function
         def func(self, data):
