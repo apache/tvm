@@ -107,12 +107,12 @@ create_dylib.output_format = "dylib"
 
 
 def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
-    """Compile metal with CLI tool from env.
+    """Compile Metal with CLI tool from env.
 
     Parameters
     ----------
     code : str
-        The cuda code.
+        The Metal code.
 
     path_target : str, optional
         Output file.

@@ -22,7 +22,7 @@
 #   find_cuda(${USE_CUDA} ${USE_CUDNN})
 #
 # - When USE_CUDA=ON, use auto search
-# - When USE_CUDA=/path/to/cuda-path, use the cuda path
+# - When USE_CUDA=/path/to/cuda-path, use the CUDA path
 # - When USE_CUDNN=ON, use auto search
 # - When USE_CUDNN=/path/to/cudnn-path, use the cudnn path
 #

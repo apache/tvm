@@ -40,7 +40,7 @@ class Device(tvm_ffi.core.Device):
 
         Returns True if TVM has support for the device, if the
         physical device is present, and the device is accessible
-        through appropriate drivers (e.g. cuda/vulkan).
+        through appropriate drivers (e.g. CUDA/Vulkan).
 
         Returns
         -------
@@ -54,7 +54,7 @@ class Device(tvm_ffi.core.Device):
     def max_threads_per_block(self):
         """Maximum number of threads on each block.
 
-        Returns device value for cuda, metal, rocm, opencl, and vulkan
+        Returns device value for CUDA, Metal, ROCm, OpenCL, and Vulkan
         devices.  Returns remote device value for RPC devices.
         Returns None for all other devices.
 
@@ -70,8 +70,8 @@ class Device(tvm_ffi.core.Device):
     def warp_size(self):
         """Number of threads that execute concurrently.
 
-        Returns device value for cuda, rocm, and vulkan.  Returns
-        1 for metal and opencl devices, regardless of the physical
+        Returns device value for CUDA, ROCm, and Vulkan.  Returns
+        1 for Metal and OpenCL devices, regardless of the physical
         device.  Returns remote device value for RPC devices.  Returns
         None for all other devices.
 
@@ -87,7 +87,7 @@ class Device(tvm_ffi.core.Device):
     def max_shared_memory_per_block(self):
         """Total amount of shared memory per block in bytes.
 
-        Returns device value for cuda, rocm, opencl, and vulkan.
+        Returns device value for CUDA, ROCm, OpenCL, and Vulkan.
         Returns remote device value for RPC devices.  Returns None for
         all other devices.
 
@@ -106,8 +106,8 @@ class Device(tvm_ffi.core.Device):
         Returns maximum API version (e.g. CUDA/OpenCL/Vulkan)
         supported by the device.
 
-        Returns device value for cuda, rocm, opencl, and
-        vulkan. Returns remote device value for RPC devices.  Returns
+        Returns device value for CUDA, ROCm, OpenCL, and
+        Vulkan. Returns remote device value for RPC devices.  Returns
         None for all other devices.
 
         Returns
@@ -122,7 +122,7 @@ class Device(tvm_ffi.core.Device):
     def device_name(self):
         """Return the vendor-specific name of device.
 
-        Returns device value for cuda, rocm, opencl, and vulkan.
+        Returns device value for CUDA, ROCm, OpenCL, and Vulkan.
         Returns remote device value for RPC devices.  Returns None for
         all other devices.
 
@@ -138,7 +138,7 @@ class Device(tvm_ffi.core.Device):
     def max_clock_rate(self):
         """Return the max clock frequency of device (kHz).
 
-        Returns device value for cuda, rocm, and opencl.  Returns
+        Returns device value for CUDA, ROCm, and OpenCL.  Returns
         remote device value for RPC devices.  Returns None for all
         other devices.
 
@@ -154,7 +154,7 @@ class Device(tvm_ffi.core.Device):
     def multi_processor_count(self):
         """Return the number of compute units in the device.
 
-        Returns device value for cuda, rocm, and opencl.  Returns
+        Returns device value for CUDA, ROCm, and OpenCL.  Returns
         remote device value for RPC devices.  Returns None for all
         other devices.
 
@@ -170,7 +170,7 @@ class Device(tvm_ffi.core.Device):
     def max_thread_dimensions(self):
         """Return the maximum size of each thread axis
 
-        Returns device value for cuda, rocm, opencl, and vulkan.
+        Returns device value for CUDA, ROCm, OpenCL, and Vulkan.
         Returns remote device value for RPC devices.  Returns None for
         all other devices.
 
@@ -186,10 +186,10 @@ class Device(tvm_ffi.core.Device):
     def api_version(self):
         """Returns version number of the SDK used to compile TVM.
 
-        For example, CUDA_VERSION for cuda or VK_HEADER_VERSION for
+        For example, CUDA_VERSION for CUDA or VK_HEADER_VERSION for
         Vulkan.
 
-        Returns device value for cuda, rocm, opencl, and vulkan.
+        Returns device value for CUDA, ROCm, OpenCL, and Vulkan.
         Returns remote device value for RPC devices.  Returns None for
         all other devices.
 

@@ -19,7 +19,7 @@
 
 /*!
  * \file codegen_cuda.h
- * \brief Utility to generate cuda code
+ * \brief Utility to generate CUDA code
  */
 #ifndef TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
 #define TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
