@@ -26,7 +26,7 @@ pip3 install --upgrade \
     cloudpickle \
     cython \
     mypy \
-    numpy==1.21.* \
+    numpy==1.26.* \
     orderedset \
     packaging \
     Pillow==12.1.1 \

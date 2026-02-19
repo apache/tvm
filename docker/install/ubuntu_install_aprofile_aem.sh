@@ -39,16 +39,16 @@ gcc_url="https://developer.arm.com/-/media/Files/downloads/gnu/13.2.rel1/binrel/
 gcc_sha="7fe7b8548258f079d6ce9be9144d2a10bd2bf93b551dafbf20fe7f2e44e014b8"
 gcc_tar="arm-gnu-toolchain-13.2.rel1-x86_64-aarch64-none-linux-gnu.tar.xz"
 mkdir -p $gcc_install_dir
-curl --retry 64 -sSL $gcc_url -o $gcc_tar
-echo "$gcc_sha $gcc_tar" | sha256sum --check
+download-and-verify "$gcc_url" "$gcc_tar" sha256 "$gcc_sha" 64
 tar -xf $gcc_tar -C $gcc_install_dir --strip-components=1
 
 # Download FVP
 fvp_dir="/opt/arm/fvp"
 fvp_url="https://developer.arm.com/-/media/Files/downloads/ecosystem-models/FVP_Base_RevC-2xAEMvA_11.24_11_Linux64.tgz"
 fvp_sha="0f132334834cbc66889a62dd72057c976d7c7dfcfeec21799e9c78fb2ce24720"
-curl --retry 64 -sSL $fvp_url -o fvp.tgz
-echo "$fvp_sha fvp.tgz" | sha256sum --check
+download-and-verify "$fvp_url" "fvp.tgz" sha256 "$fvp_sha" 64
 mkdir -p "$fvp_dir"
 tar -xzf fvp.tgz -C "$fvp_dir"
 rm -rf doc  # Remove some documentation bundled with the package
+
+popd
