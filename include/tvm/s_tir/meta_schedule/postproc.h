@@ -137,7 +137,7 @@ class Postproc : public runtime::ObjectRef {
   TVM_DLL static Postproc RewriteReductionBlock();
   /*!
    * \brief Create a postprocessor that adds thread binding to unbound blocks
-   * \param max_threadblocks The max number of threadblocks in the cuda device.
+   * \param max_threadblocks The max number of threadblocks in the CUDA device.
    * \return The postprocessor created.
    */
   TVM_DLL static Postproc RewriteUnboundBlock(int max_threadblocks);

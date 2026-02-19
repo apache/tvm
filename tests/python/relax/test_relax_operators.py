@@ -54,7 +54,7 @@ def run_cpu(mod, func_name, *args, exec_mode):
 
 
 def test_unique(exec_mode):
-    # TODO(prakalp): also add test for compiling and running on cuda device.
+    # TODO(prakalp): also add test for compiling and running on CUDA device.
     data_numpy = np.random.randint(0, 16, (16, 16))
     data = tvm.runtime.tensor(data_numpy)
     result, result_sorted = run_cpu(InputModule, "foo", data, exec_mode=exec_mode)

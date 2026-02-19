@@ -48,7 +48,7 @@ class GemmProfilerEmitter(object):
   {                                                                     \\
     cudaError_t error = status;                                         \\
     if (error != cudaSuccess) {                                         \\
-      std::cerr << "Got bad cuda status: " << cudaGetErrorString(error) \\
+      std::cerr << "Got bad CUDA status: " << cudaGetErrorString(error) \\
                 << " at line: " << __LINE__ << std::endl;               \\
       exit(EXIT_FAILURE);                                               \\
     }                                                                   \\

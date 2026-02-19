@@ -49,7 +49,7 @@ except ImportError:
 MARKERS = {
     "gpu": "mark a test as requiring a gpu",
     "tensorcore": "mark a test as requiring a tensorcore",
-    "cuda": "mark a test as requiring cuda",
+    "cuda": "mark a test as requiring CUDA",
     "opencl": "mark a test as requiring opencl",
     "rocm": "mark a test as requiring rocm",
     "vulkan": "mark a test as requiring vulkan",

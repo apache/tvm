@@ -122,7 +122,7 @@ inline cudaDataType_t GetCudaDataType(DLDataType type) {
         return CUDA_R_16BF;
     }
   }
-  LOG(FATAL) << "Unsupported cuda type";
+  LOG(FATAL) << "Unsupported CUDA type";
 }
 
 /*! \brief Execute matrix multiply followed by the specified epilogue, using cuBLASLt. */

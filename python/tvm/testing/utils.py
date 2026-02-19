@@ -1197,7 +1197,7 @@ def requires_nvcc_version(major_version, minor_version=0, release_version=0):
     installed version of NVCC is at least `(major_version,
     minor_version, release_version)`.
 
-    This also marks the test as requiring a cuda support.
+    This also marks the test as requiring a CUDA support.
 
     Parameters
     ----------
@@ -1240,7 +1240,7 @@ def requires_cuda_compute_version(major_version, minor_version=0):
     compute architecture of the GPU is at least `(major_version,
     minor_version)`.
 
-    This also marks the test as requiring a cuda support.
+    This also marks the test as requiring a CUDA support.
 
     Parameters
     ----------

@@ -297,7 +297,7 @@ namespace attr {
  *   The size of the shared memory that may be allocated internally by
  *   the kernel.  For example, exposed as the
  *   CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES attribute in
- *   cuda.
+ *   CUDA.
  *
  *   Defined as "tir.use_dyn_shared_memory".
  *

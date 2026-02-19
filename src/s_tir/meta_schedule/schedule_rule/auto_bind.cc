@@ -53,7 +53,7 @@ class AutoBindNode : public ScheduleRuleNode {
  public:
   /*! \brief The max number of threads per block from Target */
   int64_t max_threads_per_block_ = -1;
-  /*! \brief The max number of threadblocks in the cuda device */
+  /*! \brief The max number of threadblocks in the CUDA device */
   int64_t max_threadblocks_ = -1;
   /*! \brief thread_extents Candidates of thread axis extent. */
   ffi::Array<Integer> thread_extents_;
