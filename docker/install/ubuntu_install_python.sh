@@ -34,9 +34,9 @@ fi
 PYTHON_VERSION=$1
 
 case "$PYTHON_VERSION" in
-    3.7|3.8|3.9|3.10|3.11) ;;
+    3.10|3.11) ;;
     *)
-        echo "Only 3.7, 3.8, 3.9, 3.10 and 3.11 versions are supported in this script."
+        echo "Only 3.10 and 3.11 versions are supported in this script."
         exit -1
         ;;
 esac
@@ -44,23 +44,12 @@ esac
 apt-get update
 
 # Ensure lsb-release is installed.
-apt-install-and-clear -y \
-    lsb-core
-
-apt-install-and-clear -y software-properties-common
+apt-install-and-clear -y lsb-core software-properties-common
 
 release=$(lsb_release -sc)
 case "${release}" in
-    bionic)
-        [ "${PYTHON_VERSION}" == "3.8" ] && add-apt-repository -y ppa:deadsnakes/ppa
-        ;;
-    focal)
-        [ "${PYTHON_VERSION}" == "3.7" ] && add-apt-repository -y ppa:deadsnakes/ppa
-        ;;
     jammy)
-        if [ "${PYTHON_VERSION}" == "3.8" ] || \
-           [ "${PYTHON_VERSION}" == "3.9" ] || \
-           [ "${PYTHON_VERSION}" == "3.10" ] || \
+        if [ "${PYTHON_VERSION}" == "3.10" ] || \
            [ "${PYTHON_VERSION}" == "3.11" ]; then
             add-apt-repository -y ppa:deadsnakes/ppa
         fi

@@ -16,11 +16,35 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+# Download a file with curl and verify its checksum (sha256 or sha512).
+if [[ "$#" -lt 4 || "$#" -gt 5 ]]; then
+    echo "Usage: $0 URL OUTPUT_PATH CHECKSUM_ALGO EXPECTED_CHECKSUM [RETRIES]" >&2
+    exit 2
+fi
 
-pip3 install \
-    redis-server==6.0.9 \
-    scipy==1.9.0 \
-    xgboost==1.4.2
+url="$1"
+output_path="$2"
+checksum_algo="$3"
+expected_checksum="$4"
+retries="${5:-0}"
+
+case "${checksum_algo}" in
+    sha256)
+        checksum_bin="sha256sum"
+        ;;
+    sha512)
+        checksum_bin="sha512sum"
+        ;;
+    *)
+        echo "Unsupported checksum algorithm: ${checksum_algo}" >&2
+        exit 2
+        ;;
+esac
+
+if [ "${retries}" -gt 0 ]; then
+    curl --retry "${retries}" -fsSL "${url}" -o "${output_path}"
+else
+    curl -fsSL "${url}" -o "${output_path}"
+fi
+
+printf "%s  %s\n" "${expected_checksum}" "${output_path}" | "${checksum_bin}" -c -

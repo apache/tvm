@@ -16,33 +16,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
+set -e
+set -u
+set -o pipefail
 
-apt-get update
-apt-install-and-clear -y gnupg
+wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key \
+    | gpg --dearmor -o /usr/share/keyrings/llvm-archive.gpg
 
-echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal-10 main\
-     >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-10 main\
-     >> /etc/apt/sources.list.d/llvm.list
+cat > /etc/apt/sources.list.d/llvm.list <<'EOF'
+deb [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main
+deb-src [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main
+deb [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main
+deb-src [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main
+deb [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main
+deb-src [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main
+deb [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy main
+deb-src [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy main
+EOF
 
-echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal-11 main\
-     >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-11 main\
-     >> /etc/apt/sources.list.d/llvm.list
-
-echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal-12 main\
-     >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-12 main\
-     >> /etc/apt/sources.list.d/llvm.list
-
-echo deb http://apt.llvm.org/focal/ llvm-toolchain-focal main\
-     >> /etc/apt/sources.list.d/llvm.list
-echo deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal main\
-     >> /etc/apt/sources.list.d/llvm.list
-
-wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
-apt-install-and-clear -y llvm-12 llvm-11 llvm-10 \
-    clang-12 libclang-12-dev \
-    clang-11 libclang-11-dev \
-    clang-10 libclang-10-dev
+apt-get update && apt-install-and-clear -y \
+     llvm-15 llvm-16 llvm-17\
+     clang-15 libclang-15-dev \
+     clang-16 libclang-16-dev libpolly-16-dev \
+     clang-17 libclang-17-dev libpolly-17-dev libzstd-dev

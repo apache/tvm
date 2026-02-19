@@ -19,6 +19,7 @@
 FROM ubuntu:22.04
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
+COPY utils/download-and-verify.sh /usr/local/bin/download-and-verify
 
 RUN apt-get update --fix-missing
 
@@ -28,37 +29,32 @@ RUN bash /install/ubuntu_setup_tz.sh
 COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
 RUN bash /install/ubuntu_install_core.sh
 
-COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
-RUN bash /install/ubuntu_install_cmake_source.sh
+COPY install/ubuntu_install_cmake.sh /install/ubuntu_install_cmake.sh
+RUN bash /install/ubuntu_install_cmake.sh
 
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh
 
-ENV TVM_VENV /venv/apache-tvm-py3.10
+ENV TVM_VENV=/venv/apache-tvm-py3.10
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
 RUN bash /install/ubuntu_install_python.sh 3.10
-ENV PATH ${TVM_VENV}/bin:$PATH
-ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
+ENV PATH=${TVM_VENV}/bin:$PATH
+
+# Disable .local directory from affecting CI.
+ENV PYTHONNOUSERSITE=1
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
 
-COPY install/ubuntu2204_install_llvm.sh /install/ubuntu2204_install_llvm.sh
-RUN bash /install/ubuntu2204_install_llvm.sh
+COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
+RUN bash /install/ubuntu_install_llvm.sh
 
 COPY install/ubuntu_install_dnnl.sh /install/ubuntu_install_dnnl.sh
 RUN bash /install/ubuntu_install_dnnl.sh
 
 COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
 RUN bash /install/ubuntu_install_papi.sh ""
-
-# Rust env (build early; takes a while)
-COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
-RUN bash /install/ubuntu_install_rust.sh
-ENV RUSTUP_HOME /opt/rust
-ENV CARGO_HOME /opt/rust
-ENV PATH $PATH:$CARGO_HOME/bin
 
 # wasmtime
 COPY install/ubuntu_install_wasmtime.sh /install/ubuntu_install_wasmtime.sh
@@ -67,11 +63,6 @@ RUN bash /install/ubuntu_install_wasmtime.sh
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
 RUN bash /install/ubuntu_install_redis.sh
-
-# Golang environment
-COPY install/ubuntu_install_golang.sh /install/ubuntu_install_golang.sh
-RUN bash /install/ubuntu_install_golang.sh
-ENV PATH $PATH:/usr/lib/go-1.18/bin
 
 # BYODT deps
 COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh
@@ -96,7 +87,7 @@ RUN bash /install/ubuntu_download_arm_compute_lib_binaries.sh
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
-ENV PATH /opt/sccache:$PATH
+ENV PATH=/opt/sccache:$PATH
 
 # Libxsmm deps
 COPY install/ubuntu_install_libxsmm.sh /install
@@ -113,4 +104,4 @@ RUN bash /install/ubuntu_install_nnef.sh
 # AArch64 Architecture Envelope Model (AEM)
 COPY install/ubuntu_install_aprofile_aem.sh /install
 RUN bash /install/ubuntu_install_aprofile_aem.sh
-ENV PATH $PATH:/opt/arm/fvp/Base_RevC_AEMvA_pkg/models/Linux64_GCC-9.3/:/opt/arm/gcc-aarch64-none-elf/bin
+ENV PATH=$PATH:/opt/arm/fvp/Base_RevC_AEMvA_pkg/models/Linux64_GCC-9.3/:/opt/arm/gcc-aarch64-none-elf/bin

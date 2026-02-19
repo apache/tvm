@@ -20,13 +20,10 @@ set -e
 set -u
 set -o pipefail
 
+mkdir -p /usr/share/keyrings
+curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+	| gpg --dearmor -o /usr/share/keyrings/nodesource.gpg
+echo 'deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main' \
+	> /etc/apt/sources.list.d/nodesource.list
 apt-get update
-# Please do not remove 'curl' package installation from here, as this
-# script runs in some images (e.g. ci_lint) that keep a very minimal
-# set of packages installed by default.
-apt-install-and-clear -y curl
-
-# The node install script fetched and executed here will update the
-# apt source list, hence the second apt-get update --fix-missing is necessary.
-curl -s -S -L https://deb.nodesource.com/setup_16.x | bash -
 apt-install-and-clear -y nodejs

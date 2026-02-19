@@ -47,8 +47,7 @@ archive_hash="10f10ed771efc64a1d8234a7e4801838a468f8990e5d6d8fcf63e89f8d1455c4f9
 
 cd "$tmpdir"
 
-curl -sL "${archive_url}" -o "${archive_name}"
-echo "$archive_hash" ${archive_name} | sha512sum -c
+download-and-verify "${archive_url}" "${archive_name}" sha512 "${archive_hash}"
 tar xf "${archive_name}" --strip-components=1
 
 mkdir build
