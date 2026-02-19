@@ -460,7 +460,7 @@ def make_cpp_tests(image, build_dir) {
 def cmake_build(image, path) {
   sh (
     script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir ${path}",
-    label: 'Run cmake build',
+    label: 'Run CMake build',
   )
 }
 def cpp_unittest(image) {
@@ -491,7 +491,7 @@ def run_build(node_type) {
             ], {
             sh (
           script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
-          label: 'Create ARM cmake config',
+          label: 'Create ARM CMake config',
         )
         cmake_build(ci_arm, 'build')
         make_cpp_tests(ci_arm, 'build')

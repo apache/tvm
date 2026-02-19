@@ -60,7 +60,7 @@ endif
 
 
 # Cannot use .PHONY with a pattern rule, using FORCE instead.  For
-# now, force cmake to be re-run with each compile to mimic previous
+# now, force CMake to be re-run with each compile to mimic previous
 # behavior.  This may be relaxed in the future with the
 # CONFIGURE_DEPENDS option for GLOB (requires cmake >= 3.12).
 FORCE:
@@ -69,7 +69,7 @@ FORCE:
 
 
 # Since the pattern stem is already being used for the directory name,
-# cannot also have it refer to the command passed to cmake.
+# cannot also have it refer to the command passed to CMake.
 # Therefore, explicitly listing out the delegated.
 CMAKE_TARGETS = all runtime cpptest crttest clean
 

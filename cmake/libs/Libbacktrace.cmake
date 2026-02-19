@@ -62,5 +62,5 @@ ExternalProject_Add_Step(project_libbacktrace checkout
   DEPENDS ${LIBBACKTRACE_SRCS}
 )
 
-# create include directory so cmake doesn't complain
+# create include directory so CMake doesn't complain
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace/include)

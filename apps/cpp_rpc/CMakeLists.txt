@@ -1,4 +1,4 @@
-cmake_policy(SET CMP0069 NEW) # suppress cmake warning about IPO
+cmake_policy(SET CMP0069 NEW) # suppress CMake warning about IPO
 
 set(TVM_RPC_SOURCES
   main.cc

@@ -16,7 +16,7 @@
 # under the License.
 
 #--------------------------------------------------------------------
-#  Template custom cmake configuration for compiling
+#  Template custom CMake configuration for compiling
 #
 #  This file is used to override the build options in build.
 #  If you want to change the configuration, please use the following
@@ -43,13 +43,13 @@
 # Whether enable CUDA during compile,
 #
 # Possible values:
-# - ON: enable CUDA with cmake's auto search
+# - ON: enable CUDA with CMake's auto search
 # - OFF: disable CUDA
 # - /path/to/cuda: use specific path to CUDA toolkit
 set(USE_CUDA OFF)
 
 # Whether to enable NCCL support:
-# - ON: enable NCCL with cmake's auto search
+# - ON: enable NCCL with CMake's auto search
 # - OFF: disable NCCL
 # - /path/to/nccl: use specific path to nccl
 set(USE_NCCL OFF)
@@ -60,20 +60,20 @@ set(USE_NCCL OFF)
 set(USE_MSCCL OFF)
 
 # Whether to enable NVTX support (must have USE_CUDA enabled):
-# - ON: enable NCCL with cmake's auto search
+# - ON: enable NCCL with CMake's auto search
 # - OFF: disable NCCL
 set(USE_NVTX OFF)
 
 # Whether enable ROCM runtime
 #
 # Possible values:
-# - ON: enable ROCM with cmake's auto search
+# - ON: enable ROCM with CMake's auto search
 # - OFF: disable ROCM
 # - /path/to/rocm: use specific path to rocm
 set(USE_ROCM OFF)
 
 # Whether to enable RCCL support:
-# - ON: enable RCCL with cmake's auto search
+# - ON: enable RCCL with CMake's auto search
 # - OFF: disable RCCL
 # - /path/to/rccl: use specific path to rccl
 set(USE_RCCL OFF)
@@ -98,7 +98,7 @@ set(USE_METAL OFF)
 # Whether enable Vulkan runtime
 #
 # Possible values:
-# - ON: enable Vulkan with cmake's auto search
+# - ON: enable Vulkan with CMake's auto search
 # - OFF: disable vulkan
 # - /path/to/vulkan-sdk: use specific path to vulkan-sdk
 set(USE_VULKAN OFF)
@@ -130,7 +130,7 @@ set(USE_IOS_RPC OFF)
 # Requires LLVM version >= 4.0
 #
 # Possible values:
-# - ON: enable llvm with cmake's find search
+# - ON: enable llvm with CMake's find search
 # - OFF: disable llvm, note this will disable CPU codegen
 #        which is needed for most cases
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
@@ -189,7 +189,7 @@ set(USE_OPENMP none)
 set(USE_RANDOM ON)
 
 # Possible values:
-# - ON: enable tflite with cmake's find search
+# - ON: enable tflite with CMake's find search
 # - OFF: disable tflite
 # - /path/to/libtensorflow-lite.a: use specific path to tensorflow lite library
 set(USE_TFLITE OFF)
@@ -207,7 +207,7 @@ set(USE_FLATBUFFERS_PATH none)
 set(USE_EDGETPU OFF)
 
 # Possible values:
-# - ON: enable cuDNN with cmake's auto search in CUDA directory
+# - ON: enable cuDNN with CMake's auto search in CUDA directory
 # - OFF: disable cuDNN
 # - /path/to/cudnn: use specific path to cuDNN path
 set(USE_CUDNN OFF)
@@ -268,7 +268,7 @@ set(USE_CLML_GRAPH_EXECUTOR OFF)
 
 # Whether use Thrust
 # Possible values:
-# - ON: enable Thrust with cmake's auto search
+# - ON: enable Thrust with CMake's auto search
 # - OFF: disable Thrust
 # - /path/to/cccl: use specific path to CCCL
 set(USE_THRUST OFF)
@@ -344,12 +344,12 @@ set(USE_PAPI OFF)
 # Whether to use GoogleTest for C++ unit tests. When enabled, the generated
 # build file (e.g. Makefile) will have a target "cpptest".
 # Possible values:
-# - ON: enable GoogleTest. The package `GTest` will be required for cmake
+# - ON: enable GoogleTest. The package `GTest` will be required for CMake
 #   to succeed.
 # - OFF: disable GoogleTest.
-# - AUTO: cmake will attempt to find the GTest package, if found GTest will
+# - AUTO: CMake will attempt to find the GTest package, if found GTest will
 #   be enabled, otherwise it will be disabled.
-# Note that cmake will use `find_package` to find GTest. Please use cmake's
+# Note that CMake will use `find_package` to find GTest. Please use CMake's
 # predefined variables to specify the path to the GTest package if needed.
 set(USE_GTEST AUTO)
 

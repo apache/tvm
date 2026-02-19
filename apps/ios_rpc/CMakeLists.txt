@@ -57,7 +57,7 @@ if(NOT CMAKE_IOS_RPC_BUNDLE)
     set(CMAKE_IOS_RPC_BUNDLE org.apache.tvmrpc)
 endif()
 
-# iOS RPC Xcode project wrapper to integrate into Cmake
+# iOS RPC Xcode project wrapper to integrate into CMake
 ExternalProject_Add(ios_rpc
         PREFIX ios_rpc
         DEPENDS custom_dso_loader tvm_runtime

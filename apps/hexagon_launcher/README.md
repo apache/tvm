@@ -68,7 +68,7 @@ cmake -DCMAKE_TOOLCHAIN_FILE=/path/to/android-ndk/build/cmake/android.toolchain.
 ```
 
 Run `make`. This will create `launcher_android`. The TVM runtime for Android will
-be built as a part of the process. Depending on the version of cmake that you are
+be built as a part of the process. Depending on the version of CMake that you are
 using, you may see the following warnings---they can be ignored.
 
 ```
