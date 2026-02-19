@@ -735,6 +735,32 @@ def FoldConstant() -> tvm.ir.transform.Pass:
     return _ffi_api.FoldConstant()  # type: ignore
 
 
+def CanonicalizeShapeExpr() -> tvm.ir.transform.Pass:
+    """Canonicalize ShapeExpr by replacing compound PrimExpr with fresh symbolic variables.
+
+    VMShapeLower can only handle ShapeExpr where each dimension is either:
+    - IntImm (concrete integer constant)
+    - tir::Var (symbolic variable from function parameters or match_cast)
+
+    This pass transforms compound PrimExpr (e.g., n+1, 4*n*m) by:
+    1. Creating a fresh tir::Var for each compound expression
+    2. Emitting a MatchCast that binds the fresh var to a PrimValue computing the expression
+    3. Replacing the compound expression in ShapeExpr with teh fresh var
+
+    Example transformation:
+        Before: y = R.zeros(R.shape([n + 1]), dtype="float32")
+        After:  _s0_pv: R.Prim(value=_s0) = R.match_cast(R.prim_value(n+1), R.Prim(value=_s0))
+                y = R.zeros(R.shape([_s0]), dtype="float32")
+
+    This pass should be applied before ComputePrimValue and before VMShapeLower.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.CanonicalizeShapeExpr()  # type: ignore
+
+
 def ExpandTupleArguments() -> tvm.ir.transform.Pass:
     """Expand tuple arguments to internal functions
 
