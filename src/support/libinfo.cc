@@ -257,7 +257,7 @@
 namespace tvm {
 
 /*!
- * \brief Get a dictionary containing compile-time info, including cmake flags and git commit hash
+ * \brief Get a dictionary containing compile-time info, including CMake flags and git commit hash
  * \return The compile-time info
  */
 TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {

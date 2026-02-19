@@ -61,7 +61,7 @@ set(CMAKE_SKIP_RPATH TRUE)
 
 # Qaic for the domain header.
 #
-# Don't add paths to these filenames, or otherwise cmake may spontaneously
+# Don't add paths to these filenames, or otherwise CMake may spontaneously
 # add -o option to the qaic invocation (with an undesirable path).
 set(LAUNCHER_RPC_IDL "launcher_rpc.idl")
 set(LAUNCHER_RPC_H "launcher_rpc.h")

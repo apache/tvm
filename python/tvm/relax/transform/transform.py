@@ -1214,6 +1214,7 @@ def MetaScheduleTuneTIR(
     max_trials_global: int,
 ) -> tvm.ir.transform.Pass:
     """Tune TIR with MetaSchedule.
+
     Parameters
     ----------
     work_dir: str

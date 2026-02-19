@@ -48,7 +48,7 @@ if(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR)
 
     tvm_file_glob(GLOB ACL_CONTRIB_SRC src/runtime/contrib/arm_compute_lib/*)
 
-    # Cmake needs to find arm_compute, include and support directories
+    # CMake needs to find arm_compute, include and support directories
     # in the path specified by ACL_PATH.
     set(ACL_INCLUDE_DIRS ${ACL_PATH}/include ${ACL_PATH})
     include_directories(${ACL_INCLUDE_DIRS})

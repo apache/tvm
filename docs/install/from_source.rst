@@ -267,7 +267,7 @@ There are several ways to enable CCache in TVM builds:
 
 Building on Windows
 ~~~~~~~~~~~~~~~~~~~
-TVM support build via MSVC using cmake. You will need to obtain a visual studio compiler.
+TVM support build via MSVC using CMake. You will need to obtain a visual studio compiler.
 The minimum required VS version is **Visual Studio Enterprise 2019** (NOTE: we test
 against GitHub Actions' `Windows 2019 Runner <https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md>`_, so see that page for full details.
 We recommend following :ref:`install-dependencies` to obtain necessary dependencies and

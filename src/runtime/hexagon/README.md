@@ -32,7 +32,7 @@ for Hexagon. To enable that, certain elements of both, the compiler and the
 runtime need to include Hexagon-specific functionality. For the compiler, it
 is code generation, and for the runtime, it is the ability to represent
 modules with Hexagon code. Since Hexagon codegen is based on LLVM, LLVM
-codegen needs to be enabled as well. The set of cmake options to enable
+codegen needs to be enabled as well. The set of CMake options to enable
 Hexagon support is
 ```
 USE_LLVM=llvm-config
@@ -45,8 +45,8 @@ USE_HEXAGON_SDK=/path/to/sdk
 Aside from x86, there are two other platforms where support for Hexagon may
 be relevant. One of them is obviously Hexagon itself, the other one is
 Android. Neither of these platforms supports the compiler side of TVM, only
-runtime, and so the only compiler-related cmake option from the x86 build
-above can be omitted: USE_LLVM.
+runtime, and so the only compiler-related CMake option from the x86 build
+above can be omitted: `USE_LLVM`.
 
 Additionally, for Android, set the toolchain and target flags:
 ```

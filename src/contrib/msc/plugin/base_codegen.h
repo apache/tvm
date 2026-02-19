@@ -247,13 +247,13 @@ class BasePluginCodeGen {
   /*! \brief Codegen plugin runtime*/
   virtual void CodeGenOpRuntime(const Plugin& plugin) {}
 
-  /*! \brief Codegen cmake file*/
+  /*! \brief Codegen CMake file*/
   virtual void CodeGenCmake(const std::set<ffi::String>& devices) {
     CodeGenPreCmake(devices);
     CodeGenPostCmake(devices);
   }
 
-  /*! \brief Codegen cmake start*/
+  /*! \brief Codegen CMake start*/
   void CodeGenPreCmake(const std::set<ffi::String>& devices,
                        const ffi::Map<ffi::String, ffi::String>& extra_flags =
                            ffi::Map<ffi::String, ffi::String>()) {
@@ -281,7 +281,7 @@ class BasePluginCodeGen {
     stack_.line();
   }
 
-  /*! \brief Codegen cmake end*/
+  /*! \brief Codegen CMake end*/
   void CodeGenPostCmake(const std::set<ffi::String>& devices,
                         const ffi::Array<ffi::String>& extra_includes = ffi::Array<ffi::String>(),
                         const ffi::Array<ffi::String>& extra_libs = ffi::Array<ffi::String>()) {

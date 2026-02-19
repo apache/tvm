@@ -77,7 +77,7 @@ class TVMPluginCodeGen : public BasePluginCodeGen<TVMPluginCodeGenConfig> {
   /*! \brief Codegen plugin runtime*/
   void CodeGenOpRuntime(const Plugin& plugin) final;
 
-  /*! \brief Codegen cmake file*/
+  /*! \brief Codegen CMake file*/
   void CodeGenCmake(const std::set<ffi::String>& devices) final;
 
   /*! \brief Codegen manager depends*/

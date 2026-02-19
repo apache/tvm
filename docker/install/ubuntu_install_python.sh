@@ -82,7 +82,7 @@ mkdir -p "${venv_dir}"
 python3 -mvenv "${TVM_VENV}"
 
 # NOTE: Only in python3.9 does venv guarantee it creates the python3.X binary.
-# This is needed so that cmake's find_package(PythonInterp) works inside the venv.
+# This is needed so that CMake's find_package(PythonInterp) works inside the venv.
 # See https://bugs.python.org/issue39656
 if [ ! -e "${TVM_VENV}/bin/python${PYTHON_VERSION}" ]; then
     ln -s "${TVM_VENV}/bin/python" "${TVM_VENV}/bin/python${PYTHON_VERSION}"
