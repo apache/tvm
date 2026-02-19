@@ -52,7 +52,7 @@ class Executable:
         """Just-in-time compile and link the modules.
 
         The Executable returned by tvm.compile may not be directly
-        runnable as they may contain cuda source files and objects that
+        runnable as they may contain CUDA source files and objects that
         are yet to be compiled and linked.
         This function helps to create a runtime.Module for these cases.
 

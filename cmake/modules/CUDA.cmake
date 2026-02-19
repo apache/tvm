@@ -19,7 +19,7 @@
 find_cuda(${USE_CUDA} ${USE_CUDNN})
 
 if(CUDA_FOUND)
-  # always set the includedir when cuda is available
+  # always set the includedir when CUDA is available
   # avoid global retrigger of cmake
   include_directories(SYSTEM ${CUDA_INCLUDE_DIRS})
 endif(CUDA_FOUND)

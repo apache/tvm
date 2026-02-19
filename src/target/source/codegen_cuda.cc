@@ -149,7 +149,7 @@ void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const
   } else if (calling_conv == CallingConv::kDefault) {
     os << "extern \"C\" __device__ ";
   } else {
-    LOG(FATAL) << "Unsupported calling convention for cuda codegen: " << calling_conv;
+    LOG(FATAL) << "Unsupported calling convention for CUDA codegen: " << calling_conv;
   }
   CodeGenC::PrintFunctionSignature(function_name, func, os);
 }

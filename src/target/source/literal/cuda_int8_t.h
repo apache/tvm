@@ -19,7 +19,7 @@
 
 /*!
  * \file cuda_int8_t.h
- * \brief Extra int8 intrisic for cuda codegen.
+ * \brief Extra int8 intrisic for CUDA codegen.
  */
 #ifndef TVM_TARGET_SOURCE_LITERAL_CUDA_INT8_T_H_
 #define TVM_TARGET_SOURCE_LITERAL_CUDA_INT8_T_H_
