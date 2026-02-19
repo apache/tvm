@@ -19,7 +19,7 @@
 
 /*!
  * \file cuda_half_t.h
- * \brief half_t (fp16) definition for cuda codegen.
+ * \brief half_t (fp16) definition for CUDA codegen.
  */
 #ifndef TVM_TARGET_SOURCE_LITERAL_CUDA_HALF_T_H_
 #define TVM_TARGET_SOURCE_LITERAL_CUDA_HALF_T_H_

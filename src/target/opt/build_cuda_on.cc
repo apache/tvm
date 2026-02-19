@@ -18,8 +18,8 @@
  */
 
 /*!
- *  Build cuda modules from source.
- *  requires cuda to be available.
+ *  Build CUDA modules from source.
+ *  requires CUDA to be available.
  *
  * \file build_cuda.cc
  */

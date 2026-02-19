@@ -109,7 +109,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
  public:
   /*! \brief The max number of threads per block from Target */
   int max_threads_per_block_ = -1;
-  /*! \brief The max number of threadblocks in the cuda device */
+  /*! \brief The max number of threadblocks in the CUDA device */
   int max_threadblocks_ = -1;
 
   static void RegisterReflection() {

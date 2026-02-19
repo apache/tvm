@@ -45,7 +45,7 @@
 # Possible values:
 # - ON: enable CUDA with cmake's auto search
 # - OFF: disable CUDA
-# - /path/to/cuda: use specific path to cuda toolkit
+# - /path/to/cuda: use specific path to CUDA toolkit
 set(USE_CUDA OFF)
 
 # Whether to enable NCCL support:

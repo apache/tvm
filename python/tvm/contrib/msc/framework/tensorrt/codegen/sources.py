@@ -64,7 +64,7 @@ using namespace nvinfer1;
   do {                                                   \\
     auto ret = (status);                                 \\
     if (ret != 0) {                                      \\
-      std::cout << "Cuda failure: " << ret << std::endl; \\
+      std::cout << "CUDA failure: " << ret << std::endl; \\
       abort();                                           \\
     }                                                    \\
   } while (0)

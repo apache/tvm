@@ -579,7 +579,7 @@ def _sort_common(
 
     with T.serial(0, cast(upper_lim - lower_lim, target_dtype)) as l2_width:
         width = 2 << (l2_width + lower_lim)
-        # Define and launch the cuda kernel
+        # Define and launch the CUDA kernel
         target = tvm.target.Target.current()
         if "vulkan" in str(target):
             ntx = max_threads

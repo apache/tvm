@@ -91,7 +91,7 @@ def test_tvm_runner_cpu(training):
 @tvm.testing.requires_cuda
 @pytest.mark.parametrize("training", [True, False])
 def test_tvm_runner_cuda(training):
-    """Test runner for tvm on cuda"""
+    """Test runner for tvm on CUDA"""
 
     _test_from_torch(TVMRunner, "cuda", training=training)
 
@@ -106,7 +106,7 @@ def test_torch_runner_cpu(training):
 @tvm.testing.requires_cuda
 @pytest.mark.parametrize("training", [True, False])
 def test_torch_runner_cuda(training):
-    """Test runner for torch on cuda"""
+    """Test runner for torch on CUDA"""
 
     _test_from_torch(TorchRunner, "cuda", training=training, atol=1e-1, rtol=1e-1)
 

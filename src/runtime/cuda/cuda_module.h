@@ -39,12 +39,12 @@ namespace runtime {
 static constexpr const int kMaxNumGPUs = 32;
 
 /*!
- * \brief create a cuda module from data.
+ * \brief create a CUDA module from data.
  *
  * \param data The module data, can be ptx, cubin
  * \param fmt The format of the data, can be "ptx", "cubin"
  * \param fmap The map function information map of each function.
- * \param cuda_source Optional, cuda source file
+ * \param cuda_source Optional, CUDA source file
  */
 ffi::Module CUDAModuleCreate(std::string data, std::string fmt,
                              ffi::Map<ffi::String, FunctionInfo> fmap, std::string cuda_source);

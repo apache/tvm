@@ -26,7 +26,7 @@ def test_lower_device_kernel_launch():
     The "tir.kernel_launch_params" determines which parameters belong
     to the runtime, and which below to the device-side PrimFunc.
     Parameters that are required prior to launching a kernel (e.g. the
-    number of Cuda threads to use) are stored in the
+    number of CUDA threads to use) are stored in the
     `"tir.kernel_launch_params"` attribute, and are used by the
     runtime prior in order to launch the generated kernel.
     """
@@ -126,7 +126,7 @@ def test_collect_launch_parameter():
     The "tir.kernel_launch_params" determines which parameters belong
     to the runtime, and which below to the device-side PrimFunc.
     Parameters that are required prior to launching a kernel (e.g. the
-    number of Cuda threads to use) are stored in the
+    number of CUDA threads to use) are stored in the
     `"tir.kernel_launch_params"` attribute, and are used by the
     runtime prior in order to launch the generated kernel.
     """

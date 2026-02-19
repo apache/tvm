@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""layout_transform scheduling rule for cuda."""
+"""layout_transform scheduling rule for CUDA."""
 
 import math
 from collections import deque
