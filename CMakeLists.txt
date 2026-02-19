@@ -169,7 +169,7 @@ if(MSVC)
         string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
       endif(${flag_var} MATCHES "/MD")
     endforeach(flag_var)
-    # Static linking. cmake behavior changed in 3.15 making this necessary.
+    # Static linking. CMake behavior changed in 3.15 making this necessary.
     add_compile_options(/MT)
   endif()
   # Disable common MSVC warnings
@@ -388,8 +388,8 @@ endif()
 # Enable ctest if gtest is available
 if(USE_GTEST)
   # Check env var for backward compatibility. A better way to specify package
-  # locations is to use CMAKE_PREFIX_PATH or other standard cmake mechanism
-  # (see cmake documentation for `find_package`).
+  # locations is to use CMAKE_PREFIX_PATH or other standard CMake mechanism
+  # (see CMake documentation for `find_package`).
   set(GTEST_ROOT "$ENV{GTEST_LIB}")
   if("${USE_GTEST}" STREQUAL "AUTO")
     # If USE_GTEST is AUTO, treat GTest as optional: enable if found.
