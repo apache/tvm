@@ -63,9 +63,11 @@ class ConfigSchema {
     ffi::String type_str;
     /*! \brief Per-option validator/coercer (Any -> Any). */
     ffi::TypedFunction<ffi::Any(ffi::Any)> validator;
-    /*! \brief Whether this option has a default value. */
+    /*! \brief Whether this option has a default value or factory. */
     bool has_default = false;
-    /*! \brief Default value (valid when has_default is true). */
+    /*! \brief Whether the default is produced by a factory function. */
+    bool default_from_factory = false;
+    /*! \brief Default value, or factory function () -> Any when default_from_factory is true. */
     ffi::Any default_value;
   };
 
@@ -126,7 +128,11 @@ class ConfigSchema {
       if (it != config.end()) {
         result.Set(e.key, e.validator((*it).second));
       } else if (e.has_default) {
-        result.Set(e.key, e.default_value);
+        if (e.default_from_factory) {
+          result.Set(e.key, e.default_value.cast<ffi::Function>()());
+        } else {
+          result.Set(e.key, e.default_value);
+        }
       }
       // else: missing non-required option, stays absent
     }
@@ -205,15 +211,16 @@ class ConfigSchema {
     // reflection traits (notably refl::DefaultValue) are reused unchanged.
     ffi::reflection::FieldInfoBuilder info{};
     info.flags = 0;
-    info.default_value = ffi::AnyView(nullptr).CopyToTVMFFIAny();
+    info.default_value_or_factory = ffi::AnyView(nullptr).CopyToTVMFFIAny();
     info.doc = TVMFFIByteArray{nullptr, 0};
     (ApplyTrait(&e, &info, std::forward<Traits>(traits)), ...);
     if (info.flags & kTVMFFIFieldFlagBitMaskHasDefault) {
       e.has_default = true;
-      e.default_value = ffi::AnyView::CopyFromTVMFFIAny(info.default_value);
+      e.default_from_factory = (info.flags & kTVMFFIFieldFlagBitMaskDefaultFromFactory) != 0;
+      e.default_value = ffi::AnyView::CopyFromTVMFFIAny(info.default_value_or_factory);
       // Release the extra ref created by CopyToTVMFFIAny in Apply
-      if (info.default_value.type_index >= TVMFFITypeIndex::kTVMFFIStaticObjectBegin) {
-        ffi::details::ObjectUnsafe::DecRefObjectHandle(info.default_value.v_obj);
+      if (info.default_value_or_factory.type_index >= TVMFFITypeIndex::kTVMFFIStaticObjectBegin) {
+        ffi::details::ObjectUnsafe::DecRefObjectHandle(info.default_value_or_factory.v_obj);
       }
     }
     return e;
