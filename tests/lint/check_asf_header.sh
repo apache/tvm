@@ -45,7 +45,7 @@ while [ "x${1-}" != "x" ]; do
     shift
 done
 
-java -jar /bin/apache-rat.jar -E tests/lint/rat-excludes  -d . | (grep -E "^== File" >"${rat_output}" || true)
+java -jar /bin/apache-rat.jar -E tests/lint/rat-excludes --counter-max UNAPPROVED:-1 -d . | (grep -E "^== File" >"${rat_output}" || true)
 
 # Rat can't be configured to ignore untracked files, so filter them.
 if [ ${filter_untracked} -eq 1 ]; then
