@@ -478,7 +478,7 @@ ffi::String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums
   if (aggregate) {
     std::unordered_map<std::string, std::vector<size_t>> aggregates;
     for (size_t i = 0; i < calls.size(); i++) {
-      auto& frame = calls[i];
+      auto frame = calls[i];
       auto it = frame.find("Hash");
       std::string name = frame["Name"].cast<ffi::String>();
       if (it != frame.end()) {
@@ -508,7 +508,7 @@ ffi::String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums
       for (const std::string& metric : metrics) {
         std::vector<ffi::Any> per_call;
         for (auto i : p.second) {
-          auto& call = calls[i];
+          auto call = calls[i];
           auto it = std::find_if(call.begin(), call.end(),
                                  [&metric](const std::pair<ffi::String, ffi::Any>& call_metric) {
                                    return std::string(call_metric.first) == metric;
