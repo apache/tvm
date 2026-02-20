@@ -262,7 +262,7 @@ class RuntimeContext implements Disposable {
    *
    * @param obj The object to be tracked.
    * @returns the same object.
-   * @note This function only needs to be called for raw system C API values.
+    * Note: This function only needs to be called for raw system C API values.
    *       The return value of PackedFunc will be automatically tracked.
    */
   attachToCurrentScope<T extends Disposable>(obj: T): T {
@@ -917,10 +917,10 @@ export class Instance implements Disposable {
   /**
    * Benchmark stable execution of the run function.
    *
-   * @params run The run function
-   * @params dev The device to sync during each run.
-   * @number The number of times to compute the average.
-   * @repeat The number of times to repeat the run.
+    * @param run The run function.
+    * @param dev The device to sync during each run.
+    * @param number The number of times to compute the average.
+    * @param repeat The number of times to repeat the run.
    */
   async benchmark(run: () => void, dev: DLDevice, number = 10, repeat = 1): Promise<number[]> {
     // Skip first run as it can involve GPU warmup and module loading time.
@@ -995,7 +995,7 @@ export class Instance implements Disposable {
    * @param action The action function.
    * @returns The result value.
    *
-   * @note For action to return a valid value,
+    * Note: For action to return a valid value,
    *       we will need to call {@link moveToParentScope}
    *       for the objects that are created in the scope.
    */
@@ -1010,7 +1010,7 @@ export class Instance implements Disposable {
    * Attach a detached obj to the auto-release pool of the current scope.
    *
    * @param obj The input obj.
-   * @note Normally user do not need to call this function explicitly, as
+    * Note: Normally user do not need to call this function explicitly, as
    *       all library call return values are explicitly attached to
    *       the current scope. You only need to do so when you call
    *       {@link detachFromCurrentScope} to create a detached object.
@@ -1072,7 +1072,7 @@ export class Instance implements Disposable {
   /**
    * Register function to be global function in tvm runtime.
    * @param name The name of the function.
-   * @param f function to be registered.
+    * @param func Function to be registered.
    * @param override Whether overwrite function in existing registry.
    */
   registerFunc(
@@ -1103,7 +1103,6 @@ export class Instance implements Disposable {
   /**
    * Get global PackedFunc from the runtime.
    * @param name The name of the function.
-   * @param autoAttachToScope Whether to track it via autoDispose
    * @returns The result function.
    */
   getGlobalFunc(name: string): PackedFunc {
@@ -1141,7 +1140,6 @@ export class Instance implements Disposable {
    * @returns The check result.
    */
   isPackedFunc(func: unknown): boolean {
-    // eslint-disable-next-line no-prototype-builtins
     return typeof func === "function" && func.hasOwnProperty("_tvmPackedCell");
   }
 
@@ -1239,9 +1237,7 @@ export class Instance implements Disposable {
   }
 
   /**
-   * Update the tensor cache.
-   * @param name The name of the array.
-   * @param arr The content.
+   * Clear the tensor cache.
    */
   tensorCacheClear() {
     this.ctx.tensorCacheClear();
@@ -1650,7 +1646,7 @@ export class Instance implements Disposable {
 
   /**
    * Join a sequence of Tensors that represent embeddings.
-   * @param inputs A list of embeddings in Tensors, each array i has shape (m_i, hidden_size).
+    * @param embeddings A list of embeddings in Tensors, each array i has shape (m_i, hidden_size).
    * @returns An Tensor of shape (\sum_{i} {m}, hidden_size)
    */
   concatEmbeddings(embeddings: Array<Tensor>): Tensor {
@@ -1753,7 +1749,7 @@ export class Instance implements Disposable {
    * @param func function to be registered.
    * @param override Whether overwrite function in existing registry.
    *
-   * @note This function is handled via asynctify mechanism
+    * Note: This function is handled via asynctify mechanism.
    * The wasm needs to be compiled with Asynctify
    */
   registerAsyncifyFunc(
@@ -1772,7 +1768,7 @@ export class Instance implements Disposable {
    * @param func function to be registered.
    * @param override Whether overwrite function in existing registry.
    *
-   * @note The async function will only be used for serving remote calls in the rpc
+    * Note: The async function will only be used for serving remote calls in the rpc.
    * These functions contains explicit continuation
    */
   registerAsyncServerFunc(
@@ -2010,7 +2006,7 @@ export class Instance implements Disposable {
    * Set packed function arguments into the location indicated by argsValue and argsCode.
    * Allocate new temporary space from the stack if necessary.
    *
-   * @parma stack The call stack
+    * @param stack The call stack.
    * @param args  The input arguments.
    * @param packedArgs The offset of packedArgs.
    */
@@ -2068,7 +2064,6 @@ export class Instance implements Disposable {
       } else if (tp === "number") {
         stack.storeI32(argTypeIndexOffset, TypeIndex.kTVMFFIFloat);
         stack.storeF64(argValueOffset, val);
-        // eslint-disable-next-line no-prototype-builtins
       } else if (tp === "function" && val.hasOwnProperty("_tvmPackedCell")) {
         stack.storePtr(argValueOffset, val._tvmPackedCell.getHandle());
         stack.storeI32(argTypeIndexOffset, TypeIndex.kTVMFFIFunction);
@@ -2101,7 +2096,6 @@ export class Instance implements Disposable {
   private wrapJSFuncAsSafeCallType(func: Function): ctypes.FTVMFFIWasmSafeCallType {
     const lib = this.lib;
     return (
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       self: Pointer,
       packedArgs: Pointer,
       numArgs: number,

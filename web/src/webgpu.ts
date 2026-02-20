@@ -157,7 +157,7 @@ export async function detectGPUDevice(powerPreference: "low-power" | "high-perfo
  * @param descriptor The GPUBufferDescriptor passed to `createBuffer()`.
  * @returns The buffer created by `createBuffer()`.
  *
- * @note We treat any error occurred at `createBuffer()` fatal and expect the user to handle
+ * Note: We treat any error occurred at `createBuffer()` fatal and expect the user to handle
  *   `device.destroy()` with `device.lost.then()`.
  */
 function tryCreateBuffer(device: GPUDevice, descriptor: GPUBufferDescriptor) {
@@ -513,7 +513,7 @@ export class WebGPUContext {
    * Create a PackedFunc that runs the given shader
    * via createComputePipeline
    *
-   * @param info The function information already parsed as a record.
+    * @param finfo The function information already parsed as a record.
    * @param code The shader data(in WGSL)
    * @returns The shader
    */
@@ -525,7 +525,7 @@ export class WebGPUContext {
    * Create a PackedFunc that runs the given shader asynchronously
    * via createComputePipelineAsync
    *
-   * @param info The function information already parsed as a record.
+    * @param finfo The function information already parsed as a record.
    * @param code The shader data(in WGSL)
    * @returns The shader
    */
@@ -570,7 +570,7 @@ export class WebGPUContext {
   /**
    * Internal impl of createShader for both async and sync mode.
    *
-   * @param info The function information already parsed as a record.
+    * @param finfo The function information already parsed as a record.
    * @param code The shader data(in WGSL)
    * @param asyncMode Whether use async mode.
    * @returns The shader function or promise of shader func.
@@ -782,7 +782,7 @@ export class WebGPUContext {
 
   /**
    * Get the device API according to its name
-   * @param The name of the API.
+    * @param name The name of the API.
    * @returns The corresponding device api.
    */
   getDeviceAPI(name: string): Function {
