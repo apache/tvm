@@ -783,6 +783,8 @@ def fast_exp(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int") or x.dtype.startswith("uint"):
+        x = cast(x, "float32")
     return cpp.fast_exp(x, x.dtype, tag.ELEMWISE)
 
 
@@ -799,6 +801,8 @@ def fast_tanh(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int") or x.dtype.startswith("uint"):
+        x = cast(x, "float32")
     return cpp.fast_tanh(x, x.dtype, tag.ELEMWISE)
 
 
