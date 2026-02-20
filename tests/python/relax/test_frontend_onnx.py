@@ -1128,6 +1128,31 @@ def test_hardsigmoid():
     verify_unary("HardSigmoid", [1, 3, 20, 20], attrs={"alpha": 0.5, "beta": 0.6})
 
 
+def test_hardsigmoid_nan():
+    """Test that HardSigmoid preserves NaN values in output."""
+    test_node = helper.make_node("HardSigmoid", ["x"], ["y"])
+    graph = helper.make_graph(
+        [test_node],
+        "hardsigmoid_nan_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [3, 4])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 4])],
+    )
+
+    model = helper.make_model(graph, producer_name="hardsigmoid_nan_test")
+
+    # Create input with NaN values
+    input_data = np.array(
+        [
+            [np.nan, 0.5, -0.5, 1.0],
+            [0.0, np.nan, 2.0, -2.0],
+            [0.3, 0.7, np.nan, np.nan],
+        ],
+        dtype=np.float32,
+    )
+
+    check_correctness(model, inputs={"x": input_data})
+
+
 def test_shrink():
     verify_unary("Shrink", [32, 32])
     verify_unary("Shrink", [32, 32], attrs={"lambd": 0.2, "bias": 0.1})

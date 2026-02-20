@@ -3453,7 +3453,13 @@ class HardSigmoid(OnnxOpConverter):
         alpha = relax.const(alpha, dtype=dtype)
         beta = float(attr.get("beta", 0.5))
         beta = relax.const(beta, dtype=dtype)
-        return relax.op.clip(relax.op.add(relax.op.multiply(alpha, x), beta), 0, 1)
+
+        is_nan = bb.emit_te(topi.isnan, x)
+        transformed = bb.emit(relax.op.add(relax.op.multiply(alpha, x), beta))
+        clamped = bb.emit_te(topi.maximum, transformed, 0.0)
+        clamped = bb.emit_te(topi.minimum, clamped, 1.0)
+
+        return bb.emit_te(topi.where, is_nan, x, clamped)
 
 
 class HardSwish(OnnxOpConverter):
