@@ -146,7 +146,7 @@ std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& c
   // Unfortunately, because the `.add_argument()` calls in
   // TVM_REGISTER_OP occur during initialization of globals and are
   // not available at compile-time, this cannot be a static_assert.
-  ICHECK_EQ(n_input, sizeof...(ArgTypes))
+  TVM_FFI_ICHECK_EQ(n_input, sizeof...(ArgTypes))
       << "Internal error: " << op << " op defines " << n_input
       << " arguments in its TVM_REGISTER_OP() call, "
       << "but GetArgStructInfo was given " << sizeof...(ArgTypes) << " template arguments.";
@@ -213,10 +213,10 @@ inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx
   output_sinfo->dtype = f_compute_out_dtype(input_sinfo);
   if (call->sinfo_args.size() > 0) {
     auto defined_sinfo = call->sinfo_args[0].as<TensorStructInfoNode>();
-    ICHECK(defined_sinfo);
+    TVM_FFI_ICHECK(defined_sinfo);
     auto shape = output_sinfo->GetShape();
-    ICHECK(shape.defined());
-    ICHECK(defined_sinfo->vdevice.has_value());
+    TVM_FFI_ICHECK(shape.defined());
+    TVM_FFI_ICHECK(defined_sinfo->vdevice.has_value());
     return TensorStructInfo(ShapeExpr(shape.value()), output_sinfo->dtype,
                             defined_sinfo->vdevice.value());
   } else {
@@ -286,10 +286,9 @@ inline std::optional<DataType> GetElementDType(const StructInfo& sinfo) {
     return tensor->dtype;
   } else {
     return std::nullopt;
-    LOG(FATAL) << "TypeError: "
-               << "Only PrimStructInfo and TensorStructInfo "
-               << "have an associated data type.  "
-               << "Cannot determine element type of " << sinfo;
+    TVM_FFI_THROW(TypeError) << "Only PrimStructInfo and TensorStructInfo "
+                             << "have an associated data type.  "
+                             << "Cannot determine element type of " << sinfo;
   }
 }
 
@@ -307,8 +306,7 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
                                            const StructInfo& rhs_sinfo) {
   auto opt_lhs_dtype = GetElementDType(lhs_sinfo);
   if (!opt_lhs_dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "TypeError: "
+    ctx->ReportFatal(Diagnostic::Error("TypeError", call)
                      << "Binary operators must have the same datatype for both operands.  "
                      << "However, " << call << " has argument " << call->args[0]
                      << " on the LHS, with struct info " << lhs_sinfo << ".   This is of type "
@@ -318,8 +316,7 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
 
   auto opt_rhs_dtype = GetElementDType(rhs_sinfo);
   if (!opt_rhs_dtype) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "TypeError: "
+    ctx->ReportFatal(Diagnostic::Error("TypeError", call)
                      << "Binary operators must have the same datatype for both operands.  "
                      << "However, " << call << " has argument " << call->args[1]
                      << " on the RHS, with struct info " << rhs_sinfo << ".   This is of type "
@@ -330,8 +327,7 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
   if (lhs_dtype.is_void() || rhs_dtype.is_void()) {
     return DataType::Void();
   } else if (lhs_dtype != rhs_dtype && !lhs_dtype.is_bool() && !rhs_dtype.is_bool()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "TypeError: "
+    ctx->ReportFatal(Diagnostic::Error("TypeError", call)
                      << "Binary operators must have the same datatype for both operands.  "
                      << "However, " << call << " uses datatype " << lhs_dtype
                      << " on the LHS (StructInfo of " << lhs_sinfo << "), and datatype "
@@ -381,8 +377,7 @@ inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
   }
 
   if (lhs_vdevice.value() != rhs_vdevice.value()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "TypeErorr: "
+    ctx->ReportFatal(Diagnostic::Error("TypeError", call)
                      << "Binary operators with Tensor arguments "
                      << "must have the same VDevice for both operands.  "
                      << "However, " << call << " has a LHS on VDevice " << lhs_vdevice
@@ -471,9 +466,10 @@ inline ffi::Array<int64_t> GetCompletePadding1D(ffi::Array<int64_t> padding) {
   } else if (padding.size() == 2) {
     return padding;
   }
-  LOG(FATAL) << "The input padding length is expected to be either 1 or 2. However, the given "
-                "padding is "
-             << padding;
+  TVM_FFI_THROW(InternalError)
+      << "The input padding length is expected to be either 1 or 2. However, the given "
+         "padding is "
+      << padding;
   throw;
 }
 
@@ -494,9 +490,10 @@ inline ffi::Array<int64_t> GetCompletePadding2D(ffi::Array<int64_t> padding) {
   } else if (padding.size() == 4) {
     return padding;
   }
-  LOG(FATAL) << "The input padding length is expected to be either 1, 2 or 4. However, the given "
-                "padding is "
-             << padding;
+  TVM_FFI_THROW(InternalError)
+      << "The input padding length is expected to be either 1, 2 or 4. However, the given "
+         "padding is "
+      << padding;
   throw;
 }
 
@@ -519,9 +516,10 @@ inline ffi::Array<int64_t> GetCompletePadding3D(ffi::Array<int64_t> padding) {
   } else if (padding.size() == 6) {
     return padding;
   }
-  LOG(FATAL) << "The input padding length is expected to be either 1, 3 or 6. However, the given "
-                "padding is "
-             << padding;
+  TVM_FFI_THROW(InternalError)
+      << "The input padding length is expected to be either 1, 3 or 6. However, the given "
+         "padding is "
+      << padding;
   throw;
 }
 

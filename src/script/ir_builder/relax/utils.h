@@ -35,8 +35,8 @@ inline FunctionFrame FindFunctionFrame(const ffi::String& method) {
   if (ffi::Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>()) {
     return frame.value();
   }
-  LOG(FATAL) << "ValueError: Function frame not find. Please ensure '" << method
-             << "' is called under R.function()";
+  TVM_FFI_THROW(ValueError) << "Function frame not find. Please ensure '" << method
+                            << "' is called under R.function()";
   throw;
 }
 
@@ -44,16 +44,16 @@ inline IfFrame FindIfFrame(const ffi::String& method) {
   if (ffi::Optional<IfFrame> frame = IRBuilder::Current()->GetLastFrame<IfFrame>()) {
     return frame.value();
   } else {
-    LOG(FATAL) << "ValueError: IfThenElse frame not find. Please ensure '" << method
-               << "' is called under R.if_()";
+    TVM_FFI_THROW(ValueError) << "IfThenElse frame not find. Please ensure '" << method
+                              << "' is called under R.if_()";
   }
   throw;
 }
 
 inline tvm::relax::BlockBuilder GetBlockBuilder() {
   ffi::Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
-  CHECK(frame.defined()) << "ValueError: Relax Function frame not find. Please ensure "
-                            "assignment is called under R.function()";
+  TVM_FFI_CHECK(frame.defined(), ValueError) << "Relax Function frame not find. Please ensure "
+                                                "assignment is called under R.function()";
   return frame.value()->block_builder;
 }
 
@@ -63,9 +63,9 @@ inline BindingBlockFrame CheckBindingBlockFrameExistAndUnended() {
 
   ffi::Optional<BindingBlockFrame> block_frame =
       IRBuilder::Current()->GetLastFrame<BindingBlockFrame>();
-  CHECK(block_frame.defined()) << "ValueError: Block frame not find";
-  CHECK(!block_frame.value()->block_ended)
-      << "ValueError: New binding is not allowed after dataflow block output.";
+  TVM_FFI_CHECK(block_frame.defined(), ValueError) << "Block frame not find";
+  TVM_FFI_CHECK(!block_frame.value()->block_ended, ValueError)
+      << "New binding is not allowed after dataflow block output.";
   return block_frame.value();
 }
 
@@ -80,14 +80,14 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
     method = "R.Else";
     output_var_suffix = "_else";
   } else {
-    ICHECK(false) << "TypeError: Unsupported frame type: " << frame->GetTypeKey();
+    TVM_FFI_CHECK(false, TypeError) << "Unsupported frame type: " << frame->GetTypeKey();
   }
 
   // Step 1. Check non-empty block and last binding is non-dataflow
-  CHECK(!frame->binding_blocks.empty())
+  TVM_FFI_ICHECK(!frame->binding_blocks.empty())
       << "Empty body is not allowed for '" << method << "' statements.";
   const tvm::relax::BindingBlock& last_block = frame->binding_blocks.back();
-  CHECK(!last_block->bindings.empty()) << "Blocks are expected to be non-empty.";
+  TVM_FFI_ICHECK(!last_block->bindings.empty()) << "Blocks are expected to be non-empty.";
 
   // Step 2. Update the last binding of each branch.  While we could
   // use the last bound value of each branch as a SeqExpr body, the
@@ -96,7 +96,7 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
   // variable name.
 
   tvm::relax::Binding last_binding = last_block->bindings.back();
-  CHECK(!last_binding->var->IsInstance<tvm::relax::DataflowVarNode>())
+  TVM_FFI_ICHECK(!last_binding->var->IsInstance<tvm::relax::DataflowVarNode>())
       << "A non-dataflow var is expected in the last binding of '" << method << "'.";
 
   *var_name = last_binding->var->name_hint();
@@ -123,7 +123,7 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
         tvm::relax::MatchCast(new_var, match_cast->value, match_cast->struct_info));
     body = new_var;
   } else {
-    ICHECK(false) << "TypeError: Unsupported binding type: " << last_binding->GetTypeKey();
+    TVM_FFI_CHECK(false, TypeError) << "Unsupported binding type: " << last_binding->GetTypeKey();
   }
 
   new_blocks.push_back(last_block->IsInstance<tvm::relax::DataflowBlockNode>()

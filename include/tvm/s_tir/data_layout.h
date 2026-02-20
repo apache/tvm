@@ -258,9 +258,9 @@ class Layout : public ObjectRef {
   }
 
   const LayoutAxis& operator[](int32_t i) const {
-    ICHECK(defined()) << "Try to access axis from an undefined layout.";
+    TVM_FFI_ICHECK(defined()) << "Try to access axis from an undefined layout.";
     int32_t index = i < 0 ? static_cast<int32_t>(ndim() + i) : i;
-    ICHECK(index >= 0 && static_cast<size_t>(index) < ndim()) << "Invalid index " << i;
+    TVM_FFI_ICHECK(index >= 0 && static_cast<size_t>(index) < ndim()) << "Invalid index " << i;
     const tir::IterVar axis = operator->()->axes[index];
     return LayoutAxis::Get(axis);
   }

@@ -260,7 +260,7 @@ using tvm::tir::Buffer;
 
 static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
   auto shape = tensor_sinfo->GetShape();
-  ICHECK(shape.defined());
+  TVM_FFI_ICHECK(shape.defined());
   return shape.value();
 }
 
@@ -505,7 +505,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
 
       auto* op_ptr = call->op.as<OpNode>();
       Op op = ffi::GetRef<Op>(op_ptr);
-      ICHECK(op_map_infer_struct_info_.count(op))
+      TVM_FFI_ICHECK(op_map_infer_struct_info_.count(op))
           << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
       out_sinfo = op_map_infer_struct_info_[op](ffi::GetRef<Call>(call), builder_);
     }
@@ -547,7 +547,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
                               VDevice(target_, 0, scope[0]));
     }
 
-    ICHECK(out_sinfo->IsInstance<TupleStructInfoNode>())
+    TVM_FFI_ICHECK(out_sinfo->IsInstance<TupleStructInfoNode>())
         << "Expect output struct info of call_tir to be either TupleStructInfo or "
            "TensorStructInfo, but got "
         << out_sinfo;
@@ -555,7 +555,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
     const auto& tuple_sinfo = Downcast<TupleStructInfo>(out_sinfo);
     ffi::Array<StructInfo> sinfo_fields;
     for (const auto& si : tuple_sinfo->fields) {
-      ICHECK(si->IsInstance<TensorStructInfoNode>())
+      TVM_FFI_ICHECK(si->IsInstance<TensorStructInfoNode>())
           << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
              "output structinfo, but got "
           << si;
@@ -649,7 +649,7 @@ class DefineVDevice : ExprMutator {
         updated_ret_sinfo = TensorStructInfo(shape, dtype, vdev_global);
       }
     } else {
-      ICHECK(updated_ret_sinfo->IsInstance<TupleStructInfoNode>())
+      TVM_FFI_ICHECK(updated_ret_sinfo->IsInstance<TupleStructInfoNode>())
           << "Expect output struct info of call_tir to be either TupleStructInfo or "
              "TensorStructInfo, but got "
           << updated_ret_sinfo;
@@ -657,7 +657,7 @@ class DefineVDevice : ExprMutator {
       const auto& tuple_sinfo = Downcast<TupleStructInfo>(updated_ret_sinfo);
       ffi::Array<StructInfo> sinfo_fields;
       for (const auto& si : tuple_sinfo->fields) {
-        ICHECK(si->IsInstance<TensorStructInfoNode>())
+        TVM_FFI_ICHECK(si->IsInstance<TensorStructInfoNode>())
             << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
                "output structinfo, but got "
             << si;
@@ -720,7 +720,7 @@ class DefineVDevice : ExprMutator {
       if (auto tsinfo = arg->struct_info_.as<TensorStructInfoNode>()) {
         if (!tsinfo->vdevice.defined()) {
           const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
-          CHECK(tsinfo->shape.defined()) << "Shape not defined for a constant tensor ..!";
+          TVM_FFI_ICHECK(tsinfo->shape.defined()) << "Shape not defined for a constant tensor ..!";
           arg->struct_info_ =
               TensorStructInfo(tsinfo->shape.value(), tsinfo->dtype, vdev, tsinfo->span);
           return arg;

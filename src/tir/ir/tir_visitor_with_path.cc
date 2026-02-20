@@ -194,7 +194,7 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
     // symbolic shapes used within `buffer_view that are not already
     // defined.
     ffi::Array<ObjectRef> arr = Downcast<ffi::Array<ObjectRef>>(op->node);
-    ICHECK_EQ(arr.size(), 2U);
+    TVM_FFI_ICHECK_EQ(arr.size(), 2U);
     Buffer buffer_view = Downcast<Buffer>(arr[0]);
     Buffer orig_buffer = Downcast<Buffer>(arr[1]);
     Visit(orig_buffer, path->Attr("node")->ArrayItem(1));

@@ -217,18 +217,18 @@ struct ReadWriteAtImpl {
     // Step 2. Calculate `insert_pos` and [st, ed) for buffer replacement
     int insert_pos = -1, st = -1, ed = -1;
     if (is_read) {
-      ICHECK(!r_pos.empty());
+      TVM_FFI_ICHECK(!r_pos.empty());
       // No write after the first read
-      ICHECK(w_pos.empty() || w_pos.back() < r_pos.front());
+      TVM_FFI_ICHECK(w_pos.empty() || w_pos.back() < r_pos.front());
       // Can be inserted at [0, r_pos.front()], i.e. before the first read
       insert_pos = r_pos.front();
       // Buffer reads in [insert_pos, +oo) is rewritten
       st = insert_pos;
       ed = n_subtrees;
     } else {
-      ICHECK(!w_pos.empty());
+      TVM_FFI_ICHECK(!w_pos.empty());
       // No read after the last write
-      ICHECK(r_pos.empty() || r_pos.back() <= w_pos.back());
+      TVM_FFI_ICHECK(r_pos.empty() || r_pos.back() <= w_pos.back());
       // Can be inserted into (w_pos.back(), +oo), i.e. after the last write
       insert_pos = w_pos.back() + 1;
       st = 0;

@@ -51,7 +51,7 @@ class StoreUndefLocator : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr(op->value);
     std::swap(has_undef_, stash_undef);
     if (stash_undef) {
-      ICHECK(SideEffect(op->value) <= CallEffectKind::kReadState)
+      TVM_FFI_ICHECK(SideEffect(op->value) <= CallEffectKind::kReadState)
           << "Error: T.undef() used in BufferStore expressions "
           << "must not have other side effects";
       undef_stores_.insert(op);
@@ -71,7 +71,7 @@ class StoreUndefLocator : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr(op->value);
     std::swap(has_undef_, stash_undef);
     if (stash_undef) {
-      ICHECK(SideEffect(op->value) <= CallEffectKind::kReadState)
+      TVM_FFI_ICHECK(SideEffect(op->value) <= CallEffectKind::kReadState)
           << "Error: T.undef() used in Let expressions "
           << "must not have other side effects";
       var_bindings_with_undef_.insert(op->var.get());
@@ -158,11 +158,12 @@ Pass RemoveStoreUndefInternal() {
 Pass ValidateAllUndefRemoved() {
   auto pass_func = [](PrimFunc f, IRModule m, tvm::transform::PassContext ctx) {
     bool contains_undef = ContainsUndefChecker::Check(f->body);
-    ICHECK(!contains_undef) << "Expected removal of BufferStore containing builtin::undef() "
-                            << "to remove all instances of builtin::undef().  "
-                            << "Instead, result was"
-                            << "\n"
-                            << f;
+    TVM_FFI_ICHECK(!contains_undef)
+        << "Expected removal of BufferStore containing builtin::undef() "
+        << "to remove all instances of builtin::undef().  "
+        << "Instead, result was"
+        << "\n"
+        << f;
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.ValidateAllUndefRemoved", {});

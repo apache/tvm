@@ -100,7 +100,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     }
     // Only consider cases with 2 factors and the first one is None
     if (inst->inputs.size() != 3 || inst->inputs[1] != nullptr) return false;
-    ICHECK(inst->inputs[2] != nullptr);
+    TVM_FFI_ICHECK(inst->inputs[2] != nullptr);
 
     return sample_insts.find(Downcast<PrimExpr>(inst->inputs[2]).get()) != sample_insts.end();
   };
@@ -109,8 +109,8 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     if (!inst->kind.same_as(inst_bind)) {
       return false;
     }
-    ICHECK_EQ(inst->inputs.size(), 1);
-    ICHECK_EQ(inst->attrs.size(), 1);
+    TVM_FFI_ICHECK_EQ(inst->inputs.size(), 1);
+    TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
     if (Downcast<ffi::String>(inst->attrs[0]) != "threadIdx.x") return false;
 
     return sampled_split_insts.find(Downcast<s_tir::LoopRV>(inst->inputs[0]).get()) !=
@@ -119,11 +119,11 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
 
   for (const Instruction& inst : trace->insts) {
     if (inst->kind.same_as(inst_sample_categorical)) {
-      ICHECK_EQ(inst->outputs.size(), 1);
+      TVM_FFI_ICHECK_EQ(inst->outputs.size(), 1);
       const PrimExprNode* var_rv = TVM_TYPE_AS(inst->outputs[0], PrimExprNode);
       sample_insts[var_rv] = inst.get();
     } else if (is_split_by_sample(inst)) {
-      CHECK_EQ(inst->outputs.size(), 2);
+      TVM_FFI_ICHECK_EQ(inst->outputs.size(), 2);
       // Only consider the inner loop, which can be bound to threadIdx.x
       const s_tir::LoopRVNode* var_rv = TVM_TYPE_AS(inst->outputs[1], s_tir::LoopRVNode);
       sampled_split_insts[var_rv] = inst.get();
@@ -135,12 +135,12 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
   for (const InstructionNode* bind_inst : bind_insts) {
     const auto* loop_rv = TVM_TYPE_AS(bind_inst->inputs[0], s_tir::LoopRVNode);
     auto split_it = sampled_split_insts.find(loop_rv);
-    ICHECK(split_it != sampled_split_insts.end());
+    TVM_FFI_ICHECK(split_it != sampled_split_insts.end());
     const InstructionNode* split_inst = split_it->second;
 
     const auto* expr_rv = TVM_TYPE_AS(split_inst->inputs[2], PrimExprNode);
     auto sample_it = sample_insts.find(expr_rv);
-    ICHECK(sample_it != sample_insts.end());
+    TVM_FFI_ICHECK(sample_it != sample_insts.end());
     const InstructionNode* sample_inst = sample_it->second;
 
     int decision = Downcast<IntImm>(trace->decisions[ffi::GetRef<Instruction>(sample_inst)])->value;

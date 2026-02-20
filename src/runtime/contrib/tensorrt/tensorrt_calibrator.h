@@ -70,9 +70,9 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
    */
   bool getBatch(void* bindings[], const char* names[], int nbBindings) noexcept override {
     AllocateBuffersIfNotAllocated();
-    CHECK_EQ(input_names_.size(), nbBindings);
+    TVM_FFI_ICHECK_EQ(input_names_.size(), nbBindings);
     for (size_t i = 0; i < input_names_.size(); ++i) {
-      CHECK_EQ(input_names_[i], names[i]);
+      TVM_FFI_ICHECK_EQ(input_names_[i], names[i]);
       CUDA_CALL(cudaMemcpy(buffers_[i], data_[num_batches_calibrated_][i],
                            batch_size_ * data_sizes_[num_batches_calibrated_][i] * sizeof(float),
                            cudaMemcpyHostToDevice));
@@ -116,7 +116,7 @@ class TensorRTCalibrator : public nvinfer1::IInt8EntropyCalibrator2 {
    * entry. */
   void AllocateBuffersIfNotAllocated() {
     if (!buffers_.empty()) return;
-    CHECK_GE(data_sizes_.size(), 1);
+    TVM_FFI_ICHECK_GE(data_sizes_.size(), 1);
     const int num_inputs = data_sizes_[0].size();
     buffers_.assign(num_inputs, nullptr);
     for (int i = 0; i < num_inputs; ++i) {

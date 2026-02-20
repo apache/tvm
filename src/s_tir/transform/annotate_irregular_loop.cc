@@ -41,12 +41,12 @@ class IrregularLoopAnnotator : public StmtMutator {
     has_jump_ = false;
     For res = Downcast<For>(StmtMutator::VisitStmt_(op));
     if (has_jump_) {
-      CHECK(op->kind == ForKind::kSerial)
+      TVM_FFI_ICHECK(op->kind == ForKind::kSerial)
           << "Loop kind " << op->kind << " is invalid for irregular loop " << op->loop_var;
       for (const char* key :
            {tir::attr::pragma_auto_unroll_max_step, tir::attr::pragma_unroll_explicit,
             tir::attr::pragma_loop_partition_hint, tir::attr::software_pipeline_stage}) {
-        CHECK(!res->annotations.count(key))
+        TVM_FFI_ICHECK(!res->annotations.count(key))
             << "Annotation `" << key << "` is invalid for irregular loop " << op->loop_var;
       }
       res.CopyOnWrite()->annotations.Set(tir::attr::irregular_loop_mark, 1);

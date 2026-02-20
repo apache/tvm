@@ -42,9 +42,9 @@ class VDeviceLookup {
       if (auto vdevice = info.as<VDevice>()) {
         return vdevice.value();
       } else {
-        LOG(FATAL) << "TypeError: "
-                   << "Each item in an IRModule's \"vdevice\" annotation must be a VDevice, "
-                   << "but instead found item of type " << info->GetTypeKey();
+        TVM_FFI_THROW(TypeError)
+            << "Each item in an IRModule's \"vdevice\" annotation must be a VDevice, "
+            << "but instead found item of type " << info->GetTypeKey();
       }
     };
 
@@ -53,17 +53,17 @@ class VDeviceLookup {
 
   VDevice operator()(Attrs hint_on_device_attrs) {
     auto attrs = hint_on_device_attrs.as<HintOnDeviceAttrs>();
-    ICHECK(attrs);
+    TVM_FFI_ICHECK(attrs);
     int32_t device_type = attrs->device_type;
     int32_t device_id = attrs->index;
     ffi::String memory_scope = attrs->memory_scope;
 
-    CHECK(opt_vdevices_.defined())
-        << "ValueError: The target VDevice in the GlobalInfos was not found.";
+    TVM_FFI_CHECK(opt_vdevices_.defined(), ValueError)
+        << "The target VDevice in the GlobalInfos was not found.";
 
     auto vdevices = opt_vdevices_.value();
-    CHECK_GE(device_id, 0) << "ValueError: "
-                           << "The device id in R.hint_on_device must not be negative";
+    TVM_FFI_CHECK_GE(device_id, 0, ValueError)
+        << "The device id in R.hint_on_device must not be negative";
 
     for (auto vdevice : vdevices) {
       int dev_type = vdevice->target->GetTargetDeviceType();
@@ -72,9 +72,9 @@ class VDeviceLookup {
         return vdevice;
       }
     }
-    LOG(FATAL) << "ValueError: "
-               << "Expected to find device with type " << device_id << " and id " << device_id
-               << ", but no such device was found in the IRModule's \"vdevice\" annotation";
+    TVM_FFI_THROW(ValueError)
+        << "Expected to find device with type " << device_id << " and id " << device_id
+        << ", but no such device was found in the IRModule's \"vdevice\" annotation";
     TVM_FFI_UNREACHABLE();
   }
 
@@ -139,8 +139,7 @@ class DeviceHintCollector : ExprVisitor {
         // output, or may return the result of a `relax::Call` that
         // produces a tuple of outputs.
         if (auto tuple = expr.as<TupleNode>()) {
-          CHECK_EQ(tuple_info->fields.size(), tuple->fields.size())
-              << "ValueError: "
+          TVM_FFI_CHECK_EQ(tuple_info->fields.size(), tuple->fields.size(), ValueError)
               << "Function returns a tuple with " << tuple->fields.size() << " elements, "
               << "but is annotated as returning a tuple with " << tuple_info->fields.size()
               << " elements";
@@ -173,7 +172,7 @@ class DeviceHintCollector : ExprVisitor {
       auto vdevice = vdevice_lookup_(call->attrs);
       known_vdevice_.Set(binding->var, vdevice);
 
-      ICHECK_EQ(call->args.size(), 1);
+      TVM_FFI_ICHECK_EQ(call->args.size(), 1);
       if (auto arg_var = call->args[0].as<Var>()) {
         hint_on_device_inputs_.Set(arg_var.value(), vdevice);
       }
@@ -384,7 +383,7 @@ class VDeviceStructInfoUpdater : ExprMutator {
       return call;
     }
 
-    ICHECK_EQ(call->args.size(), 1);
+    TVM_FFI_ICHECK_EQ(call->args.size(), 1);
     auto arg = call->args[0];
     auto input_vdevice = Downcast<TensorStructInfo>(arg->struct_info_)->vdevice;
     auto output_vdevice = vdevice_lookup_(call->attrs);

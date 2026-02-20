@@ -145,7 +145,7 @@ void DFPatternMatcher::ClearMap(size_t watermark) {
 }
 
 bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr0) {
-  CHECK(pattern.defined()) << "Null pattern found when matching against " << expr0;
+  TVM_FFI_ICHECK(pattern.defined()) << "Null pattern found when matching against " << expr0;
 
   auto expr = UnwrapBindings(expr0, var2val_);
   if (memoize_ && memo_.count(pattern)) {
@@ -414,7 +414,8 @@ bool DFPatternMatcher::VisitDFPattern_(const UnorderedTuplePatternNode* op, cons
   if (const auto* tuple_node = expr.as<TupleNode>()) {
     if (op->fields.size() == tuple_node->fields.size()) {
       constexpr int8_t kUnknown = -1;
-      ICHECK_LE(op->fields.size(), std::numeric_limits<uint8_t>::max()) << "Too many fields!";
+      TVM_FFI_ICHECK_LE(op->fields.size(), std::numeric_limits<uint8_t>::max())
+          << "Too many fields!";
       // dynamic programming.
       std::vector<int8_t> match_cache(op->fields.size() * op->fields.size(), kUnknown);
       std::vector<bool> field_match_bitmap(op->fields.size(), false);

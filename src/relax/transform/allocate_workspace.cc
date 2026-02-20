@@ -85,7 +85,7 @@ class ExternFunctionRewriter : ExprMutator {
         // Append the workspace argument to this call. The callee should have been updated to accept
         // a workspace as the last parameter.
         auto new_args = call_node->args;
-        ICHECK(workspace_var_param_.defined());
+        TVM_FFI_ICHECK(workspace_var_param_.defined());
         new_args.push_back(workspace_var_param_);
         return Call(new_op, new_args, call_node->attrs, call_node->sinfo_args, call_node->span);
       }
@@ -171,7 +171,7 @@ class WorkspaceProvider : ExprMutator {
     if (auto gv = new_op.as<GlobalVar>()) {
       if (new_gvars_.count(gv.value())) {
         auto new_args = call_node->args;
-        ICHECK(workspace_var_main_.defined());
+        TVM_FFI_ICHECK(workspace_var_main_.defined());
         new_args.push_back(workspace_var_main_);
         return Call(new_op, new_args, call_node->attrs, call_node->sinfo_args, call_node->span);
       }

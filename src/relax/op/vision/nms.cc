@@ -60,10 +60,10 @@ StructInfo InferStructInfoAllClassNMS(const Call& call, const BlockBuilder& ctx)
   tvm::ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   const auto boxes_sinfo = input_sinfo[0];
   const auto scores_sinfo = input_sinfo[1];
-  ICHECK(!boxes_sinfo->IsUnknownNdim()) << "Only support known ndim";
-  ICHECK(!scores_sinfo->IsUnknownNdim()) << "Only support known ndim";
-  ICHECK_EQ(boxes_sinfo->ndim, 3) << "AllClassNMS input boxes should be 3-D.";
-  ICHECK_EQ(scores_sinfo->ndim, 3) << "AllClassNMS input scores count should be 3-D.";
+  TVM_FFI_ICHECK(!boxes_sinfo->IsUnknownNdim()) << "Only support known ndim";
+  TVM_FFI_ICHECK(!scores_sinfo->IsUnknownNdim()) << "Only support known ndim";
+  TVM_FFI_ICHECK_EQ(boxes_sinfo->ndim, 3) << "AllClassNMS input boxes should be 3-D.";
+  TVM_FFI_ICHECK_EQ(scores_sinfo->ndim, 3) << "AllClassNMS input scores count should be 3-D.";
 
   const auto batch = boxes_sinfo->shape.as<ShapeExprNode>()->values[0];
   const auto num_classes = scores_sinfo->shape.as<ShapeExprNode>()->values[1];

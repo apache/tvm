@@ -39,7 +39,7 @@ void CuDNNSDPARunnerNode::Init(int64_t batch, int64_t seq_len, int64_t num_heads
                                const std::string& layout) {
   graph_ = std::make_unique<cudnn_frontend::graph::Graph>();
 
-  CHECK(data_type.code == DLDataTypeCode::kDLFloat && data_type.bits == 16)
+  TVM_FFI_ICHECK(data_type.code == DLDataTypeCode::kDLFloat && data_type.bits == 16)
       << "Only float16 is supported";
 
   graph_->set_io_data_type(cudnn_frontend::DataType_t::HALF)
@@ -69,7 +69,7 @@ void CuDNNSDPARunnerNode::Init(int64_t batch, int64_t seq_len, int64_t num_heads
     offset_k_ = num_heads * head_size;
     offset_v_ = offset_k_ + num_kv_heads * head_size;
   } else if (layout == "SBN3H") {
-    CHECK_EQ(num_kv_heads, num_heads);
+    TVM_FFI_ICHECK_EQ(num_kv_heads, num_heads);
     int64_t stride_H = 1;
     int64_t stride_N = head_size + head_size + head_size_v;
     int64_t stride_B = num_heads * stride_N;
@@ -79,7 +79,7 @@ void CuDNNSDPARunnerNode::Init(int64_t batch, int64_t seq_len, int64_t num_heads
     offset_k_ = head_size;
     offset_v_ = offset_k_ * 2;
   } else {
-    LOG(FATAL) << "Unsupported layout: " << layout;
+    TVM_FFI_THROW(InternalError) << "Unsupported layout: " << layout;
   }
 
   q_desc = q_desc.set_dim({batch, num_heads, seq_len, head_size}).set_stride(q_stride);
@@ -96,7 +96,7 @@ void CuDNNSDPARunnerNode::Init(int64_t batch, int64_t seq_len, int64_t num_heads
   auto k = graph_->tensor(k_desc);
   auto v = graph_->tensor(v_desc);
   auto [o, stats] = graph_->sdpa(q, k, v, sdpa_options);
-  CHECK(stats == nullptr);
+  TVM_FFI_ICHECK(stats == nullptr);
   o->set_output(true).set_dim({batch, num_heads, seq_len, head_size_v}).set_stride(o_stride);
   int device_id;
   CUDA_CALL(cudaGetDevice(&device_id));
@@ -112,7 +112,7 @@ void CuDNNSDPARunnerNode::Run(const DLTensor* qkv, DLTensor* workspace, DLTensor
   auto* out_ptr = reinterpret_cast<uint8_t*>(out->data) + out->byte_offset;
 
   size_t workspace_size = graph_->get_workspace_size();
-  CHECK_LE(workspace_size, workspace->shape[0]) << "Workspace size too small";
+  TVM_FFI_ICHECK_LE(workspace_size, workspace->shape[0]) << "Workspace size too small";
   std::unordered_map<cudnn_frontend::graph::Tensor_attributes::uid_t, void*> inputs = {
       {kTensorIDQ, q_ptr}, {kTensorIDK, k_ptr}, {kTensorIDV, v_ptr}, {kTensorIDOut, out_ptr}};
 

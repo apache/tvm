@@ -182,7 +182,7 @@ class AttrGetter {
         if (value.type_index() >= kTVMFFIStaticObjectBegin) {
           attrs_->Set(key, StringUtils::ToString(value.cast<ObjectRef>()));
         } else {
-          LOG(FATAL) << "Unsupported type: " << value.type_index();
+          TVM_FFI_THROW(InternalError) << "Unsupported type: " << value.type_index();
         }
         break;
       }

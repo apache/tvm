@@ -64,7 +64,7 @@ class ParamsInliner : public ExprMutator {
           }
           if (struct_info->IsInstance<FuncStructInfoNode>()) {
             const auto& optype_opt = func->GetAttr<ffi::String>(msc_attr::kOptype);
-            ICHECK(optype_opt.has_value())
+            TVM_FFI_ICHECK(optype_opt.has_value())
                 << "Can not find attr " << msc_attr::kOptype << " form extern func";
             extern_types_.Set(p, optype_opt.value());
             continue;
@@ -75,7 +75,8 @@ class ParamsInliner : public ExprMutator {
               if (i->IsInstance<TensorStructInfoNode>()) {
                 new_fields.push_back(i);
               } else if (const auto& p_info = i.as<PrimStructInfoNode>()) {
-                ICHECK(p_info->value.defined()) << "PrimStructInfo with undefined prim value " << i;
+                TVM_FFI_ICHECK(p_info->value.defined())
+                    << "PrimStructInfo with undefined prim value " << i;
                 attrs.push_back(StringUtils::ToString(p_info->value.value()));
               }
             }
@@ -99,7 +100,7 @@ class ParamsInliner : public ExprMutator {
       }
     }
     // update main
-    ICHECK(main_var.defined()) << "Can not find entry func " << entry_name_;
+    TVM_FFI_ICHECK(main_var.defined()) << "Can not find entry func " << entry_name_;
     const auto& new_func = Downcast<Function>(VisitExpr(mod_->Lookup(entry_name_)));
     builder_->UpdateFunction(main_var, new_func);
     return builder_->GetContextIRModule();
@@ -111,14 +112,14 @@ class ParamsInliner : public ExprMutator {
     for (const auto& a : call_node->args) {
       auto struct_info = GetStructInfo(a);
       if (a->IsInstance<VarNode>() && struct_info->IsInstance<FuncStructInfoNode>()) {
-        ICHECK(extern_types_.count(a)) << "Can not find extern type of " << a;
+        TVM_FFI_ICHECK(extern_types_.count(a)) << "Can not find extern type of " << a;
         new_args.push_back(ExternFunc(extern_types_[a]));
         has_inline = true;
       } else if (call_node->op->IsInstance<GlobalVarNode>() && a->IsInstance<ExternFuncNode>()) {
         has_inline = true;
       } else if (a->IsInstance<VarNode>() && struct_info->IsInstance<ShapeStructInfoNode>()) {
         const auto& shape_opt = Downcast<ShapeStructInfo>(GetStructInfo(a))->values;
-        ICHECK(shape_opt.defined()) << "Expected shape defined, get " << a;
+        TVM_FFI_ICHECK(shape_opt.defined()) << "Expected shape defined, get " << a;
         new_args.push_back(ShapeExpr(shape_opt.value()));
         has_inline = true;
       } else if (call_node->op->IsInstance<GlobalVarNode>() && a->IsInstance<ShapeExprNode>()) {
@@ -155,7 +156,7 @@ class ParamsInliner : public ExprMutator {
       const auto& func_info = Downcast<FuncStructInfo>(gv_node->struct_info_);
       ffi::Array<StructInfo> params_info;
       for (const auto& a : new_args) {
-        ICHECK(a->struct_info_.defined())
+        TVM_FFI_ICHECK(a->struct_info_.defined())
             << "Global func argument without defined struct info " << a;
         params_info.push_back(Downcast<StructInfo>(a->struct_info_.value()));
       }

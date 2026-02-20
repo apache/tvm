@@ -43,7 +43,7 @@ class ScriptCompleter : public StmtMutator {
   ffi::Map<Var, Buffer>* buffer_var_map_;
   Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     for (const PrimExpr& value : op->iter_values) {
-      CHECK(value.dtype().is_int())
+      TVM_FFI_ICHECK(value.dtype().is_int())
           << "BlockRealize iter_value expected a IntImm, but got " << value.dtype();
     }
     return StmtMutator::VisitStmt_(op);
@@ -85,8 +85,8 @@ class ScriptCompleter : public StmtMutator {
       const ffi::Array<BufferRegion>& reads = access_region[0];
       const ffi::Array<BufferRegion>& writes = access_region[1];
       const ffi::Array<BufferRegion>& opaque = access_region[2];
-      CHECK(opaque.empty())
-          << "ValueError: Can not auto detect buffer access region from tir.Load, tir.Store or "
+      TVM_FFI_CHECK(opaque.empty(), ValueError)
+          << "Can not auto detect buffer access region from tir.Load, tir.Store or "
              "direct access by buffer data. Please annotation the access region manually";
       auto n = CopyOnWrite(block.operator->());
       if (!is_root_block) {

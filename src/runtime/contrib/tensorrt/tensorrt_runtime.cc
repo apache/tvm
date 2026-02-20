@@ -80,15 +80,15 @@ class TensorRTRuntime : public JSONRuntimeBase {
     multi_engine_mode_ = support::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
     num_calibration_batches_remaining_ = support::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
     if (use_int8) {
-      ICHECK(num_calibration_batches_remaining_ != 0)
+      TVM_FFI_ICHECK(num_calibration_batches_remaining_ != 0)
           << "When using INT8 mode, "
           << "environment variable TENSORRT_NUM_CALI_INT8"
           << "must also be set to specify the number of "
           << "calibration times";
       LOG(INFO) << "settiing up " << num_calibration_batches_remaining_
                 << " sample data to calibrate data ... ";
-      ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
-                                          << "multi-engine is not allowed";
+      TVM_FFI_ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
+                                                  << "multi-engine is not allowed";
     }
   }
 
@@ -111,7 +111,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * \param consts The constant params from compiled model.
    */
   void Init(const ffi::Array<Tensor>& consts) override {
-    ICHECK_EQ(consts.size(), const_idx_.size())
+    TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     LoadGlobalAttributes();
     SetupConstants(consts);
@@ -178,13 +178,13 @@ class TensorRTRuntime : public JSONRuntimeBase {
           uint32_t eid = EntryID(nid, j);
           const std::string name = nodes_[nid].GetOpName() + "_" + std::to_string(j);
           int binding_index = engine->getBindingIndex(name.c_str());
-          ICHECK_NE(binding_index, -1);
+          TVM_FFI_ICHECK_NE(binding_index, -1);
 #if TRT_VERSION_GE(6, 0, 1)
           if (!use_implicit_batch_) {
             std::vector<int64_t> shape(data_entry_[eid]->shape,
                                        data_entry_[eid]->shape + data_entry_[eid]->ndim);
             auto dims = VectorToTrtDims(shape);
-            ICHECK(context->setBindingDimensions(binding_index, dims));
+            TVM_FFI_ICHECK(context->setBindingDimensions(binding_index, dims));
           }
 #endif
           if (data_entry_[eid]->device.device_type == kDLCUDA) {
@@ -219,7 +219,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       uint32_t eid = EntryID(outputs_[i]);
       const std::string& name = engine_and_context.outputs[i];
       int binding_index = engine->getBindingIndex(name.c_str());
-      ICHECK_NE(binding_index, -1);
+      TVM_FFI_ICHECK_NE(binding_index, -1);
       if (data_entry_[eid]->device.device_type == kDLCUDA) {
         bindings[binding_index] = data_entry_[eid]->data;
       } else {
@@ -230,12 +230,12 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
 #if TRT_VERSION_GE(6, 0, 1)
     if (use_implicit_batch_) {
-      ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
+      TVM_FFI_ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
     } else {
-      ICHECK(context->executeV2(bindings.data())) << "Running TensorRT failed.";
+      TVM_FFI_ICHECK(context->executeV2(bindings.data())) << "Running TensorRT failed.";
     }
 #else
-    ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
+    TVM_FFI_ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
 #endif
 
     // Copy outputs from GPU buffers if needed.
@@ -243,7 +243,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       uint32_t eid = EntryID(outputs_[i]);
       const std::string& name = engine_and_context.outputs[i];
       int binding_index = engine->getBindingIndex(name.c_str());
-      ICHECK_NE(binding_index, -1);
+      TVM_FFI_ICHECK_NE(binding_index, -1);
       if (data_entry_[eid]->device.device_type != kDLCUDA) {
         auto device_buffer = GetOrAllocateDeviceBuffer(eid, binding_index);
         device_buffer.CopyTo(const_cast<DLTensor*>(data_entry_[eid]));
@@ -333,7 +333,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       if (node.GetOpType() == "input") {
         builder.AddInput(nid, EntryID(nid, 0), node);
       } else {
-        ICHECK_EQ(node.GetOpType(), "const");
+        TVM_FFI_ICHECK_EQ(node.GetOpType(), "const");
         uint32_t eid = EntryID(nid, 0);
         builder.AddConstant(nid, data_entry_[eid]);
       }
@@ -504,8 +504,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
 #else   // TVM_GRAPH_EXECUTOR_TENSORRT
   void Run() override {
-    LOG(FATAL) << "TensorRT runtime is not enabled. "
-               << "Please build with USE_TENSORRT_RUNTIME.";
+    TVM_FFI_THROW(InternalError) << "TensorRT runtime is not enabled. "
+                                 << "Please build with USE_TENSORRT_RUNTIME.";
   }
 
   void BuildEngine() {

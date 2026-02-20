@@ -125,7 +125,8 @@ class BlockReadWriteDetector : public StmtExprVisitor {
 
 void BlockReadWriteDetector::operator()(const Stmt& stmt) {
   const auto* block = stmt.as<SBlockNode>();
-  ICHECK(block != nullptr) << "Only visiting Blocks is allowed, but got " << stmt->GetTypeKey();
+  TVM_FFI_ICHECK(block != nullptr)
+      << "Only visiting Blocks is allowed, but got " << stmt->GetTypeKey();
   for (const MatchBufferRegion& match_buffer : block->match_buffers) {
     const Var& target_var = match_buffer->buffer->data;
     const Var& source_var = match_buffer->source->buffer->data;
@@ -288,7 +289,7 @@ std::vector<arith::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(
 
   Region region;
   region.reserve(int_sets.size());
-  ICHECK_EQ(buffer->shape.size(), int_sets.size());
+  TVM_FFI_ICHECK_EQ(buffer->shape.size(), int_sets.size());
   for (size_t i = 0; i < int_sets.size(); ++i) {
     const tvm::arith::IntSet& int_set = int_sets[i];
     region.push_back(int_set.CoverRange(Range::FromMinExtent(0, buffer->shape[i])));
@@ -315,11 +316,11 @@ void BlockReadWriteDetector::Update(std::vector<Buffer>* buffers,
     buffer = match_buffer->source->buffer;
     region = ConvertMatchedRegion(match_buffer, std::move(region));
   }
-  ICHECK_EQ(buffers->size(), regions->size())
+  TVM_FFI_ICHECK_EQ(buffers->size(), regions->size())
       << " Expected the buffer and regions to have the same size ";
   for (size_t i = 0; i < regions->size(); ++i) {
     if ((*buffers)[i].same_as(buffer)) {
-      ICHECK_EQ((*regions)[i].size(), region.size()) << "Inconsistent buffer dimension";
+      TVM_FFI_ICHECK_EQ((*regions)[i].size(), region.size()) << "Inconsistent buffer dimension";
       for (size_t j = 0; j < region.size(); ++j) {
         (*regions)[i][j] = arith::Union({(*regions)[i][j], region[j]});
       }
@@ -333,7 +334,7 @@ void BlockReadWriteDetector::Update(std::vector<Buffer>* buffers,
 ffi::Array<BufferRegion> BlockReadWriteDetector::CollectRegions(
     const std::vector<Buffer>& buffers, const std::vector<std::vector<tvm::arith::IntSet>>& regions,
     const std::unordered_set<const BufferNode*>* excluded_buffers) {
-  ICHECK_EQ(buffers.size(), regions.size());
+  TVM_FFI_ICHECK_EQ(buffers.size(), regions.size());
   ffi::Array<BufferRegion> res;
   res.reserve(buffers.size());
   for (size_t i = 0; i < regions.size(); ++i) {
@@ -342,7 +343,7 @@ ffi::Array<BufferRegion> BlockReadWriteDetector::CollectRegions(
     }
     ffi::Array<Range> region;
     region.reserve(regions[i].size());
-    ICHECK_EQ(buffers[i]->shape.size(), regions[i].size());
+    TVM_FFI_ICHECK_EQ(buffers[i]->shape.size(), regions[i].size());
     for (size_t j = 0; j < regions[i].size(); j++) {
       const tvm::arith::IntSet& range = regions[i][j];
       if (range.CanProveSinglePoint(&ana_)) {

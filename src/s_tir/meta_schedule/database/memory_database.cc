@@ -65,7 +65,7 @@ class MemoryDatabaseNode : public DatabaseNode {
   void CommitTuningRecord(const TuningRecord& record) final { records.push_back(record); }
 
   ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
-    CHECK_GE(top_k, 0) << "ValueError: top_k must be non-negative";
+    TVM_FFI_CHECK_GE(top_k, 0, ValueError) << "top_k must be non-negative";
     if (top_k == 0) {
       return {};
     }

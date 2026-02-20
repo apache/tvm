@@ -78,7 +78,7 @@ class ACLRuntime : public JSONRuntimeBase {
    * \param consts The constant params from compiled model.
    */
   void Init(const ffi::Array<Tensor>& consts) override {
-    ICHECK_EQ(consts.size(), const_idx_.size())
+    TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     SetupConstants(consts);
     BuildEngine();
@@ -134,7 +134,7 @@ class ACLRuntime : public JSONRuntimeBase {
     for (size_t nid = 0; nid < nodes_.size(); ++nid) {
       const auto& node = nodes_[nid];
       if (found_kernel_node) {
-        LOG(FATAL)
+        TVM_FFI_THROW(InternalError)
             << "Arm Compute Library runtime module only supports one kernel node per function.";
       }
       if (node.GetOpType() == "kernel") {
@@ -163,7 +163,7 @@ class ACLRuntime : public JSONRuntimeBase {
         } else if ("concatenate" == op_name) {
           CreateConcatenateLayer(&layer_, node);
         } else {
-          LOG(FATAL) << "Unsupported op: " << op_name;
+          TVM_FFI_THROW(InternalError) << "Unsupported op: " << op_name;
         }
       }
     }
@@ -257,7 +257,8 @@ class ACLRuntime : public JSONRuntimeBase {
     arm_compute::PadStrideInfo pad_stride_info = MakeACLPadStride(padding, strides);
 
     int groups = static_cast<int>(node.GetAttr<int64_t>("groups"));
-    ICHECK(groups == 1) << "Arm Compute Library NEON convolution only supports group size of 1.";
+    TVM_FFI_ICHECK(groups == 1)
+        << "Arm Compute Library NEON convolution only supports group size of 1.";
 
     arm_compute::ActivationLayerInfo act_info;
     if (node.HasAttr("activation_type")) {
@@ -273,7 +274,7 @@ class ACLRuntime : public JSONRuntimeBase {
     size_t num_inputs = inputs.size();
     bool has_bias;
     if (node.GetOpName() == "qnn.conv2d") {
-      ICHECK(num_inputs >= 8U && num_inputs <= 9U)
+      TVM_FFI_ICHECK(num_inputs >= 8U && num_inputs <= 9U)
           << "Quantized convolution requires 9 inputs with a bias, 8 inputs without.";
       has_bias = num_inputs == 9;
       layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[0], &inputs[4], &inputs[2]));
@@ -284,7 +285,7 @@ class ACLRuntime : public JSONRuntimeBase {
       layer->outputs.push_back(
           MakeACLTensorFromJSONNode(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
     } else {
-      ICHECK(num_inputs >= 2U && num_inputs <= 3U)
+      TVM_FFI_ICHECK(num_inputs >= 2U && num_inputs <= 3U)
           << "Convolution requires 3 inputs with a bias, 2 inputs without.";
       has_bias = num_inputs == 3;
       for (const auto& i : inputs) {
@@ -329,7 +330,7 @@ class ACLRuntime : public JSONRuntimeBase {
     size_t num_inputs = inputs.size();
     bool has_bias;
     if (node.GetOpName() == "qnn.depthwise_conv2d") {
-      ICHECK(num_inputs >= 8U && num_inputs <= 9U)
+      TVM_FFI_ICHECK(num_inputs >= 8U && num_inputs <= 9U)
           << "Quantized convolution requires 9 inputs with a bias, 8 inputs without.";
       has_bias = num_inputs == 9;
       layer->inputs.push_back(MakeACLTensorFromJSONEntry(inputs[0], &inputs[4], &inputs[2]));
@@ -340,7 +341,7 @@ class ACLRuntime : public JSONRuntimeBase {
       layer->outputs.push_back(
           MakeACLTensorFromJSONNode(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
     } else {
-      ICHECK(num_inputs >= 2U && num_inputs <= 3U)
+      TVM_FFI_ICHECK(num_inputs >= 2U && num_inputs <= 3U)
           << "Convolution requires 3 inputs with a bias, 2 inputs without.";
       has_bias = num_inputs == 3;
       for (const auto& i : inputs) {
@@ -376,7 +377,7 @@ class ACLRuntime : public JSONRuntimeBase {
     size_t num_inputs = inputs.size();
     bool has_bias;
     if (node.GetOpName() == "qnn.dense") {
-      ICHECK(num_inputs >= 8U && num_inputs <= 9U)
+      TVM_FFI_ICHECK(num_inputs >= 8U && num_inputs <= 9U)
           << "Quantized fully connected (dense) layer requires 9 inputs with a bias, 8 inputs "
              "without.";
       has_bias = num_inputs == 9;
@@ -388,7 +389,7 @@ class ACLRuntime : public JSONRuntimeBase {
       layer->outputs.push_back(
           MakeACLTensorFromJSONNode(node, &inputs[6 + has_bias], &inputs[7 + has_bias]));
     } else {
-      ICHECK(num_inputs >= 2U && num_inputs <= 3U)
+      TVM_FFI_ICHECK(num_inputs >= 2U && num_inputs <= 3U)
           << "Fully connected (dense) layer requires 3 inputs with a bias, 2 inputs without.";
       has_bias = num_inputs == 3;
       for (const auto& i : inputs) {
@@ -437,10 +438,10 @@ class ACLRuntime : public JSONRuntimeBase {
     } else if (node.GetOpName() == "nn.l2_pool2d") {
       pool_type = arm_compute::PoolingType::L2;
     } else {
-      LOG(FATAL) << "Pooling type not supported";
+      TVM_FFI_THROW(InternalError) << "Pooling type not supported";
     }
 
-    ICHECK(dilation.size() == 2 && dilation[0] == 1 && dilation[1] == 1)
+    TVM_FFI_ICHECK(dilation.size() == 2 && dilation[0] == 1 && dilation[1] == 1)
         << "Dilation other than (1, 1) not supported";
     arm_compute::PoolingLayerInfo pool_info =
         arm_compute::PoolingLayerInfo(pool_type, arm_compute::Size2D(pool_size_h, pool_size_w),
@@ -469,7 +470,7 @@ class ACLRuntime : public JSONRuntimeBase {
     } else if (node.GetOpName() == "nn.global_avg_pool2d") {
       pool_type = arm_compute::PoolingType::AVG;
     } else {
-      LOG(FATAL) << "Pooling type not supported";
+      TVM_FFI_THROW(InternalError) << "Pooling type not supported";
     }
 
     arm_compute::PoolingLayerInfo pool_info =
@@ -531,7 +532,7 @@ class ACLRuntime : public JSONRuntimeBase {
       layer->outputs.push_back(
           MakeACLTensorFromJSONNode(node, &node.GetInputs()[6], &node.GetInputs()[7]));
     } else {
-      LOG(FATAL) << "Unsupported form of add op: " + op_name;
+      TVM_FFI_THROW(InternalError) << "Unsupported form of add op: " + op_name;
     }
 
     auto f = std::make_shared<arm_compute::NEArithmeticAddition>();
@@ -579,8 +580,9 @@ class ACLRuntime : public JSONRuntimeBase {
   CachedLayer layer_;
 #else
   void Run() override {
-    LOG(FATAL) << "Cannot call run on Arm Compute Library module without runtime enabled. "
-               << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR.";
+    TVM_FFI_THROW(InternalError)
+        << "Cannot call run on Arm Compute Library module without runtime enabled. "
+        << "Please build with USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR.";
   }
 
   void BuildEngine() {

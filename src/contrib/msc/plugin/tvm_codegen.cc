@@ -226,7 +226,8 @@ void TVMPluginCodeGen::CodeGenOpDefine(const Plugin& plugin) {
 }
 
 void TVMPluginCodeGen::CodeGenOpRuntime(const Plugin& plugin) {
-  ICHECK(!plugin->externs.count("infer_buffer")) << "infer_buffer is not supported for tvm runtime";
+  TVM_FFI_ICHECK(!plugin->externs.count("infer_buffer"))
+      << "infer_buffer is not supported for tvm runtime";
   const auto& attr_name = MetaAttrCls(plugin);
   const auto& func_name = ComputeName(plugin);
   ffi::String device_cond = "";
@@ -380,7 +381,7 @@ void TVMPluginCodeGen::CodeGenCompute(const Plugin& plugin, const ffi::String& d
         const ffi::String& t_name = prepare_tensor(plugin->outputs[i], tensor_dtypes, i, "output");
         compute_args.push_back(t_name);
       }
-      ICHECK(plugin->buffers.size() == 0) << "Plugin with buffers is not supported in tvm";
+      TVM_FFI_ICHECK(plugin->buffers.size() == 0) << "Plugin with buffers is not supported in tvm";
       compute_args.push_back("meta_attr");
       if (device == "cuda") {
         // TODO(tvm-team): update to support get stream from device id

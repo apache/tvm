@@ -84,7 +84,7 @@ ffi::String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "c") {
     return "c";
   }
-  LOG(FATAL) << "Unsupported target: " << target;
+  TVM_FFI_THROW(InternalError) << "Unsupported target: " << target;
   throw;
 }
 
@@ -138,7 +138,7 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_postprocs = Postproc::DefaultCPUTensorization();
       default_mutator_probs = Mutator::DefaultLLVM();
     } else {
-      LOG(FATAL) << "Unsupported kind: " << kind;
+      TVM_FFI_THROW(InternalError) << "Unsupported kind: " << kind;
       throw;
     }
     if (!sch_rules.defined()) {
@@ -170,19 +170,19 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
 }
 
 void PySpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
-  ICHECK(f_initialize_with_tune_context != nullptr)
+  TVM_FFI_ICHECK(f_initialize_with_tune_context != nullptr)
       << "PySpaceGenerator's InitializeWithTuneContext method not implemented!";
   f_initialize_with_tune_context(context);
 }
 
 ffi::Array<s_tir::Schedule> PySpaceGeneratorNode::GenerateDesignSpace(const IRModule& mod) {
-  ICHECK(f_generate_design_space != nullptr)
+  TVM_FFI_ICHECK(f_generate_design_space != nullptr)
       << "PySpaceGenerator's GenerateDesignSpace method not implemented!";
   return f_generate_design_space(mod);
 }
 
 SpaceGenerator PySpaceGeneratorNode::Clone() const {
-  ICHECK(f_clone != nullptr) << "PySpaceGenerator's Clone method not implemented!";
+  TVM_FFI_ICHECK(f_clone != nullptr) << "PySpaceGenerator's Clone method not implemented!";
   return f_clone();
 }
 

@@ -44,12 +44,12 @@ Expr MakePool1d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
                 ffi::String layout, ffi::Optional<ffi::String> out_layout) {
   padding = GetCompletePadding1D(std::move(padding));
 
-  CHECK_EQ(pool_size.size(), 1)
+  TVM_FFI_ICHECK_EQ(pool_size.size(), 1)
       << "The input pool_size length is expected to be 1. However, the given pool_size is "
       << pool_size;
-  CHECK_EQ(strides.size(), 1)
+  TVM_FFI_ICHECK_EQ(strides.size(), 1)
       << "The input strides length is expected to be 1. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 1)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 1)
       << "The input dilation length is expected to be 1. However, the given dilation is "
       << dilation;
 
@@ -127,12 +127,12 @@ StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutPool1d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
-  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-  ICHECK_EQ(tensor_sinfo->ndim, 3) << "Unsupported initial layout";
+  TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  TVM_FFI_ICHECK_EQ(tensor_sinfo->ndim, 3) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<Pool1DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<Pool1DAttrs> new_attrs = ffi::make_object<Pool1DAttrs>(*attrs);
@@ -167,12 +167,12 @@ Expr MakePool2d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
     dilation.push_back(dilation[0]);
   }
 
-  CHECK_EQ(pool_size.size(), 2)
+  TVM_FFI_ICHECK_EQ(pool_size.size(), 2)
       << "The input pool_size length is expected to be 2. However, the given pool_size is "
       << pool_size;
-  CHECK_EQ(strides.size(), 2)
+  TVM_FFI_ICHECK_EQ(strides.size(), 2)
       << "The input strides length is expected to be 2. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 2)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 2)
       << "The input dilation length is expected to be 2. However, the given dilation is "
       << dilation;
 
@@ -260,12 +260,12 @@ StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutPool2d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
-  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-  ICHECK_EQ(tensor_sinfo->ndim, 4) << "Unsupported initial layout";
+  TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  TVM_FFI_ICHECK_EQ(tensor_sinfo->ndim, 4) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<Pool2DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<Pool2DAttrs> new_attrs = ffi::make_object<Pool2DAttrs>(*attrs);
@@ -321,12 +321,12 @@ Expr MakePool3d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
     dilation.push_back(dilation[0]);
   }
 
-  CHECK_EQ(pool_size.size(), 3)
+  TVM_FFI_ICHECK_EQ(pool_size.size(), 3)
       << "The input pool_size length is expected to be 3. However, the given pool_size is "
       << pool_size;
-  CHECK_EQ(strides.size(), 3)
+  TVM_FFI_ICHECK_EQ(strides.size(), 3)
       << "The input strides length is expected to be 3. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 3)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 3)
       << "The input dilation length is expected to be 3. However, the given dilation is "
       << dilation;
 
@@ -424,12 +424,12 @@ StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutPool3d(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
-  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-  ICHECK_EQ(tensor_sinfo->ndim, 5) << "Unsupported initial layout";
+  TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  TVM_FFI_ICHECK_EQ(tensor_sinfo->ndim, 5) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<Pool3DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<Pool3DAttrs> new_attrs = ffi::make_object<Pool3DAttrs>(*attrs);
@@ -522,7 +522,7 @@ Expr adaptive_avg_pool1d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   attrs->out_layout = out_layout.value_or(layout);
   if (output_size.defined()) {
     ffi::Array<int64_t> _output_size = output_size.value();
-    CHECK_EQ(_output_size.size(), 1)
+    TVM_FFI_ICHECK_EQ(_output_size.size(), 1)
         << "The output_size length is expected to be 1. However, the given output_size is "
         << _output_size;
     attrs->output_size = std::move(_output_size);
@@ -572,12 +572,12 @@ StructInfo InferStructInfoAdaptiveAvgPool1D(const Call& call, const BlockBuilder
 InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
-  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-  ICHECK_EQ(tensor_sinfo->ndim, 3) << "Unsupported initial layout";
+  TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  TVM_FFI_ICHECK_EQ(tensor_sinfo->ndim, 3) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<AdaptivePool1DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<AdaptivePool1DAttrs> new_attrs = ffi::make_object<AdaptivePool1DAttrs>(*attrs);
@@ -607,7 +607,7 @@ Expr adaptive_avg_pool2d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
     if (_output_size.size() == 1) {
       _output_size.push_back(_output_size[0]);
     }
-    CHECK_EQ(_output_size.size(), 2)
+    TVM_FFI_ICHECK_EQ(_output_size.size(), 2)
         << "The output_size length is expected to be 2. However, the given output_size is "
         << _output_size;
     attrs->output_size = std::move(_output_size);
@@ -658,12 +658,12 @@ StructInfo InferStructInfoAdaptiveAvgPool2D(const Call& call, const BlockBuilder
 InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
-  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-  ICHECK_EQ(tensor_sinfo->ndim, 4) << "Unsupported initial layout";
+  TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  TVM_FFI_ICHECK_EQ(tensor_sinfo->ndim, 4) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<AdaptivePool2DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<AdaptivePool2DAttrs> new_attrs = ffi::make_object<AdaptivePool2DAttrs>(*attrs);
@@ -709,7 +709,7 @@ Expr adaptive_avg_pool3d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
     if (_output_size.size() == 1) {
       _output_size.push_back(_output_size[0]);
     }
-    CHECK_EQ(_output_size.size(), 3)
+    TVM_FFI_ICHECK_EQ(_output_size.size(), 3)
         << "The output_size length is expected to be 3. However, the given output_size is "
         << _output_size;
     attrs->output_size = std::move(_output_size);
@@ -761,12 +761,12 @@ StructInfo InferStructInfoAdaptiveAvgPool3D(const Call& call, const BlockBuilder
 InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call);
-  ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-  ICHECK_EQ(tensor_sinfo->ndim, 5) << "Unsupported initial layout";
+  TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+  TVM_FFI_ICHECK_EQ(tensor_sinfo->ndim, 5) << "Unsupported initial layout";
   const auto* attrs = call->attrs.as<AdaptivePool3DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<AdaptivePool3DAttrs> new_attrs = ffi::make_object<AdaptivePool3DAttrs>(*attrs);

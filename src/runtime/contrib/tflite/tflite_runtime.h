@@ -38,7 +38,7 @@
 namespace tvm {
 namespace runtime {
 
-#define CHECK_TFLITE_STATUS(ret) ICHECK_EQ(ret, kTfLiteOk)
+#define CHECK_TFLITE_STATUS(ret) TVM_FFI_ICHECK_EQ(ret, kTfLiteOk)
 
 /*!
  * \brief Tflite runtime.

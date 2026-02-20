@@ -53,7 +53,7 @@ class OpenCLWrappedFunc {
 
   // invoke the function with void arguments
   void operator()(ffi::PackedArgs args, ffi::Any* rv, void** void_args) const {
-    ICHECK(w_->devices.size() > 0) << "No OpenCL device";
+    TVM_FFI_ICHECK(w_->devices.size() > 0) << "No OpenCL device";
     cl::OpenCLThreadEntry* t = w_->GetThreadEntry();
     // get the kernel from thread local kernel table.
     if (entry_.kernel_id >= t->kernel_table.size()) {
@@ -137,7 +137,7 @@ cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
 
 ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
-  ICHECK_EQ(sptr_to_self.get(), this);
+  TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   auto opt_info = fmap_.Get(name);
   if (!opt_info.has_value()) return std::nullopt;
   FunctionInfo info = opt_info.value();
@@ -145,13 +145,13 @@ ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String
   std::vector<size_t> arg_size(info->arg_types.size());
   for (size_t i = 0; i < info->arg_types.size(); ++i) {
     DLDataType t = info->arg_types[i];
-    ICHECK_EQ(t.lanes, 1U);
+    TVM_FFI_ICHECK_EQ(t.lanes, 1U);
     if (t.code == kDLOpaqueHandle) {
       // specially store pointer type size in OpenCL driver
       arg_size[i] = sizeof(void*);
     } else {
       uint32_t bits = t.bits;
-      ICHECK_EQ(bits % 8, 0U);
+      TVM_FFI_ICHECK_EQ(bits % 8, 0U);
       arg_size[i] = bits / 8;
     }
   }
@@ -162,7 +162,7 @@ ffi::Optional<ffi::Function> OpenCLModuleNodeBase::GetFunction(const ffi::String
 
 void OpenCLModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
   std::string fmt = GetFileFormat(file_name, format);
-  ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+  TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
   std::string meta_file = GetMetaFilePath(file_name);
   SaveMetaDataToFile(meta_file, fmap_);
   SaveBinaryToFile(file_name, data_);
@@ -205,10 +205,10 @@ void OpenCLModuleNode::Init() {
 
   // split into source artifacts for each kernel
   parsed_kernels_ = SplitKernels(InspectSource("cl"));
-  ICHECK(!parsed_kernels_.empty()) << "The OpenCL module expects a kernel delimited "
-                                   << "source from code generation, but no kernel "
-                                   << "delimiter was found.";
-  ICHECK_EQ(fmap_.size(), parsed_kernels_.size())
+  TVM_FFI_ICHECK(!parsed_kernels_.empty()) << "The OpenCL module expects a kernel delimited "
+                                           << "source from code generation, but no kernel "
+                                           << "delimiter was found.";
+  TVM_FFI_ICHECK_EQ(fmap_.size(), parsed_kernels_.size())
       << "The number of parsed kernel sources does not match the number of kernel functions";
 }
 
@@ -216,7 +216,7 @@ bool OpenCLModuleNode::IsProgramCreated(const std::string& func_name, int device
   auto size = programs_[func_name].size();
   if (size > 0 && programs_[func_name][device_id] != nullptr) return true;
   auto dev_size = GetGlobalWorkspace()->devices.size();
-  ICHECK(device_id < static_cast<int>(dev_size))
+  TVM_FFI_ICHECK(device_id < static_cast<int>(dev_size))
       << "Device id " << device_id << " is bigger than number of available devices";
   // zero initialize cl_program pointers for each device kernel
   if (size == 0) programs_[func_name].resize(dev_size, nullptr);
@@ -247,7 +247,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
           clCreateProgramWithBinary(w->contexts[platform], 1, &dev, &len, &s, nullptr, &err);
       OPENCL_CHECK_ERROR(err);
     } else {
-      LOG(FATAL) << "Unknown OpenCL format " << fmt_;
+      TVM_FFI_THROW(InternalError) << "Unknown OpenCL format " << fmt_;
     }
     // build program
     cl_int err;
@@ -261,9 +261,9 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
       log.resize(len);
       clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, len,
                             &log[0], nullptr);
-      LOG(FATAL) << "OpenCL build error for device=" << dev
-                 << "\nError: " << cl::CLGetErrorString(err) << "\n"
-                 << log;
+      TVM_FFI_THROW(InternalError) << "OpenCL build error for device=" << dev
+                                   << "\nError: " << cl::CLGetErrorString(err) << "\n"
+                                   << log;
     }
   }
   // build kernel
@@ -311,7 +311,7 @@ void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
         log.resize(len);
         clGetProgramBuildInfo(programs_[name][device_id], dev, CL_PROGRAM_BUILD_LOG, len, &log[0],
                               nullptr);
-        LOG(FATAL) << "OpenCL build error for device=" << dev << "\n" << log;
+        TVM_FFI_THROW(InternalError) << "OpenCL build error for device=" << dev << "\n" << log;
       }
     }
   }
@@ -333,7 +333,7 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
     size_t size;
     clGetProgramInfo(programs_[name][device_id], CL_PROGRAM_BINARY_SIZES, sizeof(size_t), &size,
                      nullptr);
-    ICHECK(size > 0) << "Size of binary is 0";
+    TVM_FFI_ICHECK(size > 0) << "Size of binary is 0";
     std::vector<unsigned char> bin_vector(size);
     unsigned char* binary = bin_vector.data();
     clGetProgramInfo(programs_[name][device_id], CL_PROGRAM_BINARIES, sizeof(unsigned char*),
@@ -347,7 +347,7 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
 
 ffi::Optional<ffi::Function> OpenCLModuleNode::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
-  ICHECK_EQ(sptr_to_self.get(), this);
+  TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "opencl.GetPreCompiledPrograms") {
     return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
       *rv = this->GetPreCompiledPrograms();
@@ -384,7 +384,7 @@ ffi::Module OpenCLModuleLoadFromBytes(const ffi::Bytes& bytes) {
   ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt;
   stream.Read(&fmt);
-  ICHECK(stream.Read(&fmap));
+  TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&data);
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }

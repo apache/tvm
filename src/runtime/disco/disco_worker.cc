@@ -29,12 +29,12 @@ namespace runtime {
 
 TVM_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
   DiscoWorker* ret = ThreadLocalDiscoWorker::Get()->worker;
-  CHECK(ret) << "ValueError: The current thread is not a DiscoWorker thread";
+  TVM_FFI_CHECK(ret, ValueError) << "The current thread is not a DiscoWorker thread";
   return ret;
 }
 
 void DiscoWorker::SetRegister(int reg_id, ffi::AnyView value) {
-  ICHECK(0 <= reg_id && reg_id < static_cast<int>(register_file.size()));
+  TVM_FFI_ICHECK(0 <= reg_id && reg_id < static_cast<int>(register_file.size()));
   ffi::Any& rv = register_file.at(reg_id);
   if (rv.type_index() == ffi::TypeIndex::kTVMFFITensor &&
       value.type_index() == ffi::TypeIndex::kTVMFFITensor) {
@@ -69,9 +69,9 @@ struct DiscoWorker::Impl {
         }
         case DiscoAction::kCallPacked: {
           int func_reg_id = args[2].cast<int>();
-          CHECK_LT(func_reg_id, self->register_file.size());
+          TVM_FFI_ICHECK_LT(func_reg_id, self->register_file.size());
           ffi::Function func = GetReg(self, func_reg_id).cast<ffi::Function>();
-          CHECK(func.defined());
+          TVM_FFI_ICHECK(func.defined());
           CallPacked(self, reg_id, func, args.Slice(3));
           break;
         }
@@ -106,7 +106,7 @@ struct DiscoWorker::Impl {
 
   static void GetGlobalFunc(DiscoWorker* self, int reg_id, const std::string& name) {
     const auto pf = tvm::ffi::Function::GetGlobal(name);
-    CHECK(pf.has_value()) << "ValueError: Cannot find global function: " << name;
+    TVM_FFI_CHECK(pf.has_value(), ValueError) << "Cannot find global function: " << name;
     if (reg_id != 0) {
       GetReg(self, reg_id) = *pf;
     }

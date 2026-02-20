@@ -74,12 +74,12 @@ class StaticLibraryNode final : public ffi::ModuleObj {
     auto n = ffi::make_object<StaticLibraryNode>();
     // load data
     std::string data;
-    ICHECK(stream.Read(&data)) << "Loading data failed";
+    TVM_FFI_ICHECK(stream.Read(&data)) << "Loading data failed";
     n->data_ = std::move(data);
 
     // load func names
     std::vector<std::string> func_names;
-    ICHECK(stream.Read(&func_names)) << "Loading func names failed";
+    TVM_FFI_ICHECK(stream.Read(&func_names)) << "Loading func names failed";
     for (auto func_name : func_names) n->func_names_.push_back(ffi::String(func_name));
 
     return ffi::Module(n);

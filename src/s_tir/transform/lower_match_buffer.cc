@@ -52,7 +52,7 @@ class MatchBufferLower : public StmtExprMutator {
 
     Stmt stmt = StmtExprMutator ::VisitStmt_(op);
     op = stmt.as<SBlockNode>();
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
     ffi::Array<BufferRegion> reads =
         op->reads.Map(std::bind(&MatchBufferLower::VisitBufferRegion, this, std::placeholders::_1));
     ffi::Array<BufferRegion> writes = op->writes.Map(
@@ -87,7 +87,7 @@ class MatchBufferLower : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
 
     auto it = match_buffers_.find(op->buffer);
     if (it == match_buffers_.end()) {
@@ -99,7 +99,7 @@ class MatchBufferLower : public StmtExprMutator {
       auto n = CopyOnWrite(op);
       n->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
       n->buffer = source->buffer;
-      ICHECK(!op->predicate.defined())
+      TVM_FFI_ICHECK(!op->predicate.defined())
           << "Predicated buffer store is not currently supported in lower match buffer pass.";
       return Stmt(n);
     }
@@ -108,7 +108,7 @@ class MatchBufferLower : public StmtExprMutator {
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
 
     auto it = match_buffers_.find(op->buffer);
     if (it == match_buffers_.end()) {
@@ -117,7 +117,7 @@ class MatchBufferLower : public StmtExprMutator {
       const Buffer& buffer = (*it).first;
       const BufferRegion& source = (*it).second;
       ffi::Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      ICHECK(!op->predicate.defined())
+      TVM_FFI_ICHECK(!op->predicate.defined())
           << "Predicated buffer load is not currently supported in lower match buffer pass.";
       return BufferLoad(source->buffer, indices);
     }
@@ -143,10 +143,10 @@ class MatchBufferLower : public StmtExprMutator {
     const Buffer& source_buffer = source->buffer;
 
     // Step.1.1. Check scope & dtype
-    ICHECK_EQ(buffer.scope(), source_buffer.scope())
+    TVM_FFI_ICHECK_EQ(buffer.scope(), source_buffer.scope())
         << "MatchBuffer " << buffer << " scope mismatch:" << buffer.scope() << "vs."
         << source_buffer.scope();
-    ICHECK_EQ(buffer->dtype, source_buffer->dtype)
+    TVM_FFI_ICHECK_EQ(buffer->dtype, source_buffer->dtype)
         << "MatchBuffer " << buffer << " data type mismatch:" << buffer->dtype << "vs."
         << source_buffer->dtype;
 
@@ -157,7 +157,7 @@ class MatchBufferLower : public StmtExprMutator {
                    << ", provided alignment=" << source_buffer->data_alignment;
     }
     if (is_zero(buffer->elem_offset)) {
-      ICHECK(is_zero(source_buffer->elem_offset))
+      TVM_FFI_ICHECK(is_zero(source_buffer->elem_offset))
           << "Trying to bind a Buffer with offset into one without offset "
           << " required elem_offset=" << buffer->elem_offset
           << ", provided elem_offset=" << source_buffer->elem_offset;
@@ -180,7 +180,8 @@ class MatchBufferLower : public StmtExprMutator {
       ffi::Array<PrimExpr> buffer_start_indices = source_buffer->ElemOffset(indices);
       if (buffer_start_indices.size() == 1) {
         Bind(buffer->elem_offset, buffer_start_indices[0], buffer->name + ".elem_offset");
-        CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
+        TVM_FFI_ICHECK(
+            analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
             << "The source elem_offset " << buffer_start_indices[0]
             << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
       } else {
@@ -193,10 +194,10 @@ class MatchBufferLower : public StmtExprMutator {
 
     // Step 2.3. Check and update strides
     // Check if target buffer strides are defined
-    ICHECK(source->region.size() >= buffer->shape.size());
+    TVM_FFI_ICHECK(source->region.size() >= buffer->shape.size());
     int offset = source->region.size() - buffer->shape.size();
     if (!buffer->strides.empty()) {
-      ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
+      TVM_FFI_ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
       if (source_buffer->strides.empty()) {
         PrimExpr stride = make_const(buffer->strides.back().dtype(), 1);
         for (size_t i = buffer->shape.size(); i > 0; --i) {
@@ -205,7 +206,7 @@ class MatchBufferLower : public StmtExprMutator {
           stride *= shape;
         }
       } else {
-        ICHECK_EQ(buffer->shape.size() + offset, source_buffer->strides.size());
+        TVM_FFI_ICHECK_EQ(buffer->shape.size() + offset, source_buffer->strides.size());
         for (size_t i = buffer->shape.size(); i > 0; --i) {
           const PrimExpr& stride = source_buffer->strides[i - 1 + offset];
           Bind(buffer->strides[i - 1], stride, buffer->name + ".strides_" + std::to_string(i - 1));
@@ -226,7 +227,7 @@ class MatchBufferLower : public StmtExprMutator {
           arg.dtype().lanes() == value.dtype().lanes()) {
         value = cast(arg.dtype(), value);
       } else {
-        CHECK_EQ(arg.dtype(), value.dtype())
+        TVM_FFI_ICHECK_EQ(arg.dtype(), value.dtype())
             << "The data type mismatched: " << arg->dtype << " vs. " << value->dtype;
       }
     }
@@ -248,8 +249,8 @@ class MatchBufferLower : public StmtExprMutator {
 
   void AssertBinding(const PrimExpr& lhs, const PrimExpr& rhs,
                      const std::string& arg_name = "argument") {
-    CHECK(analyzer_.CanProve(lhs == rhs)) << "The buffer match constraint for " << arg_name
-                                          << " unmet: " << lhs << "==" << rhs << ".";
+    TVM_FFI_ICHECK(analyzer_.CanProve(lhs == rhs)) << "The buffer match constraint for " << arg_name
+                                                   << " unmet: " << lhs << "==" << rhs << ".";
   }
 
  private:

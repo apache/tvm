@@ -1227,7 +1227,7 @@ inline const char* ForKind2String(ForKind t) {
     case ForKind::kThreadBinding:
       return "thread_binding";
   }
-  LOG(FATAL) << "Unknown ForKind" << t;
+  TVM_FFI_THROW(InternalError) << "Unknown ForKind" << t;
 }
 
 }  // namespace tir

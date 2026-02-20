@@ -55,7 +55,7 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
   THashCode shash = 0;
   try {
     const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
-    CHECK(json_array && json_array->size() == 2);
+    TVM_FFI_ICHECK(json_array && json_array->size() == 2);
     // Load json[0] => shash
     ffi::String str_shash = json_array->at(0).cast<ffi::String>();
     // Load json[1] => mod
@@ -66,8 +66,8 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
       std::stringstream(str_shash) >> shash;
     }
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
-    LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
-               << "\nThe error is: " << e.what();
+    TVM_FFI_THROW(ValueError) << "Unable to parse the JSON object: " << json_obj
+                              << "\nThe error is: " << e.what();
   }
   return Workload(mod, shash);
 }
@@ -140,7 +140,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
   ffi::Optional<ffi::Array<ArgInfo>> args_info;
   try {
     const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
-    CHECK(json_array && json_array->size() == 4);
+    TVM_FFI_ICHECK(json_array && json_array->size() == 4);
     // Load json[1] => run_secs
     if (json_array->at(1) != nullptr) {
       run_secs = AsFloatArray(json_array->at(1).cast<ObjectRef>());
@@ -169,8 +169,8 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
       trace = sch->trace().value();
     }
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
-    LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
-               << "\nThe error is: " << e.what();
+    TVM_FFI_THROW(ValueError) << "Unable to parse the JSON object: " << json_obj
+                              << "\nThe error is: " << e.what();
   }
   return TuningRecord(trace, workload, run_secs, target, args_info);
 }
@@ -191,7 +191,7 @@ ffi::Optional<TuningRecord> DatabaseNode::QueryTuningRecord(const IRModule& mod,
   if (records.empty()) {
     return std::nullopt;
   }
-  ICHECK_EQ(records.size(), 1);
+  TVM_FFI_ICHECK_EQ(records.size(), 1);
   return records[0];
 }
 

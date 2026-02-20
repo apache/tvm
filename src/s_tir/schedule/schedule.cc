@@ -42,7 +42,7 @@ StmtSRef ScheduleNode::GetSRef(const StmtNode* stmt) const {
   ScheduleState state = this->state();
   auto it = state->stmt2ref.find(stmt);
   if (it == state->stmt2ref.end()) {
-    LOG(FATAL) << "IndexError: The stmt doesn't exist in the IR";
+    TVM_FFI_THROW(IndexError) << "The stmt doesn't exist in the IR";
   }
   return it->second;
 }
@@ -101,8 +101,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              if (auto expr_rv = obj.as<ExprRV>()) {
                return self->Get(expr_rv.value());
              }
-             LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: "
-                        << obj->GetTypeKey() << ". Its value is: " << obj;
+             TVM_FFI_THROW(TypeError)
+                 << "Cannot evaluate the random variable of type: " << obj->GetTypeKey()
+                 << ". Its value is: " << obj;
              throw;
            })
       .def("s_tir.schedule.ScheduleGetSRef",
@@ -116,7 +117,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              if (auto stmt = obj.as<Stmt>()) {
                return self->GetSRef(stmt.value());
              }
-             LOG(FATAL) << "TypeError: Invalid type: " << obj->GetTypeKey();
+             TVM_FFI_THROW(TypeError) << "Invalid type: " << obj->GetTypeKey();
              throw;
            })
       .def("s_tir.schedule.ScheduleRemoveRV", [](Schedule self, ObjectRef obj) -> void {
@@ -129,7 +130,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         if (auto expr_rv = obj.as<ExprRV>()) {
           return self->RemoveRV(expr_rv.value());
         }
-        LOG(FATAL) << "TypeError: Invalid type: " << obj->GetTypeKey();
+        TVM_FFI_THROW(TypeError) << "Invalid type: " << obj->GetTypeKey();
         throw;
       });
 }
@@ -159,8 +160,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              if (auto loop_rv = rv.as<LoopRV>()) {
                return self->GetChildBlocks(loop_rv.value());
              }
-             LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: "
-                        << rv->GetTypeKey() << ". Its value is: " << rv;
+             TVM_FFI_THROW(TypeError)
+                 << "Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                 << ". Its value is: " << rv;
              throw;
            })
       .def_method("s_tir.schedule.ScheduleGetProducers", &ScheduleNode::GetProducers)
@@ -183,8 +185,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         } else if (auto block_rv = rv.as<SBlockRV>()) {
           return self->AddUnitLoop(block_rv.value());
         } else {
-          LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: "
-                     << rv->GetTypeKey() << ". Its value is: " << rv;
+          TVM_FFI_THROW(TypeError)
+              << "Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+              << ". Its value is: " << rv;
           throw;
         }
       });
@@ -259,7 +262,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else if (auto blocks = target.as<ffi::Array<SBlockRV>>()) {
                return self->Blockize(blocks.value(), preserve_unit_iters);
              }
-             LOG(FATAL) << "Unsupported target type: " << target->GetTypeKey();
+             TVM_FFI_THROW(InternalError) << "Unsupported target type: " << target->GetTypeKey();
            })
       .def("s_tir.schedule.ScheduleTensorize",
            [](Schedule self, ObjectRef rv, ffi::String intrin, bool preserve_unit_iters) {
@@ -268,8 +271,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else if (auto loop_rv = rv.as<LoopRV>()) {
                self->Tensorize(loop_rv.value(), intrin, preserve_unit_iters);
              } else {
-               LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: "
-                          << rv->GetTypeKey() << ". Its value is: " << rv;
+               TVM_FFI_THROW(TypeError)
+                   << "Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                   << ". Its value is: " << rv;
              }
            });
 }
@@ -286,22 +290,24 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              if (auto loop_rv = rv.as<LoopRV>()) {
                return self->Annotate(loop_rv.value(), ann_key, ann_val);
              }
-             LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: "
-                        << rv->GetTypeKey() << ". Its value is: " << rv;
+             TVM_FFI_THROW(TypeError)
+                 << "Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                 << ". Its value is: " << rv;
              throw;
            })
-      .def("s_tir.schedule.ScheduleUnannotate", [](Schedule self, ObjectRef rv,
-                                                   const ffi::String& ann_key) {
-        if (auto block_rv = rv.as<SBlockRV>()) {
-          return self->Unannotate(block_rv.value(), ann_key);
-        }
-        if (auto loop_rv = rv.as<LoopRV>()) {
-          return self->Unannotate(loop_rv.value(), ann_key);
-        }
-        LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
-                   << ". Its value is: " << rv;
-        throw;
-      });
+      .def("s_tir.schedule.ScheduleUnannotate",
+           [](Schedule self, ObjectRef rv, const ffi::String& ann_key) {
+             if (auto block_rv = rv.as<SBlockRV>()) {
+               return self->Unannotate(block_rv.value(), ann_key);
+             }
+             if (auto loop_rv = rv.as<LoopRV>()) {
+               return self->Unannotate(loop_rv.value(), ann_key);
+             }
+             TVM_FFI_THROW(TypeError)
+                 << "Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                 << ". Its value is: " << rv;
+             throw;
+           });
 }
 
 /******** (FFI) Layout transformation ********/

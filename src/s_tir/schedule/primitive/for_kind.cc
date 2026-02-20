@@ -88,7 +88,7 @@ void CheckLoopParallelizableInBlock(const ScheduleState& self, ForKind for_kind,
   // CheckAffineBinding(self, block);
 
   // Cond 2. For each block iter whose binding contains `loop_var`, only two cases are allowed.
-  ICHECK_EQ(block->iter_vars.size(), block_realize->iter_values.size());
+  TVM_FFI_ICHECK_EQ(block->iter_vars.size(), block_realize->iter_values.size());
   int n_iters = static_cast<int>(block->iter_vars.size());
   for (int i = 0; i < n_iters; ++i) {
     const IterVar& iter_var = block->iter_vars[i];

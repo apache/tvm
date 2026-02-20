@@ -85,7 +85,7 @@ ShapeStructInfo::ShapeStructInfo(ffi::Array<PrimExpr> values, Span span) {
     if (value->IsInstance<IntImmNode>()) {
       return tvm::cast(DataType::Int(64), value);
     }
-    ICHECK(value.dtype() == DataType::Int(64))
+    TVM_FFI_ICHECK(value.dtype() == DataType::Int(64))
         << "the value in ShapeStructInfo can only have dtype of int64";
     return value;
   });
@@ -95,7 +95,7 @@ ShapeStructInfo::ShapeStructInfo(ffi::Array<PrimExpr> values, Span span) {
 
 ShapeStructInfo::ShapeStructInfo(int ndim, Span span) {
   ObjectPtr<ShapeStructInfoNode> n = ffi::make_object<ShapeStructInfoNode>();
-  CHECK_GE(ndim, -1) << "ndim of ShapeStructInfo must be >= -1, but got " << ndim;
+  TVM_FFI_ICHECK_GE(ndim, -1) << "ndim of ShapeStructInfo must be >= -1, but got " << ndim;
   n->ndim = ndim;
   n->span = span;
   data_ = std::move(n);
@@ -106,7 +106,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "relax.ShapeStructInfo", [](ffi::Optional<ffi::Array<PrimExpr>> values, int ndim, Span span) {
         if (values.defined()) {
-          CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify values and ndim";
+          TVM_FFI_CHECK_EQ(ndim, kUnknownNDim, ValueError) << "Cannot both specify values and ndim";
           return ShapeStructInfo(values.value(), span);
         } else {
           return ShapeStructInfo(ndim, span);
@@ -120,9 +120,9 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, ffi::Optional<VDe
   ObjectPtr<TensorStructInfoNode> n = ffi::make_object<TensorStructInfoNode>();
   // assign ndim before move
   ffi::Optional<ShapeStructInfo> sinfo = MatchStructInfo<ShapeStructInfo>(shape);
-  ICHECK(sinfo) << "We expect shape to contain pre-set shape struct info";
-  ICHECK(shape.defined()) << "Must provide a shape in this constructor";
-  ICHECK(shape->IsInstance<ShapeExprNode>() || shape->IsInstance<VarNode>())
+  TVM_FFI_ICHECK(sinfo) << "We expect shape to contain pre-set shape struct info";
+  TVM_FFI_ICHECK(shape.defined()) << "Must provide a shape in this constructor";
+  TVM_FFI_ICHECK(shape->IsInstance<ShapeExprNode>() || shape->IsInstance<VarNode>())
       << "We require shape to be normalized when constructing TensorStructInfo";
   n->ndim = sinfo.value()->ndim;
   // assign rest of the fields.
@@ -136,7 +136,7 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, ffi::Optional<VDe
 TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice,
                                    Span span) {
   ObjectPtr<TensorStructInfoNode> n = ffi::make_object<TensorStructInfoNode>();
-  CHECK_GE(ndim, -1) << "ndim of TensorStructInfo must be >= -1, but got " << ndim;
+  TVM_FFI_ICHECK_GE(ndim, -1) << "ndim of TensorStructInfo must be >= -1, but got " << ndim;
   n->ndim = ndim;
   n->dtype = dtype;
   n->vdevice = vdevice;
@@ -150,7 +150,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "relax.TensorStructInfo", [](ffi::Optional<Expr> shape, ffi::Optional<DataType> dtype,
                                    int ndim, VDevice vdevice, Span span) {
         if (shape.defined()) {
-          CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify shape and ndim";
+          TVM_FFI_CHECK_EQ(ndim, kUnknownNDim, ValueError) << "Cannot both specify shape and ndim";
           return TensorStructInfo(shape.value(), dtype.value_or(DataType::Void()), vdevice, span);
         } else {
           return TensorStructInfo(dtype.value_or(DataType::Void()), ndim, vdevice, span);
@@ -209,21 +209,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::Array<StructInfo> params, StructInfo ret, bool purity, Span span) {
              return FuncStructInfo(params, ret, purity, span);
            })
-      .def("relax.FuncStructInfoOpaqueFunc",
-           [](ffi::Optional<StructInfo> ret, ffi::Optional<StructInfoDeriveFunc> derive_func,
-              bool purity, Span span) {
-             if (derive_func.defined()) {
-               ICHECK(!ret.defined()) << "ValueError: Cannot specify both ret and derive_func";
-               return FuncStructInfo::OpaqueFunc(derive_func.value(), purity, span);
-             } else {
-               return FuncStructInfo::OpaqueFunc(ret.value_or(ObjectStructInfo()), purity, span);
-             }
-           });
+      .def("relax.FuncStructInfoOpaqueFunc", [](ffi::Optional<StructInfo> ret,
+                                                ffi::Optional<StructInfoDeriveFunc> derive_func,
+                                                bool purity, Span span) {
+        if (derive_func.defined()) {
+          TVM_FFI_CHECK(!ret.defined(), ValueError) << "Cannot specify both ret and derive_func";
+          return FuncStructInfo::OpaqueFunc(derive_func.value(), purity, span);
+        } else {
+          return FuncStructInfo::OpaqueFunc(ret.value_or(ObjectStructInfo()), purity, span);
+        }
+      });
 }
 
 // Helper functions
 void UpdateStructInfo(Expr expr, StructInfo struct_info) {
-  ICHECK(!expr->struct_info_.defined())
+  TVM_FFI_ICHECK(!expr->struct_info_.defined())
       << "To ensure idempotency, "
       << "the expression passed to UpdateStructInfo "
       << "must not have any prior StructInfo.  "

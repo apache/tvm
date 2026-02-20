@@ -130,8 +130,8 @@ class GraphCreator : public ExprVisitor {
     // post-dfs order and will be set its op pattern. Thus we check whether all these containers
     // have the same size.
     size_t n_nodes = creator.graph_.node_map.size();
-    ICHECK_EQ(n_nodes, creator.graph_.post_dfs_order.size());
-    ICHECK_EQ(n_nodes, creator.initialized_nodes_.size());
+    TVM_FFI_ICHECK_EQ(n_nodes, creator.graph_.post_dfs_order.size());
+    TVM_FFI_ICHECK_EQ(n_nodes, creator.initialized_nodes_.size());
 
     return creator.graph_;
   }
@@ -189,7 +189,7 @@ class GraphCreator : public ExprVisitor {
   /********** Non-Leaf Expression Nodes **********/
 
   void VisitCall(const CallNode* call, IndexedForwardGraph::Node* binding_var_node) {
-    ICHECK_NOTNULL(binding_var_node);
+    TVM_FFI_ICHECK_NOTNULL(binding_var_node);
 
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
@@ -220,7 +220,7 @@ class GraphCreator : public ExprVisitor {
     SetNodePattern(binding_var_node, pattern);
     // Visit all call args
     for (const Expr& arg : args) {
-      ICHECK(IsLeafOrTuple(arg))
+      TVM_FFI_ICHECK(IsLeafOrTuple(arg))
           << "FuseOps expects all relax::Call nodes to have non-nested arguments, "
           << "but " << ffi::GetRef<Expr>(call) << " has argument " << arg
           << ", which is neither a leaf node nor a relax::Tuple";
@@ -230,7 +230,7 @@ class GraphCreator : public ExprVisitor {
 
   void VisitTupleGetItem(const TupleGetItemNode* tuple_item,
                          IndexedForwardGraph::Node* binding_var_node) {
-    ICHECK_NOTNULL(binding_var_node);
+    TVM_FFI_ICHECK_NOTNULL(binding_var_node);
 
     auto pattern = OpPatternKind::kInjective;
     if (input_params_.count(tuple_item->tuple.as<VarNode>())) {
@@ -244,7 +244,7 @@ class GraphCreator : public ExprVisitor {
   }
 
   void VisitUnsupportedNode(const Expr& expr, IndexedForwardGraph::Node* binding_var_node) {
-    ICHECK_NOTNULL(binding_var_node);
+    TVM_FFI_ICHECK_NOTNULL(binding_var_node);
     SetNodePattern(binding_var_node, OpPatternKind::kOpaque);
 
     auto visit_leaves = [this, &binding_var_node](const Expr& e) {
@@ -259,7 +259,7 @@ class GraphCreator : public ExprVisitor {
 
   void VisitLeaf(const Expr& leaf_expr, IndexedForwardGraph::Node* binding_var_node,
                  const OpPatternKind& pattern) {
-    ICHECK_NOTNULL(binding_var_node);
+    TVM_FFI_ICHECK_NOTNULL(binding_var_node);
 
     // Recursive visit if it's Tuple
     if (const auto* tuple = leaf_expr.as<TupleNode>()) {
@@ -296,7 +296,7 @@ class GraphCreator : public ExprVisitor {
    * \note The node corresponding to each key is supposed to be created for only once
    */
   IndexedForwardGraph::Node* CreateNode(const Object* key) {
-    ICHECK(graph_.node_map.find(key) == graph_.node_map.end())
+    TVM_FFI_ICHECK(graph_.node_map.find(key) == graph_.node_map.end())
         << "The object " << ffi::GetRef<ObjectRef>(key) << " appears at multiple definition sites.";
     auto* node = arena_->make<IndexedForwardGraph::Node>();
     graph_.node_map[key] = node;
@@ -311,15 +311,15 @@ class GraphCreator : public ExprVisitor {
    */
   void AddToPostDFSOrder(IndexedForwardGraph::Node* node, const Object* key) {
     auto it = graph_.node_map.find(key);
-    ICHECK(it != graph_.node_map.end() && it->second == node)
+    TVM_FFI_ICHECK(it != graph_.node_map.end() && it->second == node)
         << "Cannot add node " << ffi::GetRef<ObjectRef>(key) << " to the post-DFS order, "
         << "because the node for this object has not yet been created.";
 
     // We only set the reference of the node when adding it to the post-dfs order. Thus, if the
     // reference of a node is already set, it must have been appended to the post-dfs order.
-    ICHECK(node->ref == nullptr) << "Cannot add node " << ffi::GetRef<ObjectRef>(key)
-                                 << " to the post-DFS order, "
-                                 << "because it has already been added.";
+    TVM_FFI_ICHECK(node->ref == nullptr)
+        << "Cannot add node " << ffi::GetRef<ObjectRef>(key) << " to the post-DFS order, "
+        << "because it has already been added.";
 
     node->ref = key;
     node->index = graph_.post_dfs_order.size();
@@ -353,7 +353,7 @@ class GraphCreator : public ExprVisitor {
    * \param pattern The pattern of the node
    */
   void SetNodePattern(IndexedForwardGraph::Node* node, OpPatternKind pattern) {
-    ICHECK(initialized_nodes_.find(node) == initialized_nodes_.end())
+    TVM_FFI_ICHECK(initialized_nodes_.find(node) == initialized_nodes_.end())
         << "The input node " << ffi::GetRef<ObjectRef>(node->ref)
         << " cannot have have its OpPatternKind set more than once.";
     initialized_nodes_.insert(node);
@@ -398,7 +398,7 @@ class FunctionCreator : public ExprMutator {
    * // TODO(tvm-team): handle match shape
    */
   void AppendBinding(const Binding& binding) {
-    ICHECK(!function_.defined())
+    TVM_FFI_ICHECK(!function_.defined())
         << "The `function_` is supposed to be uncreated when adding bindings";
 
     if (const auto* var_binding = binding.as<VarBindingNode>()) {
@@ -411,7 +411,7 @@ class FunctionCreator : public ExprMutator {
           const Tuple& args = Downcast<Tuple>(call->args[1]);
           for (const Expr& arg : args->fields) {
             CheckDefAndUpdateParam(arg);
-            ICHECK(GetStructInfoAs<TupleStructInfoNode>(arg) == nullptr);
+            TVM_FFI_ICHECK(GetStructInfoAs<TupleStructInfoNode>(arg) == nullptr);
           }
           // TODO(tvm-team): handle shape expr
         } else {
@@ -430,7 +430,7 @@ class FunctionCreator : public ExprMutator {
             if (auto tuple = arg.as<TupleNode>()) {
               for (const Expr& tup_arg : tuple->fields) {
                 CheckDefAndUpdateParam(tup_arg);
-                ICHECK(GetStructInfoAs<TupleStructInfoNode>(tup_arg) == nullptr);
+                TVM_FFI_ICHECK(GetStructInfoAs<TupleStructInfoNode>(tup_arg) == nullptr);
               }
             } else {
               CheckDefAndUpdateParam(arg);
@@ -466,7 +466,7 @@ class FunctionCreator : public ExprMutator {
 
   /*! \brief Set a var defined in the group as output. */
   size_t AppendOutput(const Var& var) {
-    ICHECK(defined_vars_.count(var.get()));
+    TVM_FFI_ICHECK(defined_vars_.count(var.get()));
     auto output_idx = GetOutputIndex(var);
     if (output_idx) {
       return *output_idx;
@@ -490,7 +490,7 @@ class FunctionCreator : public ExprMutator {
     // function.
     std::unordered_map<const ExprNode*, std::unordered_map<int, Var>> tuple_get_item_remap;
     for (auto& [tuple_arg, item_indices] : partially_used_tuple_params_) {
-      ICHECK(!item_indices.empty());
+      TVM_FFI_ICHECK(!item_indices.empty());
       int param_idx = tuple_param_idx_[tuple_arg];
       Var param = params_[param_idx];
       ffi::String param_name = params_[param_idx]->name_hint();
@@ -520,7 +520,7 @@ class FunctionCreator : public ExprMutator {
         if (const auto* tuple_get_item = var_binding->value.as<TupleGetItemNode>()) {
           auto it = tuple_get_item_remap.find(tuple_get_item->tuple.get());
           if (it != tuple_get_item_remap.end()) {
-            ICHECK(it->second.find(tuple_get_item->index) != it->second.end());
+            TVM_FFI_ICHECK(it->second.find(tuple_get_item->index) != it->second.end());
             var_remap_[var_binding->var->vid] = it->second[tuple_get_item->index];
             if (auto output_idx = GetOutputIndex(binding->var)) {
               outputs.Set(*output_idx, it->second[tuple_get_item->index]);
@@ -534,7 +534,7 @@ class FunctionCreator : public ExprMutator {
         // Case 1. It is an output binding
         // We only allow VarBinding as output.
         const auto* var_binding = binding.as<VarBindingNode>();
-        ICHECK_NOTNULL(var_binding);
+        TVM_FFI_ICHECK_NOTNULL(var_binding);
         Var output_var = builder_->EmitOutput(VisitExpr(var_binding->value));
         var_remap_[var_binding->var->vid] = output_var;
         outputs.Set(*output_idx, output_var);
@@ -748,8 +748,8 @@ class OperatorFusor : public ExprMutator {
     GroupMap obj2group;
     for (int nid = 0; nid < static_cast<int>(graph.post_dfs_order.size()); ++nid) {
       Group* group_root = groups[nid]->FindRoot();
-      ICHECK(group_root != nullptr);
-      ICHECK(graph.post_dfs_order[nid]->ref != nullptr);
+      TVM_FFI_ICHECK(group_root != nullptr);
+      TVM_FFI_ICHECK(graph.post_dfs_order[nid]->ref != nullptr);
       obj2group[graph.post_dfs_order[nid]->ref] = group_root;
     }
     return obj2group;
@@ -757,7 +757,7 @@ class OperatorFusor : public ExprMutator {
 
   bool IsTupleOutput(Function f) {
     auto sinfo = GetStructInfo(f).as<FuncStructInfoNode>();
-    ICHECK(sinfo);
+    TVM_FFI_ICHECK(sinfo);
     return sinfo->ret->IsInstance<TupleStructInfoNode>();
   }
 
@@ -813,7 +813,7 @@ class OperatorFusor : public ExprMutator {
       }
 
       const auto& it_creator = group2func_.find(group);
-      ICHECK(it_creator != group2func_.end());
+      TVM_FFI_ICHECK(it_creator != group2func_.end());
       const FunctionCreator& func_info = it_creator->second;
 
       if (!func_info.function_.defined()) {
@@ -841,8 +841,9 @@ class OperatorFusor : public ExprMutator {
 
       // Case 3. The binding is the last binding of the group.
       const auto* var_binding = binding.as<VarBindingNode>();
-      ICHECK(var_binding != nullptr) << "The last binding of a group whose size is larger than 1 "
-                                        "is supposed to be a variable binding";
+      TVM_FFI_ICHECK(var_binding != nullptr)
+          << "The last binding of a group whose size is larger than 1 "
+             "is supposed to be a variable binding";
 
       // Step a. Add the grouped function to the IRModule
       GlobalVar gv = builder_->AddFunction(func, func_info.name_hint_);
@@ -916,7 +917,7 @@ class OperatorFusor : public ExprMutator {
           // Skip the vars from input or groups with single binding.
           if (producer_group != cur_group) {
             for (Group* depgroup : group_deps_[producer_group]) {
-              ICHECK(depgroup != cur_group)
+              TVM_FFI_ICHECK(depgroup != cur_group)
                   << "A cyclic dependency detected between the groups " << binding->var->name_hint()
                   << " and " << used_var->name_hint() << " are in.";
             }
@@ -935,7 +936,7 @@ class OperatorFusor : public ExprMutator {
         PostOrderVisit(var_binding->value, update_boundary);
       } else {
         const auto* match_cast = binding.as<MatchCastNode>();
-        ICHECK_NOTNULL(match_cast);
+        TVM_FFI_ICHECK_NOTNULL(match_cast);
         PostOrderVisit(match_cast->value, update_boundary);
       }
     }
@@ -958,7 +959,7 @@ class OperatorFusor : public ExprMutator {
    */
   Group* GetGroupFromVar(const Var& var) {
     const auto& it_group = obj2group_.find(var.get());
-    ICHECK(it_group != obj2group_.end())
+    TVM_FFI_ICHECK(it_group != obj2group_.end())
         << "Variable " << var << " could not be found in any group";
     Group* group = it_group->second;
     return group->FindRoot();
@@ -1152,7 +1153,7 @@ class PatternBasedPartitioner : ExprVisitor {
 
       // parent_group corresponds to the group of "conv1" above.
       auto parent_group = GetGroupForBoundVar(binding->var);
-      ICHECK(parent_group);
+      TVM_FFI_ICHECK(parent_group);
       parent_group->attrs.Set(attr::kComposite, pat_name_);
       if (attrs_getter_ != nullptr) {
         const auto& custom_attrs = attrs_getter_(context->annotated_expr);
@@ -1186,7 +1187,7 @@ class PatternBasedPartitioner : ExprVisitor {
   }
 
   Group* GetGroupForBoundVar(const Var& bound_var) {
-    ICHECK(group_map_.count(bound_var.get()));
+    TVM_FFI_ICHECK(group_map_.count(bound_var.get()));
     return group_map_[bound_var.get()]->FindRoot();
   }
 
@@ -1354,7 +1355,8 @@ IRModule FuseOpsByPattern(const tvm::ffi::Array<transform::FusionPattern>& patte
       for (const auto& name : entry_function_names) {
         auto gv = mod->GetGlobalVar(name);
         auto func = mod->Lookup(gv);
-        ICHECK(func->IsInstance<FunctionNode>()) << "Entry function must be a relax function";
+        TVM_FFI_ICHECK(func->IsInstance<FunctionNode>())
+            << "Entry function must be a relax function";
         entry_functions.push_back(Downcast<Function>(func));
       }
     } else {
@@ -1378,8 +1380,7 @@ IRModule FuseOpsByPattern(const tvm::ffi::Array<transform::FusionPattern>& patte
           pattern->name, pattern->pattern, pattern->annotation_patterns,
           pattern->check.value_or(nullptr), func, &arena, pattern->attrs_getter.value_or(nullptr));
       for (const auto& [key, value] : map) {
-        CHECK(!group_map.count(key))
-            << "ValueError: "
+        TVM_FFI_CHECK(!group_map.count(key), ValueError)
             << "IRModule is invalid.  "
             << "The object " << ffi::GetRef<ObjectRef>(key) << " appears in multiple partitions, "
             << "which can occur when the IRModule was not single-site assignment";

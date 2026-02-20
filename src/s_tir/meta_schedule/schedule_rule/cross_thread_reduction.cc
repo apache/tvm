@@ -28,7 +28,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
  public:
   // Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final {
-    ICHECK(context->target.defined());
+    TVM_FFI_ICHECK(context->target.defined());
     Target target = context->target.value();
 
     ffi::Optional<Integer> opt_max_threads_per_block =
@@ -81,8 +81,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     ffi::Array<FloatImm> probs(n_candidate, FloatImm(DataType::Float(32), 1.0 / n_candidate));
     s_tir::ExprRV thread_extent = tmp_sch->SampleCategorical(thread_extents, probs);
     if (fusible) {
-      ICHECK(target_sblock.defined());
-      ICHECK(target_loop.defined());
+      TVM_FFI_ICHECK(target_sblock.defined());
+      TVM_FFI_ICHECK(target_loop.defined());
 
       // Step 3.1.
       // - If the outer loops of `target_sblock` haven't been bound to "threadIdx.x", we should
@@ -159,8 +159,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
         auto fcheck = [&](const Any& a) -> bool { return a.as<Object>() == loop.get(); };
         int i = std::find_if(inst->outputs.begin(), inst->outputs.end(), fcheck) -
                 inst->outputs.begin();
-        CHECK(inst->inputs[1 + i] != nullptr)
-            << "ValueError: Extracting an extent which needs inference is not supported so far";
+        TVM_FFI_CHECK(inst->inputs[1 + i] != nullptr, ValueError)
+            << "Extracting an extent which needs inference is not supported so far";
         *extent = Downcast<s_tir::ExprRV>(inst->inputs[1 + i]);
         return true;
       }
@@ -182,7 +182,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
         }
       }
     }
-    CHECK(false) << "ValueError: Unable to get the extent of \"threadIdx.x\"";
+    TVM_FFI_CHECK(false, ValueError) << "Unable to get the extent of \"threadIdx.x\"";
     throw;
   }
 
@@ -292,7 +292,8 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
 
 ScheduleRule ScheduleRule::CrossThreadReduction(ffi::Array<Integer> thread_extents) {
   for (const auto& extent : thread_extents) {
-    CHECK(extent->value > 0) << "ValueError: The candidates of thread extent must be positive";
+    TVM_FFI_CHECK(extent->value > 0, ValueError)
+        << "The candidates of thread extent must be positive";
   }
   ObjectPtr<CrossThreadReductionNode> n = ffi::make_object<CrossThreadReductionNode>();
   n->thread_extents = std::move(thread_extents);

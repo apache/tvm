@@ -144,7 +144,7 @@ struct BufferPadding {
     int ndim = buffer_region->region.size();
     for (int i = 0; i < ndim; ++i) {
       PrimExpr pos = buffer_region->region[i]->min;
-      ICHECK(pos->IsInstance<IntImmNode>() || pos->IsInstance<VarNode>());
+      TVM_FFI_ICHECK(pos->IsInstance<IntImmNode>() || pos->IsInstance<VarNode>());
       if (pos->IsInstance<IntImmNode>()) {
         shape.push_back(IntImm(pos->dtype, 1));
       } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get(Downcast<Var>(pos))) {
@@ -428,7 +428,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
       break;
     }
   }
-  ICHECK_NE(pos, -1);
+  TVM_FFI_ICHECK_NE(pos, -1);
   // Step 5. For each buffer, if it needs padding, create a new buffer and a new block
   ffi::Array<Stmt> read_blocks;
   ffi::Array<Stmt> write_blocks;

@@ -43,7 +43,7 @@ SBlockRV GetWinogradProducerAndInlineConst(Schedule sch, SBlockRV block) {
       results.push_back(producer);
     }
   }
-  ICHECK_EQ(results.size(), 1);
+  TVM_FFI_ICHECK_EQ(results.size(), 1);
   return results[0];
 }
 

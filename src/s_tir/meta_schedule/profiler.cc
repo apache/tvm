@@ -38,9 +38,10 @@ ffi::Map<ffi::String, FloatImm> ProfilerNode::Get() const {
 }
 
 ffi::String ProfilerNode::Table() const {
-  CHECK(!stats_sec.empty()) << "ValueError: The stats are empty. Please run the profiler first.";
-  CHECK(stats_sec.count("Total"))
-      << "ValueError: The total time is not recorded. This method should be called only after "
+  TVM_FFI_CHECK(!stats_sec.empty(), ValueError)
+      << "The stats are empty. Please run the profiler first.";
+  TVM_FFI_CHECK(stats_sec.count("Total"), ValueError)
+      << "The total time is not recorded. This method should be called only after "
          "exiting the profiler's with scope.";
   double total = stats_sec.at("Total");
   struct Entry {
@@ -62,7 +63,7 @@ ffi::String ProfilerNode::Table() const {
   p.Separator();
   for (int i = 0, n = table_entry.size(); i < n; ++i) {
     if (i == 0) {
-      p.Row() << "" << table_entry[i].name << table_entry[i].minutes << table_entry[i].percentage;
+      p.Row() << table_entry[i].name << table_entry[i].minutes << table_entry[i].percentage;
     } else {
       p.Row() << i << table_entry[i].name << table_entry[i].minutes << table_entry[i].percentage;
     }

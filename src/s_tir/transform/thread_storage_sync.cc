@@ -115,7 +115,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
         }
       }
       if (sync_before_stmt) {
-        ICHECK_EQ(condition_counter(), 0) << "Cannot insert syncs inside condition";
+        TVM_FFI_ICHECK_EQ(condition_counter(), 0) << "Cannot insert syncs inside condition";
         syncs_inserted_.insert(s.stmt);
       }
     }
@@ -142,7 +142,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
           }
         }
         if (sync_before_stmt) {
-          ICHECK_EQ(condition_counter(), 0) << "Cannot insert syncs inside condition";
+          TVM_FFI_ICHECK_EQ(condition_counter(), 0) << "Cannot insert syncs inside condition";
           syncs_inserted_.insert(s.stmt);
           break;
         }
@@ -296,7 +296,7 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
       auto sync = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
                                 {StringImm(sync_scope_.to_string())}));
       auto inner = op->body.as<AttrStmtNode>();
-      ICHECK(inner && inner->attr_key == tir::attr::async_wait_inflight_count);
+      TVM_FFI_ICHECK(inner && inner->attr_key == tir::attr::async_wait_inflight_count);
       auto zero = make_zero(DataType::Int(32));
       auto new_body = SeqStmt({sync, inner->body});
       return AttrStmt(zero, tir::attr::async_wait_queue_scope, op->value,
@@ -370,7 +370,7 @@ class ThreadSyncInserter : public StmtExprMutator {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       PrimExpr expr = StmtExprMutator::VisitExpr_(op);
       op = expr.as<CallNode>();
-      ICHECK_EQ(op->args.size(), 5U);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       Var buffer_var(Downcast<Var>(op->args[1]));
       const IntImmNode* flag = op->args[4].as<IntImmNode>();
       if ((flag->value & 1) && sync_scope_.rank == StorageRank::kGlobal &&
@@ -401,7 +401,7 @@ class ThreadSyncInserter : public StmtExprMutator {
 
   // private functions.
   Stmt InitGlobalBarrier(const AttrStmtNode* op) {
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
     ffi::Array<PrimExpr> pargs = {StringImm(runtime::symbol::tvm_prepare_global_barrier)};
     Stmt prep = Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), pargs));
     Stmt body = op->body;
@@ -418,9 +418,9 @@ class ThreadSyncInserter : public StmtExprMutator {
     return SeqStmt({prep, body});
   }
   Stmt MakeGlobalBarrier() {
-    ICHECK(sync_scope_.rank == StorageRank::kGlobal);
+    TVM_FFI_ICHECK(sync_scope_.rank == StorageRank::kGlobal);
     if (!num_blocks_.defined()) {
-      ICHECK(!is_lead_.defined());
+      TVM_FFI_ICHECK(!is_lead_.defined());
       num_work_dim_ = thread_extents_.size();
       for (const AttrStmtNode* attr : thread_extents_) {
         IterVar iv = Downcast<IterVar>(attr->node);
@@ -433,7 +433,7 @@ class ThreadSyncInserter : public StmtExprMutator {
         }
       }
     } else {
-      ICHECK_EQ(num_work_dim_, thread_extents_.size());
+      TVM_FFI_ICHECK_EQ(num_work_dim_, thread_extents_.size());
     }
     return Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
                          {StringImm(sync_scope_.to_string()), is_lead_, num_blocks_}));

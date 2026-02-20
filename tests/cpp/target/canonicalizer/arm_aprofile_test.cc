@@ -363,12 +363,12 @@ TEST_F(AProfileCanonicalizerTest, UnexpectedTargetKind) {
       {
         try {
           Canonicalize({{"kind", ffi::String("c")}});
-        } catch (const tvm::InternalError& e) {
+        } catch (const tvm::ffi::Error& e) {
           EXPECT_THAT(e.what(), HasSubstr("Expected target kind 'llvm', but got 'c'"));
           throw;
         }
       },
-      tvm::InternalError);
+      tvm::ffi::Error);
 }
 
 TEST(AProfileCanonicalizerInvalid, LLVMUnsupportedArchitecture) {

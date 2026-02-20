@@ -25,25 +25,25 @@ namespace s_tir {
 namespace meta_schedule {
 
 void PyCostModelNode::Load(const ffi::String& path) {
-  ICHECK(f_load != nullptr) << "PyCostModel's Load method not implemented!";
+  TVM_FFI_ICHECK(f_load != nullptr) << "PyCostModel's Load method not implemented!";
   f_load(path);
 }
 
 void PyCostModelNode::Save(const ffi::String& path) {
-  ICHECK(f_save != nullptr) << "PyCostModel's Save method not implemented!";
+  TVM_FFI_ICHECK(f_save != nullptr) << "PyCostModel's Save method not implemented!";
   f_save(path);
 }
 
 void PyCostModelNode::Update(const TuneContext& context,
                              const ffi::Array<MeasureCandidate>& candidates,
                              const ffi::Array<RunnerResult>& results) {
-  ICHECK(f_update != nullptr) << "PyCostModel's Update method not implemented!";
+  TVM_FFI_ICHECK(f_update != nullptr) << "PyCostModel's Update method not implemented!";
   f_update(context, candidates, results);
 }
 
 std::vector<double> PyCostModelNode::Predict(const TuneContext& context,
                                              const ffi::Array<MeasureCandidate>& candidates) {
-  ICHECK(f_predict != nullptr) << "PyCostModel's Predict method not implemented!";
+  TVM_FFI_ICHECK(f_predict != nullptr) << "PyCostModel's Predict method not implemented!";
   std::vector<double> result(candidates.size(), 0.0);
   f_predict(context, candidates, result.data());
   return result;
@@ -66,9 +66,9 @@ CostModel CostModel::PyCostModel(PyCostModelNode::FLoad f_load,        //
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyCostModelNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyCostModelNode>();
-      ICHECK(self);
+      TVM_FFI_ICHECK(self);
       PyCostModelNode::FAsString f_as_string = (*self).f_as_string;
-      ICHECK(f_as_string != nullptr) << "PyCostModel's AsString method not implemented!";
+      TVM_FFI_ICHECK(f_as_string != nullptr) << "PyCostModel's AsString method not implemented!";
       p->stream << f_as_string();
     });
 

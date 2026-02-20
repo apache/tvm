@@ -364,7 +364,7 @@ inline OpRegEntry& OpRegEntry::set_support_level(int32_t n) {  // NOLINT(*)
 template <typename ValueType>
 inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value, int plevel) {
-  ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
+  TVM_FFI_ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
   UpdateAttr(attr_name, Any(value), plevel);
   return *this;
 }
@@ -373,7 +373,7 @@ inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
 
 template <typename ValueType>
 inline ValueType OpAttrMap<ValueType>::get(const RelaxExpr& expr, ValueType def_value) const {
-  ICHECK(expr.defined());
+  TVM_FFI_ICHECK(expr.defined());
   if (const OpNode* op = expr.as<OpNode>()) {
     return this->map_.get(ffi::GetRef<Op>(op), def_value);
   } else {

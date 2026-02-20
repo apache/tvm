@@ -66,11 +66,12 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
     std::string storage_scope = GetStorageScope(op->buffer_var);
     if (IsTextureStorage(storage_scope)) {
       op = stmt.as<AllocateNode>();
-      ICHECK(op->extents.size() >= 3) << "Only 2D Array RGBA texture is currently supported";
+      TVM_FFI_ICHECK(op->extents.size() >= 3)
+          << "Only 2D Array RGBA texture is currently supported";
       const int data_bits = op->dtype.bits(),
                 vec_length = static_cast<int>(op->extents.back().as<IntImmNode>()->value);
       const int channel_size = data_bits * vec_length;
-      ICHECK(channel_size == 128 || channel_size == 64)
+      TVM_FFI_ICHECK(channel_size == 128 || channel_size == 64)
           << "Invalid Channel Size: " << channel_size << " bits";
 
       size_t axis = DefaultTextureLayoutSeparator(op->extents.size(), storage_scope);
@@ -91,7 +92,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
  protected:
   std::string GetStorageScope(const Var& buffer_var) {
     auto* ptr = buffer_var->type_annotation.as<PointerTypeNode>();
-    ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }
 };

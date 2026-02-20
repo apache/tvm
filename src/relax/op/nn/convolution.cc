@@ -47,12 +47,13 @@ Expr conv1d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int6
             ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding1D(std::move(padding));
 
-  CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
-                         "the given number of groups is "
-                      << groups;
-  CHECK_EQ(strides.size(), 1)
+  TVM_FFI_ICHECK_GT(groups, 0)
+      << "The number of groups in convolution is expected to be positive. However, "
+         "the given number of groups is "
+      << groups;
+  TVM_FFI_ICHECK_EQ(strides.size(), 1)
       << "The input strides length is expected to be 1. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 1)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 1)
       << "The input dilation length is expected to be 1. However, the given dilation is "
       << dilation;
   return MakeConv<Conv1DAttrs>(std::move(data), std::move(weight), std::move(strides),
@@ -144,7 +145,7 @@ InferLayoutOutput InferLayoutConv1d(
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv1d");
   const auto* attrs = call->attrs.as<Conv1DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
   ObjectPtr<Conv1DAttrs> new_attrs = ffi::make_object<Conv1DAttrs>(*attrs);
@@ -154,10 +155,11 @@ InferLayoutOutput InferLayoutConv1d(
     Layout desired_data_layout = (*it).second[0];
     Layout desired_weight_layout = (*it).second[1];
     Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
-    ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+    TVM_FFI_ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal())
         << "Axis swap only";
-    ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
+    TVM_FFI_ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+        << "Axis swap only";
+    TVM_FFI_ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
         << "Axis swap only";
     data_layout = TransposeLike(InitialLayout(3), attrs->data_layout, desired_data_layout);
     weight_layout = TransposeLike(InitialLayout(3), attrs->kernel_layout, desired_weight_layout);
@@ -214,12 +216,13 @@ Expr conv2d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int6
     dilation.push_back(dilation[0]);
   }
 
-  CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
-                         "the given number of groups is "
-                      << groups;
-  CHECK_EQ(strides.size(), 2)
+  TVM_FFI_ICHECK_GT(groups, 0)
+      << "The number of groups in convolution is expected to be positive. However, "
+         "the given number of groups is "
+      << groups;
+  TVM_FFI_ICHECK_EQ(strides.size(), 2)
       << "The input strides length is expected to be 2. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 2)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 2)
       << "The input dilation length is expected to be 2. However, the given dilation is "
       << dilation;
   return MakeConv<Conv2DAttrs>(std::move(data), std::move(weight), std::move(strides),
@@ -316,7 +319,7 @@ InferLayoutOutput InferLayoutConv2d(
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv2d");
   const auto* attrs = call->attrs.as<Conv2DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
   data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
@@ -423,12 +426,13 @@ Expr conv3d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int6
     dilation.push_back(dilation[0]);
   }
 
-  CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
-                         "the given number of groups is "
-                      << groups;
-  CHECK_EQ(strides.size(), 3)
+  TVM_FFI_ICHECK_GT(groups, 0)
+      << "The number of groups in convolution is expected to be positive. However, "
+         "the given number of groups is "
+      << groups;
+  TVM_FFI_ICHECK_EQ(strides.size(), 3)
       << "The input strides length is expected to be 3. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 3)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 3)
       << "The input dilation length is expected to be 3. However, the given dilation is "
       << dilation;
   return MakeConv<Conv3DAttrs>(std::move(data), std::move(weight), std::move(strides),
@@ -531,7 +535,7 @@ InferLayoutOutput InferLayoutConv3d(
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.nn.conv3d");
   const auto* attrs = call->attrs.as<Conv3DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout, weight_layout, output_layout;
   ObjectPtr<Conv3DAttrs> new_attrs = ffi::make_object<Conv3DAttrs>(*attrs);
@@ -541,10 +545,11 @@ InferLayoutOutput InferLayoutConv3d(
     Layout desired_data_layout = (*it).second[0];
     Layout desired_weight_layout = (*it).second[1];
     Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
-    ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+    TVM_FFI_ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal())
         << "Axis swap only";
-    ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
+    TVM_FFI_ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+        << "Axis swap only";
+    TVM_FFI_ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
         << "Axis swap only";
     data_layout = TransposeLike(InitialLayout(5), attrs->data_layout, desired_data_layout);
     weight_layout = TransposeLike(InitialLayout(5), attrs->kernel_layout, desired_weight_layout);
@@ -594,15 +599,17 @@ Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
                       ffi::Optional<DataType> out_dtype) {
   padding = GetCompletePadding1D(std::move(padding));
 
-  CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
-                         "the given number of groups is "
-                      << groups;
-  CHECK_EQ(output_padding.size(), 1) << "The input output_padding length is expected to be 1. "
-                                        "However, the given output_padding is "
-                                     << output_padding;
-  CHECK_EQ(strides.size(), 1)
+  TVM_FFI_ICHECK_GT(groups, 0)
+      << "The number of groups in convolution is expected to be positive. However, "
+         "the given number of groups is "
+      << groups;
+  TVM_FFI_ICHECK_EQ(output_padding.size(), 1)
+      << "The input output_padding length is expected to be 1. "
+         "However, the given output_padding is "
+      << output_padding;
+  TVM_FFI_ICHECK_EQ(strides.size(), 1)
       << "The input strides length is expected to be 1. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 1)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 1)
       << "The input dilation length is expected to be 1. However, the given dilation is "
       << dilation;
 
@@ -720,10 +727,11 @@ InferLayoutOutput InferLayoutConv1dTranspose(
     Layout desired_data_layout = (*it).second[0];
     Layout desired_weight_layout = (*it).second[1];
     Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
-    ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+    TVM_FFI_ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal())
         << "Axis swap only";
-    ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
+    TVM_FFI_ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
+        << "Axis swap only";
+    TVM_FFI_ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
         << "Axis swap only";
     data_layout = TransposeLike(InitialLayout(3), attrs->data_layout, desired_data_layout);
     weight_layout = TransposeLike(InitialLayout(3), attrs->kernel_layout, desired_weight_layout);
@@ -784,15 +792,17 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
     dilation.push_back(dilation[0]);
   }
 
-  CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
-                         "the given number of groups is "
-                      << groups;
-  CHECK_EQ(output_padding.size(), 2) << "The input output_padding length is expected to be 2. "
-                                        "However, the given output_padding is "
-                                     << output_padding;
-  CHECK_EQ(strides.size(), 2)
+  TVM_FFI_ICHECK_GT(groups, 0)
+      << "The number of groups in convolution is expected to be positive. However, "
+         "the given number of groups is "
+      << groups;
+  TVM_FFI_ICHECK_EQ(output_padding.size(), 2)
+      << "The input output_padding length is expected to be 2. "
+         "However, the given output_padding is "
+      << output_padding;
+  TVM_FFI_ICHECK_EQ(strides.size(), 2)
       << "The input strides length is expected to be 2. However, the given strides is " << strides;
-  CHECK_EQ(dilation.size(), 2)
+  TVM_FFI_ICHECK_EQ(dilation.size(), 2)
       << "The input dilation length is expected to be 2. However, the given dilation is "
       << dilation;
 

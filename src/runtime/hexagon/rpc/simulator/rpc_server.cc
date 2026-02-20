@@ -295,14 +295,14 @@ int main(int argc, char* argv[]) {
   // Load C++RT and ourselves as "global" to make all the symbols defined
   // there be visible to any subsequent libraries loaded via dlopen.
   void* cxx_abi = dlopen("libc++abi.so", RTLD_GLOBAL);
-  ICHECK(cxx_abi != nullptr);
+  TVM_FFI_ICHECK(cxx_abi != nullptr);
   void* cxx = dlopen("libc++.so", RTLD_GLOBAL);
-  ICHECK(cxx != nullptr);
+  TVM_FFI_ICHECK(cxx != nullptr);
   void* self = dlopen(argv[0], RTLD_GLOBAL);
-  ICHECK(self != nullptr);
+  TVM_FFI_ICHECK(self != nullptr);
 
   const auto api = tvm::ffi::Function::GetGlobal("device_api.hexagon");
-  ICHECK(api.has_value());
+  TVM_FFI_ICHECK(api.has_value());
   tvm::ffi::Function::SetGlobal("device_api.cpu", *api, true);
 
   tvm::runtime::hexagon::SimulatorRPCServer server;
@@ -357,7 +357,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   std::ofstream fs(file_name, std::ios::out | std::ios::binary);
-  ICHECK(!fs.fail()) << "Cannot open " << file_name;
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << file_name;
   fs.write(&data[0], data.length());
 }
 

@@ -45,8 +45,8 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::
   if (S->empty() || V->empty()) return;
   size_t m = S->size();
   size_t n = (*S)[0].size();  // n is # of variables
-  ICHECK_EQ(V->size(), n);
-  ICHECK_EQ((*V)[0].size(), n);
+  TVM_FFI_ICHECK_EQ(V->size(), n);
+  TVM_FFI_ICHECK_EQ((*V)[0].size(), n);
 
   for (size_t index = 0; index < std::min(m, n); ++index) {
     // Here A is partially diagonalized, that is A[i, j] is zero for all i, j
@@ -472,7 +472,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                  opt_relations.value_or({}));
           *ret = SolveLinearEquations(problem);
         } else {
-          LOG(FATAL) << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
+          TVM_FFI_THROW(InternalError)
+              << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
         }
       });
 }

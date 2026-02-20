@@ -155,7 +155,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     }
 
     ~InternalConstraintContext() {
-      ICHECK_EQ(self->conditions_.size(), new_num_constraints)
+      TVM_FFI_ICHECK_EQ(self->conditions_.size(), new_num_constraints)
           << "Internal error: Each condition should only be popped once.";
       self->conditions_.erase(self->conditions_.begin() + old_num_constraints,
                               self->conditions_.end());
@@ -296,18 +296,21 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
       } else if (side_effect == tir::CallEffectKind::kReadState) {
         buffer_exprs.push_back(expr);
       } else {
-        LOG(FATAL) << "Assumption must be pure or read-only, but contained expression " << expr
-                   << " with side-effect \'" << side_effect << "\'";
+        TVM_FFI_THROW(InternalError)
+            << "Assumption must be pure or read-only, but contained expression " << expr
+            << " with side-effect \'" << side_effect << "\'";
       }
     }
 
     additional_predicate = analyzer_->Simplify(std::move(additional_predicate));
-    CHECK_EQ(buffer_exprs.size(), 1) << "T.assume must contain only a single buffer expression";
+    TVM_FFI_ICHECK_EQ(buffer_exprs.size(), 1)
+        << "T.assume must contain only a single buffer expression";
 
     auto* as_equal_node = buffer_exprs[0].as<tir::EQNode>();
-    CHECK(as_equal_node) << "T.assume buffer constraint must be of the form 'buffer[indices] == "
-                            "value', but received "
-                         << assumption;
+    TVM_FFI_ICHECK(as_equal_node)
+        << "T.assume buffer constraint must be of the form 'buffer[indices] == "
+           "value', but received "
+        << assumption;
     if (!as_equal_node) {
       // This assumption is an inequality on a data-dependent
       // conditional.  Not an error for this to occur, but also not
@@ -326,7 +329,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
       load = opt.value();
       value = as_equal_node->a;
     } else {
-      LOG(FATAL) << "T.assume buffer constraint must be of the form 'buffer[indices] == value'";
+      TVM_FFI_THROW(InternalError)
+          << "T.assume buffer constraint must be of the form 'buffer[indices] == value'";
     }
 
     // Populating the assume statement predicate, buffer, value
@@ -342,8 +346,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     map_buffer_assumption[buf_data.buffer_load->buffer] = buf_data;
 
     auto has_side_effect = tir::SideEffect(value) > tir::CallEffectKind::kPure;
-    CHECK(!has_side_effect) << "Buffer value in constraint must be pure expression, but was "
-                            << value;
+    TVM_FFI_ICHECK(!has_side_effect)
+        << "Buffer value in constraint must be pure expression, but was " << value;
     if (has_side_effect) {
       return;
     }

@@ -182,7 +182,7 @@ tvm::runtime::Module load_module(const std::string& file_name) {
   static const tvm::ffi::Function loader = get_runtime_func("ffi.Module.load_from_file.hexagon");
   tvm::ffi::Any rv = loader(file_name);
   if (rv.type_code() == kTVMModuleHandle) {
-    ICHECK_EQ(rv.type_code(), kTVMModuleHandle)
+    TVM_FFI_ICHECK_EQ(rv.type_code(), kTVMModuleHandle)
         << __func__ << ": loaded " << file_name << ", but did not get module handle";
     return rv.operator tvm::runtime::Module();
   }

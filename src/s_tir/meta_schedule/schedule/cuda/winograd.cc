@@ -39,19 +39,19 @@ static ffi::Array<s_tir::LoopRV> ScheduleDataPack(s_tir::Schedule sch, s_tir::SB
                                                   std::vector<int> unrolled) {
   // This method is used for NHWC layout only. Will likely be refactored into a more schedule
   using namespace tvm::tir;
-  ICHECK_EQ(tiled.size(), 2);
-  ICHECK_EQ(unrolled.size(), 4);
+  TVM_FFI_ICHECK_EQ(tiled.size(), 2);
+  TVM_FFI_ICHECK_EQ(unrolled.size(), 4);
   ffi::Array<ExprRV> factors{ffi::UnsafeInit()};
   ffi::Array<LoopRV> loops = sch->GetLoops(block);
-  ICHECK_EQ(loops.size(), 6);
+  TVM_FFI_ICHECK_EQ(loops.size(), 6);
 
   factors = sch->SamplePerfectTile(loops[tiled[0]], /*n=*/2, /*max_innermost_factor=*/64);
   ffi::Array<LoopRV> t0 = sch->Split(loops[tiled[0]], {factors.begin(), factors.end()});
-  ICHECK_EQ(t0.size(), 2);
+  TVM_FFI_ICHECK_EQ(t0.size(), 2);
 
   factors = sch->SamplePerfectTile(loops[tiled[1]], /*n=*/2, /*max_innermost_factor=*/64);
   ffi::Array<LoopRV> t1 = sch->Split(loops[tiled[1]], {factors.begin(), factors.end()});
-  ICHECK_EQ(t1.size(), 2);
+  TVM_FFI_ICHECK_EQ(t1.size(), 2);
 
   sch->Unroll(loops[unrolled[0]]);
   sch->Unroll(loops[unrolled[1]]);
@@ -91,7 +91,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                int64_t max_threadblocks = 256;
                int64_t max_threads_per_block = 1024;
                ffi::Array<LoopRV> loops = sch->GetLoops(data_pack);
-               ICHECK_EQ(loops.size(), 8);
+               TVM_FFI_ICHECK_EQ(loops.size(), 8);
                BindSpatialLoop(sch, sch->Fuse({loops[0], loops[1], loops[2], loops[3]}),
                                max_threadblocks, max_threads_per_block);
              }
@@ -104,7 +104,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              int64_t max_threadblocks = 256;
              int64_t max_threads_per_block = 1024;
              ffi::Array<LoopRV> loops = sch->GetLoops(inverse);
-             ICHECK_EQ(loops.size(), 8);
+             TVM_FFI_ICHECK_EQ(loops.size(), 8);
              BindSpatialLoop(sch, sch->Fuse({loops[0], loops[1], loops[2], loops[3]}),
                              max_threadblocks, max_threads_per_block);
              return {sch};
@@ -118,7 +118,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              LoopRV outer{ffi::UnsafeInit()};
              {
                ffi::Array<LoopRV> loops = sch->GetLoops(data_pack);
-               ICHECK_EQ(loops.size(), 6);
+               TVM_FFI_ICHECK_EQ(loops.size(), 6);
                sch->Reorder({loops[2], loops[3], loops[0], loops[1], loops[4], loops[5]});
                sch->Unroll(loops[0]);
                sch->Unroll(loops[1]);
@@ -149,7 +149,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              {
                SBlockRV output = sch->GetConsumers(inverse)[0];
                ffi::Array<LoopRV> nchw = sch->GetLoops(output);
-               ICHECK_EQ(nchw.size(), 4);
+               TVM_FFI_ICHECK_EQ(nchw.size(), 4);
                ffi::Array<LoopRV> hs = sch->Split(nchw[2], {std::nullopt, Integer(tile_size)});
                ffi::Array<LoopRV> ws = sch->Split(nchw[3], {std::nullopt, Integer(tile_size)});
                sch->Reorder({hs[0], ws[0], hs[1], ws[1]});
@@ -159,7 +159,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                sch->ComputeAt(inverse, /*loop_rv=*/outer, /*preserve_unit_loops=*/true);
                sch->SetScope(inverse, /*buffer_index=*/0, /*storage_scope=*/"local");
                ffi::Array<LoopRV> loops = sch->GetLoops(inverse);
-               ICHECK_EQ(loops.size(), 10);
+               TVM_FFI_ICHECK_EQ(loops.size(), 10);
                sch->Unroll(loops[6]);
                sch->Unroll(loops[7]);
                sch->Unroll(loops[8]);

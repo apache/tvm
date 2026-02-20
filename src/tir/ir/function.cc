@@ -118,16 +118,18 @@ class TensorIntrinManager {
 
 TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
   // Check the number of func var is equal
-  CHECK_EQ(desc->params.size(), impl->params.size())
-      << "ValueError: The number of parameters of the description and the implementation of the "
+  TVM_FFI_CHECK_EQ(desc->params.size(), impl->params.size(), ValueError)
+      << "The number of parameters of the description and the implementation of the "
          "tensor intrinsic doesn't match.";
   for (size_t i = 0; i < desc->params.size(); i++) {
-    CHECK(desc->params[i]->dtype.is_handle()) << "ValueError: Parameters of the description of the "
-                                                 "tensor intrinsic should be handle only.";
-    CHECK(impl->params[i]->dtype.is_handle()) << "ValueError: Parameters of the implementation of "
-                                                 "the tensor intrinsic should be handle only.";
+    TVM_FFI_CHECK(desc->params[i]->dtype.is_handle(), ValueError)
+        << "Parameters of the description of the "
+           "tensor intrinsic should be handle only.";
+    TVM_FFI_CHECK(impl->params[i]->dtype.is_handle(), ValueError)
+        << "Parameters of the implementation of "
+           "the tensor intrinsic should be handle only.";
   }
-  ICHECK_EQ(desc->buffer_map.size(), impl->buffer_map.size());
+  TVM_FFI_ICHECK_EQ(desc->buffer_map.size(), impl->buffer_map.size());
 
   ObjectPtr<TensorIntrinNode> n = ffi::make_object<TensorIntrinNode>();
   n->desc = std::move(desc);
@@ -138,8 +140,8 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
 void TensorIntrin::Register(ffi::String name, TensorIntrin intrin, bool override) {
   TensorIntrinManager* manager = TensorIntrinManager::Global();
   if (!override) {
-    CHECK_EQ(manager->reg.count(name), 0)
-        << "ValueError: TensorIntrin '" << name << "' has already been registered";
+    TVM_FFI_CHECK_EQ(manager->reg.count(name), 0, ValueError)
+        << "TensorIntrin '" << name << "' has already been registered";
   }
   manager->reg.Set(name, intrin);
 }
@@ -151,7 +153,7 @@ ffi::Optional<TensorIntrin> TensorIntrin::Get(ffi::String name, bool allow_missi
     if (allow_missing) {
       return std::nullopt;
     } else {
-      LOG(FATAL) << "ValueError: TensorIntrin '" << name << "' is not registered";
+      TVM_FFI_THROW(ValueError) << "TensorIntrin '" << name << "' is not registered";
     }
   }
   return (*it).second;

@@ -80,7 +80,7 @@ ffi::Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_thread
     }
     ExprRV factor = get_factor(std::min(extent, max_threads_per_block));
     ffi::Array<LoopRV> splits = sch->Split(loop, {std::nullopt, factor});
-    ICHECK_EQ(splits.size(), 2);
+    TVM_FFI_ICHECK_EQ(splits.size(), 2);
     sch->Bind(splits[0], "blockIdx.x");
     sch->Bind(splits[1], "threadIdx.x");
     return {splits[0], splits[1]};
@@ -88,7 +88,7 @@ ffi::Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_thread
     ffi::Array<LoopRV> splits = sch->Split(loop, {std::nullopt,
                                                   Integer(max_threadblocks),  //
                                                   Integer(max_threads_per_block)});
-    ICHECK_EQ(splits.size(), 3);
+    TVM_FFI_ICHECK_EQ(splits.size(), 3);
     sch->Reorder({splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");
     sch->Bind(splits[2], "threadIdx.x");
@@ -149,7 +149,7 @@ void BindBlockThreadIdx(Schedule sch, SBlockRV block_rv,  //
     return;
   }
   if (i_block_idx != -1 && i_thread_idx == -1) {
-    ICHECK(false) << "Unsupported case, where blockIdx is bound but threadIdx is not";
+    TVM_FFI_ICHECK(false) << "Unsupported case, where blockIdx is bound but threadIdx is not";
     throw;
   }
   LoopRV loop_rv{ffi::UnsafeInit()};

@@ -31,10 +31,10 @@
 #include <memory>
 #include <string>
 
-#define CUDNN_FRONTEND_CALL(func)                    \
-  do {                                               \
-    auto status = (func);                            \
-    CHECK(status.is_good()) << status.get_message(); \
+#define CUDNN_FRONTEND_CALL(func)                             \
+  do {                                                        \
+    auto status = (func);                                     \
+    TVM_FFI_ICHECK(status.is_good()) << status.get_message(); \
   } while (0)
 
 namespace tvm {

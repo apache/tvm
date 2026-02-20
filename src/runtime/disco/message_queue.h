@@ -84,12 +84,12 @@ class DiscoStreamMessageQueue : private support::Stream,
       return true;
     }
 
-    ICHECK_EQ(read_size, sizeof(packet_nbytes))
+    TVM_FFI_ICHECK_EQ(read_size, sizeof(packet_nbytes))
         << "Stream closed without proper shutdown. Please make sure to explicitly call "
            "`Session::Shutdown`";
     read_buffer_.resize(packet_nbytes);
     read_size = stream_->Read(read_buffer_.data(), packet_nbytes);
-    ICHECK_EQ(read_size, packet_nbytes)
+    TVM_FFI_ICHECK_EQ(read_size, packet_nbytes)
         << "Stream closed without proper shutdown. Please make sure to explicitly call "
            "`Session::Shutdown`";
     read_offset_ = 0;
@@ -102,7 +102,7 @@ class DiscoStreamMessageQueue : private support::Stream,
   size_t Read(void* data, size_t size) final {
     std::memcpy(data, read_buffer_.data() + read_offset_, size);
     read_offset_ += size;
-    ICHECK_LE(read_offset_, read_buffer_.size());
+    TVM_FFI_ICHECK_LE(read_offset_, read_buffer_.size());
     return size;
   }
 

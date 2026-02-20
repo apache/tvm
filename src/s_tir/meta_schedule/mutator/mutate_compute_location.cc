@@ -92,7 +92,7 @@ std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::Fin
                                  const Any& decision) -> Any {
     if (inst->kind.same_as(inst_sample_compute_location)) {
       // Step 1. Extract the instruction input and the old decision.
-      ICHECK_EQ(inputs.size(), 1);
+      TVM_FFI_ICHECK_EQ(inputs.size(), 1);
       tir::StmtSRef block_sref = sch->GetSRef(Downcast<s_tir::SBlockRV>(inputs[0]));
       int old_decision = Downcast<Integer>(decision)->value;
 
@@ -104,7 +104,7 @@ std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::Fin
         location_srefs.erase(location_srefs.begin() + (it - location_indices.begin()));
         location_indices.erase(it);
       }
-      ICHECK_EQ(location_srefs.size(), location_indices.size());
+      TVM_FFI_ICHECK_EQ(location_srefs.size(), location_indices.size());
       // Step 4. Add a new candidate if there are at least one remaining compute-at position.
       if (!location_srefs.empty()) {
         candidates.emplace_back(inst, std::move(location_indices));

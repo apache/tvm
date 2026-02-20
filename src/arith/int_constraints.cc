@@ -51,9 +51,9 @@ ffi::Array<PrimExpr> AsConditions(const ffi::Array<Var>& variables,
   ffi::Array<PrimExpr> res;
   // use variables to keep the order of iteration
   // so as to get rid of any non-determinism.
-  ICHECK_EQ(variables.size(), bounds.size());
+  TVM_FFI_ICHECK_EQ(variables.size(), bounds.size());
   for (const auto v : variables) {
-    ICHECK(bounds.count(v));
+    TVM_FFI_ICHECK(bounds.count(v));
     const auto& bnds = bounds[v];
     PrimExpr lhs = bnds->coef * v;
     for (const PrimExpr& rhs : bnds->equal) {
@@ -74,7 +74,7 @@ ffi::Array<PrimExpr> AsConditions(const ffi::Array<Var>& variables,
 
 IntGroupBounds::IntGroupBounds(PrimExpr coef, ffi::Array<PrimExpr> lower,
                                ffi::Array<PrimExpr> equal, ffi::Array<PrimExpr> upper) {
-  ICHECK(coef.dtype().is_int() || coef.dtype().is_uint())
+  TVM_FFI_ICHECK(coef.dtype().is_int() || coef.dtype().is_uint())
       << "Coefficient in IntGroupBounds must be integers";
   ObjectPtr<IntGroupBoundsNode> node = ffi::make_object<IntGroupBoundsNode>();
   node->coef = std::move(coef);
@@ -195,7 +195,7 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
   }
 
   if (!best_lower.defined()) {
-    ICHECK(!best_diff_over.defined());
+    TVM_FFI_ICHECK(!best_diff_over.defined());
     return Range();
   }
   return Range::FromMinExtent(best_lower, analyzer.Simplify(best_diff_over + 1));
@@ -209,7 +209,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               ffi::Array<PrimExpr> upper) { return IntGroupBounds(coef, lower, equal, upper); })
       .def("arith.IntGroupBounds_from_range", IntGroupBounds::FromRange)
       .def_packed("arith.IntGroupBounds_FindBestRange", [](ffi::PackedArgs args, ffi::Any* ret) {
-        ICHECK(args.size() == 1 || args.size() == 2);
+        TVM_FFI_ICHECK(args.size() == 1 || args.size() == 2);
         auto bounds = args[0].cast<IntGroupBounds>();
         if (args.size() == 1) {
           *ret = bounds.FindBestRange();
@@ -235,9 +235,9 @@ IntConstraints::IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> r
   if (!ranges.defined()) {
     ranges = ffi::Map<Var, Range>();
   }
-  ICHECK(relations.defined());
+  TVM_FFI_ICHECK(relations.defined());
   for (const auto& var : variables) {
-    ICHECK(var.dtype().is_int() || var.dtype().is_uint())
+    TVM_FFI_ICHECK(var.dtype().is_int() || var.dtype().is_uint())
         << "Variables in IntConstraints must be integers";
   }
   node->variables = std::move(variables);
@@ -275,7 +275,7 @@ IntConstraintsTransform::IntConstraintsTransform(IntConstraints src, IntConstrai
 
 IntConstraintsTransform IntConstraintsTransform::operator+(
     const IntConstraintsTransform& other) const {
-  ICHECK(other->src.same_as(operator->()->dst));
+  TVM_FFI_ICHECK(other->src.same_as(operator->()->dst));
   ffi::Map<Var, PrimExpr> dst_to_src;
   ffi::Map<Var, PrimExpr> src_to_dst;
 

@@ -95,7 +95,7 @@ class GradientSimplifier : private ExprMutator {
       return ndim == 2;
     }
     auto axes = call_node->attrs.as<PermuteDimsAttrs>()->axes.value();
-    ICHECK(static_cast<int>(axes.size()) == ndim);
+    TVM_FFI_ICHECK(static_cast<int>(axes.size()) == ndim);
     for (int i = 0; i < ndim - 2; ++i) {
       if (axes[i] != i) {
         return false;
@@ -107,7 +107,7 @@ class GradientSimplifier : private ExprMutator {
   // Return permute_dims(expr). Generate the axes needed.
   static Expr GetTransposeOf(const Expr& expr) {
     auto sinfo = MatchStructInfo<TensorStructInfo>(expr);
-    ICHECK(sinfo);
+    TVM_FFI_ICHECK(sinfo);
     auto ndim = sinfo.value()->ndim;
     if (ndim == 1) {
       return expr;

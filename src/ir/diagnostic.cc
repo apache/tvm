@@ -52,6 +52,16 @@ Diagnostic::Diagnostic(DiagnosticLevel level, Span span, const std::string& mess
   data_ = std::move(n);
 }
 
+Diagnostic::Diagnostic(DiagnosticLevel level, Span span, const std::string& message,
+                       const std::string& error_kind) {
+  auto n = ffi::make_object<DiagnosticNode>();
+  n->level = level;
+  n->span = span;
+  n->message = message;
+  n->error_kind = error_kind;
+  data_ = std::move(n);
+}
+
 DiagnosticBuilder Diagnostic::Bug(Span span) {
   return DiagnosticBuilder(DiagnosticLevel::kBug, span);
 }
@@ -100,7 +110,23 @@ DiagnosticBuilder Diagnostic::Error(const Object* loc) {
 
 DiagnosticBuilder Diagnostic::Note(const Object* loc) { return Note(ffi::GetRef<ObjectRef>(loc)); }
 
+DiagnosticBuilder Diagnostic::Warning(const Object* loc) {
+  return Warning(ffi::GetRef<ObjectRef>(loc));
+}
+
 DiagnosticBuilder Diagnostic::Help(const Object* loc) { return Help(ffi::GetRef<ObjectRef>(loc)); }
+
+DiagnosticBuilder Diagnostic::Error(std::string error_kind, Span span) {
+  return DiagnosticBuilder(DiagnosticLevel::kError, span).WithErrorKind(std::move(error_kind));
+}
+
+DiagnosticBuilder Diagnostic::Error(std::string error_kind, ObjectRef loc) {
+  return DiagnosticBuilder(DiagnosticLevel::kError, loc).WithErrorKind(std::move(error_kind));
+}
+
+DiagnosticBuilder Diagnostic::Error(std::string error_kind, const Object* loc) {
+  return Error(std::move(error_kind), ffi::GetRef<ObjectRef>(loc));
+}
 
 /* Diagnostic Renderer */
 
@@ -138,8 +164,8 @@ void DiagnosticContext::Render() {
   if (errs) {
     (*this)->renderer = DiagnosticRenderer([](DiagnosticContext) {});
     // (*this)->diagnostics.clear();
-    LOG(FATAL) << "DiagnosticError: one or more error diagnostics were "
-               << "emitted, please check diagnostic render for output.";
+    TVM_FFI_THROW(DiagnosticError) << "one or more error diagnostics were "
+                                   << "emitted, please check diagnostic render for output.";
   }
 }
 
@@ -151,7 +177,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 DiagnosticContext::DiagnosticContext(const IRModule& module, const DiagnosticRenderer& renderer) {
-  CHECK(renderer.defined()) << "can not initialize a diagnostic renderer with a null function";
+  TVM_FFI_ICHECK(renderer.defined())
+      << "can not initialize a diagnostic renderer with a null function";
   auto n = ffi::make_object<DiagnosticContextNode>();
   n->module = module;
   n->renderer = renderer;
@@ -197,7 +224,7 @@ DiagnosticRenderer GetRenderer() {
     pf = tvm::ffi::TypedFunction<ObjectRef()>(*override_pf);
   } else {
     auto default_pf = tvm::ffi::Function::GetGlobal(DEFAULT_RENDERER);
-    ICHECK(default_pf.has_value())
+    TVM_FFI_ICHECK(default_pf.has_value())
         << "Can not find registered function for " << DEFAULT_RENDERER << "." << std::endl
         << "Either this is an internal error or the default function was overloaded incorrectly.";
     pf = tvm::ffi::TypedFunction<ObjectRef()>(*default_pf);
@@ -267,13 +294,13 @@ void ReportAt(const DiagnosticContext& context, std::ostream& out, const Span& s
     return;
   }
 
-  ICHECK(context->module->source_map.defined());
+  TVM_FFI_ICHECK(context->module->source_map.defined());
   auto it = context->module->source_map->source_map.find(span->source_name);
 
   // If the source name is not in the current source map, sources were not annotated.
   if (it == context->module->source_map->source_map.end()) {
-    LOG(FATAL) << "The source maps are not populated for this module. "
-               << "Error: " << diagnostic->message;
+    TVM_FFI_THROW(InternalError) << "The source maps are not populated for this module. "
+                                 << "Error: " << diagnostic->message;
   }
 
   auto source = (*it).second;

@@ -41,9 +41,9 @@ namespace vm {
 constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
 constexpr uint64_t kTVMVMBytecodeMagicV2 = 0xD225DE2F4214151E;
 
-#define STREAM_CHECK(val, section)                                          \
-  ICHECK(val) << "Invalid VM file format in the " << section << " section." \
-              << "\n";
+#define STREAM_CHECK(val, section)                                                  \
+  TVM_FFI_ICHECK(val) << "Invalid VM file format in the " << section << " section." \
+                      << "\n";
 
 std::string VMExecutable::Stats() const {
   std::ostringstream oss;
@@ -89,7 +89,7 @@ std::string VMExecutable::Stats() const {
       oss << dtype;
       oss << ", ";
     } else {
-      LOG(FATAL) << "Unsupported constant pool type " << it.GetTypeKey();
+      TVM_FFI_THROW(InternalError) << "Unsupported constant pool type " << it.GetTypeKey();
     }
   }
   if (!constants.empty()) oss.seekp(-2, oss.cur);
@@ -107,9 +107,9 @@ std::string VMExecutable::Stats() const {
 }
 
 void VMExecutable::SetInstructionData(Index i, Index j, ExecWord val) {
-  ICHECK_LT(i, instr_offset.size());
+  TVM_FFI_ICHECK_LT(i, instr_offset.size());
   Index instr_idx = instr_offset[i];
-  ICHECK_LT(instr_idx + j, instr_data.size());
+  TVM_FFI_ICHECK_LT(instr_idx + j, instr_data.size());
   instr_data[instr_idx + j] = val;
 }
 
@@ -138,7 +138,7 @@ Instruction VMExecutable::GetInstruction(Index i) const {
       return Instruction::If(cond, false_offset);
     }
     default:
-      LOG(FATAL) << "should never hit this case: " << static_cast<int>(op);
+      TVM_FFI_THROW(InternalError) << "should never hit this case: " << static_cast<int>(op);
       break;
   }
   return Instruction();
@@ -292,7 +292,7 @@ void VMExecutable::SaveConstantSection(support::Stream* strm) const {
       strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIDataType);
       strm->Write(opt_dtype.value());
     } else {
-      LOG(FATAL) << "Unsupported constant pool type " << it.GetTypeKey();
+      TVM_FFI_THROW(InternalError) << "Unsupported constant pool type " << it.GetTypeKey();
     }
   }
 }
@@ -379,8 +379,9 @@ void VMExecutable::LoadConstantSection(support::Stream* strm) {
       cell = value;
       this->constants.push_back(cell);
     } else {
-      LOG(FATAL) << "Constant pool can only contain Tensor and DLDataType, but got "
-                 << ffi::TypeIndexToTypeKey(constant_type) << " when loading the VM constant pool.";
+      TVM_FFI_THROW(InternalError)
+          << "Constant pool can only contain Tensor and DLDataType, but got "
+          << ffi::TypeIndexToTypeKey(constant_type) << " when loading the VM constant pool.";
     }
   }
 }
@@ -449,7 +450,7 @@ ffi::String VMExecutable::AsText() const {
       case Instruction::ArgKind::kFuncIdx:
         return "f[" + get_func_name(arg.value()) + "]";
       default:
-        LOG(FATAL) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
+        TVM_FFI_THROW(InternalError) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
         return "";
     }
   };
@@ -466,7 +467,7 @@ ffi::String VMExecutable::AsText() const {
       os << "@" << gfunc.name << " num_inputs=" << gfunc.num_args << " vm_tir_func;\n\n";
       continue;
     }
-    ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
+    TVM_FFI_ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
     os << "@" << gfunc.name << ":\n";
     size_t start_instr = gfunc.start_instr;
     size_t end_instr = gfunc.end_instr;
@@ -496,7 +497,8 @@ ffi::String VMExecutable::AsText() const {
           break;
         }
         default:
-          LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+          TVM_FFI_THROW(InternalError)
+              << "should never hit this case: " << static_cast<int>(instr.op);
           break;
       }
     }
@@ -529,7 +531,7 @@ ffi::String VMExecutable::AsPython() const {
         return "ib.f(" + get_func_name(arg.value()) + ")";
       }
       default:
-        LOG(FATAL) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
+        TVM_FFI_THROW(InternalError) << "Wrong instruction kind: " << static_cast<int>(arg.kind());
         return "";
     }
   };
@@ -545,7 +547,7 @@ ffi::String VMExecutable::AsPython() const {
     if (gfunc.kind == VMFuncInfo::FuncKind::kVMTIRFunc) {
       continue;
     }
-    ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
+    TVM_FFI_ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
 
     os << "with ib.function(\"" << gfunc.name << "\", num_inputs=" << gfunc.num_args << "):\n";
     size_t start_instr = gfunc.start_instr;
@@ -575,7 +577,8 @@ ffi::String VMExecutable::AsPython() const {
           break;
         }
         default:
-          LOG(FATAL) << "should never hit this case: " << static_cast<int>(instr.op);
+          TVM_FFI_THROW(InternalError)
+              << "should never hit this case: " << static_cast<int>(instr.op);
           break;
       }
     }

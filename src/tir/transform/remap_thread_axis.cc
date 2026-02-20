@@ -42,7 +42,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
-      ICHECK_NE(iv->thread_tag.length(), 0U);
+      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       auto it = tmap_.find(iv->thread_tag);
       if (it != tmap_.end()) {
         const IterVar& new_iv = it->second;
@@ -50,7 +50,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
         if (!vmap_.count(v)) {
           vmap_[v] = new_iv->var;
         } else {
-          ICHECK(vmap_[v].same_as(new_iv->var));
+          TVM_FFI_ICHECK(vmap_[v].same_as(new_iv->var));
         }
         Stmt body = this->VisitStmt(op->body);
         return AttrStmt(new_iv, op->attr_key, op->value, body);
@@ -77,7 +77,7 @@ PrimFunc RemapThreadAxis(PrimFunc func, ffi::Map<ffi::String, IterVar> thread_ma
   }
 
   if (auto opt = func->GetAttr<ffi::Array<IterVar>>(tir::attr::kKernelLaunchParams)) {
-    ICHECK(opt != nullptr) << "Require attribute " << tir::attr::kKernelLaunchParams;
+    TVM_FFI_ICHECK(opt != nullptr) << "Require attribute " << tir::attr::kKernelLaunchParams;
     auto launch_params = opt.value();
     // replace the thread axis attribute
     for (size_t i = 0; i < launch_params.size(); ++i) {

@@ -43,15 +43,15 @@ Storage::Storage(Buffer buffer, Allocator* allocator) {
 }
 
 inline void VerifyDataType(DLDataType dtype) {
-  ICHECK_GE(dtype.lanes, 1);
+  TVM_FFI_ICHECK_GE(dtype.lanes, 1);
   if (dtype.code == kDLFloat) {
-    ICHECK_EQ(dtype.bits % 8, 0);
+    TVM_FFI_ICHECK_EQ(dtype.bits % 8, 0);
   } else {
     // allow uint1 as a special flag for bool.
     if (dtype.bits == 1 && dtype.code == kDLUInt) return;
-    ICHECK_EQ(dtype.bits % 8, 0);
+    TVM_FFI_ICHECK_EQ(dtype.bits % 8, 0);
   }
-  ICHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
+  TVM_FFI_ICHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
 }
 
 inline size_t GetDataAlignment(const DLDataType& dtype) {
@@ -83,7 +83,7 @@ Tensor StorageObj::AllocTensorScoped(int64_t offset, ffi::Shape shape, DLDataTyp
   };
 
   size_t needed_size = ffi::GetDataSize(shape.Product(), dtype);
-  ICHECK(offset + needed_size <= this->buffer.size)
+  TVM_FFI_ICHECK(offset + needed_size <= this->buffer.size)
       << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
       << offset << " in region that is " << this->buffer.size << "bytes";
 
@@ -95,7 +95,7 @@ Tensor StorageObj::AllocTensor(int64_t offset, ffi::Shape shape, DLDataType dtyp
   VerifyDataType(dtype);
 
   size_t needed_size = ffi::GetDataSize(shape.Product(), dtype);
-  ICHECK(offset + needed_size <= this->buffer.size)
+  TVM_FFI_ICHECK(offset + needed_size <= this->buffer.size)
       << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
       << offset << " in region that is " << this->buffer.size << "bytes";
   class StorageAlloc {
@@ -166,7 +166,7 @@ Allocator* GetDeviceSpecificAllocator(Device dev, AllocatorType type) {
         break;
       }
       default:
-        LOG(FATAL) << "Unknown allocator type: " << type;
+        TVM_FFI_THROW(InternalError) << "Unknown allocator type: " << type;
     }
   }
   return allocator;
@@ -195,10 +195,11 @@ Allocator* MemoryManager::GetAllocator(Device dev, AllocatorType type) {
   std::lock_guard<std::mutex> lock(m->mu_);
   auto it = m->allocators_.find(dev);
   if (it == m->allocators_.end()) {
-    LOG(FATAL) << "Allocator for " << dev << " has not been created yet.";
+    TVM_FFI_THROW(InternalError) << "Allocator for " << dev << " has not been created yet.";
   }
   if (it->second.find(type) == it->second.end()) {
-    LOG(FATAL) << "Allocator for " << dev << " of type " << type << " has not been created yet.";
+    TVM_FFI_THROW(InternalError) << "Allocator for " << dev << " of type " << type
+                                 << " has not been created yet.";
   }
   return it->second.at(type).get();
 }
@@ -254,8 +255,8 @@ Buffer Allocator::Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
     size_t size = ffi::GetDataSize(shape.Product(), type_hint);
     return Alloc(dev, size, alignment, type_hint);
   }
-  LOG(FATAL) << "Allocator cannot allocate data space with "
-             << "specified memory scope: " << mem_scope;
+  TVM_FFI_THROW(InternalError) << "Allocator cannot allocate data space with "
+                               << "specified memory scope: " << mem_scope;
   return {};
 }
 

@@ -29,7 +29,7 @@ void PyMeasureCallbackNode::Apply(const TaskScheduler& task_scheduler,          
                                   const ffi::Array<MeasureCandidate>& measure_candidates,  //
                                   const ffi::Array<BuilderResult>& builds,                 //
                                   const ffi::Array<RunnerResult>& results) {
-  ICHECK(f_apply != nullptr) << "PyMeasureCallback's Apply method not implemented!";
+  TVM_FFI_ICHECK(f_apply != nullptr) << "PyMeasureCallback's Apply method not implemented!";
   auto _ = Profiler::TimedScope("MeasureCallback/" + this->f_as_string());
   return f_apply(task_scheduler, task_id, measure_candidates, builds, results);
 }
@@ -53,9 +53,10 @@ ffi::Array<MeasureCallback, void> MeasureCallback::Default() {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyMeasureCallbackNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyMeasureCallbackNode>();
-      ICHECK(self);
+      TVM_FFI_ICHECK(self);
       PyMeasureCallbackNode::FAsString f_as_string = (*self).f_as_string;
-      ICHECK(f_as_string != nullptr) << "PyMeasureCallback's AsString method not implemented!";
+      TVM_FFI_ICHECK(f_as_string != nullptr)
+          << "PyMeasureCallback's AsString method not implemented!";
       p->stream << f_as_string();
     });
 

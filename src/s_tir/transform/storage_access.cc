@@ -37,7 +37,7 @@ void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
   Var buf = op->buffer->data;
   StorageScope scope = GetScope(buf);
   if (Enabled(buf.get(), scope)) {
-    ICHECK(allow_append_) << op << " " << scope.to_string();
+    TVM_FFI_ICHECK(allow_append_) << op << " " << scope.to_string();
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = buf;
@@ -55,7 +55,7 @@ void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
 
 void StorageAccessVisitor::VisitStmt_(const BufferStoreNode* op) {
   allow_append_ = true;
-  ICHECK_EQ(curr_stmt_.access.size(), 0U);
+  TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
 
   Var buf = op->buffer->data;
@@ -83,7 +83,7 @@ void StorageAccessVisitor::VisitStmt_(const BufferStoreNode* op) {
 
 void StorageAccessVisitor::VisitStmt_(const EvaluateNode* op) {
   allow_append_ = true;
-  ICHECK_EQ(curr_stmt_.access.size(), 0U);
+  TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
   StmtExprVisitor::VisitStmt_(op);
   // push to the scope
@@ -96,7 +96,7 @@ void StorageAccessVisitor::VisitStmt_(const EvaluateNode* op) {
 
 void StorageAccessVisitor::VisitStmt_(const LetStmtNode* op) {
   allow_append_ = true;
-  ICHECK_EQ(curr_stmt_.access.size(), 0U);
+  TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
   this->VisitExpr(op->value);
   // push to the scope
@@ -110,7 +110,7 @@ void StorageAccessVisitor::VisitStmt_(const LetStmtNode* op) {
 
 void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::double_buffer_write) {
-    ICHECK(double_buffer_write_ == nullptr);
+    TVM_FFI_ICHECK(double_buffer_write_ == nullptr);
     double_buffer_write_ = op->node.as<VarNode>();
     scope_.push_back(std::vector<StmtEntry>());
     StmtExprVisitor::VisitStmt_(op);
@@ -170,7 +170,7 @@ void StorageAccessVisitor::VisitStmt_(const ForNode* op) {
         arith::IntSet::FromRange(Range::FromMinExtent(op->min, op->extent));
     for (AccessEntry& e : s.access) {
       if (e.buffer.defined()) {
-        ICHECK(e.touched.size());
+        TVM_FFI_ICHECK(e.touched.size());
         ffi::Array<arith::IntSet> new_touched;
         for (const auto& touched : e.touched) {
           new_touched.push_back(arith::EvalSet(touched, relax_map));
@@ -244,7 +244,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
     StmtExprVisitor::VisitExpr_(load);
   } else if (op->op.same_as(builtin::tvm_access_ptr())) {
-    ICHECK_EQ(op->args.size(), 5U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
     DataType dtype = op->args[0].dtype();
     const VarNode* buffer = op->args[1].as<VarNode>();
     PrimExpr offset = op->args[2];
@@ -253,7 +253,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     StorageScope scope = GetScope(ffi::GetRef<Var>(buffer));
     // The buffer scope.
     if (Enabled(buffer, scope)) {
-      ICHECK(allow_append_);
+      TVM_FFI_ICHECK(allow_append_);
       AccessEntry e;
       e.threads = env_threads();
       e.dtype = dtype;
@@ -271,7 +271,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     }
     StmtExprVisitor::VisitExpr_(op);
   } else if (op->op.same_as(builtin::tvm_storage_sync())) {
-    ICHECK(allow_append_);
+    TVM_FFI_ICHECK(allow_append_);
     const std::string& s = op->args[0].as<StringImmNode>()->value;
     if (s != "warp") {
       StorageScope scope = StorageScope::Create(s);

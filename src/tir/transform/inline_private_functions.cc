@@ -224,12 +224,12 @@ class PrimFuncInliner : StmtExprMutator {
 
   Stmt InlineArguments(const GlobalVar& gvar, PrimFunc callee,
                        const ffi::Array<PrimExpr>& args) const {
-    CHECK_EQ(callee->params.size(), args.size())
+    TVM_FFI_ICHECK_EQ(callee->params.size(), args.size())
         << "Callee " << gvar << " accepts " << callee->params.size() << " parameters ("
         << callee->params << "), but is called with " << args.size() << " arguments (" << args
         << ")";
 
-    ICHECK(callee->buffer_map.empty())
+    TVM_FFI_ICHECK(callee->buffer_map.empty())
         << "Inlining of PrimFuncs with buffer arguments is not yet supported, "
         << "but callee " << gvar << " has non-empty buffer map " << callee->buffer_map;
 

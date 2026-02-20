@@ -35,19 +35,19 @@ static ffi::Array<s_tir::LoopRV> ScheduleDataPack(s_tir::Schedule sch, s_tir::SB
                                                   std::vector<int> tiled,
                                                   std::vector<int> unrolled) {
   using namespace tvm::tir;
-  ICHECK_EQ(tiled.size(), 2);
-  ICHECK_EQ(unrolled.size(), 4);
+  TVM_FFI_ICHECK_EQ(tiled.size(), 2);
+  TVM_FFI_ICHECK_EQ(unrolled.size(), 4);
   ffi::Array<ExprRV> factors{ffi::UnsafeInit()};
   ffi::Array<LoopRV> loops = sch->GetLoops(block);
-  ICHECK_EQ(loops.size(), 6);
+  TVM_FFI_ICHECK_EQ(loops.size(), 6);
 
   factors = sch->SamplePerfectTile(loops[tiled[0]], /*n=*/2, /*max_innermost_factor=*/64);
   ffi::Array<LoopRV> t0 = sch->Split(loops[tiled[0]], {factors.begin(), factors.end()});
-  ICHECK_EQ(t0.size(), 2);
+  TVM_FFI_ICHECK_EQ(t0.size(), 2);
 
   factors = sch->SamplePerfectTile(loops[tiled[1]], /*n=*/2, /*max_innermost_factor=*/64);
   ffi::Array<LoopRV> t1 = sch->Split(loops[tiled[1]], {factors.begin(), factors.end()});
-  ICHECK_EQ(t1.size(), 2);
+  TVM_FFI_ICHECK_EQ(t1.size(), 2);
 
   sch->Unroll(loops[unrolled[0]]);
   sch->Unroll(loops[unrolled[1]]);

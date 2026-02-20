@@ -56,11 +56,11 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         // m16n8k8.matrixC
         // bi = 16, bj = 8
         size_t size = buffer->shape.size();
-        ICHECK_GE(size, 2);
+        TVM_FFI_ICHECK_GE(size, 2);
         const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
         const IntImmNode* dim1 = buffer->shape[size - 1].as<IntImmNode>();
-        ICHECK(dim0 != nullptr && dim1 != nullptr);
-        ICHECK(dim0->value % 16 == 0 && dim1->value % 8 == 0);
+        TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
+        TVM_FFI_ICHECK(dim0->value % 16 == 0 && dim1->value % 8 == 0);
 
         std::vector<PrimExpr> new_shape;
         for (size_t i = 0; i < size - 2; ++i) {
@@ -79,11 +79,11 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         // m16n8k8.matrixA
         // bi = 32, bj = 8
         size_t size = buffer->shape.size();
-        ICHECK_GE(size, 2);
+        TVM_FFI_ICHECK_GE(size, 2);
         const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
         const IntImmNode* dim1 = buffer->shape[size - 1].as<IntImmNode>();
-        ICHECK(dim0 != nullptr && dim1 != nullptr);
-        ICHECK(dim0->value % 32 == 0 && dim1->value % 8 == 0);
+        TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
+        TVM_FFI_ICHECK(dim0->value % 32 == 0 && dim1->value % 8 == 0);
         std::vector<PrimExpr> new_shape;
         for (size_t i = 0; i < size - 2; ++i) {
           new_shape.push_back(buffer->shape[i]);
@@ -101,11 +101,11 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         // m16n8k8.matrixB
         // bj = 8, bj = 32
         size_t size = buffer->shape.size();
-        ICHECK_GE(size, 2);
+        TVM_FFI_ICHECK_GE(size, 2);
         const IntImmNode* dim0 = buffer->shape[size - 2].as<IntImmNode>();
         const IntImmNode* dim1 = buffer->shape[size - 1].as<IntImmNode>();
-        ICHECK(dim0 != nullptr && dim1 != nullptr);
-        ICHECK(dim0->value % 8 == 0 && dim1->value % 32 == 0);
+        TVM_FFI_ICHECK(dim0 != nullptr && dim1 != nullptr);
+        TVM_FFI_ICHECK(dim0->value % 8 == 0 && dim1->value % 32 == 0);
         std::vector<PrimExpr> new_shape;
         for (size_t i = 0; i < size - 2; ++i) {
           new_shape.push_back(buffer->shape[i]);
@@ -132,7 +132,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
       auto* n = store.CopyOnWrite();
       if (store->buffer.scope() == "m16n8k8.matrixC") {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tir.index_map_m16n8k8.matrixC");
-        ICHECK(index_map_func.has_value());
+        TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
         auto new_indices = index_map->MapIndices(store->indices, &analyzer);
         n->buffer = buffer_map_[store->buffer];
@@ -151,7 +151,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
       auto* n = load.CopyOnWrite();
       if (load->buffer.scope() == "m16n8k8.matrixC") {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tir.index_map_m16n8k8.matrixC");
-        ICHECK(index_map_func.has_value());
+        TVM_FFI_ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
         auto new_indices = index_map->MapIndices(load->indices, &analyzer);
         n->buffer = buffer_map_[load->buffer];

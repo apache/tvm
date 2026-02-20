@@ -223,7 +223,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   PostOrderVisit(buf_store->value, [&](const ObjectRef& obj) {
     const BufferLoadNode* load = obj.as<BufferLoadNode>();
     if (load && load->buffer.scope() == "wmma.accumulator") {
-      ICHECK(buf_load == nullptr || buf_load->buffer.same_as(load->buffer))
+      TVM_FFI_ICHECK(buf_load == nullptr || buf_load->buffer.same_as(load->buffer))
           << "More than one source buffer of wmma accumulator found";
       buf_load = load;
     }
@@ -322,7 +322,7 @@ class WmmaToGlobalRewriter : public StmtExprMutator {
  private:
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     if (op == tgt_stmt_) {
-      ICHECK_EQ(op->seq.size(), 2);
+      TVM_FFI_ICHECK_EQ(op->seq.size(), 2);
       Stmt wmma_to_shared = RewriteWmmaStore(op->seq[0]);
       Stmt shared_to_global = CoalescedAccess().Rewrite(op->seq[1], constraints_, nullptr);
       return SeqStmt({wmma_to_shared, shared_to_global});
@@ -435,7 +435,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   PostOrderVisit(buf_store->value, [&](const ObjectRef& obj) {
     const BufferLoadNode* load = obj.as<BufferLoadNode>();
     if (load && load->buffer.scope() == "m16n8k8.matrixC") {
-      ICHECK(buf_load == nullptr || buf_load->buffer.same_as(load->buffer))
+      TVM_FFI_ICHECK(buf_load == nullptr || buf_load->buffer.same_as(load->buffer))
           << "More than one source buffer of mma accumulator found";
       buf_load = load;
     }
@@ -530,7 +530,7 @@ class MmaToGlobalRewriter : public StmtExprMutator {
  private:
   Stmt VisitStmt_(const SeqStmtNode* op) final {
     if (op == tgt_stmt_) {
-      ICHECK_EQ(op->seq.size(), 2);
+      TVM_FFI_ICHECK_EQ(op->seq.size(), 2);
       // Rewrite for local to shared.dyn
       // In this rewrite, we store local matrixC buffer to corresponding place in shared memory
       Stmt mma_to_shared = RewriteMmaStore(op->seq[0]);

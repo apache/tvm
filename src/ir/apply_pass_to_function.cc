@@ -95,7 +95,7 @@ Pass ApplyPassToFunction(Pass pass, ffi::String func_name_regex,
     }
 
     if (error_if_no_function_matches_regex) {
-      CHECK(at_least_one_function_matched_regex)
+      TVM_FFI_ICHECK(at_least_one_function_matched_regex)
           << "No function matched regex '" << func_name_regex << "', out of functions " << [&]() {
                ffi::Array<ffi::String> function_names;
                for (const auto& [gvar, func] : mod->functions) {

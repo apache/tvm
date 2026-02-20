@@ -29,32 +29,30 @@ namespace {
 // Here we just check handling which is difficult to test via the standard Python API.
 
 TEST(Scalars, IntImmToTensor_Unsupported) {
-  ASSERT_THROW(IntImmToTensor(IntImm(DataType::Int(15), 42)), runtime::InternalError);
+  ASSERT_THROW(IntImmToTensor(IntImm(DataType::Int(15), 42)), tvm::ffi::Error);
 }
 
 TEST(Scalars, FloatImmtoTensor_Unsupported) {
-  ASSERT_THROW(FloatImmToTensor(FloatImm(DataType::Float(15), 42.0)), runtime::InternalError);
+  ASSERT_THROW(FloatImmToTensor(FloatImm(DataType::Float(15), 42.0)), tvm::ffi::Error);
 }
 
 TEST(Scalars, TensorScalarToString_Unsupported) {
   auto ndarray = runtime::Tensor::Empty({}, DataType::Int(8), {DLDeviceType::kDLCPU, 0});
-  ASSERT_THROW(TensorScalarToString(ndarray), runtime::InternalError);
+  ASSERT_THROW(TensorScalarToString(ndarray), tvm::ffi::Error);
 }
 
 TEST(Scalars, IntImmToString_Unsupported) {
-  ASSERT_THROW(IntImmToString(IntImm(DataType::Int(15), 42)), runtime::InternalError);
+  ASSERT_THROW(IntImmToString(IntImm(DataType::Int(15), 42)), tvm::ffi::Error);
 }
 
 TEST(Scalars, FloatImmToString_Unsupported) {
-  ASSERT_THROW(FloatImmToString(FloatImm(DataType::Float(15), 42.0)), runtime::InternalError);
+  ASSERT_THROW(FloatImmToString(FloatImm(DataType::Float(15), 42.0)), tvm::ffi::Error);
 }
 
-TEST(Scalars, ValueToIntImm_Unsupported) {
-  ASSERT_THROW(ValueToIntImm(42, 15), runtime::InternalError);
-}
+TEST(Scalars, ValueToIntImm_Unsupported) { ASSERT_THROW(ValueToIntImm(42, 15), tvm::ffi::Error); }
 
 TEST(SCalars, ValueToFloatImm_Unsupported) {
-  ASSERT_THROW(ValueToFloatImm(42.0, 15), runtime::InternalError);
+  ASSERT_THROW(ValueToFloatImm(42.0, 15), tvm::ffi::Error);
 }
 
 }  // namespace

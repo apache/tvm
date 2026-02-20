@@ -77,9 +77,10 @@ class IRDocsifierFunctor {
     LOG(WARNING) << "ObjectFunctor calls un-registered function on type: "
                  << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
                  << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
-    ICHECK(false) << "ObjectFunctor calls un-registered function on type: "
-                  << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
-                  << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
+    TVM_FFI_ICHECK(false) << "ObjectFunctor calls un-registered function on type: "
+                          << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token
+                          << ")"
+                          << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
   }
 
   /*!
@@ -98,15 +99,15 @@ class IRDocsifierFunctor {
     }
     ffi::Function& slot = (*table)[type_index];
     if (slot != nullptr) {
-      ICHECK(false) << "Dispatch for type is already registered: "
-                    << runtime::Object::TypeIndex2Key(type_index);
+      TVM_FFI_ICHECK(false) << "Dispatch for type is already registered: "
+                            << runtime::Object::TypeIndex2Key(type_index);
     }
     slot = f;
     return *this;
   }
 
   TSelf& set_fallback(ffi::Function f) {
-    ICHECK(!dispatch_fallback_.has_value()) << "Fallback is already defined";
+    TVM_FFI_ICHECK(!dispatch_fallback_.has_value()) << "Fallback is already defined";
     dispatch_fallback_ = f;
     return *this;
   }

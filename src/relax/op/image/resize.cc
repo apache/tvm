@@ -114,7 +114,7 @@ InferLayoutOutput InferLayoutResize2d(
     const VarLayoutMap& var_layout_map) {
   const auto& it = desired_layouts.find("relax.image.resize2d");
   const auto* attrs = call->attrs.as<Resize2DAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision data_layout;
   ObjectPtr<Resize2DAttrs> new_attrs = ffi::make_object<Resize2DAttrs>(*attrs);
@@ -122,7 +122,8 @@ InferLayoutOutput InferLayoutResize2d(
   if (it != desired_layouts.end()) {
     // We have a desired layout for resize2d.
     Layout desired_data_layout = (*it).second[0];
-    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
+    TVM_FFI_ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal())
+        << "Axis swap only";
     data_layout = TransposeLike(InitialLayout(4), attrs->layout, desired_data_layout);
     new_attrs->layout = (*it).second[0];
   } else {

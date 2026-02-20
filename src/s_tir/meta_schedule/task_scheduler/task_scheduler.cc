@@ -37,11 +37,11 @@ TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
   n->task_weight = task_weight;
   n->flop = 1.0;
   auto _ = Profiler::TimedScope("InitializeTask");
-  CHECK(ctx->mod.defined()) << "ValueError: Require `context.mod`, but it is not defined";
-  CHECK(ctx->space_generator.defined())
-      << "ValueError: Require `context.space_generator`, but it is not defined";
-  CHECK(ctx->search_strategy.defined())
-      << "ValueError: Require `context.search_strategy`, but it is not defined";
+  TVM_FFI_CHECK(ctx->mod.defined(), ValueError) << "Require `context.mod`, but it is not defined";
+  TVM_FFI_CHECK(ctx->space_generator.defined(), ValueError)
+      << "Require `context.space_generator`, but it is not defined";
+  TVM_FFI_CHECK(ctx->search_strategy.defined(), ValueError)
+      << "Require `context.search_strategy`, but it is not defined";
   TVM_PY_LOG(INFO, ctx->logger) << "\n" << ctx->mod;
   ctx->Initialize();
   n->flop = std::max(1.0, s_tir::EstimateTIRFlops(ctx->mod.value()));
@@ -65,7 +65,7 @@ void SendToRunner(TaskRecordNode* self, const Runner& runner) {
   ffi::Array<MeasureCandidate> candidates = self->measure_candidates.value();
   ffi::Array<BuilderResult> builder_results = self->builder_results.value();
   Target target = self->ctx->target.value();
-  ICHECK_EQ(candidates.size(), builder_results.size());
+  TVM_FFI_ICHECK_EQ(candidates.size(), builder_results.size());
   int n = candidates.size();
   int n_build_errors = 0;
   ffi::Array<RunnerInput> inputs;
@@ -105,8 +105,8 @@ void SendToRunner(TaskRecordNode* self, const Runner& runner) {
 }
 
 void TaskCleanUp(TaskRecordNode* self, int task_id, const ffi::Array<RunnerResult>& results) {
-  ICHECK_EQ(self->builder_results.value().size(), results.size());
-  ICHECK_EQ(self->runner_futures.value().size(), results.size());
+  TVM_FFI_ICHECK_EQ(self->builder_results.value().size(), results.size());
+  TVM_FFI_ICHECK_EQ(self->runner_futures.value().size(), results.size());
   int n = results.size();
   std::string name = self->ctx->task_name.value();
   const ffi::Function& logger = self->ctx->logger;
@@ -156,8 +156,9 @@ void TaskSchedulerNode::Tune(ffi::Array<TuneContext> ctxs, ffi::Array<FloatImm> 
                              ffi::Array<MeasureCallback> measure_callbacks,
                              ffi::Optional<Database> database,
                              ffi::Optional<CostModel> cost_model) {
-  CHECK_EQ(ctxs.size(), task_weights.size()) << "ValueError: `task_weights` must have the same "
-                                                "length as `ctxs`";
+  TVM_FFI_CHECK_EQ(ctxs.size(), task_weights.size(), ValueError)
+      << "`task_weights` must have the same "
+         "length as `ctxs`";
   int n_tasks = this->remaining_tasks_ = ctxs.size();
   this->measure_callbacks_ = measure_callbacks;
   this->database_ = database;
@@ -191,8 +192,8 @@ void TaskSchedulerNode::Tune(ffi::Array<TuneContext> ctxs, ffi::Array<FloatImm> 
     TVM_PY_LOG(INFO, this->logger)
         << "TaskScheduler picks Task #" << task_id << ": " << tasks_[task_id]->ctx->task_name;
     TaskRecordNode* task = tasks_[task_id].get();
-    ICHECK(!task->is_terminated);
-    ICHECK(!task->runner_futures.defined());
+    TVM_FFI_ICHECK(!task->is_terminated);
+    TVM_FFI_ICHECK(!task->runner_futures.defined());
     if (static_cast<int>(task->latency_ms.size()) >= max_trials_per_task) {
       TerminateTask(task_id);
       continue;
@@ -223,7 +224,7 @@ void TaskSchedulerNode::Tune(ffi::Array<TuneContext> ctxs, ffi::Array<FloatImm> 
 
 ffi::Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
   TaskRecordNode* task = this->tasks_[task_id].get();
-  ICHECK(task->runner_futures.defined());
+  TVM_FFI_ICHECK(task->runner_futures.defined());
   ffi::Array<RunnerResult> results;
   {
     auto _ = Profiler::TimedScope("JoinRunnerFutures");
@@ -233,12 +234,12 @@ ffi::Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
       results.push_back(future->Result());
     }
   }
-  ICHECK(task->measure_candidates.defined());
+  TVM_FFI_ICHECK(task->measure_candidates.defined());
   task->ctx->search_strategy.value()->NotifyRunnerResults(task->measure_candidates.value(),
                                                           results);
-  ICHECK(task->builder_results.defined());
-  ICHECK_EQ(results.size(), task->measure_candidates.value().size());
-  ICHECK_EQ(results.size(), task->builder_results.value().size());
+  TVM_FFI_ICHECK(task->builder_results.defined());
+  TVM_FFI_ICHECK_EQ(results.size(), task->measure_candidates.value().size());
+  TVM_FFI_ICHECK_EQ(results.size(), task->builder_results.value().size());
   for (const MeasureCallback& callback : this->measure_callbacks_) {
     callback->Apply(ffi::GetRef<TaskScheduler>(this), task_id, task->measure_candidates.value(),
                     task->builder_results.value(), results);
@@ -264,7 +265,7 @@ void TaskSchedulerNode::TouchTask(int task_id) {
 
 void TaskSchedulerNode::TerminateTask(int task_id) {
   TaskRecordNode* task = this->tasks_[task_id].get();
-  ICHECK(!task->is_terminated);
+  TVM_FFI_ICHECK(!task->is_terminated);
   task->is_terminated = true;
   --this->remaining_tasks_;
   TVM_PY_LOG_CLEAR_SCREEN(this->logger);
@@ -335,7 +336,7 @@ void TaskSchedulerNode::PrintTuningStatistics() {
 TaskScheduler TaskScheduler::PyTaskScheduler(
     ffi::Function logger, PyTaskSchedulerNode::FNextTaskId f_next_task_id,
     PyTaskSchedulerNode::FJoinRunningTask f_join_running_task, PyTaskSchedulerNode::FTune f_tune) {
-  CHECK(f_next_task_id != nullptr) << "ValueError: next_task_id is not defined";
+  TVM_FFI_CHECK(f_next_task_id != nullptr, ValueError) << "next_task_id is not defined";
   ObjectPtr<PyTaskSchedulerNode> n = ffi::make_object<PyTaskSchedulerNode>();
   n->logger = logger;
   n->f_next_task_id = f_next_task_id;
@@ -345,7 +346,8 @@ TaskScheduler TaskScheduler::PyTaskScheduler(
 }
 
 int PyTaskSchedulerNode::NextTaskId() {
-  CHECK(f_next_task_id != nullptr) << "PyTaskScheduler's NextTaskId method not implemented!";
+  TVM_FFI_ICHECK(f_next_task_id != nullptr)
+      << "PyTaskScheduler's NextTaskId method not implemented!";
   return f_next_task_id();
 }
 

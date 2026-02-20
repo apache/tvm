@@ -74,8 +74,8 @@ class RandomEngine {
    * \brief Fills a tensor with values drawn from Unif(low, high)
    */
   void SampleUniform(DLTensor* data, float low, float high) {
-    ICHECK_GT(high, low) << "high must be bigger than low";
-    ICHECK(ffi::IsContiguous(*data));
+    TVM_FFI_ICHECK_GT(high, low) << "high must be bigger than low";
+    TVM_FFI_ICHECK(ffi::IsContiguous(*data));
 
     DLDataType dtype = data->dtype;
     int64_t size = 1;
@@ -83,14 +83,14 @@ class RandomEngine {
       size *= data->shape[i];
     }
 
-    ICHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
+    TVM_FFI_ICHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
 
     if (data->device.device_type == kDLCPU) {
       std::uniform_real_distribution<float> uniform_dist(low, high);
       std::generate_n(static_cast<float*>(data->data), size,
                       [&]() { return uniform_dist(rnd_engine_); });
     } else {
-      LOG(FATAL) << "Do not support random.uniform on this device yet";
+      TVM_FFI_THROW(InternalError) << "Do not support random.uniform on this device yet";
     }
   }
 
@@ -98,8 +98,8 @@ class RandomEngine {
    * \brief Fills a tensor with values drawn from Normal(loc, scale**2)
    */
   void SampleNormal(DLTensor* data, float loc, float scale) {
-    ICHECK_GT(scale, 0) << "standard deviation must be positive";
-    ICHECK(ffi::IsContiguous(*data));
+    TVM_FFI_ICHECK_GT(scale, 0) << "standard deviation must be positive";
+    TVM_FFI_ICHECK(ffi::IsContiguous(*data));
 
     DLDataType dtype = data->dtype;
     int64_t size = 1;
@@ -107,14 +107,14 @@ class RandomEngine {
       size *= data->shape[i];
     }
 
-    ICHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
+    TVM_FFI_ICHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
 
     if (data->device.device_type == kDLCPU) {
       std::normal_distribution<float> normal_dist(loc, scale);
       std::generate_n(static_cast<float*>(data->data), size,
                       [&]() { return normal_dist(rnd_engine_); });
     } else {
-      LOG(FATAL) << "Do not support random.normal on this device yet";
+      TVM_FFI_THROW(InternalError) << "Do not support random.normal on this device yet";
     }
   }
 
@@ -171,7 +171,8 @@ class RandomEngine {
       std::generate_n(static_cast<double*>(data) + st, ed - st,
                       [&]() { return dist(rnd_engine_); });
     } else {
-      LOG(FATAL) << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
+      TVM_FFI_THROW(InternalError)
+          << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
     }
   }
 
@@ -185,7 +186,8 @@ class RandomEngine {
         dtype.bits == 32 || dtype.bits == 64) {
       FillDataImpl(tensor->data, 0, size, dtype);
     } else {
-      LOG(FATAL) << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
+      TVM_FFI_THROW(InternalError)
+          << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
     }
   }
 
@@ -221,9 +223,10 @@ class RandomEngine {
     if (dtype.bits == 1 || dtype.bits == 4 || dtype.bits == 8 || dtype.bits == 16 ||
         dtype.bits == 32 || dtype.bits == 64) {
       int res = TVMBackendParallelLaunch(ParallelTask::RunTask, &task, 0);
-      ICHECK_EQ(res, 0) << "RandomFillForMeasure: TVMBackendParallelLaunch failed";
+      TVM_FFI_ICHECK_EQ(res, 0) << "RandomFillForMeasure: TVMBackendParallelLaunch failed";
     } else {
-      LOG(FATAL) << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
+      TVM_FFI_THROW(InternalError)
+          << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
     }
   }
 

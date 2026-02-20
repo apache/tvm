@@ -38,7 +38,7 @@ namespace contrib {
 namespace mrvl {
 
 inline size_t b64strlen(const std::string& b64str) {
-  ICHECK(b64str.size() % 4 == 0) << "invalid base64 encoding";
+  TVM_FFI_ICHECK(b64str.size() % 4 == 0) << "invalid base64 encoding";
   size_t length = b64str.size() / 4 * 3;
   if (b64str[b64str.size() - 2] == '=') {
     length -= 2;
@@ -67,7 +67,7 @@ inline void b64decode(const std::string& b64str, uint8_t* ret) {
       }
     }
   }
-  ICHECK(b64strlen(b64str) == index) << "base64 decoding fails";
+  TVM_FFI_ICHECK(b64strlen(b64str) == index) << "base64 decoding fails";
 }
 
 }  // namespace mrvl

@@ -310,7 +310,7 @@ class BaseInliner : public StmtExprMutator {
   Stmt VisitStmt_(const ForNode* loop) final {
     if (src_stmt.get() == loop) {
       loop = tgt_stmt.as<ForNode>();
-      ICHECK(loop != nullptr);
+      TVM_FFI_ICHECK(loop != nullptr);
     }
     return StmtExprMutator::VisitStmt_(loop);
   }
@@ -321,7 +321,7 @@ class BaseInliner : public StmtExprMutator {
     SBlock src_block = ffi::GetRef<SBlock>(block);
     if (src_block.same_as(src_stmt)) {
       block = tgt_stmt.as<SBlockNode>();
-      ICHECK(block != nullptr);
+      TVM_FFI_ICHECK(block != nullptr);
     }
     SBlock tgt_block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(block));
     bool is_scope_root = src_block.get() == scope_root_sref_->stmt;
@@ -546,7 +546,7 @@ class ComputeInliner : public BaseInliner {
    * \param indices The expressions that the corresponding index variables are replaced to
    */
   void SetIndexSubstitution(const ffi::Array<PrimExpr>& indices) {
-    ICHECK_EQ(indices.size(), idx_vars_.size());
+    TVM_FFI_ICHECK_EQ(indices.size(), idx_vars_.size());
     int n = idx_vars_.size();
     for (int i = 0; i < n; ++i) {
       idx_sub_[idx_vars_[i].get()] = indices[i];
@@ -1255,8 +1255,8 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
     }
   }
 
-  ICHECK_EQ(reduction_data_vars.size(), epilogue_data_vars.size())
-      << "ValueError: The number of data parallel iter vars must be the same in the reduction "
+  TVM_FFI_CHECK_EQ(reduction_data_vars.size(), epilogue_data_vars.size(), ValueError)
+      << "The number of data parallel iter vars must be the same in the reduction "
          "and epilogue blocks.";
 
   std::unordered_map<Var, Var> var_map;

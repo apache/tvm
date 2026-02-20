@@ -33,7 +33,7 @@ class NotSingleWriteBlock : public ScheduleError {
  public:
   explicit NotSingleWriteBlock(IRModule mod, Buffer buffer, ffi::Array<StmtSRef> write_blocks)
       : mod_(std::move(mod)), buffer_(std::move(buffer)) {
-    ICHECK_GT(write_blocks.size(), 1);
+    TVM_FFI_ICHECK_GT(write_blocks.size(), 1);
     write_blocks_.reserve(write_blocks.size());
     for (const StmtSRef& block_sref : write_blocks) {
       const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
@@ -92,7 +92,7 @@ ffi::Optional<BufferRegion> GetBufferRegionFromBuffer(
   ffi::Optional<BufferRegion> res = std::nullopt;
   for (const auto& region : buffer_regions) {
     if (region->buffer.same_as(buffer)) {
-      ICHECK(!res.defined());
+      TVM_FFI_ICHECK(!res.defined());
       res = region;
     }
   }
@@ -474,8 +474,8 @@ Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
 
   if (const auto* seq_stmt = body.as<SeqStmtNode>()) {
     ffi::Array<Stmt> seq = seq_stmt->seq;
-    ICHECK_LE(pos, seq.size()) << "Cannot insert at position " << pos << " into sequence of length "
-                               << seq.size();
+    TVM_FFI_ICHECK_LE(pos, seq.size())
+        << "Cannot insert at position " << pos << " into sequence of length " << seq.size();
     seq.insert(seq.begin() + pos, stage);
     body = SeqStmt(seq);
   } else if (pos == 0) {
@@ -483,9 +483,9 @@ Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
   } else if (pos == 1) {
     body = SeqStmt({body, stage});
   } else {
-    LOG(FATAL) << "Cannot insert at position " << pos
-               << ".  When inserting adjacent to non-SeqStmt, "
-               << "only positions 0 and 1 are valid.";
+    TVM_FFI_THROW(InternalError) << "Cannot insert at position " << pos
+                                 << ".  When inserting adjacent to non-SeqStmt, "
+                                 << "only positions 0 and 1 are valid.";
   }
 
   body = MergeNest(nest, body);
@@ -510,7 +510,7 @@ ffi::Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& sc
     return std::nullopt;
   } else {
     const ffi::Array<StmtSRef>& block_srefs = it->second;
-    ICHECK(!block_srefs.empty());
+    TVM_FFI_ICHECK(!block_srefs.empty());
     if (block_srefs.size() > 1) {
       throw NotSingleWriteBlock(self->mod, buffer, block_srefs);
     }
@@ -534,7 +534,7 @@ bool AllConsumersUnderStmt(ScheduleState self, Buffer buffer, StmtSRef scope_sre
   std::unordered_set<const SBlockNode*> blocks_under_target;
   for (const StmtSRef& block_sref : GetChildBlocks(self, stmt_sref)) {
     const auto* block = block_sref->StmtAs<SBlockNode>();
-    ICHECK(block != nullptr);
+    TVM_FFI_ICHECK(block != nullptr);
     blocks_under_target.insert(block);
   }
 
@@ -543,7 +543,7 @@ bool AllConsumersUnderStmt(ScheduleState self, Buffer buffer, StmtSRef scope_sre
   // target stmt.
   for (const StmtSRef& block_sref : GetChildBlocks(self, scope_sref)) {
     const auto* block = block_sref->StmtAs<SBlockNode>();
-    ICHECK(block != nullptr);
+    TVM_FFI_ICHECK(block != nullptr);
     if (GetBufferRegionFromBuffer(block->reads, buffer).defined()) {
       if (blocks_under_target.find(block) == blocks_under_target.end()) {
         return false;
@@ -576,7 +576,7 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
       /*dom_low_inclusive=*/dom_low_inclusive,
       /*dom_high_exclusive=*/dom_high_exclusive,
       /*analyzer=*/&analyzer);
-  ICHECK_EQ(buffer_region->region.size(), int_sets.size());
+  TVM_FFI_ICHECK_EQ(buffer_region->region.size(), int_sets.size());
 
   Region region;
   region.reserve(int_sets.size());
@@ -853,7 +853,7 @@ class CacheReadRewriter : public StmtExprMutator {
                              bool cache_full_region = true)
       : scope_sref_(scope_sref), info_(info), cache_full_region_(cache_full_region) {
     auto update_region = [this](const Region& region, const Region& offset) -> Region {
-      ICHECK_EQ(region.size(), offset.size());
+      TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
         ret.push_back(Range::FromMinExtent(ana_.Simplify(region[i]->min - offset[i]->min),
@@ -1110,7 +1110,7 @@ class CacheWriteRewriter : public StmtExprMutator {
         info_(info),
         cache_full_region_(cache_full_region) {
     auto update_region = [this](const Region& region, const Region& offset) -> Region {
-      ICHECK_EQ(region.size(), offset.size());
+      TVM_FFI_ICHECK_EQ(region.size(), offset.size());
       std::vector<Range> ret;
       for (size_t i = 0; i < region.size(); ++i) {
         ret.push_back(Range::FromMinExtent(ana_.Simplify(region[i]->min - offset[i]->min),
@@ -1797,7 +1797,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   }
 
   // Step 3. Check the only writer block.
-  ICHECK_EQ(block_sref.get(), GetOnlyWriteBlock(self, scope_sref, write_buffer).get());
+  TVM_FFI_ICHECK_EQ(block_sref.get(), GetOnlyWriteBlock(self, scope_sref, write_buffer).get());
 
   // Step 4. Find the producing region and insert position
   BufferRegion region = GetBufferRegionFromBuffer(block->writes, write_buffer).value();
@@ -2019,8 +2019,8 @@ StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
 
   // Step 3. Update cache stage info.
   ffi::Optional<BufferRegion> maybe_region = GetBufferRegionFromBuffer(block->reads, read_buffer);
-  ICHECK(maybe_region.defined()) << read_buffer
-                                 << " should appear in the block's read region: " << block->reads;
+  TVM_FFI_ICHECK(maybe_region.defined())
+      << read_buffer << " should appear in the block's read region: " << block->reads;
   BufferRegion cache_region = maybe_region.value();
   if (ffi::Optional<StmtSRef> _write_block_sref =
           GetOnlyWriteBlock(self, scope_sref, read_buffer)) {
@@ -2089,11 +2089,12 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
   info.write_buffer = write_buffer;
 
   // Step 3. Check the only writer block.
-  ICHECK_EQ(block_sref.get(), GetOnlyWriteBlock(self, scope_sref, write_buffer).get());
+  TVM_FFI_ICHECK_EQ(block_sref.get(), GetOnlyWriteBlock(self, scope_sref, write_buffer).get());
 
   // Step 4. Find the producing region and insert position
   ffi::Optional<BufferRegion> maybe_region = GetBufferRegionFromBuffer(block->writes, write_buffer);
-  ICHECK(maybe_region.defined()) << write_buffer << " should appear in the block's write region";
+  TVM_FFI_ICHECK(maybe_region.defined())
+      << write_buffer << " should appear in the block's write region";
   StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
   // Detect insert position
   CacheLocDetector::Detect</*is_cache_read=*/false>(self, block_sref, scope_sref, &info);
@@ -2282,8 +2283,8 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
   for (loop = block_sref->parent; loop->parent != scope_sref.get();) {
     const ForNode* outer = loop->parent->StmtAs<ForNode>();
     const ForNode* inner = loop->StmtAs<ForNode>();
-    ICHECK(outer != nullptr && inner != nullptr);
-    ICHECK(outer->body.get() == inner);
+    TVM_FFI_ICHECK(outer != nullptr && inner != nullptr);
+    TVM_FFI_ICHECK(outer->body.get() == inner);
     loop = loop->parent;
   }
 

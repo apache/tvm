@@ -24,9 +24,10 @@
 #include "../module_equality.h"
 #include "../utils.h"
 
-#define TVM_META_SCHEDULE_CHECK_PROB_RANGE(p, name)                               \
-  CHECK(0.0 <= (p) && (p) <= 1.0) << "ValueError: name should be within [0, 1], " \
-                                  << "but get `" << #p << " = " << (p) << '\'';
+#define TVM_META_SCHEDULE_CHECK_PROB_RANGE(p, name)   \
+  TVM_FFI_CHECK(0.0 <= (p) && (p) <= 1.0, ValueError) \
+      << "name should be within [0, 1], "             \
+      << "but get `" << #p << " = " << (p) << '\'';
 
 namespace tvm {
 namespace s_tir {
@@ -236,7 +237,8 @@ std::vector<double> PredictNormalizedScore(const std::vector<Schedule>& candidat
                                            const TuneContext& context,
                                            const CostModel& cost_model) {
   auto _ = Profiler::TimedScope("EvoSearch/Evolve/PredictNormalizedScore");
-  ICHECK(!candidates.empty()) << "Candidates given for score prediction can not be empty list!";
+  TVM_FFI_ICHECK(!candidates.empty())
+      << "Candidates given for score prediction can not be empty list!";
   std::vector<double> scores = cost_model->Predict(context, AssembleCandidates(candidates));
   for (double& score : scores) {
     score = std::max(0.0, score);
@@ -402,13 +404,13 @@ class EvolutionarySearchNode : public SearchStrategyNode {
                                     EvolutionarySearchNode, SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
-    CHECK(ctx->num_threads > 0) << "ValueError: `TuneContext.num_threads` must be > 0";
-    CHECK(ctx->space_generator.defined())
-        << "ValueError: `TuneContext.space_generator` must be defined";
-    CHECK(ctx->space_generator.value()->postprocs.defined())
-        << "ValueError: `TuneContext.space_generator.postprocs` must be defined";
-    CHECK(ctx->space_generator.value()->mutator_probs.defined())
-        << "ValueError: `TuneContext.space_generator.mutator_probs` must be defined";
+    TVM_FFI_CHECK(ctx->num_threads > 0, ValueError) << "`TuneContext.num_threads` must be > 0";
+    TVM_FFI_CHECK(ctx->space_generator.defined(), ValueError)
+        << "`TuneContext.space_generator` must be defined";
+    TVM_FFI_CHECK(ctx->space_generator.value()->postprocs.defined(), ValueError)
+        << "`TuneContext.space_generator.postprocs` must be defined";
+    TVM_FFI_CHECK(ctx->space_generator.value()->mutator_probs.defined(), ValueError)
+        << "`TuneContext.space_generator.mutator_probs` must be defined";
     this->ctx_ = ctx.get();
     this->postprocs_ = ctx->space_generator.value()->postprocs.value();
     this->mutator_probs_ = ctx->space_generator.value()->mutator_probs.value();
@@ -419,38 +421,41 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   void PreTuning(int max_trials, int num_trials_per_iter, const ffi::Array<Schedule>& design_spaces,
                  const ffi::Optional<Database>& database,
                  const ffi::Optional<CostModel>& cost_model) final {
-    ICHECK(!design_spaces.empty());
-    CHECK(this->ctx_ != nullptr) << "ValueError: Did you forget to initialize the TuneContext?";
-    CHECK(database.defined()) << "ValueError: Database is not supplied in PreTuning. Evolutionary"
-                                 "search algorithm requires a database to be present, so that it "
-                                 "could sample from previously-explored population. If you do not "
-                                 "intent to store data on disk, please use "
-                                 "`tvm.s_tir.meta_schedule.database.MemoryDatabase`";
-    CHECK(cost_model.defined())
-        << "ValueError: CostModel is not supplied in PreTuning. Evolutionary search "
+    TVM_FFI_ICHECK(!design_spaces.empty());
+    TVM_FFI_CHECK(this->ctx_ != nullptr, ValueError)
+        << "Did you forget to initialize the TuneContext?";
+    TVM_FFI_CHECK(database.defined(), ValueError)
+        << "Database is not supplied in PreTuning. Evolutionary"
+           "search algorithm requires a database to be present, so that it "
+           "could sample from previously-explored population. If you do not "
+           "intent to store data on disk, please use "
+           "`tvm.s_tir.meta_schedule.database.MemoryDatabase`";
+    TVM_FFI_CHECK(cost_model.defined(), ValueError)
+        << "CostModel is not supplied in PreTuning. Evolutionary search "
            "algorithm expects a cost model to filter out potentially less efficient kernels. If "
            "you do not expect a cost model to help, please use "
            "`tvm.s_tir.meta_schedule.cost_model.RandomModel`";
-    CHECK(this->state_ == nullptr)
-        << "ValueError: `PreTuning` is already invoked without corresponding `PostTuning`.";
+    TVM_FFI_CHECK(this->state_ == nullptr, ValueError)
+        << "`PreTuning` is already invoked without corresponding `PostTuning`.";
     this->state_ = std::make_unique<State>(this, max_trials, num_trials_per_iter, design_spaces,
                                            database.value(), cost_model.value());
   }
 
   void PostTuning() final {
-    CHECK(this->state_ != nullptr) << "ValueError: `PostTuning` is invoked without corresponding "
-                                      "`PreTuning`, or `PostTuning` is already invoked.";
+    TVM_FFI_CHECK(this->state_ != nullptr, ValueError)
+        << "`PostTuning` is invoked without corresponding "
+           "`PreTuning`, or `PostTuning` is already invoked.";
     this->state_.reset();
   }
 
   ffi::Optional<ffi::Array<MeasureCandidate>> GenerateMeasureCandidates() final {
-    ICHECK(this->state_ != nullptr);
+    TVM_FFI_ICHECK(this->state_ != nullptr);
     return this->state_->GenerateMeasureCandidates();
   }
 
   void NotifyRunnerResults(const ffi::Array<MeasureCandidate>& measure_candidates,
                            const ffi::Array<RunnerResult>& results) final {
-    ICHECK(this->state_ != nullptr);
+    TVM_FFI_ICHECK(this->state_ != nullptr);
     this->state_->NotifyRunnerResults(measure_candidates, results);
   }
 
@@ -490,11 +495,11 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
     const IRModule& mod = data.mod;
     s_tir::Trace trace = measured_traces.at(trace_id);
     Schedule& result = results.at(trace_id);
-    ICHECK(!result.defined());
+    TVM_FFI_ICHECK(!result.defined());
     if (ffi::Optional<Schedule> sch = pp.Apply(mod, trace, rand_state)) {
       result = sch.value();
     } else {
-      LOG(FATAL) << "ValueError: Cannot postprocess the trace:\n" << trace;
+      TVM_FFI_THROW(ValueError) << "Cannot postprocess the trace:\n" << trace;
       throw;
     }
   };
@@ -515,7 +520,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
       TRandState* rand_state = &data.rand_state;
       const IRModule& mod = data.mod;
       Schedule& result = results.at(trace_id);
-      ICHECK(!result.defined());
+      TVM_FFI_ICHECK(!result.defined());
       int design_space_index = s_tir::SampleInt(rand_state, 0, design_spaces.size());
       s_tir::Trace trace(design_spaces[design_space_index]->insts, {});
       if (ffi::Optional<Schedule> sch = pp.Apply(mod, trace, rand_state)) {
@@ -542,7 +547,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
   IRModuleSet exists(database_->GetModuleEquality());
   {
     auto _ = Profiler::TimedScope("EvoSearch/Evolve/Misc/CopyMeasuredWorkloads");
-    ICHECK_GT(num, 0);
+    TVM_FFI_ICHECK_GT(num, 0);
     // The heap to record best schedule, we do not consider schedules that are already measured
     exists = this->measured_workloads_;
   }
@@ -554,7 +559,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
 
     {
       auto _ = Profiler::TimedScope("EvoSearch/Evolve/Misc");
-      ICHECK_EQ(scores.size(), population.size());
+      TVM_FFI_ICHECK_EQ(scores.size(), population.size());
       for (int i = 0, n = population.size(); i < n; ++i) {
         Schedule sch = population.at(i);
         IRModule mod = sch->mod();
@@ -708,7 +713,7 @@ EvolutionarySearchNode::State::GenerateMeasureCandidates() {
     sample_num = max_trials - st;
     ed = max_trials;
   }
-  ICHECK_LT(st, ed);
+  TVM_FFI_ICHECK_LT(st, ed);
   int pop = self->population_size;
   std::vector<Schedule> inits;
   inits.reserve(pop);

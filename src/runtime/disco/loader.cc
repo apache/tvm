@@ -57,7 +57,7 @@ struct ShardInfo {
 std::unordered_map<std::string, ShardInfo> LoadShardInfoFromStr(const std::string& json_str);
 
 ShardInfo::TensorInfo LoadTensorInfoFromJSON(const json::Array& json_tensor_info) {
-  CHECK_EQ(json_tensor_info.size(), 2) << "ValueError: Invalid tensor info JSON";
+  TVM_FFI_CHECK_EQ(json_tensor_info.size(), 2, ValueError) << "Invalid tensor info JSON";
   json::Array shape_json = json_tensor_info[0].cast<json::Array>();
   int ndim = shape_json.size();
   std::vector<int64_t> shape;
@@ -186,7 +186,7 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
         } else if (const auto f = tvm::ffi::Function::GetGlobal(name)) {
           n->shard_funcs_[name] = *f;
         } else {
-          LOG(FATAL) << "ValueError: Undefined function: " << name;
+          TVM_FFI_THROW(ValueError) << "Undefined function: " << name;
         }
       }
       n->param_info_.emplace_back(ParamInfo{&file_record, &param_record, shard_info});
@@ -219,7 +219,7 @@ std::string GetSiblingPath(const std::string& path, const std::string& filename)
   if (found != std::string::npos) {
     return path.substr(0, found + 1) + filename;
   }
-  LOG(FATAL) << "ValueError: Cannot find the parent directory: " << path;
+  TVM_FFI_THROW(ValueError) << "Cannot find the parent directory: " << path;
   return "";
 }
 
@@ -256,18 +256,18 @@ std::tuple<int, int> ParseParamShardingInfo(const ParamRecord* param) {
 
   std::string name = param->name;
   size_t pos1 = name.rfind("-of-");
-  CHECK(pos1 != std::string::npos)
+  TVM_FFI_ICHECK(pos1 != std::string::npos)
       << "Attempt to read num_shards from unexpected param name: " << name;
   size_t pos2 = name.rfind("_shard-", pos1 - 1);
-  CHECK(pos2 != std::string::npos)
+  TVM_FFI_ICHECK(pos2 != std::string::npos)
       << "Attempt to read sharded worker_id from unexpected param name: " << name;
 
   int num_shards = std::stoi(name.substr(pos1 + 4));
   int worker_id = std::stoi(name.substr(pos2 + 7, pos1 - pos2 - 7)) - 1;
 
-  CHECK_GT(num_shards, 1);
-  CHECK_GE(worker_id, 0);
-  CHECK_LT(worker_id, num_shards);
+  TVM_FFI_ICHECK_GT(num_shards, 1);
+  TVM_FFI_ICHECK_GE(worker_id, 0);
+  TVM_FFI_ICHECK_LT(worker_id, num_shards);
 
   return {num_shards, worker_id};
 }
@@ -300,8 +300,8 @@ Tensor ShardLoaderObj::Load(int weight_index) const {
   if (needs_sharding) {
     ffi::Shape shape = param_info.shard_info.funcs.back().output_info.shape;
     DataType dtype = param_info.shard_info.funcs.back().output_info.dtype;
-    ICHECK(shape.size() >= 1 && shape[0] == num_shards)
-        << "ValueError: The first dimension of the "
+    TVM_FFI_CHECK(shape.size() >= 1 && shape[0] == num_shards, ValueError)
+        << "The first dimension of the "
         << "output shape must be equal to the "
         << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
     Tensor recv = Tensor::Empty(ffi::Shape(shape.begin() + 1, shape.end()), dtype, device);
@@ -334,7 +334,7 @@ ffi::Array<Tensor> ShardLoaderObj::LoadAll() const {
   shards.reserve(n);
   for (int i = 0; i < n; ++i) {
     std::string param_name = "param_" + std::to_string(i);
-    ICHECK(this->param_name_to_index_.count(param_name));
+    TVM_FFI_ICHECK(this->param_name_to_index_.count(param_name));
     int shard_id = this->param_name_to_index_.at(param_name);
     shards.push_back(this->Load(shard_id));
   }
@@ -347,7 +347,7 @@ Tensor ShardLoaderObj::LoadPresharded(int weight_index) const {
   int num_shards = worker->num_workers;
   size_t num_weights = param_info_.size() / num_shards;
   size_t index = worker_id * num_weights + weight_index;
-  CHECK(index < param_info_.size())
+  TVM_FFI_ICHECK(index < param_info_.size())
       << "Loading param " << weight_index << " for shard " << worker_id << " at position " << index
       << " is out of bounds for the provided ndarray chace.";
 
@@ -356,11 +356,11 @@ Tensor ShardLoaderObj::LoadPresharded(int weight_index) const {
   const FileRecord* file = shard_info.file;
 
   auto [p_num_shards, p_worker_id] = ParseParamShardingInfo(param);
-  CHECK_EQ(num_shards, p_num_shards)
+  TVM_FFI_ICHECK_EQ(num_shards, p_num_shards)
       << "Runtime number of shards (" << num_shards
       << ") does not match number of compiled shards (" << p_num_shards << "): " << param->name
       << " loaded from " << file->data_path;
-  CHECK_EQ(worker_id, p_worker_id)
+  TVM_FFI_ICHECK_EQ(worker_id, p_worker_id)
       << "Runtime worker_id (" << worker_id << ") does not match worker_id of compiled shard ("
       << p_worker_id << "): " << param->name << " loaded from " << file->data_path;
 
@@ -382,7 +382,7 @@ ffi::Array<Tensor> ShardLoaderObj::LoadAllPresharded() const {
                                  .str();
 
     auto it = param_name_to_index_.find(param_name);
-    CHECK(it != param_name_to_index_.end())
+    TVM_FFI_ICHECK(it != param_name_to_index_.end())
         << "Parameter " << param_name << " was not found in the parameter set";
     int param_id = this->param_name_to_index_.at(param_name);
     params.push_back(this->LoadDirect(param_id));
@@ -397,36 +397,36 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("runtime.disco.ShardLoaderLoad",
            [](ObjectRef loader_obj, ffi::Shape weight_index) {
              const auto* loader = loader_obj.as<ShardLoaderObj>();
-             CHECK(loader != nullptr)
-                 << "TypeError: Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
+             TVM_FFI_CHECK(loader != nullptr, TypeError)
+                 << "Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
              return loader->Load(IntegerFromShape(weight_index));
            })
       .def("runtime.disco.ShardLoaderLoadPresharded",
            [](ObjectRef loader_obj, ffi::Shape weight_index) {
              const auto* loader = loader_obj.as<ShardLoaderObj>();
-             CHECK(loader != nullptr)
-                 << "TypeError: Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
+             TVM_FFI_CHECK(loader != nullptr, TypeError)
+                 << "Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
              return loader->LoadPresharded(IntegerFromShape(weight_index));
            })
       .def("runtime.disco.ShardLoaderLoadAll",
            [](ObjectRef loader_obj) {
              const auto* loader = loader_obj.as<ShardLoaderObj>();
-             CHECK(loader != nullptr)
-                 << "TypeError: Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
+             TVM_FFI_CHECK(loader != nullptr, TypeError)
+                 << "Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
              return loader->LoadAll();
            })
       .def("runtime.disco.ShardLoaderLoadAllPresharded",
            [](ObjectRef loader_obj) {
              const auto* loader = loader_obj.as<ShardLoaderObj>();
-             CHECK(loader != nullptr)
-                 << "TypeError: Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
+             TVM_FFI_CHECK(loader != nullptr, TypeError)
+                 << "Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
              return loader->LoadAllPresharded();
            })
       .def("runtime.disco.ShardLoaderLoadParamOnWorker0",
            [](ObjectRef loader_obj, int param_index) {
              const auto* loader = loader_obj.as<ShardLoaderObj>();
-             CHECK(loader != nullptr)
-                 << "TypeError: Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
+             TVM_FFI_CHECK(loader != nullptr, TypeError)
+                 << "Expected ShardLoaderObj, but gets: " << loader_obj->GetTypeKey();
              return loader->LoadParamOnWorker0(param_index);
            });
 }

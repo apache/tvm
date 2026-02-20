@@ -86,7 +86,7 @@ std::unordered_map<Var, std::pair<int, int>> AnalyzeLiveness(const DataflowBlock
     } else {
       // this means the var is used later but we encountered its definition now
       auto last_range = ret[defined_var];
-      CHECK_EQ(last_range.first, -1);
+      TVM_FFI_ICHECK_EQ(last_range.first, -1);
       std::pair<int, int> new_range = {i, last_range.second};
       ret[defined_var] = new_range;
     }

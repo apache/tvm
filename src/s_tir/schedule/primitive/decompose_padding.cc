@@ -173,7 +173,7 @@ class PaddingInfoAnalyzer {
       if (sum->args.empty()) {
         region.push_back(Range::FromMinExtent(sum->base, IntImm(sum->base.dtype(), /* value */ 1)));
       } else {
-        ICHECK_EQ(sum->args.size(), 1U);
+        TVM_FFI_ICHECK_EQ(sum->args.size(), 1U);
         if (!analyzer_->CanProveEqual(sum->args[0]->scale, 1)) {
           SetError("Strided iteration is not supported");
           return {};
@@ -218,7 +218,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   };
 
   // create new write region
-  ICHECK_EQ(block->writes.size(), 1U);
+  TVM_FFI_ICHECK_EQ(block->writes.size(), 1U);
   BufferRegion write_region = BufferRegion(
       block->writes[0]->buffer, block->writes[0]->region.Map([rewrite_expr](const Range& r) {
         return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
@@ -438,7 +438,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
     loops.push_back(cur_loop);
 
     if (cur_loop.same_as(const_filling_pos)) {
-      ICHECK(!found_const_filling_pos);
+      TVM_FFI_ICHECK(!found_const_filling_pos);
       found_const_filling_pos = true;
       if (!found_in_bound_filling_pos) {
         found_in_bound_filling_pos = true;
@@ -453,7 +453,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
       }
     }
   }
-  ICHECK(in_bound_filling_pos.defined());
+  TVM_FFI_ICHECK(in_bound_filling_pos.defined());
   if (!found_const_filling_pos) {
     throw LoopPositionError(self->mod, const_filling_pos, ffi::GetRef<SBlock>(block),
                             "decompose_padding");

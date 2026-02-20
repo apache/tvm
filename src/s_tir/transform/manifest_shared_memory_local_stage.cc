@@ -53,9 +53,10 @@ class IntermediateStageRewriter {
 
   std::tuple<Buffer, Buffer, SBlock, Stmt> Rewrite(const SBlockNode* block) {
     const BufferStoreNode* store = block->body.as<BufferStoreNode>();
-    CHECK(store != nullptr && runtime::StorageScope::Create(store->buffer.scope()).rank ==
-                                  runtime::StorageRank::kShared)
-        << "ValueError: Expect the body of the block to be BufferStore to shared memory.";
+    TVM_FFI_CHECK(store != nullptr && runtime::StorageScope::Create(store->buffer.scope()).rank ==
+                                          runtime::StorageRank::kShared,
+                  ValueError)
+        << "Expect the body of the block to be BufferStore to shared memory.";
 
     const Buffer& target_buffer = store->buffer;
 
@@ -69,8 +70,9 @@ class IntermediateStageRewriter {
     Stmt local_stage = MakeLocalStage(block, new_buffer, buffer_indices, relaxed_loops, store);
 
     // Step 3: Create BufferLoad from the intermediate buffer
-    ICHECK(!store->predicate.defined()) << "Predicated buffer store is not currently supported in "
-                                           "manifest shared memory local stage pass.";
+    TVM_FFI_ICHECK(!store->predicate.defined())
+        << "Predicated buffer store is not currently supported in "
+           "manifest shared memory local stage pass.";
     BufferLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
     BufferStore new_buffer_store = Downcast<BufferStore>(block->body);
     new_buffer_store.CopyOnWrite()->value = new_buffer_load;
@@ -88,30 +90,30 @@ class IntermediateStageRewriter {
     for (int n = static_cast<int>(ancestor_loop_or_blocks_.size()) - 1, i = n - 1; i >= 0; --i) {
       const Stmt& ancestor = ancestor_loop_or_blocks_[i];
       if (const ForNode* ancestor_loop = ancestor.as<ForNode>()) {
-        CHECK(ancestor_loop->kind == ForKind::kSerial ||
-              ancestor_loop->kind == ForKind::kVectorized)
-            << "ValueError: Expect the ancestor loops to be serial or vectorized, got "
-            << ancestor_loop->kind;
+        TVM_FFI_CHECK(
+            ancestor_loop->kind == ForKind::kSerial || ancestor_loop->kind == ForKind::kVectorized,
+            ValueError)
+            << "Expect the ancestor loops to be serial or vectorized, got " << ancestor_loop->kind;
         relaxed_loops.push_back(ancestor.as<ForNode>());
 
         if (i < n - 1) {
-          CHECK(ancestor_loop->body.same_as(ancestor_loop_or_blocks_[i + 1]))
-              << "ValueError: Expect the ancestor loops to have a single child.";
+          TVM_FFI_CHECK(ancestor_loop->body.same_as(ancestor_loop_or_blocks_[i + 1]), ValueError)
+              << "Expect the ancestor loops to have a single child.";
         } else {
           const SBlockRealizeNode* block_realize = ancestor_loop->body.as<SBlockRealizeNode>();
-          ICHECK(block_realize != nullptr);
-          CHECK(block_realize != nullptr && block_realize->block.get() == block)
-              << "ValueError: Expect the ancestor loops to have a single child.";
+          TVM_FFI_ICHECK(block_realize != nullptr);
+          TVM_FFI_CHECK(block_realize != nullptr && block_realize->block.get() == block, ValueError)
+              << "Expect the ancestor loops to have a single child.";
         }
       } else {
         const SBlockRealizeNode* ancestor_block_realize = ancestor.as<SBlockRealizeNode>();
-        ICHECK(ancestor_block_realize != nullptr);
+        TVM_FFI_ICHECK(ancestor_block_realize != nullptr);
         const SBlockNode* ancestor_block = ancestor_block_realize->block.get();
         auto it = std::find_if(
             ancestor_block->alloc_buffers.begin(), ancestor_block->alloc_buffers.end(),
             [&target_buffer](const Buffer& buffer) { return buffer.same_as(target_buffer); });
-        CHECK(it != ancestor_block->alloc_buffers.end())
-            << "ValueError: Expect the shared memory allocation to be in the parent block.";
+        TVM_FFI_CHECK(it != ancestor_block->alloc_buffers.end(), ValueError)
+            << "Expect the shared memory allocation to be in the parent block.";
         break;
       }
     }

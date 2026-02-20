@@ -57,7 +57,7 @@ class ConstantFolder : public ExprMutator {
     }
 
     const auto* shape = tensor_sinfo->shape.as<ShapeExprNode>();
-    ICHECK(shape != nullptr) << "struct info given by call_tir should have ShapeExpr shape";
+    TVM_FFI_ICHECK(shape != nullptr) << "struct info given by call_tir should have ShapeExpr shape";
 
     std::vector<int64_t> shape_values;
     for (const auto v : shape->values) {
@@ -268,12 +268,12 @@ class ConstantFolder : public ExprMutator {
   // Returns the folded expr if the call is successfully folded to constant, otherwise null.
   ffi::Optional<Expr> VisitCallTIR(Call call) {
     // call_tir needs to have at least two arguments
-    ICHECK_GE(call->args.size(), 2);
+    TVM_FFI_ICHECK_GE(call->args.size(), 2);
     ffi::Optional<tir::PrimFunc> func = MatchPrimFunc(call->args[0]);
-    ICHECK(call->args[1].as<TupleNode>()) << "call_tir.args[1] must be Tuple";
+    TVM_FFI_ICHECK(call->args[1].as<TupleNode>()) << "call_tir.args[1] must be Tuple";
     ffi::Optional<ffi::Array<runtime::Tensor>> arr_args =
         MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
-    ICHECK_EQ(call->sinfo_args.size(), 1) << "call_tir should have exactly one sinfo arg";
+    TVM_FFI_ICHECK_EQ(call->sinfo_args.size(), 1) << "call_tir should have exactly one sinfo arg";
 
     if (!func || !arr_args) return {};
 
@@ -361,15 +361,15 @@ class ConstantFolder : public ExprMutator {
         //   Thus, this is a temporary solution until we have a consensus about
         //   how to deal with composite ops. One possibility is we register the
         //   decomposition map for each op in a similar way we do for legalization.
-        ICHECK_EQ(post_call->args.size(), 1);
+        TVM_FFI_ICHECK_EQ(post_call->args.size(), 1);
         Expr arg = post_call->args[0];
         if (arg->IsInstance<ConstantNode>()) {
           Constant constant = Downcast<Constant>(arg);
           runtime::Tensor ndarray = constant->data;
-          ICHECK_EQ(ndarray->device.device_type, kDLCPU);
-          ICHECK(ndarray.IsContiguous());
-          ICHECK_EQ(ndarray->byte_offset, 0);
-          ICHECK_EQ(ndarray->ndim, 1);
+          TVM_FFI_ICHECK_EQ(ndarray->device.device_type, kDLCPU);
+          TVM_FFI_ICHECK(ndarray.IsContiguous());
+          TVM_FFI_ICHECK_EQ(ndarray->byte_offset, 0);
+          TVM_FFI_ICHECK_EQ(ndarray->ndim, 1);
           const int64_t* data = static_cast<const int64_t*>(ndarray->data);
           int64_t num_elems = ndarray->shape[0];
           ffi::Array<PrimExpr> shape_values;

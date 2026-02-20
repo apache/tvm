@@ -36,7 +36,7 @@ namespace tir {
  */
 #define TVM_SREF_AS_OR_ERR(Result, SRef, Type) \
   SRef->StmtAs<Type>();                        \
-  ICHECK(Result)
+  TVM_FFI_CHECK(Result, TypeError)
 
 /*!
  * \brief A helper macro to convert an sref to the block it points to,
@@ -46,12 +46,12 @@ namespace tir {
  *
  * \param SRef The SRef to be cast
  */
-#define TVM_SREF_TO_SBLOCK(SRef)                                                                   \
-  [&]() {                                                                                          \
-    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tir::SBlockNode)                       \
-                  << "TypeError: Expects StmtSRef `" << #SRef << "` points to `Block`, but gets: " \
-                  << ((SRef)->stmt ? (SRef)->stmt->GetTypeKey() : "None");                         \
-    return result;                                                                                 \
+#define TVM_SREF_TO_SBLOCK(SRef)                                                        \
+  [&]() {                                                                               \
+    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tir::SBlockNode)            \
+                  << "Expects StmtSRef `" << #SRef << "` points to `Block`, but gets: " \
+                  << ((SRef)->stmt ? (SRef)->stmt->GetTypeKey() : "None");              \
+    return result;                                                                      \
   }()
 
 /*!
@@ -62,12 +62,12 @@ namespace tir {
  *
  * \param SRef The SRef to be cast
  */
-#define TVM_SREF_TO_FOR(SRef)                                                                     \
-  [&]() {                                                                                         \
-    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tir::ForNode)                         \
-                  << "TypeError: Expects StmtSRef `" << #SRef << "` points to `Loop`, but gets: " \
-                  << ((SRef)->stmt ? (SRef)->stmt->GetTypeKey() : "None");                        \
-    return result;                                                                                \
+#define TVM_SREF_TO_FOR(SRef)                                                          \
+  [&]() {                                                                              \
+    auto result = TVM_SREF_AS_OR_ERR(result, (SRef), ::tvm::tir::ForNode)              \
+                  << "Expects StmtSRef `" << #SRef << "` points to `Loop`, but gets: " \
+                  << ((SRef)->stmt ? (SRef)->stmt->GetTypeKey() : "None");             \
+    return result;                                                                     \
   }()
 
 /*!
@@ -79,7 +79,7 @@ namespace tir {
  */
 #define TVM_TYPE_AS_OR_ERR(Result, From, Type) \
   From.as<Type>();                             \
-  ICHECK(Result)
+  TVM_FFI_CHECK(Result, TypeError)
 
 /*!
  * \brief Downcast a TVM ObjectRef to its corresponding container using `ObjectRef::as<Type>`,
@@ -87,12 +87,12 @@ namespace tir {
  * \param From The ObjectRef to be downcast
  * \param Type The type to be downcast to
  */
-#define TVM_TYPE_AS(From, Type)                                                               \
-  [&]() {                                                                                     \
-    auto result = TVM_TYPE_AS_OR_ERR(result, (From), Type)                                    \
-                  << "TypeError: Expects `" << #From << "` to have type `" << Type::_type_key \
-                  << "`, but gets: " << ((From).GetTypeKey());                                \
-    return result;                                                                            \
+#define TVM_TYPE_AS(From, Type)                                                    \
+  [&]() {                                                                          \
+    auto result = TVM_TYPE_AS_OR_ERR(result, (From), Type)                         \
+                  << "Expects `" << #From << "` to have type `" << Type::_type_key \
+                  << "`, but gets: " << ((From).GetTypeKey());                     \
+    return result;                                                                 \
   }()
 
 /*!
@@ -107,14 +107,14 @@ inline void SetSeqIndex(std::unordered_map<const StmtNode*, StmtSRef>& stmt2ref,
                         const Stmt& stmt, int seq_index, bool include_loops = true) {
   if (const auto* realize = stmt.as<SBlockRealizeNode>()) {
     const SBlockNode* block = realize->block.get();
-    ICHECK(stmt2ref.count(block));
+    TVM_FFI_ICHECK(stmt2ref.count(block));
     stmt2ref.at(block)->seq_index = seq_index;
   } else if (const auto* block = stmt.as<SBlockNode>()) {
-    ICHECK(stmt2ref.count(block));
+    TVM_FFI_ICHECK(stmt2ref.count(block));
     stmt2ref.at(block)->seq_index = seq_index;
   } else if (const auto* loop = stmt.as<ForNode>()) {
     if (!include_loops) return;
-    ICHECK(stmt2ref.count(loop));
+    TVM_FFI_ICHECK(stmt2ref.count(loop));
     stmt2ref.at(loop)->seq_index = seq_index;
   }
 }

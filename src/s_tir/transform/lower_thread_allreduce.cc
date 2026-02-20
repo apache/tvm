@@ -55,7 +55,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return ret;
     } else if (op->attr_key == tir::attr::reduce_scope) {
       const CommReducerNode* combiner = op->node.as<CommReducerNode>();
-      ICHECK(combiner);
+      TVM_FFI_ICHECK(combiner);
       reduce_combiner_.push_back(combiner);
       Stmt ret = StmtExprMutator::VisitStmt_(op);
       reduce_combiner_.pop_back();
@@ -119,7 +119,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     if (auto it = load_remap_.find(op->buffer->data.get()); it != load_remap_.end()) {
       for (const auto& index : op->indices) {
-        ICHECK(is_zero(index));
+        TVM_FFI_ICHECK(is_zero(index));
       }
       return it->second;
     }
@@ -156,13 +156,13 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
   // make allreduce.
   Stmt MakeAllreduce(const CallNode* call) {
-    ICHECK(!reduce_combiner_.empty());
+    TVM_FFI_ICHECK(!reduce_combiner_.empty());
     const CommReducerNode* combiner = reduce_combiner_.back();
     size_t size = combiner->result.size();
 
     const IntImmNode* size_of_args = call->args[0].as<IntImmNode>();
-    ICHECK(size_of_args) << call->args[0]->GetTypeKey();
-    ICHECK_EQ(size, size_of_args->value);
+    TVM_FFI_ICHECK(size_of_args) << call->args[0]->GetTypeKey();
+    TVM_FFI_ICHECK_EQ(size, size_of_args->value);
     ffi::Array<PrimExpr> inits = combiner->identity_element;
     std::vector<PrimExpr> values(size);
     std::vector<DataType> types(size);
@@ -194,7 +194,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       if (v) {
         reduce_set.insert(v);
       } else {
-        ICHECK(call->args[i].as<IntImmNode>() && call->args[i].as<IntImmNode>()->value == 0)
+        TVM_FFI_ICHECK(call->args[i].as<IntImmNode>() && call->args[i].as<IntImmNode>()->value == 0)
             << "arg" << i << "should be a VarNode or IntImmNode";
       }
     }
@@ -206,11 +206,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       IterVar iv = Downcast<IterVar>(attr->node);
       e.scope = runtime::ThreadScope::Create(iv->thread_tag);
       e.iv = iv;
-      ICHECK_LE(e.scope.rank, 1);
-      ICHECK_GE(e.scope.dim_index, 0) << "vthread do not work with cross thread reduction";
+      TVM_FFI_ICHECK_LE(e.scope.rank, 1);
+      TVM_FFI_ICHECK_GE(e.scope.dim_index, 0) << "vthread do not work with cross thread reduction";
       if (e.scope.rank == 1) {
         const auto* ptr = attr->value.as<IntImmNode>();
-        ICHECK(ptr) << "Need constant extent for reduce set " << iv;
+        TVM_FFI_ICHECK(ptr) << "Need constant extent for reduce set " << iv;
         e.extent = static_cast<int>(ptr->value);
         // ignore variables equal to 0
         if (e.extent == 1) {
@@ -225,7 +225,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         }
       }
     }
-    ICHECK_EQ(nmatch, reduce_set.size()) << "Not all reduce index are presented in the context";
+    TVM_FFI_ICHECK_EQ(nmatch, reduce_set.size())
+        << "Not all reduce index are presented in the context";
     std::sort(vred.begin(), vred.end());
     std::sort(vpar.begin(), vpar.end());
     // the size of each index.
@@ -306,7 +307,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         for (size_t i = 0; i < size; ++i) {
           Buffer buf = Downcast<BufferLoad>(reduce_results[i])->buffer;
           PrimExpr val = BufferLoad(buf, {zero_index});
-          ICHECK_EQ(val->dtype, types[i]);
+          TVM_FFI_ICHECK_EQ(val->dtype, types[i]);
           PrimExpr splat = WarpShuffle(builtin::tvm_warp_shuffle(), new_alloc_bufs.back(), val,
                                        reduce_extent * group_index);
           seq.push_back(BufferStore(buf, splat, {zero_index}));
@@ -377,10 +378,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
       // Write back allreduce results and update existing allocations.
       for (size_t i = 0; i < size; ++i) {
-        ICHECK(!load_remap_.count(buffers[i]->data.get()));
+        TVM_FFI_ICHECK(!load_remap_.count(buffers[i]->data.get()));
         PrimExpr pred = const_true(types[i].lanes());
         Buffer buf = Downcast<BufferLoad>(reduce_results[i])->buffer;
-        ICHECK_EQ(reduce_results[i]->dtype, types[i]);
+        TVM_FFI_ICHECK_EQ(reduce_results[i]->dtype, types[i]);
         load_remap_[buffers[i]->data.get()] = reduce_results[i];
 
         auto node = Allocate(buf->data, types[i], buf->shape, pred, Evaluate(0));
@@ -411,11 +412,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       seq.emplace_back(MakeBufAllreduce(combiner, types, shared_bufs, reduce_index, group_index,
                                         reduce_extent, group_extent, contiguous_reduce_extent));
       for (size_t idx = 0; idx < size; ++idx) {
-        ICHECK(!load_remap_.count(buffers[idx]->data.get()));
+        TVM_FFI_ICHECK(!load_remap_.count(buffers[idx]->data.get()));
         PrimExpr pred = const_true(types[idx].lanes());
         BufferLoad load(shared_bufs[idx],
                         {BufIndex(make_zero(reduce_index.dtype()), group_index, reduce_extent)});
-        ICHECK_EQ(load->dtype, types[idx]);
+        TVM_FFI_ICHECK_EQ(load->dtype, types[idx]);
         load_remap_[buffers[idx]->data.get()] = load;
         alloc_remap_[buffers[idx]->data.get()] = shared_bufs[idx];
         var_remap_[buffers[idx]->data.get()] = shared_bufs[idx]->data;
@@ -494,7 +495,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       for (int i = 0; i < n_buffers; ++i) {
         Buffer shared_buf = shared_bufs[i];
         BufferLoad val(shared_buf, zero_indices);
-        ICHECK_EQ(val->dtype, dtypes[i]);
+        TVM_FFI_ICHECK_EQ(val->dtype, dtypes[i]);
         a.push_back(val);
 
         // __shfl_*sync calls shall not appear in if_then_else expressions
@@ -515,7 +516,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         seq->push_back(s);
 
         BufferLoad load = BufferLoad(local_buf, zero_indices);
-        ICHECK_EQ(load->dtype, dtypes[i]);
+        TVM_FFI_ICHECK_EQ(load->dtype, dtypes[i]);
         b.push_back(load);
       }
 
@@ -563,7 +564,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     while (reduce_extent > reduce_align) {
       reduce_align = reduce_align << 1;
     }
-    ICHECK_GT(reduce_align, 1);
+    TVM_FFI_ICHECK_GT(reduce_align, 1);
     std::vector<Stmt> seq;
 
     size_t size = shared_bufs.size();
@@ -574,11 +575,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       for (size_t i = 0; i < size; ++i) {
         BufferLoad b_load(shared_bufs[i],
                           {BufIndex(reduce_index + offset, group_index, reduce_extent)});
-        ICHECK_EQ(b_load->dtype, types[i]);
+        TVM_FFI_ICHECK_EQ(b_load->dtype, types[i]);
         b.push_back(b_load);
 
         BufferLoad a_load(shared_bufs[i], {buf_index});
-        ICHECK_EQ(a_load->dtype, types[i]);
+        TVM_FFI_ICHECK_EQ(a_load->dtype, types[i]);
         a.push_back(a_load);
       }
       ffi::Array<PrimExpr> ret = (*combiner)(a, b);
@@ -676,7 +677,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       if (ret.defined()) {
         ret = ret + e.iv->var * total_extent;
       } else {
-        ICHECK_EQ(total_extent, 1);
+        TVM_FFI_ICHECK_EQ(total_extent, 1);
         ret = e.iv->var;
       }
       total_extent *= e.extent;
@@ -802,7 +803,7 @@ Pass LowerThreadAllreduce() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-    ICHECK(target.defined()) << "LowerThreadAllreduce: Require the target attribute";
+    TVM_FFI_ICHECK(target.defined()) << "LowerThreadAllreduce: Require the target attribute";
     const TargetNode* target_node = target.as<TargetNode>();
     ThreadAllreduceBuilder thread_all_reduce(target_node);
     n->body = thread_all_reduce(n->body);

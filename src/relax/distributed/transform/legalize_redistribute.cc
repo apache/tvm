@@ -67,15 +67,15 @@ class RedistributeLegalizer : public ExprMutator {
     static Op redistribute_op = Op::Get("relax.dist.redistribute");
     if (call->op.same_as(redistribute_op)) {
       const auto* attrs = call->attrs.as<DistributionAttrs>();
-      ICHECK(attrs);
+      TVM_FFI_ICHECK(attrs);
       const auto* input_sinfo = call->args[0]->struct_info_.as<DTensorStructInfoNode>();
-      ICHECK(input_sinfo);
+      TVM_FFI_ICHECK(input_sinfo);
       // As the first step, we only support redistribute in the same device mesh,
       // and the device mesh must be 1d
       // todo: extend the ccl ops so that it can support 2d device mesh, and different sharding
       // dimension
-      ICHECK(StructuralEqual()(input_sinfo->device_mesh, attrs->device_mesh));
-      ICHECK(input_sinfo->device_mesh->shape.size() == 1);
+      TVM_FFI_ICHECK(StructuralEqual()(input_sinfo->device_mesh, attrs->device_mesh));
+      TVM_FFI_ICHECK(input_sinfo->device_mesh->shape.size() == 1);
       // only support "S[x]"-> "R" and "R" -> "S[x]"
       PlacementSpec input_spec = input_sinfo->placement->dim_specs[0];
       PlacementSpec output_spec = attrs->placement->dim_specs[0];
@@ -87,21 +87,21 @@ class RedistributeLegalizer : public ExprMutator {
                  output_spec->kind == PlacementSpecKind::kSharding) {
         // "S[x]" -> "S[y]"
         if (input_spec->axis != output_spec->axis) {
-          LOG(FATAL) << "AlltoAll not implemented yet";
+          TVM_FFI_THROW(InternalError) << "AlltoAll not implemented yet";
         } else {
           return call->args[0];
         }
       } else if (input_spec->kind == PlacementSpecKind::kSharding &&
                  output_spec->kind == PlacementSpecKind::kReplica) {
         // "S[x]" -> "R"
-        LOG(FATAL) << "Allgather not implemented yet";
+        TVM_FFI_THROW(InternalError) << "Allgather not implemented yet";
       } else if (input_spec->kind == PlacementSpecKind::kReplica &&
                  output_spec->kind == PlacementSpecKind::kSharding) {
         // "R" -> "S[x]"
         return redistribute_replica_to_shard(call->args[0], attrs->device_mesh->shape[0],
                                              output_spec->axis);
       } else {
-        LOG(FATAL) << "Unsupported redistribute op";
+        TVM_FFI_THROW(InternalError) << "Unsupported redistribute op";
       }
     }
     return call;

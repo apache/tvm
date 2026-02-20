@@ -139,24 +139,24 @@ struct SimpleBinaryFileStream : public support::Stream {
   SimpleBinaryFileStream(const std::string& path, std::string mode) {
     const char* fname = path.c_str();
 
-    CHECK(mode == "wb" || mode == "rb") << "Only allowed modes are 'wb' and 'rb'";
+    TVM_FFI_ICHECK(mode == "wb" || mode == "rb") << "Only allowed modes are 'wb' and 'rb'";
     read_ = mode == "rb";
     fp_ = std::fopen(fname, mode.c_str());
-    CHECK(fp_ != nullptr) << "Unable to open file " << path;
+    TVM_FFI_ICHECK(fp_ != nullptr) << "Unable to open file " << path;
   }
   virtual ~SimpleBinaryFileStream(void) { this->Close(); }
   virtual size_t Read(void* ptr, size_t size) {
-    CHECK(read_) << "File opened in write-mode, cannot read.";
-    CHECK(fp_ != nullptr) << "File is closed";
+    TVM_FFI_ICHECK(read_) << "File opened in write-mode, cannot read.";
+    TVM_FFI_ICHECK(fp_ != nullptr) << "File is closed";
     return std::fread(ptr, 1, size, fp_);
   }
   virtual size_t Write(const void* ptr, size_t size) {
-    CHECK(!read_) << "File opened in read-mode, cannot write.";
-    CHECK(fp_ != nullptr) << "File is closed";
+    TVM_FFI_ICHECK(!read_) << "File opened in read-mode, cannot write.";
+    TVM_FFI_ICHECK(fp_ != nullptr) << "File is closed";
     size_t nwrite = std::fwrite(ptr, 1, size, fp_);
     int err = std::ferror(fp_);
 
-    CHECK_EQ(err, 0) << "SimpleBinaryFileStream.Write incomplete: " << std::strerror(err);
+    TVM_FFI_ICHECK_EQ(err, 0) << "SimpleBinaryFileStream.Write incomplete: " << std::strerror(err);
     return nwrite;
   }
   inline void Close(void) {

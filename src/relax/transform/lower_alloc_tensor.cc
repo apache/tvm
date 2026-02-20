@@ -41,9 +41,10 @@ class Mutator : public ExprMutator {
     static const Op& mem_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
 
     if (op->op.same_as(alloc_tensor_op)) {
-      CHECK_EQ(op->args.size(), 4) << "Op " << op->op << " should have three arguments, "
-                                   << "[shape, dtype, runtime_device_index, storage_scope].  "
-                                   << "However, received " << ffi::GetRef<Call>(op);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 4)
+          << "Op " << op->op << " should have three arguments, "
+          << "[shape, dtype, runtime_device_index, storage_scope].  "
+          << "However, received " << ffi::GetRef<Call>(op);
 
       auto shape_arg = op->args[0];
       auto dtype = Downcast<DataTypeImm>(op->args[1]);
@@ -62,9 +63,10 @@ class Mutator : public ExprMutator {
           }
         }
 
-        LOG(FATAL) << "Shape argument for " << alloc_tensor_op << " should be a ShapeExpr, "
-                   << "or a variable that holds a ShapeExpr.  "
-                   << "However, received argument " << shape_arg << " with struct info " << sinfo;
+        TVM_FFI_THROW(InternalError)
+            << "Shape argument for " << alloc_tensor_op << " should be a ShapeExpr, "
+            << "or a variable that holds a ShapeExpr.  "
+            << "However, received argument " << shape_arg << " with struct info " << sinfo;
         TVM_FFI_UNREACHABLE();
       }();
 

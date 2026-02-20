@@ -50,32 +50,32 @@ class UnionDatabaseNode : public DatabaseNode {
   }
 
   bool HasWorkload(const IRModule& mod) final {
-    LOG(FATAL) << "NotImplementedError: UnionDatabase.HasWorkload";
+    TVM_FFI_THROW(NotImplementedError) << "UnionDatabase.HasWorkload";
     throw;
   }
 
   Workload CommitWorkload(const IRModule& mod) final {
-    LOG(FATAL) << "NotImplementedError: UnionDatabase.CommitWorkload";
+    TVM_FFI_THROW(NotImplementedError) << "UnionDatabase.CommitWorkload";
     throw;
   }
 
   void CommitTuningRecord(const TuningRecord& record) final {
-    LOG(FATAL) << "NotImplementedError: UnionDatabase.CommitTuningRecord";
+    TVM_FFI_THROW(NotImplementedError) << "UnionDatabase.CommitTuningRecord";
     throw;
   }
 
   ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
-    LOG(FATAL) << "NotImplementedError: UnionDatabase.GetTopK";
+    TVM_FFI_THROW(NotImplementedError) << "UnionDatabase.GetTopK";
     throw;
   }
 
   ffi::Array<TuningRecord> GetAllTuningRecords() final {
-    LOG(FATAL) << "NotImplementedError: UnionDatabase.GetAllTuningRecords";
+    TVM_FFI_THROW(NotImplementedError) << "UnionDatabase.GetAllTuningRecords";
     throw;
   }
 
   int64_t Size() final {
-    LOG(FATAL) << "NotImplementedError: UnionDatabase.size";
+    TVM_FFI_THROW(NotImplementedError) << "UnionDatabase.size";
     throw;
   }
 };

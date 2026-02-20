@@ -145,7 +145,7 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(arith::Analyzer* analyzer,
       no_opt_sum = no_opt_sum.get() ? no_opt_sum + inner_add_ptr->a : inner_add_ptr->a;
       search_ptr = &(inner_add_ptr->b);
     } else {
-      LOG(FATAL) << "Unexpected search result!";
+      TVM_FFI_THROW(InternalError) << "Unexpected search result!";
       break;
     }
   }
@@ -260,13 +260,13 @@ ffi::Array<PrimExpr> Buffer::OffsetOf(ffi::Array<PrimExpr> input_indices) const 
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
 ffi::Array<PrimExpr> BufferNode::ElemOffset(ffi::Array<PrimExpr> input_indices) const {
-  ICHECK_EQ(shape.size(), input_indices.size())
+  TVM_FFI_ICHECK_EQ(shape.size(), input_indices.size())
       << "Buffer " << this->name << " is " << shape.size()
       << "-dimensional, cannot be indexed with the " << input_indices.size()
       << "-dimensional indices provided.";
 
   if (strides.size()) {
-    ICHECK_EQ(this->strides.size(), input_indices.size())
+    TVM_FFI_ICHECK_EQ(this->strides.size(), input_indices.size())
         << "If strides are defined, "
         << "the index's dimensionality must match the dimensionality of the index given.";
   }
@@ -280,7 +280,7 @@ ffi::Array<PrimExpr> BufferNode::ElemOffset(ffi::Array<PrimExpr> input_indices) 
   }
 
   if (elem_offsets.size()) {
-    ICHECK_EQ(elem_offsets.size(), axis_separators.size() + 1)
+    TVM_FFI_ICHECK_EQ(elem_offsets.size(), axis_separators.size() + 1)
         << "If element offsets are defined, "
         << "there must be one element offset for each output index.";
   }
@@ -347,20 +347,17 @@ static void ValidateAxisSeparators(const ffi::Array<IntImm>& axis_separators, si
   for (size_t i = 0; (i + 1) < axis_separators.size(); i++) {
     auto sep = axis_separators[i]->value;
     auto next_sep = axis_separators[i + 1]->value;
-    CHECK_LE(sep, next_sep) << "ValueError: "
-                            << "Axis separators must be in increasing order, "
-                            << "but axis_separators[" << i << "] = " << sep
-                            << " is greater than or equal to axis_separators[" << (i + 1)
-                            << "] = " << next_sep << ".";
+    TVM_FFI_CHECK_LE(sep, next_sep, ValueError)
+        << "Axis separators must be in increasing order, "
+        << "but axis_separators[" << i << "] = " << sep
+        << " is greater than or equal to axis_separators[" << (i + 1) << "] = " << next_sep << ".";
   }
   if (axis_separators.size()) {
     auto first_sep = axis_separators[0]->value;
-    CHECK_GE(first_sep, 0) << "ValueError: "
-                           << "All axis separators must be non-negative.  "
-                           << "However, the axis_separators[0] = " << first_sep;
+    TVM_FFI_CHECK_GE(first_sep, 0, ValueError) << "All axis separators must be non-negative.  "
+                                               << "However, the axis_separators[0] = " << first_sep;
     auto last_sep = axis_separators[axis_separators.size() - 1]->value;
-    CHECK_LE(last_sep, buffer_dim)
-        << "ValueError: "
+    TVM_FFI_CHECK_LE(last_sep, buffer_dim, ValueError)
         << "All axis separators must be within the range "
         << "0 <= sep <= buffer_dim.  "
         << "However, the last axis_separators[" << (axis_separators.size() - 1)
@@ -378,7 +375,7 @@ Buffer Buffer::GetFlattenedBuffer() const {
     // If strides are defined, then the extent of each flattened
     // buffer is the stride*size for the first input axis used for
     // each output axis.
-    ICHECK_EQ(self->shape.size(), self->strides.size());
+    TVM_FFI_ICHECK_EQ(self->shape.size(), self->strides.size());
     output_shape.push_back(self->strides[0] * self->shape[0]);
     for (const auto& sep : self->axis_separators) {
       output_shape.push_back(self->strides[sep->value] * self->shape[sep->value]);
@@ -423,9 +420,9 @@ PrimExpr Buffer::vload(ffi::Array<PrimExpr> begin, DataType value_dtype,
                        ffi::Optional<PrimExpr> predicate) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
-  ICHECK(n != nullptr);
-  ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
-         value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
+  TVM_FFI_ICHECK(n != nullptr);
+  TVM_FFI_ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
+                 value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
       << "Cannot load " << value_dtype << " from buffer of " << n->dtype;
 
   ffi::Array<PrimExpr> indices = begin;
@@ -443,10 +440,10 @@ Stmt Buffer::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
                     ffi::Optional<PrimExpr> predicate) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
-  ICHECK(n != nullptr);
+  TVM_FFI_ICHECK(n != nullptr);
   DataType value_dtype = value.dtype();
-  ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
-         value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
+  TVM_FFI_ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
+                 value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
       << "Cannot store " << value_dtype << " to buffer of " << n->dtype;
 
   ffi::Array<PrimExpr> indices = begin;
@@ -462,7 +459,7 @@ Stmt Buffer::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
 
 ffi::String Buffer::scope() const {
   const auto* ptr_type = (*this)->data->type_annotation.as<PointerTypeNode>();
-  ICHECK(ptr_type) << "Buffer variable is not of pointer type";
+  TVM_FFI_ICHECK(ptr_type) << "Buffer variable is not of pointer type";
   if (ptr_type->storage_scope.empty()) {
     return "global";
   }
@@ -474,7 +471,7 @@ Buffer Buffer::MakeStrideView() const {
   if ((*this)->shape.size() == 0) return *this;
   std::vector<PrimExpr> temp;
   const BufferNode* self = operator->();
-  ICHECK(self != nullptr);
+  TVM_FFI_ICHECK(self != nullptr);
   auto n = ffi::make_object<BufferNode>(*self);
   PrimExpr acc = make_const(n->DefaultIndexType(), 1);
   for (size_t i = n->shape.size(); i != 0; --i) {
@@ -489,7 +486,7 @@ Buffer Buffer::MakeStrideView() const {
 
 Buffer Buffer::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const {
   const BufferNode* n = operator->();
-  ICHECK(n != nullptr);
+  TVM_FFI_ICHECK(n != nullptr);
   arith::Analyzer ana;
   begins = SimplifyArray(&ana, begins);
   ffi::Array<PrimExpr> elem_offset =
@@ -532,7 +529,7 @@ Buffer Buffer::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> exten
 PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes, PrimExpr offset,
                             ffi::Optional<PrimExpr> input_extent) const {
   const BufferNode* self = operator->();
-  ICHECK(self != nullptr);
+  TVM_FFI_ICHECK(self != nullptr);
   PrimExpr e_dtype;
   PrimExpr extent;
   if (self->shape.size() == 0) {
@@ -579,11 +576,11 @@ Buffer::Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   // TODO(Lunderberg): Use an explicit pointer cast for the data
   // pointer.  Should be done alongside extensions to StmtExprMutator
   // to more easily handle buffer/buffer_var updates.
-  ICHECK(data->type_annotation.defined())
+  TVM_FFI_ICHECK(data->type_annotation.defined())
       << "Variable " << data->name_hint << " is missing a type annotation.";
-  ICHECK(data->type_annotation.as<PointerTypeNode>())
+  TVM_FFI_ICHECK(data->type_annotation.as<PointerTypeNode>())
       << "Variable " << data->name_hint << " is not a pointer.";
-  ICHECK(data->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
+  TVM_FFI_ICHECK(data->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
       << "Variable " << data->name_hint << " does not point to a primitive.";
 
   ValidateAxisSeparators(axis_separators, shape.size());
@@ -650,7 +647,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def_packed("tir.Buffer",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
-                    ICHECK_EQ(args.size(), 11);
+                    TVM_FFI_ICHECK_EQ(args.size(), 11);
                     auto buffer_type = args[8].cast<ffi::String>();
                     BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
                     auto data = args[0].cast<Var>();

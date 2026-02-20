@@ -143,7 +143,7 @@ class PipelineOpaqueAccessRewriter {
  private:
   int GetWmmaFragmentSize(const Buffer& buffer) {
     auto it = fragment_info_.find(buffer->data.get());
-    ICHECK(it != fragment_info_.end());
+    TVM_FFI_ICHECK(it != fragment_info_.end());
     const FragmentInfo& info = (*it).second;
     return info.GetSize();
   }
@@ -183,7 +183,7 @@ class PipelineOpaqueAccessRewriter {
         if (buffer.scope() == "m16n8k8.matrixA" || buffer.scope() == "m16n8k8.matrixB") {
           // mma scope size will shrink by warp size
           // @see transform_mma_buffer_layout
-          ICHECK_EQ(Downcast<IntImm>(floormod(offset, 32))->value, 0)
+          TVM_FFI_ICHECK_EQ(Downcast<IntImm>(floormod(offset, 32))->value, 0)
               << "mma scope size should be multiple of warp size";
           offset = floordiv(offset, 32);
         }
@@ -440,7 +440,7 @@ class PipelineRewriter : public StmtExprMutator {
    * \return Whether region1 and region2 have intersections.
    */
   bool MayConflict(Region region1, Region region2) {
-    ICHECK(region1.size() == region2.size());
+    TVM_FFI_ICHECK(region1.size() == region2.size());
     for (size_t i = 0; i < region1.size(); i++) {
       Range dim1 = region1[i];
       Range dim2 = region2[i];
@@ -533,7 +533,7 @@ class PipelineRewriter : public StmtExprMutator {
     ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*(buffer.get()));
     new_buffer->shape.insert(new_buffer->shape.begin(), PrimExpr(num_versions));
     if (new_buffer->strides.size()) {
-      ICHECK(new_buffer->strides.size() + 1 == new_buffer->shape.size());
+      TVM_FFI_ICHECK(new_buffer->strides.size() + 1 == new_buffer->shape.size());
       PrimExpr stride_0 = new_buffer->strides[0] * new_buffer->shape[1];
       new_buffer->strides.insert(new_buffer->strides.begin(), stride_0);
     }
@@ -620,7 +620,7 @@ class PipelineRewriter : public StmtExprMutator {
         for (auto kv : async_states) {
           if (kv.first <= new_blocks[i].stage && kv.second.writes(read_region->buffer)) {
             // Found an earlier stage where read_region->buffer was asynchronously written
-            ICHECK(producer_stage_idx == -1 || producer_stage_idx == kv.first)
+            TVM_FFI_ICHECK(producer_stage_idx == -1 || producer_stage_idx == kv.first)
                 << "A dependency on multiple async stages is not supported";
             producer_stage_idx = kv.first;
           }
@@ -678,10 +678,10 @@ class PipelineRewriter : public StmtExprMutator {
       if (num_commit_group == 0) {
         // Epilogue, no async producer. Since "local" producer_head is not available, use
         // "global" producer_head.
-        ICHECK(!dep_local_state.producer_head);
+        TVM_FFI_ICHECK(!dep_local_state.producer_head);
         producer_head_per_commit.push_back(async_states[producer_stage_idx].producer_head);
       } else {
-        ICHECK(dep_local_state.producer_head);
+        TVM_FFI_ICHECK(dep_local_state.producer_head);
         std::vector<bool> need_wait_count(num_commit_group, true);
 
         for (auto read_region : new_blocks[i].block->reads) {
@@ -741,7 +741,7 @@ class PipelineRewriter : public StmtExprMutator {
       if (!state.commit_groups.empty()) {
         for (size_t i = 0; i < state.commit_groups.size(); ++i) {
           for (size_t j = 0; j < state.commit_groups[i].size(); ++j) {
-            ICHECK(state.commit_groups[i][0] + j < new_blocks.size());
+            TVM_FFI_ICHECK(state.commit_groups[i][0] + j < new_blocks.size());
             commit_group_indices[state.commit_groups[i][0] + j] = stage_id;
           }
         }
@@ -783,7 +783,7 @@ class PipelineRewriter : public StmtExprMutator {
         auto stage_id = commit_group_indices[i];
         auto predicate = new_blocks[i].predicate;
         for (; i < commit_group_indices.size() && commit_group_indices[i] == stage_id; ++i) {
-          ICHECK(tvm::StructuralEqual()(predicate, new_blocks[i].predicate))
+          TVM_FFI_ICHECK(tvm::StructuralEqual()(predicate, new_blocks[i].predicate))
               << "Predicates in the same stage are expected to be identical";
           group_bodies.push_back(new_blocks[i].block->body);
         }
@@ -1050,8 +1050,8 @@ class PipelineInjector : private StmtExprMutator {
     for (const SBlock& block : original_order) {
       const auto& stmt_info = pipeline_info.at(block);
       int order = stmt_info.order;
-      CHECK(!used_orders.count(order))
-          << "ValueError: Two statements in the software pipeline cannot have the same order";
+      TVM_FFI_CHECK(!used_orders.count(order), ValueError)
+          << "Two statements in the software pipeline cannot have the same order";
       used_orders.insert(order);
     }
 
@@ -1064,13 +1064,14 @@ class PipelineInjector : private StmtExprMutator {
       const ffi::Array<SBlock>& dsts = pair.second;
       for (const SBlock& dst : dsts) {
         const auto& dst_info = pipeline_info.at(dst);
-        CHECK_LE(src_info.stage, dst_info.stage)
-            << "ValueError: statement " << dst << " in stage " << dst_info.stage
+        TVM_FFI_CHECK_LE(src_info.stage, dst_info.stage, ValueError)
+            << "statement " << dst << " in stage " << dst_info.stage
             << " cannot depends on statement " << src << " in a later stage " << src_info.stage;
         if (src_info.stage == dst_info.stage) {
-          CHECK_LT(src_info.order, dst_info.order) << "ValueError: two statements with buffer "
-                                                      "access dependency in the same stage of the "
-                                                      "software pipeline cannot be reordered";
+          TVM_FFI_CHECK_LT(src_info.order, dst_info.order, ValueError)
+              << "two statements with buffer "
+                 "access dependency in the same stage of the "
+                 "software pipeline cannot be reordered";
         }
       }
     }
@@ -1090,7 +1091,7 @@ class PipelineInjector : private StmtExprMutator {
     if (const auto* realize = for_node->body.as<SBlockRealizeNode>()) {
       const auto& block = realize->block;
       for (const auto& buffer : block->alloc_buffers) {
-        ICHECK(buffer->IsInstance<BufferNode>());
+        TVM_FFI_ICHECK(buffer->IsInstance<BufferNode>());
         buffer_data_to_buffer_.Set(buffer->data, buffer);
       }
       pipeline_body = block->body;
@@ -1100,8 +1101,8 @@ class PipelineInjector : private StmtExprMutator {
     }
 
     const SeqStmtNode* pipeline_body_seq = pipeline_body.as<SeqStmtNode>();
-    CHECK(pipeline_body_seq)
-        << "ValueError: The body of the software pipeline should be SeqStmt, got "
+    TVM_FFI_CHECK(pipeline_body_seq, ValueError)
+        << "The body of the software pipeline should be SeqStmt, got "
         << pipeline_body->GetTypeKey();
 
     // Step 3: Blockize the components of the pipeline. Each child of the pipelined loop will be
@@ -1117,7 +1118,7 @@ class PipelineInjector : private StmtExprMutator {
       if (nested_block_realize && is_one(nested_block_realize->predicate) &&
           nested_block_realize->block->body->IsInstance<SeqStmtNode>()) {
         const SBlock& nested_pipeline_block = nested_block_realize->block;
-        ICHECK(
+        TVM_FFI_ICHECK(
             nested_pipeline_block->match_buffers.empty());  // match_buffer should have been lowered
         for (const auto& buffer : nested_pipeline_block->alloc_buffers) {
           pipeline_allocs.push_back(buffer);
@@ -1136,11 +1137,11 @@ class PipelineInjector : private StmtExprMutator {
         Downcast<ffi::Array<Integer>>(op->annotations.at(tir::attr::software_pipeline_stage));
     auto pipeline_orders =
         Downcast<ffi::Array<Integer>>(op->annotations.at(tir::attr::software_pipeline_order));
-    CHECK_EQ(pipeline_stages.size(), original_order.size())
+    TVM_FFI_ICHECK_EQ(pipeline_stages.size(), original_order.size())
         << "PrimFunc " << global_symbol_ << " has original order "
         << original_order.Map([](const auto& block) { return block->name_hint; })
         << ", but pipeline annotation is " << pipeline_stages << " with different size";
-    CHECK_EQ(pipeline_orders.size(), original_order.size())
+    TVM_FFI_ICHECK_EQ(pipeline_orders.size(), original_order.size())
         << "PrimFunc " << global_symbol_ << " has original order "
         << original_order.Map([](const auto& block) { return block->name_hint; })
         << ", but pipeline annotation is " << pipeline_orders << " with different size";
@@ -1212,8 +1213,9 @@ class PipelineInjector : private StmtExprMutator {
     auto it = op->annotations.find(tir::attr::double_buffer_scope);
     if (it != op->annotations.end()) {
       int buffer_index = Downcast<Integer>((*it).second).IntValue();
-      CHECK(buffer_index >= 0 && static_cast<size_t>(buffer_index) < op->writes.size())
-          << "ValueError: Index of the buffer exceeds the size of the write regions of the block. ("
+      TVM_FFI_CHECK(buffer_index >= 0 && static_cast<size_t>(buffer_index) < op->writes.size(),
+                    ValueError)
+          << "Index of the buffer exceeds the size of the write regions of the block. ("
           << buffer_index << " vs. " << op->writes.size() << ")";
       double_buffers.insert(op->writes[buffer_index]->buffer);
     }
@@ -1234,10 +1236,10 @@ class PipelineInjector : private StmtExprMutator {
       return true;
     }
     if (has_stage) {
-      LOG(FATAL) << "ValueError: Order of the software pipeline is not defined.";
+      TVM_FFI_THROW(ValueError) << "Order of the software pipeline is not defined.";
     }
     if (has_order) {
-      LOG(FATAL) << "ValueError: Stage of the software pipeline is not defined.";
+      TVM_FFI_THROW(ValueError) << "Stage of the software pipeline is not defined.";
     }
     return false;
   }

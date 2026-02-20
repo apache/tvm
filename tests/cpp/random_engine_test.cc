@@ -33,7 +33,7 @@ TEST(RandomEngine, Randomness) {
     covered[rng() % 100] = true;
   }
   for (int i = 0; i < 100; i++) {
-    ICHECK(covered[i]);
+    TVM_FFI_ICHECK(covered[i]);
   }
 }
 
@@ -45,7 +45,7 @@ TEST(RandomEngine, Reproducibility) {
   rng_b.Seed(0x23456789);
 
   for (int i = 0; i < 100000; i++) {
-    ICHECK_EQ(rng_a(), rng_b());
+    TVM_FFI_ICHECK_EQ(rng_a(), rng_b());
   }
 }
 
@@ -56,10 +56,10 @@ TEST(RandomEngine, Serialization) {
   rng_a.Seed(0x56728);
 
   rand_state_b = rand_state_a;
-  for (int i = 0; i < 100000; i++) ICHECK_EQ(rng_a(), rng_b());
+  for (int i = 0; i < 100000; i++) TVM_FFI_ICHECK_EQ(rng_a(), rng_b());
 
   for (int i = 0; i < 123456; i++) rng_a();
 
   rand_state_b = rand_state_a;
-  for (int i = 0; i < 100000; i++) ICHECK_EQ(rng_a(), rng_b());
+  for (int i = 0; i < 100000; i++) TVM_FFI_ICHECK_EQ(rng_a(), rng_b());
 }

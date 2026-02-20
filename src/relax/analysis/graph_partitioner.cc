@@ -64,9 +64,9 @@ DominatorTree::Node* DominatorTree::LeastCommonAncestor(
   }
   auto get_node = [&](const IndexedForwardGraph::Edge& edge) {
     size_t oindex = edge.node->index;
-    ICHECK_LT(oindex, nodes.size());
+    TVM_FFI_ICHECK_LT(oindex, nodes.size());
     Node* onode = nodes[oindex];
-    ICHECK(onode != nullptr);
+    TVM_FFI_ICHECK(onode != nullptr);
     return onode;
   };
   Node* parent = get_node(link->value);
@@ -133,7 +133,7 @@ bool GraphPartitioner::CheckPath_(IndexedForwardGraph::Node* src, IndexedForward
   if (visited_.count(src)) return true;
   visited_.insert(src);
   Group* gnode = groups_[src->index];
-  ICHECK(gnode != nullptr);
+  TVM_FFI_ICHECK(gnode != nullptr);
   gnode = gnode->FindRoot();
   if (!fcond(gnode->pattern, src == sink)) return false;
   if (src == sink) return true;
@@ -146,9 +146,9 @@ bool GraphPartitioner::CheckPath_(IndexedForwardGraph::Node* src, IndexedForward
 template <typename F>
 bool GraphPartitioner::CheckPath(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink,
                                  F fcond) {
-  ICHECK(!src->extern_ref);
+  TVM_FFI_ICHECK(!src->extern_ref);
   visited_.clear();
-  ICHECK(src != sink);
+  TVM_FFI_ICHECK(src != sink);
   for (auto link = src->outputs.head; link != nullptr; link = link->next) {
     if (!CheckPath_(link->value.node, sink, fcond)) return false;
   }
@@ -157,7 +157,7 @@ bool GraphPartitioner::CheckPath(IndexedForwardGraph::Node* src, IndexedForwardG
 
 OpPatternKind CombinePattern(OpPatternKind lhs, OpPatternKind rhs) {
   if (lhs > kBroadcast && rhs > kBroadcast) {
-    LOG(FATAL) << "Cannot merge two complex group together";
+    TVM_FFI_THROW(InternalError) << "Cannot merge two complex group together";
   }
   if (lhs > rhs) return lhs;
   return rhs;
@@ -173,7 +173,7 @@ void GraphPartitioner::MergeFromTo(Group* child, Group* parent) {
   child->parent = parent;
   // update anchor ref and pattern
   if (child->anchor_ref != nullptr) {
-    ICHECK(parent->anchor_ref == nullptr);
+    TVM_FFI_ICHECK(parent->anchor_ref == nullptr);
     parent->anchor_ref = child->anchor_ref;
     parent->pattern = CombinePattern(child->pattern, parent->pattern);
   }
@@ -189,7 +189,7 @@ void GraphPartitioner::CommitFuse_(IndexedForwardGraph::Node* src, IndexedForwar
   if (visited_.count(src)) return;
   visited_.insert(src);
   Group* gnode = groups_[src->index];
-  ICHECK(gnode != nullptr);
+  TVM_FFI_ICHECK(gnode != nullptr);
   // merge the current group to the parent if possible.
   MergeFromTo(gnode, target);
   for (auto link = src->outputs.head; link != nullptr; link = link->next) {
@@ -200,7 +200,7 @@ void GraphPartitioner::CommitFuse_(IndexedForwardGraph::Node* src, IndexedForwar
 void GraphPartitioner::CommitFuse(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink) {
   Group* target = groups_[sink->index];
   visited_.clear();
-  ICHECK(src != sink);
+  TVM_FFI_ICHECK(src != sink);
   CommitFuse_(src, sink, target);
 }
 
@@ -209,7 +209,7 @@ size_t GraphPartitioner::CountNodesUptoSink_(IndexedForwardGraph::Node* src,
   if (src == sink || visited_.count(src)) return 0;
   visited_.insert(src);
   Group* gnode = groups_[src->index];
-  ICHECK(gnode != nullptr);
+  TVM_FFI_ICHECK(gnode != nullptr);
   auto sum = gnode->num_nodes;
   for (auto link = src->outputs.head; link != nullptr; link = link->next) {
     sum += CountNodesUptoSink_(link->value.node, sink);
@@ -221,7 +221,7 @@ size_t GraphPartitioner::CountFusedNodesWithNewChild(IndexedForwardGraph::Node* 
                                                      IndexedForwardGraph::Node* dom_parent) {
   Group* target = groups_[dom_parent->index];
   visited_.clear();
-  ICHECK(child != dom_parent);
+  TVM_FFI_ICHECK(child != dom_parent);
   return target->FindRoot()->num_nodes + CountNodesUptoSink_(child, dom_parent);
 }
 
@@ -229,7 +229,7 @@ size_t GraphPartitioner::CountArgs_(IndexedForwardGraph::Node* src,
                                     const IndexedForwardGraph& graph, bool update_postpone) {
   std::unordered_set<Group*> visited_groups;
   Group* gnode = groups_[src->index];
-  ICHECK(gnode != nullptr);
+  TVM_FFI_ICHECK(gnode != nullptr);
   auto sum = gnode->args_num;
   visited_groups.insert(gnode->FindRoot());
   auto calc_args_number = [this, src, &graph, &visited_groups,
@@ -329,7 +329,7 @@ void GraphPartitioner::RunFuse(const IndexedForwardGraph& graph,    //
     auto* graph_node = graph.post_dfs_order[nid];
     auto* dom_node = post_dom_tree.nodes[nid];
     Group* group_node = groups_[nid];
-    ICHECK(group_node != nullptr);
+    TVM_FFI_ICHECK(group_node != nullptr);
     postpone_node_ = nullptr;
     // Check if the fusing of some inputs was postponed
     if (postponed_fusing_map_.count(graph_node)) {
@@ -349,7 +349,7 @@ void GraphPartitioner::RunFuse(const IndexedForwardGraph& graph,    //
     if (group_node->pattern == kOpaque) continue;
     // no actions needed if the current node have no dominator
     if (dom_node->parent == nullptr) continue;
-    ICHECK(!graph_node->extern_ref);
+    TVM_FFI_ICHECK(!graph_node->extern_ref);
     size_t dom_parent_gindex = dom_node->parent->gnode->index;
 
     // refuse the fusion if too many ops are going to be fused together
@@ -397,7 +397,7 @@ void GraphPartitioner::RunFuse(const IndexedForwardGraph& graph,    //
       // Path for OutEWiseFusable: conv2d
       // Check if the dominator relation is elemwise.
       if (dom_node->parent != nullptr && dom_node->pattern == kElemWise) {
-        ICHECK(dom_node->parent->gnode != nullptr);
+        TVM_FFI_ICHECK(dom_node->parent->gnode != nullptr);
         // The fuse can be executed if all the intermediate ops are still broadcast.
         auto fcond = [](OpPatternKind kind, bool is_sink) { return kind <= kBroadcast; };
         if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
@@ -435,7 +435,7 @@ void GraphPartitioner::RunFuse(const IndexedForwardGraph& graph,    //
       }
     } else {
       // do nothing.
-      ICHECK(group_node->pattern == kCommReduce);
+      TVM_FFI_ICHECK(group_node->pattern == kCommReduce);
     }
   }
 }

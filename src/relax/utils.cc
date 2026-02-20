@@ -221,7 +221,8 @@ bool IsImpureCall(const Call& call) {
   if (auto op_ptr = call->op.as<OpNode>()) {
     auto op = ffi::GetRef<Op>(op_ptr);
     static auto purity_map = Op::GetAttrMap<Bool>("FPurity");
-    ICHECK(purity_map.count(op)) << "Cannot find the registered purity of this op: " << op->name;
+    TVM_FFI_ICHECK(purity_map.count(op))
+        << "Cannot find the registered purity of this op: " << op->name;
     return !(purity_map[op]->value);
   }
   // the StructInfo must be FuncStructInfo
@@ -235,7 +236,7 @@ Expr GetBoundValue(const Binding& b) {
   } else if (auto* match_binding = b.as<MatchCastNode>()) {
     return match_binding->value;
   } else {
-    CHECK(false) << "Invalid binding (should never happen)";
+    TVM_FFI_ICHECK(false) << "Invalid binding (should never happen)";
   }
 }
 

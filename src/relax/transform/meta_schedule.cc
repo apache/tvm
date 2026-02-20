@@ -79,14 +79,14 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
   Target target = Target::Current(false);
   const std::optional<tvm::ffi::Function> normalize_mod_func_ =
       tvm::ffi::Function::GetGlobalRequired("tvm.s_tir.meta_schedule.normalize_mod");
-  ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
+  TVM_FFI_ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
 
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     Database database{ffi::UnsafeInit()};
     if (Database::Current().defined()) {
       database = Database::Current().value();
     } else {
-      ICHECK(work_dir.has_value());
+      TVM_FFI_ICHECK(work_dir.has_value());
       std::filesystem::create_directories(work_dir.value().c_str());
       ffi::String path_workload = work_dir.value() + "/database_workload.json";
       ffi::String path_tuning_record = work_dir.value() + "/database_tuning_record.json";
@@ -124,9 +124,9 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
             record->trace->ApplyToSchedule(sch, /*remove_postproc=*/false);
           }
           IRModule new_mod = sch->mod();
-          ICHECK_EQ(new_mod->functions.size(), 1);
+          TVM_FFI_ICHECK_EQ(new_mod->functions.size(), 1);
           BaseFunc new_base_func = (*new_mod->functions.begin()).second;
-          ICHECK(new_base_func->IsInstance<tir::PrimFuncNode>());
+          TVM_FFI_ICHECK(new_base_func->IsInstance<tir::PrimFuncNode>());
           tir::PrimFunc tuned_prim_func = Downcast<tir::PrimFunc>(new_base_func);
           // maintain the original attributes
           tir::PrimFunc new_prim_func = tir::PrimFunc(/*params=*/tuned_prim_func->params,

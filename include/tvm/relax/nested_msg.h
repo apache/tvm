@@ -182,7 +182,7 @@ class NestedMsg {
    * \note This function checks if the msg is leaf.
    */
   T LeafValue() const {
-    ICHECK(IsLeaf());
+    TVM_FFI_ICHECK(IsLeaf());
     return ffi::details::AnyUnsafe::CopyFromAnyViewAfterCheck<T>(data_);
   }
 
@@ -362,7 +362,7 @@ TargetType NestedMsgTo(NestedMsg<T> msg, FMapLeaf fmapleaf, FCombine fcombine) {
   } else if (msg.IsLeaf()) {
     return fmapleaf(msg.LeafValue());
   } else {
-    ICHECK(msg.IsNested());
+    TVM_FFI_ICHECK(msg.IsNested());
     ffi::Array<NestedMsg<T>> arr = msg.NestedArray();
     ffi::Array<TargetType> subexpr;
     subexpr.reserve(arr.size());
@@ -401,7 +401,7 @@ Expr NestedMsgToExpr(NestedMsg<T> msg, FType fmapleaf) {
             simplified_flag &= (simplified_tuple == node->tuple);
           } else {
             simplified_tuple = node->tuple;
-            ICHECK(simplified_tuple.defined());
+            TVM_FFI_ICHECK(simplified_tuple.defined());
           }
         }
       }
@@ -432,14 +432,14 @@ NestedMsg<T> CombineNestedMsg(NestedMsg<T> lhs, NestedMsg<T> rhs, FType fcombine
   if (rhs.IsNull()) return lhs;
 
   if (lhs.IsLeaf()) {
-    ICHECK(rhs.IsLeaf()) << "Cannot combine leaf with nested";
+    TVM_FFI_ICHECK(rhs.IsLeaf()) << "Cannot combine leaf with nested";
     return NestedMsg<T>(fcombine(lhs.LeafValue(), rhs.LeafValue()));
   } else {
-    ICHECK(lhs.IsNested());
-    ICHECK(rhs.IsNested()) << "Cannot combine leaf with nested";
+    TVM_FFI_ICHECK(lhs.IsNested());
+    TVM_FFI_ICHECK(rhs.IsNested()) << "Cannot combine leaf with nested";
     ffi::Array<NestedMsg<T>> arr_lhs = lhs.NestedArray();
     ffi::Array<NestedMsg<T>> arr_rhs = rhs.NestedArray();
-    ICHECK_EQ(arr_lhs.size(), arr_rhs.size())
+    TVM_FFI_ICHECK_EQ(arr_lhs.size(), arr_rhs.size())
         << "Cannot combine two nested array with different sizes";
     ffi::Array<NestedMsg<T>> res;
     res.reserve(arr_lhs.size());
@@ -465,7 +465,7 @@ NestedMsg<T> MapNestedMsg(NestedMsg<T> msg, FType fmapleaf) {
   } else if (msg.IsLeaf()) {
     return fmapleaf(msg.LeafValue());
   } else {
-    ICHECK(msg.IsNested());
+    TVM_FFI_ICHECK(msg.IsNested());
     ffi::Array<NestedMsg<T>> arr = msg.NestedArray();
     ffi::Array<NestedMsg<T>> res;
     res.reserve(arr.size());
@@ -492,9 +492,10 @@ NestedMsg<T> MapNestedMsg(NestedMsg<T> msg, FType fmapleaf) {
 template <typename T, typename FType>
 void DecomposeNestedMsg(Expr expr, NestedMsg<T> msg, FType fvisitleaf) {
   if (auto* tuple = expr.as<TupleNode>()) {
-    ICHECK(msg.IsNested()) << "Expected nested to match tuple";
+    TVM_FFI_ICHECK(msg.IsNested()) << "Expected nested to match tuple";
     ffi::Array<NestedMsg<T>> arr = msg.NestedArray();
-    ICHECK_EQ(arr.size(), tuple->fields.size()) << "Expected nested array size to match tuple size";
+    TVM_FFI_ICHECK_EQ(arr.size(), tuple->fields.size())
+        << "Expected nested array size to match tuple size";
     for (size_t i = 0; i < arr.size(); ++i) {
       DecomposeNestedMsg(tuple->fields[i], arr[i], fvisitleaf);
     }
@@ -523,7 +524,7 @@ Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftran
   if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
     std::array<ffi::Array<NestedMsg<T>>, N> msg_arrays;
     for (size_t i = 0; i < N; ++i) {
-      ICHECK(msgs[i].IsNested()) << "Expected nested to match tuple";
+      TVM_FFI_ICHECK(msgs[i].IsNested()) << "Expected nested to match tuple";
       msg_arrays[i] = msgs[i].NestedArray();
     }
     bool same = true;
@@ -546,7 +547,7 @@ Expr TransformTupleLeaf(Expr expr, std::array<NestedMsg<T>, N> msgs, FType ftran
     return same ? expr : Tuple(fields);
   } else {
     for (const auto& msg : msgs) {
-      ICHECK(msg.IsLeaf()) << "Expected leaf to match non-tuple";
+      TVM_FFI_ICHECK(msg.IsLeaf()) << "Expected leaf to match non-tuple";
     }
     return ftransleaf(expr, msgs);
   }
@@ -572,7 +573,7 @@ StructInfo TransformTupleLeaf(StructInfo sinfo, std::array<NestedMsg<T>, N> msgs
   if (const auto* tuple = sinfo.as<TupleStructInfoNode>()) {
     std::array<ffi::Array<NestedMsg<T>>, N> msg_arrays;
     for (size_t i = 0; i < N; ++i) {
-      ICHECK(msgs[i].IsNested()) << "Expected nested to match tuple";
+      TVM_FFI_ICHECK(msgs[i].IsNested()) << "Expected nested to match tuple";
       msg_arrays[i] = msgs[i].NestedArray();
     }
     bool same = true;
@@ -590,7 +591,7 @@ StructInfo TransformTupleLeaf(StructInfo sinfo, std::array<NestedMsg<T>, N> msgs
     return same ? sinfo : TupleStructInfo(fields);
   } else {
     for (const auto& msg : msgs) {
-      ICHECK(msg.IsLeaf()) << "Expected leaf to match non-tuple";
+      TVM_FFI_ICHECK(msg.IsLeaf()) << "Expected leaf to match non-tuple";
     }
     return ftransleaf(sinfo, msgs);
   }

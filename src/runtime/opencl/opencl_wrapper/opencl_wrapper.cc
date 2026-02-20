@@ -124,7 +124,7 @@ class LibOpenCLWrapper {
 #endif
       if (m_libHandler != nullptr) return;
     }
-    ICHECK(m_libHandler != nullptr) << "Error! Cannot open libOpenCL!";
+    TVM_FFI_ICHECK(m_libHandler != nullptr) << "Error! Cannot open libOpenCL!";
   }
 
  private:

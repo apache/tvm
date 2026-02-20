@@ -32,7 +32,7 @@ ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& na
     void VisitStmt_(const SBlockNode* block) override {
       if (block->name_hint == name_) {
         auto it = self_->stmt2ref.find(block);
-        ICHECK(it != self_->stmt2ref.end());
+        TVM_FFI_ICHECK(it != self_->stmt2ref.end());
         results_.push_back(it->second);
       }
       StmtVisitor::VisitStmt_(block);
@@ -164,8 +164,8 @@ struct GetChildBlocksTraits : public UnpackedInstTraits<GetChildBlocksTraits> {
     if (auto loop = block_or_loop_rv.as<LoopRV>()) {
       return sch->GetChildBlocks(loop.value());
     }
-    LOG(FATAL) << "TypeError: Expected SBlock or Loop, but gets: "
-               << block_or_loop_rv->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Expected SBlock or Loop, but gets: "
+                             << block_or_loop_rv->GetTypeKey();
     throw;
   }
 

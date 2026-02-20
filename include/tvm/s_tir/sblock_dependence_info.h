@@ -74,8 +74,8 @@ class SBlockDependenceInfoNode : public Object {
    */
   SBlockScope GetSBlockScope(const StmtSRef& scope_root) const {
     auto it = sref2scope.find(scope_root);
-    CHECK(it != sref2scope.end())
-        << "IndexError: Cannot find the corresponding SBlockScope to the block sref:\n"
+    TVM_FFI_CHECK(it != sref2scope.end(), IndexError)
+        << "Cannot find the corresponding SBlockScope to the block sref:\n"
         << ffi::GetRef<Stmt>(scope_root->stmt);
     return it->second;
   }

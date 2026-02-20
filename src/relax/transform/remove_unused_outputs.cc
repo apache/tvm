@@ -96,14 +96,12 @@ class PartialTupleUsageCollector : ExprVisitor {
     if (auto* usage_mask_ptr = GetCalleeUsageMask(op->tuple)) {
       auto& used_indices = *usage_mask_ptr;
 
-      CHECK_GE(op->index, 0) << "IndexError: "
-                             << "Indices for TupleGetItem must be non-negative, "
-                             << "but expression " << ffi::GetRef<Expr>(op)
-                             << " uses a tuple index of " << op->index;
+      TVM_FFI_CHECK_GE(op->index, 0, IndexError)
+          << "Indices for TupleGetItem must be non-negative, "
+          << "but expression " << ffi::GetRef<Expr>(op) << " uses a tuple index of " << op->index;
       size_t index = op->index;
 
-      CHECK_LT(index, used_indices.size())
-          << "IndexError: "
+      TVM_FFI_CHECK_LT(index, used_indices.size(), IndexError)
           << "Indices for TupleGetItem must be less than the size of the tuple, "
           << "but expression " << ffi::GetRef<Expr>(op) << " uses a tuple index of " << op->index
           << " for a tuple of size " << used_indices.size();
@@ -161,8 +159,8 @@ Function UpdateCallee(Function func, const std::vector<bool>& usage_mask) {
   auto old_func_sinfo = func->struct_info_.as<FuncStructInfoNode>();
 
   auto old_ret_sinfo = func->ret_struct_info.as<TupleStructInfoNode>();
-  ICHECK(old_ret_sinfo) << "All functions returning non-tuple outputs "
-                        << "should have been pruned already by PartialTupleUsageCollector";
+  TVM_FFI_ICHECK(old_ret_sinfo) << "All functions returning non-tuple outputs "
+                                << "should have been pruned already by PartialTupleUsageCollector";
 
   ffi::Array<Expr> outputs;
 
@@ -246,16 +244,15 @@ Pass RemoveUnusedOutputs() {
             new_callees->Add(new_gvar, new_func);
 
             callsite_updaters[gvar] = [old_gvar = gvar, new_gvar, usage_mask](Call call) -> Expr {
-              ICHECK(call->op.same_as(old_gvar)) << "InternalError: "
-                                                 << "Updater should be applied to " << old_gvar
-                                                 << ", but was applied to " << call->op;
+              TVM_FFI_CHECK(call->op.same_as(old_gvar), InternalError)
+                  << "Updater should be applied to " << old_gvar << ", but was applied to "
+                  << call->op;
 
               auto old_call_sinfo = call->struct_info_.as<TupleStructInfoNode>();
-              ICHECK(old_call_sinfo)
-                  << "InternalError: "
+              TVM_FFI_CHECK(old_call_sinfo, InternalError)
                   << "Updater should be applied to Call producing an output tuple, "
                   << "but " << call << " has struct info " << call->struct_info_;
-              CHECK_EQ(usage_mask.size(), old_call_sinfo->fields.size())
+              TVM_FFI_ICHECK_EQ(usage_mask.size(), old_call_sinfo->fields.size())
                   << "Function " << call->op << " produces " << usage_mask.size() << " outputs, "
                   << "but " << call << " was used in a context expecting "
                   << old_call_sinfo->fields.size() << " outputs.";

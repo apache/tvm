@@ -45,8 +45,9 @@ class OpaqueBlockLower : public StmtExprMutator {
  private:
   Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     // We have convert blocks into opaque blocks in previous passes.
-    ICHECK(op->iter_values.empty()) << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
-                                       "call pass ConvertBlocksToOpaque before.";
+    TVM_FFI_ICHECK(op->iter_values.empty())
+        << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
+           "call pass ConvertBlocksToOpaque before.";
     // Step 1. Visit the body
     SBlock new_block = Downcast<SBlock>(this->VisitStmt(op->block));
     PrimExpr predicate = this->VisitExpr(op->predicate);
@@ -102,7 +103,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     // Step 4. Create new For loop accordingly
     if (op->kind == ForKind::kThreadBinding) {
       // Case 1. Thread binding
-      ICHECK(op->thread_binding.defined());
+      TVM_FFI_ICHECK(op->thread_binding.defined());
       ffi::String thread_tag = op->thread_binding.value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
     } else if (is_one(extent) && op->annotations.empty() &&
@@ -161,8 +162,8 @@ class OpaqueBlockLower : public StmtExprMutator {
     } else if (auto str = obj.try_cast<ffi::String>()) {
       return std::move(StringImm(str.value()));
     } else {
-      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
-                 << " not supported";
+      TVM_FFI_THROW(InternalError) << "Illegal attribute of key " << key << ", value type "
+                                   << obj.GetTypeKey() << " not supported";
       return PrimExpr();
     }
   }

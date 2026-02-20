@@ -164,10 +164,10 @@ SliceDoc::SliceDoc(ffi::Optional<ExprDoc> start, ffi::Optional<ExprDoc> stop,
 }
 
 AssignDoc::AssignDoc(ExprDoc lhs, ffi::Optional<ExprDoc> rhs, ffi::Optional<ExprDoc> annotation) {
-  CHECK(rhs.defined() || annotation.defined())
-      << "ValueError: At least one of rhs and annotation needs to be non-null for AssignDoc.";
-  CHECK(lhs->IsInstance<IdDocNode>() || annotation == nullptr)
-      << "ValueError: annotation can only be nonnull if lhs is an identifier.";
+  TVM_FFI_CHECK(rhs.defined() || annotation.defined(), ValueError)
+      << "At least one of rhs and annotation needs to be non-null for AssignDoc.";
+  TVM_FFI_CHECK(lhs->IsInstance<IdDocNode>() || annotation == nullptr, ValueError)
+      << "annotation can only be nonnull if lhs is an identifier.";
 
   ObjectPtr<AssignDocNode> n = ffi::make_object<AssignDocNode>();
   n->lhs = lhs;
@@ -177,8 +177,8 @@ AssignDoc::AssignDoc(ExprDoc lhs, ffi::Optional<ExprDoc> rhs, ffi::Optional<Expr
 }
 
 IfDoc::IfDoc(ExprDoc predicate, ffi::Array<StmtDoc> then_branch, ffi::Array<StmtDoc> else_branch) {
-  CHECK(!then_branch.empty() || !else_branch.empty())
-      << "ValueError: At least one of the then branch or else branch needs to be non-empty.";
+  TVM_FFI_CHECK(!then_branch.empty() || !else_branch.empty(), ValueError)
+      << "At least one of the then branch or else branch needs to be non-empty.";
 
   ObjectPtr<IfDocNode> n = ffi::make_object<IfDocNode>();
   n->predicate = predicate;

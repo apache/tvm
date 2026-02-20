@@ -234,7 +234,7 @@ tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server(
   if (g_hexagon_rpc_server) {
     return g_hexagon_rpc_server;
   }
-  CHECK_GT(rpc_receive_buff_size_bytes, 0) << "RPC receive buffer size is not valid.";
+  TVM_FFI_ICHECK_GT(rpc_receive_buff_size_bytes, 0) << "RPC receive buffer size is not valid.";
   static tvm::runtime::hexagon::HexagonRPCServer hexagon_rpc_server(
       new uint8_t[rpc_receive_buff_size_bytes], rpc_receive_buff_size_bytes);
   g_hexagon_rpc_server = &hexagon_rpc_server;
@@ -353,7 +353,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   std::ofstream fs(file_name, std::ios::out | std::ios::binary);
-  ICHECK(!fs.fail()) << "Cannot open " << file_name;
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << file_name;
   fs.write(&data[0], data.length());
 }
 

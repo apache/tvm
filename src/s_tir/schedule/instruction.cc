@@ -48,7 +48,8 @@ using InstructionKindRegistry = AttrRegistry<InstructionKindRegEntry, Instructio
 
 InstructionKind InstructionKind::Get(const ffi::String& name) {
   const InstructionKindRegEntry* reg = InstructionKindRegistry::Global()->Get(name);
-  ICHECK(reg != nullptr) << "AttributeError: Instruction kind " << name << " is not registered";
+  TVM_FFI_CHECK(reg != nullptr, AttributeError)
+      << "Instruction kind " << name << " is not registered";
   return reg->inst_kind_;
 }
 
@@ -65,7 +66,7 @@ InstructionKindRegEntry& InstructionKindRegEntry::RegisterOrGet(const ffi::Strin
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<InstructionNode>([](const ObjectRef& obj, ReprPrinter* p) {
       const auto* self = obj.as<InstructionNode>();
-      ICHECK_NOTNULL(self);
+      TVM_FFI_ICHECK_NOTNULL(self);
       ffi::Array<Any> inputs;
       inputs.reserve(self->inputs.size());
       for (const Any& obj : self->inputs) {
@@ -92,7 +93,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         } else if (obj.as<IndexMapNode>()) {
           inputs.push_back(obj);
         } else {
-          LOG(FATAL) << "TypeError: Stringifying is not supported for type: " << obj.GetTypeKey();
+          TVM_FFI_THROW(TypeError)
+              << "Stringifying is not supported for type: " << obj.GetTypeKey();
           throw;
         }
       }

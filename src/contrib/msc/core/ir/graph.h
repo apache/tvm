@@ -107,7 +107,7 @@ struct JsonMSCTensor {
         prims.push_back(std::string(elem.cast<ffi::String>()));
       }
     }
-    ICHECK_EQ(bitmask, 1 | 2 | 4) << "name, dtype and shape should be given";
+    TVM_FFI_ICHECK_EQ(bitmask, 1 | 2 | 4) << "name, dtype and shape should be given";
   }
 };
 
@@ -233,7 +233,7 @@ struct JsonMSCJoint {
         weights[std::string(kv.first.cast<ffi::String>())] = std::move(item);
       }
     }
-    ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "index, name, optype and outputs should be given";
+    TVM_FFI_ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "index, name, optype and outputs should be given";
   }
 };
 
@@ -300,7 +300,7 @@ struct JsonMSCPrim {
             std::string(kv.second.cast<ffi::String>());
       }
     }
-    ICHECK_EQ(bitmask, 1 | 2 | 4) << "index, name and optype should be given";
+    TVM_FFI_ICHECK_EQ(bitmask, 1 | 2 | 4) << "index, name and optype should be given";
   }
 };
 
@@ -395,7 +395,8 @@ struct JsonWeightJoint {
             std::string(kv.second.cast<ffi::String>());
       }
     }
-    ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "index, name, weight_type and weight should be given";
+    TVM_FFI_ICHECK_EQ(bitmask, 1 | 2 | 4 | 8)
+        << "index, name, weight_type and weight should be given";
   }
 };
 
@@ -490,7 +491,7 @@ struct JsonMSCGraph {
         prims.push_back(std::move(item));
       }
     }
-    ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "name, inputs, outputs and nodes should be given";
+    TVM_FFI_ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "name, inputs, outputs and nodes should be given";
   }
 };
 
@@ -533,7 +534,7 @@ struct JsonWeightGraph {
       }
       bitmask |= 2;
     }
-    ICHECK_EQ(bitmask, 1 | 2) << "name and nodes should be given";
+    TVM_FFI_ICHECK_EQ(bitmask, 1 | 2) << "name and nodes should be given";
   }
 };
 
@@ -667,13 +668,13 @@ class BaseJointNode : public Object {
   template <typename T>
   const T GetTypeAttr(const ffi::String& key) const {
     T val;
-    ICHECK(GetAttr(key, &val)) << "Can not get attr " << key;
+    TVM_FFI_ICHECK(GetAttr(key, &val)) << "Can not get attr " << key;
     return val;
   }
   template <typename T>
   const std::vector<T> GetTypeArrayAttr(const ffi::String& key) const {
     std::vector<T> val;
-    ICHECK(GetAttr(key, &val)) << "Can not get attr " << key;
+    TVM_FFI_ICHECK(GetAttr(key, &val)) << "Can not get attr " << key;
     return val;
   }
 

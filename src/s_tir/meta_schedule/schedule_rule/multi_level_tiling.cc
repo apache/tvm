@@ -204,7 +204,7 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
   // Step 1. Assuming trivial binding, pair the loops and their iter-var-types
   ffi::Array<LoopRV> loops = sch->GetLoops(block_rv);
   std::vector<IterVarType> iter_types = GetSBlockVarTypes(sch->GetSRef(state->block_rv));
-  ICHECK_EQ(loops.size(), iter_types.size());
+  TVM_FFI_ICHECK_EQ(loops.size(), iter_types.size());
   // Step 2. For each loop axis, tile it
   int64_t spatial_loop_product = 1;
 
@@ -212,7 +212,7 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
   std::for_each(iter_types.begin(), iter_types.end(), [&](const auto& iter_type) {
     if (iter_type == IterVarType::kDataPar) total_spatial_loop_num++;
   });
-  CHECK_GE(total_spatial_loop_num, tile_inner_most_space_loop_num);
+  TVM_FFI_ICHECK_GE(total_spatial_loop_num, tile_inner_most_space_loop_num);
   if (tile_inner_most_space_loop_num < 0) tile_inner_most_space_loop_num = total_spatial_loop_num;
   int outer_most_spatial_loop_skipped_num = total_spatial_loop_num - tile_inner_most_space_loop_num;
 
@@ -294,7 +294,7 @@ std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const {
   if (config.req == ReuseType::kNoReuse) {
     return {std::move(state)};
   }
-  ICHECK(config.req != ReuseType::kMayReuse);
+  TVM_FFI_ICHECK(config.req != ReuseType::kMayReuse);
   const SBlockRV& block_rv = state->block_rv;
   std::vector<State> results;
   results.reserve(config.levels.size());
@@ -366,7 +366,7 @@ void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
                                                        const s_tir::SBlockRV& block) const {
   // Filter out invalid vector lanes according to the data type.
   const tir::SBlockNode* block_node = (*sch)->GetSRef(block)->StmtAs<tir::SBlockNode>();
-  ICHECK_EQ(block_node->writes.size(), 1);
+  TVM_FFI_ICHECK_EQ(block_node->writes.size(), 1);
   const runtime::DataType dtype = block_node->writes[0]->buffer->dtype;
   std::function<bool(int)> f_filter = nullptr;
   if (dtype == runtime::DataType::Float(32)) {

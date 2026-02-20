@@ -163,8 +163,8 @@ void PrintFloatingPointArray(void* data, size_t num_elements, int indent_chars, 
 void TensorDataToC(::tvm::runtime::Tensor arr, int indent_chars, std::ostream& os,
                    const std::string& eol) {
   auto arr_type = arr.DataType();
-  CHECK_EQ(arr_type.lanes(), 1) << "CodegenParams: only support generating 1-lane parameters; saw "
-                                << arr_type.lanes();
+  TVM_FFI_ICHECK_EQ(arr_type.lanes(), 1)
+      << "CodegenParams: only support generating 1-lane parameters; saw " << arr_type.lanes();
 
   auto shape = arr.Shape();
   int num_elements = 1;
@@ -178,8 +178,8 @@ void TensorDataToC(::tvm::runtime::Tensor arr, int indent_chars, std::ostream& o
   os.fill('0');
   switch (arr_type.code()) {
     case runtime::DataType::kInt:
-      CHECK(arr_type.bits() == 8 || arr_type.bits() == 16 || arr_type.bits() == 32 ||
-            arr_type.bits() == 64)
+      TVM_FFI_ICHECK(arr_type.bits() == 8 || arr_type.bits() == 16 || arr_type.bits() == 32 ||
+                     arr_type.bits() == 64)
           << "CodegenParams: only support generating 8-, 16-, 32-, or 64-bit integer params; saw "
           << arr_type.bits() << "-bit array";
       if (arr_type.bits() == 8) {
@@ -191,13 +191,13 @@ void TensorDataToC(::tvm::runtime::Tensor arr, int indent_chars, std::ostream& o
       } else if (arr_type.bits() == 64) {
         PrintIntegralArray<int64_t>(arr->data, num_elements, indent_chars, os, eol);
       } else {
-        CHECK(false) << "should not get here";
+        TVM_FFI_ICHECK(false) << "should not get here";
       }
       break;
 
     case runtime::DataType::TypeCode::kUInt:
-      CHECK(arr_type.bits() == 8 || arr_type.bits() == 16 || arr_type.bits() == 32 ||
-            arr_type.bits() == 64)
+      TVM_FFI_ICHECK(arr_type.bits() == 8 || arr_type.bits() == 16 || arr_type.bits() == 32 ||
+                     arr_type.bits() == 64)
           << "CodegenParams: only support generating 8-, 16-, 32-, or 64-bit integer params; saw "
           << arr_type.bits() << "-bit array";
 
@@ -210,7 +210,7 @@ void TensorDataToC(::tvm::runtime::Tensor arr, int indent_chars, std::ostream& o
       } else if (arr_type.bits() == 64) {
         PrintIntegralArray<uint64_t>(arr->data, num_elements, indent_chars, os, eol);
       } else {
-        CHECK(false) << "should not get here";
+        TVM_FFI_ICHECK(false) << "should not get here";
       }
       break;
 
@@ -225,15 +225,15 @@ void TensorDataToC(::tvm::runtime::Tensor arr, int indent_chars, std::ostream& o
       } else if (arr_type.bits() == 64) {
         PrintFloatingPointArray<double>(arr->data, num_elements, indent_chars, os, eol);
       } else {
-        CHECK(false) << "CodegenParams: only support 32- or 64-bit floating point; saw "
-                     << arr_type.bits() << "-bit array";
+        TVM_FFI_ICHECK(false) << "CodegenParams: only support 32- or 64-bit floating point; saw "
+                              << arr_type.bits() << "-bit array";
       }
       break;
     }
 
     case runtime::DataType::TypeCode::kBFloat: {
       // NOTE: print types not widely supported by C as uint16_t.
-      CHECK(arr_type.bits() == 16)
+      TVM_FFI_ICHECK(arr_type.bits() == 16)
           << "CodegenParams: only support generating 16-bit bfloat params; saw " << arr_type.bits()
           << "-bit array";
       PrintIntegralArray<uint16_t>(arr->data, num_elements, indent_chars, os, eol);
@@ -241,7 +241,7 @@ void TensorDataToC(::tvm::runtime::Tensor arr, int indent_chars, std::ostream& o
     }
 
     default:
-      CHECK(false) << "Data type '" << arr_type << "' not supported";
+      TVM_FFI_ICHECK(false) << "Data type '" << arr_type << "' not supported";
   }
 
   os.flags(old_fmtflags);

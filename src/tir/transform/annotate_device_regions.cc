@@ -62,7 +62,7 @@ namespace transform {
 Pass AnnotateDeviceRegions() {
   auto pass_func = [](PrimFunc func, IRModule mod, PassContext ctx) -> PrimFunc {
     auto opt_target = func->GetAttr<Target>(tvm::attr::kTarget);
-    ICHECK(opt_target) << "AnnotateDeviceRegions: Require the target attribute";
+    TVM_FFI_ICHECK(opt_target) << "AnnotateDeviceRegions: Require the target attribute";
     Target target = opt_target.value();
 
     if (target->GetHost()) {

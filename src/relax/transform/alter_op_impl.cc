@@ -49,7 +49,7 @@ static ffi::Array<Range> ConstructRangeFromShape(const ffi::Array<PrimExpr>& sha
 
 static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
   auto shape = tensor_sinfo->GetShape();
-  ICHECK(shape.defined());
+  TVM_FFI_ICHECK(shape.defined());
   return shape.value();
 }
 
@@ -118,7 +118,7 @@ class AlterOpImplMutator : public ExprMutator {
     if (call->args[0].as<ExternFuncNode>()) return call;
 
     // Get operator name from callee
-    ICHECK(call->args[0]->IsInstance<GlobalVarNode>());
+    TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>());
     const tir::PrimFunc& old_func =
         Downcast<tir::PrimFunc>(mod_->Lookup(Downcast<GlobalVar>(call->args[0])));
     ffi::Optional<ffi::String> maybe_op_kind = old_func->attrs.GetAttr<ffi::String>(kOperatorName);
@@ -139,10 +139,11 @@ class AlterOpImplMutator : public ExprMutator {
     if (op_buffer_input_axis_separators__.count(op_kind))
       input_axis_separators = op_buffer_input_axis_separators__[op_kind];
 
-    ICHECK(buffer_transforms.empty() || buffer_transforms.size() == replacement_func->params.size())
+    TVM_FFI_ICHECK(buffer_transforms.empty() ||
+                   buffer_transforms.size() == replacement_func->params.size())
         << "Either the i/o buffers do not require any transformations or transformations for each "
            "buffer is provided.";
-    ICHECK_EQ(old_func->params.size(), replacement_func->params.size())
+    TVM_FFI_ICHECK_EQ(old_func->params.size(), replacement_func->params.size())
         << "Number of parameters of old and replacement PrimFunc must match";
 
     GlobalVar replacement_gv = GetOrCreateGlobalVarForFunc(replacement_func, op_kind);
@@ -151,7 +152,8 @@ class AlterOpImplMutator : public ExprMutator {
     Tuple updated_inputs = UpdateInputs(call_tir_inputs_tuple, buffer_transforms, axis_separators,
                                         input_axis_separators);
 
-    ICHECK_EQ(call->sinfo_args.size(), 1) << "call_tir sinfo_args.size() is expected to be 1";
+    TVM_FFI_ICHECK_EQ(call->sinfo_args.size(), 1)
+        << "call_tir sinfo_args.size() is expected to be 1";
     StructInfo updated_ret_sinfo = UpdateStructInfo(call->sinfo_args[0], buffer_transforms);
     auto updated_call = builder_->Normalize(
         Call(call_tir_op_, {replacement_gv, updated_inputs}, call->attrs, {updated_ret_sinfo}));
@@ -165,13 +167,13 @@ class AlterOpImplMutator : public ExprMutator {
     if (const auto* tensor_sinfo = output_sinfo.as<TensorStructInfoNode>())
       return {ffi::GetRef<TensorStructInfo>(tensor_sinfo)};
     const auto* tuple_sinfo = output_sinfo.as<TupleStructInfoNode>();
-    ICHECK(tuple_sinfo);
+    TVM_FFI_ICHECK(tuple_sinfo);
 
     ffi::Array<TensorStructInfo> arr_tensor_sinfo;
     arr_tensor_sinfo.reserve(tuple_sinfo->fields.size());
     for (const auto& sinfo : tuple_sinfo->fields) {
       const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>();
-      ICHECK(tensor_sinfo) << "Nested tuples in output of call_tir is not supported yet";
+      TVM_FFI_ICHECK(tensor_sinfo) << "Nested tuples in output of call_tir is not supported yet";
       arr_tensor_sinfo.push_back(ffi::GetRef<TensorStructInfo>(tensor_sinfo));
     }
     return arr_tensor_sinfo;
@@ -324,7 +326,7 @@ class AlterOpImplMutator : public ExprMutator {
       return UpdateStructInfo(Downcast<TensorStructInfo>(out_sinfo),
                               buffer_transforms[buffer_transforms.size() - 1]);
 
-    ICHECK(out_sinfo->IsInstance<TupleStructInfoNode>())
+    TVM_FFI_ICHECK(out_sinfo->IsInstance<TupleStructInfoNode>())
         << "Expect output struct info of call_tir to be either TupleStructInfo or "
            "TensorStructInfo, but got "
         << out_sinfo;
@@ -334,7 +336,7 @@ class AlterOpImplMutator : public ExprMutator {
     size_t first_output_index = buffer_transforms.size() - tuple_sinfo->fields.size();
     size_t i = 0;
     for (const auto& si : tuple_sinfo->fields) {
-      ICHECK(si->IsInstance<TensorStructInfoNode>())
+      TVM_FFI_ICHECK(si->IsInstance<TensorStructInfoNode>())
           << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
              "output structinfo, but got "
           << si;

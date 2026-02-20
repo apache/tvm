@@ -56,7 +56,7 @@
 #define CAT(a, b) CAT_I(a, b)
 
 #define CLML_CHECK_ERROR(e, API) \
-  { ICHECK(e == CL_SUCCESS) << "CLML Error:" #API " code=" << e; }
+  { TVM_FFI_ICHECK(e == CL_SUCCESS) << "CLML Error:" #API " code=" << e; }
 
 #if CL_QCOM_ML_OPS_H_MAJOR_VERSION > 3
 #define V4_API(API, ...)                                                            \
@@ -64,7 +64,8 @@
           ->API(__VA_ARGS__);                                                       \
   CLML_CHECK_ERROR(e, API);
 #else
-#define V4_API(API, ...) LOG(FATAL) << "CLML Error:" #API " - Incompatible V4 API call\n";
+#define V4_API(API, ...) \
+  TVM_FFI_THROW(InternalError) << "CLML Error:" #API " - Incompatible V4 API call\n";
 #endif
 
 #if CL_QCOM_ML_OPS_H_MAJOR_VERSION > 2
@@ -73,7 +74,8 @@
           ->API(__VA_ARGS__);                                                       \
   CLML_CHECK_ERROR(e, API);
 #else
-#define V3_API(API, ...) LOG(FATAL) << "CLML Error:" #API " - Incompatible V3 API call\n";
+#define V3_API(API, ...) \
+  TVM_FFI_THROW(InternalError) << "CLML Error:" #API " - Incompatible V3 API call\n";
 #endif
 
 #if CL_QCOM_ML_OPS_H_MAJOR_VERSION > 1
@@ -82,7 +84,8 @@
           ->API(__VA_ARGS__);                                                       \
   CLML_CHECK_ERROR(e, API);
 #else
-#define V2_API(API, ...) LOG(FATAL) << "CLML Error:" #API " - Incompatible V2 API call\n";
+#define V2_API(API, ...) \
+  TVM_FFI_THROW(InternalError) << "CLML Error:" #API " - Incompatible V2 API call\n";
 #endif
 
 #define V1_API(API, ...)                                                            \
@@ -90,25 +93,25 @@
           ->API(__VA_ARGS__);                                                       \
   CLML_CHECK_ERROR(e, API);
 
-#define CLML_CALL(API, ...)                                                  \
-  {                                                                          \
-    cl_int e;                                                                \
-    switch (CLMLWorkspace::Global()->target_major) {                         \
-      case 1:                                                                \
-        V1_API(API, __VA_ARGS__);                                            \
-        break;                                                               \
-      case 2:                                                                \
-        V2_API(API, __VA_ARGS__);                                            \
-        break;                                                               \
-      case 3:                                                                \
-        V3_API(API, __VA_ARGS__);                                            \
-        break;                                                               \
-      case 4:                                                                \
-        V4_API(API, __VA_ARGS__);                                            \
-        break;                                                               \
-      default:                                                               \
-        LOG(FATAL) << "CLML Error:" #API " - Unsupported target version \n"; \
-    }                                                                        \
+#define CLML_CALL(API, ...)                                                                    \
+  {                                                                                            \
+    cl_int e;                                                                                  \
+    switch (CLMLWorkspace::Global()->target_major) {                                           \
+      case 1:                                                                                  \
+        V1_API(API, __VA_ARGS__);                                                              \
+        break;                                                                                 \
+      case 2:                                                                                  \
+        V2_API(API, __VA_ARGS__);                                                              \
+        break;                                                                                 \
+      case 3:                                                                                  \
+        V3_API(API, __VA_ARGS__);                                                              \
+        break;                                                                                 \
+      case 4:                                                                                  \
+        V4_API(API, __VA_ARGS__);                                                              \
+        break;                                                                                 \
+      default:                                                                                 \
+        TVM_FFI_THROW(InternalError) << "CLML Error:" #API " - Unsupported target version \n"; \
+    }                                                                                          \
   }
 
 #define CLML_CALL_VERSIONED(APICALL, VERSION, ...) CAT(CAT(V, VERSION), _API)(APICALL, __VA_ARGS__)
@@ -119,14 +122,14 @@
     break;
 
 // clCreateMLOpClipQCOM
-#define CLML_CALL_clCreateMLOpClipQCOM(...)                        \
-  cl_int e;                                                        \
-  switch (CLMLWorkspace::Global()->target_major) {                 \
-    CALL_CASE(2, clCreateMLOpClipQCOM, __VA_ARGS__)                \
-    CALL_CASE(3, clCreateMLOpClipQCOM, __VA_ARGS__)                \
-    CALL_CASE(4, clCreateMLOpClipQCOM, __VA_ARGS__)                \
-    default:                                                       \
-      LOG(FATAL) << "CLML Error: - Unsupported target version \n"; \
+#define CLML_CALL_clCreateMLOpClipQCOM(...)                                          \
+  cl_int e;                                                                          \
+  switch (CLMLWorkspace::Global()->target_major) {                                   \
+    CALL_CASE(2, clCreateMLOpClipQCOM, __VA_ARGS__)                                  \
+    CALL_CASE(3, clCreateMLOpClipQCOM, __VA_ARGS__)                                  \
+    CALL_CASE(4, clCreateMLOpClipQCOM, __VA_ARGS__)                                  \
+    default:                                                                         \
+      TVM_FFI_THROW(InternalError) << "CLML Error: - Unsupported target version \n"; \
   }
 
 // clCreateMLTensorQCOM and clCreateMLTensorWithUsageQCOM
@@ -137,15 +140,15 @@
                                            TENSOR)                                           \
   CALL_CASE(VERSION, clCreateMLTensorWithUsageQCOM, CONTEXT, TENSORPROPS, TENSORDESC, USAGE, TENSOR)
 
-#define CLML_CALL_clCreateMLTensorQCOM(...)                        \
-  cl_int e;                                                        \
-  switch (CLMLWorkspace::Global()->target_major) {                 \
-    CALL_clCreateMLTensorQCOM(1, __VA_ARGS__);                     \
-    CALL_clCreateMLTensorQCOM(2, __VA_ARGS__);                     \
-    CALL_clCreateMLTensorQCOM(3, __VA_ARGS__);                     \
-    CALL_clCreateMLTensorWithUsageQCOM(4, __VA_ARGS__);            \
-    default:                                                       \
-      LOG(FATAL) << "CLML Error: - Unsupported target version \n"; \
+#define CLML_CALL_clCreateMLTensorQCOM(...)                                          \
+  cl_int e;                                                                          \
+  switch (CLMLWorkspace::Global()->target_major) {                                   \
+    CALL_clCreateMLTensorQCOM(1, __VA_ARGS__);                                       \
+    CALL_clCreateMLTensorQCOM(2, __VA_ARGS__);                                       \
+    CALL_clCreateMLTensorQCOM(3, __VA_ARGS__);                                       \
+    CALL_clCreateMLTensorWithUsageQCOM(4, __VA_ARGS__);                              \
+    default:                                                                         \
+      TVM_FFI_THROW(InternalError) << "CLML Error: - Unsupported target version \n"; \
   }
 
 /* Version compatibility for CLML Tensor creation */

@@ -56,38 +56,39 @@ class HexagonDeviceAPI final : public DeviceAPI {
 
   //! \brief Ensures resource managers are in a good state for the runtime
   void AcquireResources() {
-    CHECK_EQ(runtime_power_manager, nullptr);
+    TVM_FFI_ICHECK_EQ(runtime_power_manager, nullptr);
     runtime_power_manager = std::make_unique<HexagonPowerManager>();
 
-    CHECK_EQ(runtime_vtcm, nullptr);
+    TVM_FFI_ICHECK_EQ(runtime_vtcm, nullptr);
     runtime_vtcm = std::make_unique<HexagonVtcmPool>();
 
-    CHECK_EQ(runtime_hexbuffs, nullptr);
+    TVM_FFI_ICHECK_EQ(runtime_hexbuffs, nullptr);
     runtime_hexbuffs = std::make_unique<HexagonBufferManager>();
 
-    CHECK_EQ(runtime_threads, nullptr);
+    TVM_FFI_ICHECK_EQ(runtime_threads, nullptr);
     runtime_threads =
         std::make_unique<HexagonThreadManager>(threads, stack_size, pipe_size, hw_resources);
 
-    CHECK_EQ(runtime_dma, nullptr);
+    TVM_FFI_ICHECK_EQ(runtime_dma, nullptr);
     runtime_dma = std::make_unique<HexagonUserDMA>();
   }
 
   //! \brief Ensures all runtime resources are freed
   void ReleaseResources() {
-    CHECK(runtime_dma) << "runtime_dma was not created in AcquireResources";
+    TVM_FFI_ICHECK(runtime_dma) << "runtime_dma was not created in AcquireResources";
     runtime_dma.reset();
 
-    CHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
+    TVM_FFI_ICHECK(runtime_threads) << "runtime_threads was not created in AcquireResources";
     runtime_threads.reset();
 
-    CHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
+    TVM_FFI_ICHECK(runtime_hexbuffs) << "runtime_hexbuffs was not created in AcquireResources";
     runtime_hexbuffs.reset();
 
-    CHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
+    TVM_FFI_ICHECK(runtime_vtcm) << "runtime_vtcm was not created in AcquireResources";
     runtime_vtcm.reset();
 
-    CHECK(runtime_power_manager) << "runtime_power_manager was not created in AcquireResources";
+    TVM_FFI_ICHECK(runtime_power_manager)
+        << "runtime_power_manager was not created in AcquireResources";
     runtime_power_manager.reset();
   }
 
@@ -149,17 +150,17 @@ class HexagonDeviceAPI final : public DeviceAPI {
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final;
 
   HexagonThreadManager* ThreadManager() {
-    CHECK(runtime_threads) << "runtime_threads has not been created";
+    TVM_FFI_ICHECK(runtime_threads) << "runtime_threads has not been created";
     return runtime_threads.get();
   }
 
   HexagonUserDMA* UserDMA() {
-    CHECK(runtime_dma) << "runtime_dma has not been created";
+    TVM_FFI_ICHECK(runtime_dma) << "runtime_dma has not been created";
     return runtime_dma.get();
   }
 
   HexagonVtcmPool* VtcmPool() {
-    CHECK(runtime_vtcm) << "runtime_vtcm has not been created";
+    TVM_FFI_ICHECK(runtime_vtcm) << "runtime_vtcm has not been created";
     return runtime_vtcm.get();
   }
 

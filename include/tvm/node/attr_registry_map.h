@@ -56,9 +56,9 @@ class AttrRegistryMapContainerMap {
    * \return the const reference to the content value.
    */
   const ffi::Any& operator[](const KeyType& key) const {
-    ICHECK(key.defined());
+    TVM_FFI_ICHECK(key.defined());
     const uint32_t idx = key->AttrRegistryIndex();
-    ICHECK(idx < data_.size() && data_[idx].second != 0)
+    TVM_FFI_ICHECK(idx < data_.size() && data_[idx].second != 0)
         << "Attribute " << attr_name_ << " has not been registered for " << key->name;
     return data_[idx].first;
   }
@@ -71,7 +71,7 @@ class AttrRegistryMapContainerMap {
    */
   template <typename ValueType>
   ValueType get(const KeyType& key, ValueType def_value) const {
-    ICHECK(key.defined());
+    TVM_FFI_ICHECK(key.defined());
     const uint32_t idx = key->AttrRegistryIndex();
     if (idx < data_.size() && data_[idx].second != 0) {
       if constexpr (std::is_same_v<ValueType, ffi::Any>) {

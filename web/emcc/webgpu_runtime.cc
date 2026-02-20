@@ -60,7 +60,7 @@ class WebGPUDeviceAPI : public DeviceAPI {
  public:
   WebGPUDeviceAPI() {
     auto fp = tvm::ffi::Function::GetGlobal("wasm.WebGPUDeviceAPI");
-    CHECK(fp.has_value()) << "Cannot find wasm.WebGPUContext in the env";
+    TVM_FFI_ICHECK(fp.has_value()) << "Cannot find wasm.WebGPUContext in the env";
     auto getter = ffi::TypedFunction<ffi::Function(std::string)>(*fp);
     alloc_space_ = getter("deviceAllocDataSpace");
     free_space_ = getter("deviceFreeDataSpace");
@@ -89,7 +89,7 @@ class WebGPUDeviceAPI : public DeviceAPI {
                       TVMStreamHandle stream) final {
     if (static_cast<int>(dev_from.device_type) == kDLWebGPU &&
         static_cast<int>(dev_to.device_type) == kDLWebGPU) {
-      CHECK_EQ(dev_from.device_id, dev_to.device_id);
+      TVM_FFI_ICHECK_EQ(dev_from.device_id, dev_to.device_id);
       copy_within_gpu_(const_cast<void*>(from), from_offset, to, to_offset, size);
     } else if (static_cast<int>(dev_from.device_type) == kDLWebGPU &&
                dev_to.device_type == kDLCPU) {
@@ -100,22 +100,26 @@ class WebGPUDeviceAPI : public DeviceAPI {
       void* from_ptr = static_cast<uint8_t*>(const_cast<void*>(from)) + from_offset;
       copy_to_gpu_(from_ptr, to, to_offset, size);
     } else {
-      LOG(FATAL) << "expect copy from/to WebGPU or between WebGPU";
+      TVM_FFI_THROW(InternalError) << "expect copy from/to WebGPU or between WebGPU";
     }
   }
 
  public:
-  TVMStreamHandle CreateStream(Device dev) final { LOG(FATAL) << "Not implemented"; }
+  TVMStreamHandle CreateStream(Device dev) final {
+    TVM_FFI_THROW(InternalError) << "Not implemented";
+  }
 
-  void FreeStream(Device dev, TVMStreamHandle stream) final { LOG(FATAL) << "Not implemented"; }
+  void FreeStream(Device dev, TVMStreamHandle stream) final {
+    TVM_FFI_THROW(InternalError) << "Not implemented";
+  }
 
   void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
-    LOG(FATAL) << "Not implemented";
+    TVM_FFI_THROW(InternalError) << "Not implemented";
   }
 
   void StreamSync(Device dev, TVMStreamHandle stream) final {
     static auto func = tvm::ffi::Function::GetGlobal("__asyncify.WebGPUWaitForTasks");
-    ICHECK(func.has_value()) << "Stream sync inside c++ only supported in asyncify mode";
+    TVM_FFI_ICHECK(func.has_value()) << "Stream sync inside c++ only supported in asyncify mode";
     (*func)();
   }
 
@@ -158,7 +162,7 @@ class WebGPUModuleNode final : public ffi::ModuleObj {
                             ffi::Map<ffi::String, FunctionInfo> fmap)
       : smap_(smap), fmap_(fmap) {
     auto fp = tvm::ffi::Function::GetGlobal("wasm.WebGPUCreateShader");
-    CHECK(fp.has_value());
+    TVM_FFI_ICHECK(fp.has_value());
     create_shader_ = *fp;
   }
 
@@ -179,7 +183,7 @@ class WebGPUModuleNode final : public ffi::ModuleObj {
       return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
         auto name = args[0].cast<std::string>();
         auto it = smap_.find(name);
-        ICHECK(it != smap_.end()) << "Cannot find code " << name;
+        TVM_FFI_ICHECK(it != smap_.end()) << "Cannot find code " << name;
         *rv = it->second;
       });
     } else if (name == "webgpu.update_prebuild") {
@@ -198,7 +202,7 @@ class WebGPUModuleNode final : public ffi::ModuleObj {
     auto it = smap_.find(name);
     if (it != smap_.end()) {
       auto opt_info = fmap_.Get(name);
-      ICHECK(opt_info.has_value());
+      TVM_FFI_ICHECK(opt_info.has_value());
       FunctionInfo orig_info = opt_info.value();
       FunctionInfo info(name, orig_info->arg_types, orig_info->launch_param_tags,
                         orig_info->arg_extra_tags);
@@ -212,7 +216,7 @@ class WebGPUModuleNode final : public ffi::ModuleObj {
 
   int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; };
 
-  ffi::Bytes SaveToBytes() const final { LOG(FATAL) << "Not implemented"; }
+  ffi::Bytes SaveToBytes() const final { TVM_FFI_THROW(InternalError) << "Not implemented"; }
 
   ffi::String InspectSource(const ffi::String& format) const final {
     // can only return source code.
@@ -237,7 +241,7 @@ ffi::Module WebGPUModuleLoadFromBytes(const ffi::Bytes& bytes) {
   std::unordered_map<std::string, std::string> smap;
 
   ffi::Map<ffi::String, FunctionInfo> fmap;
-  ICHECK(stream.Read(&fmap));
+  TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&smap);
   return ffi::Module(ffi::make_object<WebGPUModuleNode>(smap, fmap));
 }

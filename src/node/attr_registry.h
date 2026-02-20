@@ -105,10 +105,11 @@ class AttrRegistry {
       op_map->data_.resize(index + 1, std::make_pair(Any(), 0));
     }
     std::pair<ffi::Any, int>& p = op_map->data_[index];
-    ICHECK(p.second != plevel) << "Attribute " << attr_name << " of " << key->AttrRegistryName()
-                               << " is already registered with same plevel=" << plevel;
-    ICHECK(value != nullptr) << "Registered packed_func is Null for " << attr_name
-                             << " of operator " << key->AttrRegistryName();
+    TVM_FFI_ICHECK(p.second != plevel)
+        << "Attribute " << attr_name << " of " << key->AttrRegistryName()
+        << " is already registered with same plevel=" << plevel;
+    TVM_FFI_ICHECK(value != nullptr) << "Registered packed_func is Null for " << attr_name
+                                     << " of operator " << key->AttrRegistryName();
     if (p.second < plevel && value != nullptr) {
       op_map->data_[index] = std::make_pair(value, plevel);
     }
@@ -138,7 +139,7 @@ class AttrRegistry {
   const AttrRegistryMapContainerMap<KeyType>& GetAttrMap(const ffi::String& attr_name) {
     auto it = attrs_.find(attr_name);
     if (it == attrs_.end()) {
-      LOG(FATAL) << "Attribute \'" << attr_name << "\' is not registered";
+      TVM_FFI_THROW(InternalError) << "Attribute \'" << attr_name << "\' is not registered";
     }
     return *it->second.get();
   }

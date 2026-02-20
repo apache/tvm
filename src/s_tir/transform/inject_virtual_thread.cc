@@ -61,8 +61,8 @@ class ExprTouched final : public StmtExprVisitor {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       const auto* rw_mask = op->args[4].as<IntImmNode>();
       const VarNode* buffer_var = op->args[1].as<VarNode>();
-      ICHECK(buffer_var);
-      ICHECK(rw_mask);
+      TVM_FFI_ICHECK(buffer_var);
+      TVM_FFI_ICHECK(rw_mask);
       // read
       if (rw_mask->value & 1) {
         HandleUseVar(buffer_var);
@@ -192,7 +192,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
         allow_share_(allow_share) {}
   // Inject VTLoop when needed.
   Stmt VisitStmt(const Stmt& s) final {
-    ICHECK(!visit_touched_var_);
+    TVM_FFI_ICHECK(!visit_touched_var_);
     auto stmt = StmtExprMutator::VisitStmt(s);
     if (visit_touched_var_ || trigger_base_inject_) {
       if (!vt_loop_injected_) {
@@ -205,7 +205,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // Variable
   PrimExpr VisitExpr_(const VarNode* op) final {
-    ICHECK(!alloc_remap_.count(op)) << "Buffer address may get rewritten in virtual thread";
+    TVM_FFI_ICHECK(!alloc_remap_.count(op)) << "Buffer address may get rewritten in virtual thread";
     if (touched_var_.count(op)) {
       visit_touched_var_ = true;
     }
@@ -217,7 +217,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   // Expression.
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
-      ICHECK_EQ(op->args.size(), 5U);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
       const VarNode* buffer = op->args[1].as<VarNode>();
       auto it = alloc_remap_.find(buffer);
@@ -259,7 +259,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
     auto it = alloc_remap_.find(node->buffer->data.get());
     if (it != alloc_remap_.end()) {
-      ICHECK_EQ(node->indices.size(), 1)
+      TVM_FFI_ICHECK_EQ(node->indices.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
       auto writer = node.CopyOnWrite();
       writer->buffer = GetRemappedBuffer(node->buffer, it->second);
@@ -276,7 +276,8 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       return it->second;
     }
 
-    ICHECK_EQ(buf->shape.size(), 1) << "Expected buffers being rewritten to already be flattened.";
+    TVM_FFI_ICHECK_EQ(buf->shape.size(), 1)
+        << "Expected buffers being rewritten to already be flattened.";
     auto writer = buf.CopyOnWrite();
     writer->shape = {buf->shape[0] * alloc_extent};
 
@@ -318,7 +319,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // For
   Stmt VisitStmt_(const ForNode* op) final {
-    ICHECK(is_zero(op->min));
+    TVM_FFI_ICHECK(is_zero(op->min));
     PrimExpr extent = this->VisitExpr(op->extent);
     if (visit_touched_var_ && !vt_loop_injected_) {
       Stmt stmt = InjectVTLoop(ffi::GetRef<Stmt>(op), true);
@@ -344,7 +345,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }
     visit_touched_var_ = false;
-    ICHECK_EQ(max_loop_depth_, 0);
+    TVM_FFI_ICHECK_EQ(max_loop_depth_, 0);
     Stmt then_case = this->VisitStmt(op->then_case);
     ffi::Optional<Stmt> else_case = std::nullopt;
     if (op->else_case) {
@@ -364,12 +365,12 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   // While
   Stmt VisitStmt_(const WhileNode* op) final {
     // TODO(masahi): What should we do for While nodes?
-    LOG(FATAL) << "WhileNode in InjectVirtualThread not supported yet";
+    TVM_FFI_THROW(InternalError) << "WhileNode in InjectVirtualThread not supported yet";
   }
 
   // Seq
   Stmt VisitStmt_(const SeqStmtNode* op) final {
-    ICHECK_EQ(max_loop_depth_, 0);
+    TVM_FFI_ICHECK_EQ(max_loop_depth_, 0);
     auto fmutate = [this](const Stmt& s) {
       int temp = max_loop_depth_;
       max_loop_depth_ = 0;
@@ -404,7 +405,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       // TODO(Lunderberg): Move pass to apply before
       // FlattenBuffer.  Would rewrite the Buffer to
       // add the injected virtual thread as the first index.
-      ICHECK_EQ(extents.size(), 1)
+      TVM_FFI_ICHECK_EQ(extents.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
       PrimExpr stride = extents[0];
       extents = {stride * num_threads_};
@@ -427,7 +428,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
   // inject vthread loop
   Stmt InjectVTLoop(Stmt stmt, bool before_mutation) {
-    ICHECK(!vt_loop_injected_);
+    TVM_FFI_ICHECK(!vt_loop_injected_);
     // reset the flags
     visit_touched_var_ = false;
     trigger_base_inject_ = false;

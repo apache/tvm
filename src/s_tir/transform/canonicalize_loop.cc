@@ -51,7 +51,8 @@ class LoopCanonicalizer : public StmtExprMutator {
     // report warning for negative step, since it would be a forever loop
     if (!analyzer_.CanProveGreaterEqual(step, 1)) {
       // TODO(tvm): prove dynamic shaped step
-      LOG(FATAL) << "Loop step for " << op->loop_var << " may not be positive: " << step;
+      TVM_FFI_THROW(InternalError)
+          << "Loop step for " << op->loop_var << " may not be positive: " << step;
     }
 
     new_iter_info_[loop_var] = std::make_pair(step, op->min);

@@ -37,7 +37,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
  public:
   explicit SplitPrimFuncLayoutRewrite(const PrimFunc& func) : original_func_(func) {}
   std::tuple<ffi::Optional<PrimFunc>, PrimFunc> Transform(const PrimFunc& func) {
-    ICHECK(func->body.as<SBlockRealizeNode>())
+    TVM_FFI_ICHECK(func->body.as<SBlockRealizeNode>())
         << "The body of the primfunc should be a root block.";
     const auto& block = func->body.as<SBlockRealizeNode>()->block;
     visit_root_block(block.get());
@@ -57,7 +57,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
 
   PrimFunc create_layout_rewrite_preproc_func() const {
     // Step 1: Check the number of pre_rewrite_buffers and post_rewrite_buffers
-    ICHECK(rewrite_infos_.size() > 0) << "There should be at least one buffer rewrite.";
+    TVM_FFI_ICHECK(rewrite_infos_.size() > 0) << "There should be at least one buffer rewrite.";
 
     // Step 2: Create the params for the new PrimFunc
     ffi::Array<Var> params;
@@ -73,7 +73,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     }
 
     // Step 3: Create the body for the new PrimFunc
-    ICHECK(layout_rewrite_preproc_stmts_.size() > 0)
+    TVM_FFI_ICHECK(layout_rewrite_preproc_stmts_.size() > 0)
         << "There should be at least one layout rewrite preproc stmt.";
     Stmt body = layout_rewrite_preproc_stmts_.size() == 1 ? layout_rewrite_preproc_stmts_[0]
                                                           : SeqStmt(layout_rewrite_preproc_stmts_);
@@ -104,7 +104,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     ffi::Map<Var, Buffer> buffer_map = original_func_->buffer_map;
     for (const auto& info : rewrite_infos_) {
       const Var& param = params[info.buffer_index];
-      ICHECK(buffer_map[param] == info.pre_rewrite_buffer);
+      TVM_FFI_ICHECK(buffer_map[param] == info.pre_rewrite_buffer);
       buffer_map.Set(param, info.post_rewrite_buffer);
     }
 
@@ -150,7 +150,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
       for (const auto& stmt : seq_stmt->seq) {
         current_subtree_ = 0;
         Stmt new_stmt = this->VisitStmt(stmt);
-        ICHECK(current_subtree_ != 0) << "There should be at least a block in the subtree.";
+        TVM_FFI_ICHECK(current_subtree_ != 0) << "There should be at least a block in the subtree.";
         if (current_subtree_ == 1) {
           layout_rewrite_preproc_stmts_.push_back(new_stmt);
         } else {
@@ -160,7 +160,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     } else {
       current_subtree_ = 0;
       this->VisitStmt(body);
-      ICHECK(current_subtree_ == -1)
+      TVM_FFI_ICHECK(current_subtree_ == -1)
           << "There should be a compute block if there is only one subtree under the root.";
     }
   }
@@ -173,19 +173,22 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     if (current_subtree_ == 0) {
       current_subtree_ = is_layout_rewrite_preproc ? 1 : -1;
     } else if (current_subtree_ == 1) {
-      CHECK(is_layout_rewrite_preproc)
+      TVM_FFI_ICHECK(is_layout_rewrite_preproc)
           << "There is a layout rewrite block in the subtree, but meet a non-layout rewrite block.";
     } else {
-      CHECK(!is_layout_rewrite_preproc)
+      TVM_FFI_ICHECK(!is_layout_rewrite_preproc)
           << "There is a non-layout rewrite block in the subtree, but meet a layout rewrite block.";
     }
 
     if (is_layout_rewrite_preproc) {
-      ICHECK(op->reads.size() == 1) << "There should be only one read buffer in the layout rewrite";
-      ICHECK(op->writes.size() == 1)
+      TVM_FFI_ICHECK(op->reads.size() == 1)
+          << "There should be only one read buffer in the layout rewrite";
+      TVM_FFI_ICHECK(op->writes.size() == 1)
           << "There should be only one write buffer in the layout rewrite";
-      ICHECK(op->alloc_buffers.empty()) << "There should be no alloc buffer in the layout rewrite";
-      ICHECK(op->match_buffers.empty()) << "There should be no match buffer in the layout rewrite";
+      TVM_FFI_ICHECK(op->alloc_buffers.empty())
+          << "There should be no alloc buffer in the layout rewrite";
+      TVM_FFI_ICHECK(op->match_buffers.empty())
+          << "There should be no match buffer in the layout rewrite";
       const Buffer& preproc_buffer = op->reads[0]->buffer;
       int buffer_index = -1;
       for (size_t i = 0; i < original_func_->params.size(); ++i) {
@@ -195,7 +198,8 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
           break;
         }
       }
-      ICHECK(buffer_index != -1) << "The preproc buffer is not found in the original primfunc.";
+      TVM_FFI_ICHECK(buffer_index != -1)
+          << "The preproc buffer is not found in the original primfunc.";
       rewrite_infos_.push_back(
           RewriteInfo{buffer_index, op->reads[0]->buffer, op->writes[0]->buffer});
 
@@ -287,7 +291,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     GlobalVar compute_gv = builder_->AddFunction(compute_func, gv->name_hint + "_prepacked");
     // Step 4. Get rewrite infos
     auto rewrite_infos_it = rewrite_infos_.find(gv.get());
-    ICHECK(rewrite_infos_it != rewrite_infos_.end())
+    TVM_FFI_ICHECK(rewrite_infos_it != rewrite_infos_.end())
         << "Rewrite infos are not found for " << gv->name_hint;
     const auto& rewrite_infos = rewrite_infos_it->second;
 
@@ -299,8 +303,9 @@ class SplitLayoutRewritePreproc : public ExprMutator {
       preproc_args.push_back(call_tir_args[info.buffer_index]);
       tir::Buffer rewritten_buffer = info.post_rewrite_buffer;
       for (const auto& shape_expr : rewritten_buffer->shape) {
-        CHECK(shape_expr.as<tir::IntImmNode>()) << "Currently does not support rewrite buffer with "
-                                                   "dynamic shape.";
+        TVM_FFI_ICHECK(shape_expr.as<tir::IntImmNode>())
+            << "Currently does not support rewrite buffer with "
+               "dynamic shape.";
       }
       preproc_sinfo_list.push_back(
           TensorStructInfo(ShapeExpr(rewritten_buffer->shape), rewritten_buffer->dtype));

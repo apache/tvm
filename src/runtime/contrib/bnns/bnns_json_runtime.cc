@@ -94,7 +94,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
   const char* kind() const override { return "bnns_json"; }
 
   void Init(const ffi::Array<Tensor>& consts) override {
-    ICHECK_EQ(consts.size(), const_idx_.size())
+    TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
 
     SetupConstants(consts);
@@ -163,7 +163,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     for (size_t nid = 0; nid < nodes_.size(); ++nid) {
       const auto& node = nodes_[nid];
       if (node.GetOpType() == "kernel") {
-        ICHECK_EQ(node.GetOpType(), "kernel");
+        TVM_FFI_ICHECK_EQ(node.GetOpType(), "kernel");
         auto op_name = node.GetOpName();
         if ("nn.conv2d" == op_name) {
           Conv2d(nid);
@@ -196,7 +196,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
         } else if ("nn.global_avg_pool2d" == op_name) {
           Pooling(nid, true, true);
         } else {
-          LOG(FATAL) << "Unsupported op: " << op_name;
+          TVM_FFI_THROW(InternalError) << "Unsupported op: " << op_name;
         }
       }
     }
@@ -205,7 +205,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
   // Get BNNS tensor.
   std::shared_ptr<BNNS::Tensor> GetBNNSTensor(const JSONGraphNodeEntry& entry) {
     auto eid = EntryID(entry);
-    ICHECK(eid < tensors_eid_.size());
+    TVM_FFI_ICHECK(eid < tensors_eid_.size());
     return tensors_eid_[eid];
   }
 
@@ -284,7 +284,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     for (int i = 0; i < params.size(); i++) {
       auto common_filter_param = getCommonFilterParams();
       filters[i] = BNNSFilterCreateLayerConvolution(&params[i], &common_filter_param);
-      ICHECK(filters[i]) << "BNNS primitive was not created. Unsupported attributes configuration";
+      TVM_FFI_ICHECK(filters[i])
+          << "BNNS primitive was not created. Unsupported attributes configuration";
     }
 
     primitives_.emplace_back(std::make_shared<BNNS::Primitive>(filters, src_view, dst_view));
@@ -331,7 +332,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
     auto common_filter_param = getCommonFilterParams();
     auto filter = BNNSFilterCreateLayerFullyConnected(&layerParameters, &common_filter_param);
-    ICHECK(filter) << "BNNS primitive was not created. Unsupported attributes configuration";
+    TVM_FFI_ICHECK(filter)
+        << "BNNS primitive was not created. Unsupported attributes configuration";
     std::vector<BNNSFilter> filters = {filter};
     primitives_.emplace_back(std::make_shared<BNNS::Primitive>(filters, src_view, dst_view));
   }
@@ -374,7 +376,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
     auto common_filter_param = getCommonFilterParams();
     auto filter = BNNSFilterCreateLayerBroadcastMatMul(&layerParameters, &common_filter_param);
-    ICHECK(filter) << "BNNS primitive was not created. Unsupported attributes configuration";
+    TVM_FFI_ICHECK(filter)
+        << "BNNS primitive was not created. Unsupported attributes configuration";
 
     std::vector<BNNSFilter> filters{filter};
     if (a_is_weighted || b_is_weighted) {
@@ -409,8 +412,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     auto dst_view = TView::as_is(dst_t);
     size_t src_rank = Tensor::getRank(src_view.get_bnns_view());
     size_t dst_rank = Tensor::getRank(dst_view.get_bnns_view());
-    ICHECK_EQ(src_rank, dst_rank);
-    ICHECK_LE(src_rank, 4);
+    TVM_FFI_ICHECK_EQ(src_rank, dst_rank);
+    TVM_FFI_ICHECK_LE(src_rank, 4);
     if (src_rank < 4) {
       src_view = src_view.unsqueeze(4);
       dst_view = dst_view.unsqueeze(4);
@@ -443,7 +446,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     auto common_filter_param = getCommonFilterParams();
     auto filter =
         BNNSFilterCreateLayerNormalization(filter_type, &layerParameters, &common_filter_param);
-    ICHECK(filter) << "BNNS primitive was not created. Unsupported attributes configuration";
+    TVM_FFI_ICHECK(filter)
+        << "BNNS primitive was not created. Unsupported attributes configuration";
 
     std::vector<BNNSFilter> filters{filter};
     primitives_.emplace_back(std::make_shared<BNNS::NormPrimitive>(filters, src_view, dst_view));
@@ -463,8 +467,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
     auto dst_view = TView::as_is(dst_t);
     size_t src_rank = Tensor::getRank(src_view.get_bnns_view());
     size_t dst_rank = Tensor::getRank(dst_view.get_bnns_view());
-    ICHECK_EQ(src_rank, dst_rank);
-    ICHECK_LE(src_rank, 4);
+    TVM_FFI_ICHECK_EQ(src_rank, dst_rank);
+    TVM_FFI_ICHECK_LE(src_rank, 4);
     if (src_rank < 4) {
       src_view = src_view.unsqueeze(4);
       dst_view = dst_view.unsqueeze(4);
@@ -515,7 +519,8 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
 
     auto common_filter_param = getCommonFilterParams();
     auto filter = BNNSFilterCreateLayerPooling(&layerParameters, &common_filter_param);
-    ICHECK(filter) << "BNNS primitive was not created. Unsupported attributes configuration";
+    TVM_FFI_ICHECK(filter)
+        << "BNNS primitive was not created. Unsupported attributes configuration";
 
     std::vector<BNNSFilter> filters{filter};
     primitives_.emplace_back(std::make_shared<BNNS::PoolingPrimitive>(filters, src_view, dst_view));
@@ -536,7 +541,7 @@ class BNNSJSONRuntime : public JSONRuntimeBase {
       if (dl_dtype.bits == 16) return BNNSDataTypeUInt16;
       if (dl_dtype.bits == 8) return BNNSDataTypeUInt8;
     }
-    LOG(FATAL) << "Unsupported data type for BNNS runtime";
+    TVM_FFI_THROW(InternalError) << "Unsupported data type for BNNS runtime";
   }
 
   BNNSFilterParameters getCommonFilterParams() {

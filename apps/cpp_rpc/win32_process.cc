@@ -93,19 +93,19 @@ SOCKET GetSocket(const std::string& mmap_path) {
   UniqueHandle parent_file_mapping_event;
   if ((parent_file_mapping_event = MakeUniqueHandle(
            OpenEventA(SYNCHRONIZE, false, parent_event_name.c_str()))) == nullptr) {
-    LOG(FATAL) << "OpenEvent() failed: " << GetLastError();
+    TVM_FFI_THROW(InternalError) << "OpenEvent() failed: " << GetLastError();
   }
 
   UniqueHandle child_file_mapping_event;
   if ((child_file_mapping_event = MakeUniqueHandle(
            OpenEventA(EVENT_MODIFY_STATE, false, child_event_name.c_str()))) == nullptr) {
-    LOG(FATAL) << "OpenEvent() failed: " << GetLastError();
+    TVM_FFI_THROW(InternalError) << "OpenEvent() failed: " << GetLastError();
   }
 
   // Wait for the parent to set the event, notifying WSAPROTOCOL_INFO is ready to be read
   if (WaitForSingleObject(parent_file_mapping_event.get(), uint32_t(kEventTimeout.count())) !=
       WAIT_OBJECT_0) {
-    LOG(FATAL) << "WaitForSingleObject() failed: " << GetLastError();
+    TVM_FFI_THROW(InternalError) << "WaitForSingleObject() failed: " << GetLastError();
   }
 
   const UniqueHandle file_map =
@@ -129,7 +129,7 @@ SOCKET GetSocket(const std::string& mmap_path) {
     // Let the parent know we are finished duplicating the socket
     SetEvent(child_file_mapping_event.get());
   } else {
-    LOG(FATAL) << "MapViewOfFile() failed: " << GetLastError();
+    TVM_FFI_THROW(InternalError) << "MapViewOfFile() failed: " << GetLastError();
   }
 
   return sock_duplicated;
@@ -158,14 +158,14 @@ void SpawnRPCChild(SOCKET fd, seconds timeout) {
   UniqueHandle parent_file_mapping_event;
   if ((parent_file_mapping_event = MakeUniqueHandle(
            CreateEventA(nullptr, true, false, parent_event_name.c_str()))) == nullptr) {
-    LOG(FATAL) << "CreateEvent for parent file mapping failed";
+    TVM_FFI_THROW(InternalError) << "CreateEvent for parent file mapping failed";
   }
 
   UniqueHandle child_file_mapping_event;
   // An event to let the parent know the socket info was read from the mmap file
   if ((child_file_mapping_event = MakeUniqueHandle(
            CreateEventA(nullptr, true, false, child_event_name.c_str()))) == nullptr) {
-    LOG(FATAL) << "CreateEvent for child file mapping failed";
+    TVM_FFI_THROW(InternalError) << "CreateEvent for child file mapping failed";
   }
 
   char current_executable[MAX_PATH];
@@ -191,7 +191,7 @@ void SpawnRPCChild(SOCKET fd, seconds timeout) {
     WSAPROTOCOL_INFO protocol_info;
     // Get info needed to duplicate the socket
     if (WSADuplicateSocket(fd, child_process_info.dwProcessId, &protocol_info) == SOCKET_ERROR) {
-      LOG(FATAL) << "WSADuplicateSocket(): failed. Error =" << WSAGetLastError();
+      TVM_FFI_THROW(InternalError) << "WSADuplicateSocket(): failed. Error =" << WSAGetLastError();
     }
 
     // Create a mmap file to store the info needed for duplicating the SOCKET in the child proc
@@ -203,7 +203,7 @@ void SpawnRPCChild(SOCKET fd, seconds timeout) {
     }
 
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-      LOG(FATAL) << "CreateFileMapping(): mapping file already exists";
+      TVM_FFI_THROW(InternalError) << "CreateFileMapping(): mapping file already exists";
     } else {
       void* map_view = MapViewOfFile(file_map.get(), FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0);
 
@@ -218,12 +218,13 @@ void SpawnRPCChild(SOCKET fd, seconds timeout) {
         if (WaitForSingleObject(child_file_mapping_event.get(), uint32_t(kEventTimeout.count())) !=
             WAIT_OBJECT_0) {
           TerminateProcess(child_process_handle.get(), 0);
-          LOG(FATAL) << "WaitForSingleObject for child file mapping timed out.  Terminating child "
-                        "process.";
+          TVM_FFI_THROW(InternalError)
+              << "WaitForSingleObject for child file mapping timed out.  Terminating child "
+                 "process.";
         }
       } else {
         TerminateProcess(child_process_handle.get(), 0);
-        LOG(FATAL) << "MapViewOfFile() failed: " << GetLastError();
+        TVM_FFI_THROW(InternalError) << "MapViewOfFile() failed: " << GetLastError();
       }
     }
 
@@ -254,7 +255,7 @@ void ChildProcSocketHandler(const std::string& mmap_path) {
   if ((socket = GetSocket(mmap_path)) != INVALID_SOCKET) {
     tvm::runtime::ServerLoopFromChild(socket);
   } else {
-    LOG(FATAL) << "GetSocket() failed";
+    TVM_FFI_THROW(InternalError) << "GetSocket() failed";
   }
 }
 }  // namespace runtime

@@ -212,7 +212,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
   }
 
   Function MakeCompileTimeFunction() const {
-    ICHECK(!global_info);  // This function is only called for local lifting
+    TVM_FFI_ICHECK(!global_info);  // This function is only called for local lifting
     return MakeCompileTimeFunctionHelper(GetCompileTimeInputs(), computable_at_compile_time,
                                          GetPropagatedSymbolicVariables(), GetCompileTimeOutputs());
   }
@@ -517,7 +517,7 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
       int num_params = static_cast<int>(functions[0]->params.size()) - num_inputs_0;
       for (int i = 0; i < static_cast<int>(functions.size()); i++) {
         auto num_inputs_i = functions[i]->GetAttr<Integer>(attr::kNumInput).value()->value;
-        CHECK_EQ(num_params, static_cast<int>(functions[i]->params.size()) - num_inputs_i)
+        TVM_FFI_ICHECK_EQ(num_params, static_cast<int>(functions[i]->params.size()) - num_inputs_i)
             << "The number of parameters should be the same for all target functions";
 
         for (int j = 0; j < num_params; j++) {
@@ -538,19 +538,19 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
   void VisitExpr_(const VarNode* lhs_var, const Expr& rhs_expr) final {
     auto rhs_var = Downcast<Var>(rhs_expr);
     if (auto it = var_remap_.find(ffi::GetRef<Var>(lhs_var)); it != var_remap_.end()) {
-      CHECK((*it).second.same_as(rhs_var));
+      TVM_FFI_ICHECK((*it).second.same_as(rhs_var));
     } else {
       var_remap_.Set(ffi::GetRef<Var>(lhs_var), rhs_var);
     }
-    CHECK(tvm::ffi::StructuralEqual::Equal(lhs_var->struct_info_, rhs_var->struct_info_,
-                                           /*map_free_vars=*/true))
+    TVM_FFI_ICHECK(tvm::ffi::StructuralEqual::Equal(lhs_var->struct_info_, rhs_var->struct_info_,
+                                                    /*map_free_vars=*/true))
         << "The struct info of the parameters should be the same for all target functions";
     auto lhs_tir_vars = DefinableTIRVarsInStructInfo(GetStructInfo(ffi::GetRef<Var>(lhs_var)));
     auto rhs_tir_vars = DefinableTIRVarsInStructInfo(GetStructInfo(rhs_expr));
-    ICHECK_EQ(lhs_tir_vars.size(), rhs_tir_vars.size());
+    TVM_FFI_ICHECK_EQ(lhs_tir_vars.size(), rhs_tir_vars.size());
     for (size_t i = 0; i < lhs_tir_vars.size(); i++) {
       if (auto it = tir_var_remap_.find(lhs_tir_vars[i]); it != tir_var_remap_.end()) {
-        CHECK((*it).second.same_as(rhs_tir_vars[i]));
+        TVM_FFI_ICHECK((*it).second.same_as(rhs_tir_vars[i]));
       } else {
         tir_var_remap_.Set(lhs_tir_vars[i], rhs_tir_vars[i]);
       }
@@ -567,7 +567,7 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
                                    const ffi::Map<Var, Expr>& var_remap,
                                    const ffi::Map<tir::Var, PrimExpr>& tir_var_remap) {
     GlobalLiftableBindingCollector collector(var_remap, tir_var_remap);
-    ICHECK(functions.size());
+    TVM_FFI_ICHECK(functions.size());
     for (const auto& func : functions) {
       int num_inputs = func->GetAttr<Integer>(attr::kNumInput).value()->value;
       for (int i = num_inputs; i < static_cast<int>(func->params.size()); i++) {
@@ -616,7 +616,8 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
                                  const ffi::Map<tir::Var, PrimExpr> tir_var_remap)
       : var_remap_(var_remap), tir_var_remap_(tir_var_remap) {}
   void VisitBinding(const Binding& binding) override {
-    CHECK(!binding->IsInstance<MatchCastNode>()) << "MatchCast is not supported in global lifting";
+    TVM_FFI_ICHECK(!binding->IsInstance<MatchCastNode>())
+        << "MatchCast is not supported in global lifting";
     if (CanLiftBinding(binding)) {
       liftable_vars_.insert(binding->var);
       auto bound_value = GetBoundValue(binding);
@@ -687,11 +688,11 @@ class ConsumeBundledParams : public ExprMutator {
 
   Expr VisitExpr_(const FunctionNode* func) final {
     auto opt_num_input = func->GetAttr<Integer>(attr::kNumInput);
-    ICHECK(opt_num_input.defined());
+    TVM_FFI_ICHECK(opt_num_input.defined());
     auto num_input = opt_num_input.value()->value;
-    ICHECK_EQ(func->params.size(), num_input + 1);
+    TVM_FFI_ICHECK_EQ(func->params.size(), num_input + 1);
     params_ = func->params.back();
-    ICHECK(params_->struct_info_.as<TupleStructInfoNode>());
+    TVM_FFI_ICHECK(params_->struct_info_.as<TupleStructInfoNode>());
     return ExprMutator::VisitExpr_(func);
   }
 
@@ -707,22 +708,23 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
     auto names = shared_transform.as<ffi::Array<ffi::String>>().value();
     for (const auto& name : names) {
       auto gvar = mod->global_var_map_.Get(name);
-      CHECK(gvar) << "When LiftTransformParams is called with a list of function names, "
-                  << "all function names must occur within the IRModule.  "
-                  << "However, the IRModule does not contain a function names '" << name << "'";
+      TVM_FFI_ICHECK(gvar) << "When LiftTransformParams is called with a list of function names, "
+                           << "all function names must occur within the IRModule.  "
+                           << "However, the IRModule does not contain a function names '" << name
+                           << "'";
 
       auto base_func = mod->functions.Get(gvar.value());
-      ICHECK(base_func.has_value())
+      TVM_FFI_ICHECK(base_func.has_value())
           << "Ill-formed IRModule.  "
           << "The map from name to GlobalVar found " << gvar.value() << " for the function name '"
           << name << "', but this GlobalVar does not appear in the IRModule";
 
       auto func = base_func.value().as<Function>();
-      CHECK(func) << "When LiftTransformParams is called with a list of function names, "
-                  << "only functions in the list must be relax functions.  "
-                  << "However, the function " << name << " is of type "
-                  << base_func.value()->GetTypeKey();
-      CHECK(func.value()->GetAttr<Integer>(attr::kNumInput))
+      TVM_FFI_ICHECK(func) << "When LiftTransformParams is called with a list of function names, "
+                           << "only functions in the list must be relax functions.  "
+                           << "However, the function " << name << " is of type "
+                           << base_func.value()->GetTypeKey();
+      TVM_FFI_ICHECK(func.value()->GetAttr<Integer>(attr::kNumInput))
           << "When LiftTransformParams is called with a list of function names, "
           << "all functions in the list must have the kNumInput ('" << attr::kNumInput
           << "') attribute.  "
@@ -757,7 +759,7 @@ Pass PartitionTransformParams(ffi::Variant<Bool, ffi::Array<ffi::String>> shared
   auto pass_func = [=](IRModule mod, PassContext pc) {
     std::optional<GlobalCollectInfo> global_collect_info;
 
-    CHECK((shared_transform.as<Bool>() || shared_transform.as<ffi::Array<ffi::String>>()))
+    TVM_FFI_ICHECK((shared_transform.as<Bool>() || shared_transform.as<ffi::Array<ffi::String>>()))
         << "shared_transform should be a boolean or an array of function names";
 
     auto target_functions = GetTargetFunctions(mod, shared_transform);

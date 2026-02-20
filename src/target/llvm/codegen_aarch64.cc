@@ -87,20 +87,20 @@ void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
   }
 
   const auto* attr_value = op->value.as<StringImmNode>();
-  ICHECK(attr_value) << "Expect " << attr_key << " to have a ffi::String value but was "
-                     << op->value->GetTypeKey();
+  TVM_FFI_ICHECK(attr_value) << "Expect " << attr_key << " to have a ffi::String value but was "
+                             << op->value->GetTypeKey();
 
   std::string aarch64_attr_key = attr_key.substr(7);
   if (aarch64_attr_key == "aarch64_pstate_sm") {
-    ICHECK(!func_has_pstate_sm) << "Multiple definitions of " << op->attr_key
-                                << " attribute found in the function "
-                                << function_->getName().data();
+    TVM_FFI_ICHECK(!func_has_pstate_sm)
+        << "Multiple definitions of " << op->attr_key << " attribute found in the function "
+        << function_->getName().data();
     function_->addFnAttr({aarch64_attr_key + "_" + attr_value->value});
     func_has_pstate_sm = true;
   } else if (aarch64_attr_key == "aarch64_pstate_za") {
-    ICHECK(!func_has_pstate_za) << "Multiple definitions of " << op->attr_key
-                                << " attribute found in the function "
-                                << function_->getName().data();
+    TVM_FFI_ICHECK(!func_has_pstate_za)
+        << "Multiple definitions of " << op->attr_key << " attribute found in the function "
+        << function_->getName().data();
     function_->addFnAttr({aarch64_attr_key + "_" + attr_value->value});
     func_has_pstate_za = true;
   } else {

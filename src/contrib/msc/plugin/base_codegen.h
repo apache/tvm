@@ -480,7 +480,7 @@ class BasePluginCodeGen {
         .func_start()
         .assign("info", "{}");
     for (const auto& name : ListPluginNames()) {
-      ICHECK(this->config()->ops_info.count(name)) << "Can not find op info for " << name;
+      TVM_FFI_ICHECK(this->config()->ops_info.count(name)) << "Can not find op info for " << name;
       const auto& info = this->config()->ops_info[name];
       this->stack_.assign(DocUtils::ToIndex("info", DocUtils::ToStr(name)), info);
     }

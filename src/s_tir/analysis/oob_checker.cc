@@ -118,7 +118,8 @@ tvm::transform::Pass OOBChecker() {
     if (checker.errors.size() > 0) {
       // mod doesn't contain our function, so we construct a new mod with out function
       IRModule func_mod({{GlobalVar("main"), func}});
-      LOG(FATAL) << OOBError(func_mod, checker.errors).RenderReport("Out of bounds checker");
+      TVM_FFI_THROW(ScheduleError)
+          << OOBError(func_mod, checker.errors).RenderReport("Out of bounds checker");
     }
     return func;
   };

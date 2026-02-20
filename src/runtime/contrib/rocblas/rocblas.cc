@@ -80,15 +80,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             bool transa = args[3].cast<bool>();
             bool transb = args[4].cast<bool>();
             // call gemm for simple compact code.
-            ICHECK_EQ(A->ndim, 2);
-            ICHECK_EQ(B->ndim, 2);
-            ICHECK_EQ(C->ndim, 2);
-            ICHECK(ffi::IsContiguous(*C));
-            ICHECK(ffi::IsContiguous(*B));
-            ICHECK(ffi::IsContiguous(*A));
-            ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
-            ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
-            ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
+            TVM_FFI_ICHECK_EQ(A->ndim, 2);
+            TVM_FFI_ICHECK_EQ(B->ndim, 2);
+            TVM_FFI_ICHECK_EQ(C->ndim, 2);
+            TVM_FFI_ICHECK(ffi::IsContiguous(*C));
+            TVM_FFI_ICHECK(ffi::IsContiguous(*B));
+            TVM_FFI_ICHECK(ffi::IsContiguous(*A));
+            TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
+            TVM_FFI_ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
+            TVM_FFI_ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
             float alpha = 1.0;
             float beta = 0.0;
@@ -118,12 +118,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         bool transa = args[3].cast<bool>();
         bool transb = args[4].cast<bool>();
         // call gemm for simple compact code.
-        ICHECK_EQ(A->ndim, 3);
-        ICHECK_EQ(B->ndim, 3);
-        ICHECK_EQ(C->ndim, 3);
-        ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
-        ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
-        ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
+        TVM_FFI_ICHECK_EQ(A->ndim, 3);
+        TVM_FFI_ICHECK_EQ(B->ndim, 3);
+        TVM_FFI_ICHECK_EQ(C->ndim, 3);
+        TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
+        TVM_FFI_ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
+        TVM_FFI_ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
         float alpha = 1.0;
         float beta = 0.0;

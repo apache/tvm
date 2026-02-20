@@ -58,7 +58,7 @@ namespace tir {
  *  };
  *  MyExprFunctor f;
  *  Var x("x");
- *  ICHECK_EQ(f(x + 1, 2), 3);
+ *  TVM_FFI_ICHECK_EQ(f(x + 1, 2), 3);
  * \endcode
  *
  * \note Why do we need this more powerful Functor:
@@ -150,7 +150,7 @@ class ExprFunctor<R(const PrimExpr& n, Args...)> {
   virtual R VisitExpr_(const FloatImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Object* op, Args...) {
-    LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     TVM_FFI_UNREACHABLE();
   }
 

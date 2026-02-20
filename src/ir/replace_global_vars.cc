@@ -80,7 +80,7 @@ IRModule ModuleReplaceGlobalVars(
     } else if (auto str = before.as<ffi::String>()) {
       gvar_before = mod->GetGlobalVar(str.value());
     } else {
-      LOG(FATAL)
+      TVM_FFI_THROW(InternalError)
           << "ffi::Variant<ffi::String,GlobalVar> must contain either ffi::String or GlobalVar";
     }
 
@@ -91,7 +91,7 @@ IRModule ModuleReplaceGlobalVars(
       gvar_after = gvar_before;
       gvar_after.CopyOnWrite()->name_hint = str.value();
     } else {
-      LOG(FATAL)
+      TVM_FFI_THROW(InternalError)
           << "ffi::Variant<ffi::String,GlobalVar> must contain either ffi::String or GlobalVar";
     }
 

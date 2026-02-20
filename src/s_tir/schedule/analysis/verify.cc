@@ -32,40 +32,41 @@ class SRefTreeVerifier : public StmtVisitor {
 
   void Verify() {
     VisitPrimFuncs(self_->mod, [this](const PrimFuncNode* func) { this->VisitStmt(func->body); });
-    ICHECK_EQ(n_sref_visited_, static_cast<int>(self_->stmt2ref.size()));
+    TVM_FFI_ICHECK_EQ(n_sref_visited_, static_cast<int>(self_->stmt2ref.size()));
     for (const auto& kv : self_->block_info) {
       const StmtSRef& sref = kv.first;
-      ICHECK(sref->stmt != nullptr)
-          << "InternalError: An expired sref is found in the block_scope mapping";
+      TVM_FFI_CHECK(sref->stmt != nullptr, InternalError)
+          << "An expired sref is found in the block_scope mapping";
       auto it = self_->stmt2ref.find(sref->stmt);
-      ICHECK(it != self_->stmt2ref.end())
-          << "InternalError: The sref points to a statement that does not exist in stmt2ref";
+      TVM_FFI_CHECK(it != self_->stmt2ref.end(), InternalError)
+          << "The sref points to a statement that does not exist in stmt2ref";
       const StmtSRef& sref2 = it->second;
-      ICHECK(sref.same_as(sref2))
-          << "InternalError: The sref points to a statement whose corresponding sref in stmt2ref "
+      TVM_FFI_CHECK(sref.same_as(sref2), InternalError)
+          << "The sref points to a statement whose corresponding sref in stmt2ref "
              "is not the same object as itself";
     }
-    ICHECK_EQ(n_block_sref_visited_, static_cast<int>(self_->block_info.size()));
+    TVM_FFI_ICHECK_EQ(n_block_sref_visited_, static_cast<int>(self_->block_info.size()));
   }
 
   void VisitStmt_(const SBlockNode* block) final {
     if (init_block_depth_) {
-      ICHECK(!self_->stmt2ref.count(block)) << "InternalError: A block inside init block has its "
-                                               "corresponding sref, which is not allowed";
+      TVM_FFI_CHECK(!self_->stmt2ref.count(block), InternalError)
+          << "A block inside init block has its "
+             "corresponding sref, which is not allowed";
       StmtVisitor::VisitStmt_(block);
       return;
     }
-    ICHECK(self_->stmt2ref.count(block))
-        << "InternalError: A BlockNode should appear in sref map, but it didn't\n"
+    TVM_FFI_CHECK(self_->stmt2ref.count(block), InternalError)
+        << "A BlockNode should appear in sref map, but it didn't\n"
         << ffi::GetRef<Stmt>(block);
     ++n_sref_visited_;
     ++n_block_sref_visited_;
     const StmtSRef& sref = self_->stmt2ref.at(block);
-    ICHECK(self_->block_info.count(sref))
-        << "InternalError: Cannot find scope information of the BlockNode:\n"
+    TVM_FFI_CHECK(self_->block_info.count(sref), InternalError)
+        << "Cannot find scope information of the BlockNode:\n"
         << ffi::GetRef<Stmt>(block);
-    ICHECK(sref->parent == ancestors_.back())
-        << "InternalError: Parent information mismatch for BlockNode:\n"
+    TVM_FFI_CHECK(sref->parent == ancestors_.back(), InternalError)
+        << "Parent information mismatch for BlockNode:\n"
         << ffi::GetRef<Stmt>(block) << "\nIts parent is supposed to be:\n"
         << ffi::GetRef<Stmt>(ancestors_.back()->stmt)
         << "\nHowever, its parent is incorrect and is:\n"
@@ -83,19 +84,20 @@ class SRefTreeVerifier : public StmtVisitor {
 
   void VisitStmt_(const ForNode* loop) final {
     if (init_block_depth_) {
-      ICHECK(!self_->stmt2ref.count(loop)) << "InternalError: A loop inside init block has its "
-                                              "corresponding sref, which is not allowed";
+      TVM_FFI_CHECK(!self_->stmt2ref.count(loop), InternalError)
+          << "A loop inside init block has its "
+             "corresponding sref, which is not allowed";
       StmtVisitor::VisitStmt_(loop);
       return;
     }
-    ICHECK(self_->stmt2ref.count(loop))
-        << "InternalError: A ForNode should appear in sref map, but it didn't\n"
+    TVM_FFI_CHECK(self_->stmt2ref.count(loop), InternalError)
+        << "A ForNode should appear in sref map, but it didn't\n"
         << ffi::GetRef<Stmt>(loop);
     ++n_sref_visited_;
     const StmtSRef& sref = self_->stmt2ref.at(loop);
     ffi::Optional<Stmt> stmt = std::nullopt;
-    ICHECK(sref->parent == ancestors_.back())
-        << "InternalError: Parent information mismatch for ForNode:\n"
+    TVM_FFI_CHECK(sref->parent == ancestors_.back(), InternalError)
+        << "Parent information mismatch for ForNode:\n"
         << ffi::GetRef<Stmt>(loop) << "\nIts parent is supposed to be:\n"
         << ffi::GetRef<Stmt>(ancestors_.back()->stmt)
         << "\nHowever, its parent is incorrect and is:\n"
@@ -118,15 +120,15 @@ class SRefTreeVerifier : public StmtVisitor {
       StmtSRef sref{nullptr};
       if (const auto* realize = child.as<SBlockRealizeNode>()) {
         const auto* block = realize->block.get();
-        ICHECK(self_->stmt2ref.count(block));
+        TVM_FFI_ICHECK(self_->stmt2ref.count(block));
         sref = self_->stmt2ref.at(block);
       } else if (child->IsInstance<ForNode>()) {
-        ICHECK(self_->stmt2ref.count(child.get()));
+        TVM_FFI_ICHECK(self_->stmt2ref.count(child.get()));
         sref = self_->stmt2ref.at(child.get());
       } else {
         continue;
       }
-      ICHECK_EQ(sref->seq_index, i) << "InternalError: A StmtSRef has incorrect seq_index";
+      TVM_FFI_CHECK_EQ(sref->seq_index, i, InternalError) << "A StmtSRef has incorrect seq_index";
     }
     StmtVisitor::VisitStmt_(seq_stmt);
   }
@@ -195,7 +197,7 @@ void VerifyCachedFlags(const ScheduleState& self) {
     os << "- SBlockInfo not found:";
     for (const StmtSRef& block_sref : block_info_not_found) {
       const auto* block = block_sref->StmtAs<SBlockNode>();
-      ICHECK(block);
+      TVM_FFI_ICHECK(block);
       os << " " << block->name_hint;
     }
     os << std::endl;
@@ -207,7 +209,7 @@ void VerifyCachedFlags(const ScheduleState& self) {
       bool expected = std::get<1>(record);
       bool actual = std::get<2>(record);
       const auto* block = block_sref->StmtAs<SBlockNode>();
-      ICHECK(block);
+      TVM_FFI_ICHECK(block);
       os << " (" << block->name_hint << ", expected=" << expected << ", actual=" << actual << ")";
     }
     os << std::endl;
@@ -219,7 +221,7 @@ void VerifyCachedFlags(const ScheduleState& self) {
       bool expected = std::get<1>(record);
       bool actual = std::get<2>(record);
       const auto* block = block_sref->StmtAs<SBlockNode>();
-      ICHECK(block);
+      TVM_FFI_ICHECK(block);
       os << " (" << block->name_hint << ", expected=" << expected << ", actual=" << actual << ")";
     }
     os << std::endl;
@@ -231,14 +233,14 @@ void VerifyCachedFlags(const ScheduleState& self) {
       bool expected = std::get<1>(record);
       bool actual = std::get<2>(record);
       const auto* block = block_sref->StmtAs<SBlockNode>();
-      ICHECK(block);
+      TVM_FFI_ICHECK(block);
       os << " (" << block->name_hint << ", expected=" << expected << ", actual=" << actual << ")";
     }
     os << std::endl;
   }
-  LOG(FATAL) << "Schedule verification failed. The IR is:\n"
-             << self->mod << "\nThe errors are:\n"
-             << os.str();
+  TVM_FFI_THROW(InternalError) << "Schedule verification failed. The IR is:\n"
+                               << self->mod << "\nThe errors are:\n"
+                               << os.str();
   throw;
 }
 

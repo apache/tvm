@@ -36,14 +36,14 @@ namespace codegen {
 inline PrimExpr DispatchPureExternLibDevice(const PrimExpr& e) {
   using namespace tir;
   const CallNode* call = e.as<CallNode>();
-  ICHECK(call != nullptr);
-  ICHECK(call->dtype.bits() == 32 || call->dtype.bits() == 64)
+  TVM_FFI_ICHECK(call != nullptr);
+  TVM_FFI_ICHECK(call->dtype.bits() == 32 || call->dtype.bits() == 64)
       << "Only support float32 or float64.";
 
   const OpNode* op = call->op.as<OpNode>();
-  ICHECK(op != nullptr);
+  TVM_FFI_ICHECK(op != nullptr);
   std::string name = op->name;
-  ICHECK_EQ(name.substr(0, 4), "tir.");
+  TVM_FFI_ICHECK_EQ(name.substr(0, 4), "tir.");
 
   std::ostringstream intrinsic_name;
   intrinsic_name << "__nv_" << name.substr(4);

@@ -52,7 +52,7 @@ bool IsInSpatialPrimFunc(const s_tir::Schedule& sch, const tir::StmtSRef& block_
   const StmtSRefNode* sref = block_sref.get();
   for (; sref->parent != nullptr; sref = sref->parent) {
   }
-  ICHECK(sref->stmt != nullptr && sref->stmt->IsInstance<SBlockNode>());
+  TVM_FFI_ICHECK(sref->stmt != nullptr && sref->stmt->IsInstance<SBlockNode>());
   return IsSpatialPrimFunc(ffi::GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sref->stmt, nullptr)));
 }
 

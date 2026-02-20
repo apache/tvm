@@ -320,7 +320,7 @@ ffi::Array<Any> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sch
   TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(packed_args, decision);
   ffi::Function pf([](const ffi::PackedArgs& args, ffi::Any* rv) -> void {
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
-    ICHECK_EQ(args.size(), kNumArgs);
+    TVM_FFI_ICHECK_EQ(args.size(), kNumArgs);
     ffi::details::unpack_call<return_type>(std::make_index_sequence<kNumArgs>{}, nullptr,
                                            TTraits::UnpackedApplyToSchedule, args.data(),
                                            args.size(), rv);
@@ -352,7 +352,7 @@ ffi::String UnpackedInstTraits<TTraits>::AsPython(const ffi::Array<Any>& inputs,
   TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(packed_args, decision);
   ffi::Function pf([](const ffi::PackedArgs& args, ffi::Any* rv) -> void {
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
-    ICHECK_EQ(args.size(), kNumArgs);
+    TVM_FFI_ICHECK_EQ(args.size(), kNumArgs);
     ffi::details::unpack_call<return_type>(std::make_index_sequence<kNumArgs>{}, nullptr,
                                            TTraits::UnpackedAsPython, args.data(), args.size(), rv);
   });
@@ -366,8 +366,8 @@ template <size_t index_offset>
 TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetInputs(AnyView* packed_args,
                                                                const ffi::Array<Any>& inputs) {
   constexpr size_t kNumInputs = TTraits::kNumInputs;
-  ICHECK_EQ(kNumInputs, inputs.size())
-      << "ValueError: Incorrect kNumInputs for instruction: " << TTraits::kName;
+  TVM_FFI_CHECK_EQ(kNumInputs, inputs.size(), ValueError)
+      << "Incorrect kNumInputs for instruction: " << TTraits::kName;
   for (size_t i = 0; i < kNumInputs; ++i) {
     packed_args[i + index_offset] = inputs[i];
   }
@@ -378,8 +378,8 @@ template <size_t index_offset>
 TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetAttrs(AnyView* packed_args,
                                                               const ffi::Array<Any>& attrs) {
   constexpr size_t kNumAttrs = TTraits::kNumAttrs;
-  ICHECK_EQ(kNumAttrs, attrs.size())
-      << "ValueError: Incorrect kNumAttrs for instruction: " << TTraits::kName;
+  TVM_FFI_CHECK_EQ(kNumAttrs, attrs.size(), ValueError)
+      << "Incorrect kNumAttrs for instruction: " << TTraits::kName;
   for (size_t i = 0; i < kNumAttrs; ++i) {
     packed_args[i + index_offset] = attrs[i];
   }
@@ -394,7 +394,7 @@ TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(AnyView* packed
   if (kNumDecisions == 1) {
     packed_args[index_offset] = decision;
   } else {
-    ICHECK(decision == nullptr);
+    TVM_FFI_ICHECK(decision == nullptr);
   }
 }
 
@@ -463,8 +463,8 @@ inline void PythonAPICall::AsPythonString(const Any& obj, std::ostream& os) {
     }
     os << '}';
   } else {
-    LOG(FATAL) << "ValueError: Cannot translate type '" << obj.GetTypeKey()
-               << "' to python. Its value is: " << obj;
+    TVM_FFI_THROW(ValueError) << "Cannot translate type '" << obj.GetTypeKey()
+                              << "' to python. Its value is: " << obj;
     throw;
   }
 }
@@ -522,7 +522,7 @@ void PythonAPICall::Decision(Any decision) {
 }
 
 void PythonAPICall::SingleOutput(ffi::Array<ffi::String> unit_array) {
-  ICHECK_EQ(unit_array.size(), 1);
+  TVM_FFI_ICHECK_EQ(unit_array.size(), 1);
   this->output_ = unit_array[0];
 }
 

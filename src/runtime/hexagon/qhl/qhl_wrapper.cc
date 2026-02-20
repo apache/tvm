@@ -61,7 +61,9 @@ template <typename T>
 HVX_Vector wrapper_api(HVX_Vector input, qhlFptr qhl_api, const char* qhl_api_name) {
   HVX_Vector output;
   int32_t res = qhl_api(reinterpret_cast<T*>(&input), reinterpret_cast<T*>(&output), 64);
-  if (res != 0) LOG(FATAL) << "Error. Failed execution of " << qhl_api_name << "  Error=" << res;
+  if (res != 0)
+    TVM_FFI_THROW(InternalError) << "Error. Failed execution of " << qhl_api_name
+                                 << "  Error=" << res;
   return output;
 }
 
@@ -70,7 +72,9 @@ HVX_Vector wrapper_api(HVX_Vector ip1, HVX_Vector ip2, qhlFptr2 qhl_api, const c
   HVX_Vector output;
   int32_t res = qhl_api(reinterpret_cast<T*>(&ip1), reinterpret_cast<T*>(&ip2),
                         reinterpret_cast<T*>(&output), 64);
-  if (res != 0) LOG(FATAL) << "Error. Failed execution of " << qhl_api_name << "Error=" << res;
+  if (res != 0)
+    TVM_FFI_THROW(InternalError) << "Error. Failed execution of " << qhl_api_name
+                                 << "Error=" << res;
   return output;
 }
 

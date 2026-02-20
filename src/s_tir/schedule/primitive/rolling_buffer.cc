@@ -267,7 +267,7 @@ class RollingBufferRewriter : public StmtExprMutator {
                            const ffi::Array<BufferRegion>& infered_access_regions) {
     auto fmutate = [this, &infered_access_regions](const BufferRegion& buffer_region) {
       if (buffer_region->buffer.same_as(info_->old_buffer)) {
-        ICHECK(infered_access_regions.size() == 1);
+        TVM_FFI_ICHECK(infered_access_regions.size() == 1);
         return infered_access_regions[0];
       }
       return buffer_region;

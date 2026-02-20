@@ -69,7 +69,7 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
   const tir::StmtSRef block_sref = sch->GetSRef(block_rv);
   const tir::SBlockNode* block_node = block_sref->StmtAs<tir::SBlockNode>();
   const tir::SBlockRealize block_realize = s_tir::GetSBlockRealize(sch->state(), block_sref);
-  ICHECK(block_node && block_node->writes.size() == 1);
+  TVM_FFI_ICHECK(block_node && block_node->writes.size() == 1);
 
   const auto out_dtype = block_node->writes[0]->buffer->dtype;
   const int vec_len = vector_length_in_bits / out_dtype.bits();

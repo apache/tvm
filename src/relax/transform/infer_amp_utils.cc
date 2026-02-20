@@ -25,7 +25,7 @@ namespace relax {
 NType NTypeFrom(const StructInfo& sinfo, DataType dtype) {
   auto fmapleaf = [&](const StructInfo& sinfo) -> NType {
     const auto* tensor = sinfo.as<TensorStructInfoNode>();
-    ICHECK(tensor) << "Expected TensorStructInfo, but got " << sinfo;
+    TVM_FFI_ICHECK(tensor) << "Expected TensorStructInfo, but got " << sinfo;
     if (dtype == DataType::Void())
       return NType(DLDataTypeToString(tensor->dtype));
     else
@@ -46,8 +46,8 @@ NType NTypeMerge(const NType& a, const NType& b) {
 
     DataType a = DataType(ffi::StringToDLDataType(a_str));
     DataType b = DataType(ffi::StringToDLDataType(b_str));
-    ICHECK_EQ(a.code(), b.code());
-    ICHECK_EQ(a.lanes(), b.lanes());
+    TVM_FFI_ICHECK_EQ(a.code(), b.code());
+    TVM_FFI_ICHECK_EQ(a.lanes(), b.lanes());
     return a.bits() > b.bits() ? a_str : b_str;
   };
   return CombineNestedMsg<ffi::String>(a, b, fcombine);

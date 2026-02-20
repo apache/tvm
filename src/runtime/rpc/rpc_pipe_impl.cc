@@ -51,7 +51,7 @@ class PipeChannel final : public RPCChannel {
   size_t Send(const void* data, size_t size) final {
     ssize_t n = write(writefd_, data, size);
     if (n == -1) {
-      LOG(FATAL) << "Pipe write error";
+      TVM_FFI_THROW(InternalError) << "Pipe write error";
     }
     return static_cast<size_t>(n);
   }
@@ -59,7 +59,7 @@ class PipeChannel final : public RPCChannel {
   size_t Recv(void* data, size_t size) final {
     ssize_t n = read(readfd_, data, size);
     if (n == -1) {
-      LOG(FATAL) << "Pipe read error";
+      TVM_FFI_THROW(InternalError) << "Pipe read error";
     }
     return static_cast<size_t>(n);
   }
@@ -79,8 +79,8 @@ class PipeChannel final : public RPCChannel {
 ffi::Module CreatePipeClient(std::vector<std::string> cmd) {
   int parent2child[2];
   int child2parent[2];
-  ICHECK_EQ(pipe(parent2child), 0);
-  ICHECK_EQ(pipe(child2parent), 0);
+  TVM_FFI_ICHECK_EQ(pipe(parent2child), 0);
+  TVM_FFI_ICHECK_EQ(pipe(child2parent), 0);
 
   int parent_read = child2parent[0];
   int parent_write = parent2child[1];

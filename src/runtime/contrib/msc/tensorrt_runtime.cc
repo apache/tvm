@@ -87,7 +87,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
    * \param consts The constant params from compiled model.
    */
   void Init(const ffi::Array<Tensor>& consts) override {
-    ICHECK_EQ(consts.size(), const_idx_.size())
+    TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     LoadGlobalOptions();
     for (size_t nid = 0; nid < nodes_.size(); nid++) {
@@ -120,7 +120,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
     SetInputOutputBinds();
     if (tool_tag_.size() > 0) {
       const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
-      ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
+      TVM_FFI_ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
       ffi::Map<ffi::String, runtime::Tensor> input_datas;
       int device_id = 0;
       for (const auto& pair : input_bindings_) {
@@ -134,7 +134,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
     }
     auto tvm_stream = TVMFFIEnvGetStream(kDLCUDA, device_id);
 #if TRT_VERSION_GE(6, 0, 1)
-    ICHECK(context_->enqueueV2(bindings_.data(), tvm_stream, nullptr))
+    TVM_FFI_ICHECK(context_->enqueueV2(bindings_.data(), tvm_stream, nullptr))
         << "Running TensorRT failed.";
 #else
     LOG_FATAL << "Only support tensorrt with version >=6.0.0";
@@ -145,7 +145,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       uint32_t eid = EntryID(outputs_[i]);
       const auto& name = nodes_[nid].GetOpName() + ":" + std::to_string(outputs_[i].index_);
       int binding_index = engine_->getBindingIndex(name.c_str());
-      ICHECK_NE(binding_index, -1);
+      TVM_FFI_ICHECK_NE(binding_index, -1);
       if (data_entry_[eid]->device.device_type != kDLCUDA || tool_tag_.size() > 0) {
         auto device_buffer = GetOrAllocateDeviceBuffer(eid, binding_index);
         device_buffer.CopyTo(const_cast<DLTensor*>(data_entry_[eid]));
@@ -153,7 +153,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
     }
     if (tool_tag_.size() > 0) {
       const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
-      ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
+      TVM_FFI_ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
       ffi::Map<ffi::String, runtime::Tensor> output_datas;
       for (int bid = 0; bid < engine_->getNbBindings(); bid++) {
         if (input_bindings_.count(bid)) {
@@ -239,11 +239,11 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
           uint32_t eid = EntryID(nid, j);
           const auto& name = nodes_[nid].GetOpName() + ":" + std::to_string(j);
           int binding_index = engine_->getBindingIndex(name.c_str());
-          ICHECK_NE(binding_index, -1);
+          TVM_FFI_ICHECK_NE(binding_index, -1);
 #if TRT_VERSION_GE(6, 0, 1)
           std::vector<int64_t> shape(data_entry_[eid]->shape,
                                      data_entry_[eid]->shape + data_entry_[eid]->ndim);
-          ICHECK(context_->setBindingDimensions(binding_index, VectorToTrtDims(shape)));
+          TVM_FFI_ICHECK(context_->setBindingDimensions(binding_index, VectorToTrtDims(shape)));
 #endif
           if (data_entry_[eid]->device.device_type == kDLCUDA && tool_tag_.size() == 0) {
             bindings_[binding_index] = data_entry_[eid]->data;
@@ -267,7 +267,7 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       uint32_t eid = EntryID(outputs_[i]);
       const auto& name = nodes_[nid].GetOpName() + ":" + std::to_string(outputs_[i].index_);
       int binding_index = engine_->getBindingIndex(name.c_str());
-      ICHECK_NE(binding_index, -1);
+      TVM_FFI_ICHECK_NE(binding_index, -1);
       if (data_entry_[eid]->device.device_type == kDLCUDA && tool_tag_.size() == 0) {
         bindings_[binding_index] = data_entry_[eid]->data;
       } else {
@@ -284,7 +284,8 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       }
       if (!device_buffers_.count(bid)) {
         const auto& tensor_name = engine_->getBindingName(bid);
-        ICHECK(tensor_ids_.count(tensor_name)) << "Can not find tensor_name " << tensor_name;
+        TVM_FFI_ICHECK(tensor_ids_.count(tensor_name))
+            << "Can not find tensor_name " << tensor_name;
         const auto& pair = tensor_ids_[tensor_name];
         auto shape = nodes_[pair.first].GetOpShape()[pair.second];
         auto dtype = nodes_[pair.first].GetOpDataType()[pair.second];
@@ -318,8 +319,8 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
 
 #else   // TVM_GRAPH_EXECUTOR_TENSORRT
   void Run() override {
-    LOG(FATAL) << "TensorRT runtime is not enabled. "
-               << "Please build with USE_TENSORRT_RUNTIME.";
+    TVM_FFI_THROW(InternalError) << "TensorRT runtime is not enabled. "
+                                 << "Please build with USE_TENSORRT_RUNTIME.";
   }
 
   bool LoadEngine(const ffi::String& engine_file) { return false; }

@@ -248,7 +248,7 @@ void PassProfile::EnterPass(ffi::String name) {
 
 void PassProfile::ExitPass() {
   PassProfile* cur = PassProfile::Current();
-  ICHECK_NE(cur->name, "root") << "mismatched enter/exit for pass profiling";
+  TVM_FFI_ICHECK_NE(cur->name, "root") << "mismatched enter/exit for pass profiling";
   cur->end = PassProfile::Clock::now();
   cur->duration = std::chrono::duration_cast<PassProfile::Duration>(cur->end - cur->start);
   PassProfileThreadLocalStoreGet()->profile_stack.pop();
@@ -265,7 +265,8 @@ PassProfile* PassProfile::Current() {
 
 ffi::String RenderPassProfiles() {
   PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStoreGet();
-  CHECK(entry->profile_stack.empty()) << "cannot print pass profile while still in a pass!";
+  TVM_FFI_ICHECK(entry->profile_stack.empty())
+      << "cannot print pass profile while still in a pass!";
 
   if (entry->root.children.empty()) {
     LOG(WARNING) << "no passes have been profiled, did you enable pass profiling?";

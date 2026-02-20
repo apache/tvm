@@ -146,7 +146,7 @@ const size_t TensorRTOpCode::AttrToReduceAxis(const ffi::String& key, size_t ndi
     return ToReduceAxis(axes, ndim);
   }
   int axis;
-  ICHECK(node()->GetAttr(key, &axis)) << "Can not get axes from attribute key " << key;
+  TVM_FFI_ICHECK(node()->GetAttr(key, &axis)) << "Can not get axes from attribute key " << key;
   return ToReduceAxis(std::vector<int>{axis}, ndim);
 }
 
@@ -251,7 +251,7 @@ class TensorRTArgmaxminCodeGen : public TensorRTOpCode {
 
  protected:
   void CodeGenBuild() final {
-    ICHECK(node()->GetTypeAttr<bool>("keepdims")) << "Only support argsort with keepdims";
+    TVM_FFI_ICHECK(node()->GetTypeAttr<bool>("keepdims")) << "Only support argsort with keepdims";
     stack_.op_call()
         .op_input_arg()
         .call_arg("TopKOperation::k" + symbol_)
@@ -300,7 +300,7 @@ class TensorRTConcatCodeGen : public TensorRTOpCode {
  protected:
   void CodeGenBuild() final {
     const auto& producer = node()->ProducerOf(0);
-    ICHECK(node()->parents.size() == 1 && producer->optype == "tuple")
+    TVM_FFI_ICHECK(node()->parents.size() == 1 && producer->optype == "tuple")
         << "Concat expect parent as tuple, get " << node();
     stack_.op_call().call_arg(IdxNodeBase(producer)).call_arg(producer->inputs.size());
     SetLayerByValue("Axis", AttrToAxis());
@@ -313,7 +313,7 @@ class TensorRTConstantCodeGen : public TensorRTOpCode {
 
  protected:
   void CodeGenBuild() final {
-    ICHECK(!node()->HasAttr("scalar")) << "Scalar constant is not supported";
+    TVM_FFI_ICHECK(!node()->HasAttr("scalar")) << "Scalar constant is not supported";
     stack_.op_call().call_arg(ToDims(node()->OutputAt(0)->shape)).op_weight_arg("const");
   }
 };
@@ -438,7 +438,8 @@ class TensorRTPadCodeGen : public TensorRTOpCode {
  protected:
   void CodeGenBuild() final {
     const auto& pad_width = node()->GetTypeArrayAttr<int>("pad_width");
-    ICHECK(pad_width.size() % 2 == 0) << "pad_width should be multiple of 2, get " << node();
+    TVM_FFI_ICHECK(pad_width.size() % 2 == 0)
+        << "pad_width should be multiple of 2, get " << node();
     std::vector<int> pre_padding{2, 0}, post_padding{2, 0};
     const auto& input = node()->InputAt(0);
     for (size_t i = 0; i < input->Ndim(); i++) {
@@ -715,7 +716,7 @@ class TensorRTPluginOpCodeGen : public TensorRTOpCode {
  protected:
   void CodeGenBuild() final {
     const auto& producer = node()->ParentAt(0);
-    ICHECK(producer->optype == "tuple")
+    TVM_FFI_ICHECK(producer->optype == "tuple")
         << "Only support tensorrt plugin with tuple, get " << producer;
 
     const auto& plugin = GetPlugin(node()->optype);

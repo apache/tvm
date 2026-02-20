@@ -84,7 +84,7 @@ TEST(TextureCopy, HostDeviceRT) {
   cpu_arr0.CopyTo(opencl_txarr0);
   opencl_txarr0.CopyTo(cpu_arr1);
   for (size_t i = 0; i < size; ++i) {
-    ICHECK_LT(
+    TVM_FFI_ICHECK_LT(
         std::fabs(static_cast<float*>(cpu_arr1->data)[i] - static_cast<float*>(cpu_arr0->data)[i]),
         1e-5);
   }
@@ -127,9 +127,9 @@ TEST_F(TextureCopyTest, ViewBufferAsBuffer) {
   // Copy from OpenCLBuffer
   opencl_memobj.CopyTo(cpu_arr_ret);
   for (size_t i = 0; i < size; i++) {
-    ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
-                        static_cast<float*>(cpu_arr_ret->data)[i]),
-              1e-5);
+    TVM_FFI_ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
+                                static_cast<float*>(cpu_arr_ret->data)[i]),
+                      1e-5);
   }
 
   /* Check view object round trip */
@@ -142,9 +142,9 @@ TEST_F(TextureCopyTest, ViewBufferAsBuffer) {
   // Copy from OpenCLBuffer
   opencl_memview.CopyTo(cpu_arr_ret);
   for (size_t i = 0; i < size; i++) {
-    ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
-                        static_cast<float*>(cpu_arr_ret->data)[i]),
-              1e-5);
+    TVM_FFI_ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
+                                static_cast<float*>(cpu_arr_ret->data)[i]),
+                      1e-5);
   }
 }
 
@@ -184,9 +184,9 @@ TEST_F(TextureCopyTest, ViewBufferAsImage) {
   // Copy from OpenCLBuffer
   opencl_buf_obj.CopyTo(cpu_arr_ret);
   for (size_t i = 0; i < size; i++) {
-    ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
-                        static_cast<float*>(cpu_arr_ret->data)[i]),
-              1e-5);
+    TVM_FFI_ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
+                                static_cast<float*>(cpu_arr_ret->data)[i]),
+                      1e-5);
   }
 
   /* Check view object round trip */
@@ -199,9 +199,9 @@ TEST_F(TextureCopyTest, ViewBufferAsImage) {
   // Copy from OpenCLBuffer
   opencl_img_obj.CopyTo(cpu_arr_ret);
   for (size_t i = 0; i < size; i++) {
-    ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
-                        static_cast<float*>(cpu_arr_ret->data)[i]),
-              1e-5);
+    TVM_FFI_ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
+                                static_cast<float*>(cpu_arr_ret->data)[i]),
+                      1e-5);
   }
 }
 
@@ -242,9 +242,9 @@ TEST_F(TextureCopyTest, ViewImageAsBuffer) {
   // Copy from OpenCLBuffer
   opencl_buf_obj.CopyTo(cpu_arr_ret);
   for (size_t i = 0; i < size; i++) {
-    ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
-                        static_cast<float*>(cpu_arr_ret->data)[i]),
-              1e-5);
+    TVM_FFI_ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
+                                static_cast<float*>(cpu_arr_ret->data)[i]),
+                      1e-5);
   }
 
   /* Check view object round trip */
@@ -257,9 +257,9 @@ TEST_F(TextureCopyTest, ViewImageAsBuffer) {
   // Copy from OpenCLBuffer
   opencl_img_obj.CopyTo(cpu_arr_ret);
   for (size_t i = 0; i < size; i++) {
-    ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
-                        static_cast<float*>(cpu_arr_ret->data)[i]),
-              1e-5);
+    TVM_FFI_ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
+                                static_cast<float*>(cpu_arr_ret->data)[i]),
+                      1e-5);
   }
 }
 
@@ -300,9 +300,9 @@ TEST_F(TextureCopyTest, ViewImageAsImage) {
   // Copy from OpenCLBuffer
   opencl_img_obj_1.CopyTo(cpu_arr_ret);
   for (size_t i = 0; i < size; i++) {
-    ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
-                        static_cast<float*>(cpu_arr_ret->data)[i]),
-              1e-5);
+    TVM_FFI_ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
+                                static_cast<float*>(cpu_arr_ret->data)[i]),
+                      1e-5);
   }
 
   /* Check view object round trip */
@@ -315,8 +315,8 @@ TEST_F(TextureCopyTest, ViewImageAsImage) {
   // Copy from OpenCLBuffer
   opencl_img_obj_2.CopyTo(cpu_arr_ret);
   for (size_t i = 0; i < size; i++) {
-    ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
-                        static_cast<float*>(cpu_arr_ret->data)[i]),
-              1e-5);
+    TVM_FFI_ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] -
+                                static_cast<float*>(cpu_arr_ret->data)[i]),
+                      1e-5);
   }
 }

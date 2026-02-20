@@ -25,18 +25,18 @@ namespace s_tir {
 namespace meta_schedule {
 
 void PyPostprocNode::InitializeWithTuneContext(const TuneContext& context) {
-  ICHECK(f_initialize_with_tune_context != nullptr)
+  TVM_FFI_ICHECK(f_initialize_with_tune_context != nullptr)
       << "PyPostproc's InitializeWithTuneContext method not implemented!";
   f_initialize_with_tune_context(context);
 }
 
 bool PyPostprocNode::Apply(const s_tir::Schedule& sch) {
-  ICHECK(f_apply != nullptr) << "PyPostproc's Apply method not implemented!";
+  TVM_FFI_ICHECK(f_apply != nullptr) << "PyPostproc's Apply method not implemented!";
   return f_apply(sch);
 }
 
 Postproc PyPostprocNode::Clone() const {
-  ICHECK(f_clone != nullptr) << "PyPostproc's Clone method not implemented!";
+  TVM_FFI_ICHECK(f_clone != nullptr) << "PyPostproc's Clone method not implemented!";
   return f_clone();
 }
 
@@ -114,9 +114,9 @@ ffi::Array<Postproc> Postproc::DefaultHexagon() {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyPostprocNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyPostprocNode>();
-      ICHECK(self);
+      TVM_FFI_ICHECK(self);
       PyPostprocNode::FAsString f_as_string = (*self).f_as_string;
-      ICHECK(f_as_string != nullptr) << "PyPostproc's AsString method not implemented!";
+      TVM_FFI_ICHECK(f_as_string != nullptr) << "PyPostproc's AsString method not implemented!";
       p->stream << f_as_string();
     });
 

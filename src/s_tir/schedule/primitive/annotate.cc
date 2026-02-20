@@ -31,7 +31,7 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_k
   } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
     annotations = &block->annotations;
   } else {
-    LOG(FATAL) << "TypeError: Unknown type of sref: " << sref->stmt->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unknown type of sref: " << sref->stmt->GetTypeKey();
   }
   // Check if the annotation already exists
   if (annotations->find(ann_key) != annotations->end()) {
@@ -51,7 +51,7 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann_k
     SBlock p(n);
     self->Replace(sref, p, {{ffi::GetRef<SBlock>(block), p}});
   } else {
-    LOG(FATAL) << "TypeError: Unknown type of sref: " << sref->stmt->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unknown type of sref: " << sref->stmt->GetTypeKey();
     throw;
   }
 }
@@ -64,11 +64,11 @@ void Unannotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann
   } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
     annotations = &block->annotations;
   } else {
-    LOG(FATAL) << "TypeError: Unknown type of sref: " << sref->stmt->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unknown type of sref: " << sref->stmt->GetTypeKey();
   }
   // Remove the annotation
-  ICHECK(annotations->find(ann_key) != annotations->end())
-      << "IndexError: Cannot find annotation key: " << ann_key;
+  TVM_FFI_CHECK(annotations->find(ann_key) != annotations->end(), IndexError)
+      << "Cannot find annotation key: " << ann_key;
   ffi::Map<ffi::String, ffi::Any> new_ann(*annotations);
   new_ann.erase(ann_key);
   // Create the new stmt
@@ -82,7 +82,7 @@ void Unannotate(ScheduleState self, const StmtSRef& sref, const ffi::String& ann
     SBlock p(n);
     self->Replace(sref, p, {{ffi::GetRef<SBlock>(block), p}});
   } else {
-    LOG(FATAL) << "TypeError: Unknown type of sref: " << sref->stmt->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unknown type of sref: " << sref->stmt->GetTypeKey();
     throw;
   }
 }
@@ -104,8 +104,8 @@ struct AnnotateTraits : public UnpackedInstTraits<AnnotateTraits> {
     if (auto loop = block_or_loop_rv.as<LoopRV>()) {
       return sch->Annotate(loop.value(), ann_key, ann_val);
     }
-    LOG(FATAL) << "TypeError: Expected SBlock or Loop, but gets: "
-               << block_or_loop_rv->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Expected SBlock or Loop, but gets: "
+                             << block_or_loop_rv->GetTypeKey();
     throw;
   }
 
@@ -139,8 +139,8 @@ struct UnannotateTraits : public UnpackedInstTraits<UnannotateTraits> {
     if (auto loop = block_or_loop_rv.as<LoopRV>()) {
       return sch->Unannotate(loop.value(), ann_key);
     }
-    LOG(FATAL) << "TypeError: Expected SBlock or Loop, but gets: "
-               << block_or_loop_rv->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Expected SBlock or Loop, but gets: "
+                             << block_or_loop_rv->GetTypeKey();
     throw;
   }
 

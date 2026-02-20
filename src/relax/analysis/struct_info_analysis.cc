@@ -105,7 +105,7 @@ StructInfo StructInfoFromType(const Type& type) {
     // TODO(relax-team): Maybe add purity into the type as well
     return FuncStructInfo(params, ret, true, func_type->span);
   } else {
-    LOG(FATAL) << "Unsupported type: " << type;
+    TVM_FFI_THROW(InternalError) << "Unsupported type: " << type;
     return StructInfo();
   }
 }
@@ -222,7 +222,7 @@ class WellDefinedEraser : public StructInfoMutator,
     }
     has_undefined_ = has_undefined_ || !ret.defined();
     if (ret.defined()) {
-      ICHECK(ret.as<VarNode>() || ret.as<ShapeExprNode>())
+      TVM_FFI_ICHECK(ret.as<VarNode>() || ret.as<ShapeExprNode>())
           << "Only allow Expr in StructInfo to be ShapeExpr or Var";
     }
     return ret.value_or(ffi::GetRef<Expr>(var));
@@ -240,7 +240,8 @@ class WellDefinedEraser : public StructInfoMutator,
       if (value->IsInstance<IntImmNode>()) {
         return tvm::cast(DataType::Int(64), value);
       }
-      ICHECK(value.dtype() == DataType::Int(64)) << "Can only provide i64 expressions in shape";
+      TVM_FFI_ICHECK(value.dtype() == DataType::Int(64))
+          << "Can only provide i64 expressions in shape";
       return value;
     } else {
       return ffi::GetRef<PrimExpr>(var);
@@ -933,7 +934,7 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
     }
     auto lhs_shape = lhs.as<ShapeExprNode>();
     auto rhs_shape = rhs.as<ShapeExprNode>();
-    ICHECK(lhs_shape) << "lhs must have a shape";
+    TVM_FFI_ICHECK(lhs_shape) << "lhs must have a shape";
     if (!rhs_shape) return BaseCheckResult::kFailL2;
     return ShapeMatchCheck(lhs_shape->values, rhs_shape->values);
   }
@@ -1206,7 +1207,8 @@ class TIRVarsDetector : public StructInfoVisitor {
         RecordTIRVar(tir_var);
       }
     } else {
-      LOG(FATAL) << "Invalid value for VarType enum, " << static_cast<int>(collection_type);
+      TVM_FFI_THROW(InternalError)
+          << "Invalid value for VarType enum, " << static_cast<int>(collection_type);
     }
   }
 

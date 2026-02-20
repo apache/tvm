@@ -382,7 +382,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       const SBlock& block = block_realize->block;
       const ffi::Array<IterVar>& block_iter = block->iter_vars;
       const ffi::Array<PrimExpr>& iter_values = block_realize->iter_values;
-      ICHECK_EQ(block_iter.size(), iter_values.size());
+      TVM_FFI_ICHECK_EQ(block_iter.size(), iter_values.size());
       int n_iter = block_iter.size();
       for (int i = 0; i < n_iter; ++i) {
         // To detect the reshape pattern, we require each block iter to be data-parallel.
@@ -431,7 +431,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       // access (e.g., buf[ax0, ax1, ax2]).
 
       auto f_calc_flattened_idx = [&](const Buffer& buffer, const ffi::Array<PrimExpr>& indices) {
-        ICHECK_EQ(indices.size(), buffer->shape.size());
+        TVM_FFI_ICHECK_EQ(indices.size(), buffer->shape.size());
         int ndim = indices.size();
         PrimExpr idx = 0;
         for (int i = 0; i < ndim; ++i) {
@@ -495,7 +495,7 @@ bool HasReshapePattern(const PrimFunc& func) {
             /*check_level=*/arith::IterMapLevel::Surjective,
             /*analyzer=*/&this->ana_,
             /*simplify_trivial_iterators=*/true);
-        ICHECK_EQ(simplify_res.size(), 1);
+        TVM_FFI_ICHECK_EQ(simplify_res.size(), 1);
 
         if (simplify_res[0].same_as(fused_var)) {
           this->is_reshape_ = true;
@@ -535,7 +535,7 @@ bool HasReshapePattern(const PrimFunc& func) {
 
   // To detect the reshape pattern, we require each For to have
   // either another For or a BlockRealize as body.
-  ICHECK(func->body->IsInstance<SBlockRealizeNode>());
+  TVM_FFI_ICHECK(func->body->IsInstance<SBlockRealizeNode>());
   return ReshapeDetector::Detect(src_buffer, dst_buffer, func->body);
 }
 

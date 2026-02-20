@@ -227,8 +227,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitStmt_(const SBlockNode* op) final {
     // Step 0. Check there is no init part and block is opaque
-    ICHECK(!op->init.defined());
-    ICHECK_EQ(op->iter_vars.size(), 0) << "CompactBufferRegion only works on opaque blocks";
+    TVM_FFI_ICHECK(!op->init.defined());
+    TVM_FFI_ICHECK_EQ(op->iter_vars.size(), 0) << "CompactBufferRegion only works on opaque blocks";
     // Step 1. Record and update current read/write region annotations
     std::unordered_map<Buffer, std::vector<BufferRegion>, ObjectPtrHash, ObjectPtrEqual>
         cur_access_annotations;
@@ -286,7 +286,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     explicit_access_annotations_.clear();
     // Step 8. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
     for (const Buffer& buffer : op->alloc_buffers) {
-      ICHECK_EQ(var2buffer_[buffer->data].size(), 1)
+      TVM_FFI_ICHECK_EQ(var2buffer_[buffer->data].size(), 1)
           << "Block allocation buffer shoud not be alised";
       SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
     }
@@ -341,7 +341,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   /*! \brief Record information on the buffer defining point. */
   void VisitBufferDef(const Var& buffer_data) {
     auto it = buffer_scope_depth_.find(buffer_data);
-    ICHECK(it == buffer_scope_depth_.end()) << buffer_data << " has duplicate definitions";
+    TVM_FFI_ICHECK(it == buffer_scope_depth_.end()) << buffer_data << " has duplicate definitions";
     buffer_scope_depth_.insert(it, {buffer_data, ancestor_iters_.size()});
   }
 
@@ -360,7 +360,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
           continue;
         }
         auto dom_it = dom_map_.find(v);
-        ICHECK(dom_it != dom_map_.end())
+        TVM_FFI_ICHECK(dom_it != dom_map_.end())
             << "Could not find domain for loop variable " << v->name_hint;
         non_relaxed[i] = dom_it->second;
         dom_map_.erase(dom_it);
@@ -428,7 +428,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
    */
   void SimplifyAndNarrowBufferRegionFromNDIntSet(const Buffer& buffer) {
     auto it = relaxed_accesses_.find(buffer);
-    ICHECK(it != relaxed_accesses_.end())
+    TVM_FFI_ICHECK(it != relaxed_accesses_.end())
         << buffer << " is allocated but not accessed within block scope";
 
     const ffi::Array<PrimExpr>& original_shape = buffer->shape;
@@ -565,7 +565,7 @@ class BufferCompactor : public StmtExprMutator {
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     // Step 0. Check there is no Init part.
-    ICHECK(!op->init.defined());
+    TVM_FFI_ICHECK(!op->init.defined());
     // Step 1. Reallocate and rewrite alloc_buffers, also update BufferAllocInfo.
     ffi::Array<Buffer> alloc_buffers =
         op->alloc_buffers.Map([this](const Buffer& buf) { return RewriteAllocBuffer(buf); });
@@ -603,7 +603,7 @@ class BufferCompactor : public StmtExprMutator {
     }
     ffi::Array<PrimExpr> new_shape = GetBufferAllocationShape(new_buffer);
     auto n = allocate.CopyOnWrite();
-    ICHECK(n->buffer_var.same_as(new_buffer->data));
+    TVM_FFI_ICHECK(n->buffer_var.same_as(new_buffer->data));
     n->extents = new_shape;
     return allocate;
   }
@@ -622,7 +622,7 @@ class BufferCompactor : public StmtExprMutator {
       return;
     }
     const BufferAllocInfo& info = it->second;
-    ICHECK_EQ(indices->size(), info.region.size());
+    TVM_FFI_ICHECK_EQ(indices->size(), info.region.size());
     int ndim = info.region.size();
     ffi::Array<PrimExpr> new_indices;
     new_indices.reserve(ndim);
@@ -640,7 +640,7 @@ class BufferCompactor : public StmtExprMutator {
       return;
     }
     const BufferAllocInfo& info = it->second;
-    ICHECK_EQ(region->size(), info.region.size());
+    TVM_FFI_ICHECK_EQ(region->size(), info.region.size());
     Region new_region;
     new_region.reserve(info.region.size());
     for (size_t i = 0; i < info.region.size(); ++i) {
@@ -683,7 +683,7 @@ ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
                                  const ffi::Array<PrimExpr>& shape) {
   std::vector<PrimExpr> strides;
   if (alloc_info.dim_aligns.size()) {
-    ICHECK(alloc_info.dim_aligns.size() == shape.size());
+    TVM_FFI_ICHECK(alloc_info.dim_aligns.size() == shape.size());
     strides.resize(shape.size());
     PrimExpr stride = make_const(shape[0].dtype(), 1);
     for (size_t i = shape.size(); i != 0; --i) {

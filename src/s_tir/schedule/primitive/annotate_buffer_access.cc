@@ -36,8 +36,9 @@ class AnnotateRegionRewriter : public StmtExprMutator {
 
     ffi::Array<BufferRegion> regions =
         buffer_index_type_ == BufferIndexType::kWrite ? block->writes : block->reads;
-    ICHECK_GE(buffer_index_, 0) << "Buffer index must be non-negative";
-    ICHECK_LT(buffer_index_, static_cast<int>(regions.size())) << "Buffer index out of range";
+    TVM_FFI_ICHECK_GE(buffer_index_, 0) << "Buffer index must be non-negative";
+    TVM_FFI_ICHECK_LT(buffer_index_, static_cast<int>(regions.size()))
+        << "Buffer index out of range";
     regions.Set(buffer_index_, new_region_);
 
     ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
@@ -93,7 +94,7 @@ void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int bu
     block_iter_vars.push_back(iter_var->var);
   }
   ffi::Array<PrimExpr> new_indices = index_map->MapIndices(block_iter_vars, &analyzer);
-  ICHECK_EQ(new_indices.size() % 2, 0) << "The size of new_indices should be even.";
+  TVM_FFI_ICHECK_EQ(new_indices.size() % 2, 0) << "The size of new_indices should be even.";
   ffi::Array<Range> new_ranges;
   for (size_t i = 0; i < new_indices.size(); i += 2) {
     // (begin, end) represents a region

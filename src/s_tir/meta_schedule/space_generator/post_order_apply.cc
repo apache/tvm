@@ -49,7 +49,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
 
   ffi::Array<s_tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
     using ScheduleAndUnvisitedBlocks = std::pair<s_tir::Schedule, ffi::Array<s_tir::SBlockRV>>;
-    CHECK(sch_rules.defined()) << "ValueError: `sch_rules` is not set in PostOrderApply";
+    TVM_FFI_CHECK(sch_rules.defined(), ValueError) << "`sch_rules` is not set in PostOrderApply";
     s_tir::Schedule sch = s_tir::Schedule::Traced(
         /*mod=*/mod,
         /*rand_state=*/ForkSeed(&this->rand_state_),

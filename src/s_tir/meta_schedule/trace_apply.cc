@@ -168,7 +168,7 @@ std::vector<SBlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       auto block = Downcast<SBlockRV>(inputs[0]);
       auto block_sref = sch->GetSRef(block);
       if (!CanReverseComputeInline(sch->state(), block_sref)) {
-        ICHECK(CanComputeInline(sch->state(), block_sref));
+        TVM_FFI_ICHECK(CanComputeInline(sch->state(), block_sref));
         sch->ComputeInline(block);
         continue;
       }
@@ -178,7 +178,7 @@ std::vector<SBlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       auto block_sref = sch->GetSRef(block);
       auto state = sch->state();
       if (!CanComputeInline(state, block_sref)) {
-        ICHECK(IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false)))
+        TVM_FFI_ICHECK(IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false)))
             << "If a spatial block cannot be inlined, it should be the output block";
         if (CanReverseComputeInline(sch->state(), block_sref)) {
           sch->ReverseComputeInline(block);
@@ -197,7 +197,7 @@ std::vector<SBlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       // violates the assumption made by TranslateAddOutputRVs: old_outputs.size() ==
       // new_outputs.size(). We workaround this problem by assuming that the prefix of the "new"
       // outputs matches with the "old" outputs, and truncating the new outputs accordingly.
-      ICHECK(inst->outputs.size() <= outputs.size());
+      TVM_FFI_ICHECK(inst->outputs.size() <= outputs.size());
       TranslateAddOutputRVs(
           inst->outputs, ffi::Array<Any>(outputs.begin(), outputs.begin() + inst->outputs.size()),
           &rv_map);
@@ -238,7 +238,7 @@ void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm
   InlinePostBlocks(sch, anchor_trace, target);
 
   auto unscheduled_blocks = ApplyAnchorTrace(sch, anchor_trace);
-  ICHECK(unscheduled_blocks.size() <= 1)
+  TVM_FFI_ICHECK(unscheduled_blocks.size() <= 1)
       << "All blocks should have been scheduled or only one (fused) spatial block can remain "
          "unscheduled at this point.";
 
@@ -257,8 +257,8 @@ void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm
     sch->Parallel(sch->Fuse(sch->GetLoops(last_block)));
   } else if (IsGPUTarget(target->kind->name)) {
     auto max_threads_per_block = target->GetAttr<Integer>("max_threads_per_block");
-    ICHECK(max_threads_per_block.defined())
-        << "ValueError: missing attribute `max_threads_per_block` in the target";
+    TVM_FFI_CHECK(max_threads_per_block.defined(), ValueError)
+        << "missing attribute `max_threads_per_block` in the target";
 
     auto auto_bind_rule =
         ScheduleRule::AutoBind(/*max_threadblocks=*/256,

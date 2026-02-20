@@ -116,7 +116,7 @@ class IRBuilderFrame : public runtime::ObjectRef {
    * \sa IRBuilderFrameNode::EnterWithScope
    */
   inline void EnterWithScope() {
-    ICHECK(data_ != nullptr);
+    TVM_FFI_ICHECK(data_ != nullptr);
     static_cast<IRBuilderFrameNode*>(data_.get())->EnterWithScope();
   }
   /*!
@@ -124,7 +124,7 @@ class IRBuilderFrame : public runtime::ObjectRef {
    * \sa IRBuilderFrameNode::ExitWithScope
    */
   inline void ExitWithScope() {
-    ICHECK(data_ != nullptr);
+    TVM_FFI_ICHECK(data_ != nullptr);
     static_cast<IRBuilderFrameNode*>(data_.get())->ExitWithScope();
     data_.reset();
   }
@@ -296,9 +296,10 @@ inline ffi::Optional<TFrame> IRBuilderNode::GetLastFrame() const {
 template <typename TObjectRef>
 inline TObjectRef IRBuilderNode::Get() const {
   using TObject = typename TObjectRef::ContainerType;
-  CHECK(result.defined()) << "IndexError: No result exists in IRBuilder yet";
+  TVM_FFI_CHECK(result.defined(), IndexError) << "No result exists in IRBuilder yet";
   const auto* n = result.as<TObject>();
-  CHECK(n != nullptr) << "TypeError: IRBuilder result is not of type: " << TObject::_type_key;
+  TVM_FFI_CHECK(n != nullptr, TypeError)
+      << "IRBuilder result is not of type: " << TObject::_type_key;
   return ffi::GetRef<TObjectRef>(n);
 }
 

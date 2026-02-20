@@ -99,7 +99,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 
   void VisitStmt_(const AllocateNode* op) final {
-    ICHECK(!is_zero(op->condition));
+    TVM_FFI_ICHECK(!is_zero(op->condition));
     llvm::Value* buf = nullptr;
     StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
@@ -110,7 +110,8 @@ class CodeGenAMDGPU : public CodeGenLLVM {
                                  llvm::GlobalValue::ExternalLinkage);
     } else {
       size_t constant_size = op->ConstantAllocationSize();
-      ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
+      TVM_FFI_ICHECK_GT(constant_size, 0)
+          << "Can only handle constant size stack allocation in GPU";
 
       if (constant_size % 4 == 0 && info.alignment == 0) {
         info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
@@ -139,7 +140,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         }
         buf = alloca;
       } else {
-        ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
+        TVM_FFI_ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
         // Shared memory: address space  == 3
         buf = AllocateSharedMemory(op->dtype, constant_size, 3, info.alignment,
@@ -150,7 +151,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     buf = builder_->CreatePointerCast(
         buf,
         llvmGetPointerTo(DTypeToLLVMType(op->dtype), buf->getType()->getPointerAddressSpace()));
-    ICHECK(!var_map_.count(op->buffer_var.get()));
+    TVM_FFI_ICHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;
     this->VisitStmt(op->body);
   }
@@ -171,10 +172,10 @@ class CodeGenAMDGPU : public CodeGenLLVM {
           intrin_id = llvm::Intrinsic::amdgcn_workitem_id_z;
           break;
         default:
-          LOG(FATAL) << "unknown workitem idx";
+          TVM_FFI_THROW(InternalError) << "unknown workitem idx";
       }
     } else {
-      ICHECK_EQ(ts.rank, 0);
+      TVM_FFI_ICHECK_EQ(ts.rank, 0);
       switch (ts.dim_index) {
         case 0:
           intrin_id = llvm::Intrinsic::amdgcn_workgroup_id_x;
@@ -186,7 +187,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
           intrin_id = llvm::Intrinsic::amdgcn_workgroup_id_z;
           break;
         default:
-          LOG(FATAL) << "unknown workgroup idx";
+          TVM_FFI_THROW(InternalError) << "unknown workgroup idx";
       }
     }
 #if TVM_LLVM_VERSION >= 200
@@ -213,7 +214,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 #endif
       return builder_->CreateCall(f, {});
     } else {
-      LOG(FATAL) << "Do not support sync " << sync;
+      TVM_FFI_THROW(InternalError) << "Do not support sync " << sync;
     }
   }
 
@@ -228,7 +229,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 
   llvm::Value* CreateIntrinsic(const CallNode* op) final {
     if (op->op.same_as(builtin::atomic_add())) {
-      ICHECK(op->args[1]->dtype.bits() == 32) << "Only supports 32 bit atomic for now";
+      TVM_FFI_ICHECK(op->args[1]->dtype.bits() == 32) << "Only supports 32 bit atomic for now";
       llvm::Value* v0 = MakeValue(op->args[0]);
       llvm::Value* v1 = MakeValue(op->args[1]);
       if (op->args[1]->dtype.is_float()) {
@@ -241,7 +242,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
                                          llvm::AtomicOrdering::Monotonic);
 #endif
 #else
-        LOG(FATAL) << "Floating point atomic requires LLVM 9 or newer";
+        TVM_FFI_THROW(InternalError) << "Floating point atomic requires LLVM 9 or newer";
 #endif
       }
 #if TVM_LLVM_VERSION >= 130
@@ -268,7 +269,7 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
 
   With<LLVMTarget> llvm_target(llvm_instance, target);
 #if TVM_LLVM_VERSION < 90
-  LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
+  TVM_FFI_THROW(InternalError) << "AMDGPU backend requires at least LLVM 9";
   // Lower versions will crash when loading the bitcode, see
   // issue #4087 for a discussion
 #endif
@@ -314,16 +315,18 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
   llvm::legacy::PassManager pass;
 
 #if TVM_LLVM_VERSION <= 60
-  ICHECK(tm->addPassesToEmitFile(pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+  TVM_FFI_ICHECK(tm->addPassesToEmitFile(pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 #elif TVM_LLVM_VERSION <= 90
-  ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+  TVM_FFI_ICHECK(
+      tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 #elif TVM_LLVM_VERSION <= 170
-  ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::CGFT_ObjectFile) == 0)
+  TVM_FFI_ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 #else
-  ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::CodeGenFileType::ObjectFile) == 0)
+  TVM_FFI_ICHECK(
+      tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::CodeGenFileType::ObjectFile) == 0)
       << "Cannot emit target CodeGenFileType::ObjectFile";
 #endif
   pass.run(*mObj);
@@ -331,25 +334,26 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
 
   llvm::legacy::PassManager passAsm;
 #if TVM_LLVM_VERSION <= 60
-  ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+  TVM_FFI_ICHECK(
+      tm->addPassesToEmitFile(passAsm, destAsm, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
 #elif TVM_LLVM_VERSION <= 90
-  ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
-                                 llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+  TVM_FFI_ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
+                                         llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
 #elif TVM_LLVM_VERSION <= 170
-  ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr, llvm::CGFT_AssemblyFile) == 0)
+  TVM_FFI_ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr, llvm::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
 #else
-  ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr, llvm::CodeGenFileType::AssemblyFile) ==
-         0)
+  TVM_FFI_ICHECK(
+      tm->addPassesToEmitFile(passAsm, destAsm, nullptr, llvm::CodeGenFileType::AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
 #endif
   passAsm.run(*mAsm);
   std::string assembly(dataAsm.begin(), dataAsm.end());
 
   auto flink = tvm::ffi::Function::GetGlobal("tvm_callback_rocm_link");
-  ICHECK(flink.has_value())
+  TVM_FFI_ICHECK(flink.has_value())
       << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
 
   TVMFFIByteArray arr;

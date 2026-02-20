@@ -90,7 +90,7 @@ class TaskExtractor : public ExprVisitor {
         mod_eq_(ModuleEquality::Create(mod_eq_name)),
         func2task_(/*bucket_count*/ 0, ModuleHash(*mod_eq_), ModuleEqual(*mod_eq_)) {
     normalize_mod_func_ = tvm::ffi::Function::GetGlobal("tvm.s_tir.meta_schedule.normalize_mod");
-    ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
+    TVM_FFI_ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
   }
 
   void VisitExpr_(const CallNode* call) final {

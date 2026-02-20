@@ -75,9 +75,9 @@ class HexagonVtcmPool {
 
   bool IsVtcm(void* ptr, unsigned size) {
     auto char_ptr = static_cast<char*>(ptr);
-    CHECK(char_ptr != nullptr);
+    TVM_FFI_ICHECK(char_ptr != nullptr);
     auto char_vtcm = static_cast<char*>(vtcm_data_);
-    CHECK(vtcm_data_ != nullptr);
+    TVM_FFI_ICHECK(vtcm_data_ != nullptr);
 
     if (char_ptr >= char_vtcm && (char_ptr + size) <= (char_vtcm + vtcm_allocated_size_)) {
       return true;

@@ -151,7 +151,7 @@ class OpAttrExtractor {
           if (auto opt_str = (*an)[i].as<ffi::String>()) {
             attr.push_back(*opt_str);
           } else {
-            LOG(FATAL) << "Not supported type: " << (*an)[i].GetTypeKey();
+            TVM_FFI_THROW(InternalError) << "Not supported type: " << (*an)[i].GetTypeKey();
           }
         }
         SetNodeAttr(key, std::move(attr));
@@ -165,7 +165,7 @@ class OpAttrExtractor {
     } else if (const auto opt_str = (*value).as<ffi::String>()) {
       SetNodeAttr(key, *opt_str);
     } else {
-      LOG(FATAL) << "Not yet supported type: " << (*value).GetTypeKey();
+      TVM_FFI_THROW(InternalError) << "Not yet supported type: " << (*value).GetTypeKey();
     }
   }
 
@@ -178,7 +178,7 @@ class OpAttrExtractor {
  private:
   void VisitObjectFields(Object* obj) {
     const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
-    ICHECK(tinfo->metadata != nullptr)
+    TVM_FFI_ICHECK(tinfo->metadata != nullptr)
         << "Object `" << obj->GetTypeKey()
         << "` misses reflection registration and do not support serialization";
     ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
@@ -275,9 +275,9 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
     if (const auto* tuple_sinfo = struct_info.as<TupleStructInfoNode>()) {
       for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
         const auto* tensor_sinfo = tuple_sinfo->fields[i].as<TensorStructInfoNode>();
-        ICHECK(tensor_sinfo) << "Expect TensorStructInfo, but received: ."
-                             << tuple_sinfo->fields[i]->GetTypeKey();
-        ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
+        TVM_FFI_ICHECK(tensor_sinfo)
+            << "Expect TensorStructInfo, but received: ." << tuple_sinfo->fields[i]->GetTypeKey();
+        TVM_FFI_ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
         ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_sinfo->shape.value());
         ret.push_back(JSONGraphNodeEntry(node_id, i));
         shape.emplace_back(GetIntShape(output_shape->values));
@@ -286,9 +286,9 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       node->SetNumOutput(tuple_sinfo->fields.size());
     } else {
       const auto* tensor_sinfo = struct_info.as<TensorStructInfoNode>();
-      ICHECK(tensor_sinfo) << "Expect TensorStructInfo, but received: "
-                           << struct_info->GetTypeKey();
-      ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
+      TVM_FFI_ICHECK(tensor_sinfo)
+          << "Expect TensorStructInfo, but received: " << struct_info->GetTypeKey();
+      TVM_FFI_ICHECK(tensor_sinfo->shape.defined()) << "Expect shape to be defined.";
       ShapeExpr output_shape = Downcast<ShapeExpr>(tensor_sinfo->shape.value());
 
       shape.emplace_back(GetIntShape(output_shape->values));
@@ -312,15 +312,15 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       const Object* call_attr = cn->attrs.get();
       extractor.Extract(const_cast<Object*>(call_attr));
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
-      ICHECK(false);
+      TVM_FFI_ICHECK(false);
       auto pattern = fn->GetAttr<ffi::String>(attr::kPartitionedFromPattern);
-      ICHECK(pattern.has_value());
+      TVM_FFI_ICHECK(pattern.has_value());
       node->SetAttr("PartitionedFromPattern", pattern.value());
     }
   }
 
   NodeEntries VisitBinding_(const MatchCastNode* binding) {
-    LOG(FATAL) << "JSON runtime currently doesn't match cast\n";
+    TVM_FFI_THROW(InternalError) << "JSON runtime currently doesn't match cast\n";
     return {};
   }
 
@@ -333,7 +333,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       auto from_b = VisitBinding_(node);
       nodes.insert(nodes.end(), from_b.begin(), from_b.end());
     } else {
-      LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Invalid type: " << binding->GetTypeKey();
     }
     return nodes;
   }
@@ -347,7 +347,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       auto from_bb = VisitBindingBlock_(node);
       nodes.insert(nodes.end(), from_bb.begin(), from_bb.end());
     } else {
-      LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Invalid type: " << block->GetTypeKey();
     }
     return nodes;
   }
@@ -381,13 +381,13 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   }
 
   NodeEntries VisitExprDefault_(const Object* op) {
-    LOG(FATAL) << "JSON runtime currently doesn't support " << op->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "JSON runtime currently doesn't support " << op->GetTypeKey();
     return {};
   }
 
   NodeEntries VisitExpr_(const ConstantNode* cn) {
     auto name = constant_names_.find(ffi::GetRef<Constant>(cn));
-    ICHECK(name != constant_names_.end())
+    TVM_FFI_ICHECK(name != constant_names_.end())
         << "Cannot find the name of the constant: " << ffi::GetRef<Constant>(cn);
     constants_used_.push_back((*name).second);
     auto node = std::make_shared<JSONGraphNode>((*name).second, "const" /* op_type_ */);
@@ -410,10 +410,11 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       name = op_node->name;
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
       auto comp = fn->GetAttr<ffi::String>(attr::kComposite);
-      ICHECK(comp.has_value()) << "JSON runtime only supports composite functions.";
+      TVM_FFI_ICHECK(comp.has_value()) << "JSON runtime only supports composite functions.";
       name = comp.value();
     } else {
-      LOG(FATAL) << "JSON runtime does not support calls to " << cn->op->GetTypeKey();
+      TVM_FFI_THROW(InternalError)
+          << "JSON runtime does not support calls to " << cn->op->GetTypeKey();
     }
 
     // TODO(@sunggg): Revisit when we have op naming convention.
@@ -438,7 +439,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   }
 
   NodeEntries VisitExpr_(const FunctionNode* fn) {
-    ICHECK(fn->GetAttr<ffi::String>(attr::kComposite).has_value())
+    TVM_FFI_ICHECK(fn->GetAttr<ffi::String>(attr::kComposite).has_value())
         << "JSON runtime only supports composite functions";
 
     // FunctionNode should be handled by the caller.

@@ -52,7 +52,7 @@ Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
   GetRootSeqStmt seq_finder;
   seq_finder(func_body);
 
-  ICHECK(seq_finder.result);
+  TVM_FFI_ICHECK(seq_finder.result);
 
   for (auto stmt : seq_finder.result->seq) {
     if (stmt->IsInstance<ForNode>()) {
@@ -64,7 +64,8 @@ Stmt GetEnclosingLoop(const SBlockNode* block, Stmt func_body) {
     }
   }
 
-  LOG(FATAL) << "Enclosing loop not found for a block " << ffi::GetRef<SBlock>(block);
+  TVM_FFI_THROW(InternalError) << "Enclosing loop not found for a block "
+                               << ffi::GetRef<SBlock>(block);
   TVM_FFI_UNREACHABLE();
 }
 

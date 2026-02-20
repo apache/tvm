@@ -139,7 +139,7 @@ class RunnerFutureNode : public runtime::Object {
    * \return A boolean indicating whether the runner has finished.
    */
   bool Done() const {
-    ICHECK(f_done != nullptr) << "PyRunnerFuture's Done method not implemented!";
+    TVM_FFI_ICHECK(f_done != nullptr) << "PyRunnerFuture's Done method not implemented!";
     return f_done();
   }
   /*!
@@ -147,7 +147,7 @@ class RunnerFutureNode : public runtime::Object {
    * \return The runner's output.
    */
   RunnerResult Result() const {
-    ICHECK(f_result != nullptr) << "PyRunnerFuture's Result method not implemented!";
+    TVM_FFI_ICHECK(f_result != nullptr) << "PyRunnerFuture's Result method not implemented!";
     return f_result();
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.RunnerFuture", RunnerFutureNode,
@@ -236,7 +236,7 @@ class PyRunnerNode : public RunnerNode {
   }
 
   ffi::Array<RunnerFuture> Run(ffi::Array<RunnerInput> runner_inputs) final {
-    ICHECK(f_run != nullptr) << "PyRunner's Run method not implemented!";
+    TVM_FFI_ICHECK(f_run != nullptr) << "PyRunner's Run method not implemented!";
     return f_run(runner_inputs);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyRunner", PyRunnerNode, RunnerNode);

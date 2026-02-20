@@ -100,10 +100,11 @@ TensorCacheMetadata TensorCacheMetadata::LoadFromStr(const std::string& json_str
   ffi::String err;
   json::Value json_info = json::Parse(json_str, &err);
   if (!err.empty()) {
-    LOG(FATAL) << "Failed to parse JSON: " << err << ". The JSON string is:" << json_str;
+    TVM_FFI_THROW(InternalError) << "Failed to parse JSON: " << err
+                                 << ". The JSON string is:" << json_str;
   }
-  CHECK(json_info.as<json::Object>())
-      << "ValueError: The given string is not a JSON object: " << json_str;
+  TVM_FFI_CHECK(json_info.as<json::Object>(), ValueError)
+      << "The given string is not a JSON object: " << json_str;
   TensorCacheMetadata result = JSONAsTensorCacheMetadata(json_info.cast<json::Object>());
   result.path = path;
   return result;
@@ -115,10 +116,11 @@ TVM_DLL TensorCacheMetadata TensorCacheMetadata::Load(const std::string& path) {
   ffi::String err;
   json::Value json_info = json::Parse(json_str, &err);
   if (!err.empty()) {
-    LOG(FATAL) << "Failed to parse JSON: " << err << ". The JSON string is:" << json_str;
+    TVM_FFI_THROW(InternalError) << "Failed to parse JSON: " << err
+                                 << ". The JSON string is:" << json_str;
   }
-  CHECK(json_info.as<json::Object>())
-      << "ValueError: The given string is not a JSON object: " << json_str;
+  TVM_FFI_CHECK(json_info.as<json::Object>(), ValueError)
+      << "The given string is not a JSON object: " << json_str;
   TensorCacheMetadata result = JSONAsTensorCacheMetadata(json_info.cast<json::Object>());
   result.path = path;
   return result;
@@ -173,9 +175,9 @@ TVM_DLL ffi::Array<Tensor> TensorCacheMetadata::FileRecord::Load(
     std::string* raw_data_buffer,    //
     ffi::Optional<Tensor>* staging_buffer) const {
   LoadBinaryFromFile(path_prefix + "/" + this->data_path, raw_data_buffer);
-  CHECK_EQ(this->format, "raw-shard") << "ValueError: Only `raw-shard` format is supported";
-  CHECK_EQ(this->nbytes, raw_data_buffer->length())
-      << "ValueError: Encountered an corrupted parameter shard. It means it is not downloaded "
+  TVM_FFI_CHECK_EQ(this->format, "raw-shard", ValueError) << "Only `raw-shard` format is supported";
+  TVM_FFI_CHECK_EQ(this->nbytes, raw_data_buffer->length(), ValueError)
+      << "Encountered an corrupted parameter shard. It means it is not downloaded "
          "completely or downloading is interrupted. Please try to download again.";
   ffi::Array<Tensor> result;
   result.reserve(this->records.size());
@@ -198,7 +200,8 @@ class TensorCache {
   static void Update(ffi::String name, Tensor arr, bool override) {
     TensorCache* pool = Global();
     if (!override) {
-      ICHECK_EQ(pool->pool_.count(name), 0) << "Name " << name << " already exists in the cache";
+      TVM_FFI_ICHECK_EQ(pool->pool_.count(name), 0)
+          << "Name " << name << " already exists in the cache";
     }
     pool->pool_.Set(name, arr);
   }
@@ -236,8 +239,8 @@ class TensorCache {
       try {
         params = shard_rec.Load(device, cache_path, &raw_data, &staging_buffer);
       } catch (const std::runtime_error& e) {
-        LOG(FATAL) << "ValueError: Error when loading parameters from " << shard_rec.data_path
-                   << ": " << e.what();
+        TVM_FFI_THROW(ValueError) << "Error when loading parameters from " << shard_rec.data_path
+                                  << ": " << e.what();
       }
       int num_params = params.size();
       for (int i = 0; i < num_params; ++i) {
@@ -256,7 +259,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("vm.builtin.tensor_cache.get", TensorCache::Get)
       .def_packed("vm.builtin.tensor_cache.update",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    CHECK(args.size() == 2 || args.size() == 3);
+                    TVM_FFI_ICHECK(args.size() == 2 || args.size() == 3);
                     ffi::String name = args[0].cast<ffi::String>();
                     bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
 
@@ -307,7 +310,7 @@ class ParamModuleNode : public ffi::ModuleObj {
         params.push_back(opt.value());
       } else {
         if (num_params == -1) return params;
-        LOG(FATAL) << "Cannot find " << name << " in cache";
+        TVM_FFI_THROW(InternalError) << "Cannot find " << name << " in cache";
       }
     }
     return params;
@@ -320,7 +323,7 @@ class ParamModuleNode : public ffi::ModuleObj {
       if (ffi::Optional<Tensor> opt = TensorCache::Get(name)) {
         result.push_back(opt.value());
       } else {
-        LOG(FATAL) << "ValueError: Cannot find parameter in cache: " << name;
+        TVM_FFI_THROW(ValueError) << "Cannot find parameter in cache: " << name;
       }
     }
     return result;
@@ -355,8 +358,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     names.reserve(args.size());
                     for (int i = 0; i < args.size(); ++i) {
                       if (!args[i].try_cast<ffi::String>()) {
-                        LOG(FATAL) << "ValueError: Expect string as input, but get "
-                                   << args[i].GetTypeKey() << " at " << i;
+                        TVM_FFI_THROW(ValueError) << "Expect string as input, but get "
+                                                  << args[i].GetTypeKey() << " at " << i;
                       }
                       names.push_back(args[i].cast<ffi::String>());
                     }

@@ -30,7 +30,7 @@ class ThreadExtentChecker : private StmtVisitor {
  public:
   static bool Check(const Stmt& stmt, int thread_warp_size) {
     try {
-      ICHECK(thread_warp_size > 0);
+      TVM_FFI_ICHECK(thread_warp_size > 0);
       ThreadExtentChecker checker(thread_warp_size);
       checker.VisitStmt(stmt);
       return true;
@@ -106,11 +106,11 @@ namespace meta_schedule {
 
 /*! \brief Extract attribute from a target. */
 Integer Extract(const Target& target, const char* name) {
-  ICHECK(target.defined());
+  TVM_FFI_ICHECK(target.defined());
   if (ffi::Optional<Integer> v = target->GetAttr<Integer>(name)) {
     return v.value();
   }
-  LOG(FATAL) << "AttributedError: \"" << name << "\" is not defined in the target";
+  TVM_FFI_THROW(AttributedError) << "\"" << name << "\" is not defined in the target";
   throw;
 }
 
@@ -122,7 +122,7 @@ class VerifyGPUCodeNode : public PostprocNode {
   int thread_warp_size_ = -1;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
-    ICHECK(context->target.defined());
+    TVM_FFI_ICHECK(context->target.defined());
     this->target_ = context->target.value();
     this->target_constraints_ = ffi::Map<ffi::String, PrimExpr>{
         {"max_shared_memory_per_block", Extract(this->target_, "max_shared_memory_per_block")},

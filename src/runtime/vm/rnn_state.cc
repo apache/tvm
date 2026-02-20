@@ -185,7 +185,7 @@ class RNNStateImpObj : public RNNStateObj {
       storages_.push_back(layer_storages);
     }
 
-    CHECK_GT(max_history_, 0) << "At least 1 history slot to store the current state";
+    TVM_FFI_ICHECK_GT(max_history_, 0) << "At least 1 history slot to store the current state";
 
     // Allocate the auxiliary arrays on device.
     seq_slot_ids_device_ = Tensor::Empty({reserved_num_seqs}, dtype_aux_, device);
@@ -197,7 +197,7 @@ class RNNStateImpObj : public RNNStateObj {
   /*! \brief Reset the KV cache. */
   void Clear() final {
     seq_map_.clear();
-    ICHECK(!storages_.empty());
+    TVM_FFI_ICHECK(!storages_.empty());
     free_slot_ids_.clear();
     for (int64_t slot_id = reserved_num_seqs_ - 1; slot_id >= 0; --slot_id) {
       free_slot_ids_.push_back(slot_id);
@@ -209,7 +209,7 @@ class RNNStateImpObj : public RNNStateObj {
 
   void BeginForward(const ffi::Shape& seq_ids, const ffi::Shape& append_lengths,
                     const ffi::Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
-    CHECK_EQ(seq_ids.size(), append_lengths.size())
+    TVM_FFI_ICHECK_EQ(seq_ids.size(), append_lengths.size())
         << "The seq_ids size (" << seq_ids.size() << ") and append_lengths size ("
         << append_lengths.size() << ") mismatch.";
 
@@ -218,7 +218,7 @@ class RNNStateImpObj : public RNNStateObj {
       int matched_pos = 0;
       for (int64_t append_length : append_lengths) {
         for (int64_t i = 0; i < append_length; ++i) {
-          CHECK_EQ(token_tree_parent_ptr[matched_pos], i - 1)
+          TVM_FFI_ICHECK_EQ(token_tree_parent_ptr[matched_pos], i - 1)
               << "Unexpected token tree for RNN state. RNN state only supports chains as token "
                  "trees.";
           ++matched_pos;
@@ -239,8 +239,8 @@ class RNNStateImpObj : public RNNStateObj {
       int64_t seq_id = cur_seq_ids_[i];
       int64_t seq_length = cur_append_lengths_[i];
       auto it = seq_map_.find(seq_id);
-      CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id
-                                  << "\" cannot be found in the space state storage.";
+      TVM_FFI_ICHECK(it != seq_map_.end())
+          << "The sequence \"" << seq_id << "\" cannot be found in the space state storage.";
       it->second.seq_length += seq_length;
       if (seq_length > 1) {
         // We cannot rollback the prefill input
@@ -261,12 +261,12 @@ class RNNStateImpObj : public RNNStateObj {
 
   void Get(int64_t layer_id, int64_t state_id, Tensor o_data) final {
     // The auxiliary data structure on device must have been synchronized.
-    CHECK(!dirty_aux_data_device_)
+    TVM_FFI_ICHECK(!dirty_aux_data_device_)
         << "The auxiliary arrays are not synchronized to device. Please call "
            "`BeginForward` to synchronize before calling `Get`.";
-    ICHECK(cur_batch_size_ == static_cast<int64_t>(cur_seq_ids_.size()))
+    TVM_FFI_ICHECK(cur_batch_size_ == static_cast<int64_t>(cur_seq_ids_.size()))
         << "The batch size is not consistent with the number of sequence ids.";
-    CHECK_GT(cur_batch_size_, 0) << "The curent batch size should be greater than 0.";
+    TVM_FFI_ICHECK_GT(cur_batch_size_, 0) << "The curent batch size should be greater than 0.";
     // TODO(siyuan): support zero-copy when seq_len is one
     // Copy the state data to the return array.
     Tensor state = storages_[layer_id][state_id];
@@ -275,12 +275,12 @@ class RNNStateImpObj : public RNNStateObj {
 
   void Set(int64_t layer_id, int64_t state_id, Tensor data) final {
     // The auxiliary data structure on device must have been synchronized.
-    CHECK(!dirty_aux_data_device_)
+    TVM_FFI_ICHECK(!dirty_aux_data_device_)
         << "The auxiliary arrays are not synchronized to device. Please call "
            "`BeginForward` to synchronize before calling `Set`.";
-    ICHECK(cur_batch_size_ == static_cast<int64_t>(cur_seq_ids_.size()))
+    TVM_FFI_ICHECK(cur_batch_size_ == static_cast<int64_t>(cur_seq_ids_.size()))
         << "The batch size is not consistent with the number of sequence ids.";
-    CHECK_GT(cur_batch_size_, 0) << "The curent batch size should be greater than 0.";
+    TVM_FFI_ICHECK_GT(cur_batch_size_, 0) << "The curent batch size should be greater than 0.";
 
     Tensor state = storages_[layer_id][state_id];
     f_sets_[state_id](state, seq_slot_ids_view_, history_slot_ids_view_, data);
@@ -288,8 +288,8 @@ class RNNStateImpObj : public RNNStateObj {
 
   Tensor DebugGet(int64_t layer_id, int64_t state_id, int64_t seq_id) {
     auto it = seq_map_.find(seq_id);
-    CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id
-                                << "\" cannot be found in the space state storage.";
+    TVM_FFI_ICHECK(it != seq_map_.end())
+        << "The sequence \"" << seq_id << "\" cannot be found in the space state storage.";
     Tensor state = storages_[layer_id][state_id];
     int64_t seq_slot_id = it->second.seq_slot_id;
     int64_t history_slot_id = it->second.history_slot_id;
@@ -306,7 +306,7 @@ class RNNStateImpObj : public RNNStateObj {
   /************** Sequence Management **************/
 
   void AddSequence(int64_t seq_id) final {
-    CHECK(seq_map_.find(seq_id) == seq_map_.end())
+    TVM_FFI_ICHECK(seq_map_.find(seq_id) == seq_map_.end())
         << "The sequence \"" << seq_id << "\" is already in the space state storage.";
     int64_t seq_slot_id = GetFreeSlot();
     seq_map_.insert({seq_id, Sequence(seq_slot_id)});
@@ -326,8 +326,8 @@ class RNNStateImpObj : public RNNStateObj {
 
   void RemoveSequence(int64_t seq_id) final {
     auto it = seq_map_.find(seq_id);
-    CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id
-                                << "\" cannot be found in the space state storage.";
+    TVM_FFI_ICHECK(it != seq_map_.end())
+        << "The sequence \"" << seq_id << "\" cannot be found in the space state storage.";
 
     free_slot_ids_.push_back(it->second.seq_slot_id);
     seq_map_.erase(it);
@@ -337,9 +337,9 @@ class RNNStateImpObj : public RNNStateObj {
 
   void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id, int64_t fork_pos = -1) final {
     auto parent_it = seq_map_.find(parent_seq_id);
-    CHECK(parent_it != seq_map_.end()) << "The parent sequence \"" << parent_seq_id
-                                       << "\" cannot be found in space state storage.";
-    CHECK(seq_map_.find(child_seq_id) == seq_map_.end())
+    TVM_FFI_ICHECK(parent_it != seq_map_.end()) << "The parent sequence \"" << parent_seq_id
+                                                << "\" cannot be found in space state storage.";
+    TVM_FFI_ICHECK(seq_map_.find(child_seq_id) == seq_map_.end())
         << "The child sequence \"" << child_seq_id << "\" is already in the space state storage.";
 
     // Create a child block with the parent block pointer.
@@ -360,10 +360,10 @@ class RNNStateImpObj : public RNNStateObj {
 
   void PopN(int64_t seq_id, int32_t n) final {
     auto it = seq_map_.find(seq_id);
-    CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id
-                                << "\" cannot be found in space state.";
-    CHECK_GE(n, 0) << "The length of rolling back " << n << " cannot be negative.";
-    CHECK_LE(n, it->second.available_history_num)
+    TVM_FFI_ICHECK(it != seq_map_.end())
+        << "The sequence \"" << seq_id << "\" cannot be found in space state.";
+    TVM_FFI_ICHECK_GE(n, 0) << "The length of rolling back " << n << " cannot be negative.";
+    TVM_FFI_ICHECK_LE(n, it->second.available_history_num)
         << "The sequence only has " << it->second.available_history_num
         << " available history in the space state storage, while the length of rollback is " << n
         << " which exceeds the sequence length.";
@@ -377,7 +377,8 @@ class RNNStateImpObj : public RNNStateObj {
  private:
   /*! \brief Get a new free block and return its index. */
   int32_t GetFreeSlot() {
-    CHECK(!free_slot_ids_.empty()) << "The Sequence slot is full, cannot accept new sequence.";
+    TVM_FFI_ICHECK(!free_slot_ids_.empty())
+        << "The Sequence slot is full, cannot accept new sequence.";
     int32_t seq_slot_id = free_slot_ids_.back();
     free_slot_ids_.pop_back();
     return seq_slot_id;
@@ -441,8 +442,8 @@ class RNNStateImpObj : public RNNStateObj {
     history_slot_ids.reserve(cur_batch_size_);
     for (int64_t seq_id : cur_seq_ids_) {
       auto it = seq_map_.find(seq_id);
-      CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id
-                                  << "\" cannot be found in the space state storage.";
+      TVM_FFI_ICHECK(it != seq_map_.end())
+          << "The sequence \"" << seq_id << "\" cannot be found in the space state storage.";
       const Sequence& seq = it->second;
       seq_slot_ids.push_back(seq.seq_slot_id);
       history_slot_ids.push_back(seq.history_slot_id);
@@ -473,21 +474,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                                           ffi::Array<ffi::Function> f_gets,  //
                                                           ffi::Array<ffi::Function> f_sets,  //
                                                           ffi::Array<Tensor> init_layer_value) {
-    CHECK_GT(num_layers, 0) << "The number of layers should be greater than 0.";
-    CHECK_GT(reserved_num_seqs, 0) << "The number of reserved sequences should be greater than 0.";
-    CHECK_GE(max_history, 0) << "The maximum history length should be greater or equal than 0.";
-    CHECK_GT(init_layer_value.size(), 0)
+    TVM_FFI_ICHECK_GT(num_layers, 0) << "The number of layers should be greater than 0.";
+    TVM_FFI_ICHECK_GT(reserved_num_seqs, 0)
+        << "The number of reserved sequences should be greater than 0.";
+    TVM_FFI_ICHECK_GE(max_history, 0)
+        << "The maximum history length should be greater or equal than 0.";
+    TVM_FFI_ICHECK_GT(init_layer_value.size(), 0)
         << "The number of states per layer should be greater than 0.";
     Device device = init_layer_value[0]->device;
     for (const Tensor& state : init_layer_value) {
-      CHECK(state->device.device_type == device.device_type &&
-            state->device.device_id == device.device_id)
+      TVM_FFI_ICHECK(state->device.device_type == device.device_type &&
+                     state->device.device_id == device.device_id)
           << "The device type of all states should be the same.";
     }
-    CHECK_EQ(f_gets.size(), init_layer_value.size())
+    TVM_FFI_ICHECK_EQ(f_gets.size(), init_layer_value.size())
         << "The number of state getters should be the same as the number of states per layer, "
         << "but got " << f_gets.size() << " and " << init_layer_value.size() << " respectively.";
-    CHECK_EQ(f_sets.size(), init_layer_value.size())
+    TVM_FFI_ICHECK_EQ(f_sets.size(), init_layer_value.size())
         << "The number of state setters should be the same as the number of states per layer, "
         << "but got " << f_sets.size() << " and " << init_layer_value.size() << " respectively.";
     ObjectPtr<RNNStateImpObj> n =

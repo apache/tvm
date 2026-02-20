@@ -26,7 +26,8 @@ namespace meta_schedule {
 
 ffi::Array<tvm::runtime::Tensor> PyFeatureExtractorNode::ExtractFrom(
     const TuneContext& context, const ffi::Array<MeasureCandidate>& candidates) {
-  ICHECK(f_extract_from != nullptr) << "PyFeatureExtractor's ExtractFrom method not implemented!";
+  TVM_FFI_ICHECK(f_extract_from != nullptr)
+      << "PyFeatureExtractor's ExtractFrom method not implemented!";
   return f_extract_from(context, candidates);
 }
 
@@ -42,9 +43,10 @@ FeatureExtractor FeatureExtractor::PyFeatureExtractor(
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyFeatureExtractorNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyFeatureExtractorNode>();
-      ICHECK(self);
+      TVM_FFI_ICHECK(self);
       PyFeatureExtractorNode::FAsString f_as_string = (*self).f_as_string;
-      ICHECK(f_as_string != nullptr) << "PyFeatureExtractor's AsString method not implemented!";
+      TVM_FFI_ICHECK(f_as_string != nullptr)
+          << "PyFeatureExtractor's AsString method not implemented!";
       p->stream << f_as_string();
     });
 

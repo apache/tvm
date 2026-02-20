@@ -35,7 +35,7 @@ TEST(ParallelFor, Basic) {
   }
   parallel_for(0, 10, [&b](int i) { b[i] = i; });
   for (int i = 0; i < 10; i++) {
-    ICHECK_EQ(a[i], b[i]);
+    TVM_FFI_ICHECK_EQ(a[i], b[i]);
   }
 
   // Check for a large size of parallel
@@ -44,7 +44,7 @@ TEST(ParallelFor, Basic) {
   }
   parallel_for(0, 1000, [&b](int i) { b[i] = i; });
   for (int i = 0; i < 1000; i++) {
-    ICHECK_EQ(a[i], b[i]);
+    TVM_FFI_ICHECK_EQ(a[i], b[i]);
   }
 
   // Check for step != 1
@@ -54,7 +54,7 @@ TEST(ParallelFor, Basic) {
   parallel_for(
       0, 1000, [&b](int i) { b[i] *= 2; }, 2);
   for (int i = 0; i < 1000; i++) {
-    ICHECK_EQ(a[i], b[i]);
+    TVM_FFI_ICHECK_EQ(a[i], b[i]);
   }
 }
 
@@ -76,7 +76,7 @@ TEST(ParallelFor, NestedWithNormalForLoop) {
   });
   for (int i = 0; i < 500; i++) {
     for (int j = 0; j < 500; j++) {
-      ICHECK_EQ(a[i][j], b[i][j]);
+      TVM_FFI_ICHECK_EQ(a[i][j], b[i][j]);
     }
   }
 
@@ -85,7 +85,7 @@ TEST(ParallelFor, NestedWithNormalForLoop) {
   }
   for (int i = 0; i < 500; i++) {
     for (int j = 0; j < 500; j++) {
-      ICHECK_EQ(a[i][j], c[i][j]);
+      TVM_FFI_ICHECK_EQ(a[i][j], c[i][j]);
     }
   }
 }
@@ -104,7 +104,7 @@ TEST(ParallelFor, NestedWithParallelFor) {
   } catch (const std::exception& e) {
     exception = true;
   }
-  ICHECK(exception);
+  TVM_FFI_ICHECK(exception);
 }
 
 TEST(ParallelFor, Exception) {
@@ -112,11 +112,11 @@ TEST(ParallelFor, Exception) {
 
   bool exception = false;
   try {
-    parallel_for(0, 100, [](int i) { LOG(FATAL) << "error"; });
+    parallel_for(0, 100, [](int i) { TVM_FFI_THROW(InternalError) << "error"; });
   } catch (const std::exception& e) {
     exception = true;
   }
-  ICHECK(exception);
+  TVM_FFI_ICHECK(exception);
 }
 
 TEST(ParallelForDynamic, Basic) {
@@ -125,7 +125,7 @@ TEST(ParallelForDynamic, Basic) {
   int num_threads = std::thread::hardware_concurrency();
   parallel_for_dynamic(0, 1000, num_threads, [&a](int thread_id, int i) { a[i] = i; });
   for (int i = 0; i < 1000; i++) {
-    ICHECK_EQ(a[i], i);
+    TVM_FFI_ICHECK_EQ(a[i], i);
   }
 }
 
@@ -136,13 +136,13 @@ TEST(ParallelForDynamic, ExceptionOnMain) {
   try {
     parallel_for_dynamic(0, 10, num_threads, [](int thread_id, int task_id) {
       if (thread_id == 0) {
-        LOG(FATAL) << "Error";
+        TVM_FFI_THROW(InternalError) << "Error";
       }
     });
   } catch (const std::exception& e) {
     exception = true;
   }
-  ICHECK(exception);
+  TVM_FFI_ICHECK(exception);
 }
 
 TEST(ParallelForDynamic, ExceptionOnArbitrary) {
@@ -150,10 +150,11 @@ TEST(ParallelForDynamic, ExceptionOnArbitrary) {
   int num_threads = 3;
   bool exception = false;
   try {
-    parallel_for_dynamic(0, 100, num_threads,
-                         [](int thread_id, int task_id) { LOG(FATAL) << "Error"; });
+    parallel_for_dynamic(0, 100, num_threads, [](int thread_id, int task_id) {
+      TVM_FFI_THROW(InternalError) << "Error";
+    });
   } catch (const std::exception& e) {
     exception = true;
   }
-  ICHECK(exception);
+  TVM_FFI_ICHECK(exception);
 }

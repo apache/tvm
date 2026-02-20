@@ -117,11 +117,11 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
   // Find annotation with `meta_schedule_cooperative_fetch`
   for (const Instruction& inst : trace->insts) {
     if (inst->kind.same_as(inst_annotate)) {
-      ICHECK_EQ(inst->attrs.size(), 1);
-      ICHECK_EQ(inst->inputs.size(), 2);
+      TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
+      TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
       if (Downcast<ffi::String>(inst->attrs[0]) == tir::attr::meta_schedule_cooperative_fetch) {
         const auto* ann_val = inst->inputs[1].as<s_tir::ExprRVNode>();
-        ICHECK(ann_val);
+        TVM_FFI_ICHECK(ann_val);
         annotated.insert(ann_val);
       }
     }
@@ -130,9 +130,9 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
   for (const auto& kv : trace->decisions) {
     const Instruction& inst = kv.first;
     if (inst->kind.same_as(inst_sample_categorical)) {
-      ICHECK_EQ(inst->outputs.size(), 1);
+      TVM_FFI_ICHECK_EQ(inst->outputs.size(), 1);
       if (annotated.count(inst->outputs[0].as<Object>())) {
-        ICHECK_EQ(inst->attrs.size(), 2);
+        TVM_FFI_ICHECK_EQ(inst->attrs.size(), 2);
         std::vector<double> probs =
             support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(inst->attrs[1]));
         if (probs.size() == 1) {
@@ -237,7 +237,7 @@ ffi::Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
 
 ffi::Optional<Trace> MutateSampleVectorize(const Trace& trace, Instruction inst,
                                            int64_t original_decision, TRandState* rand_state) {
-  ICHECK_EQ(inst->attrs.size(), 2);
+  TVM_FFI_ICHECK_EQ(inst->attrs.size(), 2);
   std::vector<double> probs =
       support::AsVector<FloatImm, double>(Downcast<ffi::Array<FloatImm>>(inst->attrs[1]));
   probs.erase(probs.begin() + original_decision);

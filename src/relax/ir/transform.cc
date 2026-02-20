@@ -118,12 +118,12 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
     pass_ctx->diag_ctx = previous;
   }
 
-  ICHECK(pass_ctx->diag_ctx)
+  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block this is a bug.";
 
   const PassInfo& pass_info = Info();
 
-  ICHECK(mod.defined());
+  TVM_FFI_ICHECK(mod.defined());
 
   VLOG_CONTEXT << pass_info->name;
   VLOG(0) << "Executing function pass with opt level: " << pass_info->opt_level;
@@ -145,7 +145,7 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
     updated_mod->Add(pair.first, pair.second, true);
   }
 
-  ICHECK(pass_ctx->diag_ctx)
+  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block, this is a bug.";
 
   pass_ctx->diag_ctx.value().Render();
@@ -261,19 +261,19 @@ class DataflowBlockMutator : public ExprMutator {
         for (const tir::VarNode* var : collected_vars) {
           if (symbolic_vars.count(var->name_hint) > 0) {
             tir::Var old_var = symbolic_vars[var->name_hint];
-            ICHECK(var == old_var.get())
+            TVM_FFI_ICHECK(var == old_var.get())
                 << "Error: DataflowBlock Pass should not rewrite any Symbolic Var.";
             symbolic_vars.erase(var->name_hint);
           }
         }
       }
       if (!var.as<DataflowVarNode>() && global_scope_vars.count(var->name_hint()) > 0) {
-        ICHECK(var.same_as(global_scope_vars[var->name_hint()]))
+        TVM_FFI_ICHECK(var.same_as(global_scope_vars[var->name_hint()]))
             << "Error: DataflowBlock Pass should not rewrite any GlobalScope Var.";
         global_scope_vars.erase(var->name_hint());
       }
     }
-    ICHECK(global_scope_vars.empty() && symbolic_vars.empty())
+    TVM_FFI_ICHECK(global_scope_vars.empty() && symbolic_vars.empty())
         << "Error: DataflowBlock Pass should not delete any GlobalScope/Symbolic Var.";
 
     return updated_block;
@@ -339,12 +339,12 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
     pass_ctx->diag_ctx = previous;
   }
 
-  ICHECK(pass_ctx->diag_ctx)
+  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block, this is a bug.";
 
   const PassInfo& pass_info = Info();
 
-  ICHECK(mod.defined());
+  TVM_FFI_ICHECK(mod.defined());
 
   VLOG_CONTEXT << pass_info->name;
   VLOG(0) << "Executing DataflowBlock pass with opt level: " << pass_info->opt_level;
@@ -367,7 +367,7 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
     updated_mod->Add(pair.first, pair.second, true);
   }
 
-  ICHECK(pass_ctx->diag_ctx)
+  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block this is a bug.";
 
   pass_ctx->diag_ctx.value().Render();

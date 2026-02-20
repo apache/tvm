@@ -32,7 +32,7 @@ namespace relax {
 
 TensorStructInfo MatchTensorStructInfo(Expr data) {
   auto _sinfo = MatchStructInfo<TensorStructInfo>(data);
-  ICHECK(_sinfo.defined()) << "Expect data to be a tensor, but get " << GetStructInfo(data);
+  TVM_FFI_ICHECK(_sinfo.defined()) << "Expect data to be a tensor, but get " << GetStructInfo(data);
   return _sinfo.value();
 }
 
@@ -51,7 +51,7 @@ Expr ExpandToMatchInput(Expr data, int ndim, ffi::Array<Integer> axes) {
 
 Tuple DecomposeBatchNorm(const Call& call) {
   auto attrs = call->attrs.as<BatchNormAttrs>();
-  ICHECK_NOTNULL(attrs);
+  TVM_FFI_ICHECK_NOTNULL(attrs);
 
   Expr data = call->args[0];
   TensorStructInfo sinfo = MatchTensorStructInfo(data);
@@ -78,9 +78,9 @@ Tuple DecomposeBatchNorm(const Call& call) {
 
 Expr MutateBatchNormForTraining(Call call) {
   auto attrs = call->attrs.as<BatchNormAttrs>();
-  ICHECK_NOTNULL(attrs);
+  TVM_FFI_ICHECK_NOTNULL(attrs);
 
-  ICHECK_EQ(call->args.size(), 5);
+  TVM_FFI_ICHECK_EQ(call->args.size(), 5);
   Expr data = call->args[0];
   Expr gamma = call->args[1];
   Expr beta = call->args[2];
@@ -113,7 +113,7 @@ Expr MutateBatchNormForTraining(Call call) {
 
 Expr DecomposeLayerNorm(const Call& call) {
   auto attrs = call->attrs.as<LayerNormAttrs>();
-  ICHECK_NOTNULL(attrs);
+  TVM_FFI_ICHECK_NOTNULL(attrs);
 
   Expr data = call->args[0];
   TensorStructInfo sinfo = MatchTensorStructInfo(data);
@@ -139,10 +139,10 @@ Expr DecomposeLayerNorm(const Call& call) {
 }
 
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
-  ICHECK(call_node->struct_info_.defined());
+  TVM_FFI_ICHECK(call_node->struct_info_.defined());
   Expr expr = call_node->args[0];
   const ShapeStructInfoNode* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call_node);
-  ICHECK(sinfo);
+  TVM_FFI_ICHECK(sinfo);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
   static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");

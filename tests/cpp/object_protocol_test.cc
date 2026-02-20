@@ -61,26 +61,26 @@ TEST(ObjectHierachy, Basic) {
   using namespace tvm::ffi;
 
   ObjectRef refA(ffi::make_object<ObjA>());
-  ICHECK_EQ(refA->type_index(), ObjA::RuntimeTypeIndex());
-  ICHECK(refA.as<Object>() != nullptr);
-  ICHECK(refA.as<ObjA>() != nullptr);
-  ICHECK(refA.as<ObjBase>() != nullptr);
-  ICHECK(refA.as<ObjB>() == nullptr);
-  ICHECK(refA.as<ObjAA>() == nullptr);
+  TVM_FFI_ICHECK_EQ(refA->type_index(), ObjA::RuntimeTypeIndex());
+  TVM_FFI_ICHECK(refA.as<Object>() != nullptr);
+  TVM_FFI_ICHECK(refA.as<ObjA>() != nullptr);
+  TVM_FFI_ICHECK(refA.as<ObjBase>() != nullptr);
+  TVM_FFI_ICHECK(refA.as<ObjB>() == nullptr);
+  TVM_FFI_ICHECK(refA.as<ObjAA>() == nullptr);
 
   ObjectRef refAA(ffi::make_object<ObjAA>());
-  ICHECK_EQ(refAA->type_index(), ObjAA::RuntimeTypeIndex());
-  ICHECK(refAA.as<Object>() != nullptr);
-  ICHECK(refAA.as<ObjBase>() != nullptr);
-  ICHECK(refAA.as<ObjA>() != nullptr);
-  ICHECK(refAA.as<ObjAA>() != nullptr);
-  ICHECK(refAA.as<ObjB>() == nullptr);
+  TVM_FFI_ICHECK_EQ(refAA->type_index(), ObjAA::RuntimeTypeIndex());
+  TVM_FFI_ICHECK(refAA.as<Object>() != nullptr);
+  TVM_FFI_ICHECK(refAA.as<ObjBase>() != nullptr);
+  TVM_FFI_ICHECK(refAA.as<ObjA>() != nullptr);
+  TVM_FFI_ICHECK(refAA.as<ObjAA>() != nullptr);
+  TVM_FFI_ICHECK(refAA.as<ObjB>() == nullptr);
 
   ObjectRef refB(ffi::make_object<ObjB>());
-  ICHECK_EQ(refB->type_index(), ObjB::RuntimeTypeIndex());
-  ICHECK(refB.as<Object>() != nullptr);
-  ICHECK(refB.as<ObjBase>() != nullptr);
-  ICHECK(refB.as<ObjA>() == nullptr);
-  ICHECK(refB.as<ObjAA>() == nullptr);
-  ICHECK(refB.as<ObjB>() != nullptr);
+  TVM_FFI_ICHECK_EQ(refB->type_index(), ObjB::RuntimeTypeIndex());
+  TVM_FFI_ICHECK(refB.as<Object>() != nullptr);
+  TVM_FFI_ICHECK(refB.as<ObjBase>() != nullptr);
+  TVM_FFI_ICHECK(refB.as<ObjA>() == nullptr);
+  TVM_FFI_ICHECK(refB.as<ObjAA>() == nullptr);
+  TVM_FFI_ICHECK(refB.as<ObjB>() != nullptr);
 }

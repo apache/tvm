@@ -59,7 +59,7 @@ class TextureLoweringBase : public StmtExprMutator {
   inline PrimExpr SimplifyOffset(const ffi::Array<PrimExpr>& shape,
                                  const ffi::Array<PrimExpr>& index) const {
     PrimExpr base = make_const(DataType::Int(32), 0);
-    ICHECK_EQ(shape.size(), index.size());
+    TVM_FFI_ICHECK_EQ(shape.size(), index.size());
     if (index.size() > 0) {
       PrimExpr offset = index[0];
       for (size_t i = 1; i < index.size(); ++i) {
@@ -73,7 +73,7 @@ class TextureLoweringBase : public StmtExprMutator {
  protected:
   std::string GetStorageScope(const Buffer& buffer) {
     auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>();
-    ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }
 

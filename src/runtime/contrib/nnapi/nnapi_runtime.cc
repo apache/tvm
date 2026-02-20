@@ -71,7 +71,7 @@ class NNAPIRuntime : public JSONRuntimeBase {
   std::optional<CompiledModel> compiled_model_;
 
   void Init(const ffi::Array<Tensor>& consts) final {
-    ICHECK_EQ(consts.size(), const_idx_.size())
+    TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required constants.";
     SetupConstants(consts);
     CompileModel();
@@ -114,7 +114,7 @@ class NNAPIRuntime : public JSONRuntimeBase {
     for (size_t i = 0; i < outputs_.size(); ++i) {
       const auto& node = outputs_[i];
       auto it = node_output_map_.find(node.id_);
-      ICHECK(it != node_output_map_.end()) << "Missing model output.";
+      TVM_FFI_ICHECK(it != node_output_map_.end()) << "Missing model output.";
       const auto& operand = it->second;
       model_output_operands.push_back(operand);
     }
@@ -131,23 +131,25 @@ class NNAPIRuntime : public JSONRuntimeBase {
                     const std::vector<NNAPIOperand>& model_output_operands) {
     // Execute the model.
     ANeuralNetworksExecution* execution;
-    ICHECK_EQ(ANeuralNetworksExecution_create(compilation, &execution), ANEURALNETWORKS_NO_ERROR);
+    TVM_FFI_ICHECK_EQ(ANeuralNetworksExecution_create(compilation, &execution),
+                      ANEURALNETWORKS_NO_ERROR);
 
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
       const uint32_t nid = input_nodes_[i];
       if (nodes_[nid].GetOpType() == "input") {
         for (size_t j = 0; j < nodes_[nid].GetOpShape().size(); ++j) {
           auto it = node_output_map_.find(nid);
-          ICHECK(it != node_output_map_.end()) << "Missing model input.";
+          TVM_FFI_ICHECK(it != node_output_map_.end()) << "Missing model input.";
           const auto& operand = it->second;
 
           const uint32_t eid = EntryID(nid, j);
           const auto entry = data_entry_[eid];
 
           const auto operand_data_size = GetDataSize(*entry);
-          ICHECK_EQ(ANeuralNetworksExecution_setInput(execution, i, operand.GetOperandType().Get(),
-                                                      entry->data, operand_data_size),
-                    ANEURALNETWORKS_NO_ERROR);
+          TVM_FFI_ICHECK_EQ(
+              ANeuralNetworksExecution_setInput(execution, i, operand.GetOperandType().Get(),
+                                                entry->data, operand_data_size),
+              ANEURALNETWORKS_NO_ERROR);
         }
       }
     }
@@ -160,22 +162,23 @@ class NNAPIRuntime : public JSONRuntimeBase {
       const auto entry = data_entry_[eid];
 
       const auto operand_data_size = GetDataSize(*entry);
-      ICHECK_EQ(ANeuralNetworksExecution_setOutput(execution, i, operand.GetOperandType().Get(),
-                                                   entry->data, operand_data_size),
-                ANEURALNETWORKS_NO_ERROR);
+      TVM_FFI_ICHECK_EQ(
+          ANeuralNetworksExecution_setOutput(execution, i, operand.GetOperandType().Get(),
+                                             entry->data, operand_data_size),
+          ANEURALNETWORKS_NO_ERROR);
     }
 
     ANeuralNetworksEvent* compute_event;
-    ICHECK_EQ(ANeuralNetworksExecution_startCompute(execution, &compute_event),
-              ANEURALNETWORKS_NO_ERROR);
-    ICHECK_EQ(ANeuralNetworksEvent_wait(compute_event), ANEURALNETWORKS_NO_ERROR);
+    TVM_FFI_ICHECK_EQ(ANeuralNetworksExecution_startCompute(execution, &compute_event),
+                      ANEURALNETWORKS_NO_ERROR);
+    TVM_FFI_ICHECK_EQ(ANeuralNetworksEvent_wait(compute_event), ANEURALNETWORKS_NO_ERROR);
     ANeuralNetworksEvent_free(compute_event);
 
     ANeuralNetworksExecution_free(execution);
   }
 
   void Run() final {
-    ICHECK(compiled_model_.has_value());
+    TVM_FFI_ICHECK(compiled_model_.has_value());
     CompiledModel& compiled_model = compiled_model_.value();
     ExecuteModel(compiled_model.compilation, compiled_model.model_output_operands);
   }
@@ -188,14 +191,14 @@ class NNAPIRuntime : public JSONRuntimeBase {
     // Map the op name to its converter.
     const auto& converter_map = GetOpConverters();
     auto it = converter_map.find(node.GetOpName());
-    ICHECK(it != converter_map.end()) << node.GetOpName() << ": Unsupported operation name";
+    TVM_FFI_ICHECK(it != converter_map.end()) << node.GetOpName() << ": Unsupported operation name";
     const NNAPIOpConverter& converter = *it->second;
 
     // Add input operands to params.
     for (size_t i = 0; i < node.GetInputs().size(); ++i) {
       auto in_node = node.GetInputs()[i];
       auto it = node_output_map_.find(in_node.id_);
-      ICHECK(it != node_output_map_.end()) << node.GetOpName() << ": Missing input";
+      TVM_FFI_ICHECK(it != node_output_map_.end()) << node.GetOpName() << ": Missing input";
       auto& operand = it->second;
       inputs.push_back(operand);
     }
@@ -203,9 +206,9 @@ class NNAPIRuntime : public JSONRuntimeBase {
     // Create and add output operands to params.
     const auto output_shapes = node.GetOpShape();
     const auto output_dtypes = node.GetOpDataType();
-    ICHECK(output_shapes.size() == output_dtypes.size())
+    TVM_FFI_ICHECK(output_shapes.size() == output_dtypes.size())
         << "The number of output shapes must match the number of output dtypes";
-    ICHECK(output_shapes.size() == 1)
+    TVM_FFI_ICHECK(output_shapes.size() == 1)
         << "NNAPI runtime currently does not support more than one output per operation yet";
 
     for (size_t i = 0; i < output_shapes.size(); ++i) {
@@ -227,11 +230,13 @@ class NNAPIRuntime : public JSONRuntimeBase {
 
 #else   // ifdef TVM_GRAPH_EXECUTOR_NNAPI
   void Init(const ffi::Array<Tensor>& consts) final {
-    LOG(FATAL) << "NNAPI runtime is not enabled. Build with USE_NNAPI_RUNTIME to enable it.";
+    TVM_FFI_THROW(InternalError)
+        << "NNAPI runtime is not enabled. Build with USE_NNAPI_RUNTIME to enable it.";
   }
 
   void Run() final {
-    LOG(FATAL) << "NNAPI runtime is not enabled. Build with USE_NNAPI_RUNTIME to enable it.";
+    TVM_FFI_THROW(InternalError)
+        << "NNAPI runtime is not enabled. Build with USE_NNAPI_RUNTIME to enable it.";
   }
 #endif  // ifdef TVM_GRAPH_EXECUTOR_NNAPI
 };

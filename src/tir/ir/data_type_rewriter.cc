@@ -42,7 +42,7 @@ namespace tir {
 Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
   Stmt s = StmtExprMutator::VisitStmt_(op);
   op = s.as<ForNode>();
-  ICHECK(op != nullptr) << "Expected type to be ForNode, but get " << s->GetTypeKey();
+  TVM_FFI_ICHECK(op != nullptr) << "Expected type to be ForNode, but get " << s->GetTypeKey();
   PrimExpr e = VisitExpr(op->loop_var);
   Var var = Downcast<Var>(e);
   auto n = CopyOnWrite(op);
@@ -97,18 +97,18 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
     Stmt s = StmtExprMutator::VisitStmt_(op);
     op = s.as<AttrStmtNode>();
-    ICHECK(op != nullptr) << "Expected type to be AttrStmtNode"
-                          << ", but get " << s->GetTypeKey();
+    TVM_FFI_ICHECK(op != nullptr) << "Expected type to be AttrStmtNode"
+                                  << ", but get " << s->GetTypeKey();
     const IterVarNode* iv = op->node.as<IterVarNode>();
-    ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
-                          << ", but get " << op->node.GetTypeKey();
+    TVM_FFI_ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
+                                  << ", but get " << op->node.GetTypeKey();
     PrimExpr e = VisitExpr(iv->var);
     Var var = Downcast<Var>(e);
     if (ivmap_.find(iv) == ivmap_.end()) {
       Range dom = iv->dom;
       if (dom.defined()) {
         PrimExpr extend = dom->extent;
-        ICHECK(extend.dtype().is_int() && var.dtype().is_int());
+        TVM_FFI_ICHECK(extend.dtype().is_int() && var.dtype().is_int());
         if (var.dtype().bits() != extend.dtype().bits()) {
           DataType dtype = var.dtype();
           dom = Range(cast(dtype, dom->min), cast(dtype, extend), dom->span);
@@ -186,7 +186,7 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const RampNode* op) {
   if (base.same_as(op->base) && stride.same_as(op->stride) && base.dtype() == stride.dtype()) {
     return ffi::GetRef<PrimExpr>(op);
   } else {
-    ICHECK(base.dtype().is_int() && stride.dtype().is_int());
+    TVM_FFI_ICHECK(base.dtype().is_int() && stride.dtype().is_int());
     int bits = std::max(base.dtype().bits(), stride.dtype().bits());
     DataType dtype = base.dtype().with_bits(bits);
     if (base.dtype() != dtype) base = cast(dtype, base);
@@ -233,8 +233,8 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
   static const Op& builtin_pow_ = Op::Get("tir.pow");
-  ICHECK(op != nullptr) << "Expected type to be CallNode"
-                        << ", but get " << e->GetTypeKey();
+  TVM_FFI_ICHECK(op != nullptr) << "Expected type to be CallNode"
+                                << ", but get " << e->GetTypeKey();
   if (op->op.same_as(builtin::shift_right())) {
     return op->args[0] >> op->args[1];
   } else if (op->op.same_as(builtin::shift_left())) {
@@ -252,12 +252,12 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(Op::Get("tir.clz"))) {
     DataType before_dtype = before->args[0]->dtype;
     DataType after_dtype = op->args[0]->dtype;
-    CHECK((before_dtype.is_int() || before_dtype.is_uint()) &&
-          (before_dtype.bits() == 32 || before_dtype.bits() == 64))
+    TVM_FFI_ICHECK((before_dtype.is_int() || before_dtype.is_uint()) &&
+                   (before_dtype.bits() == 32 || before_dtype.bits() == 64))
         << "clz only supports 32 or 64 bit integer types, but get type before legalizing: "
         << before_dtype;
-    CHECK((after_dtype.is_int() || after_dtype.is_uint()) &&
-          (after_dtype.bits() == 32 || after_dtype.bits() == 64))
+    TVM_FFI_ICHECK((after_dtype.is_int() || after_dtype.is_uint()) &&
+                   (after_dtype.bits() == 32 || after_dtype.bits() == 64))
         << "clz only supports 32 or 64 bit integer types, but get type after legalizing: "
         << after_dtype;
     return e - after_dtype.bits() + before_dtype.bits();
@@ -587,7 +587,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const LetStmtNode* op) {
   PrimExpr value = VisitExpr(op->value);
   Var var = var_remap_[let_stmt->var.get()];
   is_enabled_ = is_enabled;
-  ICHECK(value.dtype() == var.dtype());
+  TVM_FFI_ICHECK(value.dtype() == var.dtype());
   // No need to re-visit body
   return LetStmt(var, value, let_stmt->body, let_stmt->span);
 }
@@ -680,7 +680,7 @@ bool IndexDataTypeNormalizer::CanRewriteDType(DataType dtype) const {
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
   if (is_enabled_ && CanRewriteDType(op->dtype)) {
-    ICHECK_LE(op->value, Downcast<Integer>(max_value(target_data_type_))->value);
+    TVM_FFI_ICHECK_LE(op->value, Downcast<Integer>(max_value(target_data_type_))->value);
     return cast(target_data_type_, ffi::GetRef<IntImm>(op));
   }
   return ffi::GetRef<IntImm>(op);

@@ -38,7 +38,7 @@ ffi::Optional<s_tir::SBlockRV> TileForIntrin(s_tir::Schedule sch, s_tir::SBlockR
   if (!tiled_loop_rv) {
     return std::nullopt;
   }
-  ICHECK(tiled_loop_rv.defined());
+  TVM_FFI_ICHECK(tiled_loop_rv.defined());
   s_tir::SBlockRV outer_block = sch->Blockize(tiled_loop_rv.value());
   sch->Annotate(outer_block, tir::attr::meta_schedule_auto_tensorize, ffi::String(intrin_name));
   return outer_block;
@@ -105,7 +105,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(
     ffi::Optional<ffi::Array<Integer>> vector_load_lens,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write) {
-  ICHECK(tir::TensorIntrin::Get(intrin_name).defined())
+  TVM_FFI_ICHECK(tir::TensorIntrin::Get(intrin_name).defined())
       << "Provided tensor intrinsic " << intrin_name << " is not registered.";
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingWithIntrinNode>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);

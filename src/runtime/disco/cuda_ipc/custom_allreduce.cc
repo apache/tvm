@@ -38,7 +38,7 @@ inline int64_t TensorSize(const DLTensor* tensor) {
   int64_t size = 1;
   for (int i = tensor->ndim - 1; i >= 0; --i) {
     if (tensor->strides) {
-      ICHECK_EQ(tensor->strides[i], size);
+      TVM_FFI_ICHECK_EQ(tensor->strides[i], size);
     }
     size *= tensor->shape[i];
   }
@@ -66,7 +66,7 @@ inline bool CanApplyTwoShotAllReduce(int64_t num_elements, DLDataType dtype, int
 void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
   int64_t num_elements = TensorSize(send);
   nccl::CCLThreadLocalContext* ctx = nccl::CCLThreadLocalContext::Get();
-  CHECK_EQ(ctx->worker->num_groups, 1)
+  TVM_FFI_ICHECK_EQ(ctx->worker->num_groups, 1)
       << "Custom AllReduce for multiple group is not yet implemented.";
 
   tensorrt_llm::AllReduceStrategyType strategy_ =

@@ -53,15 +53,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // LetStmt
 LetStmt::LetStmt(Var var, PrimExpr value, Stmt body, Span span) {
-  ICHECK(value.defined());
-  ICHECK(body.defined());
+  TVM_FFI_ICHECK(value.defined());
+  TVM_FFI_ICHECK(body.defined());
   auto vdtype = value.dtype();
   // It is still valid to bind a pointer type
   // var to a value that is of type handle.
   if (var->type_annotation.as<PointerTypeNode>()) {
-    ICHECK(vdtype.is_handle());
+    TVM_FFI_ICHECK(vdtype.is_handle());
   } else {
-    ICHECK_EQ(value.dtype(), var.dtype());
+    TVM_FFI_ICHECK_EQ(value.dtype(), var.dtype());
   }
 
   ObjectPtr<LetStmtNode> node = ffi::make_object<LetStmtNode>();
@@ -105,12 +105,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // AssertStmt
 AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Stmt body, Span span) {
-  ICHECK(condition.defined());
-  CHECK(condition.dtype().is_bool())
+  TVM_FFI_ICHECK(condition.defined());
+  TVM_FFI_ICHECK(condition.dtype().is_bool())
       << "AssertStmt should have boolean condition, "
       << "but received " << condition << " with dtype " << condition.dtype();
-  ICHECK(message.dtype() == DataType::Int(32) || message.as<StringImmNode>())
-      << "TypeError: AssertStmt message must be an int or string:" << message << "\n";
+  TVM_FFI_CHECK(message.dtype() == DataType::Int(32) || message.as<StringImmNode>(), TypeError)
+      << "AssertStmt message must be an int or string:" << message << "\n";
 
   ObjectPtr<AssertStmtNode> node = ffi::make_object<AssertStmtNode>();
   node->condition = std::move(condition);
@@ -132,14 +132,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
          ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, Any> annotations,
          ffi::Optional<PrimExpr> step, Span span) {
-  ICHECK(loop_var.defined());
-  ICHECK(min.defined());
-  ICHECK(extent.defined());
-  ICHECK(body.defined());
+  TVM_FFI_ICHECK(loop_var.defined());
+  TVM_FFI_ICHECK(min.defined());
+  TVM_FFI_ICHECK(extent.defined());
+  TVM_FFI_ICHECK(body.defined());
 
   auto require_scalar_int_dtype = [&](PrimExpr expr, const char* field_name) {
     auto dtype = expr.dtype();
-    CHECK(dtype.is_scalar() && (dtype.is_int() || dtype.is_uint()))
+    TVM_FFI_ICHECK(dtype.is_scalar() && (dtype.is_int() || dtype.is_uint()))
         << "TIR For nodes require a scalar integer as the " << field_name << ", but received "
         << expr << " with dtype " << dtype;
   };
@@ -150,7 +150,7 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   // When extent, min or step is an IntImm but has narrower dtype than loop_var
   // we directly promote them without raising errors.
   auto try_promote_imm_dtype = [&](const PrimExpr& e) {
-    ICHECK(e.dtype().bits() <= loop_var.dtype().bits())
+    TVM_FFI_ICHECK(e.dtype().bits() <= loop_var.dtype().bits())
         << " Loop variable's dtype (" << loop_var.dtype()
         << ") is narrower than that of `min` or `extent` (" << e.dtype() << ")";
     const IntImmNode* a = e.as<IntImmNode>();
@@ -164,13 +164,15 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   min = try_promote_imm_dtype(min);
   extent = try_promote_imm_dtype(extent);
 
-  ICHECK(loop_var.dtype() == min.dtype()) << loop_var.dtype() << " vs " << min.dtype();
-  ICHECK(loop_var.dtype() == extent.dtype()) << loop_var.dtype() << " vs " << extent.dtype();
+  TVM_FFI_ICHECK(loop_var.dtype() == min.dtype()) << loop_var.dtype() << " vs " << min.dtype();
+  TVM_FFI_ICHECK(loop_var.dtype() == extent.dtype())
+      << loop_var.dtype() << " vs " << extent.dtype();
 
   if (step.has_value()) {
     require_scalar_int_dtype(*step, "step");
     step = try_promote_imm_dtype(*step);
-    ICHECK(loop_var.dtype() == (*step).dtype()) << loop_var.dtype() << " vs " << (*step).dtype();
+    TVM_FFI_ICHECK(loop_var.dtype() == (*step).dtype())
+        << loop_var.dtype() << " vs " << (*step).dtype();
   }
 
   ObjectPtr<ForNode> node = ffi::make_object<ForNode>();
@@ -222,9 +224,9 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
 
 // While
 While::While(PrimExpr condition, Stmt body, Span span) {
-  ICHECK(condition.defined());
-  ICHECK(condition.dtype().is_scalar());
-  ICHECK(body.defined());
+  TVM_FFI_ICHECK(condition.defined());
+  TVM_FFI_ICHECK(condition.dtype().is_scalar());
+  TVM_FFI_ICHECK(body.defined());
 
   ObjectPtr<WhileNode> node = ffi::make_object<WhileNode>();
   node->condition = std::move(condition);
@@ -243,20 +245,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Allocate
 Allocate::Allocate(Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents, PrimExpr condition,
                    Stmt body, ffi::Map<ffi::String, Any> annotations, Span span) {
-  CHECK(IsPointerType(buffer_var->type_annotation, dtype) ||
-        (dtype.is_bool() && IsPointerType(buffer_var->type_annotation, DataType::Int(8))))
+  TVM_FFI_ICHECK(IsPointerType(buffer_var->type_annotation, dtype) ||
+                 (dtype.is_bool() && IsPointerType(buffer_var->type_annotation, DataType::Int(8))))
       << "The allocated data type (" << dtype
       << ") does not match the type annotation of the buffer " << buffer_var << " ("
       << buffer_var->type_annotation
       << "). The data type should be an element of the pointer type.";
 
   for (size_t i = 0; i < extents.size(); ++i) {
-    ICHECK(extents[i].defined());
-    ICHECK(extents[i].dtype().is_scalar());
+    TVM_FFI_ICHECK(extents[i].defined());
+    TVM_FFI_ICHECK(extents[i].dtype().is_scalar());
   }
-  ICHECK(body.defined());
-  ICHECK(condition.defined());
-  ICHECK(condition.dtype().is_bool());
+  TVM_FFI_ICHECK(body.defined());
+  TVM_FFI_ICHECK(condition.defined());
+  TVM_FFI_ICHECK(condition.dtype().is_bool());
 
   ObjectPtr<AllocateNode> node = ffi::make_object<AllocateNode>();
   node->buffer_var = std::move(buffer_var);
@@ -324,12 +326,12 @@ SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Span span) {
     }
   }
 
-  ICHECK_NE(seq.size(), 0) << "An empty SeqStmt is prohibited.  "
-                           << "To write a no-op, use Evaluate(0), "
-                           << "or the result of SeqStmt::Flatten()";
-  ICHECK_NE(seq.size(), 1) << "A SeqStmt of length 1 is prohibited.  "
-                           << "Use the node " << seq[0] << "directly, "
-                           << "or for dynamic usage, normalize using SeqStmt::Flatten()";
+  TVM_FFI_ICHECK_NE(seq.size(), 0) << "An empty SeqStmt is prohibited.  "
+                                   << "To write a no-op, use Evaluate(0), "
+                                   << "or the result of SeqStmt::Flatten()";
+  TVM_FFI_ICHECK_NE(seq.size(), 1) << "A SeqStmt of length 1 is prohibited.  "
+                                   << "Use the node " << seq[0] << "directly, "
+                                   << "or for dynamic usage, normalize using SeqStmt::Flatten()";
 
   auto node = ffi::make_object<SeqStmtNode>();
   node->seq = std::move(seq);
@@ -346,8 +348,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // IfThenElse
 IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, ffi::Optional<Stmt> else_case,
                        Span span) {
-  ICHECK(condition.defined());
-  ICHECK(then_case.defined());
+  TVM_FFI_ICHECK(condition.defined());
+  TVM_FFI_ICHECK(then_case.defined());
   // else_case may be null.
   ObjectPtr<IfThenElseNode> node = ffi::make_object<IfThenElseNode>();
   node->condition = std::move(condition);
@@ -367,7 +369,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Evaluate
 Evaluate::Evaluate(PrimExpr value, Span span) {
-  ICHECK(value.defined());
+  TVM_FFI_ICHECK(value.defined());
 
   ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>();
   node->value = std::move(value);
@@ -384,13 +386,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // BufferStore
 BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                          ffi::Optional<PrimExpr> predicate, Span span) {
-  ICHECK_EQ(buffer->shape.size(), indices.size())
+  TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
       << "Buffer " << buffer->name << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
   for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
-    ICHECK(indices[i].dtype().is_scalar())
+    TVM_FFI_ICHECK(indices[i].dtype().is_scalar())
         << "Only the last index of a buffer access may be a vector type.";
   }
 
@@ -398,24 +400,24 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
   bool is_buffer_dtype_scalable = buffer->dtype.is_scalable_vector();
   bool is_value_dtype_scalable = value.dtype().is_scalable_vector();
 
-  ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
+  TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
       << "Index dtype and buffer dtype can't both be scalable.";
 
   if (predicate.defined()) {
     bool is_predicate_dtype_scalable = predicate.value().dtype().is_scalable_vector();
-    ICHECK_EQ(is_value_dtype_scalable, is_predicate_dtype_scalable)
+    TVM_FFI_ICHECK_EQ(is_value_dtype_scalable, is_predicate_dtype_scalable)
         << "Predicate mask dtype and value dtype must both be scalable.";
   }
 
   if (is_index_scalable || is_buffer_dtype_scalable) {
-    ICHECK(is_value_dtype_scalable) << "Can't store non-scalable data into scalable buffer";
+    TVM_FFI_ICHECK(is_value_dtype_scalable) << "Can't store non-scalable data into scalable buffer";
   }
 
   int index_lanes = indices.empty() ? 1 : indices.back().dtype().get_lanes_or_vscale_factor();
   int buffer_lanes = buffer->dtype.get_lanes_or_vscale_factor();
   int value_dtype_lanes = value.dtype().get_lanes_or_vscale_factor();
 
-  ICHECK_EQ(index_lanes * buffer_lanes, value_dtype_lanes)
+  TVM_FFI_ICHECK_EQ(index_lanes * buffer_lanes, value_dtype_lanes)
       << "Cannot store value with " << value_dtype_lanes << ", expected value with "
       << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
       << " buffer element lanes)";
@@ -423,13 +425,13 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
   if (predicate.defined()) {
     DataType predicate_dtype = predicate.value().dtype();
     int predicate_dtype_lanes = predicate_dtype.get_lanes_or_vscale_factor();
-    ICHECK_EQ(value_dtype_lanes, predicate_dtype_lanes)
+    TVM_FFI_ICHECK_EQ(value_dtype_lanes, predicate_dtype_lanes)
         << "Got a predicate mask with " << predicate_dtype_lanes
         << " lanes, but trying to store a value with " << value_dtype_lanes
         << " lanes. The number of lanes must match.";
 
     DataType predicate_element_dtype = predicate_dtype.element_of();
-    ICHECK(predicate_element_dtype.is_predicate_dtype())
+    TVM_FFI_ICHECK(predicate_element_dtype.is_predicate_dtype())
         << "Predicate mask elements must be boolean values, but got " << predicate_element_dtype
         << ".";
   }
@@ -441,11 +443,11 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
     buffer_dtype = buffer->dtype.with_lanes(buffer_lanes * index_lanes);
   }
   if (buffer_dtype != value.dtype()) {
-    LOG(FATAL) << "TypeError: dtype mismatch on BufferStore: "      //
-               << "buffer's dtype is `" << buffer->dtype            //
-               << "`, the lanes of indexing are: `" << index_lanes  //
-               << "`, the scalability is: `" << buffer_dtype.is_scalable_vector()
-               << "`, but RHS's dtype is `" << value.dtype() << "`";
+    TVM_FFI_THROW(TypeError) << "dtype mismatch on BufferStore: "                 //
+                             << "buffer's dtype is `" << buffer->dtype            //
+                             << "`, the lanes of indexing are: `" << index_lanes  //
+                             << "`, the scalability is: `" << buffer_dtype.is_scalable_vector()
+                             << "`, but RHS's dtype is `" << value.dtype() << "`";
   }
 
   ObjectPtr<BufferStoreNode> node = ffi::make_object<BufferStoreNode>();
@@ -477,14 +479,15 @@ PrimExpr BufferRegionNode::ToPrimExpr() const {
     } else if (r->extent.as<IntImmNode>()) {
       indices.push_back(tir::Ramp(r->min, tvm::tir::make_const(r->min->dtype, 1), r->extent));
     } else {
-      LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: " << ffi::GetRef<BufferRegion>(this);
+      TVM_FFI_THROW(ValueError) << "Cannot convert to BufferLoad: "
+                                << ffi::GetRef<BufferRegion>(this);
     }
   }
   return tir::BufferLoad(this->buffer, indices);
 }
 
 BufferRegion::BufferRegion(Buffer buffer, ffi::Array<Range> region) {
-  CHECK_EQ(buffer->shape.size(), region.size())
+  TVM_FFI_ICHECK_EQ(buffer->shape.size(), region.size())
       << "The dimension between " << buffer << " and region " << region
       << " mismatched, the buffer is " << buffer;
   ObjectPtr<BufferRegionNode> node = ffi::make_object<BufferRegionNode>();
@@ -526,39 +529,39 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
   const Buffer& source_buffer = source->buffer;
   arith::Analyzer analyzer;
   // Check scope and dtype
-  CHECK_EQ(buffer.scope(), source_buffer.scope())
+  TVM_FFI_ICHECK_EQ(buffer.scope(), source_buffer.scope())
       << "MatchBuffer " << buffer << " scope mismatch:" << buffer.scope() << " vs. "
       << source_buffer.scope();
-  CHECK_EQ(buffer->dtype, source_buffer->dtype)
+  TVM_FFI_ICHECK_EQ(buffer->dtype, source_buffer->dtype)
       << "MatchBuffer " << buffer << " data type mismatch:" << buffer->dtype << " vs. "
       << source_buffer->dtype;
 
   // Check data_alignment
-  CHECK(source_buffer->data_alignment % buffer->data_alignment == 0)
+  TVM_FFI_ICHECK(source_buffer->data_alignment % buffer->data_alignment == 0)
       << "Trying to match buffer to another one with lower alignment requirement "
       << " required alignment=" << buffer->data_alignment
       << ", provided alignment=" << source_buffer->data_alignment;
 
   // Check BufferType. AutoBroadcast is not allowed for now.
-  CHECK(buffer->buffer_type == BufferType::kDefault &&
-        source_buffer->buffer_type == BufferType::kDefault)
+  TVM_FFI_ICHECK(buffer->buffer_type == BufferType::kDefault &&
+                 source_buffer->buffer_type == BufferType::kDefault)
       << "AutoBroadcast is not allowed in MatchBuffer";
 
   // Validate shape
-  CHECK(source->region.size() >= buffer->shape.size())
+  TVM_FFI_ICHECK(source->region.size() >= buffer->shape.size())
       << "Dimension of source Region expected to be larger or equal than target buffer shape, but "
          "got "
       << source->region.size() << " vs. " << buffer->shape.size();
   size_t offset = source->region.size() - buffer->shape.size();
   for (size_t i = 0; i < offset; ++i) {
-    CHECK(analyzer.CanProve(source->region[i]->extent == 1))
+    TVM_FFI_ICHECK(analyzer.CanProve(source->region[i]->extent == 1))
         << "The higher dimension should be 1, but got " << source->region[i]->extent << ".";
   }
   for (size_t i = 0; i < buffer->shape.size(); ++i) {
     const Range& source_range = source->region[i + offset];
     const PrimExpr& buffer_shape = buffer->shape[i];
     if (!buffer_shape->IsInstance<VarNode>()) {
-      CHECK(analyzer.CanProve(source_range->extent == buffer_shape))
+      TVM_FFI_ICHECK(analyzer.CanProve(source_range->extent == buffer_shape))
           << "The dimension mismatched between source region and target buffer shape, got "
           << source_range->extent << " vs. " << buffer_shape << ".";
     }
@@ -615,10 +618,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // BlockRealize
 SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SBlock block,
                              Span span) {
-  CHECK_EQ(block->iter_vars.size(), values.size())
-      << "ValueError: BlockRealize needs to have the same number of iter_vars and binding values";
-  CHECK(predicate.dtype().is_bool() || predicate.dtype() == DataType::UInt(1))
-      << "TypeError: Expect Block.predicate to be a bool expression";
+  TVM_FFI_CHECK_EQ(block->iter_vars.size(), values.size(), ValueError)
+      << "BlockRealize needs to have the same number of iter_vars and binding values";
+  TVM_FFI_CHECK(predicate.dtype().is_bool() || predicate.dtype() == DataType::UInt(1), TypeError)
+      << "Expect Block.predicate to be a bool expression";
   ObjectPtr<SBlockRealizeNode> node = ffi::make_object<SBlockRealizeNode>();
   node->iter_values = std::move(values);
   node->predicate = std::move(predicate);

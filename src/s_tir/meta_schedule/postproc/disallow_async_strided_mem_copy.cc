@@ -126,7 +126,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {
     /* Null check */
-    ICHECK(context->target) << "Context must contain a target";
+    TVM_FFI_ICHECK(context->target) << "Context must contain a target";
     this->target = context->target.value();
   }
   // Inherited from PostprocNode

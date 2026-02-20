@@ -78,7 +78,7 @@ class PooledAllocator : public Allocator {
     if (AllowMemoryScope(mem_scope)) {
       return Allocator::Alloc(dev, shape, type_hint, mem_scope);
     }
-    LOG(FATAL) << "This alloc should be implemented";
+    TVM_FFI_THROW(InternalError) << "This alloc should be implemented";
     return {};
   }
 

@@ -37,7 +37,7 @@ struct MetalWarpIntrinsic {
     } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
       return Op::Get("tir.metal.simd_shuffle_up");
     } else {
-      ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
+      TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
       return Op::Get("tir.metal.simd_shuffle_down");
     }
   }
@@ -46,8 +46,8 @@ struct MetalWarpIntrinsic {
 template <typename T>
 static PrimExpr DispatchMetalShuffle(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
-  ICHECK(call != nullptr);
-  ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
+  TVM_FFI_ICHECK(call != nullptr);
+  TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   ffi::Array<PrimExpr> metal_args{{call->args[1], call->args[2]}};
   return Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), metal_args);
 }

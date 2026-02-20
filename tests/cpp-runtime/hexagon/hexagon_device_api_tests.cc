@@ -53,62 +53,62 @@ class HexagonDeviceAPITest : public ::testing::Test {
   ffi::Optional<ffi::String> global_vtcm_scope = ffi::String("global.vtcm");
 };
 
-TEST_F(HexagonDeviceAPITest, global) { CHECK(hexapi != nullptr); }
+TEST_F(HexagonDeviceAPITest, global) { TVM_FFI_ICHECK(hexapi != nullptr); }
 
 TEST_F(HexagonDeviceAPITest, alloc_free_cpu) {
   void* buf = hexapi->AllocDataSpace(cpu_dev, nbytes, alignment, int8);
-  CHECK(buf != nullptr);
+  TVM_FFI_ICHECK(buf != nullptr);
   hexapi->FreeDataSpace(cpu_dev, buf);
 }
 
 TEST_F(HexagonDeviceAPITest, alloc_free_hex) {
   void* buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
-  CHECK(buf != nullptr);
+  TVM_FFI_ICHECK(buf != nullptr);
   hexapi->FreeDataSpace(hex_dev, buf);
 }
 
 TEST_F(HexagonDeviceAPITest, alloc_errors) {
   // invalid device
-  EXPECT_THROW(hexapi->AllocDataSpace(invalid_dev, nbytes, alignment, int8), InternalError);
+  EXPECT_THROW(hexapi->AllocDataSpace(invalid_dev, nbytes, alignment, int8), tvm::ffi::Error);
   // 0 size
-  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 0, alignment, int8), InternalError);
+  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 0, alignment, int8), tvm::ffi::Error);
   // 0 alignment
-  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, nbytes, 0, int8), InternalError);
+  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, nbytes, 0, int8), tvm::ffi::Error);
 }
 
 TEST_F(HexagonDeviceAPITest, free_errors) {
   void* buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
 
   // invalid device
-  EXPECT_THROW(hexapi->FreeDataSpace(invalid_dev, buf), InternalError);
+  EXPECT_THROW(hexapi->FreeDataSpace(invalid_dev, buf), tvm::ffi::Error);
   // invalid pointer
-  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, &buf), InternalError);
+  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, &buf), tvm::ffi::Error);
   // nullptr
-  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, nullptr), InternalError);
+  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, nullptr), tvm::ffi::Error);
   // double free
   hexapi->FreeDataSpace(hex_dev, buf);
-  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, buf), InternalError);
+  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, buf), tvm::ffi::Error);
 }
 
 TEST_F(HexagonDeviceAPITest, allocnd_free_cpu) {
   void* buf = hexapi->AllocDataSpace(cpu_dev, 3, shape3d, int8, global_scope);
-  CHECK(buf != nullptr);
+  TVM_FFI_ICHECK(buf != nullptr);
   hexapi->FreeDataSpace(cpu_dev, buf);
 }
 
 TEST_F(HexagonDeviceAPITest, allocnd_free_hex) {
   void* buf = hexapi->AllocDataSpace(hex_dev, 3, shape3d, int8, global_scope);
-  CHECK(buf != nullptr);
+  TVM_FFI_ICHECK(buf != nullptr);
   hexapi->FreeDataSpace(hex_dev, buf);
 }
 
 TEST_F(HexagonDeviceAPITest, allocnd_free_hex_vtcm) {
   void* buf1d = hexapi->AllocDataSpace(hex_dev, 1, shape1d, int8, global_vtcm_scope);
-  CHECK(buf1d != nullptr);
+  TVM_FFI_ICHECK(buf1d != nullptr);
   hexapi->FreeDataSpace(hex_dev, buf1d);
 
   void* buf2d = hexapi->AllocDataSpace(hex_dev, 2, shape2d, int8, global_vtcm_scope);
-  CHECK(buf2d != nullptr);
+  TVM_FFI_ICHECK(buf2d != nullptr);
   hexapi->FreeDataSpace(hex_dev, buf2d);
 }
 
@@ -118,27 +118,30 @@ TEST_F(HexagonDeviceAPITest, allocnd_erros) {
                InternalError);
 
   // Hexagon VTCM allocations must have 0 (scalar) 1 or 2 dimensions
-  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 3, shape3d, int8, global_vtcm_scope), InternalError);
+  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 3, shape3d, int8, global_vtcm_scope),
+               tvm::ffi::Error);
 
   // null shape
-  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 2, nullptr, int8, global_vtcm_scope), InternalError);
+  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 2, nullptr, int8, global_vtcm_scope),
+               tvm::ffi::Error);
 
   // null shape
-  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 2, shape2d, int8, invalid_scope), InternalError);
+  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, 2, shape2d, int8, invalid_scope), tvm::ffi::Error);
 
   // cpu & global.vtcm scope
-  EXPECT_THROW(hexapi->AllocDataSpace(cpu_dev, 2, shape2d, int8, global_vtcm_scope), InternalError);
+  EXPECT_THROW(hexapi->AllocDataSpace(cpu_dev, 2, shape2d, int8, global_vtcm_scope),
+               tvm::ffi::Error);
 }
 
 TEST_F(HexagonDeviceAPITest, alloc_scalar) {
   void* cpuscalar = hexapi->AllocDataSpace(cpu_dev, 0, new int64_t, int8, global_scope);
-  CHECK(cpuscalar != nullptr);
+  TVM_FFI_ICHECK(cpuscalar != nullptr);
 
   void* hexscalar = hexapi->AllocDataSpace(hex_dev, 0, new int64_t, int8, global_vtcm_scope);
-  CHECK(hexscalar != nullptr);
+  TVM_FFI_ICHECK(hexscalar != nullptr);
 
   hexscalar = hexapi->AllocDataSpace(hex_dev, 0, nullptr, int8, global_vtcm_scope);
-  CHECK(hexscalar != nullptr);
+  TVM_FFI_ICHECK(hexscalar != nullptr);
 }
 
 // alloc and free of the same buffer on different devices should throw
@@ -148,31 +151,31 @@ TEST_F(HexagonDeviceAPITest, alloc_scalar) {
 // TODO(HWE): Re-enable or delete this test case once we land on device type strategy
 TEST_F(HexagonDeviceAPITest, DISABLED_alloc_free_diff_dev) {
   void* buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
-  CHECK(buf != nullptr);
-  EXPECT_THROW(hexapi->FreeDataSpace(cpu_dev, buf), InternalError);
+  TVM_FFI_ICHECK(buf != nullptr);
+  EXPECT_THROW(hexapi->FreeDataSpace(cpu_dev, buf), tvm::ffi::Error);
 }
 
 // Ensure runtime buffer manager is properly configured and destroyed
 // in Acquire/Release
 TEST_F(HexagonDeviceAPITest, runtime_buffer_manager) {
   hexapi->ReleaseResources();
-  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8), InternalError);
+  EXPECT_THROW(hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8), tvm::ffi::Error);
   hexapi->AcquireResources();
   void* runtime_buf = hexapi->AllocDataSpace(hex_dev, nbytes, alignment, int8);
-  CHECK(runtime_buf != nullptr);
+  TVM_FFI_ICHECK(runtime_buf != nullptr);
   hexapi->ReleaseResources();
   hexapi->FreeDataSpace(hex_dev, runtime_buf);
   hexapi->AcquireResources();
-  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, runtime_buf), InternalError);
+  EXPECT_THROW(hexapi->FreeDataSpace(hex_dev, runtime_buf), tvm::ffi::Error);
 }
 
 // Ensure thread manager is properly configured and destroyed
 // in Acquire/Release
 TEST_F(HexagonDeviceAPITest, thread_manager) {
   HexagonThreadManager* threads = hexapi->ThreadManager();
-  CHECK(threads != nullptr);
+  TVM_FFI_ICHECK(threads != nullptr);
   hexapi->ReleaseResources();
-  EXPECT_THROW(hexapi->ThreadManager(), InternalError);
+  EXPECT_THROW(hexapi->ThreadManager(), tvm::ffi::Error);
   hexapi->AcquireResources();
 }
 
@@ -180,9 +183,9 @@ TEST_F(HexagonDeviceAPITest, thread_manager) {
 // in Acquire/Release
 TEST_F(HexagonDeviceAPITest, user_dma) {
   HexagonUserDMA* user_dma = hexapi->UserDMA();
-  CHECK(user_dma != nullptr);
+  TVM_FFI_ICHECK(user_dma != nullptr);
   hexapi->ReleaseResources();
-  EXPECT_THROW(hexapi->UserDMA(), InternalError);
+  EXPECT_THROW(hexapi->UserDMA(), tvm::ffi::Error);
   hexapi->AcquireResources();
 }
 
@@ -190,8 +193,8 @@ TEST_F(HexagonDeviceAPITest, user_dma) {
 // in Acquire/Release
 TEST_F(HexagonDeviceAPITest, vtcm_pool) {
   HexagonVtcmPool* vtcm_pool = hexapi->VtcmPool();
-  CHECK(vtcm_pool != nullptr);
+  TVM_FFI_ICHECK(vtcm_pool != nullptr);
   hexapi->ReleaseResources();
-  EXPECT_THROW(hexapi->VtcmPool(), InternalError);
+  EXPECT_THROW(hexapi->VtcmPool(), tvm::ffi::Error);
   hexapi->AcquireResources();
 }

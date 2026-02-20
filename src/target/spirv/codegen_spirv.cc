@@ -40,7 +40,8 @@ CodeGenSPIRV::CodeGenSPIRV(Target target) : spirv_support_(target) {}
 
 runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
   this->InitFuncState();
-  ICHECK(f->HasNonzeroAttr(tir::attr::kNoAlias)) << "SPIRV only takes restricted memory model";
+  TVM_FFI_ICHECK(f->HasNonzeroAttr(tir::attr::kNoAlias))
+      << "SPIRV only takes restricted memory model";
   std::vector<Var> pod_args;
   uint32_t i_buffer = 0;
 
@@ -53,13 +54,15 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
     DataType t = arg.dtype();
     if (t.is_handle()) {
       auto* ptr = arg->type_annotation.as<PointerTypeNode>();
-      ICHECK(ptr) << "All handles passed to the Vulkan codegen must have a type_annotation as a "
-                     "PointerType, "
-                  << "and must point to a PrimType";
+      TVM_FFI_ICHECK(ptr)
+          << "All handles passed to the Vulkan codegen must have a type_annotation as a "
+             "PointerType, "
+          << "and must point to a PrimType";
       auto* prim = ptr->element_type.as<PrimTypeNode>();
-      ICHECK(prim) << "All handles passed to the Vulkan codegen must have a type_annotation as a "
-                      "PointerType, "
-                   << "and must point to a PrimType";
+      TVM_FFI_ICHECK(prim)
+          << "All handles passed to the Vulkan codegen must have a type_annotation as a "
+             "PointerType, "
+          << "and must point to a PrimType";
       DataType value_storage_type = prim->dtype;
       if (value_storage_type == DataType::Bool()) {
         // We need a physically addressable buffer type to support boolean tensors.
@@ -109,7 +112,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
 
   builder_->CommitKernelFunction(func_ptr, name);
 
-  ICHECK_LE(shared_memory_bytes_used_, spirv_support_.max_shared_memory_per_block)
+  TVM_FFI_ICHECK_LE(shared_memory_bytes_used_, spirv_support_.max_shared_memory_per_block)
       << "Vulkan shader " << name << " uses " << shared_memory_bytes_used_
       << " bytes of shared memory, "
       << "but target supports only " << spirv_support_.max_shared_memory_per_block << " bytes.  "
@@ -138,10 +141,10 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& ext
   if (ts.rank == 1) {
     v = builder_->GetLocalID(ts.dim_index);
     auto* sizeptr = extent.as<tir::IntImmNode>();
-    ICHECK(sizeptr) << "SPIRV only allows constant thread group size "
-                    << " get " << extent;
-    ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
-    ICHECK_LT(ts.dim_index, 3);
+    TVM_FFI_ICHECK(sizeptr) << "SPIRV only allows constant thread group size "
+                            << " get " << extent;
+    TVM_FFI_ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
+    TVM_FFI_ICHECK_LT(ts.dim_index, 3);
     workgroup_size_[ts.dim_index] = static_cast<uint32_t>(sizeptr->value);
   } else {
     v = builder_->GetWorkgroupID(ts.dim_index);
@@ -172,7 +175,7 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
     sync_scope = spv::ScopeWorkgroup;
     memory_semantics |= spv::MemorySemanticsWorkgroupMemoryMask;
   } else {
-    LOG(FATAL) << "Do not support sync " << sync;
+    TVM_FFI_THROW(InternalError) << "Do not support sync " << sync;
   }
 
   auto type_int = builder_->GetSType(DataType::Int(32));
@@ -185,7 +188,7 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const VarNode* op) {
   auto it = var_map_.find(op);
-  ICHECK(it != var_map_.end()) << "cannot find variable " << op->name_hint;
+  TVM_FFI_ICHECK(it != var_map_.end()) << "cannot find variable " << op->name_hint;
   return it->second;
 }
 
@@ -198,7 +201,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const FloatImmNode* op) {
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const StringImmNode* op) {
-  LOG(FATAL) << "StringImm is not supported in Device code";
+  TVM_FFI_THROW(InternalError) << "StringImm is not supported in Device code";
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const CastNode* op) {
@@ -286,7 +289,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const SelectNode* op) {
 spirv::Value CodeGenSPIRV::VisitExpr_(const LetNode* op) {
   auto it = let_binding_.find(op->var);
   if (it != let_binding_.end()) {
-    ICHECK(deep_equal_(it->second->value, op->value))
+    TVM_FFI_ICHECK(deep_equal_(it->second->value, op->value))
         << "Let cannot bind the same var to two different values";
   } else {
     let_binding_[op->var] = op;
@@ -298,7 +301,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LetNode* op) {
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::call_spirv_pure_glsl450())) {
-    ICHECK_GE(op->args.size(), 2U);
+    TVM_FFI_ICHECK_GE(op->args.size(), 2U);
     uint32_t inst_id = static_cast<uint32_t>(op->args[0].as<IntImmNode>()->value);
     std::vector<spirv::Value> values;
     for (size_t i = 1; i < op->args.size(); ++i) {
@@ -306,31 +309,31 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     }
     return builder_->CallGLSL450(builder_->GetSType(op->dtype), inst_id, values);
   } else if (op->op.same_as(builtin::bitwise_and())) {
-    ICHECK_EQ(op->args.size(), 2U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseAnd, a.stype, a, b);
   } else if (op->op.same_as(builtin::bitwise_xor())) {
-    ICHECK_EQ(op->args.size(), 2U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseXor, a.stype, a, b);
   } else if (op->op.same_as(builtin::bitwise_or())) {
-    ICHECK_EQ(op->args.size(), 2U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpBitwiseOr, a.stype, a, b);
   } else if (op->op.same_as(builtin::bitwise_not())) {
-    ICHECK_EQ(op->args.size(), 1U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
     spirv::Value a = MakeValue(op->args[0]);
     return builder_->MakeValue(spv::OpNot, a.stype, a);
   } else if (op->op.same_as(builtin::shift_left())) {
-    ICHECK_EQ(op->args.size(), 2U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     return builder_->MakeValue(spv::OpShiftLeftLogical, a.stype, a, b);
   } else if (op->op.same_as(builtin::shift_right())) {
-    ICHECK_EQ(op->args.size(), 2U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
     spirv::Value a = MakeValue(op->args[0]);
     spirv::Value b = MakeValue(op->args[1]);
     if (op->args[0].dtype().is_int()) {
@@ -342,7 +345,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     return builder_->MakeValue(spv::OpBitcast, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
   } else if (op->op.same_as(builtin::large_uint_imm())) {
-    ICHECK_EQ(op->args.size(), 2U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
     uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
     uint64_t high = static_cast<uint64_t>(Downcast<IntImm>(op->args[1])->value);
     uint64_t val = (high << 32U) | low;
@@ -350,7 +353,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(builtin::tvm_storage_sync())) {
     return this->CreateStorageSync(op);
   } else if (op->op.same_as(builtin::if_then_else())) {
-    ICHECK_EQ(op->args.size(), 3U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
     spirv::Value cond = MakeValue(op->args[0]);
     spirv::Label then_label = builder_->NewLabel();
     spirv::Label else_label = builder_->NewLabel();
@@ -377,7 +380,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     return builder_->MakeValue(spv::OpBitCount, builder_->GetSType(op->dtype),
                                MakeValue(op->args[0]));
   } else if (op->op.same_as(builtin::call_pure_extern())) {
-    ICHECK_GE(op->args.size(), 1U);
+    TVM_FFI_ICHECK_GE(op->args.size(), 1U);
     const std::string& func_name = op->args[0].as<StringImmNode>()->value;
     if (func_name == "__dp4a") {
       std::vector<spirv::Value> values;
@@ -386,21 +389,23 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
       }
       return builder_->CallKHRIntegerDotProduct(builder_->GetSType(op->dtype), values, op->dtype);
     } else {
-      LOG(FATAL) << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
-                 << Downcast<StringImm>(op->args[0]) << "\"";
+      TVM_FFI_THROW(InternalError)
+          << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
+          << Downcast<StringImm>(op->args[0]) << "\"";
       return spirv::Value();
     }
   } else if (op->op.same_as(builtin::call_extern())) {
-    ICHECK_GE(op->args.size(), 1U);
-    LOG(FATAL) << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
-               << Downcast<StringImm>(op->args[0]) << "\"";
+    TVM_FFI_ICHECK_GE(op->args.size(), 1U);
+    TVM_FFI_THROW(InternalError)
+        << "SPIR-V shader cannot make extern calls.  Graph contains extern \""
+        << Downcast<StringImm>(op->args[0]) << "\"";
     return spirv::Value();
   } else if (op->op.same_as(builtin::tvm_fill_fragment())) {
-    ICHECK_EQ(op->args.size(), 6U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
     const VarNode* buffer_node = op->args[0].as<VarNode>();
-    ICHECK(buffer_node && fragment_info_.count(buffer_node));
+    TVM_FFI_ICHECK(buffer_node && fragment_info_.count(buffer_node));
     DataType ele_dtype = GetElementDataType(buffer_node);
-    ICHECK(ele_dtype.is_float()) << "Only floating point fragment accumulator is supported";
+    TVM_FFI_ICHECK(ele_dtype.is_float()) << "Only floating point fragment accumulator is supported";
     spirv::SType ele_stype = builder_->GetSType(ele_dtype);
     spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
     double init = static_cast<uint64_t>(Downcast<FloatImm>(op->args[5])->value);
@@ -409,15 +414,15 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     spirv::SType ptr_type =
         builder_->GetPointerType(fragment_type, fragment_info_[buffer_node].sclass);
     spirv::Value index = MakeValue(prim_index);
-    ICHECK(var_map_.count(buffer_node));
+    TVM_FFI_ICHECK(var_map_.count(buffer_node));
     spirv::Value ptr = builder_->StructArrayAccess(ptr_type, var_map_[buffer_node], index);
     builder_->MakeInst(spv::OpStore, ptr, init_val, spv::MemoryAccessMaskNone);
     return spirv::Value();
 
   } else if (op->op.same_as(builtin::tvm_load_matrix_sync())) {
-    ICHECK_EQ(op->args.size(), 8U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     const VarNode* buffer_node = op->args[0].as<VarNode>();
-    ICHECK(buffer_node && fragment_info_.count(buffer_node));
+    TVM_FFI_ICHECK(buffer_node && fragment_info_.count(buffer_node));
     spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
     PrimExpr dst_index = op->args[4];
     PrimExpr src_ptr_expr = op->args[5];
@@ -476,7 +481,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     builder_->MakeInst(spv::OpStore, ptr_d, result, spv::MemoryAccessMaskNone);
     return spirv::Value();
   } else if (op->op.same_as(builtin::tvm_store_matrix_sync())) {
-    ICHECK_EQ(op->args.size(), 8U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
     const VarNode* buffer_node = op->args[0].as<VarNode>();
     PrimExpr index = op->args[4];
     PrimExpr buffer_ptr = op->args[5];
@@ -507,12 +512,12 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     spirv::SType ele_stype = builder_->GetSType(ele_dtype);
     spirv::Value buffer_val = MakeValue(buffer_var);
     spirv::SType ptr_type = builder_->GetPointerType(ele_stype, buffer_val.stype.storage_class);
-    ICHECK(var_map_.count(buffer_node));
+    TVM_FFI_ICHECK(var_map_.count(buffer_node));
     return builder_->StructArrayAccess(ptr_type, var_map_[buffer_node], MakeValue(index));
   } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
     return MakeValue(op->args[0]);
   } else {
-    LOG(FATAL) << "Unresolved call  " << op->op;
+    TVM_FFI_THROW(InternalError) << "Unresolved call  " << op->op;
   }
 }
 
@@ -542,8 +547,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const BroadcastNode* op) {
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const BufferLoadNode* op) {
-  ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
-  ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
+  TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
+  TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
   Var buffer_var = op->buffer->data;
   PrimExpr prim_index = op->indices[0];
 
@@ -553,7 +558,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const BufferLoadNode* op) {
   }
 
   auto it = storage_info_.find(buffer_var.get());
-  ICHECK(it != storage_info_.end());
+  TVM_FFI_ICHECK(it != storage_info_.end());
   StorageInfo& info = it->second;
   info.CheckContentType(desired_read_type, prim_index.dtype().lanes());
 
@@ -593,9 +598,10 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const BufferLoadNode* op) {
     return builder_->Concat(values);
 
   } else {
-    LOG(FATAL) << "Cannot perform buffer access of buffer variable '" << buffer_var->name_hint
-               << "' with element type " << info.element_type << " using index of type "
-               << prim_index->dtype << " to produce output of type " << op->dtype;
+    TVM_FFI_THROW(InternalError) << "Cannot perform buffer access of buffer variable '"
+                                 << buffer_var->name_hint << "' with element type "
+                                 << info.element_type << " using index of type "
+                                 << prim_index->dtype << " to produce output of type " << op->dtype;
     return spirv::Value();
   }
 }
@@ -616,7 +622,7 @@ void CodeGenSPIRV::Scalarize(const PrimExpr& e, std::function<void(int i, spirv:
 }
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const ShuffleNode* op) {
-  ICHECK(op->vectors.size() == 1 && op->indices.size() == 1)
+  TVM_FFI_ICHECK(op->vectors.size() == 1 && op->indices.size() == 1)
       << "SPIR-V codegen only supports shuffle "
       << "of one vector with one index";
   spirv::Value vector = MakeValue(op->vectors[0]);
@@ -627,13 +633,13 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const ShuffleNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
-  ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
-  ICHECK(!op->predicate.defined()) << "Predicated buffer store is not supported.";
+  TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
+  TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer store is not supported.";
   Var buffer_var = op->buffer->data;
   PrimExpr prim_index = op->indices[0];
 
   auto it = storage_info_.find(buffer_var.get());
-  ICHECK(it != storage_info_.end());
+  TVM_FFI_ICHECK(it != storage_info_.end());
   StorageInfo& info = it->second;
   info.CheckContentType(op->value.dtype(), prim_index.dtype().lanes());
 
@@ -650,7 +656,7 @@ void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
   if (op->value.dtype() == info.element_type) {
     // Requested store of a single value.  This may be a scalar store
     // or a vectorized store, based on the array element type.
-    ICHECK_EQ(info.element_type, op->value.dtype())
+    TVM_FFI_ICHECK_EQ(info.element_type, op->value.dtype())
         << "Vulkan only allow one type access to the same buffer";
     spirv::Value index = MakeValue(prim_index);
     spirv::Value ptr = builder_->StructArrayAccess(ptr_type, buffer, index);
@@ -667,9 +673,10 @@ void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
     this->Scalarize(prim_index, f);
 
   } else {
-    LOG(FATAL) << "Cannot store value of type " << op->value.dtype() << " into buffer variable '"
-               << buffer_var->name_hint << "' with element type " << info.element_type
-               << " using index of type " << prim_index->dtype;
+    TVM_FFI_THROW(InternalError) << "Cannot store value of type " << op->value.dtype()
+                                 << " into buffer variable '" << buffer_var->name_hint
+                                 << "' with element type " << info.element_type
+                                 << " using index of type " << prim_index->dtype;
   }
 }
 
@@ -792,10 +799,10 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
-  ICHECK(!is_zero(op->condition));
-  ICHECK(!op->dtype.is_handle());
+  TVM_FFI_ICHECK(!is_zero(op->condition));
+  TVM_FFI_ICHECK(!op->dtype.is_handle());
   size_t constant_size = op->ConstantAllocationSize();
-  ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
+  TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
   spirv::Value buf;
   const std::string scope = GetPtrStorageScope(op->buffer_var);
@@ -809,12 +816,12 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
     case runtime::StorageRank::kWMMAMatrixA:
     case runtime::StorageRank::kWMMAMatrixB:
     case runtime::StorageRank::kWMMAAccumulator: {
-      ICHECK(fragment_info_.count(var_node));
+      TVM_FFI_ICHECK(fragment_info_.count(var_node));
       fragment_info_[var_node].scope = scope;
       etype = GetFragmentSType(var_node, op->dtype);
       storage_class = spv::StorageClassFunction;
       fragment_info_[var_node].sclass = storage_class;
-      ICHECK(fragment_info_.count(var_node));
+      TVM_FFI_ICHECK(fragment_info_.count(var_node));
       const std::string& scope = fragment_info_[var_node].scope;
       const std::string& shape_str = fragment_info_.at(var_node).shape;
       std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
@@ -837,16 +844,16 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
       shared_memory_bytes_used_ += num_bytes;
     } break;
     default:
-      LOG(FATAL) << "Can only allocate shared or local memory inside kernel";
+      TVM_FFI_THROW(InternalError) << "Can only allocate shared or local memory inside kernel";
   }
 
   builder_->SetName(buf, op->buffer_var->name_hint);
 
   StorageInfo& info = storage_info_[op->buffer_var.get()];
-  ICHECK(!info.element_type_known);
+  TVM_FFI_ICHECK(!info.element_type_known);
   info.SetContentType(op->dtype, op->buffer_var->name_hint);
 
-  ICHECK(!var_map_.count(op->buffer_var.get()));
+  TVM_FFI_ICHECK(!var_map_.count(op->buffer_var.get()));
   var_map_[op->buffer_var.get()] = buf;
   this->VisitStmt(op->body);
 }
@@ -865,11 +872,11 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
     }
   } else if (op->attr_key == tir::attr::volatile_scope) {
     const VarNode* v = op->node.as<VarNode>();
-    ICHECK(v);
+    TVM_FFI_ICHECK(v);
     storage_info_[v].is_volatile = true;
   } else if (op->attr_key == tir::attr::buffer_bind_scope) {
     const VarNode* v = op->node.as<VarNode>();
-    ICHECK(v);
+    TVM_FFI_ICHECK(v);
   } else if (op->attr_key == tir::attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* shape_str = op->value.as<StringImmNode>();
@@ -884,8 +891,8 @@ void CodeGenSPIRV::VisitStmt_(const AssertStmtNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const LetStmtNode* op) {
-  ICHECK(!var_map_.count(op->var.get()));
-  ICHECK(!op->var.dtype().is_handle());
+  TVM_FFI_ICHECK(!var_map_.count(op->var.get()));
+  TVM_FFI_ICHECK(!op->var.dtype().is_handle());
   var_map_[op->var.get()] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
   this->VisitStmt(op->body);
@@ -900,7 +907,7 @@ void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {
 void CodeGenSPIRV::VisitStmt_(const EvaluateNode* op) { MakeValue(op->value); }
 
 spirv::SType CodeGenSPIRV::GetFragmentSType(const VarNode* buffer, const DataType& dtype) {
-  ICHECK(fragment_info_.count(buffer));
+  TVM_FFI_ICHECK(fragment_info_.count(buffer));
   const std::string& scope = fragment_info_[buffer].scope;
   const std::string& shape_str = fragment_info_.at(buffer).shape;
   std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
@@ -912,7 +919,7 @@ spirv::SType CodeGenSPIRV::GetFragmentSType(const VarNode* buffer, const DataTyp
 
 DataType CodeGenSPIRV::GetElementDataType(const VarNode* buffer) {
   auto it = storage_info_.find(buffer);
-  ICHECK(it != storage_info_.end());
+  TVM_FFI_ICHECK(it != storage_info_.end());
   return it->second.element_type;
 }
 

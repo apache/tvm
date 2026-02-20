@@ -116,7 +116,7 @@ class Stream {
     }
     [cb addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
       if (buffer.status == MTLCommandBufferStatusError) {
-        ICHECK(buffer.error != nil);
+        TVM_FFI_ICHECK(buffer.error != nil);
         this->SetError(buffer.error.localizedDescription.UTF8String);
       }
     }];
@@ -155,8 +155,8 @@ class MetalWorkspace final : public DeviceAPI {
   ~MetalWorkspace();
   // Get device for given device
   id<MTLDevice> GetDevice(Device dev) {
-    ICHECK_EQ(dev.device_type, kDLMetal);
-    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < devices.size())
+    TVM_FFI_ICHECK_EQ(dev.device_type, kDLMetal);
+    TVM_FFI_ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < devices.size())
         << "Invalid Metal device_id=" << dev.device_id;
     return devices[dev.device_id];
   }

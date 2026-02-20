@@ -32,11 +32,11 @@ class AutoBindNode : public ScheduleRuleNode {
  public:
   // Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final {
-    CHECK(context->target.defined()) << "ValueError: target is not defined";
+    TVM_FFI_CHECK(context->target.defined(), ValueError) << "target is not defined";
     ffi::Optional<Integer> max_threads_per_block =
         context->target.value()->GetAttr<Integer>("max_threads_per_block");
-    CHECK(max_threads_per_block.defined())
-        << "ValueError: missing attribute `max_threads_per_block` in the target";
+    TVM_FFI_CHECK(max_threads_per_block.defined(), ValueError)
+        << "missing attribute `max_threads_per_block` in the target";
     this->max_threads_per_block_ = max_threads_per_block.value().IntValue();
   }
 
@@ -67,7 +67,7 @@ class AutoBindNode : public ScheduleRuleNode {
 
 ffi::Array<s_tir::Schedule> AutoBindNode::Apply(const s_tir::Schedule& sch,
                                                 const s_tir::SBlockRV& block_rv) {
-  ICHECK_NE(this->max_threads_per_block_, -1);
+  TVM_FFI_ICHECK_NE(this->max_threads_per_block_, -1);
   auto get_factor = MakeFactorSampler(sch, this->thread_extents_);
   BindBlockThreadIdx(sch, block_rv, max_threadblocks_, max_threads_per_block_, get_factor);
   return {sch};

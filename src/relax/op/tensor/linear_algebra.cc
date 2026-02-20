@@ -153,7 +153,7 @@ StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   if (!x2_appended) {
     output_shape.push_back(x2_shape->values[x2_ndim - 1]);
   }
-  ICHECK_EQ(static_cast<int>(output_shape.size()), output_ndim);
+  TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.size()), output_ndim);
   if (vdev.defined()) {
     return TensorStructInfo(ShapeExpr(output_shape), out_dtype, vdev);
   }

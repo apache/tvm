@@ -61,7 +61,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
       for (const auto& var : kv.second) {
         VLOG(1) << "ConstLoaderModuleNode has constant '" << var << "' for function '" << kv.first
                 << "'";
-        ICHECK_GT(const_var_tensor_.count(var), 0)
+        TVM_FFI_ICHECK_GT(const_var_tensor_.count(var), 0)
             << "ConstLoaderModuleNode is missing entry for constant '" << var << "' for function '"
             << kv.first << "'";
       }
@@ -93,7 +93,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
     // Run the module.
     // Normally we would only have a limited number of submodules. The runtime
     // symobl lookup overhead should be minimal.
-    ICHECK(!this->imports_.empty());
+    TVM_FFI_ICHECK(!this->imports_.empty());
     for (const Any& it : this->imports_) {
       ffi::Optional<ffi::Function> pf = it.cast<ffi::Module>()->GetFunction(name);
       if (pf.has_value()) return pf.value();
@@ -113,11 +113,11 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
    */
   ffi::Array<Tensor> GetRequiredConstants(const std::string& symbol) {
     ffi::Array<Tensor> ret;
-    ICHECK_GT(const_vars_by_symbol_.count(symbol), 0U)
+    TVM_FFI_ICHECK_GT(const_vars_by_symbol_.count(symbol), 0U)
         << "No constants known for function '" << symbol << "'";
     std::vector<std::string> vars = const_vars_by_symbol_[symbol];
     for (const auto& var : vars) {
-      ICHECK_GT(const_var_tensor_.count(var), 0U)
+      TVM_FFI_ICHECK_GT(const_var_tensor_.count(var), 0U)
           << "No such constant variable '" << var << "' for function '" << symbol << "'";
       ret.push_back(const_var_tensor_[var]);
     }
@@ -147,7 +147,7 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
         // Initialize the module with constants.
         int ret = (*init)(md).cast<int>();
         // Report the error if initialization is failed.
-        ICHECK_EQ(ret, 0);
+        TVM_FFI_ICHECK_EQ(ret, 0);
         break;
       }
     }
@@ -196,10 +196,10 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
 
     // Load the variables.
     std::vector<std::string> variables;
-    ICHECK(stream.Read(&variables)) << "Loading variable names failed";
+    TVM_FFI_ICHECK(stream.Read(&variables)) << "Loading variable names failed";
     uint64_t sz;
-    ICHECK(stream.Read(&sz, sizeof(sz))) << "Loading number of vars failed";
-    ICHECK_EQ(static_cast<size_t>(sz), variables.size())
+    TVM_FFI_ICHECK(stream.Read(&sz, sizeof(sz))) << "Loading number of vars failed";
+    TVM_FFI_ICHECK_EQ(static_cast<size_t>(sz), variables.size())
         << "The number of variables and ndarray counts must match";
     // Load the list of ndarray.
     std::vector<Tensor> arrays;
@@ -211,19 +211,19 @@ class ConstLoaderModuleObj : public ffi::ModuleObj {
 
     std::unordered_map<std::string, Tensor> const_var_tensor;
     for (uint64_t i = 0; i < sz; i++) {
-      ICHECK_EQ(const_var_tensor.count(variables[i]), 0U);
+      TVM_FFI_ICHECK_EQ(const_var_tensor.count(variables[i]), 0U);
       const_var_tensor[variables[i]] = arrays[i];
     }
 
     // Load the symbol to list of required constant variables mapping
     std::vector<std::string> symbols;
-    ICHECK(stream.Read(&symbols)) << "Loading symbols failed";
-    ICHECK(stream.Read(&sz, sizeof(sz))) << "Loading number of symbols failed";
-    ICHECK_EQ(static_cast<size_t>(sz), symbols.size());
+    TVM_FFI_ICHECK(stream.Read(&symbols)) << "Loading symbols failed";
+    TVM_FFI_ICHECK(stream.Read(&sz, sizeof(sz))) << "Loading number of symbols failed";
+    TVM_FFI_ICHECK_EQ(static_cast<size_t>(sz), symbols.size());
     std::vector<std::vector<std::string>> const_vars;
     for (uint64_t i = 0; i < sz; i++) {
       std::vector<std::string> vars;
-      ICHECK(stream.Read(&vars)) << "Loading const variables failed";
+      TVM_FFI_ICHECK(stream.Read(&vars)) << "Loading const variables failed";
       const_vars.push_back(vars);
     }
 

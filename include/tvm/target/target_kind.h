@@ -241,7 +241,7 @@ inline TargetKindAttrMap<ValueType> TargetKind::GetAttrMap(const ffi::String& at
 template <typename ValueType>
 inline TargetKindRegEntry& TargetKindRegEntry::set_attr(const ffi::String& attr_name,
                                                         const ValueType& value, int plevel) {
-  ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
+  TVM_FFI_ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
   ffi::Any rv;
   rv = value;
   UpdateAttr(attr_name, rv, plevel);

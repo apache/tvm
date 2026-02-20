@@ -35,8 +35,8 @@ using namespace tir;
 
 ffi::Map<PrimExpr, Integer> DetectCommonSubExpr(const PrimExpr& e, int thresh) {
   // Check the threshold in the range of size_t
-  CHECK_GE(thresh, std::numeric_limits<size_t>::min());
-  CHECK_LE(thresh, std::numeric_limits<size_t>::max());
+  TVM_FFI_ICHECK_GE(thresh, std::numeric_limits<size_t>::min());
+  TVM_FFI_ICHECK_LE(thresh, std::numeric_limits<size_t>::max());
   size_t repeat_thr = static_cast<size_t>(thresh);
   auto IsEligibleComputation = [](const PrimExpr& expr) {
     return (SideEffect(expr) <= CallEffectKind::kPure && CalculateExprComplexity(expr) > 1 &&

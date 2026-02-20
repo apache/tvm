@@ -69,19 +69,20 @@ void BcastSessionObj::Shutdown() {
 
 void BcastSessionObj::InitCCL(ffi::String ccl, ffi::Shape device_ids) {
   const auto pf = tvm::ffi::Function::GetGlobal("runtime.disco." + ccl + ".init_ccl");
-  CHECK(pf.has_value()) << "ValueError: Cannot initialize CCL `" << ccl
-                        << "`, because cannot find function: runtime.disco." << ccl << ".init_ccl";
+  TVM_FFI_CHECK(pf.has_value(), ValueError)
+      << "Cannot initialize CCL `" << ccl << "`, because cannot find function: runtime.disco."
+      << ccl << ".init_ccl";
   (*pf)(ffi::GetRef<Session>(this), device_ids);
 }
 
 void BcastSessionObj::SyncWorker(int worker_id) {
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kSyncWorker, worker_id);
   ffi::PackedArgs args = this->RecvReplyPacked(worker_id);
-  ICHECK_EQ(args.size(), 2);
+  TVM_FFI_ICHECK_EQ(args.size(), 2);
   DiscoAction action = static_cast<DiscoAction>(args[0].cast<int>());
   int ret_worker_id = args[1].cast<int>();
-  ICHECK(action == DiscoAction::kSyncWorker);
-  ICHECK_EQ(ret_worker_id, worker_id);
+  TVM_FFI_ICHECK(action == DiscoAction::kSyncWorker);
+  TVM_FFI_ICHECK_EQ(ret_worker_id, worker_id);
 }
 
 DRef BcastSessionObj::CallWithPacked(const ffi::PackedArgs& args) {

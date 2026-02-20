@@ -82,7 +82,7 @@ void VulkanStream::Launch(const std::function<void(VulkanStreamState*)>& kernel)
 void VulkanStream::LaunchDeferred(const std::function<void()>& deferred_initializer,
                                   const std::function<void(VulkanStreamState*)>& deferred_kernel,
                                   const VulkanStreamToken& deferred_token) {
-  ICHECK(!device_->UseImmediate());
+  TVM_FFI_ICHECK(!device_->UseImmediate());
 
   // If the new kernel uses the same descriptor set as one of the
   // kernels already in the command buffer, we need to synchronize
@@ -90,7 +90,7 @@ void VulkanStream::LaunchDeferred(const std::function<void()>& deferred_initiali
   if (std::any_of(deferred_tokens_[deferred_token.descriptor_set_].begin(),
                   deferred_tokens_[deferred_token.descriptor_set_].end(),
                   [&](const VulkanStreamToken& token) {
-                    DCHECK(token.descriptor_set_ == deferred_token.descriptor_set_);
+                    TVM_FFI_DCHECK(token.descriptor_set_ == deferred_token.descriptor_set_);
                     return token.descriptor_set_ == deferred_token.descriptor_set_ &&
                            token.buffers_ != deferred_token.buffers_;
                   })) {
@@ -105,7 +105,7 @@ void VulkanStream::LaunchDeferred(const std::function<void()>& deferred_initiali
   if (!std::any_of(deferred_tokens_[deferred_token.descriptor_set_].begin(),
                    deferred_tokens_[deferred_token.descriptor_set_].end(),
                    [&](const VulkanStreamToken& token) {
-                     DCHECK(token.descriptor_set_ == deferred_token.descriptor_set_);
+                     TVM_FFI_DCHECK(token.descriptor_set_ == deferred_token.descriptor_set_);
                      return token.descriptor_set_ == deferred_token.descriptor_set_ &&
                             token.buffers_ == deferred_token.buffers_;
                    })) {
@@ -125,8 +125,8 @@ void VulkanStream::Synchronize() {
     deferred_kernels_.clear();
     deferred_tokens_.clear();
   } else {
-    DCHECK_EQ(deferred_kernels_.size(), 0);
-    DCHECK_EQ(deferred_tokens_.size(), 0);
+    TVM_FFI_DCHECK_EQ(deferred_kernels_.size(), 0);
+    TVM_FFI_DCHECK_EQ(deferred_tokens_.size(), 0);
   }
 
   VULKAN_CALL(vkEndCommandBuffer(state_->cmd_buffer_));

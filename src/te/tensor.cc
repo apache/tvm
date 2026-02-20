@@ -56,7 +56,7 @@ inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
   ffi::Array<PrimExpr> shape = (*this)->shape;
 
   if (shape.size() != 0) {
-    ICHECK_EQ(shape.size(), indices.size())
+    TVM_FFI_ICHECK_EQ(shape.size(), indices.size())
         << "Tensor dimension mismatch in read "
         << "ndim = " << ndim() << ", indices.size=" << indices.size();
   }

@@ -65,16 +65,16 @@ class ScheduleFnNode : public SpaceGeneratorNode {
         if (auto sch = val.as<s_tir::Schedule>()) {
           result.push_back(sch.value());
         } else {
-          LOG(FATAL) << "TypeError: Expect return type of ScheduleFn to be None, Schedule or "
-                        "List[Schedule], but got: "
-                     << obj->GetTypeKey();
+          TVM_FFI_THROW(TypeError) << "Expect return type of ScheduleFn to be None, Schedule or "
+                                      "List[Schedule], but got: "
+                                   << obj->GetTypeKey();
         }
       }
       return result;
     }
-    LOG(FATAL) << "TypeError: Expect return type of ScheduleFn to be None, Schedule or "
-                  "List[Schedule], but got: "
-               << obj->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Expect return type of ScheduleFn to be None, Schedule or "
+                                "List[Schedule], but got: "
+                             << obj->GetTypeKey();
     throw;
   }
 

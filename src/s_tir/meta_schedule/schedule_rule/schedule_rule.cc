@@ -26,19 +26,19 @@ namespace s_tir {
 namespace meta_schedule {
 
 void PyScheduleRuleNode::InitializeWithTuneContext(const TuneContext& context) {
-  ICHECK(f_initialize_with_tune_context != nullptr)
+  TVM_FFI_ICHECK(f_initialize_with_tune_context != nullptr)
       << "PyScheduleRule's InitializeWithTuneContext method not implemented!";
   f_initialize_with_tune_context(context);
 }
 
 ffi::Array<s_tir::Schedule> PyScheduleRuleNode::Apply(const s_tir::Schedule& sch,
                                                       const s_tir::SBlockRV& block) {
-  ICHECK(f_apply != nullptr) << "PyScheduleRule's Apply method not implemented!";
+  TVM_FFI_ICHECK(f_apply != nullptr) << "PyScheduleRule's Apply method not implemented!";
   return f_apply(sch, block);
 }
 
 ScheduleRule PyScheduleRuleNode::Clone() const {
-  ICHECK(f_clone != nullptr) << "PyScheduleRule's Clone method not implemented!";
+  TVM_FFI_ICHECK(f_clone != nullptr) << "PyScheduleRule's Clone method not implemented!";
   return f_clone();
 }
 
@@ -454,9 +454,9 @@ ffi::Array<ScheduleRule> ScheduleRule::DefaultARM(const ffi::String& type) {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyScheduleRuleNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyScheduleRuleNode>();
-      ICHECK(self);
+      TVM_FFI_ICHECK(self);
       PyScheduleRuleNode::FAsString f_as_string = (*self).f_as_string;
-      ICHECK(f_as_string != nullptr) << "PyScheduleRule's AsString method not implemented!";
+      TVM_FFI_ICHECK(f_as_string != nullptr) << "PyScheduleRule's AsString method not implemented!";
       p->stream << f_as_string();
     });
 

@@ -41,7 +41,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 ObjectPtr<Object> CreateEnvNode(const std::string& name) {
   auto f = tvm::ffi::Function::GetGlobal(name);
-  ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
+  TVM_FFI_ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
   ObjectPtr<EnvFuncNode> n = ffi::make_object<EnvFuncNode>();
   n->func = *f;
   n->name = name;
@@ -57,7 +57,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_packed("ir.EnvFuncCall",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     EnvFunc env = args[0].cast<EnvFunc>();
-                    ICHECK_GE(args.size(), 1);
+                    TVM_FFI_ICHECK_GE(args.size(), 1);
                     env->func.CallPacked(args.Slice(1), rv);
                   })
       .def("ir.EnvFuncGetFunction", [](const EnvFunc& n) { return n->func; });

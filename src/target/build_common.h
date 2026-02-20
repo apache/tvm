@@ -43,7 +43,8 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
   ffi::Map<ffi::String, runtime::FunctionInfo> fmap;
 
   for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<tir::PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
+    TVM_FFI_ICHECK(kv.second->IsInstance<tir::PrimFuncNode>())
+        << "Can only lower IR Module with PrimFuncs";
     auto f = Downcast<tir::PrimFunc>(kv.second);
 
     ffi::Array<DLDataType> arg_types;

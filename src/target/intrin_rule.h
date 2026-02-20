@@ -62,16 +62,16 @@ struct Direct {
 template <typename T, bool dtype_from_arg = false>
 inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
-  ICHECK(call != nullptr);
+  TVM_FFI_ICHECK(call != nullptr);
   // Use string based dispatch to extern for backward compact
   // TODO(tvm-team) replace once the new dispatching system is inplace.
   const OpNode* op = call->op.as<OpNode>();
-  ICHECK(op != nullptr);
+  TVM_FFI_ICHECK(op != nullptr);
   std::string name = op->name;
-  ICHECK_EQ(name.substr(0, 4), "tir.");
+  TVM_FFI_ICHECK_EQ(name.substr(0, 4), "tir.");
   DataType dtype;
   if (dtype_from_arg) {
-    ICHECK_EQ(call->args.size(), 1U);
+    TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
     dtype = call->args[0].dtype();
   } else {
     dtype = call->dtype;

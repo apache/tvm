@@ -127,7 +127,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     const VarNode* buf = op->buffer->data.get();
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
-      ICHECK_LT(it->second.level, scope_.size());
+      TVM_FFI_ICHECK_LT(it->second.level, scope_.size());
       if (IsAppropriateSharedMemory(ffi::GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
       }
@@ -158,7 +158,8 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     const VarNode* buf = op->buffer->data.get();
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
-      ICHECK_LT(it->second.level, scope_.size()) << "Load memory in places other than store.";
+      TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
+          << "Load memory in places other than store.";
       if (IsAppropriateSharedMemory(ffi::GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
       }
@@ -180,7 +181,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     // Directly reference to the variable count as a read.
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
-      ICHECK_LT(it->second.level, scope_.size());
+      TVM_FFI_ICHECK_LT(it->second.level, scope_.size());
       if (IsAppropriateSharedMemory(ffi::GetRef<Var>(buf))) {
         scope_[it->second.level].touched.push_back(buf);
       }
@@ -200,11 +201,11 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     e.touched = std::move(scope_.back().touched);
     scope_.pop_back();
     int64_t end_index = static_cast<int64_t>(linear_seq_.size());
-    ICHECK_GT(end_index, begin_index);
+    TVM_FFI_ICHECK_GT(end_index, begin_index);
     e.scope_pair_offset = begin_index - end_index;
     linear_seq_.push_back(e);
     // record the pointer to end index.
-    ICHECK_NE(end_index, 0U);
+    TVM_FFI_ICHECK_NE(end_index, 0U);
     linear_seq_[begin_index].scope_pair_offset = end_index - begin_index;
   }
 
@@ -351,7 +352,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     if (IsAppropriateSharedMemory(node->buffer->data)) {
-      ICHECK_EQ(node->indices.size(), 1)
+      TVM_FFI_ICHECK_EQ(node->indices.size(), 1)
           << "MergeSharedMemoryAllocations expects flat memory buffers, "
           << "and is to be run after "
           << "FlattenBuffer";
@@ -374,7 +375,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
     }
 
     if (IsAppropriateSharedMemory(buffer->data)) {
-      ICHECK_EQ(buffer->shape.size(), 1)
+      TVM_FFI_ICHECK_EQ(buffer->shape.size(), 1)
           << "Buffer " << buffer << " has shape " << buffer->shape << ".  "
           << "MergeSharedMemoryAllocations expects flat memory buffers, "
           << "and is to be run after "
@@ -389,7 +390,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
-      ICHECK_EQ(op->args.size(), 5U);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
       Var buffer = Downcast<Var>(op->args[1]);
       if (!IsAppropriateSharedMemory(buffer)) {
@@ -402,7 +403,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       return Call(op->dtype, op->op,
                   {op->args[0], merged_buf_var_, extra_offset + offset, extent, op->args[4]});
     } else if (op->op.same_as(builtin::ptx_cp_async())) {
-      ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
+      TVM_FFI_ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
       DataType dtype = op->dtype;
       Var buffer = Downcast<Var>(op->args[0]);
       if (!IsAppropriateSharedMemory(buffer)) {
@@ -429,7 +430,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   PrimExpr GetBufferOffset(Var buffer_var, DataType dtype) {
     auto it = buffer_byte_offsets_.find(buffer_var.get());
-    ICHECK(it != buffer_byte_offsets_.end());
+    TVM_FFI_ICHECK(it != buffer_byte_offsets_.end());
     return indexdiv(it->second, dtype.bytes());
   }
 
@@ -519,7 +520,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       // In both cases, we need to handle the gen event correctly
       if (it != event_map_.end() && seq[i].scope_pair_offset >= 0) {
         for (const VarNode* var : it->second.gen) {
-          ICHECK(shmem_allocs_.count(var));
+          TVM_FFI_ICHECK(shmem_allocs_.count(var));
           const AllocateNode* alloc = shmem_allocs_[var];
           StorageEntry* dst_entry = FindAlloc(alloc);
           alloc_map_[var] = dst_entry;
@@ -539,7 +540,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
    * \return the new storage entry
    */
   StorageEntry* NewAlloc(const AllocateNode* op, size_t const_nbits) {
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
     // Re-use not successful, allocate a new buffer.
     StorageEntry* entry = arena_.make<StorageEntry>();
     entry->allocs.push_back({op->buffer_var.get()});
@@ -552,7 +553,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
    * \return the storage entry
    */
   StorageEntry* FindAlloc(const AllocateNode* op) {
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
@@ -631,9 +632,9 @@ class SharedMemoryRewriter : public StmtExprMutator {
    */
   void Free(const VarNode* var) {
     auto it = alloc_map_.find(var);
-    ICHECK(it != alloc_map_.end());
+    TVM_FFI_ICHECK(it != alloc_map_.end());
     StorageEntry* e = it->second;
-    ICHECK_NE(e->allocs.size(), 0U);
+    TVM_FFI_ICHECK_NE(e->allocs.size(), 0U);
 
     // disable reuse of small arrays
     if (e->const_nbits > 0 && e->const_nbits <= 32) return;

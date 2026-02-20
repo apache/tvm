@@ -47,12 +47,12 @@ namespace tvm {
 namespace runtime {
 namespace nccl {
 
-#define NCCL_CALL(cmd)                                                      \
-  do {                                                                      \
-    auto r = (cmd);                                                         \
-    if (r != ncclSuccess) {                                                 \
-      LOG(FATAL) << TVM_DISCO_CCL_NAME "Errror: " << ncclGetErrorString(r); \
-    }                                                                       \
+#define NCCL_CALL(cmd)                                                                        \
+  do {                                                                                        \
+    auto r = (cmd);                                                                           \
+    if (r != ncclSuccess) {                                                                   \
+      TVM_FFI_THROW(InternalError) << TVM_DISCO_CCL_NAME "Errror: " << ncclGetErrorString(r); \
+    }                                                                                         \
   } while (0)
 
 #if TVM_NCCL_RCCL_SWITCH == 0
@@ -116,7 +116,7 @@ inline ncclDataType_t AsNCCLDataType(runtime::DataType dtype) {
   if (dtype == DataType::BFloat(16)) {
     return ncclBfloat16;
   }
-  LOG(FATAL) << "ValueError: Unsupported data type " << dtype;
+  TVM_FFI_THROW(ValueError) << "Unsupported data type " << dtype;
   throw;
 }
 
@@ -150,7 +150,7 @@ struct CCLThreadLocalContext {
 
   deviceStream_t GetDefaultStream() {
     const auto func = tvm::ffi::Function::GetGlobal("runtime.get_" TVM_DISCO_DEVICE_NAME "_stream");
-    ICHECK(func.has_value());
+    TVM_FFI_ICHECK(func.has_value());
     deviceStream_t stream = static_cast<deviceStream_t>((*func)().cast<void*>());
     return stream == nullptr ? default_stream : stream;
   }
