@@ -112,7 +112,6 @@ export class Environment implements LibraryProvider {
     // default env can be overriden by libraries.
     const defaultEnv = {
       "__cxa_thread_atexit": (): void => {},
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       "emscripten_notify_memory_growth": (index: number): void => {}
     };
     const wasmSafeCall: ctypes.FTVMFFIWasmSafeCallType = (

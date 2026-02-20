@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/* eslint-disable no-undef */
-
 const tvmjs = require("../../dist");
 
 test("Test coverage of [0,100] inclusive", () => {
