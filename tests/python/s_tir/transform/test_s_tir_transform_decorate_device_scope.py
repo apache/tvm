@@ -15,11 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 
 
 def test_decorate_device():
-    x = te.var("x")
+    x = tvm.tir.Var("x", "int32")
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([x], tvm.tir.Evaluate(x)))
 
     stmt = tvm.s_tir.transform.DecorateDeviceScope()(mod)["main"].body

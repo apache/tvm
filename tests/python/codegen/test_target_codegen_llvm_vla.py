@@ -23,7 +23,6 @@ import re
 import pytest
 
 import tvm
-from tvm import te
 from tvm.script import tir as T
 from tvm.target.codegen import llvm_version_major
 
