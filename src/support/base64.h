@@ -157,7 +157,7 @@ class Base64InStream : public tvm::support::Stream {
       {
         // second byte
         temp_ch_ = reader_.GetChar();
-        ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
+        TVM_FFI_ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
         nvalue |= DecodeTable[temp_ch_] << 12;
         *cptr++ = (nvalue >> 16) & 0xFF;
         --tlen;
@@ -165,13 +165,13 @@ class Base64InStream : public tvm::support::Stream {
       {
         // third byte
         temp_ch_ = reader_.GetChar();
-        ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
+        TVM_FFI_ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
         // handle termination
         if (temp_ch_ == '=') {
           temp_ch_ = reader_.GetChar();
-          ICHECK(temp_ch_ == '=') << "invalid base64 format";
+          TVM_FFI_ICHECK(temp_ch_ == '=') << "invalid base64 format";
           temp_ch_ = reader_.GetChar();
-          ICHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
+          TVM_FFI_ICHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
           break;
         }
         nvalue |= DecodeTable[temp_ch_] << 6;
@@ -185,10 +185,10 @@ class Base64InStream : public tvm::support::Stream {
       {
         // fourth byte
         temp_ch_ = reader_.GetChar();
-        ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
+        TVM_FFI_ICHECK(temp_ch_ != EOF && !isspace(temp_ch_)) << "invalid base64 format";
         if (temp_ch_ == '=') {
           temp_ch_ = reader_.GetChar();
-          ICHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
+          TVM_FFI_ICHECK(temp_ch_ == EOF || isspace(temp_ch_)) << "invalid base64 format";
           break;
         }
         nvalue |= DecodeTable[temp_ch_];
@@ -203,12 +203,12 @@ class Base64InStream : public tvm::support::Stream {
       temp_ch_ = reader_.GetChar();
     }
     if (kStrictCheck) {
-      ICHECK_EQ(tlen, 0) << "Base64InStream: read incomplete";
+      TVM_FFI_ICHECK_EQ(tlen, 0) << "Base64InStream: read incomplete";
     }
     return size - tlen;
   }
   size_t Write(const void* ptr, size_t size) final {
-    LOG(FATAL) << "Base64InStream do not support write";
+    TVM_FFI_THROW(InternalError) << "Base64InStream do not support write";
     return 0;
   }
 
@@ -252,7 +252,7 @@ class Base64OutStream : public tvm::support::Stream {
     return size;
   }
   virtual size_t Read(void* ptr, size_t size) {
-    LOG(FATAL) << "Base64OutStream do not support read";
+    TVM_FFI_THROW(InternalError) << "Base64OutStream do not support read";
     return 0;
   }
   /*!

@@ -68,7 +68,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     }
     for (Buffer buffer : drop_buffers) {
       auto it = buffer_remap_->find(buffer);
-      ICHECK(it != buffer_remap_->end());
+      TVM_FFI_ICHECK(it != buffer_remap_->end());
       buffer_remap_->erase(it);
     }
   }
@@ -328,11 +328,12 @@ class ComputeLegalizer : public StmtExprMutator {
       if (value.dtype() != new_buf->dtype) {
         // this happens when buffer get rewritten to f32
         // but values remain as fp8/bf16
-        ICHECK(MatchDType(value->dtype));
+        TVM_FFI_ICHECK(MatchDType(value->dtype));
         value = DTypeConversion(value, new_buf->dtype.with_lanes(value.dtype().lanes()));
       }
-      ICHECK(!op->predicate.defined()) << "Predicated buffer store is not currently supported in "
-                                          "data type legalizer pass.";
+      TVM_FFI_ICHECK(!op->predicate.defined())
+          << "Predicated buffer store is not currently supported in "
+             "data type legalizer pass.";
       return BufferStore(new_buf, value, indices);
     }
   }
@@ -411,9 +412,9 @@ class ComputeLegalizer : public StmtExprMutator {
     if (it != var_remap_.end()) {
       Var remapped_var = it->second;
       auto* ptr = remapped_var->type_annotation.as<PointerTypeNode>();
-      ICHECK(ptr);
+      TVM_FFI_ICHECK(ptr);
       auto* prim_type = ptr->element_type.as<PrimTypeNode>();
-      ICHECK(prim_type);
+      TVM_FFI_ICHECK(prim_type);
       return Allocate(remapped_var, prim_type->dtype, op->extents, op->condition, op->body);
     } else {
       return ret;
@@ -428,8 +429,9 @@ class ComputeLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
-      ICHECK(!op->predicate.defined()) << "Predicated buffer load is not currently supported in "
-                                          "data type legalizer pass.";
+      TVM_FFI_ICHECK(!op->predicate.defined())
+          << "Predicated buffer load is not currently supported in "
+             "data type legalizer pass.";
       return BufferLoad(new_buf, op->indices);
     }
   }
@@ -457,7 +459,7 @@ class ComputeLegalizer : public StmtExprMutator {
    */
   PrimExpr CastTargetToDType(PrimExpr value, DataType dtype) {
     if (!value.dtype().is_float()) return value;
-    ICHECK_EQ(value.dtype(), this->promote_dtype_.with_lanes(value.dtype().lanes()));
+    TVM_FFI_ICHECK_EQ(value.dtype(), this->promote_dtype_.with_lanes(value.dtype().lanes()));
     return DTypeConversion(value, dtype);
   }
 
@@ -505,7 +507,7 @@ class FP8ComputeLegalizer : public ComputeLegalizer {
 class StorageLegalizer : public StmtExprMutator {
  public:
   PrimFunc Legalize(PrimFunc func) {
-    ICHECK_EQ(func->buffer_map.size(), 0) << "This pass must be called after MakePackedAPI";
+    TVM_FFI_ICHECK_EQ(func->buffer_map.size(), 0) << "This pass must be called after MakePackedAPI";
     auto* n = func.CopyOnWrite();
     n->params = n->params.Map([this](Var var) { return this->RemapVarDef(var); });
     n->body = this->VisitStmt(std::move(n->body));
@@ -589,10 +591,11 @@ class StorageLegalizer : public StmtExprMutator {
       return ffi::GetRef<Stmt>(op);
     } else {
       if (MatchDType(op->value.dtype())) {
-        ICHECK(new_buf->dtype.is_uint());
+        TVM_FFI_ICHECK(new_buf->dtype.is_uint());
       }
-      ICHECK(!op->predicate.defined()) << "Predicated buffer store is not currently supported in "
-                                          "data type legalizer pass.";
+      TVM_FFI_ICHECK(!op->predicate.defined())
+          << "Predicated buffer store is not currently supported in "
+             "data type legalizer pass.";
       return BufferStore(new_buf, value, indices);
     }
   }
@@ -622,8 +625,9 @@ class StorageLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
-      ICHECK(!op->predicate.defined()) << "Predicated buffer load is not currently supported in "
-                                          "data type legalizer pass.";
+      TVM_FFI_ICHECK(!op->predicate.defined())
+          << "Predicated buffer load is not currently supported in "
+             "data type legalizer pass.";
       return BufferLoad(new_buf, op->indices);
     }
   }
@@ -695,7 +699,7 @@ class StorageLegalizer : public StmtExprMutator {
                        buf->data_alignment, buf->offset_factor, buf->buffer_type,
                        buf->axis_separators, buf->span);
     } else {
-      ICHECK(!MatchDType(buf->dtype)) << "Cannot find var remap for " << buf;
+      TVM_FFI_ICHECK(!MatchDType(buf->dtype)) << "Cannot find var remap for " << buf;
     }
 
     buffer_remap_[buf] = new_buf;

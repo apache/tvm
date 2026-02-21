@@ -54,7 +54,7 @@ void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
 }
 
 void Analyzer::Bind(const Var& var, const Range& range, bool allow_override) {
-  ICHECK(range.defined());
+  TVM_FFI_ICHECK(range.defined());
   if (tir::is_one(range->extent)) {
     this->Bind(var, range->min, allow_override);
   } else {
@@ -123,7 +123,7 @@ void Analyzer::Bind(const ffi::Map<Var, Range>& variables, bool allow_override) 
 }
 
 void ConstraintContext::EnterWithScope() {
-  ICHECK(recovery_functions_.size() == 0);
+  TVM_FFI_ICHECK(recovery_functions_.size() == 0);
   // entering the scope.
   recovery_functions_.push_back(analyzer_->const_int_bound.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->modular_set.EnterConstraint(constraint_));
@@ -301,7 +301,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           } else if (args.size() == 2) {
             *ret = self->Simplify(args[0].cast<PrimExpr>(), args[1].cast<int>());
           } else {
-            LOG(FATAL) << "Invalid size of argument (" << args.size() << ")";
+            TVM_FFI_THROW(InternalError) << "Invalid size of argument (" << args.size() << ")";
           }
         });
       } else if (name == "rewrite_simplify") {

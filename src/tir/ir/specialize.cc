@@ -121,7 +121,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     // Step.1. Recursively visit block body
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<SBlockNode>();
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
 
     ffi::Array<BufferRegion> reads =
         op->reads.Map([this](const auto& region) { return MutateBufferRegion(region); });
@@ -180,7 +180,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
 
     auto new_buf = GetNewBuffer(op->buffer);
     if (new_buf.same_as(op->buffer)) {
@@ -195,7 +195,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
 
     auto new_buf = GetNewBuffer(op->buffer);
     if (new_buf.same_as(op->buffer)) {
@@ -273,7 +273,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
   }
 
   Buffer MutateAllocBuffer(const Buffer& alloc_buf) {
-    ICHECK(!buffer_map_.count(alloc_buf))
+    TVM_FFI_ICHECK(!buffer_map_.count(alloc_buf))
         << "Multiple points of definition found for buffer " << alloc_buf;
 
     Buffer buf = MutateBuffer(alloc_buf);
@@ -287,7 +287,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     }
 
     auto mutated = MutateBuffer(old_buffer);
-    ICHECK(mutated.same_as(old_buffer))
+    TVM_FFI_ICHECK(mutated.same_as(old_buffer))
         << "Buffer " << old_buffer << " (shape = " << old_buffer->shape << ")"
         << " was used without a declaration, "
         << "and would be specialized into " << mutated << " (shape = " << mutated->shape << ").  "
@@ -344,22 +344,22 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
   tir::ExprDeepEqual equal;
 
   auto it = func->buffer_map.find(param);
-  CHECK(it != func->buffer_map.end())
-      << "ValueError: specialize expects param to be in PrimFunc's buffer_map";
+  TVM_FFI_CHECK(it != func->buffer_map.end(), ValueError)
+      << "specialize expects param to be in PrimFunc's buffer_map";
   const Buffer& buf_to_specialize = (*it).second;
 
   // build var mapping using specific_buf's parameters
   auto build_var_mapping = [&](const PrimExpr& new_expr, const PrimExpr& old_expr) {
     if (!equal(new_expr, old_expr)) {
-      CHECK(old_expr->IsInstance<VarNode>())
-          << "TypeError: The signature of target buffer exprected an independent Var, but got "
-          << old_expr << ".";
+      TVM_FFI_CHECK(old_expr->IsInstance<VarNode>(), TypeError)
+          << "The signature of target buffer exprected an independent Var, but got " << old_expr
+          << ".";
       const Var& var = Downcast<Var>(old_expr);
       auto it = var_map->find(var);
       if (it != var_map->end()) {
-        CHECK(equal(it->second, new_expr))
-            << "ValueError: The assigned value of var " << var << " mismatched. " << it->second
-            << " vs. " << new_expr << ".";
+        TVM_FFI_CHECK(equal(it->second, new_expr), ValueError)
+            << "The assigned value of var " << var << " mismatched. " << it->second << " vs. "
+            << new_expr << ".";
       } else {
         (*var_map)[var] = new_expr;
       }
@@ -367,13 +367,13 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
   };
 
   // Check buffer dimensions
-  CHECK(specific_buf->shape.size() == buf_to_specialize->shape.size())
-      << "ValueError: The buffer dimensions mismatched" << buf_to_specialize->shape.size()
-      << " vs. " << specific_buf->shape.size() << ".";
+  TVM_FFI_CHECK(specific_buf->shape.size() == buf_to_specialize->shape.size(), ValueError)
+      << "The buffer dimensions mismatched" << buf_to_specialize->shape.size() << " vs. "
+      << specific_buf->shape.size() << ".";
 
-  CHECK(specific_buf->strides.size() == buf_to_specialize->strides.size())
-      << "ValueError: The buffer strides dimensions mismatched" << buf_to_specialize->strides.size()
-      << " vs. " << specific_buf->strides.size() << ".";
+  TVM_FFI_CHECK(specific_buf->strides.size() == buf_to_specialize->strides.size(), ValueError)
+      << "The buffer strides dimensions mismatched" << buf_to_specialize->strides.size() << " vs. "
+      << specific_buf->strides.size() << ".";
 
   // Updating var mapping using specific_expr
   build_var_mapping(specific_buf->data, buf_to_specialize->data);
@@ -387,13 +387,13 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
 
   // Check data_alignment and offset_factor.
   // These two signatures are int, so we do not need map them.
-  CHECK_EQ(specific_buf->data_alignment, buf_to_specialize->data_alignment)
-      << "ValueError: The buffer data_alignment mismatched" << buf_to_specialize->data_alignment
-      << " vs. " << specific_buf->data_alignment << ".";
+  TVM_FFI_CHECK_EQ(specific_buf->data_alignment, buf_to_specialize->data_alignment, ValueError)
+      << "The buffer data_alignment mismatched" << buf_to_specialize->data_alignment << " vs. "
+      << specific_buf->data_alignment << ".";
 
-  CHECK_EQ(specific_buf->offset_factor, buf_to_specialize->offset_factor)
-      << "ValueError: The buffer offset_factor mismatched" << buf_to_specialize->offset_factor
-      << " vs. " << specific_buf->offset_factor << ".";
+  TVM_FFI_CHECK_EQ(specific_buf->offset_factor, buf_to_specialize->offset_factor, ValueError)
+      << "The buffer offset_factor mismatched" << buf_to_specialize->offset_factor << " vs. "
+      << specific_buf->offset_factor << ".";
 }
 
 /*!
@@ -406,10 +406,11 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
 void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const PrimExpr& specific_expr,
                             VarMap* var_map) {
   // check param is in PrimFunc's parameters
-  CHECK(IsParam(func, param)) << "ValueError: Specialize expects param to be in PrimFunc's params";
+  TVM_FFI_CHECK(IsParam(func, param), ValueError)
+      << "Specialize expects param to be in PrimFunc's params";
   // specialize a param not in buffer_map
-  CHECK_EQ(func->buffer_map.count(param), 0)
-      << "ValueError: Specialize expects param to not be in PrimFunc's buffer_map";
+  TVM_FFI_CHECK_EQ(func->buffer_map.count(param), 0, ValueError)
+      << "Specialize expects param to not be in PrimFunc's buffer_map";
   // build var mapping using specific_expr
   (*var_map)[param] = specific_expr;
 }
@@ -426,7 +427,7 @@ PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<Buffer, Prim
     } else if (auto opt_expr = instance.as<PrimExpr>()) {
       UpdateSpecializeVarMap(func, param, opt_expr.value(), &var_map);
     } else {
-      LOG(FATAL) << "TypeError: specialize expected instance to be Buffer or PrimExpr";
+      TVM_FFI_THROW(TypeError) << "specialize expected instance to be Buffer or PrimExpr";
     }
   }
   return PrimFuncSpecializer::Specialize(func, std::move(var_map));

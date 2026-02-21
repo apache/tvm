@@ -537,10 +537,10 @@ class TransitiveComparisonAnalyzer {
  *  arith::Analyzer analyzer;
  *  {
  *    With<arith::ConstraintContext> scope(&analyzer, x % 3 == 0);
- *    ICHECK_EQ(analyzer.modular_set(x)->coeff, 3);
+ *    TVM_FFI_ICHECK_EQ(analyzer.modular_set(x)->coeff, 3);
  *  }
  *  // constraint no longer in effect.
- *  ICHECK_NE(analyzer.modular_set(x)->coeff, 3);
+ *  TVM_FFI_ICHECK_NE(analyzer.modular_set(x)->coeff, 3);
  *
  * \endcode
  */

@@ -82,10 +82,9 @@ class SPIRVTools {
                         SPV_BINARY_TO_TEXT_OPTION_FRIENDLY_NAMES | SPV_BINARY_TO_TEXT_OPTION_INDENT,
                         &text, &diagnostic);
 
-    ICHECK_EQ(res, SPV_SUCCESS) << " line=" << diagnostic->position.line
-                                << " column=" << diagnostic->position.column
-                                << " index=" << diagnostic->position.index
-                                << " error:" << diagnostic->error;
+    TVM_FFI_ICHECK_EQ(res, SPV_SUCCESS)
+        << " line=" << diagnostic->position.line << " column=" << diagnostic->position.column
+        << " index=" << diagnostic->position.index << " error:" << diagnostic->error;
     spvDiagnosticDestroy(diagnostic);
 
     std::string ret(text->str);
@@ -99,8 +98,8 @@ class SPIRVTools {
     spv_diagnostic diagnostic = nullptr;
     spv_result_t res = spvValidate(ctx_, &spv_bin, &diagnostic);
 
-    ICHECK_EQ(res, SPV_SUCCESS) << " index=" << diagnostic->position.index
-                                << " error:" << diagnostic->error;
+    TVM_FFI_ICHECK_EQ(res, SPV_SUCCESS)
+        << " index=" << diagnostic->position.index << " error:" << diagnostic->error;
 
     spvDiagnosticDestroy(diagnostic);
   }
@@ -124,13 +123,13 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
   CodeGenSPIRV cg(target);
 
   for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenSPIRV: Can only take PrimFunc";
+    TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenSPIRV: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
+    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenSPIRV: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     auto global_symbol = f->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    ICHECK(global_symbol.has_value())
+    TVM_FFI_ICHECK(global_symbol.has_value())
         << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 
     std::string f_name = global_symbol.value();
@@ -161,7 +160,7 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
       arr.data = reinterpret_cast<const char*>(shader.data.data());
       arr.size = shader.data.size() * sizeof(uint32_t);
       std::string transformed = (*postproc)(&arr, target).cast<std::string>();
-      ICHECK_EQ(transformed.length() % 4U, 0U);
+      TVM_FFI_ICHECK_EQ(transformed.length() % 4U, 0U);
       shader.data.resize(transformed.size() / 4U);
       std::copy(transformed.begin(), transformed.end(),
                 reinterpret_cast<char*>(shader.data.data()));
@@ -177,7 +176,7 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
 
 std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> LowerToSPIRV(
     IRModule mod, Target target) {
-  LOG(FATAL)
+  TVM_FFI_THROW(InternalError)
       << "LowerToSPIRV is called but SPIRV codegen is not enabled. Please set -DUSE_VULKAN=ON.";
   return {};
 }

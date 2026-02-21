@@ -564,8 +564,9 @@ class IRSubstitute : public StmtExprMutator {
       // uses void variables for lambda parameters (since exact types are not known yet).
       if (!var.dtype().is_void()) {
         PrimExpr ret_ex = Downcast<PrimExpr>(ret.value());
-        ICHECK(ret_ex.dtype() == var.dtype()) << "substituting " << var << ":" << var.dtype()
-                                              << " -> " << ret_ex << ":" << ret_ex.dtype();
+        TVM_FFI_ICHECK(ret_ex.dtype() == var.dtype())
+            << "substituting " << var << ":" << var.dtype() << " -> " << ret_ex << ":"
+            << ret_ex.dtype();
       }
       return ret.value();
     }
@@ -607,7 +608,7 @@ class IRSubstitute : public StmtExprMutator {
     }
 
     PrimExpr new_buffer_var_expr = VisitExpr(buf->data);
-    CHECK(new_buffer_var_expr->IsInstance<VarNode>())
+    TVM_FFI_ICHECK(new_buffer_var_expr->IsInstance<VarNode>())
         << "Buffer " << buf << " uses backing allocation " << buf->data
         << ", which was substituted into the expression " << new_buffer_var_expr << ".  "
         << "However, this expression is of type " << new_buffer_var_expr->GetTypeKey()
@@ -702,8 +703,8 @@ void PreOrderVisit(const ObjectRef& stmt_or_expr,
   } else if (auto expr = stmt_or_expr.as<PrimExpr>()) {
     visitor(expr.value());
   } else {
-    LOG(FATAL) << "InternalError: PreOrderVisit does not accept object with type: "
-               << stmt_or_expr->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "PreOrderVisit does not accept object with type: "
+                                 << stmt_or_expr->GetTypeKey();
   }
 }
 

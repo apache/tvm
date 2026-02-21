@@ -153,11 +153,11 @@ inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind
  * \return The corresponding API type.
  */
 inline DataType APIType(DataType t) {
-  ICHECK(!t.is_void()) << "Cannot pass void type through packed API.";
+  TVM_FFI_ICHECK(!t.is_void()) << "Cannot pass void type through packed API.";
   if (t.is_handle()) return t;
-  ICHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
+  TVM_FFI_ICHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
   if (t.is_bool() || t.is_uint() || t.is_int()) return DataType::Int(64);
-  ICHECK(t.is_float());
+  TVM_FFI_ICHECK(t.is_float());
   return DataType::Float(64);
 }
 
@@ -184,7 +184,7 @@ inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
  * \return the PrimExpr that represents the constant
  */
 inline PrimExpr ConstInt32(size_t index) {
-  ICHECK_LE(index, std::numeric_limits<int>::max());
+  TVM_FFI_ICHECK_LE(index, std::numeric_limits<int>::max());
   return make_const(DataType::Int(32), static_cast<int>(index));
 }
 
@@ -297,7 +297,7 @@ struct FragmentInfo {
     } else if (scope == "wmma.accumulator") {
       return m * n;
     } else {
-      ICHECK(0);
+      TVM_FFI_ICHECK(0);
       throw;
     }
   }

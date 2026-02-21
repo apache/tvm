@@ -97,7 +97,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
   PrimExpr input8 = reinterpret(uint8_type, e);
   // Popcount 8bit->8bit
   const CallNode* c0 = input8.as<CallNode>();
-  ICHECK(c0 != nullptr);
+  TVM_FFI_ICHECK(c0 != nullptr);
   ffi::Array<PrimExpr> vcnt8_args;
   vcnt8_args.push_back(IntImm(DataType::UInt(32), ctpop_id));
   vcnt8_args.push_back(input8);

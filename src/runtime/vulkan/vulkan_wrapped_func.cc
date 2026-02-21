@@ -75,7 +75,7 @@ void VulkanWrappedFunc::operator()(ffi::PackedArgs args, ffi::Any* rv,
     // Can safely capture by reference as this lambda is immediately executed on the calling thread.
     device.ThreadLocalStream().Launch([&](VulkanStreamState* state) {
       vkCmdBindPipeline(state->cmd_buffer_, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline);
-      ICHECK(pipeline->descriptor_update_template != VK_NULL_HANDLE);
+      TVM_FFI_ICHECK(pipeline->descriptor_update_template != VK_NULL_HANDLE);
       device.descriptor_template_khr_functions->vkCmdPushDescriptorSetWithTemplateKHR(
           state->cmd_buffer_, pipeline->descriptor_update_template, pipeline->pipeline_layout, 0,
           descriptor_buffers.data());
@@ -190,7 +190,7 @@ VulkanModuleNode::~VulkanModuleNode() {
   for (size_t device_id = 0; device_id < ecache_.size(); ++device_id) {
     for (auto& kv : ecache_[device_id]) {
       auto& pe = kv.second;
-      ICHECK(pe);
+      TVM_FFI_ICHECK(pe);
       const auto& device = VulkanDeviceAPI::Global()->device(device_id);
 
       if (pe->descriptor_update_template != VK_NULL_HANDLE) {
@@ -208,7 +208,7 @@ VulkanModuleNode::~VulkanModuleNode() {
 
 ffi::Optional<ffi::Function> VulkanModuleNode::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
-  ICHECK_EQ(sptr_to_self.get(), this);
+  TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   auto opt_info = fmap_.Get(name);
   if (!opt_info.has_value()) return std::nullopt;
   FunctionInfo info = opt_info.value();
@@ -233,7 +233,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   {
     // create shader
     auto sit = smap_.find(func_name);
-    ICHECK(sit != smap_.end());
+    TVM_FFI_ICHECK(sit != smap_.end());
     pe->use_ubo = sit->second.flag & (1 << ShaderMetaDataFlagMask::kUseUBO);
     const std::vector<uint32_t>& data = sit->second.data;
     VkShaderModuleCreateInfo shader_cinfo;
@@ -287,7 +287,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
 
   {
     auto opt_info = fmap_.Get(func_name);
-    ICHECK(opt_info.has_value());
+    TVM_FFI_ICHECK(opt_info.has_value());
     FunctionInfo finfo = opt_info.value();
     for (DLDataType arg_type : finfo->arg_types) {
       if (arg_type.code == kDLOpaqueHandle) {
@@ -355,7 +355,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
   if (0 < nbytes_scalars && !pe->use_ubo) {
     playout_cinfo.pushConstantRangeCount = 1;
     playout_cinfo.pPushConstantRanges = &crange;
-    ICHECK_LE(crange.size, device.device_properties.max_push_constants_size)
+    TVM_FFI_ICHECK_LE(crange.size, device.device_properties.max_push_constants_size)
         << "The Vulkan shader uses " << crange.size
         << " bytes of push constants, but the device only supports "
         << device.device_properties.max_push_constants_size << "bytes. "
@@ -407,7 +407,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
 
 void VulkanModuleNode::WriteToFile(const ffi::String& file_name, const ffi::String& format) const {
   std::string fmt = GetFileFormat(file_name, format);
-  ICHECK_EQ(fmt, fmt_) << "Can only save to customized format vulkan";
+  TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to customized format vulkan";
   std::string meta_file = GetMetaFilePath(file_name);
   SaveMetaDataToFile(meta_file, fmap_);
   std::string result;

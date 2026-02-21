@@ -57,8 +57,8 @@ class SourceModuleNode : public ffi::ModuleObj {
   const char* kind() const final { return "source"; }
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
-    LOG(FATAL) << "Source module cannot execute, to get executable module"
-               << " build TVM with \'" << fmt_ << "\' runtime support";
+    TVM_FFI_THROW(InternalError) << "Source module cannot execute, to get executable module"
+                                 << " build TVM with \'" << fmt_ << "\' runtime support";
   }
 
   ffi::String InspectSource(const ffi::String& format) const final { return code_; }
@@ -130,12 +130,12 @@ class CSourceModuleNode : public ffi::ModuleObj {
     support::BytesInStream stream(bytes);
 
     std::string code, fmt;
-    ICHECK(stream.Read(&code)) << "Loading code failed";
-    ICHECK(stream.Read(&fmt)) << "Loading format failed";
+    TVM_FFI_ICHECK(stream.Read(&code)) << "Loading code failed";
+    TVM_FFI_ICHECK(stream.Read(&fmt)) << "Loading format failed";
 
     std::vector<std::string> tmp_func_names, tmp_const_vars;
-    CHECK(stream.Read(&tmp_func_names)) << "Loading func names failed";
-    CHECK(stream.Read(&tmp_const_vars)) << "Loading const vars failed";
+    TVM_FFI_ICHECK(stream.Read(&tmp_func_names)) << "Loading func names failed";
+    TVM_FFI_ICHECK(stream.Read(&tmp_const_vars)) << "Loading const vars failed";
 
     ffi::Array<ffi::String> func_names;
     for (auto func_name : tmp_func_names) func_names.push_back(ffi::String(func_name));
@@ -151,10 +151,10 @@ class CSourceModuleNode : public ffi::ModuleObj {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "c" || fmt == "cc" || fmt == "cpp" || fmt == "cu") {
-      ICHECK_NE(code_.length(), 0);
+      TVM_FFI_ICHECK_NE(code_.length(), 0);
       SaveBinaryToFile(file_name, code_);
     } else {
-      ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+      TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     }
   }
 
@@ -211,8 +211,8 @@ class DeviceSourceModuleNode final : public ffi::ModuleObj {
       : data_(data), fmt_(fmt), fmap_(fmap), type_key_(type_key), fget_source_(fget_source) {}
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
-    LOG(FATAL) << "Source module cannot execute, to get executable module"
-               << " build TVM with \'" << fmt_ << "\' runtime support";
+    TVM_FFI_THROW(InternalError) << "Source module cannot execute, to get executable module"
+                                 << " build TVM with \'" << fmt_ << "\' runtime support";
   }
 
   ffi::String InspectSource(const ffi::String& format) const final {
@@ -229,7 +229,7 @@ class DeviceSourceModuleNode final : public ffi::ModuleObj {
 
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
-    ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+    TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     std::string meta_file = GetMetaFilePath(file_name);
     SaveMetaDataToFile(meta_file, fmap_);
     SaveBinaryToFile(file_name, data_);

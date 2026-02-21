@@ -122,7 +122,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   void VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
-      ICHECK_NE(iv->thread_tag.length(), 0U);
+      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_.Bind(iv->var, Range::FromMinExtent(0, op->value));
       vextent_[iv->var.as<VarNode>()] = op->value.dtype();
       StmtExprVisitor::VisitStmt_(op);
@@ -251,8 +251,8 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
     if (is_enabled_ && visitor_.vmap.find(op) != visitor_.vmap.end()) {
       PrimExpr e = Parent::VisitExpr_(op);
       const CastNode* new_op = e.as<CastNode>();
-      ICHECK(new_op != nullptr) << "Expected type to be CastNode"
-                                << ", but get " << e->GetTypeKey();
+      TVM_FFI_ICHECK(new_op != nullptr) << "Expected type to be CastNode"
+                                        << ", but get " << e->GetTypeKey();
       PrimExpr new_value = new_op->value;
       DataType cast_type = visitor_.vmap[op];
       if (new_value.dtype() != cast_type) {

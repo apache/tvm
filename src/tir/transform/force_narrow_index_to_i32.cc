@@ -38,8 +38,9 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
     // Check if the integer parameter buffers have dtype other than int32.
     for (auto it : func->buffer_map) {
       if (it.second->dtype.is_int() && it.second->dtype.bits() > 32) {
-        LOG(FATAL) << "The buffer " << it.second << " in the function buffer map has dtype "
-                   << it.second->dtype << ". The function is " << func;
+        TVM_FFI_THROW(InternalError)
+            << "The buffer " << it.second << " in the function buffer map has dtype "
+            << it.second->dtype << ". The function is " << func;
       }
     }
 
@@ -54,7 +55,7 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
   PrimExpr VisitExpr_(const IntImmNode* op) final {
     // ignore the enabled condition and always rewrite i64
     if (op->dtype == DataType::Int(64)) {
-      ICHECK_LE(op->value, Downcast<Integer>(max_value(target_data_type_))->value);
+      TVM_FFI_ICHECK_LE(op->value, Downcast<Integer>(max_value(target_data_type_))->value);
       return IntImm(DataType::Int(32), op->value);
     }
     return ffi::GetRef<IntImm>(op);
@@ -65,8 +66,9 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
     // Check if the allocated integer buffers have dtype other than int32.
     for (const Buffer& buf : block_->alloc_buffers) {
       if (buf->dtype.is_int() && buf->dtype.bits() > 32) {
-        LOG(FATAL) << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
-                   << ". The function is " << func_;
+        TVM_FFI_THROW(InternalError)
+            << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
+            << ". The function is " << func_;
       }
     }
     return block_;

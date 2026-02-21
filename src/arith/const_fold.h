@@ -154,8 +154,8 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::Add>(PrimExpr a, PrimExpr b) {
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<tir::Sub>(PrimExpr a, PrimExpr b) {
   TVM_ARITH_CONST_PROPAGATION({
-    ICHECK(!((pa && pa->dtype.is_uint() && pa->value == 0U) &&
-             (pb && pb->dtype.is_uint() && pb->value > 0U)))
+    TVM_FFI_ICHECK(!((pa && pa->dtype.is_uint() && pa->value == 0U) &&
+                     (pb && pb->dtype.is_uint() && pb->value > 0U)))
         << "Checked failed. Minuend 's value is 0U and it's dtype is uint "
         << "while Subtrahend's dtype is uint; which will cause a negative uint";
     const DataType& rtype = a.dtype();
@@ -220,7 +220,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::Div>(PrimExpr a, PrimExpr b) {
     if (pa && pb) {
       // due to division and mod can have different modes
       // NOTE: this will assumes truc div.
-      ICHECK_NE(pb->value, 0) << "Divide by zero";
+      TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
       int64_t res = pa->value / pb->value;
       return IntImm(rtype, GetFoldResultInt64Repr(res, rtype));
     }
@@ -229,10 +229,10 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::Div>(PrimExpr a, PrimExpr b) {
     }
     if (pb) {
       if (pb->value == 1) return a;
-      ICHECK_NE(pb->value, 0) << "Divide by zero";
+      TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
     if (fa && fb) {
-      ICHECK_NE(fb->value, 0) << "Divide by zero";
+      TVM_FFI_ICHECK_NE(fb->value, 0) << "Divide by zero";
       if (rtype.bits() == 32) {
         return FloatImm(rtype, GetFoldResultDoubleRepr(static_cast<float>(fa->value) /
                                                        static_cast<float>(fb->value)));
@@ -243,7 +243,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::Div>(PrimExpr a, PrimExpr b) {
     if (fa && fa->value == 0) return a;
     if (fb) {
       if (fb->value == 1) return a;
-      ICHECK_NE(fb->value, 0) << "Divide by zero";
+      TVM_FFI_ICHECK_NE(fb->value, 0) << "Divide by zero";
     }
   });
   return std::nullopt;
@@ -254,7 +254,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::Mod>(PrimExpr a, PrimExpr b) {
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
     if (pa && pb) {
-      ICHECK_NE(pb->value, 0) << "Divide by zero";
+      TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
       int64_t res = pa->value % pb->value;
       return IntImm(rtype, GetFoldResultInt64Repr(res, rtype));
     }
@@ -263,7 +263,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::Mod>(PrimExpr a, PrimExpr b) {
     }
     if (pb) {
       if (pb->value == 1) return tir::make_zero(rtype);
-      ICHECK_NE(pb->value, 0) << "Divide by zero";
+      TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
   });
   return std::nullopt;
@@ -274,7 +274,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::FloorDiv>(PrimExpr a, PrimExpr 
   TVM_ARITH_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
     if (pa && pb) {
-      ICHECK_NE(pb->value, 0) << "Divide by zero";
+      TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
       int64_t res = arith::floordiv(pa->value, pb->value);
       return IntImm(rtype, GetFoldResultInt64Repr(res, rtype));
     }
@@ -283,7 +283,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::FloorDiv>(PrimExpr a, PrimExpr 
     }
     if (pb) {
       if (pb->value == 1) return a;
-      ICHECK_NE(pb->value, 0) << "Divide by zero";
+      TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
     if (fa && fb && fb->value != 0) {
       if (rtype.bits() == 32) {
@@ -298,7 +298,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::FloorDiv>(PrimExpr a, PrimExpr 
     if (fa && fa->value == 0) return a;
     if (fb) {
       if (fb->value == 1) return a;
-      ICHECK_NE(fb->value, 0) << "Divide by zero";
+      TVM_FFI_ICHECK_NE(fb->value, 0) << "Divide by zero";
     }
   });
   return std::nullopt;
@@ -309,7 +309,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::FloorMod>(PrimExpr a, PrimExpr 
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
     if (pa && pb) {
-      ICHECK_NE(pb->value, 0) << "Divide by zero";
+      TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
       int64_t res = arith::floormod(pa->value, pb->value);
       return IntImm(rtype, GetFoldResultInt64Repr(res, rtype));
     }
@@ -318,7 +318,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<tir::FloorMod>(PrimExpr a, PrimExpr 
     }
     if (pb) {
       if (pb->value == 1) return tir::make_zero(rtype);
-      ICHECK_NE(pb->value, 0) << "Divide by zero";
+      TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
   });
   return std::nullopt;

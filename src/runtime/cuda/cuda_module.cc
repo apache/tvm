@@ -83,11 +83,11 @@ class CUDAModuleNode : public ffi::ModuleObj {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "cu") {
-      ICHECK_NE(cuda_source_.length(), 0);
+      TVM_FFI_ICHECK_NE(cuda_source_.length(), 0);
       SaveMetaDataToFile(meta_file, fmap_);
       SaveBinaryToFile(file_name, cuda_source_);
     } else {
-      ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+      TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
       SaveMetaDataToFile(meta_file, fmap_);
       SaveBinaryToFile(file_name, data_);
     }
@@ -128,7 +128,8 @@ class CUDAModuleNode : public ffi::ModuleObj {
     if (result != CUDA_SUCCESS) {
       const char* msg;
       cuGetErrorName(result, &msg);
-      LOG(FATAL) << "CUDAError: cuModuleGetFunction " << func_name << " failed with error: " << msg;
+      TVM_FFI_THROW(CUDAError) << "cuModuleGetFunction " << func_name
+                               << " failed with error: " << msg;
     }
     return func;
   }
@@ -147,11 +148,12 @@ class CUDAModuleNode : public ffi::ModuleObj {
     size_t nbytes;
 
     CUresult result = cuModuleGetGlobal(&global, &nbytes, module_[device_id], global_name.c_str());
-    ICHECK_EQ(nbytes, expect_nbytes);
+    TVM_FFI_ICHECK_EQ(nbytes, expect_nbytes);
     if (result != CUDA_SUCCESS) {
       const char* msg;
       cuGetErrorName(result, &msg);
-      LOG(FATAL) << "CUDAError: cuModuleGetGlobal " << global_name << " failed with error: " << msg;
+      TVM_FFI_THROW(CUDAError) << "cuModuleGetGlobal " << global_name
+                               << " failed with error: " << msg;
     }
     return global;
   }
@@ -197,8 +199,8 @@ class CUDAWrappedFunc {
         CUresult result = cuFuncSetAttribute(
             fcache_[device_id], CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, wl.dyn_shmem_size);
         if (result != CUDA_SUCCESS) {
-          LOG(FATAL) << "Failed to set the allowed dynamic shared memory size to "
-                     << wl.dyn_shmem_size;
+          TVM_FFI_THROW(InternalError)
+              << "Failed to set the allowed dynamic shared memory size to " << wl.dyn_shmem_size;
         }
       }
     }
@@ -248,7 +250,7 @@ class CUDAWrappedFunc {
            << "// -----------\n"
            << cuda;
       }
-      LOG(FATAL) << os.str();
+      TVM_FFI_THROW(InternalError) << os.str();
     }
   }
 
@@ -293,7 +295,7 @@ class CUDAPrepGlobalBarrier {
 
 ffi::Optional<ffi::Function> CUDAModuleNode::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
-  ICHECK_EQ(sptr_to_self.get(), this);
+  TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   if (name == symbol::tvm_prepare_global_barrier) {
     return ffi::Function(CUDAPrepGlobalBarrier(this, sptr_to_self));
   }
@@ -328,7 +330,7 @@ ffi::Module CUDAModuleLoadFromBytes(const ffi::Bytes& bytes) {
   ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt;
   stream.Read(&fmt);
-  ICHECK(stream.Read(&fmap));
+  TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&data);
   return CUDAModuleCreate(data, fmt, fmap, std::string());
 }

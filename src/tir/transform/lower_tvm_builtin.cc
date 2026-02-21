@@ -108,9 +108,9 @@ class BuiltinLower : public StmtExprMutator {
     }
 
     void AssertMaxIsValid() const {
-      ICHECK((max_sizes.shape_stack >= run_sizes.shape_stack) ||
-             (max_sizes.array_stack >= run_sizes.array_stack) ||
-             (max_sizes.arg_stack >= run_sizes.arg_stack));
+      TVM_FFI_ICHECK((max_sizes.shape_stack >= run_sizes.shape_stack) ||
+                     (max_sizes.array_stack >= run_sizes.array_stack) ||
+                     (max_sizes.arg_stack >= run_sizes.arg_stack));
     }
   };
 
@@ -132,7 +132,7 @@ class BuiltinLower : public StmtExprMutator {
 
     precheck.VisitStmt(stmt);
 
-    ICHECK_EQ(precheck.alloca_scope_.size(), 1);
+    TVM_FFI_ICHECK_EQ(precheck.alloca_scope_.size(), 1);
     return precheck.alloca_scope_[0].max_sizes;
   }
 
@@ -174,7 +174,7 @@ class BuiltinLower : public StmtExprMutator {
 
     stmt = this->VisitStmt(stmt);
 
-    ICHECK(!alloca_scope_.empty());
+    TVM_FFI_ICHECK(!alloca_scope_.empty());
     alloca_scope_.pop_back();
 
     return stmt;
@@ -193,11 +193,11 @@ class BuiltinLower : public StmtExprMutator {
       // make_stack_shape only happens within a call_packed.
       // We could relax this in the future if we want to
       // introduce root scope as a separate scope
-      ICHECK_EQ(alloca_scope_.size(), scope_size)
+      TVM_FFI_ICHECK_EQ(alloca_scope_.size(), scope_size)
           << "alloca_scope_ length is different before and after recursion";
-      ICHECK_EQ(scope.run_sizes.shape_stack, -1)
+      TVM_FFI_ICHECK_EQ(scope.run_sizes.shape_stack, -1)
           << "Expect no tvm_stack_make_shape outside of CallNodes";
-      ICHECK_EQ(scope.run_sizes.array_stack, 0)
+      TVM_FFI_ICHECK_EQ(scope.run_sizes.array_stack, 0)
           << "Expect no tvm_stack_make_array outside of CallNodes";
     }
 
@@ -251,8 +251,8 @@ class BuiltinLower : public StmtExprMutator {
       // set total_bytes to uint64 to avoid overflow
       total_bytes = total_bytes * op->extents[i];
     }
-    ICHECK(device_type_) << "Unknown device type in current IR";
-    ICHECK(device_id_) << "Unknown device id in current IR";
+    TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
+    TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
     Stmt alloc_nullptr_check = IfThenElse(
@@ -361,14 +361,14 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   StringImm GetDeviceMethodName(const char* method_name) const {
-    CHECK(device_type_) << "Method " << method_name << " requires the device type, "
-                        << "but occurred outside of a \"device_type\" annotation";
+    TVM_FFI_ICHECK(device_type_) << "Method " << method_name << " requires the device type, "
+                                 << "but occurred outside of a \"device_type\" annotation";
 
     auto as_int = device_type_.as<IntImmNode>();
-    CHECK(as_int) << "Method " << method_name
-                  << " requires the device type to be a DLDeviceType enum value, "
-                  << "but was instead the expression " << device_type_ << " with type "
-                  << device_type_.value()->GetTypeKey();
+    TVM_FFI_ICHECK(as_int) << "Method " << method_name
+                           << " requires the device type to be a DLDeviceType enum value, "
+                           << "but was instead the expression " << device_type_ << " with type "
+                           << device_type_.value()->GetTypeKey();
 
     ffi::String device_name = runtime::DLDeviceType2Str(as_int->value);
     return StringImm("device_api." + device_name + "." + method_name);
@@ -416,7 +416,7 @@ class BuiltinLower : public StmtExprMutator {
   // call shape
   PrimExpr MakeShape(const CallNode* op) {
     // if args.size() == 0, it represents a scalar shape ()
-    ICHECK(!alloca_scope_.empty());
+    TVM_FFI_ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
     if (scope.run_sizes.shape_stack == -1) {
@@ -435,7 +435,7 @@ class BuiltinLower : public StmtExprMutator {
   }
   // make array
   PrimExpr MakeArray(const CallNode* op) {
-    ICHECK(!alloca_scope_.empty());
+    TVM_FFI_ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
@@ -471,8 +471,8 @@ class BuiltinLower : public StmtExprMutator {
     }
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrByteOffset,
                                        cast(DataType::UInt(64), byte_offset)));
-    ICHECK(device_type_) << "Unknown device type in current IR";
-    ICHECK(device_id_) << "Unknown device id in current IR";
+    TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
+    TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrDeviceId,
                                        cast(DataType::Int(32), device_id_.value())));
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kArrDeviceType,
@@ -505,7 +505,7 @@ class BuiltinLower : public StmtExprMutator {
         } else if (api_dtype.is_handle()) {
           return ffi::TypeIndex::kTVMFFIOpaquePtr;
         } else {
-          LOG(FATAL) << "Unsupported type: " << api_dtype;
+          TVM_FFI_THROW(InternalError) << "Unsupported type: " << api_dtype;
         }
       }();
 
@@ -606,8 +606,8 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   Stmt MakeNdMemAllocWithScope(const LetStmtNode* let, const CallNode* call) {
-    ICHECK(device_type_) << "Unknown device type in current IR";
-    ICHECK(device_id_) << "Unknown device id in current IR";
+    TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
+    TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
     PrimExpr storage_scope = call->args[0];

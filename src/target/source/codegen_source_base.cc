@@ -53,7 +53,7 @@ std::string CodeGenSourceBase::SSAGetID(std::string src, DataType t) {
 }
 
 std::string CodeGenSourceBase::AllocVarID(const tir::VarNode* v) {
-  ICHECK(!var_idmap_.count(v)) << "Need input to be in SSA form dup " << v->name_hint;
+  TVM_FFI_ICHECK(!var_idmap_.count(v)) << "Need input to be in SSA form dup " << v->name_hint;
   std::string key = v->name_hint;
   std::string vid = name_supply_->FreshName(key);
   std::replace(vid.begin(), vid.end(), ':', '_');
@@ -65,7 +65,7 @@ std::string CodeGenSourceBase::AllocVarID(const tir::VarNode* v) {
 
 std::string CodeGenSourceBase::GetVarID(const tir::VarNode* v) const {
   auto it = var_idmap_.find(v);
-  ICHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name_hint;
+  TVM_FFI_ICHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name_hint;
   return it->second;
 }
 
@@ -83,7 +83,7 @@ void CodeGenSourceBase::MarkConst(std::string vid) {
     e.scope_id = 0;
     ssa_assign_map_[vid] = e;
   } else {
-    ICHECK_EQ(it->second.vid, vid);
+    TVM_FFI_ICHECK_EQ(it->second.vid, vid);
   }
 }
 
@@ -100,7 +100,7 @@ void CodeGenSourceBase::EndScope(int scope_id) {
 }
 
 void CodeGenSourceBase::PrintType(DataType type, std::ostream& os) {  // NOLINT(*)
-  ICHECK_EQ(type.lanes(), 1) << "do not yet support vector types";
+  TVM_FFI_ICHECK_EQ(type.lanes(), 1) << "do not yet support vector types";
   if (type.is_handle()) {
     os << "void*";
     return;
@@ -147,7 +147,7 @@ void CodeGenSourceBase::PrintType(DataType type, std::ostream& os) {  // NOLINT(
       }
     }
   }
-  LOG(FATAL) << "Cannot convert type " << type << " to C type";
+  TVM_FFI_THROW(InternalError) << "Cannot convert type " << type << " to C type";
 }
 
 void CodeGenSourceBase::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
@@ -159,7 +159,7 @@ void CodeGenSourceBase::PrintType(const Type& type, std::ostream& os) {  // NOLI
   } else if (IsVoidType(type)) {
     os << "void";
   } else {
-    LOG(FATAL) << "Type " << type << " does not have a corresponding C Type";
+    TVM_FFI_THROW(InternalError) << "Type " << type << " does not have a corresponding C Type";
   }
 }
 

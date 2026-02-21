@@ -58,7 +58,7 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
   const auto from = op->value.dtype();
   const auto to = op->dtype;
   if (from.is_float() && to.is_float() && from.bits() == 16 && to.bits() == 32) {
-    ICHECK_EQ(from.lanes(), to.lanes());
+    TVM_FFI_ICHECK_EQ(from.lanes(), to.lanes());
 
     const auto has_avx512 = llvm_target_->TargetHasCPUFeature("avx512f");
 
@@ -111,13 +111,13 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
 
   // Otherwise, we split the vector into intrin_lanes sized elements (widening where necessary),
   // compute each result, and then concatenate the vectors (slicing the result if necessary).
-  ICHECK_LT(intrin_lanes, num_elems);
+  TVM_FFI_ICHECK_LT(intrin_lanes, num_elems);
   std::vector<llvm::Value*> split_results;
   for (size_t i = 0; i < num_elems; i += intrin_lanes) {
     std::vector<llvm::Value*> split_args;
     for (const auto& v : args) {
       if (v->getType()->isVectorTy()) {
-        ICHECK_EQ(GetVectorNumElements(v), num_elems);
+        TVM_FFI_ICHECK_EQ(GetVectorNumElements(v), num_elems);
         split_args.push_back(CreateVecSlice(v, i, intrin_lanes));
       } else {
         split_args.push_back(v);

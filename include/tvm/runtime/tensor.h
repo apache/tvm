@@ -199,24 +199,24 @@ class Tensor : public tvm::ffi::Tensor {
 inline bool SaveDLTensor(support::Stream* strm, const DLTensor* tensor);
 
 inline void Tensor::CopyFrom(const DLTensor* other) {
-  ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
   CopyFromTo(other, get_mutable());
 }
 
 inline void Tensor::CopyFrom(const Tensor& other) {
-  ICHECK(data_ != nullptr);
-  ICHECK(other.data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(other.data_ != nullptr);
   CopyFromTo(other.get_mutable(), get_mutable());
 }
 
 inline void Tensor::CopyTo(DLTensor* other) const {
-  ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
   CopyFromTo(get_mutable(), other);
 }
 
 inline void Tensor::CopyTo(const Tensor& other) const {
-  ICHECK(data_ != nullptr);
-  ICHECK(other.data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(other.data_ != nullptr);
   CopyFromTo(get_mutable(), other.get_mutable());
 }
 
@@ -271,19 +271,20 @@ inline void Tensor::Save(support::Stream* strm) const { SaveDLTensor(strm, opera
 
 inline bool Tensor::Load(support::Stream* strm) {
   uint64_t header, reserved;
-  ICHECK(strm->Read(&header)) << "Invalid DLTensor file format";
-  ICHECK(strm->Read(&reserved)) << "Invalid DLTensor file format";
-  ICHECK(header == kTVMTensorMagic) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(strm->Read(&header)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(strm->Read(&reserved)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(header == kTVMTensorMagic) << "Invalid DLTensor file format";
   Device dev;
   int ndim;
   DLDataType dtype;
-  ICHECK(strm->Read(&dev)) << "Invalid DLTensor file format";
-  ICHECK(strm->Read(&ndim)) << "Invalid DLTensor file format";
-  ICHECK(strm->Read(&dtype)) << "Invalid DLTensor file format";
-  ICHECK_EQ(dev.device_type, kDLCPU) << "Invalid DLTensor device: can only save as CPU tensor";
+  TVM_FFI_ICHECK(strm->Read(&dev)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(strm->Read(&ndim)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(strm->Read(&dtype)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK_EQ(dev.device_type, kDLCPU)
+      << "Invalid DLTensor device: can only save as CPU tensor";
   std::vector<int64_t> shape(ndim);
   if (ndim != 0) {
-    ICHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
+    TVM_FFI_ICHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
   }
   Tensor ret = Tensor::Empty(ffi::Shape(shape), dtype, dev);
   int64_t num_elems = 1;
@@ -292,12 +293,12 @@ inline bool Tensor::Load(support::Stream* strm) {
     num_elems *= ret->shape[i];
   }
   int64_t data_byte_size;
-  ICHECK(strm->Read(&data_byte_size)) << "Invalid DLTensor file format";
-  ICHECK(data_byte_size == num_elems * elem_bytes) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(strm->Read(&data_byte_size)) << "Invalid DLTensor file format";
+  TVM_FFI_ICHECK(data_byte_size == num_elems * elem_bytes) << "Invalid DLTensor file format";
   auto read_ret = strm->Read(ret->data, data_byte_size);
   // Only check non-empty data
   if (ndim > 0 && shape[0] != 0) {
-    ICHECK(read_ret) << "Invalid DLTensor file format";
+    TVM_FFI_ICHECK(read_ret) << "Invalid DLTensor file format";
   }
   if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
     ffi::ByteSwap(ret->data, elem_bytes, num_elems);

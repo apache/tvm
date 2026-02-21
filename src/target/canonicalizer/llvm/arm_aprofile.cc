@@ -86,7 +86,7 @@ bool CheckContains(ffi::Array<ffi::String> array, ffi::String predicate) {
 static ffi::Map<ffi::String, ffi::Any> GetFeatures(ffi::Map<ffi::String, ffi::Any> target) {
 #ifdef TVM_LLVM_VERSION
   ffi::String kind = Downcast<ffi::String>(target.Get("kind").value());
-  ICHECK_EQ(kind, "llvm") << "Expected target kind 'llvm', but got '" << kind << "'";
+  TVM_FFI_ICHECK_EQ(kind, "llvm") << "Expected target kind 'llvm', but got '" << kind << "'";
 
   ffi::Optional<ffi::String> mtriple =
       Downcast<ffi::Optional<ffi::String>>(target.Get("mtriple").value_or(nullptr));

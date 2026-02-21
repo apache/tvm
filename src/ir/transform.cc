@@ -67,8 +67,8 @@ void PassContext::EnterWithScope() {
 
 void PassContext::ExitWithScope() {
   PassContextThreadLocalEntry* entry = PassContextThreadLocalStoreGet();
-  ICHECK(!entry->context_stack.empty());
-  ICHECK(entry->context_stack.top().same_as(*this));
+  TVM_FFI_ICHECK(!entry->context_stack.empty());
+  TVM_FFI_ICHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 
   InstrumentExitPassContext();
@@ -107,7 +107,7 @@ class PassConfigManager {
  public:
   void Register(std::string key, ffi::String value_type_str,
                 std::function<ffi::Any(ffi::Any)> legalization) {
-    ICHECK_EQ(key2vtype_.count(key), 0U);
+    TVM_FFI_ICHECK_EQ(key2vtype_.count(key), 0U);
     ValueTypeInfo info;
     info.type_str = value_type_str;
     info.legalization = legalization;
@@ -121,22 +121,21 @@ class PassConfigManager {
       auto it = key2vtype_.find(key);
       if (it == key2vtype_.end()) {
         std::ostringstream os;
-        os << "AttributeError: Invalid config option \'" << key << "\' candidates are:";
+        os << "Invalid config option \'" << key << "\' candidates are:";
         int counter = 0;
         for (const auto& [key, value] : key2vtype_) {
           os << ' ';
           if (counter++ != 0) os << ',';
           os << key;
         }
-        LOG(FATAL) << os.str();
+        TVM_FFI_THROW(AttributeError) << os.str();
       }
       const auto& info = it->second;
 
-      ICHECK(value != nullptr) << "AttributeError: " << key << " is None";
+      TVM_FFI_CHECK(value != nullptr, AttributeError) << key << " is None";
 
-      ICHECK(info.legalization) << "AttributeError: "
-                                << "Config option \'" << key
-                                << "\' was defined without a legalization function.";
+      TVM_FFI_CHECK(info.legalization, AttributeError)
+          << "Config option \'" << key << "\' was defined without a legalization function.";
       auto legalized = info.legalization(value);
       if (!legalized.same_as(value)) {
         update.emplace_back(key, legalized);
@@ -294,7 +293,7 @@ IRModule Pass::operator()(IRModule mod) const {
 
 IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
   const PassNode* node = operator->();
-  ICHECK(node != nullptr);
+  TVM_FFI_ICHECK(node != nullptr);
   const PassInfo& pass_info = node->Info();
   if (!pass_ctx.InstrumentBeforePass(mod, pass_info)) {
     DLOG(INFO) << "Skipping pass : " << pass_info->name
@@ -404,20 +403,20 @@ IRModule ModulePassNode::operator()(IRModule mod, const PassContext& pass_ctx) c
     pass_ctx->diag_ctx = previous;
   }
 
-  ICHECK(pass_ctx->diag_ctx)
+  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block this is a bug.";
 
   const PassInfo& pass_info = Info();
-  ICHECK(mod.defined()) << "The input module must be set.";
+  TVM_FFI_ICHECK(mod.defined()) << "The input module must be set.";
 
   VLOG_CONTEXT << pass_info->name;
   VLOG(0) << "Executing module pass with opt level: " << pass_info->opt_level;
 
   mod = pass_func(std::move(mod), pass_ctx);
 
-  ICHECK(mod.defined()) << "The return value of a module pass must be set.";
+  TVM_FFI_ICHECK(mod.defined()) << "The return value of a module pass must be set.";
 
-  ICHECK(pass_ctx->diag_ctx)
+  TVM_FFI_ICHECK(pass_ctx->diag_ctx)
       << "The diagnostic context was set at the top of this block this is a bug.";
 
   pass_ctx->diag_ctx.value().Render();
@@ -450,8 +449,8 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
   // 1. Consider the required passes for each pass.
   // 2. Only resolve the enabled passes.
   // 3. Build a dependency graph. Probably we need to update the pass list.
-  LOG(FATAL) << "Pass dependency has not been resolved yet."
-             << "\n";
+  TVM_FFI_THROW(InternalError) << "Pass dependency has not been resolved yet."
+                               << "\n";
 }
 
 Pass GetPass(const ffi::String& pass_name) {
@@ -461,7 +460,7 @@ Pass GetPass(const ffi::String& pass_name) {
   } else {
     f = tvm::ffi::Function::GetGlobal("transform." + pass_name);
   }
-  ICHECK(f.has_value()) << "Cannot use " << pass_name << " to create the pass";
+  TVM_FFI_ICHECK(f.has_value()) << "Cannot use " << pass_name << " to create the pass";
   return (*f)().cast<Pass>();
 }
 
@@ -471,7 +470,7 @@ Pass GetPass(const ffi::String& pass_name) {
 IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
   for (const Pass& pass : passes) {
     VLOG(0) << "Running pass " << pass->Info()->name;
-    ICHECK(pass.defined()) << "Found undefined pass for optimization.";
+    TVM_FFI_ICHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
     if (!pass_ctx.PassEnabled(pass_info)) {
       VLOG(0) << "skipping disabled pass '" << pass_info->name << "'";

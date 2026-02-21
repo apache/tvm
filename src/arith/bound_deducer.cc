@@ -263,7 +263,7 @@ CompareOp BoundDeducer::ReverseOp(CompareOp comp_op) {
     case kLess:
       return kGreater;
     default:
-      LOG(FATAL) << "Not a valid compare op";
+      TVM_FFI_THROW(InternalError) << "Not a valid compare op";
   }
 }
 

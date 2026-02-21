@@ -128,9 +128,9 @@ ExprPrecedence GetExprPrecedence(const ExprDoc& doc) {
 
   if (const auto* op_doc = doc.as<OperationDocNode>()) {
     size_t kind = static_cast<int>(op_doc->kind);
-    ICHECK_LT(kind, op_kind_precedence.size()) << "ValueError: Invalid operation: " << kind;
+    TVM_FFI_CHECK_LT(kind, op_kind_precedence.size(), ValueError) << "Invalid operation: " << kind;
     ExprPrecedence precedence = op_kind_precedence[kind];
-    ICHECK(precedence != ExprPrecedence::kUnkown)
+    TVM_FFI_ICHECK(precedence != ExprPrecedence::kUnkown)
         << "Precedence for operator " << static_cast<int>(op_doc->kind) << " is unknown";
     return precedence;
   }
@@ -138,7 +138,7 @@ ExprPrecedence GetExprPrecedence(const ExprDoc& doc) {
   if (it != doc_type_precedence.end()) {
     return it->second;
   }
-  ICHECK(false) << "Precedence for doc type " << doc->GetTypeKey() << " is unknown";
+  TVM_FFI_ICHECK(false) << "Precedence for doc type " << doc->GetTypeKey() << " is unknown";
   throw;
 }
 
@@ -256,8 +256,8 @@ class PythonDocPrinter : public DocPrinter {
     if (stmt->comment.has_value()) {
       const std::string& comment = stmt->comment.value();
       bool has_newline = std::find(comment.begin(), comment.end(), '\n') != comment.end();
-      CHECK(!has_newline) << "ValueError: the comment string of " << stmt->GetTypeKey()
-                          << " cannot have newline.";
+      TVM_FFI_CHECK(!has_newline, ValueError)
+          << "the comment string of " << stmt->GetTypeKey() << " cannot have newline.";
       size_t start_pos = output_.tellp();
       output_ << "  # " << comment;
       size_t end_pos = output_.tellp();
@@ -355,7 +355,7 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
   } else if (const auto opt_str = value.as<ffi::String>()) {
     output_ << "\"" << support::StrEscape((*opt_str).data(), (*opt_str).size()) << "\"";
   } else {
-    LOG(FATAL) << "TypeError: Unsupported literal value type: " << value.GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unsupported literal value type: " << value.GetTypeKey();
   }
 }
 
@@ -417,10 +417,10 @@ const std::string OperatorToString(OperationDocNode::Kind operation_kind) {
   }();
 
   auto op_index = static_cast<int>(operation_kind);
-  ICHECK_LT(op_index, op_kind2str.size());
+  TVM_FFI_ICHECK_LT(op_index, op_kind2str.size());
   const std::string str = op_kind2str[op_index];
-  ICHECK(!str.empty()) << "OperationDocNode::Kind " << static_cast<int>(operation_kind)
-                       << " cannot be converted to operator token in Python directly.";
+  TVM_FFI_ICHECK(!str.empty()) << "OperationDocNode::Kind " << static_cast<int>(operation_kind)
+                               << " cannot be converted to operator token in Python directly.";
   return str;
 }
 
@@ -428,7 +428,7 @@ void PythonDocPrinter::PrintTypedDoc(const OperationDoc& doc) {
   using OpKind = OperationDocNode::Kind;
   if (doc->kind < OpKind::kUnaryEnd) {
     // Unary Operators
-    ICHECK_EQ(doc->operands.size(), 1);
+    TVM_FFI_ICHECK_EQ(doc->operands.size(), 1);
     output_ << OperatorToString(doc->kind);
     PrintChildExpr(doc->operands[0], doc);
   } else if (doc->kind == OpKind::kPow) {
@@ -436,26 +436,27 @@ void PythonDocPrinter::PrintTypedDoc(const OperationDoc& doc) {
     // It's right-associative and binds less tightly than unary operator on its right.
     // https://docs.python.org/3/reference/expressions.html#the-power-operator
     // https://docs.python.org/3/reference/expressions.html#operator-precedence
-    ICHECK_EQ(doc->operands.size(), 2);
+    TVM_FFI_ICHECK_EQ(doc->operands.size(), 2);
     PrintChildExprConservatively(doc->operands[0], doc);
     output_ << " ** ";
     PrintChildExpr(doc->operands[1], ExprPrecedence::kUnary);
   } else if (doc->kind < OpKind::kBinaryEnd) {
     // Binary Operator
-    ICHECK_EQ(doc->operands.size(), 2);
+    TVM_FFI_ICHECK_EQ(doc->operands.size(), 2);
     PrintChildExpr(doc->operands[0], doc);
     output_ << " " << OperatorToString(doc->kind) << " ";
     PrintChildExprConservatively(doc->operands[1], doc);
   } else if (doc->kind == OpKind::kIfThenElse) {
-    ICHECK_EQ(doc->operands.size(), 3)
-        << "ValueError: IfThenElse requires 3 operands, but got " << doc->operands.size();
+    TVM_FFI_CHECK_EQ(doc->operands.size(), 3, ValueError)
+        << "IfThenElse requires 3 operands, but got " << doc->operands.size();
     PrintChildExpr(doc->operands[1], doc);
     output_ << " if ";
     PrintChildExprConservatively(doc->operands[0], doc);
     output_ << " else ";
     PrintChildExprConservatively(doc->operands[2], doc);
   } else {
-    LOG(FATAL) << "Unknown OperationDocNode::Kind " << static_cast<int>(doc->kind);
+    TVM_FFI_THROW(InternalError) << "Unknown OperationDocNode::Kind "
+                                 << static_cast<int>(doc->kind);
     throw;
   }
 }
@@ -477,7 +478,7 @@ void PythonDocPrinter::PrintTypedDoc(const CallDoc& doc) {
   }
 
   // Print keyword args
-  ICHECK_EQ(doc->kwargs_keys.size(), doc->kwargs_values.size())
+  TVM_FFI_ICHECK_EQ(doc->kwargs_keys.size(), doc->kwargs_values.size())
       << "CallDoc should have equal number of elements in kwargs_keys and kwargs_values.";
   for (size_t i = 0; i < doc->kwargs_keys.size(); i++) {
     if (is_first) {
@@ -519,7 +520,7 @@ void PythonDocPrinter::PrintTypedDoc(const TupleDoc& doc) {
 }
 
 void PythonDocPrinter::PrintTypedDoc(const DictDoc& doc) {
-  ICHECK_EQ(doc->keys.size(), doc->values.size())
+  TVM_FFI_ICHECK_EQ(doc->keys.size(), doc->values.size())
       << "DictDoc should have equal number of elements in keys and values.";
   output_ << "{";
   size_t idx = 0;
@@ -664,7 +665,8 @@ void PythonDocPrinter::PrintTypedDoc(const ReturnDoc& doc) {
 
 void PythonDocPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
+    TVM_FFI_ICHECK(!arg_doc->comment.has_value())
+        << "Function arg cannot have comment attached to them.";
   }
 
   PrintDecorators(doc->decorators);

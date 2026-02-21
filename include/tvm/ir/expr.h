@@ -638,7 +638,7 @@ class Integer : public IntImm {
    * \brief convert to int64_t
    */
   int64_t IntValue() const {
-    ICHECK(data_ != nullptr) << " Trying to reference a null Integer";
+    TVM_FFI_ICHECK(data_ != nullptr) << " Trying to reference a null Integer";
     return (*this)->value;
   }
   // comparators
