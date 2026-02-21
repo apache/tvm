@@ -18,7 +18,7 @@ import random
 import sys
 import pytest
 import tvm
-from tvm import te, arith, ir, tir, testing
+from tvm import arith, ir, tir, testing
 from tvm.script import tir as T
 
 
@@ -31,7 +31,7 @@ def test_solution_consistency():
     random.seed(seed)
 
     def _check(num_vars, num_formulas, coef=(-5, 5), bounds=(-20, 20)):
-        variables = [te.var("x" + str(i)) for i in range(num_vars)]
+        variables = [tvm.tir.Var("x" + str(i), "int32") for i in range(num_vars)]
 
         relations = []
         for i in range(num_formulas):
@@ -85,7 +85,7 @@ def test_solution_consistency():
 
 
 def test_empty_var_to_solve():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     equations = [
         tvm.tir.EQ(x + y, 20),
         tvm.tir.EQ(x - y, 10),
@@ -100,7 +100,7 @@ def test_empty_var_to_solve():
 
 
 def test_unique_solution():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
 
     solution = arith.solve_linear_equations(
         [
@@ -115,7 +115,7 @@ def test_unique_solution():
 
 
 def test_low_rank():
-    x, y, z = te.var("x"), te.var("y"), te.var("z")
+    x, y, z = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32"), tvm.tir.Var("z", "int32")
     ranges = {}
 
     solution = arith.solve_linear_equations(
@@ -133,7 +133,7 @@ def test_low_rank():
 
 
 def test_infer_range():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     ranges = {
         x: tvm.ir.Range.from_min_extent(-5, 10),
         y: tvm.ir.Range.from_min_extent(0, 10),
@@ -160,7 +160,7 @@ def test_infer_range():
 
 
 def test_ill_formed():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
 
     solution = arith.solve_linear_equations(
         [

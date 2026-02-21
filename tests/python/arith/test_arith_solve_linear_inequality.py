@@ -18,7 +18,7 @@ import random
 import sys
 import pytest
 import tvm
-from tvm import te, arith, ir, tir, testing
+from tvm import arith, ir, tir, testing
 from tvm.script import tir as T
 
 
@@ -32,7 +32,7 @@ def test_solution_consistency():
     random.seed(seed)
 
     def _check(variables, formulas, coef=(-5, 5), bounds=(-20, 20)):
-        vs = [te.var("x" + str(i)) for i in range(variables)]
+        vs = [tvm.tir.Var("x" + str(i), "int32") for i in range(variables)]
 
         fs = []
         for i in range(formulas):
@@ -44,9 +44,9 @@ def test_solution_consistency():
             fs.append(op(s1, s2))
 
         vranges = {v: tvm.ir.expr.Range(bounds[0], bounds[1] + 1) for v in vs}
-        before = te.all(tir.const(1, "bool"), *fs)
+        before = tvm.tir.all(tir.const(1, "bool"), *fs)
         after = arith._ffi_api.SolveInequalitiesAsCondition(vs, vranges, fs)
-        after = te.all(tir.const(1, "bool"), *after)
+        after = tvm.tir.all(tir.const(1, "bool"), *after)
         testing.check_bool_expr_is_true(before == after, vranges)
 
         solution = arith.solve_linear_inequalities(fs, vs, vranges, deskew_range=True)
@@ -81,7 +81,7 @@ def test_solution_consistency():
 
 
 def test_dual_variable():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
 
     variables = [x, y]
     ranges = {
@@ -125,7 +125,7 @@ def test_dual_variable():
 
 
 def test_equal():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     problem = [
         tvm.tir.GE(x + y, 10),
         tvm.tir.GE(x - y, 2),
@@ -147,7 +147,7 @@ def test_equal():
 
 
 def test_multi_equal():
-    x, y, z = te.var("x"), te.var("y"), te.var("z")
+    x, y, z = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32"), tvm.tir.Var("z", "int32")
     problem = [
         tvm.tir.LE(x, 6),
         tvm.tir.GE(x, 6),
@@ -179,7 +179,7 @@ def test_multi_equal():
 
 
 def test_no_solution():
-    x = te.var("x0")
+    x = tvm.tir.Var("x0", "int32")
     vranges = {x: tvm.ir.Range.from_min_extent(-20, 41)}
     problem = [-x - 4 <= -5 * x + 2, x * 4 + 5 <= x * 5]
 
@@ -198,8 +198,8 @@ def test_no_solution():
 
 
 def test_unbound_var_range():
-    x = te.var("x0")
-    free_var = te.var("fv")
+    x = tvm.tir.Var("x0", "int32")
+    free_var = tvm.tir.Var("fv", "int32")
     vranges = {x: tvm.ir.Range.from_min_extent(0, tvm.tir.Cast("int32", 1 + tvm.tir.log(free_var)))}
     problem = [x > 3]
     solution = arith.solve_linear_inequalities(

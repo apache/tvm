@@ -15,12 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 
 
 def test_verify_ssa():
-    x = te.var("x")
-    y = te.var()
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("tindex", "int32")
     z = tvm.tir.Evaluate(x + y)
     assert tvm.tir.analysis.verify_ssa(tvm.tir.PrimFunc([x, y], z))
 
@@ -28,7 +27,7 @@ def test_verify_ssa():
 
 
 def test_verify_weak_let_ssa():
-    x = te.var("x")
+    x = tvm.tir.Var("x", "int32")
     z1 = tvm.tir.Let(x, 1, x + 1)
     z2 = tvm.tir.Let(x, 2, x + 2)
 

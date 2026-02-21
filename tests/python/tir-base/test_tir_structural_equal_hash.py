@@ -17,7 +17,7 @@
 import tvm
 import numpy as np
 import pytest
-from tvm import te
+
 from tvm_ffi.access_path import AccessPath
 from tvm.script import tir as T, ir as I
 
@@ -73,9 +73,9 @@ def test_exprs():
     # save load json
     x = tvm.tir.const(1, "int32")
     y = tvm.tir.const(10, "int32")
-    vx = te.var("x")
-    vy = te.var("y")
-    vz = te.var("z")
+    vx = tvm.tir.Var("x", "int32")
+    vy = tvm.tir.Var("y", "int32")
+    vz = tvm.tir.Var("z", "int32")
     zx = vx + vx
     zy = vy + vy
 
@@ -105,8 +105,8 @@ def test_exprs():
 
 
 def test_prim_func():
-    x = te.var("x")
-    y = te.var("y")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
     # counter example of same equality
     func0 = tvm.tir.PrimFunc([x, y], tvm.tir.Evaluate(x + y))
     func1 = tvm.tir.PrimFunc([x, y], tvm.tir.Evaluate(y + x))
@@ -132,9 +132,9 @@ def test_prim_func():
 
 
 def test_prim_func_param_count_mismatch():
-    x = te.var("x")
-    y = te.var("y")
-    z = te.var("z")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
     # counter example of same equality
     func0 = tvm.tir.PrimFunc([x, y], tvm.tir.Evaluate(x))
     func1 = tvm.tir.PrimFunc([x, y, z], tvm.tir.Evaluate(x))
@@ -146,9 +146,9 @@ def test_prim_func_param_count_mismatch():
 
 
 def test_prim_func_param_dtype_mismatch():
-    x = te.var("x")
-    y_0 = te.var("y", dtype="int32")
-    y_1 = te.var("z", dtype="float32")
+    x = tvm.tir.Var("x", "int32")
+    y_0 = tvm.tir.Var("y", "int32")
+    y_1 = tvm.tir.Var("z", "float32")
     # counter example of same equality
     func0 = tvm.tir.PrimFunc([x, y_0], tvm.tir.Evaluate(x))
     func1 = tvm.tir.PrimFunc([x, y_1], tvm.tir.Evaluate(x))
@@ -159,10 +159,10 @@ def test_prim_func_param_dtype_mismatch():
 
 
 def test_prim_func_body_mismatch():
-    x_0 = te.var("x")
-    y_0 = te.var("y")
-    x_1 = te.var("x")
-    y_1 = te.var("y")
+    x_0 = tvm.tir.Var("x", "int32")
+    y_0 = tvm.tir.Var("y", "int32")
+    x_1 = tvm.tir.Var("x", "int32")
+    y_1 = tvm.tir.Var("y", "int32")
     # counter example of same equality
     func0 = tvm.tir.PrimFunc([x_0, y_0], tvm.tir.Evaluate(x_0 + x_0))
     func1 = tvm.tir.PrimFunc([x_1, y_1], tvm.tir.Evaluate(x_1 + y_1))
@@ -206,16 +206,6 @@ def test_attrs():
 
 
 def test_stmt():
-    x = te.var("x")
-    y = te.var("y")
-    n = 128
-    A = te.placeholder((n, n), name="A")
-    B = te.placeholder((n, n), name="B")
-    ii = te.var("i")
-    jj = te.var("j")
-
-    n = te.var("n")
-
     @T.prim_func(private=True, check_well_formed=False)
     def func2(A: T.handle, n_param: T.int32):
         n_var = T.var("int32")
@@ -230,7 +220,7 @@ def test_stmt():
 
 
 def test_buffer_storage_scope():
-    x = te.var("x", dtype="handle")
+    x = tvm.tir.Var("x", "handle")
 
     buffer_local_0 = tvm.tir.decl_buffer((10, 10), "float32", scope="local")
     buffer_local_1 = tvm.tir.decl_buffer((10, 10), "float32", scope="local")
@@ -248,7 +238,7 @@ def test_buffer_storage_scope():
 
 
 def test_buffer_map_mismatch():
-    x = te.var("x")
+    x = tvm.tir.Var("x", "int32")
     buffer_0 = tvm.tir.decl_buffer((10, 10))
     buffer_0_clone = tvm.tir.decl_buffer((10, 10))
     buffer_1 = tvm.tir.decl_buffer((10, 20))
@@ -268,8 +258,8 @@ def test_buffer_map_mismatch():
 
 
 def test_buffer_map_length_mismatch():
-    x = te.var("x")
-    y = te.var("x")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("x", "int32")
 
     buffer_0 = tvm.tir.decl_buffer((10, 10))
     buffer_1 = tvm.tir.decl_buffer((10, 20))

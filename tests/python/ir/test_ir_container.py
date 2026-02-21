@@ -17,7 +17,7 @@
 import pytest
 import tvm_ffi
 import tvm
-from tvm import te
+
 import numpy as np
 
 
@@ -45,8 +45,8 @@ def test_dir_array():
 
 
 def test_map():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     amap = tvm.runtime.convert({a: 2, b: 3})
     assert a in amap
     assert len(amap) == 2
@@ -70,8 +70,8 @@ def test_str_map():
 
 
 def test_map_save_load_json():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     amap = tvm.runtime.convert({a: 2, b: 3})
     json_str = tvm.ir.save_json(amap)
     amap = tvm.ir.load_json(json_str)
@@ -81,15 +81,15 @@ def test_map_save_load_json():
 
 
 def test_dir_map():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     amap = tvm.runtime.convert({a: 2, b: 3})
     assert dir(amap)
 
 
 def test_getattr_map():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     amap = tvm.runtime.convert({a: 2, b: 3})
     assert isinstance(amap, tvm_ffi.Map)
 
