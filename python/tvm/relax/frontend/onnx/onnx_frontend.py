@@ -1801,6 +1801,30 @@ class Split(OnnxOpConverter):
     """Converts an onnx Split node into an equivalent Relax expression."""
 
     @classmethod
+    def _compute_split_indices(cls, data, axis, num_outputs):
+        """Compute split indices for potentially uneven splits.
+
+        Per ONNX Opset 18 spec, when num_outputs is given without explicit
+        split sizes, the split uses ceil-based block sizes:
+          block_size = ceil(dim / num_outputs)
+        The first (N-1) chunks have size block_size, and the last chunk
+        gets the remainder.
+
+        If the input shape is static along the split axis, this computes
+        explicit cumulative indices so that uneven splits work correctly.
+        Otherwise, falls back to passing num_outputs as an integer.
+        """
+        shape = data.struct_info.shape
+        if shape is not None and isinstance(shape, relax.ShapeExpr):
+            dim_val = shape[axis]
+            if isinstance(dim_val, (tir.IntImm,)):
+                dim = int(dim_val)
+                block_size = math.ceil(dim / num_outputs)
+                indices = [block_size * i for i in range(1, num_outputs)]
+                return indices
+        return num_outputs
+
+    @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
         splits = attr.get("split", None)
         if splits is not None and len(splits) > 1:
@@ -1811,7 +1835,9 @@ class Split(OnnxOpConverter):
                 indices.append(index)
         # When splits isnt specified divide evenly over axis.
         else:
-            indices = attr["tvm_custom"]["num_outputs"]
+            axis = attr.get("axis", 0)
+            num_outputs = attr["tvm_custom"]["num_outputs"]
+            indices = cls._compute_split_indices(inputs[0], axis, num_outputs)
         return relax.op.split(inputs[0], indices, attr.get("axis", 0))
 
     @classmethod
@@ -1832,7 +1858,9 @@ class Split(OnnxOpConverter):
                 raise ValueError("Dynamic Split not yet supported")
         # When splits isnt specified divide evenly over axis.
         else:
-            indices = attr["tvm_custom"]["num_outputs"]
+            axis = attr.get("axis", 0)
+            num_outputs = attr.get("num_outputs", attr["tvm_custom"]["num_outputs"])
+            indices = cls._compute_split_indices(inputs[0], axis, num_outputs)
         return relax.op.split(inputs[0], indices, attr.get("axis", 0))
 
 
