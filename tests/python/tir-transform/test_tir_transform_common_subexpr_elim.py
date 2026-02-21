@@ -17,7 +17,6 @@
 import hashlib
 
 import tvm
-from tvm import te, topi
 from tvm.ir.base import save_json
 from tvm.ir.module import IRModule
 from tvm.script import tir as T
@@ -29,15 +28,15 @@ from tvm.script import tir as T
 # A test program which gives the opportunity for the CSE pass to introduce two new variables,
 # at two different levels
 def test_cse():
-    z1 = te.var("z1")
-    z2 = te.var("z2")
-    z3 = te.var("z3")
-    i1 = te.var("i1")
-    i2 = te.var("i2")
-    x = te.var("x")
-    y = te.var("y")
-    a = te.var("a")
-    b = te.var("b")
+    z1 = tvm.tir.Var("z1", "int32")
+    z2 = tvm.tir.Var("z2", "int32")
+    z3 = tvm.tir.Var("z3", "int32")
+    i1 = tvm.tir.Var("i1", "int32")
+    i2 = tvm.tir.Var("i2", "int32")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     dtype = "int32"
     buffer = tvm.tir.decl_buffer((50,), dtype)
     # Test prog :
@@ -152,12 +151,12 @@ def test_cse():
 # branch, not before the whole If (otherwise that would lead to some computations being computed
 # for nothing when it is the Else branch that is executed).
 def test_cse_ifNode_1():
-    b = te.var("b")
-    i1 = te.var("i1")
-    i2 = te.var("i2")
-    i3 = te.var("i3")
-    y = te.var("y")
-    z = te.var("z")
+    b = tvm.tir.Var("b", "int32")
+    i1 = tvm.tir.Var("i1", "int32")
+    i2 = tvm.tir.Var("i2", "int32")
+    i3 = tvm.tir.Var("i3", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
     dtype = "int32"
     buffer = tvm.tir.decl_buffer((50,), dtype)
     # Test prog :
@@ -208,12 +207,12 @@ def test_cse_ifNode_1():
 # In this case, the CSE pass should introduce the redundant computation before the whole If node,
 # because regardless of the execution path, it is going to be computed.
 def test_cse_ifNode_2():
-    b = te.var("b")
-    i1 = te.var("i1")
-    i2 = te.var("i2")
-    i3 = te.var("i3")
-    y = te.var("y")
-    z = te.var("z")
+    b = tvm.tir.Var("b", "int32")
+    i1 = tvm.tir.Var("i1", "int32")
+    i2 = tvm.tir.Var("i2", "int32")
+    i3 = tvm.tir.Var("i3", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
     dtype = "int32"
     buffer = tvm.tir.decl_buffer((50,), dtype)
     # Test prog :
@@ -261,12 +260,12 @@ def test_cse_ifNode_2():
 # and in the rest of the program.
 # -------------------------------------------------------------------------------------------------
 def test_cse_cascade():
-    i1 = te.var("i1")
-    i2 = te.var("i2")
-    i3 = te.var("i3")
-    x = te.var("x")
-    y = te.var("y")
-    z = te.var("z")
+    i1 = tvm.tir.Var("i1", "int32")
+    i2 = tvm.tir.Var("i2", "int32")
+    i3 = tvm.tir.Var("i3", "int32")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
     dtype = "int32"
     buffer = tvm.tir.decl_buffer((50,), dtype)
     # Test prog :
@@ -326,10 +325,10 @@ def test_cse_cascade():
 # A test which ensures that we don't perform normalizations outside of introduced variables
 # -----------------------------------------------------------------------------------------
 def test_no_normalization_without_commoning():
-    x = te.var("x")
-    y = te.var("y")
-    z = te.var("z")
-    a = te.var("a")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
+    a = tvm.tir.Var("a", "int32")
     # Test prog :
     # let a = x + (y + z) in a
     body = tvm.tir.LetStmt(a, x + (y + z), tvm.tir.Evaluate(a))
@@ -418,8 +417,8 @@ def test_deterministic_cse():
     NUM_TERMS = 10
     REPEATS = 10
 
-    x = te.var("x")
-    result = te.var("result")
+    x = tvm.tir.Var("x", "int32")
+    result = tvm.tir.Var("result", "int32")
 
     offsets = sorted([i + 1 for i in range(NUM_TERMS)])
     inc1 = [(x + offsets[i]) for i in range(NUM_TERMS)]

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 from tvm.script import tir as T
 import tvm.testing
 
@@ -27,11 +26,11 @@ def nop():
 
 
 def test_remove_no_op():
-    i = te.var("i")
-    j = te.var("j")
-    k = te.var("k")
-    m = te.var("m")
-    n = te.var("n")
+    i = tvm.tir.Var("i", "int32")
+    j = tvm.tir.Var("j", "int32")
+    k = tvm.tir.Var("k", "int32")
+    m = tvm.tir.Var("m", "int32")
+    n = tvm.tir.Var("n", "int32")
     dtype = "int64"
     Ab = tvm.tir.decl_buffer((n,), dtype)
     stmt = tvm.tir.For(
