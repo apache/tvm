@@ -169,7 +169,7 @@ PrimExpr RemakePredicate(PrimExpr pred, const std::unordered_set<const VarNode*>
       if (!UsesVar(lhs.Eval(), f)) new_pred = new_pred && (lhs.Eval() < rhs.Eval());
       break;
     } else {
-      ICHECK(false) << "Unexpected predicate for reduction block";
+      TVM_FFI_ICHECK(false) << "Unexpected predicate for reduction block";
     }
   }
   return new_pred;
@@ -534,7 +534,7 @@ class LoopPropertyError : public ScheduleError {
         return "ScheduleError: A loop who has extent greater than one and is not bound to any "
                "block iter should not appear under a reduction loop";
     }
-    ICHECK(false) << "Unreachable";
+    TVM_FFI_ICHECK(false) << "Unreachable";
     throw;
   }
 
@@ -553,7 +553,7 @@ class LoopPropertyError : public ScheduleError {
         return "The loop {0} has extent greater than one, and is not bound to any block iter. "
                "Therefore it shouldn't appear under a reduction loop";
     }
-    ICHECK(false) << "Unreachable";
+    TVM_FFI_ICHECK(false) << "Unreachable";
     throw;
   }
 
@@ -873,7 +873,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
       iter_values_.push_back(old_binding);
       return;
     }
-    ICHECK(old_iter->iter_type == kCommReduce);
+    TVM_FFI_ICHECK(old_iter->iter_type == kCommReduce);
     // This block iter is a reduction block iter that touches the rfactor loop. So next we try to
     // create a new block iter for all loop vars that appear in the old binding.
     ffi::Array<Var> vars_in_old_binding = UndefinedVars(old_binding);
@@ -930,7 +930,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
                     Range::FromMinExtent(additional_iter_->var,
                                          make_const(additional_iter_->var.dtype(), 1)));
       ffi::Optional<Buffer> rf_buffer = buffer_map.Get(write_region->buffer);
-      ICHECK(rf_buffer.defined());
+      TVM_FFI_ICHECK(rf_buffer.defined());
       write_regions_.push_back(BufferRegion(rf_buffer.value(), Substitute(region, var_map_)));
     }
   }
@@ -1017,7 +1017,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
     ffi::Array<BufferRegion>& buf_regions = is_read ? read_regions_ : write_regions_;
     for (const PrimExpr& expr : buf_loads) {
       const auto* buf_load = expr.as<BufferLoadNode>();
-      ICHECK(buf_load != nullptr);
+      TVM_FFI_ICHECK(buf_load != nullptr);
       ffi::Array<Range> region;
       region.reserve(buf_load->indices.size());
       for (const PrimExpr& index : buf_load->indices) {
@@ -1159,7 +1159,7 @@ class BlockReplacer : public StmtMutator {
   Stmt VisitStmt_(const SBlockRealizeNode* block_realize) final {
     // Due to the visitor's behavior on ForNode, this block-realize must be the reduction block's
     // block-realize. And we directly return the new `wb_block_realize`.
-    ICHECK_EQ(block_realize, old_block_realize_.get());
+    TVM_FFI_ICHECK_EQ(block_realize, old_block_realize_.get());
     return wb_block_realize_;
   }
 

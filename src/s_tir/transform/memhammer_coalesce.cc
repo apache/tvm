@@ -162,8 +162,8 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
   BufferRegion write_region = constraints.write_region;
   const ffi::Array<PrimExpr>& write_index = buf_store->indices;
-  ICHECK(write_region->region.size() == write_index.size() &&
-         write_region->buffer.same_as(buf_store->buffer));
+  TVM_FFI_ICHECK(write_region->region.size() == write_index.size() &&
+                 write_region->buffer.same_as(buf_store->buffer));
   ffi::Array<PrimExpr> result;
   arith::Analyzer analyzer;
   for (int i = 0; i < static_cast<int>(write_region->region.size()); i++) {
@@ -192,7 +192,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
   auto iter_map =
       arith::DetectIterMap(mapping_pattern, var_range, Bool(true), arith::Bijective, &analyzer);
-  CHECK_EQ(iter_map->indices.size(), loop_vars.size());
+  TVM_FFI_ICHECK_EQ(iter_map->indices.size(), loop_vars.size());
   ffi::Map<Var, PrimExpr> inverse_mapping =
       arith::InverseAffineIterMap(iter_map->indices, loop_vars);
   // Step 3. Generate new body

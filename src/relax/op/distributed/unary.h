@@ -36,7 +36,7 @@ StructInfo InferDistStructInfoUnary(const Call& call, const BlockBuilder& ctx,
                                     FType f_compute_out_dtype) {
   ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
       GetInputDTensorStructInfo(call, ctx);
-  ICHECK(input_dtensor_sinfos.size() == 1);
+  TVM_FFI_ICHECK(input_dtensor_sinfos.size() == 1);
   distributed::DTensorStructInfo input_dtensor_sinfo = input_dtensor_sinfos[0];
   TensorStructInfo input_tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
 

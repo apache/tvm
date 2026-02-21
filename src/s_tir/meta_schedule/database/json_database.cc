@@ -51,9 +51,9 @@ std::vector<Any> JSONFileReadLines(const ffi::String& path, int num_threads, boo
     });
     return json_objs;
   }
-  CHECK(allow_missing) << "ValueError: File doesn't exist: " << path;
+  TVM_FFI_CHECK(allow_missing, ValueError) << "File doesn't exist: " << path;
   std::ofstream os(path);
-  CHECK(os.good()) << "ValueError: Cannot create new file: " << path;
+  TVM_FFI_CHECK(os.good(), ValueError) << "Cannot create new file: " << path;
   return {};
 }
 
@@ -64,7 +64,7 @@ std::vector<Any> JSONFileReadLines(const ffi::String& path, int num_threads, boo
  */
 void JSONFileAppendLine(const ffi::String& path, const std::string& line) {
   std::ofstream os(path, std::ofstream::app);
-  CHECK(os.good()) << "ValueError: Cannot open the file to write: " << path;
+  TVM_FFI_CHECK(os.good(), ValueError) << "Cannot open the file to write: " << path;
   os << line << std::endl;
 }
 
@@ -122,7 +122,7 @@ class JSONDatabaseNode : public DatabaseNode {
   }
 
   ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) {
-    CHECK_GE(top_k, 0) << "ValueError: top_k must be non-negative";
+    TVM_FFI_CHECK_GE(top_k, 0, ValueError) << "top_k must be non-negative";
     if (top_k == 0) {
       return {};
     }
@@ -192,18 +192,19 @@ Database Database::JSONDatabase(ffi::String path_workload, ffi::String path_tuni
           Workload workload{ffi::UnsafeInit()};
           try {
             const ffi::ArrayObj* arr = json_obj.as<ffi::ArrayObj>();
-            ICHECK_EQ(arr->size(), 2);
+            TVM_FFI_ICHECK_EQ(arr->size(), 2);
             int64_t workload_index = arr->at(0).cast<IntImm>()->value;
-            ICHECK(workload_index >= 0 && static_cast<size_t>(workload_index) < workloads.size());
+            TVM_FFI_ICHECK(workload_index >= 0 &&
+                           static_cast<size_t>(workload_index) < workloads.size());
             workload = workloads[workload_index];
             records[task_id] = TuningRecord::FromJSON(arr->at(1).cast<ObjectRef>(), workload);
           } catch (std::runtime_error& e) {
-            LOG(FATAL) << "ValueError: Unable to parse TuningRecord, on line " << (task_id + 1)
-                       << " of file " << path_tuning_record << ". The workload is:\n"
-                       << (workload.defined() ? workload->mod->Script() : "(null)")
-                       << "\nThe JSONObject of TuningRecord is:\n"
-                       << json_obj << "\nThe error message is:\n"
-                       << e.what();
+            TVM_FFI_THROW(ValueError) << "Unable to parse TuningRecord, on line " << (task_id + 1)
+                                      << " of file " << path_tuning_record << ". The workload is:\n"
+                                      << (workload.defined() ? workload->mod->Script() : "(null)")
+                                      << "\nThe JSONObject of TuningRecord is:\n"
+                                      << json_obj << "\nThe error message is:\n"
+                                      << e.what();
           }
         });
     for (const TuningRecord& record : records) {

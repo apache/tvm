@@ -376,9 +376,10 @@ void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool 
   if (!can_override) {
     auto it = var_map_.find(var);
     if (it != var_map_.end()) {
-      ICHECK(ExprDeepEqual()(it->second, info)) << "Trying to update var \'" << var << "\'"
-                                                << " with a different value: "
-                                                << "original=" << it->second << ", new=" << info;
+      TVM_FFI_ICHECK(ExprDeepEqual()(it->second, info))
+          << "Trying to update var \'" << var << "\'"
+          << " with a different value: "
+          << "original=" << it->second << ", new=" << info;
     }
   }
   var_map_[var] = info;
@@ -523,7 +524,7 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   stats_.constraints_entered++;
   size_t new_literal_size = literal_constraints_.size();
   auto frecover = [old_literal_size, new_literal_size, this]() {
-    ICHECK_EQ(literal_constraints_.size(), new_literal_size);
+    TVM_FFI_ICHECK_EQ(literal_constraints_.size(), new_literal_size);
     literal_constraints_.resize(old_literal_size);
   };
   return frecover;
@@ -782,7 +783,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
     if ((div(ramp(b1, c1, lanes), broadcast(c2, lanes))).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
-      ICHECK(c2val != 0) << "division by zero";
+      TVM_FFI_ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return ramp(div(b1, c2), div(c1, c2), lanes).Eval();
       }
@@ -937,7 +938,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
     if (truncmod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
-      ICHECK(c2val != 0) << "division by zero";
+      TVM_FFI_ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return broadcast(truncmod(b1, c2), lanes).Eval();
       }
@@ -1025,7 +1026,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     if (floordiv(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
-      ICHECK(c2val != 0) << "division by zero";
+      TVM_FFI_ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
       }
@@ -1172,7 +1173,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
     if (floormod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
-      ICHECK(c2val != 0) << "division by zero";
+      TVM_FFI_ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return broadcast(floormod(b1, c2), lanes).Eval();
       }
@@ -1756,7 +1757,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NENode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LENode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<LENode>();
-  ICHECK(op);
+  TVM_FFI_ICHECK(op);
 
   if (auto const_res = TryConstFold<LE>(op->a, op->b)) return const_res.value();
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
@@ -2309,7 +2310,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
           return IntImm(op->dtype, bits - i - 1);
         }
       }
-      LOG(FATAL) << "Should not reach here";
+      TVM_FFI_THROW(InternalError) << "Should not reach here";
     }
   }
 

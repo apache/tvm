@@ -86,7 +86,7 @@ inline StorageRank DefaultStorageRank(int thread_scope_rank) {
     case 1:
       return StorageRank::kLocal;
     default: {
-      LOG(FATAL) << "unknown rank";
+      TVM_FFI_THROW(InternalError) << "unknown rank";
     }
   }
 }
@@ -130,7 +130,7 @@ struct StorageScope {
       case StorageRank::kMetalSimdGroup:
         return "metal.simdgroup" + tag;
       default:
-        LOG(FATAL) << "unknown storage scope";
+        TVM_FFI_THROW(InternalError) << "unknown storage scope";
         return "";
     }
   }
@@ -183,7 +183,7 @@ struct StorageScope {
       r.rank = StorageRank::kMetalSimdGroup;
       r.tag = s.substr(15, std::string::npos);
     } else {
-      LOG(FATAL) << "unknown storage scope " << s;
+      TVM_FFI_THROW(InternalError) << "unknown storage scope " << s;
     }
     return r;
   }
@@ -213,7 +213,7 @@ struct ThreadScope {
       r.rank = 1;
       r.dim_index = static_cast<int>(s[10] - 'x');
     } else {
-      LOG(FATAL) << "Unknown threadscope " << s;
+      TVM_FFI_THROW(InternalError) << "Unknown threadscope " << s;
     }
     return r;
   }
@@ -245,7 +245,7 @@ class LaunchParamConfig {
     for (size_t i = 0; i < launch_param_tags.size(); ++i) {
       std::string tag(launch_param_tags[i]);
       if (tag == launch_param::kUseDynamicSharedMemoryTag) {
-        ICHECK_EQ(i, launch_param_tags.size() - 1)
+        TVM_FFI_ICHECK_EQ(i, launch_param_tags.size() - 1)
             << "kUseDynamicSharedMemoryTag should be the last tag in launch_param_tags.";
         use_dyn_shared_memory_ = true;
       } else if (tag == launch_param::kUseProgramaticDependentLaunch) {

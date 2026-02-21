@@ -164,7 +164,7 @@ class PyBuilderNode : public BuilderNode {
   }
 
   ffi::Array<BuilderResult> Build(const ffi::Array<BuilderInput>& build_inputs) final {
-    ICHECK(f_build != nullptr) << "PyBuilder's Build method not implemented!";
+    TVM_FFI_ICHECK(f_build != nullptr) << "PyBuilder's Build method not implemented!";
     return f_build(build_inputs);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.meta_schedule.PyBuilder", PyBuilderNode, BuilderNode);

@@ -135,7 +135,7 @@ class TensorRequisite {
   /*! \brief Make TR with backward dataflow */
   TensorRequisite Backward() const {
     if (!defined()) return *this;
-    ICHECK(orig_ == nullptr);
+    TVM_FFI_ICHECK(orig_ == nullptr);
     return {t_desc_, orig_, reinterpret_, mem_, eid_, true};
   }
 
@@ -164,7 +164,7 @@ class TensorRequisite {
   TensorRequisite Broadcast(const dnnl::memory::dims& shape) const {
     if (!defined()) return *this;  // nothing for empty TR
     if (t_desc_.dims() == shape) return *this;
-    ICHECK(!reverse_data_flow_);
+    TVM_FFI_ICHECK(!reverse_data_flow_);
 
     auto orig = std::make_shared<TensorRequisite>(*this);
 
@@ -175,8 +175,8 @@ class TensorRequisite {
     auto desc = t_desc_.reshape(extended_dims);
     for (size_t i = 0; i < extended_dims.size(); i++) {
       if (extended_dims[i] == shape[i]) continue;
-      ICHECK(extended_dims[i] == 1);
-      ICHECK(desc.data.dims[i] == desc.data.padded_dims[i]);
+      TVM_FFI_ICHECK(extended_dims[i] == 1);
+      TVM_FFI_ICHECK(desc.data.dims[i] == desc.data.padded_dims[i]);
 
       desc.data.dims[i] = shape[i];
       desc.data.padded_dims[i] = shape[i];
@@ -191,8 +191,8 @@ class TensorRequisite {
   TensorRequisite Crop(const dnnl::memory::dims& shape, const dnnl::memory::dims& offset) const {
     if (!defined()) return *this;  // nothing for empty TR
 
-    ICHECK_EQ(shape.size(), t_desc_.dims().size());
-    ICHECK_EQ(offset.size(), t_desc_.dims().size());
+    TVM_FFI_ICHECK_EQ(shape.size(), t_desc_.dims().size());
+    TVM_FFI_ICHECK_EQ(offset.size(), t_desc_.dims().size());
 
     auto orig = std::make_shared<TensorRequisite>(*this);
     // reinterpret memory buffer with new strides
@@ -220,7 +220,7 @@ class TensorRequisite {
       }
     }
 
-    ICHECK(desc);
+    TVM_FFI_ICHECK(desc);
 
     return {desc, orig, true, {}, kUndefinedTid, reverse_data_flow_};
   }
@@ -254,8 +254,8 @@ class TensorRequisite {
     // If it's the same desc just return self
     if (desc == t_desc_) return *this;
 
-    ICHECK(t_desc_.dims() == desc.dims()) << "Requested layout is not compatible with "
-                                             "presented shape";
+    TVM_FFI_ICHECK(t_desc_.dims() == desc.dims()) << "Requested layout is not compatible with "
+                                                     "presented shape";
 
     auto orig = std::make_shared<TensorRequisite>(*this);
     return {desc, orig, false, {}, kUndefinedTid, reverse_data_flow_};
@@ -273,7 +273,8 @@ class TensorRequisite {
     if (layout.find("G") != std::string::npos) return "GOI" + sparse_dims[rank - 4];
     if (layout.find("O") != std::string::npos) return "OI" + sparse_dims[rank - 3];
 
-    LOG(FATAL) << "Unknown layout " << layout << "There is no default scheme to handle it";
+    TVM_FFI_THROW(InternalError) << "Unknown layout " << layout
+                                 << "There is no default scheme to handle it";
   }
 
   /*!
@@ -311,13 +312,13 @@ class TensorRequisite {
     while (it != layout_tokens.end() && it->first == -1) it++;
     int rank = std::distance(layout_tokens.begin(), it);
     while (it != layout_tokens.end()) {
-      ICHECK_NE(it->first, -1) << "DNNL limitation. Blocking dims should be innermost. "
-                               << "But received layout is " << layout;
+      TVM_FFI_ICHECK_NE(it->first, -1) << "DNNL limitation. Blocking dims should be innermost. "
+                                       << "But received layout is " << layout;
       it++;
     }
 
-    ICHECK_EQ(layout_tokens.size(), origin_dims.size());
-    ICHECK_EQ(rank, desired_logic_layout.size()) << layout;
+    TVM_FFI_ICHECK_EQ(layout_tokens.size(), origin_dims.size());
+    TVM_FFI_ICHECK_EQ(rank, desired_logic_layout.size()) << layout;
 
     std::vector<std::pair<int, char>> outermost_tokens(layout_tokens.begin(),
                                                        layout_tokens.begin() + rank);
@@ -359,7 +360,7 @@ class TensorRequisite {
       auto tag = p.second;
       auto dim_size = origin_dims[orig_dim_idx];
       auto result_dim_position = dim_position_by_tag[tag];
-      ICHECK_EQ(p.first, dim_size)
+      TVM_FFI_ICHECK_EQ(p.first, dim_size)
           << "Blocking layout is not applicable to tensor with shape: " << origin_dims
           << ". Requested layout is " << layout;
 
@@ -428,8 +429,8 @@ class TensorRequisite {
   std::vector<T> GetConstDataLikeVec() const {
     auto const_data = GetConstData();
     auto desc = const_data.get_desc();
-    ICHECK(desc.data_type() == utils::DnnlDType<T>());
-    ICHECK(desc.dims().size() == 1);
+    TVM_FFI_ICHECK(desc.data_type() == utils::DnnlDType<T>());
+    TVM_FFI_ICHECK(desc.dims().size() == 1);
 
     auto size = desc.get_size() / sizeof(T);
     auto ptr = static_cast<T*>(const_data.get_data_handle());
@@ -440,11 +441,11 @@ class TensorRequisite {
   /*! \brief Get value of constant scalar tensor if possible. */
   template <typename T>
   T GetConstScalarData() const {
-    ICHECK(IsConstant());
-    ICHECK(IsScalar());
+    TVM_FFI_ICHECK(IsConstant());
+    TVM_FFI_ICHECK(IsScalar());
     auto const_data = GetConstData();
     auto desc = const_data.get_desc();
-    ICHECK(desc.data_type() == utils::DnnlDType<T>());
+    TVM_FFI_ICHECK(desc.data_type() == utils::DnnlDType<T>());
 
     auto ptr = static_cast<T*>(const_data.get_data_handle());
     return *ptr;
@@ -472,8 +473,8 @@ class TensorRequisite {
         mem_(const_mem),
         eid_(eid),
         reverse_data_flow_(reverse_data_flow) {
-    if (mem_) ICHECK(!orig_ && !reverse_data_flow_ && eid_ == kUndefinedTid);
-    if (eid_ != kUndefinedTid) ICHECK(!orig_);
+    if (mem_) TVM_FFI_ICHECK(!orig_ && !reverse_data_flow_ && eid_ == kUndefinedTid);
+    if (eid_ != kUndefinedTid) TVM_FFI_ICHECK(!orig_);
   }
 
   /* Descriptor of particular tensor  */
@@ -578,7 +579,7 @@ class TensorRegistry {
     }
 
     // 4) Scratchpad
-    ICHECK(!tr.orig_ && !tr.mem_ && tr.eid_ == TensorRequisite::kUndefinedTid);
+    TVM_FFI_ICHECK(!tr.orig_ && !tr.mem_ && tr.eid_ == TensorRequisite::kUndefinedTid);
     auto idx = tmp_mem_collection_.size();
     tmp_mem_collection_.push_back(tr.t_desc_);
     tmp_mem_mapping_[idx] = 0;  // zero position tmp mem object is reserved for scratchpads
@@ -605,9 +606,9 @@ class TensorRegistry {
 
   void MarkInplace(const TensorRequisite& tr, const TensorRequisite& shared) {
     const auto tr_id = tr.eid();
-    ICHECK(tr_id != TensorRequisite::kUndefinedTid);
+    TVM_FFI_ICHECK(tr_id != TensorRequisite::kUndefinedTid);
     const auto shared_id = shared.eid();
-    ICHECK(shared_id != TensorRequisite::kUndefinedTid);
+    TVM_FFI_ICHECK(shared_id != TensorRequisite::kUndefinedTid);
     eid2idx_tmp_[tr_id] = eid2idx_tmp_[shared_id];
   }
 
@@ -627,14 +628,14 @@ class TensorRegistry {
         return MakeArgReq(EXT_EID, idx);
       }
       default:
-        LOG(FATAL) << "Unknown case";
+        TVM_FFI_THROW(InternalError) << "Unknown case";
     }
     return {};
   }
 
   ArgId RegisterReorder(ArgId src_ar, const dnnl::memory::desc& desc, bool reverse_data_flow,
                         ActionQue* action) {
-    ICHECK(src_ar.flag_ == TMP_STORAGE || src_ar.flag_ == EXT_EID);
+    TVM_FFI_ICHECK(src_ar.flag_ == TMP_STORAGE || src_ar.flag_ == EXT_EID);
 
     auto src_desc = src_ar.flag_ == TMP_STORAGE ? tmp_mem_collection_[src_ar.idx_]
                                                 : ext_mem_collection_[src_ar.idx_].second;
@@ -694,7 +695,7 @@ class TensorRegistry {
           auto desc = eid_and_desc.second;
 
           auto ext_dl_tensor = ext_data_provider_(eid);
-          ICHECK(ext_dl_tensor->data);
+          TVM_FFI_ICHECK(ext_dl_tensor->data);
           return dnnl::memory{desc, eng_, ext_dl_tensor->data};
         }
       }

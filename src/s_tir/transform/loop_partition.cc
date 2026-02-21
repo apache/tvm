@@ -134,7 +134,7 @@ class CandidateSelector final : public StmtExprVisitor {
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tir::attr::thread_extent) {
       const IterVarNode* iv = op->node.as<IterVarNode>();
-      ICHECK(iv);
+      TVM_FFI_ICHECK(iv);
       Var var = iv->var;
       // always treat var with hint to be partitioned
       if (partition_hint_vars.count(var.get())) {
@@ -160,7 +160,7 @@ class CandidateSelector final : public StmtExprVisitor {
         } else if (op->node.as<IterVarNode>()) {
           var = op->node.as<IterVarNode>()->var.get();
         }
-        ICHECK(var);
+        TVM_FFI_ICHECK(var);
         partition_hint_vars.insert(var);
       }
     }
@@ -256,7 +256,7 @@ class PartitionFinder : public StmtExprVisitor {
     // handle thread_axis
     if (op->attr_key == tir::attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
-      ICHECK(thread_axis);
+      TVM_FFI_ICHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
       IntSet dom = IntSet::FromRange(Range(make_zero(op->value.dtype()), op->value));
       hint_map_.insert({var, dom});
@@ -442,7 +442,7 @@ class LoopPartitioner : public StmtMutator {
     }
 
     const IterVarNode* iv = op->node.as<IterVarNode>();
-    ICHECK(iv);
+    TVM_FFI_ICHECK(iv);
     Var var = iv->var;
     auto as = ffi::GetRef<Stmt>(op);
     if (selector.candidates.count(as)) {
@@ -760,14 +760,14 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
 
 inline Stmt LoopPartitioner::MakeFor(const Object* node, PrimExpr extent, Stmt body) {
   const ForNode* for_node = static_cast<const ForNode*>(node);
-  ICHECK(for_node);
+  TVM_FFI_ICHECK(for_node);
 
   if (analyzer_.CanProve(extent == make_const(DataType::Int(32), 1)) &&
       !no_unroll_loop_with_extent_one_ && for_node->annotations.empty()) {
     // If the loop extent is 1, do not create the loop anymore
     return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
-    ICHECK(for_node->kind != ForKind::kThreadBinding);
+    TVM_FFI_ICHECK(for_node->kind != ForKind::kThreadBinding);
     auto new_loop = ffi::make_object<ForNode>(*for_node);
     new_loop->min = IntImm(for_node->min.dtype(), 0);
     new_loop->extent = extent;
@@ -780,10 +780,10 @@ class RemoveLikelyTagsAndHints : public StmtExprMutator {
  public:
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
-      ICHECK_EQ(op->args.size(), 1);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0]);
     } else if (op->op.same_as(builtin::ignore_loop_partition())) {
-      ICHECK_EQ(op->args.size(), 1);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0]);
     } else {
       return StmtExprMutator::VisitExpr_(op);

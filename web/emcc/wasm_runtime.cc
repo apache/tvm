@@ -126,18 +126,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, const std::string& format,
                         const std::string& dtype) {
-  ICHECK_NE(bytes, nullptr);
+  TVM_FFI_ICHECK_NE(bytes, nullptr);
   const char* byte_data = bytes->data;
   const size_t byte_size = bytes->size;
   if (format == "f32-to-bf16" && dtype == "float32") {
     const uint16_t* bf16 = reinterpret_cast<const uint16_t*>(byte_data);
     uint32_t* data = static_cast<uint32_t*>(cpu_arr->data);
-    ICHECK(cpu_arr.IsContiguous());
+    TVM_FFI_ICHECK(cpu_arr.IsContiguous());
     size_t size = 1;
     for (int i = 0; i < cpu_arr->ndim; ++i) {
       size *= cpu_arr->shape[i];
     }
-    ICHECK_EQ(size, byte_size / 2);
+    TVM_FFI_ICHECK_EQ(size, byte_size / 2);
     for (size_t i = 0; i < size; ++i) {
       data[i] = static_cast<uint32_t>(bf16[i]) << 16;
     }
@@ -167,7 +167,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                  for (int i = 0; i < args.size(); ++i) {
                                    // Get i-th TVMArray
                                    auto* arr_i = args[i].as<ffi::ArrayObj>();
-                                   ICHECK(arr_i != nullptr);
+                                   TVM_FFI_ICHECK(arr_i != nullptr);
                                    for (size_t j = 0; j < arr_i->size(); ++j) {
                                      // Push back each j-th element of the i-th array
                                      data.push_back(arr_i->at(j));
@@ -184,8 +184,8 @@ Tensor ConcatEmbeddings(const std::vector<Tensor>& embeddings) {
   DLDevice device = embeddings[0]->device;
   int seqLen = 0;
   for (int i = 0; i < embeddings.size(); ++i) {
-    ICHECK_EQ(embeddings[i]->ndim, 2);
-    ICHECK_EQ(embeddings[i]->shape[1], hidden_size);
+    TVM_FFI_ICHECK_EQ(embeddings[i]->ndim, 2);
+    TVM_FFI_ICHECK_EQ(embeddings[i]->shape[1], hidden_size);
     seqLen += embeddings[i]->shape[0];
   }
 

@@ -99,8 +99,8 @@ class FloatConfig {
    * \return The FloatConfig class containing internal floating point representation.
    */
   static FloatConfig FromDataType(DataType dtype) {
-    CHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8() || dtype.is_float6() ||
-          dtype.is_float4())
+    TVM_FFI_ICHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8() ||
+                   dtype.is_float6() || dtype.is_float4())
         << "FloatConfig is only applicable to floating point data types, got " << dtype
         << " instead.";
     if (dtype.is_float()) {
@@ -147,7 +147,7 @@ class FloatConfig {
           // UE8M0 format, not consistent with IEEE-754
           return FloatConfig(8, 0, 127, InftyStyle::kNone, NaNStyle::kAllOnes);
         default:
-          LOG(FATAL) << "Unknown float8 variant: " << dtype;
+          TVM_FFI_THROW(InternalError) << "Unknown float8 variant: " << dtype;
       }
     } else if (dtype.is_float6()) {  // float6
       switch (dtype.code()) {
@@ -158,7 +158,7 @@ class FloatConfig {
           // E3M2 format, not consistent with IEEE-754
           return FloatConfig(3, 2, 3, InftyStyle::kNone, NaNStyle::kNone);
         default:
-          LOG(FATAL) << "Unknown float6 variant: " << dtype;
+          TVM_FFI_THROW(InternalError) << "Unknown float6 variant: " << dtype;
       }
     } else {
       // float4

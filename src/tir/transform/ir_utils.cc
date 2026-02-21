@@ -42,47 +42,47 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
     Stmt s = *ri;
     if (const auto* for_ = s.as<ForNode>()) {
       auto n = ffi::make_object<ForNode>(*for_);
-      ICHECK(is_no_op(n->body));
+      TVM_FFI_ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* let = s.as<LetStmtNode>()) {
       auto n = ffi::make_object<LetStmtNode>(*let);
-      ICHECK(is_no_op(n->body));
+      TVM_FFI_ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* attr = s.as<AttrStmtNode>()) {
       auto n = ffi::make_object<AttrStmtNode>(*attr);
-      ICHECK(is_no_op(n->body));
+      TVM_FFI_ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* ite = s.as<IfThenElseNode>()) {
       auto n = ffi::make_object<IfThenElseNode>(*ite);
-      ICHECK(is_no_op(n->then_case));
-      ICHECK(!n->else_case);
+      TVM_FFI_ICHECK(is_no_op(n->then_case));
+      TVM_FFI_ICHECK(!n->else_case);
       n->then_case = body;
       body = Stmt(n);
     } else if (const auto* seq = s.as<SeqStmtNode>()) {
       auto n = ffi::make_object<SeqStmtNode>(*seq);
-      ICHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
+      TVM_FFI_ICHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
       n->seq.Set(n->size() - 1, body);
       body = Stmt(n);
     } else if (const auto* assert_ = s.as<AssertStmtNode>()) {
       auto n = ffi::make_object<AssertStmtNode>(*assert_);
-      ICHECK(is_no_op(n->body));
+      TVM_FFI_ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* alloc = s.as<AllocateNode>()) {
       auto n = ffi::make_object<AllocateNode>(*alloc);
-      ICHECK(is_no_op(n->body));
+      TVM_FFI_ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else if (const auto* decl_buffer = s.as<DeclBufferNode>()) {
       auto n = ffi::make_object<DeclBufferNode>(*decl_buffer);
-      ICHECK(is_no_op(n->body));
+      TVM_FFI_ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
     } else {
-      LOG(FATAL) << "not supported nest type";
+      TVM_FFI_THROW(InternalError) << "not supported nest type";
     }
   }
   return body;
@@ -527,16 +527,16 @@ Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
 
 ffi::String GetPtrStorageScope(Var buffer_var) {
   const auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
-  ICHECK(ptr_type) << "The provided variable is not of pointer type";
+  TVM_FFI_ICHECK(ptr_type) << "The provided variable is not of pointer type";
   return ptr_type->storage_scope;
 }
 
 ffi::Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer) {
   ffi::Array<PrimExpr> alloc_shape = buffer->shape;
   if (buffer->strides.size()) {
-    ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
+    TVM_FFI_ICHECK_EQ(buffer->shape.size(), buffer->strides.size());
     for (size_t i = buffer->strides.size() - 1; i > 0; --i) {
-      ICHECK(
+      TVM_FFI_ICHECK(
           arith::Analyzer().CanProveEqual(floormod(buffer->strides[i - 1], buffer->strides[i]), 0));
       alloc_shape.Set(i, buffer->strides[i - 1] / buffer->strides[i]);
     }
@@ -548,7 +548,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
                                     const ffi::Array<PrimExpr>& indices) {
   const Buffer& target = match_buffer->buffer;
   const BufferRegion& source = match_buffer->source;
-  ICHECK_EQ(indices.size(), target->shape.size());
+  TVM_FFI_ICHECK_EQ(indices.size(), target->shape.size());
 
   arith::Analyzer analyzer;
   ffi::Array<PrimExpr> result;
@@ -556,7 +556,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
   size_t offset = source->region.size() - indices.size();
   for (size_t i = 0; i < offset; ++i) {
     const Range& range = source->region[i];
-    ICHECK(analyzer.CanProve(range->extent == 1));
+    TVM_FFI_ICHECK(analyzer.CanProve(range->extent == 1));
     result.push_back(range->min);
   }
   for (size_t i = 0; i < indices.size(); ++i) {
@@ -570,7 +570,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
 Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region) {
   const Buffer& target = match_buffer->buffer;
   const BufferRegion& source = match_buffer->source;
-  ICHECK_EQ(region.size(), target->shape.size());
+  TVM_FFI_ICHECK_EQ(region.size(), target->shape.size());
 
   arith::Analyzer analyzer;
   Region result;
@@ -578,7 +578,7 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
   size_t offset = source->region.size() - region.size();
   for (size_t i = 0; i < offset; ++i) {
     const Range& source_range = source->region[i];
-    ICHECK(analyzer.CanProve(source_range->extent == 1));
+    TVM_FFI_ICHECK(analyzer.CanProve(source_range->extent == 1));
     result.push_back(Range::FromMinExtent(source_range->min, 1));
   }
   for (size_t i = 0; i < region.size(); ++i) {
@@ -719,7 +719,7 @@ void ConditionalBoundsContext::ExitWithScope() {
     } else {
       // recover bound for free var
       auto hint_it = hint_map_->find(var);
-      ICHECK(hint_it != hint_map_->end());
+      TVM_FFI_ICHECK(hint_it != hint_map_->end());
       if (p.second.IsNothing()) {
         hint_map_->erase(hint_it);
       } else {
@@ -730,9 +730,9 @@ void ConditionalBoundsContext::ExitWithScope() {
 }
 
 std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
-  ICHECK(op && op->attr_key == tir::attr::async_wait_queue_scope);
+  TVM_FFI_ICHECK(op && op->attr_key == tir::attr::async_wait_queue_scope);
   auto inner = op->body.as<AttrStmtNode>();
-  ICHECK(inner && inner->attr_key == tir::attr::async_wait_inflight_count);
+  TVM_FFI_ICHECK(inner && inner->attr_key == tir::attr::async_wait_inflight_count);
   return std::make_pair(op->value, inner->value);
 }
 
@@ -765,7 +765,7 @@ class StorageAlignCollector : public StmtVisitor {
         int buffer_index = storage_align_tuple.get<0>();
         // the first buffer idx info is meaningless for allocate
         // stmt and should set as negative intentionally.
-        ICHECK_EQ(buffer_index, -1);
+        TVM_FFI_ICHECK_EQ(buffer_index, -1);
         storage_align_[op->buffer_var].push_back(storage_align_tuple);
       }
     }
@@ -786,7 +786,7 @@ int Stoi(const std::string& str) {
   try {
     return std::stoi(str);
   } catch (std::invalid_argument& e) {
-    LOG(FATAL) << "Cannot convert \"" << str << "\" to int";
+    TVM_FFI_THROW(InternalError) << "Cannot convert \"" << str << "\" to int";
     throw;
   }
 }

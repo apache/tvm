@@ -149,7 +149,7 @@ std::string GetMetaFilePath(const std::string& file_name) {
 
 void LoadBinaryFromFile(const std::string& file_name, std::string* data) {
   std::ifstream fs(file_name, std::ios::in | std::ios::binary);
-  ICHECK(!fs.fail()) << "Cannot open " << file_name;
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << file_name;
   // get its size:
   fs.seekg(0, std::ios::end);
   size_t size = static_cast<size_t>(fs.tellg());
@@ -160,7 +160,7 @@ void LoadBinaryFromFile(const std::string& file_name, std::string* data) {
 
 void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   std::ofstream fs(file_name, std::ios::out | std::ios::binary);
-  ICHECK(!fs.fail()) << "Cannot open " << file_name;
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << file_name;
   fs.write(&data[0], data.length());
 }
 
@@ -175,7 +175,7 @@ void SaveMetaDataToFile(const std::string& file_name,
   }
   root.Set("func_info", std::move(func_info));
   std::ofstream fs(file_name.c_str());
-  ICHECK(!fs.fail()) << "Cannot open file " << file_name;
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open file " << file_name;
   fs << std::string(json::Stringify(root, 2));
   fs.close();
 }
@@ -183,7 +183,7 @@ void SaveMetaDataToFile(const std::string& file_name,
 void LoadMetaDataFromFile(const std::string& file_name, ffi::Map<ffi::String, FunctionInfo>* fmap) {
   namespace json = ::tvm::ffi::json;
   std::ifstream fs(file_name.c_str());
-  ICHECK(!fs.fail()) << "Cannot open file " << file_name;
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open file " << file_name;
   std::string content((std::istreambuf_iterator<char>(fs)), std::istreambuf_iterator<char>());
   fs.close();
   auto root = json::Parse(content).cast<json::Object>();
@@ -203,19 +203,19 @@ void RemoveFile(const std::string& file_name) {
 
 void CopyFile(const std::string& src_file_name, const std::string& dest_file_name) {
   std::ifstream src(src_file_name, std::ios::binary);
-  ICHECK(src) << "Unable to open source file '" << src_file_name << "'";
+  TVM_FFI_ICHECK(src) << "Unable to open source file '" << src_file_name << "'";
 
   std::ofstream dest(dest_file_name, std::ios::binary | std::ios::trunc);
-  ICHECK(dest) << "Unable to destination source file '" << src_file_name << "'";
+  TVM_FFI_ICHECK(dest) << "Unable to destination source file '" << src_file_name << "'";
 
   dest << src.rdbuf();
 
   src.close();
   dest.close();
 
-  ICHECK(dest) << "File-copy operation failed."
-               << " src='" << src_file_name << "'"
-               << " dest='" << dest_file_name << "'";
+  TVM_FFI_ICHECK(dest) << "File-copy operation failed."
+                       << " src='" << src_file_name << "'"
+                       << " dest='" << dest_file_name << "'";
 }
 
 ffi::Map<ffi::String, Tensor> LoadParams(const std::string& param_blob) {
@@ -225,16 +225,16 @@ ffi::Map<ffi::String, Tensor> LoadParams(const std::string& param_blob) {
 ffi::Map<ffi::String, Tensor> LoadParams(support::Stream* strm) {
   ffi::Map<ffi::String, Tensor> params;
   uint64_t header, reserved;
-  ICHECK(strm->Read(&header)) << "Invalid parameters file format";
-  ICHECK(header == kTVMTensorListMagic) << "Invalid parameters file format";
-  ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
+  TVM_FFI_ICHECK(strm->Read(&header)) << "Invalid parameters file format";
+  TVM_FFI_ICHECK(header == kTVMTensorListMagic) << "Invalid parameters file format";
+  TVM_FFI_ICHECK(strm->Read(&reserved)) << "Invalid parameters file format";
 
   std::vector<std::string> names;
-  ICHECK(strm->Read(&names)) << "Invalid parameters file format";
+  TVM_FFI_ICHECK(strm->Read(&names)) << "Invalid parameters file format";
   uint64_t sz;
   strm->Read(&sz);
   size_t size = static_cast<size_t>(sz);
-  ICHECK(size == names.size()) << "Invalid parameters file format";
+  TVM_FFI_ICHECK(size == names.size()) << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
     // The data_entry is allocated on device, Tensor.load always load the array into CPU.
     Tensor temp;

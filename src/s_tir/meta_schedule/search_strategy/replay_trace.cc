@@ -86,9 +86,9 @@ class ReplayTraceNode : public SearchStrategyNode {
                                     SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
-    CHECK(ctx->mod.defined()) << "ValueError: TuneContext.mod is not defined";
-    CHECK(ctx->space_generator.defined())
-        << "ValueError: TuneContext.space_generator is not defined";
+    TVM_FFI_CHECK(ctx->mod.defined(), ValueError) << "TuneContext.mod is not defined";
+    TVM_FFI_CHECK(ctx->space_generator.defined(), ValueError)
+        << "TuneContext.space_generator is not defined";
     if (!ctx->space_generator.value()->postprocs.defined()) {
       TVM_PY_LOG(WARNING, ctx->logger)
           << "`postprocs` is not defined in " << ctx->space_generator.value()
@@ -106,9 +106,9 @@ class ReplayTraceNode : public SearchStrategyNode {
                  const ffi::Array<s_tir::Schedule>& design_spaces,
                  const ffi::Optional<Database>& database,
                  const ffi::Optional<CostModel>& cost_model) final {
-    ICHECK(!design_spaces.empty());
-    CHECK(this->state_ == nullptr)
-        << "ValueError: `PreTuning` is already invoked without corresponding `PostTuning`.";
+    TVM_FFI_ICHECK(!design_spaces.empty());
+    TVM_FFI_CHECK(this->state_ == nullptr, ValueError)
+        << "`PreTuning` is already invoked without corresponding `PostTuning`.";
     ffi::Array<s_tir::Trace> design_space_traces;
     design_space_traces.reserve(design_spaces.size());
     for (const s_tir::Schedule& space : design_spaces) {
@@ -119,18 +119,18 @@ class ReplayTraceNode : public SearchStrategyNode {
   }
 
   void PostTuning() final {
-    ICHECK(this->state_ != nullptr);
+    TVM_FFI_ICHECK(this->state_ != nullptr);
     this->state_.reset();
   }
 
   ffi::Optional<ffi::Array<MeasureCandidate>> GenerateMeasureCandidates() final {
-    ICHECK(this->state_ != nullptr);
+    TVM_FFI_ICHECK(this->state_ != nullptr);
     return this->state_->GenerateMeasureCandidates();
   }
 
   void NotifyRunnerResults(const ffi::Array<MeasureCandidate>& measure_candidates,
                            const ffi::Array<RunnerResult>& results) final {
-    ICHECK(this->state_ != nullptr);
+    TVM_FFI_ICHECK(this->state_ != nullptr);
     this->state_->NotifyRunnerResults(results);
   }
 
@@ -149,7 +149,7 @@ ReplayTraceNode::State::GenerateMeasureCandidates() {
     return std::nullopt;
   }
   ed = std::min(ed, max_trials);
-  ICHECK_LT(st, ed);
+  TVM_FFI_ICHECK_LT(st, ed);
   std::vector<TRandState> per_thread_rand_state = ForkSeed(&self->rand_state_, self->num_threads_);
   ffi::Array<ffi::Optional<MeasureCandidate>> per_task_result(ed - st, std::nullopt);
   ThreadedTraceApply pp(self->postprocs_);

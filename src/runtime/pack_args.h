@@ -139,7 +139,7 @@ enum ArgConvertCode {
 };
 
 inline ArgConvertCode GetArgConvertCode(DLDataType t) {
-  ICHECK_EQ(t.lanes, 1U) << "Cannot pass vector type argument to device function for now";
+  TVM_FFI_ICHECK_EQ(t.lanes, 1U) << "Cannot pass vector type argument to device function for now";
   if (t.code == kDLInt) {
     if (t.bits == 64U) return INT64_TO_INT64;
     if (t.bits == 32U) return INT64_TO_INT32;
@@ -151,7 +151,7 @@ inline ArgConvertCode GetArgConvertCode(DLDataType t) {
   } else if (t.code == kDLOpaqueHandle) {
     return HANDLE_TO_HANDLE;
   }
-  LOG(FATAL) << "Cannot handle " << t << " as device function argument";
+  TVM_FFI_THROW(InternalError) << "Cannot handle " << t << " as device function argument";
   TVM_FFI_UNREACHABLE();
 }
 
@@ -234,7 +234,7 @@ inline ffi::Function PackFuncNonBufferArg_(F f, int base,
         }
         case HANDLE_TO_HANDLE:
         case HANDLE_TO_TENSORMAP: {
-          LOG(FATAL) << "not reached";
+          TVM_FFI_THROW(InternalError) << "not reached";
           break;
         }
       }
@@ -297,7 +297,7 @@ inline ffi::Function PackFuncPackedArgAligned_(F f, const std::vector<ArgConvert
         }
         case HANDLE_TO_TENSORMAP:
         default: {
-          LOG(FATAL) << "not reached";
+          TVM_FFI_THROW(InternalError) << "not reached";
           break;
         }
       }
@@ -339,7 +339,7 @@ inline size_t NumBufferArgs(const ffi::Array<DLDataType>& arg_types) {
     }
   }
   for (size_t i = base; i < arg_types.size(); ++i) {
-    ICHECK(arg_types[i].code != kDLOpaqueHandle) << "Device function need to be organized";
+    TVM_FFI_ICHECK(arg_types[i].code != kDLOpaqueHandle) << "Device function need to be organized";
   }
   return base;
 }

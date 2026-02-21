@@ -40,10 +40,10 @@ void softmax_impl(ffi::PackedArgs args, ffi::Any* ret, miopenSoftmaxAlgorithm_t 
   int ndim = x->ndim;
   int64_t* shape = x->shape;
   if (axis < 0) axis += ndim;
-  ICHECK(axis >= 0 && axis < ndim);
+  TVM_FFI_ICHECK(axis >= 0 && axis < ndim);
   // just fp32 for now
-  ICHECK(TypeMatch(x->dtype, kDLFloat, 32));
-  ICHECK(TypeMatch(y->dtype, kDLFloat, 32));
+  TVM_FFI_ICHECK(TypeMatch(x->dtype, kDLFloat, 32));
+  TVM_FFI_ICHECK(TypeMatch(y->dtype, kDLFloat, 32));
 
   MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal(x->device);
 

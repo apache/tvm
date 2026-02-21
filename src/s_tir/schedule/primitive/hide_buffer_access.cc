@@ -128,7 +128,7 @@ void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
     }
     reads = block->reads;
   } else {
-    CHECK(false) << "Unrecognized buffer type " << buf_type << ", only support read/write";
+    TVM_FFI_ICHECK(false) << "Unrecognized buffer type " << buf_type << ", only support read/write";
   }
 
   /* Step 1: Replace old block with the new block */

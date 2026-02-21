@@ -163,7 +163,7 @@ int FindInsertionPoint(
   }
   // Step 3. Check if there is at least one index of the position can be inserted into
   // The valid indices are: (last_producer_position, first_consumer_position]
-  ICHECK(split.last_producer_position < split.first_consumer_position);
+  TVM_FFI_ICHECK(split.last_producer_position < split.first_consumer_position);
   // Step 4. Return the possible insertion point according to index
   int insert_position;
   if (index == -1) {
@@ -174,9 +174,9 @@ int FindInsertionPoint(
              index <= split.first_consumer_position) {
     insert_position = index;
   } else {
-    LOG(FATAL) << "Valid index:(-1, -2, [" << split.last_producer_position + 1 << ", "
-               << split.first_consumer_position << "]), "
-               << "current index=" << index;
+    TVM_FFI_THROW(InternalError) << "Valid index:(-1, -2, [" << split.last_producer_position + 1
+                                 << ", " << split.first_consumer_position << "]), "
+                                 << "current index=" << index;
     throw;
   }
   return insert_position;
@@ -467,7 +467,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
       }
     }
   }
-  ICHECK(var.defined()) << "ValueError: BufferRegion pattern match failed: " << provided_min;
+  TVM_FFI_CHECK(var.defined(), ValueError) << "BufferRegion pattern match failed: " << provided_min;
   return {var.value(), BlockVarDomainInfo{var_dom, var_bound}};
 }
 
@@ -490,8 +490,8 @@ void UpdateBlockVarDomainDimwise(
     PrimExpr dim_max = max(buffer->shape[i] - 1, 0);
 
     if (provided.CanProveSinglePoint(analyzer) && is_const_int(provided.min())) {
-      ICHECK(required.CanProveSinglePoint(analyzer) &&
-             analyzer->CanProveEqual(provided.min(), required.min()));
+      TVM_FFI_ICHECK(required.CanProveSinglePoint(analyzer) &&
+                     analyzer->CanProveEqual(provided.min(), required.min()));
       continue;
     }
 
@@ -500,8 +500,8 @@ void UpdateBlockVarDomainDimwise(
     if (it != iter_doms->end()) {
       it->second.Union(dom_info);
     } else {
-      ICHECK(analyzer->CanProveEqual(provided.min(), required.min()));
-      ICHECK(analyzer->CanProveEqual(provided.max(), required.max()));
+      TVM_FFI_ICHECK(analyzer->CanProveEqual(provided.min(), required.min()));
+      TVM_FFI_ICHECK(analyzer->CanProveEqual(provided.max(), required.max()));
     }
   }
 }
@@ -514,7 +514,7 @@ ffi::Map<Var, arith::IntSet> InverseAffineIterMap(const ffi::Array<arith::IterSu
   min_point.reserve(outputs.size());
   max_point.reserve(outputs.size());
   for (const auto& intset : outputs) {
-    ICHECK(intset.HasLowerBound() && intset.HasUpperBound());
+    TVM_FFI_ICHECK(intset.HasLowerBound() && intset.HasUpperBound());
     min_point.push_back(intset.min());
     max_point.push_back(intset.max());
   }
@@ -524,7 +524,7 @@ ffi::Map<Var, arith::IntSet> InverseAffineIterMap(const ffi::Array<arith::IterSu
   for (const auto& kv : rev_min) {
     const Var& var = kv.first;
     auto it = rev_max.find(var);
-    ICHECK(it != rev_max.end());  // InverseAffineIterMap's result vars are assumed stable
+    TVM_FFI_ICHECK(it != rev_max.end());  // InverseAffineIterMap's result vars are assumed stable
     const PrimExpr& rev_min_point = kv.second;
     const PrimExpr& rev_max_point = (*it).second;
     dom_map.Set(var,
@@ -582,7 +582,7 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterV
   for (const auto& kv : var_dom) {
     const Var& var = kv.first;
     auto it = var_bound.find(var);
-    ICHECK(it != var_bound.end());  // InverseAffineIterMap's result vars are assumed stable
+    TVM_FFI_ICHECK(it != var_bound.end());  // InverseAffineIterMap's result vars are assumed stable
     (*iter_doms)[var.get()].Union(BlockVarDomainInfo{kv.second, (*it).second});
   }
   return true;
@@ -619,8 +619,8 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
     }
     NDIntSet required_region = support::NDIntSetUnion(it->second);
     NDIntSet provided_region = support::NDIntSetUnion(many_provided_regions);
-    ICHECK_EQ(provided_region.size(), buffer->shape.size());
-    ICHECK_EQ(required_region.size(), buffer->shape.size());
+    TVM_FFI_ICHECK_EQ(provided_region.size(), buffer->shape.size());
+    TVM_FFI_ICHECK_EQ(required_region.size(), buffer->shape.size());
     // Try update iter var domains with current required and provided region pair.
     if (!UpdateBlockVarDomainAffine(buffer, iter_vars, provided_region, required_region, analyzer,
                                     &iter_doms)) {
@@ -638,7 +638,7 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
       info.bound = arith::Intersect({info.bound, arith::IntSet::FromRange(iter_var->dom)});
     }
     info.Simplify(analyzer);
-    ICHECK(!info.dom.IsNothing());
+    TVM_FFI_ICHECK(!info.dom.IsNothing());
     result.push_back(info);
   }
   return result;
@@ -677,7 +677,7 @@ void CalculateProvidedRequiredRegions(
   // Step 2. Calculate the region required by dependent blocks under `loop`
   for (const StmtSRef& required_block_sref : is_compute_at ? consumer_srefs : producer_srefs) {
     const SBlockNode* required_block = TVM_SREF_TO_SBLOCK(required_block_sref);
-    ICHECK(block2realize.count(required_block));
+    TVM_FFI_ICHECK(block2realize.count(required_block));
     RelaxBufferRegions</*relax_storage_scope=*/is_compute_at>(
         /*binding=*/GetBindings(ffi::GetRef<SBlockRealize>(block2realize.at(required_block))),
         /*buffer_regions=*/is_compute_at ? required_block->reads : required_block->writes,

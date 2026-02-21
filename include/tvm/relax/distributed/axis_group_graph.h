@@ -213,7 +213,7 @@ struct Axis {
 
   Axis(const ExprNode* tensor, int dim, int tuple_index = 0)
       : tensor(tensor), dim(dim), tuple_index(tuple_index) {
-    ICHECK(tensor->IsInstance<ConstantNode>() || tensor->IsInstance<VarNode>());
+    TVM_FFI_ICHECK(tensor->IsInstance<ConstantNode>() || tensor->IsInstance<VarNode>());
   }
 
   bool operator==(const Axis& other) const {
@@ -284,7 +284,7 @@ class AxisGroupGraph {
       case EdgeType::kSimbling:
         return EdgeType::kSimbling;
     }
-    LOG(FATAL) << "Unreachable code";
+    TVM_FFI_THROW(InternalError) << "Unreachable code";
     throw;
   }
 
@@ -297,7 +297,7 @@ class AxisGroupGraph {
       case EdgeType::kSimbling:
         return 1;
     }
-    LOG(FATAL) << "Unreachable code";
+    TVM_FFI_THROW(InternalError) << "Unreachable code";
     throw;
   }
 
@@ -439,8 +439,9 @@ class AxisGroupGraph {
           it++;
         }
       }
-      ICHECK(specs.size() == 1) << "multiple possible sharding for axis: ("
-                                << ffi::GetRef<Expr>(axis.tensor) << ", " << axis.dim << ")";
+      TVM_FFI_ICHECK(specs.size() == 1)
+          << "multiple possible sharding for axis: (" << ffi::GetRef<Expr>(axis.tensor) << ", "
+          << axis.dim << ")";
     }
   }
 

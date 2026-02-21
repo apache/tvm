@@ -27,11 +27,11 @@ TEST(Simplify, MinMax) {
   auto x = tvm::te::var("x");
   auto e1 = (tvm::max(x, 1) - tvm::max(x, 1));
   auto e1s = ana.canonical_simplify(e1);
-  ICHECK(tvm::tir::is_zero(e1s));
+  TVM_FFI_ICHECK(tvm::tir::is_zero(e1s));
 
   auto e2 = (x * tvm::min(x, 1)) - (x * tvm::min(x, 1));
   auto e2s = ana.canonical_simplify(e2);
-  ICHECK(tvm::tir::is_zero(e2s));
+  TVM_FFI_ICHECK(tvm::tir::is_zero(e2s));
 }
 
 TEST(Simplify, Mul) {
@@ -39,7 +39,7 @@ TEST(Simplify, Mul) {
   auto x = tvm::te::var("x");
   auto e = (x * x) - (x * x);
   auto es = ana.canonical_simplify(e);
-  ICHECK(tvm::tir::is_zero(es));
+  TVM_FFI_ICHECK(tvm::tir::is_zero(es));
 }
 
 TEST(Simplify, Mod) {
@@ -51,7 +51,7 @@ TEST(Simplify, Mod) {
   // and therefore, the constant folding will be attempted in CanonicalSimplify
   auto mod = ana.canonical_simplify(tvm::tir::Mod(x, y));
   auto es = ana.canonical_simplify(mod - x);
-  ICHECK(tvm::tir::is_zero(es));
+  TVM_FFI_ICHECK(tvm::tir::is_zero(es));
 }
 
 TEST(ConstantFold, Broadcast) {

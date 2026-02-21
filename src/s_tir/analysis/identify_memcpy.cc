@@ -303,7 +303,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         } else if (auto* ptr = std::get_if<std::string>(&result)) {
           output->push_back(StringImm(*ptr));
         } else {
-          LOG(FATAL) << "Internal error, unhandled std::variant type";
+          TVM_FFI_THROW(InternalError) << "Internal error, unhandled std::variant type";
         }
 
         IRVisitorWithAnalyzer::VisitStmt_(op);

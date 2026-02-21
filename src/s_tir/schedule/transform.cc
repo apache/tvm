@@ -314,7 +314,7 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
       return;
     }
   }
-  ICHECK(sref != nullptr && sref->stmt != nullptr);
+  TVM_FFI_ICHECK(sref != nullptr && sref->stmt != nullptr);
   const auto* leaf_block = TVM_SREF_TO_SBLOCK(leaf_block_sref);
   const auto* scope_block = TVM_SREF_TO_SBLOCK(sref);
   throw OnlyLeafError(self->mod, ffi::GetRef<SBlock>(leaf_block), ffi::GetRef<SBlock>(scope_block));
@@ -355,9 +355,9 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
         // The original producer is input.
         continue;
       }
-      ICHECK_EQ(the_original_producers.size(), 1u);
+      TVM_FFI_ICHECK_EQ(the_original_producers.size(), 1u);
       auto the_original_producer = the_original_producers[0];
-      ICHECK(original_producers.count(sch->GetSRef(the_original_producer).get()));
+      TVM_FFI_ICHECK(original_producers.count(sch->GetSRef(the_original_producer).get()));
       inlined_producers.push_back(the_original_producer);
     }
     for (const auto& consumer : sch->GetConsumers(block_rv)) {
@@ -371,9 +371,9 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
         // The original consumer is output.
         continue;
       }
-      ICHECK_EQ(the_original_consumers.size(), 1u);
+      TVM_FFI_ICHECK_EQ(the_original_consumers.size(), 1u);
       auto the_original_consumer = the_original_consumers[0];
-      ICHECK(original_consumers.count(sch->GetSRef(the_original_consumer).get()));
+      TVM_FFI_ICHECK(original_consumers.count(sch->GetSRef(the_original_consumer).get()));
       inlined_consumers.push_back(consumer);
     }
 
@@ -405,22 +405,22 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     const tir::StmtSRef& block_loop_sref = kv.first;
     const tir::ForNode* block_loop = block_loop_sref->StmtAs<tir::ForNode>();
     const tir::ForNode* desc_loop = kv.second.get();
-    ICHECK(block_loop != nullptr && desc_loop != nullptr);
+    TVM_FFI_ICHECK(block_loop != nullptr && desc_loop != nullptr);
     // Extract the loop extent
     PrimExpr block_extent = analyzer.Simplify(block_loop->extent);
     PrimExpr desc_extent = analyzer.Simplify(desc_loop->extent);
     const auto* int_block_extent = block_extent.as<IntImmNode>();
     const auto* int_desc_extent = desc_extent.as<IntImmNode>();
-    ICHECK(int_block_extent != nullptr && int_desc_extent != nullptr);
+    TVM_FFI_ICHECK(int_block_extent != nullptr && int_desc_extent != nullptr);
     // Check divisibility
     int64_t total = int_block_extent->value;
     int64_t inner = int_desc_extent->value;
-    ICHECK_EQ(total % inner, 0);
+    TVM_FFI_ICHECK_EQ(total % inner, 0);
     // Do the split. Leave the outer extent as std::nullopt (unspecified) so that the split factors
     // can be used for different extents (needed during tuning).
     ffi::Array<LoopRV> split =
         sch->Split(loop2rv.at(block_loop_sref), {std::nullopt, Integer(inner)});
-    ICHECK_EQ(split.size(), 2);
+    TVM_FFI_ICHECK_EQ(split.size(), 2);
     inner_loops.insert(sch->GetSRef(split[1]).operator->());
     // The inner split will be reordered to the loop domain that is tensorized
     int desc_loop_index = info->desc_loop_indexer.at(ffi::GetRef<tir::For>(desc_loop)).IntValue();
@@ -439,7 +439,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
   }
   reorder_list.insert(reorder_list.end(), reorder_suffix.begin(), reorder_suffix.end());
   sch->Reorder(reorder_list);
-  ICHECK(!reorder_suffix.empty());
+  TVM_FFI_ICHECK(!reorder_suffix.empty());
   return reorder_suffix[0];
 }
 

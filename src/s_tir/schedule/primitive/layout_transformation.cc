@@ -96,7 +96,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
   static TransformPlan Plan(SBlock block, Buffer old_buffer, Buffer new_buffer, IndexMap index_map,
                             IndexMap inverse, PrimExpr padding_predicate,
                             ffi::Optional<IndexMap> pad_value, arith::Analyzer* analyzer) {
-    ICHECK(!pad_value.defined() || pad_value.value()->final_indices.size() == 1)
+    TVM_FFI_ICHECK(!pad_value.defined() || pad_value.value()->final_indices.size() == 1)
         << "Internal error: Should be caught by ScheduleError checks prior to this point";
     TransformLayoutPlanner visitor(old_buffer);
     visitor(block);
@@ -163,8 +163,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     if (loop_dependency_range) {
       size_t i = loop_dependency_range.value().first;
       size_t j = loop_dependency_range.value().second;
-      ICHECK_LT(i, active_loops_.size());
-      ICHECK_LT(j, active_loops_.size());
+      TVM_FFI_ICHECK_LT(i, active_loops_.size());
+      TVM_FFI_ICHECK_LT(j, active_loops_.size());
 
       write_info.dependent_loopnest = {active_loops_.begin() + i, active_loops_.begin() + j + 1};
     }
@@ -231,7 +231,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
           pad_value(pad_value),
           new_block_to_old(*new_block_to_old),
           analyzer(analyzer) {
-      ICHECK_EQ(info.dependent_loopnest.size(), inverse->final_indices.size());
+      TVM_FFI_ICHECK_EQ(info.dependent_loopnest.size(), inverse->final_indices.size());
       for (size_t i = 0; i < info.dependent_loopnest.size(); i++) {
         Var var = info.dependent_loopnest[i]->loop_var;
         PrimExpr expr = inverse->final_indices[i];
@@ -305,7 +305,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         new_iter_values.push_back(block_realize->iter_values[i]);
       }
 
-      ICHECK_EQ(new_indices.size(), new_buffer->shape.size());
+      TVM_FFI_ICHECK_EQ(new_indices.size(), new_buffer->shape.size());
       for (size_t i = 0; i < new_indices.size(); i++) {
         Var var = inverse->initial_indices[i];
         Var virtual_var = new_indices[i];
@@ -321,7 +321,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         new_iter_values.push_back(block_realize->iter_values[i]);
       }
 
-      ICHECK_EQ(inverse->final_indices.size(), old_indices.size());
+      TVM_FFI_ICHECK_EQ(inverse->final_indices.size(), old_indices.size());
       for (size_t i = 0; i < old_indices.size(); i++) {
         Var var = Downcast<Var>(old_indices[i]);
         PrimExpr expr = Substitute(inverse->final_indices[i], loop_var_to_virtual_var);
@@ -342,7 +342,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
         const ffi::Array<PrimExpr>& old_indices = info.store->indices;
 
-        ICHECK_EQ(old_indices.size(), op->indices.size());
+        TVM_FFI_ICHECK_EQ(old_indices.size(), op->indices.size());
         ExprDeepEqual expr_equal;
         for (size_t i = 0; i < old_indices.size(); i++) {
           if (!expr_equal(old_indices[i], op->indices[i])) {
@@ -409,7 +409,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         return;
       }
 
-      ICHECK(!new_block_to_old.count(after));
+      TVM_FFI_ICHECK(!new_block_to_old.count(after));
 
       while (true) {
         if (auto opt = new_block_to_old.Get(before)) {
@@ -469,7 +469,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     ffi::Array<PrimExpr> iter_values;
     ffi::Array<PrimExpr> indices;
     ffi::Map<Var, Var> loop_indices_to_block_indices;
-    ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
+    TVM_FFI_ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
     for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
       const auto& loop_var = inverse->initial_indices[i];
       const auto& dim = new_buffer->shape[i];
@@ -524,7 +524,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         return std::nullopt;
       }
 
-      ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
+      TVM_FFI_ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
       for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
         size_t i = (inverse->initial_indices.size() - 1) - rev_i;
         Var loop_var = inverse->initial_indices[i];
@@ -563,7 +563,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     ffi::Array<IterVar> iter_vars;
     ffi::Array<PrimExpr> iter_values;
     ffi::Array<PrimExpr> indices;
-    ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
+    TVM_FFI_ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
     for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
       const auto& loop_var = inverse->initial_indices[i];
       const auto& dim = new_buffer->shape[i];
@@ -583,7 +583,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     stmt = SBlockRealize(iter_values, padding_predicate,
                          SBlock(iter_vars, {}, {write_region}, block_name.str(), stmt));
 
-    ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
+    TVM_FFI_ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
     for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
@@ -598,7 +598,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       } else if (info.innermost_block_realize) {
         return info.innermost_block_realize.value();
       } else {
-        LOG(FATAL) << "Write occured outside of any block/loop";
+        TVM_FFI_THROW(InternalError) << "Write occured outside of any block/loop";
       }
     }();
     return EpiloguePlan{insert_after, stmt};
@@ -659,7 +659,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
   struct BindBlockRealize {
     BindBlockRealize(TransformLayoutPlanner* self, SBlockRealize block_realize) : self_(self) {
-      ICHECK_EQ(block_realize->iter_values.size(), block_realize->block->iter_vars.size());
+      TVM_FFI_ICHECK_EQ(block_realize->iter_values.size(), block_realize->block->iter_vars.size());
       for (size_t i = 0; i < block_realize->iter_values.size(); i++) {
         bound_vars_.emplace_back(self, block_realize->block->iter_vars[i]->var,
                                  block_realize->iter_values[i]);
@@ -859,7 +859,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
                            const ffi::Array<BufferRegion>& infered_access_regions) {
     auto fmutate = [this, &infered_access_regions](const BufferRegion& buffer_region) {
       if (buffer_region->buffer.same_as(old_buffer_)) {
-        ICHECK(infered_access_regions.size() == 1);
+        TVM_FFI_ICHECK(infered_access_regions.size() == 1);
         return infered_access_regions[0];
       }
       return buffer_region;
@@ -903,7 +903,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
       return;
     }
 
-    ICHECK(!new_block_to_old_.count(after));
+    TVM_FFI_ICHECK(!new_block_to_old_.count(after));
 
     while (true) {
       if (auto opt = new_block_to_old_.Get(before)) {
@@ -980,7 +980,7 @@ class TransformationPaddingTypeError : public ScheduleError {
  public:
   TransformationPaddingTypeError(IRModule mod, Buffer buffer, IndexMap pad_value)
       : mod_(mod), buffer_(buffer), pad_value_(pad_value) {
-    ICHECK_EQ(pad_value_->final_indices.size(), 1);
+    TVM_FFI_ICHECK_EQ(pad_value_->final_indices.size(), 1);
     pad_value_dtype_ = pad_value_->final_indices[0].dtype();
   }
 
@@ -1012,7 +1012,7 @@ class TransformationPaddingExpressionError : public ScheduleError {
  public:
   static void Check(IRModule mod, Buffer buffer, IndexMap pad_value) {
     Visitor visitor(buffer);
-    ICHECK_EQ(pad_value->final_indices.size(), 1)
+    TVM_FFI_ICHECK_EQ(pad_value->final_indices.size(), 1)
         << "Internal error: Should be caught by ScheduleError checks prior to this point";
     visitor(pad_value->final_indices[0]);
     if (visitor.illegal_load) {
@@ -1102,7 +1102,7 @@ class TransformationIntroducesPaddingError : public ScheduleError {
 // dtype-mismatch issues later.
 IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimExpr>& args) {
   const auto& initial_indices_orig = index_map->initial_indices;
-  ICHECK(args.size() == initial_indices_orig.size());
+  TVM_FFI_ICHECK(args.size() == initial_indices_orig.size());
 
   ffi::Array<Var> initial_indices;
   ffi::Map<Var, PrimExpr> var_map;
@@ -1110,7 +1110,7 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
 
   for (size_t i = 0; i < args.size(); ++i) {
     if (index_dtype.has_value()) {
-      ICHECK_EQ(*index_dtype, args[i]->dtype)
+      TVM_FFI_ICHECK_EQ(*index_dtype, args[i]->dtype)
           << "Buffer index " << args[i] << " has dtype " << args[i]->dtype
           << ", but previous index for the same buffer access used index type " << *index_dtype;
     } else {
@@ -1129,7 +1129,7 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
   if (!var_map.empty()) {
     auto final_indices = index_map->final_indices.Map([&](PrimExpr index) {
       if (auto* ptr = index.as<IntImmNode>()) {
-        ICHECK(index_dtype.has_value());
+        TVM_FFI_ICHECK(index_dtype.has_value());
         return tir::make_const(*index_dtype, ptr->value);
       } else {
         return SubstituteWithDataTypeLegalization(index,
@@ -1386,7 +1386,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     block_vars.push_back(iter_var->var);
     block_iter_dom.Set(iter_var->var, iter_var->dom);
     block_iter_type[iter_var->var.get()] = iter_var->iter_type;
-    ICHECK(is_zero(iter_var->dom->min));
+    TVM_FFI_ICHECK(is_zero(iter_var->dom->min));
     block_iter_range_array.push_back(iter_var->dom->extent);
   }
 
@@ -1470,8 +1470,8 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
 
   // Step 6: Do the actual replacement
   if (scope_sref->StmtAs<SBlockNode>()) {
-    ICHECK(new_loop_vars.empty()) << "Invalid block to loop replacement due to layout transform "
-                                  << index_map;
+    TVM_FFI_ICHECK(new_loop_vars.empty())
+        << "Invalid block to loop replacement due to layout transform " << index_map;
   }
   self->Replace(scope_sref, body, {{block, new_block}});
 }

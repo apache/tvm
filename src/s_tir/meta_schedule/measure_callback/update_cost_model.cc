@@ -36,9 +36,10 @@ class UpdateCostModelNode : public MeasureCallbackNode {
       return;
     }
     CostModel cost_model = task_scheduler->cost_model_.value();
-    ICHECK(task->measure_candidates.defined()) << "Task's measure candidates must be present!";
-    ICHECK_EQ(measure_candidates.size(), builder_results.size());
-    ICHECK_EQ(runner_results.size(), builder_results.size());
+    TVM_FFI_ICHECK(task->measure_candidates.defined())
+        << "Task's measure candidates must be present!";
+    TVM_FFI_ICHECK_EQ(measure_candidates.size(), builder_results.size());
+    TVM_FFI_ICHECK_EQ(runner_results.size(), builder_results.size());
     int n = builder_results.size();
     ffi::Array<MeasureCandidate> pruned_candidate;
     ffi::Array<RunnerResult> pruned_runner_result;

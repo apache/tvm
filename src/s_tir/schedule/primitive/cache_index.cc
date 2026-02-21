@@ -62,8 +62,8 @@ DataType DetermineDatatype(const arith::IntSet& range) {
   if (ana.CanProve(range.min() >= INT32_MIN && range.max() <= INT32_MAX)) {
     return DataType::Int(32);
   } else {
-    ICHECK(ana.CanProve(range.min() >= make_const(DataType::Int(64), INT64_MIN) &&
-                        range.max() <= make_const(DataType::Int(64), INT64_MAX)));
+    TVM_FFI_ICHECK(ana.CanProve(range.min() >= make_const(DataType::Int(64), INT64_MIN) &&
+                                range.max() <= make_const(DataType::Int(64), INT64_MAX)));
     return DataType::Int(64);
   }
 }
@@ -356,7 +356,7 @@ Stmt InsertIndexStage(const Stmt& stmt, int pos, const Stmt& stage) {
   if (pos == 0) {
     return SeqStmt::Flatten<ffi::Array<Stmt>>({stage, stmt});
   }
-  ICHECK_EQ(pos, 1);
+  TVM_FFI_ICHECK_EQ(pos, 1);
   return SeqStmt::Flatten<ffi::Array<Stmt>>({stmt, stage});
 }
 
@@ -451,7 +451,7 @@ ffi::Array<StmtSRef> CacheIndex(ScheduleState self, const StmtSRef& block_sref,
   // Step 0. Checking index, getting the target buffer and the parent scope
   IndexInfo info;
   info.target_sblock = block_sref;
-  CHECK_GE(cse_thresh, 0) << "cse_thresh should not be negative number";
+  TVM_FFI_ICHECK_GE(cse_thresh, 0) << "cse_thresh should not be negative number";
   info.cse_thresh = cse_thresh;
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
 

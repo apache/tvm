@@ -120,7 +120,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                 }
               }
             }
-            LOG(FATAL) << "Cannot find device mesh in global infos";
+            TVM_FFI_THROW(InternalError) << "Cannot find device mesh in global infos";
           }
         });
 

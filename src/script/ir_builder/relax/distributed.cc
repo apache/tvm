@@ -33,9 +33,10 @@ Expr MakeCallTIRDist(Expr func, Tuple args,
                      ffi::Optional<Expr> packed_ints) {
   for (const distributed::DTensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->tensor_sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
-                               "However, one given structure info is "
-                            << sinfo;
+    TVM_FFI_ICHECK(shape != nullptr)
+        << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
+           "However, one given structure info is "
+        << sinfo;
   }
 
   StructInfo out_sinfo{nullptr};

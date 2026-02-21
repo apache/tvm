@@ -35,7 +35,7 @@ size_t CallbackChannel::Send(const void* data, size_t size) {
   bytes.size = size;
   int64_t n = fsend_(&bytes).cast<int64_t>();
   if (n == -1) {
-    LOG(FATAL) << "CallbackChannel::Send";
+    TVM_FFI_THROW(InternalError) << "CallbackChannel::Send";
   }
   return static_cast<size_t>(n);
 }
@@ -44,7 +44,7 @@ size_t CallbackChannel::Recv(void* data, size_t size) {
   Any ret = frecv_(size);
 
   auto opt_bytes = ret.try_cast<ffi::Bytes>();
-  CHECK(opt_bytes.has_value()) << "CallbackChannel::Recv";
+  TVM_FFI_ICHECK(opt_bytes.has_value()) << "CallbackChannel::Recv";
 
   ffi::Bytes bytes = std::move(opt_bytes.value());
   memcpy(static_cast<char*>(data), bytes.data(), bytes.size());

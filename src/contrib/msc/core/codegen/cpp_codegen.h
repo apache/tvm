@@ -163,7 +163,7 @@ class CppCodeGen : public BaseCodeGen<ConfigType, HelperType> {
           break;
         }
       }
-      ICHECK(tensor_ctx.count("tensor"))
+      TVM_FFI_ICHECK(tensor_ctx.count("tensor"))
           << "Can not find weight " << tensor << " from " << producer;
     } else {
       const auto& pair = this->graph()->FindProducerAndIdx(tensor);

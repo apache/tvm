@@ -270,7 +270,7 @@ class DatabaseNode : public runtime::Object {
   void DumpPruned(Database destination);
   /*! \brief Return a reference to the owned module equality method instance. */
   const ModuleEquality& GetModuleEquality() const {
-    ICHECK(mod_eq_);
+    TVM_FFI_ICHECK(mod_eq_);
     return *mod_eq_;
   }
 
@@ -398,28 +398,29 @@ class PyDatabaseNode : public DatabaseNode {
   }
 
   bool HasWorkload(const IRModule& mod) final {
-    ICHECK(f_has_workload != nullptr) << "PyDatabase's HasWorkload method not implemented!";
+    TVM_FFI_ICHECK(f_has_workload != nullptr) << "PyDatabase's HasWorkload method not implemented!";
     return f_has_workload(mod);
   }
 
   Workload CommitWorkload(const IRModule& mod) final {
-    ICHECK(f_commit_workload != nullptr) << "PyDatabase's CommitWorkload method not implemented!";
+    TVM_FFI_ICHECK(f_commit_workload != nullptr)
+        << "PyDatabase's CommitWorkload method not implemented!";
     return f_commit_workload(mod);
   }
 
   void CommitTuningRecord(const TuningRecord& record) final {
-    ICHECK(f_commit_tuning_record != nullptr)
+    TVM_FFI_ICHECK(f_commit_tuning_record != nullptr)
         << "PyDatabase's CommitTuningRecord method not implemented!";
     f_commit_tuning_record(record);
   }
 
   ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
-    ICHECK(f_get_top_k != nullptr) << "PyDatabase's GetTopK method not implemented!";
+    TVM_FFI_ICHECK(f_get_top_k != nullptr) << "PyDatabase's GetTopK method not implemented!";
     return f_get_top_k(workload, top_k);
   }
 
   ffi::Array<TuningRecord> GetAllTuningRecords() final {
-    ICHECK(f_get_all_tuning_records != nullptr)
+    TVM_FFI_ICHECK(f_get_all_tuning_records != nullptr)
         << "PyDatabase's GetAllTuningRecords method not implemented!";
     return f_get_all_tuning_records();
   }
@@ -452,7 +453,7 @@ class PyDatabaseNode : public DatabaseNode {
   }
 
   int64_t Size() final {
-    ICHECK(f_size != nullptr) << "PyDatabase's Size method not implemented!";
+    TVM_FFI_ICHECK(f_size != nullptr) << "PyDatabase's Size method not implemented!";
     return f_size();
   }
 

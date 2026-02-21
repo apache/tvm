@@ -38,7 +38,7 @@ class AddToDatabaseNode : public MeasureCallbackNode {
     Database database = task_scheduler->database_.value();
     Workload workload = database->CommitWorkload(task->mod.value());
     Target target = task->target.value();
-    ICHECK_EQ(runner_results.size(), measure_candidates.size());
+    TVM_FFI_ICHECK_EQ(runner_results.size(), measure_candidates.size());
     int n = runner_results.size();
     for (int i = 0; i < n; ++i) {
       RunnerResult result = runner_results[i];

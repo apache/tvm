@@ -64,7 +64,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
         } else if (op_name.find("attention") != std::string::npos) {
           op_execs_[i] = GetAttentionExec(node);
         } else {
-          LOG(FATAL) << "Unsupported op: " << op_name;
+          TVM_FFI_THROW(InternalError) << "Unsupported op: " << op_name;
         }
       }
     }
@@ -82,9 +82,9 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
 
  private:
   const DLTensor* GetInput(const JSONGraphNode& node, const int idx) {
-    ICHECK_LT(idx, node.GetInputs().size());
+    TVM_FFI_ICHECK_LT(idx, node.GetInputs().size());
     auto eid = EntryID(node.GetInputs()[idx]);
-    ICHECK(eid < data_entry_.size());
+    TVM_FFI_ICHECK(eid < data_entry_.size());
     return data_entry_[eid];
   }
 
@@ -136,7 +136,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     } else if (layout == "NHWC") {
       format = CUDNN_TENSOR_NHWC;
     } else {
-      LOG(FATAL) << "Unsupported layout: " << layout;
+      TVM_FFI_THROW(InternalError) << "Unsupported layout: " << layout;
     }
 
     int act = CUDNN_ACTIVATION_IDENTITY;
@@ -205,15 +205,15 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
 
     int64_t batch, seq_len;
     if (layout == "BS3NH") {
-      ICHECK_EQ(qkv_shapes.size(), 3);
+      TVM_FFI_ICHECK_EQ(qkv_shapes.size(), 3);
       batch = qkv_shapes[0];
       seq_len = qkv_shapes[1];
     } else if (layout == "SBN3H") {
-      ICHECK_EQ(qkv_shapes.size(), 4);
+      TVM_FFI_ICHECK_EQ(qkv_shapes.size(), 4);
       batch = qkv_shapes[1];
       seq_len = qkv_shapes[0];
     } else {
-      LOG(FATAL) << "Unsupported layout: " << layout;
+      TVM_FFI_THROW(InternalError) << "Unsupported layout: " << layout;
     }
     double scale = 1 / std::sqrt(head_size);
     if (node.HasAttr("scale")) {
@@ -230,7 +230,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
       runner->Run(qkv, workspace, out);
     };
 #else
-    LOG(FATAL) << "Please build with CUDNN frontend to use attention op";
+    TVM_FFI_THROW(InternalError) << "Please build with CUDNN frontend to use attention op";
     return nullptr;
 #endif
   }

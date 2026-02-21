@@ -28,7 +28,7 @@ namespace contrib {
 namespace msc {
 
 const ffi::Array<Doc> BaseStack::GetDocs() const {
-  ICHECK(blocks_.size() == 1) << "Has incomplete blocks, please check";
+  TVM_FFI_ICHECK(blocks_.size() == 1) << "Has incomplete blocks, please check";
   return TopBlock();
 }
 
@@ -39,7 +39,7 @@ void BaseStack::Line(const ffi::String& line) { Line(IdDoc(line)); }
 void BaseStack::Comment(const ffi::String& comment, bool attach) {
   if (attach) {
     const auto& doc = TopDoc();
-    ICHECK(doc->IsInstance<StmtDocNode>()) << "Only stmt doc support attach comments";
+    TVM_FFI_ICHECK(doc->IsInstance<StmtDocNode>()) << "Only stmt doc support attach comments";
     const auto& stmt = Downcast<StmtDoc>(doc);
     stmt->comment = comment;
   } else {
@@ -85,7 +85,7 @@ void BaseStack::FuncDecorator(const ffi::String& decorator) {
 }
 
 void BaseStack::FuncStart() {
-  ICHECK(TopDoc()->IsInstance<FunctionDocNode>()) << "FunctionDoc is not saved";
+  TVM_FFI_ICHECK(TopDoc()->IsInstance<FunctionDocNode>()) << "FunctionDoc is not saved";
   BlockStart();
 }
 
@@ -108,7 +108,7 @@ void BaseStack::ClassDecorator(const ffi::String& decorator) {
 }
 
 void BaseStack::ClassStart() {
-  ICHECK(TopDoc()->IsInstance<ClassDocNode>()) << "ClassDoc is not saved";
+  TVM_FFI_ICHECK(TopDoc()->IsInstance<ClassDocNode>()) << "ClassDoc is not saved";
   BlockStart();
 }
 
@@ -144,7 +144,7 @@ void BaseStack::ConstructorArg(const ffi::String& arg, const ffi::String& annota
 }
 
 void BaseStack::ConstructorStart() {
-  ICHECK(TopDoc()->IsInstance<ConstructorDocNode>()) << "ConstructorDoc is not saved";
+  TVM_FFI_ICHECK(TopDoc()->IsInstance<ConstructorDocNode>()) << "ConstructorDoc is not saved";
   BlockStart();
 }
 
@@ -176,7 +176,7 @@ void BaseStack::LambdaRef(const ffi::String& ref) {
 }
 
 void BaseStack::LambdaStart() {
-  ICHECK(TopDoc()->IsInstance<LambdaDocNode>()) << "LambdaDoc is not saved";
+  TVM_FFI_ICHECK(TopDoc()->IsInstance<LambdaDocNode>()) << "LambdaDoc is not saved";
   BlockStart();
 }
 
@@ -240,11 +240,11 @@ void BaseStack::MethodCall(const ffi::String& callee, bool new_line) {
     const auto& v_callee = callee + (new_line ? DocSymbol::NextLine() : "");
     FuncCall(v_callee, std::nullopt, Downcast<ExprDoc>(host));
   } else if (const auto* a_node = host.as<AssignDocNode>()) {
-    ICHECK(a_node->rhs.defined()) << "Can not find rhs for inplace host";
+    TVM_FFI_ICHECK(a_node->rhs.defined()) << "Can not find rhs for inplace host";
     FuncCall(callee, DeclareDoc(a_node->annotation, a_node->lhs, ffi::Array<ExprDoc>(), true),
              a_node->rhs);
   } else {
-    LOG(FATAL) << "Unexpected host type for inplace " << host->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Unexpected host type for inplace " << host->GetTypeKey();
   }
 }
 
@@ -265,12 +265,12 @@ void BaseStack::InplaceEnd() {
     CallArgBase(Downcast<CallDoc>(last));
   } else if (const auto* assign = last.as<AssignDocNode>()) {
     const auto& call = Downcast<CallDoc>(assign->rhs);
-    ICHECK(assign->lhs->IsInstance<IdDocNode>())
+    TVM_FFI_ICHECK(assign->lhs->IsInstance<IdDocNode>())
         << "assign lhs should be IdDoc, get " << assign->lhs->GetTypeKey();
     const auto& key = Downcast<IdDoc>(assign->lhs)->name;
     CallArgBase(call, key);
   } else {
-    LOG(FATAL) << "Unexpected last type for call arg " << last->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Unexpected last type for call arg " << last->GetTypeKey();
   }
 }
 
@@ -279,7 +279,7 @@ void BaseStack::PopNest(const ffi::String& key) {
   if (last->IsInstance<CallDocNode>()) {
     CallArgBase(Downcast<CallDoc>(last), key);
   } else {
-    LOG(FATAL) << "Unexpected nest type " << last->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Unexpected nest type " << last->GetTypeKey();
   }
 }
 
@@ -299,11 +299,11 @@ void BaseStack::CallArgBase(const ExprDoc& value, const ffi::String& key) {
     kwargs_keys = call->kwargs_keys;
     kwargs_values = call->kwargs_values;
   } else {
-    LOG(FATAL) << "Unexpected last type for call arg " << last->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Unexpected last type for call arg " << last->GetTypeKey();
   }
   // push args or kwargs
   if (key.size() == 0) {
-    ICHECK(kwargs_keys.size() == 0) << "kwargs followed by args " << value;
+    TVM_FFI_ICHECK(kwargs_keys.size() == 0) << "kwargs followed by args " << value;
     args.push_back(value);
   } else {
     kwargs_keys.push_back(key);
@@ -317,7 +317,7 @@ void BaseStack::CallArgBase(const ExprDoc& value, const ffi::String& key) {
     const auto& new_call = CallDoc(call->callee, args, kwargs_keys, kwargs_values);
     PushDoc(AssignDoc(assign->lhs, new_call, assign->annotation));
   } else {
-    LOG(FATAL) << "Unexpected last type for call arg " << last->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Unexpected last type for call arg " << last->GetTypeKey();
   }
 }
 
@@ -433,7 +433,7 @@ void BaseStack::ScopeEnd() {
 bool BaseStack::HasBlock() const { return blocks_.size() > 0; }
 
 const ffi::Array<Doc> BaseStack::TopBlock() const {
-  ICHECK(HasBlock()) << "No block found";
+  TVM_FFI_ICHECK(HasBlock()) << "No block found";
   return blocks_.top();
 }
 
@@ -451,7 +451,7 @@ bool BaseStack::HasDoc() {
 }
 
 const Doc BaseStack::TopDoc() {
-  ICHECK(HasDoc()) << "No doc or block found";
+  TVM_FFI_ICHECK(HasDoc()) << "No doc or block found";
   return TopBlock().back();
 }
 
@@ -463,14 +463,14 @@ const Doc BaseStack::PopDoc() {
 
 template <typename TDoc, typename TDocNode>
 const TDoc BaseStack::PopCheckedDoc() {
-  ICHECK(HasDoc() && TopDoc()->IsInstance<TDocNode>())
+  TVM_FFI_ICHECK(HasDoc() && TopDoc()->IsInstance<TDocNode>())
       << "Last doc(" << TopDoc()->GetTypeKey() << ") is not expected type "
       << TDocNode::TypeIndex2Key(TDocNode::RuntimeTypeIndex());
   return Downcast<TDoc>(PopDoc());
 }
 
 void BaseStack::PushDoc(const Doc& doc) {
-  ICHECK(HasBlock()) << "No block found";
+  TVM_FFI_ICHECK(HasBlock()) << "No block found";
   blocks_.top().push_back(doc);
 }
 

@@ -26,7 +26,7 @@ namespace distributed {
 StructInfo InferDistStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
       GetInputDTensorStructInfo(call, ctx);
-  ICHECK(input_dtensor_sinfos.size() == 1);
+  TVM_FFI_ICHECK(input_dtensor_sinfos.size() == 1);
   TensorStructInfo input_tensor_sinfo = input_dtensor_sinfos[0]->tensor_sinfo;
 
   if (input_tensor_sinfo->IsUnknownNdim()) {

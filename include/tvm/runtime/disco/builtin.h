@@ -53,7 +53,7 @@ inline std::string ReduceKind2String(ReduceKind kind) {
     case ReduceKind::kAvg:
       return "kAvg";
   }
-  LOG(FATAL) << "ValueError: Unknown ReduceKind: " << static_cast<int>(kind);
+  TVM_FFI_THROW(ValueError) << "Unknown ReduceKind: " << static_cast<int>(kind);
 }
 
 /*!

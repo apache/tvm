@@ -91,23 +91,23 @@ class DeviceInfoCollector : public StmtVisitor {
  private:
   PrimExpr GetArgument(const ffi::String& launch_param) const {
     if (launch_param == tvm::runtime::launch_param::kUseDynamicSharedMemoryTag) {
-      CHECK(dyn_shmem_size.defined())
+      TVM_FFI_ICHECK(dyn_shmem_size.defined())
           << "Compute kernel requires launch parameter \"" << launch_param
           << "\", but PrimFunc did not contain Allocate node with shared dynamic scope.";
       return dyn_shmem_size.value();
     }
 
     auto extent = thread_extent.Get(launch_param);
-    CHECK(extent) << "Compute kernel requires launch parameter \"" << launch_param
-                  << "\", but PrimFunc does not contain AttrStmt \"" << attr::thread_extent
-                  << "\" defining this thread extent";
+    TVM_FFI_ICHECK(extent) << "Compute kernel requires launch parameter \"" << launch_param
+                           << "\", but PrimFunc does not contain AttrStmt \"" << attr::thread_extent
+                           << "\" defining this thread extent";
     return extent.value();
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
-      ICHECK_NE(iv->thread_tag.length(), 0U);
+      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       // thread_extent can appear multiple times
       // use the first appearance as def.
       if (!defined_thread.count(iv.get())) {
@@ -123,8 +123,9 @@ class DeviceInfoCollector : public StmtVisitor {
   void VisitStmt_(const AllocateNode* op) final {
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
-      ICHECK(!dyn_shmem_size.defined()) << "Only one dynamic shared memory allocation is allowed.";
-      ICHECK_GT(op->extents.size(), 0);
+      TVM_FFI_ICHECK(!dyn_shmem_size.defined())
+          << "Only one dynamic shared memory allocation is allowed.";
+      TVM_FFI_ICHECK_GT(op->extents.size(), 0);
 
       PrimExpr dyn_size = Integer(1);
       for (const auto& extent : op->extents) {
@@ -159,9 +160,9 @@ class ReturnRemover : public StmtExprMutator {
   Stmt VisitStmt_(const EvaluateNode* op) override {
     if (auto* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::ret())) {
-        ICHECK_EQ(call->args.size(), 1);
+        TVM_FFI_ICHECK_EQ(call->args.size(), 1);
         auto as_int = call->args[0].as<IntImmNode>();
-        ICHECK(as_int && as_int->value == 0)
+        TVM_FFI_ICHECK(as_int && as_int->value == 0)
             << "Device kernel may only contain successful return, T.ret(0)";
         return Evaluate(0);
       }
@@ -171,7 +172,8 @@ class ReturnRemover : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const CallNode* op) override {
     if (op->op.same_as(builtin::ret())) {
-      LOG(FATAL) << "Call to builtin::ret() should only appear within an Evaluate node";
+      TVM_FFI_THROW(InternalError)
+          << "Call to builtin::ret() should only appear within an Evaluate node";
     }
     return Parent::VisitExpr_(op);
   }
@@ -186,9 +188,9 @@ class DeviceKernelMutator : public StmtExprMutator {
       : device_info_map_(std::move(device_info_map)) {}
 
   PrimFunc RewriteKernelLaunchSite(const GlobalVar& gvar, PrimFunc func) {
-    ICHECK(!current_target_.defined());
+    TVM_FFI_ICHECK(!current_target_.defined());
     auto it = device_info_map_.find(gvar.get());
-    ICHECK(it != device_info_map_.end());
+    TVM_FFI_ICHECK(it != device_info_map_.end());
     current_target_ = it->second.target;
 
     auto body = VisitStmt(func->body);
@@ -203,7 +205,7 @@ class DeviceKernelMutator : public StmtExprMutator {
   PrimFunc UpdateKernelAttributes(const GlobalVar& gvar, PrimFunc func) const {
     bool is_kernel_launch = device_kernel_launch_.count(gvar.get());
     bool is_call_extern = extern_function_call_.count(gvar.get());
-    CHECK(!is_kernel_launch || !is_call_extern)
+    TVM_FFI_ICHECK(!is_kernel_launch || !is_call_extern)
         << "Function " << gvar << " has multiple callees, "
         << "and would need to be lowered into a call_extern at some call sites, "
         << "and a device kernel launch at others.  "
@@ -244,7 +246,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     if (!gvar) return node;
 
     auto it = device_info_map_.find(gvar);
-    ICHECK(it != device_info_map_.end())
+    TVM_FFI_ICHECK(it != device_info_map_.end())
         << "CallNode attempted subroutine call to " << gvar->name_hint << ", but "
         << gvar->name_hint << " did not appear within the IRModule";
     const KernelInfo& dev_info = it->second;
@@ -274,7 +276,7 @@ class DeviceKernelMutator : public StmtExprMutator {
       return Call(node->dtype, builtin::call_extern(), args);
     }
 
-    ICHECK(dev_info.launch_params.defined())
+    TVM_FFI_ICHECK(dev_info.launch_params.defined())
         << "CallNode attempted kernel launch to " << gvar->name_hint << " on target "
         << dev_info.target << ", but subroutine " << gvar->name_hint
         << " did not have the tir::attr::kKernelLaunchParams attribute "
@@ -287,7 +289,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     // expressions that are valid within the caller.
     ffi::Map<Var, PrimExpr> param_map = [&]() {
       ffi::Map<Var, PrimExpr> param_map;
-      CHECK_EQ(node->args.size(), dev_info.params.size())
+      TVM_FFI_ICHECK_EQ(node->args.size(), dev_info.params.size())
           << "Function " << gvar->name_hint << " accepts " << dev_info.params.size()
           << " arguments as input, but is called using " << node->args.size() << " arguments";
       for (size_t i = 0; i < node->args.size(); i++) {

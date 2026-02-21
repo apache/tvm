@@ -63,7 +63,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::Shape shape) { return static_cast<int64_t>(shape.size()); })
       .def("testing.GetShapeElem",
            [](ffi::Shape shape, int idx) {
-             ICHECK_LT(idx, shape.size());
+             TVM_FFI_ICHECK_LT(idx, shape.size());
              return shape[idx];
            })
       .def_packed("testing.test_wrap_callback",
@@ -86,21 +86,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     auto msg = args[0].cast<std::string>();
                     *ret = ffi::TypedFunction<void(int x, int y)>(
-                        [msg](int x, int y) { CHECK_EQ(x, y) << msg; });
+                        [msg](int x, int y) { TVM_FFI_ICHECK_EQ(x, y) << msg; });
                   })
       .def_packed("testing.device_test",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     auto dev = args[0].cast<Device>();
                     int dtype = args[1].cast<int>();
                     int did = args[2].cast<int>();
-                    CHECK_EQ(static_cast<int>(dev.device_type), dtype);
-                    CHECK_EQ(static_cast<int>(dev.device_id), did);
+                    TVM_FFI_ICHECK_EQ(static_cast<int>(dev.device_type), dtype);
+                    TVM_FFI_ICHECK_EQ(static_cast<int>(dev.device_id), did);
                     *ret = dev;
                   })
       .def_packed("testing.identity_cpp", [](ffi::PackedArgs args, ffi::Any* ret) {
         const auto identity_func = tvm::ffi::Function::GetGlobal("testing.identity_py");
-        ICHECK(identity_func.has_value())
-            << "AttributeError: \"testing.identity_py\" is not registered. Please check "
+        TVM_FFI_CHECK(identity_func.has_value(), AttributeError)
+            << "\"testing.identity_py\" is not registered. Please check "
                "if the python module is properly loaded";
         *ret = (*identity_func)(args[0]);
       });
@@ -109,10 +109,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // in src/api_test.cc
 void ErrorTest(int x, int y) {
   // raise ValueError
-  CHECK_EQ(x, y) << "ValueError: expect x and y to be equal.";
+  TVM_FFI_CHECK_EQ(x, y, ValueError) << "expect x and y to be equal.";
   if (x == 1) {
     // raise InternalError.
-    LOG(FATAL) << "InternalError: cannot reach here";
+    TVM_FFI_THROW(InternalError) << "cannot reach here";
   }
 }
 
@@ -140,7 +140,7 @@ ffi::Optional<ffi::Function> FrontendTestModuleNode::GetFunction(const ffi::Stri
   if (name == kAddFunctionName) {
     return ffi::Function::FromTyped(
         [this, self_strong_ref](std::string func_name, ffi::Function pf) {
-          CHECK_NE(func_name, kAddFunctionName)
+          TVM_FFI_ICHECK_NE(func_name, kAddFunctionName)
               << "func_name: cannot be special function " << kAddFunctionName;
           functions_[func_name] = pf;
         });
@@ -195,15 +195,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("testing.AcceptsArrayOfPrimExpr",
            [](ffi::Array<PrimExpr> arr) -> ObjectRef {
              for (ObjectRef item : arr) {
-               CHECK(item->IsInstance<PrimExprNode>()) << "Array contained " << item->GetTypeKey()
-                                                       << " when it should contain PrimExpr";
+               TVM_FFI_ICHECK(item->IsInstance<PrimExprNode>())
+                   << "Array contained " << item->GetTypeKey()
+                   << " when it should contain PrimExpr";
              }
              return arr;
            })
       .def("testing.AcceptsArrayOfVariant",
            [](ffi::Array<ffi::Variant<ffi::Function, PrimExpr>> arr) -> ObjectRef {
              for (auto item : arr) {
-               CHECK(item.as<PrimExpr>() || item.as<ffi::Function>())
+               TVM_FFI_ICHECK(item.as<PrimExpr>() || item.as<ffi::Function>())
                    << "Array should contain either PrimExpr or ffi::Function";
              }
              return arr;
@@ -211,7 +212,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("testing.AcceptsMapOfPrimExpr", [](ffi::Map<Any, PrimExpr> map) -> ObjectRef {
         for (const auto& kv : map) {
           ObjectRef value = kv.second;
-          CHECK(value->IsInstance<PrimExprNode>())
+          TVM_FFI_ICHECK(value->IsInstance<PrimExprNode>())
               << "Map contained " << value->GetTypeKey() << " when it should contain PrimExpr";
         }
         return map;

@@ -413,7 +413,7 @@ void MSCJointNode::FromJson(const JsonMSCJoint& j_joint,
     scope.push_back(s);
   }
   for (const auto& p_name : j_joint.parents) {
-    ICHECK(nodes.count(p_name)) << "Can not find parent " << p_name;
+    TVM_FFI_ICHECK(nodes.count(p_name)) << "Can not find parent " << p_name;
     parents.push_back(nodes[p_name]);
   }
   for (const auto& in_name : j_joint.inputs) {
@@ -426,7 +426,7 @@ void MSCJointNode::FromJson(const JsonMSCJoint& j_joint,
         break;
       }
     }
-    ICHECK(p_idx >= 0) << "Can not find parent for " << in_name;
+    TVM_FFI_ICHECK(p_idx >= 0) << "Can not find parent for " << in_name;
     ffi::Array<Integer> input{Integer(p_idx), Integer(std::stol(index_str))};
     inputs.push_back(input);
   }
@@ -476,7 +476,7 @@ const ffi::Array<MSCTensor> MSCJointNode::GetOutputs() const {
 }
 
 const MSCTensor MSCJointNode::WeightAt(const ffi::String& wtype) const {
-  ICHECK(weights.count(wtype)) << "Can not find " << wtype << " from weights";
+  TVM_FFI_ICHECK(weights.count(wtype)) << "Can not find " << wtype << " from weights";
   return weights[wtype];
 }
 
@@ -516,7 +516,7 @@ const std::pair<MSCJoint, size_t> MSCJointNode::ProducerAndIdxOf(const ffi::Stri
       return ProducerAndIdxOf(i);
     }
   }
-  LOG(FATAL) << "Can not find producer of " << name;
+  TVM_FFI_THROW(InternalError) << "Can not find producer of " << name;
 }
 
 const std::pair<MSCJoint, size_t> MSCJointNode::ProducerAndIdxOf(const MSCTensor& input) const {
@@ -572,7 +572,7 @@ void MSCPrimNode::FromJson(const JsonMSCPrim& j_prim,
     attrs.Set(pair.first, pair.second);
   }
   for (const auto& p_name : j_prim.parents) {
-    ICHECK(prims.count(p_name)) << "Can not find parent " << p_name;
+    TVM_FFI_ICHECK(prims.count(p_name)) << "Can not find parent " << p_name;
     parents.push_back(prims[p_name]);
   }
 }
@@ -660,7 +660,7 @@ void WeightJointNode::FromJson(const JsonWeightJoint& j_joint,
     attrs.Set(pair.first, pair.second);
   }
   for (const auto& p_name : j_joint.parents) {
-    ICHECK(nodes.count(p_name)) << "Can not find parent " << p_name;
+    TVM_FFI_ICHECK(nodes.count(p_name)) << "Can not find parent " << p_name;
     parents.push_back(nodes[p_name]);
   }
 }
@@ -814,12 +814,12 @@ const ffi::String MSCGraphNode::ToPrototxt() const {
 }
 
 const MSCJoint MSCGraphNode::FindNode(const ffi::String& name) const {
-  ICHECK(nodes.count(name)) << "Can not find node " << name;
+  TVM_FFI_ICHECK(nodes.count(name)) << "Can not find node " << name;
   return Downcast<MSCJoint>(nodes[name]);
 }
 
 const MSCPrim MSCGraphNode::FindPrim(const ffi::String& name) const {
-  ICHECK(prims.count(name)) << "Can not find prim " << name;
+  TVM_FFI_ICHECK(prims.count(name)) << "Can not find prim " << name;
   return prims[name];
 }
 
@@ -890,7 +890,7 @@ const MSCTensor MSCGraphNode::FindTensor(const ffi::String& name) const {
         return pair.second;
       }
     }
-    LOG(FATAL) << "Can not find weight " << name << " from " << node;
+    TVM_FFI_THROW(InternalError) << "Can not find weight " << name << " from " << node;
   }
   const auto& pair = FindProducerAndIdx(name);
   return pair.first->OutputAt(pair.second);
@@ -911,12 +911,14 @@ const MSCJoint MSCGraphNode::FindProducer(const MSCTensor& tensor) const {
 
 const std::pair<MSCJoint, size_t> MSCGraphNode::FindProducerAndIdx(const ffi::String& name) const {
   const ffi::String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
-  ICHECK(!weight_holders.count(tensor_name)) << "Weight " << name << " has no producer with index";
+  TVM_FFI_ICHECK(!weight_holders.count(tensor_name))
+      << "Weight " << name << " has no producer with index";
   ffi::String host, index;
   std::tie(host, index) = StringUtils::SplitOnce(tensor_name, ":");
   if (index.size() == 0) {
     const auto& node = FindNode(host);
-    ICHECK(node->optype == "constant") << "Tensor without index should be constant, get " << node;
+    TVM_FFI_ICHECK(node->optype == "constant")
+        << "Tensor without index should be constant, get " << node;
     return std::make_pair(node, 0);
   }
   return std::make_pair(FindNode(host), std::stoi(index));
@@ -949,7 +951,7 @@ const ffi::Array<MSCJoint> MSCGraphNode::FindConsumers(const MSCTensor& tensor) 
 const std::vector<std::pair<MSCJoint, size_t>> MSCGraphNode::FindConsumersAndIndices(
     const ffi::String& name) const {
   const ffi::String& tensor_name = tensor_alias.count(name) ? tensor_alias[name] : name;
-  ICHECK(!weight_holders.count(tensor_name)) << "Weight has no index";
+  TVM_FFI_ICHECK(!weight_holders.count(tensor_name)) << "Weight has no index";
   std::vector<std::pair<MSCJoint, size_t>> consumers;
   for (const auto& c : FindConsumers(name)) {
     bool find_tensor = false;
@@ -960,7 +962,7 @@ const std::vector<std::pair<MSCJoint, size_t>> MSCGraphNode::FindConsumersAndInd
         break;
       }
     }
-    ICHECK(find_tensor) << "Can not find tensor " << name << " from " << c;
+    TVM_FFI_ICHECK(find_tensor) << "Can not find tensor " << name << " from " << c;
   }
   return consumers;
 }
@@ -1166,7 +1168,7 @@ void WeightGraphNode::Build(const MSCGraph& graph,
 }
 
 const WeightJoint WeightGraphNode::FindNode(const ffi::String& name) const {
-  ICHECK(nodes.count(name)) << "Can not find node " << name;
+  TVM_FFI_ICHECK(nodes.count(name)) << "Can not find node " << name;
   return Downcast<WeightJoint>(nodes[name]);
 }
 
@@ -1196,7 +1198,7 @@ void WeightGraphNode::FromJson(const JsonWeightGraph& j_graph) {
   for (const auto& j_joint : j_graph.nodes) {
     const auto& node = Downcast<WeightJoint>(nodes[j_joint.name]);
     for (const auto& f_name : j_joint.friends) {
-      ICHECK(nodes.count(f_name)) << "Can not find friend " << f_name;
+      TVM_FFI_ICHECK(nodes.count(f_name)) << "Can not find friend " << f_name;
       node->friends.push_back(nodes[f_name]);
     }
   }
@@ -1249,7 +1251,7 @@ MSCGraph PruneWeights(const MSCGraph& graph,
     // define inputs
     std::vector<std::pair<BaseJoint, size_t>> inputs;
     for (const auto& input : node->GetInputs()) {
-      ICHECK(inputs_map.count(input->name)) << "Can not find input " << input;
+      TVM_FFI_ICHECK(inputs_map.count(input->name)) << "Can not find input " << input;
       inputs.push_back(inputs_map[input->name]);
     }
     // define outputs

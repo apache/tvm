@@ -65,7 +65,7 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
                                       const ffi::Array<Tensor>& inputs, FExtern fextern,
                                       std::string name, std::string tag,
                                       ::tvm::ffi::Map<ffi::String, ffi::Any> attrs) {
-  ICHECK_EQ(out_shapes.size(), out_types.size())
+  TVM_FFI_ICHECK_EQ(out_shapes.size(), out_types.size())
       << "make_extern: out_shapes and out_types must have equal size";
 
   ffi::Array<Buffer> input_placeholders;
@@ -98,7 +98,7 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
  * \return An expression representing the pack operation
  */
 inline PrimExpr pack_buffer(Buffer buf) {
-  ICHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
+  TVM_FFI_ICHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
   auto shape =
       tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::tvm_stack_make_shape(), buf->shape);
   PrimExpr strides;

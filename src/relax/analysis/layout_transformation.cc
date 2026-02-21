@@ -42,7 +42,7 @@ using namespace tir;
 /*! \brief Checks if a transformation is bijective affine over the given ranges */
 static bool IsBijectiveAffine(const IndexMap& m, const ffi::Array<Range>& ranges) {
   ffi::Map<tir::Var, Range> input_iters;
-  ICHECK_EQ(m->initial_indices.size(), ranges.size());
+  TVM_FFI_ICHECK_EQ(m->initial_indices.size(), ranges.size());
   for (size_t i = 0; i < ranges.size(); i++) {
     input_iters.Set(m->initial_indices[i], ranges[i]);
   }
@@ -113,7 +113,7 @@ class IndexAnalyzer : public ExprVisitor {
  */
 using SpatialLayout = ffi::Array<ffi::Optional<tir::Var>>;
 static SpatialLayout GetSpatialLayout(const arith::IterMapResult& iter_map_result) {
-  ICHECK(!iter_map_result->indices.empty());
+  TVM_FFI_ICHECK(!iter_map_result->indices.empty());
   SpatialLayout result;
   for (const arith::IterSumExpr& index : iter_map_result->indices) {
     IndexAnalyzer index_analyzer;
@@ -159,7 +159,7 @@ static bool IsSequentialAccess(const SpatialLayout& iterators,
   for (const auto& i : iterators) {
     if (!i.defined()) continue;
     auto it = iter_to_block_index.find(i.value());
-    ICHECK(it != iter_to_block_index.end());
+    TVM_FFI_ICHECK(it != iter_to_block_index.end());
     int blk_index = it->second;
     if (blk_index <= last_value) return false;
     last_value = blk_index;
@@ -231,7 +231,7 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
   auto initial_indices_it = initial_indices.begin();
   VarSet initial_indices_var_set;
   for (const auto& i : src_spatial_layout) {
-    ICHECK(i.defined());
+    TVM_FFI_ICHECK(i.defined());
     if (tgt_var_set.count(i.value())) {
       initial_indices_var_set.insert(*initial_indices_it);
       initial_indices_it++;
@@ -245,7 +245,7 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
   while (final_indices_it != final_indices.end()) {
     // Collect all the vars used in this final index.
     ffi::Array<tir::Var> used_vars = tir::UndefinedVars(*final_indices_it);
-    ICHECK(!used_vars.empty())
+    TVM_FFI_ICHECK(!used_vars.empty())
         << "IndexMap expression must always contain tir::Var nodes but found none in: "
         << *final_indices_it;
 
@@ -283,7 +283,7 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
   // spatial layout.
   VarSet src_var_set;
   for (const auto& i : src_spatial_layout) {
-    ICHECK(i.defined());
+    TVM_FFI_ICHECK(i.defined());
     src_var_set.insert(i.value());
   }
 
@@ -325,7 +325,7 @@ class BlockAnalyzer : public StmtExprVisitor {
         write_transformation_(write_transformation),
         block_(block),
         buffer_transformation_cache_(transformation_cache) {
-    ICHECK(block_->writes.size() == 1);
+    TVM_FFI_ICHECK(block_->writes.size() == 1);
     auto write_buffer = block_->writes[0]->buffer;
 
     ComputeBlockSpatialDomain();
@@ -544,15 +544,16 @@ class BlockAnalyzer : public StmtExprVisitor {
 class PrimFuncAnalyzer : public StmtExprVisitor {
  public:
   explicit PrimFuncAnalyzer(const PrimFunc& func, ffi::Array<IndexMap> write_transformations) {
-    ICHECK_LE(write_transformations.size(), func->params.size())
+    TVM_FFI_ICHECK_LE(write_transformations.size(), func->params.size())
         << "Incompatible PrimFunc and write_transformations";
 
     size_t first_write_index = func->params.size() - write_transformations.size();
     for (size_t i = 0; i < write_transformations.size(); ++i) {
       auto param = func->params[first_write_index + i];
       ffi::Optional<Buffer> param_buf = func->buffer_map.Get(param);
-      ICHECK(param_buf.defined());
-      ICHECK_EQ(param_buf.value()->shape.size(), write_transformations[i]->initial_indices.size())
+      TVM_FFI_ICHECK(param_buf.defined());
+      TVM_FFI_ICHECK_EQ(param_buf.value()->shape.size(),
+                        write_transformations[i]->initial_indices.size())
           << "Mismatch between output buffer shape and index map";
       buffer_transformation_cache_.Set(param_buf.value(), write_transformations[i]);
     }
@@ -595,7 +596,7 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
       // BlockAnalyzer makes sure that it does not propose transformation for a buffer for which a
       // transformation has already been proposed by other blocks or by write_transformations which
       // are input to this analysis.
-      ICHECK_EQ(buffer_transformation_cache_.count(buffer), 0);
+      TVM_FFI_ICHECK_EQ(buffer_transformation_cache_.count(buffer), 0);
       buffer_transformation_cache_.Set(buffer, index_map);
       block_to_buffer_[block].push_back(buffer);
     }

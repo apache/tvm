@@ -35,7 +35,7 @@ bool IsAnnotateWithUnroll(const Instruction& inst) {
   if (!inst->kind.same_as(inst_annotate)) {
     return false;
   }
-  ICHECK_EQ(inst->attrs.size(), 1);
+  TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
   return ann_key == tir::attr::meta_schedule_unroll_explicit ||
          ann_key == tir::attr::meta_schedule_unroll_implicit;
@@ -102,7 +102,7 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   ann_insts.reserve(trace->insts.size());
   for (const Instruction& inst : trace->insts) {
     if (inst->kind.same_as(inst_sample_categorical)) {
-      ICHECK_EQ(inst->outputs.size(), 1);
+      TVM_FFI_ICHECK_EQ(inst->outputs.size(), 1);
       const PrimExprNode* var_rv = TVM_TYPE_AS(inst->outputs[0], PrimExprNode);
       sample_insts[var_rv] = inst.get();
     } else if (IsAnnotateWithUnroll(inst)) {
@@ -114,11 +114,11 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
     return false;
   }
   const InstructionNode* ann_inst = ann_insts[s_tir::SampleInt(rand_state, 0, n_ann_insts)];
-  ICHECK_EQ(ann_inst->inputs.size(), 2);
+  TVM_FFI_ICHECK_EQ(ann_inst->inputs.size(), 2);
   const auto* var_rv = TVM_TYPE_AS(ann_inst->inputs[1], PrimExprNode);
-  ICHECK(sample_insts.count(var_rv));
+  TVM_FFI_ICHECK(sample_insts.count(var_rv));
   const InstructionNode* sample_inst = sample_insts.at(var_rv);
-  ICHECK_EQ(sample_inst->attrs.size(), 2);
+  TVM_FFI_ICHECK_EQ(sample_inst->attrs.size(), 2);
   candidate->inst = ffi::GetRef<Instruction>(sample_inst);
   candidate->decision =
       Downcast<IntImm>(trace->decisions[ffi::GetRef<Instruction>(sample_inst)])->value;

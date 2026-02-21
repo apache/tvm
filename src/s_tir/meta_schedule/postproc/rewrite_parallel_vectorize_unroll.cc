@@ -151,7 +151,7 @@ void RemoveParsedAnn(const Schedule& sch, const SBlockRV& block_rv,
 int CalculateNumRewritableLoops(const ffi::Array<StmtSRef>& loop_srefs,
                                 const std::vector<int>& loop_types) {
   int rw_loops_num = 0;
-  ICHECK_EQ(loop_srefs.size(), loop_types.size());
+  TVM_FFI_ICHECK_EQ(loop_srefs.size(), loop_types.size());
   for (size_t i = 0; i < loop_srefs.size(); ++i) {
     const StmtSRef& loop_sref = loop_srefs[i];
     const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
@@ -364,7 +364,7 @@ void RewriteFuseSplitParallelVectorize(const Schedule& sch, ffi::Array<LoopRV>* 
   size_t n_loops = loop_rvs->size();
   LoopRV fused = sch->Fuse({loop_rvs->begin(), loop_rvs->end()});
   ffi::Array<LoopRV> split = sch->Split(fused, {std::nullopt, Integer(vec_len)});
-  ICHECK_EQ(split.size(), 2);
+  TVM_FFI_ICHECK_EQ(split.size(), 2);
   const LoopRV& outer = split[0];
   const LoopRV& inner = split[1];
   sch->Parallel(outer);
@@ -376,7 +376,7 @@ void RewriteFuseSplitParallelVectorize(const Schedule& sch, ffi::Array<LoopRV>* 
 }
 
 void RewriteParallel(const Schedule& sch, size_t n, ffi::Array<LoopRV>* loop_rvs) {
-  ICHECK_LE(n, loop_rvs->size());
+  TVM_FFI_ICHECK_LE(n, loop_rvs->size());
   LoopRV fused = sch->Fuse({loop_rvs->begin(), loop_rvs->begin() + n});
   sch->Parallel(fused);
   for (size_t i = 0; i < n; ++i) {
@@ -386,7 +386,7 @@ void RewriteParallel(const Schedule& sch, size_t n, ffi::Array<LoopRV>* loop_rvs
 
 void RewriteVectorize(const Schedule& sch, size_t n, ffi::Array<LoopRV>* loop_rvs) {
   size_t n_loops = loop_rvs->size();
-  ICHECK_LE(n, n_loops);
+  TVM_FFI_ICHECK_LE(n, n_loops);
   LoopRV fused = sch->Fuse({loop_rvs->end() - n, loop_rvs->end()});
   sch->Vectorize(fused);
   for (size_t i = n_loops - n; i < n_loops; ++i) {
@@ -445,7 +445,7 @@ class RewriteParallelVectorizeUnrollNode : public PostprocNode {
           }
           // AutoUnroll
           if (parsed.unroll_explicit != -1 || parsed.unroll_implicit != -1) {
-            ICHECK(parsed.unroll_explicit == -1 || parsed.unroll_implicit == -1);
+            TVM_FFI_ICHECK(parsed.unroll_explicit == -1 || parsed.unroll_implicit == -1);
             int unroll_explicit = parsed.unroll_explicit != -1;
             int max_step = parsed.unroll_explicit + parsed.unroll_implicit + 1;
             s_tir::RewriteUnroll(sch, unroll_explicit, max_step, block_rv, loop_rvs[0]);

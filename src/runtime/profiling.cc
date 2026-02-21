@@ -194,7 +194,7 @@ std::vector<int64_t> ToShape(Tensor shape_tensor) {
 
   // Otherwise we should be rank-1, and we will extract the number of dimensions
   // for the output vector.
-  ICHECK_EQ(rank, 1U) << "shape tensor should be a k-length vector, found " << rank;
+  TVM_FFI_ICHECK_EQ(rank, 1U) << "shape tensor should be a k-length vector, found " << rank;
   int64_t ndim = shape_tensor.Shape().at(0);
   shape.resize(ndim);
 
@@ -206,7 +206,7 @@ std::vector<int64_t> ToShape(Tensor shape_tensor) {
     int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
     shape.assign(dims, dims + ndim);
   } else {
-    LOG(FATAL) << "invalid shape tensor datatype: " << dtype;
+    TVM_FFI_THROW(InternalError) << "invalid shape tensor datatype: " << dtype;
   }
 
   return shape;
@@ -318,7 +318,7 @@ void metric_as_json(std::ostream& os, ffi::Any o) {
     os << "{\"ratio\":" << std::setprecision(std::numeric_limits<double>::max_digits10)
        << std::fixed << n->ratio << "}";
   } else {
-    LOG(FATAL) << "Unprintable type " << o.GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Unprintable type " << o.GetTypeKey();
   }
 }
 }  // namespace
@@ -390,7 +390,7 @@ ffi::String ReportNode::AsJSON() const {
 // and Percent; average for Ratio; and assumes all Strings are the same. All
 // ObjectRefs in metrics must have the same type.
 Any AggregateMetric(const std::vector<ffi::Any>& metrics) {
-  ICHECK_GT(metrics.size(), 0) << "Must pass a non-zero number of metrics";
+  TVM_FFI_ICHECK_GT(metrics.size(), 0) << "Must pass a non-zero number of metrics";
   if (metrics[0].as<DurationNode>()) {
     double sum = 0;
     for (auto& metric : metrics) {
@@ -424,9 +424,10 @@ Any AggregateMetric(const std::vector<ffi::Any>& metrics) {
     // Assume all strings in metrics are the same.
     return metrics[0];
   } else {
-    LOG(FATAL) << "Can only aggregate metrics with types DurationNode, CountNode, "
-                  "PercentNode, RatioNode, and String, but got "
-               << metrics[0].GetTypeKey();
+    TVM_FFI_THROW(InternalError)
+        << "Can only aggregate metrics with types DurationNode, CountNode, "
+           "PercentNode, RatioNode, and String, but got "
+        << metrics[0].GetTypeKey();
     return ffi::Any();  // To silence warnings
   }
 }
@@ -467,7 +468,7 @@ static ffi::String print_metric(ffi::Any metric) {
   } else if (auto opt_str = metric.as<ffi::String>()) {
     val = *opt_str;
   } else {
-    LOG(FATAL) << "Cannot print metric of type " << metric.GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Cannot print metric of type " << metric.GetTypeKey();
   }
   return val;
 }
@@ -641,8 +642,7 @@ ffi::String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums
       if (row < cols[col].size()) {
         s << std::setw(widths[col]) << cols[col][row] << "  ";
       } else {
-        s << std::setw(widths[col]) << ""
-          << "  ";
+        s << std::setw(widths[col]) << "  ";
       }
     }
     s << std::endl;
@@ -734,8 +734,8 @@ ffi::Map<ffi::String, ffi::Any> parse_metrics(const json::Object& obj) {
       } else if (metric_value_name == "string") {
         o = ffi::String(type_val.cast<ffi::String>());
       } else {
-        LOG(FATAL) << "Cannot parse metric of type " << metric_value_name
-                   << " valid types are microseconds, percent, count.";
+        TVM_FFI_THROW(InternalError) << "Cannot parse metric of type " << metric_value_name
+                                     << " valid types are microseconds, percent, count.";
       }
     }
     metrics.Set(metric_name, o);
@@ -786,48 +786,49 @@ ffi::Function ProfileFunction(ffi::Module mod, std::string func_name, int device
                               int device_id, int warmup_iters,
                               ffi::Array<MetricCollector> collectors) {
   // Module::GetFunction is not const, so this lambda has to be mutable
-  return ffi::Function::FromPacked([=](const ffi::AnyView* args, int32_t num_args,
-                                       ffi::Any* ret) mutable {
-    auto optf = mod->GetFunction(func_name);
-    CHECK(optf.has_value()) << "There is no function called \"" << func_name << "\" in the module";
-    auto f = *optf;
-    Device dev{static_cast<DLDeviceType>(device_type), device_id};
+  return ffi::Function::FromPacked(
+      [=](const ffi::AnyView* args, int32_t num_args, ffi::Any* ret) mutable {
+        auto optf = mod->GetFunction(func_name);
+        TVM_FFI_ICHECK(optf.has_value())
+            << "There is no function called \"" << func_name << "\" in the module";
+        auto f = *optf;
+        Device dev{static_cast<DLDeviceType>(device_type), device_id};
 
-    // warmup
-    for (int i = 0; i < warmup_iters; i++) {
-      f.CallPacked(args, num_args, ret);
-    }
+        // warmup
+        for (int i = 0; i < warmup_iters; i++) {
+          f.CallPacked(args, num_args, ret);
+        }
 
-    for (auto& collector : collectors) {
-      collector->Init({DeviceWrapper(dev)});
-    }
-    std::vector<ffi::Map<ffi::String, ffi::Any>> results;
-    results.reserve(collectors.size());
-    std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
-    collector_data.reserve(collectors.size());
-    for (auto& collector : collectors) {
-      ObjectRef o = collector->Start(dev);
-      // If not defined, then the collector cannot time this device.
-      if (o.defined()) {
-        collector_data.push_back({collector, o});
-      }
-    }
+        for (auto& collector : collectors) {
+          collector->Init({DeviceWrapper(dev)});
+        }
+        std::vector<ffi::Map<ffi::String, ffi::Any>> results;
+        results.reserve(collectors.size());
+        std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
+        collector_data.reserve(collectors.size());
+        for (auto& collector : collectors) {
+          ObjectRef o = collector->Start(dev);
+          // If not defined, then the collector cannot time this device.
+          if (o.defined()) {
+            collector_data.push_back({collector, o});
+          }
+        }
 
-    // TODO(tkonolige): repeated calls if the runtime is small?
-    f.CallPacked(args, num_args, ret);
+        // TODO(tkonolige): repeated calls if the runtime is small?
+        f.CallPacked(args, num_args, ret);
 
-    for (auto& kv : collector_data) {
-      results.push_back(kv.first->Stop(kv.second));
-    }
-    ffi::Map<ffi::String, ffi::Any> combined_results;
-    for (auto m : results) {
-      for (auto p : m) {
-        // assume that there is no shared metric name between collectors
-        combined_results.Set(p.first, p.second);
-      }
-    }
-    *ret = combined_results;
-  });
+        for (auto& kv : collector_data) {
+          results.push_back(kv.first->Stop(kv.second));
+        }
+        ffi::Map<ffi::String, ffi::Any> combined_results;
+        for (auto m : results) {
+          for (auto p : m) {
+            // assume that there is no shared metric name between collectors
+            combined_results.Set(p.first, p.second);
+          }
+        }
+        *ret = combined_results;
+      });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -837,7 +838,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       [](ffi::Module mod, ffi::String func_name, int device_type, int device_id, int warmup_iters,
          ffi::Array<MetricCollector> collectors) {
         if (mod->kind() == std::string("rpc")) {
-          LOG(FATAL)
+          TVM_FFI_THROW(InternalError)
               << "Profiling a module over RPC is not yet supported";  // because we can't send
                                                                       // MetricCollectors over rpc.
           throw;
@@ -851,7 +852,7 @@ ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int re
                                 int min_repeat_ms, int limit_zero_time_iterations,
                                 int cooldown_interval_ms, int repeats_to_cooldown,
                                 int cache_flush_bytes, ffi::Function f_preproc) {
-  ICHECK(pf != nullptr);
+  TVM_FFI_ICHECK(pf != nullptr);
 
   auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
                  cooldown_interval_ms, repeats_to_cooldown, cache_flush_bytes,

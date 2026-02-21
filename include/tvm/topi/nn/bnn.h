@@ -52,7 +52,7 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
                                      std::string name = "PackedInput",
                                      std::string tag = "binarize_pack") {
   auto ishape = data->shape;
-  ICHECK_EQ(GetConstInt(ishape[axis]) % 32, 0)
+  TVM_FFI_ICHECK_EQ(GetConstInt(ishape[axis]) % 32, 0)
       << "binarize_pack: axis size must be a multiple of 32";
 
   arith::Analyzer analyzer;
@@ -99,10 +99,10 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
  * \return Tensor with shape [batch, out_dim], dtype is float32
  */
 inline tvm::te::Tensor binary_dense(const tvm::te::Tensor& data, const tvm::te::Tensor& weight) {
-  ICHECK_EQ(data->shape.size(), 2) << "binary_dense requires 2-D data";
-  ICHECK_EQ(weight->shape.size(), 2) << "binary_dense requires 2-D weight";
-  ICHECK_EQ(data->dtype, DataType::UInt(32)) << "binary_dense requires uint32 data";
-  ICHECK_EQ(weight->dtype, DataType::UInt(32)) << "binary_dense requires uint32 weight";
+  TVM_FFI_ICHECK_EQ(data->shape.size(), 2) << "binary_dense requires 2-D data";
+  TVM_FFI_ICHECK_EQ(weight->shape.size(), 2) << "binary_dense requires 2-D weight";
+  TVM_FFI_ICHECK_EQ(data->dtype, DataType::UInt(32)) << "binary_dense requires uint32 data";
+  TVM_FFI_ICHECK_EQ(weight->dtype, DataType::UInt(32)) << "binary_dense requires uint32 weight";
 
   auto batch = data->shape[0];
   auto in_dim = data->shape[1];

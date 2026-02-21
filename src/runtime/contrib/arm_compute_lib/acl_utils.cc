@@ -35,7 +35,7 @@ namespace contrib {
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
 
 void CheckACLError(const arm_compute::Status& status) {
-  ICHECK(status.error_code() == arm_compute::ErrorCode::OK)
+  TVM_FFI_ICHECK(status.error_code() == arm_compute::ErrorCode::OK)
       << "ACL: " << status.error_description();
 }
 
@@ -72,7 +72,7 @@ arm_compute::TensorInfo MakeACLTensorInfo(const std::vector<int64_t>& shape,
   if (scale != nullptr && offset != nullptr) {
     std::vector<float> scale_data = GetVectorFromDLTensor<float>(scale);
     std::vector<int> offset_data = GetVectorFromDLTensor<int>(offset);
-    ICHECK(scale_data.size() == 1 && offset_data.size() == 1)
+    TVM_FFI_ICHECK(scale_data.size() == 1 && offset_data.size() == 1)
         << "Currently only per-layer quantization is supported in the Arm Compute Library runtime.";
     arm_compute::QuantizationInfo qinfo(scale_data[0], offset_data[0]);
     info.set_quantization_info(qinfo);
@@ -114,7 +114,7 @@ arm_compute::PadStrideInfo MakeACLPadStride(const ffi::Array<int64_t>& pad,
     pad_2 = static_cast<int>(pad[0]);
     pad_3 = static_cast<int>(pad[2]);
   } else {
-    LOG(FATAL) << "Unsupported padding dimensions";
+    TVM_FFI_THROW(InternalError) << "Unsupported padding dimensions";
   }
 
   if (ceil_mode) {
@@ -135,7 +135,7 @@ arm_compute::DataType MakeACLDataType(const DLDataType& data_type) {
   } else if (data_type.code == DLDataTypeCode::kDLInt && data_type.bits == 32) {
     return arm_compute::DataType::S32;
   } else {
-    LOG(FATAL) << "Datatype " << data_type << " unsupported by ACL runtime";
+    TVM_FFI_THROW(InternalError) << "Datatype " << data_type << " unsupported by ACL runtime";
   }
 }
 
@@ -144,14 +144,15 @@ arm_compute::ActivationLayerInfo MakeACLActivationInfo(const std::string& activa
   if (activation_type == "relu") {
     act_func = arm_compute::ActivationLayerInfo::ActivationFunction::RELU;
   } else {
-    LOG(FATAL) << "Activation " << activation_type << " unsupported by ACL runtime";
+    TVM_FFI_THROW(InternalError) << "Activation " << activation_type
+                                 << " unsupported by ACL runtime";
   }
   return {act_func};
 }
 
 template <typename T>
 std::vector<T> GetVectorFromDLTensor(const DLTensor* tensor) {
-  ICHECK(tensor) << "Cannot convert a nullptr";
+  TVM_FFI_ICHECK(tensor) << "Cannot convert a nullptr";
   int len = 1;
   for (int i = 0; i < tensor->ndim; i++) {
     len *= tensor->shape[i];

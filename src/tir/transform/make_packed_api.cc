@@ -58,11 +58,11 @@ class ReturnRewriter : public StmtMutator {
   Stmt VisitStmt_(const EvaluateNode* node) override {
     Stmt ret = StmtMutator::VisitStmt_(node);
     const EvaluateNode* eval = ret.as<EvaluateNode>();
-    ICHECK(eval);
+    TVM_FFI_ICHECK(eval);
     if (const CallNode* call = eval->value.as<CallNode>()) {
       if (call->op.same_as(builtin::ret())) {
-        ICHECK_EQ(in_parallel_, 0) << "tir.ret cannot be used in parallel scope.";
-        ICHECK_EQ(call->args.size(), 1) << "tir.ret expect a single argument.";
+        TVM_FFI_ICHECK_EQ(in_parallel_, 0) << "tir.ret cannot be used in parallel scope.";
+        TVM_FFI_ICHECK_EQ(call->args.size(), 1) << "tir.ret expect a single argument.";
         ret = WriteToOut(call->args[0]);
       }
     }
@@ -94,7 +94,7 @@ class ReturnRewriter : public StmtMutator {
       info.type_index = ffi::TypeIndex::kTVMFFINone;
       info.expr = val;
     } else {
-      LOG(FATAL) << "data type " << dtype << " not supported yet";
+      TVM_FFI_THROW(InternalError) << "data type " << dtype << " not supported yet";
     }
     return info;
   }
@@ -210,8 +210,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
   Target target = [&]() {
     auto opt = func->GetAttr<Target>(tvm::attr::kTarget);
-    ICHECK(opt) << "MakePackedAPI required the function to be annotated with tvm::attr::kTarget ("
-                << tvm::attr::kTarget << "), but the function only has attributes " << func->attrs;
+    TVM_FFI_ICHECK(opt)
+        << "MakePackedAPI required the function to be annotated with tvm::attr::kTarget ("
+        << tvm::attr::kTarget << "), but the function only has attributes " << func->attrs;
     return opt.value();
   }();
   int target_device_type = target->GetTargetDeviceType();
@@ -326,7 +327,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
           tvm::tir::StringImm(msg.str()), nop));
       arg_value = f_load_arg_value(param.dtype(), i);
     } else {
-      ICHECK(dtype.is_float());
+      TVM_FFI_ICHECK(dtype.is_float());
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be float";
       seq_init.emplace_back(AssertStmt(type_index == ffi::TypeIndex::kTVMFFIFloat ||
@@ -398,8 +399,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   func_ptr->params = args;
 
   ffi::Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
-  ICHECK_EQ(undefined.size(), 0) << "In PrimFunc " << name_hint << " variables " << undefined
-                                 << " are used, but are not passed in as API arguments";
+  TVM_FFI_ICHECK_EQ(undefined.size(), 0)
+      << "In PrimFunc " << name_hint << " variables " << undefined
+      << " are used, but are not passed in as API arguments";
 
   func_ptr->buffer_map = ffi::Map<Var, Buffer>();
   func_ptr->ret_type = PrimType(DataType::Int(32));

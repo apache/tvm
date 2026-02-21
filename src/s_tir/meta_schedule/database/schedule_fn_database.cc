@@ -66,32 +66,32 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
   }
 
   bool HasWorkload(const IRModule& mod) final {
-    LOG(FATAL) << "NotImplementedError: ScheduleFnDatabase.HasWorkload";
+    TVM_FFI_THROW(NotImplementedError) << "ScheduleFnDatabase.HasWorkload";
     throw;
   }
 
   Workload CommitWorkload(const IRModule& mod) final {
-    LOG(FATAL) << "NotImplementedError: ScheduleFnDatabase.CommitWorkload";
+    TVM_FFI_THROW(NotImplementedError) << "ScheduleFnDatabase.CommitWorkload";
     throw;
   }
 
   void CommitTuningRecord(const TuningRecord& record) final {
-    LOG(FATAL) << "NotImplementedError: ScheduleFnDatabase.CommitTuningRecord";
+    TVM_FFI_THROW(NotImplementedError) << "ScheduleFnDatabase.CommitTuningRecord";
     throw;
   }
 
   ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
-    LOG(FATAL) << "NotImplementedError: ScheduleFnDatabase.GetTopK";
+    TVM_FFI_THROW(NotImplementedError) << "ScheduleFnDatabase.GetTopK";
     throw;
   }
 
   ffi::Array<TuningRecord> GetAllTuningRecords() final {
-    LOG(FATAL) << "NotImplementedError: ScheduleFnDatabase.GetAllTuningRecords";
+    TVM_FFI_THROW(NotImplementedError) << "ScheduleFnDatabase.GetAllTuningRecords";
     throw;
   }
 
   int64_t Size() final {
-    LOG(FATAL) << "NotImplementedError: ScheduleFnDatabase.size";
+    TVM_FFI_THROW(NotImplementedError) << "ScheduleFnDatabase.size";
     throw;
   }
 };

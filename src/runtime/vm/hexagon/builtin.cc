@@ -45,9 +45,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              void* src = sptr->data;
              int ret = DMA_RETRY;
 
-             CHECK_EQ(GetDataSize(*dptr), GetDataSize(*sptr));
+             TVM_FFI_ICHECK_EQ(GetDataSize(*dptr), GetDataSize(*sptr));
              auto size = GetDataSize(*dptr);
-             ICHECK(size > 0);
+             TVM_FFI_ICHECK(size > 0);
              if (bypass_cache)
                qurt_mem_cache_clean(reinterpret_cast<qurt_addr_t>(src), size,
                                     QURT_MEM_CACHE_INVALIDATE, QURT_MEM_DCACHE);
@@ -55,12 +55,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                ret = tvm::runtime::hexagon::HexagonDeviceAPI::Global()->UserDMA()->Copy(
                    queue_id, dst, src, size, bypass_cache);
              } while (ret == DMA_RETRY);
-             CHECK(ret == DMA_SUCCESS);
+             TVM_FFI_ICHECK(ret == DMA_SUCCESS);
            })
       .def("vm.builtin.hexagon.dma_wait", [](ffi::AnyView vm_ptr, int queue_id, int inflight_dma,
                                              bool bypass_cache, [[maybe_unused]] Tensor src_arr,
                                              [[maybe_unused]] Tensor dst_arr) {
-        ICHECK(inflight_dma >= 0);
+        TVM_FFI_ICHECK(inflight_dma >= 0);
         tvm::runtime::hexagon::HexagonDeviceAPI::Global()->UserDMA()->Wait(queue_id, inflight_dma);
         if (bypass_cache) {
           const DLTensor* dptr = dst_arr.operator->();

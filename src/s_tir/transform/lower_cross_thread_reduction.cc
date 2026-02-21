@@ -87,7 +87,7 @@ bool IsDominantBlock(const SBlock& scope_block, const SBlock& block) {
   });
   // Step 2. Check whether `block` is the only writer of its outputs.
   for (const BufferRegion& buffer_region : block->writes) {
-    ICHECK(buffer_writer_cnt.count(buffer_region->buffer.get()));
+    TVM_FFI_ICHECK(buffer_writer_cnt.count(buffer_region->buffer.get()));
     if (buffer_writer_cnt[buffer_region->buffer.get()] != 1) {
       return false;
     }
@@ -166,7 +166,7 @@ class BufferReplacer : private StmtExprMutator {
  public:
   static Stmt Run(ffi::Array<Buffer> src_buffers, ffi::Array<Buffer> tgt_buffers, Stmt stmt) {
     ffi::Map<Buffer, Buffer> buffer_map;
-    ICHECK_EQ(src_buffers.size(), tgt_buffers.size());
+    TVM_FFI_ICHECK_EQ(src_buffers.size(), tgt_buffers.size());
     int n_buffers = src_buffers.size();
     for (int i = 0; i < n_buffers; ++i) {
       buffer_map.Set(src_buffers[i], tgt_buffers[i]);
@@ -427,7 +427,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
   }
   // Stmt 4: write cross-thread reduction result to the original buffer
   {
-    ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
+    TVM_FFI_ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
     int n_iter = static_cast<int>(block->iter_vars.size());
     ffi::Array<IterVar> iter_vars;
     ffi::Array<PrimExpr> bindings;
@@ -649,8 +649,8 @@ class CrossThreadReductionTransformer : public StmtMutator {
       }
       ++n_deepest_reduction_loops;
     }
-    CHECK_EQ(n_deepest_reduction_loops, reduction_loops.size())
-        << "ValueError: Cross-thread reduction requires all the reduction-related loops to be the "
+    TVM_FFI_CHECK_EQ(n_deepest_reduction_loops, reduction_loops.size(), ValueError)
+        << "Cross-thread reduction requires all the reduction-related loops to be the "
            "deepest among all statements outside the desired block. However, block "
         << block->name_hint
         << " needs cross-thread reduction, while the reduction-related loops outside of it are not "
@@ -662,8 +662,8 @@ class CrossThreadReductionTransformer : public StmtMutator {
     for (const ForNode* reduction_loop : reduction_loops) {
       if (reduction_loop->thread_binding.defined()) {
         ++n_bound_reduction_loops;
-        CHECK(IsBoundToThreadIdx(reduction_loop))
-            << "ValueError: Cross-thread reduction requires all the reduction-related loops that "
+        TVM_FFI_CHECK(IsBoundToThreadIdx(reduction_loop), ValueError)
+            << "Cross-thread reduction requires all the reduction-related loops that "
                "are bound to GPU thread axes to only be bound `threadIdx.x/y/z`. However, loop "
             << reduction_loop->loop_var->name_hint << " violates the condition.";
       }
@@ -689,14 +689,14 @@ class CrossThreadReductionTransformer : public StmtMutator {
     for (const BufferStore& buf_store : updates) {
       reduction_buffers.push_back(buf_store->buffer);
       if (buf_store->buffer.scope() == "local") {
-        CHECK_NE(is_local_buf, 0)
-            << "ValueError: Cross-thread reduction requires all reduction buffers to be all "
+        TVM_FFI_CHECK_NE(is_local_buf, 0, ValueError)
+            << "Cross-thread reduction requires all reduction buffers to be all "
                "local or all non-local. However, here some buffer is local while some buffer is "
                "shared or global.";
         is_local_buf = 1;
       } else {
-        CHECK_NE(is_local_buf, 1)
-            << "ValueError: Cross-thread reduction requires all reduction buffers to be all "
+        TVM_FFI_CHECK_NE(is_local_buf, 1, ValueError)
+            << "Cross-thread reduction requires all reduction buffers to be all "
                "local or all non-local. However, here some buffer is local while some buffer is "
                "shared or global.";
         is_local_buf = 0;
@@ -707,8 +707,9 @@ class CrossThreadReductionTransformer : public StmtMutator {
     bool visit = false;
     PreOrderVisit(ffi::GetRef<For>(reduction_loops[0]), [block, &visit](const ObjectRef& obj) {
       if (const auto* realize = obj.as<SBlockRealizeNode>()) {
-        CHECK(!visit) << "ValueError: Cross-thread reduction cannot be applied when the reduction "
-                         "block isn't the last block under its first reduction-related loop";
+        TVM_FFI_CHECK(!visit, ValueError)
+            << "Cross-thread reduction cannot be applied when the reduction "
+               "block isn't the last block under its first reduction-related loop";
         if (realize->block.get() == block) {
           visit = true;
         }

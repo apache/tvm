@@ -156,7 +156,7 @@ class AsyncLocalSession : public LocalSession {
           });
         } else {
           // for exception, we can pass through as since this is just normal encoding.
-          ICHECK_EQ(code, static_cast<int>(RPCCode::kException));
+          TVM_FFI_ICHECK_EQ(code, static_cast<int>(RPCCode::kException));
           callback(RPCCode::kException, args);
         }
       });
@@ -178,7 +178,7 @@ class AsyncLocalSession : public LocalSession {
         rv = retfunc;
         this->EncodeReturn(std::move(rv), [&](ffi::PackedArgs encoded_args) {
           const void* pf = encoded_args[0].as<ffi::FunctionObj>();
-          ICHECK(pf != nullptr);
+          TVM_FFI_ICHECK(pf != nullptr);
           // mark as async.
           async_func_set_.insert(const_cast<void*>(pf));
           callback(RPCCode::kReturn, encoded_args);
@@ -233,11 +233,11 @@ class AsyncLocalSession : public LocalSession {
       packed_args[0] = nullptr;
       on_complete(RPCCode::kReturn, ffi::PackedArgs(packed_args, 1));
     } else {
-      CHECK(dev.device_type == static_cast<DLDeviceType>(kDLWebGPU));
+      TVM_FFI_ICHECK(dev.device_type == static_cast<DLDeviceType>(kDLWebGPU));
       if (!async_wait_.has_value()) {
         async_wait_ = tvm::ffi::Function::GetGlobal("__async.wasm.WebGPUWaitForTasks");
       }
-      CHECK(async_wait_.has_value());
+      TVM_FFI_ICHECK(async_wait_.has_value());
       ffi::Function packed_callback([on_complete](ffi::PackedArgs args, ffi::Any*) {
         int code = args[0].cast<int>();
         on_complete(static_cast<RPCCode>(code), args.Slice(1));
@@ -270,7 +270,7 @@ class AsyncLocalSession : public LocalSession {
                                    repeats_to_cooldown);
     } else {
       auto pf = tvm::ffi::Function::GetGlobal(name);
-      CHECK(pf.has_value()) << "Cannot find " << name << " in the global function";
+      TVM_FFI_ICHECK(pf.has_value()) << "Cannot find " << name << " in the global function";
       return WrapWasmTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms,
                                    limit_zero_time_iterations, cooldown_interval_ms,
                                    repeats_to_cooldown);
@@ -295,7 +295,7 @@ class AsyncLocalSession : public LocalSession {
         }
       };
       auto time_exec = tvm::ffi::Function::GetGlobal("__async.wasm.TimeExecution");
-      CHECK(time_exec.has_value()) << "Cannot find wasm.GetTimer in the global function";
+      TVM_FFI_ICHECK(time_exec.has_value()) << "Cannot find wasm.GetTimer in the global function";
       (*time_exec)(ffi::TypedFunction<void(int)>(finvoke), dev, number, repeat, min_repeat_ms,
                    limit_zero_time_iterations, cooldown_interval_ms, repeats_to_cooldown,
                    /*cache_flush_bytes=*/0, on_complete);

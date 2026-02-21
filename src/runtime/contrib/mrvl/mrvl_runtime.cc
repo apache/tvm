@@ -106,11 +106,12 @@ class MarvellSimulatorModuleNode : public ffi::ModuleObj {
     std::string nodes_json;
     std::string bin_code;
     // Load the symbol_name and other data to construct the module
-    ICHECK(stream.Read(&symbol_name))
+    TVM_FFI_ICHECK(stream.Read(&symbol_name))
         << "Marvell-Compiler-ERROR-Internal::Loading symbol name failed";
-    ICHECK(stream.Read(&nodes_json))
+    TVM_FFI_ICHECK(stream.Read(&nodes_json))
         << "Marvell-Compiler-ERROR-Internal::Loading nodes json failed";
-    ICHECK(stream.Read(&bin_code)) << "Marvell-Compiler-ERROR-Internal::Loading bin code failed";
+    TVM_FFI_ICHECK(stream.Read(&bin_code))
+        << "Marvell-Compiler-ERROR-Internal::Loading bin code failed";
     auto n = ffi::make_object<MarvellSimulatorModuleNode>(symbol_name, nodes_json, bin_code);
     return ffi::Module(n);
   }
@@ -131,7 +132,7 @@ class MarvellSimulatorModuleNode : public ffi::ModuleObj {
   size_t num_outputs_;
 
   void Run(ffi::PackedArgs args) {
-    ICHECK_EQ(args.size(), num_inputs_ + num_outputs_)
+    TVM_FFI_ICHECK_EQ(args.size(), num_inputs_ + num_outputs_)
         << "Marvell-Compiler-ERROR-Internal::Mismatch in number of input & number of output args "
            "to subgraph";
     tvm::runtime::contrib::mrvl::RunMarvellSimulator(args, symbol_name_, bin_code_, num_inputs_,

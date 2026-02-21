@@ -122,7 +122,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
                                   const std::vector<ffi::Array<PrimExpr>>& rhs_shapes) {
     arith::Analyzer ana;
     for (auto ind : indices) {
-      ICHECK_EQ(static_cast<int>(rhs_shapes[ind].size()), rhs_dim);
+      TVM_FFI_ICHECK_EQ(static_cast<int>(rhs_shapes[ind].size()), rhs_dim);
       // -2 for reduction and concat axes
       for (size_t i = 0; i < rhs_dim - 2; ++i) {
         if (!ana.CanProve(rhs_shapes[indices[0]][i] == rhs_shapes[ind][i])) {
@@ -223,7 +223,7 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
         } else if (*branch_info.activation == "relax.nn.silu") {
           matmul_combined = silu(matmul_combined);
         } else {
-          LOG(FATAL) << "Unsupported activation: " << *branch_info.activation;
+          TVM_FFI_THROW(InternalError) << "Unsupported activation: " << *branch_info.activation;
         }
       }
 
@@ -231,8 +231,8 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
       ffi::Array<IntImm> sections;
       for (size_t i = 0; i + 1 < splits.size(); i++) {
         auto width = splits[i].split_size.as<IntImmNode>();
-        ICHECK(width) << "InternalError: "
-                      << "All splits except the last one must have a static shape";
+        TVM_FFI_CHECK(width, InternalError)
+            << "All splits except the last one must have a static shape";
         split_index += width->value;
         sections.push_back(IntImm(DataType::Int(64), split_index));
       }

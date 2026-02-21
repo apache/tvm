@@ -30,9 +30,9 @@ class VerifyVTCMLimitNode : public PostprocNode {
   Integer vtcm_capacity;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
-    ICHECK(context->target.defined());
+    TVM_FFI_ICHECK(context->target.defined());
     Target target = context->target.value();
-    ICHECK(target->kind->name == "hexagon");
+    TVM_FFI_ICHECK(target->kind->name == "hexagon");
     // The value of 0 will disable VTCM verification.
     vtcm_capacity = target->GetAttr<Integer>("vtcm-capacity").value_or(0);
   }

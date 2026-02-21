@@ -121,7 +121,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
           break;
         case kRecvPacketNumBytes: {
           uint64_t packet_nbytes;
-          ICHECK(this->Read(&packet_nbytes));
+          TVM_FFI_ICHECK(this->Read(&packet_nbytes));
           if (packet_nbytes != 0) {
             this->SwitchToState(kProcessPacket);
             this->RequestBytes(packet_nbytes);
@@ -179,18 +179,20 @@ class RPCEndpoint::EventHandler : public support::Stream {
         continue;
       if (const Object* obj = args[i].as<Object>()) {
         if (!obj->IsInstance<RPCObjectRefObj>()) {
-          LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type " << obj->GetTypeKey()
-                     << " (type_index = " << obj->type_index() << ")";
+          TVM_FFI_THROW(ValueError)
+              << "Cannot pass argument " << i << ", type " << obj->GetTypeKey()
+              << " (type_index = " << obj->type_index() << ")";
         }
       } else if (auto opt_device = args[i].as<DLDevice>()) {
         DLDevice dev = opt_device.value();
-        ICHECK(!IsRPCSessionDevice(dev)) << "InternalError: cannot pass RPC device in the channel";
+        TVM_FFI_CHECK(!IsRPCSessionDevice(dev), InternalError)
+            << "cannot pass RPC device in the channel";
       }
     }
   }
 
   void ThrowError(RPCServerStatus code, RPCCode info = RPCCode::kNone) {
-    LOG(FATAL) << "RPCServerError:" << RPCServerStatusToString(code);
+    TVM_FFI_THROW(RPCServerError) << RPCServerStatusToString(code);
   }
 
   uint64_t PackedSeqGetNumBytes(const ffi::AnyView* packed_args, int num_args, bool client_mode) {
@@ -240,9 +242,9 @@ class RPCEndpoint::EventHandler : public support::Stream {
       this->template Write<uint64_t>((*opt_bytes).size());
       this->template WriteArray<char>((*opt_bytes).data(), (*opt_bytes).size());
     } else {
-      LOG(FATAL) << "ValueError: Object type is not supported in RPC calling convention: "
-                 << any_view_ptr->GetTypeKey() << " (type_index = " << any_view_ptr->type_index()
-                 << ")";
+      TVM_FFI_THROW(ValueError) << "Object type is not supported in RPC calling convention: "
+                                << any_view_ptr->GetTypeKey()
+                                << " (type_index = " << any_view_ptr->type_index() << ")";
     }
   }
   uint64_t GetFFIAnyProtocolBytes(const TVMFFIAny* in) {
@@ -254,9 +256,9 @@ class RPCEndpoint::EventHandler : public support::Stream {
     } else if (auto opt_bytes = any_view_ptr->as<ffi::Bytes>()) {
       return sizeof(uint32_t) + sizeof(uint64_t) + (*opt_bytes).size();
     } else {
-      LOG(FATAL) << "ValueError: Object type is not supported in RPC calling convention: "
-                 << any_view_ptr->GetTypeKey() << " (type_index = " << any_view_ptr->type_index()
-                 << ")";
+      TVM_FFI_THROW(ValueError) << "Object type is not supported in RPC calling convention: "
+                                << any_view_ptr->GetTypeKey()
+                                << " (type_index = " << any_view_ptr->type_index() << ")";
       TVM_FFI_UNREACHABLE();
     }
   }
@@ -298,8 +300,9 @@ class RPCEndpoint::EventHandler : public support::Stream {
       *reinterpret_cast<AnyView*>(out) = ret;
       any_arena_.emplace_back(ret);
     } else {
-      LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
-                 << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
+      TVM_FFI_THROW(ValueError) << "Object type is not supported in Disco calling convention: "
+                                << Object::TypeIndex2Key(type_index)
+                                << " (type_index = " << type_index << ")";
     }
   }
 
@@ -346,7 +349,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
   void SwitchToState(State state) {
     // invariant
     if (state != kCopyAckReceived) {
-      ICHECK_EQ(pending_request_bytes_, 0U) << "state=" << state;
+      TVM_FFI_ICHECK_EQ(pending_request_bytes_, 0U) << "state=" << state;
     }
     // need to actively flush the writer
     // so the data get pushed out.
@@ -354,7 +357,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
       flush_writer_();
     }
     state_ = state;
-    ICHECK(state != kInitHeader) << "cannot switch to init header";
+    TVM_FFI_ICHECK(state != kInitHeader) << "cannot switch to init header";
     if (state == kRecvPacketNumBytes) {
       this->RequestBytes(sizeof(uint64_t));
       // recycle arena for the next session.
@@ -372,7 +375,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
       this->RequestBytes(len);
       return;
     } else {
-      ICHECK_EQ(init_header_step_, 1);
+      TVM_FFI_ICHECK_EQ(init_header_step_, 1);
       this->ReadArray(remote_key_->data(), remote_key_->length());
       this->SwitchToState(kRecvPacketNumBytes);
     }
@@ -416,7 +419,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
           break;
         }
         default:
-          LOG(FATAL) << "Unknown event " << static_cast<int>(code);
+          TVM_FFI_THROW(InternalError) << "Unknown event " << static_cast<int>(code);
       }
     }
   }
@@ -465,13 +468,15 @@ class RPCEndpoint::EventHandler : public support::Stream {
       // switch to the state before sending exception.
       this->SwitchToState(kRecvPacketNumBytes);
       ffi::String msg = args[0].cast<ffi::String>();
-      if (!support::StartsWith(msg, "RPCSessionTimeoutError: ")) {
+      if (support::StartsWith(msg, "RPCSessionTimeoutError: ")) {
+        TVM_FFI_THROW(RPCSessionTimeoutError) << msg;
+      } else {
         msg = "RPCError: Error caught from RPC call:\n" + msg;
+        TVM_FFI_THROW(RPCError) << msg;
       }
-      LOG(FATAL) << msg;
     }
 
-    ICHECK(setreturn != nullptr) << "fsetreturn not available";
+    TVM_FFI_ICHECK(setreturn != nullptr) << "fsetreturn not available";
     setreturn(args);
 
     this->SwitchToState(kReturnReceived);
@@ -594,10 +599,10 @@ class RPCEndpoint::EventHandler : public support::Stream {
     ffi::PackedArgs args = RecvPackedSeq();
 
     try {
-      ICHECK(serving_session_ == nullptr) << "Server has already been initialized";
+      TVM_FFI_ICHECK(serving_session_ == nullptr) << "Server has already been initialized";
 
       std::string server_protocol_ver = kRPCProtocolVer;
-      ICHECK_EQ(client_protocol_ver, server_protocol_ver)
+      TVM_FFI_ICHECK_EQ(client_protocol_ver, server_protocol_ver)
           << "Server[" << name_ << "]: Client protocol version mismatch with the server "
           << " server protocol=" << server_protocol_ver
           << ", client protocol=" << client_protocol_ver;
@@ -614,24 +619,27 @@ class RPCEndpoint::EventHandler : public support::Stream {
       }
 
       auto fconstructor = tvm::ffi::Function::GetGlobal(constructor_name);
-      ICHECK(fconstructor.has_value()) << " Cannot find session constructor " << constructor_name;
+      TVM_FFI_ICHECK(fconstructor.has_value())
+          << " Cannot find session constructor " << constructor_name;
       ffi::Any con_ret;
 
       try {
         fconstructor->CallPacked(constructor_args, &con_ret);
       } catch (const Error& e) {
-        LOG(FATAL) << "Server[" << name_ << "]:"
-                   << " Error caught from session constructor " << constructor_name << ":\n"
-                   << e.what();
+        TVM_FFI_THROW(InternalError)
+            << "Server[" << name_ << "]:"
+            << " Error caught from session constructor " << constructor_name << ":\n"
+            << e.what();
       }
       auto opt_con_ret = con_ret.as<ffi::Module>();
       // Legacy ABI translation
-      ICHECK(opt_con_ret.has_value())
+      TVM_FFI_ICHECK(opt_con_ret.has_value())
           << "Server[" << name_ << "]:"
           << " Constructor " << constructor_name << " need to return an RPCModule";
       ffi::Module mod = opt_con_ret.value();
       std::string tkey = mod->kind();
-      ICHECK_EQ(tkey, "rpc") << "Constructor " << constructor_name << " to return an RPCModule";
+      TVM_FFI_ICHECK_EQ(tkey, "rpc")
+          << "Constructor " << constructor_name << " to return an RPCModule";
       serving_session_ = RPCModuleGetSession(mod);
       this->ReturnVoid();
     } catch (const std::exception& e) {
@@ -681,9 +689,9 @@ class RPCEndpoint::EventHandler : public support::Stream {
 
  private:
   RPCSession* GetServingSession() const {
-    ICHECK(serving_session_ != nullptr)
+    TVM_FFI_ICHECK(serving_session_ != nullptr)
         << "Need to call InitRemoteSession first before any further actions";
-    ICHECK(!serving_session_->IsAsync() || async_server_mode_)
+    TVM_FFI_ICHECK(!serving_session_->IsAsync() || async_server_mode_)
         << "Cannot host an async session in a non-Event driven server";
 
     return serving_session_.get();
@@ -691,7 +699,7 @@ class RPCEndpoint::EventHandler : public support::Stream {
   // Utility functions
   // Internal read function, update pending_request_bytes_
   size_t Read(void* data, size_t size) final {
-    ICHECK_LE(size, pending_request_bytes_);
+    TVM_FFI_ICHECK_LE(size, pending_request_bytes_);
     reader_->Read(data, size);
     pending_request_bytes_ -= size;
     return size;
@@ -721,8 +729,8 @@ class RPCEndpoint::EventHandler : public support::Stream {
 RPCCode RPCEndpoint::HandleUntilReturnEvent(bool client_mode, RPCSession::FEncodeReturn setreturn) {
   RPCCode code = RPCCode::kCallFunc;
 
-  CHECK(channel_) << "Expected connection to server " << name_
-                  << " to be active, but the connection was previously closed";
+  TVM_FFI_ICHECK(channel_) << "Expected connection to server " << name_
+                           << " to be active, but the connection was previously closed";
   while (code != RPCCode::kReturn && code != RPCCode::kShutdown && code != RPCCode::kCopyAck) {
     while (writer_.bytes_available() != 0) {
       writer_.ReadWithCallback(
@@ -737,7 +745,7 @@ RPCCode RPCEndpoint::HandleUntilReturnEvent(bool client_mode, RPCSession::FEncod
         if (handler_->CanCleanShutdown()) {
           return RPCCode::kShutdown;
         } else {
-          LOG(FATAL) << "Channel closes before we get needed bytes";
+          TVM_FFI_THROW(InternalError) << "Channel closes before we get needed bytes";
         }
       }
     }
@@ -776,10 +784,10 @@ void RPCEndpoint::Init() {
     handler_->SendPackedSeq(args.data(), args.size(), true);
 
     code = HandleUntilReturnEvent(true, [rv](ffi::PackedArgs args) {
-      ICHECK_EQ(args.size(), 1);
+      TVM_FFI_ICHECK_EQ(args.size(), 1);
       *rv = args[0];
     });
-    ICHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
+    TVM_FFI_ICHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
   });
 }
 
@@ -833,7 +841,7 @@ void RPCEndpoint::ServerLoop() {
     (*f)();
   }
   ffi::Any rv;
-  ICHECK(HandleUntilReturnEvent(false, [](ffi::PackedArgs) {}) == RPCCode::kShutdown);
+  TVM_FFI_ICHECK(HandleUntilReturnEvent(false, [](ffi::PackedArgs) {}) == RPCCode::kShutdown);
   if (const auto f = tvm::ffi::Function::GetGlobal("tvm.rpc.server.shutdown")) {
     (*f)();
   }
@@ -852,7 +860,7 @@ int RPCEndpoint::ServerAsyncIOEventHandler(const std::string& in_bytes, int even
         [this](const void* data, size_t size) { return channel_->Send(data, size); },
         writer_.bytes_available());
   }
-  ICHECK(code != RPCCode::kReturn && code != RPCCode::kCopyAck);
+  TVM_FFI_ICHECK(code != RPCCode::kReturn && code != RPCCode::kCopyAck);
   // if the code is kShutdown, return 0 to indicate the server should exit
   if (code == RPCCode::kShutdown) return 0;
   // if the writer has bytes available, return 2 to indicate the server should send data
@@ -880,7 +888,7 @@ void RPCEndpoint::InitRemoteSession(ffi::PackedArgs args) {
   handler_->SendPackedSeq(args.data(), args.size(), true);
 
   code = HandleUntilReturnEvent(true, [](ffi::PackedArgs args) {});
-  ICHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
+  TVM_FFI_ICHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
 }
 
 // Get remote function with name
@@ -902,7 +910,7 @@ void RPCEndpoint::CallFunc(RPCSession::PackedFuncHandle h, ffi::PackedArgs args,
   handler_->SendPackedSeq(args.data(), args.size(), true);
 
   code = HandleUntilReturnEvent(true, encode_return);
-  ICHECK(code == RPCCode::kReturn) << "code=" << RPCCodeToString(code);
+  TVM_FFI_ICHECK(code == RPCCode::kReturn) << "code=" << RPCCodeToString(code);
 }
 
 void RPCEndpoint::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) {
@@ -910,7 +918,7 @@ void RPCEndpoint::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) 
   RPCCode code = RPCCode::kCopyToRemote;
 
   uint64_t tensor_total_size_bytes = static_cast<uint64_t>(ffi::GetDataSize(*to));
-  ICHECK_LE(to->byte_offset + nbytes, tensor_total_size_bytes)
+  TVM_FFI_ICHECK_LE(to->byte_offset + nbytes, tensor_total_size_bytes)
       << "CopyToRemote: overflow in tensor size: (byte_offset=" << to->byte_offset
       << ", nbytes=" << nbytes << ", tensor_total_size=" << tensor_total_size_bytes << ")";
 
@@ -922,7 +930,7 @@ void RPCEndpoint::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) 
   RPCReference::SendDLTensor(handler_, to);
   handler_->Write(nbytes);
   handler_->WriteArray(reinterpret_cast<char*>(from_bytes), nbytes);
-  ICHECK(HandleUntilReturnEvent(true, [](ffi::PackedArgs) {}) == RPCCode::kReturn);
+  TVM_FFI_ICHECK(HandleUntilReturnEvent(true, [](ffi::PackedArgs) {}) == RPCCode::kReturn);
 }
 
 void RPCEndpoint::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes) {
@@ -930,7 +938,7 @@ void RPCEndpoint::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes
   RPCCode code = RPCCode::kCopyFromRemote;
 
   uint64_t tensor_total_size_bytes = static_cast<uint64_t>(ffi::GetDataSize(*from));
-  ICHECK_LE(from->byte_offset + nbytes, tensor_total_size_bytes)
+  TVM_FFI_ICHECK_LE(from->byte_offset + nbytes, tensor_total_size_bytes)
       << "CopyFromRemote: overflow in tensor size: (byte_offset=" << from->byte_offset
       << ", nbytes=" << nbytes << ", tensor_total_size=" << tensor_total_size_bytes << ")";
 
@@ -941,7 +949,7 @@ void RPCEndpoint::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes
   handler_->Write(code);
   RPCReference::SendDLTensor(handler_, from);
   handler_->Write(nbytes);
-  ICHECK(HandleUntilReturnEvent(true, [](ffi::PackedArgs) {}) == RPCCode::kCopyAck);
+  TVM_FFI_ICHECK(HandleUntilReturnEvent(true, [](ffi::PackedArgs) {}) == RPCCode::kCopyAck);
 
   handler_->ReadArray(reinterpret_cast<char*>(to_bytes), nbytes);
   handler_->FinishCopyAck();
@@ -1013,7 +1021,8 @@ void RPCCopyAmongRemote(RPCSession* handler, ffi::PackedArgs args, ffi::Any* rv)
   if (dev.device_type == kDLCPU) {
     dev = to->device;
   } else {
-    ICHECK(to->device.device_type == kDLCPU || to->device.device_type == from->device.device_type)
+    TVM_FFI_ICHECK(to->device.device_type == kDLCPU ||
+                   to->device.device_type == from->device.device_type)
         << "Can not copy across different dev types directly";
   }
   handler->GetDeviceAPI(dev)->CopyDataFromTo(from, to, stream);
@@ -1086,11 +1095,11 @@ void RPCEndpoint::EventHandler::HandleSyscall(RPCCode code) {
       SysCallHandler(RPCCopyAmongRemote);
       break;
     default:
-      LOG(FATAL) << "Unknown event " << static_cast<int>(code);
+      TVM_FFI_THROW(InternalError) << "Unknown event " << static_cast<int>(code);
   }
 
   if (state_ != kWaitForAsyncCallback) {
-    ICHECK_EQ(state_, kRecvPacketNumBytes);
+    TVM_FFI_ICHECK_EQ(state_, kRecvPacketNumBytes);
   }
 }
 
@@ -1118,7 +1127,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     RPCCode code = RPCCode::kCopyToRemote;
     uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(remote_to, code, nbytes);
     uint64_t rpc_max_size = GetRPCMaxTransferSize();
-    ICHECK_GT(rpc_max_size, overhead) << "CopyToRemote: Invalid block size!";
+    TVM_FFI_ICHECK_GT(rpc_max_size, overhead) << "CopyToRemote: Invalid block size!";
     const uint64_t block_size = rpc_max_size - overhead;
     uint64_t block_count = 0;
     const uint64_t num_blocks = nbytes / block_size;
@@ -1144,7 +1153,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     RPCCode code = RPCCode::kCopyFromRemote;
     uint64_t overhead = RemoteCopyCalculatePacketOverheadSize(remote_from, code, nbytes);
     uint64_t rpc_max_size = GetRPCMaxTransferSize();
-    ICHECK_GT(rpc_max_size, overhead) << "CopyFromRemote: Invalid block size!";
+    TVM_FFI_ICHECK_GT(rpc_max_size, overhead) << "CopyFromRemote: Invalid block size!";
     const uint64_t block_size = rpc_max_size - overhead;
     uint64_t block_count = 0;
     const uint64_t num_blocks = nbytes / block_size;
@@ -1253,7 +1262,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
         // Use args[1] as return value, args[0] is tcode
         // Look at RPCWrappedFunc in src/runtime/rpc/rpc_module.cc
         rpc_chunk_max_size_bytes_ = args[1].cast<int64_t>();
-        ICHECK_GT(rpc_chunk_max_size_bytes_, 0)
+        TVM_FFI_ICHECK_GT(rpc_chunk_max_size_bytes_, 0)
             << "RPC max transfer size is <= 0! (remote value = " << rpc_chunk_max_size_bytes_
             << ")";
       });

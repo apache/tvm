@@ -31,7 +31,7 @@ using namespace tvm::tir;
  */
 ffi::Array<PrimExpr> GetStrides(const Buffer& buffer) {
   if (!buffer->strides.empty()) {
-    ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
+    TVM_FFI_ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
     return buffer->strides;
   }
   int ndim = buffer->shape.size();
@@ -86,7 +86,7 @@ class SplitExprCollector {
     if (iter_sum_exprs.empty()) {
       return {};
     }
-    ICHECK_EQ(iter_sum_exprs.size(), 1);
+    TVM_FFI_ICHECK_EQ(iter_sum_exprs.size(), 1);
     if (iter_sum_exprs[0]->args.size() == 0) {
       return {};
     }
@@ -111,7 +111,7 @@ class SplitExprCollector {
     } else if (auto iter_sum_expr = expr->source->source.as<arith::IterSumExpr>()) {
       Visit(iter_sum_expr.value());
     } else {
-      ICHECK(false) << "Unexpected type: " << expr->source->source->GetTypeKey();
+      TVM_FFI_ICHECK(false) << "Unexpected type: " << expr->source->source->GetTypeKey();
     }
   }
 
@@ -181,7 +181,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
                              & shape = buffer->shape,                   //
                          analyzer                                       //
   ](ffi::Array<Var> indices) -> ffi::Array<PrimExpr> {
-    ICHECK_EQ(indices.size(), shape.size());
+    TVM_FFI_ICHECK_EQ(indices.size(), shape.size());
     for (int i = 0, n = indices.size(); i < n; ++i) {
       analyzer->Bind(indices[i], Range::FromMinExtent(0, shape[i]));
     }
@@ -209,7 +209,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
   // Step 6: Create the inverse index mapping.
   auto f_inverse = [&inverse_order, &split_exprs, &shape = buffer->shape,
                     analyzer](ffi::Array<Var> indices) -> ffi::Array<PrimExpr> {
-    ICHECK_EQ(indices.size(), split_exprs.size());
+    TVM_FFI_ICHECK_EQ(indices.size(), split_exprs.size());
     // Step 6.1: Reorder the indices according to `inverse_order`. This is the inverse of Step 5.3.
     // After the inverse permutation, indices[i] corresponds to split_exprs[i]
     ffi::Array<Var> inv_permuted_indices;

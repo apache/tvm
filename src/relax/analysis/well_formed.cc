@@ -105,8 +105,8 @@ class WellFormedChecker : public relax::ExprVisitor,
     } else if (const auto* func = obj.as<FunctionNode>()) {
       well_formed_checker.VisitExpr(ffi::GetRef<Expr>(func));
     } else {
-      LOG(FATAL) << "Unreachable, "
-                 << "variant did not contain any of the allowed types";
+      TVM_FFI_THROW(InternalError) << "Unreachable, "
+                                   << "variant did not contain any of the allowed types";
     }
     return well_formed_checker.well_formed_;
   }
@@ -250,7 +250,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     // first populate defs in params
     WithMode(VisitMode::kMatchVarDef, [&]() {
-      ICHECK(mode_ == VisitMode::kMatchVarDef);
+      TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
       for (Var param : op->params) {
         relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
       }
@@ -574,7 +574,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitStructInfo_(const FuncStructInfoNode* op) final {
     if (op->params.defined()) {
       WithMode(VisitMode::kMatchVarDef, [&]() {
-        ICHECK(mode_ == VisitMode::kMatchVarDef);
+        TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
         for (StructInfo param : op->params.value()) {
           this->VisitStructInfo(param);
         }

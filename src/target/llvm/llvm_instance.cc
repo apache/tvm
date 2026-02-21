@@ -161,7 +161,7 @@ std::unique_ptr<llvm::Module> LLVMInstance::LoadIR(const std::string& file_name)
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> maybe_buffer =
       llvm::MemoryBuffer::getFileAsStream(file_name);
   if (std::error_code ec = maybe_buffer.getError()) {
-    LOG(FATAL) << ec.message();
+    TVM_FFI_THROW(InternalError) << ec.message();
   }
   return ParseBuffer(**maybe_buffer);
 }
@@ -173,7 +173,7 @@ std::unique_ptr<llvm::Module> LLVMInstance::ParseBuffer(const llvm::MemoryBuffer
     std::string message;
     llvm::raw_string_ostream ostream(message);
     error.print(/*ProgName=*/nullptr, ostream, /*ShowColors=*/false, /*ShowKindLabel=*/true);
-    LOG(FATAL) << ostream.str();
+    TVM_FFI_THROW(InternalError) << ostream.str();
   }
 
   return module;
@@ -249,7 +249,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
         LOG(ERROR) << "\"" << opt.name << "\" is not an LLVM option, option ignored";
       }
     }
-    ICHECK(!parse_error) << "there were errors parsing command-line options";
+    TVM_FFI_ICHECK(!parse_error) << "there were errors parsing command-line options";
   }
 
   llvm::FloatABI::ABIType float_abi = llvm::FloatABI::Default;
@@ -260,7 +260,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
     } else if (value == "soft") {
       float_abi = llvm::FloatABI::Soft;
     } else {
-      LOG(FATAL) << "invalid -mfloat-abi option " << value;
+      TVM_FFI_THROW(InternalError) << "invalid -mfloat-abi option " << value;
     }
   }
 
@@ -270,7 +270,8 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
     if ((value == "mcjit") || (value == "orcjit")) {
       jit_engine_ = value;
     } else {
-      LOG(FATAL) << "invalid jit option " << value << " (can be `orcjit` or `mcjit`).";
+      TVM_FFI_THROW(InternalError)
+          << "invalid jit option " << value << " (can be `orcjit` or `mcjit`).";
     }
   }
 
@@ -279,7 +280,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
           Downcast<ffi::Optional<int64_t>>(target.Get("vector-width").value_or(nullptr))) {
     vector_width_ = w.value();
     if ((vector_width_ <= 0) || (vector_width_ > 65536)) {
-      LOG(FATAL) << "Invalid -vector-width value: " << vector_width_;
+      TVM_FFI_THROW(InternalError) << "Invalid -vector-width value: " << vector_width_;
     }
   }
 
@@ -417,7 +418,7 @@ static const llvm::Target* CreateLLVMTargetInstance(const std::string triple,
   // required mimimum: llvm::InitializeAllTargets()
   const llvm::Target* llvm_instance = llvm::TargetRegistry::lookupTarget(triple, error);
   if (!allow_missing && !llvm_instance) {
-    ICHECK(llvm_instance) << "LLVM instance error: `" << error << "`";
+    TVM_FFI_ICHECK(llvm_instance) << "LLVM instance error: `" << error << "`";
   }
 
   return llvm_instance;
@@ -435,7 +436,7 @@ static std::unique_ptr<llvm::TargetMachine> CreateLLVMTargetMachine(
 #endif
   llvm::TargetMachine* tm = llvm_instance->createTargetMachine(
       triple, cpu, features, target_options, reloc_model, code_model, opt_level);
-  ICHECK(tm != nullptr);
+  TVM_FFI_ICHECK(tm != nullptr);
 
   return std::unique_ptr<llvm::TargetMachine>(tm);
 }
@@ -449,7 +450,7 @@ llvm::TargetMachine* LLVMTargetInfo::GetOrCreateTargetMachine(bool allow_missing
         CreateLLVMTargetMachine(llvm_instance, triple_, cpu_, GetTargetFeatureString(),
                                 target_options_, reloc_model_, code_model_, opt_level_);
   }
-  ICHECK(target_machine_ != nullptr);
+  TVM_FFI_ICHECK(target_machine_ != nullptr);
   return target_machine_.get();
 }
 
@@ -673,7 +674,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
       part_this++;  // Only advance if we saw ":".
       if (part_this < part_end) {
         auto& p1 = parts[part_this];
-        ICHECK(!p1.empty()) << "tokenizing error";  // This shouldn't happen.
+        TVM_FFI_ICHECK(!p1.empty()) << "tokenizing error";  // This shouldn't happen.
         if (p1 != "=") {
           part_this++;
           if (p1 == "bool") {
@@ -791,7 +792,7 @@ LLVMTargetInfo::Option LLVMTargetInfo::ParseOptionString(const std::string& str)
     }
   }
 
-  ICHECK(type != Option::OptType::Invalid);
+  TVM_FFI_ICHECK(type != Option::OptType::Invalid);
   opt.type = type;
   return opt;
 }
@@ -800,7 +801,7 @@ bool LLVMTargetInfo::MatchesGlobalState() const {
   for (const Option& opt : GetCommandLineOptions()) {
     Option current_opt = opt;
     GetOptionValue(&current_opt);
-    ICHECK(current_opt.type != Option::OptType::Invalid);
+    TVM_FFI_ICHECK(current_opt.type != Option::OptType::Invalid);
     switch (current_opt.type) {
       case Option::OptType::Bool:
         if (current_opt.value.b != opt.value.b) return false;
@@ -953,7 +954,7 @@ LLVMTarget::LLVMTarget(LLVMInstance& instance, const LLVMTargetInfo& target_info
   }
 
   if (modified_llvm_state_) {
-    ICHECK(!ApplyLLVMOptions(true));
+    TVM_FFI_ICHECK(!ApplyLLVMOptions(true));
   } else {
     modified_llvm_state_ = ApplyLLVMOptions(true);
   }
@@ -973,7 +974,7 @@ LLVMTarget::~LLVMTarget() {
 }
 
 llvm::LLVMContext* LLVMTarget::GetContext() const {
-  ICHECK(!ctx_.expired()) << "LLVM scope has been deleted";
+  TVM_FFI_ICHECK(!ctx_.expired()) << "LLVM scope has been deleted";
   return ctx_.lock().get();
 }
 
@@ -1038,7 +1039,7 @@ bool LLVMTarget::ApplyLLVMOptions(bool apply_otherwise_revert, bool dry_run) {
       auto* str_op = static_cast<llvm::cl::opt<std::string>*>(base_op);
       HANDLE_OPTION_VALUE(str_op, new_opt.value.s, saved_opt.value.s);
     } else {
-      LOG(FATAL) << "unexpected type in option " << new_opt;
+      TVM_FFI_THROW(InternalError) << "unexpected type in option " << new_opt;
     }
 
     if (dry_run && changed) {

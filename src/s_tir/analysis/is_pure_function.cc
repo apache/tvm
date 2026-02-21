@@ -56,10 +56,11 @@ class PurityChecker : TIRVisitorWithPath {
 
     if (!internal_allocations_.count(op->buffer->data)) {
       is_pure_ = false;
-      LOG_IF(FATAL, assert_on_error_) << "AssertionError: "
-                                      << "Pure functions must not write to buffers, "
+      if (assert_on_error_) {
+        TVM_FFI_THROW(AssertionError) << "Pure functions must not write to buffers, "
                                       << ", but function contains store to " << op->buffer
                                       << op->indices << " of value " << op->value;
+      }
     }
   }
 
@@ -77,11 +78,12 @@ class PurityChecker : TIRVisitorWithPath {
 
     if (effect == CallEffectKind::kUpdateState || effect == CallEffectKind::kOpaque) {
       is_pure_ = false;
-      LOG_IF(FATAL, assert_on_error_)
-          << "AssertionError: "
-          << "Pure functions must not contain calls to impure operators, "
-          << "but " << ffi::GetRef<PrimExpr>(call) << " calls operator " << call->op
-          << ", which has side effect " << effect;
+      if (assert_on_error_) {
+        TVM_FFI_THROW(AssertionError)
+            << "Pure functions must not contain calls to impure operators, "
+            << "but " << ffi::GetRef<PrimExpr>(call) << " calls operator " << call->op
+            << ", which has side effect " << effect;
+      }
     }
   }
 

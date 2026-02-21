@@ -217,7 +217,7 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
   using arith::IterMapExprNode;
   using arith::NormalizeIterMapToExpr;
   ffi::Map<Var, PrimExpr> block_var_subst;
-  ICHECK_EQ(iter_vars.size() + 1, division.size());
+  TVM_FFI_ICHECK_EQ(iter_vars.size() + 1, division.size());
   arith::Analyzer ana;
   for (int i = 0, n = iter_vars.size(); i < n; ++i) {
     const IterVar& iter_var = iter_vars[i];
@@ -235,8 +235,8 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
     IterVar outer_iter;
     if (reuse_outer) {
       outer_iter = outer_iter_vars->operator[](i);
-      ICHECK(ana.CanProveEqual(outer_iter->dom->extent, outer_mark->extent));
-      ICHECK(
+      TVM_FFI_ICHECK(ana.CanProveEqual(outer_iter->dom->extent, outer_mark->extent));
+      TVM_FFI_ICHECK(
           ana.CanProveEqual(outer_bindings->operator[](i), NormalizeIterMapToExpr(outer_binding)));
     } else {
       outer_iter = IterVar(/*dom=*/RangeFromExtent(outer_mark->extent),
@@ -320,7 +320,7 @@ Stmt GenerateOuterInit(const Stmt& block_init, const SBlockRealize& inner_realiz
   // 2) It is used in the original init block
   ffi::Array<IterVar> iter_vars;
   ffi::Array<PrimExpr> iter_values;
-  ICHECK_EQ(inner_block->iter_vars.size(), inner_realize->iter_values.size());
+  TVM_FFI_ICHECK_EQ(inner_block->iter_vars.size(), inner_realize->iter_values.size());
   int n = inner_block->iter_vars.size();
   iter_vars.reserve(n);
   iter_values.reserve(n);
@@ -427,7 +427,7 @@ ffi::Array<BufferRegion> EvalSetRegions(const ffi::Array<BufferRegion>& regions,
   for (const BufferRegion& buffer_region : regions) {
     const Buffer& buffer = buffer_region->buffer;
     ffi::Array<arith::IntSet> relaxed = arith::EvalSet(buffer_region->region, dom_map);
-    ICHECK_EQ(relaxed.size(), buffer->shape.size());
+    TVM_FFI_ICHECK_EQ(relaxed.size(), buffer->shape.size());
     int ndim = buffer->shape.size();
     ffi::Array<Range> new_region;
     new_region.reserve(ndim);
@@ -631,7 +631,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
         }
       }
     }
-    ICHECK(has_outer_reduction == false)
+    TVM_FFI_ICHECK(has_outer_reduction == false)
         << "No reduction iter vars allowed for the outer loops when blockize multiple blocks";
     SBlockRealize inner_realize = GenerateInner(/*is_write_reduction=*/has_outer_reduction,
                                                 /*iter_vars=*/inner_iter_vars,
@@ -676,7 +676,7 @@ class BlockizeRewriter : public StmtMutator {
 
   Stmt RewriteSeq(const Stmt& stmt) {
     const SeqStmtNode* seq = stmt.as<SeqStmtNode>();
-    ICHECK(seq) << "Target blocks must not be nested with each other!";
+    TVM_FFI_ICHECK(seq) << "Target blocks must not be nested with each other!";
     int idx_start = -1;
     int last_found_idx = -1;
     size_t cur_idx = 0;
@@ -689,7 +689,7 @@ class BlockizeRewriter : public StmtMutator {
           idx_start = cur_idx;
           new_seq.push_back(blockized_);
         } else {
-          ICHECK_EQ(last_found_idx, cur_idx - 1) << "Target blocks must be consecutive!";
+          TVM_FFI_ICHECK_EQ(last_found_idx, cur_idx - 1) << "Target blocks must be consecutive!";
         }
         last_found_idx = cur_idx;
       } else {
@@ -757,8 +757,8 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     ffi::Map<SBlock, SBlock> block_sref_reuse;
     block_realize = BlockizeImpl(self, sref, &block_sref_reuse, &analyzer, preserve_unit_iters);
   } else {
-    LOG(FATAL) << "TypeError: Tensorize only support For or SBlock, but gets: "
-               << ffi::GetRef<Stmt>(sref->stmt);
+    TVM_FFI_THROW(TypeError) << "Tensorize only support For or SBlock, but gets: "
+                             << ffi::GetRef<Stmt>(sref->stmt);
     throw;
   }
 
@@ -776,7 +776,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   };
   f_update_max_dtype_bits_from_region(block_realize->block->reads);
   f_update_max_dtype_bits_from_region(block_realize->block->writes);
-  ICHECK(index_dtype_bits > 0);
+  TVM_FFI_ICHECK(index_dtype_bits > 0);
   intrin_impl = IndexDataTypeNormalizer(DataType::Int(index_dtype_bits)).Rewrite(intrin_impl);
   // Step 2: Structural pattern matching
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
@@ -786,7 +786,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   // 2) Buffer mapping from intrin impl buffers to buffers in the current AST.
   // 3) Mapping impl buffers to their accessed regions.
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> impl2desc;
-  ICHECK_EQ(intrin_desc->params.size(), intrin_impl->params.size());
+  TVM_FFI_ICHECK_EQ(intrin_desc->params.size(), intrin_impl->params.size());
   for (int i = 0, n = intrin_desc->params.size(); i < n; ++i) {
     const Buffer& desc = intrin_desc->buffer_map[intrin_desc->params[i]];
     const Buffer& impl = intrin_impl->buffer_map[intrin_impl->params[i]];
@@ -796,7 +796,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   for (const auto& pair : impl2desc) {
     const Buffer& impl = pair.first;
     const Buffer& desc = pair.second;
-    ICHECK(comparator.rhs_buffer_map_.count(desc));
+    TVM_FFI_ICHECK(comparator.rhs_buffer_map_.count(desc));
     impl2cur[impl] = comparator.rhs_buffer_map_[desc];
   }
   std::unordered_map<Buffer, ffi::Array<Range>, ObjectPtrHash, ObjectPtrEqual> impl2region;
@@ -817,7 +817,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     const ffi::Array<Range>& old_region = impl2region.at(impl);
     const std::vector<PrimExpr>& indices_base = comparator.buffer_indices_.at(cur);
     int offset = static_cast<int>(indices_base.size()) - static_cast<int>(old_region.size());
-    ICHECK(offset >= 0);
+    TVM_FFI_ICHECK(offset >= 0);
     ffi::Array<Range> new_region;
     new_region.reserve(cur->shape.size());
     for (int i = 0; i < offset; i++) {
@@ -876,7 +876,7 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
     } else if (auto blocks = target.as<ffi::Array<SBlockRV>>()) {
       return sch->Blockize(blocks.value(), preserve_unit_iters.operator bool());
     }
-    LOG(FATAL) << "TypeError: expect Loop or list of SBlocks, but gets:" << target->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "expect Loop or list of SBlocks, but gets:" << target->GetTypeKey();
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ObjectRef target,
@@ -908,8 +908,8 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
     } else if (auto loop = block_or_loop_rv.as<LoopRV>()) {
       sch->Tensorize(loop.value(), intrin, preserve_unit_iters.operator bool());
     } else {
-      LOG(FATAL) << "TypeError: Expected SBlock or Loop, but gets: "
-                 << block_or_loop_rv->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Expected SBlock or Loop, but gets: "
+                               << block_or_loop_rv->GetTypeKey();
     }
   }
 

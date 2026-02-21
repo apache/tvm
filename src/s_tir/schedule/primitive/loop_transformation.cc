@@ -348,7 +348,7 @@ class LoopsNotAChainError : public ScheduleError {
     if (kind_ == ProblemKind::kNotUnderAScope) {
       return {};
     } else {
-      ICHECK(problematic_loop_.defined());
+      TVM_FFI_ICHECK(problematic_loop_.defined());
       return {problematic_loop_.value()};
     }
   }
@@ -842,18 +842,18 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
       nest_loop_extents = nest_loop_i_extents;
     } else {
       if (scope_root_sref_.get() != scope_root_sref.get()) {
-        LOG(FATAL) << "ScheduleError: Expected the loops to be under the same block scope.";
+        TVM_FFI_THROW(ScheduleError) << "Expected the loops to be under the same block scope.";
         throw;
       }
       if (nest_loop_i_extents.size() != nest_loop_extents.size()) {
-        LOG(FATAL) << "ScheduleError: Merge loop's nesting depth must be same, but not.";
+        TVM_FFI_THROW(ScheduleError) << "Merge loop's nesting depth must be same, but not.";
         throw;
       } else {
         for (size_t j = 0; j < nest_loop_i_extents.size(); j++) {
           if (!analyzer.CanProveEqual(nest_loop_i_extents[j], nest_loop_extents[j])) {
-            LOG(FATAL) << "ScheduleError: Merge loop's `extent` must be same, but not."
-                       << " extent=[" << j << "," << nest_loop_extents[j] << ","
-                       << nest_loop_i_extents[j] << "]";
+            TVM_FFI_THROW(ScheduleError) << "Merge loop's `extent` must be same, but not."
+                                         << " extent=[" << j << "," << nest_loop_extents[j] << ","
+                                         << nest_loop_i_extents[j] << "]";
             throw;
           }
         }
@@ -1048,7 +1048,7 @@ std::vector<const StmtSRefNode*> GetLoopsInReorderRange(const ScheduleState& sel
     const StmtSRefNode* parent_loop_sref = loop_sref->parent;
     const ForNode* outer = parent_loop_sref->StmtAs<ForNode>();
     const ForNode* inner = loop_sref->StmtAs<ForNode>();
-    ICHECK(outer != nullptr && inner != nullptr);
+    TVM_FFI_ICHECK(outer != nullptr && inner != nullptr);
     if (outer->body.get() != inner) {
       throw LoopsNotAChainError(self->mod, ffi::GetRef<For>(outer),
                                 LoopsNotAChainError::ProblemKind::kHaveNonSingleBranchStmt);
@@ -1085,7 +1085,7 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
     } else {
       copy = loop_sref->StmtAs<ForNode>();
     }
-    ICHECK(copy != nullptr);
+    TVM_FFI_ICHECK(copy != nullptr);
     ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*copy);
     if (new_loop.defined()) {
       n->body = new_loop;
@@ -1160,7 +1160,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
     For new_loop_{nullptr};
   };
 
-  CHECK(sref->parent != nullptr) << "ValueError: Cannot add loops on top of the root block";
+  TVM_FFI_CHECK(sref->parent != nullptr, ValueError) << "Cannot add loops on top of the root block";
   StmtSRef parent_sref = ffi::GetRef<StmtSRef>(sref->parent);
   NewLoopCreator creator(sref->stmt);
   Stmt new_stmt = creator(ffi::GetRef<Stmt>(parent_sref->stmt));
@@ -1370,7 +1370,7 @@ struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
     } else if (auto loop = rv.as<LoopRV>()) {
       return sch->AddUnitLoop(loop.value());
     } else {
-      LOG(FATAL) << "TypeError: AddUnitLoop expects a loop or block";
+      TVM_FFI_THROW(TypeError) << "AddUnitLoop expects a loop or block";
       throw;
     }
   }

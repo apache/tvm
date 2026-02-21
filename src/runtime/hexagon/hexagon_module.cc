@@ -43,7 +43,7 @@ HexagonModuleNode::HexagonModuleNode(std::string data, std::string fmt,
     : data_(data), fmt_(fmt), fmap_(fmap), asm_(asm_str), obj_(obj_str), ir_(ir_str), bc_(bc_str) {}
 
 ffi::Optional<ffi::Function> HexagonModuleNode::GetFunction(const ffi::String& name) {
-  LOG(FATAL) << "HexagonModuleNode::GetFunction is not implemented.";
+  TVM_FFI_THROW(InternalError) << "HexagonModuleNode::GetFunction is not implemented.";
 }
 
 ffi::String HexagonModuleNode::InspectSource(const ffi::String& format) const {
@@ -63,19 +63,20 @@ void HexagonModuleNode::WriteToFile(const ffi::String& file_name, const ffi::Str
     SaveMetaDataToFile(meta_file, fmap_);
     CopyFile(data_, file_name);
   } else if (fmt == "s" || fmt == "asm") {
-    ICHECK(!asm_.empty()) << "Assembler source not available";
+    TVM_FFI_ICHECK(!asm_.empty()) << "Assembler source not available";
     SaveBinaryToFile(file_name, asm_);
   } else if (fmt == "o" || fmt == "obj") {
-    ICHECK(!obj_.empty()) << "Object data not available";
+    TVM_FFI_ICHECK(!obj_.empty()) << "Object data not available";
     SaveBinaryToFile(file_name, obj_);
   } else if (fmt == "ll") {
-    ICHECK(!ir_.empty()) << "LLVM IR source not available";
+    TVM_FFI_ICHECK(!ir_.empty()) << "LLVM IR source not available";
     SaveBinaryToFile(file_name, ir_);
   } else if (fmt == "bc") {
-    ICHECK(!bc_.empty()) << "LLVM IR bitcode not available";
+    TVM_FFI_ICHECK(!bc_.empty()) << "LLVM IR bitcode not available";
     SaveBinaryToFile(file_name, bc_);
   } else {
-    LOG(FATAL) << "HexagonModuleNode::SaveToFile: unhandled format `" << fmt << "'";
+    TVM_FFI_THROW(InternalError) << "HexagonModuleNode::SaveToFile: unhandled format `" << fmt
+                                 << "'";
   }
 }
 

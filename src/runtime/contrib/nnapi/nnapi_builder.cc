@@ -131,7 +131,7 @@ bool NNAPIOperand::IsDynamicShape() const {
 }
 
 NNAPIModelBuilder::NNAPIModelBuilder() {
-  ICHECK_EQ(ANeuralNetworksModel_create(&model_), ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_create(&model_), ANEURALNETWORKS_NO_ERROR);
 }
 
 NNAPIModelBuilder::~NNAPIModelBuilder() { ANeuralNetworksModel_free(model_); }
@@ -140,11 +140,11 @@ NNAPIOperand NNAPIModelBuilder::CreateOperandWithValue(const DLTensor& tensor) {
   NNAPIOperand operand(next_operand_index_++, &tensor);
   const size_t operand_data_size = GetDataSize(tensor);
 
-  ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
-            ANEURALNETWORKS_NO_ERROR);
-  ICHECK_EQ(ANeuralNetworksModel_setOperandValue(model_, operand.GetOperandIndex(), tensor.data,
-                                                 operand_data_size),
-            ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
+                    ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_setOperandValue(model_, operand.GetOperandIndex(),
+                                                         tensor.data, operand_data_size),
+                    ANEURALNETWORKS_NO_ERROR);
 
   return operand;
 }
@@ -154,10 +154,11 @@ NNAPIOperand NNAPIModelBuilder::CreateOperandWithValue(int32_t tensor_type,
                                                        int32_t zero_point, const void* buffer,
                                                        size_t size) {
   NNAPIOperand operand(next_operand_index_++, tensor_type, dimensions, scale, zero_point);
-  ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
-            ANEURALNETWORKS_NO_ERROR);
-  ICHECK_EQ(ANeuralNetworksModel_setOperandValue(model_, operand.GetOperandIndex(), buffer, size),
-            ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
+                    ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(
+      ANeuralNetworksModel_setOperandValue(model_, operand.GetOperandIndex(), buffer, size),
+      ANEURALNETWORKS_NO_ERROR);
   return operand;
 }
 
@@ -165,62 +166,64 @@ NNAPIOperand NNAPIModelBuilder::CreateScalarOperandWithValue(OperandCode operand
                                                              const void* buffer, size_t size) {
   NNAPIOperand operand = NNAPIOperand::Scalar(next_operand_index_++, operand_code, {}, 0.0f, 0);
 
-  ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
-            ANEURALNETWORKS_NO_ERROR);
-  ICHECK_EQ(ANeuralNetworksModel_setOperandValue(model_, operand.GetOperandIndex(), buffer, size),
-            ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
+                    ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(
+      ANeuralNetworksModel_setOperandValue(model_, operand.GetOperandIndex(), buffer, size),
+      ANEURALNETWORKS_NO_ERROR);
   return operand;
 }
 
 NNAPIOperand NNAPIModelBuilder::CreateOperand(const DLTensor& tensor) {
   NNAPIOperand operand(next_operand_index_++, tensor.shape, tensor.ndim, tensor.dtype);
-  ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
-            ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
+                    ANEURALNETWORKS_NO_ERROR);
   return operand;
 }
 
 NNAPIOperand NNAPIModelBuilder::CreateOperand(const int64_t* shape, int ndim, DLDataType dtype) {
   NNAPIOperand operand(next_operand_index_++, shape, ndim, dtype);
-  ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
-            ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
+                    ANEURALNETWORKS_NO_ERROR);
   return operand;
 }
 
 NNAPIOperand NNAPIModelBuilder::CreateOperand(int32_t tensor_type, std::vector<int64_t> dimensions,
                                               float scale, int32_t zero_point) {
   NNAPIOperand operand(next_operand_index_++, tensor_type, dimensions, scale, zero_point);
-  ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
-            ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_addOperand(model_, operand.GetOperandType().Get()),
+                    ANEURALNETWORKS_NO_ERROR);
   return operand;
 }
 
 void NNAPIModelBuilder::AddOperation(ANeuralNetworksOperationType operation,
                                      const std::vector<uint32_t> input_indicies,
                                      const std::vector<uint32_t> output_indicies) {
-  ICHECK_EQ(ANeuralNetworksModel_addOperation(model_, operation, input_indicies.size(),
-                                              input_indicies.data(), output_indicies.size(),
-                                              output_indicies.data()),
-            ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_addOperation(model_, operation, input_indicies.size(),
+                                                      input_indicies.data(), output_indicies.size(),
+                                                      output_indicies.data()),
+                    ANEURALNETWORKS_NO_ERROR);
 }
 
 void NNAPIModelBuilder::Finish(const std::vector<NNAPIOperand>& model_input_operands,
                                const std::vector<NNAPIOperand>& model_output_operands) {
   const auto model_input_indices = ExtractOperandIndices(model_input_operands);
   const auto model_output_indices = ExtractOperandIndices(model_output_operands);
-  ICHECK_EQ(ANeuralNetworksModel_identifyInputsAndOutputs(
-                model_, model_input_indices.size(), model_input_indices.data(),
-                model_output_indices.size(), model_output_indices.data()),
-            ANEURALNETWORKS_NO_ERROR);
-  ICHECK_EQ(ANeuralNetworksModel_finish(model_), ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_identifyInputsAndOutputs(
+                        model_, model_input_indices.size(), model_input_indices.data(),
+                        model_output_indices.size(), model_output_indices.data()),
+                    ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksModel_finish(model_), ANEURALNETWORKS_NO_ERROR);
 }
 
 ANeuralNetworksCompilation* NNAPIModelBuilder::Compile() {
   ANeuralNetworksCompilation* compilation;
-  ICHECK_EQ(ANeuralNetworksCompilation_create(model_, &compilation), ANEURALNETWORKS_NO_ERROR);
-  ICHECK_EQ(ANeuralNetworksCompilation_setPreference(compilation,
-                                                     ANEURALNETWORKS_PREFER_FAST_SINGLE_ANSWER),
-            ANEURALNETWORKS_NO_ERROR);
-  ICHECK_EQ(ANeuralNetworksCompilation_finish(compilation), ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksCompilation_create(model_, &compilation),
+                    ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksCompilation_setPreference(
+                        compilation, ANEURALNETWORKS_PREFER_FAST_SINGLE_ANSWER),
+                    ANEURALNETWORKS_NO_ERROR);
+  TVM_FFI_ICHECK_EQ(ANeuralNetworksCompilation_finish(compilation), ANEURALNETWORKS_NO_ERROR);
   return compilation;
 }
 
@@ -229,13 +232,14 @@ int32_t TensorTypeFromDLDataType(DLDataType ty) {
     if (ty.bits == 32) {
       return ANEURALNETWORKS_TENSOR_INT32;
     } else {
-      ICHECK(false) << "Unsupported bit width " << ty.bits << " for NNAPI integer tensor";
+      TVM_FFI_ICHECK(false) << "Unsupported bit width " << ty.bits << " for NNAPI integer tensor";
     }
   } else if (ty.code == kDLUInt) {
     if (ty.bits == 1) {
       return ANEURALNETWORKS_TENSOR_BOOL8;
     } else {
-      ICHECK(false) << "Unsupported bit width " << ty.bits << " for NNAPI unsigned integer tensor";
+      TVM_FFI_ICHECK(false) << "Unsupported bit width " << ty.bits
+                            << " for NNAPI unsigned integer tensor";
     }
   } else if (ty.code == kDLFloat) {
     if (ty.bits == 32) {
@@ -243,10 +247,10 @@ int32_t TensorTypeFromDLDataType(DLDataType ty) {
     } else if (ty.bits == 16) {
       return ANEURALNETWORKS_TENSOR_FLOAT16;
     } else {
-      ICHECK(false) << "Unsupported bit width " << ty.bits << " for NNAPI integer tensor";
+      TVM_FFI_ICHECK(false) << "Unsupported bit width " << ty.bits << " for NNAPI integer tensor";
     }
   } else {
-    ICHECK(false) << "Unsupported DLDataTypeCode for NNAPI: " << ty.code;
+    TVM_FFI_ICHECK(false) << "Unsupported DLDataTypeCode for NNAPI: " << ty.code;
   }
 }
 

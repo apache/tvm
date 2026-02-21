@@ -96,7 +96,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
     if (op->attr_key == tir::attr::async_wait_queue_scope) {
       // get queue ID
       auto queue_id_node = op->value.as<IntImmNode>();
-      ICHECK(queue_id_node);
+      TVM_FFI_ICHECK(queue_id_node);
       int queue_id = queue_id_node->value;
 
       // abort if we have not seen this queue ID in `copy` transform
@@ -138,7 +138,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
     } else if (op->attr_key == tir::attr::async_commit_queue_scope) {
       // get queue ID
       auto queue_id_node = op->value.as<IntImmNode>();
-      ICHECK(queue_id_node);
+      TVM_FFI_ICHECK(queue_id_node);
       async_queue_id_ = queue_id_node->value;
       auto result = arith::IRMutatorWithAnalyzer::VisitStmt_(op);
       if (dmas_in_group_ > 1) {

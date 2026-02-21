@@ -92,7 +92,8 @@ inline std::vector<int> GetConstIntValues(ffi::Array<PrimExpr> exprs, const std:
   std::vector<int> result;
   if (!exprs.defined()) return result;
   for (auto expr : exprs) {
-    ICHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
+    TVM_FFI_ICHECK(IsConstInt(expr))
+        << "All elements of " << var_name << " must be constant integers";
     result.push_back(GetConstInt(expr));
   }
   return result;
@@ -112,7 +113,8 @@ inline std::vector<int64_t> GetConstInt64Values(ffi::Array<PrimExpr> exprs,
   std::vector<int64_t> result;
   if (!exprs.defined()) return result;
   for (auto expr : exprs) {
-    ICHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
+    TVM_FFI_ICHECK(IsConstInt(expr))
+        << "All elements of " << var_name << " must be constant integers";
     result.push_back(GetConstInt(expr));
   }
   return result;

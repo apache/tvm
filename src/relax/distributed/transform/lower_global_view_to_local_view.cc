@@ -93,7 +93,7 @@ class DistSBlockInfoCollector : public StmtExprVisitor {
   void VisitStmt_(const SBlockNode* op) final {
     for (const auto& iter_var : op->iter_vars) {
       if (iter_var->iter_type == kCommReduce) {
-        ICHECK(op->writes.size() == 1);
+        TVM_FFI_ICHECK(op->writes.size() == 1);
         reduce_buffer_ = op->writes[0]->buffer;
       }
     }
@@ -229,7 +229,7 @@ class DistributedBufferCompactor : StmtExprMutator {
           int dim = pr.first;
           int shard = pr.second;
           Var var = GetShardingVarFromIndex(access_index[dim], iter_var_range, &analyzer);
-          ICHECK(!iter_var_shards_.count(var) || iter_var_shards_[var] == shard)
+          TVM_FFI_ICHECK(!iter_var_shards_.count(var) || iter_var_shards_[var] == shard)
               << "A loop cannot have different sharding";
           iter_var_shards_[var] = shard;
         }
@@ -242,9 +242,9 @@ class DistributedBufferCompactor : StmtExprMutator {
         int shard = iter_var_shards_[iter_var->var];
         if (shard > 1) {
           Range dom = iter_var->dom;
-          ICHECK(is_zero(dom->min));
+          TVM_FFI_ICHECK(is_zero(dom->min));
           arith::Analyzer analyzer;
-          ICHECK(analyzer.CanProve(floormod(dom->extent, shard) == 0));
+          TVM_FFI_ICHECK(analyzer.CanProve(floormod(dom->extent, shard) == 0));
           new_iter_vars.push_back(
               IterVar(Range::FromMinExtent(dom->min, floordiv(dom->extent, shard)), iter_var->var,
                       iter_var->iter_type, iter_var->thread_tag));
@@ -292,7 +292,7 @@ class DistributedBufferCompactor : StmtExprMutator {
     // sharding on reduction axis
     for (const IterVar& iter_var : new_iter_vars) {
       if (iter_var->iter_type == kCommReduce && iter_var_shards_.count(iter_var->var)) {
-        ICHECK(add_allreduce_kind_ == "");
+        TVM_FFI_ICHECK(add_allreduce_kind_ == "");
         AddAllReduceBlock(collector.reduce_kind);
         break;
       }
@@ -320,7 +320,7 @@ class DistributedBufferCompactor : StmtExprMutator {
       if (!iter_var_shards_.count(iter_var->var)) {
         continue;
       }
-      ICHECK(iter_value.as<VarNode>());
+      TVM_FFI_ICHECK(iter_value.as<VarNode>());
       loop_var_shards_[Downcast<Var>(iter_value)] = iter_var_shards_[iter_var->var];
     }
     return realize;
@@ -332,7 +332,7 @@ class DistributedBufferCompactor : StmtExprMutator {
       int shard = loop_var_shards_[op->loop_var];
       if (shard > 1) {
         arith::Analyzer analyzer;
-        ICHECK(analyzer.CanProve(floormod(new_loop->extent, shard) == 0));
+        TVM_FFI_ICHECK(analyzer.CanProve(floormod(new_loop->extent, shard) == 0));
         new_loop.CopyOnWrite()->extent = floordiv(new_loop->extent, shard);
         return new_loop;
       }
@@ -386,7 +386,8 @@ class LowerTIRToLocalView : public ExprMutator {
       }
       return ret;
     } else {
-      LOG(FATAL) << "The output of a call_tir should be a DTensorStructInfo or TupleStructInfo";
+      TVM_FFI_THROW(InternalError)
+          << "The output of a call_tir should be a DTensorStructInfo or TupleStructInfo";
     }
   }
 
@@ -400,7 +401,7 @@ class LowerTIRToLocalView : public ExprMutator {
     ffi::Array<Expr> args = Downcast<Tuple>(val->args[1])->fields;
     for (const auto& arg : args) {
       const auto* sinfo = GetStructInfoAs<DTensorStructInfoNode>(arg);
-      ICHECK(sinfo);
+      TVM_FFI_ICHECK(sinfo);
       sharding_specs.push_back(ShardingSpec(sinfo->device_mesh, sinfo->placement));
     }
     Var output_var = binding->var;

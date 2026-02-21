@@ -112,9 +112,9 @@ class ThreadBindingUnifier : public StmtExprMutator {
     ffi::Map<ffi::String, IterVar>::iterator it = thread_tag2iter_var_map_.find(thread_tag);
     if (it != thread_tag2iter_var_map_.end()) {
       new_iter_var = (*it).second;
-      ICHECK(ana.CanProveEqual(dom->min, new_iter_var->dom->min));
-      CHECK(ana.CanProveEqual(dom->extent, new_iter_var->dom->extent))
-          << "ValueError: All loops that are bound to `" << thread_tag
+      TVM_FFI_ICHECK(ana.CanProveEqual(dom->min, new_iter_var->dom->min));
+      TVM_FFI_CHECK(ana.CanProveEqual(dom->extent, new_iter_var->dom->extent), ValueError)
+          << "All loops that are bound to `" << thread_tag
           << "` should have the same extent. However, there are two loops with extent "
           << new_iter_var->dom->extent << " and " << dom->extent << ", which are not equal";
     } else {
@@ -134,7 +134,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     // binding of the kernel.
     Stmt new_stmt = StmtMutator::VisitStmt_(op);
     auto* new_node = new_stmt.as<Node>();
-    ICHECK(new_node);
+    TVM_FFI_ICHECK(new_node);
     thread_block_depth_ = old_thread_block_depth;
     if (is_kernel_launch_scope) {
       return EmitLaunchThreads(new_node->body);

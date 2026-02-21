@@ -97,8 +97,8 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
    * \return The result.
    */
   R operator()(const ObjectRef& n, Args... args) const {
-    ICHECK(can_dispatch(n)) << "NodeFunctor calls un-registered function on type "
-                            << n->GetTypeKey();
+    TVM_FFI_ICHECK(can_dispatch(n))
+        << "NodeFunctor calls un-registered function on type " << n->GetTypeKey();
     return (*func_[n->type_index() - begin_type_index_])(n, std::forward<Args>(args)...);
   }
   /*!
@@ -113,8 +113,9 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
     if (func_.size() <= tindex) {
       func_.resize(tindex + 1, nullptr);
     }
-    ICHECK(func_[tindex] == nullptr) << "Dispatch for " << TNode::_type_key << " is already set";
-    ICHECK_EQ(begin_type_index_, 0) << " Cannot call set_dispatch after calling Finalize";
+    TVM_FFI_ICHECK(func_[tindex] == nullptr)
+        << "Dispatch for " << TNode::_type_key << " is already set";
+    TVM_FFI_ICHECK_EQ(begin_type_index_, 0) << " Cannot call set_dispatch after calling Finalize";
     func_[tindex] = f;
     return *this;
   }
@@ -127,8 +128,8 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
   template <typename TNode>
   TSelf& clear_dispatch() {  // NOLINT(*)
     uint32_t tindex = TNode::RuntimeTypeIndex();
-    ICHECK_LT(tindex, func_.size()) << "clear_dispatch: index out of range";
-    ICHECK_EQ(begin_type_index_, 0) << " Cannot call clear_dispatch after calling Finalize";
+    TVM_FFI_ICHECK_LT(tindex, func_.size()) << "clear_dispatch: index out of range";
+    TVM_FFI_ICHECK_EQ(begin_type_index_, 0) << " Cannot call clear_dispatch after calling Finalize";
     func_[tindex] = nullptr;
     return *this;
   }
@@ -138,7 +139,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
    * and optimize the space of the func table so it is more compact
    */
   void Finalize() {
-    ICHECK_EQ(begin_type_index_, 0) << "Can only call Finalize once";
+    TVM_FFI_ICHECK_EQ(begin_type_index_, 0) << "Can only call Finalize once";
     while (begin_type_index_ < func_.size() && func_[begin_type_index_] == nullptr) {
       ++begin_type_index_;
     }

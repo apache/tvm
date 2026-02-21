@@ -69,8 +69,8 @@ StructInfo InferStructInfoShapeOf(const Call& call, const BlockBuilder& ctx) {
   // use the StructInfo of the argument
   auto arg_sinfo = GetStructInfo(call->args[0]);
   auto* tensor_sinfo = GetStructInfo(call->args[0]).as<TensorStructInfoNode>();
-  CHECK(tensor_sinfo) << "shape_of expects a tensor input, but received " << arg_sinfo
-                      << "; use MatchCast if necessary";
+  TVM_FFI_ICHECK(tensor_sinfo) << "shape_of expects a tensor input, but received " << arg_sinfo
+                               << "; use MatchCast if necessary";
   if (tensor_sinfo->ndim == kUnknownNDim) {
     return ShapeStructInfo(kUnknownNDim);
   }
@@ -80,7 +80,7 @@ StructInfo InferStructInfoShapeOf(const Call& call, const BlockBuilder& ctx) {
   }
   // otherwise, copy over the values from the tensor shape
   auto* tensor_shape = tensor_sinfo->shape.as<ShapeExprNode>();
-  CHECK(tensor_shape);
+  TVM_FFI_ICHECK(tensor_shape);
   return ShapeStructInfo(tensor_shape->values);
 }
 
@@ -94,12 +94,13 @@ StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& c
 
   // the callee must be an opaque function
   auto callee = call->args[0];
-  ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
+  TVM_FFI_ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
   auto opt = MatchStructInfo<FuncStructInfo>(callee);
-  ICHECK(opt) << "Callee must have a function struct info";
+  TVM_FFI_ICHECK(opt) << "Callee must have a function struct info";
   FuncStructInfo finfo = opt.value();
-  ICHECK(finfo->IsOpaque()) << "call_pure_packed must be called with an opaque function, but "
-                            << callee << " is not opaque";
+  TVM_FFI_ICHECK(finfo->IsOpaque())
+      << "call_pure_packed must be called with an opaque function, but " << callee
+      << " is not opaque";
 
   // same logic as from DeriveCallRetStructInfo for ordinary calls
   if (finfo->derive_func.defined()) {
@@ -147,12 +148,13 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
 
   // the callee must be an opaque function
   auto callee = call->args[0];
-  ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
+  TVM_FFI_ICHECK(!callee.as<OpNode>()) << "call_pure_packed cannot be used with an op node";
   auto opt = MatchStructInfo<FuncStructInfo>(callee);
-  ICHECK(opt) << "Callee must have a function struct info";
+  TVM_FFI_ICHECK(opt) << "Callee must have a function struct info";
   FuncStructInfo finfo = opt.value();
-  ICHECK(finfo->IsOpaque()) << "call_pure_packed must be called with an opaque function, but "
-                            << callee << " is not opaque";
+  TVM_FFI_ICHECK(finfo->IsOpaque())
+      << "call_pure_packed must be called with an opaque function, but " << callee
+      << " is not opaque";
 
   // check the range for inplace indices, make sure at least one is not -1, ensure they're unique
   const auto* attrs = call->attrs.as<CallInplacePackedAttrs>();
@@ -290,22 +292,20 @@ static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
     StructInfo func_sinfo, StructInfo arg_sinfo, ffi::Optional<StructInfo> packed_ints_sinfo,
     ffi::Optional<ffi::Array<Integer>> opt_inplace_indices) {
   auto opt_callee_sinfo = func_sinfo.as<FuncStructInfo>();
-  CHECK(opt_callee_sinfo) << "TypeError: "
-                          << "The first argument to `R.call_tir` must be a function, "
-                          << "but instead received argument of type " << func_sinfo;
+  TVM_FFI_CHECK(opt_callee_sinfo, TypeError)
+      << "The first argument to `R.call_tir` must be a function, "
+      << "but instead received argument of type " << func_sinfo;
   auto callee_sinfo = opt_callee_sinfo.value();
 
-  CHECK(callee_sinfo->params.defined())
-      << "ValueError: "
+  TVM_FFI_CHECK(callee_sinfo->params.defined(), ValueError)
       << "The first argument to `R.call_tir` must be a function "
       << "with known argument types.  "
       << "However, the first argument was of type " << callee_sinfo;
   auto callee_params = callee_sinfo->params.value();
 
   const TupleStructInfoNode* args = arg_sinfo.as<TupleStructInfoNode>();
-  CHECK(args) << "TypeError: "
-              << "The second argument to `R.call_tir` must be a tuple, "
-              << "but instead received expression of type " << arg_sinfo;
+  TVM_FFI_CHECK(args, TypeError) << "The second argument to `R.call_tir` must be a tuple, "
+                                 << "but instead received expression of type " << arg_sinfo;
 
   // R.call_tir expects the PrimFunc to have three groups of arguments.
   //
@@ -322,8 +322,7 @@ static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
   if (packed_ints_sinfo) {
     auto packed_sinfo = packed_ints_sinfo.value();
     packed_tuple_sinfo = packed_sinfo.as<ShapeStructInfoNode>();
-    CHECK(packed_tuple_sinfo && !packed_tuple_sinfo->IsUnknownNdim())
-        << "TypeError: "
+    TVM_FFI_CHECK(packed_tuple_sinfo && !packed_tuple_sinfo->IsUnknownNdim(), TypeError)
         << "The third argument to `R.call_tir`, if present, "
         << "must be a ffi::Shape with known dimensionality.  "
         << "However, the argument received was of type " << packed_sinfo;
@@ -332,8 +331,8 @@ static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
     num_trailing_int_arguments = 0;
   }
 
-  CHECK_LE(num_input_arguments + num_trailing_int_arguments, callee_params.size())
-      << "ValueError: "
+  TVM_FFI_CHECK_LE(num_input_arguments + num_trailing_int_arguments, callee_params.size(),
+                   ValueError)
       << "R.call_tir attempted to call a function using " << num_input_arguments
       << " input arguments and " << num_trailing_int_arguments << " trailing integer arguments.  "
       << "However, the callee only accepts " << callee_params.size() << " arguments in total.";
@@ -411,7 +410,7 @@ static ffi::Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
         [](const StructInfo& sinfo) -> Expr { return Var("dummy_leading_arg", sinfo); });
 
     for (size_t i = 0; i < num_trailing_int_arguments; i++) {
-      ICHECK(packed_tuple_sinfo);
+      TVM_FFI_ICHECK(packed_tuple_sinfo);
       PrimStructInfo dummy_arg_sinfo = [&]() {
         if (packed_tuple_sinfo->values) {
           return PrimStructInfo(packed_tuple_sinfo->values.value()[i]);
@@ -437,7 +436,7 @@ StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "sinfo_args should have exactly 1 output struct info.");
   }
-  CHECK(call->args[0]->IsInstance<GlobalVarNode>())
+  TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "R.call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
       << "However, the argument " << call->args[0] << " instead has type "
       << call->args[0]->GetTypeKey();
@@ -453,24 +452,24 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
   // `relax.call_tir_inplace`.  Therefore, all error messages should
   // be written in terms of `call->op`, and should not explicitly
   // reference the `relax.call_tir` operator.`
-  CHECK(call->args.size() == 2 || call->args.size() == 3)
+  TVM_FFI_ICHECK(call->args.size() == 2 || call->args.size() == 3)
       << "Operation " << call->op << " expects either two arguments [callee, arg_tuple], "
       << "or three arguments [callee, arg_tuple, tir_args], "
       << "but " << call << " has " << call->args.size() << " arguments.";
 
   auto callee = call->args[0];
-  CHECK(callee->struct_info_.as<FuncStructInfoNode>())
+  TVM_FFI_ICHECK(callee->struct_info_.as<FuncStructInfoNode>())
       << "Operation " << call->op << " expects the first argument to be a TIR callee.  "
       << "However, the first argument " << callee << " has struct info " << callee->struct_info_;
 
   Expr arg_tuple = call->args[1];
 
-  CHECK(arg_tuple->struct_info_.as<TupleStructInfoNode>())
+  TVM_FFI_ICHECK(arg_tuple->struct_info_.as<TupleStructInfoNode>())
       << "Operation " << call->op << " expects the second argument to be a tuple of relax Expr.  "
       << "However, the second argument " << arg_tuple << " has struct info "
       << arg_tuple->struct_info_ << ".";
 
-  CHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
+  TVM_FFI_ICHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
       << "Operation " << call->op << " must hold its arguments as an in-line tuple.  "
       << "However, " << call << " has arguments " << arg_tuple
       << ", which is neither an in-line tuple, "
@@ -478,14 +477,14 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
 
   if (call->args.size() > 2) {
     Expr packed_ints = call->args[2];
-    CHECK(packed_ints->struct_info_.as<ShapeStructInfoNode>())
+    TVM_FFI_ICHECK(packed_ints->struct_info_.as<ShapeStructInfoNode>())
         << "Operation " << call->op << " expects the optional third argument, "
         << "if present, to be a ffi::Shape.  "
         << "However, the third argument " << packed_ints << " has struct info "
         << packed_ints->struct_info_;
   }
 
-  CHECK_EQ(call->sinfo_args.size(), 1)
+  TVM_FFI_ICHECK_EQ(call->sinfo_args.size(), 1)
       << "R.call_tir should have exactly one `sinfo_args` parameter, "
       << "which defines the output of the PrimFunc.";
 
@@ -567,8 +566,7 @@ void ValidateCallTIR(Call call) {
   auto inferred_sinfo = InferCallTIROutputStructInfoFromArguments(
       GetStructInfo(callee), GetStructInfo(arg_tuple), packed_int_sinfo, opt_inplace_indices);
   if (inferred_sinfo.defined()) {
-    CHECK(IsBaseOf(inferred_sinfo.value(), explicit_sinfo))
-        << "TypeError: "
+    TVM_FFI_CHECK(IsBaseOf(inferred_sinfo.value(), explicit_sinfo), TypeError)
         << "The `out_sinfo` argument for R.call_tir must be compatible with the PrimFunc.  "
         << "However, the PrimFunc's signature implies that the output should be " << inferred_sinfo
         << ", but the `out_sinfo` argument was " << explicit_sinfo;
@@ -591,9 +589,10 @@ Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_l
                  ffi::Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
-                               "However, one given structure info is "
-                            << sinfo;
+    TVM_FFI_ICHECK(shape != nullptr)
+        << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
+           "However, one given structure info is "
+        << sinfo;
   }
 
   StructInfo out_sinfo{nullptr};
@@ -639,7 +638,7 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorStructInfo> out
                          ffi::Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr)
+    TVM_FFI_ICHECK(shape != nullptr)
         << "out_sinfo of call_tir_with_grad should have defined ShapeExpr as shape. "
            "However, one given structure info is "
         << sinfo;
@@ -691,7 +690,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
 
   // there must be an inplace index for each output
   const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
-  ICHECK(attrs);
+  TVM_FFI_ICHECK(attrs);
   if (attrs->inplace_indices.size() != sinfo_outputs.size()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "There must be an in-place index specified for each output");
@@ -784,9 +783,10 @@ Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<Integer> inplace_indic
                         ffi::Optional<Expr> packed_ints) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
-                               "However, one given structure info is "
-                            << sinfo;
+    TVM_FFI_ICHECK(shape != nullptr)
+        << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
+           "However, one given structure info is "
+        << sinfo;
   }
 
   ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
@@ -837,7 +837,7 @@ TVM_REGISTER_OP("relax.call_dps_packed")
 Expr MakeCallDPSPacked(Expr func, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr)
+    TVM_FFI_ICHECK(shape != nullptr)
         << "out_sinfo of call_dps_packed should have defined ShapeExpr as shape. "
            "However, one given structure info is "
         << sinfo;
@@ -872,19 +872,19 @@ StructInfo InferStructInfoCallPyFunc(const Call& call, const BlockBuilder& ctx) 
 void ValidateCallPyFunc(Call call) {
   // Validate that the function name is a string literal
   auto func_name = call->args[0];
-  CHECK(func_name->IsInstance<StringImmNode>())
+  TVM_FFI_ICHECK(func_name->IsInstance<StringImmNode>())
       << "Operation " << call->op << " expects the first argument to be a string literal "
       << "specifying the Python function name. However, the first argument " << func_name
       << " is not a string literal.";
 
   // Validate that args is a tuple
   Expr arg_tuple = call->args[1];
-  CHECK(arg_tuple->struct_info_.as<TupleStructInfoNode>())
+  TVM_FFI_ICHECK(arg_tuple->struct_info_.as<TupleStructInfoNode>())
       << "Operation " << call->op << " expects the second argument to be a tuple of relax Expr.  "
       << "However, the second argument " << arg_tuple << " has struct info "
       << arg_tuple->struct_info_ << ".";
 
-  CHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
+  TVM_FFI_ICHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
       << "Operation " << call->op << " must hold its arguments as an in-line tuple.  "
       << "However, " << call << " has arguments " << arg_tuple
       << ", which is neither an in-line tuple, "
@@ -902,9 +902,10 @@ TVM_REGISTER_OP("relax.call_py_func")
 Expr MakeCallPyFunc(StringImm func_name, Tuple args, ffi::Array<TensorStructInfo> out_sinfo_list) {
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr) << "out_sinfo of call_py_func should have defined ShapeExpr as shape. "
-                               "However, one given structure info is "
-                            << sinfo;
+    TVM_FFI_ICHECK(shape != nullptr)
+        << "out_sinfo of call_py_func should have defined ShapeExpr as shape. "
+           "However, one given structure info is "
+        << sinfo;
   }
 
   StructInfo out_sinfo{nullptr};
@@ -929,7 +930,7 @@ StructInfo InferStructInfoCallBuiltinWithCtx(const Call& call, const BlockBuilde
     // by default return void.
     return TupleStructInfo(ffi::Array<StructInfo>());
   } else {
-    ICHECK_EQ(call->sinfo_args.size(), 1);
+    TVM_FFI_ICHECK_EQ(call->sinfo_args.size(), 1);
     return call->sinfo_args[0];
   }
 }
@@ -1130,8 +1131,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 StructInfo InferStructInfoSize(const Call& call, const BlockBuilder& ctx) {
   auto arg_sinfo = GetStructInfo(call->args[0]);
   auto* tensor_sinfo = GetStructInfo(call->args[0]).as<TensorStructInfoNode>();
-  CHECK(tensor_sinfo) << "size expects a tensor input, but received " << arg_sinfo
-                      << "; use MatchCast if necessary";
+  TVM_FFI_ICHECK(tensor_sinfo) << "size expects a tensor input, but received " << arg_sinfo
+                               << "; use MatchCast if necessary";
   return TensorStructInfo(ShapeExpr(ffi::Array<PrimExpr>{}), DataType::Int(64));
 }
 
@@ -1154,13 +1155,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // tensor_to_shape
 
 StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(call->args.size() == 1);
-  ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args.size() == 1);
+  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
   const auto* tsinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  ICHECK(tsinfo);
-  ICHECK_EQ(tsinfo->ndim, 1) << "relax.tensor_to_shape expected argument to be 1-d, "
-                             << "but " << call << " has argument " << call->args[0]
-                             << " with struct info " << call->args[0]->struct_info_;
+  TVM_FFI_ICHECK(tsinfo);
+  TVM_FFI_ICHECK_EQ(tsinfo->ndim, 1) << "relax.tensor_to_shape expected argument to be 1-d, "
+                                     << "but " << call << " has argument " << call->args[0]
+                                     << " with struct info " << call->args[0]->struct_info_;
 
   if (tsinfo->shape.defined()) {
     ShapeExpr shape_expr = Downcast<ShapeExpr>(tsinfo->shape.value());
@@ -1190,10 +1191,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // shape_to_tensor
 StructInfo ReturnShapeToTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(call->args.size() == 1);
-  ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args.size() == 1);
+  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
   const auto* sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[0]);
-  ICHECK(sinfo);
+  TVM_FFI_ICHECK(sinfo);
   int32_t ndim = sinfo->ndim;
   return TensorStructInfo(ShapeExpr({PrimExpr(ndim)}), DataType::Int(64));
 }
@@ -1218,9 +1219,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // alloc_tensor
 
 StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(call->args[0].as<ShapeExprNode>())
+  TVM_FFI_ICHECK(call->args[0].as<ShapeExprNode>())
       << "must be ShapeExpr, but got " << call->args[0]->GetTypeKey();
-  ICHECK(call->args[1].as<DataTypeImmNode>())
+  TVM_FFI_ICHECK(call->args[1].as<DataTypeImmNode>())
       << "must be DataTypeImm, but got " << call->args[1]->GetTypeKey();
   DataType out_dtype;
   if (const auto* dtype_node = call->args[1].as<DataTypeImmNode>()) {
@@ -1295,7 +1296,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // memory planning alloc_tensor
 
 StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(GetStructInfoAs<ShapeStructInfoNode>(call->args[2]))
+  TVM_FFI_ICHECK(GetStructInfoAs<ShapeStructInfoNode>(call->args[2]))
       << "must be a Expr of ShapeStructInfo, but got " << call->args[1]->GetTypeKey();
   DataType out_dtype;
   if (const auto* dtype_node = call->args[3].as<DataTypeImmNode>()) {
@@ -1542,8 +1543,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // to_vdevice
 
 StructInfo InferToVDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(call->args.size() == 1);
-  ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args.size() == 1);
+  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   auto attrs = call->attrs.as<ToVDeviceAttrs>();
   VDevice vdev = attrs->dst_vdevice;
@@ -1575,8 +1576,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // hint_on_device
 
 StructInfo InferHintOnDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
-  ICHECK(call->args.size() == 1);
-  ICHECK(call->args[0]->struct_info_.defined());
+  TVM_FFI_ICHECK(call->args.size() == 1);
+  TVM_FFI_ICHECK(call->args[0]->struct_info_.defined());
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   return data_sinfo;
 }

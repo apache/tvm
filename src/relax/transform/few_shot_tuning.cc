@@ -33,14 +33,14 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
       tvm::ffi::Function::GetGlobalRequired("s_tir.meta_schedule.builder.get_local_builder");
   s_tir::meta_schedule::Builder builder =
       f_get_local_builder().cast<s_tir::meta_schedule::Builder>();
-  ICHECK(builder.defined()) << "ValueError: The local builder is not defined!";
+  TVM_FFI_CHECK(builder.defined(), ValueError) << "The local builder is not defined!";
   // fetch a local runner
   s_tir::meta_schedule::Runner runner{ffi::UnsafeInit()};
   if (benchmark) {
     static const auto f_get_local_runner =
         tvm::ffi::Function::GetGlobalRequired("s_tir.meta_schedule.runner.get_local_runner");
     runner = f_get_local_runner().cast<s_tir::meta_schedule::Runner>();
-    ICHECK(runner.defined()) << "ValueError: The local runner is not defined!";
+    TVM_FFI_CHECK(runner.defined(), ValueError) << "The local runner is not defined!";
   }
   // create an IRModule
   IRModule mod = IRModule(ffi::Map<GlobalVar, BaseFunc>(
@@ -85,7 +85,7 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
     }
     ffi::Array<s_tir::meta_schedule::BuilderResult> builder_results =
         builder->Build(builder_inputs);
-    ICHECK_EQ(builder_results.size(), candidates.value().size());
+    TVM_FFI_ICHECK_EQ(builder_results.size(), candidates.value().size());
     int idx = 0;
     bool no_valid = true;  // whether there is no valid schedule in this iteration
     for (const s_tir::meta_schedule::BuilderResult& builder_result : builder_results) {
@@ -122,7 +122,7 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
           costs.push_back(sum / runner_result->run_secs.value().size());
         }
       }
-      ICHECK_EQ(costs.size(), results.size());
+      TVM_FFI_ICHECK_EQ(costs.size(), results.size());
     }
   }
   if (results.size() == 0) {
@@ -150,11 +150,12 @@ Pass FewShotTuning(int valid_count, bool benchmark) {
   auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         // input check
-        CHECK(valid_count > 0) << "Valid_count must be positive.";
-        CHECK(valid_count > 1 || !benchmark) << "Benchmarking requires at least two valid trials.";
+        TVM_FFI_ICHECK(valid_count > 0) << "Valid_count must be positive.";
+        TVM_FFI_ICHECK(valid_count > 1 || !benchmark)
+            << "Benchmarking requires at least two valid trials.";
         // get the target from context.
         tvm::Target target = tvm::Target::Current();
-        ICHECK(target.defined()) << "Target is not set in current context";
+        TVM_FFI_ICHECK(target.defined()) << "Target is not set in current context";
         // generate the few shot tuned prim funcs.
         ffi::Map<GlobalVar, BaseFunc> result;
         for (const auto& [gv, func] : m->functions) {

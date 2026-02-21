@@ -28,7 +28,8 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
  public:
   // Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final {
-    CHECK(context->target.defined()) << "ValueError: Target is not defined in the tune context.";
+    TVM_FFI_CHECK(context->target.defined(), ValueError)
+        << "Target is not defined in the tune context.";
     this->target_ = context->target;
   }
 
@@ -39,8 +40,8 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
   // Inherited from ScheduleRuleNode
   ffi::Array<s_tir::Schedule> Apply(const s_tir::Schedule& sch,
                                     const s_tir::SBlockRV& block_rv) final {
-    CHECK(this->target_.defined())
-        << "ValueError: ApplyCustomRule is not initialized with TuneContext that has a Target.";
+    TVM_FFI_CHECK(this->target_.defined(), ValueError)
+        << "ApplyCustomRule is not initialized with TuneContext that has a Target.";
     ffi::Array<ffi::String> keys = this->target_.value()->keys;
     if (ffi::Optional<ffi::String> ann =
             s_tir::GetAnn<ffi::String>(sch->GetSRef(block_rv), "schedule_rule")) {

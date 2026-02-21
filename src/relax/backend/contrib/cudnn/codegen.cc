@@ -47,12 +47,12 @@ class cuDNNJSONSerializer : public JSONSerializer {
 
   NodeEntries VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
+    TVM_FFI_ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
-    ICHECK(fn.defined()) << "Expects the callee to be a function.";
+    TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
-    ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
+    TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
 
@@ -61,7 +61,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
     } else if (composite_name.find("cudnn.attention") != std::string::npos) {
       return HandleAttention(call_node, fn, composite_name);
     } else {
-      LOG(FATAL) << "Unsupported composite function: " << composite_name;
+      TVM_FFI_THROW(InternalError) << "Unsupported composite function: " << composite_name;
     }
   }
 
@@ -73,7 +73,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
       inputs_tmp.insert(inputs_tmp.end(), res.begin(), res.end());
     }
 
-    ICHECK(inputs_tmp.size() <= 3);
+    TVM_FFI_ICHECK(inputs_tmp.size() <= 3);
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
@@ -100,7 +100,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
       auto res = VisitExpr(arg);
       inputs.insert(inputs.end(), res.begin(), res.end());
     }
-    ICHECK_EQ(inputs.size(), 2);
+    TVM_FFI_ICHECK_EQ(inputs.size(), 2);
     auto node = std::make_shared<JSONGraphNode>(composite_name, /* name_ */
                                                 "kernel",       /* op_type_ */
                                                 inputs, 1 /* num_outputs_ */);

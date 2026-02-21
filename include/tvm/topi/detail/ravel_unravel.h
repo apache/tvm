@@ -43,7 +43,7 @@ using namespace tvm::te;
  * \return The index after flattening
  */
 inline PrimExpr RavelIndex(ffi::Array<PrimExpr> indices, ffi::Array<PrimExpr> shape) {
-  ICHECK_EQ(indices.size(), shape.size()) << "indices and shape must have equal size";
+  TVM_FFI_ICHECK_EQ(indices.size(), shape.size()) << "indices and shape must have equal size";
   if (indices.size() == 0U) {
     return 0;
   }

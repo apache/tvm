@@ -74,7 +74,7 @@ inline ReuseType Str2ReuseType(const ffi::String& str) {
   } else if (str == "must") {
     return ReuseType::kMustReuse;
   } else {
-    LOG(FATAL) << "ValueError: Unknown ReuseType: " << str;
+    TVM_FFI_THROW(ValueError) << "Unknown ReuseType: " << str;
     throw;
   }
 }
@@ -96,7 +96,7 @@ struct ReuseConfig {
       : req(Str2ReuseType(Downcast<ffi::String>(config.at("req")))),
         levels(support::AsVector<Integer, int>(Downcast<ffi::Array<Integer>>(config.at("levels")))),
         scope(Downcast<ffi::String>(config.at("scope"))) {
-    ICHECK_EQ(config.size(), 3);
+    TVM_FFI_ICHECK_EQ(config.size(), 3);
   }
 };
 
@@ -257,7 +257,7 @@ ObjectPtr<NodeType> MultiLevelTilingInitCommon(
     } else if (c == 'R') {
       n->r_indices_.push_back(i);
     } else {
-      LOG(FATAL) << "ValueError: Invalid tiling structure: " << structure;
+      TVM_FFI_THROW(ValueError) << "Invalid tiling structure: " << structure;
     }
   }
   n->thread_warp_size_ = -1;

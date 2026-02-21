@@ -263,7 +263,7 @@ class PatternMatcher : public ExprVisitor {
     this->match_success_ = true;
     this->filled_map_.clear();
 
-    ICHECK_EQ(pattern_.size(), exprs_to_match.size());
+    TVM_FFI_ICHECK_EQ(pattern_.size(), exprs_to_match.size());
     int n_buffers = pattern_.size();
     for (int i = 0; i < n_buffers; ++i) {
       this->expr_to_match_ = exprs_to_match[i];
@@ -273,8 +273,8 @@ class PatternMatcher : public ExprVisitor {
 
   PrimExpr Eval(const Var& var) {
     auto it = filled_map_.find(var.operator->());
-    ICHECK(it != filled_map_.end()) << "Unknown pattern variable";
-    ICHECK(match_success_) << "Match failed";
+    TVM_FFI_ICHECK(it != filled_map_.end()) << "Unknown pattern variable";
+    TVM_FFI_ICHECK(match_success_) << "Match failed";
     return it->second;
   }
 
@@ -335,10 +335,10 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
   if (self.defined()) {
     throw RFactorNotApplicableError(self.value()->mod, std::move(block), violated_cond);
   } else {
-    LOG(FATAL) << "ValueError: Cross-thread reduction cannot be applied to the block "
-               << block->name_hint << " because the block violates the condition #" << violated_cond
-               << ".\n"
-               << kRFactorCrossThreadReductionApplicableBlockDef;
+    TVM_FFI_THROW(ValueError) << "Cross-thread reduction cannot be applied to the block "
+                              << block->name_hint << " because the block violates the condition #"
+                              << violated_cond << ".\n"
+                              << kRFactorCrossThreadReductionApplicableBlockDef;
   }
 }
 
@@ -425,7 +425,7 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
     }
   }
   for (int i = 0; i < n_buffers; ++i) {
-    ICHECK((*updates)[i].defined());
+    TVM_FFI_ICHECK((*updates)[i].defined());
   }
 }
 
@@ -464,7 +464,7 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
     const auto* let = block->body.as<LetStmtNode>();
     ExtractReductionUpdates(self, block, let, n_buffers, &updates, &buf2index);
   }
-  ICHECK_EQ(updates.size(), n_buffers);
+  TVM_FFI_ICHECK_EQ(updates.size(), n_buffers);
 
   // Step 3. Set the init values according to the buffer order in `updates`, with the help of the
   // mapping `buf2index`.
@@ -477,7 +477,7 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
   // - Check buffers do not duplicate
   const ffi::Array<PrimExpr>& expected_shape = updates[0]->buffer->shape;
   const ffi::Array<PrimExpr>& expected_indices = updates[0]->indices;
-  ICHECK_EQ(expected_shape.size(), expected_indices.size());
+  TVM_FFI_ICHECK_EQ(expected_shape.size(), expected_indices.size());
   int n_dim = expected_indices.size();
   arith::Analyzer ana;
   for (int i = 0; i < n_buffers; ++i) {
@@ -503,12 +503,12 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/10);
     }
     int idx = it->second;
-    ICHECK(updates[idx]->buffer.same_as(inits[i]->buffer));
-    ICHECK(!init_values[idx].defined());
+    TVM_FFI_ICHECK(updates[idx]->buffer.same_as(inits[i]->buffer));
+    TVM_FFI_ICHECK(!init_values[idx].defined());
     init_values.Set(idx, inits[i]->value);
   }
   for (int i = 0; i < n_buffers; ++i) {
-    ICHECK(init_values[i].defined());
+    TVM_FFI_ICHECK(init_values[i].defined());
   }
 
   return std::make_pair(init_values, updates);
@@ -574,9 +574,10 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
     bool write_is_covered_by_match_buffer =
         match_buffer_sources.count(store->buffer.get()) &&
         buffer_written.count(match_buffer_sources.find(store->buffer.get())->second);
-    ICHECK(buffer_written.count(store->buffer.get()) || write_is_covered_by_match_buffer ||
-           buffer_allocated.count(store->buffer.get()))
-        << "ValueError: The buffer \"" << store->buffer
+    TVM_FFI_CHECK(buffer_written.count(store->buffer.get()) || write_is_covered_by_match_buffer ||
+                      buffer_allocated.count(store->buffer.get()),
+                  ValueError)
+        << "The buffer \"" << store->buffer
         << "\" is written in the block but is not in the block's signature nor is it covered by "
            "a match_buffer";
     for (const PrimExpr& index : store->indices) {
@@ -630,8 +631,9 @@ std::tuple<CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAn
     if (self.defined()) {
       throw NoMatchedReducerError(self.value()->mod, identities, combiners);
     } else {
-      LOG(FATAL) << "ValueError: No matched reducer for the identity and the combiner of the "
-                    "reduction block. So rfactor and cross-thread reduction cannot be applied.";
+      TVM_FFI_THROW(ValueError)
+          << "No matched reducer for the identity and the combiner of the "
+             "reduction block. So rfactor and cross-thread reduction cannot be applied.";
     }
   }
   return std::make_tuple(std::move(reducer), std::move(combiner_lhs), std::move(combiner_rhs));
@@ -644,7 +646,7 @@ bool MatchReducer(const CommReducer& reducer, const ffi::Array<PrimExpr>& identi
                   const ffi::Array<BufferLoad>& buf_loads, ffi::Array<PrimExpr>* lhs,
                   ffi::Array<PrimExpr>* rhs) {
   ExprDeepEqual equal;
-  ICHECK_EQ(identities.size(), combined_values.size());
+  TVM_FFI_ICHECK_EQ(identities.size(), combined_values.size());
   int n_buffers = identities.size();
   for (int i = 0; i < n_buffers; ++i) {
     if (!equal(reducer->identity_element[i], identities[i])) {

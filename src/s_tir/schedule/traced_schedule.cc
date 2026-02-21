@@ -125,9 +125,10 @@ SBlockRV TracedScheduleNode::GetSBlock(const ffi::String& name,
   } else if (func_working_on_.defined()) {
     gv = this->func_working_on_.value();
   } else {
-    LOG(FATAL) << "ValueError: `get_sblock` does not know which function to be working on. Please "
-                  "specify the function name explicitly, or call `work_on` to specify the function "
-                  "before using `get_sblock`.";
+    TVM_FFI_THROW(ValueError)
+        << "`get_sblock` does not know which function to be working on. Please "
+           "specify the function name explicitly, or call `work_on` to specify the function "
+           "before using `get_sblock`.";
   }
   SBlockRV result = ConcreteScheduleNode::GetSBlock(name, func_name);
 

@@ -76,7 +76,7 @@ ffi::Map<ffi::String, Target> TargetTag::ListTags() {
 
 Target TargetTag::AddTag(ffi::String name, ffi::Map<ffi::String, ffi::Any> config, bool override) {
   TargetTagRegEntry& tag = TargetTagRegEntry::RegisterOrGet(name).set_name();
-  ICHECK(override || tag.tag_->config.empty())
+  TVM_FFI_ICHECK(override || tag.tag_->config.empty())
       << "Tag \"" << name << "\" has been previously defined as: " << tag.tag_->config;
   tag.set_config(config);
   return Target(config);

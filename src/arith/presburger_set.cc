@@ -83,7 +83,8 @@ static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {
         }
         disjunct.addEquality(int_coeffs);
       } else {
-        LOG(FATAL) << "Unsupported constraint expression: " << entry->GetTypeKey();
+        TVM_FFI_THROW(InternalError)
+            << "Unsupported constraint expression: " << entry->GetTypeKey();
       }
     }
     intset->unionInPlace(disjunct);
@@ -186,7 +187,7 @@ PrimExpr PresburgerSetNode::GenerateConstraint() const {
 }
 
 PresburgerSet Union(const ffi::Array<PresburgerSet>& sets) {
-  CHECK_GT(sets.size(), 0);
+  TVM_FFI_ICHECK_GT(sets.size(), 0);
   if (sets.size() == 1) return sets[0];
   auto relations = sets[0]->disjuncts;
   for (size_t i = 1; i < sets.size(); ++i) {
@@ -198,13 +199,13 @@ PresburgerSet Union(const ffi::Array<PresburgerSet>& sets) {
 }
 
 PresburgerSet Intersect(const ffi::Array<PresburgerSet>& sets) {
-  CHECK_GT(sets.size(), 0);
+  TVM_FFI_ICHECK_GT(sets.size(), 0);
   if (sets.size() == 1) return sets[0];
   auto relations = sets[0]->disjuncts;
   const auto& space = sets[0]->space;
 
   for (size_t i = 1; i < sets.size(); ++i) {
-    ICHECK(space.isCompatible(sets[i]->space)) << "Spaces should match";
+    TVM_FFI_ICHECK(space.isCompatible(sets[i]->space)) << "Spaces should match";
     for (const IntegerRelation& relA : sets[i]->disjuncts) {
       for (const IntegerRelation& relB : relations) {
         IntegerRelation intersection = relA.intersect(relB);
@@ -262,7 +263,7 @@ IntSet EvalSet(const PrimExpr& e, const PresburgerSet& set) {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PresburgerSetNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto set = node.as<PresburgerSetNode>();
-      ICHECK(ret) << "Unknown type:" << node->GetTypeKey();
+      TVM_FFI_ICHECK(ret) << "Unknown type:" << node->GetTypeKey();
       p->stream << "{";
       p->stream << set->GetVars() << ": ";
       p->stream << node.as<PresburgerSetNode>()->GenerateConstraint();

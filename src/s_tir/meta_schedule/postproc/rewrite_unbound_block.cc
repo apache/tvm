@@ -90,11 +90,11 @@ class RewriteUnboundBlockNode : public PostprocNode {
  public:
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {
-    CHECK(context->target.defined()) << "ValueError: target is not defined";
+    TVM_FFI_CHECK(context->target.defined(), ValueError) << "target is not defined";
     ffi::Optional<Integer> max_threads_per_block =
         context->target.value()->GetAttr<Integer>("max_threads_per_block");
-    CHECK(max_threads_per_block.defined())
-        << "ValueError: missing attribute `max_threads_per_block` in the target";
+    TVM_FFI_CHECK(max_threads_per_block.defined(), ValueError)
+        << "missing attribute `max_threads_per_block` in the target";
     this->max_threads_per_block_ = max_threads_per_block.value().IntValue();
   }
 
@@ -125,7 +125,7 @@ bool RewriteUnboundBlockNode::Apply(const s_tir::Schedule& sch) {
   using s_tir::LoopRV;
   using s_tir::SBlockRV;
   using s_tir::Schedule;
-  ICHECK_NE(this->max_threads_per_block_, -1);
+  TVM_FFI_ICHECK_NE(this->max_threads_per_block_, -1);
   auto get_factor = [t = this->max_threads_per_block_](int max_extent) -> ExprRV {
     return Integer(std::min(t, max_extent));
   };

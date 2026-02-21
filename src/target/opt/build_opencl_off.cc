@@ -34,7 +34,7 @@ ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
 ffi::Module OpenCLModuleCreate(const std::unordered_map<std::string, SPIRVShader>& shaders,
                                const std::string& spirv_text,
                                ffi::Map<ffi::String, FunctionInfo> fmap) {
-  LOG(FATAL) << "OpenCLModuleCreate is called but OpenCL is not enabled.";
+  TVM_FFI_THROW(InternalError) << "OpenCLModuleCreate is called but OpenCL is not enabled.";
   TVM_FFI_UNREACHABLE();
 }
 

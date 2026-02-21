@@ -320,9 +320,10 @@ SBlockRV ConcreteScheduleNode::GetSBlock(const ffi::String& name,
   } else if (func_working_on_.has_value()) {
     gv = this->func_working_on_.value();
   } else {
-    LOG(FATAL) << "ValueError: `get_sblock` does not know which function to be working on. Please "
-                  "specify the function name explicitly, or call `work_on` to specify the function "
-                  "before using `get_sblock`.";
+    TVM_FFI_THROW(ValueError)
+        << "`get_sblock` does not know which function to be working on. Please "
+           "specify the function name explicitly, or call `work_on` to specify the function "
+           "before using `get_sblock`.";
   }
   ffi::Array<StmtSRef> blocks = s_tir::GetSBlocks(this->state_, name, gv);
   if (blocks.size() != 1) {
@@ -379,7 +380,7 @@ ffi::Array<SBlockRV> ConcreteScheduleNode::GetOutputBlocks(const SBlockRV& scope
 /******** Schedule: Transform loops ********/
 
 LoopRV ConcreteScheduleNode::Merge(const ffi::Array<LoopRV>& loop_rvs) {
-  CHECK(loop_rvs.size() > 1) << "ValueError: 'merge' requires at least 2 loop(s)";
+  TVM_FFI_CHECK(loop_rvs.size() > 1, ValueError) << "'merge' requires at least 2 loop(s)";
   ffi::Array<StmtSRef> loop_srefs = this->GetSRefs(loop_rvs);
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
@@ -390,7 +391,7 @@ LoopRV ConcreteScheduleNode::Merge(const ffi::Array<LoopRV>& loop_rvs) {
 }
 
 LoopRV ConcreteScheduleNode::Fuse(const ffi::Array<LoopRV>& loop_rvs, bool preserve_unit_iters) {
-  CHECK(!loop_rvs.empty()) << "ValueError: 'fuse' requires at least 1 loop(s)";
+  TVM_FFI_CHECK(!loop_rvs.empty(), ValueError) << "'fuse' requires at least 1 loop(s)";
   ffi::Array<StmtSRef> loop_srefs = this->GetSRefs(loop_rvs);
   StmtSRef result{nullptr};
   TVM_TIR_SCHEDULE_BEGIN();
@@ -944,8 +945,8 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
   }
 
   if (const auto* expr = ann_val.as<PrimExprNode>()) {
-    ICHECK(!expr->IsInstance<StringImmNode>())
-        << "TypeError: ffi::String is expected, but gets StringImm";
+    TVM_FFI_CHECK(!expr->IsInstance<StringImmNode>(), TypeError)
+        << "ffi::String is expected, but gets StringImm";
     auto res_expr = this->Get(ffi::GetRef<PrimExpr>(expr));
     // prefer to return int/float literals for annotations
     if (auto opt_intimm = res_expr.as<IntImm>()) {
@@ -974,13 +975,13 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
       } else if (auto opt_str = key.try_cast<ffi::String>()) {
         result.Set(opt_str.value(), value);
       } else {
-        LOG(FATAL) << "TypeError: annotation dict key expect to be ffi::String or StringImm";
+        TVM_FFI_THROW(TypeError) << "annotation dict key expect to be ffi::String or StringImm";
       }
     }
     return result;
   }
-  LOG(FATAL)
-      << "TypeError: Only strings, integers, floats, ExprRVs and Arrays are supported for now, but "
+  TVM_FFI_THROW(TypeError)
+      << "Only strings, integers, floats, ExprRVs and Arrays are supported for now, but "
       << "gets: " << ann_val.GetTypeKey();
   TVM_FFI_UNREACHABLE();
 }

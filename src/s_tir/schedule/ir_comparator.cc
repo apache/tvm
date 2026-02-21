@@ -35,7 +35,7 @@ class TensorIntrinMismatchError : public ScheduleError {
         lhs_stmt_(std::move(lhs_stmt)),
         rhs_stmt_(std::move(rhs_stmt)),
         error_messages_(std::move(error_messages)) {
-    ICHECK(lhs_stmt_->IsInstance<ForNode>() || lhs_stmt_->IsInstance<SBlockNode>());
+    TVM_FFI_ICHECK(lhs_stmt_->IsInstance<ForNode>() || lhs_stmt_->IsInstance<SBlockNode>());
   }
 
   ffi::String FastErrorString() const final {
@@ -464,7 +464,7 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
   auto it = buffer_indices_.find(lhs->buffer);
   if (it == buffer_indices_.end()) {
     // Update base indices for the buffer, this can only happen if it is visiting the scope block.
-    ICHECK(is_scope_block);
+    TVM_FFI_ICHECK(is_scope_block);
     std::vector<PrimExpr> indices_base;
     indices_base.reserve(lhs->region.size());
     for (int i = 0; i < offset; i++) {
@@ -565,9 +565,9 @@ bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
     return false;
   }
   auto it = buffer_indices_.find(lhs->buffer);
-  ICHECK(it != buffer_indices_.end());
+  TVM_FFI_ICHECK(it != buffer_indices_.end());
   const std::vector<PrimExpr>& indices_base = (*it).second;
-  ICHECK_EQ(indices_base.size(), rhs->indices.size() + offset);
+  TVM_FFI_ICHECK_EQ(indices_base.size(), rhs->indices.size() + offset);
   for (size_t i = 0; i < rhs->indices.size(); i++) {
     PrimExpr normalized_lhs_index = lhs->indices[i + offset] - indices_base[i + offset];
     if (!analyzer_.CanProveEqual(normalized_lhs_index, rhs->indices[i])) {

@@ -31,7 +31,8 @@ TuneContext::TuneContext(ffi::Optional<IRModule> mod, ffi::Optional<Target> targ
                          ffi::Optional<SearchStrategy> search_strategy,
                          ffi::Optional<ffi::String> task_name, int num_threads,
                          TRandState rand_state, ffi::Function logger) {
-  CHECK(rand_state == -1 || rand_state >= 0) << "ValueError: Invalid random state: " << rand_state;
+  TVM_FFI_CHECK(rand_state == -1 || rand_state >= 0, ValueError)
+      << "Invalid random state: " << rand_state;
   ObjectPtr<TuneContextNode> n = ffi::make_object<TuneContextNode>();
   n->mod = mod;
   n->target = target;

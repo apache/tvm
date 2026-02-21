@@ -56,12 +56,12 @@ inline tir::PrimFunc FindEntryFunc(const IRModule& mod) {
   }
   // Priority 3: The only PrimFunc in the IRModule
   if (num_prim_func == 0) {
-    LOG(FATAL) << "ValueError: Cannot find any PrimFunc in the given IRModule: " << mod;
+    TVM_FFI_THROW(ValueError) << "Cannot find any PrimFunc in the given IRModule: " << mod;
   }
   if (num_prim_func > 1) {
-    LOG(FATAL) << "ValueError: Multiple PrimFuncs exist in the IRModule, but none of them are "
-                  "annotated with `kIsEntryFunc`, i.e. `tir.is_entry_func`"
-               << mod;
+    TVM_FFI_THROW(ValueError) << "Multiple PrimFuncs exist in the IRModule, but none of them are "
+                                 "annotated with `kIsEntryFunc`, i.e. `tir.is_entry_func`"
+                              << mod;
   }
   return ffi::GetRef<tir::PrimFunc>(last_func);
 }
@@ -74,17 +74,17 @@ ArgInfo ArgInfo::FromJSON(const ObjectRef& json_obj) {
   ffi::Optional<ffi::String> tag{std::nullopt};
   try {
     const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
-    CHECK(json_array && json_array->size() >= 1);
+    TVM_FFI_ICHECK(json_array && json_array->size() >= 1);
     tag = json_array->at(0).cast<ffi::String>();
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
-    LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
-               << "\nThe error is: " << e.what();
+    TVM_FFI_THROW(ValueError) << "Unable to parse the JSON object: " << json_obj
+                              << "\nThe error is: " << e.what();
   }
   // Step 2. Dispatch the tag to corresponding subclass of ArgInfo
   if (tag == "TENSOR") {
     return TensorInfo::FromJSON(json_obj);
   }
-  LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj;
+  TVM_FFI_THROW(ValueError) << "Unable to parse the JSON object: " << json_obj;
   throw;
 }
 
@@ -98,7 +98,7 @@ ffi::Array<ArgInfo> ArgInfo::FromPrimFunc(const tir::PrimFunc& func) {
       result.push_back(TensorInfo(/*dtype=*/buffer->dtype,
                                   /*shape=*/AsVector<PrimExpr, int64_t>(buffer->shape)));
     } else {
-      LOG(FATAL) << "ValueError: Unsupported argument type: " << arg;
+      TVM_FFI_THROW(ValueError) << "Unsupported argument type: " << arg;
     }
   }
   return result;
@@ -133,7 +133,7 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
   ffi::Array<Integer> shape;
   try {
     const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
-    CHECK(json_array && json_array->size() == 3);
+    TVM_FFI_ICHECK(json_array && json_array->size() == 3);
     // Load json[1] => dtype
     {
       ffi::String dtype_str = json_array->at(1).cast<ffi::String>();
@@ -142,8 +142,8 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
     // Load json[2] => shape
     shape = AsIntArray(json_array->at(2).cast<ObjectRef>());
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
-    LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
-               << "\nThe error is: " << e.what();
+    TVM_FFI_THROW(ValueError) << "Unable to parse the JSON object: " << json_obj
+                              << "\nThe error is: " << e.what();
   }
   std::vector<int64_t> s;
   std::transform(shape.begin(), shape.end(), std::back_inserter(s),
@@ -156,7 +156,7 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TensorInfoNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<TensorInfoNode>();
-      ICHECK(self);
+      TVM_FFI_ICHECK(self);
       p->stream << "TensorInfo(\"" << self->dtype << "\", " << self->shape << ")";
     });
 

@@ -54,7 +54,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    CHECK(cur_realize_.defined()) << "BufferLoad occurred outside of any block";
+    TVM_FFI_ICHECK(cur_realize_.defined()) << "BufferLoad occurred outside of any block";
 
     const Buffer& buffer = op->buffer;
     if (buffer_ == buffer.get()) {
@@ -74,7 +74,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
                                           /*predicate=*/cur_realize_->predicate,  //
                                           /*analyzer=*/&analyzer_);
       int buffer_index = GetReadBufferIndex(cur_realize_->block, buffer);
-      ICHECK(buffer_index != -1);
+      TVM_FFI_ICHECK(buffer_index != -1);
       buffer_loc_ = std::make_pair(cur_realize_->block, buffer_index);
     }
   }
@@ -125,7 +125,7 @@ ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
 
   ffi::Array<Buffer> layout_free_buffers;
   for (const Integer& index : layout_free_buffer_index) {
-    ICHECK(static_cast<size_t>(index->value) < func->params.size());
+    TVM_FFI_ICHECK(static_cast<size_t>(index->value) < func->params.size());
     const Var& param = func->params[index->value];
     layout_free_buffers.push_back(func->buffer_map.at(param));
   }
@@ -215,7 +215,7 @@ bool RewriteLayout(const Schedule& sch) {
         // for a cache-read buffer that is directly consumed by an anchor op. The last buffer
         // in cache_read_chain corresponds to that buffer.
         SBlock cache_read_block = sch->Get(sch->GetSBlock(cache_read_chain.back(), func_name));
-        ICHECK_EQ(cache_read_block->writes.size(), 1);
+        TVM_FFI_ICHECK_EQ(cache_read_block->writes.size(), 1);
         auto tup_opt = GetSuggestedIndexMap(cache_read_block->writes[0]->buffer, prim_func);
         if (tup_opt == std::nullopt) continue;
 

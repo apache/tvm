@@ -251,7 +251,7 @@ InferLayoutOutput ForwardInferLayoutBinary(
         input_layouts.push_back(output->input_layouts[i]);
       }
     } else {
-      LOG(FATAL) << "Binary input should be tensor, get " << sinfo->GetTypeKey();
+      TVM_FFI_THROW(InternalError) << "Binary input should be tensor, get " << sinfo->GetTypeKey();
     }
   }
   return InferLayoutOutput(input_layouts, output->output_layouts, Attrs());
@@ -676,7 +676,7 @@ InferLayoutOutput BackwardInferLayoutBinary(
         input_layouts.push_back(output->input_layouts[i]);
       }
     } else {
-      LOG(FATAL) << "Binary input should be tensor, get " << sinfo->GetTypeKey();
+      TVM_FFI_THROW(InternalError) << "Binary input should be tensor, get " << sinfo->GetTypeKey();
     }
   }
   return InferLayoutOutput(input_layouts, output->output_layouts, Attrs());
@@ -1283,7 +1283,7 @@ class LayoutInfer : public ExprVisitor {
         SetExprLayout(ret, var_layout_map_[Downcast<Var>(b_node->body)]);
       }
     } else {
-      LOG(FATAL) << "Function body should be SeqExpr, get " << func->body;
+      TVM_FFI_THROW(InternalError) << "Function body should be SeqExpr, get " << func->body;
     }
   }
 
@@ -1303,7 +1303,7 @@ class LayoutInfer : public ExprVisitor {
                 SetExprLayout(b_node->body, param_layout);
               }
             } else {
-              LOG(FATAL) << "Caller body should be SeqExpr, get " << caller->body;
+              TVM_FFI_THROW(InternalError) << "Caller body should be SeqExpr, get " << caller->body;
             }
           }
         }
@@ -1325,7 +1325,7 @@ class LayoutChecker : public ExprVisitor {
 
   void Check(const Expr& expr) {
     ExprVisitor::VisitExpr(expr);
-    ICHECK_EQ(missing_num_, 0) << "Some layout is missing";
+    TVM_FFI_ICHECK_EQ(missing_num_, 0) << "Some layout is missing";
   }
 
   void VisitExpr_(const CallNode* call) final {

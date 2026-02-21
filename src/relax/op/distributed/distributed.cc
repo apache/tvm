@@ -87,7 +87,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<DistributionAttrs>();
   const auto* sinfo = GetStructInfoAs<distributed::DTensorStructInfoNode>(call->args[0]);
-  ICHECK(sinfo);
+  TVM_FFI_ICHECK(sinfo);
   return distributed::DTensorStructInfo(sinfo->tensor_sinfo, attrs->device_mesh, attrs->placement);
 }
 
@@ -102,7 +102,7 @@ StructInfo InferStructInfoCallTIRLocalView(const Call& call, const BlockBuilder&
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "sinfo_args should have exactly 1 output struct info.");
   }
-  CHECK(call->args[0]->IsInstance<GlobalVarNode>())
+  TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "call_tir_local_view expects the first argument to be a GlobalVar referring to a TIR "
          "PrimFunc. "
       << "However, gets " << call->args[0];
@@ -124,7 +124,7 @@ Expr MakeCallTIRLocalView(Expr func, Tuple args,
                           ffi::Optional<Expr> packed_ints) {
   for (const distributed::DTensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->tensor_sinfo->shape.as<ShapeExprNode>();
-    CHECK(shape != nullptr)
+    TVM_FFI_ICHECK(shape != nullptr)
         << "out_sinfo of call_tir_local_view should have defined ShapeExpr as shape. "
            "However, one given structure info is "
         << sinfo;
@@ -162,7 +162,7 @@ StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   auto input_shape = input_sinfo->GetShape();
-  CHECK(input_shape.defined())
+  TVM_FFI_ICHECK(input_shape.defined())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";
 
   if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {
@@ -183,14 +183,14 @@ StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
 StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   using namespace distributed;
   ffi::Array<DTensorStructInfo> input_dtensor_sinfos = GetInputDTensorStructInfo(call, ctx);
-  ICHECK(input_dtensor_sinfos.size() == 1);
+  TVM_FFI_ICHECK(input_dtensor_sinfos.size() == 1);
   DTensorStructInfo input_dtensor_sinfo = input_dtensor_sinfos[0];
   TensorStructInfo tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   auto input_shape = tensor_sinfo->GetShape();
-  CHECK(input_shape.defined())
+  TVM_FFI_ICHECK(input_shape.defined())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";
 
   if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {
@@ -205,8 +205,8 @@ StructInfo InferDistStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
 
   DeviceMesh device_mesh = input_dtensor_sinfo->device_mesh;
   // FIXME: this is a hack where there's only 1d mesh
-  ICHECK(device_mesh->shape.size() == 1);
-  ICHECK(input_dtensor_sinfo->placement->dim_specs[0]->kind == PlacementSpecKind::kReplica);
+  TVM_FFI_ICHECK(device_mesh->shape.size() == 1);
+  TVM_FFI_ICHECK(input_dtensor_sinfo->placement->dim_specs[0]->kind == PlacementSpecKind::kReplica);
   return DTensorStructInfo(tensor_sinfo, device_mesh,
                            Placement::FromText("S[" + std::to_string(attrs->axis) + "]"));
 }

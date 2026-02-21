@@ -80,7 +80,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
    * \param pointer to profiler
    */
   virtual void RunProfile(profiling::Profiler* prof) {
-    LOG(FATAL) << "Not expected to be here : Profiling call w/o support ?";
+    TVM_FFI_THROW(InternalError) << "Not expected to be here : Profiling call w/o support ?";
   }
 
   /*!
@@ -88,7 +88,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
    * \return External compiler specific debug blob
    */
   virtual std::string DebugDump(void) {
-    LOG(FATAL) << "Not expected to be here : Debug dump w/o support ?";
+    TVM_FFI_THROW(InternalError) << "Not expected to be here : Debug dump w/o support ?";
     return "";
   }
 
@@ -108,7 +108,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
           [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->const_names_; });
     } else if (this->symbol_name_ == name) {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
-        ICHECK(this->initialized_) << "The module has not been initialized";
+        TVM_FFI_ICHECK(this->initialized_) << "The module has not been initialized";
 
         // Bind argument tensors to data entries.
         this->SetInputOutputBuffers(args);
@@ -123,7 +123,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
         return ffi::Function(nullptr);
       }
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
-        ICHECK(this->initialized_) << "The module has not been initialized";
+        TVM_FFI_ICHECK(this->initialized_) << "The module has not been initialized";
 
         // Bind argument tensors to data entries.
         this->SetInputOutputBuffers(args);
@@ -143,7 +143,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
     } else if ("__init_" + this->symbol_name_ == name) {
       // The function to initialize constant tensors.
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
-        ICHECK_EQ(args.size(), 1U);
+        TVM_FFI_ICHECK_EQ(args.size(), 1U);
         std::lock_guard<std::mutex> guard(this->initialize_mutex_);
         if (!this->initialized_) {
           this->Init(args[0].cast<ffi::Array<Tensor>>());
@@ -180,9 +180,9 @@ class JSONRuntimeBase : public ffi::ModuleObj {
     std::string graph_json;
     std::vector<std::string> consts;
     // Load the symbol
-    ICHECK(stream.Read(&symbol)) << "Loading symbol name failed";
-    ICHECK(stream.Read(&graph_json)) << "Loading graph json failed";
-    ICHECK(stream.Read(&consts)) << "Loading the const name list failed";
+    TVM_FFI_ICHECK(stream.Read(&symbol)) << "Loading symbol name failed";
+    TVM_FFI_ICHECK(stream.Read(&graph_json)) << "Loading graph json failed";
+    TVM_FFI_ICHECK(stream.Read(&consts)) << "Loading the const name list failed";
     ffi::Array<ffi::String> const_names;
     for (const auto& it : consts) {
       const_names.push_back(it);
@@ -207,7 +207,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
    * \param args The packed args.
    */
   void SetInputOutputBuffers(const ffi::PackedArgs& args) {
-    ICHECK_EQ(args.size(), input_var_eid_.size() + outputs_.size())
+    TVM_FFI_ICHECK_EQ(args.size(), input_var_eid_.size() + outputs_.size())
         << "Found mismatch in the number of provided data entryies and required.";
 
     for (size_t i = 0; i < static_cast<size_t>(args.size()); i++) {
@@ -242,24 +242,24 @@ class JSONRuntimeBase : public ffi::ModuleObj {
       uint32_t nid = input_nodes_[i];
       std::string name = nodes_[nid].name_;
       if (nodes_[nid].op_type_ == "input") {
-        ICHECK_EQ(nodes_[nid].GetOpShape().size(), nodes_[nid].GetOpDataType().size());
+        TVM_FFI_ICHECK_EQ(nodes_[nid].GetOpShape().size(), nodes_[nid].GetOpDataType().size());
         for (size_t j = 0; j < nodes_[nid].GetOpShape().size(); ++j) {
           input_var_eid_.push_back(EntryID(nid, j));
         }
         nodes_[nid].SetNumOutput(nodes_[nid].GetOpShape().size());
       } else {
-        ICHECK_EQ(nodes_[nid].op_type_, "const");
+        TVM_FFI_ICHECK_EQ(nodes_[nid].op_type_, "const");
         auto pos = std::find(std::begin(const_names_), std::end(const_names_), name);
-        ICHECK(pos != std::end(const_names_)) << "Found non-existent constant: " << name;
+        TVM_FFI_ICHECK(pos != std::end(const_names_)) << "Found non-existent constant: " << name;
         const_idx_.push_back(nid);
         consts.push_back(name);
       }
     }
-    ICHECK_EQ(consts.size(), const_names_.size())
+    TVM_FFI_ICHECK_EQ(consts.size(), const_names_.size())
         << "Found mismatch for the number of constants in the graph and required.";
 
     for (size_t i = 0; i < consts.size(); i++) {
-      ICHECK_EQ(consts[i], const_names_[i])
+      TVM_FFI_ICHECK_EQ(consts[i], const_names_[i])
           << "The position of constant in the graph must be the same as the required.";
     }
 
@@ -315,7 +315,7 @@ class JSONRuntimeBase : public ffi::ModuleObj {
       } else if (key == "symbol") {
         // ignored
       } else {
-        LOG(FATAL) << "Unknown key: " << key;
+        TVM_FFI_THROW(InternalError) << "Unknown key: " << key;
       }
     }
   }

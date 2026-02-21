@@ -188,7 +188,7 @@ class AxisGroupGraphBuilder : public ExprVisitor {
     if (const auto* tensor_sinfo = binding->var->struct_info_.as<TensorStructInfoNode>()) {
       tensor_sinfos.push_back(ffi::GetRef<TensorStructInfo>(tensor_sinfo));
     } else if (const auto* tuple_sinfo = binding->var->struct_info_.as<TupleStructInfoNode>()) {
-      ICHECK(tuple_sinfo);
+      TVM_FFI_ICHECK(tuple_sinfo);
       for (const auto& sinfo : tuple_sinfo->fields) {
         tensor_sinfos.push_back(Downcast<TensorStructInfo>(sinfo));
       }
@@ -227,7 +227,7 @@ class ShardingAnnotationCollector : public ExprVisitor {
     static const Op& annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
     if (val->op.same_as(annotate_sharding_op)) {
       const auto* attrs = val->attrs.as<DistributionAttrs>();
-      ICHECK(attrs);
+      TVM_FFI_ICHECK(attrs);
 
       for (int i = 0; i < static_cast<int>(attrs->placement->dim_specs.size()); i++) {
         const PlacementSpec& placement_spec = attrs->placement->dim_specs[i];
@@ -267,9 +267,9 @@ class ShardingConflictHandler : public ExprVisitor {
 
   void CheckTensorShardingCompatible(Var var) {
     const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(var);
-    ICHECK(sinfo);
+    TVM_FFI_ICHECK(sinfo);
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    ICHECK(shape);
+    TVM_FFI_ICHECK(shape);
     int ndim = sinfo->ndim;
     std::unordered_set<int> sharded_mesh_dim;
     ffi::Optional<DeviceMesh> device_mesh;
@@ -283,7 +283,7 @@ class ShardingConflictHandler : public ExprVisitor {
       }
 
       if (device_mesh.defined()) {
-        ICHECK(StructuralEqual()(device_mesh.value(), sharding_spec.first))
+        TVM_FFI_ICHECK(StructuralEqual()(device_mesh.value(), sharding_spec.first))
             << "Sharding conflict detected for tensor " << var->name_hint()
             << ": Device Mesh mismatch"
             << ". Conflict Handling logic will be added in the future.";
@@ -292,7 +292,7 @@ class ShardingConflictHandler : public ExprVisitor {
       }
       if (i >= 0) {
         int sharding_dim = sharding_spec.second;
-        ICHECK(sharded_mesh_dim.count(sharding_dim) == 0)
+        TVM_FFI_ICHECK(sharded_mesh_dim.count(sharding_dim) == 0)
             << "Sharding conflict detected for tensor " << var->name_hint()
             << ": Replicate sharding device mesh axis " << sharding_dim
             << ". Conflict Handling logic will be added in the future.";
@@ -313,7 +313,7 @@ class ShardingConflictHandler : public ExprVisitor {
       int has_sharding_spec;
       std::tie(sharding_spec, has_sharding_spec) =
           axis_group_graph_->GetAxisShardingSpec({constant.get(), i});
-      ICHECK(!has_sharding_spec)
+      TVM_FFI_ICHECK(!has_sharding_spec)
           << "Constant is not allowed to be sharded. Please convert it into an input param.";
     }
   }
@@ -366,7 +366,8 @@ class DistributedIRBuilder : public ExprMutator {
     int ndim = sinfo->ndim;
     DeviceMesh device_mesh =
         std::get<0>(axis_group_graph_.GetAxisShardingSpec({expr.get(), -1, tuple_idx})).first;
-    ICHECK(device_mesh.defined()) << expr << "[" << tuple_idx << "] is not assigned device mesh";
+    TVM_FFI_ICHECK(device_mesh.defined())
+        << expr << "[" << tuple_idx << "] is not assigned device mesh";
     ffi::Array<PlacementSpec> placement_specs(
         std::vector<PlacementSpec>(device_mesh->shape.size(), PlacementSpec::Replica()));
     for (int i = 0; i < ndim; i++) {
@@ -407,7 +408,7 @@ class DistributedIRBuilder : public ExprMutator {
       Constant new_constant(constant->data, new_sinfo);
       return new_constant;
     } else {
-      LOG(FATAL) << "Cannot rewrite tensor which is not a Var or Constant";
+      TVM_FFI_THROW(InternalError) << "Cannot rewrite tensor which is not a Var or Constant";
       throw;
     }
   }
@@ -440,7 +441,7 @@ class DistributedIRBuilder : public ExprMutator {
     FBuildAxisGraph f = [&](const Var& var, const Call& call, AxisGroupGraph* axis_group_graph) {
       ffi::Optional<tir::PrimFunc> prim_func =
           MatchPrimFunc(this->builder_->GetContextIRModule(), call->args[0]);
-      ICHECK(prim_func);
+      TVM_FFI_ICHECK(prim_func);
       return BuildAxisGraphCallTIR(var, call, prim_func.value(), axis_group_graph);
     };
     Call new_call = Downcast<Call>(ExprMutator::VisitExpr_(call));
@@ -499,7 +500,7 @@ class DistributedIRBuilder : public ExprMutator {
         new_call->struct_info_ = new_dtensor_sinfo;
       }
     } else if (call->op.same_as(call_tir_op)) {
-      ICHECK(call->sinfo_args.size() == 1);
+      TVM_FFI_ICHECK(call->sinfo_args.size() == 1);
       if (!SinfoCompatibleWithDistIR(call->sinfo_args)) {
         ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
         if (placements.size() == 1) {
@@ -507,7 +508,7 @@ class DistributedIRBuilder : public ExprMutator {
               Downcast<TensorStructInfo>(call->sinfo_args[0]), device_mesh, placements[0])};
         } else {
           const auto* tuple_sinfo = call->sinfo_args[0].as<TupleStructInfoNode>();
-          ICHECK(placements.size() == tuple_sinfo->fields.size());
+          TVM_FFI_ICHECK(placements.size() == tuple_sinfo->fields.size());
           ffi::Array<StructInfo> new_tuple_sinfo_fields;
           for (int i = 0; i < static_cast<int>(placements.size()); i++) {
             new_tuple_sinfo_fields.push_back(DTensorStructInfo(
@@ -537,7 +538,7 @@ class DistributedIRBuilder : public ExprMutator {
     // get annotated sinfo from axis group graph
     DeviceMesh device_mesh =
         std::get<0>(axis_group_graph_.GetAxisShardingSpec({binding->var.get(), -1})).first;
-    ICHECK(device_mesh.defined());
+    TVM_FFI_ICHECK(device_mesh.defined());
     ffi::Array<Placement> placements;  // every tuple element has a placement
     for (int idx = 0; idx < static_cast<int>(orig_output_tensor_sinfos.size()); idx++) {
       ffi::Array<PlacementSpec> placement_specs(
@@ -572,7 +573,7 @@ class DistributedIRBuilder : public ExprMutator {
       }
     } else {
       const auto* inferred_tuple_sinfo = new_call->struct_info_.as<TupleStructInfoNode>();
-      ICHECK(inferred_tuple_sinfo) << new_call;
+      TVM_FFI_ICHECK(inferred_tuple_sinfo) << new_call;
       Var new_var = builder_->Emit(new_call);
       var_remap_[binding->var->vid] = new_var;
       for (int i = 0; i < static_cast<int>(inferred_tuple_sinfo->fields.size()); i++) {

@@ -30,27 +30,27 @@
 
 #include "mt_random_engine.cc"
 
-#define DLPACK_INTEGER_TYPE_SWITCH(type, DType, ...)    \
-  if (type.code == kDLInt && type.bits == 32) {         \
-    typedef int32_t DType;                              \
-    { __VA_ARGS__ }                                     \
-  } else if (type.code == kDLInt && type.bits == 16) {  \
-    typedef int16_t DType;                              \
-    { __VA_ARGS__ }                                     \
-  } else if (type.code == kDLInt && type.bits == 8) {   \
-    typedef int8_t DType;                               \
-    { __VA_ARGS__ }                                     \
-  } else if (type.code == kDLUInt && type.bits == 32) { \
-    typedef uint32_t DType;                             \
-    { __VA_ARGS__ }                                     \
-  } else if (type.code == kDLUInt && type.bits == 16) { \
-    typedef uint16_t DType;                             \
-    { __VA_ARGS__ }                                     \
-  } else if (type.code == kDLUInt && type.bits == 8) {  \
-    typedef uint8_t DType;                              \
-    { __VA_ARGS__ }                                     \
-  } else {                                              \
-    LOG(FATAL) << "unknown data type";                  \
+#define DLPACK_INTEGER_TYPE_SWITCH(type, DType, ...)     \
+  if (type.code == kDLInt && type.bits == 32) {          \
+    typedef int32_t DType;                               \
+    { __VA_ARGS__ }                                      \
+  } else if (type.code == kDLInt && type.bits == 16) {   \
+    typedef int16_t DType;                               \
+    { __VA_ARGS__ }                                      \
+  } else if (type.code == kDLInt && type.bits == 8) {    \
+    typedef int8_t DType;                                \
+    { __VA_ARGS__ }                                      \
+  } else if (type.code == kDLUInt && type.bits == 32) {  \
+    typedef uint32_t DType;                              \
+    { __VA_ARGS__ }                                      \
+  } else if (type.code == kDLUInt && type.bits == 16) {  \
+    typedef uint16_t DType;                              \
+    { __VA_ARGS__ }                                      \
+  } else if (type.code == kDLUInt && type.bits == 8) {   \
+    typedef uint8_t DType;                               \
+    { __VA_ARGS__ }                                      \
+  } else {                                               \
+    TVM_FFI_THROW(InternalError) << "unknown data type"; \
   }
 
 namespace tvm {
@@ -77,8 +77,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     int64_t low = args[0].cast<int64_t>();
                     int64_t high = args[1].cast<int64_t>();
                     auto out = args[2].cast<DLTensor*>();
-                    ICHECK_GT(high, low) << "high must be bigger than low";
-                    ICHECK(ffi::IsContiguous(*out));
+                    TVM_FFI_ICHECK_GT(high, low) << "high must be bigger than low";
+                    TVM_FFI_ICHECK(ffi::IsContiguous(*out));
 
                     DLDataType dtype = out->dtype;
                     int64_t size = 1;
@@ -100,7 +100,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           return low + rint % (high - low);
                         });
                       } else {
-                        LOG(FATAL) << "Do not support random.randint on this device yet";
+                        TVM_FFI_THROW(InternalError)
+                            << "Do not support random.randint on this device yet";
                       }
                     })
                   })

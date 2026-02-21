@@ -55,7 +55,7 @@ class OpenCLSPIRVModuleNode : public OpenCLModuleNodeBase {
 void OpenCLSPIRVModuleNode::WriteToFile(const ffi::String& file_name,
                                         const ffi::String& format) const {
   // TODO(masahi): How SPIRV binaries should be save to a file?
-  LOG(FATAL) << "Not implemented.";
+  TVM_FFI_THROW(InternalError) << "Not implemented.";
 }
 
 ffi::Bytes OpenCLSPIRVModuleNode::SaveToBytes() const {
@@ -116,7 +116,7 @@ cl_kernel OpenCLSPIRVModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenC
       log.resize(len);
       clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, len,
                             &log[0], nullptr);
-      LOG(FATAL) << "OpenCL build error for device=" << dev << "\n" << log;
+      TVM_FFI_THROW(InternalError) << "OpenCL build error for device=" << dev << "\n" << log;
     }
   }
   // build kernel

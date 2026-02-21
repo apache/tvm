@@ -47,7 +47,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
   OpaqueBlockConverter() = default;
 
   PrimExpr VisitExpr_(const VarNode* var) final {
-    CHECK(!forbidden_iter_vars_.count(var))
+    TVM_FFI_ICHECK(!forbidden_iter_vars_.count(var))
         << "Variable " << var->name_hint << " occurs in the predicate or iter_values of a block, "
         << "but isn't defined until the body of the block";
 
@@ -59,7 +59,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const SBlockNode* block) final {
-    ICHECK(!block->init.defined())
+    TVM_FFI_ICHECK(!block->init.defined())
         << "Block Init part is not allowed in pass ConvertBlocksToOpaque";
     SBlock new_block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(block));
     if (!new_block->iter_vars.empty()) {
@@ -70,7 +70,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
 
   Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
     const auto* block_op = realize->block.get();
-    ICHECK(!block_op->init.defined());
+    TVM_FFI_ICHECK(!block_op->init.defined());
 
     // Step 1. Visit the predicate and iter_values, without any variable bindings
     for (const auto& iter : block_op->iter_vars) forbidden_iter_vars_.insert(iter->var.get());
@@ -80,7 +80,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
     for (const auto& iter : block_op->iter_vars) forbidden_iter_vars_.erase(iter->var.get());
 
     // Step 2. Update "block vars => binding values" for substitution.
-    ICHECK_EQ(block_op->iter_vars.size(), iter_values.size());
+    TVM_FFI_ICHECK_EQ(block_op->iter_vars.size(), iter_values.size());
     for (int i = 0, n = block_op->iter_vars.size(); i < n; ++i) {
       IterVar block_var = block_op->iter_vars[i];
       PrimExpr v = this->VisitExpr(iter_values[i]);

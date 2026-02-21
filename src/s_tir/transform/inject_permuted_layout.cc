@@ -61,7 +61,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt_;
 
   ffi::Array<PrimExpr> PermuteIndices(PrimExpr row_idx, PrimExpr col_idx, int row_size) {
-    ICHECK(permute_);
+    TVM_FFI_ICHECK(permute_);
     // Index after vectorizing by 8
     PrimExpr col_idx_outer = floordiv(col_idx, VECTORIZE_FACTOR),
              col_idx_inner = floormod(col_idx, VECTORIZE_FACTOR);
@@ -81,7 +81,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       auto row_idx_sub = floormod(row_idx, 8);
       new_col_idx_outer = col_idx_outer ^ row_idx_sub;
     } else {
-      ICHECK(row_size % 32 == 0);
+      TVM_FFI_ICHECK(row_size % 32 == 0);
       // Use 8 * 4 permuted layout
       // Every number below corresponds to 8 consecutive fp16 number in shared mem, i.e. one read
       // Every row below corresponds to 16 banks
@@ -113,7 +113,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     } else if (auto opt_val = annotation.try_cast<int64_t>()) {
       return *opt_val != 0;
     } else {
-      LOG(FATAL) << "Invalid permuted layout annotation: " << annotation;
+      TVM_FFI_THROW(InternalError) << "Invalid permuted layout annotation: " << annotation;
     }
   }
 
@@ -145,7 +145,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   }
 
   int CheckAndGetBufferRowSize(Buffer buffer) {
-    CHECK(buffer->shape.size() >= 2)
+    TVM_FFI_ICHECK(buffer->shape.size() >= 2)
         << "The dimension of Buffer \"" << buffer->name << "\" with shape " << buffer->shape
         << " should be at least 2";
 
@@ -154,10 +154,10 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     auto buffer_col_size = buffer->shape[dim - 2].as<IntImmNode>()->value;
 
     if (buffer_row_size % 64 != 0) {
-      CHECK(buffer_row_size % 32 == 0)
+      TVM_FFI_ICHECK(buffer_row_size % 32 == 0)
           << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
           << " is not supported since its second dimension is not divisible by 32";
-      CHECK(buffer_col_size % 2 == 0)
+      TVM_FFI_ICHECK(buffer_col_size % 2 == 0)
           << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
           << " is not supported since its first dimension is not divisible by 2 and second "
              "dimension is not divisible by 64";
@@ -221,14 +221,14 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
                                     ffi::Optional<PrimExpr> offset = std::nullopt) {
     // The 2th arg of T.tvm_access_ptr call is offset, we set it to 0 and accumulate it to
     // smem_offset
-    CHECK(access_ptr->IsInstance<CallNode>())
+    TVM_FFI_ICHECK(access_ptr->IsInstance<CallNode>())
         << "Invalid access ptr for permuted layout: " << access_ptr;
     auto access_ptr_call = Downcast<Call>(access_ptr);
-    CHECK(access_ptr_call->op.same_as(builtin::tvm_access_ptr()))
+    TVM_FFI_ICHECK(access_ptr_call->op.same_as(builtin::tvm_access_ptr()))
         << "Invalid access ptr for permuted layout: " << access_ptr;
 
     auto buffer_map_iter = buffer_map_.find(Downcast<Var>(access_ptr_call->args[1]));
-    CHECK(buffer_map_iter != buffer_map_.end())
+    TVM_FFI_ICHECK(buffer_map_iter != buffer_map_.end())
         << "The buffer corresponding to data Var " << access_ptr_call->args[1] << " is not found";
     int buffer_row_size = CheckAndGetBufferRowSize(buffer_map_iter->second);
 
@@ -277,7 +277,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       new_call->args.Set(2, new_access_ptr);
       return call;
     } else {
-      LOG(FATAL) << "Invalid call node: " << call;
+      TVM_FFI_THROW(InternalError) << "Invalid call node: " << call;
     }
   }
 

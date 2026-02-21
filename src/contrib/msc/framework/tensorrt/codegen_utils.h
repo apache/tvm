@@ -56,14 +56,14 @@ class TensorRTCodeGenHelper : public BaseCodeGenHelper {
   const ffi::String IdxOutputBase(const MSCJoint& node, const ffi::String& prefix = "", int idx = 0,
                                   const ffi::String& suffix = "", bool mark_exit = false) final {
     if (node->optype == "argmax" || node->optype == "argmin") {
-      ICHECK_EQ(idx, 0) << "argmax and argmin only has 1 output, get " << idx;
+      TVM_FFI_ICHECK_EQ(idx, 0) << "argmax and argmin only has 1 output, get " << idx;
       return IdxNodeBase(node, prefix, suffix) + "->getOutput(1)";
     }
     if (node->optype == "tuple") {
       return IdxNodeBase(node, prefix, suffix) + "[" + std::to_string(idx) + "]";
     }
     if (node->optype == "get_item") {
-      ICHECK_EQ(idx, 0) << "get item only has 1 output, get " << idx;
+      TVM_FFI_ICHECK_EQ(idx, 0) << "get item only has 1 output, get " << idx;
       return IdxNodeBase(node, prefix, suffix);
     }
     return IdxNodeBase(node, prefix, suffix) + "->getOutput(" + std::to_string(idx) + ")";

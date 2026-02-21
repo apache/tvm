@@ -27,13 +27,13 @@ namespace tvm {
 namespace runtime {
 namespace profiling {
 
-#define PAPI_CALL(func)                                             \
-  {                                                                 \
-    int e = (func);                                                 \
-    if (e != PAPI_OK) {                                             \
-      LOG(FATAL) << "PAPIError: in function " #func " " << e << " " \
-                 << std::string(PAPI_strerror(e));                  \
-    }                                                               \
+#define PAPI_CALL(func)                                                \
+  {                                                                    \
+    int e = (func);                                                    \
+    if (e != PAPI_OK) {                                                \
+      TVM_FFI_THROW(PAPIError) << "in function " #func " " << e << " " \
+                               << std::string(PAPI_strerror(e));       \
+    }                                                                  \
   }
 
 static const std::unordered_map<DLDeviceType, std::vector<std::string>> default_metric_names = {
@@ -77,10 +77,11 @@ int component_for_device(Device dev) {
   }
   int cidx = PAPI_get_component_index(component_name.c_str());
   if (cidx < 0) {
-    LOG(FATAL) << "Cannot find PAPI component \"" << component_name
-               << "\". Maybe you need to build PAPI with support for this component (use "
-                  "`./configure --with-components="
-               << component_name << "`).";
+    TVM_FFI_THROW(InternalError)
+        << "Cannot find PAPI component \"" << component_name
+        << "\". Maybe you need to build PAPI with support for this component (use "
+           "`./configure --with-components="
+        << component_name << "`).";
   }
   return cidx;
 }
@@ -118,7 +119,7 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
         LOG(WARNING) << "PAPI's long_long is larger than int64_t. Overflow may occur when "
                         "reporting metrics.";
       }
-      CHECK_EQ(PAPI_library_init(PAPI_VER_CURRENT), PAPI_VER_CURRENT)
+      TVM_FFI_ICHECK_EQ(PAPI_library_init(PAPI_VER_CURRENT), PAPI_VER_CURRENT)
           << "Error while initializing PAPI";
     }
 
@@ -196,8 +197,8 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
       for (auto metric : metric_names) {
         int e = PAPI_add_named_event(event_set, metric.c_str());
         if (e != PAPI_OK) {
-          LOG(FATAL) << "PAPIError: " << e << " " << std::string(PAPI_strerror(e)) << ": " << metric
-                     << ".";
+          TVM_FFI_THROW(PAPIError)
+              << e << " " << std::string(PAPI_strerror(e)) << ": " << metric << ".";
         }
       }
       // Because we may have multiple calls in flight at the same time, we

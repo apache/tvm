@@ -58,7 +58,7 @@ inline PrimExpr BroadcastTo(PrimExpr e, int lanes, bool is_scalable) {
     return e;
 
   if (const BroadcastNode* op = e.as<BroadcastNode>()) {
-    ICHECK(op->dtype.is_scalable_vector() == is_scalable)
+    TVM_FFI_ICHECK(op->dtype.is_scalable_vector() == is_scalable)
         << "Can't broadcast between scalable and fixed length vectors.";
     int e_lanes = op->dtype.get_lanes_or_vscale_factor();
 
@@ -67,10 +67,9 @@ inline PrimExpr BroadcastTo(PrimExpr e, int lanes, bool is_scalable) {
     }
   }
 
-  ICHECK(e.dtype().is_scalar()) << "Cannot broadcast lanes="
-                                << e.dtype().get_lanes_or_vscale_factor()
-                                << " is_scalable=" << e.dtype().is_scalable_vector() << " to "
-                                << lanes;
+  TVM_FFI_ICHECK(e.dtype().is_scalar())
+      << "Cannot broadcast lanes=" << e.dtype().get_lanes_or_vscale_factor()
+      << " is_scalable=" << e.dtype().is_scalable_vector() << " to " << lanes;
 
   return Broadcast(e, CreateNewLanes(is_scalable, lanes));
 }
@@ -300,7 +299,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
 
   Stmt VisitStmt(const Stmt& stmt) final {
-    ICHECK(!need_scalarize_);
+    TVM_FFI_ICHECK(!need_scalarize_);
     Stmt ret = StmtMutator::VisitStmt(stmt);
     if (need_scalarize_) {
       need_scalarize_ = false;
@@ -330,7 +329,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       bool is_vec_b = b.dtype().is_scalable_or_fixed_length_vector();
       if (is_vec_a && is_vec_b) {
         // Let's not multiply scalable and fixed length vectors
-        ICHECK(a.dtype().is_scalable_vector() == b.dtype().is_scalable_vector())
+        TVM_FFI_ICHECK(a.dtype().is_scalable_vector() == b.dtype().is_scalable_vector())
             << "Fixed length and scalable vectors can't be mixed in multiplication.";
       }
       if (is_vec_a || is_vec_b) {
@@ -380,12 +379,12 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   PrimExpr VisitExpr_(const RampNode* op) final {
     PrimExpr base = this->VisitExpr(op->base);
     PrimExpr stride = this->VisitExpr(op->stride);
-    ICHECK(!base.dtype().is_scalable_vector())
+    TVM_FFI_ICHECK(!base.dtype().is_scalable_vector())
         << "Creating scalable vectors from existing vectors is not supported.";
-    ICHECK(!stride.dtype().is_scalable_vector())
+    TVM_FFI_ICHECK(!stride.dtype().is_scalable_vector())
         << "Ramp stride with scalable dtype is not supported";
     if (base.dtype().is_fixed_length_vector() && stride.dtype().is_scalar()) {
-      ICHECK(op->lanes->IsInstance<IntImmNode>())
+      TVM_FFI_ICHECK(op->lanes->IsInstance<IntImmNode>())
           << "Vectorizing over existing scalable vectors is not supported.";
       const RampNode* base_ramp = base.as<RampNode>();
       int op_lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
@@ -497,7 +496,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // Reinterpret expr
   PrimExpr MutateReinterpretExpr_(const CallNode* op) {
-    ICHECK(op->op.same_as(builtin::reinterpret()));
+    TVM_FFI_ICHECK(op->op.same_as(builtin::reinterpret()));
     PrimExpr value = this->VisitExpr(op->args[0]);
     if (value.same_as(op->args[0])) {
       return ffi::GetRef<PrimExpr>(op);
@@ -526,7 +525,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
                        ->type_annotation.as<PointerTypeNode>()
                        ->element_type.as<PrimTypeNode>()
                        ->dtype;
-      ICHECK(lane * dtype.bits() <= op->args[4].as<IntImmNode>()->value)
+      TVM_FFI_ICHECK(lane * dtype.bits() <= op->args[4].as<IntImmNode>()->value)
           << "Expected Data to be Read is lesser than or equal to Texture Load length";
 
       auto new_args = op->args;
@@ -543,7 +542,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
                        ->type_annotation.as<PointerTypeNode>()
                        ->element_type.as<PrimTypeNode>()
                        ->dtype;
-      ICHECK(lane * dtype.bits() == op->args[4].as<IntImmNode>()->value)
+      TVM_FFI_ICHECK(lane * dtype.bits() == op->args[4].as<IntImmNode>()->value)
           << "Expected Data to be Written equal to Texture Store length";
       ffi::Array<PrimExpr> new_args{op->args[0], op->args[1], op->args[2],
                                     op->args[3], op->args[4], mutated_value[0]};
@@ -625,7 +624,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     // (let x = 1 in x + 1) * (let x = 1 in x + 1)
     auto it = let_binding_.find(op->var);
     if (it != let_binding_.end()) {
-      ICHECK(deep_equal_(it->second, value))
+      TVM_FFI_ICHECK(deep_equal_(it->second, value))
           << "Let cannot bind the same var to two different values";
     }
     if (value.dtype().get_lanes_or_vscale_factor() !=
@@ -644,7 +643,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     }
   }
   PrimExpr VisitExpr_(const ShuffleNode* op) final {
-    CHECK(op->vectors.size() == 1 && op->indices.size() == 1)
+    TVM_FFI_ICHECK(op->vectors.size() == 1 && op->indices.size() == 1)
         << "Cannot vectorize ShuffleNode with multiple vectors or indices: the vector size is "
         << op->vectors.size() << " and the index size is " << op->indices.size();
     int lane_vectors = 0;
@@ -689,7 +688,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
       return false;
     };
-    CHECK(f_check_index(updated_index));
+    TVM_FFI_ICHECK(f_check_index(updated_index));
 
     if (new_vec_length == 1) {
       return tir::Substitute(op->vectors[0], {{var_, tvm::IntImm(var_->dtype, 0)}});
@@ -715,7 +714,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     PrimExpr value = this->VisitExpr(op->value);
 
     if (!indices.same_as(op->indices) || !value.same_as(op->value)) {
-      ICHECK(!op->buffer->dtype.is_scalable_vector())
+      TVM_FFI_ICHECK(!op->buffer->dtype.is_scalable_vector())
           << "Vectorizing over scalable buffer elements is not supported in vectorizer.";
       // How many lanes of indexing are present in the index and
       // buffer element type, excluding the last index.
@@ -723,7 +722,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       for (size_t i = 0; i < indices.size() - 1; i++) {
         other_index_lanes *= indices[i].dtype().lanes();
         // Only allow the last index to be scalable
-        ICHECK(!indices[i].dtype().is_scalable_vector()) << "Only the last index can be scalable.";
+        TVM_FFI_ICHECK(!indices[i].dtype().is_scalable_vector())
+            << "Only the last index can be scalable.";
       }
 
       // The total number of lanes of indexing, including the last index.
@@ -738,7 +738,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       bool is_last_index_scalable = last_index_dtype.is_scalable_vector();
       int total_lanes = std::max(index_lanes, value_dtype_lanes);
 
-      ICHECK_EQ(total_lanes % other_index_lanes, 0)
+      TVM_FFI_ICHECK_EQ(total_lanes % other_index_lanes, 0)
           << "When storing to buffer " << op->buffer->name << ", cannot produce " << total_lanes
           << " lanes of storage location by changing the last index.";
       int last_index_lanes = total_lanes / other_index_lanes;
@@ -760,8 +760,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (op->kind == ForKind::kVectorized) {
       LOG(WARNING) << "Detect vectorize inside vectorized loop, ignoring...";
     }
-    ICHECK(is_zero(op->min));
-    ICHECK(!op->extent.dtype().is_scalable_or_fixed_length_vector());
+    TVM_FFI_ICHECK(is_zero(op->min));
+    TVM_FFI_ICHECK(!op->extent.dtype().is_scalable_or_fixed_length_vector());
     PrimExpr extent = this->VisitExpr(op->extent);
     if (extent.dtype().is_scalable_or_fixed_length_vector()) {
       return Scalarize(ffi::GetRef<Stmt>(op));
@@ -778,7 +778,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // IfThenElse
   Stmt VisitStmt_(const IfThenElseNode* op) final {
-    ICHECK(!op->condition.dtype().is_scalable_or_fixed_length_vector());
+    TVM_FFI_ICHECK(!op->condition.dtype().is_scalable_or_fixed_length_vector());
     PrimExpr condition = this->VisitExpr(op->condition);
     // need scalarize can be marked as true during visit of condition
     bool cond_need_scalarize = false;
@@ -813,7 +813,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // While
   Stmt VisitStmt_(const WhileNode* op) final {
-    LOG(FATAL) << "A while loop inside a vectorized loop not supported.";
+    TVM_FFI_THROW(InternalError) << "A while loop inside a vectorized loop not supported.";
   }
   // LetStmt
   Stmt VisitStmt_(const LetStmtNode* op) final {
@@ -824,7 +824,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       need_scalarize_ = false;
       Scalarize(ffi::GetRef<Stmt>(op));
     }
-    ICHECK(!let_binding_.count(op->var)) << "SSA violation, a single var is binded twice";
+    TVM_FFI_ICHECK(!let_binding_.count(op->var)) << "SSA violation, a single var is binded twice";
     let_binding_[op->var] = value;
 
     if (value.dtype().get_lanes_or_vscale_factor() !=
@@ -985,10 +985,10 @@ class LoopVectorizer : public StmtMutator {
 
       if (!extent_as_int || extent_as_int->value < 1) {
         bool is_scalable_expr = CheckContains::ExprContains(op->extent, arith::IsVScaleCall);
-        ICHECK(is_scalable_expr && arith::TargetHasVLA(target_))
+        TVM_FFI_ICHECK(is_scalable_expr && arith::TargetHasVLA(target_))
             << "Failed to vectorize loop with extent " << op->extent << " for target " << target_;
       }
-      ICHECK(is_zero(op->min));
+      TVM_FFI_ICHECK(is_zero(op->min));
       return Vectorizer(op->loop_var, op->extent, target_)(op->body);
     } else {
       return StmtMutator::VisitStmt_(op);

@@ -131,11 +131,11 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final {
     // The call must be to an inline "Composite" function
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
+    TVM_FFI_ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
 
     auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
-    ICHECK(opt_composite.has_value());
+    TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     std::shared_ptr<JSONGraphNode> node;
@@ -187,10 +187,10 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     CompositeConvNode nodes{};
 
     const auto* fn_var = cn->op.as<VarNode>();
-    ICHECK(fn_var);
+    TVM_FFI_ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
     auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
-    ICHECK(opt_composite.has_value());
+    TVM_FFI_ICHECK(opt_composite.has_value());
 
     nodes.pad = backend::TryGetOpInFunction(fn, "relax.nn.pad");
     nodes.conv = backend::TryGetOpInFunction(fn, "relax.nn.conv2d");
@@ -198,7 +198,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     if (!nodes.conv) {
       nodes.conv = backend::TryGetOpInFunction(fn, "relax.nn.conv2d_transpose");
     }
-    ICHECK(nodes.conv) << "No Convolution op found in composite function";
+    TVM_FFI_ICHECK(nodes.conv) << "No Convolution op found in composite function";
     nodes.bn = backend::TryGetOpInFunction(fn, "relax.nn.batch_norm");
     nodes.bias = backend::TryGetOpInFunction(fn, "relax.add");
     nodes.activation = backend::TryGetOpInFunction(fn, "relax.nn.relu");
@@ -216,10 +216,10 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     CompositeConvNode nodes = UnpackCompositeConvolution(cn);
 
     const auto* fn_var = cn->op.as<VarNode>();
-    ICHECK(fn_var);
+    TVM_FFI_ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
     auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
-    ICHECK(opt_composite.has_value());
+    TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     std::vector<JSONGraphNodeEntry> inputs;
@@ -251,7 +251,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     // Override attributes
     if (nodes.pad) {
       const auto* pad_attr = nodes.pad->attrs.as<PadAttrs>();
-      ICHECK(pad_attr);
+      TVM_FFI_ICHECK(pad_attr);
       auto p = pad_attr->pad_width;
       // Pad layout for TVM: dimension wise pre and post padding.
       // CLML takes dimension wise pre-padding followed by dimension wise post-padding for W, H.

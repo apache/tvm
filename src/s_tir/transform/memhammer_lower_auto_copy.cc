@@ -670,8 +670,8 @@ class AutoCopyMutator : public StmtExprMutator {
       n->alloc_buffers = padder.PadSharedMemory(std::move(n->alloc_buffers));
       return block;
     }
-    ICHECK_EQ(block->writes.size(), 1);
-    ICHECK_GE(block->reads.size(), 1);
+    TVM_FFI_ICHECK_EQ(block->writes.size(), 1);
+    TVM_FFI_ICHECK_GE(block->reads.size(), 1);
 
     BufferRegion target_read = block->reads[0];
     if (block->reads.size() > 1) {
@@ -682,7 +682,7 @@ class AutoCopyMutator : public StmtExprMutator {
           target_read = block->reads[i];
         }
       }
-      ICHECK(found) << "Multiple buffer read";
+      TVM_FFI_ICHECK(found) << "Multiple buffer read";
     }
 
     int data_bits = target_read->buffer->dtype.bits();

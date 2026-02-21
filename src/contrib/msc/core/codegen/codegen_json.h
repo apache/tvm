@@ -75,7 +75,7 @@ class MSCJSONSerializer : public JSONSerializer {
     namespace json = ::tvm::ffi::json;
     MSCCompileConfig config;
     config.Load(json::Parse(options).cast<json::Object>());
-    ICHECK(config.graph_json.size() > 0) << "graph_json is needed to init MSCGraph";
+    TVM_FFI_ICHECK(config.graph_json.size() > 0) << "graph_json is needed to init MSCGraph";
     graph_ = MSCGraph(config.graph_json);
     for (const auto& pair : config.options) {
       options_.Set(pair.first, pair.second);
@@ -86,7 +86,7 @@ class MSCJSONSerializer : public JSONSerializer {
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final;
 
   const ffi::String GetOption(const ffi::String& key) {
-    ICHECK(options_.count(key)) << "Can not find option " << key;
+    TVM_FFI_ICHECK(options_.count(key)) << "Can not find option " << key;
     return options_[key];
   }
 

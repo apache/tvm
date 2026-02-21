@@ -128,11 +128,11 @@ static void ReadOutputsAndUpdateRuntime(ffi::PackedArgs args, size_t num_inputs,
     float* data = new float[tot_dim]();
     ffi::String outbin = out_bin_prefix + "-" + std::to_string(out - num_inputs) + ".bin";
     std::ifstream fin(outbin, std::ios::binary);
-    ICHECK(fin.is_open()) << "Cannot open file: " << outbin;
+    TVM_FFI_ICHECK(fin.is_open()) << "Cannot open file: " << outbin;
     int i = 0;
     while (fin.read(reinterpret_cast<char*>(&f), sizeof(float))) {
       data[i] = f;
-      ICHECK(i < tot_dim) << "Output data size mismatch";
+      TVM_FFI_ICHECK(i < tot_dim) << "Output data size mismatch";
       i++;
     }
     arr.CopyFromBytes(data, tot_dim * sizeof(float));
@@ -157,8 +157,8 @@ void tvm::runtime::contrib::mrvl::RunMarvellSimulator(ffi::PackedArgs args,
   const auto search_path = tvm::ffi::Function::GetGlobal("tvm.mrvl.SearchPath");
   std::string tools_directory = (*search_path)(file_name);
   if (tools_directory.empty()) {
-    ICHECK(false) << "mrvl-mlsim simulator not found! Please specify the path to Marvell "
-                     "tools by adding it to $PATH.";
+    TVM_FFI_ICHECK(false) << "mrvl-mlsim simulator not found! Please specify the path to Marvell "
+                             "tools by adding it to $PATH.";
   }
 
   const auto temp_dir = tvm::ffi::Function::GetGlobal("tvm.mrvl.TempDir");

@@ -42,20 +42,20 @@ RelaxFrameNode* GetRelaxFrame(IRDocsifier d) {
 }
 
 Doc PrintTIRVar(tir::Var n, AccessPath n_p, IRDocsifier d) {
-  ICHECK(n->dtype.is_scalar()) << "TypeError: "
-                               << "Relax only uses scalar TIR variables,"
-                               << "but received TIR variable " << n << " with dtype " << n->dtype;
+  TVM_FFI_CHECK(n->dtype.is_scalar(), TypeError)
+      << "Relax only uses scalar TIR variables,"
+      << "but received TIR variable " << n << " with dtype " << n->dtype;
 
   if (!d->IsVarDefined(n)) {
     RelaxFrameNode* f = GetRelaxFrame(d);
     // There should be at least one Relax frame
     if (f == nullptr) {
-      LOG(FATAL) << "IndexError: No relax environment is found when printing a TIR var under "
-                    "relax's dispatch token";
+      TVM_FFI_THROW(IndexError) << "No relax environment is found when printing a TIR var under "
+                                   "relax's dispatch token";
     }
     // If the Relax function frame is collecting func vars
     if (f->func_vars) {
-      ICHECK(f->is_func);
+      TVM_FFI_ICHECK(f->is_func);
       f->func_vars->insert(n.get());
     }
     IdDoc var = d->Define(n, ffi::GetRef<Frame>(f), n->name_hint.empty() ? "v" : n->name_hint);
@@ -65,7 +65,7 @@ Doc PrintTIRVar(tir::Var n, AccessPath n_p, IRDocsifier d) {
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {
     return doc.value();
   }
-  LOG(FATAL) << "IndexError: Variable is not defined in the environment: " << n;
+  TVM_FFI_THROW(IndexError) << "Variable is not defined in the environment: " << n;
   TVM_FFI_UNREACHABLE();
 }
 
@@ -99,14 +99,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IRModule>(                                               //
         "relax", [](tvm::IRModule mod, AccessPath n_p, IRDocsifier d) -> Doc {  //
           ffi::Optional<ExprDoc> doc = d->GetVarDoc(mod);
-          ICHECK(doc) << "Unable to print IRModule before definition in Relax.";
+          TVM_FFI_ICHECK(doc) << "Unable to print IRModule before definition in Relax.";
           if (d->cfg->module_alias.empty()) {
             // Use Module Name directly
             return doc.value();
           }
           RelaxFrameNode* f = GetRelaxFrame(d);
-          ICHECK(f != nullptr && f->is_func)
-              << "IndexError: No relax environment is found when printing a module alias var "
+          TVM_FFI_CHECK(f != nullptr && f->is_func, IndexError)
+              << "No relax environment is found when printing a module alias var "
                  "under relax's dispatch token";
           if (!f->module_alias_printed) {
             // If the module_alias is not defined before, define it.

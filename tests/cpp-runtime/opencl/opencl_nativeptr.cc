@@ -55,8 +55,8 @@ TEST(OpenCLNatvePtr, data_loop) {
   cpu_arr.CopyTo(cl_arr);
   void* nptr = workspace->GetNativePtr(cl_arr);
   for (size_t i = 0; i < 1024; ++i) {
-    ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] - static_cast<float*>(nptr)[i]),
-              1e-5);
+    TVM_FFI_ICHECK_LT(
+        std::fabs(static_cast<float*>(cpu_arr->data)[i] - static_cast<float*>(nptr)[i]), 1e-5);
   }
 
   // Random initialize cl ndarray
@@ -66,8 +66,8 @@ TEST(OpenCLNatvePtr, data_loop) {
   // Do a roundtrip from native ptr to cl arr to cpu array.
   cl_arr.CopyTo(cpu_arr);
   for (size_t i = 0; i < 1024; ++i) {
-    ICHECK_LT(std::fabs(static_cast<float*>(cpu_arr->data)[i] - static_cast<float*>(nptr)[i]),
-              1e-5);
+    TVM_FFI_ICHECK_LT(
+        std::fabs(static_cast<float*>(cpu_arr->data)[i] - static_cast<float*>(nptr)[i]), 1e-5);
   }
 }
 

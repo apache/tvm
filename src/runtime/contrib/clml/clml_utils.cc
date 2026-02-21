@@ -43,7 +43,7 @@ void CopyDataToCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tensor,
   cl_event evt = nullptr;
   CLML_CALL(clEnqueueWriteMLTensorDataQCOM, CLML_QUEUE, data, layout, tensor->tensor,
             tensor->memory, 0, nullptr, &evt);
-  ICHECK(evt != nullptr) << "clEnqueueWriteMLTensorDataQCOM";
+  TVM_FFI_ICHECK(evt != nullptr) << "clEnqueueWriteMLTensorDataQCOM";
 }
 
 /*!
@@ -61,7 +61,7 @@ void CopyDataFromCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tenso
   CLML_CALL(clEnqueueReadMLTensorDataQCOM, CLML_QUEUE, tensor->tensor, tensor->memory, data, layout,
             0, nullptr, &readEvent);
   result = clWaitForEvents(1, &readEvent);
-  ICHECK(result == CL_SUCCESS) << "clWaitForEvents:" << result;
+  TVM_FFI_ICHECK(result == CL_SUCCESS) << "clWaitForEvents:" << result;
 }
 
 /*!
@@ -81,7 +81,7 @@ cl_ml_tensor_qcom DeviceMakeCLMLTensor(cl_context context, tensor_dims_t dims,
   cl_ml_tensor_desc_qcom desc = {
       dtype, layout, dims.n, dims.c, dims.h, dims.w, 0, CL_TENSOR_DIMENSIONS_4D_QCOM, {0}};
   CLML_CALL_clCreateMLTensorQCOM(CLML_CTX, nullptr, &desc, usage, &tensor);
-  ICHECK(tensor) << "clCreateMLTensorQCOM";
+  TVM_FFI_ICHECK(tensor) << "clCreateMLTensorQCOM";
   return tensor;
 }
 
@@ -97,7 +97,7 @@ cl_mem AllocateDDRTensorMemory(size_t size) {
   cl_mem buffer = nullptr;
 
   buffer = clCreateBuffer(CLML_CTX, CL_MEM_READ_WRITE, size, nullptr, &result);
-  ICHECK(result == CL_SUCCESS) << "clCreateBuffer:" << result;
+  TVM_FFI_ICHECK(result == CL_SUCCESS) << "clCreateBuffer:" << result;
 
   return buffer;
 }
@@ -119,7 +119,7 @@ cl_mem AllocateOnChipTensorMemory(size_t size, cl_uint on_chip_mem_offset) {
   LOG_MEM << "On-Chip Alloc:" << size << " Offset:" << on_chip_mem_offset;
   buffer = clCreateBufferWithProperties(CLML_CTX, on_chip_buff_prop, CL_MEM_READ_WRITE, size,
                                         nullptr, &result);
-  ICHECK(result == CL_SUCCESS) << "clCreateBufferWithProperties:" << result;
+  TVM_FFI_ICHECK(result == CL_SUCCESS) << "clCreateBufferWithProperties:" << result;
 
   return buffer;
 }
@@ -152,7 +152,7 @@ cl_channel_type MakeCLDataType(const DLDataType& data_type) {
   } else if (data_type.code == DLDataTypeCode::kDLFloat && data_type.bits == 16) {
     return CL_HALF_FLOAT;
   } else {
-    LOG(FATAL) << "Datatype " << data_type << " unsupported by CLML runtime";
+    TVM_FFI_THROW(InternalError) << "Datatype " << data_type << " unsupported by CLML runtime";
   }
 }
 
@@ -172,7 +172,7 @@ cl_arithmetic_mode_qcom MakeCLArithMode(const cl_channel_type& data_type,
   } else if (data_type == CL_HALF_FLOAT && acc_type == CL_HALF_FLOAT) {
     return CL_ARITHMETIC_MODE_FP16_QCOM;
   } else {
-    LOG(FATAL) << "Datatype " << data_type << " unsupported by CLML runtime";
+    TVM_FFI_THROW(InternalError) << "Datatype " << data_type << " unsupported by CLML runtime";
   }
 }
 

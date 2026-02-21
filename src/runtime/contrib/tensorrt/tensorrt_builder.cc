@@ -72,7 +72,7 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
 }
 
 nvinfer1::DataType DLDataType2NVDataType(DLDataType data_type) {
-  ICHECK(data_type.code == kDLFloat && (data_type.bits == 16 || data_type.bits == 32))
+  TVM_FFI_ICHECK(data_type.code == kDLFloat && (data_type.bits == 16 || data_type.bits == 32))
       << "Invalid input Tensor type. Only float16 and float32 are supported";
   return (data_type.bits == 16) ? nvinfer1::DataType::kHALF : nvinfer1::DataType::kFLOAT;
 }
@@ -81,7 +81,7 @@ void TensorRTBuilder::AddInput(int nid, uint32_t entry_id, const JSONGraphNode& 
   auto node_name = node.GetOpName();
   auto shapes = node.GetOpShape();
   auto dtypes = node.GetOpDataType();
-  ICHECK_EQ(shapes.size(), dtypes.size());
+  TVM_FFI_ICHECK_EQ(shapes.size(), dtypes.size());
   node_output_map_[nid] = {};
   for (size_t i = 0; i < shapes.size(); ++i) {
     const std::string name = node_name + "_" + std::to_string(i);
@@ -106,7 +106,7 @@ void TensorRTBuilder::AddConstant(int nid, const DLTensor* data) {
 
 void TensorRTBuilder::AddOutput(const JSONGraphNodeEntry& node, uint32_t entry_id) {
   auto it = node_output_map_.find(node.id_);
-  ICHECK(it != node_output_map_.end()) << "Output was not found.";
+  TVM_FFI_ICHECK(it != node_output_map_.end()) << "Output was not found.";
   auto out_tensor = it->second[node.index_].tensor;
   std::string name = "tensorrt_output_" + std::to_string(network_output_names_.size());
   // If the network is already marked as an input or output, make a copy to avoid TRT crash.
@@ -129,23 +129,23 @@ void TensorRTBuilder::AddLayer(int nid, const JSONGraphNode& node) {
   const std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>& map =
       GetOpConverters();
   auto it = map.find(params.op_name);
-  ICHECK(it != map.end()) << params.op_name << ": Unsupported operator";
+  TVM_FFI_ICHECK(it != map.end()) << params.op_name << ": Unsupported operator";
   const TensorRTOpConverter& converter = *it->second;
   if (!converter.variable_input_count) {
-    ICHECK_EQ(node.GetInputs().size(), converter.input_types.size())
+    TVM_FFI_ICHECK_EQ(node.GetInputs().size(), converter.input_types.size())
         << params.op_name << ": Mismatched input sizes";
   }
   // Get inputs.
   for (size_t i = 0; i < node.GetInputs().size(); ++i) {
     auto in_node = node.GetInputs()[i];
     auto it = node_output_map_.find(in_node.id_);
-    ICHECK(it != node_output_map_.end()) << params.op_name << ": Input was not found";
+    TVM_FFI_ICHECK(it != node_output_map_.end()) << params.op_name << ": Input was not found";
     auto input = it->second[in_node.index_];
     if (!converter.variable_input_count) {
       if (converter.input_types[i] == kTensor && input.type == kWeight) {
         input = TensorRTOpInput(GetInputAsTensor(input));
       } else if (converter.input_types[i] == kWeight && input.type == kTensor) {
-        LOG(FATAL) << params.op_name << ": Input " << i << " must be a constant.";
+        TVM_FFI_THROW(InternalError) << params.op_name << ": Input " << i << " must be a constant.";
       }
     }
     params.inputs.push_back(input);
@@ -157,7 +157,8 @@ void TensorRTBuilder::AddLayer(int nid, const JSONGraphNode& node) {
   // Get outputs.
   node_output_map_[nid] = {};
   auto dtype = node.GetOpDataType();
-  ICHECK_EQ(params.outputs.size(), dtype.size()) << params.op_name << ": Mismatched output sizes";
+  TVM_FFI_ICHECK_EQ(params.outputs.size(), dtype.size())
+      << params.op_name << ": Mismatched output sizes";
   for (size_t i = 0; i < params.outputs.size(); ++i) {
     auto out = params.outputs[i];
     out->setType(DLDataType2NVDataType(dtype[i]));
@@ -177,7 +178,7 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
 
   if (use_int8_) {
     config_->setFlag(nvinfer1::BuilderFlag::kINT8);
-    ICHECK(calibrator_);
+    TVM_FFI_ICHECK(calibrator_);
     config_->setInt8Calibrator(calibrator_);
     LOG(INFO) << "config finishes setting up calibrator as INT8 mode ... ";
   }
@@ -207,20 +208,21 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
 #else
   nvinfer1::ICudaEngine* engine = builder_->buildCudaEngine(*network_);
 #endif
-  ICHECK_EQ(engine->getNbBindings(), network_input_names_.size() + network_output_names_.size());
+  TVM_FFI_ICHECK_EQ(engine->getNbBindings(),
+                    network_input_names_.size() + network_output_names_.size());
   nvinfer1::IExecutionContext* context = engine->createExecutionContext();
   CleanUp();
 
-  ICHECK(engine);
-  ICHECK(context);
+  TVM_FFI_ICHECK(engine);
+  TVM_FFI_ICHECK(context);
 
   return {engine, context, network_input_names_, network_output_names_};
 }
 
 nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
                                                         DLDeviceType src_device) {
-  ICHECK_EQ(dptr->device.device_type, src_device);
-  ICHECK((dptr->dtype.bits != 16 || dptr->dtype.bits != 32))
+  TVM_FFI_ICHECK_EQ(dptr->device.device_type, src_device);
+  TVM_FFI_ICHECK((dptr->dtype.bits != 16 || dptr->dtype.bits != 32))
       << "Invalid input Tensor type. Float16 and Float32 are supported";
   const auto trt_dtype = (static_cast<int>(dptr->dtype.bits) == 16) ? nvinfer1::DataType::kHALF
                                                                     : nvinfer1::DataType::kFLOAT;
@@ -233,9 +235,9 @@ nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
   }
   weight.count = count;
   weight.values = new float[count];
-  ICHECK_EQ(TVMTensorCopyToBytes(const_cast<DLTensor*>(dptr), const_cast<void*>(weight.values),
-                                 weight_bytes),
-            0)
+  TVM_FFI_ICHECK_EQ(TVMTensorCopyToBytes(const_cast<DLTensor*>(dptr),
+                                         const_cast<void*>(weight.values), weight_bytes),
+                    0)
       << TVMGetLastError();
   trt_weights_.push_back(weight);
   return weight;
@@ -259,25 +261,25 @@ nvinfer1::ITensor* TensorRTBuilder::GetInputAsTensor(const TensorRTOpInput& inpu
 
 void TensorRTBuilder::CleanUp() {
   VLOG(1) << "Destroying TensorRT network";
-  ICHECK(network_);
+  TVM_FFI_ICHECK(network_);
   network_->destroy();
   network_ = nullptr;
 
 #if TRT_VERSION_GE(6, 0, 1)
   VLOG(1) << "Destroying TensorRT config";
-  ICHECK(config_);
+  TVM_FFI_ICHECK(config_);
   config_->destroy();
   config_ = nullptr;
 #endif
 
   VLOG(1) << "Destroying TensorRT builder";
-  ICHECK(builder_);
+  TVM_FFI_ICHECK(builder_);
   builder_->destroy();
   builder_ = nullptr;
 
   VLOG(1) << "Destroying TensorRT weights";
   for (auto weight : trt_weights_) {
-    ICHECK(weight.values);
+    TVM_FFI_ICHECK(weight.values);
     if (weight.type == nvinfer1::DataType::kFLOAT || weight.type == nvinfer1::DataType::kHALF) {
       delete[] static_cast<const float*>(weight.values);
     } else {

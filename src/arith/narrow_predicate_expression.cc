@@ -51,7 +51,7 @@ using namespace tir;
 class ExpressionNarrower : public tir::ExprMutator {
  public:
   static PrimExpr Apply(PrimExpr expr, ffi::Map<Var, Range> free_parameters) {
-    ICHECK(expr.dtype().is_bool()) << "Expected boolean expression, but received " << expr;
+    TVM_FFI_ICHECK(expr.dtype().is_bool()) << "Expected boolean expression, but received " << expr;
     ExpressionNarrower mutator(free_parameters);
     return mutator(expr);
   }
@@ -193,7 +193,7 @@ class ExpressionNarrower : public tir::ExprMutator {
         return Context::Minimize;
 
       default:
-        LOG(FATAL) << "Unhandled Context, all legal values should be handled";
+        TVM_FFI_THROW(InternalError) << "Unhandled Context, all legal values should be handled";
     }
   }
 

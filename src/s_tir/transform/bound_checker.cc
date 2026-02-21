@@ -194,7 +194,7 @@ class BoundChecker : public StmtExprMutator {
       ffi::Array<PrimExpr> indices = pair.first;
       ffi::Array<PrimExpr> shape = pair.second;
 
-      ICHECK_EQ(indices.size(), shape.size())
+      TVM_FFI_ICHECK_EQ(indices.size(), shape.size())
           << "Mismatch between dimension of physical shape and physical indices";
 
       for (size_t i = 0; i < indices.size(); i++) {

@@ -111,7 +111,7 @@ inline bool CanRelaxStorageUnderThread(const runtime::StorageScope& storage_scop
  * \return The removal result
  */
 inline Stmt RemoveFromSeqStmt(const SeqStmt& seq, const Stmt& to_remove) {
-  ICHECK_GT(seq->size(), 1);
+  TVM_FFI_ICHECK_GT(seq->size(), 1);
   ffi::Array<Stmt> new_stmts;
   new_stmts.reserve(seq->size());
   for (const Stmt& stmt : seq->seq) {
@@ -279,7 +279,7 @@ inline ffi::Optional<TObjectRef> GetAnn(const StmtSRef& sref, const ffi::String&
   } else if (const auto* block = sref->StmtAs<SBlockNode>()) {
     return GetAnn<TObjectRef, SBlockNode>(block, ann_key);
   } else {
-    LOG(FATAL) << "TypeError: Unknown type of sref: " << sref->stmt->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unknown type of sref: " << sref->stmt->GetTypeKey();
     throw;
   }
 }
@@ -347,7 +347,7 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
     }
   }
   // Step 3. Apply reordering if new_order differs from the original order.
-  ICHECK_EQ(new_order.size(), loops.size());
+  TVM_FFI_ICHECK_EQ(new_order.size(), loops.size());
   for (size_t i = 0; i < loops.size(); ++i) {
     if (!new_order[i].same_as(loops[i])) {
       sch->Reorder(new_order);
@@ -355,7 +355,8 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
     }
   }
   // Step 4. Fuse all the reduction loops if there are multiple reduction loops.
-  CHECK(!reduction_loops.empty()) << "ValueError: There should be at least one reduction loop";
+  TVM_FFI_CHECK(!reduction_loops.empty(), ValueError)
+      << "There should be at least one reduction loop";
   if (reduction_loops.size() > 1) {
     *fused_reduce_loop = sch->Fuse(reduction_loops);
   } else {
@@ -374,7 +375,7 @@ inline ffi::String BufferIndexType2Str(BufferIndexType buffer_index_type) {
   if (buffer_index_type == BufferIndexType::kRead) {
     return "read";
   } else {
-    ICHECK(buffer_index_type == BufferIndexType::kWrite);
+    TVM_FFI_ICHECK(buffer_index_type == BufferIndexType::kWrite);
     return "write";
   }
 }

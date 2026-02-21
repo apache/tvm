@@ -28,7 +28,7 @@ class AddRFactorNode : public ScheduleRuleNode {
  public:
   // Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final {
-    ICHECK(context->target.defined());
+    TVM_FFI_ICHECK(context->target.defined());
     Target target = context->target.value();
     this->max_parallel_basic_ = GetTargetNumCores(target);
     if (this->max_jobs_per_core != -1) {
@@ -110,7 +110,7 @@ ffi::Array<s_tir::Schedule> AddRFactorNode::Apply(const s_tir::Schedule& sch,
     try {
       const s_tir::SBlockRV& block_rf = sch_tmp->RFactor(split_loop, num_spatial_loops);
       ffi::Array<s_tir::LoopRV> axes = sch_tmp->GetLoops(block_rf);
-      ICHECK_GT(axes.size(), num_spatial_loops);
+      TVM_FFI_ICHECK_GT(axes.size(), num_spatial_loops);
 
       // Annotate that the rfactor block, which is now the producer of the original block, needs to
       // be considered by the rule Random-Compute-Location.

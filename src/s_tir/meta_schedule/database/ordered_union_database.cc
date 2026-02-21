@@ -48,32 +48,32 @@ class OrderedUnionDatabaseNode : public DatabaseNode {
   }
 
   bool HasWorkload(const IRModule& mod) final {
-    LOG(FATAL) << "NotImplementedError: OrderedUnionDatabase.HasWorkload";
+    TVM_FFI_THROW(NotImplementedError) << "OrderedUnionDatabase.HasWorkload";
     throw;
   }
 
   Workload CommitWorkload(const IRModule& mod) final {
-    LOG(FATAL) << "NotImplementedError: OrderedUnionDatabase.CommitWorkload";
+    TVM_FFI_THROW(NotImplementedError) << "OrderedUnionDatabase.CommitWorkload";
     throw;
   }
 
   void CommitTuningRecord(const TuningRecord& record) final {
-    LOG(FATAL) << "NotImplementedError: OrderedUnionDatabase.CommitTuningRecord";
+    TVM_FFI_THROW(NotImplementedError) << "OrderedUnionDatabase.CommitTuningRecord";
     throw;
   }
 
   ffi::Array<TuningRecord> GetTopK(const Workload& workload, int top_k) final {
-    LOG(FATAL) << "NotImplementedError: OrderedUnionDatabase.GetTopK";
+    TVM_FFI_THROW(NotImplementedError) << "OrderedUnionDatabase.GetTopK";
     throw;
   }
 
   ffi::Array<TuningRecord> GetAllTuningRecords() final {
-    LOG(FATAL) << "NotImplementedError: OrderedUnionDatabase.GetAllTuningRecords";
+    TVM_FFI_THROW(NotImplementedError) << "OrderedUnionDatabase.GetAllTuningRecords";
     throw;
   }
 
   int64_t Size() final {
-    LOG(FATAL) << "NotImplementedError: OrderedUnionDatabase.size";
+    TVM_FFI_THROW(NotImplementedError) << "OrderedUnionDatabase.size";
     throw;
   }
 };

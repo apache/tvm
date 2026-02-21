@@ -127,7 +127,7 @@ struct ml_dpdk_cb {
 void get_tvmc_callbacks(const char* so_path, ml_tvmc_cb* obj) {
   obj->handle = dlopen(so_path, RTLD_LAZY);
   if (obj->handle == nullptr)
-    ICHECK(false) << "Marvell-Runtime-ERROR Loading shared library failed";
+    TVM_FFI_ICHECK(false) << "Marvell-Runtime-ERROR Loading shared library failed";
 
   obj->mrvl_tvmc_ml_init = (mrvl_tvmc_ml_init_ptr)dlsym(obj->handle, "mrvl_ml_init");
   obj->mrvl_tvmc_ml_finish = (mrvl_tvmc_ml_finish_ptr)dlsym(obj->handle, "mrvl_ml_finish");
@@ -176,12 +176,12 @@ class MarvellHardwareModuleNode : public ffi::ModuleObj {
       // Deallocate input quantize and output quantize buffer
       ret = dpdk_cb_.mrvl_dpdk_io_free(device_handle, run_arg.model_id, symbol_name_.c_str());
 
-      ICHECK(ret == 0) << "IO free failed, model_id =" << run_arg.model_id;
+      TVM_FFI_ICHECK(ret == 0) << "IO free failed, model_id =" << run_arg.model_id;
 
       // Unload model
       ret = dpdk_cb_.mrvl_dpdk_glow_layer_unload(run_arg.device, run_arg.model_id,
                                                  symbol_name_.c_str());
-      ICHECK(ret == 0) << "Model layer unload failed, model_id =" << run_arg.model_id;
+      TVM_FFI_ICHECK(ret == 0) << "Model layer unload failed, model_id =" << run_arg.model_id;
       num_loaded--;
     } else {
       // Clean Up
@@ -268,12 +268,12 @@ class MarvellHardwareModuleNode : public ffi::ModuleObj {
     int num_inputs, num_outputs, batch_size;
 
     // Load the symbol_name and other data to construct the module
-    ICHECK(stream.Read(&symbol_name)) << "Loading symbol name failed";
-    ICHECK(stream.Read(&nodes_json)) << "Loading nodes json failed";
-    ICHECK(stream.Read(&bin_code)) << "Loading binary code failed";
-    ICHECK(stream.Read(&num_inputs)) << "Loading num_inputs failed";
-    ICHECK(stream.Read(&num_outputs)) << "Loading num_outputs failed";
-    ICHECK(stream.Read(&batch_size)) << "Loading batch_size failed";
+    TVM_FFI_ICHECK(stream.Read(&symbol_name)) << "Loading symbol name failed";
+    TVM_FFI_ICHECK(stream.Read(&nodes_json)) << "Loading nodes json failed";
+    TVM_FFI_ICHECK(stream.Read(&bin_code)) << "Loading binary code failed";
+    TVM_FFI_ICHECK(stream.Read(&num_inputs)) << "Loading num_inputs failed";
+    TVM_FFI_ICHECK(stream.Read(&num_outputs)) << "Loading num_outputs failed";
+    TVM_FFI_ICHECK(stream.Read(&batch_size)) << "Loading batch_size failed";
     auto n = ffi::make_object<MarvellHardwareModuleNode>(symbol_name, nodes_json, bin_code,
                                                          num_inputs, num_outputs, batch_size);
     return ffi::Module(n);
@@ -445,19 +445,19 @@ class MarvellHardwareModuleNode : public ffi::ModuleObj {
       ret = dpdk_cb_.mrvl_dpdk_glow_layer_load(
           run_arg.device, run_arg.model_id, symbol_name_.c_str(),
           reinterpret_cast<uint8_t*>(byte_array.data()), num_bytes, &run_arg.layer_idx);
-      ICHECK(ret == 0) << "Model layer load failed, model_id =" << run_arg.model_id;
+      TVM_FFI_ICHECK(ret == 0) << "Model layer load failed, model_id =" << run_arg.model_id;
       num_loaded++;
 
       // Allocate input quantize and output quantize buffer
       ret = dpdk_cb_.mrvl_dpdk_io_alloc(device_handle, run_arg.model_id, symbol_name_.c_str(),
                                         reinterpret_cast<uint64_t**>(&run_arg.i_q_buf),
                                         reinterpret_cast<uint64_t**>(&run_arg.o_q_buf));
-      ICHECK(ret == 0) << "IO alloc failed, model_id =" << run_arg.model_id;
+      TVM_FFI_ICHECK(ret == 0) << "IO alloc failed, model_id =" << run_arg.model_id;
     } else {
       // Load the model
       run_arg.model_id =
           tvmc_cb_.mrvl_tvmc_ml_model_load(reinterpret_cast<char*>(byte_array.data()), num_bytes);
-      ICHECK(run_arg.model_id >= 0) << "Failed to load model!";
+      TVM_FFI_ICHECK(run_arg.model_id >= 0) << "Failed to load model!";
       num_loaded++;
       // Allocate input quantize and dequant buffer
       run_arg.i_q_buf = tvmc_cb_.mrvl_tvmc_ml_io_alloc(run_arg.model_id, input_quantize, nullptr);

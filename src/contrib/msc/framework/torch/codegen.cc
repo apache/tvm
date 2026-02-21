@@ -143,7 +143,7 @@ void TorchCodeGen::CodeGenInference() {
 const ffi::Array<Doc> TorchCodeGen::GetOpCodes(const MSCJoint& node) {
   const auto& ops_map = GetTorchOpCodes();
   auto it = ops_map->find(GetOpType(node));
-  ICHECK(it != ops_map->end()) << "Unsupported torch op(" << node->optype << "): " << node;
+  TVM_FFI_ICHECK(it != ops_map->end()) << "Unsupported torch op(" << node->optype << "): " << node;
   it->second->Config(node, config(), is_init_, prims());
   try {
     return it->second->GetDocs();

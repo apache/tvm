@@ -157,7 +157,7 @@ RPCEnv::RPCEnv(const std::string& wd) {
                              std::string bin;
 
                              std::ifstream fs(file_name, std::ios::in | std::ios::binary);
-                             ICHECK(!fs.fail()) << "Cannot open " << file_name;
+                             TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << file_name;
                              fs.seekg(0, std::ios::end);
                              size_t size = static_cast<size_t>(fs.tellg());
                              fs.seekg(0, std::ios::beg);
@@ -199,7 +199,7 @@ std::vector<std::string> ListDir(const std::string& dirname) {
   DIR* dp = opendir(dirname.c_str());
   if (dp == nullptr) {
     int errsv = errno;
-    LOG(FATAL) << "ListDir " << dirname << " error: " << strerror(errsv);
+    TVM_FFI_THROW(InternalError) << "ListDir " << dirname << " error: " << strerror(errsv);
   }
   dirent* d;
   while ((d = readdir(dp)) != nullptr) {
@@ -220,7 +220,7 @@ std::vector<std::string> ListDir(const std::string& dirname) {
   HANDLE handle = FindFirstFileA(pattern.c_str(), &fd);
   if (handle == INVALID_HANDLE_VALUE) {
     const int errsv = GetLastError();
-    LOG(FATAL) << "ListDir " << dirname << " error: " << strerror(errsv);
+    TVM_FFI_THROW(InternalError) << "ListDir " << dirname << " error: " << strerror(errsv);
   }
   do {
     std::string filename = fd.cFileName;
@@ -235,7 +235,7 @@ std::vector<std::string> ListDir(const std::string& dirname) {
   } while (FindNextFileA(handle, &fd));
   FindClose(handle);
 #else
-  LOG(FATAL) << "Operating system not supported";
+  TVM_FFI_THROW(InternalError) << "Operating system not supported";
 #endif
   return vec;
 }
@@ -260,7 +260,7 @@ void LinuxShared(const std::string output, const std::vector<std::string>& files
   std::string err_msg;
   auto executed_status = support::Execute(cmd, &err_msg);
   if (executed_status) {
-    LOG(FATAL) << err_msg;
+    TVM_FFI_THROW(InternalError) << err_msg;
   }
 }
 #endif
@@ -285,7 +285,7 @@ void WindowsShared(const std::string& output, const std::vector<std::string>& fi
   std::string err_msg;
   const auto executed_status = support::Execute(cmd, &err_msg);
   if (executed_status) {
-    LOG(FATAL) << err_msg;
+    TVM_FFI_THROW(InternalError) << err_msg;
   }
 }
 #endif
@@ -301,7 +301,7 @@ void CreateShared(const std::string& output, const std::vector<std::string>& fil
 #elif defined(_WIN32)
   WindowsShared(output, files);
 #else
-  LOG(FATAL) << "Operating system not supported";
+  TVM_FFI_THROW(InternalError) << "Operating system not supported";
 #endif
 }
 
@@ -323,7 +323,7 @@ std::string BuildSharedLibrary(std::string file) {
     std::string err_msg;
     const int executed_status = support::Execute(cmd, &err_msg);
     if (executed_status) {
-      LOG(FATAL) << err_msg;
+      TVM_FFI_THROW(InternalError) << err_msg;
     }
     CreateShared(file_name, ListDir(tmp_dir));
     CleanDir(tmp_dir);

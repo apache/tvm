@@ -48,9 +48,10 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
       }
     }
   }
-  LOG(FATAL) << "IndexError: Could not get the corresponding function in the schedule state of the "
-                "statement:\n"
-             << ffi::GetRef<Stmt>(root_block);
+  TVM_FFI_THROW(IndexError)
+      << "Could not get the corresponding function in the schedule state of the "
+         "statement:\n"
+      << ffi::GetRef<Stmt>(root_block);
   throw;
 }
 
@@ -127,7 +128,7 @@ ScopeBlockLoopInfo GetScopeBlockLoopInfo(const SBlock& scope_block) {
       result.realizes.push_back(ffi::GetRef<SBlockRealize>(realize));
       const ffi::Array<IterVar>& iter_vars = realize->block->iter_vars;
       const ffi::Array<PrimExpr>& iter_values = realize->iter_values;
-      ICHECK_EQ(iter_vars.size(), iter_values.size());
+      TVM_FFI_ICHECK_EQ(iter_vars.size(), iter_values.size());
       int n = realize->iter_values.size();
       for (int i = 0; i < n; ++i) {
         const IterVar& iter_var = iter_vars[i];
@@ -162,7 +163,8 @@ void CheckSRefHigherOrEqual(const StmtSRef& sref_a, const StmtSRef& sref_b) {
       return;
     }
   }
-  CHECK(false) << "Expect StmtSRef " << sref_a << "to be higher than or equal to " << sref_b;
+  TVM_FFI_ICHECK(false) << "Expect StmtSRef " << sref_a << "to be higher than or equal to "
+                        << sref_b;
 }
 
 /*!
@@ -428,7 +430,8 @@ void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subt
           violate_block_(std::move(violate_block)),
           local_complete_block_code_(local_complete_block_code),
           local_reduction_block_code_(local_reduction_block_code) {
-      ICHECK(subtree_root_->IsInstance<SBlockNode>() || subtree_root_->IsInstance<ForNode>());
+      TVM_FFI_ICHECK(subtree_root_->IsInstance<SBlockNode>() ||
+                     subtree_root_->IsInstance<ForNode>());
     }
     ffi::String FastErrorString() const final {
       return "ScheduleError: The queried subtree root in SRef tree does not have compact dataflow, "
@@ -693,7 +696,7 @@ ffi::Map<Var, PrimExpr> GetBindings(const SBlockRealize& realize) {
   const SBlockNode* block = realize->block.get();
   const ffi::Array<IterVar>& all_lhs = block->iter_vars;
   const ffi::Array<PrimExpr>& all_rhs = realize->iter_values;
-  ICHECK_EQ(all_lhs.size(), all_rhs.size());
+  TVM_FFI_ICHECK_EQ(all_lhs.size(), all_rhs.size());
   ffi::Map<Var, PrimExpr> result;
   for (int i = 0, n = all_lhs.size(); i < n; ++i) {
     const IterVar& lhs = all_lhs[i];
@@ -707,12 +710,12 @@ bool GetVarsTouchedByBlockIters(const SBlockRealize& block_realize,
                                 std::unordered_set<const VarNode*>* data_par_vars,
                                 std::unordered_set<const VarNode*>* reduce_vars) {
   SBlock block = block_realize->block;
-  ICHECK(block_realize->block.same_as(block))
-      << "ValueError: The input `block_realize` is required to be the exact BlockRealize of the "
+  TVM_FFI_CHECK(block_realize->block.same_as(block), ValueError)
+      << "The input `block_realize` is required to be the exact BlockRealize of the "
          "input block";
 
   bool has_block_vars_of_other_types = false;
-  ICHECK_EQ(block->iter_vars.size(), block_realize->iter_values.size());
+  TVM_FFI_ICHECK_EQ(block->iter_vars.size(), block_realize->iter_values.size());
   int n = static_cast<int>(block->iter_vars.size());
   for (int i = 0; i < n; ++i) {
     const IterVar& iter_var = block->iter_vars[i];
@@ -802,7 +805,7 @@ ffi::Array<SBlockRealize> GetChildBlockRealizeOnSRefTree(const StmtSRef& parent_
     const auto* block = static_cast<const SBlockNode*>(parent_sref->stmt);
     return Collector::Collect(block->body);
   }
-  ICHECK(false) << "Unreachable";
+  TVM_FFI_ICHECK(false) << "Unreachable";
   throw;
 }
 
@@ -872,8 +875,8 @@ SBlockRealize GetSBlockRealize(const ScheduleState& self, const StmtSRef& block_
   } else {
     BlockRealizeFinder finder(block);
     finder(ffi::GetRef<Stmt>(block_sref->parent->stmt));
-    ICHECK(finder.result != nullptr)
-        << "InternalError: Cannot find the BlockRealize of block " << ffi::GetRef<SBlock>(block);
+    TVM_FFI_CHECK(finder.result != nullptr, InternalError)
+        << "Cannot find the BlockRealize of block " << ffi::GetRef<SBlock>(block);
     return ffi::GetRef<SBlockRealize>(finder.result);
   }
 }
@@ -895,7 +898,7 @@ IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
     if (const auto* realize = obj.as<SBlockRealizeNode>()) {
       const SBlockNode* block = realize->block.get();
       // Number of block vars and their bindings
-      ICHECK_EQ(realize->iter_values.size(), block->iter_vars.size());
+      TVM_FFI_ICHECK_EQ(realize->iter_values.size(), block->iter_vars.size());
       size_t n = realize->iter_values.size();
       for (size_t i = 0; i < n; ++i) {
         const IterVar& iter_var = block->iter_vars[i];
@@ -933,7 +936,8 @@ IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
 }
 
 StmtSRef GetSRefLowestCommonAncestor(const ffi::Array<StmtSRef>& srefs) {
-  CHECK(!srefs.empty()) << "ValueError: The input array is required to have at least one sref";
+  TVM_FFI_CHECK(!srefs.empty(), ValueError)
+      << "The input array is required to have at least one sref";
 
   std::unordered_map<const StmtSRefNode*, size_t> sref_visited_cnt;
   for (const StmtSRef& sref : srefs) {
@@ -948,7 +952,7 @@ StmtSRef GetSRefLowestCommonAncestor(const ffi::Array<StmtSRef>& srefs) {
   while (p != nullptr && sref_visited_cnt[p] != n_sref) {
     p = p->parent;
   }
-  ICHECK(p != nullptr);
+  TVM_FFI_ICHECK(p != nullptr);
   return ffi::GetRef<StmtSRef>(p);
 }
 
@@ -989,7 +993,7 @@ std::pair<ffi::Array<StmtSRef>, std::vector<int>> CollectComputeLocation(
   ffi::Array<StmtSRef> loop_srefs = GetLoops(consumers[0]);
   size_t lca_pos =
       std::find(loop_srefs.begin(), loop_srefs.end(), loop_boundary) - loop_srefs.begin();
-  ICHECK_LT(lca_pos, loop_srefs.size());
+  TVM_FFI_ICHECK_LT(lca_pos, loop_srefs.size());
   size_t n_candidate = lca_pos + 1;
 
   // Step 5. Find the position of the deepest data-parallel loop among the candidate loops. This
@@ -1075,7 +1079,7 @@ ffi::Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const SBlockNode
 
     void VisitStmt_(const SBlockNode* block) override {
       auto it = self_->stmt2ref.find(block);
-      ICHECK(it != self_->stmt2ref.end());
+      TVM_FFI_ICHECK(it != self_->stmt2ref.end());
       auto block_sref = it->second;
       if (block_sref->parent != nullptr) {
         StmtSRef scope_root_sref =
@@ -1722,7 +1726,7 @@ TensorIntrinDescInfo ExtractTensorIntrinDescInfo(arith::Analyzer* analyzer,
                                                  const PrimFunc& desc_func) {
   TensorIntrinDescInfo info;
   const auto* desc_scope_realize = desc_func->body.as<SBlockRealizeNode>();
-  ICHECK(desc_scope_realize);
+  TVM_FFI_ICHECK(desc_scope_realize);
   {
     auto f_visit = [&](const ObjectRef& obj) -> bool {
       // Extract the block
@@ -1742,7 +1746,7 @@ TensorIntrinDescInfo ExtractTensorIntrinDescInfo(arith::Analyzer* analyzer,
     };
     tir::PostOrderVisit(desc_scope_realize->block->body, f_visit);
     std::reverse(info.desc_loops.begin(), info.desc_loops.end());
-    ICHECK(info.desc_block);
+    TVM_FFI_ICHECK(info.desc_block);
   }
   return info;
 }
@@ -1792,8 +1796,8 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
   const std::vector<IterVarType> iter_types_block = GetSBlockVarTypes(block_sref);
   const std::vector<IterVarType> iter_types_desc = GetSBlockVarTypes(desc_block->block.get());
 
-  ICHECK(desc_loops.size() == static_cast<size_t>(n_desc_vars));
-  ICHECK(block_loops.size() == iter_types_block.size());
+  TVM_FFI_ICHECK(desc_loops.size() == static_cast<size_t>(n_desc_vars));
+  TVM_FFI_ICHECK(block_loops.size() == iter_types_block.size());
 
   // We assume that the orders of iter_vars in the target and the desc block are consistent.
   // Based on that assumption, the following logic supports arbitrary permutations of a loop order,
@@ -1976,7 +1980,7 @@ class AutoTensorizeMappingProposer {
     }
 
     // Step 2: Compute the buffer mask
-    ICHECK_EQ(rhs_buffer_index.size(), lhs_buffer_index.size());
+    TVM_FFI_ICHECK_EQ(rhs_buffer_index.size(), lhs_buffer_index.size());
     int num_buffers = rhs_buffer_index.size();
     std::unordered_map<const VarNode*, std::vector<bool>> rhs_buffer_masks, lhs_buffer_masks;
     // helper function to initialize or update the buffer mask
@@ -1994,13 +1998,14 @@ class AutoTensorizeMappingProposer {
         if (const VarNode* var_node = rhs_index.as<VarNode>()) {
           update_mask(var_node, &rhs_buffer_masks, rhs_buffer_index.at(rhs_buffer));
         } else {
-          LOG(FATAL) << "ValueError: Buffer index " << rhs_index
-                     << " other that variables in tensor intrinsics is not supported.";
+          TVM_FFI_THROW(ValueError)
+              << "Buffer index " << rhs_index
+              << " other that variables in tensor intrinsics is not supported.";
         }
       }
 
       auto lhs_buffer_it = extractor_->rhs_buffer_map_.find(rhs_buffer);
-      ICHECK(lhs_buffer_it != extractor_->rhs_buffer_map_.end());
+      TVM_FFI_ICHECK(lhs_buffer_it != extractor_->rhs_buffer_map_.end());
       const Buffer& lhs_buffer = lhs_buffer_it->second;
       for (const PrimExpr& index : extractor_->lhs_buffer_indices_map_.at(lhs_buffer)) {
         PreOrderVisit(index, [&](const ObjectRef& obj) -> bool {

@@ -71,7 +71,7 @@ class JSONGraphNodeEntry {
    * \brief Deserialize the json array into a node entry.
    */
   void Load(ffi::json::Array arr) {
-    ICHECK_GE(arr.size(), 2) << "invalid json format";
+    TVM_FFI_ICHECK_GE(arr.size(), 2) << "invalid json format";
     id_ = static_cast<uint32_t>(arr[0].cast<int64_t>());
     index_ = static_cast<uint32_t>(arr[1].cast<int64_t>());
     if (arr.size() > 2) {
@@ -157,7 +157,7 @@ class JSONGraphNode {
       dtype_ = GetAttr<ffi::Array<DLDataType>>("dtype");
     }
     if (shape_.defined() && dtype_.defined()) {
-      ICHECK_EQ(shape_.size(), dtype_.size());
+      TVM_FFI_ICHECK_EQ(shape_.size(), dtype_.size());
     }
   }
 
@@ -182,7 +182,7 @@ class JSONGraphNode {
       } else if (key == "attr" || key == "attrs") {
         this->LoadAttrs(kv.second.cast<ffi::json::Object>());
       } else {
-        LOG(FATAL) << "Unknown key: " << key;
+        TVM_FFI_THROW(InternalError) << "Unknown key: " << key;
       }
     }
   }
@@ -253,7 +253,7 @@ class JSONGraphNode {
    */
   template <typename T>
   T GetAttr(const std::string& key) const {
-    ICHECK(attrs_.count(key) > 0) << "Key: " << key << " is not found";
+    TVM_FFI_ICHECK(attrs_.count(key) > 0) << "Key: " << key << " is not found";
     return attrs_[key].cast<T>();
   }
 

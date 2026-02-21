@@ -64,8 +64,8 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
       if (auto key = kv.first.try_cast<ffi::String>()) {
         key_values.emplace_back(key.value(), kv.second);
       } else {
-        LOG(FATAL) << "TypeError: Only string keys are supported in JSON dumps, but got: "
-                   << kv.first.GetTypeKey();
+        TVM_FFI_THROW(TypeError) << "Only string keys are supported in JSON dumps, but got: "
+                                 << kv.first.GetTypeKey();
       }
     }
     std::sort(key_values.begin(), key_values.end(),
@@ -84,7 +84,7 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
   } else if (json_obj.as<tir::IndexMapNode>()) {
     JSONDumps(ffi::String(SaveJSON(json_obj)), os);
   } else {
-    LOG(FATAL) << "TypeError: Unsupported type in JSON object: " << json_obj.GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unsupported type in JSON object: " << json_obj.GetTypeKey();
   }
 }
 
@@ -135,7 +135,7 @@ class JSONTokenizer {
     Token token;
     if (NextString(&token)) return token;
     if (NextNumber(&token)) return token;
-    LOG(FATAL) << "ValueError: Cannot tokenize: " << std::string(cur_, end_);
+    TVM_FFI_THROW(ValueError) << "Cannot tokenize: " << std::string(cur_, end_);
     throw;
   }
 
@@ -205,7 +205,7 @@ class JSONTokenizer {
       }
       ++cur_;
       if (cur_ == end_) {
-        LOG(FATAL) << "ValueError: Unexpected end of string: \\";
+        TVM_FFI_THROW(ValueError) << "Unexpected end of string: \\";
         throw;
       }
       switch (*cur_) {
@@ -234,12 +234,12 @@ class JSONTokenizer {
           str.push_back('\t');
           break;
         default:
-          LOG(FATAL) << "ValueError: Unsupported escape sequence: \\" << *cur_
-                     << ". record:" << std::string(cur_, end_);
+          TVM_FFI_THROW(ValueError) << "Unsupported escape sequence: \\" << *cur_
+                                    << ". record:" << std::string(cur_, end_);
       }
     }
     if (cur_ == end_) {
-      LOG(FATAL) << "ValueError: Unexpected end of string";
+      TVM_FFI_THROW(ValueError) << "Unexpected end of string";
     }
     ++cur_;
     *token = Token{TokenType::kString, ffi::String(str)};
@@ -302,15 +302,15 @@ class JSONParser {
       case TokenType::kFloat:
         return token.value;
       case TokenType::kRightSquare:
-        LOG(FATAL) << "ValueError: Unexpected token: ]";
+        TVM_FFI_THROW(ValueError) << "Unexpected token: ]";
       case TokenType::kRightCurly:
-        LOG(FATAL) << "ValueError: Unexpected token: }";
+        TVM_FFI_THROW(ValueError) << "Unexpected token: }";
       case TokenType::kComma:
-        LOG(FATAL) << "ValueError: Unexpected token: ,";
+        TVM_FFI_THROW(ValueError) << "Unexpected token: ,";
       case TokenType::kColon:
-        LOG(FATAL) << "ValueError: Unexpected token: :";
+        TVM_FFI_THROW(ValueError) << "Unexpected token: :";
       case TokenType::kEOF:
-        LOG(FATAL) << "ValueError: Unexpected EOF";
+        TVM_FFI_THROW(ValueError) << "Unexpected EOF";
       default:
         throw;
     }
@@ -342,7 +342,7 @@ class JSONParser {
         results.push_back(ParseObject(std::move(token)));
         continue;
       } else {
-        LOG(FATAL) << "ValueError: Unexpected token before: " << tokenizer_.cur_;
+        TVM_FFI_THROW(ValueError) << "Unexpected token before: " << tokenizer_.cur_;
       }
     }
     return results;
@@ -372,15 +372,16 @@ class JSONParser {
         }
         // Case 3
         Any key = ParseObject(std::move(token));
-        ICHECK(key.as<ffi::String>()) << "ValueError: key must be a string, but gets: " << key;
+        TVM_FFI_CHECK(key.as<ffi::String>(), ValueError)
+            << "key must be a string, but gets: " << key;
         token = tokenizer_.Next();
-        CHECK(token.type == TokenType::kColon)
-            << "ValueError: Unexpected token before: " << tokenizer_.cur_;
+        TVM_FFI_CHECK(token.type == TokenType::kColon, ValueError)
+            << "Unexpected token before: " << tokenizer_.cur_;
         Any value = ParseObject(tokenizer_.Next());
         results.Set(Downcast<ffi::String>(key), value);
         continue;
       } else {
-        LOG(FATAL) << "ValueError: Unexpected token before: " << tokenizer_.cur_;
+        TVM_FFI_THROW(ValueError) << "Unexpected token before: " << tokenizer_.cur_;
       }
     }
     return results;

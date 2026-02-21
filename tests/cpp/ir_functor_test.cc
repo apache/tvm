@@ -38,8 +38,8 @@ TEST(IRF, Basic) {
   NodeFunctor<int(const ObjectRef& n, int b)> f;
   f.set_dispatch<VarNode>([](const ObjectRef& n, int b) { return b; });
   f.set_dispatch<AddNode>([](const ObjectRef& n, int b) { return b + 2; });
-  ICHECK_EQ(f(x, 2), 2);
-  ICHECK_EQ(f(z, 2), 4);
+  TVM_FFI_ICHECK_EQ(f(x, 2), 2);
+  TVM_FFI_ICHECK_EQ(f(z, 2), 4);
 }
 
 TEST(IRF, CountVar) {
@@ -52,7 +52,7 @@ TEST(IRF, CountVar) {
   tir::PostOrderVisit(z, [&n_var](const ObjectRef& n) {
     if (n.as<VarNode>()) ++n_var;
   });
-  ICHECK_EQ(n_var, 2);
+  TVM_FFI_ICHECK_EQ(n_var, 2);
 }
 
 TEST(IRF, PreOrderVisit) {
@@ -78,7 +78,7 @@ TEST(IRF, PreOrderVisit) {
         } else if (int_imm->value == 1) {
           body_visited = true;
         } else {
-          LOG(FATAL) << "Unreachable";
+          TVM_FFI_THROW(InternalError) << "Unreachable";
         }
       }
     }
@@ -104,11 +104,11 @@ TEST(IRF, ExprTransform) {
     }
   };
   MyExprFunctor f;
-  ICHECK_EQ(f(x, 2), 2);
-  ICHECK_EQ(f(z, 2), 3);
+  TVM_FFI_ICHECK_EQ(f(x, 2), 2);
+  TVM_FFI_ICHECK_EQ(f(z, 2), 3);
   try {
     f(z - 1, 2);
-    LOG(FATAL) << "should fail";
+    TVM_FFI_THROW(InternalError) << "should fail";
   } catch (Error&) {
   }
 }
@@ -134,7 +134,7 @@ TEST(IRF, ExprVisit) {
   };
   MyVisitor v;
   v.VisitStmt(Evaluate(z));
-  ICHECK_EQ(v.count, 1);
+  TVM_FFI_ICHECK_EQ(v.count, 1);
 }
 
 TEST(IRF, StmtVisitor) {
@@ -156,7 +156,7 @@ TEST(IRF, StmtVisitor) {
     return Allocate(buffer, dtype, {z, z}, const_true(), body);
   };
   v(fmaketest());
-  ICHECK_EQ(v.count, 3);
+  TVM_FFI_ICHECK_EQ(v.count, 3);
 
   {
     // tests for block and block_realize
@@ -175,7 +175,7 @@ TEST(IRF, StmtVisitor) {
 
     v.count = 0;
     v(block_realize);
-    ICHECK_EQ(v.count, 9);
+    TVM_FFI_ICHECK_EQ(v.count, 9);
   }
 }
 
@@ -218,14 +218,14 @@ TEST(IRF, StmtMutator) {
     ffi::Array<Stmt> arr{std::move(body), body2, body2};
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    ICHECK(arr.get() == arrptr);
+    TVM_FFI_ICHECK(arr.get() == arrptr);
     // inplace update body
-    ICHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(arr[0].as<AllocateNode>()->extents.get() == extentptr);
+    TVM_FFI_ICHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
+    TVM_FFI_ICHECK(arr[0].as<AllocateNode>()->extents.get() == extentptr);
     // copy because there is additional refs
-    ICHECK(!arr[0].as<AllocateNode>()->body.same_as(bref));
-    ICHECK(arr[0].as<AllocateNode>()->body.as<EvaluateNode>()->value.same_as(x));
-    ICHECK(bref.as<EvaluateNode>()->value.as<AddNode>());
+    TVM_FFI_ICHECK(!arr[0].as<AllocateNode>()->body.same_as(bref));
+    TVM_FFI_ICHECK(arr[0].as<AllocateNode>()->body.as<EvaluateNode>()->value.same_as(x));
+    TVM_FFI_ICHECK(bref.as<EvaluateNode>()->value.as<AddNode>());
   }
   {
     ffi::Array<Stmt> arr{fmakealloc()};
@@ -233,29 +233,29 @@ TEST(IRF, StmtMutator) {
     ffi::Array<Stmt> arr2 = arr;
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    ICHECK(arr.get() != arrptr);
-    ICHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(!arr2[0].as<AllocateNode>()->extents[1].same_as(x));
+    TVM_FFI_ICHECK(arr.get() != arrptr);
+    TVM_FFI_ICHECK(arr[0].as<AllocateNode>()->extents[1].same_as(x));
+    TVM_FFI_ICHECK(!arr2[0].as<AllocateNode>()->extents[1].same_as(x));
     // mutate but no content change.
     arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    ICHECK(arr2.get() == arr.get());
+    TVM_FFI_ICHECK(arr2.get() == arr.get());
   }
   {
     ffi::Array<Stmt> arr{fmakeif()};
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    ICHECK(arr[0].as<IfThenElseNode>()->else_case.as<EvaluateNode>()->value.same_as(x));
+    TVM_FFI_ICHECK(arr[0].as<IfThenElseNode>()->else_case.as<EvaluateNode>()->value.same_as(x));
     // mutate but no content change.
     auto arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v(std::move(s)); });
-    ICHECK(arr2.get() == arr.get());
+    TVM_FFI_ICHECK(arr2.get() == arr.get());
   }
 
   {
     auto body =
         Evaluate(Call(DataType::Int(32), builtin::call_extern(), {StringImm("xyz"), x + 1}));
     auto res = v(std::move(body));
-    ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
+    TVM_FFI_ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }
   {
     Stmt body = fmakealloc();
@@ -267,9 +267,9 @@ TEST(IRF, StmtMutator) {
     body = SeqStmt({body, body2});
     body = v(std::move(body));
     // the seq get flattened
-    ICHECK(body.as<SeqStmtNode>()->size() == 3);
-    ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() == extentptr);
-    ICHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->size() == 3);
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() == extentptr);
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
   }
 
   {
@@ -283,7 +283,7 @@ TEST(IRF, StmtMutator) {
     body = SeqStmt({body, body2});
     body = v(std::move(body));
     // the seq get flattened
-    ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() != extentptr);
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocateNode>()->extents.get() != extentptr);
   }
 
   {
@@ -302,11 +302,13 @@ TEST(IRF, StmtMutator) {
     body = v(std::move(block_realize));
     // the body should be changed
     SBlock new_block = body.as<SBlockRealizeNode>()->block;
-    ICHECK(new_block->body.as<DeclBufferNode>()->body.as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(new_block->init.as<DeclBufferNode>()->body.as<AllocateNode>()->extents[1].same_as(x));
-    ICHECK(new_block->reads[0]->region[0]->min.same_as(x));
-    ICHECK(new_block->writes[0]->region[0]->min.same_as(x));
-    ICHECK(new_block->match_buffers[0]->source->region[0]->min.same_as(x));
+    TVM_FFI_ICHECK(
+        new_block->body.as<DeclBufferNode>()->body.as<AllocateNode>()->extents[1].same_as(x));
+    TVM_FFI_ICHECK(
+        new_block->init.as<DeclBufferNode>()->body.as<AllocateNode>()->extents[1].same_as(x));
+    TVM_FFI_ICHECK(new_block->reads[0]->region[0]->min.same_as(x));
+    TVM_FFI_ICHECK(new_block->writes[0]->region[0]->min.same_as(x));
+    TVM_FFI_ICHECK(new_block->match_buffers[0]->source->region[0]->min.same_as(x));
   }
 }
 
@@ -339,7 +341,7 @@ TEST(IRF, Substitute) {
       return std::nullopt;
     };
     BufferLoad new_buffer_load = Downcast<BufferLoad>(Substitute(buffer_load, f_subst));
-    ICHECK(new_buffer_load->buffer->data.same_as(y));
+    TVM_FFI_ICHECK(new_buffer_load->buffer->data.same_as(y));
   }
 
   {
@@ -348,6 +350,6 @@ TEST(IRF, Substitute) {
     auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> { return var; };
     PrimExpr new_expr = Substitute(expr, f_subst);
     // the expression is not changed
-    ICHECK(new_expr.same_as(expr));
+    TVM_FFI_ICHECK(new_expr.same_as(expr));
   }
 }

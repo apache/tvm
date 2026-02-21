@@ -85,7 +85,7 @@ std::unique_ptr<ModuleEquality> ModuleEquality::Create(const std::string& mod_eq
   } else if (mod_eq_name == "anchor-block") {
     return std::make_unique<ModuleEqualityAnchorBlock>();
   }
-  LOG(FATAL) << "Unknown module equality " << mod_eq_name;
+  TVM_FFI_THROW(InternalError) << "Unknown module equality " << mod_eq_name;
 }
 
 }  // namespace meta_schedule

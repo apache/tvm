@@ -42,7 +42,7 @@ class TorchCodeGenHelper : public BaseCodeGenHelper {
   const ffi::String IdxOutputBase(const MSCJoint& node, const ffi::String& prefix = "", int idx = 0,
                                   const ffi::String& suffix = "", bool mark_exit = false) final {
     if ((node->optype == "max" || node->optype == "min") && node->OutputAt(0)->Ndim() > 0) {
-      ICHECK(idx == 0) << "max and min op only support 1 outputs, get " << node;
+      TVM_FFI_ICHECK(idx == 0) << "max and min op only support 1 outputs, get " << node;
       return IdxNodeBase(node, prefix, suffix) + ".values";
     }
     return BaseCodeGenHelper::IdxOutputBase(node, prefix, idx, suffix, mark_exit);

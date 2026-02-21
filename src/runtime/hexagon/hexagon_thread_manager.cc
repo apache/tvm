@@ -28,15 +28,15 @@ HexagonThreadManager::HexagonThreadManager(unsigned num_threads, unsigned thread
                                            const std::vector<HardwareResourceType> hw_resources) {
   // Note: could technically manage more software threads than allowable hardware threads, but
   // there is no system constant defined in the qurt libs for that maximum.
-  CHECK(num_threads);
-  CHECK_LE(num_threads, QURT_MAX_HTHREAD_LIMIT);
+  TVM_FFI_ICHECK(num_threads);
+  TVM_FFI_ICHECK_LE(num_threads, QURT_MAX_HTHREAD_LIMIT);
   nthreads_ = num_threads;
 
-  CHECK_GE(thread_stack_size_bytes, MIN_STACK_SIZE_BYTES);
-  CHECK_LE(thread_stack_size_bytes, MAX_STACK_SIZE_BYTES);
+  TVM_FFI_ICHECK_GE(thread_stack_size_bytes, MIN_STACK_SIZE_BYTES);
+  TVM_FFI_ICHECK_LE(thread_stack_size_bytes, MAX_STACK_SIZE_BYTES);
 
-  CHECK_GE(thread_pipe_size_words, MIN_PIPE_SIZE_WORDS);
-  CHECK_LE(thread_pipe_size_words, MAX_PIPE_SIZE_WORDS);
+  TVM_FFI_ICHECK_GE(thread_pipe_size_words, MIN_PIPE_SIZE_WORDS);
+  TVM_FFI_ICHECK_LE(thread_pipe_size_words, MAX_PIPE_SIZE_WORDS);
 
   hw_resources_ = hw_resources;
   CheckResources();
@@ -120,7 +120,7 @@ HexagonThreadManager::~HexagonThreadManager() {
 
 void HexagonThreadManager::CheckResources() {
   create_resource_managers_ = false;
-  CHECK(hw_resources_.empty() || hw_resources_.size() == nthreads_)
+  TVM_FFI_ICHECK(hw_resources_.empty() || hw_resources_.size() == nthreads_)
       << "Thread count must match resource count";
   if (!hw_resources_.empty()) {
     // Ensure that no more than one of each hardware resource is specified
@@ -128,7 +128,7 @@ void HexagonThreadManager::CheckResources() {
       if (hw_resources_[i] != NONE) {
         create_resource_managers_ = true;
         for (int j = i + 1; j < hw_resources_.size(); j++) {
-          CHECK(hw_resources_[i] != hw_resources_[j])
+          TVM_FFI_ICHECK(hw_resources_[i] != hw_resources_[j])
               << "No more than one of each resource type may be specified " << hw_resources_[i];
         }
       }
@@ -164,7 +164,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
 
     // create the pipe
     int rc = qurt_pipe_init(&pipes_[i], &pipe_attr);
-    CHECK_EQ(rc, QURT_EOK);
+    TVM_FFI_ICHECK_EQ(rc, QURT_EOK);
   }
 
   DLOG(INFO) << "Pipes created";
@@ -186,7 +186,7 @@ void HexagonThreadManager::SpawnThreads(unsigned thread_stack_size_bytes,
     contexts_[i] = new ThreadContext(&pipes_[i], i, hw_resources_.empty() ? NONE : hw_resources_[i],
                                      hvx_.get(), htp_.get());
     int rc = qurt_thread_create(&threads_[i], &thread_attr, thread_main, contexts_[i]);
-    CHECK_EQ(rc, QURT_EOK);
+    TVM_FFI_ICHECK_EQ(rc, QURT_EOK);
   }
 
   DLOG(INFO) << "Threads created";
@@ -207,11 +207,11 @@ TVMStreamHandle HexagonThreadManager::GetStreamHandleByResourceType(HardwareReso
       return reinterpret_cast<TVMStreamHandle>(i);
     }
   }
-  CHECK(false) << "Thread for resource type " << type << " not found";
+  TVM_FFI_ICHECK(false) << "Thread for resource type " << type << " not found";
 }
 
 HardwareResourceType HexagonThreadManager::GetResourceTypeForStreamHandle(TVMStreamHandle thread) {
-  CHECK(hw_resources_.size() > reinterpret_cast<int>(thread))
+  TVM_FFI_ICHECK(hw_resources_.size() > reinterpret_cast<int>(thread))
       << "No thread for handle id exists " << thread;
   return hw_resources_[reinterpret_cast<int>(thread)];
 }

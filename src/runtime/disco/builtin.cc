@@ -61,8 +61,9 @@ ffi::Module LoadVMModule(std::string path, ffi::Optional<Device> device) {
   auto mod = (*vm_load_executable)().cast<ffi::Module>();
   ffi::Optional<ffi::Function> vm_initialization = mod->GetFunction("vm_initialization");
   if (!vm_initialization.has_value()) {
-    LOG(FATAL) << "ValueError: File `" << path
-               << "` is not built by RelaxVM, because `vm_initialization` does not exist";
+    TVM_FFI_THROW(ValueError)
+        << "File `" << path
+        << "` is not built by RelaxVM, because `vm_initialization` does not exist";
   }
   (*vm_initialization)(static_cast<int>(dev.device_type), static_cast<int>(dev.device_id),
                        static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
@@ -78,8 +79,8 @@ ffi::Function GetCCLFunc(const char* name) {
   std::string ccl = DiscoWorker::ThreadLocal()->ccl;
   std::string pf_name = "runtime.disco." + ccl + "." + name;
   const auto pf = tvm::ffi::Function::GetGlobal(pf_name);
-  CHECK(pf.has_value()) << "ValueError: Cannot find the `" << name << "` function for `" << ccl
-                        << "` via `" << pf_name << "`";
+  TVM_FFI_CHECK(pf.has_value(), ValueError)
+      << "Cannot find the `" << name << "` function for `" << ccl << "` via `" << pf_name << "`";
   return *pf;
 }
 
@@ -146,7 +147,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("runtime.disco.allreduce",
            [](Tensor send, ffi::Shape reduce_kind, bool in_group, Tensor recv) {
              int kind = IntegerFromShape(reduce_kind);
-             CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
+             TVM_FFI_CHECK(0 <= kind && kind <= 4, ValueError) << "Unknown ReduceKind: " << kind;
              AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);
            })
       .def("runtime.disco.allgather", AllGather)
@@ -164,7 +165,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            []() -> Device { return DiscoWorker::ThreadLocal()->default_device; })
       .def("runtime.disco.bind_worker_to_cpu_core", [](ffi::Shape cpu_ids) {
         int worker_id = WorkerId();
-        ICHECK_LT(worker_id, static_cast<int>(cpu_ids.size()));
+        TVM_FFI_ICHECK_LT(worker_id, static_cast<int>(cpu_ids.size()));
         const auto f_set_thread_affinity = tvm::ffi::Function::GetGlobalRequired(
             "tvm.runtime.threading.set_current_thread_affinity");
         f_set_thread_affinity(ffi::Shape{cpu_ids[worker_id]});

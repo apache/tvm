@@ -36,50 +36,47 @@ namespace relax {
 namespace inspect {
 
 TensorStructInfo GetTensorArgInfo(const Call& call) {
-  CHECK_EQ(call->args.size(), 1) << "TypeError: "
-                                 << "Operator " << call->op << " expects one argument, "
-                                 << "but received " << call->args.size()
-                                 << " arguments: " << call->args;
+  TVM_FFI_CHECK_EQ(call->args.size(), 1, TypeError)
+      << "Operator " << call->op << " expects one argument, "
+      << "but received " << call->args.size() << " arguments: " << call->args;
 
   const auto& arg = call->args[0];
   auto sinfo = GetStructInfo(arg);
 
   auto tensor_sinfo = sinfo.as<TensorStructInfo>();
-  CHECK(tensor_sinfo) << "TypeError: "
-                      << "Operator " << call->op << " expects a tensor argument, "
-                      << "but argument " << arg << " has struct info " << sinfo;
+  TVM_FFI_CHECK(tensor_sinfo, TypeError)
+      << "Operator " << call->op << " expects a tensor argument, "
+      << "but argument " << arg << " has struct info " << sinfo;
 
   return tensor_sinfo.value();
 }
 
 std::tuple<TensorStructInfo, PrimStructInfo> GetTensorArgInfoWithIndex(const Call& call) {
-  CHECK_EQ(call->args.size(), 2) << "TypeError: "
-                                 << "Operator " << call->op << " expects two arguments, "
-                                 << "but received " << call->args.size()
-                                 << " arguments: " << call->args;
+  TVM_FFI_CHECK_EQ(call->args.size(), 2, TypeError)
+      << "Operator " << call->op << " expects two arguments, "
+      << "but received " << call->args.size() << " arguments: " << call->args;
   const auto& arg = call->args[0];
   const auto& axis = call->args[1];
 
   auto tensor_sinfo = arg->struct_info_.as<TensorStructInfoNode>();
-  CHECK(tensor_sinfo) << "TypeError: "
-                      << "Operator " << call->op << " expects arguments (tensor, axis), "
-                      << "but the first argument " << arg << " in expression " << call
-                      << " has struct info " << arg->struct_info_;
+  TVM_FFI_CHECK(tensor_sinfo, TypeError)
+      << "Operator " << call->op << " expects arguments (tensor, axis), "
+      << "but the first argument " << arg << " in expression " << call << " has struct info "
+      << arg->struct_info_;
 
   auto axis_sinfo = axis->struct_info_.as<PrimStructInfoNode>();
-  CHECK(axis_sinfo) << "TypeError: "
-                    << "Operator " << call->op << " expects arguments (tensor, axis), "
-                    << "but the second argument " << arg << " in expression " << call
-                    << " has struct info " << axis->struct_info_;
+  TVM_FFI_CHECK(axis_sinfo, TypeError)
+      << "Operator " << call->op << " expects arguments (tensor, axis), "
+      << "but the second argument " << arg << " in expression " << call << " has struct info "
+      << axis->struct_info_;
 
   auto int_imm_axis = axis_sinfo->value.as<IntImmNode>();
 
   if (int_imm_axis) {
-    CHECK_GE(int_imm_axis->value, 0);
+    TVM_FFI_ICHECK_GE(int_imm_axis->value, 0);
   }
   if (int_imm_axis && !tensor_sinfo->IsUnknownNdim()) {
-    CHECK_LT(int_imm_axis->value, tensor_sinfo->ndim)
-        << "ValueError: "
+    TVM_FFI_CHECK_LT(int_imm_axis->value, tensor_sinfo->ndim, ValueError)
         << "Expression " << call << " attempts to access " << arg << ".shape["
         << int_imm_axis->value << "]"
         << ", but " << arg << ".shape only has " << tensor_sinfo->ndim << " elements";

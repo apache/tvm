@@ -283,9 +283,9 @@ class HoistInfoCollector : public StmtExprVisitor {
   }
 
   void VisitBinding(Var var, PrimExpr value, HoistedLetBindings hoist_from) {
-    ICHECK_EQ(let_var_to_loop_vars.count(var.get()), 0)
+    TVM_FFI_ICHECK_EQ(let_var_to_loop_vars.count(var.get()), 0)
         << "Multiple nested definitions of variable " << var;
-    ICHECK_EQ(let_var_to_let_vars.count(var.get()), 0)
+    TVM_FFI_ICHECK_EQ(let_var_to_let_vars.count(var.get()), 0)
         << "Multiple nested definitions of variable " << var;
 
     if (auto info = FindHoistDestination(value)) {
@@ -495,7 +495,7 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
     Stmt stmt = Parent::VisitStmt_(op);
 
     auto it = loop_info_lookup.find(op);
-    ICHECK(it != loop_info_lookup.end())
+    TVM_FFI_ICHECK(it != loop_info_lookup.end())
         << "Could not find pre-pass information for loop over " << op->loop_var;
     return WrapHoistedStatements(stmt, it->second);
   }

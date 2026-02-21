@@ -51,8 +51,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
         InferSymbolicVarMap({{binding->var, binding->value}}, builder_->GetAnalyzer());
     for (const auto& [tir_var, prim_expr] : tir_var_map) {
       if (auto it = known_values_.find(tir_var); it != known_values_.end()) {
-        CHECK(!builder_->GetAnalyzer()->CanProve(it->second.expr != prim_expr))
-            << "ValueError: "
+        TVM_FFI_CHECK(!builder_->GetAnalyzer()->CanProve(it->second.expr != prim_expr), ValueError)
             << "MatchCast statements must be consistent.  "
             << "However, the definition of Relax variable " << it->second.source->var
             << " implies that TIR variable " << tir_var << " is " << it->second.expr
@@ -250,14 +249,14 @@ class CanonicalizePlanner : public ExprVisitor {
   }
 
   void VisitBindingBlock_(const BindingBlockNode* block) override {
-    CHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    TVM_FFI_ICHECK(!current_block_.defined()) << "Forgetting to unset current block";
     current_block_ = ffi::GetRef<BindingBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = ffi::Optional<BindingBlock>();
   }
 
   void VisitBindingBlock_(const DataflowBlockNode* block) override {
-    CHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    TVM_FFI_ICHECK(!current_block_.defined()) << "Forgetting to unset current block";
     current_block_ = ffi::GetRef<DataflowBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = ffi::Optional<BindingBlock>();
@@ -354,7 +353,7 @@ class CanonicalizePlanner : public ExprVisitor {
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
         return StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(match_cast->value));
       } else {
-        LOG(FATAL) << "Invalid binding type: " << binding->GetTypeKey();
+        TVM_FFI_THROW(InternalError) << "Invalid binding type: " << binding->GetTypeKey();
       }
     }();
 
@@ -539,7 +538,7 @@ class BindingCanonicalizer : public ExprMutator {
               VarBinding(binding->var, candidates.at(Downcast<DataflowVar>(var_binding->value)));
           new_bindings.push_back(new_binding);
         } else {
-          CHECK(false) << "Invalid binding";  // never happens
+          TVM_FFI_ICHECK(false) << "Invalid binding";  // never happens
         }
       } else {
         new_bindings.push_back(binding);

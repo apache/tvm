@@ -60,7 +60,7 @@ class Tensor {
 
   Tensor(Shape shape, Dtype dtype, void* hdl) {
     auto rank = shape.size();
-    ICHECK(rank < BNNS_MAX_TENSOR_DIMENSION);
+    TVM_FFI_ICHECK(rank < BNNS_MAX_TENSOR_DIMENSION);
 
     desc_ = {BNNSTensorFlags(0),
              getPlainLayout(rank),
@@ -91,7 +91,7 @@ class Tensor {
     }
     const size_t buff_size = getSize(desc_) * getElementSize(desc_);
     desc_.data = default_alloc(buff_size);
-    ICHECK(desc_.data);
+    TVM_FFI_ICHECK(desc_.data);
     is_external_data = false;
   }
 
@@ -110,7 +110,7 @@ class Tensor {
   const BNNSTensorDescriptor& get_desc() const { return desc_; }
 
   static BNNSDataLayout getPlainLayout(size_t rank) {
-    ICHECK(rank <= BNNS_MAX_TENSOR_DIMENSION);
+    TVM_FFI_ICHECK(rank <= BNNS_MAX_TENSOR_DIMENSION);
     return static_cast<BNNSDataLayout>((rank << 16) | 0x8001);
   }
 
@@ -201,9 +201,9 @@ class TView {
     TView res = *this;
     size_t unsqueezed_shape[BNNS_MAX_TENSOR_DIMENSION] = {};
     size_t unsqueezed_rank = axes.size() + rank;
-    ICHECK_LE(unsqueezed_rank, BNNS_MAX_TENSOR_DIMENSION);
+    TVM_FFI_ICHECK_LE(unsqueezed_rank, BNNS_MAX_TENSOR_DIMENSION);
     for (const auto& axis : axes) {
-      ICHECK_LT(axis, unsqueezed_rank);
+      TVM_FFI_ICHECK_LT(axis, unsqueezed_rank);
       unsqueezed_shape[axis] = 1;
     }
     for (int i = 0, orig_idx = 0; i < unsqueezed_rank; ++i) {
@@ -217,9 +217,9 @@ class TView {
 
   /** Unsqueeze tensor to a new rank */
   TView unsqueeze(size_t new_rank) const {
-    ICHECK_LE(new_rank, BNNS_MAX_TENSOR_DIMENSION);
+    TVM_FFI_ICHECK_LE(new_rank, BNNS_MAX_TENSOR_DIMENSION);
     auto rank = Tensor::getRank(view_desc_);
-    ICHECK_GT(new_rank, rank);
+    TVM_FFI_ICHECK_GT(new_rank, rank);
     std::vector<size_t> axes(new_rank - rank);
     std::iota(axes.begin(), axes.end(), rank);
     return expand_dims(axes);
@@ -227,7 +227,7 @@ class TView {
 
   /** Construct new TView with specified layout if it applicable */
   TView with_layout(BNNSDataLayout layout) const {
-    ICHECK_EQ(Tensor::getRank(view_desc_), Tensor::getRank(layout));
+    TVM_FFI_ICHECK_EQ(Tensor::getRank(view_desc_), Tensor::getRank(layout));
 
     TView res = *this;
     res.view_desc_.layout = layout;
@@ -236,7 +236,7 @@ class TView {
 
   /** Construct party TView by splitting original TView into num parts */
   TView party_split_n(size_t num) const {
-    ICHECK_EQ(party_size_, 1);
+    TVM_FFI_ICHECK_EQ(party_size_, 1);
 
     TView res = *this;
     size_t rank = Tensor::getRank(view_desc_);
@@ -255,7 +255,7 @@ class TView {
 
   /** Construct party TView by duplicating original TView num times */
   TView party_duplicate_n(size_t num) const {
-    ICHECK_EQ(party_size_, 1);
+    TVM_FFI_ICHECK_EQ(party_size_, 1);
 
     TView res = *this;
     res.party_size_ = num;
@@ -275,7 +275,7 @@ class TView {
 
   /** Return party element by index */
   TView operator[](size_t i) const {
-    ICHECK_LT(i, party_size_);
+    TVM_FFI_ICHECK_LT(i, party_size_);
 
     TView res = *this;
     res.party_size_ = 1;
@@ -328,7 +328,7 @@ class Primitive {
   /** Execute primitive with using specified src/dst */
   void execute() {
     auto res = TVMBackendParallelLaunch(run_task, this, filters.size());
-    ICHECK_EQ(res, 0) << "BNNS runtime. Primitive was not executed properly";
+    TVM_FFI_ICHECK_EQ(res, 0) << "BNNS runtime. Primitive was not executed properly";
   }
 
  private:

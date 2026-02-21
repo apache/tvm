@@ -48,9 +48,9 @@ void InitNVSHMEM(ffi::Shape uid_64, int num_workers, int worker_id_start) {
   } else {
     worker_id = worker_id_start + worker->worker_id;
   }
-  CHECK_EQ(uid_64.size(), UNIQUEID_PADDING + 1)
-      << "ValueError: The length of unique_id must be " << UNIQUEID_PADDING << ", but got "
-      << uid_64.size() << ".";
+  TVM_FFI_CHECK_EQ(uid_64.size(), UNIQUEID_PADDING + 1, ValueError)
+      << "The length of unique_id must be " << UNIQUEID_PADDING << ", but got " << uid_64.size()
+      << ".";
 
   nvshmemx_init_attr_t attr = NVSHMEMX_INIT_ATTR_INITIALIZER;
 
@@ -69,8 +69,8 @@ void InitNVSHMEM(ffi::Shape uid_64, int num_workers, int worker_id_start) {
     if (worker->default_device.device_type == DLDeviceType::kDLCPU) {
       worker->default_device = Device{DLDeviceType::kDLCUDA, mype_node};
     } else {
-      ICHECK(worker->default_device.device_type == DLDeviceType::kDLCUDA &&
-             worker->default_device.device_id == mype_node)
+      TVM_FFI_ICHECK(worker->default_device.device_type == DLDeviceType::kDLCUDA &&
+                     worker->default_device.device_id == mype_node)
           << "The default device of the worker is inconsistent with the device used for NVSHMEM. "
           << "The default device is " << worker->default_device
           << ", but the device used for NVSHMEM is " << Device{DLDeviceType::kDLCUDA, mype_node}
@@ -86,10 +86,10 @@ void InitNVSHMEMWrapper(ffi::String args) {
   ffi::String err;
   json::Value v = json::Parse(args, &err);
   if (!err.empty()) {
-    LOG(FATAL) << "JSON parse error: " << err;
+    TVM_FFI_THROW(InternalError) << "JSON parse error: " << err;
   }
 
-  CHECK(v.as<json::Object>()) << "JSON is not an object";
+  TVM_FFI_ICHECK(v.as<json::Object>()) << "JSON is not an object";
   json::Object obj = v.cast<json::Object>();
 
   json::Array uid_array = obj["uid"].cast<json::Array>();

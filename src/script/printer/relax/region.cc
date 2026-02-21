@@ -35,7 +35,7 @@ ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
     } else if (const auto* stmt = block.as<StmtDocNode>()) {
       stmts->push_back(ffi::GetRef<StmtDoc>(stmt));
     } else {
-      LOG(FATAL) << "TypeError: Unknown type: " << block->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Unknown type: " << block->GetTypeKey();
     }
   }
   ExprDoc ret = d->AsDoc<ExprDoc>(n->body, n_p->Attr("body"));
@@ -61,14 +61,14 @@ ffi::Array<StmtDoc> PrintBindingBlock(const relax::BindingBlock& n, const Access
   for (int i = 0, l = bindings.size(); i < l; ++i) {
     const relax::Binding& binding = bindings[i];
     AccessPath binding_p = bindings_p->ArrayItem(i);
-    ICHECK(binding->var.defined());
+    TVM_FFI_ICHECK(binding->var.defined());
     Doc binding_doc = d->AsDoc(binding, binding_p);
     if (const auto* stmt = binding_doc.as<StmtDocNode>()) {
       stmts.push_back(ffi::GetRef<StmtDoc>(stmt));
     } else if (const auto* stmt_block = binding_doc.as<StmtBlockDocNode>()) {
       stmts.insert(stmts.end(), stmt_block->stmts.begin(), stmt_block->stmts.end());
     } else {
-      LOG(FATAL) << "TypeError: Unknown type: " << binding_doc->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Unknown type: " << binding_doc->GetTypeKey();
     }
     if (non_dataflow_vars != nullptr && !binding->var->IsInstance<relax::DataflowVarNode>()) {
       non_dataflow_vars->push_back(d->AsDoc<ExprDoc>(binding->var, binding_p->Attr("var")));

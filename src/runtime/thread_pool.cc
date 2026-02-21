@@ -195,7 +195,7 @@ class SpscTaskQueue {
     }
     const uint32_t head = head_.load(std::memory_order_relaxed);
     // sanity check if the queue is empty
-    ICHECK(tail_.load(std::memory_order_acquire) != head);
+    TVM_FFI_ICHECK(tail_.load(std::memory_order_acquire) != head);
     *output = buffer_[head];
     head_.store((head + 1) % kRingSize, std::memory_order_release);
     return true;
@@ -290,13 +290,13 @@ class ThreadPool {
 
   int Launch(FTVMParallelLambda flambda, void* cdata, int num_task, int need_sync) {
     ParallelLauncher* launcher = ParallelLauncher::ThreadLocal();
-    ICHECK(!launcher->is_worker)
+    TVM_FFI_ICHECK(!launcher->is_worker)
         << "Cannot launch parallel job inside worker, consider fuse then parallel";
     if (num_task == 0) {
       num_task = num_workers_used_;
     }
     if (need_sync != 0) {
-      ICHECK_LE(num_task, num_workers_used_)
+      TVM_FFI_ICHECK_LE(num_task, num_workers_used_)
           << "Request parallel sync task larger than number of threads used "
           << " workers=" << num_workers_used_ << " request=" << num_task;
     }
@@ -361,7 +361,7 @@ class ThreadPool {
     // TODO(tulloch): should we make this configurable via standard APIs?
     static size_t spin_count = GetSpinCount();
     while (queue->Pop(&task, spin_count)) {
-      ICHECK(task.launcher != nullptr);
+      TVM_FFI_ICHECK(task.launcher != nullptr);
       TVMParallelGroupEnv* penv = &(task.launcher->env);
       void* cdata = task.launcher->cdata;
       if ((*task.launcher->flambda)(task.task_id, penv, cdata) == 0) {
@@ -396,7 +396,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     if (args.size() >= 3) {
                       auto cpu_array = args[2].cast<ffi::Array<ffi::String>>();
                       for (auto cpu : cpu_array) {
-                        ICHECK(IsNumber(cpu))
+                        TVM_FFI_ICHECK(IsNumber(cpu))
                             << "The CPU core information '" << cpu << "' is not a number.";
                         cpus.push_back(std::stoi(cpu));
                       }

@@ -381,7 +381,7 @@ inline ffi::Optional<T> MatchStructInfo(const Expr& expr) {
  */
 template <typename T>
 inline const T* GetStructInfoAs(const Expr& expr) {
-  ICHECK(expr->struct_info_.defined())
+  TVM_FFI_ICHECK(expr->struct_info_.defined())
       << "The struct_info is not populated, check if you have normalized the expr";
   return expr->struct_info_.as<T>();
 }
@@ -394,7 +394,7 @@ inline const T* GetStructInfoAs(const Expr& expr) {
  */
 inline StructInfo GetStructInfo(const Expr& expr) {
   auto* ptr = expr->struct_info_.as<StructInfoNode>();
-  ICHECK(ptr) << "The struct_info is not populated, check if you have normalized the expr";
+  TVM_FFI_ICHECK(ptr) << "The struct_info is not populated, check if you have normalized the expr";
   return ffi::GetRef<StructInfo>(ptr);
 }
 

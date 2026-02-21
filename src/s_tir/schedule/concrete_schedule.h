@@ -262,7 +262,7 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
   PrimExpr transformed = Substitute(expr_rv, [this](const Var& var) -> ffi::Optional<PrimExpr> {
     auto it = this->symbol_table_.find(var);
     if (it == this->symbol_table_.end()) {
-      LOG(FATAL) << "IndexError: Cannot find corresponding ExprRV: " << var;
+      TVM_FFI_THROW(IndexError) << "Cannot find corresponding ExprRV: " << var;
     }
     const ObjectRef& obj = (*it).second;
     const auto* int_imm = TVM_TYPE_AS(obj, IntImmNode);
@@ -287,16 +287,16 @@ inline bool ConcreteScheduleNode::HasBlock(const SBlockRV& block_rv) const {
 inline StmtSRef ConcreteScheduleNode::GetSRef(const SBlockRV& block_rv) const {
   auto it = this->symbol_table_.find(block_rv);
   if (it == this->symbol_table_.end()) {
-    LOG(FATAL) << "IndexError: Cannot find corresponding SBlockRV: " << block_rv;
+    TVM_FFI_THROW(IndexError) << "Cannot find corresponding SBlockRV: " << block_rv;
   }
   const ObjectRef& obj = (*it).second;
   const auto* sref = obj.as<StmtSRefNode>();
   if (sref == nullptr) {
-    LOG(FATAL) << "ValueError: SBlockRV's corresponding type is invalid: "
-               << (obj.defined() ? obj->GetTypeKey() : "None");
+    TVM_FFI_THROW(ValueError) << "SBlockRV's corresponding type is invalid: "
+                              << (obj.defined() ? obj->GetTypeKey() : "None");
   }
   if (sref->stmt == nullptr) {
-    LOG(FATAL) << "ValueError: The block no longer exists in the IRModule";
+    TVM_FFI_THROW(ValueError) << "The block no longer exists in the IRModule";
   }
   return ffi::GetRef<StmtSRef>(sref);
 }
@@ -306,7 +306,7 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
   static StmtSRef root_mark = StmtSRef::RootMark();
   auto it = this->symbol_table_.find(loop_rv);
   if (it == this->symbol_table_.end()) {
-    LOG(FATAL) << "IndexError: Cannot find corresponding LoopRV: " << loop_rv;
+    TVM_FFI_THROW(IndexError) << "Cannot find corresponding LoopRV: " << loop_rv;
   }
   const ObjectRef& obj = (*it).second;
   if (obj.same_as(inline_mark)) {
@@ -317,11 +317,11 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
   }
   const auto* sref = obj.as<StmtSRefNode>();
   if (sref == nullptr) {
-    LOG(FATAL) << "ValueError: LoopRV's corresponding type is invalid: "
-               << (obj.defined() ? obj->GetTypeKey() : "None");
+    TVM_FFI_THROW(ValueError) << "LoopRV's corresponding type is invalid: "
+                              << (obj.defined() ? obj->GetTypeKey() : "None");
   }
   if (sref->stmt == nullptr) {
-    LOG(FATAL) << "ValueError: The loop no longer exists in the IRModule";
+    TVM_FFI_THROW(ValueError) << "The loop no longer exists in the IRModule";
   }
   return ffi::GetRef<StmtSRef>(sref);
 }
@@ -391,7 +391,7 @@ inline void ConcreteScheduleNode::RemoveFromSymbolTable(const ObjectRef& obj) {
   if (it != this->symbol_table_.end()) {
     this->symbol_table_.erase(obj);
   } else {
-    LOG(FATAL) << "IndexError: Cannot find the object in the symbol table: " << obj;
+    TVM_FFI_THROW(IndexError) << "Cannot find the object in the symbol table: " << obj;
     throw;
   }
 }

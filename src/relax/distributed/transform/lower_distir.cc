@@ -76,7 +76,7 @@ class DistIRSharder : public ExprMutator {
 
   TensorStructInfo ShardDTensorSinfo(DTensorStructInfo orig_sinfo) {
     TensorStructInfo tensor_sinfo = orig_sinfo->tensor_sinfo;
-    ICHECK(tensor_sinfo->shape);
+    TVM_FFI_ICHECK(tensor_sinfo->shape);
     const auto* orig_shape = tensor_sinfo->shape.as<ShapeExprNode>();
     auto new_tensor_sinfo = ffi::make_object<TensorStructInfoNode>(*tensor_sinfo.get());
     new_tensor_sinfo->shape = ShardShape(ffi::GetRef<ShapeExpr>(orig_shape),
@@ -111,7 +111,7 @@ class DistIRSharder : public ExprMutator {
   }
 
   Expr ShardInputParamTensorAndConstant(Expr input) {
-    ICHECK(input->struct_info_);
+    TVM_FFI_ICHECK(input->struct_info_);
     StructInfo old_sinfo = GetStructInfo(input);
     StructInfo new_sinfo = ConvertSinfo(old_sinfo, false);
     if (const auto* var = input.as<VarNode>()) {
@@ -119,19 +119,19 @@ class DistIRSharder : public ExprMutator {
       return new_param;
     } else if (const auto* constant = input.as<ConstantNode>()) {
       for (const auto& spec : Downcast<DTensorStructInfo>(old_sinfo)->placement->dim_specs) {
-        ICHECK(spec->kind == PlacementSpecKind::kReplica);
+        TVM_FFI_ICHECK(spec->kind == PlacementSpecKind::kReplica);
       }
       Constant new_constant(constant->data, new_sinfo);
       return new_constant;
     } else {
-      LOG(FATAL) << "Cannot shard tensor which is not Var or Constant: " << input;
+      TVM_FFI_THROW(InternalError) << "Cannot shard tensor which is not Var or Constant: " << input;
       throw;
     }
   }
 
   void EmitBroadcastOrScatter(Expr old_expr, Expr new_expr, DTensorStructInfo dtensor_sinfo) {
     // FIXME: this is a hack that only works for 1d device mesh
-    ICHECK(dtensor_sinfo->device_mesh->shape.size() == 1);
+    TVM_FFI_ICHECK(dtensor_sinfo->device_mesh->shape.size() == 1);
     PlacementSpec sharding_spec = dtensor_sinfo->placement->dim_specs[0];
     if (sharding_spec->kind == PlacementSpecKind::kReplica) {
       Var new_var = builder_->Emit(broadcast_from_worker0(new_expr));
@@ -149,7 +149,7 @@ class DistIRSharder : public ExprMutator {
         tuple_getitem_remap_[Downcast<TupleGetItem>(old_expr)] = scatter_var;
       }
     } else {
-      LOG(FATAL) << "Unsupported placement spec";
+      TVM_FFI_THROW(InternalError) << "Unsupported placement spec";
     }
   }
 
@@ -215,9 +215,9 @@ class DistIRSharder : public ExprMutator {
     static Op call_tir_op = Op::Get("relax.call_tir");
     static Op call_tir_local_view_op = Op::Get("relax.dist.call_tir_local_view");
     if (call->op.same_as(reshape_op)) {
-      ICHECK(call->args[1].as<ShapeExprNode>());
+      TVM_FFI_ICHECK(call->args[1].as<ShapeExprNode>());
       const auto* out_sinfo = GetStructInfoAs<DTensorStructInfoNode>(binding_var);
-      ICHECK(out_sinfo);
+      TVM_FFI_ICHECK(out_sinfo);
       auto new_call_node = ffi::make_object<CallNode>(*call);
       new_call_node->args.Set(1, ShardShape(Downcast<ShapeExpr>(call->args[1]),
                                             out_sinfo->device_mesh, out_sinfo->placement));
@@ -228,7 +228,8 @@ class DistIRSharder : public ExprMutator {
       new_call_node->sinfo_args = {ConvertSinfo(GetStructInfo(binding_var), true)};
       return Call(new_call_node);
     } else if (call->op.same_as(call_tir_op)) {
-      LOG(FATAL) << "call_tir should be lowered to call_tir_local_view before lowering to relax";
+      TVM_FFI_THROW(InternalError)
+          << "call_tir should be lowered to call_tir_local_view before lowering to relax";
     } else if (const auto* extern_func = call->op.as<ExternFuncNode>()) {
       auto new_call_node = ffi::make_object<CallNode>(*call);
       if (extern_func->global_symbol == "vm.builtin.distributed.attention_kv_cache_append") {
@@ -237,7 +238,7 @@ class DistIRSharder : public ExprMutator {
         new_call_node->op = ExternFunc("vm.builtin.attention_kv_cache_view");
         auto orig_shape = Downcast<ShapeExpr>(call->args[1]);
         const auto* out_sinfo = GetStructInfoAs<DTensorStructInfoNode>(binding_var);
-        ICHECK(out_sinfo);
+        TVM_FFI_ICHECK(out_sinfo);
         ShapeExpr new_shape = ShardShape(orig_shape, out_sinfo->device_mesh, out_sinfo->placement);
         new_call_node->args.Set(1, new_shape);
         new_call_node->sinfo_args = {TensorStructInfo(new_shape, out_sinfo->tensor_sinfo->dtype)};

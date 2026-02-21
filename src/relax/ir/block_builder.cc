@@ -104,9 +104,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
       (*ctx_func_dedup_map_)[func].insert(gvar);
       return gvar;
     } else {
-      ICHECK(it->second.size()) << "Values contained in de-duplication map must be non-empty sets, "
-                                << "but found an empty set for function of type "
-                                << func->GetTypeKey();
+      TVM_FFI_ICHECK(it->second.size())
+          << "Values contained in de-duplication map must be non-empty sets, "
+          << "but found an empty set for function of type " << func->GetTypeKey();
       // To provide deterministic results, return the GlobalVar that
       // comes first in lexicographic order.
       return *std::min_element(
@@ -124,11 +124,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
       if (it != context_mod_->functions.end()) {
         BaseFunc old_func = (*it).second;
         auto ptr = ctx_func_dedup_map_->find(old_func);
-        ICHECK(ptr != ctx_func_dedup_map_->end())
+        TVM_FFI_ICHECK(ptr != ctx_func_dedup_map_->end())
             << "BlockBuilder::UpdateFunction is updating " << gv
             << ", which appears in the BlockBuilder's context_mod_, "
             << "but does not appear in the de-duplication map";
-        ICHECK(ptr->second.count(gv))
+        TVM_FFI_ICHECK(ptr->second.count(gv))
             << "BlockBuilder::UpdateFunction is updating " << gv
             << ", but the de-duplication map for the previous value of this function "
             << "does not include " << gv;
@@ -154,7 +154,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // the change IRModule in COW. Additionally, we need to be able to
     // continue use the builder after an error is thrown to avoid state building up.
     // in an interactive environment.
-    LOG(FATAL) << diagnostic->message;
+    throw ffi::Error(diagnostic->error_kind, diagnostic->message,
+                     TVMFFIBacktrace(__FILE__, __LINE__, "", 0));
   }
 
   //-------------------------------
@@ -219,8 +220,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
         analyzer_.MarkGlobalNonNegValue(shape_var);
       } else {
         const PrimExpr& old_shape_expr = (*it).second;
-        CHECK(old_shape_expr.same_as(shape_expr) ||
-              analyzer_.CanProveEqual(old_shape_expr, shape_expr))
+        TVM_FFI_ICHECK(old_shape_expr.same_as(shape_expr) ||
+                       analyzer_.CanProveEqual(old_shape_expr, shape_expr))
             << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
             << shape_expr;
       }
@@ -246,7 +247,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
   Var EmitMatchCast(Expr value, StructInfo struct_info, ffi::String name_hint) final {
     value = this->Normalize(value);
 
-    CHECK(StructInfoBaseCheck(GetStructInfo(value), struct_info) != BaseCheckResult::kFailL0)
+    TVM_FFI_ICHECK(StructInfoBaseCheck(GetStructInfo(value), struct_info) !=
+                   BaseCheckResult::kFailL0)
         << "It is impossible to match cast any value into the target struct_info. "
            "But got value struct info: "
         << GetStructInfo(value) << ", given struct info: " << struct_info;
@@ -268,7 +270,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   Var EmitOutput(Expr output, ffi::String name_hint) final {
     BindingBlockFrame* cur_frame = CurrentBindingBlockFrame();
 
-    ICHECK(cur_frame->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
+    TVM_FFI_ICHECK(cur_frame->is_dataflow) << "EmitOutput has to be called inside dataflow block.";
 
     return Emit(output, false, name_hint);
   }
@@ -278,28 +280,28 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
     if (const auto* var_binding = binding.as<VarBindingNode>()) {
       if (!cur_frame->is_dataflow) {
-        ICHECK(!var_binding->var.as<DataflowVarNode>())
+        TVM_FFI_ICHECK(!var_binding->var.as<DataflowVarNode>())
             << "Cannot emit dataflow var in non-dataflow block";
       }
       // normalized check
-      ICHECK(var_binding->var->struct_info_.defined());
-      ICHECK(var_binding->value->struct_info_.defined());
+      TVM_FFI_ICHECK(var_binding->var->struct_info_.defined());
+      TVM_FFI_ICHECK(var_binding->value->struct_info_.defined());
       cur_frame->bindings.push_back(binding);
       binding_table_[var_binding->var->vid] = var_binding->value;
     } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
       if (!cur_frame->is_dataflow) {
-        ICHECK(!match_cast->var.as<DataflowVarNode>())
+        TVM_FFI_ICHECK(!match_cast->var.as<DataflowVarNode>())
             << "Cannot emit dataflow var in non-dataflow block";
       }
       // normalized check
-      ICHECK(match_cast->var->struct_info_.defined());
-      ICHECK(match_cast->value->struct_info_.defined());
+      TVM_FFI_ICHECK(match_cast->var->struct_info_.defined());
+      TVM_FFI_ICHECK(match_cast->value->struct_info_.defined());
       // NOTE match shape do not follow simple binding rule
       // as a result should not appear in binding table.
       cur_frame->bindings.push_back(binding);
       AddDefinitionToScope(match_cast->var);
     } else {
-      LOG(FATAL) << "Unsupported binding type: " << binding->GetTypeKey();
+      TVM_FFI_THROW(InternalError) << "Unsupported binding type: " << binding->GetTypeKey();
     }
   }
 
@@ -369,7 +371,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
    *       then the block frame is no longer valid.
    */
   BindingBlockFrame* CurrentBindingBlockFrame() {
-    ICHECK(!block_stack_.empty()) << "no block is being built";
+    TVM_FFI_ICHECK(!block_stack_.empty()) << "no block is being built";
     return &block_stack_.back();
   }
 
@@ -378,7 +380,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
    * \note only use this value
    */
   ScopeFrame* CurrentScopeFrame() {
-    ICHECK(!scope_stack_.empty()) << "no scope is being opened";
+    TVM_FFI_ICHECK(!scope_stack_.empty()) << "no scope is being opened";
     return &scope_stack_.back();
   }
 
@@ -534,7 +536,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     // After Normalize: an Expr always have
     // struct_info (with the exception of Op).
     if (!normalized->IsInstance<OpNode>()) {
-      ICHECK(normalized->struct_info_.defined())
+      TVM_FFI_ICHECK(normalized->struct_info_.defined())
           << "The struct_info_ of an Expr except OpNode after "
              "normalization must not be nullptr. However, this Expr does not have struct_info_: "
           << normalized;
@@ -563,7 +565,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     Expr post = ExprFunctor::VisitExpr(arg);
 
     if (!IsLeafOrTuple(arg)) {
-      ICHECK(!block_stack_.empty()) << "Cannot normalize non-leaf without a scope";
+      TVM_FFI_ICHECK(!block_stack_.empty()) << "Cannot normalize non-leaf without a scope";
       Var var = this->Emit(post, "");
       // NOTE: current frame addr can change due to underlying vector
       // re-allocation, redo lookup
@@ -587,7 +589,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr VisitVar_(const typename T::ContainerType* var) {
     // Parameters and free-vars must be present with struct info
     // Other vars must have already been normalized through binding
-    ICHECK(var->struct_info_.defined())
+    TVM_FFI_ICHECK(var->struct_info_.defined())
         << "Var " << var->name_hint() << " does not have struct info.";
     return ffi::GetRef<Var>(var);
   }
@@ -757,9 +759,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
     if (!node->struct_info_.defined()) {
       auto opt = MatchStructInfo<TupleStructInfo>(node->tuple);
-      ICHECK(opt) << "The struct info of Tuple must be TupleStructInfo, "
-                  << "but expression " << node->tuple << " has struct info "
-                  << node->tuple->struct_info_;
+      TVM_FFI_ICHECK(opt) << "The struct info of Tuple must be TupleStructInfo, "
+                          << "but expression " << node->tuple << " has struct info "
+                          << node->tuple->struct_info_;
       UpdateStructInfo(node, opt.value()->fields[node->index]);
     }
 
@@ -771,7 +773,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       return this->VisitVarBinding(ffi::GetRef<VarBinding>(var_binding));
     } else {
       auto* match_cast = binding.as<MatchCastNode>();
-      ICHECK(match_cast) << "Unsupported binding type: " << binding->GetTypeKey();
+      TVM_FFI_ICHECK(match_cast) << "Unsupported binding type: " << binding->GetTypeKey();
       return this->VisitMatchCast(ffi::GetRef<MatchCast>(match_cast));
     }
   }
@@ -835,21 +837,21 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       }
       if (is_dist_op) {
         for (const auto& arg : call->args) {
-          ICHECK(!arg->struct_info_.as<TensorStructInfoNode>())
+          TVM_FFI_ICHECK(!arg->struct_info_.as<TensorStructInfoNode>())
               << "Distributed operator must take DTensor instead of Tensor as input";
         }
-        ICHECK(op_map_dist_infer_struct_info_.count(op))
+        TVM_FFI_ICHECK(op_map_dist_infer_struct_info_.count(op))
             << " Cannot find the dist.FInferStructInfo attribute registered to op: " << op->name;
         return op_map_dist_infer_struct_info_[op](call, ffi::GetRef<BlockBuilder>(this));
       }
-      ICHECK(op_map_infer_struct_info_.count(op))
+      TVM_FFI_ICHECK(op_map_infer_struct_info_.count(op))
           << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
       return op_map_infer_struct_info_[op](call, ffi::GetRef<BlockBuilder>(this));
     } else {
       // derive using function parameters
-      ICHECK(call->op->struct_info_.defined());
+      TVM_FFI_ICHECK(call->op->struct_info_.defined());
       auto opt = MatchStructInfo<FuncStructInfo>(call->op);
-      ICHECK(opt) << "Call->op must contains a function struct info";
+      TVM_FFI_ICHECK(opt) << "Call->op must contains a function struct info";
       FuncStructInfo finfo = opt.value();
       return DeriveCallRetStructInfo(finfo, call, ffi::GetRef<BlockBuilder>(this), &analyzer_);
     }
@@ -923,7 +925,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
         } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
           value = match_cast->value;
         } else {
-          LOG(FATAL) << "Unknown binding type: " << binding->GetTypeKey();
+          TVM_FFI_THROW(InternalError) << "Unknown binding type: " << binding->GetTypeKey();
         }
         // if we encounter a nested seq, we have to flatten it:
         //   1. Append the binding block we've accumulated so far
@@ -960,7 +962,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
               }
 
               if (free_dataflow_vars.size()) {
-                LOG(FATAL)
+                TVM_FFI_THROW(InternalError)
                     << "Malformed AST: "
                     << "A DataflowVar may only be used within a DataflowBlock.  "
                     << "The variable " << binding->var << " is defined within a DataflowBlock, "
@@ -977,7 +979,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
           } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
             current.push_back(MatchCast(match_cast->var, seq->body, match_cast->struct_info));
           } else {
-            LOG(FATAL) << "Unknown binding type: " << binding->GetTypeKey();
+            TVM_FFI_THROW(InternalError) << "Unknown binding type: " << binding->GetTypeKey();
           }
         } else {
           current.push_back(binding);
@@ -1012,7 +1014,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
           n->bindings.insert(n->bindings.end(), block->bindings.begin(), block->bindings.end());
           merged = BindingBlock(n);
         } else {
-          LOG(FATAL) << "Unknown block type: " << ret.back()->GetTypeKey();
+          TVM_FFI_THROW(InternalError) << "Unknown block type: " << ret.back()->GetTypeKey();
         }
         ret.pop_back();
         ret.push_back(merged);

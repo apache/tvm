@@ -46,7 +46,7 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
 
   // when there is no loops, tir will add a dummy iter var for the block
   // so loops.size() == 0 && iters.size() == 1
-  ICHECK(loops.size() == iters.size() || (loops.size() == 0 && iters.size() == 1));
+  TVM_FFI_ICHECK(loops.size() == iters.size() || (loops.size() == 0 && iters.size() == 1));
 
   ffi::Array<s_tir::LoopRV> data_parallel_loops;
   // only fuse data parallel loops
@@ -137,12 +137,13 @@ Pass DefaultGPUSchedule() {
             if (func_target.defined()) {
               target = func_target.value();
             }
-            ICHECK(target.defined()) << "The target is missing either in the current context or in "
-                                        "the prim_func's attribute.";
+            TVM_FFI_ICHECK(target.defined())
+                << "The target is missing either in the current context or in "
+                   "the prim_func's attribute.";
             // get the max thread per block from target.
             ffi::Optional<Integer> opt_max_thread_per_block =
                 target->GetAttr<Integer>("max_num_threads");
-            ICHECK(opt_max_thread_per_block.defined())
+            TVM_FFI_ICHECK(opt_max_thread_per_block.defined())
                 << "max_num_threads is not set for target " << target;
             int64_t max_thread_per_block = opt_max_thread_per_block.value().IntValue();
 

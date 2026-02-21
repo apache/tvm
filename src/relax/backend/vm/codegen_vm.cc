@@ -84,8 +84,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
   void Codegen(const Function& func) {
     ffi::Optional<ffi::String> gsymbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    ICHECK(gsymbol.has_value()) << "there should be no local functions in Relax VM codegen phase. "
-                                   "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
+    TVM_FFI_ICHECK(gsymbol.has_value())
+        << "there should be no local functions in Relax VM codegen phase. "
+           "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
 
     ffi::Array<ffi::String> param_names;
     for (Var param : func->params) {
@@ -96,7 +97,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     for (size_t i = 0; i < func->params.size(); ++i) {
       RegName r = NewRegister();
-      ICHECK_EQ(r, static_cast<RegName>(i));
+      TVM_FFI_ICHECK_EQ(r, static_cast<RegName>(i));
       this->var_arg_map_.insert({func->params[i], Instruction::Arg::Register(r)});
     }
     Instruction::Arg ret = ExprFunctor::VisitExpr(func->body);
@@ -155,7 +156,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
-        LOG(FATAL) << "CodeGenVM cannot handle this intrinsic now:\n" << call_node->op;
+        TVM_FFI_THROW(InternalError) << "CodeGenVM cannot handle this intrinsic now:\n"
+                                     << call_node->op;
       }
     } else {
       EmitNormalCall(call, dst_reg);
@@ -210,7 +212,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto it = this->var_arg_map_.find(var);
-    ICHECK(it != this->var_arg_map_.end()) << "Var " << var << " is not defined";
+    TVM_FFI_ICHECK(it != this->var_arg_map_.end()) << "Var " << var << " is not defined";
     return it->second;
   }
 
@@ -232,7 +234,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       if (auto* int_value = e.as<IntImmNode>()) {
         shape.push_back(int_value->value);
       } else {
-        LOG(FATAL) << "Should only use constant shape after shape lowering: " << op->values;
+        TVM_FFI_THROW(InternalError)
+            << "Should only use constant shape after shape lowering: " << op->values;
       }
     }
     return builder_->ConvertConstant(ffi::Shape(shape));
@@ -244,9 +247,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     } else if (auto* float_imm = op->value.as<FloatImmNode>()) {
       return builder_->ConvertConstant(float_imm->value);
     } else {
-      LOG(FATAL) << "PrimValue should only contain constant after  VMShapeLower, "
-                 << "but received " << ffi::GetRef<Expr>(op) << " with type "
-                 << op->value->GetTypeKey();
+      TVM_FFI_THROW(InternalError)
+          << "PrimValue should only contain constant after  VMShapeLower, "
+          << "but received " << ffi::GetRef<Expr>(op) << " with type " << op->value->GetTypeKey();
       TVM_FFI_UNREACHABLE();
     }
   }
@@ -309,7 +312,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       kind = VMFuncInfo::FuncKind::kPackedFunc;
     }
     // declare the function to be safe.
-    ICHECK(symbol.has_value());
+    TVM_FFI_ICHECK(symbol.has_value());
     builder_->DeclareFunction(symbol.value(), kind);
     return builder_->GetFunction(symbol.value());
   }
@@ -331,7 +334,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   void EmitAllocStorage(const Call& call_node, RegName dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 4);
+    TVM_FFI_ICHECK_EQ(call_node->args.size(), 4);
     // Handle args of the call
     std::vector<Instruction::Arg> args;
     args.push_back(Instruction::Arg::Register(Instruction::kVMRegister));
@@ -343,7 +346,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   void EmitAllocTensor(const Call& call_node, RegName dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 5);
+    TVM_FFI_ICHECK_EQ(call_node->args.size(), 5);
     std::vector<Instruction::Arg> args;
     for (int i = 0; i < 4; ++i) {
       args.push_back(this->VisitExpr(call_node->args[i]));
@@ -361,9 +364,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   }
 
   RegName EmitKillObject(const Call& call_node) {
-    ICHECK_EQ(call_node->args.size(), 1);
+    TVM_FFI_ICHECK_EQ(call_node->args.size(), 1);
     Instruction::Arg arg = this->VisitExpr(call_node->args[0]);
-    ICHECK(arg.kind() == Instruction::ArgKind::kRegister)
+    TVM_FFI_ICHECK(arg.kind() == Instruction::ArgKind::kRegister)
         << "Expected the object to be killed to be stored in a register, "
         << "but argument " << call_node->args[0] << " produced VM instruction of type "
         << arg.kind();
@@ -473,7 +476,8 @@ void LinkModules(ObjectPtr<VMExecutable> exec, const ffi::Map<ffi::String, runti
       for (size_t i = 0; i < variables.size(); i++) {
         symbol_const_vars.push_back(variables[i].operator std::string());
       }
-      ICHECK_EQ(const_vars_by_symbol.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
+      TVM_FFI_ICHECK_EQ(const_vars_by_symbol.count(symbol), 0U)
+          << "Found duplicated symbol: " << symbol;
       const_vars_by_symbol[symbol] = symbol_const_vars;
     }
   }

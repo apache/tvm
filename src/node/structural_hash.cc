@@ -76,7 +76,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         support::Base64InStream b64strm(&mstrm);
         b64strm.InitPosition();
         runtime::Tensor temp;
-        ICHECK(temp.Load(&b64strm));
+        TVM_FFI_ICHECK(temp.Load(&b64strm));
         return temp;
       });
 }

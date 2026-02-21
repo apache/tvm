@@ -44,19 +44,19 @@ class HexagonThreadManagerTest : public ::testing::Test {
 
 TEST_F(HexagonThreadManagerTest, ctor_edge_cases) {
   // zero threads
-  ASSERT_THROW(HexagonThreadManager(0, stack_size, pipe_size), InternalError);
+  ASSERT_THROW(HexagonThreadManager(0, stack_size, pipe_size), tvm::ffi::Error);
   // too many threads
-  ASSERT_THROW(HexagonThreadManager(0x10000000, stack_size, pipe_size), InternalError);
+  ASSERT_THROW(HexagonThreadManager(0x10000000, stack_size, pipe_size), tvm::ffi::Error);
   // stack too small
-  ASSERT_THROW(HexagonThreadManager(6, 0, pipe_size), InternalError);
+  ASSERT_THROW(HexagonThreadManager(6, 0, pipe_size), tvm::ffi::Error);
   // stack too big
-  ASSERT_THROW(HexagonThreadManager(6, 0x10000000, pipe_size), InternalError);
+  ASSERT_THROW(HexagonThreadManager(6, 0x10000000, pipe_size), tvm::ffi::Error);
   // pipe too small
-  ASSERT_THROW(HexagonThreadManager(6, stack_size, 9), InternalError);
+  ASSERT_THROW(HexagonThreadManager(6, stack_size, 9), tvm::ffi::Error);
   // pipe too big
-  ASSERT_THROW(HexagonThreadManager(6, stack_size, 0x10000000), InternalError);
+  ASSERT_THROW(HexagonThreadManager(6, stack_size, 0x10000000), tvm::ffi::Error);
   // hw resources count doesn't match thread count
-  ASSERT_THROW(HexagonThreadManager(6, stack_size, pipe_size, {DMA_0}), InternalError);
+  ASSERT_THROW(HexagonThreadManager(6, stack_size, pipe_size, {DMA_0}), tvm::ffi::Error);
   // no more than one of each hw resource may be specified
   ASSERT_THROW(HexagonThreadManager(4, stack_size, pipe_size, {DMA_0, HTP_0, HVX_0, HVX_0}),
                InternalError);
@@ -70,8 +70,8 @@ TEST_F(HexagonThreadManagerTest, ctor_edge_cases) {
 }
 
 TEST_F(HexagonThreadManagerTest, init) {
-  CHECK(htm != nullptr);
-  CHECK_EQ(streams.size(), threads);
+  TVM_FFI_ICHECK(htm != nullptr);
+  TVM_FFI_ICHECK_EQ(streams.size(), threads);
 }
 
 void get_the_answer(void* answer) { *reinterpret_cast<int*>(answer) = 42; }
@@ -80,13 +80,13 @@ TEST_F(HexagonThreadManagerTest, dispatch) {
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->Start();
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, dispatch_wait) {
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, wait_signal) {
@@ -94,7 +94,7 @@ TEST_F(HexagonThreadManagerTest, wait_signal) {
   htm->Signal(streams[1], 0);
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, re_signal) {
@@ -103,7 +103,7 @@ TEST_F(HexagonThreadManagerTest, re_signal) {
   htm->Signal(streams[1], 0);
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, re_wait) {
@@ -112,7 +112,7 @@ TEST_F(HexagonThreadManagerTest, re_wait) {
   htm->Wait(streams[0], 0);
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, wait_signal_x2) {
@@ -122,7 +122,7 @@ TEST_F(HexagonThreadManagerTest, wait_signal_x2) {
   htm->Signal(streams[1], 1);
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, signal_wait) {
@@ -130,21 +130,21 @@ TEST_F(HexagonThreadManagerTest, signal_wait) {
   htm->Wait(streams[0], 0);
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, sync_from_to) {
   htm->SyncFromTo(streams[1], streams[0]);
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, sync_from_to_self) {
   htm->SyncFromTo(streams[0], streams[0]);
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, sync_from_to_x2) {
@@ -152,7 +152,7 @@ TEST_F(HexagonThreadManagerTest, sync_from_to_x2) {
   htm->SyncFromTo(streams[1], streams[0]);
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, sync_from_to_all) {
@@ -163,7 +163,7 @@ TEST_F(HexagonThreadManagerTest, sync_from_to_all) {
   htm->SyncFromTo(streams[1], streams[0]);
   htm->Dispatch(streams[0], get_the_answer, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 TEST_F(HexagonThreadManagerTest, pipe_fill) {
@@ -172,7 +172,7 @@ TEST_F(HexagonThreadManagerTest, pipe_fill) {
     htm->Dispatch(streams[0], get_the_answer, &answer);
   }
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 42);
+  TVM_FFI_ICHECK_EQ(answer, 42);
 }
 
 // TODO(HWE): Create a temporary thread manager with a smaller pipe for this test
@@ -183,7 +183,7 @@ TEST_F(HexagonThreadManagerTest, pipe_overflow) {
   }
   // overflow the pipe
   bool space = htm->Dispatch(streams[0], get_the_answer, &answer);
-  CHECK_EQ(space, false);
+  TVM_FFI_ICHECK_EQ(space, false);
 }
 
 void increment(void* voidptr) {
@@ -204,7 +204,7 @@ TEST_F(HexagonThreadManagerTest, producer_consumer) {
   htm->SyncFromTo(streams[1], streams[0]);
   htm->Dispatch(streams[0], increment, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 6);
+  TVM_FFI_ICHECK_EQ(answer, 6);
 }
 
 TEST_F(HexagonThreadManagerTest, producer_consumer_signal_wait) {
@@ -226,7 +226,7 @@ TEST_F(HexagonThreadManagerTest, producer_consumer_signal_wait) {
   htm->Signal(streams[1], 0);
   htm->Dispatch(streams[0], increment, &answer);
   htm->WaitOnThreads();
-  CHECK_EQ(answer, 6);
+  TVM_FFI_ICHECK_EQ(answer, 6);
 }
 
 struct ToAppend {
@@ -267,7 +267,7 @@ TEST_F(HexagonThreadManagerTest, thread_order) {
   htm->Dispatch(streams[5], append, &cmd5);
   htm->WaitOnThreads();
   for (int i = 0; i < threads; ++i) {
-    CHECK_EQ(arr[i], i);
+    TVM_FFI_ICHECK_EQ(arr[i], i);
   }
 }
 
@@ -304,7 +304,7 @@ TEST_F(HexagonThreadManagerTest, thread_order_signal_wait) {
   htm->Dispatch(streams[5], append, &cmd5);
   htm->WaitOnThreads();
   for (int i = 0; i < threads; ++i) {
-    CHECK_EQ(arr[i], i);
+    TVM_FFI_ICHECK_EQ(arr[i], i);
   }
 }
 
@@ -334,7 +334,7 @@ TEST_F(HexagonThreadManagerTest, dispatch_writes) {
   htm->Start();
   htm->WaitOnThreads();
   for (int i = 0; i < streams.size(); i++) {
-    CHECK_EQ(array[i], truth[i]);
+    TVM_FFI_ICHECK_EQ(array[i], truth[i]);
   }
 }
 
@@ -344,18 +344,18 @@ TEST_F(HexagonThreadManagerTest, threads_for_resource_types) {
   TVMStreamHandle thread;
 
   thread = thread_manager->GetStreamHandleByResourceType(DMA_0);
-  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == DMA_0);
+  TVM_FFI_ICHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == DMA_0);
   thread = thread_manager->GetStreamHandleByResourceType(HTP_0);
-  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HTP_0);
+  TVM_FFI_ICHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HTP_0);
   thread = thread_manager->GetStreamHandleByResourceType(HVX_0);
-  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_0);
+  TVM_FFI_ICHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_0);
   thread = thread_manager->GetStreamHandleByResourceType(HVX_1);
-  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_1);
+  TVM_FFI_ICHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_1);
   thread = thread_manager->GetStreamHandleByResourceType(HVX_2);
-  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_2);
+  TVM_FFI_ICHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_2);
   thread = thread_manager->GetStreamHandleByResourceType(HVX_3);
-  CHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_3);
-  EXPECT_THROW(thread_manager->GetStreamHandleByResourceType(NONE), InternalError);
+  TVM_FFI_ICHECK(thread_manager->GetResourceTypeForStreamHandle(thread) == HVX_3);
+  EXPECT_THROW(thread_manager->GetStreamHandleByResourceType(NONE), tvm::ffi::Error);
   thread = reinterpret_cast<TVMStreamHandle>(6);
-  EXPECT_THROW(thread_manager->GetResourceTypeForStreamHandle(thread), InternalError);
+  EXPECT_THROW(thread_manager->GetResourceTypeForStreamHandle(thread), tvm::ffi::Error);
 }

@@ -86,36 +86,36 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> expr) { return expr; });
 }
 
-#define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                                   \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                            \
-    using T = Name::ContainerType;                                                           \
-    ICHECK(a.defined()) << "ValueError: a is undefined\n";                                   \
-    ICHECK(b.defined()) << "ValueError: b is undefined\n";                                   \
-    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types. " << a.dtype() << " vs. " \
-                                  << b.dtype() << "\n";                                      \
-    ObjectPtr<T> node = ffi::make_object<T>();                                               \
-    node->dtype = a.dtype();                                                                 \
-    node->a = std::move(a);                                                                  \
-    node->b = std::move(b);                                                                  \
-    node->span = std::move(span);                                                            \
-    data_ = std::move(node);                                                                 \
+#define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                    \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) {                             \
+    using T = Name::ContainerType;                                            \
+    TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";             \
+    TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";             \
+    TVM_FFI_CHECK(a.dtype() == b.dtype(), TypeError)                          \
+        << "mismatched types. " << a.dtype() << " vs. " << b.dtype() << "\n"; \
+    ObjectPtr<T> node = ffi::make_object<T>();                                \
+    node->dtype = a.dtype();                                                  \
+    node->a = std::move(a);                                                   \
+    node->b = std::move(b);                                                   \
+    node->span = std::move(span);                                             \
+    data_ = std::move(node);                                                  \
   }
 
-#define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                                                   \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                            \
-    using T = Name::ContainerType;                                                           \
-    ICHECK(a.defined()) << "ValueError: a is undefined\n";                                   \
-    ICHECK(b.defined()) << "ValueError: b is undefined\n";                                   \
-    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types. " << a.dtype() << " vs. " \
-                                  << b.dtype() << "\n";                                      \
-    ObjectPtr<T> node = ffi::make_object<T>();                                               \
-    DataType a_dtype = a.dtype();                                                            \
-    node->dtype =                                                                            \
-        DataType::Bool(a_dtype.get_lanes_or_vscale_factor(), a_dtype.is_scalable_vector());  \
-    node->a = std::move(a);                                                                  \
-    node->b = std::move(b);                                                                  \
-    node->span = std::move(span);                                                            \
-    data_ = std::move(node);                                                                 \
+#define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                                                  \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                           \
+    using T = Name::ContainerType;                                                          \
+    TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                           \
+    TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                           \
+    TVM_FFI_CHECK(a.dtype() == b.dtype(), TypeError)                                        \
+        << "mismatched types. " << a.dtype() << " vs. " << b.dtype() << "\n";               \
+    ObjectPtr<T> node = ffi::make_object<T>();                                              \
+    DataType a_dtype = a.dtype();                                                           \
+    node->dtype =                                                                           \
+        DataType::Bool(a_dtype.get_lanes_or_vscale_factor(), a_dtype.is_scalable_vector()); \
+    node->a = std::move(a);                                                                 \
+    node->b = std::move(b);                                                                 \
+    node->span = std::move(span);                                                           \
+    data_ = std::move(node);                                                                \
   }
 
 // Var
@@ -206,11 +206,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 IterVar::IterVar(Range dom, Var var, IterVarType t, ffi::String thread_tag, Span span) {
   ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>();
   if (dom.defined() && dom->extent.defined()) {
-    CHECK(dom->extent.dtype().is_int())
+    TVM_FFI_ICHECK(dom->extent.dtype().is_int())
         << "The dtype of the domain of an IterVar must be an integer type. However, the domain's "
            "dtype is "
         << dom->extent.dtype();
-    CHECK_EQ(dom->extent.dtype(), var.dtype())
+    TVM_FFI_ICHECK_EQ(dom->extent.dtype(), var.dtype())
         << "The dtype of the extent of an IterVar (" << dom->extent.dtype()
         << ") must match its associated Var's dtype (" << var.dtype() << ")";
   }
@@ -247,9 +247,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Cast
 Cast::Cast(DataType t, PrimExpr value, Span span) {
-  ICHECK(value.defined());
-  ICHECK_EQ(t.get_lanes_or_vscale_factor(), value.dtype().get_lanes_or_vscale_factor());
-  ICHECK(t.is_scalable_vector() == value.dtype().is_scalable_vector());
+  TVM_FFI_ICHECK(value.defined());
+  TVM_FFI_ICHECK_EQ(t.get_lanes_or_vscale_factor(), value.dtype().get_lanes_or_vscale_factor());
+  TVM_FFI_ICHECK(t.is_scalable_vector() == value.dtype().is_scalable_vector());
   ObjectPtr<CastNode> node = ffi::make_object<CastNode>();
   node->dtype = t;
   node->value = std::move(value);
@@ -395,11 +395,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // And
 And::And(PrimExpr a, PrimExpr b, Span span) {
-  ICHECK(a.defined()) << "ValueError: a is undefined";
-  ICHECK(b.defined()) << "ValueError: b is undefined";
-  ICHECK(a.dtype().is_bool());
-  ICHECK(b.dtype().is_bool());
-  ICHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
+  TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
+  TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined";
+  TVM_FFI_ICHECK(a.dtype().is_bool());
+  TVM_FFI_ICHECK(b.dtype().is_bool());
+  TVM_FFI_CHECK(a.dtype() == b.dtype(), TypeError) << "mismatched types";
 
   ObjectPtr<AndNode> node = ffi::make_object<AndNode>();
   node->dtype =
@@ -418,11 +418,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Or
 Or::Or(PrimExpr a, PrimExpr b, Span span) {
-  ICHECK(a.defined()) << "ValueError: a is undefined";
-  ICHECK(b.defined()) << "ValueError: b is undefined";
-  ICHECK(a.dtype().is_bool());
-  ICHECK(b.dtype().is_bool());
-  ICHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types";
+  TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
+  TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined";
+  TVM_FFI_ICHECK(a.dtype().is_bool());
+  TVM_FFI_ICHECK(b.dtype().is_bool());
+  TVM_FFI_CHECK(a.dtype() == b.dtype(), TypeError) << "mismatched types";
 
   ObjectPtr<OrNode> node = ffi::make_object<OrNode>();
   node->dtype =
@@ -440,8 +440,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Not
 Not::Not(PrimExpr a, Span span) {
-  ICHECK(a.defined()) << "ValueError: a is undefined";
-  ICHECK(a.dtype().is_bool());
+  TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
+  TVM_FFI_ICHECK(a.dtype().is_bool());
 
   ObjectPtr<NotNode> node = ffi::make_object<NotNode>();
   DataType a_dtype = a.dtype();
@@ -458,15 +458,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Select
 Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span) {
-  ICHECK(condition.defined()) << "ValueError: condition is undefined";
-  ICHECK(true_value.defined()) << "ValueError: true_value is undefined";
-  ICHECK(false_value.defined()) << "ValueError: true_value is undefined";
-  ICHECK(condition.dtype().is_bool());
-  ICHECK(condition.dtype().get_lanes_or_vscale_factor() ==
-             true_value.dtype().get_lanes_or_vscale_factor() ||
-         condition.dtype().is_scalar());
-  ICHECK(false_value.dtype() == true_value.dtype())
-      << "TypeError: mismatched types. "
+  TVM_FFI_CHECK(condition.defined(), ValueError) << "condition is undefined";
+  TVM_FFI_CHECK(true_value.defined(), ValueError) << "true_value is undefined";
+  TVM_FFI_CHECK(false_value.defined(), ValueError) << "true_value is undefined";
+  TVM_FFI_ICHECK(condition.dtype().is_bool());
+  TVM_FFI_ICHECK(condition.dtype().get_lanes_or_vscale_factor() ==
+                     true_value.dtype().get_lanes_or_vscale_factor() ||
+                 condition.dtype().is_scalar());
+  TVM_FFI_CHECK(false_value.dtype() == true_value.dtype(), TypeError)
+      << "mismatched types. "
       << "False type: " << false_value.dtype() << "; True type: " << true_value.dtype();
 
   ObjectPtr<SelectNode> node = ffi::make_object<SelectNode>();
@@ -488,10 +488,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Ramp
 Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
-  ICHECK(base.defined());
-  ICHECK(stride.defined());
-  ICHECK(base.dtype().is_scalar());
-  ICHECK(stride.dtype().is_scalar());
+  TVM_FFI_ICHECK(base.defined());
+  TVM_FFI_ICHECK(stride.defined());
+  TVM_FFI_ICHECK(base.dtype().is_scalar());
+  TVM_FFI_ICHECK(stride.dtype().is_scalar());
   if (stride.dtype() != base.dtype()) {
     stride = cast(base.dtype(), stride);
   }
@@ -500,13 +500,13 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
   auto* lanes_as_int = lanes.as<IntImmNode>();
   if (lanes_as_int) {
     int lanes = static_cast<int>(lanes_as_int->value);
-    ICHECK_GT(lanes, 1);
+    TVM_FFI_ICHECK_GT(lanes, 1);
     node->dtype = base.dtype().with_lanes(lanes);
     // Stick to int32 lanes for fixed length vectors
     node->lanes = lanes;
   } else { /* scalable vector */
     std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
-    ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
+    TVM_FFI_ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
 
     node->dtype = base.dtype().with_scalable_vscale_factor(vscale_factor.value());
     lanes = Mul(Call(DataType::Int(32), tir::builtin::vscale(), {}), vscale_factor.value());
@@ -527,20 +527,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Broadcast
 Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
-  ICHECK(value.defined());
-  ICHECK(value.dtype().is_scalar());
+  TVM_FFI_ICHECK(value.defined());
+  TVM_FFI_ICHECK(value.dtype().is_scalar());
 
   ObjectPtr<BroadcastNode> node = ffi::make_object<BroadcastNode>();
   auto* lanes_int = lanes.as<IntImmNode>();
   if (lanes_int) {
     int lanes = static_cast<int>(lanes_int->value);
-    ICHECK_GT(lanes, 1);
+    TVM_FFI_ICHECK_GT(lanes, 1);
     node->dtype = value.dtype().with_lanes(lanes);
     // Stick to int32 lanes for fixed length vectors
     node->lanes = lanes;
   } else { /* scalable vector */
     std::optional<int> vscale_factor = arith::ExtractVscaleFactor(lanes);
-    ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
+    TVM_FFI_ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
 
     node->dtype = value.dtype().with_scalable_vscale_factor(vscale_factor.value());
     lanes = Mul(Call(DataType::Int(32), tir::builtin::vscale(), {}), vscale_factor.value());
@@ -560,9 +560,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Let
 Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) {
-  ICHECK(value.defined());
-  ICHECK(body.defined());
-  ICHECK_EQ(value.dtype(), var.dtype());
+  TVM_FFI_ICHECK(value.defined());
+  TVM_FFI_ICHECK(body.defined());
+  TVM_FFI_ICHECK_EQ(value.dtype(), var.dtype());
 
   ObjectPtr<LetNode> node = ffi::make_object<LetNode>();
   node->dtype = body.dtype();
@@ -583,7 +583,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Call
 Call::Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span) {
   for (size_t i = 0; i < args.size(); ++i) {
-    ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
+    TVM_FFI_ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
   }
 
   ObjectPtr<CallNode> node = ffi::make_object<CallNode>();
@@ -617,8 +617,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               } else if (r->extent.as<IntImmNode>()) {
                 indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), r->extent));
               } else {
-                LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: "
-                           << ffi::GetRef<BufferRegion>(br);
+                TVM_FFI_THROW(ValueError)
+                    << "Cannot convert to BufferLoad: " << ffi::GetRef<BufferRegion>(br);
               }
             }
             prim_expr_args.push_back(BufferLoad(br->buffer, indices));
@@ -632,17 +632,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Shuffle
 Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span) {
-  ICHECK_NE(vectors.size(), 0U);
-  ICHECK_NE(indices.size(), 0U);
+  TVM_FFI_ICHECK_NE(vectors.size(), 0U);
+  TVM_FFI_ICHECK_NE(indices.size(), 0U);
 
   DataType base_type = vectors[0].dtype().element_of();
   int total_lanes = 0;
 
   for (PrimExpr val : vectors) {
-    ICHECK(val.dtype().element_of() == base_type);
+    TVM_FFI_ICHECK(val.dtype().element_of() == base_type);
     total_lanes += val.dtype().lanes();
   }
-  ICHECK_LE(indices.size(), static_cast<size_t>(total_lanes));
+  TVM_FFI_ICHECK_LE(indices.size(), static_cast<size_t>(total_lanes));
 
   ObjectPtr<ShuffleNode> node = ffi::make_object<ShuffleNode>();
   node->dtype = base_type.with_lanes(static_cast<int>(indices.size()));
@@ -653,7 +653,7 @@ Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Spa
 }
 
 PrimExpr Shuffle::Concat(ffi::Array<PrimExpr> vectors, Span span) {
-  ICHECK_NE(vectors.size(), 0);
+  TVM_FFI_ICHECK_NE(vectors.size(), 0);
   if (vectors.size() == 1) {
     return vectors[0];
   }
@@ -683,12 +683,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 CommReducer::CommReducer(ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
                          ffi::Array<PrimExpr> identity_element, Span span) {
   size_t n_group = result.size();
-  CHECK_EQ(lhs.size(), n_group) << "ValueError: The number of vars in `lhs` must equal to the "
-                                   "number of elements in `results`";
-  CHECK_EQ(rhs.size(), n_group) << "ValueError: The number of vars in `rhs` must equal to the "
-                                   "number of elements in `results`";
-  CHECK_EQ(identity_element.size(), n_group)
-      << "ValueError: The number of identities must equal to the number of elements in `results`";
+  TVM_FFI_CHECK_EQ(lhs.size(), n_group, ValueError)
+      << "The number of vars in `lhs` must equal to the "
+         "number of elements in `results`";
+  TVM_FFI_CHECK_EQ(rhs.size(), n_group, ValueError)
+      << "The number of vars in `rhs` must equal to the "
+         "number of elements in `results`";
+  TVM_FFI_CHECK_EQ(identity_element.size(), n_group, ValueError)
+      << "The number of identities must equal to the number of elements in `results`";
 
   // Change the dtype of input vars to adapt to the dtype of identities
   ffi::ArrayObj* p_lhs = lhs.CopyOnWrite();
@@ -722,9 +724,9 @@ CommReducer::CommReducer(ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<Pr
 
 ffi::Array<PrimExpr> CommReducerNode::operator()(ffi::Array<PrimExpr> a,
                                                  ffi::Array<PrimExpr> b) const {
-  ICHECK_EQ(a.size(), b.size());
-  ICHECK_EQ(lhs.size(), a.size());
-  ICHECK_EQ(rhs.size(), b.size());
+  TVM_FFI_ICHECK_EQ(a.size(), b.size());
+  TVM_FFI_ICHECK_EQ(lhs.size(), a.size());
+  TVM_FFI_ICHECK_EQ(rhs.size(), b.size());
   ffi::Map<Var, PrimExpr> value_map;
   for (size_t i = 0; i < a.size(); ++i) {
     value_map.Set(lhs[i], a[i]);
@@ -747,22 +749,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<IterVar> axis,
                PrimExpr condition, int value_index, ffi::Array<PrimExpr> init, Span span) {
   for (size_t i = 0; i < axis.size(); ++i) {
-    ICHECK_EQ(axis[i]->iter_type, kCommReduce) << "Can only take axis created by reduce_axis";
+    TVM_FFI_ICHECK_EQ(axis[i]->iter_type, kCommReduce)
+        << "Can only take axis created by reduce_axis";
   }
   if (!condition.defined()) {
     condition = const_true();
   }
   auto n = ffi::make_object<ReduceNode>();
-  ICHECK(source.defined());
+  TVM_FFI_ICHECK(source.defined());
   for (size_t i = 0; i < axis.size(); ++i) {
-    ICHECK(axis[i].defined());
+    TVM_FFI_ICHECK(axis[i].defined());
   }
   if (!init.empty()) {
-    ICHECK_EQ(init.size(), source.size()) << "Number of inits should match number of exprs";
+    TVM_FFI_ICHECK_EQ(init.size(), source.size()) << "Number of inits should match number of exprs";
     for (size_t i = 0; i < init.size(); i++) {
-      ICHECK(init[i].defined()) << "Init value must be defined";
-      ICHECK(init[i]->IsInstance<ProducerLoadNode>() || init[i]->IsInstance<IntImmNode>() ||
-             init[i]->IsInstance<FloatImmNode>())
+      TVM_FFI_ICHECK(init[i].defined()) << "Init value must be defined";
+      TVM_FFI_ICHECK(init[i]->IsInstance<ProducerLoadNode>() || init[i]->IsInstance<IntImmNode>() ||
+                     init[i]->IsInstance<FloatImmNode>())
           << "init can only be a IntImm, FloatImm or ProducerLoad, "
           << "but received " << init[i] << " of type " << init[i]->GetTypeKey();
     }
@@ -790,7 +793,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // BufferLoad
 void BufferLoadNode::LegalizeDType() {
   for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
-    ICHECK(indices[i].dtype().is_scalar())
+    TVM_FFI_ICHECK(indices[i].dtype().is_scalar())
         << "Only the last index of a buffer access may be a vector type.";
   }
 
@@ -801,7 +804,7 @@ void BufferLoadNode::LegalizeDType() {
     bool is_buffer_dtype_scalable = buffer->dtype.is_scalable_vector();
     bool is_index_scalable = index_dtype.is_scalable_vector();
 
-    ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
+    TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
         << "Index dtype and buffer dtype can't both be scalable.";
 
     if (is_index_scalable) {
@@ -818,7 +821,7 @@ void BufferLoadNode::LegalizeDType() {
 
 BufferLoad::BufferLoad(Buffer buffer, ffi::Array<PrimExpr> indices,
                        ffi::Optional<PrimExpr> predicate, Span span) {
-  ICHECK_EQ(buffer->shape.size(), indices.size())
+  TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
       << "Buffer " << buffer->name << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
@@ -828,19 +831,19 @@ BufferLoad::BufferLoad(Buffer buffer, ffi::Array<PrimExpr> indices,
 
     bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
     bool is_predicate_scalable = predicate_dtype.is_scalable_vector();
-    ICHECK_EQ(is_index_scalable, is_predicate_scalable)
+    TVM_FFI_ICHECK_EQ(is_index_scalable, is_predicate_scalable)
         << "Predicate mask dtype and load indices must both be scalable.";
 
     int buffer_lanes = buffer->dtype.get_lanes_or_vscale_factor();
     int index_lanes = indices.empty() ? 1 : indices.back().dtype().get_lanes_or_vscale_factor();
     int predicate_lanes = predicate_dtype.get_lanes_or_vscale_factor();
-    ICHECK_EQ(index_lanes * buffer_lanes, predicate_lanes)
+    TVM_FFI_ICHECK_EQ(index_lanes * buffer_lanes, predicate_lanes)
         << "Got a predicate mask with " << predicate_lanes
         << " lanes, but trying to load a vector with " << index_lanes
         << " lanes. The number of lanes must match.";
 
     DataType predicate_element_dtype = predicate_dtype.element_of();
-    ICHECK(predicate_element_dtype.is_predicate_dtype())
+    TVM_FFI_ICHECK(predicate_element_dtype.is_predicate_dtype())
         << "Predicate mask elements must be boolean values, but got " << predicate_element_dtype
         << ".";
   }

@@ -63,7 +63,7 @@ tvm::ffi::Map<ffi::String, Integer> AllocationCalculator<T>::operator()(const Pr
 
 std::string GetStorageScope(const Var& var) {
   auto* ptr = var->type_annotation.as<PointerTypeNode>();
-  ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+  TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
   return ptr->storage_scope;
 }
 
@@ -111,8 +111,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         } else if (auto mod = obj.as<IRModule>()) {
           return CalculateAllocatedBytes(mod.value());
         } else {
-          LOG(FATAL) << "TypeError: Expect the input to be either PrimFunc or IRModule, but gets: "
-                     << obj->GetTypeKey();
+          TVM_FFI_THROW(TypeError)
+              << "Expect the input to be either PrimFunc or IRModule, but gets: "
+              << obj->GetTypeKey();
           throw;
         }
       });
@@ -189,10 +190,11 @@ Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
           auto sizes = CalculateAllocatedBytes(func)["main"];
           const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
           if (vtcm_allocated.IntValue() > limit.value()) {
-            LOG(FATAL) << "RuntimeError: The global.vtcm memory allocation limit has been exceeded "
-                       << "(allocated: " << vtcm_allocated << ", limit: " << limit.value() << ").\n"
-                       << "In function\n"
-                       << func;
+            TVM_FFI_THROW(RuntimeError)
+                << "The global.vtcm memory allocation limit has been exceeded "
+                << "(allocated: " << vtcm_allocated << ", limit: " << limit.value() << ").\n"
+                << "In function\n"
+                << func;
           }
         }
       }

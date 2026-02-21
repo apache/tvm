@@ -53,7 +53,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
   void SetPermuteDimsAttribute(const CallNode* call_node) {
     const auto* permute_dims_attr = call_node->attrs.as<PermuteDimsAttrs>();
-    ICHECK(permute_dims_attr);
+    TVM_FFI_ICHECK(permute_dims_attr);
     if (permute_dims_attr->axes) {
       ffi::Array<int64_t> axes;
       for (auto axis : permute_dims_attr->axes.value()) {
@@ -65,14 +65,14 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
   void SetAstypeAttribute(const CallNode* call_node) {
     const auto* astype_attrs = call_node->attrs.as<AstypeAttrs>();
-    ICHECK(astype_attrs);
+    TVM_FFI_ICHECK(astype_attrs);
     node_->SetAttr("astype_dtype", ffi::String(runtime::DLDataTypeToString(astype_attrs->dtype)));
   }
 
   void SetMeanAttribute(const CallNode* call_node) {
     const auto* mean_attrs = call_node->attrs.as<StatisticalAttrs>();
-    ICHECK(mean_attrs);
-    ICHECK(mean_attrs->axis.defined());
+    TVM_FFI_ICHECK(mean_attrs);
+    TVM_FFI_ICHECK(mean_attrs->axis.defined());
 
     {
       ffi::Array<int64_t> axis;
@@ -86,7 +86,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
   void SetConv2dAttribute(const CallNode* call_node) {
     const auto* conv2d_attr = call_node->attrs.as<Conv2DAttrs>();
-    ICHECK(conv2d_attr) << "didn't catch attributes";
+    TVM_FFI_ICHECK(conv2d_attr) << "didn't catch attributes";
 
     ffi::Array<int64_t> strides;
     if (!conv2d_attr->strides.empty()) {
@@ -110,7 +110,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
   void SetMaxPool2dAttribute(const CallNode* call_node) {
     const auto* max_pool_2d_attr = call_node->attrs.as<Pool2DAttrs>();
-    ICHECK(max_pool_2d_attr) << "didn't catch attributes";
+    TVM_FFI_ICHECK(max_pool_2d_attr) << "didn't catch attributes";
 
     ffi::Array<int64_t> strides;
     if (!max_pool_2d_attr->strides.empty()) {
@@ -150,12 +150,12 @@ class NNAPIJSONSerializer : public JSONSerializer {
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
+    TVM_FFI_ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
-    ICHECK(fn.defined()) << "Expects the callee to be a function.";
+    TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
-    ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
+    TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
 
@@ -184,7 +184,7 @@ class NNAPIJSONSerializer : public JSONSerializer {
 
 void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
   const auto* op_node = call_node->op.as<OpNode>();
-  ICHECK(op_node != nullptr);
+  TVM_FFI_ICHECK(op_node != nullptr);
   std::string name = op_node->name;
   if (name == "relax.permute_dims") {
     SetPermuteDimsAttribute(call_node);

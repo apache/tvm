@@ -72,16 +72,16 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
     }
 
     // Step 0. Checking block attrs
-    ICHECK(block->alloc_buffers.empty());
-    ICHECK(block->match_buffers.empty());
+    TVM_FFI_ICHECK(block->alloc_buffers.empty());
+    TVM_FFI_ICHECK(block->match_buffers.empty());
 
     // Step 1. Checking the body is a BufferStore
     const auto* store = block->body.as<BufferStoreNode>();
-    ICHECK(store);
+    TVM_FFI_ICHECK(store);
 
     // Step 2. Checking the rhs of buffer store is a BufferLoad
     const auto* load = store->value.as<BufferLoadNode>();
-    ICHECK(load);
+    TVM_FFI_ICHECK(load);
 
     // Step 3. Update Buffer
     buf_map_.Set(load->buffer, store->buffer);
@@ -95,7 +95,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
 
     ffi::Array<Var> load_indices;
     for (auto ind : load->indices) {
-      ICHECK(ind->IsInstance<VarNode>());
+      TVM_FFI_ICHECK(ind->IsInstance<VarNode>());
       load_indices.push_back(Downcast<Var>(ind));
     }
     buffer_var_to_index_map_[load->buffer->data.get()] = IndexMap(load_indices, store->indices);

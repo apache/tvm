@@ -31,42 +31,42 @@
 namespace tvm {
 namespace runtime {
 
-#define TVM_DTYPE_DISPATCH(type, DType, ...)    \
-  if (type == DataType::Float(64)) {            \
-    typedef double DType;                       \
-    { __VA_ARGS__ }                             \
-  } else if (type == DataType::Float(32)) {     \
-    typedef float DType;                        \
-    { __VA_ARGS__ }                             \
-  } else if (type == DataType::Float(16)) {     \
-    typedef uint16_t DType;                     \
-    { __VA_ARGS__ }                             \
-  } else if (type == DataType::Int(64)) {       \
-    typedef int64_t DType;                      \
-    { __VA_ARGS__ }                             \
-  } else if (type == DataType::Int(32)) {       \
-    typedef int32_t DType;                      \
-    { __VA_ARGS__ }                             \
-  } else if (type == DataType::Int(16)) {       \
-    typedef int16_t DType;                      \
-    { __VA_ARGS__ }                             \
-  } else if (type == DataType::Int(8)) {        \
-    typedef int8_t DType;                       \
-    { __VA_ARGS__ }                             \
-  } else if (type == DataType::UInt(64)) {      \
-    typedef uint64_t DType;                     \
-    { __VA_ARGS__ }                             \
-  } else if (type == DataType::UInt(32)) {      \
-    typedef uint32_t DType;                     \
-    { __VA_ARGS__ }                             \
-  } else if (type == DataType::UInt(16)) {      \
-    typedef uint16_t DType;                     \
-    { __VA_ARGS__ }                             \
-  } else if (type == DataType::UInt(8)) {       \
-    typedef uint8_t DType;                      \
-    { __VA_ARGS__ }                             \
-  } else {                                      \
-    LOG(FATAL) << "unknown data type " << type; \
+#define TVM_DTYPE_DISPATCH(type, DType, ...)                      \
+  if (type == DataType::Float(64)) {                              \
+    typedef double DType;                                         \
+    { __VA_ARGS__ }                                               \
+  } else if (type == DataType::Float(32)) {                       \
+    typedef float DType;                                          \
+    { __VA_ARGS__ }                                               \
+  } else if (type == DataType::Float(16)) {                       \
+    typedef uint16_t DType;                                       \
+    { __VA_ARGS__ }                                               \
+  } else if (type == DataType::Int(64)) {                         \
+    typedef int64_t DType;                                        \
+    { __VA_ARGS__ }                                               \
+  } else if (type == DataType::Int(32)) {                         \
+    typedef int32_t DType;                                        \
+    { __VA_ARGS__ }                                               \
+  } else if (type == DataType::Int(16)) {                         \
+    typedef int16_t DType;                                        \
+    { __VA_ARGS__ }                                               \
+  } else if (type == DataType::Int(8)) {                          \
+    typedef int8_t DType;                                         \
+    { __VA_ARGS__ }                                               \
+  } else if (type == DataType::UInt(64)) {                        \
+    typedef uint64_t DType;                                       \
+    { __VA_ARGS__ }                                               \
+  } else if (type == DataType::UInt(32)) {                        \
+    typedef uint32_t DType;                                       \
+    { __VA_ARGS__ }                                               \
+  } else if (type == DataType::UInt(16)) {                        \
+    typedef uint16_t DType;                                       \
+    { __VA_ARGS__ }                                               \
+  } else if (type == DataType::UInt(8)) {                         \
+    typedef uint8_t DType;                                        \
+    { __VA_ARGS__ }                                               \
+  } else {                                                        \
+    TVM_FFI_THROW(InternalError) << "unknown data type " << type; \
   }
 
 DataType TfLiteDType2TVMDType(TfLiteType dtype) {
@@ -86,7 +86,7 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
     case kTfLiteFloat16:
       return DataType::Float(16);
     default:
-      LOG(FATAL) << "tflite data type not support yet: " << dtype;
+      TVM_FFI_THROW(InternalError) << "tflite data type not support yet: " << dtype;
       TVM_FFI_UNREACHABLE();
   }
 }
@@ -118,7 +118,7 @@ void TFLiteRuntime::SetInput(int index, DLTensor* data_in) {
   TVM_DTYPE_DISPATCH(dtype, DType, {
     DType* dest = interpreter_->typed_input_tensor<DType>(index);
     DType* src = static_cast<DType*>(data_in->data);
-    ICHECK(ffi::IsContiguous(*data_in));
+    TVM_FFI_ICHECK(ffi::IsContiguous(*data_in));
     int64_t size = 1;
     for (int64_t i = 0; i < data_in->ndim; ++i) {
       size *= data_in->shape[i];
@@ -158,7 +158,7 @@ ffi::Optional<ffi::Function> TFLiteRuntime::GetFunction(const ffi::String& name)
   if (name == "set_input") {
     return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
       int in_idx = args[0].cast<int>();
-      ICHECK_GE(in_idx, 0);
+      TVM_FFI_ICHECK_GE(in_idx, 0);
       this->SetInput(in_idx, args[1].cast<DLTensor*>());
     });
   } else if (name == "get_output") {
@@ -171,7 +171,7 @@ ffi::Optional<ffi::Function> TFLiteRuntime::GetFunction(const ffi::String& name)
   } else if (name == "set_num_threads") {
     return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
       int num_threads = args[0].cast<int>();
-      CHECK_GE(num_threads, 1);
+      TVM_FFI_ICHECK_GE(num_threads, 1);
       this->SetNumThreads(num_threads);
     });
   } else {

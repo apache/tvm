@@ -93,7 +93,7 @@ class DiscoThreadedMessageQueue : private support::Stream,
   size_t Read(void* data, size_t size) final {
     std::memcpy(data, read_buffer_.data() + read_offset_, size);
     read_offset_ += size;
-    ICHECK_LE(read_offset_, read_buffer_.size());
+    TVM_FFI_ICHECK_LE(read_offset_, read_buffer_.size());
     return size;
   }
 
@@ -188,7 +188,7 @@ class ThreadedSessionObj final : public BcastSessionObj {
 };
 
 Session Session::ThreadedSession(int num_workers, int num_group) {
-  CHECK_EQ(num_workers % num_group, 0)
+  TVM_FFI_ICHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";
   ObjectPtr<ThreadedSessionObj> n = ffi::make_object<ThreadedSessionObj>(num_workers, num_group);
   return Session(std::move(n));

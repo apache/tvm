@@ -257,7 +257,7 @@ void ReleaseDDRMemory(cl_mem memptr) {
   if (0 == cws->ddr_global_pool[memptr].second) {
     LOG_MEM << "Release DDR mem from global pool";
     result = clReleaseMemObject(memptr);
-    ICHECK(result == CL_SUCCESS) << "clReleaseMemObject:" << result;
+    TVM_FFI_ICHECK(result == CL_SUCCESS) << "clReleaseMemObject:" << result;
     cws->ddr_global_pool.erase(memptr);
   }
 }

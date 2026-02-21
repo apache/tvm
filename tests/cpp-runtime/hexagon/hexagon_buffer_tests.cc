@@ -47,7 +47,7 @@ TEST(HexagonBuffer, vtcm_scope) {
 
 TEST(HexagonBuffer, invalid_scope) {
   ffi::Optional<ffi::String> scope(ffi::String("invalid"));
-  EXPECT_THROW(HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, scope), InternalError);
+  EXPECT_THROW(HexagonBuffer hb(8 /* nbytes */, 8 /* alignment */, scope), tvm::ffi::Error);
 }
 
 TEST(HexagonBuffer, micro_copies_corresponding_regions) {
@@ -199,13 +199,13 @@ TEST(HexagonBuffer, micro_copies_invalid_size) {
   {
     BufferSet src(src_ptr.data(), 1, 16);
     BufferSet dest(dest_ptr.data(), 2, 16);
-    EXPECT_THROW(BufferSet::MemoryCopies(dest, src, 24), InternalError);
+    EXPECT_THROW(BufferSet::MemoryCopies(dest, src, 24), tvm::ffi::Error);
   }
 
   {
     BufferSet src(src_ptr.data(), 2, 16);
     BufferSet dest(dest_ptr.data(), 1, 16);
-    EXPECT_THROW(BufferSet::MemoryCopies(dest, src, 24), InternalError);
+    EXPECT_THROW(BufferSet::MemoryCopies(dest, src, 24), tvm::ffi::Error);
   }
 }
 
@@ -287,7 +287,7 @@ TEST(HexagonBuffer, copy_from_invalid_size) {
 
   // HexagonBuffer too small
   HexagonBuffer toosmall(4 /* nbytes */, 8 /* alignment */, scope);
-  EXPECT_THROW(toosmall.CopyFrom(data.data(), data.size()), InternalError);
+  EXPECT_THROW(toosmall.CopyFrom(data.data(), data.size()), tvm::ffi::Error);
 }
 
 TEST(HexagonBuffer, copy_from_smaller_size) {
@@ -397,12 +397,12 @@ TEST(HexagonBuffer, nd_copy_from_nd_invalid_size) {
   HexagonBuffer hb2d(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, scope);
 
   HexagonBuffer toosbig1d(16 /* nbytes */, 16 /* alignment */, scope);
-  EXPECT_THROW(hb1d.CopyFrom(toosbig1d, 16), InternalError);
-  EXPECT_THROW(hb2d.CopyFrom(toosbig1d, 16), InternalError);
+  EXPECT_THROW(hb1d.CopyFrom(toosbig1d, 16), tvm::ffi::Error);
+  EXPECT_THROW(hb2d.CopyFrom(toosbig1d, 16), tvm::ffi::Error);
 
   HexagonBuffer toobig2d(2 /* ndim */, 16 /* nbytes */, 16 /* alignment */, scope);
-  EXPECT_THROW(hb1d.CopyFrom(toobig2d, 32), InternalError);
-  EXPECT_THROW(hb2d.CopyFrom(toobig2d, 32), InternalError);
+  EXPECT_THROW(hb1d.CopyFrom(toobig2d, 32), tvm::ffi::Error);
+  EXPECT_THROW(hb2d.CopyFrom(toobig2d, 32), tvm::ffi::Error);
 }
 
 TEST(HexagonBuffer, nd_copy_from_nd_smaller_size) {

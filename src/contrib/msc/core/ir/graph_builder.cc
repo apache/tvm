@@ -96,7 +96,8 @@ void FuncParamsFinder::VisitExpr_(const CallNode* call_node) {
   if (const auto* v_node = call_node->op.as<GlobalVarNode>()) {
     func = Downcast<Function>(ref_module_->Lookup(v_node->name_hint));
   } else if (call_node->op->IsInstance<VarNode>()) {
-    ICHECK(local_funcs_.count(call_node->op)) << "Can not find local func " << call_node->op;
+    TVM_FFI_ICHECK(local_funcs_.count(call_node->op))
+        << "Can not find local func " << call_node->op;
     func = local_funcs_[call_node->op];
   }
   if (func.defined()) {
@@ -122,7 +123,8 @@ void LayoutsFinder::VisitExpr_(const CallNode* call_node) {
     func = Downcast<Function>(ref_module_->Lookup(v_node->name_hint));
     VisitExpr(func);
   } else if (call_node->op->IsInstance<VarNode>()) {
-    ICHECK(local_funcs_.count(call_node->op)) << "Can not find local func " << call_node->op;
+    TVM_FFI_ICHECK(local_funcs_.count(call_node->op))
+        << "Can not find local func " << call_node->op;
     func = local_funcs_[call_node->op];
   }
   if (func.defined()) {
@@ -179,7 +181,7 @@ const MSCGraph GraphBuilder::Build(const Function& func) {
         } else {
           LOG_FATAL << "Unexpected tuple input " << f << "(" << f->GetTypeKey() << ")";
         }
-        ICHECK(expr_tensor_map_.count(f)) << "Can not find func param from tuple " << f;
+        TVM_FFI_ICHECK(expr_tensor_map_.count(f)) << "Can not find func param from tuple " << f;
         for (const auto& name : expr_tensor_map_[f]) {
           tuple_names.push_back(name);
         }
@@ -188,7 +190,7 @@ const MSCGraph GraphBuilder::Build(const Function& func) {
     } else {
       AddNode(p, std::nullopt, p->name_hint());
     }
-    ICHECK(expr_tensor_map_.count(p)) << "Can not find func param " << p;
+    TVM_FFI_ICHECK(expr_tensor_map_.count(p)) << "Can not find func param " << p;
     for (const auto& name : expr_tensor_map_[p]) {
       if (!added_inputs.count(name)) {
         input_names.push_back(name);
@@ -197,7 +199,7 @@ const MSCGraph GraphBuilder::Build(const Function& func) {
     }
   }
   VisitExpr(func);
-  ICHECK(expr_tensor_map_.count(func->body->body))
+  TVM_FFI_ICHECK(expr_tensor_map_.count(func->body->body))
       << "Can not find seqexpr body " << func->body->body;
   output_names = expr_tensor_map_[func->body->body];
   // remove const nodes as weights
@@ -286,7 +288,8 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
       const auto& func = Downcast<Function>(ref_module_->Lookup(v_node->name_hint));
       std::tie(node_name, optype, layout) = ParseFunc(func);
     } else if (call_node->op->IsInstance<VarNode>()) {
-      ICHECK(target_funcs_.count(call_node->op)) << "Can not find target func: " << call_node->op;
+      TVM_FFI_ICHECK(target_funcs_.count(call_node->op))
+          << "Can not find target func: " << call_node->op;
       std::tie(node_name, optype, layout) = ParseFunc(target_funcs_[call_node->op]);
     } else if (call_node->op->IsInstance<FunctionNode>()) {
       std::tie(node_name, optype, layout) = ParseFunc(Downcast<Function>(call_node->op));
@@ -300,18 +303,19 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
   if (optype == "tuple" && expr->IsInstance<CallNode>() &&
       Downcast<Call>(expr)->op->IsInstance<VarNode>()) {
     const auto& call_node = Downcast<Call>(expr);
-    ICHECK(target_funcs_.count(call_node->op)) << "Can not find target func: " << call_node->op;
+    TVM_FFI_ICHECK(target_funcs_.count(call_node->op))
+        << "Can not find target func: " << call_node->op;
     const auto& tuple_func = target_funcs_[call_node->op];
     for (size_t i = 0; i < call_node->args.size(); i++) {
       expr_tensor_map_.Set(tuple_func->params[i], expr_tensor_map_[call_node->args[i]]);
     }
     VisitExpr(tuple_func);
-    ICHECK(expr_tensor_map_.count(tuple_func->body->body))
+    TVM_FFI_ICHECK(expr_tensor_map_.count(tuple_func->body->body))
         << "Can not find seqexpr body " << tuple_func->body->body;
     const auto& outputs = expr_tensor_map_[tuple_func->body->body];
     const auto& ref_expr = binding_var.defined() ? binding_var.value() : expr;
     expr_tensor_map_.Set(ref_expr, outputs);
-    ICHECK(tensor_input_map_.count(outputs[0])) << "Can not find tensor " << outputs[0];
+    TVM_FFI_ICHECK(tensor_input_map_.count(outputs[0])) << "Can not find tensor " << outputs[0];
     return Downcast<MSCJoint>(tensor_input_map_[outputs[0]].first);
   }
 
@@ -327,7 +331,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
           target_funcs_[op]->GetAttr<ffi::Array<ffi::String>>(msc_attr::kOpattrs);
       if (opattrs_opt.defined()) {
         const auto& opattrs = opattrs_opt.value();
-        ICHECK_EQ(opattrs.size(), plugin->attrs.size())
+        TVM_FFI_ICHECK_EQ(opattrs.size(), plugin->attrs.size())
             << "opattrs " << opattrs << " size mismatch with " << plugin->attrs.size();
         for (size_t i = 0; i < opattrs.size(); i++) {
           attrs.Set(plugin->attrs[i]->name, opattrs[i]);
@@ -348,7 +352,8 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
         attrs = FuncAttrGetter().GetAttrs(func);
       }
     } else if (call_node->op->IsInstance<VarNode>()) {
-      ICHECK(target_funcs_.count(call_node->op)) << "Can not find target func: " << call_node->op;
+      TVM_FFI_ICHECK(target_funcs_.count(call_node->op))
+          << "Can not find target func: " << call_node->op;
       attrs = FuncAttrGetter().GetAttrs(target_funcs_[call_node->op]);
     } else if (call_node->op->IsInstance<FunctionNode>()) {
       attrs = FuncAttrGetter().GetAttrs(call_node->op);
@@ -372,7 +377,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
     const auto& call = Downcast<Call>(expr);
     ffi::Array<ffi::String> values;
     if (call->op->IsInstance<VarNode>()) {
-      ICHECK(target_funcs_.count(call->op)) << "Can not find target func: " << call->op;
+      TVM_FFI_ICHECK(target_funcs_.count(call->op)) << "Can not find target func: " << call->op;
       values = FuncValueGetter().GetValues(target_funcs_[call->op]);
     }
     input_types = ExprUtils::GetInputTypes(optype, call->args.size() + values.size(), true);
@@ -385,8 +390,9 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
         attrs.Set(input_types[i], StringUtils::ToString(s_node->values));
         ignore_nodes_.insert(Downcast<Var>(arg)->name_hint());
       } else if (const auto* s_node = arg.as<PrimValueNode>()) {
-        ICHECK(input_types[i] != "input") << i << " th PrimValue of " << optype
-                                          << " should has special type, get " << input_types;
+        TVM_FFI_ICHECK(input_types[i] != "input")
+            << i << " th PrimValue of " << optype << " should has special type, get "
+            << input_types;
         attrs.Set(input_types[i], StringUtils::ToString(s_node->value));
       } else if (input_types[i] != "input" && arg->IsInstance<TupleNode>()) {
         attrs.Set(input_types[i], StringUtils::ToString(arg));
@@ -403,13 +409,13 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
   if (plugin.defined()) {
     const auto& call = Downcast<Call>(expr);
     if (call->args.size() == 1) {
-      ICHECK(expr_tensor_map_.count(call->args[0]))
+      TVM_FFI_ICHECK(expr_tensor_map_.count(call->args[0]))
           << "Can not find tuple plugin input " << call->args[0];
       input_names = expr_tensor_map_[call->args[0]];
     } else {
       const auto& args = GetPluginInputs(expr);
       for (size_t i = 0; i < plugin->inputs.size(); i++) {
-        ICHECK(expr_tensor_map_.count(args[i])) << "Can not find plugin input " << args[i];
+        TVM_FFI_ICHECK(expr_tensor_map_.count(args[i])) << "Can not find plugin input " << args[i];
         for (const auto& in_name : expr_tensor_map_[args[i]]) {
           input_names.push_back(in_name);
         }
@@ -427,7 +433,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
       } else if (input_types[i] == "input" && arg->IsInstance<TupleNode>()) {
         const auto* tuple_node = arg.as<TupleNode>();
         for (const auto& f : tuple_node->fields) {
-          ICHECK(expr_tensor_map_.count(f)) << "Can not find tuple field " << f;
+          TVM_FFI_ICHECK(expr_tensor_map_.count(f)) << "Can not find tuple field " << f;
           for (const auto& in_name : expr_tensor_map_[f]) {
             arg_names.push_back(in_name);
           }
@@ -477,19 +483,19 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
     }
   } else if (const auto* tuple_node = expr.as<TupleNode>()) {
     for (const auto& f : tuple_node->fields) {
-      ICHECK(expr_tensor_map_.count(f)) << "Can not find tuple field " << f;
+      TVM_FFI_ICHECK(expr_tensor_map_.count(f)) << "Can not find tuple field " << f;
       for (const auto& in_name : expr_tensor_map_[f]) {
         input_names.push_back(in_name);
       }
     }
   } else if (const auto* getitem_node = expr.as<TupleGetItemNode>()) {
-    ICHECK(expr_tensor_map_.count(getitem_node->tuple))
+    TVM_FFI_ICHECK(expr_tensor_map_.count(getitem_node->tuple))
         << "Can not find tuple " << getitem_node->tuple;
     input_names = expr_tensor_map_[getitem_node->tuple];
   } else if (optype == "constant") {
     const auto& t_info = Downcast<TensorStructInfo>(GetStructInfo(expr));
     const auto& shape_opt = t_info->GetShape();
-    ICHECK(shape_opt.defined()) << "Constant shape is not defined";
+    TVM_FFI_ICHECK(shape_opt.defined()) << "Constant shape is not defined";
     const auto& weight =
         MSCTensor(node_name, t_info->dtype, layout, ArrayUtils::Cast<Integer>(shape_opt.value()));
     node_weights.Set("const", weight);
@@ -516,7 +522,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
   // Build output tensor
   auto build_output = [this](const StructInfo& sinfo, const ffi::String& node_name,
                              const ffi::String& layout) {
-    ICHECK(sinfo->IsInstance<TensorStructInfoNode>())
+    TVM_FFI_ICHECK(sinfo->IsInstance<TensorStructInfoNode>())
         << "sinfo should be TensorStructInfo, get " << sinfo->GetTypeKey();
     const auto& t_info = Downcast<TensorStructInfo>(sinfo);
     const auto& shape = ArrayUtils::Cast<Integer>(ExprUtils::GetShape(t_info));
@@ -549,7 +555,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
   if (layouts.size() == 0) {
     layouts = ffi::Array<ffi::String>(num_output, "");
   }
-  ICHECK_EQ(layouts.size(), num_output)
+  TVM_FFI_ICHECK_EQ(layouts.size(), num_output)
       << "Layouts " << layouts << " msimatch with output size " << num_output;
   if (sinfo->IsInstance<TensorStructInfoNode>()) {
     const auto& t_name = node_name + ":" + std::to_string(0);
@@ -566,7 +572,8 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const ffi::Optional<Expr>
       outputs.push_back(build_output(tuple_sinfo->fields[i], t_name, layouts[i]));
     }
   } else {
-    LOG(FATAL) << "Unexpected struct info (" << sinfo->GetTypeKey() << ")" << sinfo;
+    TVM_FFI_THROW(InternalError) << "Unexpected struct info (" << sinfo->GetTypeKey() << ")"
+                                 << sinfo;
   }
 
   // Build node
@@ -749,21 +756,22 @@ void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const TupleGetIt
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const VarNode* val) {
   ExprVisitor::VisitBinding_(binding, val);
   const auto& output = ffi::GetRef<Var>(val);
-  ICHECK(expr_tensor_map_.count(output)) << "Can not find var " << output;
+  TVM_FFI_ICHECK(expr_tensor_map_.count(output)) << "Can not find var " << output;
   expr_tensor_map_.Set(binding->var, expr_tensor_map_[output]);
 }
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const DataflowVarNode* val) {
   ExprVisitor::VisitBinding_(binding, val);
   const auto& output = ffi::GetRef<DataflowVar>(val);
-  ICHECK(expr_tensor_map_.count(output)) << "Can not find dataflow var " << output;
+  TVM_FFI_ICHECK(expr_tensor_map_.count(output)) << "Can not find dataflow var " << output;
   expr_tensor_map_.Set(binding->var, expr_tensor_map_[output]);
 }
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const FunctionNode* val) {
   const auto& name_opt = val->GetAttr<ffi::String>(relax::attr::kComposite);
-  ICHECK(name_opt.has_value()) << "Unexpected target func without composite";
-  ICHECK(config_.target.size() > 0 && StringUtils::StartsWith(name_opt.value(), config_.target))
+  TVM_FFI_ICHECK(name_opt.has_value()) << "Unexpected target func without composite";
+  TVM_FFI_ICHECK(config_.target.size() > 0 &&
+                 StringUtils::StartsWith(name_opt.value(), config_.target))
       << "Target should be given for target function";
   target_funcs_.Set(binding->var, ffi::GetRef<Function>(val));
 }
@@ -806,9 +814,9 @@ void GraphBuilder::VisitPrimExpr(const PrimExpr& prim) {
 }
 
 ffi::Array<Expr> GraphBuilder::GetPluginInputs(const Expr& expr) {
-  ICHECK(expr->IsInstance<CallNode>()) << "plugin expr should be call";
+  TVM_FFI_ICHECK(expr->IsInstance<CallNode>()) << "plugin expr should be call";
   const auto& call = Downcast<Call>(expr);
-  ICHECK(call->args[1]->IsInstance<TupleNode>()) << "plugin argument 1 should be call";
+  TVM_FFI_ICHECK(call->args[1]->IsInstance<TupleNode>()) << "plugin argument 1 should be call";
   return Downcast<relax::Tuple>(call->args[1])->fields;
 }
 
@@ -821,7 +829,7 @@ void WeightsExtractor::VisitExpr_(const ConstantNode* op) {
   const auto& name = SpanUtils::GetAttr(op->span, msc_attr::kName);
   const auto& layout = SpanUtils::GetAttr(op->span, msc_attr::kLayout);
   const auto& sinfo = GetStructInfo(ffi::GetRef<Constant>(op));
-  ICHECK(sinfo->IsInstance<TensorStructInfoNode>())
+  TVM_FFI_ICHECK(sinfo->IsInstance<TensorStructInfoNode>())
       << "Constant StrcutInfo should be TensorStructInfo";
   const auto& t_info = Downcast<TensorStructInfo>(sinfo);
   const auto& opt_shape = t_info->GetShape();

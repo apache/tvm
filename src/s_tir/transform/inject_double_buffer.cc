@@ -117,14 +117,14 @@ class DoubleBufferInjector : public StmtExprMutator {
       StorageEntry& entry = it->second;
       entry.scope = GetPtrStorageScope(op->buffer_var);
 
-      ICHECK_EQ(op->extents.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
-                                       << "Has FlattenBuffer been run?";
+      TVM_FFI_ICHECK_EQ(op->extents.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
+                                               << "Has FlattenBuffer been run?";
       entry.stride = op->extents[0];
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
 
       ffi::Array<PrimExpr> new_extents = {op->extents[0] * make_const(op->extents[0].dtype(), 2)};
-      ICHECK(entry.loop != nullptr);
+      TVM_FFI_ICHECK(entry.loop != nullptr);
       auto& alloc_nest = loop_allocs_[entry.loop];
       alloc_nest.emplace_back(Allocate(op->buffer_var, op->dtype, new_extents, op->condition,
                                        Evaluate(0), op->annotations));
@@ -149,9 +149,9 @@ class DoubleBufferInjector : public StmtExprMutator {
       const ForNode* old_loop = stmt.as<ForNode>();
       if (split_loop_ != 0) {
         // Explicitly unroll the loop
-        ICHECK(split_loop_ % 2 == 0 || split_loop_ == 1)
+        TVM_FFI_ICHECK(split_loop_ % 2 == 0 || split_loop_ == 1)
             << "It is better to split with multiple of 2";
-        ICHECK(is_zero(old_loop->min));
+        TVM_FFI_ICHECK(is_zero(old_loop->min));
         PrimExpr zero = old_loop->min;
         PrimExpr new_ext = old_loop->extent - make_const(old_loop->loop_var.dtype(), 1);
         PrimExpr factor = make_const(new_ext.dtype(), split_loop_);
@@ -191,11 +191,11 @@ class DoubleBufferInjector : public StmtExprMutator {
     auto it = dbuffer_info_.find(node->buffer->data.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
-      ICHECK(in_double_buffer_scope_);
-      ICHECK(e.switch_write_var.defined());
+      TVM_FFI_ICHECK(in_double_buffer_scope_);
+      TVM_FFI_ICHECK(e.switch_write_var.defined());
 
-      ICHECK_EQ(node->indices.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
-                                         << "Has FlattenBuffer been run?";
+      TVM_FFI_ICHECK_EQ(node->indices.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
+                                                 << "Has FlattenBuffer been run?";
 
       auto writer = node.CopyOnWrite();
       writer->buffer = GetRemappedBuffer(node->buffer, e.stride);
@@ -211,10 +211,10 @@ class DoubleBufferInjector : public StmtExprMutator {
     auto it = dbuffer_info_.find(node->buffer->data.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
-      ICHECK(e.switch_read_var.defined());
+      TVM_FFI_ICHECK(e.switch_read_var.defined());
 
-      ICHECK_EQ(node->indices.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
-                                         << "Has FlattenBuffer been run?";
+      TVM_FFI_ICHECK_EQ(node->indices.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
+                                                 << "Has FlattenBuffer been run?";
 
       auto writer = node.CopyOnWrite();
       writer->buffer = GetRemappedBuffer(node->buffer, e.stride);
@@ -231,13 +231,13 @@ class DoubleBufferInjector : public StmtExprMutator {
       return it->second;
     }
 
-    ICHECK(stride.defined());
+    TVM_FFI_ICHECK(stride.defined());
     // TODO(Lunderberg): Move this pass to before
     // FlattenBuffer.  That will simplify the
     // implementation, to be the insertion of a new dimension for the
     // buffer, rather than adjusting the other indices.
-    ICHECK_EQ(buf->shape.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
-                                    << "Has FlattenBuffer been run?";
+    TVM_FFI_ICHECK_EQ(buf->shape.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
+                                            << "Has FlattenBuffer been run?";
 
     // Stride gives the distance between the two halves of the
     // double-buffer, not the stride of the buffer's index.
@@ -248,14 +248,14 @@ class DoubleBufferInjector : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    ICHECK(!dbuffer_info_.count(op));
+    TVM_FFI_ICHECK(!dbuffer_info_.count(op));
     return ffi::GetRef<PrimExpr>(op);
   }
 
  private:
   Stmt MakeProducer(const AttrStmtNode* op) {
     const Var buffer = Downcast<Var>(op->node);
-    ICHECK_NE(loop_nest_.size(), 0U) << "Double buffer scope must be inside a loop";
+    TVM_FFI_ICHECK_NE(loop_nest_.size(), 0U) << "Double buffer scope must be inside a loop";
     auto it = dbuffer_info_.find(buffer.get());
     if (it == dbuffer_info_.end()) {
       LOG(WARNING) << "Skip double buffer scope " << op->node;

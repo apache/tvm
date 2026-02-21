@@ -46,8 +46,8 @@ class ReplayFuncNode : public SearchStrategyNode {
           num_trials_per_iter(num_trials_per_iter),
           st(0),
           ed(num_trials_per_iter) {
-      CHECK(self->mod_.defined() && self->space_generator_.defined())
-          << "ValueError: The search strategy has not been initialized.";
+      TVM_FFI_CHECK(self->mod_.defined() && self->space_generator_.defined(), ValueError)
+          << "The search strategy has not been initialized.";
     }
 
     inline ffi::Optional<ffi::Array<MeasureCandidate>> GenerateMeasureCandidates();
@@ -71,9 +71,9 @@ class ReplayFuncNode : public SearchStrategyNode {
                                     SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
-    CHECK(ctx->mod.defined()) << "ValueError: TuneContext.mod is not defined";
-    CHECK(ctx->space_generator.defined())
-        << "ValueError: TuneContext.space_generator is not defined";
+    TVM_FFI_CHECK(ctx->mod.defined(), ValueError) << "TuneContext.mod is not defined";
+    TVM_FFI_CHECK(ctx->space_generator.defined(), ValueError)
+        << "TuneContext.space_generator is not defined";
     if (!ctx->space_generator.value()->postprocs.defined()) {
       TVM_PY_LOG(WARNING, ctx->logger)
           << "`postprocs` is not defined in " << ctx->space_generator.value()
@@ -90,25 +90,26 @@ class ReplayFuncNode : public SearchStrategyNode {
                  const ffi::Array<s_tir::Schedule>& design_spaces,
                  const ffi::Optional<Database>& database,
                  const ffi::Optional<CostModel>& cost_model) final {
-    CHECK(this->state_ == nullptr)
-        << "ValueError: `PreTuning` is already invoked without corresponding `PostTuning`.";
+    TVM_FFI_CHECK(this->state_ == nullptr, ValueError)
+        << "`PreTuning` is already invoked without corresponding `PostTuning`.";
     this->state_ = std::make_unique<State>(this, max_trials, num_trials_per_iter);
   }
 
   void PostTuning() final {
-    CHECK(this->state_ != nullptr) << "ValueError: `PostTuning` is invoked without corresponding "
-                                      "`PreTuning`, or `PostTuning` is already invoked.";
+    TVM_FFI_CHECK(this->state_ != nullptr, ValueError)
+        << "`PostTuning` is invoked without corresponding "
+           "`PreTuning`, or `PostTuning` is already invoked.";
     this->state_.reset();
   }
 
   ffi::Optional<ffi::Array<MeasureCandidate>> GenerateMeasureCandidates() final {
-    ICHECK(this->state_ != nullptr);
+    TVM_FFI_ICHECK(this->state_ != nullptr);
     return this->state_->GenerateMeasureCandidates();
   }
 
   void NotifyRunnerResults(const ffi::Array<MeasureCandidate>& measure_candidates,
                            const ffi::Array<RunnerResult>& results) final {
-    ICHECK(this->state_ != nullptr);
+    TVM_FFI_ICHECK(this->state_ != nullptr);
     this->state_->NotifyRunnerResults(results);
   }
 

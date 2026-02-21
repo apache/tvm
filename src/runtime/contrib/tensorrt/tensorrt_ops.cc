@@ -51,7 +51,7 @@ nvinfer1::ITensor* TensorRTOpConverter::Reshape(TensorRTOpConverterParams* param
                                                 nvinfer1::ITensor* input,
                                                 const std::vector<int>& new_shape) const {
   auto layer = params->network->addShuffle(*input);
-  ICHECK(layer != nullptr);
+  TVM_FFI_ICHECK(layer != nullptr);
   layer->setReshapeDimensions(VectorToTrtDims(new_shape));
   layer->setOutputType(0, input->getType());
   return layer->getOutput(0);
@@ -61,17 +61,17 @@ nvinfer1::ITensor* TensorRTOpConverter::Transpose(TensorRTOpConverterParams* par
                                                   nvinfer1::ITensor* input,
                                                   const std::vector<int>& order) const {
   auto layer = params->network->addShuffle(*input);
-  ICHECK(layer != nullptr);
+  TVM_FFI_ICHECK(layer != nullptr);
   nvinfer1::Permutation perm;
   if (TRT_HAS_IMPLICIT_BATCH(params)) {
     // Batch dimension cannot be modified.
-    ICHECK_EQ(input->getDimensions().nbDims, order.size() - 1);
-    ICHECK_EQ(order[0], 0);
+    TVM_FFI_ICHECK_EQ(input->getDimensions().nbDims, order.size() - 1);
+    TVM_FFI_ICHECK_EQ(order[0], 0);
     for (size_t i = 0; i + 1 < order.size(); ++i) {
       perm.order[i] = order[i + 1] - 1;
     }
   } else {
-    ICHECK_EQ(input->getDimensions().nbDims, order.size());
+    TVM_FFI_ICHECK_EQ(input->getDimensions().nbDims, order.size());
     for (size_t i = 0; i < order.size(); ++i) {
       perm.order[i] = order[i];
     }
@@ -86,11 +86,11 @@ int TensorRTOpConverter::ConvertAxis(TensorRTOpConverterParams* params, int axis
   if (TRT_HAS_IMPLICIT_BATCH(params)) {
     input_rank += 1;
   }
-  ICHECK(axis >= -input_rank && axis < input_rank);
+  TVM_FFI_ICHECK(axis >= -input_rank && axis < input_rank);
   if (axis < 0) axis += input_rank;
   if (TRT_HAS_IMPLICIT_BATCH(params)) {
     // Can't modify batch dimenson.
-    ICHECK_NE(axis, 0);
+    TVM_FFI_ICHECK_NE(axis, 0);
     // Subtract 1 for implicit batch dim.
     axis -= 1;
   }
@@ -113,7 +113,7 @@ nvinfer1::ITensor* TensorRTOpConverter::CreateScalar(
 void TensorRTOpConverter::GetPadding(const ffi::Array<int64_t>& padding,
                                      bool* use_asymmetric_padding, nvinfer1::DimsHW* prepadding,
                                      nvinfer1::DimsHW* postpadding) const {
-  ICHECK(padding.size() == 1 || padding.size() == 2 || padding.size() == 4);
+  TVM_FFI_ICHECK(padding.size() == 1 || padding.size() == 2 || padding.size() == 4);
   if (padding.size() == 4) {
     // four int : padding width in the order of (top, left, bottom, right).
     *prepadding = nvinfer1::DimsHW(static_cast<int>(padding[0]), static_cast<int>(padding[1]));
@@ -135,7 +135,7 @@ void TensorRTOpConverter::GetPadding(const ffi::Array<int64_t>& padding,
 void TensorRTOpConverter::GetPadding3D(const ffi::Array<int64_t>& padding,
                                        bool* use_asymmetric_padding, nvinfer1::Dims* prepadding,
                                        nvinfer1::Dims* postpadding) const {
-  ICHECK(padding.size() == 1 || padding.size() == 3 || padding.size() == 6);
+  TVM_FFI_ICHECK(padding.size() == 1 || padding.size() == 3 || padding.size() == 6);
   if (padding.size() == 6) {
     // six int : padding width in the order of (front, top, left, back, bottom, right)
     *prepadding = nvinfer1::Dims3(static_cast<int>(padding[0]), static_cast<int>(padding[1]),
@@ -175,7 +175,7 @@ class ActivationOpConverter : public TensorRTOpConverter {
 #endif
     };
     auto it = op_map.find(op_name);
-    ICHECK(it != op_map.end()) << "Unsupported activation type " << op_name;
+    TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported activation type " << op_name;
     nvinfer1::IActivationLayer* act_layer =
         params->network->addActivation(*params->inputs.at(0).tensor, it->second);
 #if TRT_VERSION_GE(5, 1, 5)
@@ -189,7 +189,7 @@ class ActivationOpConverter : public TensorRTOpConverter {
       act_layer->setAlpha(alpha);
     }
 #endif
-    ICHECK(act_layer != nullptr);
+    TVM_FFI_ICHECK(act_layer != nullptr);
     params->outputs.push_back(act_layer->getOutput(0));
   }
 };
@@ -210,7 +210,7 @@ class ElementWiseBinaryOpConverter : public TensorRTOpConverter {
         {"maximum", nvinfer1::ElementWiseOperation::kMAX},
         {"minimum", nvinfer1::ElementWiseOperation::kMIN}};
     auto it = op_map.find(op_name);
-    ICHECK(it != op_map.end()) << "Unsupported elementwise type " << op_name;
+    TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported elementwise type " << op_name;
     // Broadcast
     auto input0 = params->inputs.at(0).tensor;
     auto input0_dims = TrtDimsToVector(input0->getDimensions());
@@ -231,7 +231,7 @@ class ElementWiseBinaryOpConverter : public TensorRTOpConverter {
 
     nvinfer1::IElementWiseLayer* elemwise_layer =
         params->network->addElementWise(*input0, *input1, it->second);
-    ICHECK(elemwise_layer != nullptr);
+    TVM_FFI_ICHECK(elemwise_layer != nullptr);
     params->outputs.push_back(elemwise_layer->getOutput(0));
   }
 };
@@ -246,8 +246,8 @@ class Conv1DOpConverter : public TensorRTOpConverter {
     auto input_tensor = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input_tensor->getDimensions());
     auto weight_shape = params->inputs.at(1).weight_shape;
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCW");
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIW");
     auto strides = params->node.GetAttr<ffi::Array<int64_t>>("strides");
     auto dilation = params->node.GetAttr<ffi::Array<int64_t>>("dilation");
     auto padding = params->node.GetAttr<ffi::Array<int64_t>>("padding");
@@ -267,12 +267,12 @@ class Conv1DOpConverter : public TensorRTOpConverter {
 
     auto conv_layer = params->network->addConvolution(*input_tensor, channels, kernel_size,
                                                       params->inputs.at(1).weight, bias);
-    ICHECK(conv_layer != nullptr);
+    TVM_FFI_ICHECK(conv_layer != nullptr);
     conv_layer->setPadding(nvinfer1::DimsHW(static_cast<int>(padding[0]), 0));
-    ICHECK_EQ(strides.size(), 1);
+    TVM_FFI_ICHECK_EQ(strides.size(), 1);
     const auto trt_strides = nvinfer1::DimsHW(static_cast<int>(strides[0]), 1);
     conv_layer->setStride(trt_strides);
-    ICHECK_EQ(dilation.size(), 1);
+    TVM_FFI_ICHECK_EQ(dilation.size(), 1);
     const auto trt_dilation = nvinfer1::DimsHW(static_cast<int>(dilation[0]), 1);
     conv_layer->setDilation(trt_dilation);
     conv_layer->setNbGroups(groups);
@@ -296,10 +296,10 @@ class Conv2DOpConverter : public TensorRTOpConverter {
     auto input_tensor = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input_tensor->getDimensions());
     auto weight_shape = params->inputs.at(1).weight_shape;
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCHW");
-    ICHECK(params->node.GetAttr<ffi::String>("out_layout") == "" ||
-           params->node.GetAttr<ffi::String>("out_layout") == "NCHW");
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIHW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCHW");
+    TVM_FFI_ICHECK(params->node.GetAttr<ffi::String>("out_layout") == "" ||
+                   params->node.GetAttr<ffi::String>("out_layout") == "NCHW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIHW");
     auto strides = params->node.GetAttr<ffi::Array<int64_t>>("strides");
     auto dilation = params->node.GetAttr<ffi::Array<int64_t>>("dilation");
     auto padding = params->node.GetAttr<ffi::Array<int64_t>>("padding");
@@ -314,7 +314,7 @@ class Conv2DOpConverter : public TensorRTOpConverter {
 #if !TRT_VERSION_GE(5, 1, 5)
     if (use_asymmetric_padding) {
       auto pad_layer = params->network->addPadding(*input_tensor, prepadding, postpadding);
-      ICHECK(pad_layer != nullptr);
+      TVM_FFI_ICHECK(pad_layer != nullptr);
       input_tensor = pad_layer->getOutput(0);
       // No need for conv op to do any padding.
       use_asymmetric_padding = false;
@@ -327,7 +327,7 @@ class Conv2DOpConverter : public TensorRTOpConverter {
     nvinfer1::Weights bias{weight_type, nullptr, 0};
     auto conv_layer = params->network->addConvolution(*input_tensor, channels, kernel_size,
                                                       params->inputs.at(1).weight, bias);
-    ICHECK(conv_layer != nullptr);
+    TVM_FFI_ICHECK(conv_layer != nullptr);
     conv_layer->setName(params->LayerName().c_str());
     if (use_asymmetric_padding) {
 #if TRT_VERSION_GE(5, 1, 5)
@@ -337,11 +337,11 @@ class Conv2DOpConverter : public TensorRTOpConverter {
     } else {
       conv_layer->setPadding(prepadding);
     }
-    ICHECK_EQ(strides.size(), 2);
+    TVM_FFI_ICHECK_EQ(strides.size(), 2);
     const auto trt_strides =
         nvinfer1::DimsHW(static_cast<int>(strides[0]), static_cast<int>(strides[1]));
     conv_layer->setStride(trt_strides);
-    ICHECK_EQ(dilation.size(), 2);
+    TVM_FFI_ICHECK_EQ(dilation.size(), 2);
     const auto trt_dilation =
         nvinfer1::DimsHW(static_cast<int>(dilation[0]), static_cast<int>(dilation[1]));
     conv_layer->setDilation(trt_dilation);
@@ -361,10 +361,10 @@ class Conv3DOpConverter : public TensorRTOpConverter {
     auto input_tensor = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input_tensor->getDimensions());
     auto weight_shape = params->inputs.at(1).weight_shape;
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCDHW");
-    ICHECK(params->node.GetAttr<ffi::String>("out_layout") == "" ||
-           params->node.GetAttr<ffi::String>("out_layout") == "NCDHW");
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIDHW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCDHW");
+    TVM_FFI_ICHECK(params->node.GetAttr<ffi::String>("out_layout") == "" ||
+                   params->node.GetAttr<ffi::String>("out_layout") == "NCDHW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIDHW");
     auto strides = params->node.GetAttr<ffi::Array<int64_t>>("strides");
     auto dilation = params->node.GetAttr<ffi::Array<int64_t>>("dilation");
     auto padding = params->node.GetAttr<ffi::Array<int64_t>>("padding");
@@ -380,18 +380,18 @@ class Conv3DOpConverter : public TensorRTOpConverter {
     nvinfer1::Weights bias{weight_type, nullptr, 0};
     auto conv_layer = params->network->addConvolutionNd(*input_tensor, num_outputs, kernel_size,
                                                         params->inputs.at(1).weight, bias);
-    ICHECK(conv_layer != nullptr);
+    TVM_FFI_ICHECK(conv_layer != nullptr);
     if (use_asymmetric_padding) {
       conv_layer->setPrePadding(prepadding);
       conv_layer->setPostPadding(postpadding);
     } else {
       conv_layer->setPaddingNd(prepadding);
     }
-    ICHECK_EQ(strides.size(), 3);
+    TVM_FFI_ICHECK_EQ(strides.size(), 3);
     const auto trt_strides = nvinfer1::Dims3(
         static_cast<int>(strides[0]), static_cast<int>(strides[1]), static_cast<int>(strides[2]));
     conv_layer->setStrideNd(trt_strides);
-    ICHECK_EQ(dilation.size(), 3);
+    TVM_FFI_ICHECK_EQ(dilation.size(), 3);
     const auto trt_dilation =
         nvinfer1::Dims3(static_cast<int>(dilation[0]), static_cast<int>(dilation[1]),
                         static_cast<int>(dilation[2]));
@@ -411,7 +411,7 @@ class DenseOpConverter : public TensorRTOpConverter {
   void Convert(TensorRTOpConverterParams* params) const {
     auto input_tensor = params->inputs.at(0).tensor;
     auto input_dims = TrtDimsToVector(input_tensor->getDimensions());
-    ICHECK(input_dims.size() > 0 && input_dims.size() <= 3);
+    TVM_FFI_ICHECK(input_dims.size() > 0 && input_dims.size() <= 3);
     const size_t required_rank = TRT_HAS_IMPLICIT_BATCH(params) ? 3 : 4;
     const bool need_reshape_on_input = input_dims.size() != required_rank;
     if (need_reshape_on_input) {
@@ -421,13 +421,13 @@ class DenseOpConverter : public TensorRTOpConverter {
       input_tensor = Reshape(params, input_tensor, new_shape);
     }
     // Weights are in KC format.
-    ICHECK_EQ(params->inputs.at(1).weight_shape.size(), 2);
+    TVM_FFI_ICHECK_EQ(params->inputs.at(1).weight_shape.size(), 2);
     const int num_units = params->inputs.at(1).weight_shape[0];
     const nvinfer1::DataType weight_type = params->inputs.at(1).weight.type;
     nvinfer1::Weights bias{weight_type, nullptr, 0};
     nvinfer1::IFullyConnectedLayer* fc_layer = params->network->addFullyConnected(
         *input_tensor, num_units, params->inputs.at(1).weight, bias);
-    ICHECK(fc_layer != nullptr);
+    TVM_FFI_ICHECK(fc_layer != nullptr);
     auto output_tensor = fc_layer->getOutput(0);
     if (need_reshape_on_input) {
       // Remove added dims.
@@ -450,9 +450,9 @@ class BatchNormOpConverter : public TensorRTOpConverter {
     auto beta = params->inputs.at(2).weight;
     auto mean = params->inputs.at(3).weight;
     auto var = params->inputs.at(4).weight;
-    ICHECK_EQ(gamma.count, beta.count);
-    ICHECK_EQ(gamma.count, mean.count);
-    ICHECK_EQ(gamma.count, var.count);
+    TVM_FFI_ICHECK_EQ(gamma.count, beta.count);
+    TVM_FFI_ICHECK_EQ(gamma.count, mean.count);
+    TVM_FFI_ICHECK_EQ(gamma.count, var.count);
     const float epsilon = static_cast<float>(params->node.GetAttr<double>("epsilon"));
     const int axis = static_cast<int>(params->node.GetAttr<int64_t>("axis"));
     const bool scale = static_cast<int>(params->node.GetAttr<int64_t>("scale"));
@@ -460,7 +460,7 @@ class BatchNormOpConverter : public TensorRTOpConverter {
     auto input_dims = TrtDimsToVector(input->getDimensions());
     const size_t min_rank = TRT_HAS_IMPLICIT_BATCH(params) ? 3 : 4;
     const size_t max_rank = TRT_HAS_IMPLICIT_BATCH(params) ? 4 : 5;
-    ICHECK_LE(input_dims.size(), max_rank);
+    TVM_FFI_ICHECK_LE(input_dims.size(), max_rank);
     const bool need_reshape = input_dims.size() < min_rank;
     const bool need_transpose = axis != 1;
 
@@ -475,7 +475,7 @@ class BatchNormOpConverter : public TensorRTOpConverter {
     // Transpose if needed.
     const int input_rank_with_batch =
         input->getDimensions().nbDims + (TRT_HAS_IMPLICIT_BATCH(params) ? 1 : 0);
-    ICHECK(input_rank_with_batch == 4 || input_rank_with_batch == 5);
+    TVM_FFI_ICHECK(input_rank_with_batch == 4 || input_rank_with_batch == 5);
     std::vector<int> transpose_order(input_rank_with_batch);
     if (need_transpose) {
       // Move axis dim to first dim after batch.
@@ -521,11 +521,11 @@ class BatchNormOpConverter : public TensorRTOpConverter {
     nvinfer1::IScaleLayer* scale_layer = params->network->addScaleNd(
         *input, nvinfer1::ScaleMode::kCHANNEL, weight_shift, weight_scale, power, channel_dim);
 #else
-    ICHECK_EQ(input->getDimensions().nbDims, 3);
+    TVM_FFI_ICHECK_EQ(input->getDimensions().nbDims, 3);
     nvinfer1::IScaleLayer* scale_layer = params->network->addScale(
         *input, nvinfer1::ScaleMode::kCHANNEL, weight_shift, weight_scale, power);
 #endif
-    ICHECK(scale_layer != nullptr);
+    TVM_FFI_ICHECK(scale_layer != nullptr);
     auto output = scale_layer->getOutput(0);
     if (need_transpose) {
       output = Transpose(params, output, transpose_order);
@@ -547,7 +547,7 @@ class LayerNormOpConverter : public TensorRTOpConverter {
     auto input = params->inputs.at(0).tensor;
     auto gamma_input = params->inputs.at(1).weight;
     auto beta_input = params->inputs.at(2).weight;
-    ICHECK_EQ(gamma_input.count, beta_input.count);
+    TVM_FFI_ICHECK_EQ(gamma_input.count, beta_input.count);
 
     const float epsilon = static_cast<float>(params->node.GetAttr<double>("epsilon"));
     const bool scale = static_cast<int>(params->node.GetAttr<int64_t>("scale"));
@@ -566,45 +566,45 @@ class LayerNormOpConverter : public TensorRTOpConverter {
     // Compute mean
     auto mean_layer = params->network->addReduce(*input, nvinfer1::ReduceOperation::kAVG, 1 << axis,
                                                  /*keepdims=*/true);
-    ICHECK(mean_layer != nullptr);
+    TVM_FFI_ICHECK(mean_layer != nullptr);
     auto mean = mean_layer->getOutput(0);
     // Compute variance
     auto diff_layer =
         params->network->addElementWise(*input, *mean, nvinfer1::ElementWiseOperation::kSUB);
-    ICHECK(diff_layer != nullptr);
+    TVM_FFI_ICHECK(diff_layer != nullptr);
     auto square_layer =
         params->network->addElementWise(*diff_layer->getOutput(0), *diff_layer->getOutput(0),
                                         nvinfer1::ElementWiseOperation::kPROD);
-    ICHECK(square_layer != nullptr);
+    TVM_FFI_ICHECK(square_layer != nullptr);
     auto var_layer = params->network->addReduce(
         *square_layer->getOutput(0), nvinfer1::ReduceOperation::kAVG, 1 << axis, /*keepdims=*/true);
-    ICHECK(var_layer != nullptr);
+    TVM_FFI_ICHECK(var_layer != nullptr);
     auto var = var_layer->getOutput(0);
     // sqrt(var + epsilon)
     auto epsilon_tensor = CreateScalar(params, epsilon, var->getDimensions());
     auto denom_add_layer = params->network->addElementWise(*var, *epsilon_tensor,
                                                            nvinfer1::ElementWiseOperation::kSUM);
-    ICHECK(denom_add_layer != nullptr);
+    TVM_FFI_ICHECK(denom_add_layer != nullptr);
     auto denom_layer =
         params->network->addUnary(*denom_add_layer->getOutput(0), nvinfer1::UnaryOperation::kSQRT);
-    ICHECK(denom_layer != nullptr);
+    TVM_FFI_ICHECK(denom_layer != nullptr);
     // (input - mean) / sqrt(var + epsilon)
     auto output_layer =
         params->network->addElementWise(*diff_layer->getOutput(0), *denom_layer->getOutput(0),
                                         nvinfer1::ElementWiseOperation::kDIV);
-    ICHECK(output_layer != nullptr);
+    TVM_FFI_ICHECK(output_layer != nullptr);
     auto output = output_layer->getOutput(0);
 
     if (scale) {
       auto scale_layer =
           params->network->addElementWise(*output, *gamma, nvinfer1::ElementWiseOperation::kPROD);
-      ICHECK(scale_layer != nullptr);
+      TVM_FFI_ICHECK(scale_layer != nullptr);
       output = scale_layer->getOutput(0);
     }
     if (center) {
       auto center_layer =
           params->network->addElementWise(*output, *beta, nvinfer1::ElementWiseOperation::kSUM);
-      ICHECK(center_layer != nullptr);
+      TVM_FFI_ICHECK(center_layer != nullptr);
       output = center_layer->getOutput(0);
     }
     params->outputs.push_back(output);
@@ -639,7 +639,7 @@ class SoftmaxOpConverter : public TensorRTOpConverter {
     const int axis = ConvertAxis(params, original_axis, input_rank);
     nvinfer1::ISoftMaxLayer* softmax_layer = params->network->addSoftMax(*input);
     softmax_layer->setAxes(1 << axis);
-    ICHECK(softmax_layer != nullptr);
+    TVM_FFI_ICHECK(softmax_layer != nullptr);
     params->outputs.push_back(softmax_layer->getOutput(0));
   }
 };
@@ -656,8 +656,8 @@ class PoolingOpConverter : public TensorRTOpConverter {
         {"nn.max_pool2d", nvinfer1::PoolingType::kMAX},
         {"nn.avg_pool2d", nvinfer1::PoolingType::kAVERAGE}};
     auto it = op_map.find(op_name);
-    ICHECK(it != op_map.end()) << "Unsupported pooling type " << op_name << " in TensorRT";
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("layout"), "NCHW");
+    TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported pooling type " << op_name << " in TensorRT";
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("layout"), "NCHW");
     auto pool_size = params->node.GetAttr<ffi::Array<int64_t>>("pool_size");
     auto padding = params->node.GetAttr<ffi::Array<int64_t>>("padding");
     auto strides = params->node.GetAttr<ffi::Array<int64_t>>("strides");
@@ -671,7 +671,7 @@ class PoolingOpConverter : public TensorRTOpConverter {
 #if !TRT_VERSION_GE(5, 1, 5)
     if (use_asymmetric_padding) {
       auto pad_layer = params->network->addPadding(*input, prepadding, postpadding);
-      ICHECK(pad_layer != nullptr);
+      TVM_FFI_ICHECK(pad_layer != nullptr);
       input = pad_layer->getOutput(0);
       // No need for pooling op to do any padding.
       use_asymmetric_padding = false;
@@ -682,7 +682,7 @@ class PoolingOpConverter : public TensorRTOpConverter {
     nvinfer1::DimsHW window_size =
         nvinfer1::DimsHW(static_cast<int>(pool_size[0]), static_cast<int>(pool_size[1]));
     auto pool_layer = params->network->addPooling(*input, it->second, window_size);
-    ICHECK(pool_layer != nullptr);
+    TVM_FFI_ICHECK(pool_layer != nullptr);
     nvinfer1::DimsHW trt_strides =
         nvinfer1::DimsHW(static_cast<int>(strides[0]), static_cast<int>(strides[1]));
     pool_layer->setStride(trt_strides);
@@ -711,7 +711,7 @@ class PoolingOpConverter : public TensorRTOpConverter {
       pool_layer->setPaddingMode(nvinfer1::PaddingMode::kEXPLICIT_ROUND_UP);
     }
 #else
-    ICHECK(!ceil_mode);
+    TVM_FFI_ICHECK(!ceil_mode);
 #endif
     params->outputs.push_back(pool_layer->getOutput(0));
   }
@@ -730,8 +730,8 @@ class Pooling3DOpConverter : public TensorRTOpConverter {
         {"nn.max_pool3d", nvinfer1::PoolingType::kMAX},
         {"nn.avg_pool3d", nvinfer1::PoolingType::kAVERAGE}};
     auto it = op_map.find(op_name);
-    ICHECK(it != op_map.end()) << "Unsupported pooling type " << op_name << " in TensorRT";
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("layout"), "NCDHW");
+    TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported pooling type " << op_name << " in TensorRT";
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("layout"), "NCDHW");
     auto pool_size = params->node.GetAttr<ffi::Array<int64_t>>("pool_size");
     auto padding = params->node.GetAttr<ffi::Array<int64_t>>("padding");
     auto strides = params->node.GetAttr<ffi::Array<int64_t>>("strides");
@@ -743,7 +743,7 @@ class Pooling3DOpConverter : public TensorRTOpConverter {
         nvinfer1::Dims3(static_cast<int>(pool_size[0]), static_cast<int>(pool_size[1]),
                         static_cast<int>(pool_size[2]));
     auto pool_layer = params->network->addPoolingNd(*input, it->second, window_size);
-    ICHECK(pool_layer != nullptr);
+    TVM_FFI_ICHECK(pool_layer != nullptr);
     nvinfer1::Dims trt_strides = nvinfer1::Dims3(
         static_cast<int>(strides[0]), static_cast<int>(strides[1]), static_cast<int>(strides[2]));
     pool_layer->setStrideNd(trt_strides);
@@ -778,13 +778,13 @@ class GlobalPoolingOpConverter : public TensorRTOpConverter {
         {"nn.global_max_pool2d", nvinfer1::PoolingType::kMAX},
         {"nn.global_avg_pool2d", nvinfer1::PoolingType::kAVERAGE}};
     auto it = op_map.find(op_name);
-    ICHECK(it != op_map.end()) << "Unsupported pooling type " << op_name << " in TensorRT";
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("layout"), "NCHW");
+    TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported pooling type " << op_name << " in TensorRT";
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("layout"), "NCHW");
     const int h = TRT_HAS_IMPLICIT_BATCH(params) ? input_dims[1] : input_dims[2];
     const int w = TRT_HAS_IMPLICIT_BATCH(params) ? input_dims[2] : input_dims[3];
     auto pool_layer =
         params->network->addPooling(*input_tensor, it->second, nvinfer1::DimsHW(h, w));
-    ICHECK(pool_layer != nullptr);
+    TVM_FFI_ICHECK(pool_layer != nullptr);
     params->outputs.push_back(pool_layer->getOutput(0));
   }
 };
@@ -854,10 +854,10 @@ class UnaryOpConverter : public TensorRTOpConverter {
 #endif
     };
     auto it = op_map.find(op_name);
-    ICHECK(it != op_map.end()) << "Unsupported unary type " << op_name;
+    TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported unary type " << op_name;
     nvinfer1::IUnaryLayer* unary_layer =
         params->network->addUnary(*params->inputs.at(0).tensor, it->second);
-    ICHECK(unary_layer != nullptr);
+    TVM_FFI_ICHECK(unary_layer != nullptr);
     params->outputs.push_back(unary_layer->getOutput(0));
   }
 };
@@ -870,12 +870,12 @@ class ConcatOpConverter : public TensorRTOpConverter {
 
   void Convert(TensorRTOpConverterParams* params) const {
     const int num_inputs = params->inputs.size();
-    ICHECK_GT(num_inputs, 0);
+    TVM_FFI_ICHECK_GT(num_inputs, 0);
     const int input_rank = params->inputs[0].tensor->getDimensions().nbDims;
     std::vector<nvinfer1::ITensor*> input_tensors;
     for (auto input : params->inputs) {
-      ICHECK_EQ(input.type, kTensor);
-      ICHECK_EQ(input_rank, input.tensor->getDimensions().nbDims);
+      TVM_FFI_ICHECK_EQ(input.type, kTensor);
+      TVM_FFI_ICHECK_EQ(input_rank, input.tensor->getDimensions().nbDims);
       input_tensors.push_back(input.tensor);
     }
 
@@ -884,7 +884,7 @@ class ConcatOpConverter : public TensorRTOpConverter {
 
     nvinfer1::IConcatenationLayer* concat_layer =
         params->network->addConcatenation(input_tensors.data(), input_tensors.size());
-    ICHECK(concat_layer != nullptr);
+    TVM_FFI_ICHECK(concat_layer != nullptr);
     concat_layer->setAxis(axis);
     params->outputs.push_back(concat_layer->getOutput(0));
   }
@@ -959,7 +959,7 @@ class BiasAddOpConverter : public TensorRTOpConverter {
     } else if (TRT_HAS_IMPLICIT_BATCH(params)) {
       axis -= 1;
     }
-    ICHECK(input_dims.size() > 0 && input_dims.size() <= required_rank);
+    TVM_FFI_ICHECK(input_dims.size() > 0 && input_dims.size() <= required_rank);
     const bool need_reshape_on_input = input_dims.size() != required_rank;
     if (need_reshape_on_input) {
       // Add dims of size 1 until rank is required_rank.
@@ -975,7 +975,7 @@ class BiasAddOpConverter : public TensorRTOpConverter {
     nvinfer1::IScaleLayer* scale_layer =
         params->network->addScaleNd(*input_tensor, nvinfer1::ScaleMode::kCHANNEL,
                                     params->inputs.at(1).weight, scale, power, axis);
-    ICHECK(scale_layer != nullptr);
+    TVM_FFI_ICHECK(scale_layer != nullptr);
     auto output_tensor = scale_layer->getOutput(0);
     if (need_reshape_on_input) {
       // Remove added dims.
@@ -994,12 +994,12 @@ class Conv2DTransposeOpConverter : public TensorRTOpConverter {
   void Convert(TensorRTOpConverterParams* params) const {
     auto input_tensor = params->inputs.at(0).tensor;
     auto weight_shape = params->inputs.at(1).weight_shape;
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCHW");
-    ICHECK(params->node.GetAttr<ffi::String>("out_layout") == "" ||
-           params->node.GetAttr<ffi::String>("out_layout") == "NCHW");
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIHW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCHW");
+    TVM_FFI_ICHECK(params->node.GetAttr<ffi::String>("out_layout") == "" ||
+                   params->node.GetAttr<ffi::String>("out_layout") == "NCHW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIHW");
     auto dilation = params->node.GetAttr<ffi::Array<int64_t>>("dilation");
-    ICHECK(static_cast<int>(dilation[0]) == 1 && static_cast<int>(dilation[1]) == 1);
+    TVM_FFI_ICHECK(static_cast<int>(dilation[0]) == 1 && static_cast<int>(dilation[1]) == 1);
     auto strides = params->node.GetAttr<ffi::Array<int64_t>>("strides");
     auto padding = params->node.GetAttr<ffi::Array<int64_t>>("padding");
     auto output_padding = params->node.GetAttr<ffi::Array<int64_t>>("output_padding");
@@ -1013,7 +1013,7 @@ class Conv2DTransposeOpConverter : public TensorRTOpConverter {
 #if !TRT_VERSION_GE(5, 1, 5)
     if (use_asymmetric_padding) {
       auto pad_layer = params->network->addPadding(*input_tensor, prepadding, postpadding);
-      ICHECK(pad_layer != nullptr);
+      TVM_FFI_ICHECK(pad_layer != nullptr);
       input_tensor = pad_layer->getOutput(0);
       // No need for conv op to do any padding.
       use_asymmetric_padding = false;
@@ -1027,7 +1027,7 @@ class Conv2DTransposeOpConverter : public TensorRTOpConverter {
     nvinfer1::Weights bias{weight_type, nullptr, 0};
     auto deconv_layer = params->network->addDeconvolution(*input_tensor, num_outputs, kernel_size,
                                                           params->inputs.at(1).weight, bias);
-    ICHECK(deconv_layer != nullptr);
+    TVM_FFI_ICHECK(deconv_layer != nullptr);
     if (use_asymmetric_padding) {
 #if TRT_VERSION_GE(5, 1, 5)
       deconv_layer->setPrePadding(prepadding);
@@ -1066,14 +1066,14 @@ class Conv3DTransposeOpConverter : public TensorRTOpConverter {
   void Convert(TensorRTOpConverterParams* params) const {
     auto input_tensor = params->inputs.at(0).tensor;
     auto weight_shape = params->inputs.at(1).weight_shape;
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCDHW");
-    ICHECK(params->node.GetAttr<ffi::String>("out_layout") == "" ||
-           params->node.GetAttr<ffi::String>("out_layout") == "NCDHW");
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIDHW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("data_layout"), "NCDHW");
+    TVM_FFI_ICHECK(params->node.GetAttr<ffi::String>("out_layout") == "" ||
+                   params->node.GetAttr<ffi::String>("out_layout") == "NCDHW");
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("kernel_layout"), "OIDHW");
     auto dilation = params->node.GetAttr<ffi::Array<int64_t>>("dilation");
-    ICHECK_EQ(dilation.size(), 3);
-    ICHECK(static_cast<int>(dilation[0]) == 1 && static_cast<int>(dilation[1]) == 1 &&
-           static_cast<int>(dilation[2]) == 1);
+    TVM_FFI_ICHECK_EQ(dilation.size(), 3);
+    TVM_FFI_ICHECK(static_cast<int>(dilation[0]) == 1 && static_cast<int>(dilation[1]) == 1 &&
+                   static_cast<int>(dilation[2]) == 1);
     auto strides = params->node.GetAttr<ffi::Array<int64_t>>("strides");
     auto padding = params->node.GetAttr<ffi::Array<int64_t>>("padding");
     auto output_padding = params->node.GetAttr<ffi::Array<int64_t>>("output_padding");
@@ -1088,14 +1088,14 @@ class Conv3DTransposeOpConverter : public TensorRTOpConverter {
     nvinfer1::Weights bias{weight_type, nullptr, 0};
     auto deconv_layer = params->network->addDeconvolutionNd(*input_tensor, num_outputs, kernel_size,
                                                             params->inputs.at(1).weight, bias);
-    ICHECK(deconv_layer != nullptr);
+    TVM_FFI_ICHECK(deconv_layer != nullptr);
     if (use_asymmetric_padding) {
       deconv_layer->setPrePadding(prepadding);
       deconv_layer->setPostPadding(postpadding);
     } else {
       deconv_layer->setPaddingNd(prepadding);
     }
-    ICHECK_EQ(strides.size(), 3);
+    TVM_FFI_ICHECK_EQ(strides.size(), 3);
     const auto trt_strides = nvinfer1::Dims3(
         static_cast<int>(strides[0]), static_cast<int>(strides[1]), static_cast<int>(strides[2]));
     deconv_layer->setStrideNd(trt_strides);
@@ -1105,7 +1105,7 @@ class Conv3DTransposeOpConverter : public TensorRTOpConverter {
     if (output_padding.size()) {
       GetPadding3D(output_padding, &use_asymmetric_padding, &prepadding, &postpadding);
       // Are any post-padding values non-zero?
-      ICHECK(!std::any_of(postpadding.d, postpadding.d + postpadding.nbDims, [](int x) {
+      TVM_FFI_ICHECK(!std::any_of(postpadding.d, postpadding.d + postpadding.nbDims, [](int x) {
         return x != 0;
       })) << "TRT does not support padding on 3 dimensions.";
     }
@@ -1170,7 +1170,7 @@ class ReshapeOpConverter : public TensorRTOpConverter {
     if (static_cast<int>(newshape[0]) == -1) start_index = 0;
     for (size_t i = start_index; i < newshape.size(); ++i) {
       const int value = static_cast<int>(newshape[i]);
-      ICHECK_GE(value, -1);
+      TVM_FFI_ICHECK_GE(value, -1);
       new_shape.push_back(value);
     }
     params->outputs.push_back(Reshape(params, input, new_shape));
@@ -1209,14 +1209,14 @@ class ReduceOpConverter : public TensorRTOpConverter {
         {"min", nvinfer1::ReduceOperation::kMIN},
         {"mean", nvinfer1::ReduceOperation::kAVG}};
     auto it = op_map.find(op_name);
-    ICHECK(it != op_map.end()) << "Unsupported reduce type " << op_name;
+    TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported reduce type " << op_name;
 
     auto input = params->inputs.at(0).tensor;
-    ICHECK_EQ(static_cast<int>(params->node.GetAttr<int64_t>("exclude")), false);
+    TVM_FFI_ICHECK_EQ(static_cast<int>(params->node.GetAttr<int64_t>("exclude")), false);
     bool keepdims = static_cast<int>(params->node.GetAttr<int64_t>("keepdims"));
     auto axes = params->node.GetAttr<ffi::Array<int64_t>>("axis");
     // TODO(trevmorr): Support reduce to scalar.
-    ICHECK_GT(axes.size(), 0);
+    TVM_FFI_ICHECK_GT(axes.size(), 0);
     uint32_t reduce_axes = 0;
 
     for (size_t i = 0; i < axes.size(); ++i) {
@@ -1274,8 +1274,8 @@ class AdaptivePoolingOpConverter : public TensorRTOpConverter {
         {"nn.adaptive_max_pool2d", nvinfer1::PoolingType::kMAX},
         {"nn.adaptive_avg_pool2d", nvinfer1::PoolingType::kAVERAGE}};
     auto it = op_map.find(op_name);
-    ICHECK(it != op_map.end()) << "Unsupported pooling type " << op_name << " in TensorRT";
-    ICHECK_EQ(params->node.GetAttr<ffi::String>("layout"), "NCHW");
+    TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported pooling type " << op_name << " in TensorRT";
+    TVM_FFI_ICHECK_EQ(params->node.GetAttr<ffi::String>("layout"), "NCHW");
 
     // This is an approximation of adaptive pooling. Results will not be
     // mathematically exact except when output_size is (1, 1).
@@ -1287,7 +1287,7 @@ class AdaptivePoolingOpConverter : public TensorRTOpConverter {
     const auto window_size = nvinfer1::DimsHW(h - (output_size.h() - 1) * stride.h(),
                                               w - (output_size.w() - 1) * stride.w());
     auto pool_layer = params->network->addPooling(*input_tensor, it->second, window_size);
-    ICHECK(pool_layer != nullptr);
+    TVM_FFI_ICHECK(pool_layer != nullptr);
     pool_layer->setStride(stride);
     params->outputs.push_back(pool_layer->getOutput(0));
   }
@@ -1308,7 +1308,7 @@ class BatchMatmulOpConverter : public TensorRTOpConverter {
         transb ? nvinfer1::MatrixOperation::kTRANSPOSE : nvinfer1::MatrixOperation::kNONE;
     nvinfer1::IMatrixMultiplyLayer* matmul_layer = params->network->addMatrixMultiply(
         *params->inputs.at(0).tensor, trt_transa, *params->inputs.at(1).tensor, trt_transb);
-    ICHECK(matmul_layer != nullptr);
+    TVM_FFI_ICHECK(matmul_layer != nullptr);
     params->outputs.push_back(matmul_layer->getOutput(0));
   }
 };

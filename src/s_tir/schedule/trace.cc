@@ -66,8 +66,8 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
       return std::nullopt;
     }
     const Object* dst = it->second;
-    ICHECK(dst->IsInstance<VarNode>())
-        << "TypeError: Expect 'tir.Var', but gets: " << dst->GetTypeKey();
+    TVM_FFI_CHECK(dst->IsInstance<VarNode>(), TypeError)
+        << "Expect 'tir.Var', but gets: " << dst->GetTypeKey();
     return ffi::GetRef<Var>(static_cast<const VarNode*>(dst));
   };
 
@@ -81,7 +81,7 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
                input.as<LoopRVNode>() ||    // RV: loop
                input.as<VarNode>()) {       // RV: var
       auto it = rv_map.find(input.as<Object>());
-      ICHECK(it != rv_map.end()) << "IndexError: Random variable doesn't exist: " << input;
+      TVM_FFI_CHECK(it != rv_map.end(), IndexError) << "Random variable doesn't exist: " << input;
       result.push_back(ffi::GetRef<ObjectRef>(it->second));
     } else if (auto expr = input.try_cast<PrimExpr>()) {  // RV: Expr
       result.push_back(Substitute(expr.value(), f_subst_with_rv_map));
@@ -91,8 +91,8 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
       // Recursively convert elements of the array into a new list of ObjectRefs.
       result.push_back(TranslateInputRVs(arr.value(), rv_map));
     } else {
-      ICHECK(false) << "TypeError: Cannot recognize the type of an input random variable: "
-                    << input.GetTypeKey();
+      TVM_FFI_CHECK(false, TypeError)
+          << "Cannot recognize the type of an input random variable: " << input.GetTypeKey();
       throw;
     }
   }
@@ -125,7 +125,7 @@ ffi::Array<Any> TranslateInputRVs(
         // Case 1. SBlockRV, LoopRV, VarRV
         results.push_back(it->second);
       } else {
-        LOG(FATAL) << "IndexError: Random variable is not defined " << input;
+        TVM_FFI_THROW(IndexError) << "Random variable is not defined " << input;
         throw;
       }
     } else if (input.as<IntImmNode>() || input.as<FloatImmNode>()) {
@@ -149,7 +149,7 @@ ffi::Array<Any> TranslateInputRVs(
           });
       results.push_back(index_map);
     } else {
-      LOG(FATAL) << "TypeError: Stringifying is not supported for type: " << input.GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Stringifying is not supported for type: " << input.GetTypeKey();
       throw;
     }
   }
@@ -182,8 +182,9 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
       continue;
     }
     auto opt_str = input.as<ffi::String>();
-    CHECK(opt_str) << "TypeError: Expect String, but gets: " << input.GetTypeKey();
-    CHECK_GT((*opt_str).size(), 0) << "ValueError: Empty string is not allowed in input names";
+    TVM_FFI_CHECK(opt_str, TypeError) << "Expect String, but gets: " << input.GetTypeKey();
+    TVM_FFI_CHECK_GT((*opt_str).size(), 0, ValueError)
+        << "Empty string is not allowed in input names";
     const char* name = (*opt_str).data();
     int64_t size = (*opt_str).size();
     if (name[0] == '{' && name[size - 1] == '}') {
@@ -201,7 +202,7 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
         results.push_back(index_map);
         continue;
       } else {
-        LOG(FATAL) << "TypeError: Unexpected object: " << obj.GetTypeKey();
+        TVM_FFI_THROW(TypeError) << "Unexpected object: " << obj.GetTypeKey();
         throw;
       }
     }
@@ -212,7 +213,8 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
     }
     // Case 0 & 1. None, SBlockRV, LoopRV, VarRV
     auto it = named_rvs.find(name);
-    CHECK(it != named_rvs.end()) << "ValueError: The random variable is not defined: " << name;
+    TVM_FFI_CHECK(it != named_rvs.end(), ValueError)
+        << "The random variable is not defined: " << name;
     results.push_back(it->second);
   }
   return results;
@@ -222,12 +224,12 @@ ffi::Array<Any> TranslateInputRVs(const ffi::Array<Any>& inputs,
 
 void TranslateAddOutputRVs(const ffi::Array<Any>& old_outputs, const ffi::Array<Any>& new_outputs,
                            std::unordered_map<const Object*, const Object*>* rv_map) {
-  ICHECK_EQ(old_outputs.size(), new_outputs.size());
+  TVM_FFI_ICHECK_EQ(old_outputs.size(), new_outputs.size());
   int n = old_outputs.size();
   for (int i = 0; i < n; ++i) {
     const Object* old_rv = old_outputs[i].as<Object>();
     const Object* new_rv = new_outputs[i].as<Object>();
-    ICHECK(old_rv != nullptr && new_rv != nullptr);
+    TVM_FFI_ICHECK(old_rv != nullptr && new_rv != nullptr);
     (*rv_map)[old_rv] = new_rv;
   }
 }
@@ -239,9 +241,8 @@ ffi::Array<ffi::String> TranslateAddOutputRVs(
   results.reserve(outputs.size());
   for (const Any& output : outputs) {
     int i = rv_names->size();
-    ICHECK(!rv_names->count(output.cast<ObjectRef>()))
-        << "ValueError: The random variable has been produced once: "
-        << rv_names->at(output.cast<ObjectRef>());
+    TVM_FFI_CHECK(!rv_names->count(output.cast<ObjectRef>()), ValueError)
+        << "The random variable has been produced once: " << rv_names->at(output.cast<ObjectRef>());
     ffi::String result;
     if (output == nullptr) {
       result = "_";
@@ -252,8 +253,8 @@ ffi::Array<ffi::String> TranslateAddOutputRVs(
     } else if (output.as<VarNode>()) {
       result = "v" + std::to_string(i);
     } else {
-      LOG(FATAL) << "TypeError: Cannot recognize the type of the random variable: "
-                 << output.GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Cannot recognize the type of the random variable: "
+                               << output.GetTypeKey();
       throw;
     }
     results.push_back(result);
@@ -265,7 +266,7 @@ ffi::Array<ffi::String> TranslateAddOutputRVs(
 void TranslateAddOutputRVs(const ffi::Array<ffi::String>& old_outputs,
                            const ffi::Array<Any>& new_outputs,
                            std::unordered_map<std::string, ObjectRef>* named_rvs) {
-  ICHECK_EQ(old_outputs.size(), new_outputs.size());
+  TVM_FFI_ICHECK_EQ(old_outputs.size(), new_outputs.size());
   int n = old_outputs.size();
   for (int i = 0; i < n; ++i) {
     named_rvs->emplace(Downcast<ffi::String>(old_outputs[i]), new_outputs[i].cast<ObjectRef>());
@@ -387,16 +388,16 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
   // Parse `json` into `json_insts` and `json_decisions`
   try {
     const ffi::ArrayObj* arr = json.as<ffi::ArrayObj>();
-    ICHECK(arr && arr->size() == 2);
+    TVM_FFI_ICHECK(arr && arr->size() == 2);
     const auto* arr0 = arr->at(0).as<ffi::ArrayObj>();
     const auto* arr1 = arr->at(1).as<ffi::ArrayObj>();
-    ICHECK(arr0 && arr1);
+    TVM_FFI_ICHECK(arr0 && arr1);
     json_insts = ffi::GetRef<ffi::Array<Any>>(arr0);
     json_decisions = ffi::GetRef<ffi::Array<Any>>(arr1);
   } catch (const tvm::Error& e) {
-    LOG(FATAL) << "ValueError: The json entry of a trace should contain two arrays, an array of "
-                  "instructions and an array of decisions, but gets: "
-               << json;
+    TVM_FFI_THROW(ValueError) << "The json entry of a trace should contain two arrays, an array of "
+                                 "instructions and an array of decisions, but gets: "
+                              << json;
     throw;
   }
   // Parse `json_decisions`
@@ -406,15 +407,15 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     Any decision{nullptr};
     try {
       const ffi::ArrayObj* arr = decision_entry.as<ffi::ArrayObj>();
-      ICHECK(arr && arr->size() == 2);
+      TVM_FFI_ICHECK(arr && arr->size() == 2);
       auto arr0 = arr->at(0).try_cast<IntImm>();
-      ICHECK(arr0);
+      TVM_FFI_ICHECK(arr0);
       index = arr0.value()->value;
       decision = arr->at(1);
     } catch (const tvm::Error& e) {
-      LOG(FATAL) << "ValueError: Each entry of a json decision should be a tuple [index, "
-                    "decision], but gets: "
-                 << decision_entry;
+      TVM_FFI_THROW(ValueError) << "Each entry of a json decision should be a tuple [index, "
+                                   "decision], but gets: "
+                                << decision_entry;
       throw;
     }
     decisions[index] = std::move(decision);
@@ -430,16 +431,16 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     // Parse the entry
     try {
       const auto* arr = inst_entry.as<ffi::ArrayObj>();
-      ICHECK(arr && arr->size() == 4);
+      TVM_FFI_ICHECK(arr && arr->size() == 4);
       ffi::String arr0 = arr->at(0).cast<ffi::String>();
       kind = InstructionKind::Get(arr0);
       inputs = arr->at(1).cast<ffi::Array<Any>>();
       attrs = arr->at(2).cast<ffi::Array<Any>>();
       outputs = arr->at(3).cast<ffi::Array<ffi::String>>();
     } catch (const tvm::Error& e) {
-      LOG(FATAL) << "ValueError: Each entry of a json instruction should be a tuple [inst_name, "
-                    "inputs, attrs, outputs], but gets: "
-                 << inst_entry << "\nThe error is: " << e.what();
+      TVM_FFI_THROW(ValueError) << "Each entry of a json instruction should be a tuple [inst_name, "
+                                   "inputs, attrs, outputs], but gets: "
+                                << inst_entry << "\nThe error is: " << e.what();
       throw;
     }
     // Parse inputs
@@ -524,7 +525,7 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TraceNode>([](const ObjectRef& obj, ReprPrinter* p) {
       const auto* self = obj.as<TraceNode>();
-      ICHECK_NOTNULL(self);
+      TVM_FFI_ICHECK_NOTNULL(self);
       p->stream << "# from tvm import s_tir\n";
       p->stream << "def apply_trace(sch: s_tir.Schedule) -> None:\n";
       ffi::Array<ffi::String> repr = self->AsPython(/*remove_postproc=*/false);

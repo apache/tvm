@@ -89,7 +89,7 @@ const ffi::Array<PrimExpr> BroadcastShape(const ffi::Array<PrimExpr>& src_shape,
   if (ArrayUtils::Broadcastable(tailing_shape, out_shape)) {
     return tailing_shape;
   }
-  ICHECK(ArrayUtils::Broadcastable(leading_shape, out_shape))
+  TVM_FFI_ICHECK(ArrayUtils::Broadcastable(leading_shape, out_shape))
       << "Only support elemwise ops with leading or tailing expand";
   return leading_shape;
 }
@@ -159,7 +159,7 @@ Expr RewriteArgmaxmin(BlockBuilder builder, const Var& var, const Call& src_call
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& out_dtype = ExprUtils::GetDataType(var);
   const auto* src_attrs = src_call->attrs.as<ArgmaxArgminAttrs>();
-  ICHECK(out_dtype == DataType::Int(32) || out_dtype == DataType::Int(64))
+  TVM_FFI_ICHECK(out_dtype == DataType::Int(32) || out_dtype == DataType::Int(64))
       << "Unexpected out dtype " << out_dtype;
   static const Op& topk_op = Op::Get("relax.topk");
   auto topk_attrs = ffi::make_object<TopKAttrs>();

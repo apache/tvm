@@ -90,12 +90,14 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
 
   if (instance.HasExtension("VK_KHR_get_physical_device_properties2")) {
     // Preferred method, call to get all properties that can be queried.
-    auto vkGetPhysicalDeviceProperties2KHR = (PFN_vkGetPhysicalDeviceProperties2KHR)ICHECK_NOTNULL(
-        vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
+    auto vkGetPhysicalDeviceProperties2KHR =
+        (PFN_vkGetPhysicalDeviceProperties2KHR)TVM_FFI_ICHECK_NOTNULL(
+            vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
     vkGetPhysicalDeviceProperties2KHR(device, &properties);
 
-    auto vkGetPhysicalDeviceFeatures2KHR = (PFN_vkGetPhysicalDeviceFeatures2KHR)ICHECK_NOTNULL(
-        vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2KHR"));
+    auto vkGetPhysicalDeviceFeatures2KHR =
+        (PFN_vkGetPhysicalDeviceFeatures2KHR)TVM_FFI_ICHECK_NOTNULL(
+            vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2KHR"));
     vkGetPhysicalDeviceFeatures2KHR(device, &features);
   } else {
     // Fallback, get as many features as we can from the Vulkan1.0
@@ -185,7 +187,8 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
       device_type = "cpu";
       break;
     default:
-      LOG(FATAL) << "Unknown vulkan device type: " << properties.properties.deviceType;
+      TVM_FFI_THROW(InternalError)
+          << "Unknown vulkan device type: " << properties.properties.deviceType;
       break;
   }
 
@@ -218,25 +221,29 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
 }
 
 VulkanDescriptorTemplateKHRFunctions::VulkanDescriptorTemplateKHRFunctions(VkDevice device) {
-  vkCreateDescriptorUpdateTemplateKHR = (PFN_vkCreateDescriptorUpdateTemplateKHR)ICHECK_NOTNULL(
-      vkGetDeviceProcAddr(device, "vkCreateDescriptorUpdateTemplateKHR"));
-  vkDestroyDescriptorUpdateTemplateKHR = (PFN_vkDestroyDescriptorUpdateTemplateKHR)ICHECK_NOTNULL(
-      vkGetDeviceProcAddr(device, "vkDestroyDescriptorUpdateTemplateKHR"));
-  vkUpdateDescriptorSetWithTemplateKHR = (PFN_vkUpdateDescriptorSetWithTemplateKHR)ICHECK_NOTNULL(
-      vkGetDeviceProcAddr(device, "vkUpdateDescriptorSetWithTemplateKHR"));
-  vkCmdPushDescriptorSetWithTemplateKHR = (PFN_vkCmdPushDescriptorSetWithTemplateKHR)ICHECK_NOTNULL(
-      vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetWithTemplateKHR"));
+  vkCreateDescriptorUpdateTemplateKHR =
+      (PFN_vkCreateDescriptorUpdateTemplateKHR)TVM_FFI_ICHECK_NOTNULL(
+          vkGetDeviceProcAddr(device, "vkCreateDescriptorUpdateTemplateKHR"));
+  vkDestroyDescriptorUpdateTemplateKHR =
+      (PFN_vkDestroyDescriptorUpdateTemplateKHR)TVM_FFI_ICHECK_NOTNULL(
+          vkGetDeviceProcAddr(device, "vkDestroyDescriptorUpdateTemplateKHR"));
+  vkUpdateDescriptorSetWithTemplateKHR =
+      (PFN_vkUpdateDescriptorSetWithTemplateKHR)TVM_FFI_ICHECK_NOTNULL(
+          vkGetDeviceProcAddr(device, "vkUpdateDescriptorSetWithTemplateKHR"));
+  vkCmdPushDescriptorSetWithTemplateKHR =
+      (PFN_vkCmdPushDescriptorSetWithTemplateKHR)TVM_FFI_ICHECK_NOTNULL(
+          vkGetDeviceProcAddr(device, "vkCmdPushDescriptorSetWithTemplateKHR"));
 }
 
 VulkanGetBufferMemoryRequirements2Functions::VulkanGetBufferMemoryRequirements2Functions(
     VkDevice device) {
-  vkGetBufferMemoryRequirements2KHR = (PFN_vkGetBufferMemoryRequirements2KHR)ICHECK_NOTNULL(
+  vkGetBufferMemoryRequirements2KHR = (PFN_vkGetBufferMemoryRequirements2KHR)TVM_FFI_ICHECK_NOTNULL(
       vkGetDeviceProcAddr(device, "vkGetBufferMemoryRequirements2KHR"));
 }
 
 VulkanQueueInsertDebugUtilsLabelFunctions::VulkanQueueInsertDebugUtilsLabelFunctions(
     VkInstance instance) {
-  vkQueueInsertDebugUtilsLabelEXT = (PFN_vkQueueInsertDebugUtilsLabelEXT)ICHECK_NOTNULL(
+  vkQueueInsertDebugUtilsLabelEXT = (PFN_vkQueueInsertDebugUtilsLabelEXT)TVM_FFI_ICHECK_NOTNULL(
       vkGetInstanceProcAddr(instance, "vkQueueInsertDebugUtilsLabelEXT"));
 }
 
@@ -307,7 +314,7 @@ VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_
       coherent_staging = ty.propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     }
   }
-  ICHECK_GE(win_rank, 0) << "Cannot find suitable staging memory on device.";
+  TVM_FFI_ICHECK_GE(win_rank, 0) << "Cannot find suitable staging memory on device.";
 
   win_rank = -1;
   for (uint32_t k = 0; k < prop.memoryTypeCount; ++k) {
@@ -328,7 +335,7 @@ VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_
     }
   }
 
-  ICHECK_GE(win_rank, 0) << "Cannot find suitable local memory on device.";
+  TVM_FFI_ICHECK_GE(win_rank, 0) << "Cannot find suitable local memory on device.";
 
   if (device_properties.supports_push_descriptor) {
     descriptor_template_khr_functions =
@@ -574,8 +581,8 @@ void VulkanDevice::AllocateThreadLocalUniformBuffer(size_t min_size) {
 
 VulkanStagingBuffer& VulkanDevice::ThreadLocalUniformBuffer(size_t min_size) {
   VulkanStagingBuffer* buffer = uniform_buffer_per_thread.Get();
-  ICHECK(buffer) << "Vulkan uniform buffer requested, but not previously allocated.";
-  ICHECK_GE(buffer->size, min_size)
+  TVM_FFI_ICHECK(buffer) << "Vulkan uniform buffer requested, but not previously allocated.";
+  TVM_FFI_ICHECK_GE(buffer->size, min_size)
       << "Vulkan uniform buffer of size " << min_size << " requested, but only " << buffer->size
       << " was previously allocated.";
   return *buffer;
@@ -598,7 +605,7 @@ uint32_t FindMemoryType(const VulkanDevice& device, VkBufferCreateInfo info,
     }
     type_bits >>= 1;
   }
-  LOG(FATAL) << "Requested memory type not found";
+  TVM_FFI_THROW(InternalError) << "Requested memory type not found";
   return 0;
 }
 

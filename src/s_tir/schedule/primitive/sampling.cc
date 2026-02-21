@@ -74,7 +74,7 @@ struct PrimeTable {
         }
       }
     }
-    ICHECK_EQ(static_cast<int32_t>(primes.size()), static_cast<int32_t>(kNumPrimes));
+    TVM_FFI_ICHECK_EQ(static_cast<int32_t>(primes.size()), static_cast<int32_t>(kNumPrimes));
     // Calculate the power table for each prime number
     pow_tab.reserve(primes.size());
     for (int32_t prime : primes) {
@@ -127,8 +127,8 @@ struct PrimeTable {
 
 int32_t SampleInt(support::LinearCongruentialEngine::TRandState* rand_state, int32_t min_inclusive,
                   int32_t max_exclusive) {
-  CHECK(min_inclusive < max_exclusive)
-      << "ValueError: max_exclusive must be greater than min_inclusive.";
+  TVM_FFI_CHECK(min_inclusive < max_exclusive, ValueError)
+      << "max_exclusive must be greater than min_inclusive.";
   if (min_inclusive + 1 == max_exclusive) {
     return min_inclusive;
   }
@@ -166,21 +166,21 @@ std::vector<int32_t> SampleWithoutReplacement(
 int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
                           const ffi::Array<Integer>& candidates, const ffi::Array<FloatImm>& probs,
                           ffi::Optional<Integer>* decision) {
-  CHECK(candidates.size() == probs.size())
-      << "ValueError: number of candidates does not match number of probabilities.";
+  TVM_FFI_CHECK(candidates.size() == probs.size(), ValueError)
+      << "number of candidates does not match number of probabilities.";
   int32_t i = -1;
   int32_t n = candidates.size();
   if (decision->defined()) {
     i = decision->value()->value;
-    CHECK(0 <= i && i < n) << "ValueError: Wrong decision value, where n = " << n
-                           << ", but decision is: " << i;
+    TVM_FFI_CHECK(0 <= i && i < n, ValueError)
+        << "Wrong decision value, where n = " << n << ", but decision is: " << i;
   } else {
     std::vector<double> weights = support::AsVector<FloatImm, double>(probs);
     std::discrete_distribution<int32_t> dist(weights.begin(), weights.end());
     support::LinearCongruentialEngine rand_(rand_state);
     i = dist(rand_);
-    ICHECK(0 <= i && i < n) << "ValueError: Unexpected decision generated, where n = " << n
-                            << ", but decision is: " << i;
+    TVM_FFI_CHECK(0 <= i && i < n, ValueError)
+        << "Unexpected decision generated, where n = " << n << ", but decision is: " << i;
   }
 
   *decision = Integer(i);  // decision is guaranteed not to be nullptr.
@@ -189,7 +189,7 @@ int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_st
 
 std::function<int32_t()> MakeMultinomialSampler(
     support::LinearCongruentialEngine::TRandState* rand_state, const std::vector<double>& weights) {
-  ICHECK(!weights.empty());
+  TVM_FFI_ICHECK(!weights.empty());
   std::vector<double> sums;
   sums.reserve(weights.size());
   double sum = 0.0;
@@ -203,16 +203,16 @@ std::function<int32_t()> MakeMultinomialSampler(
     double p = dist(rand_);
     int32_t idx = std::lower_bound(sums.begin(), sums.end(), p) - sums.begin();
     int32_t n = sums.size();
-    CHECK_LE(0, idx);
-    CHECK_LE(idx, n);
+    TVM_FFI_ICHECK_LE(0, idx);
+    TVM_FFI_ICHECK_LE(idx, n);
     return (idx == n) ? (n - 1) : idx;
   };
 }
 
 std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandState* rand_state,
                                        int32_t extent, int32_t n_splits) {
-  CHECK_GE(extent, 1) << "ValueError: Cannot tile a loop with 0 or negative extent";
-  CHECK_GE(n_splits, 1) << "ValueError: Cannot tile a loop to 0 or negative splits";
+  TVM_FFI_CHECK_GE(extent, 1, ValueError) << "Cannot tile a loop with 0 or negative extent";
+  TVM_FFI_CHECK_GE(n_splits, 1, ValueError) << "Cannot tile a loop to 0 or negative splits";
   // Handle special case that we can potentially accelerate
   if (n_splits == 1) {
     return {extent};
@@ -298,7 +298,7 @@ std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandS
   if (max_innermost_factor == -1) {
     return SamplePerfectTile(rand_state, extent, n_splits);
   }
-  CHECK_GE(n_splits, 2) << "ValueError: Cannot tile a loop into " << n_splits << " splits";
+  TVM_FFI_CHECK_GE(n_splits, 2, ValueError) << "Cannot tile a loop into " << n_splits << " splits";
   while (true) {
     std::vector<int64_t> result = SamplePerfectTile(rand_state, extent, n_splits);
     if (result.back() <= max_innermost_factor) {
@@ -322,7 +322,7 @@ std::vector<int64_t> SamplePerfectTile(
     // Case 2. Use previous decision
     result = support::AsVector<Integer, int64_t>(decision->value());
     int n = result.size();
-    ICHECK_GE(n, 2);
+    TVM_FFI_ICHECK_GE(n, 2);
     int64_t len = *extent;
     for (int i = n - 1; i > 0; --i) {
       int64_t& l = result[i];
@@ -339,7 +339,7 @@ std::vector<int64_t> SamplePerfectTile(
     // Case 3. Use fresh new sampling result
     result = SamplePerfectTile(rand_state, *extent, n_splits, max_innermost_factor);
     if (max_innermost_factor != -1) {
-      ICHECK_LE(result.back(), max_innermost_factor);
+      TVM_FFI_ICHECK_LE(result.back(), max_innermost_factor);
     }
   }
   *decision = support::AsArray<int64_t, Integer>(result);
@@ -352,7 +352,7 @@ TVM_DLL std::vector<int64_t> SamplePartitionedTile(
   if (partition_pos == 0 && innerpart_factor == 1) {
     return SamplePerfectTile(rand_state, extent, n_splits);
   }
-  CHECK_GE(n_splits, 2) << "ValueError: Cannot tile a loop into " << n_splits << " splits";
+  TVM_FFI_CHECK_GE(n_splits, 2, ValueError) << "Cannot tile a loop into " << n_splits << " splits";
   auto judge = [&](const std::vector<int64_t>& tile) {
     int64_t prod = 1;
     for (int i = partition_pos; i < n_splits; ++i) {
@@ -383,7 +383,7 @@ std::vector<int64_t> SamplePartitionedTile(
     // Case 2. Use previous decision
     result = support::AsVector<Integer, int64_t>(decision->value());
     int n = result.size();
-    ICHECK_GE(n, 2);
+    TVM_FFI_ICHECK_GE(n, 2);
     int innerpart_prod = 1;
     for (int i = partition_pos; i < n; ++i) {
       innerpart_prod *= result[i];
@@ -423,7 +423,7 @@ tir::StmtSRef SampleComputeLocation(s_tir::ScheduleState self,
                                     const StmtSRef& block_sref, ffi::Optional<Integer>* decision) {
   // Step 1. Collect all possible compute-at locations.
   auto [location_srefs, location_indices] = CollectComputeLocation(self, block_sref);
-  ICHECK_EQ(location_srefs.size(), location_indices.size());
+  TVM_FFI_ICHECK_EQ(location_srefs.size(), location_indices.size());
 
   // Step 2. If there was a previous decision, keep the decision unchanged if it exists in the
   // location candidates. Otherwise, pick the location before the previous decision.

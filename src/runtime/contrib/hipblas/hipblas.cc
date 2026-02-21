@@ -130,7 +130,7 @@ void CallHipblasLt(hipblasLtHandle_t hdl, hipStream_t stream,
                    const DLTensor* B, const DLTensor* bias, const DLTensor* C, bool transa,
                    bool transb, void* workspace_ptr, size_t workspace_size,
                    hipblasLtEpilogue_t epilogue) {
-  ICHECK(TypeEqual(A->dtype, B->dtype));
+  TVM_FFI_ICHECK(TypeEqual(A->dtype, B->dtype));
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
@@ -240,7 +240,7 @@ void CallHipblasLt(hipblasLtHandle_t hdl, hipStream_t stream,
 
     // hipBLASLt does not seem to support batched GEMM with one of matrices having
     // one batch (with batch_stride 0).
-    ICHECK_EQ(batch_count_A, batch_count_B);
+    TVM_FFI_ICHECK_EQ(batch_count_A, batch_count_B);
 
     set_batch(A_desc, batch_count_A, batch_stride_A);
     set_batch(B_desc, batch_count_B, batch_stride_B);
@@ -279,27 +279,27 @@ inline void CallGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t hdl)
   auto C = args[2].cast<DLTensor*>();
   bool transa = args[3].cast<bool>();
   bool transb = args[4].cast<bool>();
-  ICHECK_EQ(A->ndim, 2);
-  ICHECK_EQ(B->ndim, 2);
-  ICHECK_EQ(C->ndim, 2);
+  TVM_FFI_ICHECK_EQ(A->ndim, 2);
+  TVM_FFI_ICHECK_EQ(B->ndim, 2);
+  TVM_FFI_ICHECK_EQ(C->ndim, 2);
 
-  ICHECK_EQ(ElementStride(A), 1);
-  ICHECK_EQ(ElementStride(B), 1);
-  ICHECK_EQ(ElementStride(C), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(A), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(B), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(C), 1);
 
-  ICHECK(TypeEqual(A->dtype, B->dtype));
+  TVM_FFI_ICHECK(TypeEqual(A->dtype, B->dtype));
 
   // C can never be transposed.
-  ICHECK(!IsInPlaceTransposed(C));
+  TVM_FFI_ICHECK(!IsInPlaceTransposed(C));
 
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
-  ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride(A) % 4 == 0)
+  TVM_FFI_ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
+  TVM_FFI_ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride(A) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
+  TVM_FFI_ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
   double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
   double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
@@ -337,28 +337,28 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t
   auto C = args[2].cast<DLTensor*>();
   bool transa = args[3].cast<bool>();
   bool transb = args[4].cast<bool>();
-  ICHECK_EQ(A->ndim, 3);
-  ICHECK_EQ(B->ndim, 3);
-  ICHECK_EQ(C->ndim, 3);
+  TVM_FFI_ICHECK_EQ(A->ndim, 3);
+  TVM_FFI_ICHECK_EQ(B->ndim, 3);
+  TVM_FFI_ICHECK_EQ(C->ndim, 3);
 
   int batch_size = BatchCount3D(C);
-  ICHECK_EQ(ElementStride3D(A), 1);
-  ICHECK_EQ(ElementStride3D(B), 1);
-  ICHECK_EQ(ElementStride3D(C), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride3D(A), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride3D(B), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride3D(C), 1);
 
-  ICHECK(TypeEqual(A->dtype, B->dtype));
+  TVM_FFI_ICHECK(TypeEqual(A->dtype, B->dtype));
 
   // C can never be transposed.
-  ICHECK(!IsInPlaceTransposed3D(C));
+  TVM_FFI_ICHECK(!IsInPlaceTransposed3D(C));
 
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed3D(A) ? !transa : transa;
   transb = IsInPlaceTransposed3D(B) ? !transb : transb;
 
-  ICHECK(CheckMixPrecisionType(A->dtype, C->dtype, true)) << "Unsupported data type";
-  ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride3D(A) % 4 == 0)
+  TVM_FFI_ICHECK(CheckMixPrecisionType(A->dtype, C->dtype, true)) << "Unsupported data type";
+  TVM_FFI_ICHECK(!TypeMatch(A->dtype, kDLInt, 8) || ColumnStride3D(A) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride3D(B) % 4 == 0)
+  TVM_FFI_ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride3D(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
   double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
   double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
@@ -377,8 +377,8 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t
       B_stride = 0;
     }
   } else {
-    ICHECK_EQ(batch_size_a, batch_size);
-    ICHECK_EQ(batch_size_b, batch_size);
+    TVM_FFI_ICHECK_EQ(batch_size_a, batch_size);
+    TVM_FFI_ICHECK_EQ(batch_size_b, batch_size);
   }
 
   hipblasDatatype_t hip_in_type = GetHipBlasDataType(A->dtype);
@@ -419,9 +419,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal(A->device);
 
                     if (TypeEqual(A->dtype, C->dtype)) {
-                      ICHECK(TypeMatch(A->dtype, kDLFloat, 16) ||
-                             TypeMatch(A->dtype, kDLFloat, 32) ||
-                             TypeMatch(A->dtype, kDLFloat, 64));
+                      TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLFloat, 16) ||
+                                     TypeMatch(A->dtype, kDLFloat, 32) ||
+                                     TypeMatch(A->dtype, kDLFloat, 64));
 
                       if (TypeMatch(A->dtype, kDLFloat, 16)) {
                         CallGemm(args, ret, HipblasHgemmOp(entry_ptr->handle));
@@ -441,8 +441,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal(A->device);
 
         if (TypeEqual(A->dtype, C->dtype)) {
-          ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-                 TypeMatch(A->dtype, kDLFloat, 64));
+          TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+                         TypeMatch(A->dtype, kDLFloat, 64));
 
           if (TypeMatch(A->dtype, kDLFloat, 16)) {
             CallBatchGemm(args, ret, HipblasHgemmBatchOp(entry_ptr->handle));

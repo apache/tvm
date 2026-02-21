@@ -95,8 +95,8 @@ bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& buffer_shape,
                             const ffi::Array<arith::IntSet>& produced_region,
                             const ffi::Array<arith::IntSet>& consumed_region,
                             arith::Analyzer* analyzer) {
-  ICHECK_EQ(buffer_shape.size(), consumed_region.size());
-  ICHECK_EQ(produced_region.size(), consumed_region.size());
+  TVM_FFI_ICHECK_EQ(buffer_shape.size(), consumed_region.size());
+  TVM_FFI_ICHECK_EQ(produced_region.size(), consumed_region.size());
   int ndim = produced_region.size();
   for (int i = 0; i < ndim; ++i) {
     arith::IntSet buffer_size = arith::IntSet::FromMinExtent(0, buffer_shape[i]);
@@ -138,9 +138,9 @@ bool ProducerCoversConsumer(const ffi::Array<PrimExpr>& buffer_shape,
  * \param new_stmt The statement that replaces the statement inside the sref
  */
 void UpdateSRef(ScheduleStateNode* self, StmtSRefNode* sref, const StmtNode* new_stmt) {
-  ICHECK(new_stmt->IsInstance<SBlockNode>() || new_stmt->IsInstance<ForNode>());
+  TVM_FFI_ICHECK(new_stmt->IsInstance<SBlockNode>() || new_stmt->IsInstance<ForNode>());
   const StmtNode* old_stmt = sref->stmt;
-  ICHECK_NE(new_stmt, old_stmt);
+  TVM_FFI_ICHECK_NE(new_stmt, old_stmt);
   self->stmt2ref[new_stmt] = ffi::GetRef<StmtSRef>(sref);
   self->stmt2ref.erase(sref->stmt);
   sref->stmt = new_stmt;
@@ -235,7 +235,7 @@ class SBlockInfoCollector : private StmtVisitor {
       // Step 2.1. Extract the path to the scope root
       std::unordered_map<const StmtSRefNode*, std::vector<const StmtSRefNode*>> lca_loc;
       for (const StmtSRefNode* p = consumer_block_sref.get(); p != limit; p = p->parent) {
-        ICHECK(p != nullptr);
+        TVM_FFI_ICHECK(p != nullptr);
         lca_loc[p] = {};
       }
       // Step 2.2. For each producer, find the LCA of the consumer
@@ -249,7 +249,7 @@ class SBlockInfoCollector : private StmtVisitor {
         }
         const StmtSRef& producer = dep->src;
         for (const StmtSRefNode* p = producer.get();; p = p->parent) {
-          ICHECK(p != nullptr);
+          TVM_FFI_ICHECK(p != nullptr);
           auto it = lca_loc.find(p);
           // Find the first (lowest) position in the ancestor of the consumer,
           // which is the LCA by definition
@@ -373,7 +373,8 @@ class SBlockInfoCollector : private StmtVisitor {
 /**************** Constructor ****************/
 
 ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
-  CHECK_GE(debug_mask, -1) << "ValueError: negative `debug_mask` other than -1 is not supported";
+  TVM_FFI_CHECK_GE(debug_mask, -1, ValueError)
+      << "negative `debug_mask` other than -1 is not supported";
   ObjectPtr<ScheduleStateNode> n = ffi::make_object<ScheduleStateNode>();
   ScheduleStateNode* self = n.get();
   // Set `n->mod`
@@ -545,8 +546,8 @@ class SRefTreePruner : public StmtVisitor {
       return;
     }
     auto it = self_->stmt2ref.find(op);
-    ICHECK(it != self_->stmt2ref.end())
-        << "IndexError: Cannot find corresponding StmtSRef for the loop:\n"
+    TVM_FFI_CHECK(it != self_->stmt2ref.end(), IndexError)
+        << "Cannot find corresponding StmtSRef for the loop:\n"
         << ffi::GetRef<For>(op);
     StmtSRef& sref = it->second;
     // Detect reuse
@@ -568,8 +569,8 @@ class SRefTreePruner : public StmtVisitor {
       return;
     }
     auto it = self_->stmt2ref.find(op);
-    ICHECK(it != self_->stmt2ref.end())
-        << "IndexError: Cannot find corresponding StmtSRef for the block:\n"
+    TVM_FFI_CHECK(it != self_->stmt2ref.end(), IndexError)
+        << "Cannot find corresponding StmtSRef for the block:\n"
         << ffi::GetRef<SBlock>(op);
     StmtSRef& sref = it->second;
     // Detect reuse
@@ -724,11 +725,11 @@ class ChildReplacer : private StmtMutator {
   static Stmt Replace(const StmtNode* parent_stmt, const StmtNode* child_src_stmt,
                       const Stmt& child_tgt_stmt, int seq_index, bool allow_copy_on_write) {
     // Check the invariant
-    ICHECK(child_src_stmt->IsInstance<SBlockNode>() ||  //
-           child_src_stmt->IsInstance<ForNode>());
-    ICHECK(child_tgt_stmt->IsInstance<SBlockNode>() ||  //
-           child_tgt_stmt->IsInstance<ForNode>() ||     //
-           child_tgt_stmt->IsInstance<SBlockRealizeNode>());
+    TVM_FFI_ICHECK(child_src_stmt->IsInstance<SBlockNode>() ||  //
+                   child_src_stmt->IsInstance<ForNode>());
+    TVM_FFI_ICHECK(child_tgt_stmt->IsInstance<SBlockNode>() ||  //
+                   child_tgt_stmt->IsInstance<ForNode>() ||     //
+                   child_tgt_stmt->IsInstance<SBlockRealizeNode>());
     ChildReplacer replacer(child_src_stmt, child_tgt_stmt, seq_index);
     replacer.allow_copy_on_write_ = allow_copy_on_write;
     return replacer.CopyOnWriteAndVisit(parent_stmt);
@@ -801,7 +802,7 @@ class ChildReplacer : private StmtMutator {
       new_loop->body = this->VisitStmt(new_loop->body);
       return For(std::move(new_loop));
     }
-    LOG(FATAL) << "TypeError: Unexpected type: " << parent_stmt->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unexpected type: " << parent_stmt->GetTypeKey();
     throw;
   }
 
@@ -825,10 +826,11 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
         (src_stmt->IsInstance<ForNode>() && tgt_stmt->IsInstance<SBlockRealizeNode>()) ||
         (src_stmt->IsInstance<SBlockNode>() && tgt_stmt->IsInstance<SBlockNode>());
     if (!input_correct) {
-      LOG(FATAL) << "TypeError: src_stmt has type: " << src_stmt->GetTypeKey()
-                 << ". tgt_stmt has type: " << tgt_stmt->GetTypeKey() << ".\nsrc_stmt:\n"
-                 << ffi::GetRef<Stmt>(src_stmt) << "\ntgt_stmt:\n"
-                 << tgt_stmt;
+      TVM_FFI_THROW(TypeError) << "src_stmt has type: " << src_stmt->GetTypeKey()
+                               << ". tgt_stmt has type: " << tgt_stmt->GetTypeKey()
+                               << ".\nsrc_stmt:\n"
+                               << ffi::GetRef<Stmt>(src_stmt) << "\ntgt_stmt:\n"
+                               << tgt_stmt;
     }
   }
   // Rule out the case that no replacement happens
@@ -954,7 +956,7 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
     ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();
     // Move out the PrimFunc where the sref belong while ensuring uniqueness
     PrimFunc ref_new_func = Downcast<PrimFunc>(std::move(new_map->at(g_var)));
-    ICHECK(ref_new_func.get() == g_func);
+    TVM_FFI_ICHECK(ref_new_func.get() == g_func);
     PrimFuncNode* new_func = ref_new_func.CopyOnWrite();
     // If `g_func` was not unique, after the 3 lines above:
     //   `ref_new_func` points to a unique PrimFunc
@@ -981,7 +983,7 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
 }
 
 void ScheduleStateNode::DebugVerify() const {
-  ICHECK_GE(debug_mask, -1);
+  TVM_FFI_ICHECK_GE(debug_mask, -1);
   uint32_t flag = (debug_mask != -1)                       //
                       ? static_cast<uint32_t>(debug_mask)  //
                       : std::numeric_limits<uint32_t>::max();
@@ -998,8 +1000,8 @@ void ScheduleStateNode::DebugVerify() const {
 SBlockInfo ScheduleStateNode::GetSBlockInfo(const StmtSRef& block_sref) const {
   TVM_SREF_TO_SBLOCK(block_sref);
   auto it = this->block_info.find(block_sref);
-  CHECK(it != this->block_info.end())
-      << "IndexError: Cannot find the corresponding SBlockScope to the block sref:\n"
+  TVM_FFI_CHECK(it != this->block_info.end(), IndexError)
+      << "Cannot find the corresponding SBlockScope to the block sref:\n"
       << ffi::GetRef<Stmt>(block_sref->stmt);
   return it->second;
 }

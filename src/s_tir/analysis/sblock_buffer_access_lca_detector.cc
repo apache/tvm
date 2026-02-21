@@ -242,7 +242,7 @@ class LCADetector : public StmtExprVisitor {
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
       const auto* iter = op->node.as<IterVarNode>();
-      ICHECK_NOTNULL(iter);
+      TVM_FFI_ICHECK_NOTNULL(iter);
       const runtime::ThreadScope& scope = runtime::ThreadScope::Create(iter->thread_tag);
       if (scope.rank == 0) {
         blockidx_scopes_.push_back(ancestor_scopes_.back());
@@ -314,7 +314,7 @@ class LCADetector : public StmtExprVisitor {
     if (rhs->parent_scope_info == nullptr) {
       return rhs;
     }
-    ICHECK(lhs == rhs);
+    TVM_FFI_ICHECK(lhs == rhs);
     return lhs;
   }
 

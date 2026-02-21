@@ -206,8 +206,8 @@ void Target::EnterWithScope() {
 
 void Target::ExitWithScope() {
   TVMTargetThreadLocalEntry* entry = TVMTargetThreadLocalStoreGet();
-  ICHECK(!entry->context_stack.empty());
-  ICHECK(entry->context_stack.top().same_as(*this));
+  TVM_FFI_ICHECK(!entry->context_stack.empty());
+  TVM_FFI_ICHECK(entry->context_stack.top().same_as(*this));
   entry->context_stack.pop();
 }
 
@@ -216,7 +216,7 @@ Target Target::Current(bool allow_not_defined) {
   if (entry->context_stack.size() > 0) {
     return entry->context_stack.top();
   }
-  ICHECK(allow_not_defined)
+  TVM_FFI_ICHECK(allow_not_defined)
       << "Target context required. Please set it by constructing a TargetContext";
 
   return Target();
@@ -234,7 +234,7 @@ void TargetInternal::ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv) {
     } else if (auto opt_map = arg.try_cast<ffi::Map<ffi::String, ffi::Any>>()) {
       *rv = Target(opt_map.value());
     } else {
-      LOG(FATAL) << "TypeError: Cannot create target with type: " << args[0].GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Cannot create target with type: " << args[0].GetTypeKey();
     }
     return;
   } else if (args.size() == 2) {
@@ -243,11 +243,12 @@ void TargetInternal::ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv) {
       Target host = args[1].cast<Target>();
       *rv = Target(target, host);
     } else {
-      LOG(FATAL) << "ValueError: Invalid type of arguments. Expect 2 Target arguments.";
+      TVM_FFI_THROW(ValueError) << "Invalid type of arguments. Expect 2 Target arguments.";
     }
     return;
   }
-  LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1 or 2, but gets: " << args.size();
+  TVM_FFI_THROW(ValueError) << "Invalid number of arguments. Expect 1 or 2, but gets: "
+                            << args.size();
 }
 
 ObjectPtr<TargetNode> TargetInternal::FromString(const ffi::String& tag_or_config_or_target_str) {
@@ -294,10 +295,10 @@ ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi::Any>
   // Step 0: If "tag" is present without "kind", look up the tag config and merge overrides on top
   if (!config.count(kKind) && config.count(kTag)) {
     auto tag_name = config[kTag].try_cast<ffi::String>();
-    ICHECK(tag_name.has_value()) << "Expect type of field \"tag\" is String, but get type: "
-                                 << config[kTag].GetTypeKey();
+    TVM_FFI_ICHECK(tag_name.has_value())
+        << "Expect type of field \"tag\" is String, but get type: " << config[kTag].GetTypeKey();
     auto tag_config = TargetTag::GetConfig(tag_name.value());
-    ICHECK(tag_config.has_value()) << "Unknown target tag: " << tag_name.value();
+    TVM_FFI_ICHECK(tag_config.has_value()) << "Unknown target tag: " << tag_name.value();
     // Start from the tag's base config, then apply user overrides
     ffi::Map<ffi::String, ffi::Any> merged = tag_config.value();
     for (const auto& kv : config) {
@@ -412,9 +413,10 @@ std::unordered_map<ffi::String, ffi::Any> TargetInternal::QueryDevice(int device
   api->GetAttr(device, runtime::kExist, &ret);
   bool device_exists = ret.cast<bool>();
   if (!device_exists) {
-    ICHECK(device_exists) << "Requested reading the parameters for " << target->kind->name
-                          << " from device_id " << device_id << ", but device_id " << device_id
-                          << " doesn't exist.  Using default target parameters.";
+    TVM_FFI_ICHECK(device_exists) << "Requested reading the parameters for " << target->kind->name
+                                  << " from device_id " << device_id << ", but device_id "
+                                  << device_id
+                                  << " doesn't exist.  Using default target parameters.";
     return output;
   }
 

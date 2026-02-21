@@ -43,7 +43,7 @@ int ScanOpNode::num_outputs() const { return static_cast<int>(update.size()); }
 DataType ScanOpNode::output_dtype(size_t i) const { return update[i]->dtype; }
 
 ffi::Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
-  ICHECK_LT(i, state_placeholder.size());
+  TVM_FFI_ICHECK_LT(i, state_placeholder.size());
   return state_placeholder[i]->shape;
 }
 
@@ -55,27 +55,27 @@ ScanOp::ScanOp(std::string name, std::string tag,
     attrs = ffi::Map<ffi::String, ffi::Any>();
   }
   auto n = ffi::make_object<ScanOpNode>();
-  ICHECK_EQ(init.size(), update.size());
-  ICHECK_EQ(init.size(), state_placeholder.size());
+  TVM_FFI_ICHECK_EQ(init.size(), update.size());
+  TVM_FFI_ICHECK_EQ(init.size(), state_placeholder.size());
   arith::Analyzer analyzer;
   auto prove_equal = [&](PrimExpr lhs, PrimExpr rhs) {
     return is_zero(analyzer.Simplify(lhs - rhs));
   };
 
   for (size_t i = 0; i < init.size(); ++i) {
-    ICHECK_EQ(init[i]->dtype, state_placeholder[i]->dtype);
-    ICHECK_EQ(init[i]->dtype, update[i]->dtype);
-    ICHECK(prove_equal(init[i]->shape[0], axis->dom->min))
+    TVM_FFI_ICHECK_EQ(init[i]->dtype, state_placeholder[i]->dtype);
+    TVM_FFI_ICHECK_EQ(init[i]->dtype, update[i]->dtype);
+    TVM_FFI_ICHECK(prove_equal(init[i]->shape[0], axis->dom->min))
         << "init.shape[0] need to match scan_axis.dom.min";
-    ICHECK(prove_equal(state_placeholder[i]->shape[0], axis->dom->min + axis->dom->extent))
+    TVM_FFI_ICHECK(prove_equal(state_placeholder[i]->shape[0], axis->dom->min + axis->dom->extent))
         << "state_placeholder.shape[0] need to match"
         << " scan_axis.dom.min + scan_axis.dom.extent";
-    ICHECK_EQ(state_placeholder[i].ndim(), init[i].ndim())
+    TVM_FFI_ICHECK_EQ(state_placeholder[i].ndim(), init[i].ndim())
         << "The dimension of init need to match state_placeholder";
-    ICHECK_EQ(update[i].ndim(), state_placeholder[i].ndim())
+    TVM_FFI_ICHECK_EQ(update[i].ndim(), state_placeholder[i].ndim())
         << "The update.ndim need to be state_placeholder.ndim - 1";
     for (size_t k = 0; k < update[i].ndim(); ++k) {
-      ICHECK(prove_equal(update[i]->shape[k], state_placeholder[i]->shape[k]));
+      TVM_FFI_ICHECK(prove_equal(update[i]->shape[k], state_placeholder[i]->shape[k]));
       if (k != 0) {
         // setup spatial axis
         std::ostringstream spatial_name;
@@ -86,7 +86,7 @@ ScanOp::ScanOp(std::string name, std::string tag,
     }
 
     for (size_t k = 1; k < init[i].ndim(); ++k) {
-      ICHECK(prove_equal(init[i]->shape[k], state_placeholder[i]->shape[k]));
+      TVM_FFI_ICHECK(prove_equal(init[i]->shape[k], state_placeholder[i]->shape[k]));
     }
   }
   n->name = std::move(name);

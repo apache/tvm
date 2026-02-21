@@ -62,12 +62,12 @@ void ElwBinaryOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNo
       };
 
   auto it = op_map.find(op_name_);
-  ICHECK(it != op_map.end()) << "Unsupported binary operation type " << op_name_;
+  TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported binary operation type " << op_name_;
   const ANeuralNetworksOperationType operation_type = std::get<0>(it->second);
   const bool requires_fuse_code = std::get<1>(it->second);
 
-  ICHECK_EQ(inputs.size(), 2) << "Expected binary operation to have 2 inputs but got "
-                              << inputs.size();
+  TVM_FFI_ICHECK_EQ(inputs.size(), 2)
+      << "Expected binary operation to have 2 inputs but got " << inputs.size();
 
   auto input_indices = ExtractOperandIndices(inputs);
   const auto output_indices = ExtractOperandIndices(outputs);
@@ -101,7 +101,7 @@ void UnaryOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& 
       // clang-format on
   };
   auto it = op_map.find(op_name_);
-  ICHECK(it != op_map.end()) << "Unsupported unary operation type " << op_name_;
+  TVM_FFI_ICHECK(it != op_map.end()) << "Unsupported unary operation type " << op_name_;
   const ANeuralNetworksOperationType operation_type = it->second;
 
   const auto input_indices = ExtractOperandIndices(inputs);
@@ -112,8 +112,8 @@ void UnaryOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& 
 void SoftmaxOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& node,
                                  const std::vector<NNAPIOperand>& inputs,
                                  std::vector<NNAPIOperand>& outputs) const {
-  ICHECK_EQ(inputs.size(), 1) << "Unsupported number of inputs for NNAPI softmax operation: "
-                              << inputs.size();
+  TVM_FFI_ICHECK_EQ(inputs.size(), 1)
+      << "Unsupported number of inputs for NNAPI softmax operation: " << inputs.size();
 
   auto input_indices = ExtractOperandIndices(inputs);
   const auto output_indices = ExtractOperandIndices(outputs);
@@ -121,7 +121,7 @@ void SoftmaxOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode
   // Add the scalar input for beta value at index 1.
   const auto& input = inputs[0];
   // TODO(PLLab): Conditionally use float16 beta for float16 input.
-  ICHECK_EQ(input.GetTensorType(), ANEURALNETWORKS_TENSOR_FLOAT32)
+  TVM_FFI_ICHECK_EQ(input.GetTensorType(), ANEURALNETWORKS_TENSOR_FLOAT32)
       << "NNAPI runtime does not support non-float32 inputs for softmax yet";
   const float beta = 1.0f;
   const NNAPIOperand beta_operand =
@@ -180,7 +180,7 @@ NNAPIOperand TransposeOperand(NNAPIModelBuilder& builder, const NNAPIOperand& op
 void MatmulOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& node,
                                 const std::vector<NNAPIOperand>& inputs,
                                 std::vector<NNAPIOperand>& outputs) const {
-  ICHECK_EQ(inputs.size(), 2);
+  TVM_FFI_ICHECK_EQ(inputs.size(), 2);
 
   auto input_indices = ExtractOperandIndices(inputs);
   const auto output_indices = ExtractOperandIndices(outputs);
@@ -192,7 +192,7 @@ void MatmulOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode&
       // Check that the extra leading dimensions on input 0 are all ones.
       const size_t diff = input0_ndim - input1_ndim;
       for (size_t i = 0; i < diff; ++i) {
-        ICHECK_EQ(inputs[0].GetDimensions()[i], 1);
+        TVM_FFI_ICHECK_EQ(inputs[0].GetDimensions()[i], 1);
       }
 
       // Expand input 1's dimensions.
@@ -206,7 +206,7 @@ void MatmulOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode&
       // Check that the extra leading dimensions on input 1 are all ones.
       const size_t diff = input1_ndim - input0_ndim;
       for (size_t i = 0; i < diff; ++i) {
-        ICHECK_EQ(inputs[1].GetDimensions()[i], 1);
+        TVM_FFI_ICHECK_EQ(inputs[1].GetDimensions()[i], 1);
       }
 
       // Expand input 0's dimensions.
@@ -238,7 +238,7 @@ void MatmulOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode&
 void TransposeOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& node,
                                    const std::vector<NNAPIOperand>& inputs,
                                    std::vector<NNAPIOperand>& outputs) const {
-  ICHECK_EQ(inputs.size(), 1);
+  TVM_FFI_ICHECK_EQ(inputs.size(), 1);
 
   auto input_indices = ExtractOperandIndices(inputs);
   auto output_indices = ExtractOperandIndices(outputs);
@@ -274,9 +274,9 @@ void CastOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& n
   // Extract the dtype attribute and check that the output operand type matches the dtype specified.
   const auto dtype_str = node.GetAttr<ffi::String>("astype_dtype");
   const DLDataType dtype = StringToDLDataType(std::string(dtype_str));
-  ICHECK(outputs.size() == 1);
+  TVM_FFI_ICHECK(outputs.size() == 1);
   const auto output_tensor_type = outputs[0].GetTensorType();
-  ICHECK(TensorTypeFromDLDataType(dtype) == output_tensor_type)
+  TVM_FFI_ICHECK(TensorTypeFromDLDataType(dtype) == output_tensor_type)
       << "Expect a cast to dtype " << dtype_str << " but got output operand of type "
       << output_tensor_type;
 
@@ -301,14 +301,14 @@ void Conv2dOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode&
   auto input_indices = ExtractOperandIndices(inputs);
   auto output_indices = ExtractOperandIndices(outputs);
 
-  ICHECK(inputs.size() >= 2);
+  TVM_FFI_ICHECK(inputs.size() >= 2);
   const auto input_tensor_type = inputs[0].GetTensorType();
   const auto filter_tensor_type = inputs[1].GetTensorType();
-  ICHECK(input_tensor_type == filter_tensor_type);
-  ICHECK(input_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT32 ||
-         input_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT16);
-  ICHECK(filter_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT32 ||
-         filter_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT16);
+  TVM_FFI_ICHECK(input_tensor_type == filter_tensor_type);
+  TVM_FFI_ICHECK(input_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT32 ||
+                 input_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT16);
+  TVM_FFI_ICHECK(filter_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT32 ||
+                 filter_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT16);
 
   // transpose kernel
   std::vector<int64_t> transposed_dimensions{0, 2, 3, 1};
@@ -347,7 +347,8 @@ void Conv2dOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode&
     padding.push_back(static_cast<int32_t>(padding_attr[i]));
   }
 
-  ICHECK(padding.size() == 4) << "NNAPI runtime currently only supports 4-way padding for Conv2D";
+  TVM_FFI_ICHECK(padding.size() == 4)
+      << "NNAPI runtime currently only supports 4-way padding for Conv2D";
   const NNAPIOperand padding_left_operand =
       builder.CreateScalarOperandWithValue(ANEURALNETWORKS_INT32, &padding[1], sizeof(padding[1]));
   input_indices.push_back(padding_left_operand.GetOperandIndex());
@@ -371,7 +372,7 @@ void Conv2dOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode&
     stride.push_back(static_cast<int32_t>(stride_attr[i]));
   }
 
-  ICHECK(stride.size() == 2);
+  TVM_FFI_ICHECK(stride.size() == 2);
   const NNAPIOperand stride_width_operand =
       builder.CreateScalarOperandWithValue(ANEURALNETWORKS_INT32, &stride[0], sizeof(stride[0]));
   input_indices.push_back(stride_width_operand.GetOperandIndex());
@@ -491,11 +492,11 @@ void DenseOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& 
   auto output_indices = ExtractOperandIndices(outputs);
   const auto input_tensor_type = inputs[0].GetTensorType();
   const auto filter_tensor_type = inputs[1].GetTensorType();
-  ICHECK(input_tensor_type == filter_tensor_type);
-  ICHECK(input_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT32 ||
-         input_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT16);
-  ICHECK(filter_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT32 ||
-         filter_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT16);
+  TVM_FFI_ICHECK(input_tensor_type == filter_tensor_type);
+  TVM_FFI_ICHECK(input_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT32 ||
+                 input_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT16);
+  TVM_FFI_ICHECK(filter_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT32 ||
+                 filter_tensor_type == ANEURALNETWORKS_TENSOR_FLOAT16);
 
   if (input_indices.size() == 2) {
     const int output_depth = inputs[1].GetDimensions()[0];

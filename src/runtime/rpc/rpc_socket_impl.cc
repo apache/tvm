@@ -72,32 +72,34 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
   support::TCPSocket sock;
   support::SockAddr addr(url.c_str(), port);
   sock.Create(addr.ss_family());
-  ICHECK(sock.Connect(addr)) << "Connect to " << addr.AsString() << " failed";
+  TVM_FFI_ICHECK(sock.Connect(addr)) << "Connect to " << addr.AsString() << " failed";
   // hand shake
   std::ostringstream os;
   int code = kRPCMagic;
   int keylen = static_cast<int>(key.length());
-  ICHECK_EQ(sock.SendAll(&code, sizeof(code)), sizeof(code));
-  ICHECK_EQ(sock.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
+  TVM_FFI_ICHECK_EQ(sock.SendAll(&code, sizeof(code)), sizeof(code));
+  TVM_FFI_ICHECK_EQ(sock.SendAll(&keylen, sizeof(keylen)), sizeof(keylen));
   if (keylen != 0) {
-    ICHECK_EQ(sock.SendAll(key.c_str(), keylen), keylen);
+    TVM_FFI_ICHECK_EQ(sock.SendAll(key.c_str(), keylen), keylen);
   }
-  ICHECK_EQ(sock.RecvAll(&code, sizeof(code)), sizeof(code));
+  TVM_FFI_ICHECK_EQ(sock.RecvAll(&code, sizeof(code)), sizeof(code));
   if (code == kRPCMagic + 2) {
     sock.Close();
-    LOG(FATAL) << "URL " << url << ":" << port << " cannot find server that matches key=" << key;
+    TVM_FFI_THROW(InternalError) << "URL " << url << ":" << port
+                                 << " cannot find server that matches key=" << key;
   } else if (code == kRPCMagic + 1) {
     sock.Close();
-    LOG(FATAL) << "URL " << url << ":" << port << " server already have key=" << key;
+    TVM_FFI_THROW(InternalError) << "URL " << url << ":" << port
+                                 << " server already have key=" << key;
   } else if (code != kRPCMagic) {
     sock.Close();
-    LOG(FATAL) << "URL " << url << ":" << port << " is not TVM RPC server";
+    TVM_FFI_THROW(InternalError) << "URL " << url << ":" << port << " is not TVM RPC server";
   }
-  ICHECK_EQ(sock.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
+  TVM_FFI_ICHECK_EQ(sock.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
   std::string remote_key;
   if (keylen != 0) {
     remote_key.resize(keylen);
-    ICHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
+    TVM_FFI_ICHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
   }
 
   std::unique_ptr<RPCChannel> channel = std::make_unique<SockChannel>(sock);

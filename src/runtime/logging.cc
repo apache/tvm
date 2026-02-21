@@ -93,28 +93,29 @@ TvmLogDebugSettings TvmLogDebugSettings::ParseSpec(const char* opt_spec) {
       break;
     }
     if (name.empty()) {
-      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(name) << ": empty filename";
+      TVM_FFI_THROW(InternalError)
+          << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(name) << ": empty filename";
     }
 
     name = FileToVLogMapKey(name);
 
     std::string level;
     if (!std::getline(spec_stream, level, ',')) {
-      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(level)
-                 << ": expecting \"=<level>\" after \"" << name << "\"";
+      TVM_FFI_THROW(InternalError) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(level)
+                                   << ": expecting \"=<level>\" after \"" << name << "\"";
       return settings;
     }
     if (level.empty()) {
-      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(level)
-                 << ": empty level after \"" << name << "\"";
+      TVM_FFI_THROW(InternalError) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(level)
+                                   << ": empty level after \"" << name << "\"";
       return settings;
     }
     // Parse level, default to 0 if ill-formed which we don't detect.
     char* end_of_level = nullptr;
     int level_val = static_cast<int>(strtol(level.c_str(), &end_of_level, 10));
     if (end_of_level != level.c_str() + level.size()) {
-      LOG(FATAL) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(level)
-                 << ": invalid level: \"" << level << "\"";
+      TVM_FFI_THROW(InternalError) << "TVM_LOG_DEBUG ill-formed at position " << tell_pos(level)
+                                   << ": invalid level: \"" << level << "\"";
       return settings;
     }
     LOG(INFO) << "TVM_LOG_DEBUG enables VLOG statements in '" << name << "' up to level " << level;
@@ -145,7 +146,7 @@ LogFatal::Entry& LogFatal::GetEntry() {
 std::string VLogContext::str() const {
   std::stringstream result;
   for (const auto* entry : context_stack_) {
-    ICHECK_NOTNULL(entry);
+    TVM_FFI_ICHECK_NOTNULL(entry);
     result << entry->str();
     result << ": ";
   }

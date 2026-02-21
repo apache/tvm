@@ -49,7 +49,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("__data_from_json__", [](const ffi::String& name) {
         auto kind = TargetKind::Get(name);
-        ICHECK(kind.has_value()) << "Cannot find target kind \'" << name << '\'';
+        TVM_FFI_ICHECK(kind.has_value()) << "Cannot find target kind \'" << name << '\'';
         return kind.value();
       });
 }
@@ -150,8 +150,8 @@ void CheckOrSetAttr(ffi::Map<ffi::String, ffi::Any>* attrs, const ffi::String& n
     attrs->Set(name, value);
   } else {
     auto str = (*iter).second.try_cast<ffi::String>();
-    ICHECK(str && str.value() == value) << "ValueError: Expects \"" << name << "\" to be \""
-                                        << value << "\", but gets: " << (*iter).second;
+    TVM_FFI_CHECK(str && str.value() == value, ValueError)
+        << "Expects \"" << name << "\" to be \"" << value << "\", but gets: " << (*iter).second;
   }
 }
 
@@ -167,8 +167,8 @@ ffi::Map<ffi::String, ffi::Any> UpdateCUDAAttrs(ffi::Map<ffi::String, ffi::Any> 
   if (target.count("arch")) {
     // If -arch has been specified, validate the correctness
     ffi::String archStr = Downcast<ffi::String>(target.at("arch"));
-    ICHECK(support::StartsWith(archStr, "sm_"))
-        << "ValueError: CUDA target gets an invalid CUDA arch: -arch=" << archStr;
+    TVM_FFI_CHECK(support::StartsWith(archStr, "sm_"), ValueError)
+        << "CUDA target gets an invalid CUDA arch: -arch=" << archStr;
   } else {
     // Use the compute version of the first CUDA GPU instead
     int archInt;
@@ -195,8 +195,8 @@ ffi::Map<ffi::String, ffi::Any> UpdateNVPTXAttrs(ffi::Map<ffi::String, ffi::Any>
   if (target.count("mcpu")) {
     // If -mcpu has been specified, validate the correctness
     ffi::String mcpu = Downcast<ffi::String>(target.at("mcpu"));
-    ICHECK(support::StartsWith(mcpu, "sm_"))
-        << "ValueError: NVPTX target gets an invalid CUDA arch: -mcpu=" << mcpu;
+    TVM_FFI_CHECK(support::StartsWith(mcpu, "sm_"), ValueError)
+        << "NVPTX target gets an invalid CUDA arch: -mcpu=" << mcpu;
   } else {
     // Use the compute version of the first CUDA GPU instead
     int arch;
@@ -224,7 +224,8 @@ ffi::Map<ffi::String, ffi::Any> UpdateROCmAttrs(ffi::Map<ffi::String, ffi::Any> 
   if (target.count("mcpu")) {
     ffi::String mcpu = Downcast<ffi::String>(target.at("mcpu"));
     arch = ExtractStringWithPrefix(mcpu, "gfx");
-    ICHECK(!arch.empty()) << "ValueError: ROCm target gets an invalid GFX version: -mcpu=" << mcpu;
+    TVM_FFI_CHECK(!arch.empty(), ValueError)
+        << "ROCm target gets an invalid GFX version: -mcpu=" << mcpu;
   } else {
     ffi::Any val;
     if (const auto f_get_rocm_arch = tvm::ffi::Function::GetGlobal("tvm_callback_rocm_get_arch")) {

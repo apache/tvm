@@ -265,8 +265,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     } else if (auto stmt = obj.as<Stmt>()) {
       return EstimateTIRFlops(stmt.value());
     } else {
-      LOG(FATAL) << "TypeError: Expect the input to be either IRModule or Stmt, but gets: "
-                 << obj->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Expect the input to be either IRModule or Stmt, but gets: "
+                               << obj->GetTypeKey();
       throw;
     }
   });

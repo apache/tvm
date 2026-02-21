@@ -65,15 +65,15 @@ CLMLWorkspace::CLMLWorkspace() {
   // Print extensions
   size_t reqd_size = 0;
   result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, 0, nullptr, &reqd_size);
-  ICHECK(reqd_size > 0u && result == CL_SUCCESS) << "clGetDeviceInfo:" << result;
+  TVM_FFI_ICHECK(reqd_size > 0u && result == CL_SUCCESS) << "clGetDeviceInfo:" << result;
   std::vector<char> extn_buf(reqd_size);
   result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, reqd_size, extn_buf.data(), nullptr);
-  ICHECK(result == CL_SUCCESS) << "clGetDeviceInfo:" << result;
+  TVM_FFI_ICHECK(result == CL_SUCCESS) << "clGetDeviceInfo:" << result;
   std::string extensions(extn_buf.data());
   LOG_CLML << "OpenCL Extensions:" << extensions;
 
   if (extensions.find("cl_qcom_ml_ops") == std::string::npos) {
-    LOG(FATAL) << "CLML Runtime Init: Qualcomm extn not present.\n";
+    TVM_FFI_THROW(InternalError) << "CLML Runtime Init: Qualcomm extn not present.\n";
     return;
   }
   if (getenv("CLML_DISABLE_RECORDABLE_QUEUE")) {
@@ -89,8 +89,8 @@ CLMLWorkspace::CLMLWorkspace() {
   if (is_on_chip_memory) {
     result = clGetDeviceInfo(device_id, CL_DEVICE_ONCHIP_GLOBAL_MEM_SIZE_QCOM,
                              sizeof(onchip_mem_size), &onchip_mem_size, nullptr);
-    ICHECK(result == CL_SUCCESS) << "clGetDeviceInfo(CL_DEVICE_ONCHIP_GLOBAL_MEM_SIZE_QCOM):"
-                                 << result;
+    TVM_FFI_ICHECK(result == CL_SUCCESS)
+        << "clGetDeviceInfo(CL_DEVICE_ONCHIP_GLOBAL_MEM_SIZE_QCOM):" << result;
     LOG_CLML << "On chip memory size:" << onchip_mem_size;
   }
 
@@ -100,12 +100,12 @@ CLMLWorkspace::CLMLWorkspace() {
   cl_int minorVersions[MAX_VERSIONS];
   cl_uint numVersions = 0;
   result = clQueryMLInterfaceVersionsQCOM(nullptr, nullptr, 0, &numVersions);
-  ICHECK(result == CL_SUCCESS) << "clQueryMLInterfaceVersionsQCOM:" << result;
-  ICHECK(numVersions > 0u);
-  ICHECK(numVersions <= MAX_VERSIONS);
+  TVM_FFI_ICHECK(result == CL_SUCCESS) << "clQueryMLInterfaceVersionsQCOM:" << result;
+  TVM_FFI_ICHECK(numVersions > 0u);
+  TVM_FFI_ICHECK(numVersions <= MAX_VERSIONS);
 
   result = clQueryMLInterfaceVersionsQCOM(majorVersions, minorVersions, numVersions, nullptr);
-  ICHECK(result == CL_SUCCESS) << "clQueryMLInterfaceVersionsQCOM:" << result;
+  TVM_FFI_ICHECK(result == CL_SUCCESS) << "clQueryMLInterfaceVersionsQCOM:" << result;
 
   target_major = majorVersions[numVersions - 1];
   target_minor = minorVersions[numVersions - 1];
@@ -123,10 +123,10 @@ CLMLWorkspace::CLMLWorkspace() {
 
   clGetMLInterfaceQCOM(&h_ClmlIntf, target_major, target_minor);
 
-  ICHECK(nullptr != h_ClmlIntf) << "Couldn't get API interface, target is not supported."
-                                << "Compiled version: " << CL_QCOM_ML_OPS_H_MAJOR_VERSION << "."
-                                << CL_QCOM_ML_OPS_H_MINOR_VERSION
-                                << "Target Version:" << target_major << "." << target_minor;
+  TVM_FFI_ICHECK(nullptr != h_ClmlIntf)
+      << "Couldn't get API interface, target is not supported."
+      << "Compiled version: " << CL_QCOM_ML_OPS_H_MAJOR_VERSION << "."
+      << CL_QCOM_ML_OPS_H_MINOR_VERSION << "Target Version:" << target_major << "." << target_minor;
 
   char* tune_flag;
   if ((tune_flag = getenv("CLML_IS_TUNING_RUN")))
@@ -171,7 +171,7 @@ class CLMLRuntime : public JSONRuntimeBase {
         ReleaseDDRMemory(tensor_desc->memory);
       } else {
         result = clReleaseMemObject(tensor_desc->memory);
-        ICHECK(result == CL_SUCCESS) << "clReleaseMemObject:" << result;
+        TVM_FFI_ICHECK(result == CL_SUCCESS) << "clReleaseMemObject:" << result;
       }
     }
     for (size_t i = 0; i < this->layer_.function.size(); ++i) {
@@ -207,7 +207,7 @@ class CLMLRuntime : public JSONRuntimeBase {
    * \param consts The constant params from compiled model.
    */
   void Init(const ffi::Array<Tensor>& consts) override {
-    ICHECK_EQ(consts.size(), const_idx_.size())
+    TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     SetupConstants(consts);
 
@@ -227,10 +227,10 @@ class CLMLRuntime : public JSONRuntimeBase {
     if (cws->is_recordable_queue) {
       this->layer_.recordable_queue =
           clCreateCommandQueue(CLML_CTX, cws->device_id, CL_QUEUE_RECORDABLE_QCOM, &result);
-      ICHECK(result == CL_SUCCESS) << "clCreateCommandQueue - Recordable:" << result;
+      TVM_FFI_ICHECK(result == CL_SUCCESS) << "clCreateCommandQueue - Recordable:" << result;
 
       this->layer_.recording = clNewRecordingQCOM(this->layer_.recordable_queue, &result);
-      ICHECK(result == CL_SUCCESS) << "clNewRecordingQCOM:" << result;
+      TVM_FFI_ICHECK(result == CL_SUCCESS) << "clNewRecordingQCOM:" << result;
     }
 
     // A Tuning run, so create the cache from scratch
@@ -270,8 +270,9 @@ class CLMLRuntime : public JSONRuntimeBase {
 
   std::string DebugDump(void) override {
     if (cws->is_recordable_queue) {
-      LOG(FATAL) << "Debugging over recordable queues is not supported yet. You may disable the "
-                    "same by exporting CLML_DISABLE_RECORDABLE_QUEUE at runtime.";
+      TVM_FFI_THROW(InternalError)
+          << "Debugging over recordable queues is not supported yet. You may disable the "
+             "same by exporting CLML_DISABLE_RECORDABLE_QUEUE at runtime.";
     }
     namespace json = ::tvm::ffi::json;
     cl_command_queue queue = CLML_QUEUE;
@@ -722,7 +723,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       uint32_t eid = EntryID(nid, 0);
       node_data = data_entry_[eid]->data;
       usage = CL_TENSOR_USAGE_PARAMETER_QCOM;
-      ICHECK(CL_TENSOR_USAGE_INVALID_QCOM == this->layer_.storage_map[nid].usage)
+      TVM_FFI_ICHECK(CL_TENSOR_USAGE_INVALID_QCOM == this->layer_.storage_map[nid].usage)
           << "Parameter have usage reservation !!!";
     }
     if (CL_TENSOR_USAGE_INVALID_QCOM != this->layer_.storage_map[nid].usage) {
@@ -833,7 +834,7 @@ class CLMLRuntime : public JSONRuntimeBase {
         else if ("nn.batch_matmul" == op_name)
           CreateBatchMatmulLayer(&layer_, node, nid);
         else
-          LOG(FATAL) << "Unsupported op: " << op_name;
+          TVM_FFI_THROW(InternalError) << "Unsupported op: " << op_name;
         this->layer_.layer_names.push_back(op_name);
         // Keep map of function and Node to use in profiling
         this->layer_.op_node_map.insert({this->layer_.function.back(), std::make_pair(nid, node)});
@@ -893,8 +894,9 @@ class CLMLRuntime : public JSONRuntimeBase {
         tensor_desc->memory = AllocateDDRTensorMemory(mem_size);
         alloc_ddr += mem_size;
       } else {
-        LOG(FATAL) << "Mem allocation not found on DDR as well as On-Chip nid: " << it->first
-                   << " Type:" << node.GetOpType();
+        TVM_FFI_THROW(InternalError)
+            << "Mem allocation not found on DDR as well as On-Chip nid: " << it->first
+            << " Type:" << node.GetOpType();
       }
 
       if (node.GetOpType() == "const") {
@@ -958,7 +960,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       strm.Write(clml_symbol);
       strm.Write(saved_cache);
       std::ofstream fs(cws->tuning_file, std::ios::app | std::ios::binary);
-      ICHECK(!fs.fail()) << "Cannot open " << cws->tuning_file;
+      TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << cws->tuning_file;
       fs.write(tune_str.data(), tune_str.size());
       LOG_CLML << "CLML: Tuning cache dumped to:" << cws->tuning_file << " size"
                << tune_str.length() << " with tuning blob len " << saved_cache.size();
@@ -970,7 +972,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       }
 
       result = clEndRecordingQCOM(this->layer_.recording);
-      ICHECK(result == CL_SUCCESS) << "clEndRecordingQCOM:" << result;
+      TVM_FFI_ICHECK(result == CL_SUCCESS) << "clEndRecordingQCOM:" << result;
     }
   }
 
@@ -1014,7 +1016,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     cl_uint groups = static_cast<cl_uint>(node.GetAttr<int64_t>("groups"));
     if (CL_CONVOLUTION_MODE_CONVOLUTION_QCOM == mode) {
-      ICHECK(groups == 1) << "CLML convolution only supports group size of 1.";
+      TVM_FFI_ICHECK(groups == 1) << "CLML convolution only supports group size of 1.";
     } else {
       groups = 1;  // Don't need to pass groups to depthwise
     }
@@ -1024,7 +1026,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_activation_function_qcom clml_act_type = CL_ACTIVATION_RELU;
     if (node.HasAttr("activation_type")) {
       activation_type = std::string(node.GetAttr<ffi::String>("activation_type"));
-      ICHECK(activation_type == "relu" || activation_type == "relu6")
+      TVM_FFI_ICHECK(activation_type == "relu" || activation_type == "relu6")
           << "Unknown activation type:" << activation_type;
       if (activation_type == "relu") {
         clml_act_type = CL_ACTIVATION_RELU;
@@ -1041,7 +1043,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     size_t num_inputs = inputs.size();
     bool has_bias;
     bool has_bn;
-    ICHECK(num_inputs >= 2 && num_inputs <= 7)
+    TVM_FFI_ICHECK(num_inputs >= 2 && num_inputs <= 7)
         << "Batchnorm fused convolution requires max 7 arguments";
     has_bias = (num_inputs == 3) || (num_inputs == 7);
     has_bn = (num_inputs == 6) || (num_inputs == 7);
@@ -1061,7 +1063,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
       CLML_CALL_clCreateMLTensorQCOM(CLML_CTX, nullptr, &desc, CL_TENSOR_USAGE_UNUSED_QCOM,
                                      &layer_.unusedTensor);
-      ICHECK(layer_.unusedTensor) << "clCreateMLTensorQCOM: unusedTensor";
+      TVM_FFI_ICHECK(layer_.unusedTensor) << "clCreateMLTensorQCOM: unusedTensor";
       bias->tensor = layer_.unusedTensor;
     }
     // Output
@@ -1154,11 +1156,11 @@ class CLMLRuntime : public JSONRuntimeBase {
     desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
     CLML_CALL_clCreateMLTensorQCOM(CLML_CTX, nullptr, &desc, CL_TENSOR_USAGE_UNUSED_QCOM,
                                    &layer_.unusedTensor);
-    ICHECK(layer_.unusedTensor) << "clCreateMLTensorQCOM: unusedTensor";
+    TVM_FFI_ICHECK(layer_.unusedTensor) << "clCreateMLTensorQCOM: unusedTensor";
 
     CLML_CALL(clCreateMLOpActivationForwardQCOM, CLML_CTX, nullptr, &act_desc, input->tensor,
               layer_.unusedTensor, output->tensor, &op, layer_.tuning_cache);
-    ICHECK(op) << "Activation Error";
+    TVM_FFI_ICHECK(op) << "Activation Error";
 
     layer->function.push_back(op);
     return;
@@ -1210,7 +1212,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     CLML_CALL(clCreateMLOpBatchNormForwardQCOM, CLML_CTX, opProperties.data(), &bn_desc,
               input->tensor, bn_mean->tensor, bn_var->tensor, bn_scale->tensor, bn_bias->tensor,
               output->tensor, &op, layer_.tuning_cache);
-    ICHECK(op) << "Batchnorm Error";
+    TVM_FFI_ICHECK(op) << "Batchnorm Error";
 
     layer->function.push_back(op);
     return;
@@ -1265,11 +1267,11 @@ class CLMLRuntime : public JSONRuntimeBase {
     desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
     CLML_CALL_clCreateMLTensorQCOM(CLML_CTX, nullptr, &desc, CL_TENSOR_USAGE_UNUSED_QCOM,
                                    &unusedTensor);
-    ICHECK(unusedTensor) << "clCreateMLTensorQCOM: unusedTensor";
+    TVM_FFI_ICHECK(unusedTensor) << "clCreateMLTensorQCOM: unusedTensor";
 
     CLML_CALL(clCreateMLOpPoolingForwardQCOM, CLML_CTX, nullptr, &pool_desc, input->tensor,
               unusedTensor, output->tensor, &op, layer_.tuning_cache);
-    ICHECK(op) << "Pooling Error";
+    TVM_FFI_ICHECK(op) << "Pooling Error";
 
     layer->function.push_back(op);
     return;
@@ -1311,11 +1313,11 @@ class CLMLRuntime : public JSONRuntimeBase {
     desc.num_dimensions = CL_TENSOR_UNUSED_QCOM;
     CLML_CALL_clCreateMLTensorQCOM(CLML_CTX, nullptr, &desc, CL_TENSOR_USAGE_UNUSED_QCOM,
                                    &layer_.unusedTensor);
-    ICHECK(layer_.unusedTensor) << "clCreateMLTensorQCOM: unusedTensor";
+    TVM_FFI_ICHECK(layer_.unusedTensor) << "clCreateMLTensorQCOM: unusedTensor";
 
     CLML_CALL(clCreateMLOpPoolingForwardQCOM, CLML_CTX, nullptr, &pool_desc, input->tensor,
               layer_.unusedTensor, output->tensor, &op, layer_.tuning_cache);
-    ICHECK(op) << "Pooling Error";
+    TVM_FFI_ICHECK(op) << "Pooling Error";
 
     layer->function.push_back(op);
     return;
@@ -1369,7 +1371,7 @@ class CLMLRuntime : public JSONRuntimeBase {
                                                cl_arithmetic_mode};
     CLML_CALL(clCreateMLOpSoftmaxQCOM, CLML_CTX, nullptr, &softmax_desc, input->tensor,
               output->tensor, &op, layer_.tuning_cache);
-    ICHECK(op) << "SoftMax Error";
+    TVM_FFI_ICHECK(op) << "SoftMax Error";
     layer->function.push_back(op);
     return;
   }
@@ -1404,7 +1406,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     else if (pad_mode == "reflect")
       clml_pad_mode = CL_PAD_MODE_REFLECT_QCOM;
     else
-      LOG(FATAL) << "Padding mode not supported by CLML:" << pad_mode;
+      TVM_FFI_THROW(InternalError) << "Padding mode not supported by CLML:" << pad_mode;
 
     cl_ml_op_pad_desc_qcom pad_desc{
         clml_pad_mode,
@@ -1414,7 +1416,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     CLML_CALL(clCreateMLOpPadQCOM, CLML_CTX, nullptr, &pad_desc, input->tensor, output->tensor, &op,
               layer_.tuning_cache);
-    ICHECK(op) << "Pad Error";
+    TVM_FFI_ICHECK(op) << "Pad Error";
 
     layer->function.push_back(op);
     return;
@@ -1437,7 +1439,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     CLML_CALL(clCreateMLOpReshapeQCOM, CLML_CTX, nullptr, input->tensor, output->tensor, &op,
               layer_.tuning_cache);
-    ICHECK(op) << "Reshape Error";
+    TVM_FFI_ICHECK(op) << "Reshape Error";
 
     layer->function.push_back(op);
     return;
@@ -1460,7 +1462,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     CLML_CALL(clCreateMLOpReshapeQCOM, CLML_CTX, nullptr, input->tensor, output->tensor, &op,
               layer_.tuning_cache);
-    ICHECK(op) << "Reshape Error";
+    TVM_FFI_ICHECK(op) << "Reshape Error";
 
     layer->function.push_back(op);
     return;
@@ -1493,7 +1495,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     CLML_CALL(clCreateMLOpConcatQCOM, CLML_CTX, nullptr, &concatDesc, concatInputs, output->tensor,
               &op, layer_.tuning_cache);
-    ICHECK(op) << "Concat Error";
+    TVM_FFI_ICHECK(op) << "Concat Error";
 
     layer->function.push_back(op);
 
@@ -1548,7 +1550,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
       CLML_CALL(clCreateMLOpFullyConnectedQCOM, CLML_CTX, nullptr, &fc_desc, input->tensor,
                 weight->tensor, bias->tensor, output->tensor, &op, layer_.tuning_cache);
-      ICHECK(op) << "FC layer Error";
+      TVM_FFI_ICHECK(op) << "FC layer Error";
       layer->function.push_back(op);
     } else {
       cl_gemm_transform_qcom b_transform = CL_GEMM_TRANSFORM_NONE_QCOM;
@@ -1565,7 +1567,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
       CLML_CALL(clCreateMLOpGemmQCOM, CLML_CTX, nullptr, &gemmDesc, input->tensor, weight->tensor,
                 output->tensor, &op, layer_.tuning_cache);
-      ICHECK(op) << "Gemm layer Error";
+      TVM_FFI_ICHECK(op) << "Gemm layer Error";
       layer->function.push_back(op);
       if (has_bias) {
         cl_ml_op_binary_desc_qcom binaryDesc = {CL_TENSOR_OP_ADD_QCOM,
@@ -1575,7 +1577,7 @@ class CLMLRuntime : public JSONRuntimeBase {
                                                 cl_arithmetic_mode};
         CLML_CALL(clCreateMLOpBinaryQCOM, CLML_CTX, nullptr, &binaryDesc, bias->tensor,
                   layer_.unusedTensor, output->tensor, &op, layer_.tuning_cache);
-        ICHECK(op) << "Binary Op Error";
+        TVM_FFI_ICHECK(op) << "Binary Op Error";
         layer->function.push_back(op);
       }
     }
@@ -1656,7 +1658,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     CLML_CALL(clCreateMLOpGemmQCOM, CLML_CTX, nullptr, &gemmDesc, input->tensor, weight->tensor,
               output->tensor, &op, layer_.tuning_cache);
-    ICHECK(op) << "BatchMatmul Error";
+    TVM_FFI_ICHECK(op) << "BatchMatmul Error";
 
     layer->function.push_back(op);
     return;
@@ -1715,7 +1717,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     CLML_CALL_clCreateMLOpClipQCOM(CLML_CTX, nullptr, &clip_desc, input->tensor, output->tensor,
                                    &op, layer_.tuning_cache);
-    ICHECK(op) << "Clip Error";
+    TVM_FFI_ICHECK(op) << "Clip Error";
 
     layer->function.push_back(op);
     return;
@@ -1753,13 +1755,13 @@ class CLMLRuntime : public JSONRuntimeBase {
     else if (op_name == "add" || PatternMatch(op_name, "relax.add"))
       binary_op = CL_TENSOR_OP_ADD_QCOM;
     else
-      LOG(FATAL) << "Undefined binary op:" << op_name;
+      TVM_FFI_THROW(InternalError) << "Undefined binary op:" << op_name;
     cl_ml_op_binary_desc_qcom add_desc = {
         binary_op, {{1.0}, CL_FLOAT}, {{1.0}, CL_FLOAT}, {{0.0}, CL_FLOAT}, cl_arithmetic_mode};
     LOG(INFO) << "Op name - " << op_name;
     CLML_CALL(clCreateMLOpBinaryQCOM, CLML_CTX, nullptr, &add_desc, input_a->tensor,
               input_b->tensor, output->tensor, &op, layer_.tuning_cache);
-    ICHECK(op) << op_name << " Node Error";
+    TVM_FFI_ICHECK(op) << op_name << " Node Error";
 
     layer->function.push_back(op);
     return;
@@ -1785,7 +1787,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_ml_op_depthtospace_desc_qcom dtos_desc = {block_size, cl_arithmetic_mode};
     CLML_CALL(clCreateMLOpDepthToSpaceQCOM, CLML_CTX, nullptr, &dtos_desc, input->tensor,
               output->tensor, &op, layer_.tuning_cache);
-    ICHECK(op) << "DepthToSpace Layer Error";
+    TVM_FFI_ICHECK(op) << "DepthToSpace Layer Error";
 
     layer->function.push_back(op);
     return;
@@ -1811,7 +1813,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     cl_ml_op_resize_bilinear_desc_qcom resize_desc = {align_corners, false, cl_arithmetic_mode};
     CLML_CALL(clCreateMLOpResizeBilinearQCOM, CLML_CTX, nullptr, &resize_desc, input->tensor,
               output->tensor, &op, layer_.tuning_cache);
-    ICHECK(op) << "Resize Layer Error";
+    TVM_FFI_ICHECK(op) << "Resize Layer Error";
 
     layer->function.push_back(op);
     return;
@@ -1830,8 +1832,8 @@ class CLMLRuntime : public JSONRuntimeBase {
 
 #else
   void Run() override {
-    LOG(FATAL) << "Cannot call run on CLML module without runtime enabled. "
-               << "Please build with USE_CLML_GRAPH_EXECUTOR.";
+    TVM_FFI_THROW(InternalError) << "Cannot call run on CLML module without runtime enabled. "
+                                 << "Please build with USE_CLML_GRAPH_EXECUTOR.";
   }
 
   void BuildEngine() {

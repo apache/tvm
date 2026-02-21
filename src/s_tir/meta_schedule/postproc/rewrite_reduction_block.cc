@@ -66,7 +66,7 @@ struct ReductionBlockFinder : private StmtVisitor {
     }
     auto f_find = [this](const VarNode* var) -> bool { return thread_bound_loop_vars_.count(var); };
     const SBlockNode* block = realize->block.get();
-    ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
+    TVM_FFI_ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
     int n = block->iter_vars.size();
     for (int i = 0; i < n; ++i) {
       IterVar iter_var = block->iter_vars[i];

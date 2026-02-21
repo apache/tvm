@@ -135,11 +135,11 @@ class TensorRTJSONSerializer : public JSONSerializer {
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final {
     // The call must be to an inline "Composite" function
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
+    TVM_FFI_ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
 
     auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
-    ICHECK(opt_composite.has_value());
+    TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     // Collect the constants and attributes of all operator calls inside the composite body.
@@ -180,7 +180,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
     if (!cfg.defined()) {
       cfg = AttrsWithDefaultValues<TensorRTCompilerConfig>();
     }
-    ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
+    TVM_FFI_ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
     ffi::Array<int64_t> tensorrt_version = {cfg.value()->tensorrt_version[0].IntValue(),
                                             cfg.value()->tensorrt_version[1].IntValue(),
                                             cfg.value()->tensorrt_version[2].IntValue()};

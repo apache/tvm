@@ -90,7 +90,7 @@ class PyLogMessage {
       : filename_(filename), lineno_(lineno), logger_(logger), logging_level_(logging_level) {}
 
   TVM_NO_INLINE ~PyLogMessage() {
-    ICHECK(logging_level_ != Level::CLEAR)
+    TVM_FFI_ICHECK(logging_level_ != Level::CLEAR)
         << "Cannot use CLEAR as logging level in TVM_PY_LOG, please use TVM_PY_LOG_CLEAR_SCREEN.";
     if (this->logger_ != nullptr) {
       logger_(static_cast<int>(logging_level_), std::string(filename_), lineno_, stream_.str());
@@ -142,7 +142,7 @@ inline bool using_ipython() {
 inline void print_interactive_table(const ffi::String& data) {
   const auto f_print_interactive_table =
       tvm::ffi::Function::GetGlobal("s_tir.meta_schedule.print_interactive_table");
-  ICHECK(f_print_interactive_table.has_value())
+  TVM_FFI_ICHECK(f_print_interactive_table.has_value())
       << "Cannot find print_interactive_table function in registry.";
   (*f_print_interactive_table)(data);
 }
@@ -395,10 +395,10 @@ inline int GetTargetNumCores(const Target& target) {
   int num_cores = target->GetAttr<Integer>("num-cores").value_or(-1).IntValue();
   if (num_cores == -1) {
     static const auto f_cpu_count = tvm::ffi::Function::GetGlobal("s_tir.meta_schedule.cpu_count");
-    ICHECK(f_cpu_count.has_value())
-        << "ValueError: Cannot find the packed function \"s_tir.meta_schedule._cpu_count\"";
+    TVM_FFI_CHECK(f_cpu_count.has_value(), ValueError)
+        << "Cannot find the packed function \"s_tir.meta_schedule._cpu_count\"";
     num_cores = (*f_cpu_count)(false).cast<int>();
-    LOG(FATAL)
+    TVM_FFI_THROW(InternalError)
         << "Target does not have attribute \"num-cores\", physical core number must be "
            "defined! For example, on the local machine, the target must be \"llvm -num-cores "
         << num_cores << "\"";
@@ -413,7 +413,7 @@ inline int GetTargetNumCores(const Target& target) {
  */
 inline double GetRunMsMedian(const RunnerResult& runner_result) {
   ffi::Array<FloatImm> run_secs = runner_result->run_secs.value();
-  ICHECK(!run_secs.empty());
+  TVM_FFI_ICHECK(!run_secs.empty());
   std::vector<double> v;
   v.reserve(run_secs.size());
   std::transform(run_secs.begin(), run_secs.end(), std::back_inserter(v),
@@ -434,7 +434,7 @@ inline double GetRunMsMedian(const RunnerResult& runner_result) {
  */
 inline ffi::Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
   const ffi::ArrayObj* arr = obj.as<ffi::ArrayObj>();
-  ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
+  TVM_FFI_CHECK(arr, TypeError) << "Expect an array, but gets: " << obj->GetTypeKey();
   ffi::Array<FloatImm> results;
   results.reserve(arr->size());
   for (Any val : *arr) {
@@ -444,7 +444,8 @@ inline ffi::Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
       } else if (auto opt_float_imm = val.try_cast<FloatImm>()) {
         return *std::move(opt_float_imm);
       } else {
-        LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: " << val.GetTypeKey();
+        TVM_FFI_THROW(TypeError) << "Expect an array of float or int, but gets: "
+                                 << val.GetTypeKey();
         TVM_FFI_UNREACHABLE();
       }
     }();
@@ -461,7 +462,7 @@ inline ffi::Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
  */
 inline ffi::Array<Integer> AsIntArray(const ObjectRef& obj) {
   const ffi::ArrayObj* arr = obj.as<ffi::ArrayObj>();
-  ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
+  TVM_FFI_CHECK(arr, TypeError) << "Expect an array, but gets: " << obj->GetTypeKey();
   ffi::Array<Integer> results;
   results.reserve(arr->size());
   for (Any val : *arr) {
@@ -469,7 +470,7 @@ inline ffi::Array<Integer> AsIntArray(const ObjectRef& obj) {
       if (auto opt_int_imm = val.try_cast<IntImm>()) {
         return (*opt_int_imm)->value;
       } else {
-        LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << val.GetTypeKey();
+        TVM_FFI_THROW(TypeError) << "Expect an array of integers, but gets: " << val.GetTypeKey();
         TVM_FFI_UNREACHABLE();
       }
     }();
@@ -555,15 +556,15 @@ inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
   } else if (IsGPUTarget(target_name)) {
     rules = ScheduleRule::DefaultCUDA();
   } else {
-    LOG(FATAL) << "ValueError: Unsupported target: " << target_name;
+    TVM_FFI_THROW(ValueError) << "Unsupported target: " << target_name;
   }
   for (const ScheduleRule& rule : rules) {
     if (rule->GetTypeKey() == "s_tir.meta_schedule.AutoInline") {
       return rule;
     }
   }
-  LOG(FATAL) << "ValueError: AutoInline rule is not found in the default rules for target: "
-             << target_name;
+  TVM_FFI_THROW(ValueError) << "AutoInline rule is not found in the default rules for target: "
+                            << target_name;
   throw;
 }
 
@@ -623,7 +624,7 @@ class SBlockCollector : public tir::StmtVisitor {
   /*! \brief Override the Stmt visiting behaviour */
   void VisitStmt_(const tir::SBlockNode* block) override {
     tir::StmtVisitor::VisitStmt_(block);
-    CHECK(block_names_.count(block->name_hint) == 0)
+    TVM_FFI_ICHECK(block_names_.count(block->name_hint) == 0)
         << "Duplicated block name " << block->name_hint << " in function " << func_name_
         << " not supported!";
     block_names_.insert(block->name_hint);

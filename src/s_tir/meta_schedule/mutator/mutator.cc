@@ -25,19 +25,19 @@ namespace s_tir {
 namespace meta_schedule {
 
 void PyMutatorNode::InitializeWithTuneContext(const TuneContext& context) {
-  ICHECK(f_initialize_with_tune_context != nullptr)
+  TVM_FFI_ICHECK(f_initialize_with_tune_context != nullptr)
       << "PyMutator's InitializeWithTuneContext method not implemented!";
   f_initialize_with_tune_context(context);
 }
 
 ffi::Optional<s_tir::Trace> PyMutatorNode::Apply(
     const s_tir::Trace& trace, support::LinearCongruentialEngine::TRandState* rand_state) {
-  ICHECK(f_apply != nullptr) << "PyMutator's Apply method not implemented!";
+  TVM_FFI_ICHECK(f_apply != nullptr) << "PyMutator's Apply method not implemented!";
   return f_apply(trace, *rand_state);
 }
 
 Mutator PyMutatorNode::Clone() const {
-  ICHECK(f_clone != nullptr) << "PyMutator's Clone method not implemented!";
+  TVM_FFI_ICHECK(f_clone != nullptr) << "PyMutator's Clone method not implemented!";
   return f_clone();
 }
 
@@ -82,9 +82,9 @@ ffi::Map<Mutator, FloatImm> Mutator::DefaultHexagon() {
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyMutatorNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyMutatorNode>();
-      ICHECK(self);
+      TVM_FFI_ICHECK(self);
       PyMutatorNode::FAsString f_as_string = (*self).f_as_string;
-      ICHECK(f_as_string != nullptr) << "PyMutator's AsString method not implemented!";
+      TVM_FFI_ICHECK(f_as_string != nullptr) << "PyMutator's AsString method not implemented!";
       p->stream << f_as_string();
     });
 

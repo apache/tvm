@@ -37,7 +37,7 @@ using namespace tvm::tir;
     Var new_var = this->ReDefineVar(op->FIELD);  \
     Stmt stmt = StmtExprMutator::VisitStmt_(op); \
     op = stmt.as<NODE>();                        \
-    ICHECK(op != nullptr);                       \
+    TVM_FFI_ICHECK(op != nullptr);               \
     auto n = ffi::make_object<NODE>(*op);        \
     n->FIELD = std::move(new_var);               \
     return Stmt(n);                              \
@@ -145,7 +145,7 @@ class RenewDefMutator : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<BufferStoreNode>();
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
     Buffer buffer = VisitDeclOrRemapBuffer(op->buffer);
     if (buffer.same_as(op->buffer)) {
       return stmt;
@@ -159,7 +159,7 @@ class RenewDefMutator : public StmtExprMutator {
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<BufferLoadNode>();
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
     Buffer buffer = VisitDeclOrRemapBuffer(op->buffer);
     if (buffer.same_as(op->buffer)) {
       return expr;
@@ -179,7 +179,7 @@ class RenewDefMutator : public StmtExprMutator {
 
   template <typename T>
   void AddDefRemap(const T& source, const T& target) {
-    ICHECK(remap_.count(source) == 0);
+    TVM_FFI_ICHECK(remap_.count(source) == 0);
     remap_.Set(source, target);
   }
 
@@ -188,7 +188,7 @@ class RenewDefMutator : public StmtExprMutator {
     if (it != remap_.end()) {
       return Downcast<Buffer>((*it).second);
     }
-    ICHECK(define);
+    TVM_FFI_ICHECK(define);
 
     auto redefine_if_is_var = [this](const PrimExpr& expr) -> PrimExpr {
       auto it = remap_.find(expr);

@@ -118,7 +118,7 @@ StructInfo InferStructInfoEwiseFMA(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutEwiseFMA(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
 
   LayoutDecision layout0 = GetLayoutDecision(var_layout_map, call->args[0]);
   LayoutDecision layout1 = GetLayoutDecision(var_layout_map, call->args[1]);

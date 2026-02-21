@@ -123,7 +123,7 @@ inline std::string DiscoAction2String(DiscoAction action) {
     case DiscoAction::kDebugSetRegister:
       return "kDebugSetRegister";
   }
-  LOG(FATAL) << "ValueError: Unknown DiscoAction: " << static_cast<int>(action);
+  TVM_FFI_THROW(ValueError) << "Unknown DiscoAction: " << static_cast<int>(action);
 }
 
 class SessionObj;

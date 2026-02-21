@@ -37,8 +37,8 @@ ffi::Optional<Integer> ParseThreadBinding(const Schedule& sch, const Instruction
   if (!inst->kind.same_as(inst_kind_bind)) {
     return std::nullopt;
   }
-  ICHECK_EQ(inst->inputs.size(), 1);
-  ICHECK_EQ(inst->attrs.size(), 1);
+  TVM_FFI_ICHECK_EQ(inst->inputs.size(), 1);
+  TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String thread_axis = Downcast<ffi::String>(inst->attrs[0]);
   if (thread_axis != axis) {
     return std::nullopt;
@@ -59,8 +59,8 @@ ffi::Optional<SBlockRV> ParseAnnotate(const Schedule& sch, const Instruction& in
   if (!inst->kind.same_as(inst_kind_annotate)) {
     return std::nullopt;
   }
-  ICHECK_EQ(inst->inputs.size(), 2);
-  ICHECK_EQ(inst->attrs.size(), 1);
+  TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
+  TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
   if (ann_key != tir::attr::meta_schedule_cooperative_fetch) {
     return std::nullopt;
@@ -80,8 +80,8 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
   if (!inst->kind.same_as(inst_kind_annotate)) {
     return false;
   }
-  ICHECK_EQ(inst->inputs.size(), 2);
-  ICHECK_EQ(inst->attrs.size(), 1);
+  TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
+  TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
   return ann_key == tir::attr::warp_execution;
 }

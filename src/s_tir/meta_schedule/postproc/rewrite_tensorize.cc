@@ -51,9 +51,9 @@ void CollectTensorizationJobs(
         } else if (block_name.find("init") && vectorize_init_loop) {
           jobs->emplace_back(block_name, func_name, [sch](s_tir::SBlockRV block) {
             ffi::Array<SBlockRV> child_blocks = sch->GetChildBlocks(block);
-            ICHECK(child_blocks.size() == 1);
+            TVM_FFI_ICHECK(child_blocks.size() == 1);
             ffi::Array<LoopRV> init_loops = sch->GetLoops(child_blocks[0]);
-            ICHECK(init_loops.size() == 1);
+            TVM_FFI_ICHECK(init_loops.size() == 1);
             sch->Vectorize(init_loops[0]);
           });
         }

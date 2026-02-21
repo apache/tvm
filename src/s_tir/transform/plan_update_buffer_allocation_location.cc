@@ -162,7 +162,7 @@ class BufferAllocationLocator : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {
-    ICHECK(!op->init.defined());
+    TVM_FFI_ICHECK(!op->init.defined());
     ffi::Array<Buffer> alloc_buffers;
     auto it = alloc_buffers_.find(op);
     if (it != alloc_buffers_.end()) {
@@ -174,12 +174,12 @@ class BufferAllocationLocator : public StmtExprMutator {
     for (const MatchBufferRegion match_buffer : op->match_buffers) {
       const Var& target_var = match_buffer->buffer->data;
       const Var& source_var = match_buffer->source->buffer->data;
-      ICHECK(buffer_data_to_buffer_.count(source_var));
+      TVM_FFI_ICHECK(buffer_data_to_buffer_.count(source_var));
       buffer_data_to_buffer_.Set(target_var, match_buffer->buffer);
     }
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<SBlockNode>();
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
 
     // No longer consider buffers created by match_buffer inside the block when updating access
     // region.
@@ -203,7 +203,7 @@ class BufferAllocationLocator : public StmtExprMutator {
   }
 
   Stmt InjectOpaqueBlock(Stmt body, const ffi::Array<Buffer>& alloc_buffers) {
-    ICHECK(!alloc_buffers.empty());
+    TVM_FFI_ICHECK(!alloc_buffers.empty());
     SBlock opaque_block(/*iter_vars=*/{},
                         /*reads=*/{},
                         /*writes=*/{},

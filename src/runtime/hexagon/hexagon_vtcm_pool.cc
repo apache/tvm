@@ -37,7 +37,7 @@ HexagonVtcmPool::HexagonVtcmPool() {
                                                 &total_block_layout, &avail_block_size,
                                                 &avail_block_layout));
   DLOG(INFO) << "HexagonVtcmPool total " << vtcm_device_size_ << " avail " << avail_block_size;
-  CHECK(avail_block_size >= (1024 * 1024)) << "Less than 1MB VTCM available";
+  TVM_FFI_ICHECK(avail_block_size >= (1024 * 1024)) << "Less than 1MB VTCM available";
 
   // allocate nbytes of vtcm on a single page
   HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param_v2(&res_info,
@@ -48,11 +48,13 @@ HexagonVtcmPool::HexagonVtcmPool() {
   // TODO(HWE): Investigate why a non-zero timeout results in
   // hanging, both in the simulator and on hardware.
   context_id_ = HAP_compute_res_acquire(&res_info, /*timeout = */ 0);
-  CHECK(context_id_) << "HAP_compute_res_acquire failed to acquire requested VTCM resource.";
+  TVM_FFI_ICHECK(context_id_)
+      << "HAP_compute_res_acquire failed to acquire requested VTCM resource.";
   HEXAGON_SAFE_CALL(
       HAP_compute_res_attr_get_vtcm_ptr_v2(&res_info, &vtcm_data_, &vtcm_allocated_size_));
-  CHECK(vtcm_data_ != nullptr) << "HAP_compute_res_acquire returned nullptr when allocating VTCM.";
-  CHECK(vtcm_allocated_size_ >= avail_block_size)
+  TVM_FFI_ICHECK(vtcm_data_ != nullptr)
+      << "HAP_compute_res_acquire returned nullptr when allocating VTCM.";
+  TVM_FFI_ICHECK(vtcm_allocated_size_ >= avail_block_size)
       << "HAP_compute_res_acquire failed to allocate minimum amount of VTCM";
   free_.emplace_back(
       std::pair<char*, size_t>(static_cast<char*>(vtcm_data_), vtcm_allocated_size_));
@@ -64,15 +66,15 @@ HexagonVtcmPool::~HexagonVtcmPool() { HEXAGON_SAFE_CALL(HAP_compute_res_release(
 void* HexagonVtcmPool::Allocate(size_t nbytes) {
   std::lock_guard<std::mutex> lock(mutex_);
 
-  CHECK(!free_.empty()) << "No free VTCM";
-  CHECK(nbytes >= 0x80) << "Minimum VTCM alloation must be 128 bytes - nbytes " << nbytes;
+  TVM_FFI_ICHECK(!free_.empty()) << "No free VTCM";
+  TVM_FFI_ICHECK(nbytes >= 0x80) << "Minimum VTCM alloation must be 128 bytes - nbytes " << nbytes;
 
   // If this is not aligned on a 2k block, allocate from the end to avoid fragmentation
   if (nbytes & size_t(0x7FF)) {
     DLOG(INFO) << "VTCM nbytes requested: " << nbytes << " allocate from the end";
     auto last_free_entry = free_.end();
     last_free_entry--;
-    CHECK(last_free_entry->second >= nbytes)
+    TVM_FFI_ICHECK(last_free_entry->second >= nbytes)
         << "Not enough contiguous VTCM space at the end to allocate";
     char* ptr = last_free_entry->first + (last_free_entry->second - nbytes);
     allocations_.emplace_back(std::pair<char*, size_t>(ptr, nbytes));
@@ -94,7 +96,8 @@ void* HexagonVtcmPool::Allocate(size_t nbytes) {
       }
     }
   }
-  CHECK(entry_to_allocate->second >= nbytes) << "Not enough contiguous VTCM space to allocate";
+  TVM_FFI_ICHECK(entry_to_allocate->second >= nbytes)
+      << "Not enough contiguous VTCM space to allocate";
   char* ptr = entry_to_allocate->first;
   allocations_.emplace(allocations_.end(), std::pair<char*, size_t>(ptr, nbytes));
 
@@ -114,8 +117,9 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
 
   auto it = std::find_if(allocations_.begin(), allocations_.end(),
                          [&](auto entry) { return entry.first == ptr_to_free; });
-  CHECK(it != allocations_.end()) << "Attempted to free a pointer that had not been allocated";
-  CHECK(it->second == nbytes) << "Attempted to free a different size than was allocated";
+  TVM_FFI_ICHECK(it != allocations_.end())
+      << "Attempted to free a pointer that had not been allocated";
+  TVM_FFI_ICHECK(it->second == nbytes) << "Attempted to free a different size than was allocated";
   allocations_.erase(it);
 
   it = std::lower_bound(free_.begin(), free_.end(), std::pair<char*, size_t>(ptr_to_free, nbytes),
@@ -124,8 +128,9 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
     // Insert an entry at the end
     it = free_.emplace(it, std::pair<char*, size_t>(ptr_to_free, nbytes));
   } else {
-    CHECK(ptr_to_free != it->first) << "Attempting to free a pointer that was already free";
-    CHECK(ptr_to_free + nbytes <= it->first)
+    TVM_FFI_ICHECK(ptr_to_free != it->first)
+        << "Attempting to free a pointer that was already free";
+    TVM_FFI_ICHECK(ptr_to_free + nbytes <= it->first)
         << "free_ is in an inconsistent state, freed block overlaps with next";
     if (ptr_to_free + nbytes == it->first) {
       // Make this entry bigger
@@ -141,7 +146,7 @@ void HexagonVtcmPool::Free(void* ptr, size_t nbytes) {
   if (it != free_.begin()) {
     auto it_prev = it;
     it_prev--;
-    CHECK(it_prev->first + it_prev->second <= ptr_to_free)
+    TVM_FFI_ICHECK(it_prev->first + it_prev->second <= ptr_to_free)
         << "free_ is in an inconsistent state, freed block overlaps with previous";
     if (it_prev->first + it_prev->second == ptr_to_free) {
       it_prev->second += it->second;

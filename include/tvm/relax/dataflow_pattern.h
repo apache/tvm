@@ -279,12 +279,12 @@ class PatternContext : public ObjectRef {
   TVM_DLL explicit PatternContext(bool incremental = false);
 
   const PatternContextNode* operator->() const {
-    ICHECK(get() != nullptr);
+    TVM_FFI_ICHECK(get() != nullptr);
     return static_cast<const PatternContextNode*>(get());
   }
 
   PatternContextNode* operator->() {
-    ICHECK(get() != nullptr);
+    TVM_FFI_ICHECK(get() != nullptr);
     return static_cast<PatternContextNode*>(get_mutable());
   }
 
@@ -303,7 +303,7 @@ class PatternContext : public ObjectRef {
       pairs.emplace_back(consumer, std::vector{cons});
     } else {
       auto& vec = it->second;
-      ICHECK(std::find(vec.cbegin(), vec.cend(), cons) == vec.cend())
+      TVM_FFI_ICHECK(std::find(vec.cbegin(), vec.cend(), cons) == vec.cend())
           << "Constraint already exists";
       vec.push_back(cons);
     }

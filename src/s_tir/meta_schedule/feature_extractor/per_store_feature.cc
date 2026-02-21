@@ -205,7 +205,7 @@ int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec&
   // Calculate the min stride possible
   int64_t result = kNotFound;
   for (const MultiIndex& multi_index : multi_indices) {
-    ICHECK_EQ(multi_index.size(), buffer_stride.size());
+    TVM_FFI_ICHECK_EQ(multi_index.size(), buffer_stride.size());
     // Find the rightest dimension that contains the given variable
     for (int i = ndim - 1; i >= 0; --i) {
       int64_t coef = CoefficientExtractor::Extract(multi_index[i], var);
@@ -228,7 +228,7 @@ int64_t GetVarStride(const std::vector<MultiIndex>& multi_indices, const IntVec&
  */
 runtime::Tensor AsTensor(const std::vector<std::vector<double>>& src, int second_dim_size = -1) {
   int n = src.size();
-  ICHECK(!src.empty() || second_dim_size != -1);
+  TVM_FFI_ICHECK(!src.empty() || second_dim_size != -1);
   int m = src.empty() ? second_dim_size : src[0].size();
   runtime::Tensor tgt = runtime::Tensor::Empty(
       /*shape=*/{n, m},
@@ -382,7 +382,7 @@ struct LoopNest {
       } else if (support::StartsWith(thread_tag, "vthread")) {
         ref_loops = &vthread;
       } else {
-        LOG(FATAL) << "ValueError: Unable to recognize thread tag: " << thread_tag;
+        TVM_FFI_THROW(ValueError) << "Unable to recognize thread tag: " << thread_tag;
       }
     }
     if (ref_loops != nullptr) {
@@ -875,7 +875,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
   {
     int64_t& num_continuous_bytes = this->num_continuous_bytes = 1;
     const IntVec& access_shape = this->access_shape;
-    ICHECK_EQ(access_shape.size(), buffer_shape.size());
+    TVM_FFI_ICHECK_EQ(access_shape.size(), buffer_shape.size());
     for (int i = ndim - 1; i >= 0; --i) {
       if (access_shape[i] == buffer_shape[i]) {
         num_continuous_bytes = buffer_shape[i] * buffer->dtype.bytes();
@@ -1077,7 +1077,7 @@ struct Feature {
                    const group1::Feature::ArithOps& arith_ops)
       : arith_intensity_curve(n_samples, 0.0) {
     const std::vector<const ForNode*>& loops = loop_nest.loops;
-    ICHECK_EQ(loops.size(), for_touched_bytes.size());
+    TVM_FFI_ICHECK_EQ(loops.size(), for_touched_bytes.size());
     int n_loops = loops.size();
     // Calculate `memory_bytes`
     std::vector<double> memory_bytes;
@@ -1115,7 +1115,7 @@ struct Feature {
           break;
         }
       }
-      CHECK_LT(p, n_loops);
+      TVM_FFI_ICHECK_LT(p, n_loops);
       if (p == 0) {
         result = slog(compute_ops[p] / memory_bytes[p]);
       } else {
@@ -1287,10 +1287,10 @@ class PerStoreFeatureCollector : private StmtVisitor {
     for (auto& it : collector.buffer_features_) {
       Feature& feature = it.second;
       if (feature.buffer != nullptr) {
-        ICHECK(feature.group1);
-        ICHECK(feature.group2);
-        ICHECK(feature.group3);
-        ICHECK(feature.group5);
+        TVM_FFI_ICHECK(feature.group1);
+        TVM_FFI_ICHECK(feature.group2);
+        TVM_FFI_ICHECK(feature.group3);
+        TVM_FFI_ICHECK(feature.group5);
         if (feature.group4 == nullptr) {
           feature.group4 = std::make_unique<group4::Feature>();
         }

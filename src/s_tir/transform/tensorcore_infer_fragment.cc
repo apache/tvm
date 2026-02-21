@@ -47,28 +47,28 @@ class FragmentGetter : public StmtExprVisitor {
     if (op->op.same_as(builtin::tvm_load_matrix_sync()) ||
         op->op.same_as(builtin::tvm_store_matrix_sync())) {
       // Get shape and layout information from load and store intrinsic
-      ICHECK_EQ(op->args.size(), 8U);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var = op->args[0].as<VarNode>();
-      ICHECK(buffer_var);
+      TVM_FFI_ICHECK(buffer_var);
       // Get shape
       const IntImmNode* m = op->args[1].as<IntImmNode>();
       const IntImmNode* n = op->args[2].as<IntImmNode>();
       const IntImmNode* k = op->args[3].as<IntImmNode>();
       const StringImmNode* layout = op->args[7].as<StringImmNode>();
-      ICHECK(m);
-      ICHECK(n);
-      ICHECK(k);
-      ICHECK(layout);
+      TVM_FFI_ICHECK(m);
+      TVM_FFI_ICHECK(n);
+      TVM_FFI_ICHECK(k);
+      TVM_FFI_ICHECK(layout);
 
       std::string scope = GetPtrStorageScope(ffi::GetRef<Var>(buffer_var));
       if (fragments.count(buffer_var)) {
         // check if the fragment has met before
         FragmentInfo info = fragments[buffer_var];
-        ICHECK_EQ(m->value, info.m);
-        ICHECK_EQ(n->value, info.n);
-        ICHECK_EQ(k->value, info.k);
+        TVM_FFI_ICHECK_EQ(m->value, info.m);
+        TVM_FFI_ICHECK_EQ(n->value, info.n);
+        TVM_FFI_ICHECK_EQ(k->value, info.k);
         if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-          ICHECK_EQ(layout->value, info.layout);
+          TVM_FFI_ICHECK_EQ(layout->value, info.layout);
         }
       } else {
         // store metadata
@@ -82,23 +82,23 @@ class FragmentGetter : public StmtExprVisitor {
       }
     } else if (op->op.same_as(builtin::tvm_fill_fragment())) {
       // Get shape information from fill intrinsic
-      ICHECK_EQ(op->args.size(), 6U);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
       const VarNode* buffer_var = op->args[0].as<VarNode>();
-      ICHECK(buffer_var);
+      TVM_FFI_ICHECK(buffer_var);
       // Get shape
       const IntImmNode* m = op->args[1].as<IntImmNode>();
       const IntImmNode* n = op->args[2].as<IntImmNode>();
       const IntImmNode* k = op->args[3].as<IntImmNode>();
-      ICHECK(m);
-      ICHECK(n);
-      ICHECK(k);
+      TVM_FFI_ICHECK(m);
+      TVM_FFI_ICHECK(n);
+      TVM_FFI_ICHECK(k);
 
       std::string scope = GetPtrStorageScope(ffi::GetRef<Var>(buffer_var));
       if (fragments.count(buffer_var)) {
         FragmentInfo info = fragments[buffer_var];
-        ICHECK_EQ(m->value, info.m);
-        ICHECK_EQ(n->value, info.n);
-        ICHECK_EQ(k->value, info.k);
+        TVM_FFI_ICHECK_EQ(m->value, info.m);
+        TVM_FFI_ICHECK_EQ(n->value, info.n);
+        TVM_FFI_ICHECK_EQ(k->value, info.k);
       } else {
         // default to row major ordering
         FragmentInfo info(m->value, n->value, k->value, "row_major", scope);
@@ -135,31 +135,31 @@ class FragmentChecker : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
     // Check shape when calling tvm_mma_sync
     if (op->op.same_as(builtin::tvm_mma_sync()) || op->op.same_as(builtin::tvm_bmma_sync())) {
-      ICHECK_EQ(op->args.size(), 8U);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var_d = op->args[0].as<VarNode>();
       const VarNode* buffer_var_a = op->args[2].as<VarNode>();
       const VarNode* buffer_var_b = op->args[4].as<VarNode>();
       const VarNode* buffer_var_c = op->args[6].as<VarNode>();
-      ICHECK(buffer_var_d);
-      ICHECK(buffer_var_a);
-      ICHECK(buffer_var_b);
-      ICHECK(buffer_var_c);
+      TVM_FFI_ICHECK(buffer_var_d);
+      TVM_FFI_ICHECK(buffer_var_a);
+      TVM_FFI_ICHECK(buffer_var_b);
+      TVM_FFI_ICHECK(buffer_var_c);
 
       // Check all fragment A, B, C and D have the same shape
-      ICHECK(CheckShape(buffer_var_d, buffer_var_a));
-      ICHECK(CheckShape(buffer_var_d, buffer_var_b));
-      ICHECK(CheckShape(buffer_var_d, buffer_var_c));
+      TVM_FFI_ICHECK(CheckShape(buffer_var_d, buffer_var_a));
+      TVM_FFI_ICHECK(CheckShape(buffer_var_d, buffer_var_b));
+      TVM_FFI_ICHECK(CheckShape(buffer_var_d, buffer_var_c));
     }
   }
 
  private:
   // A tool for checking shapes of two fragments
   bool CheckShape(const VarNode* buffer1, const VarNode* buffer2) {
-    CHECK(fragment_getter.fragments.count(buffer1))
+    TVM_FFI_ICHECK(fragment_getter.fragments.count(buffer1))
         << "Tensorecore fragment " << buffer1->name_hint
         << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
            "use.";
-    CHECK(fragment_getter.fragments.count(buffer2))
+    TVM_FFI_ICHECK(fragment_getter.fragments.count(buffer2))
         << "Tensorecore fragment " << buffer2->name_hint
         << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
            "use.";

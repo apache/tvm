@@ -57,10 +57,11 @@ inline const char* GetHipblasErrorString(int error) {
 }
 
 #ifndef CHECK_HIPBLAS_ERROR
-#define CHECK_HIPBLAS_ERROR(fn)                                                              \
-  do {                                                                                       \
-    int error = static_cast<int>(fn);                                                        \
-    ICHECK_EQ(error, HIPBLAS_STATUS_SUCCESS) << "HIPBLAS: " << GetHipblasErrorString(error); \
+#define CHECK_HIPBLAS_ERROR(fn)                         \
+  do {                                                  \
+    int error = static_cast<int>(fn);                   \
+    TVM_FFI_ICHECK_EQ(error, HIPBLAS_STATUS_SUCCESS)    \
+        << "HIPBLAS: " << GetHipblasErrorString(error); \
   } while (0)  // ; intentionally left off.
 #endif         // CHECK_HIPBLAS_ERROR
 
@@ -110,7 +111,7 @@ inline hipDataType GetHipDataType(DLDataType type) {
         return HIP_R_64F;
     }
   }
-  LOG(FATAL) << "Unsupported hip type";
+  TVM_FFI_THROW(InternalError) << "Unsupported hip type";
 }
 
 inline hipblasDatatype_t GetHipBlasDataType(DLDataType type) {
@@ -138,7 +139,7 @@ inline hipblasDatatype_t GetHipBlasDataType(DLDataType type) {
         return HIPBLAS_R_64F;
     }
   }
-  LOG(FATAL) << "Unsupported hip type";
+  TVM_FFI_THROW(InternalError) << "Unsupported hip type";
 }
 
 /*! \brief Execute matrix multiply followed by the specified epilogue, using hipBLASLt. */

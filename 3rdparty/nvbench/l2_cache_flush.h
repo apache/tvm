@@ -27,11 +27,11 @@
 namespace tvm {
 namespace runtime {
 
-#define CUDA_CALL(func)                                       \
-  {                                                           \
-    cudaError_t e = (func);                                   \
-    ICHECK(e == cudaSuccess || e == cudaErrorCudartUnloading) \
-        << "CUDA: " << cudaGetErrorString(e);                 \
+#define CUDA_CALL(func)                                               \
+  {                                                                   \
+    cudaError_t e = (func);                                           \
+    TVM_FFI_ICHECK(e == cudaSuccess || e == cudaErrorCudartUnloading) \
+        << "CUDA: " << cudaGetErrorString(e);                         \
   }
 
 class L2Flush {

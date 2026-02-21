@@ -56,7 +56,7 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
     ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     if (this->symbol_name_ == name) {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
-        ICHECK(this->initialized_) << "The module has not been initialized";
+        TVM_FFI_ICHECK(this->initialized_) << "The module has not been initialized";
         this->Run(args);
       });
     } else {
@@ -92,9 +92,9 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
     hipStream_t stream = static_cast<hipStream_t>(TVMFFIEnvGetStream(kDLROCM, device_id));
 
     auto get_input = [this, &dl_tensors](const JSONGraphNode& node, int idx) {
-      ICHECK_LT(idx, node.GetInputs().size());
+      TVM_FFI_ICHECK_LT(idx, node.GetInputs().size());
       auto eid = EntryID(node.GetInputs()[idx]);
-      ICHECK(eid < dl_tensors.size());
+      TVM_FFI_ICHECK(eid < dl_tensors.size());
       return dl_tensors[eid];
     };
 
@@ -137,7 +137,7 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
     }
   }
 
-  void Run() override { LOG(FATAL) << "Unreachable"; }
+  void Run() override { TVM_FFI_THROW(InternalError) << "Unreachable"; }
 };
 
 ffi::Module HipblasJSONRuntimeCreate(ffi::String symbol_name, ffi::String graph_json,

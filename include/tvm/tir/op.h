@@ -962,7 +962,7 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span())
     // Use IntImm if it is a small integer
     uint64_t uval = static_cast<uint64_t>(value);
     if (value < static_cast<ValueType>(0)) {
-      LOG(FATAL) << "cannot make uint from negative value " << value;
+      TVM_FFI_THROW(InternalError) << "cannot make uint from negative value " << value;
     } else if (uval <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
       return IntImm(t, static_cast<int64_t>(value), span);
     } else {
@@ -981,7 +981,7 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span())
   if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(DataType::kCustomBegin)) {
     return FloatImm(t, static_cast<double>(value), span);
   }
-  LOG(FATAL) << "cannot make const for type " << t;
+  TVM_FFI_THROW(InternalError) << "cannot make const for type " << t;
   throw;
 }
 

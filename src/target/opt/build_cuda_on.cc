@@ -51,12 +51,12 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
 
   ffi::Map<GlobalVar, PrimFunc> functions;
   for (auto [gvar, base_func] : mod->functions) {
-    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
+    TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
     auto calling_conv =
         prim_func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDefault));
-    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
-           calling_conv == CallingConv::kDefault)
+    TVM_FFI_ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
+                   calling_conv == CallingConv::kDefault)
         << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch or "
            "CallingConv::kDefault";
     functions.Set(gvar, prim_func);
@@ -80,7 +80,7 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   // Always use Python compilation callback (nvcc or nvrtc)
   // The C++ NVRTC fallback has been removed in favor of Python-first approach
   auto f_compile = ffi::Function::GetGlobal("tvm_callback_cuda_compile");
-  ICHECK(f_compile != nullptr)
+  TVM_FFI_ICHECK(f_compile != nullptr)
       << "tvm_callback_cuda_compile not found. "
       << "Please ensure TVM Python runtime is properly initialized.\n"
       << "The Python callback (tvm.contrib.nvcc.tvm_callback_cuda_compile) is required "

@@ -38,7 +38,7 @@ bool IsAnnotateWithParallel(const Instruction& inst) {
   if (!inst->kind.same_as(inst_annotate)) {
     return false;
   }
-  ICHECK_EQ(inst->attrs.size(), 1);
+  TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
   return ann_key == tir::attr::meta_schedule_parallel;
 }
@@ -50,7 +50,7 @@ bool IsAnnotateWithParallel(const Instruction& inst) {
  * \return The replaced instruction
  */
 Instruction ReplaceAnnValue(Instruction inst, int64_t ann_val) {
-  ICHECK_EQ(inst->inputs.size(), 2);
+  TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
   return Instruction(/*kind=*/inst->kind,                             //
                      /*inputs=*/{inst->inputs[0], Integer(ann_val)},  //
                      /*attrs=*/inst->attrs,
@@ -67,7 +67,7 @@ const SBlockRVNode* GetInstGetSBlockOutput(const Instruction& inst) {
   if (!inst->kind.same_as(inst_get_sblock)) {
     return nullptr;
   }
-  ICHECK_EQ(inst->outputs.size(), 1);
+  TVM_FFI_ICHECK_EQ(inst->outputs.size(), 1);
   const SBlockRVNode* block = TVM_TYPE_AS(inst->outputs[0], SBlockRVNode);
   return block;
 }
@@ -85,7 +85,7 @@ std::vector<std::vector<int64_t>> AnalyzeParallel(const ScheduleState& self,
                                                   const ffi::String& func_name, int64_t limit) {
   ffi::Array<StmtSRef> block_srefs =
       GetSBlocks(self, block_name, self->mod->GetGlobalVar(func_name));
-  ICHECK_EQ(block_srefs.size(), 1);
+  TVM_FFI_ICHECK_EQ(block_srefs.size(), 1);
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_srefs[0]);
   ScopeBlockLoopInfo info = GetScopeBlockLoopInfo(ffi::GetRef<SBlock>(block));
   std::vector<std::vector<int64_t>> results;
@@ -239,10 +239,10 @@ bool FindParallelDecision(const Trace& trace, TRandState* rand_state,
     return false;
   }
   const InstructionNode* ann_inst = ann_insts[s_tir::SampleInt(rand_state, 0, n_ann_insts)];
-  ICHECK_EQ(ann_inst->inputs.size(), 2);
+  TVM_FFI_ICHECK_EQ(ann_inst->inputs.size(), 2);
   const InstructionNode* get_sblock_inst =
       get_sblock_insts.at(Downcast<s_tir::SBlockRV>(ann_inst->inputs[0]).get());
-  ICHECK_EQ(get_sblock_inst->attrs.size(), 2);
+  TVM_FFI_ICHECK_EQ(get_sblock_inst->attrs.size(), 2);
   candidate->inst = ffi::GetRef<Instruction>(ann_inst);
   candidate->parallel_extent = Downcast<IntImm>(ann_inst->inputs[1])->value;
   candidate->block_name = Downcast<ffi::String>(get_sblock_inst->attrs[0]);

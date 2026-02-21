@@ -282,7 +282,7 @@ class RelaxConvCodeGen : public RelaxOpCode {
     if (use_bias_) {
       std::string out_layout_str;
       if (!node()->GetAttr("out_layout", &out_layout_str)) {
-        ICHECK(node()->GetAttr("data_layout", &out_layout_str))
+        TVM_FFI_ICHECK(node()->GetAttr("data_layout", &out_layout_str))
             << "out_layout or data_layout should be given, get " << node();
       }
       const auto& out_layout = tir::Layout(out_layout_str);
@@ -482,7 +482,8 @@ class RelaxPadCodeGen : public RelaxOpCode {
   void CodeGenBuild() final {
     ffi::Array<ffi::String> pad_width;
     const auto& attr_pad_width = node()->GetTypeArrayAttr<int>("pad_width");
-    ICHECK(attr_pad_width.size() % 2 == 0) << "pad_width should be multiple of 2, get " << node();
+    TVM_FFI_ICHECK(attr_pad_width.size() % 2 == 0)
+        << "pad_width should be multiple of 2, get " << node();
     for (size_t i = 0; i < attr_pad_width.size(); i += 2) {
       const ffi::String& cur_pad = "[" + std::to_string(attr_pad_width[i]) + ", " +
                                    std::to_string(attr_pad_width[i + 1]) + "]";

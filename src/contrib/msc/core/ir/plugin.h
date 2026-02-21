@@ -73,7 +73,7 @@ struct JsonPluginAttr {
     if (auto it = obj.find(ffi::String("describe")); it != obj.end()) {
       describe = std::string((*it).second.cast<ffi::String>());
     }
-    ICHECK_EQ(bitmask, 1 | 2) << "name and type should be given for plugin attr";
+    TVM_FFI_ICHECK_EQ(bitmask, 1 | 2) << "name and type should be given for plugin attr";
     if (describe.size() == 0) {
       describe = "Plugin attribute " + name + "(" + type + ")";
     }
@@ -118,7 +118,7 @@ struct JsonPluginTensor {
     if (auto it = obj.find(ffi::String("describe")); it != obj.end()) {
       describe = std::string((*it).second.cast<ffi::String>());
     }
-    ICHECK_EQ(bitmask, 1) << "name should be given for plugin tensor";
+    TVM_FFI_ICHECK_EQ(bitmask, 1) << "name should be given for plugin tensor";
     if (describe.size() == 0) {
       describe = "Plugin tensor " + name + "(" + dtype + " on " + device + ")";
     }
@@ -163,7 +163,7 @@ struct JsonPluginExtern {
     if (auto it = obj.find(ffi::String("describe")); it != obj.end()) {
       describe = std::string((*it).second.cast<ffi::String>());
     }
-    ICHECK_EQ(bitmask, 1) << "name should be given for plugin extern";
+    TVM_FFI_ICHECK_EQ(bitmask, 1) << "name should be given for plugin extern";
     if (describe.size() == 0) {
       describe = "Plugin function " + name + "(from " + header + ")";
     }
@@ -335,16 +335,16 @@ struct JsonPlugin {
             std::string(kv.second.cast<ffi::String>());
       }
     }
-    ICHECK_EQ(bitmask, 1 | 2 | 4) << "name, inputs and outputs should be given for plugin";
+    TVM_FFI_ICHECK_EQ(bitmask, 1 | 2 | 4) << "name, inputs and outputs should be given for plugin";
     if (externs.size() > 0) {
-      ICHECK(externs.count("infer_output")) << "infer_output should be given as extern";
+      TVM_FFI_ICHECK(externs.count("infer_output")) << "infer_output should be given as extern";
       bool has_compute = false;
       for (const auto& pair : externs) {
         if (StringUtils::EndsWith(pair.first, "_compute")) {
           has_compute = true;
         }
       }
-      ICHECK(has_compute) << "No compute function found, please check";
+      TVM_FFI_ICHECK(has_compute) << "No compute function found, please check";
     }
     if (describe.size() == 0) {
       describe = "Plugin " + name + "(" + version + ")";
@@ -684,7 +684,7 @@ class PluginRegistry {
    */
   const Plugin Get(const ffi::String& name) const {
     auto it = plugin_map_.find(name);
-    ICHECK(it != plugin_map_.end()) << "Can not find plugin " << name;
+    TVM_FFI_ICHECK(it != plugin_map_.end()) << "Can not find plugin " << name;
     return it->second;
   }
 
