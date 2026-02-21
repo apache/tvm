@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 from tvm.script import ir as I, tir as T
 import ctypes
 import numpy as np

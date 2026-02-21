@@ -20,7 +20,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import te
 from tvm.script import tir as T, ir as I
 
 

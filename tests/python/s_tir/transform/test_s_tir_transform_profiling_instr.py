@@ -17,7 +17,7 @@
 
 import tvm
 import tvm.testing
-from tvm import te, s_tir
+from tvm import s_tir
 from tvm.ir.module import IRModule
 from tvm.script import tir as T
 import numpy

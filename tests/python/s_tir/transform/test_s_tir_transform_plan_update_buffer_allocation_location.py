@@ -18,7 +18,6 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import te
 from tvm.script import tir as T
 from tvm import tir, s_tir
 from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
