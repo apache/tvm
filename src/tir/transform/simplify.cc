@@ -322,7 +322,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   ffi::Optional<Bool> ProveCondition(PrimExpr condition) const {
     condition = Substitute(condition, non_inlined_bindings_);
     if (config_->propagate_knowns_to_prove_conditional) {
-      ICHECK(touch_pattern_.has_value());
+      TVM_FFI_ICHECK(touch_pattern_.has_value());
       condition = touch_pattern_->SimplifyInContext(condition, current_stmt_.value(), analyzer_);
     } else {
       condition = analyzer_->Simplify(condition);

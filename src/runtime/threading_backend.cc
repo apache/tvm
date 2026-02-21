@@ -66,17 +66,17 @@ class QuRTThread {
     qurt_thread_attr_t attr;
     char name[32];
     int ret = posix_memalign(&stack_, HEXAGON_STACK_ALIGNMENT, HEXAGON_STACK_SIZE);
-    CHECK_EQ(ret, 0);
+    TVM_FFI_ICHECK_EQ(ret, 0);
     // When a std::function<> is cast to bool,
     // it indicates whether it stores a callable target
-    CHECK_EQ((bool)worker_callback_, true);
+    TVM_FFI_ICHECK_EQ((bool)worker_callback_, true);
     qurt_thread_attr_init(&attr);
     qurt_thread_attr_set_stack_size(&attr, HEXAGON_STACK_SIZE);
     qurt_thread_attr_set_stack_addr(&attr, stack_);
     snprintf(name, sizeof(name), "worker %d", id++);
     qurt_thread_attr_set_name(&attr, name);
     ret = qurt_thread_create(&thread_, &attr, (void (*)(void*))RunFunction, this);
-    CHECK_EQ(ret, QURT_EOK);
+    TVM_FFI_ICHECK_EQ(ret, QURT_EOK);
   }
   QuRTThread(QuRTThread&& other)
       : thread_(other.thread_),
@@ -147,7 +147,7 @@ class ThreadGroup::Impl {
  public:
   Impl(int num_workers, std::function<void(int)> worker_callback, bool exclude_worker0)
       : num_workers_(num_workers) {
-    ICHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
+    TVM_FFI_ICHECK_GE(num_workers, 1) << "Requested a non-positive number of worker threads.";
     for (int i = exclude_worker0; i < num_workers_; ++i) {
       threads_.emplace_back([worker_callback, i] { worker_callback(i); });
     }
@@ -225,7 +225,7 @@ class ThreadGroup::Impl {
           break;
       }
     } else {
-      ICHECK_GE(sorted_order_.size(), num_workers_);
+      TVM_FFI_ICHECK_GE(sorted_order_.size(), num_workers_);
       switch (mode) {
         case kSpecifyThreadShareAllCore:
           for (unsigned i = 0; i < threads_.size(); ++i) {

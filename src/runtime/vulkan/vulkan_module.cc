@@ -48,7 +48,7 @@ ffi::Module VulkanModuleLoadFile(const std::string& file_name, const ffi::String
   support::BytesInStream stream(data);
   uint32_t magic;
   stream.Read(&magic);
-  ICHECK_EQ(magic, kVulkanModuleMagic) << "VulkanModule Magic mismatch";
+  TVM_FFI_ICHECK_EQ(magic, kVulkanModuleMagic) << "VulkanModule Magic mismatch";
   stream.Read(&smap);
   return VulkanModuleCreate(smap, fmap, "");
 }
@@ -60,7 +60,7 @@ ffi::Module VulkanModuleLoadFromBytes(const ffi::Bytes& bytes) {
   std::string fmt;
   stream.Read(&fmt);
   ffi::Map<ffi::String, FunctionInfo> fmap;
-  ICHECK(stream.Read(&fmap));
+  TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&smap);
   return VulkanModuleCreate(smap, fmap, "");
 }

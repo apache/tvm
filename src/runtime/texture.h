@@ -63,7 +63,8 @@ inline size_t DefaultTextureLayoutSeparator(size_t shape_rank,
   } else if (convention == "global.texture-nhwc") {
     separator = 2;
   } else {
-    LOG(FATAL) << "Encountered unknown texture lowering convention: " << convention;
+    TVM_FFI_THROW(InternalError) << "Encountered unknown texture lowering convention: "
+                                 << convention;
   }
   return separator;
 }
@@ -76,7 +77,7 @@ inline size_t DefaultTextureLayoutSeparator(size_t shape_rank,
  */
 template <typename T, typename S>
 Texture2DShape<T> ApplyTexture2DFlattening(const S& shape, size_t rank, size_t axis) {
-  ICHECK(axis < rank)
+  TVM_FFI_ICHECK(axis < rank)
       << "Number of axes to flatten into rows must be less than shape rank for 2d flattening";
   Texture2DShape<T> texture{1, 1, 1, shape[rank - 1]};
   for (size_t i = 0; i < rank - 1; i++) {
@@ -129,7 +130,7 @@ inline DataType GetChannelType(size_t channel_size) {
   else if (channel_size == 64)
     return DataType::Float(16, 4);
 
-  LOG(FATAL) << "Unsupported Channel Size: " << channel_size;
+  TVM_FFI_THROW(InternalError) << "Unsupported Channel Size: " << channel_size;
 }
 
 }  // namespace runtime

@@ -79,10 +79,10 @@ VulkanDeviceAPI::VulkanDeviceAPI() {
 VulkanDeviceAPI::~VulkanDeviceAPI() {}
 
 void VulkanDeviceAPI::SetDevice(Device dev) {
-  ICHECK_EQ(dev.device_type, kDLVulkan)
+  TVM_FFI_ICHECK_EQ(dev.device_type, kDLVulkan)
       << "Active vulkan device cannot be set to non-vulkan device" << dev;
 
-  ICHECK_LE(dev.device_id, static_cast<int>(devices_.size()))
+  TVM_FFI_ICHECK_LE(dev.device_id, static_cast<int>(devices_.size()))
       << "Attempted to set active vulkan device to device_id==" << dev.device_id << ", but only "
       << devices_.size() << " devices present";
 
@@ -309,33 +309,33 @@ void* VulkanDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_h
 
 void VulkanDeviceAPI::FreeWorkspace(Device dev, void* data) {
   auto* pool = pool_per_thread.Get();
-  ICHECK(pool) << "Attempted to free a vulkan workspace on a CPU-thread "
-               << "that has never allocated a workspace";
+  TVM_FFI_ICHECK(pool) << "Attempted to free a vulkan workspace on a CPU-thread "
+                       << "that has never allocated a workspace";
   pool->FreeWorkspace(dev, data);
 }
 
 TVMStreamHandle VulkanDeviceAPI::CreateStream(Device dev) { return nullptr; }
 
 void VulkanDeviceAPI::FreeStream(Device dev, TVMStreamHandle stream) {
-  ICHECK_EQ(stream, static_cast<void*>(nullptr));
+  TVM_FFI_ICHECK_EQ(stream, static_cast<void*>(nullptr));
 }
 
 // Syncing two streams is a nop, since there is only one stream.
 void VulkanDeviceAPI::SyncStreamFromTo(Device dev, TVMStreamHandle event_src,
                                        TVMStreamHandle event_dst) {
-  ICHECK_EQ(event_src, static_cast<void*>(nullptr));
-  ICHECK_EQ(event_dst, static_cast<void*>(nullptr));
+  TVM_FFI_ICHECK_EQ(event_src, static_cast<void*>(nullptr));
+  TVM_FFI_ICHECK_EQ(event_dst, static_cast<void*>(nullptr));
 }
 
 void VulkanDeviceAPI::StreamSync(Device dev, TVMStreamHandle stream) {
-  ICHECK_EQ(stream, static_cast<void*>(nullptr));
+  TVM_FFI_ICHECK_EQ(stream, static_cast<void*>(nullptr));
   device(dev.device_id).ThreadLocalStream().Synchronize();
 }
 
 void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to,
                                      size_t to_offset, size_t size, Device dev_from, Device dev_to,
                                      DLDataType type_hint, TVMStreamHandle stream) {
-  ICHECK(stream == nullptr);
+  TVM_FFI_ICHECK(stream == nullptr);
   Device dev = dev_from;
   if (dev_from.device_type == kDLCPU) {
     dev = dev_to;
@@ -344,7 +344,7 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
   int from_dev_type = static_cast<int>(dev_from.device_type);
   int to_dev_type = static_cast<int>(dev_to.device_type);
   if (from_dev_type == kDLVulkan && to_dev_type == kDLVulkan) {
-    ICHECK_EQ(dev_from.device_id, dev_to.device_id)
+    TVM_FFI_ICHECK_EQ(dev_from.device_id, dev_to.device_id)
         << "The Vulkan runtime does not support deviceA to deviceB copies. "
         << "This should be changed to a deviceA to CPU copy, followed by a CPU to deviceB copy";
 
@@ -436,14 +436,15 @@ void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void*
     // Stream? This would allow us to elide synchronizations here.
     stream.Synchronize();
   } else {
-    LOG(FATAL) << "Expect copy from/to Vulkan or between Vulkan"
-               << ", from=" << from_dev_type << ", to=" << to_dev_type;
+    TVM_FFI_THROW(InternalError) << "Expect copy from/to Vulkan or between Vulkan"
+                                 << ", from=" << from_dev_type << ", to=" << to_dev_type;
   }
 }
 
 const VulkanDevice& VulkanDeviceAPI::device(size_t device_id) const {
-  ICHECK_LT(device_id, devices_.size()) << "Requested Vulkan device_id=" << device_id
-                                        << ", but only " << devices_.size() << " devices present";
+  TVM_FFI_ICHECK_LT(device_id, devices_.size())
+      << "Requested Vulkan device_id=" << device_id << ", but only " << devices_.size()
+      << " devices present";
   return devices_[device_id];
 }
 

@@ -213,7 +213,7 @@ inline IntervalSet Combine<tir::Div>(Analyzer* analyzer, IntervalSet a, Interval
   if (b->IsEmpty()) return b;
   if (b->IsSinglePoint()) {
     if (is_zero(b->min_value)) {
-      LOG(FATAL) << "Divide by zero in CombineInterval Div";
+      TVM_FFI_THROW(InternalError) << "Divide by zero in CombineInterval Div";
     }
     if (is_one(b->min_value)) return a;
     // no relaxation is needed in here due to set is inclusive
@@ -249,7 +249,7 @@ inline IntervalSet Combine<tir::Mod>(Analyzer* analyzer, IntervalSet a, Interval
   if (b->IsSinglePoint()) {
     const PrimExpr& divisor = b->min_value;
     if (is_zero(divisor)) {
-      LOG(FATAL) << "Modular by zero in CombineInterval Mod";
+      TVM_FFI_THROW(InternalError) << "Modular by zero in CombineInterval Mod";
     }
     // We need to add more bound constraints throughout the code.
     // The logic below assumes a is non-negative, which usually
@@ -276,7 +276,7 @@ inline IntervalSet Combine<tir::FloorDiv>(Analyzer* analyzer, IntervalSet a, Int
   if (b->IsEmpty()) return b;
   if (b->IsSinglePoint()) {
     if (is_zero(b->min_value)) {
-      LOG(FATAL) << "Divide by zero in CombineInterval Div";
+      TVM_FFI_THROW(InternalError) << "Divide by zero in CombineInterval Div";
     }
     if (is_one(b->min_value)) return a;
     // no relaxation is needed in here due to set is inclusive
@@ -312,7 +312,7 @@ inline IntervalSet Combine<tir::FloorMod>(Analyzer* analyzer, IntervalSet a, Int
   if (b->IsSinglePoint()) {
     const PrimExpr& divisor = b->min_value;
     if (is_zero(divisor)) {
-      LOG(FATAL) << "Modular by zero in CombineInterval Mod";
+      TVM_FFI_THROW(InternalError) << "Modular by zero in CombineInterval Mod";
     }
     if (analyzer->CanProveGreaterEqual(divisor, 0)) {
       if (divisor.as<tir::IntImmNode>()) {
@@ -496,7 +496,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
   IntervalSet VisitExpr_(const OrNode* op) final { return VisitBinaryExpr_<Or>(op); }
 
   IntervalSet VisitExpr_(const RampNode* op) final {
-    ICHECK(eval_vec_);
+    TVM_FFI_ICHECK(eval_vec_);
     IntervalSet base = Eval(op->base);
     PVar<IntImm> stride;
     if (stride.Match(op->stride)) {
@@ -532,7 +532,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
   }
 
   IntervalSet VisitExpr_(const BroadcastNode* op) final {
-    ICHECK(eval_vec_);
+    TVM_FFI_ICHECK(eval_vec_);
     return VisitExpr(op->value);
   }
 
@@ -674,12 +674,12 @@ void IntSetAnalyzer::Impl::Update(const Var& var, const IntSet& info, bool can_o
     if (it != dom_map_.end()) {
       const IntSet& old_info = (*it).second;
 
-      ICHECK(ExprDeepEqual()(old_info.min(), info.min()))
+      TVM_FFI_ICHECK(ExprDeepEqual()(old_info.min(), info.min()))
           << "Trying to update var \'" << var << "\'"
           << " with a different minimum value: "
           << "original=" << old_info.min() << ", new=" << info.min();
 
-      ICHECK(ExprDeepEqual()(old_info.max(), info.max()))
+      TVM_FFI_ICHECK(ExprDeepEqual()(old_info.max(), info.max()))
           << "Trying to update var \'" << var << "\'"
           << " with a different maximum value: "
           << "original=" << old_info.max() << ", new=" << info.max();
@@ -739,7 +739,7 @@ std::function<void()> IntSetAnalyzer::Impl::EnterConstraint(const PrimExpr& cons
   dom_constraints_.insert(dom_constraints_.end(), bounds.begin(), bounds.end());
   size_t new_size = dom_constraints_.size();
   auto frecover = [old_size, new_size, this]() {
-    ICHECK_EQ(dom_constraints_.size(), new_size);
+    TVM_FFI_ICHECK_EQ(dom_constraints_.size(), new_size);
     dom_constraints_.resize(old_size);
   };
   return frecover;
@@ -751,7 +751,7 @@ Range IntSet::CoverRange(Range max_range) const {
   IntSet temp;
   Analyzer analyzer;
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
-  ICHECK(s_int != nullptr);
+  TVM_FFI_ICHECK(s_int != nullptr);
   if (s_int->HasUpperBound() && s_int->HasLowerBound()) {
     return Range::FromMinExtent(analyzer.Simplify(s_int->min_value),
                                 analyzer.Simplify(s_int->max_value + 1 - s_int->min_value));
@@ -761,13 +761,13 @@ Range IntSet::CoverRange(Range max_range) const {
 
 PrimExpr IntSet::min() const {
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
-  ICHECK(s_int);
+  TVM_FFI_ICHECK(s_int);
   return s_int->min_value;
 }
 
 PrimExpr IntSet::max() const {
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
-  ICHECK(s_int);
+  TVM_FFI_ICHECK(s_int);
   return s_int->max_value;
 }
 
@@ -850,7 +850,7 @@ SignType IntSet::GetSignType() const {
 }
 PrimExpr IntSet::PointValue() const {
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
-  ICHECK(s_int && s_int->IsSinglePoint());
+  TVM_FFI_ICHECK(s_int && s_int->IsSinglePoint());
   return s_int->min_value;
 }
 
@@ -1116,7 +1116,7 @@ static ffi::Optional<IntSet> EvalIterSum(const IterSumExpr& iter_min, const Prim
   if (iter_min->args.empty()) {
     return IntSet::FromMinExtent(iter_min->base, extent);
   }
-  ICHECK_EQ(iter_min->args.size(), 1) << "The `EvalIterSum` expects fused iter sum expr";
+  TVM_FFI_ICHECK_EQ(iter_min->args.size(), 1) << "The `EvalIterSum` expects fused iter sum expr";
   const IterSplitExpr& split = iter_min->args[0];
   if (analyzer->CanProve(split->extent == 0)) {
     return IntSet::Nothing();
@@ -1165,7 +1165,7 @@ ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(const ffi::Array<Ran
   if (iter_sum_exprs.empty()) {
     return std::nullopt;
   }
-  ICHECK_EQ(iter_sum_exprs.size(), ndim);
+  TVM_FFI_ICHECK_EQ(iter_sum_exprs.size(), ndim);
   ffi::Array<IntSet> result;
   result.reserve(ndim);
   for (int i = 0; i < ndim; ++i) {
@@ -1205,14 +1205,14 @@ ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
         /*indices=*/{range->min}, /*input_iters=*/var_dom,
         /*predicate=*/predicate, /*check_level=*/IterMapLevel::Surjective, analyzer);
     if (!res->indices.empty()) {
-      ICHECK_EQ(res->indices.size(), 1U);
+      TVM_FFI_ICHECK_EQ(res->indices.size(), 1U);
       IterSumExpr sum_expr = res->indices[0];
 
       // dynamic extent is not supported yet.
       PrimExpr extent = range->extent;
       if (!is_const_number(extent)) {
         IntSet relaxed = EvalSet(extent, AsIntSet(var_dom));
-        ICHECK(relaxed.HasUpperBound());
+        TVM_FFI_ICHECK(relaxed.HasUpperBound());
         extent = relaxed.max();
       }
 

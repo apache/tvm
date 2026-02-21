@@ -44,11 +44,11 @@ bool AllowConciseScoping(const IRDocsifier& d, const ObjectRef& obj) {
       return false;
     }
   }
-  ICHECK(!d->frames.empty());
+  TVM_FFI_ICHECK(!d->frames.empty());
   if (const auto* f = d->frames.back().as<TIRFrameNode>()) {
     return f->allow_concise_scoping;
   }
-  LOG(FATAL) << "NotImplementedError: fragment printing";
+  TVM_FFI_THROW(NotImplementedError) << "fragment printing";
 }
 
 bool IsAncestorOfAllVarUse(const tir::Stmt& node, const ObjectRef& var, const IRDocsifier& d) {

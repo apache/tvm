@@ -42,8 +42,8 @@ struct SortableFunction {
     } else if (obj.second->GetTypeKey() == "relax.expr.Function") {
       priority = 3;
     } else {
-      LOG(FATAL) << "TypeError: TVMScript cannot print functions of type: "
-                 << obj.second->GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "TVMScript cannot print functions of type: "
+                               << obj.second->GetTypeKey();
     }
   }
 
@@ -103,10 +103,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           AssignDoc assignment(lhs, expr.value(), std::nullopt);
           (*f)->stmts.push_back(assignment);
         } else {
-          LOG(FATAL) << "TypeError: "
-                     << "Expected IRModule to only contain functions, "
-                     << " but mod[" << gv->name_hint << "] with type  " << base_func->GetTypeKey()
-                     << " produced Doc type of " << doc->GetTypeKey();
+          TVM_FFI_THROW(TypeError)
+              << "Expected IRModule to only contain functions, "
+              << " but mod[" << gv->name_hint << "] with type  " << base_func->GetTypeKey()
+              << " produced Doc type of " << doc->GetTypeKey();
         }
       }
       return HeaderWrapper(d, ClassDoc(module_doc, {IR(d, "ir_module")}, (*f)->stmts));

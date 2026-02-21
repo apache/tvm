@@ -119,7 +119,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
         // For example, a wait count 1 - i can be negative after loop unrolling.
         // We assume that such wait is a nop.
         auto inner = op->body.as<AttrStmtNode>();
-        ICHECK(inner);
+        TVM_FFI_ICHECK(inner);
         return Parent::VisitStmt(inner->body);
       }
     }

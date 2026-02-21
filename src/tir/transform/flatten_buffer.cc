@@ -61,7 +61,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   explicit BufferFlattener(arith::Analyzer* ana) : IRMutatorWithAnalyzer(ana) {}
 
   Stmt VisitStmt_(const SBlockNode* op) final {
-    ICHECK_EQ(op->match_buffers.size(), 0)
+    TVM_FFI_ICHECK_EQ(op->match_buffers.size(), 0)
         << "Unexpected MatchBufferRegion found during tir.transform.FlattenBuffer.  "
         << "All MatchBufferRegion should be removed in tir.transform.LowerMatchBuffer.";
 
@@ -124,7 +124,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
           Buffer flattened = GetFlattenedBuffer(buffer);
           return flattened->shape;
         } else {
-          ICHECK(decl_buffer->buffer->axis_separators.empty())
+          TVM_FFI_ICHECK(decl_buffer->buffer->axis_separators.empty())
               << "DeclBuffer node doesn't match Allocate extents, but also shouldn't be "
                  "flattened to 1-d physical memory";
         }
@@ -193,7 +193,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     // TODO(Lunderberg): Move the handling of boolean into a
     // dedicated pass.
     if (store_returns_bool) {
-      ICHECK_EQ(store->buffer->dtype, DataType::Int(8))
+      TVM_FFI_ICHECK_EQ(store->buffer->dtype, DataType::Int(8))
           << "Expected int8 backing array for boolean tensor";
       auto writer = store.CopyOnWrite();
       writer->value = tvm::cast(DataType::Int(8), store->value);
@@ -210,7 +210,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     // TODO(Lunderberg): Move the handling of boolean into a
     // dedicated pass.
     if (load_returns_bool) {
-      ICHECK_EQ(load->buffer->dtype, DataType::Int(8))
+      TVM_FFI_ICHECK_EQ(load->buffer->dtype, DataType::Int(8))
           << "Expected int8 backing array for boolean tensor";
       load.CopyOnWrite()->dtype = DataType::Int(8);
       return tvm::cast(DataType::Bool(), load);
@@ -227,7 +227,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
-    ICHECK(node->buffer.defined());
+    TVM_FFI_ICHECK(node->buffer.defined());
     auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
     Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
 
@@ -255,7 +255,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     ffi::Array<PrimExpr> flattened_max = GetSimplifiedElemOffset(orig_buf, max_values);
 
     ffi::Array<Range> flattened_ranges;
-    ICHECK_EQ(flattened_min.size(), flattened_max.size());
+    TVM_FFI_ICHECK_EQ(flattened_min.size(), flattened_max.size());
     for (size_t i = 0; i < flattened_min.size(); i++) {
       flattened_ranges.push_back(Range(flattened_min[i], flattened_max[i] + 1));
     }

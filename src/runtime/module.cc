@@ -63,7 +63,7 @@ bool RuntimeEnabled(const ffi::String& target_str) {
     if (!pf.has_value()) return false;
     return (*pf)(target).cast<bool>();
   } else {
-    LOG(FATAL) << "Unknown optional runtime " << target;
+    TVM_FFI_THROW(InternalError) << "Unknown optional runtime " << target;
   }
   return tvm::ffi::Function::GetGlobal(f_name).has_value();
 }

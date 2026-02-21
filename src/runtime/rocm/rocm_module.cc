@@ -75,7 +75,7 @@ class ROCMModuleNode : public ffi::ModuleObj {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     // note: llvm and asm formats are not laodable, so we don't save them
-    ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+    TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     SaveMetaDataToFile(meta_file, fmap_);
     SaveBinaryToFile(file_name, data_);
   }
@@ -113,8 +113,8 @@ class ROCMModuleNode : public ffi::ModuleObj {
     hipFunction_t func;
     hipError_t result = hipModuleGetFunction(&func, module_[device_id], func_name.c_str());
     if (result != hipSuccess) {
-      LOG(FATAL) << "ROCMError: hipModuleGetFunction " << func_name
-                 << " failed with error: " << hipGetErrorString(result);
+      TVM_FFI_THROW(ROCMError) << "hipModuleGetFunction " << func_name
+                               << " failed with error: " << hipGetErrorString(result);
     }
     return func;
   }
@@ -129,7 +129,7 @@ class ROCMModuleNode : public ffi::ModuleObj {
     size_t nbytes = 0;
 
     ROCM_DRIVER_CALL(hipModuleGetGlobal(&global, &nbytes, module_[device_id], global_name.c_str()));
-    ICHECK_EQ(nbytes, expect_nbytes);
+    TVM_FFI_ICHECK_EQ(nbytes, expect_nbytes);
     return global;
   }
 
@@ -199,7 +199,7 @@ class ROCMWrappedFunc {
 
 ffi::Optional<ffi::Function> ROCMModuleNode::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
-  ICHECK_EQ(sptr_to_self.get(), this);
+  TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
   auto opt_info = fmap_.Get(name);
   if (!opt_info.has_value()) return std::nullopt;
   FunctionInfo info = opt_info.value();
@@ -231,7 +231,7 @@ ffi::Module ROCMModuleLoadFromBytes(const ffi::Bytes& bytes) {
   ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt;
   stream.Read(&fmt);
-  ICHECK(stream.Read(&fmap));
+  TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&data);
   return ROCMModuleCreate(data, fmt, fmap, std::string(), std::string());
 }

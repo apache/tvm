@@ -65,7 +65,7 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
     }
     move_source_paths = true;
   } else {
-    LOG(FATAL) << "TypeError: Unexpected doc type: " << doc->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unexpected doc type: " << doc->GetTypeKey();
   }
   std::ostringstream os;
   if (!d->metadata.empty()) {

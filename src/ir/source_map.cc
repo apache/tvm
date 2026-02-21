@@ -90,9 +90,9 @@ Span::Span(SourceName source_name, int line, int end_line, int column, int end_c
 }
 
 Span Span::Merge(const Span& other) const {
-  ICHECK(this->defined() && other.defined()) << "Span::Merge: both spans must be defined";
+  TVM_FFI_ICHECK(this->defined() && other.defined()) << "Span::Merge: both spans must be defined";
 
-  ICHECK((*this)->source_name == other->source_name);
+  TVM_FFI_ICHECK((*this)->source_name == other->source_name);
   return Span((*this)->source_name, std::min((*this)->line, other->line),
               std::max((*this)->end_line, other->end_line),
               std::min((*this)->column, other->column),
@@ -203,7 +203,7 @@ Source::Source(SourceName src_name, std::string source) {
 
 tvm::ffi::String Source::GetLine(int line) {
   VLOG(1) << "Source::GetLine: line=" << line;
-  ICHECK(line - 1 < static_cast<int64_t>((*this)->line_map.size()))
+  TVM_FFI_ICHECK(line - 1 < static_cast<int64_t>((*this)->line_map.size()))
       << "requested line: " << line << "at index: " << (line - 1)
       << "line_map size: " << (*this)->line_map.size() << "source: " << (*this)->source;
 

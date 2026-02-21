@@ -36,7 +36,7 @@ namespace spirv {
 template <unsigned id>
 PrimExpr CallGLSLIntrin(PrimExpr e, const ffi::Array<PrimExpr>& args) {
   const tir::CallNode* call = e.as<tir::CallNode>();
-  ICHECK(call != nullptr);
+  TVM_FFI_ICHECK(call != nullptr);
   ffi::Array<PrimExpr> cargs;
   // intrin id.
   cargs.push_back(IntImm(DataType::UInt(32), id));
@@ -50,7 +50,7 @@ PrimExpr CallGLSLIntrin(PrimExpr e, const ffi::Array<PrimExpr>& args) {
 template <unsigned id>
 PrimExpr CallGLSLIntrin(PrimExpr e) {
   const tir::CallNode* call = e.as<tir::CallNode>();
-  ICHECK(call != nullptr);
+  TVM_FFI_ICHECK(call != nullptr);
   return CallGLSLIntrin<id>(e, call->args);
 }
 
@@ -145,8 +145,8 @@ using tir::FLegalize;
 TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>(
     "vulkan.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
-      ICHECK_EQ(call->args.size(), 1);
+      TVM_FFI_ICHECK(call != nullptr);
+      TVM_FFI_ICHECK_EQ(call->args.size(), 1);
       PrimExpr arg = call->args[0];
       PrimExpr msb;
       if (arg.dtype().bits() == 64) {
@@ -160,7 +160,7 @@ TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>(
       } else if (arg.dtype().bits() == 32) {
         msb = CallGLSLIntrin<GLSLstd450FindUMsb>(e);
       } else {
-        LOG(FATAL) << "SPIR-V clz only supports a 32 bit or 64 bit integer.";
+        TVM_FFI_THROW(InternalError) << "SPIR-V clz only supports a 32 bit or 64 bit integer.";
       }
       return PrimExpr(arg.dtype().bits() - 1) - msb;
     });

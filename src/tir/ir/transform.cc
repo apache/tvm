@@ -108,7 +108,7 @@ PrimFuncPass::PrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContex
 
 // Perform Module -> Module optimizations at the PrimFunc level.
 IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx) const {
-  ICHECK(mod.defined());
+  TVM_FFI_ICHECK(mod.defined());
   std::vector<GlobalVar> deleted_list;
 
   IRModuleNode* mod_ptr = mod.CopyOnWrite();

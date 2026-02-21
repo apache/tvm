@@ -31,8 +31,8 @@ namespace llvm {
 ffi::Optional<ffi::String> DetectSystemTriple() {
 #ifdef TVM_LLVM_VERSION
   auto pf = tvm::ffi::Function::GetGlobal("target.llvm_get_system_triple");
-  ICHECK(pf.has_value()) << "The target llvm_get_system_triple was not found, "
-                            "please compile with USE_LLVM = ON";
+  TVM_FFI_ICHECK(pf.has_value()) << "The target llvm_get_system_triple was not found, "
+                                    "please compile with USE_LLVM = ON";
   return (*pf)().cast<ffi::String>();
 #endif
   return {};

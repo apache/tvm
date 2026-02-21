@@ -19,7 +19,20 @@
 
 /*!
  * \file tvm/runtime/logging.h
- * \brief logging utilitiesß
+ * \brief logging utilities
+ *
+ * We use the following facilities from tvm/ffi/error.h for
+ * error handling and checking:
+ *
+ *  - TVM_FFI_THROW(ErrorKind) << "msg";
+ *  - TVM_FFI_CHECK(cond, ErrorKind) << "msg";
+ *  - TVM_FFI_CHECK_EQ(x, y, ErrorKind) << "msg";
+ *  - TVM_FFI_ICHECK(x) << "msg";  // InternalError
+ *  - TVM_FFI_ICHECK_EQ(x, y) << "msg";
+ *  - TVM_FFI_DCHECK(x) << "msg";  // Debug-only InternalError
+ *
+ * LOG(INFO), LOG(WARNING), LOG(ERROR) are kept for logging.
+ * LOG(FATAL) is kept for completeness, it throws InternalError.
  */
 #ifndef TVM_RUNTIME_LOGGING_H_
 #define TVM_RUNTIME_LOGGING_H_
@@ -30,7 +43,6 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
-#include <memory>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -91,92 +103,6 @@
 #define TVM_LOG_CUSTOMIZE 0
 #endif
 
-// a technique that enables overriding macro names on the number of parameters. This is used
-// to define other macros below
-#define GET_MACRO(_1, _2, _3, _4, _5, NAME, ...) NAME
-
-/*!
- * \brief COND_X calls COND_X_N where N is the number of parameters passed to COND_X
- * X can be any of CHECK_GE, CHECK_EQ, CHECK, or LOG COND_X (but not COND_X_N)
- * are supposed to be used outside this file.
- * The first parameter of COND_X (and therefore, COND_X_N), which we call 'quit_on_assert',
- * is a boolean. The rest of the parameters of COND_X is the same as the parameters of X.
- * quit_on_assert determines the overall behavior of COND_X. If it's true COND_X
- * quits the program on assertion failure. If it's false, then it moves on and somehow reports
- * the assertion failure back to the macro caller in an appropriate manner (e.g, 'return false'
- * in a function, or 'continue' or 'break' in a loop)
- * The default behavior when quit_on_assertion is false, is to 'return false'. If this is not
- * desirable, the macro caller can pass one more last parameter to COND_X to tell COND_X what
- * to do when quit_on_assertion is false and the assertion fails.
- *
- * Rationale: These macros were designed to implement functions that have two behaviors
- * in a concise way. Those behaviors are quitting on assertion failures, or trying to
- * move on from assertion failures. Note that these macros hide lots of control flow in them,
- * and therefore, makes the logic of the whole code slightly harder to understand. However,
- * in pieces of code that use these macros frequently, it will significantly shorten the
- * amount of code needed to be read, and we won't need to clutter the main logic of the
- * function by repetitive control flow structure. The first problem
- * mentioned will be improved over time as the developer gets used to the macro.
- *
- * Here is an example of how to use it
- * \code
- * bool f(..., bool quit_on_assertion) {
- *   int a = 0, b = 0;
- *   ...
- *   a = ...
- *   b = ...
- *   // if quit_on_assertion is true, if a==b, continue, otherwise quit.
- *   // if quit_on_assertion is false, if a==b, continue, otherwise 'return false'
- *   //   (default behaviour)
- *   COND_CHECK_EQ(quit_on_assertion, a, b) << "some error message when  quiting"
- *   ...
- *   for (int i = 0; i < N; i++) {
- *     a = ...
- *     b = ...
- *     // if quit_on_assertion is true, if a==b, continue, otherwise quit.
- *     // if quit_on_assertion is false, if a==b, continue, otherwise 'break'
- *     //   (non-default behaviour, therefore, has to be explicitly specified)
- *     COND_CHECK_EQ(quit_on_assertion, a, b, break) << "some error message when  quiting"
- *   }
- * }
- * \endcode
- */
-#define COND_CHECK_GE(...) \
-  GET_MACRO(__VA_ARGS__, COND_CHECK_GE_5, COND_CHECK_GE_4, COND_CHECK_GE_3)(__VA_ARGS__)
-#define COND_CHECK_EQ(...) \
-  GET_MACRO(__VA_ARGS__, COND_CHECK_EQ_5, COND_CHECK_EQ_4, COND_CHECK_EQ_3)(__VA_ARGS__)
-#define COND_CHECK(...) \
-  GET_MACRO(__VA_ARGS__, COND_CHECK_5, COND_CHECK_4, COND_CHECK_3, COND_CHECK_2)(__VA_ARGS__)
-#define COND_LOG(...) \
-  GET_MACRO(__VA_ARGS__, COND_LOG_5, COND_LOG_4, COND_LOG_3, COND_LOG_2)(__VA_ARGS__)
-
-// Not supposed to be used by users directly.
-#define COND_CHECK_OP(quit_on_assert, x, y, what, op) \
-  if (!quit_on_assert) {                              \
-    if (!((x)op(y))) what;                            \
-  } else /* NOLINT(*) */                              \
-    CHECK_##op(x, y)
-
-#define COND_CHECK_EQ_4(quit_on_assert, x, y, what) COND_CHECK_OP(quit_on_assert, x, y, what, ==)
-#define COND_CHECK_GE_4(quit_on_assert, x, y, what) COND_CHECK_OP(quit_on_assert, x, y, what, >=)
-
-#define COND_CHECK_3(quit_on_assert, x, what) \
-  if (!quit_on_assert) {                      \
-    if (!(x)) what;                           \
-  } else /* NOLINT(*) */                      \
-    CHECK(x)
-
-#define COND_LOG_3(quit_on_assert, x, what) \
-  if (!quit_on_assert) {                    \
-    what;                                   \
-  } else /* NOLINT(*) */                    \
-    LOG(x)
-
-#define COND_CHECK_EQ_3(quit_on_assert, x, y) COND_CHECK_EQ_4(quit_on_assert, x, y, return false)
-#define COND_CHECK_GE_3(quit_on_assert, x, y) COND_CHECK_GE_4(quit_on_assert, x, y, return false)
-#define COND_CHECK_2(quit_on_assert, x) COND_CHECK_3(quit_on_assert, x, return false)
-#define COND_LOG_2(quit_on_assert, x) COND_LOG_3(quit_on_assert, x, return false)
-
 namespace tvm {
 namespace runtime {
 
@@ -184,54 +110,16 @@ using ffi::EnvErrorAlreadySet;
 using ffi::Error;
 
 /*!
- * \brief Error type for errors from CHECK, ICHECK, and LOG(FATAL). This error
+ * \brief Error type for errors from LOG(FATAL). This error
  * contains a backtrace of where it occurred.
+ *
+ * \note LOG(FATAL) always throws InternalError. For typed errors,
+ * use TVM_FFI_THROW(ErrorKind) instead.
  */
 class InternalError : public Error {
  public:
-  /*! \brief Construct an error. Not recommended to use directly. Instead use LOG(FATAL).
-   *
-   * \param file The file where the error occurred.
-   * \param lineno The line number where the error occurred.
-   * \param message The error message to display.
-   * \param time The time at which the error occurred. This should be in local time.
-   * \param backtrace Backtrace from when the error occurred.
-   */
   InternalError(std::string file, int lineno, std::string message)
-      : Error(DetectKind(message), DetectMessage(message),
-              TVMFFIBacktrace(file.c_str(), lineno, "", 0)) {}
-
- private:
-  // try to detect the kind of error from the message when the error type
-  // is folded into the text message
-  static std::string DetectKind(const std::string& message) {
-    size_t pos = message.find("Error:");
-    if (pos != std::string::npos) {
-      size_t end = pos + 6;
-      size_t begin = pos;
-      for (; begin != 0 && message[begin - 1] != ' '; --begin) {
-      }
-      return message.substr(begin, end - begin - 1);
-    } else {
-      return "InternalError";
-    }
-  }
-
-  static std::string DetectMessage(const std::string& message) {
-    size_t pos = message.find("Error:");
-    if (pos != std::string::npos) {
-      size_t end = pos + 6;
-      size_t begin = pos;
-      for (; begin != 0 && message[begin - 1] != ' '; --begin) {
-      }
-      if (end < message.size() && message[end] == ' ') {
-        end += 1;
-      }
-      return message.substr(0, begin) + message.substr(end);
-    } else {
-      return message;
-    }
-  }
+      : Error("InternalError", std::move(message), TVMFFIBacktrace(file.c_str(), lineno, "", 0)) {}
 };
 
 /*! \brief Internal implementation */
@@ -497,48 +385,6 @@ class VLogContextEntry {
   std::stringstream sstream_;
 };
 
-template <typename X, typename Y>
-std::unique_ptr<std::string> LogCheckFormat(const X& x, const Y& y) {
-  std::ostringstream os;
-  os << " (" << x << " vs. " << y << ") ";  // CHECK_XX(x, y) requires x and y can be serialized to
-                                            // string. Use CHECK(x OP y) otherwise.
-  return std::make_unique<std::string>(os.str());
-}
-
-// Inline _Pragma in macros does not work reliably on old version of MSVC and
-// GCC. We wrap all comparisons in a function so that we can use #pragma to
-// silence bad comparison warnings.
-#define TVM_CHECK_FUNC(name, op)                                                          \
-  template <typename X, typename Y>                                                       \
-  TVM_ALWAYS_INLINE std::unique_ptr<std::string> LogCheck##name(const X& x, const Y& y) { \
-    if (x op y) return nullptr;                                                           \
-    return LogCheckFormat(x, y);                                                          \
-  }                                                                                       \
-  TVM_ALWAYS_INLINE std::unique_ptr<std::string> LogCheck##name(int x, int y) {           \
-    return LogCheck##name<int, int>(x, y);                                                \
-  }
-
-#if defined(__GNUC__) || defined(__clang__)  // GCC and Clang
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wsign-compare"
-#elif defined(_MSC_VER)  // MSVC
-#pragma warning(push)
-#pragma warning(disable : 4389)  // '==' : signed/unsigned mismatch
-#endif
-
-TVM_CHECK_FUNC(_LT, <)
-TVM_CHECK_FUNC(_GT, >)
-TVM_CHECK_FUNC(_LE, <=)
-TVM_CHECK_FUNC(_GE, >=)
-TVM_CHECK_FUNC(_EQ, ==)
-TVM_CHECK_FUNC(_NE, !=)
-
-#if defined(__GNUC__) || defined(__clang__)  // GCC and Clang
-#pragma GCC diagnostic pop
-#elif defined(_MSC_VER)  // MSVC
-#pragma warning(pop)
-#endif
-
 }  // namespace detail
 
 #define TVM_LOG_LEVEL_DEBUG 0
@@ -555,27 +401,6 @@ TVM_CHECK_FUNC(_NE, !=)
   ::tvm::runtime::detail::LogMessage(__FILE__, __LINE__, TVM_LOG_LEVEL_ERROR).stream()
 #define LOG_WARNING \
   ::tvm::runtime::detail::LogMessage(__FILE__, __LINE__, TVM_LOG_LEVEL_WARNING).stream()
-
-#define TVM_CHECK_BINARY_OP(name, op, x, y)                                \
-  if (auto __tvm__log__err = ::tvm::runtime::detail::LogCheck##name(x, y)) \
-  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()            \
-      << "Check failed: " << #x " " #op " " #y << *__tvm__log__err << ": "
-
-#define CHECK(x)                                                \
-  if (!(x))                                                     \
-  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
-      << "Check failed: (" #x << ") is false: "
-
-#define CHECK_LT(x, y) TVM_CHECK_BINARY_OP(_LT, <, x, y)
-#define CHECK_GT(x, y) TVM_CHECK_BINARY_OP(_GT, >, x, y)
-#define CHECK_LE(x, y) TVM_CHECK_BINARY_OP(_LE, <=, x, y)
-#define CHECK_GE(x, y) TVM_CHECK_BINARY_OP(_GE, >=, x, y)
-#define CHECK_EQ(x, y) TVM_CHECK_BINARY_OP(_EQ, ==, x, y)
-#define CHECK_NE(x, y) TVM_CHECK_BINARY_OP(_NE, !=, x, y)
-#define CHECK_NOTNULL(x)                                                          \
-  ((x) == nullptr ? ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
-                        << "Check not null: " #x << ' ',                          \
-   (x) : (x))  // NOLINT(*)
 
 #define LOG_IF(severity, condition) \
   !(condition) ? (void)0 : ::tvm::runtime::detail::LogMessageVoidify() & LOG(severity)
@@ -625,54 +450,6 @@ TVM_CHECK_FUNC(_NE, !=)
 #define VLOG(level)                                                               \
   DLOG_IF(INFO, ::tvm::runtime::detail::VerboseLoggingEnabled(__FILE__, (level))) \
       << ::tvm::runtime::detail::ThreadLocalVLogContext()->str()
-
-#if TVM_LOG_DEBUG
-#define DCHECK(x) CHECK(x)
-#define DCHECK_LT(x, y) CHECK((x) < (y))
-#define DCHECK_GT(x, y) CHECK((x) > (y))
-#define DCHECK_LE(x, y) CHECK((x) <= (y))
-#define DCHECK_GE(x, y) CHECK((x) >= (y))
-#define DCHECK_EQ(x, y) CHECK((x) == (y))
-#define DCHECK_NE(x, y) CHECK((x) != (y))
-#else
-#define DCHECK(x) \
-  while (false) CHECK(x)
-#define DCHECK_LT(x, y) \
-  while (false) CHECK((x) < (y))
-#define DCHECK_GT(x, y) \
-  while (false) CHECK((x) > (y))
-#define DCHECK_LE(x, y) \
-  while (false) CHECK((x) <= (y))
-#define DCHECK_GE(x, y) \
-  while (false) CHECK((x) >= (y))
-#define DCHECK_EQ(x, y) \
-  while (false) CHECK((x) == (y))
-#define DCHECK_NE(x, y) \
-  while (false) CHECK((x) != (y))
-#endif
-
-#define TVM_ICHECK_INDENT "  "
-
-#define ICHECK_BINARY_OP(name, op, x, y)                                   \
-  if (auto __tvm__log__err = ::tvm::runtime::detail::LogCheck##name(x, y)) \
-  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream()            \
-      << "InternalError: Check failed: " << #x " " #op " " #y << *__tvm__log__err << ": "
-
-#define ICHECK(x)                                               \
-  if (!(x))                                                     \
-  ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
-      << "InternalError: Check failed: (" #x << ") is false: "
-
-#define ICHECK_LT(x, y) ICHECK_BINARY_OP(_LT, <, x, y)
-#define ICHECK_GT(x, y) ICHECK_BINARY_OP(_GT, >, x, y)
-#define ICHECK_LE(x, y) ICHECK_BINARY_OP(_LE, <=, x, y)
-#define ICHECK_GE(x, y) ICHECK_BINARY_OP(_GE, >=, x, y)
-#define ICHECK_EQ(x, y) ICHECK_BINARY_OP(_EQ, ==, x, y)
-#define ICHECK_NE(x, y) ICHECK_BINARY_OP(_NE, !=, x, y)
-#define ICHECK_NOTNULL(x)                                                         \
-  ((x) == nullptr ? ::tvm::runtime::detail::LogFatal(__FILE__, __LINE__).stream() \
-                        << "InternalError: Check not null: " #x << ' ',           \
-   (x) : (x))  // NOLINT(*)
 
 }  // namespace runtime
 // Re-export error types

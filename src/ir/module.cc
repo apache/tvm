@@ -49,7 +49,7 @@ IRModule::IRModule(tvm::ffi::Map<GlobalVar, BaseFunc> functions, SourceMap sourc
 
   for (const auto& kv : n->functions) {
     // set global var map
-    ICHECK(n->global_var_map_.count(kv.first->name_hint) == 0)
+    TVM_FFI_ICHECK(n->global_var_map_.count(kv.first->name_hint) == 0)
         << "Duplicate global function name " << kv.first->name_hint;
     n->global_var_map_.Set(kv.first->name_hint, kv.first);
   }
@@ -118,7 +118,7 @@ GlobalVar IRModuleNode::GetGlobalVar(const ffi::String& name) const {
   auto it = global_var_map_.find(name);
   if (it == global_var_map_.end()) {
     std::ostringstream msg;
-    msg << "ValueError: Cannot find global var \"" << name << "\" in the Module\n"
+    msg << "Cannot find global var \"" << name << "\" in the Module\n"
         << "candidates are: [";
     int counter = 0;
     for (auto kv : global_var_map_) {
@@ -128,7 +128,7 @@ GlobalVar IRModuleNode::GetGlobalVar(const ffi::String& name) const {
       msg << "\"" << kv.first << "\"";
     }
     msg << "]";
-    LOG(FATAL) << msg.str();
+    TVM_FFI_THROW(ValueError) << msg.str();
   }
   return (*it).second;
 }
@@ -154,9 +154,10 @@ void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
 
   auto it = global_var_map_.find(var->name_hint);
   if (it != global_var_map_.end()) {
-    ICHECK_EQ((*it).second, var);
+    TVM_FFI_ICHECK_EQ((*it).second, var);
   } else {
-    ICHECK(global_var_map_.count(var->name_hint) == 0) << "Duplicate global function name " << var;
+    TVM_FFI_ICHECK(global_var_map_.count(var->name_hint) == 0)
+        << "Duplicate global function name " << var;
   }
 
   global_var_map_.Set(var->name_hint, var);
@@ -179,7 +180,7 @@ void IRModuleNode::Remove(const GlobalVar& var) {
 
 BaseFunc IRModuleNode::Lookup(const GlobalVar& var) const {
   auto it = functions.find(var);
-  ICHECK(it != functions.end()) << "There is no definition of " << var;
+  TVM_FFI_ICHECK(it != functions.end()) << "There is no definition of " << var;
   return (*it).second;
 }
 
@@ -240,8 +241,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                } else if (attrs.as<ffi::MapObj>()) {
                  return tvm::DictAttrs(Downcast<ffi::Map<ffi::String, Any>>(attrs));
                } else {
-                 LOG(FATAL) << "Expected attrs argument to be either DictAttrs or "
-                               "ffi::Map<ffi::String,ObjectRef>";
+                 TVM_FFI_THROW(InternalError)
+                     << "Expected attrs argument to be either DictAttrs or "
+                        "ffi::Map<ffi::String,ObjectRef>";
                }
              }();
 
@@ -255,7 +257,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("ir.Module_Add",
            [](IRModule mod, GlobalVar var, ObjectRef val, bool update) -> IRModule {
-             ICHECK(val->IsInstance<RelaxExprNode>());
+             TVM_FFI_ICHECK(val->IsInstance<RelaxExprNode>());
              mod->Add(var, Downcast<BaseFunc>(val), update);
              return mod;
            })
@@ -267,8 +269,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                } else if (auto opt = var.as<ffi::String>()) {
                  return mod->GetGlobalVar(opt.value());
                } else {
-                 LOG(FATAL) << "InternalError: "
-                            << "Variant didn't contain any of the allowed types";
+                 TVM_FFI_THROW(InternalError) << "Variant didn't contain any of the allowed types";
                }
              }();
              mod->Remove(gvar);
@@ -281,8 +282,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else if (auto opt = var.as<ffi::String>()) {
                return mod->global_var_map_.count(opt.value());
              } else {
-               LOG(FATAL) << "InternalError: "
-                          << "Variant didn't contain any of the allowed types";
+               TVM_FFI_THROW(InternalError) << "Variant didn't contain any of the allowed types";
              }
            })
       .def_method("ir.Module_GetGlobalVar", &IRModuleNode::GetGlobalVar)

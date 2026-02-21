@@ -112,10 +112,10 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     const VarNode* buffer_var = op->buffer->data.get();
     auto it = alloc_info_.find(buffer_var);
     if (it != alloc_info_.end() && it->second.alloc) {
-      ICHECK_LT(it->second.level, scope_.size());
+      TVM_FFI_ICHECK_LT(it->second.level, scope_.size());
       scope_[it->second.level].touched.push_back(buffer_var);
 
-      ICHECK_EQ(op->buffer->axis_separators.size() + 1, it->second.num_physical_dimensions)
+      TVM_FFI_ICHECK_EQ(op->buffer->axis_separators.size() + 1, it->second.num_physical_dimensions)
           << "Buffer " << op->buffer->name << " is allocated with "
           << it->second.num_physical_dimensions
           << " physical dimensions, but is accessed as having "
@@ -138,10 +138,11 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     const VarNode* buffer_var = op->buffer->data.get();
     auto it = alloc_info_.find(buffer_var);
     if (it != alloc_info_.end() && it->second.alloc) {
-      ICHECK_LT(it->second.level, scope_.size()) << "Load memory in places other than store.";
+      TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
+          << "Load memory in places other than store.";
       scope_[it->second.level].touched.push_back(buffer_var);
 
-      ICHECK_EQ(op->buffer->axis_separators.size() + 1, it->second.num_physical_dimensions)
+      TVM_FFI_ICHECK_EQ(op->buffer->axis_separators.size() + 1, it->second.num_physical_dimensions)
           << "Buffer " << op->buffer->name << " is allocated with "
           << it->second.num_physical_dimensions
           << " physical dimensions, but is accessed as having "
@@ -165,7 +166,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     // Directly reference to the variable count as a read.
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
-      ICHECK_LT(it->second.level, scope_.size()) << " buf=" << buf->name_hint;
+      TVM_FFI_ICHECK_LT(it->second.level, scope_.size()) << " buf=" << buf->name_hint;
       scope_[it->second.level].touched.push_back(buf);
     }
   }
@@ -183,11 +184,11 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     e.touched = std::move(scope_.back().touched);
     scope_.pop_back();
     int64_t end_index = static_cast<int64_t>(linear_seq_.size());
-    ICHECK_GT(end_index, begin_index);
+    TVM_FFI_ICHECK_GT(end_index, begin_index);
     e.scope_pair_offset = begin_index - end_index;
     linear_seq_.push_back(e);
     // record the pointer to end index.
-    ICHECK_NE(end_index, 0U);
+    TVM_FFI_ICHECK_NE(end_index, 0U);
     linear_seq_[begin_index].scope_pair_offset = end_index - begin_index;
   }
 
@@ -339,7 +340,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
         result_ = false;
         return;
       }
-      ICHECK_EQ(store_->indices.size(), op->indices.size())
+      TVM_FFI_ICHECK_EQ(store_->indices.size(), op->indices.size())
           << "Store/Load occur to the same buffer " << buf->name_hint
           << " with differing number of indices";
       for (size_t i = 0; i < store_->indices.size(); i++) {
@@ -421,7 +422,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     auto key = buf.get();
     auto it = buffer_remap_.find(key);
     if (it != buffer_remap_.end()) {
-      ICHECK_EQ(it->second->data.get(), new_backing_array.get())
+      TVM_FFI_ICHECK_EQ(it->second->data.get(), new_backing_array.get())
           << "Cannot remap buffer " << buf->name << " to use backing array "
           << new_backing_array->name_hint << ", previously used backing array "
           << it->second->data->name_hint;
@@ -458,7 +459,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
-      ICHECK_EQ(op->args.size(), 5U);
+      TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       DataType dtype = op->args[0].dtype();
       const VarNode* buffer = op->args[1].as<VarNode>();
       auto it = alloc_map_.find(buffer);
@@ -469,7 +470,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       PrimExpr offset = this->VisitExpr(op->args[2]);
       PrimExpr extent = this->VisitExpr(op->args[3]);
       uint64_t elem_bits = dtype.bits() * dtype.lanes();
-      ICHECK_EQ(se->bits_offset % elem_bits, 0U);
+      TVM_FFI_ICHECK_EQ(se->bits_offset % elem_bits, 0U);
       if (se->bits_offset != 0) {
         offset = make_const(offset.dtype(), se->bits_offset / elem_bits) + offset;
       }
@@ -503,7 +504,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
-    ICHECK(op->kind != ForKind::kVectorized) << "VectorizeLoop before LiftStorageAlloc";
+    TVM_FFI_ICHECK(op->kind != ForKind::kVectorized) << "VectorizeLoop before LiftStorageAlloc";
     // remake all the allocation at the attach scope.
     if (attach_map_.count(op)) {
       auto& svec = attach_map_[op];
@@ -597,7 +598,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   PrimExpr RemapIndex(DataType dtype, PrimExpr index, StorageEntry* e) {
     if (e->bits_offset == 0) return index;
     uint64_t elem_bits = dtype.bits();
-    ICHECK_EQ(e->bits_offset % elem_bits, 0U);
+    TVM_FFI_ICHECK_EQ(e->bits_offset % elem_bits, 0U);
     return make_const(index.dtype(), e->bits_offset / elem_bits) + index;
   }
   // Prepare the new allocations
@@ -614,7 +615,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
         if (IsSpecialTaggedMemory(e->scope)) {
-          ICHECK_NE(e->const_nbits, 0U) << "Special tagged memory must be const size";
+          TVM_FFI_ICHECK_NE(e->const_nbits, 0U) << "Special tagged memory must be const size";
           for (size_t j = 0; j < i; ++j) {
             if (e->scope == vec[j]->scope) {
               vec[j]->merged_children.push_back(e);
@@ -672,7 +673,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           // Build a merged allocation
           PrimExpr combo_size;
           for (const AllocateNode* op : e->allocs) {
-            ICHECK_EQ(op->extents.size(), 1)
+            TVM_FFI_ICHECK_EQ(op->extents.size(), 1)
                 << "Buffer var " << op->buffer_var->name_hint
                 << " was identified as a re-usable allocation, but has " << op->extents.size()
                 << " physical dimensions.  "
@@ -714,9 +715,9 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
   // New allocation for merged data
   void NewAllocTagMerged(StorageEntry* e) {
-    ICHECK_NE(e->scope.tag.length(), 0U);
+    TVM_FFI_ICHECK_NE(e->scope.tag.length(), 0U);
     // allocate with element type.
-    ICHECK_NE(e->const_nbits, 0U);
+    TVM_FFI_ICHECK_NE(e->const_nbits, 0U);
     uint64_t total_bits = e->const_nbits;
     // By default, align to 32 bits.
     size_t align = 32;
@@ -727,8 +728,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
     e->alloc_var = e->allocs[0]->buffer_var;
     for (StorageEntry* child : e->merged_children) {
-      ICHECK_NE(child->const_nbits, 0U);
-      ICHECK_NE(total_bits, 0U);
+      TVM_FFI_ICHECK_NE(child->const_nbits, 0U);
+      TVM_FFI_ICHECK_NE(total_bits, 0U);
       child->bits_offset = total_bits;
       child->alloc_var = e->alloc_var;
       total_bits += child->const_nbits;
@@ -771,7 +772,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
   void PlanNewScope(const Object* op) {
     if (thread_scope_ != nullptr) {
-      ICHECK(thread_scope_ == op);
+      TVM_FFI_ICHECK(thread_scope_ == op);
       // erase all memory atatched to this scope.
       for (auto it = const_free_map_.begin(); it != const_free_map_.end();) {
         if (it->second->attach_scope_ == op) {
@@ -813,7 +814,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         bool detect_inplace = detect_inplace_ && (it->second.gen.size() <= 2);
 
         for (const VarNode* var : it->second.gen) {
-          ICHECK(alloc_info.count(var));
+          TVM_FFI_ICHECK(alloc_info.count(var));
           const AllocEntry& entry = alloc_info.at(var);
           const AllocateNode* alloc = entry.alloc;
           auto storage_scope = StorageScope::Create(GetPtrStorageScope(ffi::GetRef<Var>(var)));
@@ -858,7 +859,7 @@ class StoragePlanRewriter : public StmtExprMutator {
             attr::IsPragmaKey(op->attr_key)) {
           PlanNewScope(op);
         } else {
-          ICHECK(op->attr_key == attr::extern_scope);
+          TVM_FFI_ICHECK(op->attr_key == attr::extern_scope);
         }
       } else if (s.stmt->IsInstance<ForNode>()) {
         const auto* op = static_cast<const ForNode*>(s.stmt);
@@ -885,7 +886,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   // Allocate new storage entry.
   StorageEntry* NewAlloc(const AllocateNode* op, const Object* attach_scope,
                          const StorageScope& scope, size_t const_nbits) {
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
     // Re-use not successful, allocate a new buffer.
     auto entry = std::make_unique<StorageEntry>();
     entry->attach_scope_ = attach_scope;
@@ -900,7 +901,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   StorageEntry* FindAlloc(const AllocateNode* op, const Object* attach_scope,
                           const StorageScope& scope, size_t num_physical_dimensions,
                           bool enable_reuse, bool reuse_require_exact_matched_dtype) {
-    ICHECK(op != nullptr);
+    TVM_FFI_ICHECK(op != nullptr);
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
@@ -975,9 +976,9 @@ class StoragePlanRewriter : public StmtExprMutator {
   // simulated free.
   void Free(const VarNode* var) {
     auto it = alloc_map_.find(var);
-    ICHECK(it != alloc_map_.end());
+    TVM_FFI_ICHECK(it != alloc_map_.end());
     StorageEntry* e = it->second;
-    ICHECK_NE(e->allocs.size(), 0U);
+    TVM_FFI_ICHECK_NE(e->allocs.size(), 0U);
 
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
@@ -1197,9 +1198,9 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       } else if (allow_untyped_pointers_) {
         OnArrayDeclaration(let_var, let_var->dtype, 0, BufferVarInfo::kLetNode);
       } else {
-        LOG(FATAL) << "Let statement of variable " << let_var->name_hint
-                   << " is missing a type annotation, "
-                   << "or type annotation is not a pointer to primitive";
+        TVM_FFI_THROW(InternalError) << "Let statement of variable " << let_var->name_hint
+                                     << " is missing a type annotation, "
+                                     << "or type annotation is not a pointer to primitive";
       }
     }
   }
@@ -1219,7 +1220,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
    */
   void OnArrayDeclaration(Var buffer, DataType element_dtype, PrimExpr extent,
                           BufferVarInfo::DeclarationLocation declaration_location) {
-    ICHECK(info_map_.find(buffer.get()) == info_map_.end())
+    TVM_FFI_ICHECK(info_map_.find(buffer.get()) == info_map_.end())
         << "Array declaration of " << buffer->name_hint << " occurred multiple times.";
 
     if (element_dtype == DataType::Bool()) {
@@ -1242,8 +1243,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   void OnArrayAccess(DataType value_dtype, const VarNode* buffer,
                      const ffi::Array<PrimExpr>& indices, bool is_buffer_load) {
     auto it = info_map_.find(buffer);
-    ICHECK(it != info_map_.end()) << "Load/Store of buffer " << buffer->name_hint << " (" << buffer
-                                  << ") occurred before its declaration.";
+    TVM_FFI_ICHECK(it != info_map_.end()) << "Load/Store of buffer " << buffer->name_hint << " ("
+                                          << buffer << ") occurred before its declaration.";
 
     if (value_dtype.is_scalable_vector()) {
       // Scalable types are not currently supported in storage_rewrite. Scalable buffer
@@ -1258,13 +1259,14 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     }
 
     if (var_info.element_dtype.is_handle()) {
-      ICHECK(allow_untyped_pointers_) << "Variable " << buffer->name_hint
-                                      << " was missing a type annotation in its declaration";
+      TVM_FFI_ICHECK(allow_untyped_pointers_)
+          << "Variable " << buffer->name_hint
+          << " was missing a type annotation in its declaration";
       var_info.element_dtype = value_dtype.element_of();
     }
 
     for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
-      ICHECK(indices[i].dtype().is_scalar())
+      TVM_FFI_ICHECK(indices[i].dtype().is_scalar())
           << "Only the last index of a buffer access may be a vector type.";
     }
     int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
@@ -1280,7 +1282,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // pointer types (e.g. float16x4*).  Once they do, this if statement should
     // instead be replaced by the below ICHECK_EQ.
     if (index_lanes * var_info.element_dtype.lanes() != value_dtype.lanes()) {
-      ICHECK_EQ(index_lanes, value_dtype.lanes());
+      TVM_FFI_ICHECK_EQ(index_lanes, value_dtype.lanes());
       lanes_used = 1;
       var_info.element_dtype = var_info.element_dtype.with_lanes(1);
     }
@@ -1289,7 +1291,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // See https://discuss.tvm.apache.org/t/pre-rfc-vectorized-tir-buffers/10615
     // for discussion.
 
-    // ICHECK_EQ(index_lanes * var_info.element_dtype.lanes(), value_dtype.lanes())
+    // TVM_FFI_ICHECK_EQ(index_lanes * var_info.element_dtype.lanes(), value_dtype.lanes())
     //     << "Attempting to retrieve " << value_dtype.lanes() << " lanes of data with "
     //     << index_lanes << " indices into an array whose elements have "
     //     << var_info.element_dtype.lanes() << " lanes.  "
@@ -1449,14 +1451,14 @@ class VectorTypeRewriter : public StmtExprMutator {
       int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
       PrimExpr new_index = ramp_index->base / make_const(ramp_index->base.dtype(), lanes);
       if (lanes != info.factor()) {
-        ICHECK(info.factor() && lanes % info.factor() == 0);
+        TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
         int new_lanes = lanes / info.factor();
         new_index = Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
       }
       indices.Set(indices.size() - 1, new_index);
     } else if (last_dim_index.dtype().lanes() == 1 && info.factor() > 1) {
       arith::ModularSet me = analyzer_.modular_set(last_dim_index);
-      ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
+      TVM_FFI_ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
       PrimExpr new_index = last_dim_index / make_const(last_dim_index.dtype(), info.factor());
       shuffle_index = me->base % info.factor();
       indices.Set(indices.size() - 1, new_index);
@@ -1490,7 +1492,7 @@ class VectorTypeRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
     auto [modified, shuffle_index] = VisitBufferAccess(std::move(node));
-    ICHECK(shuffle_index < 0);
+    TVM_FFI_ICHECK(shuffle_index < 0);
     return modified;
   }
 
@@ -1590,7 +1592,7 @@ class VectorTypeRewriter : public StmtExprMutator {
    * @param func A pointer to the PrimFunc being modified.
    */
   void Finalize(PrimFunc* func_ptr) {
-    ICHECK(func_ptr) << "Finalize expects a non-null pointer";
+    TVM_FFI_ICHECK(func_ptr) << "Finalize expects a non-null pointer";
     auto& func = *func_ptr;
     auto* n = func.CopyOnWrite();
 
@@ -1638,7 +1640,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     int factor() const {
       int old_lanes = old_element_dtype.lanes();
       int new_lanes = new_element_dtype.lanes();
-      ICHECK_EQ(new_lanes % old_lanes, 0);
+      TVM_FFI_ICHECK_EQ(new_lanes % old_lanes, 0);
       return new_lanes / old_lanes;
     }
   };

@@ -93,10 +93,10 @@ inline const char* VKGetErrorString(VkResult error) {
  * \brief Protected Vulkan call
  * \param func Expression to call.
  */
-#define VULKAN_CHECK_ERROR(__e)                                       \
-  {                                                                   \
-    ICHECK(__e == VK_SUCCESS) << "Vulkan Error, code=" << __e << ": " \
-                              << vulkan::VKGetErrorString(__e);       \
+#define VULKAN_CHECK_ERROR(__e)                                                   \
+  {                                                                               \
+    TVM_FFI_ICHECK(__e == VK_SUCCESS)                                             \
+        << "Vulkan Error, code=" << __e << ": " << vulkan::VKGetErrorString(__e); \
   }
 
 #define VULKAN_CALL(func)    \

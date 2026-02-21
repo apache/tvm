@@ -54,7 +54,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tir::Buffer buffer, const AccessPath&
     return e->IsInstance<VarNode>() && !d->IsVarDefined(e);
   };
   auto add_out_of_line_var_def = [&](const Var& var, const AccessPath& var_p) {
-    ICHECK(!d->IsVarDefined(var));
+    TVM_FFI_ICHECK(!d->IsVarDefined(var));
     ExprDoc lhs = DefineVar(var, frame, d);
     lhs->source_paths.push_back(var_p);
     var_def_lhs.push_back(lhs);
@@ -62,7 +62,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tir::Buffer buffer, const AccessPath&
   };
   auto try_inline_def = [&](const PrimExpr& e, const AccessPath& e_p,
                             std::function<ExprDoc()> inline_f) {
-    ICHECK(is_new_var(e));
+    TVM_FFI_ICHECK(is_new_var(e));
     Var var = Downcast<Var>(e);
     if (use_count[var.get()] == 1) {
       d->Define(e, frame, inline_f);
@@ -320,7 +320,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
       if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
         return doc.value();
       }
-      LOG(FATAL) << "IndexError: Buffer is not defined in the environment: " << buffer;
+      TVM_FFI_THROW(IndexError) << "Buffer is not defined in the environment: " << buffer;
       TVM_FFI_UNREACHABLE();
     });
 

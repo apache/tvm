@@ -169,7 +169,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 /// Interface of VerifyMemory pass
 std::vector<ffi::String> VerifyMemory_(const PrimFunc& func) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-  ICHECK(target.defined()) << "VerifyMemory: Require the target attribute";
+  TVM_FFI_ICHECK(target.defined()) << "VerifyMemory: Require the target attribute";
 
   VLOG(1) << "verifying memory for target '" << target.value()->str()
           << "' for primitive:" << std::endl
@@ -204,9 +204,9 @@ Pass VerifyMemory() {
           for (auto& err : errs) {
             s << "    " << err << "\n";
           }
-          LOG(FATAL) << "RuntimeError: Memory verification failed with the following errors:\n"
-                     << s.str() << "  Did you forget to bind?\n"
-                     << func.value();
+          TVM_FFI_THROW(RuntimeError) << "Memory verification failed with the following errors:\n"
+                                      << s.str() << "  Did you forget to bind?\n"
+                                      << func.value();
         }
       }
     }

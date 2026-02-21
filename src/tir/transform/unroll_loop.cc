@@ -130,7 +130,7 @@ class LoopUnroller : public StmtExprMutator {
         auto_unroll && (value * step_count_ <= auto_max_step_ || value <= auto_max_extent_);
 
     if (op->kind == ForKind::kUnrolled) {
-      ICHECK_GE(value, 0) << "Cannot unroll non-constant loop";
+      TVM_FFI_ICHECK_GE(value, 0) << "Cannot unroll non-constant loop";
       auto_unroll = true;
     }
 
@@ -217,7 +217,7 @@ class LoopUnroller : public StmtExprMutator {
   Stmt Unroll(const ForNode* op) {
     int value = GetExtent(op);
     // For loop must have a constant integer extent
-    ICHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
+    TVM_FFI_ICHECK_NE(value, -1) << "loop doesn't have a constant integer extent";
     if (value == 0) return Evaluate(0);
     Stmt body = op->body;
     ffi::Map<Var, PrimExpr> vmap;

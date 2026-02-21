@@ -60,18 +60,18 @@ class Verifier : protected TIRVisitorWithPath {
    *
    * Each verifier can either return a boolean, or assert on failure.
    * To avoid needing to duplicate this logic at every step, the
-   * Verify() method can be used.  Similar to `LOG(FATAL)` or
+   * Verify() method can be used.  Similar to `TVM_FFI_THROW(InternalError)` or
    * `LOG(DEBUG)`, it returns an object that can accept streamed
    * context information.
    *
    * If the error should be raised, then the context is collected
-   * identically to `LOG(FATAL)`.  If a boolean is returned, or if the
+   * identically to `TVM_FFI_THROW(InternalError)`.  If a boolean is returned, or if the
    * condition passes, then the streamed context is discarded.
    *
    * Usage:
    *
    *     Verify(value == expected_value)
-   *            << "ValueError: " << value
+   *            << value
    *            << " was not the expected value of " << expected_value;
    */
   class VerifyStream {
@@ -100,7 +100,7 @@ class Verifier : protected TIRVisitorWithPath {
 
     ~VerifyStream() noexcept(false) {
       if (log_.has_value()) {
-        LOG(FATAL) << log_->str();
+        TVM_FFI_THROW(ValueError) << log_->str();
       }
     }
 
@@ -153,24 +153,25 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
       has_error_ = true;
       if (assert_mode_) {
         if (it->second == 0) {
-          LOG(FATAL) << "Well-formedness check failed: "
-                     << "Loop iterator var " << op->name_hint
-                     << " is defined outside of any block, "
-                     << "but is used inside the non-opaque current block \""
-                     << block_stack_.back()->name_hint << "\".";
+          TVM_FFI_THROW(InternalError)
+              << "Well-formedness check failed: "
+              << "Loop iterator var " << op->name_hint << " is defined outside of any block, "
+              << "but is used inside the non-opaque current block \""
+              << block_stack_.back()->name_hint << "\".";
         } else {
-          LOG(FATAL) << "Well-formedness check failed: "
-                     << "Loop iterator var " << op->name_hint << " is defined in block \""
-                     << block_stack_[it->second - 1]->name_hint << "\", "
-                     << "but is used inside the non-opaque current block \""
-                     << block_stack_.back()->name_hint << "\".";
+          TVM_FFI_THROW(InternalError)
+              << "Well-formedness check failed: "
+              << "Loop iterator var " << op->name_hint << " is defined in block \""
+              << block_stack_[it->second - 1]->name_hint << "\", "
+              << "but is used inside the non-opaque current block \""
+              << block_stack_.back()->name_hint << "\".";
         }
       }
     }
   }
 
   void VisitStmt_(const ForNode* op) final {
-    ICHECK(loop_vars_.find(op->loop_var.get()) == loop_vars_.end());
+    TVM_FFI_ICHECK(loop_vars_.find(op->loop_var.get()) == loop_vars_.end());
     loop_vars_[op->loop_var.get()] = block_stack_.size();
     StmtExprVisitor::VisitStmt_(op);
     loop_vars_.erase(op->loop_var.get());
@@ -249,8 +250,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
     {
       auto it = currently_defined_.find(var);
       auto verify = Verify(it == currently_defined_.end() || redefine_is_allowed);
-      verify << "ValueError: "
-             << "TIR is ill-formed, "
+      verify << "TIR is ill-formed, "
              << "due to multiple nested definitions of variable " << var << ".";
       if (it != currently_defined_.end()) {
         verify << " It was first defined at " << it->second << ", and was re-defined at " << path;
@@ -260,8 +260,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
     {
       auto it = previously_defined_.find(var);
       auto verify = Verify(it == previously_defined_.end() || redefine_is_allowed);
-      verify << "ValueError: "
-             << "TIR is ill-formed, "
+      verify << "TIR is ill-formed, "
              << "due to multiple definitions of variable " << var << ".";
       if (it != previously_defined_.end()) {
         verify << " It was first defined at " << it->second << ", and was later re-defined at "
@@ -284,8 +283,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
 
     auto active_def = currently_defined_.find(var);
     auto verify = Verify(active_def != currently_defined_.end());
-    verify << "ValueError: "
-           << "Invalid use of undefined variable " << var << " at " << path << ".";
+    verify << "Invalid use of undefined variable " << var << " at " << path << ".";
 
     // Check if there was a previous definition, and append the
     // location to the error message if there was.  This is to aid in
@@ -332,7 +330,6 @@ class SingleEnvThreadVerifier : public Verifier<SingleEnvThreadVerifier> {
       if (auto it = env_thread_vars_.find(iter_var->thread_tag); it != env_thread_vars_.end()) {
         const auto& [prev_var, prev_path] = it->second;
         Verify(prev_var.same_as(iter_var->var))
-            << "ValueError: "
             << "PrimFunc uses multiple distinct TIR variables "
             << " for the environment thread \"" << iter_var->thread_tag << "\".  "
             << "While multiple tir::AttrStmt may define the same environment thread, "
@@ -378,17 +375,18 @@ bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.analysis.VerifyWellFormed", [](const ObjectRef& obj,
-                                                            bool assert_mode) {
-    if (auto opt = obj.as<PrimFunc>()) {
-      return VerifyWellFormed(opt.value(), assert_mode);
-    } else if (auto opt = obj.as<IRModule>()) {
-      return VerifyWellFormed(opt.value(), assert_mode);
-    } else {
-      LOG(FATAL) << "Expected VerifyWellFormed argument to be a PrimFunc or IRModule, but found "
-                 << obj->GetTypeKey();
-    }
-  });
+  refl::GlobalDef().def(
+      "tir.analysis.VerifyWellFormed", [](const ObjectRef& obj, bool assert_mode) {
+        if (auto opt = obj.as<PrimFunc>()) {
+          return VerifyWellFormed(opt.value(), assert_mode);
+        } else if (auto opt = obj.as<IRModule>()) {
+          return VerifyWellFormed(opt.value(), assert_mode);
+        } else {
+          TVM_FFI_THROW(InternalError)
+              << "Expected VerifyWellFormed argument to be a PrimFunc or IRModule, but found "
+              << obj->GetTypeKey();
+        }
+      });
 }
 
 }  // namespace tir

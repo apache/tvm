@@ -125,12 +125,12 @@ TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
 TVM_REGISTER_OP("tir.tvm_access_ptr")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
-      ICHECK(call != nullptr);
-      ICHECK_EQ(call->args.size(), 5U);
+      TVM_FFI_ICHECK(call != nullptr);
+      TVM_FFI_ICHECK_EQ(call->args.size(), 5U);
       DataType dtype = call->args[0].dtype();
       Var buffer_var = Downcast<Var>(call->args[1]);
       PrimExpr offset = call->args[2];
-      ICHECK(call->dtype.is_handle());
+      TVM_FFI_ICHECK(call->dtype.is_handle());
       if (dtype.lanes() != 1) {
         offset = offset * make_const(offset.dtype(), dtype.lanes());
         offset = Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
@@ -144,15 +144,15 @@ TVM_REGISTER_OP("tir.tvm_access_ptr")
 PrimExpr DispatchFastErf(const PrimExpr& e) {
   DLOG(WARNING) << "fast_erf will be used instead of erf";
   const CallNode* call = e.as<CallNode>();
-  ICHECK(call != nullptr);
-  ICHECK_EQ(call->args.size(), 1);
+  TVM_FFI_ICHECK(call != nullptr);
+  TVM_FFI_ICHECK_EQ(call->args.size(), 1);
   PrimExpr arg = call->args[0];
   int bits = arg.dtype().bits();
   PrimExpr res;
   if (arg.dtype().is_float() && (bits == 16 || bits == 32)) {
     res = fast_erf_float_expr(arg, bits);
   } else {
-    LOG(FATAL) << "Unsupported type in Metal fast_erf";
+    TVM_FFI_THROW(InternalError) << "Unsupported type in Metal fast_erf";
   }
   return res;
 }
@@ -161,7 +161,7 @@ PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {
   using tir::make_const;
   using tir::make_zero;
   const tir::CallNode* call = e.as<tir::CallNode>();
-  ICHECK(call != nullptr);
+  TVM_FFI_ICHECK(call != nullptr);
   const PrimExpr& x = call->args[0];
   PrimExpr one = make_const(x.dtype(), 1);
   PrimExpr two = make_const(x.dtype(), 2);
@@ -184,7 +184,7 @@ using namespace tir;
 TVM_REGISTER_OP("tir.rsqrt")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
       auto one = make_const(call->args[0].dtype(), 1);
       return one / sqrt(call->args[0]);
     });
@@ -192,7 +192,7 @@ TVM_REGISTER_OP("tir.rsqrt")
 TVM_REGISTER_OP("tir.sigmoid")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
       auto one = make_const(call->args[0].dtype(), 1);
       return one / (one + exp(-call->args[0]));
     });
@@ -200,14 +200,14 @@ TVM_REGISTER_OP("tir.sigmoid")
 TVM_REGISTER_OP("tir.isfinite")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
       return isfinite(call->args[0]);
     });
 
 TVM_REGISTER_OP("tir.isinf")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
       return isinf(call->args[0]);
     });
 
@@ -223,9 +223,11 @@ TVM_REGISTER_OP("tir.isinf")
 static PrimExpr QMultiplyShift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr left_shift,
                                PrimExpr right_shift, PrimExpr is_left_shift_required) {
   // Only int32 types are supported (any number of lanes is allowed)
-  ICHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
-  ICHECK(left_shift.dtype().code() == DLDataTypeCode::kDLInt && left_shift.dtype().bits() == 32);
-  ICHECK(right_shift.dtype().code() == DLDataTypeCode::kDLInt && right_shift.dtype().bits() == 32);
+  TVM_FFI_ICHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
+  TVM_FFI_ICHECK(left_shift.dtype().code() == DLDataTypeCode::kDLInt &&
+                 left_shift.dtype().bits() == 32);
+  TVM_FFI_ICHECK(right_shift.dtype().code() == DLDataTypeCode::kDLInt &&
+                 right_shift.dtype().bits() == 32);
 
   DataType hp_dtype = DataType::Int(64, x.dtype().lanes());
   DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
@@ -256,7 +258,7 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
       using tir::make_const;
 
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
 
       PrimExpr x = call->args[0];
       PrimExpr y = call->args[1];
@@ -269,9 +271,9 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
           return int_node->value;
         }
         auto broadcast_node = node.as<BroadcastNode>();
-        CHECK(broadcast_node != nullptr);
+        TVM_FFI_ICHECK(broadcast_node != nullptr);
         auto int_node = broadcast_node->value.as<IntImmNode>();
-        CHECK(int_node != nullptr);
+        TVM_FFI_ICHECK(int_node != nullptr);
         return int_node->value;
       };
       // Power of 2 is determined by the fixed_point_multiplier == 1 << 30. In case of power of
@@ -294,7 +296,7 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
         }
       } else {
         // Only int32 types are supported (any number of lanes is allowed)
-        ICHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
+        TVM_FFI_ICHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
 
         // Calculating integer shifts
         PrimExpr zero = make_const(s.dtype(), 0);
@@ -309,7 +311,7 @@ TVM_REGISTER_OP("tir.q_multiply_shift")
 TVM_REGISTER_OP("tir.q_multiply_shift_per_axis")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
 
       PrimExpr x = call->args[0];
       PrimExpr y = call->args[1];

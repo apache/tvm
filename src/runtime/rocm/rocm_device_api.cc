@@ -147,7 +147,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
     *rv = value;
   }
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
-    ICHECK_EQ(256 % alignment, 0U) << "ROCM space is aligned at 256 bytes";
+    TVM_FFI_ICHECK_EQ(256 % alignment, 0U) << "ROCM space is aligned at 256 bytes";
     void* ret;
     if (dev.device_type == kDLROCMHost) {
       VLOG(1) << "allocating " << nbytes << "bytes on host";
@@ -205,7 +205,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
       ROCM_CALL(hipSetDevice(dev_to.device_id));
       GPUCopy(from, to, size, hipMemcpyHostToDevice, hip_stream);
     } else {
-      LOG(FATAL) << "expect copy from/to GPU or between GPU";
+      TVM_FFI_THROW(InternalError) << "expect copy from/to GPU or between GPU";
     }
   }
 

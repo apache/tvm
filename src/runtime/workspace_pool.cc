@@ -95,7 +95,7 @@ class WorkspacePool::Pool {
       int index = static_cast<int>(allocated_.size()) - 2;
       for (; index > 0 && allocated_[index].data != data; --index) {
       }
-      ICHECK_GT(index, 0) << "trying to free things that has not been allocated";
+      TVM_FFI_ICHECK_GT(index, 0) << "trying to free things that has not been allocated";
       e = allocated_[index];
       allocated_.erase(allocated_.begin() + index);
     }
@@ -159,7 +159,8 @@ void* WorkspacePool::AllocWorkspace(Device dev, size_t size) {
 }
 
 void WorkspacePool::FreeWorkspace(Device dev, void* ptr) {
-  ICHECK(static_cast<size_t>(dev.device_id) < array_.size() && array_[dev.device_id] != nullptr);
+  TVM_FFI_ICHECK(static_cast<size_t>(dev.device_id) < array_.size() &&
+                 array_[dev.device_id] != nullptr);
   array_[dev.device_id]->Free(ptr);
 }
 
