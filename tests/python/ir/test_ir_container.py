@@ -17,9 +17,8 @@
 import pytest
 import tvm_ffi
 import tvm
-from tvm import te
-import numpy as np
 
+import numpy as np
 
 def test_array():
     a = tvm.runtime.convert([1, 2, 3])
@@ -27,7 +26,6 @@ def test_array():
     assert a[-1] == 3
     a_slice = a[-3:-1]
     assert (a_slice[0], a_slice[1]) == (1, 2)
-
 
 def test_array_save_load_json():
     a = tvm.runtime.convert([1, 2, 3.5, True])
@@ -38,15 +36,13 @@ def test_array_save_load_json():
     assert a_loaded[3] == True
     assert isinstance(a_loaded[3], bool)
 
-
 def test_dir_array():
     a = tvm.runtime.convert([1, 2, 3])
     assert dir(a)
 
-
 def test_map():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     amap = tvm.runtime.convert({a: 2, b: 3})
     assert a in amap
     assert len(amap) == 2
@@ -58,7 +54,6 @@ def test_map():
     assert set(amap.keys()) == {a, b}
     assert set(amap.values()) == {2, 3}
 
-
 def test_str_map():
     amap = tvm.runtime.convert({"a": 2, "b": 3})
     assert "a" in amap
@@ -68,10 +63,9 @@ def test_str_map():
     assert "a" in dd
     assert "b" in dd
 
-
 def test_map_save_load_json():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     amap = tvm.runtime.convert({a: 2, b: 3})
     json_str = tvm.ir.save_json(amap)
     amap = tvm.ir.load_json(json_str)
@@ -79,26 +73,22 @@ def test_map_save_load_json():
     dd = {kv[0].name: kv[1] for kv in amap.items()}
     assert dd == {"a": 2, "b": 3}
 
-
 def test_dir_map():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     amap = tvm.runtime.convert({a: 2, b: 3})
     assert dir(amap)
 
-
 def test_getattr_map():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     amap = tvm.runtime.convert({a: 2, b: 3})
     assert isinstance(amap, tvm_ffi.Map)
-
 
 def test_in_container():
     arr = tvm.runtime.convert(["a", "b", "c"])
     assert "a" in arr
     assert "d" not in arr
-
 
 def test_tensor_container():
     x = tvm.runtime.tensor([1, 2, 3])
@@ -106,7 +96,6 @@ def test_tensor_container():
     assert arr[0].same_as(x)
     assert arr[1].same_as(x)
     assert isinstance(arr[0], tvm.runtime.Tensor)
-
 
 def test_return_variant_type():
     func = tvm.get_global_func("testing.ReturnsVariant")
@@ -117,13 +106,11 @@ def test_return_variant_type():
     res_odd = func(17)
     assert res_odd == "argument was odd"
 
-
 def test_pass_variant_type():
     func = tvm.get_global_func("testing.AcceptsVariant")
 
     assert func("string arg") == "ffi.String"
     assert func(17) == "ir.IntImm"
-
 
 def test_pass_incorrect_variant_type():
     func = tvm.get_global_func("testing.AcceptsVariant")
@@ -131,7 +118,6 @@ def test_pass_incorrect_variant_type():
 
     with pytest.raises(Exception):
         func(float_arg)
-
 
 if __name__ == "__main__":
     tvm.testing.main()

@@ -17,8 +17,6 @@
 
 import pytest
 import tvm
-from tvm import te
-
 
 def test_expr_constructor():
     x = tvm.tir.Var("xx", "float32")
@@ -50,7 +48,7 @@ def test_expr_constructor():
     assert x.value.value == 1
 
     a = tvm.tir.const(1.0, dtype="float32")
-    b = te.var("x", dtype="float32")
+    b = tvm.tir.Var("x", "float32")
 
     for cls in [
         tvm.tir.Add,
@@ -70,8 +68,8 @@ def test_expr_constructor():
         assert x.a == a
         assert x.b.same_as(b)
 
-    a = tvm.runtime.convert(te.var("x") > 1)
-    b = tvm.runtime.convert(te.var("x") == 1)
+    a = tvm.runtime.convert(tvm.tir.Var("x", "int32") > 1)
+    b = tvm.runtime.convert(tvm.tir.Var("x", "int32") == 1)
 
     for cls in [tvm.tir.And, tvm.tir.Or]:
         x = cls(a, b)
@@ -120,15 +118,14 @@ def test_expr_constructor():
     assert x.op.name == "tir.call_extern"
     assert x.args[1] == a
 
-    v = te.var("aa")
+    v = tvm.tir.Var("aa", "int32")
     x = tvm.tir.Let(v, 1, v)
     assert x.var == v
     assert x.value.value == 1
     assert x.body == v
 
-
 def test_stmt_constructor():
-    v = te.var("aa")
+    v = tvm.tir.Var("aa", "int32")
     nop = tvm.tir.Evaluate(1)
     x = tvm.tir.LetStmt(v, 1, tvm.tir.Evaluate(1))
     assert isinstance(x, tvm.tir.LetStmt)
@@ -144,7 +141,7 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.AssertStmt)
     assert x.body == nop
 
-    x = tvm.tir.For(te.var("x"), 0, 10, tvm.tir.ForKind.SERIAL, nop)
+    x = tvm.tir.For(tvm.tir.Var("x", "int32"), 0, 10, tvm.tir.ForKind.SERIAL, nop)
     assert isinstance(x, tvm.tir.For)
     assert x.min.value == 0
     assert x.extent.value == 10
@@ -186,11 +183,9 @@ def test_stmt_constructor():
     assert x.then_case.value.value == 11
     assert x.else_case == nop
 
-
 def test_float_constructor_requires_float_dtype():
     with pytest.raises(tvm.TVMError):
         tvm.tir.FloatImm("int32", 1.0)
-
 
 if __name__ == "__main__":
     tvm.testing.main()

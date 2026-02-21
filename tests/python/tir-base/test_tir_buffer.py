@@ -17,7 +17,6 @@
 
 import tvm
 import tvm.testing
-from tvm import te
 from tvm.tir import Buffer
 from tvm.script import tir as T
 
@@ -26,9 +25,9 @@ import pytest
 
 
 def test_buffer():
-    m = te.size_var("m")
-    n = te.size_var("n")
-    l = te.size_var("l")
+    m = tvm.tir.SizeVar("m", "int32")
+    n = tvm.tir.SizeVar("n", "int32")
+    l = tvm.tir.SizeVar("l", "int32")
     Ab = tvm.tir.decl_buffer((m, n), "float32")
     Bb = tvm.tir.decl_buffer((n, l), "float32")
 
@@ -38,8 +37,8 @@ def test_buffer():
 
 
 def test_buffer_access_ptr():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = tvm.tir.SizeVar("m", "int32")
+    n = tvm.tir.SizeVar("n", "int32")
     Ab = tvm.tir.decl_buffer((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw")
     tvm.ir.assert_structural_equal(aptr.args[3], Ab.strides[0] * m)
@@ -50,13 +49,13 @@ def test_buffer_access_ptr():
 
 
 def test_buffer_access_ptr_offset():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = tvm.tir.SizeVar("m", "int32")
+    n = tvm.tir.SizeVar("n", "int32")
     Ab = tvm.tir.decl_buffer((m, n), "float32")
     aptr = Ab.access_ptr("rw", offset=100)
     tvm.testing.assert_prim_expr_equal(aptr.args[2], 100)
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
-    v = te.size_var("int32")
+    v = tvm.tir.SizeVar("int32", "int32")
     aptr = Ab.access_ptr("rw", offset=100 + 100 + v)
     tvm.testing.assert_prim_expr_equal(aptr.args[2], 200 + v)
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
@@ -68,8 +67,8 @@ def test_buffer_access_ptr_offset():
 
 
 def test_buffer_access_ptr_extent():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = tvm.tir.SizeVar("m", "int32")
+    n = tvm.tir.SizeVar("n", "int32")
     Ab = tvm.tir.decl_buffer((m, n), "float32")
     aptr = Ab.access_ptr("rw")
     tvm.ir.assert_structural_equal(aptr.args[3], m * n)
@@ -87,27 +86,27 @@ def test_buffer_access_ptr_extent():
 
 
 def test_buffer_vload():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = tvm.tir.SizeVar("m", "int32")
+    n = tvm.tir.SizeVar("n", "int32")
     Ab = tvm.tir.decl_buffer((m, n), "float32", elem_offset=100)
     load = Ab.vload([2, 3])
     tvm.ir.assert_structural_equal(load.indices, [T.int32(2), T.int32(3)])
 
 
 def test_buffer_offset_of():
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = tvm.tir.SizeVar("m", "int32")
+    n = tvm.tir.SizeVar("n", "int32")
     Ab = tvm.tir.decl_buffer((m, n), "float32", elem_offset=100)
     offset = Ab.offset_of([2, 3])
     tvm.ir.assert_structural_equal(offset, [n * 2 + 103])
 
 
 def test_buffer_index_merge_mult_mod():
-    m = te.size_var("m")
-    n = te.size_var("n")
-    s = te.size_var("s")
-    k0 = te.size_var("k0")
-    k1 = te.size_var("k1")
+    m = tvm.tir.SizeVar("m", "int32")
+    n = tvm.tir.SizeVar("n", "int32")
+    s = tvm.tir.SizeVar("s", "int32")
+    k0 = tvm.tir.SizeVar("k0", "int32")
+    k1 = tvm.tir.SizeVar("k1", "int32")
     A = tvm.tir.decl_buffer((m, n), "float32")
     A_stride = tvm.tir.decl_buffer((m, n), "float32", strides=(s, 1))
 
@@ -153,9 +152,9 @@ def test_buffer_index_merge_mult_mod():
 
     # Test Case5
     B = tvm.tir.decl_buffer((1, 14, 14, 1024))
-    i = te.size_var("i")
-    j = te.size_var("j")
-    k = te.size_var("k")
+    i = tvm.tir.SizeVar("i", "int32")
+    j = tvm.tir.SizeVar("j", "int32")
+    k = tvm.tir.SizeVar("k", "int32")
 
     index_simplified1 = B.offset_of(
         (

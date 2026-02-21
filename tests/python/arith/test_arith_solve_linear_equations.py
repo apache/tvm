@@ -18,9 +18,8 @@ import random
 import sys
 import pytest
 import tvm
-from tvm import te, arith, ir, tir, testing
+from tvm import arith, ir, tir, testing
 from tvm.script import tir as T
-
 
 def test_solution_consistency():
     seed = random.randrange(sys.maxsize)
@@ -31,7 +30,7 @@ def test_solution_consistency():
     random.seed(seed)
 
     def _check(num_vars, num_formulas, coef=(-5, 5), bounds=(-20, 20)):
-        variables = [te.var("x" + str(i)) for i in range(num_vars)]
+        variables = [tvm.tir.Var("x" + str(i), "int32") for i in range(num_vars)]
 
         relations = []
         for i in range(num_formulas):
@@ -83,9 +82,8 @@ def test_solution_consistency():
     for i in range(3):
         _check(num_vars=10, num_formulas=3, coef=(0, 1), bounds=(0, 4))
 
-
 def test_empty_var_to_solve():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     equations = [
         tvm.tir.EQ(x + y, 20),
         tvm.tir.EQ(x - y, 10),
@@ -98,9 +96,8 @@ def test_empty_var_to_solve():
     assert ir.structural_equal(solution.src.relations, equations)
     assert ir.structural_equal(solution.src, solution.dst)
 
-
 def test_unique_solution():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
 
     solution = arith.solve_linear_equations(
         [
@@ -113,9 +110,8 @@ def test_unique_solution():
     assert ir.structural_equal(solution.src_to_dst[x], T.int32(15))
     assert ir.structural_equal(solution.src_to_dst[y], T.int32(5))
 
-
 def test_low_rank():
-    x, y, z = te.var("x"), te.var("y"), te.var("z")
+    x, y, z = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32"), tvm.tir.Var("z", "int32")
     ranges = {}
 
     solution = arith.solve_linear_equations(
@@ -131,9 +127,8 @@ def test_low_rank():
     assert ir.structural_equal(solution.src_to_dst[y], -n0)
     assert ir.structural_equal(solution.src_to_dst[z], T.int32(5))
 
-
 def test_infer_range():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     ranges = {
         x: tvm.ir.Range.from_min_extent(-5, 10),
         y: tvm.ir.Range.from_min_extent(0, 10),
@@ -158,9 +153,8 @@ def test_infer_range():
     assert ir.structural_equal(ineq.a, T.int32(-5))
     assert ir.structural_equal(ineq.b, n0)
 
-
 def test_ill_formed():
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
 
     solution = arith.solve_linear_equations(
         [
@@ -176,7 +170,6 @@ def test_ill_formed():
     ir.assert_structural_equal(rel, tir.const(False))
     assert len(solution.src_to_dst) == 0
     assert len(solution.dst_to_src) == 0
-
 
 if __name__ == "__main__":
     tvm.testing.main()

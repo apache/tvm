@@ -17,22 +17,21 @@
 import pytest
 import tvm
 import tvm.testing
-from tvm import te
+
 from tvm.tir.buffer import decl_buffer
 
-
 def test_deduce():
-    a = te.var("a")
-    b = te.var("b")
-    c = te.var("c")
-    d = te.var("d")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
+    c = tvm.tir.Var("c", "int32")
+    d = tvm.tir.Var("d", "int32")
 
     b_s = tvm.arith.IntervalSet(2, 3)
     c_s = tvm.arith.IntervalSet(10, 15)
     d_s = tvm.arith.IntervalSet(-3, -1)
     zero = tvm.tir.const(0, "int32")
 
-    fdiv = tvm.te.floordiv
+    fdiv = tvm.tir.floordiv
 
     e0 = (-b) * a + c - d
     res0 = tvm.arith.deduce_bound(a, e0 >= 0, {b: b_s, c: c_s, d: d_s}, {})
@@ -62,13 +61,13 @@ def test_deduce():
     res1 = tvm.arith.deduce_bound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
     tvm.testing.assert_prim_expr_equal(res1.max_value, ans1)
 
-    e2 = tvm.te.max(5, a * 4) < 0
+    e2 = tvm.tir.max(5, a * 4) < 0
     res2 = tvm.arith.deduce_bound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
     assert str(res2.max_value) == "neg_inf"
     assert str(res2.min_value) == "pos_inf"
 
     # expression containing variable a is on rhs
-    e2 = zero < tvm.te.max(5, a * 4)
+    e2 = zero < tvm.tir.max(5, a * 4)
     res2 = tvm.arith.deduce_bound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
     assert str(res2.max_value) == "neg_inf"
     assert str(res2.min_value) == "pos_inf"
@@ -119,12 +118,11 @@ def test_deduce():
     tvm.testing.assert_prim_expr_equal(res10.max_value, 1)
     tvm.testing.assert_prim_expr_equal(res10.min_value, 1)
 
-
 def test_check():
-    a = te.var("a")
-    b = te.var("b")
-    c = te.var("c")
-    d = te.var("d")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
+    c = tvm.tir.Var("c", "int32")
+    d = tvm.tir.Var("d", "int32")
 
     b_s = tvm.arith.IntervalSet(2, 3)
     c_s = tvm.arith.IntervalSet(5, 7)
@@ -142,11 +140,10 @@ def test_check():
     res2 = tvm.arith.deduce_bound(a, a * 2 - a > b, {b: b_s}, {})
     assert res2.is_nothing()
 
-
 def test_deduce_basic():
     def test_basic(a1, a2, coff):
-        a = te.var("a")
-        b = te.var("b")
+        a = tvm.tir.Var("a", "int32")
+        b = tvm.tir.Var("b", "int32")
         b_s = tvm.arith.IntervalSet(a1, a2)
         e0 = b + a * coff + 3
 
@@ -176,11 +173,10 @@ def test_deduce_basic():
     test_basic(1, 5, -4)
     test_basic(2, 6, -4)
 
-
 def test_deduce_complex():
     def test_complex(a1, a2, coff):
-        a = te.var("a")
-        b = te.var("b")
+        a = tvm.tir.Var("a", "int32")
+        b = tvm.tir.Var("b", "int32")
         b_s = tvm.arith.IntervalSet(a1, a2)
         e0 = (b * 3 + a * coff) * 4
 
@@ -209,9 +205,8 @@ def test_deduce_complex():
     test_complex(1, 5, -4)
     test_complex(2, 6, -4)
 
-
 def test_deduce_non_support():
-    a = te.var("a")
+    a = tvm.tir.Var("a", "int32")
 
     def test_non_support(lhs):
         res = tvm.arith.deduce_bound(a, lhs < 10, {}, {})
@@ -229,10 +224,9 @@ def test_deduce_non_support():
     test_non_support(tvm.tir.log(a))
     test_non_support(tvm.tir.BufferLoad(decl_buffer([16], "int32"), [a]))
 
-
 def test_deduce_floordiv():
     def do_test(gen_expr, dom_map, expect_min, expect_max):
-        a = te.var("a")
+        a = tvm.tir.Var("a", "int32")
         expr = gen_expr(a)
         res = tvm.arith.deduce_bound(a, expr, dom_map, dom_map)
         if isinstance(expect_min, str):
@@ -259,13 +253,12 @@ def test_deduce_floordiv():
     do_test(lambda a: 8 // a >= 2, {}, "pos_inf", "neg_inf")
 
     # test nested cases
-    b = te.var("b")
+    b = tvm.tir.Var("b", "int32")
     bs = {b: tvm.arith.IntervalSet(2, 6)}
     do_test(lambda a: b * 3 + a // 8 < 63, bs, "neg_inf", 359)
     do_test(lambda a: b * 3 + a // 8 <= 63, bs, "neg_inf", 367)
     do_test(lambda a: b * 3 + a // 8 > 63, bs, 464, "pos_inf")
     do_test(lambda a: b * 3 + a // 8 >= 63, bs, 456, "pos_inf")
-
 
 if __name__ == "__main__":
     tvm.testing.main()

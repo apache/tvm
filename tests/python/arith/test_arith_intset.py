@@ -16,10 +16,9 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
+
 from tvm import tir
 from tvm.arith.analyzer import Analyzer
-
 
 class IntSetChecker:
     def __init__(self):
@@ -34,7 +33,6 @@ class IntSetChecker:
         assert self.analyzer.can_prove_equal(res.min_value, expected[0]), err_msg()
         assert self.analyzer.can_prove_equal(res.max_value, expected[1]), err_msg()
 
-
 def test_basic():
     s = tvm.arith.IntervalSet(2, 3)
     assert s.min_value.value == 2
@@ -44,7 +42,6 @@ def test_basic():
     assert s.min_value.value == 2
     assert s.max_value.value == 2
 
-
 def test_vector():
     base = 10
     stride = 3
@@ -53,7 +50,6 @@ def test_vector():
     assert s.min_value.value == base
     assert s.max_value.value == base + stride * (lanes - 1)
 
-
 def test_scalable_vector():
     base = 5
     s = tvm.arith.IntSet.vector(tvm.tir.Ramp(base, 2, tvm.tir.vscale() * 4))
@@ -61,18 +57,16 @@ def test_scalable_vector():
     assert s.min_value.value == base
     assert s.max_value.same_as(tvm.arith.int_set.pos_inf())
 
-
 def test_add_sub():
     ck = IntSetChecker()
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     ck.verify(x + y, {x: tvm.arith.IntervalSet(0, 10)}, (y, 10 + y))
     ck.verify(x + y, {x: tvm.arith.IntervalSet(0, 10), y: tvm.arith.IntervalSet(1, 11)}, (1, 21))
     ck.verify(x - y, {x: tvm.arith.IntervalSet(0, 10), y: tvm.arith.IntervalSet(1, 11)}, (-11, 9))
 
-
 def test_mul_div():
     ck = IntSetChecker()
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
 
     tdiv = tvm.tir.truncdiv
     ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 100), override=True)
@@ -83,20 +77,19 @@ def test_mul_div():
     ck.verify(tdiv(x, y), {x: tvm.arith.IntervalSet(0, 10)}, (0, tdiv(10, y)))
     ck.verify(tdiv(x, 2), {x: tvm.arith.IntervalSet(1, 10)}, (0, 5))
 
-    fld = tvm.te.floordiv
+    fld = tvm.tir.floordiv
     ck.verify(fld(x, y), {x: tvm.arith.IntervalSet(0, 10)}, (0, fld(10, y)))
     ck.verify(fld(x, 2), {x: tvm.arith.IntervalSet(-1, 10)}, (-1, 5))
 
-
 def test_mod():
     ck = IntSetChecker()
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     tmod = tvm.tir.truncmod
     ck.analyzer.update(y, tvm.arith.ConstIntBound(1, 100), override=True)
     ck.verify(tmod(x, y), {x: tvm.arith.IntervalSet(0, 10)}, (0, y - 1))
     ck.verify(tmod(x, 10), {x: tvm.arith.IntervalSet(1, 10)}, (0, 9))
 
-    flm = tvm.te.floormod
+    flm = tvm.tir.floormod
     ck.verify(flm(x, 10), {x: tvm.arith.IntervalSet(-10, 10)}, (0, 9))
     ck.verify(flm(x, 10), {x: tvm.arith.IntervalSet(3, 5)}, (3, 5))
     ck.verify(flm(x, 10), {x: tvm.arith.IntervalSet(13, 15)}, (3, 5))
@@ -104,8 +97,8 @@ def test_mod():
     ck.verify(flm(x, 10), {x: tvm.arith.IntervalSet(3, 11)}, (0, 9))
     ck.verify(flm(x, 10), {x: tvm.arith.IntervalSet(1, 21)}, (0, 9))
 
-    fld = tvm.te.floordiv
-    z = te.var("z")
+    fld = tvm.tir.floordiv
+    z = tvm.tir.Var("z", "int32")
     ck.analyzer.bind(x, tvm.ir.Range.from_min_extent(0, 3))
     ck.verify(
         flm(y, 8),
@@ -121,21 +114,18 @@ def test_mod():
         flm(y, 8), {y: tvm.arith.IntervalSet(z * 8 + x * 4, z * 8 + x * 4 + 3)}, (x * 4, x * 4 + 3)
     )
 
-
 def test_max_min():
     ck = IntSetChecker()
-    x, y = te.var("x"), te.var("y")
-    ck.verify(tvm.te.max(x, x + 1), {x: tvm.arith.IntervalSet(0, 10)}, (1, 11))
-    ck.verify(tvm.te.min(x - 1, x + 1), {x: tvm.arith.IntervalSet(0, 10)}, (-1, 9))
-    ck.verify(tvm.te.min(x, y), {}, (tvm.te.min(x, y), tvm.te.min(x, y)))
-    ck.verify(tvm.te.max(x, y), {}, (tvm.te.max(x, y), tvm.te.max(x, y)))
-
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    ck.verify(tvm.tir.max(x, x + 1), {x: tvm.arith.IntervalSet(0, 10)}, (1, 11))
+    ck.verify(tvm.tir.min(x - 1, x + 1), {x: tvm.arith.IntervalSet(0, 10)}, (-1, 9))
+    ck.verify(tvm.tir.min(x, y), {}, (tvm.tir.min(x, y), tvm.tir.min(x, y)))
+    ck.verify(tvm.tir.max(x, y), {}, (tvm.tir.max(x, y), tvm.tir.max(x, y)))
 
 def test_select():
     ck = IntSetChecker()
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     ck.verify(tvm.tir.Select(x > 0, x - 1, x + 1), {x: tvm.arith.IntervalSet(0, 10)}, (-1, 11))
-
 
 def check_region_bound(expect_region, var_dom, mode, predicate=None):
     """Helper to check region bound estimation.
@@ -207,7 +197,6 @@ def check_region_bound(expect_region, var_dom, mode, predicate=None):
                 intset.max_value - expect_end + 1, 0
             ), f"{intset.max_value} vs {expect_end - 1}"
 
-
 def test_region_bound_not_independent():
     # (i, i+2) and (i+2, i+4) are dependent, this the lowerbound is not available
     i = tvm.tir.Var("i", "int32")
@@ -237,13 +226,11 @@ def test_region_bound_not_independent():
         mode="upperbound",
     )
 
-
 def test_region_bound_stride_too_wide():
     i = tvm.tir.Var("i", "int32")
     var_dom = {i: tvm.ir.Range(begin=0, end=64)}
     check_region_bound({(i * 4, i * 4 + 2): None}, var_dom, mode="lowerbound")
     check_region_bound({(i * 4, i * 4 + 2): (0, 254)}, var_dom, mode="upperbound")
-
 
 def test_region_bound_small_stride():
     i = tvm.tir.Var("i", "int32")
@@ -251,7 +238,6 @@ def test_region_bound_small_stride():
         i: tvm.ir.Range(begin=0, end=64),
     }
     check_region_bound({(i * 4, i * 4 + 8): (0, 260)}, var_dom, mode="lowerbound")
-
 
 def test_region_lower_bound_split_predicate():
     x_o = tvm.tir.Var("xo", "int32")
@@ -270,7 +256,6 @@ def test_region_lower_bound_split_predicate():
         mode="upperbound",
     )
 
-
 def test_region_lower_bound_multiple_variables():
     div = tvm.tir.floordiv
     mod = tvm.tir.floormod
@@ -285,7 +270,6 @@ def test_region_lower_bound_multiple_variables():
     }
     check_region_bound({i: (0, 2), j: (0, 32), k: (0, 32)}, var_dom, mode="lowerbound")
 
-
 def test_region_lower_bound_negative_scale():
     i = tvm.tir.Var("i", "int32")
     j = tvm.tir.Var("j", "int32")
@@ -296,7 +280,6 @@ def test_region_lower_bound_negative_scale():
     check_region_bound(
         {(1 - i, 5 - i): (-2, 5), (20 - j * 4, 36 - j * 4): (8, 36)}, var_dom, mode="lowerbound"
     )
-
 
 def test_region_lower_bound_for_non_perfect_tile():
     h1 = tvm.tir.Var("h1", "int32")
@@ -363,7 +346,6 @@ def test_region_lower_bound_for_non_perfect_tile():
         mode="upperbound",
     )
 
-
 def test_region_lower_bound_unfusable():
     var_dom = {
         tvm.tir.Var("i", "int32"): tvm.ir.Range(8),
@@ -371,7 +353,6 @@ def test_region_lower_bound_unfusable():
     }
     i, j = var_dom
     check_region_bound({(i + j) // 2: (0, 6)}, var_dom, mode="lowerbound")
-
 
 def test_union_lower_bound():
     neg_inf = tvm.arith.int_set.neg_inf()
@@ -386,16 +367,14 @@ def test_union_lower_bound():
     assert result.min_value.same_as(neg_inf)
     assert result.max_value.same_as(pos_inf)
 
-
 def test_modular_set():
     ck = IntSetChecker()
-    x = tvm.te.var("x", dtype="int32")
-    y = tvm.te.var("y", dtype="int32")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
     expr = (x * 2048 + y * 16) % 7168
     ck.verify(
         expr, {x: tvm.arith.IntervalSet(0, 128), y: tvm.arith.IntervalSet(0, 3584)}, (0, 7152)
     )
-
 
 if __name__ == "__main__":
     tvm.testing.main()

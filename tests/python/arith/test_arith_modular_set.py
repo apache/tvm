@@ -16,12 +16,10 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
-
 
 def test_cast():
     analyzer = tvm.arith.Analyzer()
-    x = te.var("x", dtype="int8")
+    x = tvm.tir.Var("x", "int8")
     m = analyzer.modular_set((x * 3).astype("uint32"))
     assert m.coeff == 3
     assert m.base == 0
@@ -29,10 +27,9 @@ def test_cast():
     assert m.coeff == 3
     assert m.base == 1
 
-
 def test_add_sub():
     analyzer = tvm.arith.Analyzer()
-    x, y = te.var("x", "int64"), te.var("y", "int64")
+    x, y = tvm.tir.Var("x", "int64"), tvm.tir.Var("y", "int64")
     m = analyzer.modular_set(x * 6 + y * 4)
     assert m.coeff == 2
     assert m.base == 0
@@ -42,26 +39,23 @@ def test_add_sub():
     assert m.coeff == 4
     assert m.base == 0
 
-
 def test_mul():
     analyzer = tvm.arith.Analyzer()
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     m = analyzer.modular_set((x * 4 + 2) * (y * 6 + 1))
     assert m.coeff == 4
     assert m.base == 2
 
-
 def test_floormod():
     analyzer = tvm.arith.Analyzer()
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     m = analyzer.modular_set(tvm.tir.floormod(x * 128 + y * 4, 256))
     assert m.coeff == 4
     assert m.base == 0
 
-
 def test_div_shift():
     analyzer = tvm.arith.Analyzer()
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     # not sure if x is non-negative
     tdiv = tvm.tir.truncdiv
     m = analyzer.modular_set(tdiv(x * 4 + 2, 2))
@@ -71,7 +65,7 @@ def test_div_shift():
     m = analyzer.modular_set((x * 4 + 2) >> 1)
     assert m.coeff == 2
     assert m.base == 1
-    fld = tvm.te.floordiv
+    fld = tvm.tir.floordiv
     m = analyzer.modular_set(fld(x * 4 + 2, 2))
     assert m.coeff == 2
     assert m.base == 1
@@ -81,10 +75,9 @@ def test_div_shift():
     assert m.coeff == 2
     assert m.base == 1
 
-
 def test_mod():
     analyzer = tvm.arith.Analyzer()
-    x, y = te.var("x"), te.var("y")
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     tmod = tvm.tir.truncmod
     fmod = tvm.tir.floormod
     # not sure if x is non-negative
@@ -108,15 +101,14 @@ def test_mod():
     assert m.coeff == 2
     assert m.base == 1
 
-
 def test_min_max_select():
     analyzer = tvm.arith.Analyzer()
-    x, y = te.var("x"), te.var("y")
-    m = analyzer.modular_set(tvm.te.min(x * 3, y * 9))
+    x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
+    m = analyzer.modular_set(tvm.tir.min(x * 3, y * 9))
     assert m.coeff == 3
     assert m.base == 0
 
-    m = analyzer.modular_set(tvm.te.max(x * 3 + 1, y * 9 + 4))
+    m = analyzer.modular_set(tvm.tir.max(x * 3 + 1, y * 9 + 4))
     assert m.coeff == 3
     assert m.base == 1
 
@@ -124,10 +116,9 @@ def test_min_max_select():
     assert m.coeff == 1
     assert m.base == 0
 
-
 def test_mix_index():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     analyzer = tvm.arith.Analyzer()
     tdiv = tvm.tir.truncdiv
     m = analyzer.modular_set(a * 4 + b * 6 + 7)
@@ -150,14 +141,13 @@ def test_mix_index():
     assert m.coeff == 3
     assert m.base == 2
 
-    m = analyzer.modular_set(a * 12 + tvm.te.min(b * 3 * 7, 2))
+    m = analyzer.modular_set(a * 12 + tvm.tir.min(b * 3 * 7, 2))
     assert m.coeff == 1
     assert m.base == 0
 
-
 def test_constraint_scope():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     analyzer = tvm.arith.Analyzer()
     tmod = tvm.tir.truncmod
 
@@ -177,9 +167,8 @@ def test_constraint_scope():
     assert m.coeff == 1
     assert m.base == 0
 
-
 def test_intersect():
-    a = te.var("a")
+    a = tvm.tir.Var("a", "int32")
     analyzer = tvm.arith.Analyzer()
     tmod = tvm.tir.truncmod
     with analyzer.constraint_scope(tmod(a, 4) == 1):
@@ -195,20 +184,18 @@ def test_intersect():
                 assert m.coeff == 105
                 assert m.base == 23
 
-
 def test_let():
     analyzer = tvm.arith.Analyzer()
-    x = te.var("x")
-    y = te.var("y")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
     m = analyzer.modular_set(tvm.tir.Let(x, y * 10, x + 1))
     assert m.coeff == 10
     assert m.base == 1
 
-
 def test_bitwise_and():
     analyzer = tvm.arith.Analyzer()
-    x = te.var("x")
-    y = te.var("y")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
 
     # RHS of bitwise_and is 2^p - 1
     m = analyzer.modular_set((x * 16 + y * 4) & 31)
@@ -219,7 +206,6 @@ def test_bitwise_and():
     m = analyzer.modular_set((x * 16 + y * 4) & 17)
     assert m.coeff == 1
     assert m.base == 0
-
 
 if __name__ == "__main__":
     tvm.testing.main()

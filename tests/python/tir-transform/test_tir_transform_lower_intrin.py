@@ -46,8 +46,7 @@ def check_value(expr, variables, data, fref):
 
     # Build input and output buffers
     input_bufs = [
-        tvm.tir.decl_buffer((n,), dtype=variables[i].dtype, name=f"v{i}")
-        for i in range(num_vars)
+        tvm.tir.decl_buffer((n,), dtype=variables[i].dtype, name=f"v{i}") for i in range(num_vars)
     ]
     out_buf = tvm.tir.decl_buffer((n,), dtype=expr.dtype, name="C")
 

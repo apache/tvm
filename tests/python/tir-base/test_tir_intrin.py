@@ -55,7 +55,7 @@ def test_nearbyint():
 
 
 def test_round_intrinsics_on_int():
-    i = tvm.te.var("i", "int32")
+    i = tvm.tir.Var("i", "int32")
     for op in [tvm.tir.round, tvm.tir.trunc, tvm.tir.ceil, tvm.tir.floor, tvm.tir.nearbyint]:
         assert op(tvm.tir.const(10, "int32")).value == 10
         assert op(tvm.tir.const(True, "bool")).value == True

@@ -16,13 +16,11 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
-
 
 def test_basic():
-    a = te.var("a")
-    b = te.var("b")
-    c = te.var("c")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
+    c = tvm.tir.Var("c", "int32")
     m = tvm.arith.detect_clip_bound(tvm.tir.all(a * 1 < b * 6, a - 1 > 0), [a])
     tvm.testing.assert_prim_expr_equal(m[1], b * 6 - 1)
     assert m[0].value == 2
@@ -38,10 +36,9 @@ def test_basic():
     tvm.testing.assert_prim_expr_equal(m[1], 9)
     tvm.testing.assert_prim_expr_equal(m[2], 4)
 
-
 def test_trivial_eq():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     m = tvm.arith.detect_clip_bound(b == 3, [a, b])
     tvm.testing.assert_prim_expr_equal(m[2], 3)
     tvm.testing.assert_prim_expr_equal(m[3], 3)
@@ -50,7 +47,6 @@ def test_trivial_eq():
     tvm.testing.assert_prim_expr_equal(m[1], 4)
     tvm.testing.assert_prim_expr_equal(m[2], 3)
     tvm.testing.assert_prim_expr_equal(m[3], 3)
-
 
 if __name__ == "__main__":
     test_basic()
