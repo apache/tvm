@@ -20,7 +20,6 @@ import gc
 import numpy as np
 
 import tvm
-from tvm import te
 import tvm.testing
 from tvm.script import tir as T
 

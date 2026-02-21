@@ -18,7 +18,7 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import te, s_tir
+from tvm import s_tir
 from tvm.topi.math import cast
 from tvm.script import ir as I, tir as T
 
