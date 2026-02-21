@@ -21,6 +21,7 @@ import pytest
 from tvm_ffi.access_path import AccessPath
 from tvm.script import tir as T, ir as I
 
+
 def consistent_equal(x, y, map_free_vars=False):
     struct_equal0 = tvm.ir.structural_equal(x, y, map_free_vars)
     struct_equal1 = tvm.ir.structural_equal(y, x, map_free_vars)
@@ -45,6 +46,7 @@ def consistent_equal(x, y, map_free_vars=False):
         )
     return struct_equal0
 
+
 def get_sequal_mismatch(x, y, map_free_vars=False):
     mismatch_0 = tvm.ir.base.get_first_structural_mismatch(x, y, map_free_vars)
     mismatch_1 = tvm.ir.base.get_first_structural_mismatch(y, x, map_free_vars)
@@ -65,6 +67,7 @@ def get_sequal_mismatch(x, y, map_free_vars=False):
         )
 
     return mismatch_0
+
 
 def test_exprs():
     # save load json
@@ -100,6 +103,7 @@ def test_exprs():
     assert consistent_equal(zx * zx, zy * zy, map_free_vars=True)
     assert not consistent_equal(zx * zx, zy * zy, map_free_vars=False)
 
+
 def test_prim_func():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
@@ -126,6 +130,7 @@ def test_prim_func():
     mod1 = tvm.IRModule.from_expr(func1)
     tvm.ir.assert_structural_equal(mod0, mod1)
 
+
 def test_prim_func_param_count_mismatch():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
@@ -139,6 +144,7 @@ def test_prim_func_param_count_mismatch():
     assert lhs_path == expected_lhs_path
     assert rhs_path == expected_rhs_path
 
+
 def test_prim_func_param_dtype_mismatch():
     x = tvm.tir.Var("x", "int32")
     y_0 = tvm.tir.Var("y", "int32")
@@ -150,6 +156,7 @@ def test_prim_func_param_dtype_mismatch():
     expected_path = AccessPath.root().attr("params").array_item(1).attr("dtype")
     assert lhs_path == expected_path
     assert rhs_path == expected_path
+
 
 def test_prim_func_body_mismatch():
     x_0 = tvm.tir.Var("x", "int32")
@@ -164,6 +171,7 @@ def test_prim_func_body_mismatch():
     assert lhs_path == expected_path
     assert rhs_path == expected_path
 
+
 def test_array():
     x = np.arange(10)
     nx = tvm.runtime.tensor(x)
@@ -171,6 +179,7 @@ def test_array():
     nz = tvm.runtime.tensor(x.reshape(2, 5))
     assert consistent_equal(nx, ny)
     assert not consistent_equal(nx, nz)
+
 
 def test_env_func():
     @tvm.register_global_func("test.sequal.env_func")
@@ -180,6 +189,7 @@ def test_env_func():
     x = tvm.ir.EnvFunc.get("test.sequal.env_func")
     y = tvm.ir.EnvFunc.get("test.sequal.env_func")
     assert consistent_equal(y, x)
+
 
 def test_attrs():
     x = tvm.ir.make_node("attrs.TestAttrs", axis=1, name="xx")
@@ -194,6 +204,7 @@ def test_attrs():
     assert consistent_equal(y, x)
     assert not consistent_equal(y, z)
 
+
 def test_stmt():
     @T.prim_func(private=True, check_well_formed=False)
     def func2(A: T.handle, n_param: T.int32):
@@ -206,6 +217,7 @@ def test_stmt():
                 Ab[j] = Ab[j] + T.float32(2)
 
     assert consistent_equal(func2.body, func2.body)
+
 
 def test_buffer_storage_scope():
     x = tvm.tir.Var("x", "handle")
@@ -223,6 +235,7 @@ def test_buffer_storage_scope():
     assert consistent_equal(func0, func1)
     assert consistent_equal(func2, func3)
     assert not consistent_equal(func0, func2)
+
 
 def test_buffer_map_mismatch():
     x = tvm.tir.Var("x", "int32")
@@ -243,6 +256,7 @@ def test_buffer_map_mismatch():
 
     assert get_sequal_mismatch(func_0, func_0_clone) is None
 
+
 def test_buffer_map_length_mismatch():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("x", "int32")
@@ -260,6 +274,7 @@ def test_buffer_map_length_mismatch():
     expected_rhs_path = AccessPath.root().attr("buffer_map").map_item(y)
     assert rhs_path == expected_rhs_path
 
+
 def test_buffer_load_store():
     b = tvm.tir.decl_buffer((10, 10), "float32")
     x = tvm.tir.BufferLoad(b, [0, 1])
@@ -275,6 +290,7 @@ def test_buffer_load_store():
     assert consistent_equal(sy, sx)
     assert not consistent_equal(sy, sz)
 
+
 def test_while():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
@@ -282,6 +298,7 @@ def test_while():
     wy = tvm.tir.While(y > 0, tvm.tir.Evaluate(y))
     assert not consistent_equal(wx, wy)
     assert consistent_equal(wx, wy, map_free_vars=True)
+
 
 def test_while_condition_mismatch():
     x = tvm.tir.Var("x", "int32")
@@ -292,6 +309,7 @@ def test_while_condition_mismatch():
     assert lhs_path == expected_path
     assert rhs_path == expected_path
 
+
 def test_while_body_mismatch():
     x = tvm.tir.Var("x", "int32")
     w_0 = tvm.tir.While(x > 0, tvm.tir.Evaluate(x))
@@ -300,6 +318,7 @@ def test_while_body_mismatch():
     expected_path = AccessPath.root().attr("body").attr("value")
     assert lhs_path == expected_path
     assert rhs_path == expected_path
+
 
 def test_seq_mismatch():
     x = tvm.tir.Var("x", "int32")
@@ -326,6 +345,7 @@ def test_seq_mismatch():
     assert lhs_path == expected_path
     assert rhs_path == expected_path
 
+
 def test_seq_mismatch_different_lengths():
     # Make sure we report a difference inside the array first, rather than the difference in length
     x = tvm.tir.Var("x", "int32")
@@ -345,6 +365,7 @@ def test_seq_mismatch_different_lengths():
     assert lhs_path == expected_path
     assert rhs_path == expected_path
 
+
 def test_seq_length_mismatch():
     x = tvm.tir.Var("x", "int32")
     seq_0 = tvm.tir.SeqStmt(
@@ -361,6 +382,7 @@ def test_seq_length_mismatch():
     expected_rhs_path = AccessPath.root().attr("seq").array_item_missing(3)
     assert lhs_path == expected_lhs_path
     assert rhs_path == expected_rhs_path
+
 
 def test_ir_module_equal():
     def generate(n: int):
@@ -385,6 +407,7 @@ def test_ir_module_equal():
 
     assert '<root>.functions[I.GlobalVar("func")].body.extent.value' in err.value.args[0]
 
+
 def test_nan_values_are_equivalent():
     """Structural equality treats two NaN values as equivalent.
 
@@ -404,6 +427,7 @@ def test_nan_values_are_equivalent():
 
     tvm.ir.assert_structural_equal(func_1, func_2)
     assert tvm.ir.structural_hash(func_1) == tvm.ir.structural_hash(func_2)
+
 
 def test_all_nan_values_are_equivalent():
     """Structural equality treats two NaN values as equivalent.
@@ -425,6 +449,7 @@ def test_all_nan_values_are_equivalent():
 
     tvm.ir.assert_structural_equal(float_1, float_2)
     assert tvm.ir.structural_hash(float_1) == tvm.ir.structural_hash(float_2)
+
 
 if __name__ == "__main__":
     tvm.testing.main()

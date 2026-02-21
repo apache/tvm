@@ -18,6 +18,7 @@
 import pytest
 import tvm
 
+
 def test_expr_constructor():
     x = tvm.tir.Var("xx", "float32")
     assert isinstance(x, tvm.tir.Var)
@@ -124,6 +125,7 @@ def test_expr_constructor():
     assert x.value.value == 1
     assert x.body == v
 
+
 def test_stmt_constructor():
     v = tvm.tir.Var("aa", "int32")
     nop = tvm.tir.Evaluate(1)
@@ -183,9 +185,11 @@ def test_stmt_constructor():
     assert x.then_case.value.value == 11
     assert x.else_case == nop
 
+
 def test_float_constructor_requires_float_dtype():
     with pytest.raises(tvm.TVMError):
         tvm.tir.FloatImm("int32", 1.0)
+
 
 if __name__ == "__main__":
     tvm.testing.main()

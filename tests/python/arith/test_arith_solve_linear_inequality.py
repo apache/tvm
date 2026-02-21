@@ -21,6 +21,7 @@ import tvm
 from tvm import arith, ir, tir, testing
 from tvm.script import tir as T
 
+
 @pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11458")
 def test_solution_consistency():
     seed = random.randrange(sys.maxsize)
@@ -78,6 +79,7 @@ def test_solution_consistency():
     for i in range(5):
         _check(10, 3, coef=(0, 1), bounds=(0, 4))
 
+
 def test_dual_variable():
     x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
 
@@ -121,6 +123,7 @@ def test_dual_variable():
     assert ir.structural_equal(solution.dst_to_src[x_new], x - y - 10)
     assert ir.structural_equal(solution.dst_to_src[y_new], y)
 
+
 def test_equal():
     x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
     problem = [
@@ -141,6 +144,7 @@ def test_equal():
     assert len(solution.dst.relations) == 0
     assert solution.src_to_dst[x] == 6
     assert solution.src_to_dst[y] == 4
+
 
 def test_multi_equal():
     x, y, z = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32"), tvm.tir.Var("z", "int32")
@@ -173,6 +177,7 @@ def test_multi_equal():
     assert solution.src_to_dst[z] == z
     assert solution.src_to_dst[x] == 6
 
+
 def test_no_solution():
     x = tvm.tir.Var("x0", "int32")
     vranges = {x: tvm.ir.Range.from_min_extent(-20, 41)}
@@ -191,6 +196,7 @@ def test_no_solution():
     [rel] = solution.relations
     assert not rel
 
+
 def test_unbound_var_range():
     x = tvm.tir.Var("x0", "int32")
     free_var = tvm.tir.Var("fv", "int32")
@@ -204,6 +210,7 @@ def test_unbound_var_range():
     assert len(solution.variables) == 1
     assert len(solution.ranges) == 0
     assert len(solution.relations) == 3
+
 
 if __name__ == "__main__":
     tvm.testing.main()

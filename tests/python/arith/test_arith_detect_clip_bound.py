@@ -17,6 +17,7 @@
 import tvm
 import tvm.testing
 
+
 def test_basic():
     a = tvm.tir.Var("a", "int32")
     b = tvm.tir.Var("b", "int32")
@@ -36,6 +37,7 @@ def test_basic():
     tvm.testing.assert_prim_expr_equal(m[1], 9)
     tvm.testing.assert_prim_expr_equal(m[2], 4)
 
+
 def test_trivial_eq():
     a = tvm.tir.Var("a", "int32")
     b = tvm.tir.Var("b", "int32")
@@ -47,6 +49,7 @@ def test_trivial_eq():
     tvm.testing.assert_prim_expr_equal(m[1], 4)
     tvm.testing.assert_prim_expr_equal(m[2], 3)
     tvm.testing.assert_prim_expr_equal(m[3], 3)
+
 
 if __name__ == "__main__":
     test_basic()

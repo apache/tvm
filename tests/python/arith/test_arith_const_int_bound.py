@@ -27,6 +27,7 @@ from tvm.arith import ConstIntBound
 NEG_INF = ConstIntBound.NEG_INF
 POS_INF = ConstIntBound.POS_INF
 
+
 class TestCase:
     def __init__(self, expr, expected_bounds, known_bounds=None, constraint=None):
         self.expr = expr
@@ -41,6 +42,7 @@ class TestCase:
     @property
     def __name__(self):
         return str(self.expr)
+
 
 class BaseCompare:
     def test_const_bounds(self, test_case):
@@ -63,6 +65,7 @@ class BaseCompare:
         else:
             assert (bounds.min_value, bounds.max_value) == test_case.expected_bounds
 
+
 class TestDataType(BaseCompare):
     test_case = tvm.testing.parameter(
         TestCase(tvm.tir.Var("x", "int64"), (NEG_INF, POS_INF)),
@@ -70,6 +73,7 @@ class TestDataType(BaseCompare):
         TestCase(tvm.tir.Var("x", "uint8"), (0, 255)),
         TestCase(tvm.tir.SizeVar("x", "int32"), (0, POS_INF)),
     )
+
 
 class TestCastBound(BaseCompare):
     x = tvm.tir.Var("x", "int8")
@@ -79,6 +83,7 @@ class TestCastBound(BaseCompare):
         TestCase(tmod(x, 3).astype("uint32"), (0, 2)),
         TestCase(tmod(x, 3).astype("float32").astype("int32"), (-2, 2)),
     )
+
 
 class TestAddSubBound(BaseCompare):
     x = tvm.tir.Var("x", "int64")
@@ -91,6 +96,7 @@ class TestAddSubBound(BaseCompare):
         TestCase(x - y, (-10, POS_INF), known_bounds={x: (0, POS_INF), y: (1, 10)}),
         TestCase(1 - x, (NEG_INF, 1), known_bounds={x: (0, POS_INF), y: (1, 10)}),
     )
+
 
 @pytest.mark.xfail(reason="Not currently supported")
 class TestBoundsUsingReciprocals(BaseCompare):
@@ -128,6 +134,7 @@ class TestBoundsUsingReciprocals(BaseCompare):
         TestCase(B * A - (A + B) * C, (None, -2048), known_bounds=asymmetric_bounds),
     )
 
+
 class TestMulBound(BaseCompare):
     x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
 
@@ -136,6 +143,7 @@ class TestMulBound(BaseCompare):
         TestCase(x * y, (-32, 24), {x: (-3, 4), y: (-8, 2)}),
         TestCase(x * y, (NEG_INF, POS_INF), {x: (NEG_INF, 4), y: (-8, 2)}),
     )
+
 
 class TestTruncDivBound(BaseCompare):
     x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
@@ -149,6 +157,7 @@ class TestTruncDivBound(BaseCompare):
         TestCase(expr, (-9, 9), {x: (-9, 4), y: (-4, 12)}),
     )
 
+
 class TestTruncModBound(BaseCompare):
     x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
 
@@ -159,6 +168,7 @@ class TestTruncModBound(BaseCompare):
         TestCase(expr, (-9, 9), {x: (NEG_INF, POS_INF), y: (4, 10)}),
         TestCase(expr, (0, 9), {x: (1, POS_INF), y: (4, 10)}),
     )
+
 
 class TestFloorDivBound(BaseCompare):
     x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
@@ -173,6 +183,7 @@ class TestFloorDivBound(BaseCompare):
         TestCase(ux // uy, (0, 4), {ux: (1, 4), uy: (0, 12)}),
     )
 
+
 class TestFloorModBound(BaseCompare):
     x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
 
@@ -181,6 +192,7 @@ class TestFloorModBound(BaseCompare):
         TestCase(x % y, (0, 9), {x: (NEG_INF, POS_INF), y: (4, 10)}),
         TestCase(x % y, (0, 9), {x: (1, POS_INF), y: (4, 10)}),
     )
+
 
 class TestMinMaxBound(BaseCompare):
     x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
@@ -191,6 +203,7 @@ class TestMinMaxBound(BaseCompare):
         TestCase(tvm.tir.max(x, y), (4, POS_INF), {x: (NEG_INF, POS_INF), y: (4, 10)}),
         TestCase(tvm.tir.max(x, y), (4, POS_INF), {x: (1, POS_INF), y: (4, 10)}),
     )
+
 
 class TestSelectBound(BaseCompare):
     x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
@@ -203,6 +216,7 @@ class TestSelectBound(BaseCompare):
         ),
     )
 
+
 class TestShiftAndBound(BaseCompare):
     x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
 
@@ -211,6 +225,7 @@ class TestShiftAndBound(BaseCompare):
         TestCase(x & y, (0, 10), {x: (-9, 11), y: (2, 10)}),
         TestCase(x & y, (0, 10), {x: (10, 11), y: (2, 10)}),
     )
+
 
 class TestMixIndexBound(BaseCompare):
     x, y = tvm.tir.Var("x", "int32"), tvm.tir.Var("y", "int32")
@@ -225,11 +240,13 @@ class TestMixIndexBound(BaseCompare):
         ),
     )
 
+
 class TestLetBound(BaseCompare):
     x = tvm.tir.Var("x", "int32")
     test_case = tvm.testing.parameter(
         TestCase(tvm.tir.Let(x, 1, x + 1), (2, 2)),
     )
+
 
 class TestFloorModNegativeDivisor(BaseCompare):
     flm, fld = tvm.tir.floormod, tvm.tir.floordiv
@@ -238,6 +255,7 @@ class TestFloorModNegativeDivisor(BaseCompare):
     test_case = tvm.testing.parameter(
         TestCase(a % b, (-4, 6), {a: (0, 6), b: (-5, 7)}),
     )
+
 
 class TestDivModAssumeNoZeroDivisor(BaseCompare):
     """Divmod non negative expression makes assumption that divide by
@@ -252,6 +270,7 @@ class TestDivModAssumeNoZeroDivisor(BaseCompare):
         TestCase(a % b, (0, 6), {a: (0, 6), b: (0, POS_INF)}),
     )
 
+
 class TestMultipleCondition(BaseCompare):
     a = tvm.tir.Var("a", "int32")
     test_case = tvm.testing.parameter(
@@ -263,17 +282,20 @@ class TestMultipleCondition(BaseCompare):
         ),
     )
 
+
 class TestBroadcastBound(BaseCompare):
     a = tvm.tir.Var("a", "int32")
     test_case = tvm.testing.parameter(
         TestCase(tvm.tir.Broadcast(a, 4), (0, 128), {a: (0, 128)}),
     )
 
+
 class TestRampBound(BaseCompare):
     a = tvm.tir.Var("a", "int32")
     test_case = tvm.testing.parameter(
         TestCase(tvm.tir.Ramp(a, 2, 4) + 2, (2, 128 + 2 * 3 + 2), {a: (0, 128)}),
     )
+
 
 class TestModularSetBound(BaseCompare):
     analyzer = tvm.arith.Analyzer()
@@ -285,6 +307,7 @@ class TestModularSetBound(BaseCompare):
     test_case = tvm.testing.parameter(
         TestCase(expr, (0, 7152), {bx: (0, 3584), tx: (0, 128)}),
     )
+
 
 if __name__ == "__main__":
     tvm.testing.main()

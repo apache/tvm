@@ -16,6 +16,7 @@
 # under the License.
 import tvm
 
+
 def test_equal_expr():
     x = tvm.tir.Var("x", "int32")
     y = tvm.tir.Var("y", "int32")
@@ -29,6 +30,7 @@ def test_equal_expr():
     assert tvm.tir.analysis.expr_deep_equal(func1(), func1())
     assert tvm.tir.analysis.expr_deep_equal(func2(), func2())
     assert not tvm.tir.analysis.expr_deep_equal(func2(), func1())
+
 
 if __name__ == "__main__":
     test_equal_expr()

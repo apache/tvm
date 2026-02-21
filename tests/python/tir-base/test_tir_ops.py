@@ -19,6 +19,7 @@ import tvm.testing
 
 import pytest
 
+
 def check_throws(f):
     try:
         f()
@@ -26,6 +27,7 @@ def check_throws(f):
         pass
     else:
         raise AssertionError("Should have raised an exception but didn't.")
+
 
 def test_const_fold():
     def check(f, *args):
@@ -47,6 +49,7 @@ def test_const_fold():
     check(lambda x, y: x >= y, 112, 128)
     check(lambda x, y: (x | y) ^ 10, 112, 128)
 
+
 def test_const_fold2():
     x = tvm.tir.Var("x", "int32")
     tmod = tvm.tir.truncmod
@@ -58,6 +61,7 @@ def test_const_fold2():
     assert (x * 1).same_as(x)
     assert (1 * x).same_as(x)
     assert isinstance(tdiv(1, x), tvm.tir.Div)
+
 
 def test_const_fold3():
     # Test that using ints with logic operations is forbidden
@@ -93,6 +97,7 @@ def test_const_fold3():
     assert tvm.tir.any(x, true).same_as(true)
     assert tvm.tir.any(true, x).same_as(true)
 
+
 def test_const_fold4():
     x1 = tvm.tir.const(4, "int32")
     x2 = x1 + 5
@@ -108,6 +113,7 @@ def test_const_fold4():
     assert isinstance(x6, tvm.tir.IntImm) and x6.value == 4, "x6={}".format(x6)
     y = (tvm.tir.round((tvm.tir.const(6.5, "float32") - 1) / 1.5) + 2).astype("int")
     assert isinstance(y, tvm.tir.IntImm) and y.value == 6
+
 
 def test_binary_dtype_match():
     def verify_general_dtype_support(f, is_conditional=False):
@@ -175,6 +181,7 @@ def test_binary_dtype_match():
     assert tvm.tir.const(1) == tvm.tir.const(True)
     assert tvm.tir.const(2) != tvm.tir.const(True)
 
+
 def test_if_then_else():
     cases = [
         [(tvm.tir.Var("cond", "bool"), "bool", "int32"), "int32"],
@@ -207,6 +214,7 @@ def test_if_then_else():
         else:
             raise ValueError("Unknown combinations")
 
+
 @pytest.mark.parametrize("num_args", list(range(2, 10)))
 def test_comm_reducer(num_args):
     """Handle all arguments in tir comm_reducer
@@ -224,11 +232,13 @@ def test_comm_reducer(num_args):
     """
     assert tvm.tir.max(*range(num_args)) == num_args - 1
 
+
 def test_llvm_intrin():
     with pytest.raises(ValueError, match=r"Unknown llvm intrinsic function llvm.dummy"):
         a = tvm.tir.call_llvm_intrin("int32x4", "llvm.dummy")
     with pytest.raises(ValueError, match=r"Unknown llvm intrinsic function llvm.dummy"):
         a = tvm.tir.call_llvm_pure_intrin("int32x4", "llvm.dummy")
+
 
 if __name__ == "__main__":
     tvm.testing.main()

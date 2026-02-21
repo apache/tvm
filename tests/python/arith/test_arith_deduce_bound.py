@@ -20,6 +20,7 @@ import tvm.testing
 
 from tvm.tir.buffer import decl_buffer
 
+
 def test_deduce():
     a = tvm.tir.Var("a", "int32")
     b = tvm.tir.Var("b", "int32")
@@ -118,6 +119,7 @@ def test_deduce():
     tvm.testing.assert_prim_expr_equal(res10.max_value, 1)
     tvm.testing.assert_prim_expr_equal(res10.min_value, 1)
 
+
 def test_check():
     a = tvm.tir.Var("a", "int32")
     b = tvm.tir.Var("b", "int32")
@@ -139,6 +141,7 @@ def test_check():
     # multiple target variable
     res2 = tvm.arith.deduce_bound(a, a * 2 - a > b, {b: b_s}, {})
     assert res2.is_nothing()
+
 
 def test_deduce_basic():
     def test_basic(a1, a2, coff):
@@ -173,6 +176,7 @@ def test_deduce_basic():
     test_basic(1, 5, -4)
     test_basic(2, 6, -4)
 
+
 def test_deduce_complex():
     def test_complex(a1, a2, coff):
         a = tvm.tir.Var("a", "int32")
@@ -205,6 +209,7 @@ def test_deduce_complex():
     test_complex(1, 5, -4)
     test_complex(2, 6, -4)
 
+
 def test_deduce_non_support():
     a = tvm.tir.Var("a", "int32")
 
@@ -223,6 +228,7 @@ def test_deduce_non_support():
     test_non_support(tvm.tir.NE(a, 16))
     test_non_support(tvm.tir.log(a))
     test_non_support(tvm.tir.BufferLoad(decl_buffer([16], "int32"), [a]))
+
 
 def test_deduce_floordiv():
     def do_test(gen_expr, dom_map, expect_min, expect_max):
@@ -259,6 +265,7 @@ def test_deduce_floordiv():
     do_test(lambda a: b * 3 + a // 8 <= 63, bs, "neg_inf", 367)
     do_test(lambda a: b * 3 + a // 8 > 63, bs, 464, "pos_inf")
     do_test(lambda a: b * 3 + a // 8 >= 63, bs, 456, "pos_inf")
+
 
 if __name__ == "__main__":
     tvm.testing.main()
