@@ -17,7 +17,7 @@
 import numpy as np
 import pytest
 import tvm
-from tvm import ir, te
+from tvm import ir
 
 
 def test_const():
@@ -27,7 +27,7 @@ def test_const():
 
 
 def test_te_const():
-    x = tvm.te.const(1, "int32")
+    x = tvm.tir.const(1, "int32")
     assert x.dtype == "int32"
     assert isinstance(x, tvm.tir.IntImm)
 
@@ -57,7 +57,7 @@ def test_tir_const_dtype_inference():
 
 def test_make():
     x = tvm.tir.const(1, "int32")
-    y = te.var("x")
+    y = tvm.tir.Var("x", "int32")
     z = x + y
     assert isinstance(tvm.tir.max(x, y), tvm.tir.Max)
     assert isinstance(tvm.tir.min(x, y), tvm.tir.Min)
@@ -72,12 +72,12 @@ def test_ir():
 
 
 def test_ir2():
-    buf_size = te.var("size")
-    x = te.var("n")
+    buf_size = tvm.tir.Var("size", "int32")
+    x = tvm.tir.Var("n", "int32")
 
     storage_type = ir.PrimType("int32")
     handle_type = ir.PointerType(storage_type)
-    array = te.var("array", handle_type)
+    array = tvm.tir.Var("array", handle_type)
     buf = tvm.tir.decl_buffer([buf_size], "int32", data=array)
 
     st = tvm.tir.BufferStore(buf, x + 1, [1])
@@ -87,13 +87,13 @@ def test_ir2():
 
 
 def test_let():
-    x = te.var("x")
-    y = te.var("y")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
     stmt = tvm.tir.LetStmt(x, 10, tvm.tir.Evaluate(x + 1))
 
 
 def test_cast():
-    x = te.var("x", dtype="float32")
+    x = tvm.tir.Var("x", "float32")
     y = x.astype("int32")
     z = x.astype("float32x4")
     assert isinstance(y, tvm.tir.Cast)
@@ -110,8 +110,8 @@ def test_cast():
 
 
 def test_attr():
-    x = te.var("x")
-    y = te.var("y")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
     stmt = tvm.tir.AttrStmt(y, "stride", 10, tvm.tir.Evaluate(x + 1))
     assert stmt.node == y
 
@@ -125,34 +125,34 @@ def test_attr():
 
 
 def test_basic():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     c = a + b
     assert str(c) == "%s + %s" % (a.name, b.name)
 
 
 def test_stmt():
     x = tvm.tir.Evaluate(0)
-    tvm.tir.For(te.var("i"), 0, 1, tvm.tir.ForKind.SERIAL, x)
-    tvm.tir.For(te.var("i"), 0, 1, tvm.tir.ForKind.UNROLLED, x, step=2)
+    tvm.tir.For(tvm.tir.Var("i", "int32"), 0, 1, tvm.tir.ForKind.SERIAL, x)
+    tvm.tir.For(tvm.tir.Var("i", "int32"), 0, 1, tvm.tir.ForKind.UNROLLED, x, step=2)
 
 
 def test_dir():
-    x = te.var("x")
+    x = tvm.tir.Var("x", "int32")
     dir(x)
 
 
 def test_dtype():
-    x = te.var("x")
+    x = tvm.tir.Var("x", "int32")
     assert x.dtype == "int32"
-    y = te.var("y")
+    y = tvm.tir.Var("y", "int32")
     assert (x > y).dtype == "bool"
 
 
 def test_any():
-    x = te.var("x")
-    y = te.var("y")
-    z = te.var("z")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
     try:
         t = x or x
         assert False
@@ -183,9 +183,9 @@ def test_any():
 
 
 def test_all():
-    x = te.var("x")
-    y = te.var("y")
-    z = te.var("z")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
     try:
         t = x and x
         assert False
@@ -216,8 +216,8 @@ def test_all():
 
 
 def test_bitwise():
-    x = te.var("x")
-    y = te.var("y")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
     assert str(x << y) == "T.shift_left(x, y)"
     assert str(x >> y) == "T.shift_right(x, y)"
     assert str(x & y) == "T.bitwise_and(x, y)"
@@ -233,7 +233,7 @@ def test_bitwise():
     assert str(~x) == "T.bitwise_not(x)"
     assert (tvm.tir.const(1, "int8x2") >> 1).dtype == "int8x2"
     assert (x >> tvm.tir.const(1, "int32x2")).dtype == "int32x2"
-    assert (te.var("z", "int8x2") << tvm.tir.const(1, "int8x2")).dtype == "int8x2"
+    assert (tvm.tir.Var("z", "int8x2") << tvm.tir.const(1, "int8x2")).dtype == "int8x2"
 
 
 def test_float_bitwise():
@@ -258,7 +258,7 @@ def test_float_bitwise():
 
 
 def test_shift_bounds():
-    x = te.var("x")
+    x = tvm.tir.Var("x", "int32")
     for test in [lambda lhs, rhs: lhs << rhs, lambda lhs, rhs: lhs >> rhs]:
         # negative case
         for testcase in [(x, -1), (x, 32)]:
@@ -295,20 +295,20 @@ def test_infinity():
 
 
 def test_isnan():
-    x = te.var("x", "float32")
+    x = tvm.tir.Var("x", "float32")
     assert str(tvm.tir.isnan(x)) == "T.isnan(x)"
     assert str(tvm.tir.isnan(x).dtype) == "bool"
-    y = te.var("y", "float16")
+    y = tvm.tir.Var("y", "float16")
     assert str(tvm.tir.isnan(y)) == 'T.isnan(T.Cast("float32", y))'
-    z = te.var("z", "int32")
+    z = tvm.tir.Var("z", "int32")
     assert str(tvm.tir.isnan(z)) == "T.bool(False)"
-    k = te.var("k", "int8x2")
+    k = tvm.tir.Var("k", "int8x2")
     assert str(tvm.tir.isnan(k).dtype) == "boolx2"
 
 
 def test_equality():
-    a = te.var("a")
-    b = te.var("b")
+    a = tvm.tir.Var("a", "int32")
+    b = tvm.tir.Var("b", "int32")
     c = a == b
     assert not c
     d = c != c
@@ -323,8 +323,8 @@ def test_equality_string_imm():
 
 
 def test_prim_func():
-    x = te.var("x")
-    y = te.var("y")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
     b = tvm.tir.decl_buffer((x,), "float32")
     stmt = tvm.tir.LetStmt(x, 10, tvm.tir.Evaluate(x + 1))
 
@@ -390,7 +390,7 @@ def _create_broadcast(lanes):
     return tvm.tir.Broadcast(0, lanes)
 
 
-@pytest.mark.parametrize("lanes", [(tvm.tir.IntImm(dtype="int64", value=11))])
+@pytest.mark.parametrize("lanes", [tvm.tir.IntImm(dtype="int64", value=11)])
 @pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
 def test_lane_types(lanes, node_func):
     def _check_dtype(node):
