@@ -287,3 +287,6 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = ["python.tvm.runtime.*"]
 ignore_errors = true
+
+[dependency-groups]
+lint = ["pre-commit"]
