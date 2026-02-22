@@ -18,11 +18,11 @@ import numpy as np
 
 import tvm
 import tvm.testing
-
 from tvm import relax
-from tvm.script import relax as R, tir as T
-from tvm.script import ir as I
 from tvm.relax.transform import LazyTransformParams
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_lazy_transform_params():
@@ -160,10 +160,8 @@ def test_get_item_only():
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function(pure=False)
-        def main_transform_params() -> (
-            R.Tuple(
-                R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
-            )
+        def main_transform_params() -> R.Tuple(
+            R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
             cls = Expected
             gv: R.Object = R.call_packed("get_item_0", R.prim_value(1), sinfo_args=(R.Object,))
@@ -587,9 +585,9 @@ def test_output_with_use_site():
                 y[()] = x[()]
 
         @R.function
-        def main_transform_params(
-            params: R.Tuple(R.Tensor((), dtype="float32"))
-        ) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")):
+        def main_transform_params(params: R.Tuple(R.Tensor((), dtype="float32"))) -> R.Tuple(
+            R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")
+        ):
             # we expect ToNonDataflow and RemovePurityTracking to be invoked first
             R.func_attr({"relax.force_pure": True})
             cls = Module
@@ -870,8 +868,7 @@ def test_get_item_callback_num_attrs():
                 R.prim_value(16 % world_size == 0),
                 [R.prim_value(16), R.prim_value(world_size)],
                 format=(
-                    "World size must evenly divide A.shape[0] ({}), "
-                    "but received world size of {}."
+                    "World size must evenly divide A.shape[0] ({}), but received world size of {}."
                 ),
             )
             weight_A = R.strided_slice(
@@ -885,8 +882,7 @@ def test_get_item_callback_num_attrs():
                 R.prim_value(2048 % world_size == 0),
                 [R.prim_value(2048), R.prim_value(world_size)],
                 format=(
-                    "World size must evenly divide B.shape[1] ({}), "
-                    "but received world size of {}."
+                    "World size must evenly divide B.shape[1] ({}), but received world size of {}."
                 ),
             )
             weight_B = R.strided_slice(
@@ -915,8 +911,7 @@ def test_get_item_callback_num_attrs():
                 R.prim_value(16 % world_size == 0),
                 [R.prim_value(16), R.prim_value(world_size)],
                 format=(
-                    "World size must evenly divide A.shape[0] ({}), "
-                    "but received world size of {}."
+                    "World size must evenly divide A.shape[0] ({}), but received world size of {}."
                 ),
             )
             weight_A = fget_item(R.prim_value(0), R.str("weight_A"))
@@ -932,8 +927,7 @@ def test_get_item_callback_num_attrs():
                 R.prim_value(2048 % world_size == 0),
                 [R.prim_value(2048), R.prim_value(world_size)],
                 format=(
-                    "World size must evenly divide B.shape[1] ({}), "
-                    "but received world size of {}."
+                    "World size must evenly divide B.shape[1] ({}), but received world size of {}."
                 ),
             )
             weight_B = fget_item(R.prim_value(1), R.str("weight_B"))

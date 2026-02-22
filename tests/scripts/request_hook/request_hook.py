@@ -17,9 +17,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import urllib.request
 import logging
-
+import urllib.request
 from urllib.parse import quote
 
 LOGGER = None

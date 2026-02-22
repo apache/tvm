@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Schedule instructions each corresponds to a schedule primitive"""
+
 from typing import TYPE_CHECKING, Any, List, Union
 
 from tvm_ffi import register_object as _register_object
+
 from tvm.runtime import Object
 
 from . import _ffi_api

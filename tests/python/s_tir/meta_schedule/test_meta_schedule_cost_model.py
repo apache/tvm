@@ -24,6 +24,7 @@ from functools import partial
 from typing import List
 
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm.s_tir.meta_schedule.cost_model import PyCostModel, RandomModel, XGBModel
@@ -33,8 +34,8 @@ from tvm.s_tir.meta_schedule.runner import RunnerResult
 from tvm.s_tir.meta_schedule.search_strategy import MeasureCandidate
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
 from tvm.s_tir.meta_schedule.utils import derived_object
-from tvm.script import tir as T
 from tvm.s_tir.schedule.schedule import Schedule
+from tvm.script import tir as T
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring

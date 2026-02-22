@@ -16,11 +16,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 def build_docs_url(base_url_docs, pr_number, build_number):
-    return f"{base_url_docs}/PR-{str(pr_number)}/{str(build_number)}/docs/index.html"
+    return f"{base_url_docs}/PR-{pr_number!s}/{build_number!s}/docs/index.html"
 
 
 def find_target_url(pr_head: Dict[str, Any]):

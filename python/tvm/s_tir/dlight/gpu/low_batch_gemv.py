@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """A rule for low-batch GEMM / decode-GEMM using GEMV schedule."""
+
 from functools import reduce
 from typing import List, Literal, Optional, Set, Union
 
-from tvm import arith, ir, tir, s_tir
+from tvm import arith, ir, s_tir, tir
 from tvm.target import Target
 
 from ..analysis import (

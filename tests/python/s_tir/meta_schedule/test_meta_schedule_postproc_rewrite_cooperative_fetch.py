@@ -18,8 +18,8 @@
 
 import tvm
 import tvm.testing
-from tvm.s_tir import meta_schedule as ms
 from tvm import tir
+from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.script import tir as T
 from tvm.target import Target

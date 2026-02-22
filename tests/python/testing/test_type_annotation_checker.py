@@ -17,10 +17,10 @@
 """Test type checker based on python's type annotations"""
 
 import sys
-from typing import Dict, List, Tuple, Union, Callable
+from typing import Callable, Dict, List, Tuple, Union
 
-import pytest
 import _pytest
+import pytest
 
 import tvm
 from tvm.s_tir.schedule._type_checker import type_checked
@@ -214,9 +214,9 @@ def test_subscripted_generics(type_annotation, expected_key, expected_subtypes):
     assert key == expected_key, f"Expected '{expected_key}' but got '{key}'"
 
     if isinstance(expected_subtypes, tuple):
-        assert (
-            tuple(subtypes) == expected_subtypes
-        ), f"Expected {expected_subtypes} but got {subtypes}"
+        assert tuple(subtypes) == expected_subtypes, (
+            f"Expected {expected_subtypes} but got {subtypes}"
+        )
     else:
         assert subtypes == expected_subtypes, f"Expected {expected_subtypes} but got {subtypes}"
 

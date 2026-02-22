@@ -26,8 +26,8 @@ from tvm.ir import assert_structural_equal
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import core, modules, spec
 from tvm.script import ir as I
-from tvm.script import tir as T
 from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_relu():
@@ -202,8 +202,9 @@ def test_layer_norm():
             layer_norm: R.Tensor((2, 4, 8), dtype="float32") = R.nn.layer_norm(
                 x, weight, bias, axes=[-1], epsilon=1.0000000000000001e-05, center=True, scale=True
             )
-            gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = layer_norm, (
-                _io,
+            gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = (
+                layer_norm,
+                (_io,),
             )
             R.output(gv1)
         return gv1
@@ -228,8 +229,9 @@ def test_conv2d():
             lv1: R.Tensor((1, 32, 30, 30), dtype="float32") = R.nn.conv2d(x, weight)
             lv2: R.Tensor((1, 32, 1, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1, 1]))
             conv2d: R.Tensor((1, 32, 30, 30), dtype="float32") = R.add(lv1, lv2)
-            gv1: R.Tuple(R.Tensor((1, 32, 30, 30), dtype="float32"), R.Tuple(R.Object)) = conv2d, (
-                _io,
+            gv1: R.Tuple(R.Tensor((1, 32, 30, 30), dtype="float32"), R.Tuple(R.Object)) = (
+                conv2d,
+                (_io,),
             )
             R.output(gv1)
         return gv1
@@ -261,9 +263,10 @@ def test_conv3d():
                 bias, R.shape([1, 32, 1, 1, 1])
             )
             conv3d: R.Tensor((1, 32, 30, 30, 30), dtype="float32") = R.add(lv1, lv2)
-            gv1: R.Tuple(
-                R.Tensor((1, 32, 30, 30, 30), dtype="float32"), R.Tuple(R.Object)
-            ) = conv3d, (_io,)
+            gv1: R.Tuple(R.Tensor((1, 32, 30, 30, 30), dtype="float32"), R.Tuple(R.Object)) = (
+                conv3d,
+                (_io,),
+            )
             R.output(gv1)
         return gv1
 
@@ -352,8 +355,9 @@ def test_group_norm():
             group_norm: R.Tensor((2, 4, 8), dtype="float32") = R.nn.group_norm(
                 x, weight, bias, num_groups=2, channel_axis=1, axes=[2]
             )
-            gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = group_norm, (
-                _io,
+            gv1: R.Tuple(R.Tensor((2, 4, 8), dtype="float32"), R.Tuple(R.Object)) = (
+                group_norm,
+                (_io,),
             )
             R.output(gv1)
         return gv1
@@ -460,9 +464,9 @@ def test_timestep_embedding():
 
 def test_timesteps():
     @R.function
-    def forward(
-        x: R.Tensor((3,), dtype="float32"), _io: R.Object
-    ) -> R.Tuple(R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)):
+    def forward(x: R.Tensor((3,), dtype="float32"), _io: R.Object) -> R.Tuple(
+        R.Tensor((3, 10), dtype="float32"), R.Tuple(R.Object)
+    ):
         R.func_attr({"num_input": 2})
         with R.dataflow():
             lv1: R.Tensor((3,), dtype="float32") = R.astype(x, dtype="float32")
@@ -611,9 +615,9 @@ def test_attention():
             reshape2: R.Tensor((2, 77, 10, 64), dtype="float32") = R.reshape(
                 matmul2, R.shape([2, 77, 10, 64])
             )
-            scaled_dot_product_attention: R.Tensor(
-                (2, 4096, 10, 64), dtype="float32"
-            ) = R.nn.attention(reshape, reshape1, reshape2, scale=None, causal_mask=None)
+            scaled_dot_product_attention: R.Tensor((2, 4096, 10, 64), dtype="float32") = (
+                R.nn.attention(reshape, reshape1, reshape2, scale=None, causal_mask=None)
+            )
             reshape3: R.Tensor((2, 4096, 640), dtype="float32") = R.reshape(
                 scaled_dot_product_attention, R.shape([2, 4096, 640])
             )

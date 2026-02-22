@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -19,6 +20,7 @@ The tvm.s_tir.meta_schedule.schedule_rule package.
 Meta Schedule schedule rules are used for modification of
 blocks in a schedule. See also PostOrderApply.
 """
+
 from .add_rfactor import AddRFactor
 from .apply_custom_rule import ApplyCustomRule
 from .auto_bind import AutoBind

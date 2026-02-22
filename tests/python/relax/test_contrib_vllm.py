@@ -17,13 +17,12 @@
 import numpy as np
 import pytest
 
-import tvm.testing
 import tvm
+import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-
 
 has_vllm = tvm.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True)
 

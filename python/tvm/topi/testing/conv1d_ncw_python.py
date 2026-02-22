@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=unused-variable, invalid-name
 """1D convolution in python"""
+
 import numpy as np
+
 from tvm.topi.nn.utils import get_pad_tuple1d
 
 

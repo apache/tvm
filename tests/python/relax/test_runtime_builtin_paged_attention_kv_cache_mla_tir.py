@@ -23,7 +23,6 @@ import torch
 
 import tvm
 import tvm.testing
-from tvm.s_tir import dlight as dl
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
     RopeMode,
@@ -35,6 +34,7 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     _merge_state_inplace,
 )
 from tvm.runtime import ShapeTuple
+from tvm.s_tir import dlight as dl
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048

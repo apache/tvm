@@ -19,8 +19,9 @@
 import sys
 
 import pytest
+
 import tvm.testing
-from tvm.s_tir.schedule import SBlockRV, Instruction, InstructionKind, LoopRV
+from tvm.s_tir.schedule import Instruction, InstructionKind, LoopRV, SBlockRV
 
 
 def test_inst_kind_get():

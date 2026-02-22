@@ -16,27 +16,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
-
-source tests/scripts/setup-pytest-env.sh
-
-echo "Checking MyPy Type defs in the TensorIR schedule package."
-mypy  --check-untyped-defs python/tvm/tir/schedule
-
-echo "Checking MyPy Type defs in the meta schedule package."
-mypy  --check-untyped-defs python/tvm/meta_schedule
-
-echo "Checking MyPy Type defs in the analysis package."
-mypy  --check-untyped-defs python/tvm/tir/analysis/
-
-echo "Checking MyPy Type defs in the transform package."
-mypy  --check-untyped-defs python/tvm/tir/transform/
-
-echo "Checking MyPy Type defs in the tvmscript printer package."
-mypy  --check-untyped-defs python/tvm/script/printer
-
-echo "Checking MyPy Type defs in the TIR package with unittest"
-MYPYPATH=$TVM_PATH/python mypy --check-untyped-defs tests/python/tvmscript/test_tvmscript_type.py
-
-echo "Checking MyPy Type defs in the tvmscript IRBuilder package."
-mypy  --check-untyped-defs python/tvm/script/ir_builder
+# Deprecated: functionality moved to pre-commit hooks. Kept as no-op for backward compatibility.
+exit 0

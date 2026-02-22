@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """General LSTM implementation using TE scan."""
+
 from tvm import te, tir
 from tvm.topi import tag
 
@@ -75,9 +76,9 @@ def lstm(
         Tuple of hidden states (with shape `(seq_len, batch_size, hidden_dim or proj_dim)`), and
         cell states (with shape `(seq_len, batch_size, hidden_dim)`).
     """
-    assert len(weight_layout) == 4 and sorted(weight_layout) == sorted(
-        "IFGO"
-    ), f'given weight layout "{weight_layout}" is not a permutation of "IFGO"'
+    assert len(weight_layout) == 4 and sorted(weight_layout) == sorted("IFGO"), (
+        f'given weight layout "{weight_layout}" is not a permutation of "IFGO"'
+    )
 
     i_gate_idx = weight_layout.find("I")
     f_gate_idx = weight_layout.find("F")
@@ -85,9 +86,9 @@ def lstm(
     o_gate_idx = weight_layout.find("O")
 
     seq_len, batch_size, in_dim = Xs.shape
-    assert (
-        Wi.shape[0] % 4 == 0
-    ), f"dim 0 of input weight should be 4 * hidden_dim, but {Wi.shape[0]} is not divisible by 4"
+    assert Wi.shape[0] % 4 == 0, (
+        f"dim 0 of input weight should be 4 * hidden_dim, but {Wi.shape[0]} is not divisible by 4"
+    )
     hidden_dim = Wi.shape[0] // 4
     proj_dim = hidden_dim
     if proj is not None:
@@ -141,8 +142,9 @@ def lstm(
 
     gates = te.compute(
         (scan_len, batch_size, 4, hidden_dim),
-        lambda t, b, i, j: Xi2h[get_x_t(t) * batch_size + b, i * hidden_dim + j]
-        + s_h2h[t, b, i, j],
+        lambda t, b, i, j: (
+            Xi2h[get_x_t(t) * batch_size + b, i * hidden_dim + j] + s_h2h[t, b, i, j]
+        ),
         name="gates",
         tag=tag.INJECTIVE,
     )

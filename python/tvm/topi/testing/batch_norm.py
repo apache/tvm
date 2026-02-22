@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Batch Normalization implemented in Numpy."""
+
 import numpy as np
 
 

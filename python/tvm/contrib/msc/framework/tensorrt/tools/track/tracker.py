@@ -19,13 +19,13 @@
 
 from typing import Dict, List
 
-from tvm.contrib.msc.core.tools.tool import ToolType, ToolStrategy
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.tool import ToolStrategy, ToolType
 from tvm.contrib.msc.core.tools.track import BaseTracker
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
 
 
-class TensorRTTrackerFactory(object):
+class TensorRTTrackerFactory:
     """Tracker factory for tensorrt"""
 
     def create(self, base_cls: BaseTracker) -> BaseTracker:

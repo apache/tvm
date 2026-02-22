@@ -16,13 +16,15 @@
 # under the License.
 """tvm.contrib.msc.core.gym.control.controller"""
 
-from typing import Dict, Any
-from tvm.contrib.msc.core.gym.namespace import GYMObject, GYMAction
+from typing import Any, Dict
+
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.gym.namespace import GYMAction, GYMObject
+
 from .service import MainService, NodeService
 
 
-class BaseController(object):
+class BaseController:
     """Basic controller for optimize search
 
     Parameters

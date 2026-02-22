@@ -17,11 +17,11 @@
 
 package org.apache.tvm.tvmrpc;
 
-import android.os.Bundle;
-import androidx.appcompat.app.AppCompatActivity;
 import android.content.Intent;
-import android.widget.Button;
+import android.os.Bundle;
 import android.view.View;
+import android.widget.Button;
+import androidx.appcompat.app.AppCompatActivity;
 
 public class RPCActivity extends AppCompatActivity {
   private RPCProcessor tvmServerWorker;
@@ -33,16 +33,16 @@ public class RPCActivity extends AppCompatActivity {
 
     Button stopRPC = findViewById(R.id.button_stop_rpc);
     stopRPC.setOnClickListener(new View.OnClickListener() {
-        public void onClick(View v) {
-            System.err.println(tvmServerWorker == null);
-            if (tvmServerWorker != null) {
-                // currently will raise a socket closed exception
-                tvmServerWorker.disconnect();
-            }
-            finish();
-            // prevent Android from recycling the process
-            System.exit(0);
+      public void onClick(View v) {
+        System.err.println(tvmServerWorker == null);
+        if (tvmServerWorker != null) {
+          // currently will raise a socket closed exception
+          tvmServerWorker.disconnect();
         }
+        finish();
+        // prevent Android from recycling the process
+        System.exit(0);
+      }
     });
 
     System.err.println("rpc activity onCreate...");

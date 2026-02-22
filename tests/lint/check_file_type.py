@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Helper tool to check file types that are allowed to checkin."""
-import os
-import sys
+
 import subprocess
+import sys
+from pathlib import Path
 
 # List of file types we allow
 ALLOW_EXTENSION = {
@@ -57,10 +58,12 @@ ALLOW_EXTENSION = {
     "yml",
     "yaml",
     "json",
+    "cfg",
     # docs
     "txt",
     "md",
     "rst",
+    "css",
     # sgx
     "edl",
     "lds",
@@ -109,12 +112,15 @@ ALLOW_FILE_NAME = {
     "rat-excludes",
     "log4j.properties",
     ".clang-format",
+    ".clang-tidy",
     ".gitmodules",
     "CODEOWNERSHIP",
     ".scalafmt.conf",
     "Cargo.lock",
     "poetry.lock",
     "with_the_same_user",
+    "Dockerfile",
+    "py.typed",
 }
 
 # List of specific files allowed in relpath to <proj_root>
@@ -124,7 +130,6 @@ ALLOW_SPECIFIC_FILE = {
     "KEYS",
     "DISCLAIMER",
     "Jenkinsfile",
-    "mypy.ini",
     # cargo config
     "rust/runtime/tests/test_wasm32/.cargo/config",
     "rust/tvm-graph-rt/tests/test_wasm32/.cargo/config",
@@ -138,7 +143,6 @@ ALLOW_SPECIFIC_FILE = {
     "apps/android_rpc/app/src/main/res/mipmap-hdpi/ic_launcher.png",
     "apps/android_rpc/app/src/main/res/mipmap-mdpi/ic_launcher.png",
     # documentation related files
-    "docs/_static/css/tvm_theme.css",
     "docs/_static/img/tvm-logo-small.png",
     "docs/_static/img/tvm-logo-square.png",
     # pytest config
@@ -149,7 +153,7 @@ ALLOW_SPECIFIC_FILE = {
 }
 
 
-def filename_allowed(name):
+def filename_allowed(name: str) -> bool:
     """Check if name is allowed by the current policy.
 
     Paramaters
@@ -161,15 +165,16 @@ def filename_allowed(name):
     -------
     allowed : bool
         Whether the filename is allowed.
+
     """
     arr = name.rsplit(".", 1)
     if arr[-1] in ALLOW_EXTENSION:
         return True
 
-    if os.path.basename(name) in ALLOW_FILE_NAME:
+    if Path(name).name in ALLOW_FILE_NAME:
         return True
 
-    if os.path.basename(name).startswith("Dockerfile"):
+    if Path(name).name.startswith("Dockerfile"):
         return True
 
     if name.startswith("3rdparty"):
@@ -184,7 +189,7 @@ def filename_allowed(name):
     return False
 
 
-def copyright_line(line):
+def copyright_line(line: str) -> bool:
     # Following two items are intentionally break apart
     # so that the copyright detector won't detect the file itself.
     if line.find("Copyright " + "(c)") != -1:
@@ -196,15 +201,15 @@ def copyright_line(line):
     return False
 
 
-def check_asf_copyright(fname):
+def check_asf_copyright(fname: str) -> bool:
     if fname.endswith(".png"):
         return True
-    if not os.path.isfile(fname):
+    if not Path(fname).is_file():
         return True
     has_asf_header = False
     has_copyright = False
     try:
-        for line in open(fname):
+        for line in Path(fname).open():
             if line.find("Licensed to the Apache Software Foundation") != -1:
                 has_asf_header = True
             if copyright_line(line):
@@ -216,12 +221,12 @@ def check_asf_copyright(fname):
     return True
 
 
-def main():
+def main() -> None:
     cmd = ["git", "ls-files"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
-    assert proc.returncode == 0, f'{" ".join(cmd)} errored: {out}'
     res = out.decode("utf-8")
+    assert proc.returncode == 0, f"{' '.join(cmd)} errored: {res}"
     flist = res.split()
     error_list = []
 
@@ -232,7 +237,7 @@ def main():
     if error_list:
         report = "------File type check report----\n"
         report += "\n".join(error_list)
-        report += "\nFound %d files that are not allowed\n" % len(error_list)
+        report += f"\nFound {len(error_list)} files that are not allowed\n"
         report += (
             "We do not check in binary files into the repo.\n"
             "If necessary, please discuss with committers and"
@@ -251,9 +256,7 @@ def main():
     if asf_copyright_list:
         report = "------File type check report----\n"
         report += "\n".join(asf_copyright_list) + "\n"
-        report += "------Found %d files that has ASF header with copyright message----\n" % len(
-            asf_copyright_list
-        )
+        report += f"------Found {len(asf_copyright_list)} files that has ASF header with copyright message----\n"
         report += "--- Files with ASF header do not need Copyright lines.\n"
         report += "--- Contributors retain copyright to their contribution by default.\n"
         report += "--- If a file comes with a different license, consider put it under the 3rdparty folder instead.\n"

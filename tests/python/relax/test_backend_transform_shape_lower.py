@@ -20,9 +20,9 @@ import tvm.testing
 from tvm import relax
 from tvm.ir import assert_structural_equal
 from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
+from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.script import ir as I
 
 # note: we expected RemovePurityChecking to be run first, so we force purity in most test cases
 
@@ -175,9 +175,9 @@ def test_symbolic_compute():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(
-            x: R.Tensor(["n", "m"], "float32"), y: R.Tensor(ndim=3, dtype=None)
-        ) -> R.Shape(ndim=3):
+        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Tensor(ndim=3, dtype=None)) -> R.Shape(
+            ndim=3
+        ):
             R.func_attr({"relax.force_pure": True})
             m = T.int64()
             k = T.int64()
@@ -197,9 +197,9 @@ def test_symbolic_compute():
             H[T.int64(sindex["k+1"])] = H[T.int64(sindex["k"])] + T.int64(1)
 
         @R.function
-        def main(
-            x: R.Tensor(["n", "m"], "float32"), y: R.Tensor(ndim=3, dtype=None)
-        ) -> R.Shape(ndim=3):
+        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Tensor(ndim=3, dtype=None)) -> R.Shape(
+            ndim=3
+        ):
             R.func_attr({"relax.force_pure": True})
             m = T.int64()
             k = T.int64()
@@ -293,7 +293,7 @@ def test_tuple_handling():
         def main(
             x: R.Tuple(
                 R.Tensor(["n", "m"], "float32"), R.Tuple(R.Shape, R.Tensor(["n", "k"], "int32"))
-            )
+            ),
         ):
             R.func_attr({"relax.force_pure": True})
             return x
@@ -307,7 +307,7 @@ def test_tuple_handling():
         def main(
             x: R.Tuple(
                 R.Tensor(["n", "m"], "float32"), R.Tuple(R.Shape, R.Tensor(["n", "k"], "int32"))
-            )
+            ),
         ):
             R.func_attr({"relax.force_pure": True})
             shape_heap = R.call_builtin_with_ctx(
@@ -379,9 +379,9 @@ def test_return_match_check():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(
-            x: R.Tensor(["n", "m"], "float32"), y: R.Object
-        ) -> R.Tuple(R.Tensor(["n", "m"], "float32")):
+        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Object) -> R.Tuple(
+            R.Tensor(["n", "m"], "float32")
+        ):
             R.func_attr({"relax.force_pure": True})
             return y
 
@@ -394,9 +394,9 @@ def test_return_match_check():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            x: R.Tensor(["n", "m"], "float32"), y: R.Object
-        ) -> R.Tuple(R.Tensor(["n", "m"], "float32")):
+        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Object) -> R.Tuple(
+            R.Tensor(["n", "m"], "float32")
+        ):
             R.func_attr({"relax.force_pure": True})
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
@@ -644,9 +644,9 @@ def test_check_lifted_weights():
     @I.ir_module
     class Before:
         @R.function
-        def main_transform_params(
-            params: R.Tuple(R.Tensor((16, 16), dtype="float32"))
-        ) -> R.Tuple(R.Tensor((16, 16), dtype="float32")):
+        def main_transform_params(params: R.Tuple(R.Tensor((16, 16), dtype="float32"))) -> R.Tuple(
+            R.Tensor((16, 16), dtype="float32")
+        ):
             R.func_attr({"relax.force_pure": True})
             return params
 
@@ -658,9 +658,9 @@ def test_check_lifted_weights():
     @I.ir_module
     class Expected:
         @R.function
-        def main_transform_params(
-            params: R.Tuple(R.Tensor((16, 16), dtype="float32"))
-        ) -> R.Tuple(R.Tensor((16, 16), dtype="float32")):
+        def main_transform_params(params: R.Tuple(R.Tensor((16, 16), dtype="float32"))) -> R.Tuple(
+            R.Tensor((16, 16), dtype="float32")
+        ):
             R.func_attr({"relax.force_pure": True})
             shape_heap: R.Object = R.null_value()
             _: R.Tuple = R.call_packed(

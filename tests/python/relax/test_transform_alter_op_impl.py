@@ -16,10 +16,12 @@
 # under the License.
 
 import pytest
-import tvm.testing
 
+import tvm.testing
 from tvm import relax
-from tvm.script import tir as T, ir as I, relax as R
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 from tvm.tir import IndexMap
 
 kOperatorName = "operator_name"
@@ -398,7 +400,7 @@ def test_supported_implicit_padding():
                 output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
     # introduces implicit padding for shape (14,)
-    index_map = lambda i: (i % 16)
+    index_map = lambda i: i % 16
     operator_name = "relax.relu"
     _check(
         Before,
@@ -504,9 +506,9 @@ def test_reshape():
                     ]
 
         @R.function
-        def main(
-            x: R.Tensor((850, 2048), dtype="float16")
-        ) -> R.Tensor((850, 1, 2048), dtype="float16"):
+        def main(x: R.Tensor((850, 2048), dtype="float16")) -> R.Tensor(
+            (850, 1, 2048), dtype="float16"
+        ):
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
@@ -534,9 +536,9 @@ def test_reshape():
                     ]
 
         @R.function
-        def main(
-            x: R.Tensor((850, 2048), dtype="float16")
-        ) -> R.Tensor((850, 1, 2048), dtype="float16"):
+        def main(x: R.Tensor((850, 2048), dtype="float16")) -> R.Tensor(
+            (850, 1, 2048), dtype="float16"
+        ):
             cls = Expected
             with R.dataflow():
                 lv: R.Tensor((850, 2, 1024), dtype="float16") = R.layout_transform(

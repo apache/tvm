@@ -17,14 +17,14 @@
 # pylint: disable=unused-argument, arguments-differ
 """tvm.contrib.msc.core.runtime.hook"""
 
-from typing import Dict, List, Tuple, Union, Any
+from typing import Any, Dict, List, Tuple, Union
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.ir import MSCGraph
 
 
-class RunnerHook(object):
+class RunnerHook:
     """Hook for runner
 
     Parameters
@@ -37,7 +37,7 @@ class RunnerHook(object):
         self._config = config
 
     def __str__(self):
-        return "{}({})".format(self.name(), self._config)
+        return f"{self.name()}({self._config})"
 
     def apply(self, runner: object, *args, **kwargs) -> Any:
         """Apply the hook
@@ -97,11 +97,11 @@ class CustomizedHook(RunnerHook):
     """
 
     def __init__(self, func: Union[str, callable], config: dict):
-        super(CustomizedHook, self).__init__(config)
+        super().__init__(config)
         self._func = msc_utils.load_callable(func)
 
     def __str__(self):
-        return "{} {}({})".format(self.name(), self._func, self._config)
+        return f"{self.name()} {self._func}({self._config})"
 
     def _apply(self, runner: object, *args, **kwargs):
         """Apply the hook

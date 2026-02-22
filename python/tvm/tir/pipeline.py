@@ -60,7 +60,7 @@ def get_tir_pipeline(name: str = None, **kwargs) -> tvm.transform.Pass:
         name = "s_tir"
     if name not in PIPELINE_MAP:
         raise ValueError(
-            f"Unknown pre-built pipeline {name}," f"candidates are {list(PIPELINE_MAP.keys())}"
+            f"Unknown pre-built pipeline {name},candidates are {list(PIPELINE_MAP.keys())}"
         )
     return PIPELINE_MAP[name](**kwargs)
 

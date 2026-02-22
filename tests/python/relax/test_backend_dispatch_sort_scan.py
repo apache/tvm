@@ -22,10 +22,10 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax, tir, topi
-from tvm.s_tir import dlight
 from tvm.contrib.thrust import can_use_thrust
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.backend import DispatchSortScan
+from tvm.s_tir import dlight
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T

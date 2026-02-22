@@ -18,8 +18,8 @@ import pytest
 
 import tvm
 from tvm import relax
-from tvm.script import relax as R
 from tvm.script import ir as I
+from tvm.script import relax as R
 from tvm.script import tir as T
 
 
@@ -33,12 +33,12 @@ class Conv2dReLUx2:
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
         cls = Conv2dReLUx2
         with R.dataflow():
-            lv: R.Tensor(
-                (1, 64, 56, 56), dtype="float32"
-            ) = cls.fused_relax_nn_conv2d_relax_nn_relu(data, weight1)
-            gv: R.Tensor(
-                (1, 64, 54, 54), dtype="float32"
-            ) = cls.fused_relax_nn_conv2d_relax_nn_relu1(lv, weight2)
+            lv: R.Tensor((1, 64, 56, 56), dtype="float32") = (
+                cls.fused_relax_nn_conv2d_relax_nn_relu(data, weight1)
+            )
+            gv: R.Tensor((1, 64, 54, 54), dtype="float32") = (
+                cls.fused_relax_nn_conv2d_relax_nn_relu1(lv, weight2)
+            )
             R.output(gv)
         return gv
 
@@ -85,10 +85,10 @@ class Conv2dReLUx2_merged:
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
         cls = Conv2dReLUx2_merged
         with R.dataflow():
-            gv: R.Tensor(
-                (1, 64, 54, 54), dtype="float32"
-            ) = cls.fused_relax_nn_conv2d_relax_nn_relu_relax_nn_conv2d_relax_nn_relu1_dnnl(
-                data, weight1, weight2
+            gv: R.Tensor((1, 64, 54, 54), dtype="float32") = (
+                cls.fused_relax_nn_conv2d_relax_nn_relu_relax_nn_conv2d_relax_nn_relu1_dnnl(
+                    data, weight1, weight2
+                )
             )
             R.output(gv)
         return gv
@@ -292,10 +292,10 @@ class Diamond_merged:
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
         cls = Diamond_merged
         with R.dataflow():
-            gv5: R.Tensor(
-                (1, 64, 54, 54), dtype="float32"
-            ) = cls.fused_relax_nn_conv2d_relax_nn_relu_relax_nn_gelu_relax_add_compiler_A(
-                data2, weight2
+            gv5: R.Tensor((1, 64, 54, 54), dtype="float32") = (
+                cls.fused_relax_nn_conv2d_relax_nn_relu_relax_nn_gelu_relax_add_compiler_A(
+                    data2, weight2
+                )
             )
             R.output(gv5)
         return gv5
@@ -575,10 +575,10 @@ class MultipleProducers_merged:
     ) -> R.Tensor((10,), dtype="float32"):
         cls = MultipleProducers_merged
         with R.dataflow():
-            gv4: R.Tensor(
-                (10,), dtype="float32"
-            ) = cls.fused_relax_nn_relu_relax_nn_gelu_relax_nn_relu_relax_nn_gelu_relax_add_compiler_A(
-                x12, x22
+            gv4: R.Tensor((10,), dtype="float32") = (
+                cls.fused_relax_nn_relu_relax_nn_gelu_relax_nn_relu_relax_nn_gelu_relax_add_compiler_A(
+                    x12, x22
+                )
             )
             R.output(gv4)
         return gv4
@@ -841,9 +841,9 @@ class MergeCompilerRegionsExampleRef:
         cls = MergeCompilerRegionsExampleRef
         with R.dataflow():
             lv5: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu1_compiler_B(x32)
-            lv13: R.Tuple(
-                R.Tensor((10,), dtype="float32"), R.Tensor((10,), dtype="float32")
-            ) = cls.fused_relax_add_relax_add_relax_nn_relu_compiler_A(x12, x22, lv5)
+            lv13: R.Tuple(R.Tensor((10,), dtype="float32"), R.Tensor((10,), dtype="float32")) = (
+                cls.fused_relax_add_relax_add_relax_nn_relu_compiler_A(x12, x22, lv5)
+            )
             lv23: R.Tensor((10,), dtype="float32") = lv13[0]
             lv32: R.Tensor((10,), dtype="float32") = lv13[1]
             lv41: R.Tensor((10,), dtype="float32") = cls.fused_relax_nn_gelu1_compiler_B(lv23)
@@ -1094,9 +1094,9 @@ def test_reshape():
                 lv1: R.Tensor((784, 512), dtype="float32") = R.permute_dims(
                     linear_relu_stack_0_weight, axes=None
                 )
-                gv: R.Tensor(
-                    (1, 512), dtype="float32"
-                ) = cls.fused_relax_reshape_relax_matmul_tensorrt(inp_0, lv1)
+                gv: R.Tensor((1, 512), dtype="float32") = (
+                    cls.fused_relax_reshape_relax_matmul_tensorrt(inp_0, lv1)
+                )
                 R.output(gv)
             return gv
 

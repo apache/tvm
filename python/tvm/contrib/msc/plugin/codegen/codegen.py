@@ -21,13 +21,14 @@ import subprocess
 from typing import Dict, List, Optional
 
 import tvm
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.plugin import _ffi_api
-from tvm.contrib.msc.core import utils as msc_utils
+
 from .sources import get_plugin_sources
 
 
-class BasePluginCodeGen(object):
+class BasePluginCodeGen:
     """Manager class to generate codes and build plugin
 
     Parameters
@@ -76,7 +77,7 @@ class BasePluginCodeGen(object):
         self._manager_folder = self._output_folder
         self._libs = [os.path.basename(l) for l in self._extern_libs.values()]
         self._libs.extend([os.path.basename(l) for l in self._lib_folder.listdir()])
-        self._project_name = "msc_{}_plugin".format(self.framework)
+        self._project_name = f"msc_{self.framework}_plugin"
         self._codegen_config.update(
             {
                 "install_dir": self._output_folder.path,
@@ -124,10 +125,8 @@ class BasePluginCodeGen(object):
                 with open("codegen.log", "w") as log_f:
                     process = subprocess.Popen(command, stdout=log_f, stderr=log_f, shell=True)
                 process.wait()
-                assert (
-                    process.returncode == 0
-                ), "Failed to build plugin under {}, check codegen.log for detail".format(
-                    os.getcwd()
+                assert process.returncode == 0, (
+                    f"Failed to build plugin under {os.getcwd()}, check codegen.log for detail"
                 )
             self._libs.extend([os.path.basename(l) for l in self._lib_folder.listdir()])
         return self._lib_folder.listdir(as_abs=True)
@@ -305,9 +304,7 @@ def get_codegen(
     elif framework == MSCFramework.TENSORRT:
         codegen_cls = TensorRTPluginCodegen
     else:
-        raise NotImplementedError(
-            "framework {} is not support for plugin codegen".format(framework)
-        )
+        raise NotImplementedError(f"framework {framework} is not support for plugin codegen")
     return codegen_cls(
         workspace,
         codegen_config=codegen_config,

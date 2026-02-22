@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" Test Meta Schedule Profiler """
+"""Test Meta Schedule Profiler"""
+
 import time
 
 from tvm.s_tir import meta_schedule as ms

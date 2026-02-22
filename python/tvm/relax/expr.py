@@ -15,18 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """The expression nodes of Relax."""
+
 import typing
 from numbers import Number
-from typing import Any, Callable, Dict, List, Optional, Union, Mapping
+from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 import numpy as _np  # type: ignore
-
 import tvm_ffi
 
 import tvm.ir
 import tvm.relax
-from tvm import DataType
 import tvm.runtime
+from tvm import DataType
 from tvm.runtime import Object
 
 from ..ir import BaseFunc, Node, Span
@@ -572,7 +572,12 @@ class Call(ExprWithOp):
         if not sinfo_args:
             sinfo_args = []
         self.__init_handle_by_constructor__(
-            _ffi_api.Call, op, args, attrs, sinfo_args, span  # type: ignore
+            _ffi_api.Call,
+            op,
+            args,
+            attrs,
+            sinfo_args,
+            span,  # type: ignore
         )
 
 
@@ -604,7 +609,11 @@ class If(ExprWithOp):
         self, cond: Expr, true_branch: Expr, false_branch: Expr, span: Optional[Span] = None
     ):
         self.__init_handle_by_constructor__(
-            _ffi_api.If, cond, true_branch, false_branch, span  # type: ignore
+            _ffi_api.If,
+            cond,
+            true_branch,
+            false_branch,
+            span,  # type: ignore
         )
 
 
@@ -665,7 +674,10 @@ class TupleGetItem(ExprWithOp):
 
     def __init__(self, tuple_value: Expr, index: int, span: Optional[Span] = None):
         self.__init_handle_by_constructor__(
-            _ffi_api.TupleGetItem, tuple_value, index, span  # type: ignore
+            _ffi_api.TupleGetItem,
+            tuple_value,
+            index,
+            span,  # type: ignore
         )
 
 
@@ -737,7 +749,10 @@ class Constant(ExprWithOp):
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Constant, data, struct_info, span  # type: ignore
+            _ffi_api.Constant,
+            data,
+            struct_info,
+            span,  # type: ignore
         )
 
 
@@ -907,7 +922,11 @@ class MatchCast(Binding):
         self, var: Var, value: Expr, struct_info: StructInfo, span: Optional[Span] = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.MatchCast, var, value, struct_info, span  # type: ignore
+            _ffi_api.MatchCast,
+            var,
+            value,
+            struct_info,
+            span,  # type: ignore
         )
 
 
@@ -1008,9 +1027,7 @@ class Function(BaseFunc, Scriptable):
         span: Optional[Span] = None,
     ):
         """Construct a relax.Function but without body"""
-        return _ffi_api.FunctionCreateEmpty(
-            params, ret_struct_info, is_pure, attrs, span
-        )  # type: ignore
+        return _ffi_api.FunctionCreateEmpty(params, ret_struct_info, is_pure, attrs, span)  # type: ignore
 
     def __call__(self, *args):
         """Invoke the global function.
@@ -1122,7 +1139,10 @@ class ExternFunc(BaseFunc, ExprWithOp):
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ExternFunc, global_symbol, struct_info, span  # type: ignore
+            _ffi_api.ExternFunc,
+            global_symbol,
+            struct_info,
+            span,  # type: ignore
         )
 
 
@@ -1165,7 +1185,8 @@ def const(
             _np.dtype("int64"): _np.int32,  # type: ignore
             _np.dtype("float64"): _np.float32,  # type: ignore
         }.get(
-            value.dtype, None  # type: ignore
+            value.dtype,
+            None,  # type: ignore
         )
 
     if isinstance(value, (_np.ndarray, _np.generic)):

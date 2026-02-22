@@ -17,11 +17,12 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.pipeline.dynamic"""
 
-from typing import Tuple, Any, List
+from typing import Any, List, Tuple
 
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.runtime import BaseJIT
 from tvm.contrib.msc.core.utils.message import MSCStage
-from tvm.contrib.msc.core import utils as msc_utils
+
 from .pipeline import BasePipeline
 from .worker import MSCPipeWorker
 

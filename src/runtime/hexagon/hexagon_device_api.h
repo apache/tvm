@@ -95,7 +95,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
   /*! \brief Currently unimplemented interface to specify the active
    *  Hexagon device.
    */
-  void SetDevice(Device dev) final{};
+  void SetDevice(Device dev) final {};
 
   //! \brief Return the queried Hexagon device attribute.
   void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;

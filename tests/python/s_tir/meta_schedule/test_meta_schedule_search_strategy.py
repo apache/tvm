@@ -15,17 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test Meta Schedule SearchStrategy"""
+
 # pylint: disable=missing-function-docstring
 from typing import List
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm.s_tir import meta_schedule as ms
-from tvm.s_tir.meta_schedule.utils import derived_object
 from tvm.s_tir.meta_schedule.testing.dummy_object import DummyMutator
-from tvm.script import tir as T
+from tvm.s_tir.meta_schedule.utils import derived_object
 from tvm.s_tir.schedule import Schedule, Trace
+from tvm.script import tir as T
 
 MATMUL_M = 32
 
@@ -308,9 +310,8 @@ def test_meta_schedule_evolutionary_search_fail_init_population():  # pylint: di
 
 def test_search_strategy_abstract_class_instantiation():
     """Test that directly instantiating abstract SearchStrategy raises TypeError instead of segfault."""
-    from tvm.s_tir.meta_schedule import SearchStrategy
+    from tvm.s_tir.meta_schedule import SearchStrategy, TuneContext
     from tvm.target import Target
-    from tvm.s_tir.meta_schedule import TuneContext
 
     # Test that direct instantiation raises TypeError
     # This prevents segfault when SearchStrategy() is called directly

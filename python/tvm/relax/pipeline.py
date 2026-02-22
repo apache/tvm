@@ -20,8 +20,9 @@ oRelax enables flexible pipeline optimizations before min build.
 This namespace offers a pre-defined collection that can be used
 as it is or serves as a basis to do further composition.
 """
+
 # pylint: disable=unused-argument
-from typing import Union, Optional
+from typing import Optional, Union
 
 import tvm
 from tvm.s_tir import meta_schedule as ms
@@ -236,7 +237,7 @@ def get_pipeline(name: str = "zero", **kwargs) -> tvm.transform.Pass:
 
     if name not in PIPELINE_MAP:
         raise ValueError(
-            f"Unknown pre-built pipeline {name}," f"candidates are {list(PIPELINE_MAP.keys())}"
+            f"Unknown pre-built pipeline {name},candidates are {list(PIPELINE_MAP.keys())}"
         )
     return PIPELINE_MAP[name](**kwargs)
 

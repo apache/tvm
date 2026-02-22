@@ -17,8 +17,8 @@
 # pylint: disable=missing-docstring
 import tvm
 import tvm.testing
-from tvm.s_tir import dlight as dl
 from tvm.ir import IRModule, assert_structural_equal
+from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
 from tvm.script import tir as T
 from tvm.target import Target
@@ -658,14 +658,12 @@ def test_logsumexp():
                                 temp_sum_shared[v0, v1] = temp_sum_shared[v0, v1] + T.if_then_else(
                                     v1 * T.int64(4096) + v2 < vocab_size,
                                     T.exp(
-                                        (
-                                            T.if_then_else(
-                                                v1 * T.int64(4096) + v2 < vocab_size,
-                                                A[v0, v1 * T.int64(4096) + v2],
-                                                T.min_value("float32"),
-                                            )
-                                            - temp_max_shared[v0, v1]
+                                        T.if_then_else(
+                                            v1 * T.int64(4096) + v2 < vocab_size,
+                                            A[v0, v1 * T.int64(4096) + v2],
+                                            T.min_value("float32"),
                                         )
+                                        - temp_max_shared[v0, v1]
                                     ),
                                     T.float32(0),
                                 )

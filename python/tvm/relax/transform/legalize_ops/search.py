@@ -16,11 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for search operators."""
+
 from tvm import topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
-from .common import TEFunc, LegalizeFunc
-from .common import _call_topi_without_attr, register_legalize
+from .common import LegalizeFunc, TEFunc, _call_topi_without_attr, register_legalize
 
 register_legalize("relax.where", _call_topi_without_attr(topi.where))
 

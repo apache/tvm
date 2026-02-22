@@ -16,9 +16,10 @@
 """Relax vm primitives."""
 
 from typing import Union
-from . import _ffi_api
-from ...expr import Expr, Call, PrimValue, DataTypeImm, Tuple, StringImm
+
+from ...expr import Call, DataTypeImm, Expr, PrimValue, StringImm, Tuple
 from ...utils import args_converter
+from . import _ffi_api
 
 
 @args_converter.auto

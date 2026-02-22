@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import numpy as np
+
 import tvm
 import tvm.testing
-
 from tvm.contrib import utils
-from tvm.script import tir as T, ir as I
-
-import numpy as np
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_add():
@@ -216,15 +216,15 @@ def test_subroutine_call():
     built = tvm.tir.build(Module, target="c")
 
     source = built.inspect_source()
-    assert (
-        source.count("__tvm_ffi_main(void*") == 2
-    ), "Expected two occurrences, for forward-declaration and definition"
-    assert (
-        source.count("subroutine(float*") == 2
-    ), "Expected two occurrences, for forward-declaration and definition"
-    assert (
-        source.count("subroutine(") == 3
-    ), "Expected three occurrences, for forward-declaration, definition, and call from main."
+    assert source.count("__tvm_ffi_main(void*") == 2, (
+        "Expected two occurrences, for forward-declaration and definition"
+    )
+    assert source.count("subroutine(float*") == 2, (
+        "Expected two occurrences, for forward-declaration and definition"
+    )
+    assert source.count("subroutine(") == 3, (
+        "Expected three occurrences, for forward-declaration, definition, and call from main."
+    )
 
 
 if __name__ == "__main__":

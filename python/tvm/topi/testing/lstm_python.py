@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """LSTM reference implementation using numpy."""
+
 import numpy as np
 
 

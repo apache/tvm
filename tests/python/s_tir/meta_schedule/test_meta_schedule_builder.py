@@ -22,20 +22,19 @@ import time
 from typing import List
 
 import pytest
-import tvm.testing
-
-from tvm import script
 from tvm_ffi import register_global_func
+
+import tvm.testing
+from tvm import script
+from tvm.runtime import Module
 from tvm.s_tir.meta_schedule.builder import (
     BuilderInput,
     BuilderResult,
     LocalBuilder,
     PyBuilder,
 )
-from tvm.runtime import Module
 from tvm.script import tir as T
 from tvm.target import Target
-
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 

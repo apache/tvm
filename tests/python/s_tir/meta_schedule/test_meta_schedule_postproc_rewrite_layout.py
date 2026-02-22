@@ -16,12 +16,13 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import pytest
+
 import tvm
 import tvm.testing
 from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
 def _target() -> Target:

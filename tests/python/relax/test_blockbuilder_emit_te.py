@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" This file tests advanced emit_te features with help of TVMScript assertion"""
+"""This file tests advanced emit_te features with help of TVMScript assertion"""
+
 # The tests here depend on tvmscript
 import tvm
-from tvm import te, tir
 from tvm import relax as rx
+from tvm import te, tir
 from tvm.ir.base import assert_structural_equal
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
@@ -56,9 +57,9 @@ def test_emit_te_with_symbolic_arg():
                     B[v_i] = A[v_i + m]
 
         @R.function
-        def main(
-            x: R.Tensor((10,), dtype="float32"), y: R.Shape(["m"])
-        ) -> R.Tensor((10,), dtype="float32"):
+        def main(x: R.Tensor((10,), dtype="float32"), y: R.Shape(["m"])) -> R.Tensor(
+            (10,), dtype="float32"
+        ):
             m = T.int64()
             cls = Expected
             gv = R.call_tir(

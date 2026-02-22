@@ -15,18 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """Analysis used in TensorIR scheduling"""
+
 from typing import List, Optional
 
 import tvm_ffi
-from tvm.runtime import Object
 
+from tvm.runtime import Object
 from tvm.tir.buffer import Buffer
-from tvm.tir.stmt import For
 from tvm.tir.expr import PrimExpr
 from tvm.tir.function import IndexMap, PrimFunc
+from tvm.tir.stmt import For
 
 from . import _ffi_api
-from .schedule import Schedule, SBlockRV
+from .schedule import SBlockRV, Schedule
 
 
 def suggest_index_map(

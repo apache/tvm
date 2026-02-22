@@ -23,7 +23,6 @@ import torch
 
 import tvm
 import tvm.testing
-from tvm.s_tir import dlight as dl
 from tvm import relax
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
@@ -34,6 +33,7 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     _merge_state_inplace,
 )
 from tvm.runtime import ShapeTuple
+from tvm.s_tir import dlight as dl
 
 np.random.seed(0)
 

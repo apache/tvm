@@ -277,3 +277,7 @@ tvm-site/
 
 # Less command history file
 .lesshst
+
+# Agent tracking files
+LOG.md
+STATUS.md

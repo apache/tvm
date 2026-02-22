@@ -18,13 +18,13 @@
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
 from tvm.relax.transform.legalize_ops.common import register_legalize
-from tvm.script import relax as R, tir as T, ir as I
-import tvm.testing
-
-import pytest
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_customize_legalize():

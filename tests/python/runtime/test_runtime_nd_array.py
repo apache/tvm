@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
-
 import numpy as np
 import pytest
+
+import tvm
+import tvm.testing
 
 
 def test_1d_full_view_of_1d_arr():

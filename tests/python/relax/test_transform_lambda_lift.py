@@ -16,12 +16,14 @@
 # under the License.
 
 import tvm
+import tvm.script
 import tvm.testing
 from tvm import relax
-import tvm.script
-from tvm.script import relax as R, tir as T, ir as I
-from tvm.relax import transform
 from tvm.ir.base import assert_structural_equal
+from tvm.relax import transform
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def _check_equal(x, y):
@@ -52,18 +54,18 @@ def test_basic():
             return s
 
         @R.function
-        def main(
-            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
-        ) -> R.Tensor((10, 5), "float32"):
+        def main(x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")) -> R.Tensor(
+            (10, 5), "float32"
+        ):
             gv1: R.Tensor((10, 5), "float32") = Expected.main_inner(x1, y1)
             return gv1
 
     @I.ir_module
     class Before:
         @R.function
-        def main(
-            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
-        ) -> R.Tensor((10, 5), "float32"):
+        def main(x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")) -> R.Tensor(
+            (10, 5), "float32"
+        ):
             @R.function
             def inner(
                 x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
@@ -94,13 +96,13 @@ def test_input_module_is_unmodified():
     @I.ir_module
     class Before:
         @R.function
-        def main(
-            x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
-        ) -> R.Tensor((2, 3), "float32"):
+        def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")) -> R.Tensor(
+            (2, 3), "float32"
+        ):
             @R.function
-            def outer_func(
-                c1: R.Tensor((2, 3), "float32")
-            ) -> R.Callable((R.Tensor((2, 3), "float32"),), R.Tensor((2, 3), "float32")):
+            def outer_func(c1: R.Tensor((2, 3), "float32")) -> R.Callable(
+                (R.Tensor((2, 3), "float32"),), R.Tensor((2, 3), "float32")
+            ):
                 @R.function
                 def inner_func(x1: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
                     s: R.Tensor((2, 3), "float32") = R.add(x1, c1)
@@ -127,9 +129,9 @@ def test_closure():
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
-        ) -> R.Tensor((2, 3), "float32"):
+        def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")) -> R.Tensor(
+            (2, 3), "float32"
+        ):
             in_call = Expected.main_outer_func(x)
             res = R.invoke_pure_closure(
                 in_call, (y,), sinfo_args=(R.Tensor((2, 3), dtype="float32"))
@@ -150,13 +152,13 @@ def test_closure():
     @I.ir_module
     class Before:
         @R.function
-        def main(
-            x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
-        ) -> R.Tensor((2, 3), "float32"):
+        def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")) -> R.Tensor(
+            (2, 3), "float32"
+        ):
             @R.function
-            def outer_func(
-                c1: R.Tensor((2, 3), "float32")
-            ) -> R.Callable((R.Tensor((2, 3), "float32"),), R.Tensor((2, 3), "float32")):
+            def outer_func(c1: R.Tensor((2, 3), "float32")) -> R.Callable(
+                (R.Tensor((2, 3), "float32"),), R.Tensor((2, 3), "float32")
+            ):
                 @R.function
                 def inner_func(x1: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
                     s: R.Tensor((2, 3), "float32") = R.add(x1, c1)
@@ -214,9 +216,9 @@ def test_recursive():
         @R.function
         def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
             @R.function
-            def while_loop(
-                i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")
-            ) -> R.Tensor((2, 3), "float32"):
+            def while_loop(i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")) -> R.Tensor(
+                (2, 3), "float32"
+            ):
                 cond: R.Tensor((), "bool") = R.call_pure_packed(
                     "test.vm.less", i, R.const(10), sinfo_args=(R.Tensor((), dtype="bool"))
                 )
@@ -394,9 +396,9 @@ def test_lambda_function_with_same_name_as_global():
     @I.ir_module
     class Before:
         @R.function
-        def main(
-            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
-        ) -> R.Tensor((10, 5), "float32"):
+        def main(x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")) -> R.Tensor(
+            (10, 5), "float32"
+        ):
             @R.function
             def inner(
                 x2: R.Tensor((10, 5), "float32"), y2: R.Tensor((10, 5), "float32")
@@ -414,9 +416,9 @@ def test_lambda_function_with_same_name_as_global():
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
-        ) -> R.Tensor((10, 5), "float32"):
+        def main(x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")) -> R.Tensor(
+            (10, 5), "float32"
+        ):
             gv1: R.Tensor((10, 5), "float32") = Expected.main_inner_0(x1, y1)
             return gv1
 
@@ -439,9 +441,9 @@ def test_symbolic_variable_defined_by_inner_func():
     @I.ir_module
     class Before:
         @R.function
-        def main(
-            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
-        ) -> R.Tensor((10, 5), "float32"):
+        def main(x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")) -> R.Tensor(
+            (10, 5), "float32"
+        ):
             @R.function
             def inner(x2: R.Tensor(("n", "m"), "float32"), y2: R.Tensor(("n", "m"), "float32")):
                 sum_inner = R.add(x2, y2)
@@ -453,9 +455,9 @@ def test_symbolic_variable_defined_by_inner_func():
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")
-        ) -> R.Tensor((10, 5), "float32"):
+        def main(x1: R.Tensor((10, 5), "float32"), y1: R.Tensor((10, 5), "float32")) -> R.Tensor(
+            (10, 5), "float32"
+        ):
             sum_main = Expected.main_inner(x1, y1)
             return sum_main
 

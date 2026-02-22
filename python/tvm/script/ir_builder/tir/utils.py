@@ -22,7 +22,8 @@ from typing import List
 from tvm import tir
 from tvm.tir import Buffer
 
-from . import frame, ir as T
+from . import frame
+from . import ir as T
 
 
 class _FrameScope:

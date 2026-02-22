@@ -21,19 +21,20 @@ import sys
 from typing import List
 
 import pytest
+from tvm_ffi import register_global_func
+
 import tvm
 import tvm.testing
 from tvm import te
-from tvm.ir.module import IRModule
-from tvm_ffi import register_global_func
 from tvm.error import TVMError
+from tvm.ir.module import IRModule
 from tvm.s_tir.meta_schedule import TuneContext
 from tvm.s_tir.meta_schedule.schedule_rule import PyScheduleRule
 from tvm.s_tir.meta_schedule.space_generator import PostOrderApply
 from tvm.s_tir.meta_schedule.utils import derived_object
+from tvm.s_tir.schedule import SBlockRV, Schedule
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.s_tir.schedule import SBlockRV, Schedule
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off

@@ -17,17 +17,16 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.transform.pattern"""
 
-from typing import Mapping, Tuple, Dict, List
 from functools import partial
+from typing import Dict, List, Mapping, Tuple
 
 import tvm
-from tvm.relax.dpl import pattern as relax_pattern
-
-from tvm.relax.transform import PatternCheckContext
-from tvm.relax.backend.pattern_registry import register_patterns
-from tvm.contrib.msc.core.utils.namespace import MSCMap, MSCKey
-from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core import _ffi_api
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.utils.namespace import MSCKey, MSCMap
+from tvm.relax.backend.pattern_registry import register_patterns
+from tvm.relax.dpl import pattern as relax_pattern
+from tvm.relax.transform import PatternCheckContext
 
 
 def msc_attrs_getter(
@@ -133,9 +132,9 @@ def _check_relax_conv_bias(context: PatternCheckContext) -> bool:
     return non_one_dims <= 1 and bias.struct_info.ndim == 1
 
 
-def make_relax_linear_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
-):
+def make_relax_linear_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for linear.
 
     Returns
@@ -171,9 +170,9 @@ def _check_relax_linear(context: PatternCheckContext) -> bool:
     return weight.struct_info.ndim == 2 and not permute.attrs["axes"]
 
 
-def make_relax_linear_bias_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
-):
+def make_relax_linear_bias_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for linear with bias.
 
     Returns
@@ -210,9 +209,9 @@ def _check_relax_linear_bias(context: PatternCheckContext) -> bool:
     return bias.struct_info.ndim == 1
 
 
-def make_relax_embedding_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
-):
+def make_relax_embedding_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for embedding.
 
     Returns
@@ -252,9 +251,9 @@ def _check_relax_embedding(context: PatternCheckContext) -> bool:
     )
 
 
-def make_relax_reshape_embedding_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
-):
+def make_relax_reshape_embedding_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for reshaped embedding.
 
     Returns
@@ -306,9 +305,9 @@ def _check_relax_reshape_embedding(context: PatternCheckContext) -> bool:
     return True
 
 
-def make_relax_attention_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
-):
+def make_relax_attention_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for attention.
 
     Returns
@@ -355,9 +354,9 @@ def _check_relax_attention(context: PatternCheckContext) -> bool:
     return True
 
 
-def make_relax_mask_attention_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
-):
+def make_relax_mask_attention_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """A simple utility to create patterns for mask_attention.
 
     Returns
@@ -451,9 +450,9 @@ def _check_opt_relax_conv_bias(context: PatternCheckContext) -> bool:
     return ndim_conv == ndim_bias and ndim_bias == ndim_out
 
 
-def make_opt_relax_linear_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
-):
+def make_opt_relax_linear_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """Create patterns for an linear, for mod after optimize.
 
     Returns
@@ -487,9 +486,9 @@ def _check_opt_relax_linear(context: PatternCheckContext) -> bool:
     return ndim_weight == 2
 
 
-def make_opt_relax_linear_bias_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
-):
+def make_opt_relax_linear_bias_pattern() -> Tuple[
+    relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]
+]:
     """Create patterns for an linear_bias, for mod after optimize.
 
     Returns

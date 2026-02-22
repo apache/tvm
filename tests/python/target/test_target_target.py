@@ -17,6 +17,7 @@
 import json
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm.target import Target

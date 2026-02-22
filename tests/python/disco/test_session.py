@@ -15,24 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 """Basic tests for a Disco session"""
+
 # pylint: disable=missing-docstring
+import subprocess
+import sys
 import tempfile
+import threading
 
 import numpy as np
 import pytest
-import subprocess
-import threading
-import sys
 
 import tvm
 import tvm.testing
 from tvm import relax as rx
+from tvm.exec import disco_worker as _  # pylint: disable=unused-import
 from tvm.runtime import ShapeTuple, String
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.exec import disco_worker as _  # pylint: disable=unused-import
 
 
 def _numpy_to_worker_0(sess: di.Session, np_array: np.array, device):
@@ -257,9 +258,9 @@ def test_vm_multi_func(session_kind):
                     B[vi, vj] = A[vj, vi]
 
         @R.function
-        def transpose_1(
-            A: R.Tensor((8, 16), dtype="float32")
-        ) -> R.Tensor((16, 8), dtype="float32"):
+        def transpose_1(A: R.Tensor((8, 16), dtype="float32")) -> R.Tensor(
+            (16, 8), dtype="float32"
+        ):
             R.func_attr({"global_symbol": "transpose_1"})
             cls = TestMod
             with R.dataflow():
@@ -268,9 +269,9 @@ def test_vm_multi_func(session_kind):
             return B
 
         @R.function
-        def transpose_2(
-            A: R.Tensor((16, 8), dtype="float32")
-        ) -> R.Tensor((8, 16), dtype="float32"):
+        def transpose_2(A: R.Tensor((16, 8), dtype="float32")) -> R.Tensor(
+            (8, 16), dtype="float32"
+        ):
             R.func_attr({"global_symbol": "transpose_2"})
             cls = TestMod
             with R.dataflow():

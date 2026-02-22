@@ -22,12 +22,11 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tir
+from tvm.script import tir as T
 from tvm.tir import floordiv as fld
 from tvm.tir import floormod as flm
 from tvm.tir import truncdiv as tdiv
 from tvm.tir import truncmod as tmod
-
-from tvm.script import tir as T
 
 
 class TestCase:

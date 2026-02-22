@@ -15,16 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+import numpy as np
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import tir as T
 from tvm.s_tir.schedule.testing import (
-    verify_trace_roundtrip,
     assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
 )
-import numpy as np
+from tvm.script import tir as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 

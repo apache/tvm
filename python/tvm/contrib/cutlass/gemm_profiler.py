@@ -18,7 +18,7 @@
 """Instantiate a C++ source for profiling CUTLASS kernels."""
 
 
-class GemmProfilerEmitter(object):
+class GemmProfilerEmitter:
     """Emit a C++ source for profiling CUTLASS kernels."""
 
     def __init__(self):

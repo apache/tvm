@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T, ir as I
-import tvm.testing
-
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 ##################### Manipulation #####################
 
@@ -1552,6 +1553,7 @@ def test_scatter_elements_symbolic():
 def test_layout_transform():
     transformation = lambda a, b, c: (a, c, b // 3, b % 3)
     pad_value = 2
+
     # fmt: off
     @I.ir_module
     class LayoutTransform:
@@ -1589,6 +1591,7 @@ def test_layout_transform():
 def test_layout_transform_with_pad():
     transformation = lambda a, b, c: (a, c, b // 3, b % 3)
     pad_value = 2
+
     # fmt: off
     @I.ir_module
     class LayoutTransform:
@@ -1626,6 +1629,7 @@ def test_layout_transform_with_pad():
 def test_layout_transform_symbolic():
     transformation = lambda a, b, c: (a, c, b // 3, b % 3)
     pad_value = 2
+
     # fmt: off
     @I.ir_module
     class LayoutTransform:
@@ -1670,6 +1674,7 @@ def test_layout_transform_with_pad_axis_sep():
     transformation = lambda a, b, c: (a, c, b // 3, b % 3)
     pad_value = 2
     axis_separator = [3]
+
     # fmt: off
     @I.ir_module
     class LayoutTransform:

@@ -16,11 +16,11 @@
 # under the License.
 # Prepare test library for standalone wasm runtime test.
 
-import sys
 import os
+import sys
+
 import tvm
-from tvm import te
-from tvm import relax
+from tvm import relax, te
 from tvm.script import relax as R
 
 

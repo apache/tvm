@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import re
 import subprocess
 import tempfile
-import re
 
-import pytest
 import numpy as np
+import pytest
 
 import tvm
 from tvm.script import tir as T

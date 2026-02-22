@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -18,14 +19,15 @@
 
 Importing this package registers all Python-defined target tags.
 """
-from . import registry  # noqa: F401
-from . import cuda  # noqa: F401
-from . import arm_cpu  # noqa: F401
-from . import riscv_cpu  # noqa: F401
-from . import aws_cpu  # noqa: F401
-from . import metal  # noqa: F401
-from . import hexagon  # noqa: F401
-from . import adreno  # noqa: F401
+
+from . import registry
+from . import cuda
+from . import arm_cpu
+from . import riscv_cpu
+from . import aws_cpu
+from . import metal
+from . import hexagon
+from . import adreno
 
 # Validate all tags at import time
 registry.list_tags()

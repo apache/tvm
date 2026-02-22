@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import numpy
+
 import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.ir.module import IRModule
 from tvm.script import tir as T
-import numpy
 
 default_lwp_test_config = {
     "tir.instrument_lwp": True,

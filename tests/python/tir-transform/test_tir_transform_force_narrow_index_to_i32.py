@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
+import tvm.testing
 from tvm import TVMError
 from tvm.script import tir as T
-import tvm.testing
 
 
 def test_thread_axis1():

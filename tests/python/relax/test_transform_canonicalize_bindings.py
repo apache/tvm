@@ -15,14 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
-from tvm.relax.transform.transform import CanonicalizeBindings
 import tvm.script
 import tvm.testing
-import pytest
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.relax.transform.transform import CanonicalizeBindings
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def verify(input, expected):

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The entry point of TVM parser for tir."""
+
 import inspect
 from typing import Callable, Optional, Union
 

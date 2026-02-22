@@ -16,4 +16,5 @@
 # under the License.
 # pylint: disable=wildcard-import
 """Redirects to tvm_ffi"""
+
 from tvm_ffi import *

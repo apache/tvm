@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, missing-function-docstring
 """A utility method to run a TVM module on a remote device."""
+
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, Union
 
 from typing_extensions import Literal
@@ -23,8 +24,8 @@ from typing_extensions import Literal
 if TYPE_CHECKING:
     import numpy as np
 
-    from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
     from tvm.runtime import Device, Module, Tensor
+    from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
 
 # pylint: disable=import-outside-toplevel,protected-access
 
@@ -117,8 +118,8 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     import os.path as osp
     import tempfile
 
-    from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
     from tvm.runtime import device, load_module
+    from tvm.s_tir.meta_schedule.runner import EvaluatorConfig
 
     evaluator_config = EvaluatorConfig._normalized(evaluator_config)
     export_func, output_format = _normalize_export_func(export_func, output_format)

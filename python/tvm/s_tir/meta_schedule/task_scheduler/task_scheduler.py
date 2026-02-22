@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Auto-tuning Task Scheduler"""
+
 from typing import Callable, List, Optional, Union
 
 # isort: off
@@ -23,6 +24,7 @@ from typing_extensions import Literal
 # isort: on
 
 from tvm_ffi import register_object
+
 from tvm.runtime import Object
 
 from .. import _ffi_api
@@ -229,8 +231,7 @@ class PyTaskScheduler:
         "methods": ["next_task_id", "join_running_task", "tune"],
     }
 
-    def __init__(self):
-        ...
+    def __init__(self): ...
 
     def tune(
         self,

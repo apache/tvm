@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Add-rfactor Rule that add-rfactor to some blocks if needed"""
+
 from typing import Optional
 
 from tvm_ffi import register_object

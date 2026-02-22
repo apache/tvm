@@ -19,6 +19,7 @@
 """Hexagon testing infrastructure"""
 
 import numpy
+
 import tvm
 from tvm import te
 

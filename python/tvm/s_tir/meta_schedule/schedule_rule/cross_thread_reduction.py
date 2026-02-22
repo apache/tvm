@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Rules which apply cross-thread reduction to some reduction blocks correspondingly when needed"""
+
 from typing import List
 
 from tvm_ffi import register_object

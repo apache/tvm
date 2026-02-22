@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Hexagon pytest utility functions """
+"""Hexagon pytest utility functions"""
 
-from typing import List, Optional, Union
 import collections
+from typing import List, Optional, Union
+
 import numpy as np
 
 

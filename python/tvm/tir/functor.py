@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, arguments-differ
 """The expression and statement functor of TIR."""
+
 from typing import Callable
 
 import tvm_ffi
+
 from tvm.ir import PrimExpr
 from tvm.runtime.support import derived_object
 
@@ -62,14 +64,14 @@ from .stmt import (
     Allocate,
     AssertStmt,
     AttrStmt,
-    SBlock,
-    SBlockRealize,
     BufferStore,
     DeclBuffer,
     Evaluate,
     For,
     IfThenElse,
     LetStmt,
+    SBlock,
+    SBlockRealize,
     SeqStmt,
     Stmt,
     While,

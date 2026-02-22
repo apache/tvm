@@ -23,6 +23,7 @@
 - Effect, a non-user-facing class that encloses potential side effects, for example, IO,
   impure external function callings, inplace mutation, etc.
 """
+
 from collections import OrderedDict
 from typing import (
     TYPE_CHECKING,
@@ -39,10 +40,10 @@ from typing import (
 
 import numpy as np  # type: ignore
 
+import tvm.runtime
 from tvm import tir
 from tvm.ir import IRModule
 from tvm.ir.transform import Pass
-import tvm.runtime
 from tvm.runtime import Device
 from tvm.runtime import device as as_device
 from tvm.runtime.vm import VirtualMachine

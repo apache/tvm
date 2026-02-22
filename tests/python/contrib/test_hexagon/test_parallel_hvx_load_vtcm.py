@@ -18,6 +18,7 @@
 """Test different strategies for loading data into vtcm before running HVX workloads."""
 
 import numpy as np
+
 import tvm
 from tvm.script import tir as T
 

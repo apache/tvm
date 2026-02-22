@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """TFLite runtime that load and run tflite models."""
+
 import tvm_ffi
+
 from ..rpc import base as rpc_base
 
 
@@ -50,7 +52,7 @@ def create(tflite_model_bytes, device, runtime_target="cpu"):
     return TFLiteModule(fcreate(bytearray(tflite_model_bytes), device))
 
 
-class TFLiteModule(object):
+class TFLiteModule:
     """Wrapper runtime module.
 
     This is a thin wrapper of the underlying TVM module.

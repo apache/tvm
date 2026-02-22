@@ -17,13 +17,12 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import relax
-from tvm import tir
-from tvm.ir.base import assert_structural_equal
-
 import tvm.script
-from tvm.script import tir as T, relax as R
+import tvm.testing
+from tvm import relax, tir
+from tvm.ir.base import assert_structural_equal
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_normalize_function():
@@ -87,9 +86,9 @@ def test_normalize_if():
     after_mod = relax.transform.Normalize()(before_mod)
 
     @R.function(private=True)
-    def expected(
-        cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
-    ) -> R.Tensor(dtype="float32", ndim=1):
+    def expected(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")) -> R.Tensor(
+        dtype="float32", ndim=1
+    ):
         if cond:
             gv = R.add(x, x)
             gv1 = R.add(x, x)
@@ -152,9 +151,9 @@ def test_normalize_seq_body():
     after_mod = relax.transform.Normalize()(before_mod)
 
     @R.function(private=True)
-    def expected(
-        x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")
-    ) -> R.Tensor(ndim=0, dtype="int32"):
+    def expected(x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")) -> R.Tensor(
+        ndim=0, dtype="int32"
+    ):
         # normalization inserts a binding like this
         z = R.add(x, y)
         return z
@@ -176,9 +175,9 @@ def test_normalize_func_body():
     after_mod = relax.transform.Normalize()(before_mod)
 
     @R.function(private=True)
-    def expected(
-        x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")
-    ) -> R.Tensor(ndim=0, dtype="int32"):
+    def expected(x: R.Tensor((), dtype="int32"), y: R.Tensor((), dtype="int32")) -> R.Tensor(
+        ndim=0, dtype="int32"
+    ):
         # result will be a seq expr where the body is a var
         z = R.add(x, y)
         return z
@@ -258,9 +257,9 @@ def test_normalize_if_condition():
     after_mod = relax.transform.Normalize()(before_mod)
 
     @R.function(private=True)
-    def expected(
-        cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")
-    ) -> R.Tensor(dtype="float32", ndim=1):
+    def expected(cond: R.Tensor((), "bool"), x: R.Tensor((1,), "float32")) -> R.Tensor(
+        dtype="float32", ndim=1
+    ):
         c = R.TupleGetItem(R.tuple(cond), 0)
         if c:
             gv = R.add(x, x)

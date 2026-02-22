@@ -15,19 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[mypy]
-ignore_missing_imports = False
-show_column_numbers = True
-show_error_context = True
-follow_imports = skip
-ignore_errors = False
-strict_optional = False
+extends: default
 
-[mypy-python.tvm.auto_scheduler.*]
-ignore_errors = True
-
-[mypy-python.tvm.runtime.*]
-ignore_errors = True
-
-[mypy-python.tvm.s_tir.schedule.*]
-ignore_errors = False
+rules:
+  document-start: disable
+  line-length:
+    max: 120
+    level: warning
+  truthy:
+    allowed-values:
+      - "on"
+      - "off"
+      - "yes"
+      - "no"
+      - "true"
+      - "false"

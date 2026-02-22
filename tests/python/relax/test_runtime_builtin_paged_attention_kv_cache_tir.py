@@ -22,7 +22,6 @@ import torch
 
 import tvm
 import tvm.testing
-from tvm.s_tir import dlight as dl
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
     RopeMode,
@@ -39,6 +38,7 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     tree_attn_with_paged_kv_cache,
 )
 from tvm.runtime import ShapeTuple
+from tvm.s_tir import dlight as dl
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048
@@ -90,7 +90,10 @@ def set_global_func(head_dim, dtype):
     global fpopn, fbegin_forward, fend_forward, fcommit_accepted_token_tree_nodes
     global fattention_with_fuse_qkv, fis_empty, fdebug_get_kv
     global ftranspose_append, fcopy_cache, fattn_prefill, fattn_decode
-    global fattn_prefill_ragged, fattn_prefill_with_tree_mask, fattn_prefill_with_tree_mask_paged_kv_cache
+    global \
+        fattn_prefill_ragged, \
+        fattn_prefill_with_tree_mask, \
+        fattn_prefill_with_tree_mask_paged_kv_cache
     global fattn_prefill_sliding_window, fattn_decode_sliding_window
     global fmerge_state, fsplit_rotary, fattention_rotary, fcopy_single_page, fcompact_copy
 

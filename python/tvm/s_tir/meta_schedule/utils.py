@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utilities for meta schedule"""
+
 import ctypes
 import os
 import shutil
@@ -23,6 +24,7 @@ from typing import Any, Callable, List, Optional, Union
 import numpy as np  # type: ignore
 import psutil  # type: ignore
 from tvm_ffi import get_global_func, register_global_func
+
 from tvm.error import TVMError
 from tvm.ir import Array, IRModule, Map
 from tvm.rpc import RPCSession
@@ -91,14 +93,12 @@ def derived_object(cls: type) -> type:
     assert isinstance(cls.__base__, type)
     if hasattr(cls, "_type") and cls._type == "TVMDerivedObject":  # type: ignore
         raise TypeError(
-            (
-                f"Inheritance from a decorated object `{cls.__name__}` is not allowed. "
-                f"Please inherit from `{cls.__name__}._cls`."
-            )
+            f"Inheritance from a decorated object `{cls.__name__}` is not allowed. "
+            f"Please inherit from `{cls.__name__}._cls`."
         )
-    assert hasattr(
-        cls, "_tvm_metadata"
-    ), "Please use the user-facing method overriding class, i.e., PyRunner."
+    assert hasattr(cls, "_tvm_metadata"), (
+        "Please use the user-facing method overriding class, i.e., PyRunner."
+    )
 
     base = cls.__base__
     metadata = getattr(base, "_tvm_metadata")
@@ -134,7 +134,7 @@ def derived_object(cls: type) -> type:
                 # return self._inst.__getattribute__(name)
                 result = self._inst.__getattribute__(name)
             except AttributeError:
-                result = super(TVMDerivedObject, self).__getattr__(name)
+                result = super().__getattr__(name)
 
             if inspect.ismethod(result):
 
@@ -151,7 +151,7 @@ def derived_object(cls: type) -> type:
             if name not in ["_inst", "key", "handle"]:
                 self._inst.__setattr__(name, value)
             else:
-                super(TVMDerivedObject, self).__setattr__(name, value)
+                super().__setattr__(name, value)
 
     functools.update_wrapper(TVMDerivedObject.__init__, cls.__init__)  # type: ignore
     TVMDerivedObject.__name__ = cls.__name__

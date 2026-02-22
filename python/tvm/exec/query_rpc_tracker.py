@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tool to query RPC tracker status"""
-from __future__ import absolute_import
 
-import logging
 import argparse
+import logging
 import os
+
 from .. import rpc
 
 

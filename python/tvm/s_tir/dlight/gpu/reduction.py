@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """A rule for reduction."""
+
 # TODO: combine reduction rule and general reduction rule into one file.
 from typing import List, Mapping, Optional, Tuple, Union
 
-from tvm import arith, ir, tir, s_tir
+from tvm import arith, ir, s_tir, tir
 from tvm.target import Target
 
 from ..analysis import (

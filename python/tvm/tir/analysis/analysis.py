@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Wrapping existing analysis utils."""
+
 # pylint: disable=invalid-name
 from typing import List, Optional, Union
 

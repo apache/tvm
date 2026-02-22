@@ -25,10 +25,11 @@ List of affected files:
 - tvm-root/include/tvm/runtime/base.h
 - tvm-root/web/package.json
 """
-import os
-import re
+
 import argparse
 import logging
+import os
+import re
 import subprocess
 
 # Modify the following value during release

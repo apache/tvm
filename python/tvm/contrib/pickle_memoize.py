@@ -18,11 +18,10 @@
 
 # pylint: disable=broad-except,superfluous-parens
 import atexit
+import functools
 import os
 import pathlib
 import sys
-
-import functools
 
 try:
     import cPickle as pickle
@@ -41,7 +40,7 @@ def _get_global_cache_dir() -> pathlib.Path:
 GLOBAL_CACHE_DIR = _get_global_cache_dir()
 
 
-class Cache(object):
+class Cache:
     """A cache object for result cache.
 
     Parameters

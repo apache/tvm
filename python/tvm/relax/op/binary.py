@@ -16,8 +16,9 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Relax binary arithmetic and comparison operators."""
-from . import _ffi_api
+
 from ..expr import Expr
+from . import _ffi_api
 
 ###################### Arithmetic operators ######################
 

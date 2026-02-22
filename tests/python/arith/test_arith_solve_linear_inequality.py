@@ -16,9 +16,11 @@
 # under the License.
 import random
 import sys
+
 import pytest
+
 import tvm
-from tvm import arith, ir, tir, testing
+from tvm import arith, ir, testing, tir
 from tvm.script import tir as T
 
 
@@ -27,7 +29,7 @@ def test_solution_consistency():
     seed = random.randrange(sys.maxsize)
     print(
         "\nThis test is intentionally non-deterministic, "
-        "if it fails please report it in GitHub issue together with this seed {}\n".format(seed)
+        f"if it fails please report it in GitHub issue together with this seed {seed}\n"
     )
     random.seed(seed)
 

@@ -17,10 +17,11 @@
 """Post optimization method"""
 
 import numpy as np  # type: ignore
+
 from tvm.target import Target
 
 from .droplet import Droplet
-from .utils import read_cfg_file, get_time, write_file, clean_file
+from .utils import clean_file, get_time, read_cfg_file, write_file
 
 
 class PostOpt:

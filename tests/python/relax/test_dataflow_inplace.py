@@ -16,18 +16,21 @@
 # under the License.
 
 from typing import List, Set, Tuple
-import tvm
-from tvm import relax, testing
-from tvm.relax.transform import DataflowUseInplaceCalls
-from tvm.relax.testing.transform import (
-    dataflow_liveness_analysis,
-    dataflow_alias_analysis,
-    dataflow_inplace_analysis,
-    dataflow_single_inplace_call,
-)
-from tvm.script.parser import ir as I, relax as R, tir as T
 
 import numpy as np
+
+import tvm
+from tvm import relax, testing
+from tvm.relax.testing.transform import (
+    dataflow_alias_analysis,
+    dataflow_inplace_analysis,
+    dataflow_liveness_analysis,
+    dataflow_single_inplace_call,
+)
+from tvm.relax.transform import DataflowUseInplaceCalls
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def test_liveness_analysis():
@@ -323,9 +326,9 @@ def test_inplace_simple_case():
     @I.ir_module
     class InplaceBasic:
         @R.function
-        def main(
-            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
-        ) -> R.Tensor((2, 3), "int32"):
+        def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")) -> R.Tensor(
+            (2, 3), "int32"
+        ):
             with R.dataflow():
                 z = R.add(x, y)  # cannot be done inplace: x and y are live later
                 p = R.add(z, z)  # can be done inplace: z is not used later

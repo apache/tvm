@@ -21,10 +21,10 @@ from typing import List
 import numpy as np
 import onnx
 import pytest
-from test_nnapi.conftest import remote
-from test_nnapi.infrastructure import build_and_run  # , build_and_run_vm
 
 import tvm
+from test_nnapi.conftest import remote
+from test_nnapi.infrastructure import build_and_run  # , build_and_run_vm
 from tvm.contrib.download import download_testdata
 from tvm.relax.frontend.onnx import from_onnx
 

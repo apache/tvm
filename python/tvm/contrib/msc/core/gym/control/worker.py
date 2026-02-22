@@ -17,11 +17,12 @@
 """tvm.contrib.msc.core.gym.control.worker"""
 
 from typing import Any
-from tvm.contrib.msc.core.gym.namespace import GYMObject, GYMAction
+
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.gym.namespace import GYMAction, GYMObject
 
 
-class BaseGymWorker(object):
+class BaseGymWorker:
     """Basic worker for gym
 
     Parameters
@@ -52,7 +53,7 @@ class BaseGymWorker(object):
         if "logger" not in worker_config:
             verbose = "debug" if debug_level > 0 else "info"
             worker_config["logger"] = msc_utils.create_file_logger(
-                verbose, workspace.relpath("{}.{}_LOG".format(self.obj_type.upper(), worker_id))
+                verbose, workspace.relpath(f"{self.obj_type.upper()}.{worker_id}_LOG")
             )
         if "workspace" not in worker_config:
             worker_config["workspace"] = workspace
@@ -60,7 +61,7 @@ class BaseGymWorker(object):
         self._worker_impl = worker_cls(**worker_config)
 
     def __str__(self):
-        return "<{}>: {}({})".format(self.obj_type, self._name, self._worker_id)
+        return f"<{self.obj_type}>: {self._name}({self._worker_id})"
 
     def execute(self, act_type: str, **kwargs) -> Any:
         """Execute the worker
@@ -178,7 +179,7 @@ class AgentGymWorker(BaseGymWorker):
         return GYMObject.AGENT
 
 
-class WorkerFactory(object):
+class WorkerFactory:
     """The Factory for workers"""
 
     @classmethod
@@ -207,7 +208,7 @@ class WorkerFactory(object):
         def _get_worker_cls(obj: str):
             worker_type = config.pop("role_type") if "role_type" in config else "default"
             worker_cls = msc_utils.get_registered_gym_object(obj, worker_type)
-            assert worker_cls, "Can not find worker class for {}:{}".format(obj, worker_type)
+            assert worker_cls, f"Can not find worker class for {obj}:{worker_type}"
             return worker_cls
 
         obj_type, worker_id = name.split(":")
@@ -217,4 +218,4 @@ class WorkerFactory(object):
         if obj_type == GYMObject.AGENT:
             worker_cls = _get_worker_cls(obj_type)
             return AgentGymWorker(name, workspace, int(worker_id), worker_cls, config)
-        raise TypeError("Worker for {} is not supported".format(obj_type))
+        raise TypeError(f"Worker for {obj_type} is not supported")

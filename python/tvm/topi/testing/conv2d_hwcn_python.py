@@ -16,8 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Convolution in python"""
+
 import numpy as np
 import scipy.signal
+
 from tvm.topi.nn.utils import get_pad_tuple
 
 

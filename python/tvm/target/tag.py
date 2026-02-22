@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target tags -- re-exported from tag_registry.registry."""
+
 from .tag_registry.registry import list_tags, register_tag
 
 __all__ = ["list_tags", "register_tag"]

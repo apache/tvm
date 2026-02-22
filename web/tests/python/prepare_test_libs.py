@@ -17,10 +17,10 @@
 # Prepare test library for standalone wasm runtime test.
 
 import os
+
 import tvm
-from tvm import te
+from tvm import relax, te
 from tvm.contrib import tvmjs
-from tvm import relax
 from tvm.script import relax as R
 
 

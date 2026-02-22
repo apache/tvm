@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for creation operators."""
+
 from typing import Optional
 
 import numpy as np

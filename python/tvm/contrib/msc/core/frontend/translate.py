@@ -16,16 +16,16 @@
 # under the License.
 """tvm.contrib.msc.core.frontend.translate"""
 
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, List, Optional, Tuple
 
 import tvm
-from tvm.relax.transform import BindParams
-from tvm.relax import PyExprVisitor
-from tvm.relax.backend.pattern_registry import get_patterns_with_prefix
-from tvm.contrib.msc.core import transform as msc_transform
 from tvm.contrib.msc.core import _ffi_api
+from tvm.contrib.msc.core import transform as msc_transform
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.ir import MSCGraph, MSCTensor
+from tvm.relax import PyExprVisitor
+from tvm.relax.backend.pattern_registry import get_patterns_with_prefix
+from tvm.relax.transform import BindParams
 
 
 def normalize_inputs(inputs: List[tuple]) -> List[tuple]:
@@ -58,7 +58,7 @@ def normalize_inputs(inputs: List[tuple]) -> List[tuple]:
                     recorded_vars[dim] = tvm.tir.Var(dim, "int64")
                     dims.append(recorded_vars[dim])
                 else:
-                    raise TypeError("Unexpected dim {} in shape {}".format(dim, info))
+                    raise TypeError(f"Unexpected dim {dim} in shape {info}")
             return dims
 
         return [_normalize(i) for i in inp]
@@ -93,9 +93,9 @@ def normalize_weights(
         if ref_t.layout and weight_t.layout:
             ref_layout, weight_layout = ref_t.layout.name, weight_t.layout.name
             if ref_layout != weight_layout:
-                assert all(
-                    l in ref_layout for l in weight_layout
-                ), "layout mismatch {} compare to {}".format(ref_t, weight_t)
+                assert all(l in ref_layout for l in weight_layout), (
+                    f"layout mismatch {ref_t} compare to {weight_t}"
+                )
                 permute = [ref_layout.index(l) for l in weight_layout]
                 return tvm.runtime.tensor(data.numpy().transpose(*permute))
         return data
@@ -178,7 +178,7 @@ class BYOCChecker(PyExprVisitor):
             self.visit_expr(expr)
         elif isinstance(expr, tvm.relax.BindingBlock):
             self.visit_binding_block(expr)
-        assert len(self._non_target_exprs) == 0, "Some exprs not on target {}".format(expr)
+        assert len(self._non_target_exprs) == 0, f"Some exprs not on target {expr}"
 
     def visit_var_binding_(self, binding) -> None:
         super().visit_var_binding_(binding)

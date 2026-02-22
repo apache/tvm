@@ -18,14 +18,15 @@
 """Test Tools in MSC."""
 
 import json
+
 import pytest
 import torch
 
 import tvm.testing
-from tvm.contrib.msc.pipeline import MSCManager
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools import ToolType
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.pipeline import MSCManager
 
 requires_tensorrt = pytest.mark.skipif(
     tvm.get_global_func("relax.ext.tensorrt", True) is None,
@@ -184,13 +185,13 @@ def _check_manager(manager, expected_info):
     passed, err = True, ""
     if not manager.report["success"]:
         passed = False
-        err = "Failed to run pipe for {} -> {}".format(manager.model_type, manager.compile_type)
+        err = f"Failed to run pipe for {manager.model_type} -> {manager.compile_type}"
     if not msc_utils.dict_equal(model_info, expected_info):
         passed = False
-        err = "Model info {} mismatch with expected {}".format(model_info, expected_info)
+        err = f"Model info {model_info} mismatch with expected {expected_info}"
     manager.destory()
     if not passed:
-        raise Exception("{}\nReport:{}".format(err, json.dumps(manager.report, indent=2)))
+        raise Exception(f"{err}\nReport:{json.dumps(manager.report, indent=2)}")
 
 
 def _test_from_torch(

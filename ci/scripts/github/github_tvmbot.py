@@ -16,24 +16,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-import json
 import argparse
-import sys
-import warnings
+import json
 import logging
-import traceback
+import os
 import re
-from typing import Dict, Any, List, Optional, Callable, Union
+import sys
+import traceback
+import warnings
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Union
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
-from git_utils import git, GitHubRepo, parse_remote, post
 from cmd_utils import init_log
-
+from git_utils import GitHubRepo, git, parse_remote, post
 
 Review = Dict[str, Any]
 CIJob = Dict[str, Any]
@@ -473,7 +472,7 @@ class PR:
         return missing_expected_jobs
 
     def trigger_gha_ci(self, sha: str) -> None:
-        logging.info(f"POST-ing a workflow_dispatch event to main.yml")
+        logging.info("POST-ing a workflow_dispatch event to main.yml")
         actions_github = GitHubRepo(
             user=self.github.user, repo=self.github.repo, token=GH_ACTIONS_TOKEN
         )

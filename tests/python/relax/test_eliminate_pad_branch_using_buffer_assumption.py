@@ -20,10 +20,10 @@
 # This helps to expose more opportunities to vectorize the code.
 
 import tvm
-import tvm.testing
-
 import tvm.script
-from tvm.script import tir as T, relax as R
+import tvm.testing
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 @tvm.script.ir_module
@@ -63,10 +63,8 @@ class AddBefore:
                 T.writes()
                 T.assume(
                     not (
-                        v_axis1 == T.int64(3)
-                        and T.int64(4) <= v_axis4
-                        or v_axis2 == T.int64(3)
-                        and T.int64(4) <= v_axis5
+                        (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
+                        or (v_axis2 == T.int64(3) and T.int64(4) <= v_axis5)
                     )
                     or a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
@@ -83,10 +81,8 @@ class AddBefore:
                 T.writes()
                 T.assume(
                     not (
-                        v_axis1 == T.int64(3)
-                        and T.int64(4) <= v_axis4
-                        or v_axis2 == T.int64(3)
-                        and T.int64(4) <= v_axis5
+                        (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
+                        or (v_axis2 == T.int64(3) and T.int64(4) <= v_axis5)
                     )
                     or b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
@@ -104,16 +100,14 @@ class AddBefore:
                     b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
                 T.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                compute[
-                    v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6
-                ] = T.if_then_else(
-                    v_axis1 == T.int64(3)
-                    and T.int64(4) <= v_axis4
-                    or v_axis2 == T.int64(3)
-                    and T.int64(4) <= v_axis5,
-                    T.uint8(0),
-                    a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
-                    + b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (
+                    T.if_then_else(
+                        (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
+                        or (v_axis2 == T.int64(3) and T.int64(4) <= v_axis5),
+                        T.uint8(0),
+                        a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                        + b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    )
                 )
 
     @R.function
@@ -166,8 +160,10 @@ class AddExpected:
                 T.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
-                    (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
-                    and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    (
+                        (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
+                        and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    )
                     or a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
@@ -183,8 +179,10 @@ class AddExpected:
                 T.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
-                    (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
-                    and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    (
+                        (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
+                        and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    )
                     or b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
@@ -264,10 +262,8 @@ class SubBefore:
                 T.writes()
                 T.assume(
                     not (
-                        v_axis1 == T.int64(3)
-                        and T.int64(4) <= v_axis4
-                        or v_axis2 == T.int64(3)
-                        and T.int64(4) <= v_axis5
+                        (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
+                        or (v_axis2 == T.int64(3) and T.int64(4) <= v_axis5)
                     )
                     or a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
@@ -284,10 +280,8 @@ class SubBefore:
                 T.writes()
                 T.assume(
                     not (
-                        v_axis1 == T.int64(3)
-                        and T.int64(4) <= v_axis4
-                        or v_axis2 == T.int64(3)
-                        and T.int64(4) <= v_axis5
+                        (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
+                        or (v_axis2 == T.int64(3) and T.int64(4) <= v_axis5)
                     )
                     or b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
@@ -305,16 +299,14 @@ class SubBefore:
                     b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
                 T.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                compute[
-                    v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6
-                ] = T.if_then_else(
-                    v_axis1 == T.int64(3)
-                    and T.int64(4) <= v_axis4
-                    or v_axis2 == T.int64(3)
-                    and T.int64(4) <= v_axis5,
-                    T.uint8(0),
-                    a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
-                    - b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (
+                    T.if_then_else(
+                        (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
+                        or (v_axis2 == T.int64(3) and T.int64(4) <= v_axis5),
+                        T.uint8(0),
+                        a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                        - b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    )
                 )
 
     @R.function
@@ -367,8 +359,10 @@ class SubExpected:
                 T.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
-                    (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
-                    and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    (
+                        (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
+                        and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    )
                     or a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
@@ -384,8 +378,10 @@ class SubExpected:
                 T.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
-                    (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
-                    and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    (
+                        (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
+                        and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    )
                     or b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
@@ -465,10 +461,8 @@ class MulBefore:
                 T.writes()
                 T.assume(
                     not (
-                        v_axis1 == T.int64(3)
-                        and T.int64(4) <= v_axis4
-                        or v_axis2 == T.int64(3)
-                        and T.int64(4) <= v_axis5
+                        (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
+                        or (v_axis2 == T.int64(3) and T.int64(4) <= v_axis5)
                     )
                     or a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
@@ -485,10 +479,8 @@ class MulBefore:
                 T.writes()
                 T.assume(
                     not (
-                        v_axis1 == T.int64(3)
-                        and T.int64(4) <= v_axis4
-                        or v_axis2 == T.int64(3)
-                        and T.int64(4) <= v_axis5
+                        (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
+                        or (v_axis2 == T.int64(3) and T.int64(4) <= v_axis5)
                     )
                     or b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
@@ -506,16 +498,14 @@ class MulBefore:
                     b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
                 T.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                compute[
-                    v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6
-                ] = T.if_then_else(
-                    v_axis1 == T.int64(3)
-                    and T.int64(4) <= v_axis4
-                    or v_axis2 == T.int64(3)
-                    and T.int64(4) <= v_axis5,
-                    T.uint8(0),
-                    a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
-                    * b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (
+                    T.if_then_else(
+                        (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
+                        or (v_axis2 == T.int64(3) and T.int64(4) <= v_axis5),
+                        T.uint8(0),
+                        a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                        * b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    )
                 )
 
     @R.function
@@ -568,8 +558,10 @@ class MulExpected:
                 T.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
-                    (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
-                    and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    (
+                        (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
+                        and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    )
                     or a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
@@ -585,8 +577,10 @@ class MulExpected:
                 T.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
-                    (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
-                    and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    (
+                        (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
+                        and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
+                    )
                     or b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )

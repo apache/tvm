@@ -19,8 +19,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.ir.module import IRModule
 from tvm import tir
+from tvm.ir.module import IRModule
 from tvm.script import tir as T
 
 

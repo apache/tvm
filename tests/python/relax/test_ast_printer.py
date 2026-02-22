@@ -19,6 +19,7 @@ from functools import partial
 from typing import Dict
 
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import relax as rx
@@ -443,7 +444,7 @@ def test_call_tir():
             n = T.int64()
             A = T.match_buffer(A_handle, (m, n), "float32")
             B = T.match_buffer(B_handle, (m, n), "float32")
-            T.func_attr(({"global_symbol": "addone"}))
+            T.func_attr({"global_symbol": "addone"})
             for i, j in T.grid(m, n):
                 with T.sblock("addone"):
                     vi, vj = T.axis.remap("SS", [i, j])

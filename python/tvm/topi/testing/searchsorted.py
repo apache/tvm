@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The reference implementation of searchsorted in Numpy."""
+
 import numpy as np
 
 

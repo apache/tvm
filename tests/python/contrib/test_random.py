@@ -15,14 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
+
 # pylint: disable=invalid-name
 import threading
+
 import numpy as np
+
 import tvm
-from tvm import te
-from tvm.contrib import random
-from tvm import rpc
 import tvm.testing
+from tvm import rpc, te
+from tvm.contrib import random
 
 
 def test_randint():

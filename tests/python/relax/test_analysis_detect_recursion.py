@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 from typing import List
+
 import tvm
 import tvm.testing
 from tvm import relax as rx
-from tvm.script import relax as R, tir as T
-
 from tvm.relax.analysis import detect_recursion
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def assert_groups(groups: List[List[rx.GlobalVar]], expected: List[List[str]]) -> None:

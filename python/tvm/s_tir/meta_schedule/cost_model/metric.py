@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Cost model metrics for meta schedule"""
+
 import numpy as np  # type: ignore
 
 

@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Common functions and classes for CUTLASS GEMM and Conv2d geneator."""
+
 import logging
 import math
 import multiprocessing
@@ -25,6 +26,7 @@ import subprocess
 import tempfile
 
 import tvm_ffi
+
 from tvm.runtime import Object
 from tvm.tir import IntImm
 
@@ -35,9 +37,8 @@ from .attention_operation import (
     instantiate_flash_attention_var_len_template,
 )
 from .conv2d_operation import instantiate_conv2d_template
-from .gemm_operation import instantiate_gemm_template, emit_fp16A_intB_matmul
+from .gemm_operation import emit_fp16A_intB_matmul, instantiate_gemm_template
 from .layer_norm_operation import instantiate_layer_norm_template
-from .rms_norm_operation import instantiate_rms_norm_template
 from .library import (
     DataType,
     DataTypeSize,
@@ -48,6 +49,7 @@ from .library import (
     OpcodeClass,
     TileDescription,
 )
+from .rms_norm_operation import instantiate_rms_norm_template
 
 logger = logging.getLogger("cutlass")
 
@@ -518,7 +520,7 @@ def instantiate_template(func_name, annotations, func_args):
         return dim1 + " * " + dim2
 
     def get_flattened_batch_dim(arg_name, batch_rank):
-        return " * ".join(["{}->shape[{}]".format(arg_name, i) for i in range(batch_rank)])
+        return " * ".join([f"{arg_name}->shape[{i}]" for i in range(batch_rank)])
 
     if "decode_matmul" in func_name:
         headers.append("cutlass_kernels/fpA_intB_gemm.h")
@@ -603,9 +605,7 @@ def instantiate_template(func_name, annotations, func_args):
             headers.append("cutlass/gemm/device/gemm_batched.h")
 
             def get_batch_on_arg(arg_name, arg_shape):
-                return " * ".join(
-                    "{}->shape[{}]".format(arg_name, i) for i in range(len(arg_shape) - 2)
-                )
+                return " * ".join(f"{arg_name}->shape[{i}]" for i in range(len(arg_shape) - 2))
 
             if isinstance(annotations["batch"], IntImm):
                 attrs["batch"] = str(int(annotations["batch"]))
@@ -790,9 +790,9 @@ def instantiate_template(func_name, annotations, func_args):
         # 92dd5703ecdb99aa4a4aee9817f28557907403a2/csrc/flash_attn/flash_api.cpp#L111-L116
         if "window_size" in annotations:
             assert use_flash, "Sliding-window attention is supported only by Flash Attention."
-            assert (
-                int(annotations["custom_mask_type"]) == 2
-            ), "Sliding-window attention is only supported for causal with bottom right mask."
+            assert int(annotations["custom_mask_type"]) == 2, (
+                "Sliding-window attention is only supported for causal with bottom right mask."
+            )
             attrs["window_size_left"] = int(annotations["window_size"]) - 1
             attrs["window_size_right"] = 0
             attrs["is_causal"] = False
@@ -818,9 +818,9 @@ def instantiate_template(func_name, annotations, func_args):
         else:
             headers.append("kernel_forward.h")
 
-            assert (
-                not is_mqa
-            ), "The number of query and KV heads need to be the same for CUTLASS fMHA."
+            assert not is_mqa, (
+                "The number of query and KV heads need to be the same for CUTLASS fMHA."
+            )
 
             attrs["num_heads"] = n = annotations["num_q_heads"]
 
@@ -840,9 +840,9 @@ def instantiate_template(func_name, annotations, func_args):
                 attrs["kKeysPerBlock"] = 64
                 attrs["kSingleValueIteration"] = True
 
-            assert (
-                attrs["scale"] > 0 or attrs["scale"] < 0
-            ), "Cutlass may generate nan occasionally when scale == 0.0"
+            assert attrs["scale"] > 0 or attrs["scale"] < 0, (
+                "Cutlass may generate nan occasionally when scale == 0.0"
+            )
             attrs["arch"] = "cutlass::arch::Sm{}".format(annotations["arch"])
             attrs["kSupportsDropout"] = False
 

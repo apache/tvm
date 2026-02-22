@@ -15,16 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for registering tir gradient functions in the gradient pass."""
+
 import pytest
 
 import tvm
 import tvm.testing
 from tvm import relax, tir
 from tvm.ir.base import assert_structural_equal
-from tvm.script.parser import relax as R, tir as T, ir as I
-
 from tvm.relax.training.utils import register_te_gradient
 from tvm.relax.transform import Gradient
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 # Only run once in the whole test session

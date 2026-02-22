@@ -18,9 +18,10 @@
 Apply ScheduleRules onto an IRModule to generate default schedules without tuning,
 or a space for MetaSchedule tuning
 """
+
 from typing import List, Optional
 
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext, module_pass
 from tvm.target import Target

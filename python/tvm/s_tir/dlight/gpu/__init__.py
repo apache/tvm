@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -18,6 +19,7 @@
 GPU-generic schedule rules.
 For CUDA/ROCm/Vulkan/Metal-specific rules, use `tvm.s_tir.dlight.cuda/rocm/vulkan/metal` instead
 """
+
 from .gemv import GEMV
 from .low_batch_gemv import LowBatchGEMV
 from .fallback import Fallback

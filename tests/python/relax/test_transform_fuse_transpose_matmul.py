@@ -16,13 +16,14 @@
 # under the License.
 # pylint: disable=invalid-name, missing-docstring
 
+import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-import numpy as np
 
 
 def test_transform_fuse_transpose_matmul():

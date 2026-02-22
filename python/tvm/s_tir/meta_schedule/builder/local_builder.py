@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Local builder that compile on the local host"""
+
 import os
 import tempfile
 from typing import Callable, Dict, List, Optional, Union
 
 from tvm_ffi import register_global_func
+
 from tvm.ir import IRModule
 from tvm.runtime import Module, Tensor, load_param_dict, save_param_dict
 from tvm.target import Target
@@ -253,8 +255,8 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, Ten
         The built Module.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm.driver import build as tvm_build
     import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
+    from tvm.driver import build as tvm_build
     from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
 
     # pylint: enable=import-outside-toplevel

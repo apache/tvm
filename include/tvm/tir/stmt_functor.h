@@ -45,8 +45,10 @@ namespace tir {
 template <typename FType>
 class StmtFunctor;
 
-#define STMT_FUNCTOR_DEFAULT \
-  { return VisitStmtDefault_(op, std::forward<Args>(args)...); }
+#define STMT_FUNCTOR_DEFAULT                                   \
+  {                                                            \
+    return VisitStmtDefault_(op, std::forward<Args>(args)...); \
+  }
 
 #define IR_STMT_FUNCTOR_DISPATCH(OP)                                                       \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \

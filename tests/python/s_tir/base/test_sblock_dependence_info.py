@@ -19,14 +19,15 @@ import gc
 import sys
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import tir
 from tvm.ir import IRModule
-from tvm.script import tir as T
-from tvm.tir import PrimFunc
 from tvm.s_tir import SBlockDependenceInfo
 from tvm.s_tir.sblock_scope import DepKind
+from tvm.script import tir as T
+from tvm.tir import PrimFunc
 from tvm.tir.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable
@@ -115,16 +116,16 @@ def _verify_dependence(dependence_info, src_block, dst_block, kind):
     # Check dependences by src
     deps_by_src = scope.get_deps_by_src(src_sref)
     dependence = _find_dependence(deps_by_src)
-    assert (
-        dependence
-    ), f"Expected a dependency with src block {src_block.name_hint} and dst block {dst_block.name_hint} of kind {kind.name}"
+    assert dependence, (
+        f"Expected a dependency with src block {src_block.name_hint} and dst block {dst_block.name_hint} of kind {kind.name}"
+    )
 
     # Check dependences by dst
     deps_by_dst = scope.get_deps_by_dst(dst_sref)
     dependence = _find_dependence(deps_by_dst)
-    assert (
-        dependence
-    ), f"Expected a dependency with src block {src_block.name_hint} and dst block {dst_block.name_hint}"
+    assert dependence, (
+        f"Expected a dependency with src block {src_block.name_hint} and dst block {dst_block.name_hint}"
+    )
 
 
 def test_RAW_dependences():

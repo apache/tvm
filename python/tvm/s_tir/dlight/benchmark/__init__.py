@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Benchmarking dynamic shape workloads"""
+
 from .bench import benchmark, benchmark_prim_func, benchmark_relax_func
 from .extract import (
     extract_prim_func,

@@ -16,6 +16,7 @@
 # under the License.
 """Create a rule that applies customized rules registered using block attribute `schedule_rule`.
 The rule will be dispatched according to target keys."""
+
 from tvm_ffi import register_object
 
 from .. import _ffi_api

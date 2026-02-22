@@ -19,6 +19,7 @@
 
 import numpy as np
 import pytest
+
 import tvm
 from tvm.script import tir as T
 
@@ -345,7 +346,7 @@ def get_multi_input_fake_conv_vtcm_schedule(size_a, size_w, blocks=2):
 def print_results(test_key, runtimes):
     print(test_key)
     for runtime in runtimes.items():
-        print("-{} took {} ms".format(runtime[0], runtime[1]))
+        print(f"-{runtime[0]} took {runtime[1]} ms")
     print()
 
 

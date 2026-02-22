@@ -16,11 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name,line-too-long
 """Various type definitions to help instantiate CUTLASS kernels."""
-import re
+
 import enum
+import re
 from enum import auto as enum_auto
 
-from tvm.tir.expr import IntImm, FloatImm
+from tvm.tir.expr import FloatImm, IntImm
 
 
 class GeneratorTarget(enum.Enum):

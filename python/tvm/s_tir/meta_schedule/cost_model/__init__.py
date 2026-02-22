@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,6 +18,7 @@
 """
 The tvm.s_tir.meta_schedule.cost_model package.
 """
+
 from .cost_model import CostModel, PyCostModel
 from .random_model import RandomModel
 from .xgb_model import XGBModel

@@ -27,9 +27,9 @@ from tvm_ffi import register_object, register_global_func
 
 from tvm import IRModule
 from tvm.runtime import Object
+from tvm.s_tir import Schedule
 from tvm.target import Target
 from tvm.tir import PrimFunc
-from tvm.s_tir import Schedule
 
 from . import _ffi_api
 from .logging import Logger, get_logger, get_logging_func
@@ -172,8 +172,7 @@ class TuneContext(Object):
             raise ValueError("`mod` is not provided. Please construct TuneContext with `mod`")
         if self.space_generator is None:
             raise ValueError(
-                "space_generator is not provided."
-                "Please construct TuneContext with space_generator"
+                "space_generator is not provided.Please construct TuneContext with space_generator"
             )
         return self.space_generator.generate_design_space(self.mod)
 
@@ -216,8 +215,7 @@ class TuneContext(Object):
 
         if self.search_strategy is None:
             raise ValueError(
-                "search_strategy is not provided."
-                "Please construct TuneContext with search_strategy"
+                "search_strategy is not provided.Please construct TuneContext with search_strategy"
             )
         if design_spaces is None:
             design_spaces = self.generate_design_space()
@@ -242,8 +240,7 @@ class TuneContext(Object):
         """
         if self.search_strategy is None:
             raise ValueError(
-                "search_strategy is not provided."
-                "Please construct TuneContext with search_strategy"
+                "search_strategy is not provided.Please construct TuneContext with search_strategy"
             )
         return self.search_strategy.post_tuning()
 
@@ -259,8 +256,7 @@ class TuneContext(Object):
         """
         if self.search_strategy is None:
             raise ValueError(
-                "search_strategy is not provided."
-                "Please construct TuneContext with search_strategy"
+                "search_strategy is not provided.Please construct TuneContext with search_strategy"
             )
         return self.search_strategy.generate_measure_candidates()
 
@@ -282,8 +278,7 @@ class TuneContext(Object):
         """
         if self.search_strategy is None:
             raise ValueError(
-                "search_strategy is not provided."
-                "Please construct TuneContext with search_strategy"
+                "search_strategy is not provided.Please construct TuneContext with search_strategy"
             )
         return self.search_strategy.notify_runner_results(measure_candidates, results)
 

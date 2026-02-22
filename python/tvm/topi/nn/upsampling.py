@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM operator upsampling compute."""
-from tvm import topi
-from tvm import te
+
+from tvm import te, topi
+
 from ..utils import simplify
 
 

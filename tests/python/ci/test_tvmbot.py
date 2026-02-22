@@ -20,11 +20,11 @@ Test the @tvm-bot merge code
 
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 import tvm
-from .test_utils import GITHUB_SCRIPT_ROOT, TempGit, run_script
 
+from .test_utils import GITHUB_SCRIPT_ROOT, TempGit, run_script
 
 SUCCESS_EXPECTED_OUTPUT = """
 Dry run, would have merged with url=pulls/10786/merge and data={

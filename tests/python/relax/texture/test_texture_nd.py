@@ -16,22 +16,25 @@
 # under the License.
 
 import os
+import tempfile
+
+import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-import pytest
-import tempfile
-import numpy as np
-
 from tvm import (
-    relax,
+    DataType,
     IRModule,
+    relax,
+    tir,
 )
-from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
-from tvm.script import ir as I, tir as T
-from tvm.target import Target
 from tvm.contrib import ndk
-from tvm import tir, DataType
+from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.rpc import connect_tracker
+from tvm.script import ir as I
+from tvm.script import tir as T
+from tvm.target import Target
 
 
 def get_rpc():

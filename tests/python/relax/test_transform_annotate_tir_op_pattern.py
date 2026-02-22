@@ -17,6 +17,7 @@
 import enum
 
 import pytest
+
 import tvm
 import tvm.script
 import tvm.testing

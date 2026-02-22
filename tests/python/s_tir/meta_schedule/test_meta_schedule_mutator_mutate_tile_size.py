@@ -19,10 +19,10 @@ import operator
 from functools import reduce
 from typing import List
 
+from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.s_tir import Schedule
 
 # pylint: disable=invalid-name, no-member
 

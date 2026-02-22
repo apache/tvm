@@ -15,16 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
 import tvm.s_tir.meta_schedule as ms
 import tvm.testing
+from tvm.s_tir import Schedule
+from tvm.s_tir.tensor_intrin.cuda import *
+from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.target.codegen import llvm_lookup_intrinsic_id
 from tvm.tir import floordiv, floormod
-from tvm.s_tir import Schedule
-from tvm.s_tir.tensor_intrin.cuda import *
-from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
 
 
 # fmt: off

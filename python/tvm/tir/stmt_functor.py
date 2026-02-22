@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Statement functor utilities for IR transformations"""
+
 from . import _ffi_api
 
 

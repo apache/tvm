@@ -16,16 +16,15 @@
 # specific language governing permissions and limitations
 # under the License.
 import argparse
+import logging
+import os
 import textwrap
-import junitparser
+import urllib.parse
 from pathlib import Path
 from typing import List, Optional
-import os
-import urllib.parse
-import logging
 
+import junitparser
 from cmd_utils import init_log
-
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
@@ -80,7 +79,7 @@ def make_issue_url(failed_node_ids: List[str]) -> str:
         "labels": "test: flaky",
         "title": "[Flaky Test] " + ", ".join(names),
         "body": textwrap.dedent(
-            f"""
+            """
             These tests were found to be flaky (intermittently failing on `main` or failed in a PR with unrelated changes). See [the docs](https://github.com/apache/tvm/blob/main/docs/contribute/ci.rst#handling-flaky-failures) for details.
 
             ### Tests(s)\n

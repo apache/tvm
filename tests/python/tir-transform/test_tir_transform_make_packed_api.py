@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import tir as T, ir as I
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def _find_assignment(stmt, var_name):

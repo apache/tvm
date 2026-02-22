@@ -21,12 +21,13 @@ Use the tracker's address and port when configuring the RPC app.
 Use "android" as the key if you wish to avoid modifying this script.
 """
 
-import tvm
-from tvm import te
 import os
-from tvm import rpc
-from tvm.contrib import utils, ndk
+
 import numpy as np
+
+import tvm
+from tvm import rpc, te
+from tvm.contrib import ndk, utils
 
 # Set to be address of tvm proxy.
 tracker_host = os.environ["TVM_TRACKER_HOST"]

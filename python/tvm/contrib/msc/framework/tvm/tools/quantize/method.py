@@ -18,14 +18,15 @@
 """tvm.contrib.msc.framework.tvm.tools.quantize.method"""
 
 from typing import Tuple
+
 import numpy as np
 
 import tvm
-from tvm.relax import op as relax_op
-from tvm.contrib.msc.core.tools.quantize import QuantizeMethod, BaseQuantizer
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core import _ffi_api
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.quantize import BaseQuantizer, QuantizeMethod
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
+from tvm.relax import op as relax_op
 
 
 @msc_utils.register_tool_method

@@ -16,12 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Deformable Conv2D operators"""
+
 import tvm
 from tvm import te
 
-from .utils import get_pad_tuple
-from ..utils import get_const_tuple
 from ..cpp.utils import bilinear_sample_nchw, bilinear_sample_nhwc
+from ..utils import get_const_tuple
+from .utils import get_pad_tuple
 
 
 def deformable_conv2d_nchw(

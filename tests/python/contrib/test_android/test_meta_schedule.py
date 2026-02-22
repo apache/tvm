@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test rpc based launcher for Android """
+"""Test rpc based launcher for Android"""
+
 import tempfile
 
 import numpy as np
 import pytest
+
 import tvm.testing
 import tvm.topi.testing
 from tvm.s_tir import meta_schedule as ms

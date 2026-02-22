@@ -19,8 +19,9 @@
 
 import tvm
 import tvm.testing
-from tvm import tir, s_tir
-from tvm.script import ir as I, tir as T
+from tvm import s_tir, tir
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_handle_irrgular_unit_loop():

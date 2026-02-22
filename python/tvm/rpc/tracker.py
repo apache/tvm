@@ -42,18 +42,20 @@ List of available APIs:
 # pylint: disable=invalid-name
 
 import asyncio
+import errno
 import heapq
+import json
 import logging
 import socket
-import threading
-import errno
 import struct
-import json
 import sys
+import threading
+
 from tvm.contrib.popen_pool import PopenWorker
 
 try:
     from tornado import ioloop
+
     from . import tornado_util
 except ImportError as error_msg:
     raise ImportError(
@@ -76,7 +78,7 @@ logger.setLevel(logging.INFO)
 logger.propagate = False
 
 
-class Scheduler(object):
+class Scheduler:
     """Abstract interface of scheduler."""
 
     def put(self, value):
@@ -171,7 +173,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
     """
 
     def __init__(self, tracker, sock, addr):
-        super(TCPEventHandler, self).__init__(sock)
+        super().__init__(sock)
         self._data = bytearray()
         self._tracker = tracker
         self._msg_size = 0
@@ -185,7 +187,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
 
     def name(self):
         """name of connection"""
-        return f"TCPSocket: {str(self._addr)}"
+        return f"TCPSocket: {self._addr!s}"
 
     def summary(self):
         """Summary of this connection"""
@@ -265,7 +267,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
                     return False
                 try:
                     self.ret_value([TrackerCode.SUCCESS, value])
-                except (socket.error, IOError):
+                except OSError:
                     return False
                 return True
 
@@ -303,7 +305,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
         self.close()
 
 
-class TrackerServerHandler(object):
+class TrackerServerHandler:
     """Tracker that tracks the resources."""
 
     def __init__(self, sock, stop_key):
@@ -324,7 +326,7 @@ class TrackerServerHandler(object):
             try:
                 conn, addr = self._sock.accept()
                 TCPEventHandler(self, conn, addr)
-            except socket.error as err:
+            except OSError as err:
                 if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                     break
 
@@ -383,7 +385,7 @@ def _tracker_server(listen_sock, stop_key):
     handler.run()
 
 
-class PopenTrackerServerState(object):
+class PopenTrackerServerState:
     """Internal PopenTrackerServer State"""
 
     current = None
@@ -409,7 +411,7 @@ class PopenTrackerServerState(object):
                 sock.bind((host, my_port))
                 self.port = my_port
                 break
-            except socket.error as sock_err:
+            except OSError as sock_err:
                 if sock_err.errno in [errno.EADDRINUSE]:
                     continue
                 raise sock_err
@@ -434,7 +436,7 @@ def _popen_start_tracker_server(
     return (state.port, state.stop_key)
 
 
-class Tracker(object):
+class Tracker:
     """Start RPC tracker on a separate process.
 
     Python implementation based on PopenWorker.

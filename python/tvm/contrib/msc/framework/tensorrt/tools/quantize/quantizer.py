@@ -18,17 +18,17 @@
 
 import os
 import struct
-from typing import List, Dict, Any, Tuple
+from typing import Any, Dict, List, Tuple
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.tools.tool import ToolType, ToolStrategy
-from tvm.contrib.msc.core.tools.quantize import BaseQuantizer, QuantizeStage
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.ir import MSCGraph
+from tvm.contrib.msc.core.tools.quantize import BaseQuantizer, QuantizeStage
+from tvm.contrib.msc.core.tools.tool import ToolStrategy, ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
-class TensorRTQuantizerFactory(object):
+class TensorRTQuantizerFactory:
     """Quantizer factory for tensorrt"""
 
     def create(self, base_cls: BaseQuantizer) -> BaseQuantizer:
@@ -116,9 +116,9 @@ class TensorRTQuantizerFactory(object):
                             saver,
                         )
                 else:
-                    assert all(
-                        msc_utils.is_io_dataset(f) for f in self._calibrate_folders
-                    ), "Some IODataset missing: " + str(self._calibrate_folders)
+                    assert all(msc_utils.is_io_dataset(f) for f in self._calibrate_folders), (
+                        "Some IODataset missing: " + str(self._calibrate_folders)
+                    )
                 return super()._reset(graphs, weights)
 
             def _execute_after_build(self, codegen_context: dict) -> dict:
@@ -150,20 +150,16 @@ class TensorRTQuantizerFactory(object):
                 if self._calibrated:
                     processed.extend(
                         [
-                            'if (!FileUtils::FileExist("{}")) {{'.format(range_file),
-                            '  logger.log(ILogger::Severity::kERROR, "{} not exist!");'.format(
-                                range_file
-                            ),
+                            f'if (!FileUtils::FileExist("{range_file}")) {{',
+                            f'  logger.log(ILogger::Severity::kERROR, "{range_file} not exist!");',
                             "  return -1;",
                             "}",
                         ]
                     )
                 processed.extend(
                     [
-                        'MSCInt8EntropyCalibrator2 calibrator("{}", "{}");'.format(
-                            range_file, self._calibrate_folders[self._graph_id]
-                        ),
-                        "{}->setInt8Calibrator(&calibrator);".format(configer),
+                        f'MSCInt8EntropyCalibrator2 calibrator("{range_file}", "{self._calibrate_folders[self._graph_id]}");',
+                        f"{configer}->setInt8Calibrator(&calibrator);",
                     ]
                 )
                 codegen_context["processed"].extend(processed)
@@ -262,7 +258,7 @@ class TensorRTQuantizerFactory(object):
                         generate_config["codegen"], self._calibrate_savers, self._range_files
                     ):
                         saver.finalize()
-                        msg = "Save {} batch to {}".format(self._forward_cnt, saver.folder)
+                        msg = f"Save {self._forward_cnt} batch to {saver.folder}"
                         self._logger.debug(self.msg_mark(msg, in_forward=False))
                         config.update(
                             {"dataset": saver.folder, "range_file": r_file, "precision": "int8"}
@@ -318,7 +314,7 @@ class TensorRTQuantizerFactory(object):
                 """
 
                 range_num = 0
-                with open(range_file, "r") as f:
+                with open(range_file) as f:
                     f.readline()
                     line = f.readline()
                     while line:

@@ -16,15 +16,16 @@
 # under the License.
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument, no-else-return
 """Sort related operators"""
+
 import tvm
 from tvm import te
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T
 
-from ..transform import strided_slice, transpose
-from ..utils import ceil_div, swap, prod
 from ..math import cast, ceil_log2
 from ..searchsorted import binary_search
+from ..transform import strided_slice, transpose
+from ..utils import ceil_div, prod, swap
 
 
 def _get_threads(nthread_tx, nthread_bx, nthread_by):
@@ -1184,9 +1185,9 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
     """
     if len(sorted_sequence.shape) > 1:
         for i in range(len(values.shape) - 1):
-            assert (
-                values.shape[i] == sorted_sequence.shape[i]
-            ), "Outer dimensions of sorted_sequence and values must match for N-D searchsorted"
+            assert values.shape[i] == sorted_sequence.shape[i], (
+                "Outer dimensions of sorted_sequence and values must match for N-D searchsorted"
+            )
 
     def ir(sorted_sequence_buf, values_buf, indices_buf):
         with IRBuilder() as ib:

@@ -16,16 +16,18 @@
 # under the License.
 # pylint: disable=invalid-name
 """Function definitions."""
-from typing import Union, Dict
 
 from enum import IntEnum
+from typing import Dict, Union
+
 import tvm_ffi
 
 import tvm.runtime
 from tvm.runtime.object import Object
-from .expr import RelaxExpr
-from .attrs import DictAttrs
+
 from . import _ffi_api
+from .attrs import DictAttrs
+from .expr import RelaxExpr
 
 
 class CallingConv(IntEnum):

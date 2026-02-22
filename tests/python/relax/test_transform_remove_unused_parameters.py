@@ -17,7 +17,9 @@
 
 import tvm
 import tvm.testing
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_remove_unused_relax_parameter():
@@ -83,9 +85,9 @@ def test_replace_symbolic_variables():
             return out
 
         @R.function(private=True)
-        def func(
-            param_n: R.Prim(value="n"), param_m: R.Prim(value="m")
-        ) -> R.Tensor(["m", "n"], "float32"):
+        def func(param_n: R.Prim(value="n"), param_m: R.Prim(value="m")) -> R.Tensor(
+            ["m", "n"], "float32"
+        ):
             m = T.int64()
             n = T.int64()
             return R.zeros(R.shape([m, n]), dtype="float32")

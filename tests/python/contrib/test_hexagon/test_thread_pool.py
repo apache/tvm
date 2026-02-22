@@ -85,7 +85,7 @@ def test_speedup(hexagon_session: Session, capsys):
     serial_mean = benchmark_func(mod, "elemwise_sum_serial", args, hexagon_session)
 
     with capsys.disabled():
-        print("... speedup of {:.2f}".format(serial_mean / parallel_mean), end=" ")
+        print(f"... speedup of {serial_mean / parallel_mean:.2f}", end=" ")
 
 
 @tvm.testing.requires_hexagon

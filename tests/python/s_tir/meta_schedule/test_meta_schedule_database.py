@@ -16,20 +16,22 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 """Test Meta Schedule Database"""
+
 import os.path as osp
 import tempfile
 from typing import Callable, List, Optional
 
 import pytest
+
 import tvm
 import tvm.testing
-from tvm.s_tir import meta_schedule as ms
 from tvm import tir
 from tvm.ir.module import IRModule
+from tvm.s_tir import Schedule
+from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.database import TuningRecord, Workload
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.s_tir import Schedule
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument

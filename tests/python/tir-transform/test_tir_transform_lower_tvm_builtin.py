@@ -15,17 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
-
+from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import ir as I
 from tvm.script import tir as T
-
-import numpy as np
-
-from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 
 
 @tvm.register_global_func("tvm.test_matmul")

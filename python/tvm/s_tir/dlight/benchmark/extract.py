@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
 
 def extract_shape(
-    arg: Union[Tuple, List, relax.Tuple, relax.ShapeStructInfo]
+    arg: Union[Tuple, List, relax.Tuple, relax.ShapeStructInfo],
 ) -> List[relax.ShapeStructInfo]:
     """Extract shape information from a relax argument.
 
@@ -228,9 +228,9 @@ def extract_all_func_info_from_relax(
                         ):
                             args = extract_shape(raw_args[1:]) + extract_shape(binding.value)
                             if isinstance(functor, tvm.ir.GlobalVar):
-                                if not gv in relax_func_dict:
+                                if gv not in relax_func_dict:
                                     relax_func_dict[gv] = {}
-                                if not functor in relax_func_dict[gv]:
+                                if functor not in relax_func_dict[gv]:
                                     relax_func_dict[gv][functor] = []
                                 update_records(relax_func_dict[gv][functor], args)
 

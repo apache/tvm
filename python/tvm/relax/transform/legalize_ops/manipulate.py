@@ -16,17 +16,19 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for manipulate operators."""
+
 from typing import Optional
 
 import tvm
-from tvm import topi, tir, s_tir, relax, te
+from tvm import relax, s_tir, te, tir, topi
 from tvm.relax.op.base import call_tir
 from tvm.relax.struct_info import TensorStructInfo
 from tvm.relax.utils import gen_call_tir_inputs
 from tvm.tir.expr import IntImm
+
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, Var, Tuple, TupleGetItem, ShapeExpr
-from .common import TEFunc, LegalizeFunc, register_legalize
+from ...expr import Call, Expr, ShapeExpr, Tuple, TupleGetItem, Var
+from .common import LegalizeFunc, TEFunc, register_legalize
 
 
 def _reshape(
@@ -265,7 +267,6 @@ def _scatter_nd(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.slice_scatter")
 def _slice_scatter(bb: BlockBuilder, call: Call) -> Expr:
-
     return bb.call_te(
         topi.slice_scatter,
         call.args[0],
@@ -318,9 +319,9 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
         pad_value = pad_value.value
     else:
         if "int" in call.args[0].struct_info.dtype:
-            pad_value = int(0)
+            pad_value = 0
         else:
-            pad_value = float(0.0)
+            pad_value = 0.0
 
     axis_separators: tvm.tir.IndexMap.AXIS_SEPARATOR = call.attrs.axis_separators
     input_axis_separators: tvm.tir.IndexMap.AXIS_SEPARATOR = call.attrs.input_axis_separators

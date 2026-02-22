@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Runner utility functions"""
+
 import itertools
 from typing import Any, Callable, Dict, List
+
 import tvm.runtime
 
 from ....runtime import Device, Module

@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Data layout."""
+
 from typing import Union
 
 import tvm_ffi
 
 from tvm.runtime import Object
+
 from . import _ffi_api
 
 

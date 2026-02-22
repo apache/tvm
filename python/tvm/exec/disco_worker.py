@@ -16,15 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name
 """Internal DiscoWorker for Disco ProcessSession."""
+
 import os
 import sys
-
 from typing import Callable
 
-import tvm
 from tvm_ffi import get_global_func, register_global_func
-from tvm.runtime import Tensor, ShapeTuple, String
-from tvm.runtime import tensor
+
+import tvm
+from tvm.runtime import ShapeTuple, String, Tensor, tensor
 
 
 @register_global_func("tests.disco.add_one", override=True)
@@ -121,5 +121,5 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (KeyboardInterrupt, IOError):
+    except (OSError, KeyboardInterrupt):
         pass

@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -18,6 +19,7 @@
 The tvm.s_tir.meta_schedule.database package.
 The database that stores serialized tuning records and workloads
 """
+
 from .database import Database, PyDatabase, TuningRecord, Workload, create
 from .json_database import JSONDatabase
 from .memory_database import MemoryDatabase

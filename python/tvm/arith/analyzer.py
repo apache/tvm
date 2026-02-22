@@ -16,10 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name
 """Arithmetic data structure and utility"""
+
 import enum
 from typing import Union
 
 import tvm_ffi
+
 from tvm import ir, tir
 from tvm.arith import IntSet
 from tvm.runtime import Object
@@ -326,7 +328,7 @@ class Analyzer:
         if isinstance(info, ConstIntBound):
             self._const_int_bound_update(var, info, override)
         else:
-            raise TypeError("Do not know how to handle type {}".format(type(info)))
+            raise TypeError(f"Do not know how to handle type {type(info)}")
 
     def can_prove_equal(self, lhs: tir.PrimExpr, rhs: tir.PrimExpr) -> bool:
         """Whether we can prove that lhs == rhs

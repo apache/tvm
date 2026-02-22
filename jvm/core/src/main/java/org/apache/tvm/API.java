@@ -24,8 +24,8 @@ import java.util.Map;
  * TVM API functions.
  */
 public final class API {
-  private static ThreadLocal<Map<String, Function>> apiFuncs
-      = new ThreadLocal<Map<String, Function>>() {
+  private static ThreadLocal<Map<String, Function>> apiFuncs =
+      new ThreadLocal<Map<String, Function>>() {
         @Override
         protected Map<String, Function> initialValue() {
           return new HashMap<String, Function>();
@@ -49,6 +49,5 @@ public final class API {
   /**
    * Cannot be instantiated.
    */
-  private API() {
-  }
+  private API() {}
 }

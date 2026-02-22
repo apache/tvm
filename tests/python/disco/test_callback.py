@@ -24,8 +24,8 @@ import numpy as np
 
 import tvm
 import tvm.testing
-
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 @tvm.testing.requires_nccl

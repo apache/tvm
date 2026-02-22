@@ -15,18 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for gradient with checkpointing."""
+
 import tvm
 import tvm.testing
-
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.block_builder import BlockBuilder
 from tvm.relax.testing import nn
-from tvm.script.parser import ir as I, relax as R
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
 
 
 def test_sequential():
     """Comp. graph is a sequence"""
+
     # fmt: off
     @I.ir_module
     class Before:
@@ -103,6 +105,7 @@ def test_sequential():
 
 def test_sequential_consecutive():
     """Comp. graph is a sequence"""
+
     # fmt: off
     @I.ir_module
     class Before:
@@ -178,6 +181,7 @@ def test_sequential_consecutive():
 
 def test_tuple():
     """Comp. graph is a sequence"""
+
     # fmt: off
     @I.ir_module
     class Before:
@@ -250,6 +254,7 @@ def test_tuple():
 
 def test_tree():
     """Comp. graph is a output-directed tree"""
+
     # fmt: off
     @I.ir_module
     class Before:
@@ -367,6 +372,7 @@ def test_dag():
     """Comp. graph is a DAG with only one output. Here we only test the simple case: comp. graph
     is a sequence of sub-graphs, and the checkpoints are the intersections of connected
     subgraphs."""
+
     # fmt: off
     @I.ir_module
     class Before:

@@ -96,9 +96,9 @@ class TritonKernel(BaseKernel):
         """Deduce the kernel signature and generate the Triton kernel"""
 
         kernel_params = func.params
-        assert len(kernel_params) == len(
-            args
-        ), f"Number of arguments does not match, expected {len(kernel_params)}, got {len(args)}"
+        assert len(kernel_params) == len(args), (
+            f"Number of arguments does not match, expected {len(kernel_params)}, got {len(args)}"
+        )
 
         signature = {}
         constants = {}

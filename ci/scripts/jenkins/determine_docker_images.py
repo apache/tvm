@@ -16,17 +16,16 @@
 # specific language governing permissions and limitations
 # under the License.
 import argparse
+import configparser
 import datetime
 import json
 import logging
 import urllib.error
-import configparser
-
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
+from cmd_utils import REPO_ROOT, init_log
 from http_utils import get
-from cmd_utils import init_log, REPO_ROOT
 
 DOCKER_API_BASE = "https://hub.docker.com/v2/"
 PAGE_SIZE = 25

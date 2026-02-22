@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name,consider-using-enumerate,redefined-outer-name
 """Injective transformation operators"""
+
 from __future__ import absolute_import as _abs
 
 from math import pi
+
 import numpy as np
 
 import tvm

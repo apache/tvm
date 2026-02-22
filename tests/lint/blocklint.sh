@@ -16,17 +16,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-
-
-for dir in $(ls)
-do
-  # Ignore the 3rdparty directory since we have no control of the language used there.
-  if ! [ "$dir" == "3rdparty" ]; then
-    for subdir in $(find $dir -type d -print)
-    do
-      blocklint --blocklist blacklist,whitelist,white\ box,master\ ,\ master,master_,_master,slave $subdir \
-      --skip-files tests/lint/blocklint.sh,tests/lint/pylintrc,rust/tvm-sys/build.rs,src/target/source/codegen_vhls.cc,tests/micro/zephyr/test_utils.py
-    done
-  fi
-done
+# Deprecated: functionality moved to pre-commit hooks. Kept as no-op for backward compatibility.
+exit 0

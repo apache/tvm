@@ -166,12 +166,12 @@ class ActivationOpConverter : public TensorRTOpConverter {
 
   void Convert(TensorRTOpConverterParams* params) const {
     static const std::unordered_map<std::string, nvinfer1::ActivationType> op_map = {
-      {"nn.relu", nvinfer1::ActivationType::kRELU},
-      {"sigmoid", nvinfer1::ActivationType::kSIGMOID},
-      {"tanh", nvinfer1::ActivationType::kTANH},
+        {"nn.relu", nvinfer1::ActivationType::kRELU},
+        {"sigmoid", nvinfer1::ActivationType::kSIGMOID},
+        {"tanh", nvinfer1::ActivationType::kTANH},
 #if TRT_VERSION_GE(5, 1, 5)
-      {"clip", nvinfer1::ActivationType::kCLIP},
-      {"nn.leaky_relu", nvinfer1::ActivationType::kLEAKY_RELU},
+        {"clip", nvinfer1::ActivationType::kCLIP},
+        {"nn.leaky_relu", nvinfer1::ActivationType::kLEAKY_RELU},
 #endif
     };
     auto it = op_map.find(op_name);
@@ -837,20 +837,16 @@ class UnaryOpConverter : public TensorRTOpConverter {
     // The following ops are supported by TRT but don't exist in TVM yet:
     // recip, tan, sinh, cosh, asin, acos, asinh, acosh, atanh
     static const std::unordered_map<std::string, nvinfer1::UnaryOperation> op_map = {
-      {"exp", nvinfer1::UnaryOperation::kEXP},
-      {"log", nvinfer1::UnaryOperation::kLOG},
-      {"sqrt", nvinfer1::UnaryOperation::kSQRT},
-      {"abs", nvinfer1::UnaryOperation::kABS},
-      {"negative", nvinfer1::UnaryOperation::kNEG},
+        {"exp", nvinfer1::UnaryOperation::kEXP},      {"log", nvinfer1::UnaryOperation::kLOG},
+        {"sqrt", nvinfer1::UnaryOperation::kSQRT},    {"abs", nvinfer1::UnaryOperation::kABS},
+        {"negative", nvinfer1::UnaryOperation::kNEG},
 #if TRT_VERSION_GE(5, 1, 5)
-      {"sin", nvinfer1::UnaryOperation::kSIN},
-      {"cos", nvinfer1::UnaryOperation::kCOS},
-      {"atan", nvinfer1::UnaryOperation::kATAN},
-      {"ceil", nvinfer1::UnaryOperation::kCEIL},
-      {"floor", nvinfer1::UnaryOperation::kFLOOR},
+        {"sin", nvinfer1::UnaryOperation::kSIN},      {"cos", nvinfer1::UnaryOperation::kCOS},
+        {"atan", nvinfer1::UnaryOperation::kATAN},    {"ceil", nvinfer1::UnaryOperation::kCEIL},
+        {"floor", nvinfer1::UnaryOperation::kFLOOR},
 #endif
 #if TRT_VERSION_GE(7, 0, 0)
-      {"erf", nvinfer1::UnaryOperation::kERF},
+        {"erf", nvinfer1::UnaryOperation::kERF},
 #endif
     };
     auto it = op_map.find(op_name);

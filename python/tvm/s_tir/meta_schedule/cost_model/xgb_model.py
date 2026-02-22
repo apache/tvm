@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """XGBoost-based cost model"""
+
 import os
 import tempfile
 from collections import OrderedDict
 from itertools import chain as itertools_chain
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Tuple
 
-from typing_extensions import Literal
-
 import numpy as np  # type: ignore
+from typing_extensions import Literal
 
 from ....contrib.tar import tar, untar
 from ....runtime import Tensor
@@ -725,7 +725,7 @@ def _get_custom_call_back(
 
         def init(self, model: "xgb.Booster"):
             """Internal function for initialization"""
-            booster: "xgb.Booster" = model
+            booster: xgb.Booster = model
             self.state["best_iteration"] = 0
             self.state["best_score"] = float("inf")
             if booster is None:
@@ -739,9 +739,7 @@ def _get_custom_call_back(
                 booster.set_attr(best_iteration=str(self.state["best_iteration"]))
                 booster.set_attr(best_score=str(self.state["best_score"]))
 
-        def after_iteration(
-            self, model: "xgb.Booster", epoch: int, evals_log: Dict
-        ):  # pylint: disable = unused-argument
+        def after_iteration(self, model: "xgb.Booster", epoch: int, evals_log: Dict):  # pylint: disable = unused-argument
             """Internal function for after_iteration"""
             # pylint:disable = import-outside-toplevel
             try:

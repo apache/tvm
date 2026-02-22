@@ -18,15 +18,17 @@
 
 import os
 import subprocess
-from typing import Dict, Optional, List, Union, Any
+from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.codegen import CodeGen
-from tvm.contrib.msc.core.utils import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.codegen import CodeGen
+from tvm.contrib.msc.core.ir import MSCGraph
+from tvm.contrib.msc.core.utils import MSCFramework
 from tvm.contrib.msc.framework.tensorrt import _ffi_api
+
 from .sources import get_trt_sources
 from .utils import write_weight
 
@@ -90,7 +92,7 @@ def to_sub_tensorrt(
                     engine_wts[node.name + ".bias"] = bias
             # write weights file
             with open(folder.relpath(graph.name + ".wts"), "w") as f:
-                f.write("{}\n".format(len(engine_wts)))
+                f.write(f"{len(engine_wts)}\n")
                 for name, data in engine_wts.items():
                     write_weight(name, msc_utils.cast_array(data), f)
         # copy plugin
@@ -110,10 +112,8 @@ def to_sub_tensorrt(
         with open("engine.log", "w") as log_f:
             process = subprocess.Popen("./" + engine_name, stdout=log_f, stderr=log_f, shell=True)
         process.wait()
-        assert (
-            process.returncode == 0
-        ), "Failed to test engine {} under {}, check engine.log for detail".format(
-            engine_name, os.getcwd()
+        assert process.returncode == 0, (
+            f"Failed to test engine {engine_name} under {os.getcwd()}, check engine.log for detail"
         )
         for path, info in depends.items():
             if info.get("copy_back", False) and os.path.exists(path):

@@ -24,7 +24,8 @@ public class TVMValueDouble extends TVMValue {
     this.value = value;
   }
 
-  @Override public double asDouble() {
+  @Override
+  public double asDouble() {
     return value;
   }
 }

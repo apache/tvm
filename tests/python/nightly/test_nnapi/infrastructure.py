@@ -19,7 +19,6 @@ import numpy as np
 
 import tvm
 import tvm.script.relax as R
-
 from tvm.contrib import ndk, utils
 from tvm.relax.backend.contrib.nnapi import partition_for_nnapi
 
@@ -62,9 +61,7 @@ def decompose_clip(mod: tvm.IRModule) -> tvm.IRModule:
     max_pattern = wildcard()
     pattern = is_op("relax.clip")(input_pattern, min_pattern, max_pattern)
 
-    def _rewriter(
-        expr: Expr, matches: Dict[DFPattern, Expr]
-    ) -> Expr:  # pylint: disable=unused-argument
+    def _rewriter(expr: Expr, matches: Dict[DFPattern, Expr]) -> Expr:  # pylint: disable=unused-argument
         dtype = matches[input_pattern].struct_info.dtype
         return R.minimum(
             R.maximum(

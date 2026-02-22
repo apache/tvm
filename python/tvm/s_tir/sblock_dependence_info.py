@@ -17,14 +17,16 @@
 """Define SBlockDependenceInfoNode that uses the SBlockScope and StmtSRef objects
 to store the block level dependences"""
 
-from typing import Union, Optional
+from typing import Optional, Union
+
 from tvm_ffi import register_object
+
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
-from tvm.tir import SBlock, PrimFunc
+from tvm.tir import PrimFunc, SBlock
 
-from .sblock_scope import SBlockScope, StmtSRef
 from . import _ffi_api
+from .sblock_scope import SBlockScope, StmtSRef
 
 
 @register_object("s_tir.SBlockDependenceInfo")

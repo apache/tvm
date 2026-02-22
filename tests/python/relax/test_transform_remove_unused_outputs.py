@@ -17,7 +17,9 @@
 
 import tvm
 import tvm.testing
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_simple():
@@ -134,9 +136,9 @@ def test_return_tuple():
             return out_tuple
 
         @R.function(private=True)
-        def func(
-            B: R.Tensor([16, 16], "int32")
-        ) -> R.Tuple(R.Tensor([16, 16], "int32"), R.Tensor([16, 16], "int32")):
+        def func(B: R.Tensor([16, 16], "int32")) -> R.Tuple(
+            R.Tensor([16, 16], "int32"), R.Tensor([16, 16], "int32")
+        ):
             C = R.multiply(B, B)
             D = R.add(B, B)
             return (C, D)

@@ -15,26 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
+import copy
+import json
+
 import numpy as np
+import onnx
+import pytest
+from adreno_utils import verify
+
 import tvm
 import tvm.testing
-import onnx
-import copy
-
 from tvm import relax
-from tvm.script import relax as R
-from tvm.script import ir as I
-from tvm.script import tir as T
-from adreno_utils import verify
-from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 from tvm.relax.frontend.onnx import from_onnx
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
-
-import pytest
-import json
-import copy
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import relax as relax_builder
 
 
 @tvm.testing.requires_opencl

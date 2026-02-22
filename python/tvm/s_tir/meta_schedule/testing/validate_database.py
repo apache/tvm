@@ -15,26 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 """JSON Database validation script"""
+
 import argparse
+import itertools
 import logging
 import warnings
-import itertools
 from statistics import mean
-from typing import Callable, Tuple, Union, List, Any
+from typing import Any, Callable, List, Tuple, Union
+
 import numpy as np  # type: ignore
 from tvm_ffi import get_global_func, register_global_func
 
-
 import tvm
-from tvm.s_tir import meta_schedule as ms
 from tvm.ir import IRModule
+from tvm.s_tir import Schedule
+from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
+from tvm.s_tir.meta_schedule.utils import remove_build_dir
+from tvm.s_tir.schedule import Trace
+from tvm.s_tir.tensor_intrin import *  # type: ignore # pylint: disable=wildcard-import,unused-wildcard-import
 from tvm.support import describe
 from tvm.target import Target
-from tvm.s_tir import Schedule
-from tvm.s_tir.schedule import Trace
-from tvm.s_tir.meta_schedule.utils import remove_build_dir
-from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
-from tvm.s_tir.tensor_intrin import *  # type: ignore # pylint: disable=wildcard-import,unused-wildcard-import
 from tvm.testing.utils import strtobool
 
 DELIMITOR = "\n" + "-" * 30 + "\n"
@@ -621,9 +622,9 @@ def _build_all_mods(
         The builder results
     """
     builder_results = builder.build([ms.builder.BuilderInput(mod, target) for mod in mods])
-    assert len(builder_results) == len(
-        mods
-    ), f"Unexpected number of build results, expected {len(mods)} got {len(builder_results)}"
+    assert len(builder_results) == len(mods), (
+        f"Unexpected number of build results, expected {len(mods)} got {len(builder_results)}"
+    )
     return builder_results
 
 
@@ -647,9 +648,9 @@ def _run_single_mod(
         # arginfo is not used in this case so we can pass an empty list
         [ms.runner.RunnerInput(builder_result.artifact_path, device_type=dev_type, args_info=[])]
     )
-    assert (
-        len(runner_futures) == 1
-    ), f"Unexpected number of runner futures, expected 1 got {len(runner_futures)}"
+    assert len(runner_futures) == 1, (
+        f"Unexpected number of runner futures, expected 1 got {len(runner_futures)}"
+    )
     (runner_future,) = runner_futures  # pylint: disable=unbalanced-tuple-unpacking
     runner_res = runner_future.result()
     assert runner_res.error_msg is None, "Runner failed: " + (

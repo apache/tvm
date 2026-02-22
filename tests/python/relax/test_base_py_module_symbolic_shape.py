@@ -19,10 +19,12 @@ import numpy as np
 import pytest
 
 import tvm
+from tvm import relax, tir
 from tvm.ir import IRModule
 from tvm.relax.base_py_module import BasePyModule
-from tvm import tir, relax
-from tvm.script import ir as I, tir as T, relax as R
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def _make_module():
@@ -74,9 +76,9 @@ class AddModuleSymbolic(BasePyModule):
             out[i] = x[i] + y[i]
 
     @R.function
-    def main_relax(
-        x: R.Tensor(("n",), "float32"), y: R.Tensor(("n",), "float32")
-    ) -> R.Tensor(("n",), "float32"):
+    def main_relax(x: R.Tensor(("n",), "float32"), y: R.Tensor(("n",), "float32")) -> R.Tensor(
+        ("n",), "float32"
+    ):
         return R.add(x, y)
 
 

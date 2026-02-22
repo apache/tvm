@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """MetaSchedule-TIR integration"""
+
 from typing import List, Mapping, Optional, Tuple, Union
 
 # isort: off

@@ -19,17 +19,18 @@ import pytest
 pytest.importorskip("torch._dynamo")
 
 
-import tvm
-from tvm import relax, tir
-from tvm.s_tir import meta_schedule as ms
-import tvm.testing
 import torch
 import torch._dynamo as dynamo
+from packaging import version
+
+import tvm
+import tvm.testing
+from tvm import relax, tir
 from tvm.relax.frontend.torch import relax_dynamo
+from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from packaging import version
 
 torch_version = torch.__version__
 
@@ -179,6 +180,7 @@ def test_relax_dynamo_dynamic():
 
 def test_subgraph_capture():
     import torch
+
     from tvm.relax.frontend.torch.dynamo import dynamo_capture_subgraphs
 
     class Input1(torch.nn.Module):
@@ -288,6 +290,7 @@ def test_subgraph_capture():
 def verify_dynamo_model(torch_model, input_info, binding, expected):
     import torch
     import torch._dynamo as dynamo
+
     from tvm.relax.frontend.torch import from_fx
 
     args = []
@@ -336,7 +339,7 @@ def _convert_data_type(input_type):
     elif input_type == "bool":
         return torch.bool
     else:
-        raise NotImplementedError("input_type {} is not handled yet".format(input_type))
+        raise NotImplementedError(f"input_type {input_type} is not handled yet")
 
 
 @tvm.testing.requires_gpu
@@ -551,9 +554,7 @@ def test_getitem():
 
     class Select2(Module):
         def forward(self, input1):
-            result = input1[
-                torch.arange(1),
-            ]
+            result = input1[torch.arange(1),]
             return result
 
     verify_dynamo_model(

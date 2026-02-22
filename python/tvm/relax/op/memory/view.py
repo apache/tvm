@@ -25,13 +25,13 @@ For example, given an array of shape `[16,16]`, the slice at
 while keeping the same underlying data.
 
 """
+
 from typing import Optional, Sequence, Union
 
+from tvm.relax import DataTypeImm, Expr, PrimValue, ShapeExpr
 from tvm.tir import PrimExpr
-from tvm.relax import Expr, ShapeExpr, DataTypeImm, PrimValue
 
 from . import _ffi_api
-
 
 PrimExprLike = Union[int, PrimExpr]
 

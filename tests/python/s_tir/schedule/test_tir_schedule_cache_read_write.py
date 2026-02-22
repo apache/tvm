@@ -18,14 +18,15 @@
 import sys
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import tir as T
 from tvm.s_tir.schedule.testing import (
-    verify_trace_roundtrip,
     assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
 )
+from tvm.script import tir as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -335,9 +336,9 @@ def opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
 
 @T.prim_func
 def func_multi_consumer() -> None:
-    A = T.alloc_buffer((128))
-    B = T.alloc_buffer((128))
-    C = T.alloc_buffer((128))
+    A = T.alloc_buffer(128)
+    B = T.alloc_buffer(128)
+    C = T.alloc_buffer(128)
     for i in T.grid(8):
         for j in T.grid(16):
             with T.sblock("A"):
@@ -388,8 +389,8 @@ def reindex_cache_read_multi_consumer() -> None:
 
 @T.prim_func
 def func_multi_producer() -> None:
-    A = T.alloc_buffer((128))
-    B = T.alloc_buffer((128))
+    A = T.alloc_buffer(128)
+    B = T.alloc_buffer(128)
     for i in range(128):
         with T.sblock("A0"):
             vi = T.axis.S(128, i)
@@ -406,8 +407,8 @@ def func_multi_producer() -> None:
 
 @T.prim_func
 def func_with_block_predicate() -> None:
-    A = T.alloc_buffer((120))
-    B = T.alloc_buffer((120))
+    A = T.alloc_buffer(120)
+    B = T.alloc_buffer(120)
     for i, j in T.grid(16, 8):
         with T.sblock("producer"):
             T.where(i * 8 + j < 120)
@@ -657,10 +658,10 @@ def cache_read_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle)
 
 @T.prim_func
 def cache_read_multi_consumer() -> None:
-    A = T.alloc_buffer((128))
-    B = T.alloc_buffer((128))
-    C = T.alloc_buffer((128))
-    A_global = T.alloc_buffer((128))
+    A = T.alloc_buffer(128)
+    B = T.alloc_buffer(128)
+    C = T.alloc_buffer(128)
+    A_global = T.alloc_buffer(128)
     for i in T.grid(8):
         for j in T.grid(16):
             with T.sblock("A"):
@@ -683,10 +684,10 @@ def cache_read_multi_consumer() -> None:
 
 @T.prim_func
 def cache_read_multi_consumer_target() -> None:
-    A = T.alloc_buffer((128))
-    B = T.alloc_buffer((128))
-    C = T.alloc_buffer((128))
-    A_global = T.alloc_buffer((128))
+    A = T.alloc_buffer(128)
+    B = T.alloc_buffer(128)
+    C = T.alloc_buffer(128)
+    A_global = T.alloc_buffer(128)
     for i in T.grid(8):
         for j in T.grid(16):
             with T.sblock("A"):
@@ -1037,10 +1038,10 @@ def cache_write_opaque_access(a: T.handle, b: T.handle, c: T.handle, d: T.handle
 
 @T.prim_func
 def cache_write_multi_consumer() -> None:
-    A = T.alloc_buffer((128))
-    B = T.alloc_buffer((128))
-    C = T.alloc_buffer((128))
-    A_global = T.alloc_buffer((128))
+    A = T.alloc_buffer(128)
+    B = T.alloc_buffer(128)
+    C = T.alloc_buffer(128)
+    A_global = T.alloc_buffer(128)
     for i in T.grid(8):
         for j in T.grid(16):
             with T.sblock("A_global"):

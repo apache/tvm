@@ -86,9 +86,9 @@ def gen_ground_truth(mod, target, dev, inputs):
 @tvm.script.ir_module
 class InputModule:
     @R.function
-    def main(
-        x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
-    ) -> R.Tensor((16, 16), "float32"):
+    def main(x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")) -> R.Tensor(
+        (16, 16), "float32"
+    ):
         with R.dataflow():
             z1 = R.multiply(x, y)
             z2 = R.add(z1, x)

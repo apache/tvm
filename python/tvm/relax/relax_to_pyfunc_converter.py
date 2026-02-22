@@ -28,8 +28,7 @@ import torch
 import torch.nn.functional as F
 
 import tvm
-from tvm import relax
-from tvm import runtime
+from tvm import relax, runtime
 from tvm.ir import IRModule, Op
 
 

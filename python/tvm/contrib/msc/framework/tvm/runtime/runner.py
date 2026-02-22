@@ -19,20 +19,21 @@
 
 import os
 import time
-from typing import Dict, List, Union, Any, Tuple
+from typing import Any, Dict, List, Tuple, Union
+
 import numpy as np
 
 import tvm
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.runtime import ModelRunner
 from tvm.contrib.msc.core.tools import execute_step
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
-from tvm.contrib.msc.framework.tvm.codegen import to_relax
 from tvm.contrib.msc.framework.tvm import tools
+from tvm.contrib.msc.framework.tvm.codegen import to_relax
 
 
-class WrapRunnable(object):
+class WrapRunnable:
     """Wrapped runnable for tools
 
     Parameters
@@ -92,9 +93,7 @@ class TVMRunner(ModelRunner):
             builder, build_config = self._generate_config["builder"]
             runnable = builder(model, **build_config)
             self._logger.info(
-                "Model({}) processed by customize builder {}({})".format(
-                    self.framework, builder, build_config
-                )
+                f"Model({self.framework}) processed by customize builder {builder}({build_config})"
             )
         else:
             model = tvm.relax.transform.LegalizeOps()(model)
@@ -193,13 +192,13 @@ class TVMRunner(ModelRunner):
         """
 
         if isinstance(model, str) and os.path.isfile(model):
-            with open(model, "r") as f:
+            with open(model) as f:
                 native_model = tvm.ir.load_json(f.read())
         elif isinstance(model, tvm.IRModule):
             native_model = model
         else:
             raise NotImplementedError(
-                "Load native model {} with type {} is not supported".format(model, type(model))
+                f"Load native model {model} with type {type(model)} is not supported"
             )
         if tvm.cuda().exist:
             device = "cuda"
@@ -273,8 +272,8 @@ class TVMRunner(ModelRunner):
             avg_time = -1
         if isinstance(outputs, tvm.runtime.Tensor):
             outputs = [outputs]
-        assert len(output_names) == len(outputs), "Outputs mismatch, {} with {}".format(
-            output_names, len(outputs)
+        assert len(output_names) == len(outputs), (
+            f"Outputs mismatch, {output_names} with {len(outputs)}"
         )
         outputs = {
             o_name: msc_utils.cast_array(o_data) for o_name, o_data in zip(output_names, outputs)

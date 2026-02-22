@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
 import numpy as np
-from tvm.script import tir as T
-from tvm.s_tir.schedule import Schedule
+import pytest
+
+import tvm
 import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
 import tvm.testing
-
-import pytest
+from tvm.s_tir.schedule import Schedule
+from tvm.script import tir as T
 
 torch = pytest.importorskip("torch")
 

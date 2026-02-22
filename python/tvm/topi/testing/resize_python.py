@@ -16,8 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Upsampling in python"""
+
 import math
+
 import numpy as np
+
 from tvm.topi.utils import nchw_pack_layout
 
 

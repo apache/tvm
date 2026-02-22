@@ -16,13 +16,14 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.codegen.codegen"""
 
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
+
 import torch
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.codegen import CodeGen
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.codegen import CodeGen
+from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.framework.torch import _ffi_api
 
 

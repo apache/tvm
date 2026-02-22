@@ -16,11 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, unused-variable
 """Ground truth max and average pooling operators in python."""
+
 import itertools
 import math
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
+
 import tvm
 
 

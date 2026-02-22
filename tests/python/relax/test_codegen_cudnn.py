@@ -67,7 +67,7 @@ def get_relax_conv2d_module(
                 elif data_layout == "NCHW":
                     bias = R.arg("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
                 else:
-                    raise ValueError("Unsupported data_layout: {}".format(data_layout))
+                    raise ValueError(f"Unsupported data_layout: {data_layout}")
 
             with R.dataflow() as frame:
                 output = R.emit(
@@ -262,7 +262,7 @@ def get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, qk_scale, dtype
         q, k, v = np.split(qkv, [h, h * 2], axis=3)
         layout = "SBNH"
     else:
-        raise ValueError("Unsupported layout: {}".format(layout))
+        raise ValueError(f"Unsupported layout: {layout}")
     if not bias_shape == "none":
         bias = np.random.randn(*bias_shape).astype(dtype)
         score = score + bias  # b, n, s, s

@@ -17,17 +17,18 @@
 """tvm.contrib.msc.pipeline.wrapper"""
 
 import shutil
-from typing import Any, Union, List
+from typing import Any, List, Union
 
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
-from .manager import MSCManager
+
 from .dynamic import MSCDynamic, TorchDynamic
+from .manager import MSCManager
 from .utils import create_config
 
 
-class BaseWrapper(object):
+class BaseWrapper:
     """Base Wrapper of models
 
     Parameters
@@ -63,7 +64,7 @@ class BaseWrapper(object):
             phase = "optimized"
         else:
             phase = "meta"
-        return "({}) {}".format(phase, self._get_model().__str__())
+        return f"({phase}) {self._get_model().__str__()}"
 
     def __getattr__(self, name):
         if hasattr(self._get_model(), name):

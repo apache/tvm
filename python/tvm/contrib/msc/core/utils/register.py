@@ -17,6 +17,7 @@
 """tvm.contrib.msc.core.utils.register"""
 
 from typing import Any, Optional
+
 from .namespace import MSCFramework
 
 
@@ -110,7 +111,7 @@ def register_tool(tool: Any):
     """
 
     for key in ["framework", "tool_type", "tool_style"]:
-        assert hasattr(tool, key), "{} should be given to register tool".format(key)
+        assert hasattr(tool, key), f"{key} should be given to register tool"
     tools_classes = MSCRegistery.get(MSCRegistery.TOOL_CLASSES, {})
     col = tools_classes.setdefault(tool.framework(), {}).setdefault(tool.tool_type(), {})
     col[tool.tool_style()] = tool
@@ -152,7 +153,7 @@ def register_tool_method(method: Any):
     """
 
     for key in ["framework", "tool_type", "method_style"]:
-        assert hasattr(method, key), "{} should be given to register tool method".format(key)
+        assert hasattr(method, key), f"{key} should be given to register tool method"
     tool_methods = MSCRegistery.get(MSCRegistery.TOOL_METHODS, {})
     col = tool_methods.setdefault(method.framework(), {}).setdefault(method.tool_type(), {})
     col[method.method_style()] = method
@@ -194,7 +195,7 @@ def register_tool_configer(configer: Any):
     """
 
     for key in ["tool_type", "config_style"]:
-        assert hasattr(configer, key), "{} should be given to register tool configer".format(key)
+        assert hasattr(configer, key), f"{key} should be given to register tool configer"
     tool_configers = MSCRegistery.get(MSCRegistery.TOOL_CONFIGERS, {})
     col = tool_configers.setdefault(configer.tool_type(), {})
     col[configer.config_style()] = configer
@@ -265,9 +266,9 @@ def register_gym_controller(controller: Any):
         The controller class.
     """
 
-    assert hasattr(
-        controller, "control_type"
-    ), "control_type should be given to register controller"
+    assert hasattr(controller, "control_type"), (
+        "control_type should be given to register controller"
+    )
     gym_controllers = MSCRegistery.get(MSCRegistery.GYM_CONTROLLERS, {})
     gym_controllers[controller.control_type()] = controller
     MSCRegistery.register(MSCRegistery.GYM_CONTROLLERS, gym_controllers)
@@ -302,7 +303,7 @@ def register_gym_object(obj: Any):
     """
 
     for key in ["role", "role_type"]:
-        assert hasattr(obj, key), "{} should be given to register gym object".format(key)
+        assert hasattr(obj, key), f"{key} should be given to register gym object"
     gym_objects = MSCRegistery.get(MSCRegistery.GYM_OBJECTS, {})
     col = gym_objects.setdefault(obj.role(), {})
     col[obj.role_type()] = obj
@@ -340,7 +341,7 @@ def register_gym_method(method: Any):
     """
 
     for key in ["role", "method_type"]:
-        assert hasattr(method, key), "{} should be given to register gym method".format(key)
+        assert hasattr(method, key), f"{key} should be given to register gym method"
     gym_methods = MSCRegistery.get(MSCRegistery.GYM_METHODS, {})
     col = gym_methods.setdefault(method.role(), {})
     col[method.method_type()] = method

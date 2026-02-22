@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Operation class for computation declaration."""
+
 import inspect
 
 # pylint: disable=invalid-name

@@ -15,10 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Iterator (quasi)affine mapping patterns."""
+
 from enum import IntEnum
+
 import tvm_ffi
-from tvm.runtime import Object
+
 from tvm.ir import PrimExpr
+from tvm.runtime import Object
+
 from . import _ffi_api
 
 

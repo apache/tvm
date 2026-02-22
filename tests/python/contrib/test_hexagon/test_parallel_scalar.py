@@ -115,7 +115,11 @@ def evaluate(hexagon_session, operations, expected, sch):
 class TestMatMulVec:
     """MatMul test class."""
 
-    (operation_name, operator_producer, expected_output_producer,) = tvm.testing.parameters(
+    (
+        operation_name,
+        operator_producer,
+        expected_output_producer,
+    ) = tvm.testing.parameters(
         ("add", get_add_operator, (lambda a, b: a + b)),
         ("mul", get_multiply_operator, (lambda a, b: a * b)),
         ("sub", get_sub_operator, (lambda a, b: a - b)),

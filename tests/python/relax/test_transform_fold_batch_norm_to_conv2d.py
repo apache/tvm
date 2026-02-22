@@ -21,12 +21,12 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import relax as R
-from tvm.script import ir as I
-from tvm.script.ir_builder import IRBuilder
 from tvm.ir.module import IRModule
-from tvm.script.ir_builder import relax as relax_builder
 from tvm.relax.expr_functor import PyExprVisitor, visitor
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import relax as relax_builder
 
 
 def get_conv2d_batchnorm_sample():
@@ -113,9 +113,9 @@ class VerifyFolding(PyExprVisitor):  # pylint: disable=abstract-method
                 self.visit_expr(func)
 
     def visit_call_(self, call: relax.Call) -> None:  # pylint: disable=arguments-renamed
-        assert (
-            call.op.name != "relax.nn.batch_norm"
-        ), f"Batchnorm op shouldn't be present after folding to previous conv2d"
+        assert call.op.name != "relax.nn.batch_norm", (
+            "Batchnorm op shouldn't be present after folding to previous conv2d"
+        )
 
 
 def test_fold_batchnorm_info_conv2d_transform():

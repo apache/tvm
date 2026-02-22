@@ -24,7 +24,8 @@ public class TVMValueLong extends TVMValue {
     this.value = value;
   }
 
-  @Override public long asLong() {
+  @Override
+  public long asLong() {
     return value;
   }
 }

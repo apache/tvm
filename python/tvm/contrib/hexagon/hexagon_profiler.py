@@ -20,9 +20,10 @@
 
 import os
 import subprocess
-from tvm.ir.transform import PassContext
-from tvm.contrib.hexagon.profiling.process_lwp_data import process_lwp_output
+
 from tvm.contrib import utils
+from tvm.contrib.hexagon.profiling.process_lwp_data import process_lwp_output
+from tvm.ir.transform import PassContext
 
 
 class HexagonProfiler:

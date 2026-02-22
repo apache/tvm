@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -24,6 +25,7 @@ for constructing compute declaration as well as optimized schedules.
 Some of the schedule function may have been specially optimized for a
 specific workload.
 """
+
 from tvm.libinfo import __version__
 
 # Ensure C++ schedules get registered first, so python schedules can

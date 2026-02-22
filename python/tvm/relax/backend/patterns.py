@@ -18,16 +18,18 @@
 """Common patterns used in BYOC"""
 
 from typing import Dict, Mapping, Tuple, Union
-from tvm.script import relax as R, tir as T
+
 from tvm.relax.dpl.pattern import (
     DFPattern,
+    GlobalVarPattern,
+    TuplePattern,
     is_const,
     is_op,
     is_tuple_get_item,
     wildcard,
-    GlobalVarPattern,
-    TuplePattern,
 )
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def _with_bias_activation_pattern(

@@ -18,15 +18,16 @@
 import sys
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import tir
+from tvm.s_tir.schedule.testing import (
+    assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
+)
 from tvm.script import ir as I
 from tvm.script import tir as T
-from tvm.s_tir.schedule.testing import (
-    verify_trace_roundtrip,
-    assert_structural_equal_ignore_global_symbol,
-)
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -149,7 +150,7 @@ def matmul_decompose4(a: T.handle, b: T.handle, c: T.handle) -> None:
                     C[vi_init, vj_init] = T.float32(0)
             for i0_1, i1, i2_0, i2_1 in T.grid(8, 128, 19, 7):
                 with T.sblock("update_update"):
-                    T.where((((i2_0 * 7) + i2_1) < 128))
+                    T.where(((i2_0 * 7) + i2_1) < 128)
                     vi = T.axis.S(128, i0_0 * 8 + i0_1)
                     vj = T.axis.S(128, i1)
                     vk = T.axis.R(128, i2_0 * 7 + i2_1)

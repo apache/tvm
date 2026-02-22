@@ -15,33 +15,32 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+import numpy as np
+
 import tvm
+import tvm.testing
 from tvm import te
 from tvm.s_tir.tensor_intrin.rocm import (
-    shared_16x4_to_local_64x1_layout_A,
+    ROCM_MFMA_f16f16f32_INTRIN,
+    ROCM_MFMA_f32f32f32_INTRIN,
+    ROCM_MFMA_fill_16x16_f32_INTRIN,
+    ROCM_MFMA_fill_16x16_i32_INTRIN,
+    ROCM_MFMA_LOAD_16x4_A_SHARED_f32_INTRIN,
+    ROCM_MFMA_LOAD_16x4_B_SHARED_f32_INTRIN,
+    ROCM_MFMA_LOAD_16x16_A_SHARED_f16_INTRIN,
+    ROCM_MFMA_LOAD_16x16_A_SHARED_s8_INTRIN,
+    ROCM_MFMA_LOAD_16x16_B_SHARED_f16_INTRIN,
+    ROCM_MFMA_LOAD_16x16_B_SHARED_s8_INTRIN,
+    ROCM_MFMA_s8s8s32_INTRIN,
+    ROCM_MFMA_STORE_16x16_f32_INTRIN,
+    ROCM_MFMA_STORE_16x16_s32_INTRIN,
     shared_4x16_to_local_64x1_layout_B,
+    shared_16x4_to_local_64x1_layout_A,
     shared_16x16_to_local_64x4_layout_A,
     shared_16x16_to_local_64x4_layout_B,
     shared_16x16_to_local_64x4_layout_C,
-    ROCM_MFMA_fill_16x16_f32_INTRIN,
-    ROCM_MFMA_LOAD_16x4_A_SHARED_f32_INTRIN,
-    ROCM_MFMA_LOAD_16x4_B_SHARED_f32_INTRIN,
-    ROCM_MFMA_f32f32f32_INTRIN,
-    ROCM_MFMA_STORE_16x16_f32_INTRIN,
-    ROCM_MFMA_LOAD_16x16_A_SHARED_f16_INTRIN,
-    ROCM_MFMA_LOAD_16x16_B_SHARED_f16_INTRIN,
-    ROCM_MFMA_f16f16f32_INTRIN,
-    ROCM_MFMA_STORE_16x16_f32_INTRIN,
-    ROCM_MFMA_fill_16x16_i32_INTRIN,
-    ROCM_MFMA_LOAD_16x16_A_SHARED_s8_INTRIN,
-    ROCM_MFMA_LOAD_16x16_B_SHARED_s8_INTRIN,
-    ROCM_MFMA_s8s8s32_INTRIN,
-    ROCM_MFMA_STORE_16x16_s32_INTRIN,
 )
-import tvm.testing
-import numpy as np
 from tvm.testing.tir import mfma_schedule
-
 
 M = 1024
 N = 1024

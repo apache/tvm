@@ -21,7 +21,6 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import te
-from tvm.testing.tir import mma_schedule
 from tvm.s_tir.tensor_intrin.cuda import (
     LDMATRIX_e4m3_A_INTRIN,
     LDMATRIX_e4m3_B_TRANS_INTRIN,
@@ -51,6 +50,7 @@ from tvm.s_tir.tensor_intrin.cuda import (
     shared_16x32_to_ldmatrix_32x16_layout,
     shared_32x16_to_ldmatrix_32x16_layout,
 )
+from tvm.testing.tir import mma_schedule
 
 M = 4096
 N = 4096

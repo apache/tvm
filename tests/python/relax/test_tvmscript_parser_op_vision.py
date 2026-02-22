@@ -44,15 +44,15 @@ def test_all_class_non_max_suppression():
         iou_threshold: R.Tensor((), "float32"),
         score_threshold: R.Tensor((), "float32"),
     ) -> R.Tuple(R.Tensor((400, 3), "int64"), R.Tensor((1,), "int64")):
-        gv: R.Tuple(
-            R.Tensor((400, 3), "int64"), R.Tensor((1,), "int64")
-        ) = R.vision.all_class_non_max_suppression(
-            boxes,
-            scores,
-            max_output_boxes_per_class,
-            iou_threshold,
-            score_threshold,
-            "onnx",
+        gv: R.Tuple(R.Tensor((400, 3), "int64"), R.Tensor((1,), "int64")) = (
+            R.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                max_output_boxes_per_class,
+                iou_threshold,
+                score_threshold,
+                "onnx",
+            )
         )
         return gv
 

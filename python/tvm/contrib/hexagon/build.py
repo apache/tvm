@@ -24,18 +24,20 @@ import logging
 import multiprocessing as mp
 import os
 import pathlib
+import random
 import signal
 import socket
 import stat
-import random
 import string
 import subprocess
 import sys
 import tempfile
 from typing import Union
 
-from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
 from tvm_ffi import libinfo
+
+from tvm.contrib.hexagon.hexagon_profiler import HexagonProfiler
+
 from .session import Session
 from .tools import HEXAGON_SIMULATOR_NAME
 
@@ -374,7 +376,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self._farf_config = farf_config
         rpc_info["device_key"] = HEXAGON_REMOTE_DEVICE_KEY + "." + self._serial_number
 
-        super(HexagonLauncherAndroid, self).__init__(rpc_info, workspace, self._serial_number)
+        super().__init__(rpc_info, workspace, self._serial_number)
 
     def _copy_to_remote(
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
@@ -392,7 +394,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         """Upload Android server binaries."""
 
         # Create bash script
-        with open(_get_hexagon_rpc_lib_dir() / f"{ANDROID_BASH_FILE_NAME}.template", "r") as src_f:
+        with open(_get_hexagon_rpc_lib_dir() / f"{ANDROID_BASH_FILE_NAME}.template") as src_f:
             with tempfile.TemporaryDirectory() as temp_dir:
                 android_bash_script_path = pathlib.Path(temp_dir) / ANDROID_BASH_FILE_NAME
                 with open(android_bash_script_path, "w") as dest_f:
@@ -578,7 +580,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         context_lines = 0
         print_buffer = ""
         try:
-            with open("./logcat.txt", "r") as f:
+            with open("./logcat.txt") as f:
                 for line in f:
                     if "Process on cDSP CRASHED" in line:
                         if crash_count <= 5:
@@ -665,7 +667,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
             raise RuntimeError("Please set HEXAGON_TOOLCHAIN env variable")
         self._serial_number = HEXAGON_SIMULATOR_NAME
 
-        super(HexagonLauncherSimulator, self).__init__(rpc_info, workspace, self._serial_number)
+        super().__init__(rpc_info, workspace, self._serial_number)
 
     def _copy_to_remote(
         self, local_path: Union[str, pathlib.Path], remote_path: Union[str, pathlib.Path]
@@ -698,7 +700,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
         # sure that all files are copied over. The preservation of symbolic
         # links is to save disk space.
         tar_in = f"tar -cf - -C {lib_dir} " + " ".join(libcxx_files)
-        tar_out = f"tar -xf - -C {str(dest_dir)}"
+        tar_out = f"tar -xf - -C {dest_dir!s}"
         _check_call_verbose(tar_in + " | " + tar_out, shell=True)
 
     def start_server(self):

@@ -16,6 +16,7 @@
 # under the License.
 
 """FlashInfer JIT compilation module for CUDA backend"""
+
 import re
 from pathlib import Path
 from typing import List

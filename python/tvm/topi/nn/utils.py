@@ -16,9 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable
 """NN operator common utilities"""
-from __future__ import absolute_import
 
 import tvm
+
 from ..utils import get_const_int
 
 

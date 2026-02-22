@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-
 from tvm import relax
-from tvm.script import relax as R
-from tvm.relax.dpl import make_fused_bias_activation_pattern, is_op, wildcard
 from tvm.contrib.pickle_memoize import memoize
+from tvm.relax.dpl import is_op, make_fused_bias_activation_pattern, wildcard
+from tvm.script import relax as R
 
 
 @tvm.script.ir_module

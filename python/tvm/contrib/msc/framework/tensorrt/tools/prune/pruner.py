@@ -16,13 +16,13 @@
 # under the License.
 """tvm.contrib.msc.framework.tensorrt.tools.prune.pruner"""
 
-from tvm.contrib.msc.core.tools.tool import ToolType
-from tvm.contrib.msc.core.tools.prune import BasePruner
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.prune import BasePruner
+from tvm.contrib.msc.core.tools.tool import ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
-class TensorRTPrunerFactory(object):
+class TensorRTPrunerFactory:
     """Pruner factory for tensorrt"""
 
     def create(self, base_cls: BasePruner) -> BasePruner:

@@ -15,17 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 """Block builder unit test"""
+
 # The test here do not depend on tvmscript to cover most basic features
 import pytest
-import tvm
-import tvm.testing
-import tvm.contrib.cblas
 
-from tvm import te, tir, topi
+import tvm
+import tvm.contrib.cblas
+import tvm.testing
 from tvm import relax as rx
+from tvm import te, tir, topi
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import ExternFunc
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 from tvm.tir.function import PrimFunc
 
 

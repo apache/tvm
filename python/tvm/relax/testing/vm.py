@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """Testing utilities for relax VM"""
+
 from typing import Any, List
+
 import numpy as np  # type: ignore
 
 import tvm
@@ -43,7 +45,7 @@ def mul(a, b):
 
 @tvm.register_global_func("test.vm.equal_zero")
 def equal_zero(a):
-    ret = np.all((a.numpy() == 0))
+    ret = np.all(a.numpy() == 0)
     return tvm.runtime.tensor(ret)
 
 

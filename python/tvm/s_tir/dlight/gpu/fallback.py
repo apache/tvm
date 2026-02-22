@@ -16,9 +16,10 @@
 # under the License.
 # pylint: disable=missing-docstring
 """A fallback schedule rule for GPU operators."""
+
 from typing import List, Tuple
 
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.target import Target
 
 from .. import base

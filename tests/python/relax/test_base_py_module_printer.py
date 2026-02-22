@@ -17,11 +17,12 @@
 # pylint: disable=missing-docstring, invalid-name, unused-argument
 
 import pytest
+
 import tvm
 from tvm.relax.base_py_module import BasePyModule
 from tvm.script import ir as I
-from tvm.script import tir as T
 from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 @I.ir_module
@@ -65,9 +66,9 @@ class SimplePyFuncModule(BasePyModule):
             out[i] = x[i] * y[i]
 
     @R.function
-    def main_relax(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "float32"):
+    def main_relax(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "float32"
+    ):
         return R.add(x, y)
 
 
@@ -289,8 +290,8 @@ class IntegrationPyFuncModule(BasePyModule):
         """Integration with scikit-learn preprocessing."""
         try:
             # Import sklearn components
-            from sklearn.preprocessing import StandardScaler
             from sklearn.decomposition import PCA
+            from sklearn.preprocessing import StandardScaler
 
             # Create and fit scaler
             scaler = StandardScaler()
@@ -714,11 +715,12 @@ def test_python_functions_in_irmodule():
 
 def test_call_py_func_with_base_py_module():
     """Test R.call_py_func with BasePyModule."""
-    import torch
     import numpy as np
-    from tvm.relax.op import call_py_func
+    import torch
+
+    from tvm.relax import TensorStructInfo, Var
     from tvm.relax.expr import StringImm
-    from tvm.relax import Var, TensorStructInfo
+    from tvm.relax.op import call_py_func
 
     # Test 1: Operator creation and basic properties
     x = Var("x", TensorStructInfo((5,), "float32"))

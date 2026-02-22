@@ -17,12 +17,11 @@
 
 package org.apache.tvm.rpc;
 
+import java.io.File;
+import java.io.IOException;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
 import org.apache.tvm.TVMValue;
-
-import java.io.File;
-import java.io.IOException;
 
 /**
  * Call native ServerLoop on socket file descriptor.
@@ -41,7 +40,8 @@ public class NativeServerLoop implements Runnable {
     this.frecv = frecv;
   }
 
-  @Override public void run() {
+  @Override
+  public void run() {
     File tempDir = null;
     try {
       tempDir = serverEnv();
@@ -76,13 +76,15 @@ public class NativeServerLoop implements Runnable {
     }
 
     Function.register("tvm.rpc.server.workpath", new Function.Callback() {
-      @Override public Object invoke(TVMValue... args) {
+      @Override
+      public Object invoke(TVMValue... args) {
         return tempDir + File.separator + args[0].asString();
       }
     }, true);
 
     Function.register("tvm.rpc.server.load_module", new Function.Callback() {
-      @Override public Object invoke(TVMValue... args) {
+      @Override
+      public Object invoke(TVMValue... args) {
         String filename = args[0].asString();
         String path = tempDir + File.separator + filename;
         System.err.println("Load module from " + path);

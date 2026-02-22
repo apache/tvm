@@ -16,13 +16,15 @@
 # under the License.
 # pylint: disable=import-outside-toplevel, redefined-builtin, unused-argument
 """Set operators."""
+
 from typing import Optional, Union
 
 import numpy as np  # type: ignore
+
 import tvm
 
-from . import _ffi_api
 from ..expr import Expr, PrimValue
+from . import _ffi_api
 
 
 def unique(

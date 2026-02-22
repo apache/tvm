@@ -20,7 +20,7 @@
 from .library import DataTypeTag
 
 
-class Conv2dProfilerEmitter(object):
+class Conv2dProfilerEmitter:
     """Emit a C++ source for profiling CUTLASS kernels."""
 
     def __init__(self):

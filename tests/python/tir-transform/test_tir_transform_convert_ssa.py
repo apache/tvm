@@ -17,8 +17,9 @@
 
 import tvm
 import tvm.testing
-from tvm import tir, ir
-from tvm.script import tir as T, ir as I
+from tvm import ir, tir
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_reuse_in_sequential_let_stmt():

@@ -20,11 +20,11 @@ To use it, start a rpc proxy with "python -m tvm.exec.rpc_proxy".
 Connect javascript end to the websocket port and connect to the RPC.
 """
 
-import tvm
-from tvm import te
-from tvm import rpc
-from tvm.contrib import utils, tvmjs
 import numpy as np
+
+import tvm
+from tvm import rpc, te
+from tvm.contrib import tvmjs, utils
 
 proxy_host = "127.0.0.1"
 proxy_port = 9090

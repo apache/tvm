@@ -17,8 +17,9 @@
 import pytest
 
 import tvm
-from tvm.script import tir as T, ir as I
 import tvm.testing
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_annotate_entry_func_single_primfunc():

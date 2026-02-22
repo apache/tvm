@@ -17,6 +17,7 @@
 """
 Random cost model
 """
+
 from typing import List, Optional, Tuple, Union
 
 from ..cost_model import PyCostModel
@@ -108,9 +109,7 @@ class RandomModel(PyCostModel):
             The running results of the measure candidates.
         """
 
-    def predict(
-        self, context: TuneContext, candidates: List[MeasureCandidate]
-    ) -> np.ndarray:  # type: ignore # pylint: disable=used-before-assignment
+    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:  # type: ignore # pylint: disable=used-before-assignment
         """Update the cost model given running results.
 
         Parameters

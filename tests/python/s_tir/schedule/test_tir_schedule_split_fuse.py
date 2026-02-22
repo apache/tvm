@@ -16,15 +16,16 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import te, tir
-from tvm.script import tir as T
-from tvm.tir.expr import IntImm
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import tir as T
+from tvm.tir.expr import IntImm
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -82,7 +83,7 @@ def elementwise_symbolic_split(a: T.handle, b: T.handle, n: T.int32) -> None:
     B = T.match_buffer(b, (128, 128, n))
     for i, j, k0, k1 in T.grid(128, 128, 10, T.floordiv((n + 9), 10)):
         with T.sblock("B"):
-            T.where((((k0 * T.floordiv((n + 9), 10)) + k1) < n))
+            T.where(((k0 * T.floordiv((n + 9), 10)) + k1) < n)
             vi, vj = T.axis.remap("SS", [i, j])
             vk = T.axis.S(n, k0 * T.floordiv(n + 9, 10) + k1)
             T.reads([A[vi, vj, vk]])

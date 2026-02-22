@@ -17,11 +17,12 @@
 """Customized builder and runner methods"""
 # pylint: disable=import-outside-toplevel
 
-from typing import Dict, Union, Callable
+from typing import Callable, Dict, Union
 
 import numpy as np  # type: ignore
+
+from tvm.runtime import Executable, Module
 from tvm.s_tir.meta_schedule.runner import RPCConfig
-from tvm.runtime import Module, Executable
 
 
 def run_module_via_rpc(

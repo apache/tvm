@@ -16,10 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Common pass infrastructure across IR variants."""
-import inspect
+
 import functools
+import inspect
 
 import tvm_ffi
+
 import tvm.runtime
 
 from . import _ffi_transform_api

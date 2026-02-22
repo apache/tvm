@@ -16,12 +16,14 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Default legalization function for perators to implement operaor gradients."""
+
 import logging
 
 from tvm import te, tir, topi
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T
 from tvm.script.ir_builder.tir.utils import buffer_proxy
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from .common import register_legalize

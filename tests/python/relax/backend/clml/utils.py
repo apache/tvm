@@ -15,21 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 """Run utils for CLML integration operator tests"""
-import pytest
-import numpy as np
+
+import copy
 import json
+import os
+
+import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-import copy
-
 from tvm import relax, rpc
-from tvm.relax import transform
-from tvm.s_tir import dlight as dl
-from tvm.contrib import utils, ndk
-from tvm.relax.backend.adreno.clml import OpenCLMLOffLoad
-
-import os
 from tvm import rpc as _rpc
+from tvm.contrib import ndk, utils
+from tvm.relax import transform
+from tvm.relax.backend.adreno.clml import OpenCLMLOffLoad
+from tvm.s_tir import dlight as dl
 
 
 def get_rpc():

@@ -16,4 +16,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
+# Deprecated: functionality moved to pre-commit hooks. Kept as no-op for backward compatibility.
+exit 0

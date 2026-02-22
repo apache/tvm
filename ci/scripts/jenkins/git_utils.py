@@ -16,14 +16,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import json
-import subprocess
-import re
-import os
 import base64
+import json
 import logging
-from urllib import request, error
-from typing import Dict, Tuple, Any, Optional, List
+import os
+import re
+import subprocess
+from typing import Any, Dict, List, Optional, Tuple
+from urllib import error, request
 
 DRY_RUN = object()
 

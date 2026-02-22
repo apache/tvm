@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Package `tvm.s_tir.meta_schedule`. The meta schedule infrastructure."""
+
 from . import (
     arg_info,
     builder,

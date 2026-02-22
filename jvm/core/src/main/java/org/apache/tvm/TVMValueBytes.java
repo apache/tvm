@@ -24,7 +24,8 @@ public class TVMValueBytes extends TVMValue {
     this.value = value;
   }
 
-  @Override public byte[] asBytes() {
+  @Override
+  public byte[] asBytes() {
     return value;
   }
 }

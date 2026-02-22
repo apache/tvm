@@ -19,7 +19,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 replace_by_tir_var = tvm.testing.parameter(
     by_dict={"replace-by-string": False, "replace-by-tir-var": True}
@@ -82,9 +83,9 @@ def test_string_var_when_other_var_has_duplicate_var_names():
     BatchSize = tvm.tir.Var("BatchSize", "int64")
 
     @R.function(private=True)
-    def before(
-        A: R.Tensor((BatchSize, N1, N1)), B: R.Tensor((N1, N2))
-    ) -> R.Tensor((BatchSize, N1, N2)):
+    def before(A: R.Tensor((BatchSize, N1, N1)), B: R.Tensor((N1, N2))) -> R.Tensor(
+        (BatchSize, N1, N2)
+    ):
         out: R.Tensor((BatchSize, N1, N2)) = R.matmul(A, B)
         return out
 

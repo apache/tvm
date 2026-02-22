@@ -16,12 +16,14 @@
 # under the License.
 # pylint: disable=invalid-name
 """Relax linear algebra operators"""
+
 from typing import Optional, Union
 
 from tvm import DataType
 
+from ..expr import Expr
+from ..expr import Tuple as RxTuple
 from . import _ffi_api
-from ..expr import Expr, Tuple as RxTuple
 from .manipulate import permute_dims
 
 

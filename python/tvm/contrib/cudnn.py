@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to CuDNN v7 library."""
+
 # pylint: disable-msg=C0103
 import ctypes
-import numpy as np
-import tvm
 
+import numpy as np
 import tvm_ffi
+
+import tvm
 from tvm import te
 
 # algos can be read from cudnn.h
@@ -236,10 +238,10 @@ def conv_output_shape(
 
     x_lanes = tvm.runtime.DataType(data_dtype).lanes
     assert x_chan * x_lanes == w_chan_input * groups, (
-        "Mismatched dimensions, data has {} channels/group "
-        "(dimension {} with {} lanes/value, {} groups), "
-        "but weights require {} input channels/group"
-    ).format(x_chan // groups, x_chan, x_lanes, groups, w_chan_input)
+        f"Mismatched dimensions, data has {x_chan // groups} channels/group "
+        f"(dimension {x_chan} with {x_lanes} lanes/value, {groups} groups), "
+        f"but weights require {w_chan_input} input channels/group"
+    )
 
     output_dims = []
     for x_shape_i, w_shape_i, pad_i, stride_i, dilation_i in zip(
@@ -750,9 +752,9 @@ def conv_backward_data(
     conv_dtype = dy.dtype if conv_dtype is None else conv_dtype
     pad, stride, dilation, _, _ = _prepare_global_func_params(dims - 2, pad, stride, dilation)
 
-    assert isinstance(
-        dy.shape[0], tvm.tir.expr.IntImm
-    ), "Dynamic batch is not supported for cudnn conv2d backwad data yet."
+    assert isinstance(dy.shape[0], tvm.tir.expr.IntImm), (
+        "Dynamic batch is not supported for cudnn conv2d backwad data yet."
+    )
 
     dx_shape = conv_dgrad_shape(
         tensor_format, pad, stride, dilation, dy.shape, w.shape, output_padding, groups
@@ -844,16 +846,16 @@ def conv_backward_filter(
 
     x_shape = list(x.shape)
 
-    assert isinstance(
-        x.shape[0], tvm.tir.expr.IntImm
-    ), "Dynamic batch is not supported for cudnn conv2d backwad filter yet."
+    assert isinstance(x.shape[0], tvm.tir.expr.IntImm), (
+        "Dynamic batch is not supported for cudnn conv2d backwad filter yet."
+    )
 
     ic_ind = 1 if tensor_format == 0 else 3
 
     if groups > 1:
-        assert (
-            x_shape[ic_ind] == dy.shape[ic_ind] and x_shape[ic_ind] == groups
-        ), "Only depthwise wgrad supported for groups > 1."
+        assert x_shape[ic_ind] == dy.shape[ic_ind] and x_shape[ic_ind] == groups, (
+            "Only depthwise wgrad supported for groups > 1."
+        )
         ic = 1
     else:
         ic = x_shape[ic_ind]

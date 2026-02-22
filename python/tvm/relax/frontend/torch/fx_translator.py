@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """PyTorch FX frontend of Relax."""
+
 from functools import partial, reduce
 from typing import Callable, Dict, List, Tuple, Union
 
@@ -1082,7 +1083,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):
             output = None
             with self.block_builder.dataflow():
-
                 # Translate model parameters.
                 for _, param in model.named_parameters():
                     shape = param.data.shape
@@ -1122,9 +1122,9 @@ class TorchFXImporter(BaseFXGraphImporter):
                         self.env[node] = self._fetch_attr(model, node.target)
                     elif node.op == "call_module":
                         module = self.named_modules[node.target]
-                        assert (
-                            type(module) in self.convert_map
-                        ), f"Unsupported module type {type(module)}"
+                        assert type(module) in self.convert_map, (
+                            f"Unsupported module type {type(module)}"
+                        )
                         self.env[node] = self.convert_map[type(module)](node)
                     elif node.op == "call_function":
                         func_name = node.target.__name__
@@ -1133,9 +1133,9 @@ class TorchFXImporter(BaseFXGraphImporter):
                         else:
                             self.env[node] = self.convert_map[func_name](node)
                     elif node.op == "call_method":
-                        assert (
-                            node.target in self.convert_map
-                        ), f"Unsupported function target {node.target}"
+                        assert node.target in self.convert_map, (
+                            f"Unsupported function target {node.target}"
+                        )
                         self.env[node] = self.convert_map[node.target](node)
                     else:
                         raise ValueError(f"Unsupported op {node.op}")

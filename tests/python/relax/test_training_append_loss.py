@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm.testing
 from tvm import TVMError
 from tvm.ir.base import assert_structural_equal
-from tvm.script import relax as R, ir as I
 from tvm.relax.training import AppendLoss
+from tvm.script import ir as I
+from tvm.script import relax as R
 
 
 def test_simple():

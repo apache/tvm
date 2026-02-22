@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Testing utility functions in meta schedule"""
-from typing import Callable, Optional, List, Dict
+
+from typing import Callable, Dict, List, Optional
+
 import numpy as np  # type: ignore
 
 import tvm

@@ -125,14 +125,14 @@ def test_full_mod_calculator():
     sizes = tvm.s_tir.analysis.calculate_allocated_bytes(mod)
     assert "scale_by_two" in sizes, "Values for scale_by_two not found"
     scale_by_two_sizes = sizes["scale_by_two"]
-    assert (
-        "global.vtcm" in scale_by_two_sizes
-    ), "Expected global.vtcm allocation to be calculated scale_by_two"
+    assert "global.vtcm" in scale_by_two_sizes, (
+        "Expected global.vtcm allocation to be calculated scale_by_two"
+    )
     assert scale_by_two_sizes["global.vtcm"] == 128, "Expected the calculated size to be 128"
     scale_by_two_three_sizes = sizes["scale_by_two_three"]
-    assert (
-        "global.vtcm" in scale_by_two_three_sizes
-    ), "Expected global.vtcm allocation to be calculated scale_by_two_three"
+    assert "global.vtcm" in scale_by_two_three_sizes, (
+        "Expected global.vtcm allocation to be calculated scale_by_two_three"
+    )
     assert scale_by_two_three_sizes["global.vtcm"] == 256, "Expected the calculated size to be 256"
 
 

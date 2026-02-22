@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """gather_nd in python"""
+
 import numpy as np
 
 

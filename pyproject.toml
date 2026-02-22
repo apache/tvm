@@ -27,35 +27,33 @@ description = "Apache TVM: An End-to-End Deep Learning Compiler Stack"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
-authors = [
-    { name = "Apache TVM Community", email = "dev@tvm.apache.org" }
-]
+authors = [{ name = "Apache TVM Community", email = "dev@tvm.apache.org" }]
 keywords = ["machine learning", "compiler", "deep learning", "inference"]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Education",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Software Development :: Libraries :: Python Modules",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 # Core dependencies - these are the minimum required for basic TVM functionality
 dependencies = [
-    "apache-tvm-ffi",
-    "cloudpickle",
-    "ml_dtypes",
-    "numpy",
-    "packaging",
-    "psutil",
-    "scipy",
-    "tornado",
-    "typing_extensions",
+  "apache-tvm-ffi",
+  "cloudpickle",
+  "ml_dtypes",
+  "numpy",
+  "packaging",
+  "psutil",
+  "scipy",
+  "tornado",
+  "typing_extensions",
 ]
 
 # Optional dependencies for different features
@@ -63,7 +61,14 @@ dependencies = [
 # Model importers
 importer-coreml = ["coremltools"]
 importer-keras = ["tensorflow", "tensorflow-estimator"]
-importer-onnx = ["future", "onnx", "onnxoptimizer", "onnxruntime", "torch", "torchvision"]
+importer-onnx = [
+  "future",
+  "onnx",
+  "onnxoptimizer",
+  "onnxruntime",
+  "torch",
+  "torchvision",
+]
 importer-pytorch = ["torch", "torchvision"]
 importer-tensorflow = ["tensorflow", "tensorflow-estimator"]
 importer-tflite = ["tflite"]
@@ -75,41 +80,33 @@ autoscheduler = ["xgboost"]
 
 # Development and testing
 dev = [
-    "black",
-    "isort",
-    "mypy",
-    "pylint",
-    "pytest",
-    "pytest-xdist",
-    "pytest-cov",
-    "pytest-mock",
-    "pytest-benchmark",
-    "pytest-timeout",
-    "pytest-rerunfailures",
-    "pytest-repeat",
-    "pytest-xdist",
-    "pytest-cov",
-    "pytest-mock",
-    "pytest-benchmark",
-    "pytest-timeout",
-    "pytest-rerunfailures",
-    "pytest-repeat",
+  "ruff",
+  "mypy",
+  "pre-commit",
+  "pytest",
+  "pytest-xdist",
+  "pytest-cov",
+  "pytest-mock",
+  "pytest-benchmark",
+  "pytest-timeout",
+  "pytest-rerunfailures",
+  "pytest-repeat",
 ]
 
 # All optional dependencies (excluding dev)
 all = [
-    "coremltools",
-    "tensorflow",
-    "tensorflow-estimator",
-    "future",
-    "onnx",
-    "onnxoptimizer",
-    "onnxruntime",
-    "torch",
-    "torchvision",
-    "tflite",
-    "paddlepaddle",
-    "xgboost",
+  "coremltools",
+  "tensorflow",
+  "tensorflow-estimator",
+  "future",
+  "onnx",
+  "onnxoptimizer",
+  "onnxruntime",
+  "torch",
+  "torchvision",
+  "tflite",
+  "paddlepaddle",
+  "xgboost",
 ]
 
 [project.urls]
@@ -138,42 +135,42 @@ wheel.install-dir = "tvm"
 
 # Source distribution configuration
 sdist.include = [
-    # Build files
-    "/CMakeLists.txt",
-    "/pyproject.toml",
-    "/cmake/**/*",
-    "/  */*",
+  # Build files
+  "/CMakeLists.txt",
+  "/pyproject.toml",
+  "/cmake/**/*",
+  "/  */*",
 
-    # Source code
-    "/src/**/*.cc",
-    "/src/**/*.h",
-    "/include/**/*.h",
+  # Source code
+  "/src/**/*.cc",
+  "/src/**/*.h",
+  "/include/**/*.h",
 
-    # Python source
-    "/python/tvm/**/*.py",
-    "/python/tvm/**/*.pyi",
+  # Python source
+  "/python/tvm/**/*.py",
+  "/python/tvm/**/*.pyi",
 
-    # Documentation and metadata
-    "/docs/**/*",
-    "/LICENSE",
-    "/README.md",
-    "/NOTICE",
+  # Documentation and metadata
+  "/docs/**/*",
+  "/LICENSE",
+  "/README.md",
+  "/NOTICE",
 
-    # Tests
-    "/tests/**/*",
+  # Tests
+  "/tests/**/*",
 ]
 
 sdist.exclude = [
-    "**/.git",
-    "**/.github",
-    "**/__pycache__",
-    "**/*.pyc",
-    "build",
-    "dist",
-    "**/3rdparty/*/docs",
-    "**/3rdparty/*/media",
-    "**/3rdparty/*/examples",
-    "**/3rdparty/*/test",
+  "**/.git",
+  "**/.github",
+  "**/__pycache__",
+  "**/*.pyc",
+  "build",
+  "dist",
+  "**/3rdparty/*/docs",
+  "**/3rdparty/*/media",
+  "**/3rdparty/*/examples",
+  "**/3rdparty/*/test",
 ]
 
 # Logging
@@ -186,85 +183,107 @@ python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
-[tool.isort]
-profile = "black"
-src_paths = ["python", "tests/python"]
-
-[tool.black]
-line-length = 100
-target-version = ['py36']
-include = '(\.pyi?$)'
-exclude = '''
-
-(
-  /(
-      \.github
-    | \.tvm
-    | \.tvm_test_data
-    | \.vscode
-    | \.venv
-    | 3rdparty
-    | build\/
-    | cmake\/
-    | conda\/
-    | docker\/
-    | docs\/
-    | golang\/
-    | include\/
-    | jvm\/
-    | licenses\/
-    | nnvm\/
-    | rust\/
-    | src\/
-    | vta\/
-    | web\/
-  )/
-)
-'''
-
 [tool.ruff]
-# Enable pycodestyle (`E`), Pyflakes (`F`), and isort (`I`) codes
-select = ["E", "F", "I"]
-ignore = []
-
-# Allow fix for all enabled rules (when `--fix`) is provided.
-fixable = ["A", "B", "C", "D", "E", "F", "I", "N", "UP", "W", "ARG", "B", "C4", "DTZ", "T10", "EM", "EXE", "FA", "ICN", "Q", "T20", "TID", "TCH", "RUF"]
-unfixable = []
-
-# Exclude a variety of commonly ignored directories.
-exclude = [
-    ".bzr",
-    ".darcs",
-    ".git",
-    ".git",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-    "3rdparty",
-]
-
+include = ["python/**/*.py", "tests/**/*.py", "docs/**/*.py"]
 line-length = 100
 indent-width = 4
+target-version = "py39"
+exclude = [
+  "3rdparty",
+  "build",
+  "dist",
+  ".venv",
+  ".mypy_cache",
+  ".ruff_cache",
+  "node_modules",
+]
 
-# Allow unused variables when underscore-prefixed.
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors, https://docs.astral.sh/ruff/rules/#pycodestyle-e-w
+  "F",   # pyflakes, https://docs.astral.sh/ruff/rules/#pyflakes-f
+  "I",   # isort, https://docs.astral.sh/ruff/rules/#isort-i
+  "UP",  # pyupgrade, https://docs.astral.sh/ruff/rules/#pyupgrade-up
+  "RUF", # ruff, https://docs.astral.sh/ruff/rules/#ruff-specific-rules-ruf
+]
+ignore = [
+  "E101",   # mixed-spaces-and-tabs (legacy code)
+  "E402",   # module-import-not-at-top-of-file
+  "E501",   # line-too-long (let ruff-format handle soft wrapping)
+  "E711",   # none-comparison
+  "E712",   # true-false-comparison
+  "E721",   # type-comparison
+  "E731",   # lambda-assignment (common pattern in TVM)
+  "E741",   # ambiguous-variable-name (common in math-heavy code)
+  "F401",   # unused-import (too many false positives with __init__.py re-exports)
+  "F402",   # import-shadowed-by-loop-var
+  "F403",   # undefined-local-with-import-star
+  "F405",   # undefined-local-with-import-star-usage
+  "F601",   # multi-value-repeated-key-literal
+  "F811",   # redefined-while-unused
+  "F821",   # undefined-name (false positives from star imports)
+  "F841",   # unused-variable (too many in test code)
+  "UP006",  # non-pep585-annotation (requires Python 3.9+ everywhere)
+  "UP007",  # non-pep604-annotation-union
+  "UP028",  # yield-in-for-loop
+  "UP030",  # format-literals
+  "UP031",  # printf-string-formatting
+  "UP035",  # deprecated-import (typing compat)
+  "RUF002", # ambiguous-unicode-character-docstring
+  "RUF003", # ambiguous-unicode-character-comment
+  "RUF005", # collection-literal-concatenation
+  "RUF012", # mutable-class-default
+  "RUF013", # implicit-optional
+  "RUF015", # unnecessary-iterable-allocation-for-first-element
+  "RUF017", # quadratic-list-summation
+  "RUF022", # unsorted-dunder-all
+  "RUF028", # invalid-formatter-suppression-comment
+  "RUF043", # pytest-raises-ambiguous-pattern
+  "RUF046", # unnecessary-cast-to-int
+  "RUF059", # unused-unpacked-variable
+  "E722",   # bare-except
+  "UP022",  # replace-stdout-stderr
+]
+fixable = ["ALL"]
+unfixable = []
 
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"] # pyflakes: unused-import
 
-[tool.ruff.mccabe]
-max-complexity = 10
-
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["tvm"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"
+
+[tool.mypy]
+python_version = "3.9"
+show_error_codes = true
+mypy_path = ["python"]
+files = ["python/tvm"]
+namespace_packages = true
+explicit_package_bases = true
+allow_redefinition = true
+ignore_missing_imports = true
+follow_imports = "skip"
+strict_optional = false
+exclude = '''(?x)(
+    ^\.venv/|
+    ^build/|
+    ^dist/|
+    ^\.mypy_cache/|
+    ^3rdparty/
+)'''
+
+[[tool.mypy.overrides]]
+module = ["python.tvm.auto_scheduler.*"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["python.tvm.runtime.*"]
+ignore_errors = true

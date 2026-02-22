@@ -18,10 +18,11 @@
 import pytest
 
 import tvm
-from tvm import relax
-
 import tvm.script
-from tvm.script import ir as I, relax as R, tir as T
+from tvm import relax
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_vm_builtin_lower_mem_alloc_storage():

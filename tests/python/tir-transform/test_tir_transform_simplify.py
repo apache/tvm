@@ -16,7 +16,8 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm.script import tir as T, ir as I
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_stmt_simplify():

@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+
 import tvm
 from tvm import te
-import numpy as np
 
 
 def test_trace_default_action():
@@ -69,8 +70,10 @@ def test_trace_expr_sum_generated():
         b = te.placeholder((n, n, n), name="b", dtype=dtype)
         c = te.compute(
             a.shape,
-            lambda i, j, k: tvm.tir.trace([a[i][j][k]], "tvm.tir.trace_callback3")
-            + tvm.tir.trace([b[i][j][k]], "tvm.tir.trace_callback3"),
+            lambda i, j, k: (
+                tvm.tir.trace([a[i][j][k]], "tvm.tir.trace_callback3")
+                + tvm.tir.trace([b[i][j][k]], "tvm.tir.trace_callback3")
+            ),
         )
         f = tvm.compile(te.create_prim_func([a, b, c]))
         xnd = tvm.runtime.tensor(np.array(np.ones((n, n, n), dtype=a.dtype)))
@@ -97,10 +100,12 @@ def test_trace_expr_sum_args():
 
         c = te.compute(
             a.shape,
-            lambda i, j, k: tvm.tir.trace([i, j, k, a[i][j][k]], "tvm.tir.trace_silent")
-            + tvm.tir.trace([i, j, k, b[i][j][k]], "tvm.tir.trace_silent")
-            + tvm.tir.trace([i, j, k, d[i][j][k]], "tvm.tir.trace_silent")
-            + tvm.tir.trace([i, j, k, e[i][j][k]], "tvm.tir.trace_silent"),
+            lambda i, j, k: (
+                tvm.tir.trace([i, j, k, a[i][j][k]], "tvm.tir.trace_silent")
+                + tvm.tir.trace([i, j, k, b[i][j][k]], "tvm.tir.trace_silent")
+                + tvm.tir.trace([i, j, k, d[i][j][k]], "tvm.tir.trace_silent")
+                + tvm.tir.trace([i, j, k, e[i][j][k]], "tvm.tir.trace_silent")
+            ),
         )
         f = tvm.compile(te.create_prim_func([a, b, d, e, c]))
         a_nd = tvm.runtime.tensor(np.array(np.ones((n, n, n), dtype=a.dtype)))
@@ -128,8 +133,10 @@ def test_trace_expr_sum_custom():
         b = te.placeholder((n, n), name="b", dtype=dtype)
         c = te.compute(
             a.shape,
-            lambda i, j: tvm.tir.trace([a[i][j]], "tvm.tir.trace_callback4")
-            + tvm.tir.trace([b[i][j]], "tvm.tir.trace_callback4"),
+            lambda i, j: (
+                tvm.tir.trace([a[i][j]], "tvm.tir.trace_callback4")
+                + tvm.tir.trace([b[i][j]], "tvm.tir.trace_callback4")
+            ),
         )
         f = tvm.compile(te.create_prim_func([a, b, c]))
         npa = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=a.dtype)

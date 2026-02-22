@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
 import pytest
 
-from tvm import relax as rx, TVMError, tir
-from tvm.ir import structural_equal, Range
+import tvm
+import tvm.testing
+from tvm import TVMError, tir
+from tvm import relax as rx
+from tvm.ir import Range, structural_equal
 
 
 def _check_equal(x, y, map_free_vars=False):

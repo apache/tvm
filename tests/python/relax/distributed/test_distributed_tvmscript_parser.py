@@ -17,15 +17,14 @@
 
 from typing import Optional, Union
 
-
 import pytest
+
 import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tir, topi
-
 from tvm.ir import Range
-from tvm.relax import SeqExpr, VarBinding, Call
+from tvm.relax import Call, SeqExpr, VarBinding
 from tvm.relax.distributed import DeviceMesh
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R

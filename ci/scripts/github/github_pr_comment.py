@@ -16,8 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import argparse
-import os
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -25,12 +25,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
-from git_utils import git, GitHubRepo, parse_remote, DRY_RUN
 from cmd_utils import init_log
+from git_utils import DRY_RUN, GitHubRepo, git, parse_remote
 from github_commenter import BotCommentBuilder
+from github_docs_comment import get_doc_url
 from github_skipped_tests_comment import get_skipped_tests_comment
 from github_tag_teams import get_tags
-from github_docs_comment import get_doc_url
 
 PR_QUERY = """
     query ($owner: String!, $name: String!, $number: Int!) {

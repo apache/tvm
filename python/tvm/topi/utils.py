@@ -16,15 +16,17 @@
 # under the License.
 # pylint: disable=invalid-name
 """Common topi utilities"""
+
 from __future__ import absolute_import as _abs
 
 from numbers import Integral
 
 import numpy as np
+
 import tvm
 from tvm import te
-from tvm.tir import SizeVar
 from tvm.s_tir import bijective_layout, layout
+from tvm.tir import SizeVar
 
 from . import cpp, tag
 

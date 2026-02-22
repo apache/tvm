@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
+
 # pylint: disable=invalid-name
 import logging
-import time
 import multiprocessing
+import time
+
 import tvm
 from tvm import rpc
 

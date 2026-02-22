@@ -17,10 +17,11 @@
 """Unittests for tvm.script.parser.tir"""
 
 import pytest
-import tvm.testing
 import tvm_ffi
-from tvm.script.parser import tir as T
+
+import tvm.testing
 from tvm import ir, tir
+from tvm.script.parser import tir as T
 
 
 def test_tir_buffer_proxy():

@@ -17,19 +17,26 @@
 """Bring Your Own Datatypes custom datatype framework
 
 TODO(@gussmith23 @hypercubestart) link to BYODT docs when they exist"""
+
 from tvm_ffi import get_global_func
 from tvm_ffi import register_global_func as _register_global_func
 
 import tvm
-from tvm.runtime import convert, DataType
+from tvm.runtime import DataType, convert
+from tvm.tir import call_intrin
 from tvm.tir.expr import (
-    Call as _Call,
-    Cast as _Cast,
-    FloatImm as _FloatImm,
     BinaryOpExpr as _BinaryOpExpr,
 )
+from tvm.tir.expr import (
+    Call as _Call,
+)
+from tvm.tir.expr import (
+    Cast as _Cast,
+)
+from tvm.tir.expr import (
+    FloatImm as _FloatImm,
+)
 from tvm.tir.op import call_pure_extern
-from tvm.tir import call_intrin
 
 
 def register(type_name, type_code):
