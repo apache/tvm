@@ -18,10 +18,10 @@
 import pytest
 
 import tvm
+import tvm.ir
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
-import tvm.ir
 
 
 def test_simplify_reshape_flattened_index():

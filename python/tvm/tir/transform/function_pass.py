@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """TIR specific function pass support."""
-import inspect
+
 import functools
+import inspect
 from typing import Callable, List, Optional, Union
 
 import tvm_ffi
+
 from tvm.ir.transform import Pass, PassInfo
 
 from . import _ffi_api
@@ -47,7 +49,9 @@ def _wrap_class_function_pass(pass_cls, pass_info):
                 return inst.transform_function(func, mod, ctx)
 
             self.__init_handle_by_constructor__(
-                _ffi_api.CreatePrimFuncPass, _pass_func, pass_info  # type: ignore
+                _ffi_api.CreatePrimFuncPass,
+                _pass_func,
+                pass_info,  # type: ignore
             )
 
             self._inst = inst

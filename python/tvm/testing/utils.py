@@ -62,38 +62,36 @@ function in this module. Then targets using this node should be added to the
 `TVM_TEST_TARGETS` environment variable in the CI.
 
 """
-import inspect
-import json
+
 import copy
 import copyreg
 import ctypes
 import functools
+import inspect
 import itertools
+import json
 import logging
 import os
 import pickle
 import platform
+import shutil
 import sys
 import time
-import shutil
-
 from pathlib import Path
-from typing import Optional, Callable, Union, List, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
-import pytest
 import numpy as np
+import pytest
 
 import tvm
 import tvm.arith
-import tvm.tir
-import tvm.te
-
-from tvm.target import codegen
-from tvm.contrib import nvcc, cudnn, rocm
 import tvm.contrib.hexagon._ci_env_check as hexagon
-from tvm.error import TVMError
 import tvm.contrib.utils
-
+import tvm.te
+import tvm.tir
+from tvm.contrib import cudnn, nvcc, rocm
+from tvm.error import TVMError
+from tvm.target import codegen
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 IS_IN_CI = os.getenv("CI", "") == "true"
@@ -193,9 +191,7 @@ def check_numerical_grads(
     for x_name, grad in grad_values.items():
         if grad.shape != input_values[x_name].shape:
             raise AssertionError(
-                "Gradient wrt '{}' has unexpected shape {}, expected {} ".format(
-                    x_name, grad.shape, input_values[x_name].shape
-                )
+                f"Gradient wrt '{x_name}' has unexpected shape {grad.shape}, expected {input_values[x_name].shape} "
             )
 
         ngrad = np.zeros_like(grad)
@@ -235,8 +231,8 @@ def check_numerical_grads(
 
         if not (np.isfinite(dist) and np.isfinite(grad_norm)):
             raise ValueError(
-                "NaN or infinity detected during numerical gradient checking wrt '{}'\n"
-                "analytical grad = {}\n numerical grad = {}\n".format(x_name, grad, ngrad)
+                f"NaN or infinity detected during numerical gradient checking wrt '{x_name}'\n"
+                f"analytical grad = {grad}\n numerical grad = {ngrad}\n"
             )
 
         # we multiply atol by this number to make it more universal for different sizes
@@ -244,22 +240,11 @@ def check_numerical_grads(
 
         if dist > atol * sqrt_n + rtol * grad_norm:
             raise AssertionError(
-                "Analytical and numerical grads wrt '{}' differ too much\n"
-                "analytical grad = {}\n numerical grad = {}\n"
-                "{}% of elements differ, first 10 of wrong positions: {}\n"
+                f"Analytical and numerical grads wrt '{x_name}' differ too much\n"
+                f"analytical grad = {grad}\n numerical grad = {ngrad}\n"
+                f"{wrong_percentage}% of elements differ, first 10 of wrong positions: {wrong_positions[:10]}\n"
                 "distance > atol*sqrt(n) + rtol*grad_norm\n"
-                "distance {} > {}*{} + {}*{}".format(
-                    x_name,
-                    grad,
-                    ngrad,
-                    wrong_percentage,
-                    wrong_positions[:10],
-                    dist,
-                    atol,
-                    sqrt_n,
-                    rtol,
-                    grad_norm,
-                )
+                f"distance {dist} > {atol}*{sqrt_n} + {rtol}*{grad_norm}"
             )
 
         max_diff = np.max(np.abs(ngrad - grad))
@@ -288,7 +273,7 @@ def assert_prim_expr_equal(lhs, rhs):
     """
     ana = tvm.arith.Analyzer()
     if not ana.can_prove_equal(lhs, rhs):
-        raise ValueError("{} and {} are not equal".format(lhs, rhs))
+        raise ValueError(f"{lhs} and {rhs} are not equal")
 
 
 def check_bool_expr_is_true(bool_expr, vranges, cond=None):
@@ -337,8 +322,8 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
         ana = tvm.arith.Analyzer()
         raise AssertionError(
-            "Expression {}\nis not true on {}\n"
-            "Counterexample: {}".format(ana.simplify(bool_expr), vranges, counterex)
+            f"Expression {ana.simplify(bool_expr)}\nis not true on {vranges}\n"
+            f"Counterexample: {counterex}"
         )
 
 
@@ -1080,7 +1065,7 @@ requires_aarch64_sme = Feature(
 requires_x86_vnni = Feature(
     "x86_vnni",
     "x86 VNNI Extensions",
-    run_time_check=lambda: (_has_cpu_feat("avx512vnni") or _has_cpu_feat("avxvnni")),
+    run_time_check=lambda: _has_cpu_feat("avx512vnni") or _has_cpu_feat("avxvnni"),
 )
 
 
@@ -1753,17 +1738,15 @@ class _DeepCopyAllowedClasses(dict):
             "https://github.com/apache/tvm-rfcs/blob/main/rfcs/0007-parametrized-unit-tests.md"
         )
         raise TypeError(
-            (
-                f"Cannot copy fixture of type {cls.__name__}.  TVM fixture caching "
-                "is limited to objects that explicitly provide the ability "
-                "to be copied (e.g. through __deepcopy__, __getstate__, or __setstate__),"
-                "and forbids the use of the default `object.__reduce__` and "
-                "`object.__reduce_ex__`.  For third-party classes that are "
-                "safe to use with copy.deepcopy, please add the class to "
-                "the arguments of _DeepCopyAllowedClasses in tvm.testing._fixture_cache.\n"
-                "\n"
-                f"For discussion on this restriction, please see {rfc_url}."
-            )
+            f"Cannot copy fixture of type {cls.__name__}.  TVM fixture caching "
+            "is limited to objects that explicitly provide the ability "
+            "to be copied (e.g. through __deepcopy__, __getstate__, or __setstate__),"
+            "and forbids the use of the default `object.__reduce__` and "
+            "`object.__reduce_ex__`.  For third-party classes that are "
+            "safe to use with copy.deepcopy, please add the class to "
+            "the arguments of _DeepCopyAllowedClasses in tvm.testing._fixture_cache.\n"
+            "\n"
+            f"For discussion on this restriction, please see {rfc_url}."
         )
 
 

@@ -20,15 +20,16 @@
 This module provides a multi-processing pool backed by Popen.
 with additional timeout support.
 """
-import os
-import sys
-import struct
-import threading
-import subprocess
+
 import concurrent.futures
-from enum import IntEnum
-from collections import namedtuple
+import os
 import pickle
+import struct
+import subprocess
+import sys
+import threading
+from collections import namedtuple
+from enum import IntEnum
 
 
 def kill_child_processes(pid):
@@ -134,11 +135,11 @@ class PopenWorker:
             # allow gracefully shutdown
             try:
                 self._writer.close()
-            except IOError:
+            except OSError:
                 pass
             try:
                 self._reader.close()
-            except IOError:
+            except OSError:
                 pass
             # kill all child processes recursively
             try:
@@ -256,7 +257,7 @@ class PopenWorker:
             self._writer.write(struct.pack("<i", len(data)))
             self._writer.write(data)
             self._writer.flush()
-        except IOError:
+        except OSError:
             pass
 
         if self._remaining_uses:
@@ -287,7 +288,7 @@ class PopenWorker:
 
         try:
             len_data = self._reader.read(4)
-        except IOError:
+        except OSError:
             raise self._child_process_error()
 
         if len(len_data) == 0:
@@ -296,7 +297,7 @@ class PopenWorker:
         try:
             recv_bytes = struct.unpack("<i", len_data)[0]
             status, value = cloudpickle.loads(self._reader.read(recv_bytes))
-        except IOError:
+        except OSError:
             raise self._child_process_error()
 
         if status == StatusKind.COMPLETE:

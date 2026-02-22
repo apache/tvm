@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test type nodes in the IR"""
+
 import tvm
 from tvm.script import tir as T
 

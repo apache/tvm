@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
 import tvm
 import tvm.testing
-
-import pytest
 
 
 def check_throws(f):
@@ -110,7 +110,7 @@ def test_const_fold4():
     x5 = tvm.tir.ceil(x4)
     assert isinstance(x5, tvm.tir.FloatImm) and x5.value == 4
     x6 = x5.astype("int")
-    assert isinstance(x6, tvm.tir.IntImm) and x6.value == 4, "x6={}".format(x6)
+    assert isinstance(x6, tvm.tir.IntImm) and x6.value == 4, f"x6={x6}"
     y = (tvm.tir.round((tvm.tir.const(6.5, "float32") - 1) / 1.5) + 2).astype("int")
     assert isinstance(y, tvm.tir.IntImm) and y.value == 6
 

@@ -21,6 +21,7 @@ from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 from tvm_ffi import register_object
 from tvm_ffi.access_path import AccessPath
+
 from tvm.runtime import Object
 from tvm.tir import FloatImm, IntImm
 
@@ -501,7 +502,8 @@ class CommentDoc(StmtDoc):
 
     def __init__(self, comment: str):
         self.__init_handle_by_constructor__(
-            _ffi_api.CommentDoc, comment  # type: ignore # pylint: disable=no-member
+            _ffi_api.CommentDoc,
+            comment,  # type: ignore # pylint: disable=no-member
         )
 
 
@@ -511,5 +513,6 @@ class DocStringDoc(StmtDoc):
 
     def __init__(self, docs: str):
         self.__init_handle_by_constructor__(
-            _ffi_api.DocStringDoc, docs  # type: ignore # pylint: disable=no-member
+            _ffi_api.DocStringDoc,
+            docs,  # type: ignore # pylint: disable=no-member
         )

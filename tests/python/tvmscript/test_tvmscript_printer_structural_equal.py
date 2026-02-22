@@ -16,11 +16,12 @@
 # under the License.
 
 import pytest
+from tvm_ffi.access_path import AccessPath
 
 import tvm
 from tvm.ir import assert_structural_equal
-from tvm_ffi.access_path import AccessPath
-from tvm.script import ir as I, tir as T
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def _error_message(exception):

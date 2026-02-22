@@ -17,6 +17,7 @@
 
 # pylint: disable=invalid-name, unused-import, import-outside-toplevel, inconsistent-return-statements
 """Runtime Module namespace."""
+
 import json
 import os
 import struct
@@ -25,8 +26,14 @@ from typing import Sequence
 import numpy as np
 from tvm_ffi import (
     Module as _Module,
+)
+from tvm_ffi import (
     load_module as _load_module,
+)
+from tvm_ffi import (
     register_object as _register_object,
+)
+from tvm_ffi import (
     system_lib,
 )
 
@@ -120,9 +127,9 @@ class Module(_Module):
         stack.append(self)
         while stack:
             module = stack.pop()
-            assert (
-                module.is_compilation_exportable() or module.is_binary_serializable()
-            ), f"Module {module.kind} should be either dso exportable or binary serializable."
+            assert module.is_compilation_exportable() or module.is_binary_serializable(), (
+                f"Module {module.kind} should be either dso exportable or binary serializable."
+            )
 
             if filter_func(module):
                 dso_modules.append(module)
@@ -203,7 +210,11 @@ class Module(_Module):
 
         # Extra dependencies during runtime.
         from pathlib import Path
-        from tvm.contrib import cc as _cc, tar as _tar, tvmjs as _tvmjs, utils as _utils
+
+        from tvm.contrib import cc as _cc
+        from tvm.contrib import tar as _tar
+        from tvm.contrib import tvmjs as _tvmjs
+        from tvm.contrib import utils as _utils
 
         if isinstance(file_name, Path):
             file_name = str(file_name)
@@ -268,7 +279,7 @@ class Module(_Module):
             llvm_target = json.dumps({"kind": "llvm", "mtriple": triple.strip()})
 
         if getattr(fcompile, "need_system_lib", False) and not is_system_lib:
-            raise ValueError(f"{str(fcompile)} need --system-lib option")
+            raise ValueError(f"{fcompile!s} need --system-lib option")
 
         if self.imports:
             pack_lib_prefix = system_lib_prefix if system_lib_prefix else ""
@@ -436,7 +447,9 @@ def load_module(path):
         path += ".so"
     elif path.endswith(".tar"):
         # Extra dependencies during runtime.
-        from tvm.contrib import cc as _cc, utils as _utils, tar as _tar
+        from tvm.contrib import cc as _cc
+        from tvm.contrib import tar as _tar
+        from tvm.contrib import utils as _utils
 
         tar_temp = _utils.tempdir(custom_path=path.replace(".tar", ""))
         _tar.untar(path, tar_temp.temp_dir)

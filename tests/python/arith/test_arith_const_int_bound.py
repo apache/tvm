@@ -21,7 +21,6 @@ import pytest
 
 import tvm
 import tvm.testing
-
 from tvm.arith import ConstIntBound
 
 NEG_INF = ConstIntBound.NEG_INF

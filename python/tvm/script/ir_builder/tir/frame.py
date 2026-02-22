@@ -15,32 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 """IRBuilder for TIR"""
+
 from typing import List, Union
 
 from tvm_ffi import register_object as _register_object
+
 from tvm.tir import Buffer, Var
 
 from ..base import IRBuilderFrame
 
 
 @_register_object("script.ir_builder.tir.TIRFrame")
-class TIRFrame(IRBuilderFrame):
-    ...
+class TIRFrame(IRBuilderFrame): ...
 
 
 @_register_object("script.ir_builder.tir.PrimFuncFrame")
-class PrimFuncFrame(TIRFrame):
-    ...
+class PrimFuncFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.SSBlockFrame")
-class SBlockFrame(TIRFrame):
-    ...
+class SBlockFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.SBlockInitFrame")
-class BlockInitFrame(TIRFrame):
-    ...
+class BlockInitFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.ForFrame")
@@ -51,8 +49,7 @@ class ForFrame(TIRFrame):
 
 
 @_register_object("script.ir_builder.tir.AssertFrame")
-class AssertFrame(TIRFrame):
-    ...
+class AssertFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.LetFrame")
@@ -70,28 +67,23 @@ class AllocateFrame(TIRFrame):
 
 
 @_register_object("script.ir_builder.tir.AttrFrame")
-class AttrFrame(TIRFrame):
-    ...
+class AttrFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.WhileFrame")
-class WhileFrame(TIRFrame):
-    ...
+class WhileFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.IfFrame")
-class IfFrame(TIRFrame):
-    ...
+class IfFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.ThenFrame")
-class ThenFrame(TIRFrame):
-    ...
+class ThenFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.ElseFrame")
-class ElseFrame(TIRFrame):
-    ...
+class ElseFrame(TIRFrame): ...
 
 
 @_register_object("script.ir_builder.tir.DeclBufferFrame")

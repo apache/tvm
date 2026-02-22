@@ -18,6 +18,7 @@ import inspect
 import re
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import tir
@@ -51,18 +52,18 @@ def check_error(func, rel_lineno):
     if rel_lineno is None:
         return
     error = errors[0]
-    assert (
-        error.span.line - 1 == rel_lineno or error.span.line == rel_lineno
-    ), f"Expected error to be on line {rel_lineno}, but it was on {error.span.line - 1}"
+    assert error.span.line - 1 == rel_lineno or error.span.line == rel_lineno, (
+        f"Expected error to be on line {rel_lineno}, but it was on {error.span.line - 1}"
+    )
 
     error_line = source_code.split("\n")[rel_lineno]
     m = check_error_re.match(error_line)
     if m:
         expected_error_text = m.group(1)
         error = error.message
-        assert (
-            expected_error_text == error
-        ), f'check_error expects "{expected_error_text} in str(errors): {error}'
+        assert expected_error_text == error, (
+            f'check_error expects "{expected_error_text} in str(errors): {error}'
+        )
 
 
 def test_buffer_bind():
@@ -500,9 +501,7 @@ def test_report_error_root_block():
     with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.compute_inline(root)
     expected_sub_error_message = (
-        "        # tir.SBlock#0\n"
-        '        with T.sblock("root"):\n'
-        "        ^^^^^^^^^^^^^^^^^^^^^^\n"
+        '        # tir.SBlock#0\n        with T.sblock("root"):\n        ^^^^^^^^^^^^^^^^^^^^^^\n'
     )
     assert expected_sub_error_message in str(execinfo.value)
 

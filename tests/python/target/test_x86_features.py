@@ -17,7 +17,7 @@
 import pytest
 
 import tvm
-from tvm.target import _ffi_api, codegen, Target
+from tvm.target import Target, _ffi_api, codegen
 from tvm.target.codegen import target_has_features
 
 LLVM_VERSION = codegen.llvm_version_major()

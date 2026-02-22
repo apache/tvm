@@ -20,7 +20,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import tir as T
-from tvm.script.highlight import cprint, _format
+from tvm.script.highlight import _format, cprint
 
 
 def test_highlight_script():

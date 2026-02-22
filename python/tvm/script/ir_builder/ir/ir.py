@@ -18,9 +18,8 @@
 
 from typing import Dict, List, Optional
 
-from tvm.ir import BaseFunc, GlobalVar, GlobalInfo, VDevice, DummyGlobalInfo
+from tvm.ir import BaseFunc, DummyGlobalInfo, GlobalInfo, GlobalVar, VDevice
 from tvm.runtime import Object as tvm_Object
-
 
 from . import _ffi_api
 from .frame import IRModuleFrame

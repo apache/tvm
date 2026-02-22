@@ -16,11 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name, missing-docstring
 """Unittests for tvm.script.ir_builder.tir"""
+
 import numpy as np
 import pytest
+
 import tvm
-import tvm.testing
 import tvm.runtime
+import tvm.testing
 from tvm import tir
 from tvm.ir.base import assert_structural_equal
 from tvm.script.ir_builder import IRBuilder
@@ -65,8 +67,9 @@ def test_ir_builder_tir_primfunc_complete():
     prim_func_actual = ib.get()
 
     # the expected prim_func
-    c_handle, c_buffer = tir.Var("c_handle", "handle"), tir.decl_buffer(
-        (128, 128), "float32", name="c"
+    c_handle, c_buffer = (
+        tir.Var("c_handle", "handle"),
+        tir.decl_buffer((128, 128), "float32", name="c"),
     )
     d_handle, d_buffer = tir.Var("d", "handle"), tir.decl_buffer((64, 64), "int64", name="d")
     e_handle, e_buffer = tir.Var("e_handle", "handle"), tir.decl_buffer((1024,), "int8", name="e")

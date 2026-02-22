@@ -14,16 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm.testing
-from tvm import te, tir
-from tvm import topi
-from tvm.contrib import utils, clang
-from tvm.script import tir as T
-import numpy as np
 import ctypes
 import math
+
+import numpy as np
 import scipy
+
+import tvm
+import tvm.testing
+from tvm import te, tir, topi
+from tvm.contrib import clang, utils
+from tvm.script import tir as T
 
 
 def test_nearbyint():

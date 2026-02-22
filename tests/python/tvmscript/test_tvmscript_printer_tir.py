@@ -502,19 +502,15 @@ def test_binary_arith():
     ]:
         obj = op(a, b)
         if sign.isalpha():
-            expected = """
+            expected = f"""
 a = T.int32()
 b = T.int32()
-T.{}(a, b)""".format(
-                sign
-            )
+T.{sign}(a, b)"""
         else:
-            expected = """
+            expected = f"""
 a = T.int32()
 b = T.int32()
-a {} b""".format(
-                sign
-            )
+a {sign} b"""
         _assert_print(obj, expected)
 
 
@@ -537,10 +533,8 @@ def test_binary_arith_const():
         (tir.GE, "GE"),
     ]:
         obj = op(a, b)
-        expected = """
-T.{}({}, {})""".format(
-            name, str(a), str(b)
-        )
+        expected = f"""
+T.{name}({a!s}, {b!s})"""
         _assert_print(obj, expected)
 
 
@@ -602,12 +596,10 @@ def test_ramp(lanes, scripted_lanes):
     obj = tir.Ramp(a, 1, lanes)
     _assert_print(
         obj,
-        """
+        f"""
 a = T.int32()
-T.Ramp(a, 1, {})
-""".format(
-            scripted_lanes
-        ),
+T.Ramp(a, 1, {scripted_lanes})
+""",
     )
 
 
@@ -618,11 +610,9 @@ def test_broadcast(lanes, scripted_lanes):
     obj = tir.Broadcast(0, lanes)
     _assert_print(
         obj,
-        """
-T.Broadcast(0, {})
-""".format(
-            scripted_lanes
-        ),
+        f"""
+T.Broadcast(0, {scripted_lanes})
+""",
     )
 
 

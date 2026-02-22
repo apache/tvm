@@ -14,15 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import itertools
+
 import numpy as np
-import tvm
 import pytest
+
+import tvm
 from tvm import tir
 from tvm.base import TVMError
 from tvm.ir.transform import PassContext
 from tvm.script import tir as T
-import itertools
-import pytest
 
 
 def build_tir_func(func):

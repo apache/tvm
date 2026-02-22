@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Attribute module, which is mainly used for defining attributes of operators."""
+
 import tvm_ffi
 
-from tvm.runtime import Object
 import tvm.runtime._ffi_node_api
+from tvm.runtime import Object
+
 from . import _ffi_api
 
 

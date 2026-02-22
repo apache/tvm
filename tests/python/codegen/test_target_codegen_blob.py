@@ -16,11 +16,14 @@
 # under the License.
 
 import ctypes
+
 import numpy as np
-from tvm.contrib import cc, utils, popen_pool, tar
+
 import tvm
 import tvm.testing
-from tvm.script import ir as I, tir as T
+from tvm.contrib import cc, popen_pool, tar, utils
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 @tvm.testing.uses_gpu

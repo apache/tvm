@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm_ffi
-import tvm.testing
 import numpy as np
-from tvm.script import tir as T, ir as I
-
 import pytest
+import tvm_ffi
+
+import tvm
+import tvm.testing
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def _reduce_sum_module(d1, d2, d3):

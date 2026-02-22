@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,6 +17,7 @@
 # under the License.
 # pylint: disable=redefined-builtin, wildcard-import
 """TVM: Open Deep Learning Compiler Stack."""
+
 import multiprocessing
 import sys
 import os
@@ -84,9 +86,7 @@ def _should_print_backtrace():
     try:
         tvm_backtrace = bool(int(tvm_backtrace))
     except ValueError:
-        raise ValueError(
-            "invalid value for TVM_BACKTRACE {}, please set to 0 or 1.".format(tvm_backtrace)
-        )
+        raise ValueError(f"invalid value for TVM_BACKTRACE {tvm_backtrace}, please set to 0 or 1.")
 
     return in_pytest or tvm_backtrace
 

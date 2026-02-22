@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common runtime ctypes."""
+
 # pylint: disable=invalid-name
 import json
 
 import tvm_ffi
 
 from . import _ffi_api
-
 
 RPC_SESS_MASK = 128
 

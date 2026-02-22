@@ -16,13 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name
 """Internal PopenWorker for PopenPool."""
-import sys
+
+import logging
 import os
+import pickle
 import struct
+import sys
 import threading
 import traceback
-import pickle
-import logging
+
 import cloudpickle
 
 from tvm.contrib.popen_pool import StatusKind
@@ -103,5 +105,5 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (KeyboardInterrupt, IOError):
+    except (OSError, KeyboardInterrupt):
         pass

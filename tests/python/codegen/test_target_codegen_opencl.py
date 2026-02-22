@@ -18,7 +18,8 @@ import re
 
 import tvm
 import tvm.testing
-from tvm.script import tir as T, ir as I
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 target = "opencl"
 
@@ -205,7 +206,7 @@ def test_opencl_type_casting():
         assembly = fun.imports[0].inspect_source()
         lcond = "convert_int4(((convert_uint4(((uint4)(((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3)))))"
         rcond = "(convert_uint4(((((int4)(((convert_int(get_local_id(0))))+(1*0), ((convert_int(get_local_id(0))))+(1*1), ((convert_int(get_local_id(0))))+(1*2), ((convert_int(get_local_id(0))))+(1*3))) % ((int4)(3, 3, 3, 3))) == ((int4)(1, 1, 1, 1))))))))"
-        pattern_cond = "({} && {})".format(lcond, rcond)
+        pattern_cond = f"({lcond} && {rcond})"
         assert assembly.count(pattern_cond) != 0
         fun(c)
 
