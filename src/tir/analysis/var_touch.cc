@@ -22,6 +22,7 @@
  * \brief Implementation of simple passes
  */
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
@@ -29,8 +30,9 @@ namespace tir {
 
 class VarTouchVisitor : public StmtExprVisitor {
  public:
-  explicit VarTouchVisitor(std::function<bool(const VarNode*)> var_set)
-      : var_set_(std::move(var_set)) {}
+  explicit VarTouchVisitor(std::function<bool(const VarNode*)> var_set, bool touch_read,
+                           bool touch_write)
+      : var_set_(std::move(var_set)), touch_read_(touch_read), touch_write_(touch_write) {}
 
   void VisitStmt(const Stmt& stmt) final {
     if (use_var_) return;
@@ -45,12 +47,16 @@ class VarTouchVisitor : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final { Handle(op); }
 
   void VisitStmt_(const BufferStoreNode* op) final {
-    Handle(op->buffer->data.get());
+    if (touch_write_) {
+      Handle(op->buffer->data.get());
+    }
     StmtVisitor::VisitStmt_(op);
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    Handle(op->buffer->data.get());
+    if (touch_read_) {
+      Handle(op->buffer->data.get());
+    }
     ExprVisitor::VisitExpr_(op);
   }
 
@@ -62,17 +68,31 @@ class VarTouchVisitor : public StmtExprVisitor {
 
  private:
   std::function<bool(const VarNode*)> var_set_;
+  bool touch_read_;
+  bool touch_write_;
 };
 
 bool UsesVar(const Stmt& stmt, std::function<bool(const VarNode*)> var_set) {
-  VarTouchVisitor visitor(std::move(var_set));
+  VarTouchVisitor visitor(std::move(var_set), true, true);
   visitor(stmt);
   return visitor.use_var_;
 }
 
 bool UsesVar(const PrimExpr& expr, std::function<bool(const VarNode*)> var_set) {
-  VarTouchVisitor visitor(std::move(var_set));
+  VarTouchVisitor visitor(std::move(var_set), true, true);
   visitor(expr);
+  return visitor.use_var_;
+}
+
+bool ReadsVar(const Stmt& stmt, std::function<bool(const VarNode*)> var_set) {
+  VarTouchVisitor visitor(std::move(var_set), true, false);
+  visitor(stmt);
+  return visitor.use_var_;
+}
+
+bool WritesVar(const Stmt& stmt, std::function<bool(const VarNode*)> var_set) {
+  VarTouchVisitor visitor(std::move(var_set), false, true);
+  visitor(stmt);
   return visitor.use_var_;
 }
 
