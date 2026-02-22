@@ -16,7 +16,6 @@
 # under the License.
 """Tensor class for computation declaration."""
 
-# pylint: disable=invalid-name
 import tvm_ffi
 
 from tvm.runtime import Object, ObjectConvertible

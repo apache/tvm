@@ -25,7 +25,6 @@ Server is TCP based with the following protocol:
    - {server|client}:device-type[:random-key] [-timeout=timeout]
 """
 
-# pylint: disable=invalid-name
 import ctypes
 import errno
 import logging
@@ -46,7 +45,6 @@ from tvm.contrib.popen_pool import PopenWorker
 from tvm.libinfo import find_lib_path
 from tvm.runtime.module import load_module as _load_module
 
-# pylint: disable=unused-import
 from . import _ffi_api, base, testing
 from .base import TrackerCode
 
@@ -69,7 +67,6 @@ def _server_env(load_library, work_path=None):
     else:
         temp = utils.tempdir()
 
-    # pylint: disable=unused-variable
     @tvm_ffi.register_global_func("tvm.rpc.server.workpath", override=True)
     def get_workpath(path):
         return temp.relpath(path)
@@ -85,7 +82,7 @@ def _server_env(load_library, work_path=None):
     @tvm_ffi.register_global_func("tvm.rpc.server.download_linked_module", override=True)
     def download_linked_module(file_name):
         """Load module from remote side."""
-        # pylint: disable=import-outside-toplevel
+
         path = temp.relpath(file_name)
 
         if path.endswith(".o"):
@@ -155,7 +152,7 @@ def _serving(sock, addr, opts, load_library):
         )
 
         try:
-            import psutil  # pylint: disable=import-outside-toplevel
+            import psutil
 
             # Terminate worker children firstly.
             for child in psutil.Process(server_proc.pid).children(recursive=True):

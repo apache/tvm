@@ -16,8 +16,10 @@
 # under the License.
 """tvm.contrib.msc.core.tools.distill.distiller"""
 
+from __future__ import annotations
+
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -48,8 +50,8 @@ class BaseDistiller(BaseTool):
         return super().setup()
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
+    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
@@ -119,7 +121,7 @@ class BaseDistiller(BaseTool):
 
         raise NotImplementedError("_learn is not implemented in BaseDistiller")
 
-    def distill(self) -> Dict[str, Any]:
+    def distill(self) -> dict[str, Any]:
         """Distill the knowledge
 
         Returns
@@ -142,7 +144,7 @@ class BaseDistiller(BaseTool):
         self._total_loss, self._forward_cnt = 0, 0
         return weights
 
-    def _distill(self) -> Dict[str, Any]:
+    def _distill(self) -> dict[str, Any]:
         """Distill the knowledge
 
         Returns
@@ -153,7 +155,7 @@ class BaseDistiller(BaseTool):
 
         raise NotImplementedError("_distill is not implemented in BaseDistiller")
 
-    def _save_weights(self, weights: Dict[str, Any]):
+    def _save_weights(self, weights: dict[str, Any]):
         """Save the distilled weights
 
         Parameters
@@ -187,7 +189,7 @@ class BaseDistiller(BaseTool):
         return True
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Process tensor
 
@@ -215,7 +217,7 @@ class BaseDistiller(BaseTool):
         return self._distill_tensor(tensor, name, consumer, scope, strategys)
 
     def _distill_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Process tensor
 

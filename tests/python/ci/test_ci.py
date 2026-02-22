@@ -30,7 +30,6 @@ import tvm.testing
 
 from .test_utils import GITHUB_SCRIPT_ROOT, JENKINS_SCRIPT_ROOT, REPO_ROOT, TempGit, run_script
 
-# pylint: disable=wrong-import-position,wrong-import-order
 sys.path.insert(0, str(REPO_ROOT / "ci"))
 sys.path.insert(0, str(JENKINS_SCRIPT_ROOT))
 sys.path.insert(0, str(GITHUB_SCRIPT_ROOT))
@@ -38,8 +37,6 @@ sys.path.insert(0, str(GITHUB_SCRIPT_ROOT))
 import scripts.github
 import scripts.jenkins
 from scripts.github.update_branch import EXPECTED_CI_JOBS
-
-# pylint: enable=wrong-import-position,wrong-import-order
 
 
 def parameterize_named(**kwargs):
@@ -49,7 +46,6 @@ def parameterize_named(**kwargs):
     )
 
 
-# pylint: disable=line-too-long
 TEST_DATA_SKIPPED_BOT = {
     "found-diff-no-additional": {
         "main_xml_file": "unittest/file1.xml",
@@ -243,12 +239,10 @@ TEST_DATA_SKIPPED_BOT = {
         "expected_body": "Unable to run tests bot because main failed to pass CI at sha1234.",
     },
 }
-# pylint: enable=line-too-long
 
 
 @tvm.testing.skip_if_wheel_test
 @parameterize_named(**TEST_DATA_SKIPPED_BOT)
-# pylint: enable=line-too-long
 def test_skipped_tests_comment(
     caplog,
     tmpdir_factory,
@@ -461,8 +455,8 @@ def generate_good_commit_status():
     ),
     # Check with many statuses
     many_statuses=dict(
-        statuses=generate_good_commit_status()
-        + [
+        statuses=[
+            *generate_good_commit_status(),
             {"context": "gpu/branch2", "state": "SUCCESS"},
             {"context": "gpu/branch3", "state": "FAILED"},
         ],
@@ -470,8 +464,8 @@ def generate_good_commit_status():
         expected_output="No good commits found in the last 1 commits",
     ),
     many_success_statuses=dict(
-        statuses=generate_good_commit_status()
-        + [
+        statuses=[
+            *generate_good_commit_status(),
             {"context": "gpu/branch2", "state": "SUCCESS"},
             {"context": "gpu/branch3", "state": "SUCCESS"},
         ],
@@ -513,7 +507,6 @@ def test_update_branch(tmpdir_factory, statuses, expected_rc, expected_output):
         )
 
 
-# pylint: disable=line-too-long
 @parameterize_named(
     author_gate=dict(
         pr_author="abc",
@@ -589,7 +582,6 @@ def test_update_branch(tmpdir_factory, statuses, expected_rc, expected_output):
         ).strip(),
     ),
 )
-# pylint: enable=line-too-long
 def test_pr_comment(tmpdir_factory, pr_author, comments, expected):
     """
     Test the PR commenting bot
@@ -1308,8 +1300,8 @@ def test_determine_docker_images(tmpdir_factory, images, expected):
             json.dumps(images_data),
             "--base-dir",
             git_dir,
-        ]
-        + images,
+            *images,
+        ],
         cwd=git_dir,
     )
 

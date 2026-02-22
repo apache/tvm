@@ -23,8 +23,6 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
 
-# pylint: disable=invalid-name,missing-function-docstring,no-value-for-parameter
-
 
 def test_tir_print_all_passes(capsys):
     @T.prim_func

@@ -18,9 +18,11 @@
 Test the @tvm-bot merge code
 """
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import tvm
 
@@ -39,7 +41,7 @@ Dry run, would have merged with url=pulls/10786/merge and data={
 class _TvmBotTest:
     NUMBER = 10786
 
-    def preprocess_data(self, data: Dict[str, Any]):
+    def preprocess_data(self, data: dict[str, Any]):
         """
         Used to pre-process PR data before running the test. Override as
         necessary to edit data for specific test cases.
@@ -107,7 +109,7 @@ class TestNoRequest(_TvmBotTest):
     USER = "abc"
     EXPECTED = "Command 'do something else' did not match anything"
 
-    def preprocess_data(self, data: Dict[str, Any]):
+    def preprocess_data(self, data: dict[str, Any]):
         data["reviews"]["nodes"][0]["body"] = "nothing"
         return data
 
@@ -131,7 +133,7 @@ class TestBadCI(_TvmBotTest):
     USER = "abc"
     EXPECTED = "Cannot merge, these CI jobs are not successful on"
 
-    def preprocess_data(self, data: Dict[str, Any]):
+    def preprocess_data(self, data: dict[str, Any]):
         # Mark the Jenkins build as failed
         contexts = data["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]["nodes"]
         for context in contexts:
@@ -149,7 +151,7 @@ class TestOldReview(_TvmBotTest):
     USER = "abc"
     EXPECTED = "Cannot merge, did not find any approving reviews"
 
-    def preprocess_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def preprocess_data(self, data: dict[str, Any]) -> dict[str, Any]:
         data["reviews"]["nodes"][0]["commit"]["oid"] = "abc12345"
         return data
 
@@ -163,7 +165,7 @@ class TestMissingJob(_TvmBotTest):
     USER = "abc"
     EXPECTED = "Cannot merge, missing expected jobs"
 
-    def preprocess_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def preprocess_data(self, data: dict[str, Any]) -> dict[str, Any]:
         contexts = data["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]["nodes"]
         for context in contexts:
             if "context" in context and context["context"] == "tvm-ci/pr-head":
@@ -200,7 +202,7 @@ class TestNoReview(_TvmBotTest):
     USER = "abc"
     EXPECTED = "Cannot merge, did not find any approving reviews from users with write access"
 
-    def preprocess_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def preprocess_data(self, data: dict[str, Any]) -> dict[str, Any]:
         data["reviews"]["nodes"] = []
         return data
 
@@ -214,7 +216,7 @@ class TestChangesRequested(_TvmBotTest):
     USER = "abc"
     EXPECTED = "Cannot merge, found [this review]"
 
-    def preprocess_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def preprocess_data(self, data: dict[str, Any]) -> dict[str, Any]:
         data["reviews"]["nodes"][0]["state"] = "CHANGES_REQUESTED"
         data["reviews"]["nodes"][0]["url"] = "http://example.com"
         return data
@@ -229,7 +231,7 @@ class TestCoAuthors(_TvmBotTest):
     USER = "abc"
     EXPECTED = "Co-authored-by: Some One <someone@email.com>"
 
-    def preprocess_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def preprocess_data(self, data: dict[str, Any]) -> dict[str, Any]:
         data["authorCommits"]["nodes"][0]["commit"]["authors"]["nodes"].append(
             {"name": "Some One", "email": "someone@email.com"}
         )

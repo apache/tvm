@@ -18,7 +18,7 @@
 
 import logging
 import os
-from typing import Union
+from typing import Optional, Union
 
 from .file import get_workspace
 from .namespace import MSCKey, MSCMap
@@ -52,7 +52,7 @@ class IOLogger:
         raise Exception(msg)
 
 
-def create_file_logger(level: Union[str, int] = logging.INFO, path: str = None) -> logging.Logger:
+def create_file_logger(level: str | int = logging.INFO, path: str | None = None) -> logging.Logger:
     """Create file logger
 
     Parameters
@@ -102,7 +102,7 @@ def create_file_logger(level: Union[str, int] = logging.INFO, path: str = None) 
     return logger
 
 
-def set_global_logger(level: Union[str, int] = logging.INFO, path: str = None) -> logging.Logger:
+def set_global_logger(level: str | int = logging.INFO, path: str | None = None) -> logging.Logger:
     """Create file logger and set to global
 
     Parameters

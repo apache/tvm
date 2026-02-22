@@ -19,23 +19,23 @@
 
 from typing import TYPE_CHECKING
 
-from ...ir_builder.relax import *  # pylint: disable=redefined-builtin
+from ...ir_builder.relax import *
 from ...ir_builder.relax import ir as _relax
 from . import parser as _parser
 from .entry import Callable, Object, Prim, Shape, Tensor, Tuple, match_cast
 
 from . import dist
-from .dist import *  # pylint: disable=wildcard-import,redefined-builtin
+from .dist import *
 
 if TYPE_CHECKING:
-    # pylint: disable=invalid-name
     # Define prim_func and make it type check as static method
     # so most tvmscript won't trigger pylint error here.
     function = staticmethod
 else:
     from .entry import function, macro
 
-__all__ = _relax.__all__ + [
+__all__ = [
+    *_relax.__all__,
     "dist",
     "Callable",
     "Object",

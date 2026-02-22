@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import sys
 
 import pytest
@@ -28,8 +27,6 @@ from tvm.s_tir.schedule.testing import (
 )
 from tvm.script import ir as I
 from tvm.script import tir as T
-
-# pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
 @T.prim_func
@@ -217,8 +214,6 @@ def colsum_decompose_with_vectorization(a: T.handle, b: T.handle) -> None:
                 vk, vi = T.axis.remap("RS", [k, i])
                 B[vi] = B[vi] + A[vk, vi]
 
-
-# pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 

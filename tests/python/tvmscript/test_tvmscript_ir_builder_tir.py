@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, missing-docstring
 """Unittests for tvm.script.ir_builder.tir"""
 
 import numpy as np

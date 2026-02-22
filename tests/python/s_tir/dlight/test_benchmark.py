@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 
 import tempfile
 
@@ -38,7 +37,6 @@ from tvm.script import tir as T
 
 # The test function uses an undefined symbolic var in Relax.
 # In principle, this should be attached to an argument.
-# pylint: disable=no-self-argument,invalid-name,line-too-long,no-method-argument
 # fmt: off
 @I.ir_module(check_well_formed=False)
 class Module:
@@ -169,7 +167,6 @@ def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(409
                                             if v1 < m:
                                                 matmul[T.int64(0), v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
 # fmt: on
-# pylint: enable=no-self-argument,invalid-name,line-too-long,no-method-argument
 
 
 @pytest.mark.skip("requires CUDA")

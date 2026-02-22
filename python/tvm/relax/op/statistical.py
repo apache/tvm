@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin
 """Statistical operators."""
 
-from typing import List, Optional, Union
+from __future__ import annotations
 
 from tvm import DataType
 
@@ -25,7 +24,7 @@ from ..expr import Expr
 from . import _ffi_api
 
 
-def max(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def max(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
     """Computes the max of tensor elements over given axes.
 
     Parameters
@@ -53,7 +52,7 @@ def max(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
     return _ffi_api.max(x, axis, keepdims)  # type: ignore
 
 
-def mean(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def mean(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
     """Computes the mean of tensor elements over given axes.
 
     Parameters
@@ -81,7 +80,7 @@ def mean(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool =
     return _ffi_api.mean(x, axis, keepdims)  # type: ignore
 
 
-def min(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def min(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
     """Computes the min of tensor elements over given axes.
 
     Parameters
@@ -109,7 +108,7 @@ def min(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
     return _ffi_api.min(x, axis, keepdims)  # type: ignore
 
 
-def prod(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def prod(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
     """Computes the product of tensor elements over given axes.
 
     Parameters
@@ -137,7 +136,7 @@ def prod(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool =
     return _ffi_api.prod(x, axis, keepdims)  # type: ignore
 
 
-def std(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def std(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
     """Computes the standard deviation of tensor elements over given axes.
 
     Parameters
@@ -165,7 +164,7 @@ def std(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
     return _ffi_api.std(x, axis, keepdims)  # type: ignore
 
 
-def sum(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def sum(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
     """Computes the sum of tensor elements over given axes.
 
     Parameters
@@ -195,8 +194,8 @@ def sum(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = 
 
 def cumprod(
     data: Expr,
-    axis: Optional[int] = None,
-    dtype: Optional[Union[str, DataType]] = None,
+    axis: int | None = None,
+    dtype: str | DataType | None = None,
     exclusive: bool = False,
 ):
     """Numpy style cumprod op. Return the cumulative product of the elements along
@@ -257,8 +256,8 @@ def cumprod(
 
 def cumsum(
     data: Expr,
-    axis: Optional[int] = None,
-    dtype: Optional[Union[str, DataType]] = None,
+    axis: int | None = None,
+    dtype: str | DataType | None = None,
     exclusive: bool = False,
 ):
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
@@ -317,7 +316,7 @@ def cumsum(
     return _ffi_api.cumsum(data, axis, dtype, exclusive)  # type: ignore
 
 
-def variance(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def variance(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
     """Computes the variance of tensor elements over given axes.
 
     Parameters
@@ -345,7 +344,7 @@ def variance(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bo
     return _ffi_api.variance(x, axis, keepdims)  # type: ignore
 
 
-def median(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:
+def median(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
     """Computes the median of tensor elements over given axes.
 
     Parameters

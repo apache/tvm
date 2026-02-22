@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-outside-toplevel, unused-argument
 
 """StableHLO frontend of Relax."""
 
-from typing import Any, Callable, Dict, List, Tuple, Union
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
 
 import tvm
 from tvm import relax, tir
@@ -33,7 +35,7 @@ class StableHLOImporter:
     def __init__(self) -> None:
         from jaxlib import mlir
 
-        self._nodes: Dict[Union[str, mlir.ir.Operation], relax.Expr] = {}
+        self._nodes: dict[str | mlir.ir.Operation, relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
         self.create_convert_map()
 
@@ -73,7 +75,7 @@ class StableHLOImporter:
         else:
             raise NotImplementedError(f"input_type {input_type} is not handled yet")
 
-    def _attr2value(self, node) -> Union[Any, List[Any]]:
+    def _attr2value(self, node) -> Any | list[Any]:
         import numpy as np
         from jaxlib import mlir
 
@@ -118,7 +120,7 @@ class StableHLOImporter:
             return self._retrieve_operands(node.owner)
         return node
 
-    def get_shape(self, inpt_type) -> List[Any]:
+    def get_shape(self, inpt_type) -> list[Any]:
         """Get the shape from Type like tensor<?x?xf32>"""
         from jaxlib import mlir
 
@@ -325,7 +327,7 @@ class StableHLOImporter:
     def create_convert_map(self):
         from jaxlib import mlir
 
-        self.convert_map: Dict[str, Callable[[mlir.ir.Operation], relax.Var]] = {
+        self.convert_map: dict[str, Callable[[mlir.ir.Operation], relax.Var]] = {
             "stablehlo.add": self._add,
             "stablehlo.broadcast_in_dim": self._broadcast_in_dim,
             "stablehlo.constant": self._const,
@@ -351,7 +353,7 @@ class StableHLOImporter:
             "stablehlo.return": self._return,
         }
 
-    def from_stablehlo(self, model, input_info: List[Tuple[Tuple[int], str]]) -> tvm.IRModule:
+    def from_stablehlo(self, model, input_info: list[tuple[tuple[int], str]]) -> tvm.IRModule:
         """Convert a StableHLO Module to a Relax program.
 
         Parameters
@@ -416,7 +418,7 @@ class StableHLOImporter:
 
 def from_stablehlo(
     stablehlo_module,
-    input_info: List[Tuple[Tuple[int], str]] = None,
+    input_info: list[tuple[tuple[int], str]] | None = None,
 ) -> tvm.IRModule:
     """Convert a StableHLO Module to a Relax program
 

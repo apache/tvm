@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,consider-using-enumerate,unused-argument,len-as-condition
 """Elementwise operators"""
 
 import math as _math
@@ -87,7 +86,7 @@ def full_like(x, fill_value):
     return cpp.full_like(x, fill_value)
 
 
-def eye(n: int, m: Optional[int] = None, k: int = 0, dtype: str = "float32") -> te.Tensor:
+def eye(n: int, m: int | None = None, k: int = 0, dtype: str = "float32") -> te.Tensor:
     """Generate an identity matrix or a matrix with ones on the k-th diagonal.
 
     Parameters

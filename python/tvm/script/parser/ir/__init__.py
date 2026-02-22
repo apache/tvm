@@ -18,18 +18,18 @@
 """The ir module parser"""
 
 from tvm.ir import Range
-from ...ir_builder.ir import *  # pylint: disable=redefined-builtin
+from ...ir_builder.ir import *
 from . import parser as _parser
 from .entry import ir_module, pyfunc
 
 
 __all__ = [
+    "Range",
+    "dummy_global_info",
     "ir_module",
+    "lookup_vdevice",
     "module_attrs",
     "module_global_infos",
-    "dummy_global_info",
-    "Range",
-    "lookup_vdevice",
     "pyfunc",
     "vdevice",
 ]

@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+from __future__ import annotations
+
 import tempfile
-from typing import List
 
 import pytest
 
@@ -44,7 +44,7 @@ class Matmul:
 
 
 @tvm.register_global_func("s_tir.meta_schedule.cpu.test_apply_custom_rule")
-def sch_fn(sch: tvm.s_tir.Schedule, block: tvm.tir.SBlock) -> List[tvm.s_tir.Schedule]:
+def sch_fn(sch: tvm.s_tir.Schedule, block: tvm.tir.SBlock) -> list[tvm.s_tir.Schedule]:
     raise ValueError("Intended for s_tir.meta_schedule.cpu.test_apply_custom_rule")
 
 

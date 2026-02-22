@@ -14,12 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Internal DiscoWorker for Disco ProcessSession."""
 
 import os
 import sys
-from typing import Callable
+from collections.abc import Callable
 
 from tvm_ffi import get_global_func, register_global_func
 
@@ -56,7 +55,7 @@ def _str_obj_func(x: str):
 @register_global_func("tests.disco.shape_tuple", override=True)
 def _shape_tuple_func(x: ShapeTuple):
     assert isinstance(x, ShapeTuple)
-    return ShapeTuple(list(x) + [4, 5])
+    return ShapeTuple([*list(x), 4, 5])
 
 
 @register_global_func("tests.disco.test_callback", override=True)
@@ -81,7 +80,7 @@ def _make_callback(device: tvm.runtime.Device) -> Callable[[str, int], Tensor]:
         and returns the specified parameter.
 
     """
-    import numpy as np  # pylint: disable=import-outside-toplevel
+    import numpy as np
 
     def fget_item(param_name: str, param_index: int) -> Tensor:
         if param_index == 0:
@@ -106,7 +105,7 @@ def main():
     num_workers = int(sys.argv[2])
     num_groups = int(sys.argv[3])
     if sys.platform == "win32":
-        import msvcrt  # pylint: disable=import-outside-toplevel,import-error
+        import msvcrt
 
         reader = msvcrt.open_osfhandle(int(sys.argv[4]), os.O_BINARY)
         writer = msvcrt.open_osfhandle(int(sys.argv[5]), os.O_BINARY)

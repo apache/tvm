@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name,redefined-outer-name
 """Hexagon testing fixtures used to deduce testing argument
 values from testing parameters"""
 
@@ -66,7 +65,7 @@ def _compose(args, decs):
 requires_hexagon_toolchain = tvm.testing.requires_hexagon(support_required="compile-only")
 
 
-def android_serial_number() -> Optional[str]:
+def android_serial_number() -> str | None:
     """Return the android serial number"""
     serial = os.getenv(ANDROID_SERIAL_NUMBER, default="")
     # Setting ANDROID_SERIAL_NUMBER to an empty string should be
@@ -114,7 +113,7 @@ def get_free_port() -> int:
 
 
 @pytest.fixture(scope="session")
-def _tracker_info() -> Union[str, int]:
+def _tracker_info() -> str | int:
     env_tracker_host = os.getenv(TVM_TRACKER_HOST, default="")
     env_tracker_port = os.getenv(TVM_TRACKER_PORT, default="")
 

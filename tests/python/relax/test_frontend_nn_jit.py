@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import List, Tuple
+from __future__ import annotations
 
 import pytest
 import torch
@@ -108,7 +108,7 @@ def test_jit_tuple_input(debug):
         def __init__(self):
             pass
 
-        def forward(self, x: Tuple[nn.Tensor, nn.Tensor]):
+        def forward(self, x: tuple[nn.Tensor, nn.Tensor]):
             assert isinstance(x, tuple)
             x0 = x[0]
             x1 = x[1]
@@ -143,7 +143,7 @@ def test_jit_list_input(debug):
         def __init__(self):
             pass
 
-        def forward(self, x: List[nn.Tensor]):
+        def forward(self, x: list[nn.Tensor]):
             assert isinstance(x, list)
             x0 = x[0]
             x1 = x[1]
@@ -178,7 +178,7 @@ def test_jit_tuple_input_with_int(debug):
         def __init__(self):
             pass
 
-        def forward(self, x: Tuple[nn.Tensor, nn.Tensor, int]):
+        def forward(self, x: tuple[nn.Tensor, nn.Tensor, int]):
             x0 = x[0]
             x1 = x[1]
             y0 = nn.add(x0, x1)

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Relax linear algebra operators"""
 
 from typing import Optional, Union
@@ -27,7 +26,7 @@ from . import _ffi_api
 from .manipulate import permute_dims
 
 
-def matmul(x1: Expr, x2: Expr, out_dtype: Optional[Union[str, DataType]] = None) -> Expr:
+def matmul(x1: Expr, x2: Expr, out_dtype: str | DataType | None = None) -> Expr:
     """General matrix multiplication of two tensors, with broadcasting on batched dimensions.
 
     The semantics and output shape deduction rule is specified as
@@ -56,8 +55,8 @@ def matmul(x1: Expr, x2: Expr, out_dtype: Optional[Union[str, DataType]] = None)
 def linear(
     data: Expr,
     weight: Expr,
-    bias: Optional[Expr] = None,
-    out_dtype: Optional[Union[str, DataType]] = None,
+    bias: Expr | None = None,
+    out_dtype: str | DataType | None = None,
 ) -> Expr:
     """Applies a linear transformation to the incoming data: y = xA^T + b
 

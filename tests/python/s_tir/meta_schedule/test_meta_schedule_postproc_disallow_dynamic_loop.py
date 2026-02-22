@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 import tvm
 from tvm import tir
@@ -43,7 +42,6 @@ def _create_context(mod, target) -> ms.TuneContext:
     return ctx
 
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 
 @tvm.script.ir_module
@@ -79,7 +77,6 @@ class DynamicLoop:
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 # fmt: on
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
 def test_postproc_disallow_dynamic_loops():

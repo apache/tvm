@@ -393,7 +393,7 @@ def test_unsupported_fold_ops_legalized_to_multiple_calls():
     from tvm.relax.transform.legalize_ops.common import register_legalize
 
     def customized_legalize_relu(bb: relax.BlockBuilder, call: relax.Call):
-        from tvm import topi  # pylint: disable=import-outside-toplevel
+        from tvm import topi
 
         x = bb.emit_te(topi.nn.relu, *call.args)
         return bb.call_te(topi.identity, x)

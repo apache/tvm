@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.s_tir import dlight as dl
@@ -59,7 +58,7 @@ def test_fallback():
 
     target = Target("nvidia/geforce-rtx-3090-ti")
     with target:
-        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+        mod = dl.ApplyDefaultSchedule(
             dl.gpu.Fallback(),
         )(Before)
     assert_structural_equal(mod, After)
@@ -103,7 +102,7 @@ def test_fallback_reduction():
                             B[0] = B[0] + T.Cast("float32", A[0, v1])
 
     with Target("apple/m1-gpu"):
-        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+        mod = dl.ApplyDefaultSchedule(
             dl.gpu.Fallback(),
         )(Module)
     assert_structural_equal(mod, Expected)
@@ -173,7 +172,7 @@ def test_fallback_irregular_spatial():
     target = Target("nvidia/geforce-rtx-3090-ti")
     with target:
         mod = tvm.IRModule({"main": func})
-        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+        mod = dl.ApplyDefaultSchedule(
             dl.gpu.Fallback(),
         )(mod)
     assert_structural_equal(mod["main"], expected)
@@ -251,7 +250,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
                     C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
 
     with Target("cuda"):
-        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+        mod = dl.ApplyDefaultSchedule(
             dl.gpu.Fallback(),
         )(Before)
     assert_structural_equal(mod, After)

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
 import tvm.testing
 from tvm.s_tir.meta_schedule.postproc import RewriteParallelVectorizeUnroll
@@ -22,7 +21,6 @@ from tvm.s_tir.schedule import Schedule
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import tir as T
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable,misplaced-comparison-constant
 # fmt: off
 
 @tvm.script.ir_module
@@ -181,7 +179,6 @@ def after_postproc_add(
 
 
 # fmt: on
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable
 
 
 def test_meta_schedule_postproc_rewrite_parallel_unroll_vectorize():

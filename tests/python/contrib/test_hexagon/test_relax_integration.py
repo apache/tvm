@@ -28,9 +28,8 @@ from tvm.relax.testing import relay_translator
 
 def get_onnx_mobilenet():
     """Download and import mobilenet model with ONNX"""
-    import onnx  # pylint: disable=import-outside-toplevel
+    import onnx
 
-    # pylint: disable=line-too-long
     model_url = "https://github.com/onnx/models/raw/131c99da401c757207a40189385410e238ed0934/vision/classification/mobilenet/model/mobilenetv2-7.onnx"
     model_path = tvm.contrib.download.download_testdata(
         model_url, "mobilenetv2-7.onnx", module="onnx"

@@ -16,7 +16,6 @@
 # under the License.
 """Common runtime ctypes."""
 
-# pylint: disable=invalid-name
 import json
 
 import tvm_ffi
@@ -31,7 +30,7 @@ class Device(tvm_ffi.core.Device):
 
     def _GetDeviceAttr(self, device_type, device_id, attr_id):
         """Internal helper function to invoke runtime.GetDeviceAttr"""
-        # pylint: disable=import-outside-toplevel
+
         return _ffi_api.GetDeviceAttr(device_type, device_id, attr_id)
 
     @property

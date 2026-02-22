@@ -20,9 +20,7 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
-from typing import List
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 assert (REPO_ROOT / "Jenkinsfile").exists
@@ -103,7 +101,7 @@ class Sh:
         }
 
 
-def tags_from_title(title: str) -> List[str]:
+def tags_from_title(title: str) -> list[str]:
     tags = re.findall(r"\[(.*?)\]", title)
     tags = [t.strip() for t in tags]
     return tags

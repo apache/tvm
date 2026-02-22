@@ -16,10 +16,12 @@
 # under the License.
 """Local Runner"""
 
+from __future__ import annotations
+
 import logging
 import subprocess
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Callable, List, Optional, Union
 
 import tvm
 
@@ -37,27 +39,27 @@ from .utils import (
     run_evaluator_common,
 )
 
-logger = get_logger(__name__)  # pylint: disable=invalid-name
+logger = get_logger(__name__)
 
 
-T_ALLOC_ARGUMENT = Callable[  # pylint: disable=invalid-name
+T_ALLOC_ARGUMENT = Callable[
     [
         Device,  # The device on the remote
         T_ARG_INFO_JSON_OBJ_LIST,  # The metadata information of the arguments to be allocated
         int,  # The number of repeated allocations to be done
     ],
-    List[T_ARGUMENT_LIST],  # A list of argument lists
+    list[T_ARGUMENT_LIST],  # A list of argument lists
 ]
-T_RUN_EVALUATOR = Callable[  # pylint: disable=invalid-name
+T_RUN_EVALUATOR = Callable[
     [
         Module,  # The Module opened on the remote
         Device,  # The device on the remote
         EvaluatorConfig,  # The evaluator configuration
-        List[T_ARGUMENT_LIST],  # A list of argument lists
+        list[T_ARGUMENT_LIST],  # A list of argument lists
     ],
-    List[float],  # A list of running time
+    list[float],  # A list of running time
 ]
-T_CLEANUP = Callable[  # pylint: disable=invalid-name
+T_CLEANUP = Callable[
     [],
     None,
 ]
@@ -80,12 +82,10 @@ class LocalRunnerFuture(PyRunnerFuture):
     of LocalRunnerFuture object
     """
 
-    res: Optional[List[float]]
-    error_message: Optional[str]
+    res: list[float] | None
+    error_message: str | None
 
-    def __init__(
-        self, res: Optional[List[float]] = None, error_message: Optional[str] = None
-    ) -> None:
+    def __init__(self, res: list[float] | None = None, error_message: str | None = None) -> None:
         """Constructor
 
         Parameters
@@ -117,15 +117,15 @@ class LocalRunnerFuture(PyRunnerFuture):
 
 
 def _worker_func(
-    _f_alloc_argument: Optional[str],
-    _f_run_evaluator: Optional[str],
-    _f_cleanup: Optional[str],
+    _f_alloc_argument: str | None,
+    _f_run_evaluator: str | None,
+    _f_cleanup: str | None,
     evaluator_config: EvaluatorConfig,
     alloc_repeat: int,
     artifact_path: str,
     device_type: str,
     args_info: T_ARG_INFO_JSON_OBJ_LIST,
-) -> List[float]:
+) -> list[float]:
     f_alloc_argument: T_ALLOC_ARGUMENT = get_global_func_with_default_on_worker(
         _f_alloc_argument, default_alloc_argument
     )
@@ -150,14 +150,14 @@ def _worker_func(
         # Step 2: Allocate input arguments
         with Profiler.timeit("LocalRunner/alloc_argument"):
             device = tvm.runtime.device(device_type, 0)
-            repeated_args: List[T_ARGUMENT_LIST] = f_alloc_argument(
+            repeated_args: list[T_ARGUMENT_LIST] = f_alloc_argument(
                 device,
                 args_info,
                 alloc_repeat,
             )
         # Step 3: Run time_evaluator
         with Profiler.timeit("LocalRunner/run_evaluator"):
-            costs: List[float] = f_run_evaluator(
+            costs: list[float] = f_run_evaluator(
                 rt_mod,
                 device,
                 evaluator_config,
@@ -228,22 +228,22 @@ class LocalRunner(PyRunner):
     cooldown_sec: float
     alloc_repeat: int
 
-    f_alloc_argument: Union[T_ALLOC_ARGUMENT, str, None]
-    f_run_evaluator: Union[T_RUN_EVALUATOR, str, None]
-    f_cleanup: Union[T_CLEANUP, str, None]
+    f_alloc_argument: T_ALLOC_ARGUMENT | str | None
+    f_run_evaluator: T_RUN_EVALUATOR | str | None
+    f_cleanup: T_CLEANUP | str | None
 
     pool: PopenPoolExecutor
 
     def __init__(
         self,
         timeout_sec: float = 30,
-        evaluator_config: Optional[EvaluatorConfig] = None,
+        evaluator_config: EvaluatorConfig | None = None,
         cooldown_sec: float = 0.0,
         alloc_repeat: int = 1,
-        f_alloc_argument: Union[T_ALLOC_ARGUMENT, str, None] = None,
-        f_run_evaluator: Union[T_RUN_EVALUATOR, str, None] = None,
-        f_cleanup: Union[T_CLEANUP, str, None] = None,
-        initializer: Optional[Callable[[], None]] = None,
+        f_alloc_argument: T_ALLOC_ARGUMENT | str | None = None,
+        f_run_evaluator: T_RUN_EVALUATOR | str | None = None,
+        f_cleanup: T_CLEANUP | str | None = None,
+        initializer: Callable[[], None] | None = None,
     ) -> None:
         """Constructor
 
@@ -288,8 +288,8 @@ class LocalRunner(PyRunner):
         )
         self._sanity_check()
 
-    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
-        results: List[RunnerFuture] = []
+    def run(self, runner_inputs: list[RunnerInput]) -> list[RunnerFuture]:
+        results: list[RunnerFuture] = []
         for runner_input in runner_inputs:
             future = self.pool.submit(
                 _worker_func,
@@ -303,12 +303,12 @@ class LocalRunner(PyRunner):
                 tuple(arg_info.as_json() for arg_info in runner_input.args_info),
             )
             try:
-                result: List[float] = future.result()
+                result: list[float] = future.result()
                 error_message: str = None
             except TimeoutError:
                 result = None
                 error_message = f"LocalRunner: Timeout, killed after {self.timeout_sec} seconds\n"
-            except Exception as exception:  # pylint: disable=broad-except
+            except Exception as exception:
                 result = None
                 error_message = "LocalRunner: An exception occurred\n" + str(exception)
             local_future = LocalRunnerFuture(res=result, error_message=error_message)
@@ -338,7 +338,7 @@ def default_alloc_argument(
     device: Device,
     args_info: T_ARG_INFO_JSON_OBJ_LIST,
     alloc_repeat: int,
-) -> List[T_ARGUMENT_LIST]:
+) -> list[T_ARGUMENT_LIST]:
     """Default function to allocate the arguments
 
     Parameters
@@ -365,8 +365,8 @@ def default_run_evaluator(
     rt_mod: Module,
     device: Device,
     evaluator_config: EvaluatorConfig,
-    repeated_args: List[T_ARGUMENT_LIST],
-) -> List[float]:
+    repeated_args: list[T_ARGUMENT_LIST],
+) -> list[float]:
     """Default function to run the evaluator
 
     Parameters
@@ -390,7 +390,7 @@ def default_run_evaluator(
 
 def default_cleanup() -> None:
     """Default function to clean up the session"""
-    pass  # pylint: disable=unnecessary-pass
+    pass
 
 
 @tvm.register_global_func("s_tir.meta_schedule.runner.get_local_runner")

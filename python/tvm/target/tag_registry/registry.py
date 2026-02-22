@@ -16,13 +16,15 @@
 # under the License.
 """Target tag registry functions."""
 
-from typing import Any, Dict, Optional
+from __future__ import annotations
+
+from typing import Any
 
 from .. import _ffi_api
 from ..target import Target
 
 
-def list_tags() -> Optional[Dict[str, Target]]:
+def list_tags() -> dict[str, Target] | None:
     """Returns a dict of tags, which maps each tag name to its corresponding target.
 
     Returns
@@ -36,7 +38,7 @@ def list_tags() -> Optional[Dict[str, Target]]:
     return None
 
 
-def register_tag(name: str, config: Dict[str, Any], override: bool = False) -> Optional[Target]:
+def register_tag(name: str, config: dict[str, Any], override: bool = False) -> Target | None:
     """Add a user-defined tag into the target tag registry.
 
     Parameters

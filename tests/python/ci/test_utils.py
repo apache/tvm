@@ -18,9 +18,11 @@
 Constants used in various CI tests
 """
 
+from __future__ import annotations
+
 import pathlib
 import subprocess
-from typing import Any, List
+from typing import Any
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 GITHUB_SCRIPT_ROOT = REPO_ROOT / "ci" / "scripts" / "github"
@@ -45,7 +47,7 @@ class TempGit:
         Run a git command based on *args
         """
         proc = subprocess.run(
-            ["git"] + list(args), encoding="utf-8", cwd=self.cwd, check=False, **kwargs
+            ["git", *list(args)], encoding="utf-8", cwd=self.cwd, check=False, **kwargs
         )
         if proc.returncode != 0:
             raise RuntimeError(f"git command failed: '{args}'")
@@ -53,7 +55,7 @@ class TempGit:
         return proc
 
 
-def run_script(command: List[Any], check: bool = True, **kwargs):
+def run_script(command: list[Any], check: bool = True, **kwargs):
     """
     Wrapper to run a script and print its output if there was an error
     """

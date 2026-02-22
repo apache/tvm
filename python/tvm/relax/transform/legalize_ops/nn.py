@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-argument
 """Default legalization function for neural network operators."""
 
 import logging
@@ -538,7 +537,7 @@ def _nn_selu(bb: BlockBuilder, call: Call) -> Expr:
         scale = tir.const(1.0507009873554804934193349852946, dtype)
 
         # Compute SELU
-        # SELU(x) = scale∗(max(0,x)+min(0,α∗(exp(x)−1)))
+        # SELU(x) = scale*(max(0,x)+min(0,alpha*(exp(x)-1)))
         positive_part = topi.maximum(x, tir.const(0, dtype))
         negative_part = topi.minimum(
             tir.const(0, dtype), alpha * (topi.exp(x) - tir.const(1, dtype))
@@ -671,7 +670,7 @@ def _te_attention(
     v: te.Tensor,
     bias: te.Tensor,
     scale: tir.FloatImm,
-    causal_mask: Optional[str],
+    causal_mask: str | None,
 ) -> te.Tensor:
     batch_size, seq_len, num_head, head_dim = q.shape
     _, seq_len_kv, _, head_dim_v = v.shape

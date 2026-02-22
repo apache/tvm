@@ -17,6 +17,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations
+
 import argparse
 import getpass
 import grp
@@ -32,8 +34,9 @@ import subprocess
 import sys
 import textwrap
 import typing
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_DIR = REPO_ROOT / ".ci-py-scripts"
@@ -59,7 +62,7 @@ def print_color(color: str, msg: str, bold: bool, **kwargs: Any) -> None:
         print(msg, **kwargs)
 
 
-warnings: List[str] = []
+warnings: list[str] = []
 
 
 def clean_exit(msg: str) -> None:
@@ -71,7 +74,7 @@ def clean_exit(msg: str) -> None:
     exit(1)
 
 
-def cmd(commands: List[Any], **kwargs: Any):
+def cmd(commands: list[Any], **kwargs: Any):
     commands = [str(s) for s in commands]
     command_str = " ".join(commands)
     print_color(col.BLUE, command_str, bold=True)
@@ -148,10 +151,10 @@ def gen_name(s: str) -> str:
 def docker(
     name: str,
     image: str,
-    scripts: List[str],
-    env: Dict[str, str],
+    scripts: list[str],
+    env: dict[str, str],
     interactive: bool,
-    additional_flags: Optional[Dict[str, str]] = None,
+    additional_flags: dict[str, str] | None = None,
 ):
     """
     Invoke a set of bash scripts through docker/bash.sh
@@ -176,9 +179,7 @@ def docker(
     }
 
     if image in sccache_images and os.getenv("USE_SCCACHE", "1") == "1":
-        scripts = [
-            "sccache --start-server",
-        ] + scripts
+        scripts = ["sccache --start-server", *scripts]
         # Set the C/C++ compiler so CMake picks them up in the build
         env["CC"] = "/opt/sccache/cc"
         env["CXX"] = "/opt/sccache/c++"
@@ -197,7 +198,7 @@ def docker(
     command.append(name)
     if interactive:
         command.append("-i")
-        scripts = ["interact() {", "  bash", "}", "trap interact 0", ""] + scripts
+        scripts = ["interact() {", "  bash", "}", "trap interact 0", "", *scripts]
 
     for key, value in env.items():
         command.append("--env")
@@ -230,12 +231,12 @@ def docker(
 
 
 def docs(
-    tutorial_pattern: Optional[str] = None,
+    tutorial_pattern: str | None = None,
     cpu: bool = False,
     full: bool = False,
     interactive: bool = False,
     skip_build: bool = False,
-    docker_image: Optional[str] = None,
+    docker_image: str | None = None,
 ) -> None:
     """
     Build the documentation from gallery/ and docs/. By default this builds only
@@ -289,7 +290,8 @@ def docs(
         check_gpu()
         config_script = f"./tests/scripts/task_config_build_gpu.sh {build_dir}"
 
-    scripts = extra_setup + [
+    scripts = [
+        *extra_setup,
         config_script,
         f"./tests/scripts/task_build.py --build-dir {build_dir}",
     ]
@@ -331,7 +333,7 @@ def serve_docs(directory: str = "_docs") -> None:
     cmd([sys.executable, "-m", "http.server"], cwd=directory_path)
 
 
-def lint(interactive: bool = False, fix: bool = False, docker_image: Optional[str] = None) -> None:
+def lint(interactive: bool = False, fix: bool = False, docker_image: str | None = None) -> None:
     """
     Run CI's Sanity Check step
 
@@ -354,17 +356,17 @@ def lint(interactive: bool = False, fix: bool = False, docker_image: Optional[st
     )
 
 
-Option = Tuple[str, List[str]]
+Option = tuple[str, list[str]]
 
 
 def generate_command(
     name: str,
-    options: Dict[str, Option],
+    options: dict[str, Option],
     help: str,
-    precheck: Optional[Callable[[], None]] = None,
-    post_build: Optional[List[str]] = None,
-    additional_flags: Optional[Dict[str, str]] = None,
-    env: Optional[Dict[str, str]] = None,
+    precheck: Callable[[], None] | None = None,
+    post_build: list[str] | None = None,
+    additional_flags: dict[str, str] | None = None,
+    env: dict[str, str] | None = None,
 ):
     """
     Helper to generate CLIs that:
@@ -375,10 +377,10 @@ def generate_command(
     """
 
     def fn(
-        tests: Optional[List[str]],
+        tests: list[str] | None,
         skip_build: bool = False,
         interactive: bool = False,
-        docker_image: Optional[str] = None,
+        docker_image: str | None = None,
         verbose: bool = False,
         **kwargs,
     ) -> None:
@@ -493,8 +495,8 @@ def is_optional_type(annotation):
 def add_subparser(
     func: Callable,
     subparsers: Any,
-    options: Optional[Dict[str, Option]] = None,
-    help: Optional[str] = None,
+    options: dict[str, Option] | None = None,
+    help: str | None = None,
 ) -> Any:
     """
     Utility function to make it so subparser commands can be defined locally
@@ -533,7 +535,7 @@ def add_subparser(
             continue
 
         arg_cli_name = cli_name(name)
-        kwargs: Dict[str, Union[str, bool]] = {"help": arg_help_texts[arg_cli_name]}
+        kwargs: dict[str, str | bool] = {"help": arg_help_texts[arg_cli_name]}
 
         is_optional = is_optional_type(value.annotation)
         if is_optional:

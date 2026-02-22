@@ -16,7 +16,7 @@
 # under the License.
 """IRBuilder for TIR"""
 
-from typing import List, Union
+from __future__ import annotations
 
 from tvm_ffi import register_object as _register_object
 
@@ -43,7 +43,7 @@ class BlockInitFrame(TIRFrame): ...
 
 @_register_object("script.ir_builder.tir.ForFrame")
 class ForFrame(TIRFrame):
-    def __enter__(self) -> Union[Var, List[Var]]:  # type: ignore[override]
+    def __enter__(self) -> Var | list[Var]:  # type: ignore[override]
         super().__enter__()
         return self.vars if len(self.vars) > 1 else self.vars[0]
 

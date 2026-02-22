@@ -26,7 +26,7 @@ from tvm.contrib import utils
 def validate_debug_dir_path(temp_dir, expected_basename):
     """Validate the dir path of debugging"""
     dirname, basename = os.path.split(temp_dir.temp_dir)
-    assert basename == expected_basename, "unexpected basename: %s" % (basename,)
+    assert basename == expected_basename, f"unexpected basename: {basename}"
 
     parent_dir = os.path.basename(dirname)
     create_time = datetime.datetime.strptime(parent_dir.split("___", 1)[0], "%Y-%m-%dT%H-%M-%S")

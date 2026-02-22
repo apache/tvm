@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin
 """Operators for distributed Relax."""
 
-from typing import List, Optional, Tuple, Union
+from __future__ import annotations
 
 from tvm.ir import PrimExpr
 from tvm.relax.distributed import DTensorStructInfo
@@ -72,8 +71,8 @@ def redistribute(input: Expr, device_mesh: DeviceMesh, placement: Placement) -> 
 def call_tir_local_view(
     gvar: GlobalVar,
     args: Expr,
-    out_sinfo: Union[DTensorStructInfo, List[DTensorStructInfo]],
-    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+    out_sinfo: DTensorStructInfo | list[DTensorStructInfo],
+    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
     Call a tir.prim_func and return the output. The prim_func should be a worker-local function

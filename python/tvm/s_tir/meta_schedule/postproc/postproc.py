@@ -16,10 +16,13 @@
 # under the License.
 """Meta Schedule Postproc."""
 
-from typing import TYPE_CHECKING, Callable, List
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -39,7 +42,7 @@ if TYPE_CHECKING:
 class Postproc(Object):
     """Rules to apply a postprocessor to a schedule."""
 
-    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: TuneContext) -> None:
         """Initialize the postprocessor with a tune context.
 
         Parameters
@@ -47,7 +50,7 @@ class Postproc(Object):
         context : TuneContext
             The tuning context for initializing the postprocessor.
         """
-        _ffi_api.PostprocInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
+        _ffi_api.PostprocInitializeWithTuneContext(  # type: ignore
             self, context
         )
 
@@ -64,9 +67,9 @@ class Postproc(Object):
         result : bool
             Whether the postprocessor was successfully applied.
         """
-        return _ffi_api.PostprocApply(self, sch)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.PostprocApply(self, sch)  # type: ignore
 
-    def clone(self) -> "Postproc":
+    def clone(self) -> Postproc:
         """Clone the postprocessor.
 
         Returns
@@ -74,10 +77,10 @@ class Postproc(Object):
         cloned_postproc : Postproc
             The cloned postprocessor.
         """
-        return _ffi_api.PostprocClone(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.PostprocClone(self)  # type: ignore
 
     @staticmethod
-    def create(kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"]) -> List["Postproc"]:
+    def create(kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"]) -> list[Postproc]:
         """Create a list of default postprocessors.
 
         Parameters
@@ -91,12 +94,10 @@ class Postproc(Object):
             The list of postprocessors.
         """
         funcs = {
-            # pylint: disable=no-member
             "llvm": _ffi_api.PostprocDefaultLLVM,  # type: ignore
             "cuda": _ffi_api.PostprocDefaultCUDA,  # type: ignore
             "cuda-tensorcore": _ffi_api.PostprocDefaultCUDATensorCore,  # type: ignore
             "hexagon": _ffi_api.PostprocDefaultHexagon,  # type: ignore
-            # pylint: enable=no-member
         }
         for k, v in funcs.items():
             if k == kind:
@@ -104,7 +105,7 @@ class Postproc(Object):
         raise ValueError(f"Unsupported kind {kind} for postproc creation.")
 
 
-create = Postproc.create  # pylint: disable=invalid-name
+create = Postproc.create
 
 
 @register_object("s_tir.meta_schedule.PyPostproc")
@@ -118,15 +119,15 @@ class _PyPostproc(Postproc):
 
     def __init__(
         self,
-        f_initialize_with_tune_context: Callable = None,
-        f_apply: Callable = None,
-        f_clone: Callable = None,
-        f_as_string: Callable = None,
+        f_initialize_with_tune_context: Callable | None = None,
+        f_apply: Callable | None = None,
+        f_clone: Callable | None = None,
+        f_as_string: Callable | None = None,
     ):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
-            _ffi_api.PostprocPyPostproc,  # type: ignore # pylint: disable=no-member
+            _ffi_api.PostprocPyPostproc,  # type: ignore
             f_initialize_with_tune_context,
             f_apply,
             f_clone,
@@ -147,7 +148,7 @@ class PyPostproc:
         "methods": ["_initialize_with_tune_context", "apply", "clone", "__str__"],
     }
 
-    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: TuneContext) -> None:
         """Initialize the postprocessor with a tune context.
 
         Parameters

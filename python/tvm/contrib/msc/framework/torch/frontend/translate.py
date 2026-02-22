@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.frontend.translate"""
 
-from typing import Dict, List, Optional, Tuple, Union
+from __future__ import annotations
 
 import torch
 
@@ -62,12 +62,12 @@ def set_weight_alias(graph: MSCGraph) -> MSCGraph:
 
 def from_torch(
     model: torch.nn.Module,
-    input_info: List[Tuple[Tuple[int], str]],
-    trans_config: Optional[Dict[str, str]] = None,
-    build_config: Optional[Dict[str, str]] = None,
+    input_info: list[tuple[tuple[int], str]],
+    trans_config: dict[str, str] | None = None,
+    build_config: dict[str, str] | None = None,
     as_msc: bool = True,
-    custom_convert_map: dict = None,
-) -> Tuple[Union[MSCGraph, tvm.IRModule], Dict[str, tvm.runtime.Tensor]]:
+    custom_convert_map: dict | None = None,
+) -> tuple[MSCGraph | tvm.IRModule, dict[str, tvm.runtime.Tensor]]:
     """Change torch nn.Module to MSCGraph.
 
     Parameters

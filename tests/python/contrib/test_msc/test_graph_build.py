@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 
 """Test graph builder && graph."""
 
@@ -2561,7 +2560,6 @@ def test_masked_scatter(dynamic: bool):
 def test_attention(dynamic: bool):
     """test graph builder for attention"""
 
-    # pylint: disable=import-outside-toplevel
     import torch.nn.functional as F
 
     seq = "seq" if dynamic else 128

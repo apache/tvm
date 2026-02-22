@@ -16,8 +16,9 @@
 # under the License.
 """A rule for GEMV and DecodeGEMV."""
 
+from __future__ import annotations
+
 from functools import reduce
-from typing import List, Optional, Union
 
 from tvm import s_tir, tir
 from tvm.target import Target
@@ -36,12 +37,12 @@ from .base import GPUScheduleRule
 class GEMV(GPUScheduleRule):
     """A rule for GEMV and DecodeGEMV."""
 
-    def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
+    def apply(
         self,
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
@@ -84,13 +85,13 @@ class GEMV(GPUScheduleRule):
                 )
             return sch
 
-    def sch_inner_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
+    def sch_inner_reduction(
         self,
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[SBlockInfo],
+        vector_input_buffers: list[tir.Buffer],
+        epilogue_info: SBlockInfo | None,
     ):
         """Schedule the inner reduction block."""
 
@@ -285,7 +286,7 @@ class GEMV(GPUScheduleRule):
                 if is_broadcast_epilogue(sch, block, epilogue):
                     sch.reverse_compute_at(epilogue, bx)
                     sch.set_scope(block, 0, "shared")
-                    _, _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
+                    _, _, *s = sch.get_loops(epilogue)
                     _, tx = sch.split(sch.fuse(*s), factors=[None, TX])
                     sch.bind(tx, "threadIdx.x")
                 else:
@@ -299,7 +300,7 @@ class GEMV(GPUScheduleRule):
                     ts = sch.fuse(ts_o, ts_i)
                     sch.bind(ts, TAG_S)
                     sch.set_scope(block, 0, "local")
-            # pylint: enable=invalid-name
+
             return sch
 
         # Specify the `len_tx` and `len_ty` according to the loop extent
@@ -424,13 +425,13 @@ class GEMV(GPUScheduleRule):
             SUPPORT_WARP_SHUFFLE=SUPPORT_WARP_SHUFFLE,
         )
 
-    def sch_outer_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
+    def sch_outer_reduction(
         self,
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[SBlockInfo],
+        vector_input_buffers: list[tir.Buffer],
+        epilogue_info: SBlockInfo | None,
     ):
         """Schedule the outer reduction block."""
 
@@ -543,7 +544,7 @@ class GEMV(GPUScheduleRule):
                 if is_broadcast_epilogue(sch, block, epilogue):
                     sch.reverse_compute_at(epilogue, bx)
                     sch.set_scope(block, 0, "shared")
-                    _, _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
+                    _, _, *s = sch.get_loops(epilogue)
                     _, ts = sch.split(sch.fuse(*s), factors=[None, TS])
                     sch.bind(ts, TAG_S)
                 else:
@@ -629,13 +630,13 @@ class GEMV(GPUScheduleRule):
             LOAD_V_TILE=LOAD_V_TILE,
         )
 
-    def sch_outer_reduction_fallback(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
+    def sch_outer_reduction_fallback(
         self,
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[SBlockInfo],
+        vector_input_buffers: list[tir.Buffer],
+        epilogue_info: SBlockInfo | None,
     ):
         """Schedule the outer reduction block."""
         # NOTE: Only Android is supported so far

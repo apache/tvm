@@ -39,9 +39,7 @@ def apply_parallel_unroll_vectorize(sch, blocks, outer_split, unroll_split, vect
     for block in blocks:
         vb_index, vi_index = sch.get_loops(block)
         v = sch.fuse(vb_index, vi_index)
-        vbo, vbi, vio, vii = sch.split(  # pylint: disable=unused-variable
-            v, factors=[outer_split, None, unroll_split, vector_split]
-        )  # pylint: disable=unused-variable
+        vbo, vbi, vio, vii = sch.split(v, factors=[outer_split, None, unroll_split, vector_split])
         sch.vectorize(vii)
         sch.unroll(vio)
         sch.parallel(vbo)
@@ -402,7 +400,7 @@ class TestMatMulVec:
         expected_output = np.zeros(input_c.shape, dtype="int32")
         for n in range(operations):
             for i in range(32):
-                for r_ind in range(4):  # pylint: disable=unused-variable
+                for r_ind in range(4):
                     expected_output[n, i] = expected_output[n, i] + np.uint32(
                         input_a[n, i * 4 + r_ind]
                     ) * np.uint32(input_b[n, i * 4 + r_ind])

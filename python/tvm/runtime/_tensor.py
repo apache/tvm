@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-import, redefined-outer-name
 """Runtime Tensor API"""
 
 import ctypes
@@ -118,7 +117,7 @@ class Tensor(tvm_ffi.core.Tensor):
         t = tvm_ffi.dtype(self.dtype)
         shape, dtype = self.shape, self.dtype
         if t.lanes > 1:
-            shape = shape + (t.lanes,)
+            shape = (*shape, t.lanes)
             t = t.with_lanes(1)
             dtype = str(t)
 
@@ -177,7 +176,7 @@ class Tensor(tvm_ffi.core.Tensor):
         shape, dtype = self.shape, self.dtype
         old_dtype = dtype
         if t.lanes > 1:
-            shape = shape + (t.lanes,)
+            shape = (*shape, t.lanes)
             t = t.with_lanes(1)
             dtype = str(t)
         if dtype == "int4":
@@ -248,7 +247,7 @@ class Tensor(tvm_ffi.core.Tensor):
         _ffi_api.TVMTensorCopyFromTo(self, target_nd)
         return target_nd
 
-    def _create_view(self, shape, dtype: Optional[str] = None, relative_byte_offset: int = 0):
+    def _create_view(self, shape, dtype: str | None = None, relative_byte_offset: int = 0):
         """Create a view into an existing array.
 
         The view shares the same allocation and datatype as the

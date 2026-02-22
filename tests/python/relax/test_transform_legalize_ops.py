@@ -57,7 +57,7 @@ def test_customize_legalize():
     # fmt: on
 
     def customize_legalize_add(bb: relax.BlockBuilder, call: relax.Call):
-        from tvm import topi  # pylint: disable=import-outside-toplevel
+        from tvm import topi
 
         return bb.call_te(topi.add, call.args[1], call.args[0])
 

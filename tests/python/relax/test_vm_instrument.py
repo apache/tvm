@@ -37,7 +37,7 @@ def get_exec(data_shape):
         )
         data = nn.Placeholder(data_shape, name="data")
         output = model(data)
-        params = [data] + model.parameters()
+        params = [data, *model.parameters()]
         builder.emit_func_output(output, params=params)
 
     mod = builder.get()
@@ -56,7 +56,7 @@ def get_exec_int32(data_shape):
         model = nn.ReLU()
         data = nn.Placeholder(data_shape, dtype="int32", name="data")
         output = model(data)
-        params = [data] + model.parameters()
+        params = [data, *model.parameters()]
         builder.emit_func_output(output, params=params)
 
     mod = builder.get()

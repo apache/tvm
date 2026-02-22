@@ -14,15 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, too-many-locals
-# pylint: disable=unused-argument, redefined-builtin
 """Conv2D operators"""
 
 from __future__ import absolute_import as _abs
+from __future__ import annotations
 
 import re
 from collections import namedtuple
-from typing import Optional, Sequence, Union
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -519,7 +518,7 @@ def conv2d_NCHWc_OIHWo(
 
     return te.compute(
         oshape,
-        lambda *indices: compute_conv2d(*indices),  # pylint: disable=W0108
+        lambda *indices: compute_conv2d(*indices),
         name="conv2d_NCHWc_OIHWo",
         tag="conv2d_NCHWc_OIHWo",
     )
@@ -678,7 +677,7 @@ def conv2d_winograd_weight_transform(kernel, tile_size):
 
     K = shape[3]
     r = tile_size + K - 1
-    shape = (r, r) + shape[:2]
+    shape = (r, r, *shape[:2])
 
     _, _, G = winograd_transform_matrices(tile_size, K, kernel.dtype)
 
@@ -734,14 +733,14 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
 def conv(
     inp: te.Tensor,
     filt: te.Tensor,
-    stride: Union[int, Sequence[int]],
-    padding: Union[int, Sequence[int]],
-    dilation: Union[int, Sequence[int]],
+    stride: int | Sequence[int],
+    padding: int | Sequence[int],
+    dilation: int | Sequence[int],
     groups: int,
     data_layout: str,
     kernel_layout: str = "",
-    out_dtype: Union[str, None] = None,
-    auto_scheduler_rewritten_layout: Optional[str] = None,
+    out_dtype: str | None = None,
+    auto_scheduler_rewritten_layout: str | None = None,
     meta_schedule_original_shape=None,
     auto_scheduler_should_rewrite_layout: bool = False,
 ):
@@ -836,9 +835,9 @@ def conv(
         # tkonolige: I don't really understand kernel ordering for NHWC, it seems
         # like num_filters should match the N dimension
         if data_layout.find("C") < re.search("[^NC]", data_layout).span()[0]:
-            kernel_permutation_to = [0, 1] + list(range(2, dim + 2))
+            kernel_permutation_to = [0, 1, *list(range(2, dim + 2))]
         else:
-            kernel_permutation_to = [dim + 1, dim] + list(range(dim))
+            kernel_permutation_to = [dim + 1, dim, *list(range(dim))]
     else:
         # transform from kernel_layout to OIHW
         kernel_permutation_to = [kernel_layout.find("O"), kernel_layout.find("I")] + [
@@ -880,8 +879,8 @@ def conv(
                 f"Invalid conv parameters: lead to negative output shape {out_dimensions}. "
             )
     # compute graph
-    pad_before = list(np.array([0, 0] + pad_begin)[data_permutation_from])
-    pad_after = list(np.array([0, 0] + pad_end)[data_permutation_from])
+    pad_before = list(np.array([0, 0, *pad_begin])[data_permutation_from])
+    pad_after = list(np.array([0, 0, *pad_end])[data_permutation_from])
     temp = pad(inp, pad_before, pad_after, name="pad_temp")
     rc = te.reduce_axis((0, in_channel // groups), name="rc")
     rs = [te.reduce_axis((0, k), name=f"r{i}") for i, k in zip(["y", "x", "z"], kernel_dimensions)]
@@ -906,7 +905,7 @@ def conv(
                     )[data_permutation_from]
                 )
             ).astype(out_dtype)
-            * filt.__getitem__(tuple(np.array([ff, rc] + rs)[kernel_permutation_from])).astype(
+            * filt.__getitem__(tuple(np.array([ff, rc, *rs])[kernel_permutation_from])).astype(
                 out_dtype
             ),
             # Schedules depend on reduction axes being in the same order as the
@@ -915,7 +914,7 @@ def conv(
         )
 
     out = te.compute(
-        list(np.array([batch, out_channel] + out_dimensions)[data_permutation_from]),
+        list(np.array([batch, out_channel, *out_dimensions])[data_permutation_from]),
         compute,
         # tag is expected to be lowercase
         tag=f"{'group_' if groups > 1 else ''}conv{dim}d_{data_layout.lower()}",

@@ -16,7 +16,10 @@
 # under the License.
 """Multi-level tiling with reuse."""
 
-from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from typing import Any, NamedTuple
 
 from tvm_ffi import register_object
 
@@ -30,10 +33,10 @@ class ReuseType(NamedTuple):
     """Reuse type."""
 
     req: str
-    levels: List[int]
+    levels: list[int]
     scope: str
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         """Return the dict representation of the reuse type."""
         return {
             "req": self.req,
@@ -75,15 +78,15 @@ class MultiLevelTiling(ScheduleRule):
     def __init__(
         self,
         structure: str,
-        tile_binds: Optional[List[str]] = None,
-        max_innermost_factor: Optional[int] = None,
-        vector_load_lens: Optional[List[int]] = None,
-        reuse_read: Optional[ReuseType] = None,
-        reuse_write: Optional[ReuseType] = None,
-        filter_fn: Optional[Callable[[Schedule, SBlockRV], bool]] = None,
+        tile_binds: list[str] | None = None,
+        max_innermost_factor: int | None = None,
+        vector_load_lens: list[int] | None = None,
+        reuse_read: ReuseType | None = None,
+        reuse_write: ReuseType | None = None,
+        filter_fn: Callable[[Schedule, SBlockRV], bool] | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ScheduleRuleMultiLevelTiling,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ScheduleRuleMultiLevelTiling,  # type: ignore
             structure,
             tile_binds,
             max_innermost_factor,
@@ -125,14 +128,14 @@ class MultiLevelTilingWithIntrin(ScheduleRule):
         self,
         intrin_name: str,
         structure: str,
-        tile_binds: Optional[List[str]] = None,
-        max_innermost_factor: Optional[int] = None,
-        vector_load_lens: Optional[List[int]] = None,
-        reuse_read: Optional[ReuseType] = None,
-        reuse_write: Optional[ReuseType] = None,
+        tile_binds: list[str] | None = None,
+        max_innermost_factor: int | None = None,
+        vector_load_lens: list[int] | None = None,
+        reuse_read: ReuseType | None = None,
+        reuse_write: ReuseType | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ScheduleRuleMultiLevelTilingWithIntrin,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ScheduleRuleMultiLevelTilingWithIntrin,  # type: ignore
             intrin_name,
             structure,
             tile_binds,
@@ -177,17 +180,17 @@ class MultiLevelTilingTensorCore(ScheduleRule):
 
     def __init__(
         self,
-        intrin_groups: List[Mapping[str, str]],
+        intrin_groups: list[Mapping[str, str]],
         structure: str,
-        tile_binds: Optional[List[str]] = None,
-        max_innermost_factor: Optional[int] = None,
-        vector_load_lens: Optional[List[int]] = None,
-        reuse_read: Optional[ReuseType] = None,
-        reuse_write: Optional[ReuseType] = None,
+        tile_binds: list[str] | None = None,
+        max_innermost_factor: int | None = None,
+        vector_load_lens: list[int] | None = None,
+        reuse_read: ReuseType | None = None,
+        reuse_write: ReuseType | None = None,
         use_software_pipeline: bool = False,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ScheduleRuleMultiLevelTilingTensorCore,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ScheduleRuleMultiLevelTilingTensorCore,  # type: ignore
             intrin_groups,
             structure,
             tile_binds,
@@ -222,12 +225,12 @@ class MultiLevelTilingWideVector(ScheduleRule):
         self,
         structure: str,
         vector_length_in_bits: int,
-        max_innermost_factor: Optional[int] = None,
-        reuse_read: Optional[ReuseType] = None,
-        reuse_write: Optional[ReuseType] = None,
+        max_innermost_factor: int | None = None,
+        reuse_read: ReuseType | None = None,
+        reuse_write: ReuseType | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ScheduleRuleMultiLevelTilingWideVector,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ScheduleRuleMultiLevelTilingWideVector,  # type: ignore
             structure,
             vector_length_in_bits,
             max_innermost_factor,

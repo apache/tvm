@@ -23,7 +23,8 @@ import logging
 import os
 import re
 import shlex
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 from urllib import error
 
 from cmd_utils import REPO_ROOT, Sh, init_log
@@ -37,10 +38,10 @@ GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 BRANCH = "nightly-docker-update"
 
 
-def _testing_docker_api(data: Dict[str, Any]) -> Callable[[str], Dict[str, Any]]:
+def _testing_docker_api(data: dict[str, Any]) -> Callable[[str], dict[str, Any]]:
     """Returns a function that can be used in place of docker_api"""
 
-    def mock(url: str) -> Dict[str, Any]:
+    def mock(url: str) -> dict[str, Any]:
         if url in data:
             return data[url]
         else:
@@ -54,11 +55,11 @@ def parse_docker_date(d: str) -> datetime.datetime:
     return datetime.datetime.strptime(d, "%Y-%m-%dT%H:%M:%S.%fZ")
 
 
-def check_tag(tag: Dict[str, Any]) -> bool:
+def check_tag(tag: dict[str, Any]) -> bool:
     return re.match(r"^[0-9]+-[0-9]+-[a-z0-9]+$", tag["name"]) is not None
 
 
-def latest_tag(user: str, repo: str) -> List[Dict[str, Any]]:
+def latest_tag(user: str, repo: str) -> list[dict[str, Any]]:
     """
     Queries Docker Hub and finds the most recent tag for the specified image/repo pair
     """
@@ -73,7 +74,7 @@ def latest_tag(user: str, repo: str) -> List[Dict[str, Any]]:
     return results[-1]
 
 
-def latest_tlcpackstaging_image(source: str) -> Optional[str]:
+def latest_tlcpackstaging_image(source: str) -> str | None:
     """
     Finds the latest full tag to use in the Jenkinsfile or returns None if no
     update is needed

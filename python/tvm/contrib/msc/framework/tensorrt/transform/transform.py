@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """tvm.contrib.msc.framework.tensorrt.transform.transform"""
 
-from typing import List
+from __future__ import annotations
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -26,7 +25,7 @@ from tvm.relax.transform import _ffi_api as relax_api
 
 
 def TransformTensorRT(
-    version: List[int] = None, linear_to_conv: bool = False
+    version: list[int] | None = None, linear_to_conv: bool = False
 ) -> tvm.ir.transform.Pass:
     """Transform the Function to fit TensorRT.
 

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import sys
 
 import pytest
@@ -25,8 +24,6 @@ from tvm import s_tir, tir
 from tvm.s_tir.schedule import DepKind
 from tvm.script import tir as T
 from tvm.tir.stmt_functor import post_order_visit
-
-# pylint: disable=no-member,invalid-name,unused-variable
 
 
 @T.prim_func
@@ -72,11 +69,6 @@ def war_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
         with T.sblock("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
-
-
-# pylint: enable=no-member,invalid-name,unused-variable
-
-# pylint: disable=invalid-name
 
 
 def _get_sblock(s: s_tir.ScheduleState, name_hint: str) -> s_tir.StmtSRef:

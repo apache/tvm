@@ -16,10 +16,10 @@
 # under the License.
 """Tests for MetaSchedule search space on CUDA"""
 
-from typing import List, Optional, Tuple, Union
+from __future__ import annotations
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 from tvm.ir import IRModule
@@ -34,10 +34,10 @@ def generate_design_space(
     kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"],
     mod: IRModule,
     target: Target,
-    types: Union[type, Tuple[type, ...]],
-    sch_rules: Optional[List[ms.ScheduleRule]] = None,
+    types: type | tuple[type, ...],
+    sch_rules: list[ms.ScheduleRule] | None = None,
     initialize_time: int = 1,
-) -> List[Schedule]:
+) -> list[Schedule]:
     if sch_rules is None:
         sch_rules = get_rules(kind, types)
     else:

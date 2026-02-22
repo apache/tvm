@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name
 """The build utils in python."""
 
-from typing import Dict, Optional, Tuple, Union
+from __future__ import annotations
 
 import tvm
 from tvm import ir
@@ -27,7 +26,7 @@ from tvm.target import Target
 from tvm.tir import PrimFunc
 
 
-def split_host_device_mods(mod: IRModule) -> Tuple[IRModule, Dict[Target, IRModule]]:
+def split_host_device_mods(mod: IRModule) -> tuple[IRModule, dict[Target, IRModule]]:
     """Split an IRModule into host and device modules.
 
     This function takes an IRModule containing functions with different target attributes
@@ -109,7 +108,7 @@ def split_host_device_mods(mod: IRModule) -> Tuple[IRModule, Dict[Target, IRModu
     # TODO(syfeng): Here we use str as key since target hash is not correct
     target_str2target = {}
     device_func_dict = {}
-    device_mod_dict: Dict[Target, IRModule] = {}
+    device_mod_dict: dict[Target, IRModule] = {}
     for gv, func in device_mod.functions.items():
         target = func.attrs.get("target", None)
         target_str = str(target) if target is not None else ""
@@ -133,7 +132,7 @@ def codegen_build(mod: IRModule, target: Target) -> tvm.runtime.Module:
 
 
 def tir_to_runtime(
-    host_mod: IRModule, device_mod_dict: Dict[Target, IRModule], target_host: Target
+    host_mod: IRModule, device_mod_dict: dict[Target, IRModule], target_host: Target
 ):
     """Convert a collection of TIR IRModules (keyed by Target) into a single runtime Module."""
 
@@ -155,9 +154,9 @@ def tir_to_runtime(
 
 
 def build(
-    mod: Union[PrimFunc, IRModule],
-    target: Optional[Union[str, Target]] = None,
-    pipeline: Union[None, str, tvm.transform.Pass] = "default",
+    mod: PrimFunc | IRModule,
+    target: str | Target | None = None,
+    pipeline: None | str | tvm.transform.Pass = "default",
 ):
     """Build a function with a signature, generating code for devices
     coupled with target information.

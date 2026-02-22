@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, invalid-name, too-many-arguments
 """Operators used in TIR expression."""
 
 from typing import Any, Optional, Union
@@ -260,7 +259,7 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     call : PrimExpr
         The call expression.
     """
-    # pylint: disable=import-outside-toplevel
+
     from tvm.target import codegen
 
     if isinstance(name, str):
@@ -302,7 +301,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     call : PrimExpr
         The call expression.
     """
-    # pylint: disable=import-outside-toplevel
+
     from tvm.target import codegen
 
     if isinstance(name, str):
@@ -556,7 +555,7 @@ def tvm_struct_set(arr, index, field, value):
     return call_intrin("int32", "tir.tvm_struct_set", arr, index, field, value)
 
 
-def address_of(obj: Union[Buffer, BufferLoad], span: Optional[Span] = None) -> PrimExpr:
+def address_of(obj: Buffer | BufferLoad, span: Span | None = None) -> PrimExpr:
     """Returns the address of an element in the buffer
 
     Parameters
@@ -2043,7 +2042,7 @@ def min_value(dtype, span=None):
     return _ffi_api.min_value(dtype, span)  # type: ignore
 
 
-def max_value(dtype: str, span: Optional[Span] = None) -> Any:
+def max_value(dtype: str, span: Span | None = None) -> Any:
     """maximum value of dtype
 
     Parameters
@@ -2062,7 +2061,7 @@ def max_value(dtype: str, span: Optional[Span] = None) -> Any:
     return _ffi_api.max_value(dtype, span)  # type: ignore
 
 
-def infinity(dtype: str, span: Optional[Span] = None) -> Any:
+def infinity(dtype: str, span: Span | None = None) -> Any:
     """infinity value of dtype
 
     Parameters
@@ -2081,7 +2080,7 @@ def infinity(dtype: str, span: Optional[Span] = None) -> Any:
     return _ffi_api.infinity(dtype, span)  # type: ignore
 
 
-def reinterpret(dtype, value, span: Optional[Span] = None) -> Any:
+def reinterpret(dtype, value, span: Span | None = None) -> Any:
     """infinity value of dtype
 
     Parameters
@@ -3461,7 +3460,6 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             )
         return outputs[0] if size == 1 else outputs
 
-    # pylint: disable=keyword-arg-before-vararg
     def reducer(expr, axis, where=None, init=None, *args):
         if isinstance(axis, (tvm.tir.IterVar, list, tuple)):
             assert not args
@@ -3671,7 +3669,7 @@ def get_active_lane_mask(dtype, base, limit):
     return call_intrin(dtype, "tir.get_active_lane_mask", base, limit)
 
 
-def get_vscale_expr(dtype: Union[str, tvm_ffi.dtype], min_size: int = 128) -> PrimExpr:
+def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> PrimExpr:
     """
     Create a datatype dependent scalable expression.
 
@@ -3699,7 +3697,6 @@ def ignore_loop_partition(predicate) -> PrimExpr:
     return call_intrin("bool", "tir.ignore_loop_partition", predicate)
 
 
-# pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
 min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y, None), max_value, name="min")  # type: ignore
 max = comm_reducer(lambda x, y: _ffi_api._OpMax(x, y, None), min_value, name="max")  # type: ignore

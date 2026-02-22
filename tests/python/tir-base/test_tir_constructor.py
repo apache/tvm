@@ -27,7 +27,7 @@ def test_expr_constructor():
 
     x = tvm.tir.Reduce(None, [1], [tvm.tir.IterVar((0, 1), "x", 2)], None, 0)
     assert isinstance(x, tvm.tir.Reduce)
-    assert x.combiner == None
+    assert x.combiner is None
     assert x.value_index == 0
 
     x = tvm.tir.FloatImm("float32", 1.0)

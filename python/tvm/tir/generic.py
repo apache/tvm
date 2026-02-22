@@ -20,7 +20,6 @@ We follow the numpy naming convention for this interface
 The default implementation is used by tvm.ExprOp.
 """
 
-# pylint: disable=unused-argument
 from . import _ffi_api
 
 # Operator precedence used when overloading.

@@ -41,7 +41,6 @@ from .infrastructure import get_hexagon_target
 # tvm.testing.parameters, if they are made upper-case, the functions which take
 # them as arguments would also need to be upper-case, and pylint would complain
 # there as well
-# pylint: disable=invalid-name
 
 schedule_type = tvm.testing.parameter("TE", "TIR")
 
@@ -77,8 +76,6 @@ working_layout, working_scope = tvm.testing.parameters(
     ("nchw-8h8w32c-2d", "global.vtcm"),
 )
 
-# pylint: enable=invalid-name
-
 
 @tvm.testing.fixture
 def target_host():
@@ -89,7 +86,6 @@ def target_host():
 # Disabling redefined-outer-name for the whole file as there isn't any easy
 # solution yet to refactor tvm.testing.fixture fixtures that avoid redefining
 # outer variable names
-# pylint: disable=redefined-outer-name
 
 
 @tvm.testing.fixture
@@ -246,7 +242,7 @@ class TestElementWise:
         return [sch.mod]
 
     @tvm.testing.fixture
-    def uses_unsupported_physical_dimensions(  # pylint: disable=invalid-name
+    def uses_unsupported_physical_dimensions(
         self, target_host, input_layout, working_layout, output_layout
     ):
         uses_2d_memory = "nchw-8h8w32c-2d" in [input_layout, working_layout, output_layout]

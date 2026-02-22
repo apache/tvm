@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name
 """IRBuilder for Relax dialect"""
+
+from __future__ import annotations
 
 import builtins
 import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from collections.abc import Callable
+from typing import Any
 
 import tvm
 from tvm import DataType, relax
@@ -220,14 +222,14 @@ from . import _ffi_api, frame
 ##################### Python Native Function Alias ######################
 
 py_print = builtins.print
-py_tuple = tuple  # pylint: disable=used-before-assignment
-py_str = str  # pylint: disable=used-before-assignment
+py_tuple = tuple
+py_str = str
 
 
 ################################ Device ################################
 
 
-def to_vdevice(data: Expr, dst_vdevice: Union[py_str, VDevice]) -> Expr:
+def to_vdevice(data: Expr, dst_vdevice: py_str | VDevice) -> Expr:
     """Copy data to the destination device.
 
     Parameters
@@ -271,7 +273,7 @@ def function(is_pure: bool = True, is_private: bool = False) -> frame.FunctionFr
     frame: FunctionFrame
         The constructed function frame.
     """
-    return _ffi_api.Function(  # type: ignore[attr-defined]  # pylint: disable=no-member
+    return _ffi_api.Function(  # type: ignore[attr-defined]
         is_pure, is_private
     )
 
@@ -291,7 +293,7 @@ def arg(name: py_str, struct_info: StructInfo) -> Var:
         The created function parameter var.
     """
 
-    return _ffi_api.Arg(name, struct_info)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Arg(name, struct_info)  # type: ignore[attr-defined]
 
 
 def func_name(name: py_str) -> None:
@@ -301,17 +303,17 @@ def func_name(name: py_str) -> None:
     name: str
         The function name.
     """
-    return _ffi_api.FuncName(name)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.FuncName(name)  # type: ignore[attr-defined]
 
 
-def func_attr(attrs: Dict[py_str, tvm_Object]) -> None:
+def func_attr(attrs: dict[py_str, tvm_Object]) -> None:
     """Specify the attrs of the last function frame.
     Parameters
     ----------
     attrs: Dict[str, Object]
         The function attrs.
     """
-    return _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined]
 
 
 def func_ret_struct_info(ret_sinfo: StructInfo) -> None:
@@ -321,7 +323,7 @@ def func_ret_struct_info(ret_sinfo: StructInfo) -> None:
     ret_type: StructInfo
         The function return struct info.
     """
-    return _ffi_api.FuncRetStructInfo(ret_sinfo)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.FuncRetStructInfo(ret_sinfo)  # type: ignore[attr-defined]
 
 
 def func_ret_value(value: Expr) -> None:
@@ -331,10 +333,10 @@ def func_ret_value(value: Expr) -> None:
     value: Expr
         The function return value.
     """
-    return _ffi_api.FuncRetValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.FuncRetValue(value)  # type: ignore[attr-defined]
 
 
-def rewriter(rewriter_mod: Union[IRModule, Type]) -> PatternMatchingRewriter:
+def rewriter(rewriter_mod: IRModule | type) -> PatternMatchingRewriter:
     """Define a pattern-rewrite rule
 
     The IRModule must have two publicly-exposed functions, `pattern`
@@ -386,17 +388,17 @@ def dataflow() -> frame.BindingBlockFrame:
     frame: frame.BindingBlockFrame
         The created ir_builder Block frame.
     """
-    return _ffi_api.Dataflow()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Dataflow()  # type: ignore[attr-defined]
 
 
-def output(*vars: Tuple[Var]) -> None:
+def output(*vars: builtins.tuple[Var]) -> None:
     """Expose the dataflow block output variables as global ones.
     Parameters
     ----------
     vars: Tuple[Var]
         The output variables of a dataflow block.
     """
-    return _ffi_api.DataflowBlockOutput(vars)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.DataflowBlockOutput(vars)  # type: ignore[attr-defined]
 
 
 ################################## Ops #################################
@@ -406,7 +408,7 @@ def output(*vars: Tuple[Var]) -> None:
 def call_packed(
     func: py_str,
     *args: Expr,
-    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
+    sinfo_args: StructInfo | list[StructInfo] | None = None,
     **kwargs: Any,
 ) -> Call:
     """Create a relax Call, which calls a packed function.
@@ -463,7 +465,7 @@ def call_packed(
 def call_py_func(
     py_func_name: py_str,
     *args: Expr,
-    out_sinfo: Union[StructInfo, List[StructInfo]],
+    out_sinfo: StructInfo | list[StructInfo],
 ) -> Call:
     """Create a relax Call, which calls a Python function.
 
@@ -532,15 +534,15 @@ def _sinfo_arg_wrapper(func):
     return wrapped  # type: ignore
 
 
-invoke_closure = _sinfo_arg_wrapper(invoke_closure)  # pylint: disable=invalid-name
+invoke_closure = _sinfo_arg_wrapper(invoke_closure)
 
-call_builtin_with_ctx = _sinfo_arg_wrapper(call_builtin_with_ctx)  # pylint: disable=invalid-name
+call_builtin_with_ctx = _sinfo_arg_wrapper(call_builtin_with_ctx)
 
 
 ############################### Emits ###############################
 
 
-def emit(value: Expr, annotate_struct_info: Optional[StructInfo] = None) -> Var:
+def emit(value: Expr, annotate_struct_info: StructInfo | None = None) -> Var:
     """Emit a binding to the last binding block frame.
     Parameters
     ----------
@@ -555,7 +557,7 @@ def emit(value: Expr, annotate_struct_info: Optional[StructInfo] = None) -> Var:
     var: Var
         The left side var of the emitted binding.
     """
-    return _ffi_api.Emit(value, annotate_struct_info)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Emit(value, annotate_struct_info)  # type: ignore[attr-defined]
 
 
 def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
@@ -627,7 +629,7 @@ def emit_var_binding(value: VarBinding) -> Var:
 def emit_with_sinfo(
     op: str,
     args: Expr,
-    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
+    sinfo_args: StructInfo | list[StructInfo] | None = None,
 ) -> Call:
     """Create a relax Call with sinfo_args.
     Parameters
@@ -651,20 +653,20 @@ def emit_with_sinfo(
 ############################### SeqExpr ###############################
 
 
-def SeqExpr() -> frame.SeqExprFrame:  # pylint: disable=invalid-name
+def SeqExpr() -> frame.SeqExprFrame:
     """Create a SeqExpr frame.
     Returns
     -------
     res : frame.SeqExprFrame
         The result SeqExprFrame
     """
-    return _ffi_api.SeqExpr()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.SeqExpr()  # type: ignore[attr-defined]
 
 
 ############################# If Then Else #############################
 
 
-def If(condition: Union[Expr, PrimExpr]) -> frame.IfFrame:  # pylint: disable=invalid-name
+def If(condition: Expr | PrimExpr) -> frame.IfFrame:
     """Create an if frame.
 
     Parameters
@@ -683,27 +685,27 @@ def If(condition: Union[Expr, PrimExpr]) -> frame.IfFrame:  # pylint: disable=in
     if not isinstance(condition, Expr):
         condition = relax.PrimValue(condition)
 
-    return _ffi_api.If(condition)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.If(condition)  # type: ignore[attr-defined]
 
 
-def Then() -> frame.ThenFrame:  # pylint: disable=invalid-name
+def Then() -> frame.ThenFrame:
     """Create a then frame.
     Returns
     -------
     res : frame.ThenFrame
         The result ThenFrame.
     """
-    return _ffi_api.Then()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Then()  # type: ignore[attr-defined]
 
 
-def Else() -> frame.ElseFrame:  # pylint: disable=invalid-name
+def Else() -> frame.ElseFrame:
     """Create an else frame.
     Returns
     -------
     res : frame.ElseFrame
         The result ElseFrame.
     """
-    return _ffi_api.Else()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Else()  # type: ignore[attr-defined]
 
 
 ############################### R.tuple ################################
@@ -723,13 +725,13 @@ def tuple(*fields: Expr) -> Expr:
     if len(fields) == 0:
         fields = py_tuple()
 
-    return relax.Tuple(fields)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return relax.Tuple(fields)  # type: ignore[attr-defined]
 
 
 ############################### R.shape ################################
 
 
-def shape(value: List[PrimExpr]) -> Expr:
+def shape(value: list[PrimExpr]) -> Expr:
     """Create a ShapeExpr.
     Parameters
     ----------
@@ -740,7 +742,7 @@ def shape(value: List[PrimExpr]) -> Expr:
     res : Expr
         The result tuple.
     """
-    return relax.ShapeExpr(value)  # pylint: disable=no-member # type: ignore
+    return relax.ShapeExpr(value)
 
 
 ############################### PrimValue ##############################
@@ -757,7 +759,7 @@ def prim_value(value: PrimExpr) -> Expr:
     res : Expr
         The result prim value.
     """
-    return relax.PrimValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return relax.PrimValue(value)  # type: ignore[attr-defined]
 
 
 def str(value: py_str) -> Expr:
@@ -771,10 +773,10 @@ def str(value: py_str) -> Expr:
     res : Expr
         The result str.
     """
-    return relax.StringImm(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return relax.StringImm(value)  # type: ignore[attr-defined]
 
 
-def dtype(value: Union[py_str, DataType]) -> Expr:
+def dtype(value: py_str | DataType) -> Expr:
     """Create a dtype imm expression.
     Parameters
     ----------
@@ -785,33 +787,34 @@ def dtype(value: Union[py_str, DataType]) -> Expr:
     res : Expr
         The result dtype.
     """
-    return relax.DataTypeImm(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return relax.DataTypeImm(value)  # type: ignore[attr-defined]
 
 
 ############################### Importer ###############################
 
 __all__ = [
     "Else",
+    "ExternFunc",
     "If",
     "SeqExpr",
+    "ShapeExpr",
     "Then",
     "TupleGetItem",
-    "ExternFunc",
     "abs",
     "acos",
     "acosh",
-    "asin",
-    "asinh",
-    "atan",
-    "atanh",
     "add",
     "arange",
     "arg",
     "argmax",
     "argmin",
     "argsort",
+    "asin",
+    "asinh",
     "assert_op",
     "astype",
+    "atan",
+    "atanh",
     "bitwise_and",
     "bitwise_not",
     "bitwise_or",
@@ -819,40 +822,42 @@ __all__ = [
     "broadcast_to",
     "bucketize",
     "builtin",
+    "call_builtin_with_ctx",
+    "call_dps_packed",
     "call_inplace_packed",
     "call_packed",
     "call_pure_packed",
+    "call_py_func",
     "call_tir",
     "call_tir_inplace",
     "call_tir_with_grad",
-    "call_dps_packed",
-    "call_py_func",
-    "call_builtin_with_ctx",
+    "ccl",
     "ceil",
     "clip",
     "collapse_sum_like",
     "collapse_sum_to",
     "concat",
+    "const",
     "cos",
     "cosh",
-    "const",
     "cpu",
     "cuda",
     "cumprod",
     "cumsum",
-    "einsum",
-    "scatter_elements",
-    "scatter_nd",
     "dataflow",
+    "dequantize",
     "device",
     "divide",
     "dtype",
+    "dynamic_strided_slice",
+    "einsum",
     "emit",
+    "emit_match_cast",
     "emit_te",
     "emit_var_binding",
-    "emit_match_cast",
     "emit_with_sinfo",
     "equal",
+    "erf",
     "ewise_fma",
     "exp",
     "expand_dims",
@@ -879,8 +884,8 @@ __all__ = [
     "hamming_window",
     "hexagon",
     "hint_on_device",
-    "index_put",
     "image",
+    "index_put",
     "index_tensor",
     "invoke_closure",
     "invoke_pure_closure",
@@ -913,66 +918,67 @@ __all__ = [
     "multinomial_from_uniform",
     "multiply",
     "negative",
+    "nn",
     "nonzero",
     "not_equal",
     "null_value",
+    "one_hot",
     "ones",
     "ones_like",
-    "one_hot",
     "opencl",
-    "output",
     "outer",
+    "output",
     "permute_dims",
     "power",
     "prim_value",
     "print",
     "prod",
     "quantize",
-    "dequantize",
     "repeat",
     "reshape",
     "rewriter",
     "right_shift",
-    "tensor_to_shape",
-    "shape_to_tensor",
     "rocm",
     "round",
     "rsqrt",
+    "scatter_elements",
+    "scatter_nd",
     "shape",
     "shape_of",
-    "ShapeExpr",
-    "size",
-    "std",
-    "str",
-    "sum",
+    "shape_to_tensor",
     "sigmoid",
     "sign",
     "sin",
     "sinh",
+    "size",
     "slice_scatter",
     "sort",
     "split",
+    "sqrt",
     "square",
     "squeeze",
-    "sqrt",
     "stack",
+    "std",
     "stop_lift_params",
     "str",
+    "str",
     "strided_slice",
-    "dynamic_strided_slice",
     "subtract",
+    "sum",
     "take",
     "tan",
     "tanh",
+    "tensor_to_shape",
     "tile",
-    "topk",
     "to_vdevice",
+    "topk",
     "tril",
     "triu",
     "trunc",
     "tuple",
     "unique",
     "variance",
+    "vision",
     "vm",
     "vpi",
     "vulkan",
@@ -981,8 +987,4 @@ __all__ = [
     "wrap_param",
     "zeros",
     "zeros_like",
-    "nn",
-    "ccl",
-    "erf",
-    "vision",
 ]

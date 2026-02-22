@@ -17,15 +17,16 @@
 
 """Operators for positional embeddings, e.g. RoPE."""
 
+from __future__ import annotations
+
 import math
+from collections.abc import Callable
 from functools import partial
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any
 
 from tvm import tir
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
-
-# pylint: disable=invalid-name
 
 
 def rope_freq_default(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype: str):
@@ -75,7 +76,7 @@ def rope_freq_gptj(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype: st
     return cos_freq, sin_freq, {freq_var: freq}
 
 
-def rope_freq_llama4(  # pylint: disable=too-many-arguments,too-many-locals
+def rope_freq_llama4(
     s: tir.Var,
     d: tir.Var,
     d_range: int,
@@ -124,7 +125,7 @@ def rope_freq_llama4(  # pylint: disable=too-many-arguments,too-many-locals
     )
 
 
-def rope_freq_llama3(  # pylint: disable=too-many-arguments,too-many-locals
+def rope_freq_llama3(
     s: tir.Var,
     d: tir.Var,
     d_range: int,
@@ -158,7 +159,7 @@ def rope_freq_llama3(  # pylint: disable=too-many-arguments,too-many-locals
     )
 
 
-def rope_freq_longrope(  # pylint: disable=too-many-arguments
+def rope_freq_longrope(
     s: tir.Var,
     d: tir.Var,
     d_range: int,
@@ -166,7 +167,7 @@ def rope_freq_longrope(  # pylint: disable=too-many-arguments
     dtype: str,
     max_position_embeddings: int,
     original_max_position_embeddings: int,
-    ext_factors: Optional[T.Buffer] = None,
+    ext_factors: T.Buffer | None = None,
 ):
     """Compute the inverse frequency of RoPE for longrope scaling."""
     scale = max_position_embeddings / original_max_position_embeddings
@@ -189,7 +190,7 @@ def yarn_find_correction_dim(
     num_rotations: int,
     d: tir.Var,
     max_position_embeddings: int,
-    inv_theta_log_scale: Optional[Union[float, tir.PrimExpr]] = None,
+    inv_theta_log_scale: float | tir.PrimExpr | None = None,
 ):
     """Inverse dim formula to find dim based on number of rotations"""
     return (
@@ -202,7 +203,7 @@ def yarn_find_correction_range(
     high_rot: int,
     d: tir.Var,
     max_position_embeddings: int,
-    inv_theta_log_scale: Optional[Union[float, tir.PrimExpr]] = None,
+    inv_theta_log_scale: float | tir.PrimExpr | None = None,
 ):
     """Find the correction range based on the number of rotations"""
     low = yarn_find_correction_dim(
@@ -218,14 +219,14 @@ def rope_freq_yarn(
     s: tir.Var,
     d: tir.Var,
     d_range: int,
-    theta: Union[float, tir.PrimExpr],
+    theta: float | tir.PrimExpr,
     dtype: str,
     original_max_position_embeddings: int,
     scaling_factor: float,
     beta_fast: int,
     beta_slow: int,
-    inv_theta_log_scale: Optional[Union[float, tir.PrimExpr]] = None,
-):  # pylint: disable=too-many-arguments, too-many-locals
+    inv_theta_log_scale: float | tir.PrimExpr | None = None,
+):
     """Compute the inverse frequency of RoPE for yarn RoPE scaling."""
 
     exponent = d * 2 % d_range / tir.const(d_range, "float32")
@@ -252,7 +253,7 @@ def rope_freq_yarn(
     return cos_freq, sin_freq, {freq_var: freq}
 
 
-def switch_rope_freq_func(rope_scaling: Dict[str, Any]) -> Callable:
+def switch_rope_freq_func(rope_scaling: dict[str, Any]) -> Callable:
     """Return the RoPE inverse frequency computation function based
     on the given RoPE scaling.
     """
@@ -299,16 +300,16 @@ def switch_rope_freq_func(rope_scaling: Dict[str, Any]) -> Callable:
 # mypy: disable-error-code="attr-defined"
 
 
-def llama_rope(  # pylint: disable=too-many-arguments
+def llama_rope(
     qkv: Tensor,
     total_seq_len: tir.Var,
     theta: float,
     scale: float,
     num_q_heads: int,
     num_kv_heads: int,
-    rope_scaling: Dict[str, Any],
-    rotary_dim: Optional[int] = None,
-) -> Tuple[Tensor, Tensor, Tensor]:
+    rope_scaling: dict[str, Any],
+    rotary_dim: int | None = None,
+) -> tuple[Tensor, Tensor, Tensor]:
     """Llama-style RoPE. Given a fused QKV tensor, it returns three tensors, Q, K, and V, where Q
     and K are rotated by RoPE while V remains unchanged.
 
@@ -358,7 +359,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
     dtype = qkv.dtype
     scale = tir.const(scale, dtype)
 
-    def _rope(  # pylint: disable=too-many-arguments
+    def _rope(
         x: T.Buffer,
         b: tir.Var,
         s: tir.Var,
@@ -388,7 +389,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
         return expr
 
     @T.prim_func(private=True)
-    def fused_rope(  # pylint: disable=too-many-locals
+    def fused_rope(
         var_qkv: T.handle,
         var_q: T.handle,
         var_k: T.handle,
@@ -426,7 +427,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
                     v[b, s, h - (num_q_heads + num_kv_heads), d] = qkv[b, s, h, d]
 
     b, s, _, _ = qkv.shape
-    return op.tensor_ir_op(  # pylint: disable=no-member
+    return op.tensor_ir_op(
         fused_rope,
         "llama_rope",
         args=[qkv, total_seq_len],
@@ -438,15 +439,15 @@ def llama_rope(  # pylint: disable=too-many-arguments
     )
 
 
-def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
+def llama_rope_with_position_map(
     theta: float,
     scale: float,
     head_dim: int,
     num_q_heads: int,
     num_kv_heads: int,
     dtype: str,
-    rope_scaling: Dict[str, Any],
-    rotary_dim: Optional[int] = None,
+    rope_scaling: dict[str, Any],
+    rotary_dim: int | None = None,
 ):
     """Return the TIR function that computes Llama-style RoPE with q position map.
 
@@ -487,13 +488,13 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
     else:
         original_max_position_embeddings = 0
 
-    def _rope(  # pylint: disable=too-many-arguments
+    def _rope(
         x: T.Buffer,
         s: tir.Var,
         h: tir.Var,
         d: tir.Var,
         pos: tir.Var,
-        ext_factors: Optional[T.Buffer] = None,
+        ext_factors: T.Buffer | None = None,
     ):
         kwargs = {}
         if ext_factors:
@@ -520,7 +521,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         return expr
 
     @T.prim_func
-    def fused_rope(  # pylint: disable=too-many-locals
+    def fused_rope(
         var_qkv: T.handle,
         var_position_map: T.handle,
         var_q: T.handle,
@@ -562,7 +563,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
     @T.prim_func
-    def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
+    def fused_rope_longrope_scaling(
         var_qkv: T.handle,
         var_position_map: T.handle,
         var_q: T.handle,
@@ -664,15 +665,15 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
     return fused_rope
 
 
-def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
+def llama4_rope_with_position_map(
     theta: float,
     scale: float,
     head_dim: int,
     num_q_heads: int,
     num_kv_heads: int,
     dtype: str,
-    rope_scaling: Dict[str, Any],
-    rotary_dim: Optional[int] = None,
+    rope_scaling: dict[str, Any],
+    rotary_dim: int | None = None,
 ):
     """Return the TIR function that computes Llama-style RoPE with q position map.
 
@@ -713,13 +714,13 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
     else:
         original_max_position_embeddings = 0
 
-    def _rope(  # pylint: disable=too-many-arguments
+    def _rope(
         x: T.Buffer,
         s: tir.Var,
         h: tir.Var,
         d: tir.Var,
         pos: tir.Var,
-        ext_factors: Optional[T.Buffer] = None,
+        ext_factors: T.Buffer | None = None,
     ):
         kwargs = {}
         if ext_factors:
@@ -747,7 +748,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
         return expr
 
     @T.prim_func(private=True)
-    def fused_rope(  # pylint: disable=too-many-locals
+    def fused_rope(
         var_qkv: T.handle,
         var_position_map: T.handle,
         var_q: T.handle,
@@ -789,7 +790,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
                     v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
 
     @T.prim_func
-    def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
+    def fused_rope_longrope_scaling(
         var_qkv: T.handle,
         var_position_map: T.handle,
         var_q: T.handle,

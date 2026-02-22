@@ -26,7 +26,7 @@ from tvm.contrib.msc.core.tools.tool import ToolType
 class PruneConfiger(ToolConfiger):
     """Configer for prune"""
 
-    def config_gym(self, raw_config: Union[dict, str]) -> dict:
+    def config_gym(self, raw_config: dict | str) -> dict:
         """Config the gym
 
         Parameters

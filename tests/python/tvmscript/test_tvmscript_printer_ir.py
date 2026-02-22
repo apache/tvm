@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 
 import pytest
 
@@ -32,7 +31,7 @@ def _assert_print(obj, expected):
 
 
 def test_ir_module():
-    with IRBuilder() as ib:  # pylint: disable=invalid-name
+    with IRBuilder() as ib:
         with I.ir_module():
             with T.prim_func():
                 T.func_name("foo")
@@ -52,7 +51,7 @@ class Module:
 
 
 def test_failed_invalid_prefix():
-    with IRBuilder() as ib:  # pylint: disable=invalid-name
+    with IRBuilder() as ib:
         with I.ir_module():
             with T.prim_func():
                 T.func_name("foo")

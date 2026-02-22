@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=consider-using-with
 
 """Define HexagonProfiler class to enable profiling for Hexagon"""
 
@@ -59,11 +58,11 @@ class HexagonProfiler:
                 # Clear the logcat buffer and create a child process to redirect logcat output
                 # into a file.
                 launcher = hexagon_server_process["launcher"]
-                subprocess.check_call(launcher._adb_device_sub_cmd + ["logcat", "-c"])
+                subprocess.check_call([*launcher._adb_device_sub_cmd, "logcat", "-c"])
                 self._logcat_path = self._temp_dir.relpath("logcat.log")
                 self._fo = open(self._logcat_path, "w")
                 self._proc = subprocess.Popen(
-                    launcher._adb_device_sub_cmd + ["logcat"], stdout=self._fo
+                    [*launcher._adb_device_sub_cmd, "logcat"], stdout=self._fo
                 )
 
                 # Get the remote workspace on the device from where the lwp data needs to be copied.

@@ -16,8 +16,10 @@
 # under the License.
 """Provide abstraction for defining optimizers and a set of common optimizers."""
 
+from __future__ import annotations
+
 from decimal import Decimal
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np  # type: ignore
 
@@ -49,7 +51,7 @@ class Optimizer:
     name : str
         The name of the optimizer.
 
-    param_list : List[Var]
+    param_list : list[Var]
         The list of variables to optimize. Will be set in `init()`.
 
     state : tvm.ir.Array
@@ -100,7 +102,7 @@ class Optimizer:
 
     dtype: str
     name: str
-    param_list: List[Var]
+    param_list: list[Var]
     state: tvm.ir.Array
 
     def __init__(self, name: str) -> None:
@@ -109,13 +111,13 @@ class Optimizer:
         self.state = None
         self.dtype = None
 
-    def init(self, params: Union[Var, List[Var]]) -> "Optimizer":
+    def init(self, params: Var | list[Var]) -> Optimizer:
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
         Parameters
         ----------
-        params : Union[Var, List[Var]]
+        params : Union[Var, list[Var]]
             The parameter or the list of parameters to optimize.
 
             Parameters should all be Vars of floating point Tensors, including float32, float64,
@@ -134,7 +136,7 @@ class Optimizer:
         self.state = None
         return self
 
-    def _set_params_and_dtype(self, params: List[Var]) -> None:
+    def _set_params_and_dtype(self, params: list[Var]) -> None:
         """Check params is legal and set the param_list and dtype of the optimizer."""
         params_set = set()
         dtype = None
@@ -195,12 +197,12 @@ class Optimizer:
         .. code-block:: python
             @R.function
             def SGD(
-                params: R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
-                gradients: R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
-                optim_states: R.Tuple(R.Tensor((), "int64")),
-            ) -> R.Tuple(
-                R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
-                R.Tuple(R.Tensor((), "int64")),
+                params: R.tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
+                gradients: R.tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
+                optim_states: R.tuple(R.Tensor((), "int64")),
+            ) -> R.tuple(
+                R.tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")),
+                R.tuple(R.Tensor((), "int64")),
             ):
                 with R.dataflow():
                     num_steps: R.Tensor((), "int64") = optim_states[0]
@@ -213,11 +215,11 @@ class Optimizer:
                     y_grad: R.Tensor((3,), "float32") = gradients[1]
                     lv1: R.Tensor((3,), "float32") = R.multiply(R.const(0.01, "float32"), y_grad)
                     y_new: R.Tensor((3,), "float32") = R.subtract(y, lv1)
-                    params_new: R.Tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")) = (
+                    params_new: R.tuple(R.Tensor((3, 3), "float32"), R.Tensor((3,), "float32")) = (
                         x_new,
                         y_new,
                     )
-                    optim_states_new: R.Tuple(R.Tensor((), "int64")) = (num_steps_new,)
+                    optim_states_new: R.tuple(R.Tensor((), "int64")) = (num_steps_new,)
                     R.output(params_new, optim_states_new)
                 return (params_new, optim_states_new)
         """
@@ -226,7 +228,7 @@ class Optimizer:
 
 
 # TODO(chaofan, yixin): Support symbolic shapes
-def _get_shape_as_int_list(var: Var) -> List[int]:
+def _get_shape_as_int_list(var: Var) -> list[int]:
     return [int(val) for val in var.struct_info.shape]
 
 
@@ -267,7 +269,7 @@ class SGD(Optimizer):
         self.lr = float(lr)
         self.weight_decay = float(weight_decay)
 
-    def init(self, params: Union[Var, List[Var]]) -> "SGD":
+    def init(self, params: Var | list[Var]) -> SGD:
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -275,7 +277,7 @@ class SGD(Optimizer):
 
         Parameters
         ----------
-        params : Union[Var, List[Var]]
+        params : Union[Var, list[Var]]
             The parameter or the list of parameters to optimize.
 
             Parameters should all be Vars of floating point Tensors, including float32, float64,
@@ -408,7 +410,7 @@ class MomentumSGD(Optimizer):
         self.dampening = float(dampening)
         self.nesterov = nesterov
 
-    def init(self, params: Union[Var, List[Var]]) -> "MomentumSGD":
+    def init(self, params: Var | list[Var]) -> MomentumSGD:
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -417,7 +419,7 @@ class MomentumSGD(Optimizer):
 
         Parameters
         ----------
-        params : Union[Var, List[Var]]
+        params : Union[Var, list[Var]]
             The parameter or the list of parameters to optimize.
 
             Parameters should all be Vars of floating point Tensors, including float32, float64,
@@ -546,7 +548,7 @@ class Adam(Optimizer):
     lr : float
         learning rate
 
-    betas : Tuple[float, float]
+    betas : tuple[float, float]
         coefficients used for computing running averages of gradient and its square
         (default: (0.9, 0.999))
 
@@ -560,7 +562,7 @@ class Adam(Optimizer):
     def __init__(
         self,
         lr: float,
-        betas: Tuple[float, float] = (0.9, 0.999),
+        betas: tuple[float, float] = (0.9, 0.999),
         eps: float = 1e-08,
         weight_decay: float = 0,
     ) -> None:
@@ -571,7 +573,7 @@ class Adam(Optimizer):
         self.eps = float(eps)
         self.weight_decay = float(weight_decay)
 
-    def init(self, params: Union[Var, List[Var]]) -> "Adam":
+    def init(self, params: Var | list[Var]) -> Adam:
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -588,7 +590,7 @@ class Adam(Optimizer):
 
         Parameters
         ----------
-        params : Union[Var, List[Var]]
+        params : Union[Var, list[Var]]
             The parameter or the list of parameters to optimize.
 
             Parameters should all be Vars of floating point Tensors, including float32, float64,
@@ -666,7 +668,7 @@ class Adam(Optimizer):
         with builder.function(self.name, [param_var, grad_var, state_var]):
             with builder.dataflow():
                 param_list_new = []
-                state_list_new = [None] * (len_param * 2 + 3)  # type: List[Optional[Var]]
+                state_list_new = [None] * (len_param * 2 + 3)  # type: list[Optional[Var]]
 
                 # handle num_steps
                 num_steps = builder.emit(TupleGetItem(state_var, 0), "num_steps")

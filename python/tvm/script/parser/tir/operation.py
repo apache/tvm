@@ -16,7 +16,7 @@
 # under the License.
 """The tir expression operation registration"""
 
-from typing import Type
+from __future__ import annotations
 
 from tvm import tir
 from tvm.runtime import DataType, DataTypeCode
@@ -26,8 +26,8 @@ from tvm.tir.expr import FloatImm
 from .._core import OpMethod, doc, register_op
 
 
-def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
-    ty._dispatch_type = ty  # pylint: disable=protected-access
+def _register_expr_op(ty: type):
+    ty._dispatch_type = ty
 
     def _and(a, b):
         if isinstance(a, bool):
@@ -118,7 +118,7 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
     def _ge(a, b):
         return _auto_broadcast(a, b, tir.GE)
 
-    def r(op: Type, i: int, m: OpMethod):  # pylint: disable=invalid-name
+    def r(op: type, i: int, m: OpMethod):
         register_op(ty, op, i)(m)
 
     for i in [0, 1]:

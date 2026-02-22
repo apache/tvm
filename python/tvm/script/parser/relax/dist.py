@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin,missing-docstring, invalid-name, unused-import, redefined-outer-name
 
-from typing import Any, Dict, List, Optional, Set, Union
+from __future__ import annotations
+
+from typing import Any, Optional, Union
 
 from tvm.ir import Range
 from tvm.relax import TensorStructInfo
@@ -54,10 +55,10 @@ class DTensorProxy(StructInfoProxy):
         self.tensor_sinfo_proxy = tensor_sinfo_proxy
         super().__init__()
 
-    def get_symbolic_vars(self) -> Set[str]:
+    def get_symbolic_vars(self) -> set[str]:
         return self.tensor_sinfo_proxy.get_symbolic_vars()
 
-    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> TensorStructInfo:
+    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> TensorStructInfo:
         return DTensorStructInfo(
             self.tensor_sinfo_proxy.as_struct_info(dict_globals),
             self.device_mesh,
@@ -66,10 +67,10 @@ class DTensorProxy(StructInfoProxy):
 
 
 def DTensor(
-    shape: Optional[List[Union[PrimExpr, str]]] = None,
-    dtype: Optional[str] = None,
-    device_mesh: Union[DeviceMesh, str] = DeviceMesh([], Range(0, 1)),
-    placement: Union[Placement, str] = "",
+    shape: list[PrimExpr | str] | None = None,
+    dtype: str | None = None,
+    device_mesh: DeviceMesh | str = DeviceMesh([], Range(0, 1)),
+    placement: Placement | str = "",
     *,
     ndim: int = -1,
 ) -> DTensorProxy:

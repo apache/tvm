@@ -30,7 +30,7 @@ def lower_stmt(params, stmt, target_bits):
 def lower_func_body(func, target_bits):
     """Lower a TVMScript function and return the body (navigating past DeclBuffer)."""
     mod = tvm.IRModule.from_expr(func)
-    gvar = list(mod.functions.keys())[0]
+    gvar = next(iter(mod.functions.keys()))
     func = tvm.tir.transform.NarrowDataType(target_bits)(mod)[gvar]
     body = func.body
     while hasattr(body, "body") and not isinstance(body, tvm.tir.For):
@@ -104,7 +104,7 @@ def test_thread_axis():
             B[bx * n + tx] = A[bx * n + tx] + T.float32(1)
 
         mod = tvm.IRModule.from_expr(func)
-        gvar = list(mod.functions.keys())[0]
+        gvar = next(iter(mod.functions.keys()))
         func_narrowed = tvm.tir.transform.NarrowDataType(target_bits)(mod)[gvar]
         stmt = func_narrowed.body
         assert stmt.node.var.dtype == target_dtype
@@ -142,7 +142,7 @@ def test_multilanes():
             A[0] = B[1]
 
         mod = tvm.IRModule.from_expr(func)
-        gvar = list(mod.functions.keys())[0]
+        gvar = next(iter(mod.functions.keys()))
         func_narrowed = tvm.tir.transform.NarrowDataType(target_bits)(mod)[gvar]
         stmt = func_narrowed.body
         assert stmt.seq[0].loop_var.dtype == target_dtype

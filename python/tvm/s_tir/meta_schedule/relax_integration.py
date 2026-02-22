@@ -16,11 +16,13 @@
 # under the License.
 """Meta schedule integration with high-level IR"""
 
+from __future__ import annotations
+
 import warnings
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -49,18 +51,18 @@ from .utils import fork_seed
 if TYPE_CHECKING:
     from tvm import relax
 
-_extract_task_func = get_global_func(  # pylint: disable=invalid-name
+_extract_task_func = get_global_func(
     "relax.backend.MetaScheduleExtractTask",
     allow_missing=True,
 )
 
 
 def extract_tasks(
-    mod: Union[IRModule, "relax.Function"],
+    mod: IRModule | relax.Function,
     target: Target,
-    params: Optional[Dict[str, Tensor]] = None,
+    params: dict[str, Tensor] | None = None,
     module_equality: str = "structural",
-) -> List[ExtractedTask]:
+) -> list[ExtractedTask]:
     """Extract tuning tasks from a relax program.
 
     Parameters
@@ -87,11 +89,10 @@ def extract_tasks(
     tasks: List[ExtractedTask]
         The tasks extracted from this module
     """
-    # pylint: disable=import-outside-toplevel
+
     from tvm.relax.expr import Function as RelaxFunc
     from tvm.relax.transform import BindParams
 
-    # pylint: enable=import-outside-toplevel
     if isinstance(mod, RelaxFunc):
         mod = IRModule({"main": mod})
     if not isinstance(target, Target):
@@ -102,13 +103,13 @@ def extract_tasks(
 
 
 def extracted_tasks_to_tune_contexts(
-    extracted_tasks: List[ExtractedTask],
+    extracted_tasks: list[ExtractedTask],
     work_dir: str,
     space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
-    num_threads: Union[Literal["physical", "logical"], int] = "physical",
-    seed: Optional[int] = None,
-) -> Tuple[List[TuneContext], List[float]]:
+    num_threads: Literal["physical", "logical"] | int = "physical",
+    seed: int | None = None,
+) -> tuple[list[TuneContext], list[float]]:
     """Convert ExtractedTask to TuneContext.
 
     Parameters
@@ -133,8 +134,8 @@ def extracted_tasks_to_tune_contexts(
     task_weights : List[float]
         The weights of the tasks
     """
-    tasks: List[TuneContext] = []
-    task_weights: List[float] = []
+    tasks: list[TuneContext] = []
+    task_weights: list[float] = []
     for task, logger, rand_state in zip(
         extracted_tasks,
         get_loggers_from_work_dir(work_dir, [t.task_name for t in extracted_tasks]),
@@ -160,13 +161,13 @@ def extracted_tasks_to_tune_contexts(
 
 
 def tune_relax(
-    mod: Union[IRModule, "relax.Function"],
-    params: Dict[str, Tensor],
-    target: Union[str, Target],
+    mod: IRModule | relax.Function,
+    params: dict[str, Tensor],
+    target: str | Target,
     work_dir: str,
     max_trials_global: int,
-    max_trials_per_task: Optional[int] = None,
-    op_names: Optional[List[str]] = None,
+    max_trials_per_task: int | None = None,
+    op_names: list[str] | None = None,
     *,
     num_trials_per_iter: int = 64,
     builder: Builder.BuilderType = "local",
@@ -177,7 +178,7 @@ def tune_relax(
     task_scheduler: TaskScheduler.TaskSchedulerType = "gradient",
     space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
-    seed: Optional[int] = None,
+    seed: int | None = None,
     module_equality: str = "structural",
 ) -> Database:
     """Tune a Relax program.
@@ -273,13 +274,13 @@ def tune_relax(
 
 @register_global_func("tvm.s_tir.meta_schedule.tune_relax")
 def _tune_relax(
-    mod: Union[IRModule, "relax.Function"],
-    params: Dict[str, Tensor],
-    target: Union[str, Target],
+    mod: IRModule | relax.Function,
+    params: dict[str, Tensor],
+    target: str | Target,
     work_dir: str,
     max_trials_global: int,
-    max_trials_per_task: Optional[int] = None,
-    op_names: Optional[List[str]] = None,
+    max_trials_per_task: int | None = None,
+    op_names: list[str] | None = None,
     *,
     num_trials_per_iter: int = 64,
     builder: Builder.BuilderType = "local",
@@ -290,7 +291,7 @@ def _tune_relax(
     task_scheduler: TaskScheduler.TaskSchedulerType = "gradient",
     space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
-    seed: Optional[int] = None,
+    seed: int | None = None,
     module_equality: str = "structural",
 ) -> Database:
     """Interface with tuning api to tune a Relax program.
@@ -381,10 +382,10 @@ def _tune_relax(
 def compile_relax(
     database: Database,
     mod: IRModule,
-    target: Union[Target, str],
-    params: Optional[Dict[str, Tensor]],
+    target: Target | str,
+    params: dict[str, Tensor] | None,
     enable_warning: bool = False,
-) -> "relax.VMExecutable":
+) -> relax.VMExecutable:
     """Compile a relax program with a MetaSchedule database.
 
     Parameters
@@ -406,11 +407,10 @@ def compile_relax(
     lib : relax.VMExecutable
         The built runtime module or vm VMExecutable for the given relax workload.
     """
-    # pylint: disable=import-outside-toplevel
+
     from tvm.relax import build as relax_build
     from tvm.relax.transform import BindParams, MetaScheduleApplyDatabase
 
-    # pylint: enable=import-outside-toplevel
     if not isinstance(target, Target):
         target = Target(target)
     if params:

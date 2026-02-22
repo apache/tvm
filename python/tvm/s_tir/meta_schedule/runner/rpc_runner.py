@@ -16,10 +16,13 @@
 # under the License.
 """RPC Runner"""
 
+from __future__ import annotations
+
 import concurrent.futures
 import os.path as osp
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Callable, List, Optional, Union
+from typing import Optional
 
 from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.rpc import RPCSession
@@ -41,14 +44,14 @@ from .utils import (
     run_evaluator_common,
 )
 
-logger = get_logger(__name__)  # pylint: disable=invalid-name
+logger = get_logger(__name__)
 
 
-T_CREATE_SESSION = Callable[  # pylint: disable=invalid-name
+T_CREATE_SESSION = Callable[
     [RPCConfig],  # The RPC configuration
     RPCSession,  # The RPC Session
 ]
-T_UPLOAD_MODULE = Callable[  # pylint: disable=invalid-name
+T_UPLOAD_MODULE = Callable[
     [
         RPCSession,  # The RPC Session
         str,  # local path to the artifact
@@ -56,29 +59,29 @@ T_UPLOAD_MODULE = Callable[  # pylint: disable=invalid-name
     ],
     Module,  # the Module opened on the remote
 ]
-T_ALLOC_ARGUMENT = Callable[  # pylint: disable=invalid-name
+T_ALLOC_ARGUMENT = Callable[
     [
         RPCSession,  # The RPC Session
         Device,  # The device on the remote
         T_ARG_INFO_JSON_OBJ_LIST,  # The metadata information of the arguments to be allocated
         int,  # The number of repeated allocations to be done
     ],
-    List[T_ARGUMENT_LIST],  # A list of argument lists
+    list[T_ARGUMENT_LIST],  # A list of argument lists
 ]
-T_RUN_EVALUATOR = Callable[  # pylint: disable=invalid-name
+T_RUN_EVALUATOR = Callable[
     [
         RPCSession,  # The RPC Session
         Module,  # The Module opened on the remote
         Device,  # The device on the remote
         EvaluatorConfig,  # The evaluator configuration
-        List[T_ARGUMENT_LIST],  # A list of argument lists
+        list[T_ARGUMENT_LIST],  # A list of argument lists
     ],
-    List[float],  # A list of running time
+    list[float],  # A list of running time
 ]
-T_CLEANUP = Callable[  # pylint: disable=invalid-name
+T_CLEANUP = Callable[
     [
-        Optional[RPCSession],  # The RPC Session to be cleaned up
-        Optional[str],  # remote path to the artifact
+        RPCSession | None,  # The RPC Session to be cleaned up
+        str | None,  # remote path to the artifact
     ],
     None,
 ]
@@ -118,13 +121,13 @@ class RPCRunnerFuture(PyRunnerFuture):
 
     def result(self) -> RunnerResult:
         try:
-            run_secs: List[float] = self.future.result()
+            run_secs: list[float] = self.future.result()
         except TimeoutError:
             return RunnerResult(
                 None,
                 error_msg=f"RPCRunner: Timeout, killed after {self.timeout_sec} seconds",
             )
-        except Exception as exception:  # pylint: disable=broad-except
+        except Exception as exception:
             return RunnerResult(
                 None,
                 error_msg="RPCRunner: An exception occurred\n" + str(exception),
@@ -225,27 +228,27 @@ class RPCRunner(PyRunner):
     cooldown_sec: float
     alloc_repeat: int
 
-    f_create_session: Union[T_CREATE_SESSION, str, None]
-    f_upload_module: Union[T_UPLOAD_MODULE, str, None]
-    f_alloc_argument: Union[T_ALLOC_ARGUMENT, str, None]
-    f_run_evaluator: Union[T_RUN_EVALUATOR, str, None]
-    f_cleanup: Union[T_CLEANUP, str, None]
+    f_create_session: T_CREATE_SESSION | str | None
+    f_upload_module: T_UPLOAD_MODULE | str | None
+    f_alloc_argument: T_ALLOC_ARGUMENT | str | None
+    f_run_evaluator: T_RUN_EVALUATOR | str | None
+    f_cleanup: T_CLEANUP | str | None
 
     pool: PopenPoolExecutor
 
     def __init__(
         self,
-        rpc_config: Optional[RPCConfig] = None,
-        evaluator_config: Optional[EvaluatorConfig] = None,
+        rpc_config: RPCConfig | None = None,
+        evaluator_config: EvaluatorConfig | None = None,
         cooldown_sec: float = 0.0,
         alloc_repeat: int = 1,
-        f_create_session: Union[T_CREATE_SESSION, str, None] = None,
-        f_upload_module: Union[T_UPLOAD_MODULE, str, None] = None,
-        f_alloc_argument: Union[T_ALLOC_ARGUMENT, str, None] = None,
-        f_run_evaluator: Union[T_RUN_EVALUATOR, str, None] = None,
-        f_cleanup: Union[T_CLEANUP, str, None] = None,
-        max_workers: Optional[int] = None,
-        initializer: Optional[Callable[[], None]] = None,
+        f_create_session: T_CREATE_SESSION | str | None = None,
+        f_upload_module: T_UPLOAD_MODULE | str | None = None,
+        f_alloc_argument: T_ALLOC_ARGUMENT | str | None = None,
+        f_run_evaluator: T_RUN_EVALUATOR | str | None = None,
+        f_cleanup: T_CLEANUP | str | None = None,
+        max_workers: int | None = None,
+        initializer: Callable[[], None] | None = None,
     ) -> None:
         """Constructor
 
@@ -293,8 +296,8 @@ class RPCRunner(PyRunner):
         )
         self._sanity_check()
 
-    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
-        results: List[RunnerFuture] = []
+    def run(self, runner_inputs: list[RunnerInput]) -> list[RunnerFuture]:
+        results: list[RunnerFuture] = []
         for runner_input in runner_inputs:
             future = RPCRunnerFuture(
                 future=self.pool.submit(
@@ -342,18 +345,18 @@ class RPCRunner(PyRunner):
 
 
 def _worker_func(
-    _f_create_session: Union[T_CREATE_SESSION, str, None],
-    _f_upload_module: Union[T_UPLOAD_MODULE, str, None],
-    _f_alloc_argument: Union[T_ALLOC_ARGUMENT, str, None],
-    _f_run_evaluator: Union[T_RUN_EVALUATOR, str, None],
-    _f_cleanup: Union[T_CLEANUP, str, None],
+    _f_create_session: T_CREATE_SESSION | str | None,
+    _f_upload_module: T_UPLOAD_MODULE | str | None,
+    _f_alloc_argument: T_ALLOC_ARGUMENT | str | None,
+    _f_run_evaluator: T_RUN_EVALUATOR | str | None,
+    _f_cleanup: T_CLEANUP | str | None,
     rpc_config: RPCConfig,
     evaluator_config: EvaluatorConfig,
     alloc_repeat: int,
     artifact_path: str,
     device_type: str,
     args_info: T_ARG_INFO_JSON_OBJ_LIST,
-) -> List[float]:
+) -> list[float]:
     # Step 0. Get the registered functions
     f_create_session: T_CREATE_SESSION = get_global_func_with_default_on_worker(
         _f_create_session, default_create_session
@@ -369,8 +372,8 @@ def _worker_func(
     )
     f_cleanup: T_CLEANUP = get_global_func_with_default_on_worker(_f_cleanup, default_cleanup)
     # Managed resources
-    session: Optional[RPCSession] = None
-    remote_path: Optional[str] = None
+    session: RPCSession | None = None
+    remote_path: str | None = None
 
     @contextmanager
     def resource_handler():
@@ -393,7 +396,7 @@ def _worker_func(
             rt_mod: Module = f_upload_module(session, local_path, remote_path)
         # Step 3: Allocate input arguments
         with Profiler.timeit("RPCRunner/alloc_argument"):
-            repeated_args: List[T_ARGUMENT_LIST] = f_alloc_argument(
+            repeated_args: list[T_ARGUMENT_LIST] = f_alloc_argument(
                 session,
                 device,
                 args_info,
@@ -401,7 +404,7 @@ def _worker_func(
             )
         # Step 4: Run time_evaluator
         with Profiler.timeit("LocalRunner/run_evaluator"):
-            costs: List[float] = f_run_evaluator(
+            costs: list[float] = f_run_evaluator(
                 session,
                 rt_mod,
                 device,
@@ -458,7 +461,7 @@ def default_alloc_argument(
     device: Device,
     args_info: T_ARG_INFO_JSON_OBJ_LIST,
     alloc_repeat: int,
-) -> List[T_ARGUMENT_LIST]:
+) -> list[T_ARGUMENT_LIST]:
     """Default function to allocate the arguments
 
     Parameters
@@ -487,12 +490,12 @@ def default_alloc_argument(
 
 
 def default_run_evaluator(
-    session: RPCSession,  # pylint: disable=unused-argument
+    session: RPCSession,
     rt_mod: Module,
     device: Device,
     evaluator_config: EvaluatorConfig,
-    repeated_args: List[T_ARGUMENT_LIST],
-) -> List[float]:
+    repeated_args: list[T_ARGUMENT_LIST],
+) -> list[float]:
     """Default function to run the evaluator
 
     Parameters
@@ -517,8 +520,8 @@ def default_run_evaluator(
 
 
 def default_cleanup(
-    session: Optional[RPCSession],
-    remote_path: Optional[str],
+    session: RPCSession | None,
+    remote_path: str | None,
 ) -> None:
     """Default function to clean up the session
 

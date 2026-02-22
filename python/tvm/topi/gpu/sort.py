@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument, no-else-return
 """Sort related operators"""
 
 import tvm
@@ -433,7 +432,7 @@ def _sort_common(
                         dest, base_idx, aCount, bCount, aStart, bStart, diag, first, last
                     )
                     # Intentionally swap source/dest for reverse direction merge
-                    serial_merge(  # pylint: disable=arguments-out-of-order
+                    serial_merge(
                         dest,
                         source,
                         dest_idx,
@@ -1135,7 +1134,7 @@ def topk_thrust(
 
     if not isinstance(k, int) or k > 0:
         beg = [0] * ndim
-        end = data.shape[:-1] + [k if isinstance(k, int) else tvm.te.size_var("dim")]
+        end = [*data.shape[:-1], k if isinstance(k, int) else tvm.te.size_var("dim")]
         strides = [1] * ndim
         out = [strided_slice(o, beg, end, strides) for o in out]
 

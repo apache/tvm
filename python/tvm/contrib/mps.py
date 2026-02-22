@@ -19,8 +19,6 @@
 import tvm
 from tvm import te
 
-# pylint: disable=C0103,W0612
-
 
 def matmul(lhs, rhs, transa=False, transb=False):
     """Create an extern op that compute matrix mult of A and rhs with CrhsLAS

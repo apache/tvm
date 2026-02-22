@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-timeout
 """Helper utility for downloading"""
 
 import logging
@@ -50,7 +49,7 @@ def download(url, path, overwrite=False, size_compare=False, retries=3):
         Number of time to retry download, defaults to 3.
 
     """
-    # pylint: disable=import-outside-toplevel
+
     import urllib.request as urllib2
 
     path = Path(path).resolve()
@@ -80,7 +79,6 @@ def download(url, path, overwrite=False, size_compare=False, retries=3):
     dirpath.mkdir(parents=True, exist_ok=True)
 
     def _download_progress(count, block_size, total_size):
-        # pylint: disable=unused-argument
         """Show the download progress."""
         if count == 0:
             return
@@ -107,7 +105,6 @@ def download(url, path, overwrite=False, size_compare=False, retries=3):
         download_loc = tempdir.joinpath(path.name)
 
         for i_retry in range(retries):
-            # pylint: disable=broad-except
             try:
                 urllib2.urlretrieve(url, download_loc, reporthook=_download_progress)
                 LOG.debug("")

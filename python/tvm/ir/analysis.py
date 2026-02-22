@@ -15,11 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=unused-import
 
 """Common analysis across all IR variants."""
 
-from typing import Dict, List
+from __future__ import annotations
 
 import tvm
 
@@ -27,8 +26,8 @@ from . import _ffi_analysis_api as _ffi
 
 
 def collect_call_map(
-    module: "tvm.ir.IRModule",
-) -> Dict["tvm.ir.GlobalVar", List["tvm.ir.GlobalVar"]]:
+    module: tvm.ir.IRModule,
+) -> dict[tvm.ir.GlobalVar, list[tvm.ir.GlobalVar]]:
     """Collect the call map of a module
 
     Parameters

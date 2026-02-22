@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 import tvm
 import tvm.testing
@@ -47,7 +46,6 @@ def _create_context(mod, target) -> ms.TuneContext:
 
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 
 @tvm.script.ir_module
 class AfterRewrite0:
@@ -205,7 +203,6 @@ class WarpExecutionAfterRewrite:
                             C[v0, v1] = C_local[v0, v1]
 
 
-# pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on
 
 
@@ -216,7 +213,7 @@ def test_rewrite_cooperative_fetch():
 
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     # fmt: off
-    # pylint: disable=line-too-long,invalid-name
+
     b0 = sch.get_sblock(name="C", func_name="main")
     b1 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")
     l2, l3, l4 = sch.get_loops(block=b0)
@@ -246,7 +243,7 @@ def test_rewrite_cooperative_fetch():
     _, v53 = sch.sample_perfect_tile(loop=l51, n=2, max_innermost_factor=4, decision=[8192, 2])
     sch.annotate(block_or_loop=b44, ann_key="meta_schedule.cooperative_fetch", ann_val=v53)
     sch.reverse_compute_at(block=b1, loop=l33, preserve_unit_loops=True)
-    # pylint: enable=line-too-long,invalid-name
+
     # fmt: on
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)
@@ -260,7 +257,7 @@ def test_rewrite_warp_execution():
 
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     # fmt: off
-    # pylint: disable=line-too-long,invalid-name
+
     b0 = sch.get_sblock(name="C", func_name="main")
     b1 = sch.cache_write(block=b0, write_buffer_index=0, storage_scope="local")
     l2, l3, l4 = sch.get_loops(block=b0)
@@ -291,7 +288,7 @@ def test_rewrite_warp_execution():
     _, v53 = sch.sample_perfect_tile(loop=l51, n=2, max_innermost_factor=4, decision=[8192, 2])
     sch.annotate(block_or_loop=b44, ann_key="meta_schedule.cooperative_fetch", ann_val=v53)
     sch.reverse_compute_at(block=b1, loop=l33, preserve_unit_loops=True)
-    # pylint: enable=line-too-long,invalid-name
+
     # fmt: on
     sch.enter_postproc()
     assert ctx.space_generator.postprocs[0].apply(sch)

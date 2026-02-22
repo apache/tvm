@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring, unused-argument
+
+from __future__ import annotations
 
 import functools
 import numbers
-from typing import Any, Dict, Optional
+from typing import Any
 
 from tvm import relax, tir
 from tvm.ir import GlobalVar, structural_equal
@@ -43,7 +44,7 @@ def bind_assign_value(
     node: doc.expr,
     var_name: str,
     value: Any,
-    anno_sinfo: Optional[StructInfo] = None,
+    anno_sinfo: StructInfo | None = None,
 ) -> Any:
     var_table = self.var_table.get()
 
@@ -104,7 +105,7 @@ def eval_struct_info_proxy(self: Parser, node: doc.expr) -> StructInfoProxy:
     try:
         annotation = self.eval_expr(node)
         return _normalize_struct_info_proxy(annotation)
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:
         self.report_error(node, err)
         raise
 
@@ -114,7 +115,7 @@ def eval_struct_info(self: Parser, node: doc.expr, eval_str: bool = False) -> St
     try:
         struct_info = self.eval_expr(node)
         return _normalize_struct_info(struct_info, var_table)
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:
         self.report_error(node, err)
         raise
 
@@ -152,8 +153,8 @@ def is_recursive(node: doc.FunctionDef) -> bool:
 
 
 def collect_symbolic_var_from_prelude(
-    self: Parser, node: doc.FunctionDef, symbolic_vars: Dict[str, tir.Var]
-) -> Dict[str, tir.Var]:
+    self: Parser, node: doc.FunctionDef, symbolic_vars: dict[str, tir.Var]
+) -> dict[str, tir.Var]:
     prelude_vars = {}
     for stmt in node.body:
         if isinstance(stmt, doc.Assign) and all(
@@ -415,7 +416,7 @@ def visit_if(self: Parser, node: doc.If) -> None:
 
 
 @dispatch.register(token="relax", type_name="enter_token")
-def enter_token(self: Parser) -> Dict[str, Any]:
+def enter_token(self: Parser) -> dict[str, Any]:
     def relax_call(self, *args) -> Expr:
         args = [convert_to_expr(arg) if isinstance(arg, tuple) else arg for arg in args]
 
@@ -430,6 +431,6 @@ def enter_token(self: Parser) -> Dict[str, Any]:
 
 
 @dispatch.register(token="relax", type_name="exit_token")
-def exit_token(self: Parser, context: Dict[str, Any]) -> None:
+def exit_token(self: Parser, context: dict[str, Any]) -> None:
     assert "GlobalVar.__call__" in context
     GlobalVar.__call__ = context.get("GlobalVar.__call__")

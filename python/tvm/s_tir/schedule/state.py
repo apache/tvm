@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """This file defines ScheduleState, the core data structure of TensorIR scheduling."""
+
+from __future__ import annotations
 
 from collections import namedtuple
 from enum import IntEnum
-from typing import Dict, Optional, Union
 
 from tvm_ffi import register_object
 
@@ -52,7 +52,7 @@ class ScheduleDebugMask(IntEnum):
     VERIFY_CACHED_FLAGS = 2
 
 
-def _parse_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
+def _parse_mod(mod: PrimFunc | IRModule) -> IRModule:
     if isinstance(mod, PrimFunc):
         mod = IRModule({"main": mod})
     if not isinstance(mod, IRModule):
@@ -60,7 +60,7 @@ def _parse_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
     return mod
 
 
-def _parse_debug_mask(debug_mask: Union[str, int]) -> int:
+def _parse_debug_mask(debug_mask: str | int) -> int:
     if isinstance(debug_mask, str):
         if debug_mask == "all":
             debug_mask = ScheduleDebugMask.VERIFY_SREF_TREE | ScheduleDebugMask.VERIFY_CACHED_FLAGS
@@ -109,9 +109,9 @@ class ScheduleState(Object):
 
     def __init__(
         self,
-        mod: Union[PrimFunc, IRModule],
+        mod: PrimFunc | IRModule,
         *,
-        debug_mask: Union[str, int] = "none",
+        debug_mask: str | int = "none",
         enable_check: bool = True,
     ) -> None:
         """Construct a schedule state from an IRModule or a PrimFunc
@@ -129,13 +129,13 @@ class ScheduleState(Object):
             3) An integer - Turn on checks according to the bitmasks provided in ScheduleDebugMask
         """
         self.__init_handle_by_constructor__(
-            _ffi_api.ScheduleState,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ScheduleState,  # type: ignore
             _parse_mod(mod),
             _parse_debug_mask(debug_mask),
             _parse_enable_checks(enable_check),
         )
 
-    def get_sref(self, stmt: Union[SBlock, For]) -> Optional[StmtSRef]:
+    def get_sref(self, stmt: SBlock | For) -> StmtSRef | None:
         """Return the corresponding sref that points to the stmt
 
         Parameters
@@ -148,7 +148,7 @@ class ScheduleState(Object):
         sref : StmtSRef
             The corresponding sref
         """
-        return _ffi_api.ScheduleStateGetSRef(self, stmt)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleStateGetSRef(self, stmt)  # type: ignore
 
     def get_sblock_scope(self, block_sref: StmtSRef) -> SBlockScope:
         """Get the SBlockScope correpsonding to the block sref
@@ -163,7 +163,7 @@ class ScheduleState(Object):
         sref : StmtSRef
             The corresponding sref
         """
-        return _ffi_api.ScheduleStateGetSBlockScope(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ScheduleStateGetSBlockScope(  # type: ignore
             self, block_sref
         )
 
@@ -188,7 +188,7 @@ class ScheduleState(Object):
             affine_binding,
             region_cover,
             stage_pipeline,
-        ) = _ffi_api.ScheduleStateGetCachedFlags(  # type: ignore # pylint: disable=no-member
+        ) = _ffi_api.ScheduleStateGetCachedFlags(  # type: ignore
             self, block_sref
         )
         return CachedFlags(
@@ -200,8 +200,8 @@ class ScheduleState(Object):
     def replace(
         self,
         src_sref: StmtSRef,
-        tgt_stmt: Union[SBlock, For, SBlockRealize],
-        block_sref_reuse: Optional[Dict[SBlock, SBlock]] = None,
+        tgt_stmt: SBlock | For | SBlockRealize,
+        block_sref_reuse: dict[SBlock, SBlock] | None = None,
     ) -> None:
         """
         Replace the part of the AST, as being pointed to by `src_sref`,
@@ -234,6 +234,6 @@ class ScheduleState(Object):
         """
         if block_sref_reuse is None:
             block_sref_reuse = {}
-        _ffi_api.ScheduleStateReplace(  # type: ignore # pylint: disable=no-member
+        _ffi_api.ScheduleStateReplace(  # type: ignore
             self, src_sref, tgt_stmt, block_sref_reuse
         )

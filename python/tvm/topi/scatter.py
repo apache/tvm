@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """ScatterND operator"""
 
 from tvm import te, tir  # hide redefinition of min and max
@@ -95,7 +94,6 @@ def scatter_nd(data, indices, updates, mode):
     _verify_scatter_nd_inputs(data, indices, updates)
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
-        # pylint: disable=invalid-name
         data = T.buffer_proxy(data_ptr)
         indices = T.buffer_proxy(indices_ptr)
         updates = T.buffer_proxy(updates_ptr)

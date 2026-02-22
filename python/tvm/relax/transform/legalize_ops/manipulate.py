@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Default legalization function for manipulate operators."""
 
 from typing import Optional
@@ -145,7 +144,7 @@ def _stack(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.repeat")
 def _repeat(bb: BlockBuilder, call: Call) -> Expr:
-    def te_repeat(data: te.Tensor, repeats: IntImm, axis: Optional[IntImm]):
+    def te_repeat(data: te.Tensor, repeats: IntImm, axis: IntImm | None):
         if axis is None:
             # flatten data
             out_shape = data.shape[0]
@@ -180,7 +179,7 @@ def _gather_elements(bb: BlockBuilder, call: Call) -> Expr:
 def _gather_nd(bb: BlockBuilder, call: Call) -> Expr:
     def te_gather_nd(data, indices, batch_dims):
         indices_ndim = len(indices.shape)
-        axes = [indices_ndim - 1] + list(range(indices_ndim - 1))
+        axes = [indices_ndim - 1, *list(range(indices_ndim - 1))]
         indices = topi.transpose(indices, axes)
         return topi.gather_nd(data, indices, batch_dims)
 

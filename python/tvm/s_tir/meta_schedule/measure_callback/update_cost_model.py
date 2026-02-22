@@ -27,5 +27,5 @@ class UpdateCostModel(MeasureCallback):
     def __init__(self) -> None:
         """A measure callback that updates the cost model"""
         self.__init_handle_by_constructor__(
-            _ffi_api.MeasureCallbackUpdateCostModel,  # type: ignore # pylint: disable=no-member
+            _ffi_api.MeasureCallbackUpdateCostModel,  # type: ignore
         )

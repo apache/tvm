@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import pytest
 
 import tvm
@@ -27,7 +26,6 @@ from tvm.script import tir as T
 from tvm.target import Target
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 
 @tvm.script.ir_module
 class Conv2DBiasBnReLU:
@@ -434,7 +432,6 @@ class Conv2dInt8:
                 compute[i0_11, i1_11, i2_11, i3_11] = T.max(T.min(T_add_2[i0_11, i1_11, i2_11, i3_11], 255), 0)
 
 
-# pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on
 
 

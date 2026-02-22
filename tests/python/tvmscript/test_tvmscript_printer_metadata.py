@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 import tvm.testing
 from tvm.script.parser import ir as I
 from tvm.script.parser import tir as T

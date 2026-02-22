@@ -243,7 +243,7 @@ def test_kv_transfer_with_disco():
 
 if __name__ == "__main__":
     # To run this test, install mpi4py first, and then run
-    # mpirun -np 2 python tests/python/relax/nvshmem/test_runtime_builtin_kv_cache_transfer_kernel.py  # pylint: disable=line-too-long
+    # mpirun -np 2 python tests/python/relax/nvshmem/test_runtime_builtin_kv_cache_transfer_kernel.py
     # FIXME: only one test can be run at a time
     test_kv_transfer_without_disco()
     # test_kv_transfer_with_disco()

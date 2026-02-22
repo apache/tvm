@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """A builder to build Relax VM executable."""
 
+from __future__ import annotations
+
 from enum import IntEnum
-from typing import List, Optional, Union
 
 import tvm_ffi
 
@@ -46,7 +46,7 @@ class VMFuncKind(IntEnum):
 class VMFuncScope:
     """An object corresponds to each VM function, working as a context manager."""
 
-    stack: List["VMFuncScope"] = []
+    stack: list[VMFuncScope] = []
 
     def __init__(self, exit_callback):
         self.exit_callback = exit_callback
@@ -94,7 +94,7 @@ class ExecBuilder(tvm_ffi.core.Object):
         _ffi_api.ExecBuilderDeclareFunction(self, func_name, kind)  # type: ignore
 
     def function(
-        self, func_name: str, num_inputs: Optional[int] = 0, param_names: List[str] = None
+        self, func_name: str, num_inputs: int | None = 0, param_names: list[str] | None = None
     ) -> VMFuncScope:
         """annotate a VM function."""
         _ffi_api.ExecBuilderEmitFunction(self, func_name, num_inputs, param_names)  # type: ignore
@@ -110,8 +110,8 @@ class ExecBuilder(tvm_ffi.core.Object):
     def emit_call(
         self,
         name: str,
-        args: Optional[List[Union[tvm.runtime.Tensor, tvm.DataType]]] = None,
-        dst: int = None,
+        args: list[tvm.runtime.Tensor | tvm.DataType] | None = None,
+        dst: int | None = None,
     ) -> None:
         """emit a call instruction which calls a packed function."""
         self._check_scope()

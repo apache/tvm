@@ -16,10 +16,12 @@
 # under the License.
 """tvm.contrib.msc.plugin.build"""
 
+from __future__ import annotations
+
 import os
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.plugin.codegen import get_codegen
@@ -28,12 +30,12 @@ from .register import register_plugin
 
 
 def _build_plugins(
-    plugins: Dict[str, dict],
-    frameworks: List[str],
+    plugins: dict[str, dict],
+    frameworks: list[str],
     workspace: msc_utils.MSCDirectory = None,
-    codegen_config: Optional[Dict[str, str]] = None,
-    cpp_print_config: Optional[Dict[str, str]] = None,
-    py_print_config: Optional[Dict[str, str]] = None,
+    codegen_config: dict[str, str] | None = None,
+    cpp_print_config: dict[str, str] | None = None,
+    py_print_config: dict[str, str] | None = None,
     externs_dir: msc_utils.MSCDirectory = None,
     on_debug: bool = False,
 ):
@@ -90,15 +92,15 @@ def _build_plugins(
 
 
 def build_plugins(
-    plugins: Dict[str, dict],
-    frameworks: List[str],
+    plugins: dict[str, dict],
+    frameworks: list[str],
     workspace: msc_utils.MSCDirectory = None,
-    codegen_config: Optional[Dict[str, str]] = None,
-    cpp_print_config: Optional[Dict[str, str]] = None,
-    py_print_config: Optional[Dict[str, str]] = None,
+    codegen_config: dict[str, str] | None = None,
+    cpp_print_config: dict[str, str] | None = None,
+    py_print_config: dict[str, str] | None = None,
     externs_dir: msc_utils.MSCDirectory = None,
     on_debug: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build the plugins and load plugin manager
 
     Parameters
@@ -145,14 +147,14 @@ def build_plugins(
 
 
 def pack_plugins(
-    plugins: Dict[str, dict],
-    frameworks: List[str],
+    plugins: dict[str, dict],
+    frameworks: list[str],
     project_name: str = "msc_plugin",
-    codegen_config: Optional[Dict[str, str]] = None,
-    cpp_print_config: Optional[Dict[str, str]] = None,
-    py_print_config: Optional[Dict[str, str]] = None,
+    codegen_config: dict[str, str] | None = None,
+    cpp_print_config: dict[str, str] | None = None,
+    py_print_config: dict[str, str] | None = None,
     externs_dir: msc_utils.MSCDirectory = None,
-    setup_config: Optional[Dict[str, str]] = None,
+    setup_config: dict[str, str] | None = None,
     on_debug: bool = False,
 ) -> str:
     """Build the plugins and build to wheel

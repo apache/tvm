@@ -16,10 +16,12 @@
 # under the License.
 """MetaSchedule-TIR integration"""
 
-from typing import List, Mapping, Optional, Tuple, Union
+from __future__ import annotations
+
+from collections.abc import Mapping
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 from tvm_ffi import register_global_func
 
 # isort: on
@@ -42,13 +44,13 @@ from .tune_context import TuneContext, _normalize_mod
 from .utils import fork_seed
 
 
-def tune_tir(  # pylint: disable=too-many-locals
-    mod: Union[ir.IRModule, tir.PrimFunc],
-    target: Union[str, Target],
+def tune_tir(
+    mod: ir.IRModule | tir.PrimFunc,
+    target: str | Target,
     work_dir: str,
     max_trials_global: int,
     *,
-    max_trials_per_task: Optional[int] = None,
+    max_trials_per_task: int | None = None,
     num_trials_per_iter: int = 64,
     builder: Builder.BuilderType = "local",
     runner: Runner.RunnerType = "local",
@@ -58,11 +60,11 @@ def tune_tir(  # pylint: disable=too-many-locals
     task_scheduler: TaskScheduler.TaskSchedulerType = "gradient",
     space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
-    num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
-    seed: Optional[int] = None,
+    num_tuning_cores: Literal["physical", "logical"] | int = "physical",
+    seed: int | None = None,
     module_equality: str = "structural",
-    special_space: Optional[Mapping[str, SpaceGenerator.SpaceGeneratorType]] = None,
-    post_optimization: Optional[bool] = False,
+    special_space: Mapping[str, SpaceGenerator.SpaceGeneratorType] | None = None,
+    post_optimization: bool | None = False,
 ) -> Database:
     """Tune a TIR function or an IRModule of TIR functions.
 
@@ -113,14 +115,14 @@ def tune_tir(  # pylint: disable=too-many-locals
     if isinstance(mod, tir.PrimFunc):
         mod = _normalize_mod(mod)
 
-    named_tasks: List[Tuple[str, tir.PrimFunc]] = []
-    for gv, func in mod.functions_items():  # pylint: disable=invalid-name
+    named_tasks: list[tuple[str, tir.PrimFunc]] = []
+    for gv, func in mod.functions_items():
         if isinstance(func, tir.PrimFunc):
             named_tasks.append((gv.name_hint, func))
     named_tasks.sort(key=lambda x: x[0])
 
     task_names = [x for x, _ in named_tasks]
-    tasks: List[TuneContext] = []
+    tasks: list[TuneContext] = []
     for task_name, task_func, logger, rand_state in zip(
         task_names,
         [x for _, x in named_tasks],
@@ -165,8 +167,8 @@ def tune_tir(  # pylint: disable=too-many-locals
 
 @register_global_func("tvm.s_tir.meta_schedule.tune_tir")
 def _tune_tir(
-    mod: Union[ir.IRModule, tir.PrimFunc],
-    target: Union[str, Target],
+    mod: ir.IRModule | tir.PrimFunc,
+    target: str | Target,
     work_dir: str,
     max_trials_global: int,
     *,
@@ -179,8 +181,8 @@ def _tune_tir(
     task_scheduler: TaskScheduler.TaskSchedulerType = "round-robin",
     space: SpaceGenerator.SpaceGeneratorType = "post-order-apply",
     strategy: SearchStrategy.SearchStrategyType = "evolutionary",
-    num_tuning_cores: Union[Literal["physical", "logical"], int] = "physical",
-    seed: Optional[int] = None,
+    num_tuning_cores: Literal["physical", "logical"] | int = "physical",
+    seed: int | None = None,
 ) -> Database:
     """Interface with tuning api to tune a TIR program.
 
@@ -248,8 +250,8 @@ def _tune_tir(
 
 def compile_tir(
     database: Database,
-    mod: Union[ir.IRModule, tir.PrimFunc],
-    target: Union[Target, str],
+    mod: ir.IRModule | tir.PrimFunc,
+    target: Target | str,
 ) -> _Schedule:
     """Compile a TIR to s_tir.Schedule, according to the records in the database.
 

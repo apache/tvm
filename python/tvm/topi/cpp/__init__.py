@@ -18,7 +18,7 @@
 
 """FFI for C++ TOPI ops and schedules"""
 
-from .impl import *  # pylint: disable=wildcard-import
+from .impl import *
 from . import cuda
 from . import nn
 from . import vision

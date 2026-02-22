@@ -16,11 +16,14 @@
 # under the License.
 """Meta Schedule CostModel."""
 
+from __future__ import annotations
+
 import ctypes
-from typing import Callable, List, Union
+from collections.abc import Callable
+from typing import Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -50,7 +53,7 @@ class CostModel(Object):
         path : str
             The file path.
         """
-        _ffi_api.CostModelLoad(self, path)  # type: ignore # pylint: disable=no-member
+        _ffi_api.CostModelLoad(self, path)  # type: ignore
 
     def save(self, path: str) -> None:
         """Save the cost model to given file location.
@@ -60,13 +63,13 @@ class CostModel(Object):
         path : str
             The file path.
         """
-        _ffi_api.CostModelSave(self, path)  # type: ignore # pylint: disable=no-member
+        _ffi_api.CostModelSave(self, path)  # type: ignore
 
     def update(
         self,
         context: TuneContext,
-        candidates: List[MeasureCandidate],
-        results: List[RunnerResult],
+        candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the cost model given running results.
 
@@ -79,9 +82,9 @@ class CostModel(Object):
         results : List[RunnerResult]
             The running results of the measure candidates.
         """
-        _ffi_api.CostModelUpdate(self, context, candidates, results)  # type: ignore # pylint: disable=no-member
+        _ffi_api.CostModelUpdate(self, context, candidates, results)  # type: ignore
 
-    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+    def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
         """Predict normalized score with the cost model.
 
         Parameters
@@ -98,7 +101,7 @@ class CostModel(Object):
         """
         n = len(candidates)
         results = np.zeros(shape=(n,), dtype="float64")
-        _ffi_api.CostModelPredict(  # type: ignore # pylint: disable=no-member
+        _ffi_api.CostModelPredict(  # type: ignore
             self,
             context,
             candidates,
@@ -111,7 +114,7 @@ class CostModel(Object):
         kind: Literal["xgb", "mlp", "random", "none"],
         *args,
         **kwargs,
-    ) -> "CostModel":
+    ) -> CostModel:
         """Create a CostModel.
 
         Parameters
@@ -124,7 +127,7 @@ class CostModel(Object):
         cost_model : CostModel
             The created cost model.
         """
-        from . import RandomModel, XGBModel  # pylint: disable=import-outside-toplevel
+        from . import RandomModel, XGBModel
 
         if kind == "xgb":
             return XGBModel(*args, **kwargs)  # type: ignore
@@ -139,7 +142,7 @@ class CostModel(Object):
         if kind == "random":
             return RandomModel(*args, **kwargs)  # type: ignore
         if kind == "mlp":
-            from .mlp_model import (  # type: ignore  # pylint: disable=import-outside-toplevel
+            from .mlp_model import (  # type: ignore
                 MLPModel,
             )
 
@@ -149,7 +152,7 @@ class CostModel(Object):
         raise ValueError(f"Unknown CostModel: {kind}")
 
 
-create = CostModel.create  # pylint: disable=invalid-name
+create = CostModel.create
 
 
 @register_object("s_tir.meta_schedule.PyCostModel")
@@ -163,15 +166,15 @@ class _PyCostModel(CostModel):
 
     def __init__(
         self,
-        f_load: Callable = None,
-        f_save: Callable = None,
-        f_update: Callable = None,
-        predict_func: Callable = None,
-        f_as_string: Callable = None,
+        f_load: Callable | None = None,
+        f_save: Callable | None = None,
+        f_update: Callable | None = None,
+        predict_func: Callable | None = None,
+        f_as_string: Callable | None = None,
     ):
         """Constructor."""
 
-        def f_predict(context: TuneContext, candidates: List[MeasureCandidate], return_ptr) -> None:
+        def f_predict(context: TuneContext, candidates: list[MeasureCandidate], return_ptr) -> None:
             n = len(candidates)
             return_ptr = ctypes.cast(return_ptr, ctypes.POINTER(ctypes.c_double))
             array_wrapper = np.ctypeslib.as_array(return_ptr, shape=(n,))
@@ -182,7 +185,7 @@ class _PyCostModel(CostModel):
             )
 
         self.__init_handle_by_constructor__(
-            _ffi_api.CostModelPyCostModel,  # type: ignore # pylint: disable=no-member
+            _ffi_api.CostModelPyCostModel,  # type: ignore
             f_load,
             f_save,
             f_update,
@@ -227,8 +230,8 @@ class PyCostModel:
     def update(
         self,
         context: TuneContext,
-        candidates: List[MeasureCandidate],
-        results: List[RunnerResult],
+        candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the cost model given running results.
 
@@ -243,7 +246,7 @@ class PyCostModel:
         """
         raise NotImplementedError
 
-    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+    def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
         """Predict given the measure candidates.
 
         Parameters

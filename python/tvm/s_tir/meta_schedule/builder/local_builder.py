@@ -16,9 +16,12 @@
 # under the License.
 """Local builder that compile on the local host"""
 
+from __future__ import annotations
+
 import os
 import tempfile
-from typing import Callable, Dict, List, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 from tvm_ffi import register_global_func
 
@@ -31,22 +34,20 @@ from ..logging import get_logger
 from ..utils import cpu_count, derived_object, get_global_func_with_default_on_worker
 from .builder import BuilderInput, BuilderResult, PyBuilder
 
-logger = get_logger(__name__)  # pylint: disable=invalid-name
+logger = get_logger(__name__)
 
 
-T_BUILD = Callable[  # pylint: disable=invalid-name
-    [IRModule, Target, Optional[Dict[str, Tensor]]], Module
-]
-T_EXPORT = Callable[[Module], str]  # pylint: disable=invalid-name
+T_BUILD = Callable[[IRModule, Target, dict[str, Tensor] | None], Module]
+T_EXPORT = Callable[[Module], str]
 
 
-def _serialize_params(params: Optional[Dict[str, Tensor]]) -> Optional[bytearray]:
+def _serialize_params(params: dict[str, Tensor] | None) -> bytearray | None:
     if params is None:
         return None
     return save_param_dict(params)
 
 
-def _deserialize_params(params: Optional[bytearray]) -> Optional[Dict[str, Tensor]]:
+def _deserialize_params(params: bytearray | None) -> dict[str, Tensor] | None:
     if params is None:
         return None
     return load_param_dict(params)
@@ -83,7 +84,7 @@ class LocalBuilder(PyBuilder):
         def default_build(
             mod: IRModule,
             target: Target,
-            params: Optional[Dict[str, Tensor]]
+            params: Optional[dict[str, Tensor]]
         ) -> Module:
             ...
 
@@ -105,18 +106,18 @@ class LocalBuilder(PyBuilder):
 
     max_workers: int
     timeout_sec: float
-    initializer: Optional[Callable[[], None]]
-    f_build: Union[None, str, T_BUILD]
-    f_export: Union[None, str, T_EXPORT]
+    initializer: Callable[[], None] | None
+    f_build: None | str | T_BUILD
+    f_export: None | str | T_EXPORT
 
     def __init__(
         self,
         *,
-        max_workers: Optional[int] = None,
+        max_workers: int | None = None,
         timeout_sec: float = 30.0,
-        f_build: Union[None, str, T_BUILD] = None,
-        f_export: Union[None, str, T_EXPORT] = None,
-        initializer: Optional[Callable[[], None]] = None,
+        f_build: None | str | T_BUILD = None,
+        f_export: None | str | T_EXPORT = None,
+        initializer: Callable[[], None] | None = None,
     ) -> None:
         """Constructor.
 
@@ -149,8 +150,8 @@ class LocalBuilder(PyBuilder):
         self.f_export = f_export
         self._sanity_check()
 
-    def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
-        results: List[BuilderResult] = []
+    def build(self, build_inputs: list[BuilderInput]) -> list[BuilderResult]:
+        results: list[BuilderResult] = []
         map_result: MapResult
 
         # Here we restart the PopenPool everytime because of a known memory leak issue with the
@@ -214,11 +215,11 @@ class LocalBuilder(PyBuilder):
 
 
 def _worker_func(
-    _f_build: Union[None, str, T_BUILD],
-    _f_export: Union[None, str, T_EXPORT],
+    _f_build: None | str | T_BUILD,
+    _f_export: None | str | T_EXPORT,
     mod: IRModule,
     target: Target,
-    params: Optional[bytearray],
+    params: bytearray | None,
 ) -> str:
     # Step 0. Get the registered functions
     f_build: T_BUILD = get_global_func_with_default_on_worker(
@@ -237,7 +238,7 @@ def _worker_func(
 
 
 @register_global_func("s_tir.meta_schedule.builder.default_build")
-def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, Tensor]]) -> Module:
+def default_build(mod: IRModule, target: Target, _params: dict[str, Tensor] | None) -> Module:
     """Default build function.
 
     Parameters
@@ -246,7 +247,7 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, Ten
         The IRModule to be built.
     target : Target
         The target to be built.
-    _params : Optional[Dict[str, Tensor]]
+    _params : Optional[dict[str, Tensor]]
         The parameters to be used for the build. Must be None.
 
     Returns
@@ -254,12 +255,11 @@ def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, Ten
     rt_mod : Module
         The built Module.
     """
-    # pylint: disable=import-outside-toplevel
-    import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
+
+    import tvm.s_tir.tensor_intrin
     from tvm.driver import build as tvm_build
     from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
 
-    # pylint: enable=import-outside-toplevel
     mod = RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=True)(mod)
     return tvm_build(mod, target=target)
 
@@ -278,7 +278,7 @@ def default_export(mod: Module) -> str:
     artifact_path : str
         The path to the exported Module.
     """
-    from tvm.contrib.tar import tar  # pylint: disable=import-outside-toplevel
+    from tvm.contrib.tar import tar
 
     artifact_path = os.path.join(tempfile.mkdtemp(), "tvm_tmp_mod." + tar.output_format)
     mod.export_library(artifact_path, fcompile=tar)

@@ -16,10 +16,13 @@
 # under the License.
 """TuningRecord database"""
 
-from typing import Any, Callable, List, Optional, Union
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any, Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -49,7 +52,7 @@ class Workload(Object):
 
     def __init__(self, mod: IRModule) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Workload,  # type: ignore # pylint: disable=no-member
+            _ffi_api.Workload,  # type: ignore
             mod,
         )
 
@@ -62,10 +65,10 @@ class Workload(Object):
             The JSON serialized as a python object (e.g. a Dict or List).
             Use json.dumps() to get the associated json string.
         """
-        return _json_de_tvm(_ffi_api.WorkloadAsJSON(self))  # type: ignore # pylint: disable=no-member
+        return _json_de_tvm(_ffi_api.WorkloadAsJSON(self))  # type: ignore
 
     @staticmethod
-    def from_json(json_obj: Any) -> "Workload":
+    def from_json(json_obj: Any) -> Workload:
         """Create a workload from a json object.
 
         Parameters
@@ -78,7 +81,7 @@ class Workload(Object):
         tuning_record : TuningRecord
             The parsed tuning record.
         """
-        return _ffi_api.WorkloadFromJSON(json_obj)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.WorkloadFromJSON(json_obj)  # type: ignore
 
 
 @register_object("s_tir.meta_schedule.TuningRecord")
@@ -101,20 +104,20 @@ class TuningRecord(Object):
 
     trace: Trace
     workload: Workload
-    run_secs: Optional[List[float]]
-    target: Optional[Target]
-    args_info: Optional[List[ArgInfo]]
+    run_secs: list[float] | None
+    target: Target | None
+    args_info: list[ArgInfo] | None
 
-    def __init__(  # type: ignore # pylint: disable=too-many-arguments
+    def __init__(  # type: ignore
         self,
         trace: Trace,
         workload: Workload,
-        run_secs: Optional[List[float]] = None,
-        target: Optional[Target] = None,
-        args_info: Optional[List[ArgInfo]] = None,
+        run_secs: list[float] | None = None,
+        target: Target | None = None,
+        args_info: list[ArgInfo] | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.TuningRecord,  # type: ignore # pylint: disable=no-member
+            _ffi_api.TuningRecord,  # type: ignore
             trace,
             workload,
             run_secs,
@@ -131,7 +134,7 @@ class TuningRecord(Object):
         candidate : MeasureCandidate
             A generated candidate.
         """
-        return _ffi_api.TuningRecordAsMeasureCandidate(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.TuningRecordAsMeasureCandidate(self)  # type: ignore
 
     def as_json(self) -> Any:
         """Export the tuning record to a JSON string.
@@ -141,10 +144,10 @@ class TuningRecord(Object):
         json_str : str
             The JSON string exported.
         """
-        return _json_de_tvm(_ffi_api.TuningRecordAsJSON(self))  # type: ignore # pylint: disable=no-member
+        return _json_de_tvm(_ffi_api.TuningRecordAsJSON(self))  # type: ignore
 
     @staticmethod
-    def from_json(json_obj: Any, workload: Workload) -> "TuningRecord":
+    def from_json(json_obj: Any, workload: Workload) -> TuningRecord:
         """Create a tuning record from a json object.
 
         Parameters
@@ -159,7 +162,7 @@ class TuningRecord(Object):
         tuning_record : TuningRecord
             The parsed tuning record.
         """
-        return _ffi_api.TuningRecordFromJSON(json_obj, workload)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.TuningRecordFromJSON(json_obj, workload)  # type: ignore
 
 
 @register_object("s_tir.meta_schedule.Database")
@@ -179,7 +182,7 @@ class Database(Object):
         result : bool
             Whether the database has the given workload.
         """
-        return _ffi_api.DatabaseHasWorkload(self, mod)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseHasWorkload(self, mod)  # type: ignore
 
     def commit_workload(self, mod: IRModule) -> Workload:
         """Commit a workload to the database if missing.
@@ -194,7 +197,7 @@ class Database(Object):
         workload : Workload
             The workload corresponding to the given IRModule.
         """
-        return _ffi_api.DatabaseCommitWorkload(self, mod)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseCommitWorkload(self, mod)  # type: ignore
 
     def commit_tuning_record(self, record: TuningRecord) -> None:
         """Commit a tuning record to the database.
@@ -204,9 +207,9 @@ class Database(Object):
         record : TuningRecord
             The tuning record to add.
         """
-        _ffi_api.DatabaseCommitTuningRecord(self, record)  # type: ignore # pylint: disable=no-member
+        _ffi_api.DatabaseCommitTuningRecord(self, record)  # type: ignore
 
-    def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
+    def get_top_k(self, workload: Workload, top_k: int) -> list[TuningRecord]:
         """Get the top K valid tuning records of given workload from the database.
 
         Parameters
@@ -221,9 +224,9 @@ class Database(Object):
         top_k_records : List[TuningRecord]
             The top K records.
         """
-        return _ffi_api.DatabaseGetTopK(self, workload, top_k)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseGetTopK(self, workload, top_k)  # type: ignore
 
-    def get_all_tuning_records(self) -> List[TuningRecord]:
+    def get_all_tuning_records(self) -> list[TuningRecord]:
         """Get all the tuning records from the database.
 
         Returns
@@ -231,7 +234,7 @@ class Database(Object):
         tuning_records : List[TuningRecord]
             All tuning records from the database.
         """
-        return _ffi_api.DatabaseGetAllTuningRecords(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseGetAllTuningRecords(self)  # type: ignore
 
     def __len__(self) -> int:
         """Get the number of records in the database.
@@ -241,14 +244,14 @@ class Database(Object):
         num_records : int
             The number of records in the database
         """
-        return _ffi_api.DatabaseSize(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseSize(self)  # type: ignore
 
     def query_tuning_record(
         self,
         mod: IRModule,
         target: Target,
         workload_name: str,
-    ) -> Optional[TuningRecord]:
+    ) -> TuningRecord | None:
         """Query the best record of the given workload from the database.
 
         Parameters
@@ -265,14 +268,14 @@ class Database(Object):
         tuning_record : Optional[TuningRecord]
             The best record of the given workload; None if not found.
         """
-        return _ffi_api.DatabaseQueryTuningRecord(self, mod, target, workload_name)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQueryTuningRecord(self, mod, target, workload_name)  # type: ignore
 
     def query_schedule(
         self,
         mod: IRModule,
         target: Target,
         workload_name: str,
-    ) -> Optional[Schedule]:
+    ) -> Schedule | None:
         """Query the best schedule of the given workload from the database.
 
         Parameters
@@ -289,14 +292,14 @@ class Database(Object):
         schedule : Optional[tvm.s_tir.Schedule]
             The best schedule of the given workload; None if not found.
         """
-        return _ffi_api.DatabaseQuerySchedule(self, mod, target, workload_name)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQuerySchedule(self, mod, target, workload_name)  # type: ignore
 
     def query_ir_module(
         self,
         mod: IRModule,
         target: Target,
         workload_name: str,
-    ) -> Optional[IRModule]:
+    ) -> IRModule | None:
         """Query the best IRModule of the given workload from the database.
 
         Parameters
@@ -313,9 +316,9 @@ class Database(Object):
         ir_module : Optional[IRModule]
             The best IRModule of the given workload; None if not found.
         """
-        return _ffi_api.DatabaseQueryIRModule(self, mod, target, workload_name)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQueryIRModule(self, mod, target, workload_name)  # type: ignore
 
-    def dump_pruned(self, destination: "Database") -> None:
+    def dump_pruned(self, destination: Database) -> None:
         """Dump the pruned database to files of JSONDatabase format.
 
         Parameters
@@ -323,7 +326,7 @@ class Database(Object):
         destination : Database
             The destination database to be dumped to.
         """
-        return _ffi_api.DatabaseDumpPruned(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseDumpPruned(  # type: ignore
             self, destination
         )
 
@@ -333,12 +336,8 @@ class Database(Object):
         target: Target,
         *,
         workload_name: str = "main",
-        kind: Union[
-            Literal["schedule"],
-            Literal["record"],
-            Literal["ir_module"],
-        ] = "schedule",
-    ) -> Union[Schedule, IRModule, TuningRecord]:
+        kind: Literal["schedule"] | Literal["record"] | Literal["ir_module"] = "schedule",
+    ) -> Schedule | IRModule | TuningRecord:
         """Query the database to retrieve the best optimization outcome of the given workload.
 
         Parameters
@@ -363,34 +362,27 @@ class Database(Object):
             return self.query_ir_module(mod, target, workload_name)
         raise ValueError(f'Unknown kind: {kind}. Candidates are: "schedule", "record", "ir_module"')
 
-    def __enter__(self) -> "Database":
+    def __enter__(self) -> Database:
         """Entering the scope of the context manager"""
-        _ffi_api.DatabaseEnterWithScope(self)  # type: ignore # pylint: disable=no-member
+        _ffi_api.DatabaseEnterWithScope(self)  # type: ignore
         return self
 
     def __exit__(self, ptype, value, trace) -> None:
         """Exiting the scope of the context manager"""
-        _ffi_api.DatabaseExitWithScope(self)  # type: ignore # pylint: disable=no-member
+        _ffi_api.DatabaseExitWithScope(self)  # type: ignore
 
     @staticmethod
-    def current() -> Optional["Database"]:
+    def current() -> Database | None:
         """Get the current database under scope."""
-        return _ffi_api.DatabaseCurrent()  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseCurrent()  # type: ignore
 
     @staticmethod
-    def create(  # pylint: disable=keyword-arg-before-vararg
-        kind: Union[
-            Literal[
-                "json",
-                "memory",
-                "union",
-                "ordered_union",
-            ],
-            Callable[[Schedule], bool],
-        ] = "json",
+    def create(
+        kind: Literal["json", "memory", "union", "ordered_union"]
+        | Callable[[Schedule], bool] = "json",
         *args,
         **kwargs,
-    ) -> "Database":
+    ) -> Database:
         """Create a Database.
 
         Parameters
@@ -405,7 +397,7 @@ class Database(Object):
         database : Database
             The created database.
         """
-        from . import (  # pylint: disable=import-outside-toplevel
+        from . import (
             JSONDatabase,
             MemoryDatabase,
             OrderedUnionDatabase,
@@ -426,7 +418,7 @@ class Database(Object):
         raise ValueError(f"Unknown Database: {kind}")
 
 
-create = Database.create  # pylint: disable=invalid-name
+create = Database.create
 
 
 @register_object("s_tir.meta_schedule.PyDatabase")
@@ -440,21 +432,21 @@ class _PyDatabase(Database):
 
     def __init__(
         self,
-        f_has_workload: Callable = None,
-        f_commit_workload: Callable = None,
-        f_commit_tuning_record: Callable = None,
-        f_get_top_k: Callable = None,
-        f_get_all_tuning_records: Callable = None,
-        f_query_tuning_record: Callable = None,
-        f_query_schedule: Callable = None,
-        f_query_ir_module: Callable = None,
-        f_size: Callable = None,
+        f_has_workload: Callable | None = None,
+        f_commit_workload: Callable | None = None,
+        f_commit_tuning_record: Callable | None = None,
+        f_get_top_k: Callable | None = None,
+        f_get_all_tuning_records: Callable | None = None,
+        f_query_tuning_record: Callable | None = None,
+        f_query_schedule: Callable | None = None,
+        f_query_ir_module: Callable | None = None,
+        f_size: Callable | None = None,
         module_equality: str = "structural",
     ):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
-            _ffi_api.DatabasePyDatabase,  # type: ignore  # pylint: disable=no-member
+            _ffi_api.DatabasePyDatabase,  # type: ignore
             f_has_workload,
             f_commit_workload,
             f_commit_tuning_record,
@@ -529,7 +521,7 @@ class PyDatabase:
         """
         raise NotImplementedError
 
-    def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
+    def get_top_k(self, workload: Workload, top_k: int) -> list[TuningRecord]:
         """Get the top K tuning records of given workload from the database.
 
         Parameters
@@ -546,7 +538,7 @@ class PyDatabase:
         """
         raise NotImplementedError
 
-    def get_all_tuning_records(self) -> List[TuningRecord]:
+    def get_all_tuning_records(self) -> list[TuningRecord]:
         """Get all the tuning records from the database.
 
         Returns
@@ -557,8 +549,8 @@ class PyDatabase:
         raise NotImplementedError
 
     def query_tuning_record(
-        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
-    ) -> Optional[TuningRecord]:
+        self, mod: IRModule, target: Target, workload_name: str | None = None
+    ) -> TuningRecord | None:
         """Query a tuning record from the database.
 
         Parameters
@@ -576,16 +568,16 @@ class PyDatabase:
             The tuning record corresponding to the given workload.
         """
         # Using self._outer to replace the self pointer
-        return _ffi_api.DatabaseQueryTuningRecord(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQueryTuningRecord(  # type: ignore
             self._outer(),
             mod,
             target,
-            workload_name,  # type: ignore # pylint: disable=no-member
+            workload_name,  # type: ignore
         )
 
     def query_schedule(
-        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
-    ) -> Optional[Schedule]:
+        self, mod: IRModule, target: Target, workload_name: str | None = None
+    ) -> Schedule | None:
         """Query a schedule from the database.
 
         Parameters
@@ -603,16 +595,16 @@ class PyDatabase:
             The schedule corresponding to the given workload.
         """
         # Using self._outer to replace the self pointer
-        return _ffi_api.DatabaseQuerySchedule(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQuerySchedule(  # type: ignore
             self._outer(),
             mod,
             target,
-            workload_name,  # type: ignore # pylint: disable=no-member
+            workload_name,  # type: ignore
         )
 
     def query_ir_module(
-        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
-    ) -> Optional[IRModule]:
+        self, mod: IRModule, target: Target, workload_name: str | None = None
+    ) -> IRModule | None:
         """Query an IRModule from the database.
 
         Parameters
@@ -630,11 +622,11 @@ class PyDatabase:
             The IRModule corresponding to the given workload.
         """
         # Using self._outer to replace the self pointer
-        return _ffi_api.DatabaseQueryIRModule(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DatabaseQueryIRModule(  # type: ignore
             self._outer(),
             mod,
             target,
-            workload_name,  # type: ignore # pylint: disable=no-member
+            workload_name,  # type: ignore
         )
 
     def __len__(self) -> int:

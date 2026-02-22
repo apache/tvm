@@ -29,5 +29,5 @@ class MutateThreadBinding(Mutator):
     def __init__(self) -> None:
         """Mutator that mutates the binding extent"""
         self.__init_handle_by_constructor__(
-            _ffi_api.MutateThreadBinding,  # type: ignore # pylint: disable=no-member
+            _ffi_api.MutateThreadBinding,  # type: ignore
         )

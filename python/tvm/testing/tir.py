@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, import-outside-toplevel, unused-variable
 """Common utility functions in TVM tir"""
 
 
@@ -37,7 +36,7 @@ def mma_schedule(
     shared_scope="shared",
 ):
     """Create a tensorized schedule for GEMM with MMA intrinsics."""
-    import tvm  # pylint: disable=import-outside-toplevel
+    import tvm
 
     ir_module = tvm.IRModule({"main": workload})
     sch = tvm.s_tir.Schedule(ir_module)

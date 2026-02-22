@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, missing-function-docstring
 """Common functions for popen_pool test cases"""
 
 import tvm_ffi
@@ -45,7 +44,7 @@ def identity_py(arg):
 
 def register_ffi():
     @tvm_ffi.register_global_func("testing.nested_identity_py")
-    def _identity_py(arg):  # pylint: disable=unused-variable
+    def _identity_py(arg):
         return arg
 
 

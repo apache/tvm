@@ -16,7 +16,6 @@
 # under the License.
 """Test sharded loader"""
 
-# pylint: disable=missing-docstring
 import json
 import tempfile
 
@@ -77,7 +76,7 @@ def _shard_qkv_0(src, num_shards, q_heads, kv_heads, tgt):
 
 @register_global_func("tests.disco.shard_qkv_1", override=True)
 def _shard_qkv_1(src, tgt):
-    s, _, _, h = src.shape  # pylint: disable=invalid-name
+    s, _, _, h = src.shape
     tgt.copyfrom(src.numpy().reshape(s, -1, h))
 
 
@@ -242,9 +241,8 @@ def test_load_shard_in_relax():
         ],
     }
 
-    # pylint: disable=invalid-name
     @I.ir_module
-    class Module:  # pylint: disable=too-few-public-methods
+    class Module:
         @R.function
         def main(
             loader: R.Object,
@@ -267,10 +265,9 @@ def test_load_shard_in_relax():
                 R.output(lv2)
             return lv2
 
-    # pylint: enable=invalid-name
     def relax_build(mod, target):
         with target:
-            mod = rx.get_pipeline("zero")(mod)  # pylint: disable=no-value-for-parameter
+            mod = rx.get_pipeline("zero")(mod)
             return tvm.compile(mod, target="cuda")
 
     target = Target(
@@ -397,7 +394,7 @@ def test_load_shard_broadcast():
         np.testing.assert_equal(param_dict["param_1"], p_1[1].numpy())
 
 
-def test_load_qkv_proj_shard():  # pylint: disable=too-many-locals
+def test_load_qkv_proj_shard():
     devices = [0, 1]
     num_shards = len(devices)
     q_heads = 8

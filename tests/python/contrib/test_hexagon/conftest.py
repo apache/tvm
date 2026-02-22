@@ -19,7 +19,6 @@
 values from testing parameters"""
 
 # Disabling invalid-name check as the name is expected to be exactly this by pytest
-# pylint: disable=invalid-name
 pytest_plugins = [
     "tvm.contrib.hexagon.pytest_plugin",
 ]

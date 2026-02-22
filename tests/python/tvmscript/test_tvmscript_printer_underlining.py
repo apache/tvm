@@ -36,7 +36,7 @@ def make_path(name: str) -> AccessPath:
     return AccessPath.root().attr(name)
 
 
-def make_id_doc(name: str, path_name: Optional[str] = None) -> IdDoc:
+def make_id_doc(name: str, path_name: str | None = None) -> IdDoc:
     if path_name is None:
         path_name = name
     doc = IdDoc(name)

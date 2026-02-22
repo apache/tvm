@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import sys
 
 import pytest
@@ -27,8 +26,6 @@ from tvm.s_tir.schedule.testing import (
     verify_trace_roundtrip,
 )
 from tvm.script import tir as T
-
-# pylint: disable=no-member,invalid-name,unused-variable
 
 ########## Function before schedule ##########
 

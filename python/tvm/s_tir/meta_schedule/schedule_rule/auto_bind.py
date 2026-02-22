@@ -16,7 +16,7 @@
 # under the License.
 """Auto-bind Rule that binds blocks to threads if needed"""
 
-from typing import List, Optional
+from __future__ import annotations
 
 from tvm_ffi import register_object
 
@@ -41,13 +41,13 @@ class AutoBind(ScheduleRule):
     def __init__(
         self,
         max_threadblocks: int = 256,
-        thread_extents: Optional[List[int]] = None,
+        thread_extents: list[int] | None = None,
         max_threads_per_block: int = -1,
     ) -> None:
         if thread_extents is None:
             thread_extents = [32, 64, 128, 256, 512, 1024]
         self.__init_handle_by_constructor__(
-            _ffi_api.ScheduleRuleAutoBind,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ScheduleRuleAutoBind,  # type: ignore
             max_threadblocks,
             thread_extents,
             max_threads_per_block,

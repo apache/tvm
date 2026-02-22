@@ -15,7 +15,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
 """Package tvm.script.ir_builder.relax.distributed"""
 
-from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
+from .ir import *

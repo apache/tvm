@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, invalid-name, unused-argument, import-outside-toplevel
 """Developer API of constructing Relax AST."""
 
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from __future__ import annotations
+
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import tvm_ffi
 
@@ -154,7 +156,7 @@ class BlockBuilder(Object):
     _stack = []
 
     @staticmethod
-    def current() -> Optional["BlockBuilder"]:
+    def current() -> BlockBuilder | None:
         """Returns the current BlockBuilder."""
         if BlockBuilder._stack:
             return BlockBuilder._stack[-1]
@@ -163,7 +165,7 @@ class BlockBuilder(Object):
 
     def __init__(self, mod: IRModule = None):
         # Which functions are currently being defined
-        self._func_stack: List[FunctionScope] = []
+        self._func_stack: list[FunctionScope] = []
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate, mod)  # type: ignore
 
     def _begin_dataflow_block(self) -> None:
@@ -209,8 +211,8 @@ class BlockBuilder(Object):
     def function(
         self,
         name: str,
-        params: Optional[Union[Var, Tuple, List[Var]]] = None,
-        attrs: Optional[Dict[str, Object]] = None,
+        params: Var | Tuple | list[Var] | None = None,
+        attrs: dict[str, Object] | None = None,
         pure: bool = True,
         private: bool = False,
     ) -> FunctionScope:
@@ -261,7 +263,7 @@ class BlockBuilder(Object):
 
         return FunctionScope(self, name, params, attrs, is_pure=pure)
 
-    def testing_scope(self, def_vars: List[tir.Var]) -> TestingScope:
+    def testing_scope(self, def_vars: list[tir.Var]) -> TestingScope:
         """Start a scope for unit-testing purposes.
 
         Parameters
@@ -286,7 +288,7 @@ class BlockBuilder(Object):
         """
         return DataflowScope(self)
 
-    def _normalize_python_tuple(self, expr: Union[Expr, Sequence[Expr]]):
+    def _normalize_python_tuple(self, expr: Expr | Sequence[Expr]):
         """Internal utility function to convert to relax.Tuple
 
         The `emit`, `emit_output`, and `emit_func_output` can be
@@ -370,7 +372,7 @@ class BlockBuilder(Object):
         func: Callable,
         *args: Any,
         te_grad_name: str,
-        te_grad_kwargs: Dict[str, Object] = None,
+        te_grad_kwargs: dict[str, Object] | None = None,
         **kwargs: Any,
     ) -> Expr:
         """Generate a call node according to the te function.
@@ -569,7 +571,7 @@ class BlockBuilder(Object):
             name_hint,
         )  # type: ignore
 
-    def emit_output(self, output: Union[Expr, Tuple, List[Expr]], name_hint: str = "") -> Var:
+    def emit_output(self, output: Expr | Tuple | list[Expr], name_hint: str = "") -> Var:
         """Emit output for the current dataflow block or function.
 
         Parameters
@@ -590,8 +592,8 @@ class BlockBuilder(Object):
 
     def emit_func_output(
         self,
-        output: Union[Expr, Tuple, List[Expr]],
-        params: Optional[Union[Var, Tuple, List[Var]]] = None,
+        output: Expr | Tuple | list[Expr],
+        params: Var | Tuple | list[Var] | None = None,
     ) -> GlobalVar:
         """Emit output for the function.
 
@@ -764,7 +766,7 @@ class BlockBuilder(Object):
         """
         _ffi_api.BlockBuilderEmitNormalized(self, binding)  # type: ignore
 
-    def lookup_binding(self, var: Var) -> Optional[Expr]:
+    def lookup_binding(self, var: Var) -> Expr | None:
         """Lookup a var in the binding table.
 
         Parameters
@@ -779,7 +781,7 @@ class BlockBuilder(Object):
         """
         return _ffi_api.BlockBuilderLookupBinding(self, var)  # type: ignore
 
-    def begin_scope(self, params: Optional[List[Var]] = None) -> None:
+    def begin_scope(self, params: list[Var] | None = None) -> None:
         """Begin a new scope, with optional parameters that
         are visible within the scope.
 

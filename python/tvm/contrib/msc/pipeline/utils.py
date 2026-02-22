@@ -16,8 +16,9 @@
 # under the License.
 """tvm.contrib.msc.pipeline.config"""
 
+from __future__ import annotations
+
 import copy
-from typing import Dict, List, Tuple, Union
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools import ToolType
@@ -49,7 +50,7 @@ def get_tool_stage(tool_type: str) -> str:
     return tool_type
 
 
-def map_tools(tools: List[dict]) -> dict:
+def map_tools(tools: list[dict]) -> dict:
     """Map tools from list
 
     Parameters
@@ -92,7 +93,7 @@ def support_tool(tool: dict, stage: str, run_type: str) -> bool:
     return True
 
 
-def config_tool(tool_type: str, raw_config: Union[dict, str]) -> dict:
+def config_tool(tool_type: str, raw_config: dict | str) -> dict:
     """Config the tool
 
     Parameters
@@ -121,17 +122,17 @@ def config_tool(tool_type: str, raw_config: Union[dict, str]) -> dict:
 
 
 def create_config(
-    inputs: List[dict],
-    outputs: List[str],
+    inputs: list[dict],
+    outputs: list[str],
     model_type: str,
-    baseline_type: str = None,
-    optimize_type: str = None,
-    compile_type: str = None,
-    dataset: Dict[str, dict] = None,
-    tools: List[Tuple[str, Union[dict, str]]] = None,
+    baseline_type: str | None = None,
+    optimize_type: str | None = None,
+    compile_type: str | None = None,
+    dataset: dict[str, dict] | None = None,
+    tools: list[tuple[str, dict | str]] | None = None,
     dynamic: bool = False,
-    run_config: Dict[str, dict] = None,
-    skip_config: Dict[str, str] = None,
+    run_config: dict[str, dict] | None = None,
+    skip_config: dict[str, str] | None = None,
     **extra_config,
 ) -> dict:
     """Create config for msc pipeline

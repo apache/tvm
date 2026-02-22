@@ -33,7 +33,6 @@ from .infrastructure import get_hexagon_target
 class ElemwiseSumIRModule:
     """IRModule definition for elementwise sum"""
 
-    # pylint: disable=no-self-argument,invalid-name,missing-function-docstring
     @T.prim_func
     def elemwise_sum_serial(a: T.handle, b: T.handle, c: T.handle, n: T.int32):
         T.func_attr({"global_symbol": "elemwise_sum_serial", "tir.noalias": True})
@@ -55,8 +54,6 @@ class ElemwiseSumIRModule:
             with T.sblock("C"):
                 vi = T.axis.spatial(n, i)
                 C[vi] = A[vi] + B[vi]
-
-    # pylint: enable=no-self-argument,invalid-name,missing-function-docstring
 
 
 def generate_add_test_data(hexagon_session: Session, n=128 * 1024):

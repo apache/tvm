@@ -34,7 +34,6 @@ def _create_tflite_model():
         return None
 
     try:
-        # pylint: disable=import-outside-toplevel
         import tensorflow as tf
     except ImportError:
         print("skip because tensorflow not installed...")
@@ -67,7 +66,6 @@ def test_local():
         return
 
     try:
-        # pylint: disable=import-outside-toplevel
         import tensorflow as tf
     except ImportError:
         print("skip because tensorflow not installed...")
@@ -110,7 +108,6 @@ def test_remote():
         return
 
     try:
-        # pylint: disable=import-outside-toplevel
         import tensorflow as tf
     except ImportError:
         print("skip because tensorflow not installed...")

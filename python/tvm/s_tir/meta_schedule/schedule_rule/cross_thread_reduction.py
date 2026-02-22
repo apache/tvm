@@ -16,7 +16,7 @@
 # under the License.
 """Rules which apply cross-thread reduction to some reduction blocks correspondingly when needed"""
 
-from typing import List
+from __future__ import annotations
 
 from tvm_ffi import register_object
 
@@ -35,8 +35,8 @@ class CrossThreadReduction(ScheduleRule):
         Candidates of thread axis extent (values are required to be positive).
     """
 
-    def __init__(self, thread_extents: List[int]) -> None:
+    def __init__(self, thread_extents: list[int]) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ScheduleRuleCrossThreadReduction,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ScheduleRuleCrossThreadReduction,  # type: ignore
             thread_extents,
         )

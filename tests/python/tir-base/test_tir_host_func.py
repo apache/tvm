@@ -19,7 +19,6 @@ from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.script import ir as I
 from tvm.script import tir as T
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,missing-class-docstring,missing-function-docstring
 # fmt: off
 
 
@@ -49,7 +48,6 @@ class Module:
                 C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
 # fmt: on
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,missing-class-docstring,missing-function-docstring
 
 
 def test_host_func():

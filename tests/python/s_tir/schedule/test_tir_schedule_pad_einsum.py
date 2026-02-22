@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 
 import tvm
@@ -25,8 +24,6 @@ from tvm.s_tir.schedule.testing import (
     verify_trace_roundtrip,
 )
 from tvm.script import tir as T
-
-# pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
 @T.prim_func
@@ -99,12 +96,7 @@ def matmul_expected(
             C[i, j] = C_shared_padded[i, j]
 
 
-# pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
-
-
 def test_pad_matmul():
-    # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
-
     @T.prim_func
     def matmul_before(
         a: T.handle,

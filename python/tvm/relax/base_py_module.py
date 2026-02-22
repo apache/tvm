@@ -16,9 +16,11 @@
 # under the License.
 """BasePyModule: Base class for IRModules with Python function support."""
 
+from __future__ import annotations
+
 import inspect
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 
@@ -65,7 +67,7 @@ class BasePyModule:
         self,
         ir_mod: IRModule,
         device: Device,
-        target: Optional[Target] = None,
+        target: Target | None = None,
     ):
         """Initialize BasePyModule with JIT compilation and DLPack conversion."""
         self.device = device
@@ -99,12 +101,12 @@ class BasePyModule:
 
         self.__getattr__ = _getattr_python_function
 
-        self.compiled_tir_funcs: Dict[str, PackedFunc] = {}
-        self.extern_funcs: Dict[str, PackedFunc] = {}
-        self.tir_func_names: List[str] = []
-        self.relax_func_names: List[str] = []
-        self.relax_vm: Optional[relax.VirtualMachine] = None
-        self.pyfuncs: Dict[str, Any] = {}
+        self.compiled_tir_funcs: dict[str, PackedFunc] = {}
+        self.extern_funcs: dict[str, PackedFunc] = {}
+        self.tir_func_names: list[str] = []
+        self.relax_func_names: list[str] = []
+        self.relax_vm: relax.VirtualMachine | None = None
+        self.pyfuncs: dict[str, Any] = {}
 
         if target is None:
             target = Target.from_device(device)
@@ -141,7 +143,7 @@ class BasePyModule:
                 tir_exec_mod = tvm.compile(tir_mod, target=self.target)
                 for func_name in self.tir_func_names:
                     self.compiled_tir_funcs[func_name] = tir_exec_mod[func_name]
-            # pylint: disable=broad-exception-caught
+
             except Exception as error:
                 print(f"Warning: Failed to compile one or more TIR functions: {error}")
 
@@ -156,7 +158,7 @@ class BasePyModule:
             try:
                 exec_mod = tvm.compile(self.ir_mod, target=self.target)
                 self.relax_vm = relax.VirtualMachine(exec_mod, self.device)
-            # pylint: disable=broad-exception-caught
+
             except Exception as error:
                 print(f"Warning: Failed to compile Relax VM: {error}")
                 self.relax_vm = None
@@ -287,7 +289,6 @@ class BasePyModule:
         return py_func(self, *args)
 
     def _create_output_tensors(self, out_sinfo, in_args=None):
-        # pylint: disable=import-outside-toplevel
         import torch
 
         sinfo_list = out_sinfo if isinstance(out_sinfo, list) else [out_sinfo]
@@ -350,9 +351,9 @@ class BasePyModule:
             "or ensure input tensors carry shapes that determine output extents."
         )
 
-    def _convert_tvm_dtype_to_torch(self, tvm_dtype: str) -> "torch.dtype":
+    def _convert_tvm_dtype_to_torch(self, tvm_dtype: str) -> torch.dtype:
         """Convert TVM dtype string to PyTorch dtype."""
-        # pylint: disable=import-outside-toplevel
+
         import torch
 
         dtype_mapping = {
@@ -365,10 +366,10 @@ class BasePyModule:
         return dtype_mapping.get(str(tvm_dtype), torch.float32)
 
     def _convert_pytorch_to_tvm(
-        self, tensors: Union[Any, List[Any], Tuple[Any, ...]]
-    ) -> Union[Tensor, List[Tensor]]:
+        self, tensors: Any | list[Any] | tuple[Any, ...]
+    ) -> Tensor | list[Tensor]:
         """Convert PyTorch tensors to TVM Tensors using DLPack."""
-        # pylint: disable=import-outside-toplevel
+
         import torch
 
         if isinstance(tensors, (list, tuple)):
@@ -377,7 +378,7 @@ class BasePyModule:
 
     def _convert_single_pytorch_to_tvm(self, tensor: Any) -> Tensor:
         """Convert a single PyTorch tensor to TVM Tensor with faster DLPack converter."""
-        # pylint: disable=import-outside-toplevel
+
         import torch
 
         if isinstance(tensor, Tensor):
@@ -423,16 +424,16 @@ class BasePyModule:
             ) from error
 
     def _convert_tvm_to_pytorch(
-        self, tvm_tensors: Union[Any, List[Any]]
-    ) -> Union["torch.Tensor", List["torch.Tensor"]]:
+        self, tvm_tensors: Any | list[Any]
+    ) -> torch.Tensor | list[torch.Tensor]:
         """Convert TVM Tensors to PyTorch tensors using DLPack."""
         if isinstance(tvm_tensors, (list, tuple)):
             return [self._convert_single_tvm_to_pytorch(tensor) for tensor in tvm_tensors]
         return self._convert_single_tvm_to_pytorch(tvm_tensors)
 
-    def _convert_single_tvm_to_pytorch(self, tvm_tensor: Any) -> "torch.Tensor":
+    def _convert_single_tvm_to_pytorch(self, tvm_tensor: Any) -> torch.Tensor:
         """Convert a single TVM Tensor to PyTorch tensor using faster DLPack converter."""
-        # pylint: disable=import-outside-toplevel
+
         import torch
 
         if isinstance(tvm_tensor, torch.Tensor):
@@ -450,13 +451,13 @@ class BasePyModule:
         # 2. Try standard DLPack conversion
         try:
             return torch.from_dlpack(tvm_tensor)
-        # pylint: disable=broad-exception-caught
+
         except Exception as error:
             print(f"Warning: DLPack conversion from TVM failed ({error}), using numpy fallback")
             numpy_array = tvm_tensor.numpy()
             return torch.from_numpy(numpy_array)
 
-    def get_function(self, name: str) -> Optional[PackedFunc]:
+    def get_function(self, name: str) -> PackedFunc | None:
         """Get a compiled function by name."""
         if name in self.compiled_tir_funcs:
             return self.compiled_tir_funcs[name]
@@ -471,8 +472,8 @@ class BasePyModule:
                 print(f"Warning: Failed to get Relax function '{name}': {error}")
         return None
 
-    def list_functions(self) -> Dict[str, List[str]]:
-        """List all available functions."""
+    def list_functions(self) -> dict[str, list[str]]:
+        """list all available functions."""
         return {
             "tir": self.tir_func_names,
             "relax": self.relax_func_names,
@@ -484,7 +485,7 @@ class BasePyModule:
         self.pyfuncs[name] = func
 
         # Create a wrapper that handles both instance methods and static functions
-        # pylint: disable=import-outside-toplevel
+
         import functools
 
         @functools.wraps(func)
@@ -503,7 +504,7 @@ class BasePyModule:
     def script(
         self,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
@@ -584,7 +585,7 @@ class BasePyModule:
 
         return "\n".join(result_lines)
 
-    def _get_function_source(self, func: callable) -> Optional[str]:
+    def _get_function_source(self, func: callable) -> str | None:
         """Get the source code of a Python function."""
         try:
             source = inspect.getsource(func)
@@ -609,15 +610,13 @@ class BasePyModule:
 
         return "\n".join(formatted_lines)
 
-    def show(
-        self, style: Optional[str] = None, black_format: Optional[bool] = None, **kwargs
-    ) -> None:
+    def show(self, style: str | None = None, black_format: bool | None = None, **kwargs) -> None:
         """A sugar for print highlighted TVM script with Python function support.
 
         This method extends the standard IRModule show() method to handle
         Python functions stored in the IRModule's pyfuncs attribute.
         """
-        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
+        from tvm.script.highlight import cprint
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")

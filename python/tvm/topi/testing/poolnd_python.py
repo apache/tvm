@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, unused-variable
 """Ground truth max and average pooling operators in python."""
+
+from __future__ import annotations
 
 import itertools
 import math
-from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -71,11 +71,11 @@ def _convert_from_layout(input_tensor: np.ndarray, layout: str) -> np.ndarray:
 def get_slice(
     spatial_dimensions: int,
     pad_np: np.array,
-    dim_coord: Tuple[int],
-    kernel: Tuple[int],
-    strides: Tuple[int],
-    dilation: Tuple[int],
-) -> Tuple[slice]:
+    dim_coord: tuple[int],
+    kernel: tuple[int],
+    strides: tuple[int],
+    dilation: tuple[int],
+) -> tuple[slice]:
     """
     Programmatically create a slice object of the right dimensions for pad_np.
 
@@ -94,7 +94,7 @@ def get_slice(
         )
 
     # Add back batch and channel dimensions
-    slices = [slice(None), slice(None)] + slices
+    slices = [slice(None), slice(None), *slices]
 
     return tuple(slices)
 
@@ -102,8 +102,8 @@ def get_slice(
 def pad_tensor(
     np_arr: np.array,
     pad_value: float,
-    padding_before: List[int],
-    padding_after: List[int],
+    padding_before: list[int],
+    padding_after: list[int],
     dtype: str,
 ) -> np.array:
     """Pad the spatial dimensions of the given array."""
@@ -125,16 +125,16 @@ def pad_tensor(
 
 def poolnd_python(
     np_data: np.array,
-    kernel: Tuple[int],
-    strides: Tuple[int],
-    dilation: Tuple[int],
-    padding_before: Tuple[int],
-    padding_after: Tuple[int],
+    kernel: tuple[int],
+    strides: tuple[int],
+    dilation: tuple[int],
+    padding_before: tuple[int],
+    padding_after: tuple[int],
     pool_type: str,
     count_include_pad: bool = True,
     ceil_mode: bool = False,
     dtype: str = "float32",
-    layout: Optional[str] = None,
+    layout: str | None = None,
 ) -> np.array:
     """Ground truth pooling operator impelmented in numpy."""
 
@@ -185,7 +185,7 @@ def poolnd_python(
             dilation=dilation,
         )
 
-        output_slice = (slice(None), slice(None)) + tuple(coordinate)
+        output_slice = (slice(None), slice(None), *tuple(coordinate))
         reduction_axis = tuple(range(2, len(np_data.shape)))
         if pool_type == "avg":
             count_non_padded = (

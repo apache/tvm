@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Tuple
+from __future__ import annotations
 
 import ml_dtypes
 import numpy as np
@@ -134,7 +134,7 @@ def test_group_gemm_sm100():
     )
 
 
-def rowwise_quant_fp8_e4m3(shape: Tuple[int, int], block_size: Tuple[int, int], dtype: str):
+def rowwise_quant_fp8_e4m3(shape: tuple[int, int], block_size: tuple[int, int], dtype: str):
     x_full_np = (np.random.rand(*shape) * 2 - 1).astype(dtype)
     x_scale_shape = (
         *shape[:-1],
@@ -172,7 +172,7 @@ def rowwise_quant_fp8_e4m3(shape: Tuple[int, int], block_size: Tuple[int, int], 
     return x_np, x_scale_np
 
 
-def blockwise_quant_fp8_e4m3(shape: Tuple[int, int], block_size: Tuple[int, int], dtype: str):
+def blockwise_quant_fp8_e4m3(shape: tuple[int, int], block_size: tuple[int, int], dtype: str):
     w_full_np = (np.random.rand(*shape) * 2 - 1).astype(dtype)
     w_scale_shape = (
         *shape[:-2],
@@ -247,7 +247,7 @@ def blockwise_matmul(
     x_scale_np: np.ndarray,
     w_np: np.ndarray,
     w_scale_np: np.ndarray,
-    block_size: Tuple[int, int],
+    block_size: tuple[int, int],
     dtype: str,
 ):
     o_np = np.zeros((x_fp8_np.shape[0], w_np.shape[0]), dtype=dtype)
@@ -274,7 +274,7 @@ def blockwise_bmm(
     x_scale_np: np.ndarray,
     w_np: np.ndarray,
     w_scale_np: np.ndarray,
-    block_size: Tuple[int, int],
+    block_size: tuple[int, int],
     dtype: str,
 ):
     o_np = np.zeros((x_fp8_np.shape[0], x_fp8_np.shape[1], w_np.shape[1]), dtype=dtype)

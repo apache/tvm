@@ -15,7 +15,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable= redefined-builtin
 """Relax core operators."""
 
 # Register operator gradient functions
@@ -161,7 +160,6 @@ from .vision import all_class_non_max_suppression
 
 
 def _register_op_make():
-    # pylint: disable=import-outside-toplevel
     from .. import expr
     from . import _ffi_api
 

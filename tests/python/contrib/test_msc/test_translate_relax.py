@@ -1217,7 +1217,6 @@ def test_masked_scatter():
 def test_attention():
     """test relax translator for attention"""
 
-    # pylint: disable=import-outside-toplevel
     import torch.nn.functional as F
 
     class Attention1(Module):

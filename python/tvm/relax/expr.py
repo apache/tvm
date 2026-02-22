@@ -16,9 +16,12 @@
 # under the License.
 """The expression nodes of Relax."""
 
+from __future__ import annotations
+
 import typing
+from collections.abc import Callable, Mapping
 from numbers import Number
-from typing import Any, Callable, Dict, List, Mapping, Optional, Union
+from typing import Any, Optional, Union
 
 import numpy as _np  # type: ignore
 import tvm_ffi
@@ -37,9 +40,9 @@ from . import _ffi_api
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
-Expr = Union[tvm.ir.RelaxExpr]
-Type = Union[tvm.ir.Type]  # pylint: disable=invalid-name
-GlobalVar = Union[tvm.ir.GlobalVar]
+Expr = tvm.ir.RelaxExpr
+Type = tvm.ir.Type
+GlobalVar = tvm.ir.GlobalVar
 
 
 @tvm_ffi.register_object("relax.Id")
@@ -75,7 +78,7 @@ class StructInfo(Node, Scriptable):
         """Overload with structural equality."""
         return super().__eq__(other)
 
-    def is_base_of(self, derived: "StructInfo") -> bool:
+    def is_base_of(self, derived: StructInfo) -> bool:
         """Check if self is base of another derived struct info.
 
         Parameters
@@ -92,10 +95,10 @@ class StructInfo(Node, Scriptable):
 
 
 # will be registered afterwards in python/tvm/relax/op/init.py
-_op_ffi_api = None  # pylint: disable=invalid-name
+_op_ffi_api = None
 
 
-def _binary_op_helper(lhs: "ExprWithOp", rhs: "ExprWithOp", op: Callable) -> "ExprWithOp":
+def _binary_op_helper(lhs: ExprWithOp, rhs: ExprWithOp, op: Callable) -> ExprWithOp:
     if not isinstance(lhs, Expr):  # type: ignore
         raise ValueError("lhs must be Expr")
     if isinstance(rhs, Expr):  # type: ignore
@@ -106,7 +109,7 @@ def _binary_op_helper(lhs: "ExprWithOp", rhs: "ExprWithOp", op: Callable) -> "Ex
         raise TypeError(f"type {type(rhs)} not supported")
 
 
-def _binary_rhs_helper(rhs: "ExprWithOp") -> "ExprWithOp":
+def _binary_rhs_helper(rhs: ExprWithOp) -> ExprWithOp:
     if isinstance(rhs, Number):
         raise TypeError(f"Please convert {rhs} with `const` first")
     raise TypeError(f"type {type(rhs)} not supported")
@@ -115,7 +118,7 @@ def _binary_rhs_helper(rhs: "ExprWithOp") -> "ExprWithOp":
 class ExprWithOp(Expr, Scriptable):
     """Basetype of all relax expressions that defines op overloading."""
 
-    def astype(self, dtype: Union[str, DataType]) -> "ExprWithOp":
+    def astype(self, dtype: str | DataType) -> ExprWithOp:
         """Cast the content type of the current data to dtype.
 
         Parameters
@@ -134,77 +137,77 @@ class ExprWithOp(Expr, Scriptable):
         """
         return _op_ffi_api.astype(self, dtype)  # type: ignore
 
-    def __neg__(self) -> "ExprWithOp":
+    def __neg__(self) -> ExprWithOp:
         return _op_ffi_api.negative(self)  # type: ignore
 
-    def __lt__(self, other: Expr) -> "ExprWithOp":
+    def __lt__(self, other: Expr) -> ExprWithOp:
         return _binary_op_helper(self, other, _op_ffi_api.less)  # type: ignore
 
-    def __gt__(self, other: Expr) -> "ExprWithOp":
+    def __gt__(self, other: Expr) -> ExprWithOp:
         return _binary_op_helper(self, other, _op_ffi_api.greater)  # type: ignore
 
-    def __ge__(self, other: Expr) -> "ExprWithOp":
+    def __ge__(self, other: Expr) -> ExprWithOp:
         return _binary_op_helper(self, other, _op_ffi_api.greater_equal)  # type: ignore
 
-    def __le__(self, other: Expr) -> "ExprWithOp":
+    def __le__(self, other: Expr) -> ExprWithOp:
         return _binary_op_helper(self, other, _op_ffi_api.less_equal)  # type: ignore
 
     # NOTE: Cannot override __eq__ and __ne__, which will influence object equal
 
-    def __add__(self, other: Expr) -> "ExprWithOp":
+    def __add__(self, other: Expr) -> ExprWithOp:
         if isinstance(self.struct_info_, tvm.relax.TupleStructInfo) and isinstance(other, tuple):
             return tuple([*self, *other])
 
         return _binary_op_helper(self, other, _op_ffi_api.add)  # type: ignore
 
-    def __radd__(self, other: Expr) -> "ExprWithOp":
+    def __radd__(self, other: Expr) -> ExprWithOp:
         return self.__add__(other)
 
-    def __sub__(self, other: Expr) -> "ExprWithOp":
+    def __sub__(self, other: Expr) -> ExprWithOp:
         return _binary_op_helper(self, other, _op_ffi_api.subtract)  # type: ignore
 
-    def __rsub__(self, other: Expr) -> "ExprWithOp":
+    def __rsub__(self, other: Expr) -> ExprWithOp:
         return _binary_rhs_helper(other)
 
-    def __mul__(self, other: Expr) -> "ExprWithOp":
+    def __mul__(self, other: Expr) -> ExprWithOp:
         return _binary_op_helper(self, other, _op_ffi_api.multiply)  # type: ignore
 
-    def __rmul__(self, other: Expr) -> "ExprWithOp":
+    def __rmul__(self, other: Expr) -> ExprWithOp:
         return self.__mul__(other)
 
-    def __truediv__(self, other: Expr) -> "ExprWithOp":
+    def __truediv__(self, other: Expr) -> ExprWithOp:
         return _binary_op_helper(self, other, _op_ffi_api.divide)  # type: ignore
 
-    def __rtruediv__(self, other: Expr) -> "ExprWithOp":
+    def __rtruediv__(self, other: Expr) -> ExprWithOp:
         return _binary_rhs_helper(other)
 
-    def __floordiv__(self, other: Expr) -> "ExprWithOp":
+    def __floordiv__(self, other: Expr) -> ExprWithOp:
         return _binary_op_helper(self, other, _op_ffi_api.floor_divide)  # type: ignore
 
-    def __rfloordiv__(self, other: Expr) -> "ExprWithOp":
+    def __rfloordiv__(self, other: Expr) -> ExprWithOp:
         return _binary_rhs_helper(other)
 
-    def __mod__(self, other: Expr) -> "ExprWithOp":
+    def __mod__(self, other: Expr) -> ExprWithOp:
         return _binary_op_helper(self, other, _op_ffi_api.mod)  # type: ignore
 
-    def __rmod__(self, other: Expr) -> "ExprWithOp":
+    def __rmod__(self, other: Expr) -> ExprWithOp:
         return _binary_rhs_helper(other)
 
-    def __pow__(self, other: Expr) -> "ExprWithOp":
+    def __pow__(self, other: Expr) -> ExprWithOp:
         return _binary_op_helper(self, other, _op_ffi_api.power)  # type: ignore
 
-    def __rpow__(self, other: Expr) -> "ExprWithOp":
+    def __rpow__(self, other: Expr) -> ExprWithOp:
         return _binary_rhs_helper(other)
 
-    def __call__(self, *args: List[Expr], attrs: Optional[Dict[str, Any]] = None) -> "ExprWithOp":
+    def __call__(self, *args: list[Expr], attrs: dict[str, Any] | None = None) -> ExprWithOp:
         """Call the variable (if it represents a function).
 
         Parameters
         ----------
-        args: List[Expr]
+        args: list[Expr]
             The arguments to the call.
 
-        attr: Optional[Dict[str, object]]
+        attr: Optional[dict[str, object]]
             The additional attributes to the call.
 
         Returns
@@ -214,7 +217,7 @@ class ExprWithOp(Expr, Scriptable):
         """
         return Call(self, args, attrs=attrs)
 
-    def __getitem__(self, index: int) -> "ExprWithOp":
+    def __getitem__(self, index: int) -> ExprWithOp:
         """Get the i-th element of the tuple or Expr with TupleType.
 
         Parameters
@@ -261,39 +264,39 @@ class ExprWithOp(Expr, Scriptable):
             )
 
     @property
-    def dtype(self) -> "_DLTensorDTypeProxy":
+    def dtype(self) -> _DLTensorDTypeProxy:
         """Returns a proxy object for accessing DLTensor::dtype"""
         self._check_for_tensor_struct_info()
         return _DLTensorDTypeProxy(self)
 
     @property
-    def ndim(self) -> "Expr":
+    def ndim(self) -> Expr:
         """Returns the runtime value of DLTensor::ndim"""
         self._check_for_tensor_struct_info()
         op = tvm.ir.Op.get("relax.inspect.tensor_ndim")
         return tvm.relax.Call(op, [self])
 
     @property
-    def shape(self) -> "_DLTensorShapeProxy":
+    def shape(self) -> _DLTensorShapeProxy:
         """Returns a proxy object for accessing DLTensor::shape"""
         self._check_for_tensor_struct_info()
         return _DLTensorShapeProxy(self)
 
     @property
-    def strides(self) -> "_DLTensorStrideProxy":
+    def strides(self) -> _DLTensorStrideProxy:
         """Returns a proxy object for accessing DLTensor::strides"""
         self._check_for_tensor_struct_info()
         return _DLTensorStrideProxy(self)
 
     @property
-    def byte_offset(self) -> "Expr":
+    def byte_offset(self) -> Expr:
         """Returns a proxy object for accessing DLTensor::byte_offset"""
         self._check_for_tensor_struct_info()
         op = tvm.ir.Op.get("relax.inspect.tensor_byte_offset")
         return tvm.relax.Call(op, [self])
 
     @property
-    def elem_offset(self) -> "Expr":
+    def elem_offset(self) -> Expr:
         """Returns a proxy object for accessing a DLTensor's elem_offset
 
         This parameter is not stored in the DLTensor, but is instead
@@ -423,7 +426,7 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
             f"and the DLTensor::shape array can be accessed as {self.tensor}.shape[i]"
         )
 
-    def __getitem__(self, axis: Union[int, PrimExpr, Expr]) -> Expr:
+    def __getitem__(self, axis: int | PrimExpr | Expr) -> Expr:
         """Returns the extent of a tensor axis
 
         Parameters
@@ -493,7 +496,7 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
             f"and the DLTensor::strides array can be accessed as {self.tensor}.strides[i]"
         )
 
-    def __getitem__(self, axis: Union[int, PrimExpr, Expr]) -> Expr:
+    def __getitem__(self, axis: int | PrimExpr | Expr) -> Expr:
         """Returns the extent of a tensor axis
 
         Parameters
@@ -539,13 +542,13 @@ class Call(ExprWithOp):
     op: tvm.ir.Op or any tvm.relax.Expr with function type.
         The operation to be called.
 
-    args: Union[List[Expr], typing.Tuple[Expr, ...]]
+    args: Union[list[Expr], typing.Tuple[Expr, ...]]
         The arguments to the call.
 
     attrs: Optional[tvm.ir.Attrs]
         Attributes to the call, can be None
 
-    sinfo_args: Optional[Union[List[StructInfo], typing.Tuple[StructInfo, ...]]]
+    sinfo_args: Optional[Union[list[StructInfo], typing.Tuple[StructInfo, ...]]]
         The structure info arguments of a CallNode.
         sinfo_args is designed to be non-empty only for intrinsic op (e.g.,
         call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
@@ -556,18 +559,18 @@ class Call(ExprWithOp):
     """
 
     op: Expr
-    args: List[Expr]
+    args: list[Expr]
     attrs: tvm.ir.Attrs
-    sinfo_args: List[StructInfo]
-    span: Optional[Span]
+    sinfo_args: list[StructInfo]
+    span: Span | None
 
     def __init__(
         self,
-        op: Union[Expr, tvm.ir.Op],
-        args: Union[List[Expr], typing.Tuple[Expr, ...]],
-        attrs: Optional[tvm.ir.Attrs] = None,
-        sinfo_args: Optional[Union[List[StructInfo], typing.Tuple[StructInfo, ...]]] = None,
-        span: Optional[Span] = None,
+        op: Expr | tvm.ir.Op,
+        args: list[Expr] | tuple[Expr, ...],
+        attrs: tvm.ir.Attrs | None = None,
+        sinfo_args: list[StructInfo] | tuple[StructInfo, ...] | None = None,
+        span: Span | None = None,
     ):
         if not sinfo_args:
             sinfo_args = []
@@ -603,11 +606,9 @@ class If(ExprWithOp):
     cond: Expr
     true_branch: Expr
     false_branch: Expr
-    span: Optional[Span]
+    span: Span | None
 
-    def __init__(
-        self, cond: Expr, true_branch: Expr, false_branch: Expr, span: Optional[Span] = None
-    ):
+    def __init__(self, cond: Expr, true_branch: Expr, false_branch: Expr, span: Span | None = None):
         self.__init_handle_by_constructor__(
             _ffi_api.If,
             cond,
@@ -623,19 +624,17 @@ class Tuple(ExprWithOp):
 
     Parameters
     ----------
-    fields : Union[List[Expr], typing.Tuple[Expr, ...]]
+    fields : Union[list[Expr], typing.Tuple[Expr, ...]]
         The fields in the tuple.
 
     span: Optional[Span]
         Span that points to original source code
     """
 
-    fields: List[Expr]
-    span: Optional[Span]
+    fields: list[Expr]
+    span: Span | None
 
-    def __init__(
-        self, fields: Union[List[Expr], typing.Tuple[Expr, ...]], span: Optional[Span] = None
-    ):
+    def __init__(self, fields: list[Expr] | tuple[Expr, ...], span: Span | None = None):
         if isinstance(fields, tvm.relax.Tuple):
             fields = fields.fields
         elif isinstance(getattr(fields, "struct_info_", None), tvm.relax.TupleStructInfo):
@@ -670,9 +669,9 @@ class TupleGetItem(ExprWithOp):
 
     tuple_value: Expr
     index: int
-    span: Optional[Span]
+    span: Span | None
 
-    def __init__(self, tuple_value: Expr, index: int, span: Optional[Span] = None):
+    def __init__(self, tuple_value: Expr, index: int, span: Span | None = None):
         self.__init_handle_by_constructor__(
             _ffi_api.TupleGetItem,
             tuple_value,
@@ -687,20 +686,20 @@ class ShapeExpr(ExprWithOp):
 
     Parameters
     ----------
-    values: Union[List[PrimExpr], typing.Tuple[PrimExpr, ...], tvm.ir.Array]
+    values: Union[list[PrimExpr], typing.Tuple[PrimExpr, ...], tvm.ir.Array]
         The values of the shape expression.
 
     span: Optional[Span]
         Span that points to original source code
     """
 
-    values: List[PrimExpr]
-    span: Optional[Span]
+    values: list[PrimExpr]
+    span: Span | None
 
     def __init__(
         self,
-        values: Union[List[PrimExpr], typing.Tuple[PrimExpr, ...], tvm.ir.Array],
-        span: Optional[Span] = None,
+        values: list[PrimExpr] | tuple[PrimExpr, ...] | tvm.ir.Array,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)  # type: ignore
 
@@ -713,7 +712,7 @@ class ShapeExpr(ExprWithOp):
         return len(self.values)
 
 
-def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
+def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
     if isinstance(shape, (list, tuple)):
         return ShapeExpr(shape)
     raise ValueError("Wrong type")
@@ -740,13 +739,13 @@ class Constant(ExprWithOp):
     """
 
     data: tvm.runtime.Tensor
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
         self,
         data: tvm.runtime.Tensor,
-        struct_info: Optional[StructInfo] = None,
-        span: Optional[Span] = None,
+        struct_info: StructInfo | None = None,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.Constant,
@@ -773,13 +772,13 @@ class Var(ExprWithOp):
     """
 
     vid: Id
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
         self,
-        name_hint: Union[str, Id],
-        struct_info: Optional[StructInfo] = None,
-        span: Optional[Span] = None,
+        name_hint: str | Id,
+        struct_info: StructInfo | None = None,
+        span: Span | None = None,
     ) -> None:
         if struct_info is not None:
             struct_info = tvm.runtime.convert(struct_info)
@@ -822,15 +821,14 @@ class DataflowVar(Var):
     """
 
     vid: Id
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
         self,
-        name_hint: Union[str, Id],
-        struct_info: Optional[StructInfo] = None,
-        span: Optional[Span] = None,
+        name_hint: str | Id,
+        struct_info: StructInfo | None = None,
+        span: Span | None = None,
     ) -> None:
-        # pylint: disable=super-init-not-called
         if struct_info is not None:
             struct_info = tvm.runtime.convert(struct_info)
             if not isinstance(struct_info, StructInfo):
@@ -858,7 +856,7 @@ class PrimValue(Expr, Scriptable):
 
     value: PrimExpr
 
-    def __init__(self, value: Union[PrimExpr, int], span: Optional[Span] = None) -> None:
+    def __init__(self, value: PrimExpr | int, span: Span | None = None) -> None:
         if isinstance(value, int):
             value = tvm.tir.IntImm("int64", value)
         self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
@@ -869,9 +867,9 @@ class StringImm(Expr, Scriptable):
     """Represent a string literal constant."""
 
     value: str
-    span: Optional[Span]
+    span: Span | None
 
-    def __init__(self, value: str, span: Optional[Span] = None) -> None:
+    def __init__(self, value: str, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)  # type: ignore
 
 
@@ -880,9 +878,9 @@ class DataTypeImm(Expr, Scriptable):
     """Represent a data type constant."""
 
     value: DataType
-    span: Optional[Span]
+    span: Span | None
 
-    def __init__(self, value: Union[DataType, str], span: Optional[Span] = None) -> None:
+    def __init__(self, value: DataType | str, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, span)  # type: ignore
 
 
@@ -891,7 +889,7 @@ class Binding(Node, Scriptable):
     """The base class of a binding in Relax."""
 
     var: Var
-    span: Optional[Span]
+    span: Span | None
 
 
 @tvm_ffi.register_object("relax.expr.MatchCast")
@@ -916,10 +914,10 @@ class MatchCast(Binding):
 
     struct_info: StructInfo
     value: Expr
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
-        self, var: Var, value: Expr, struct_info: StructInfo, span: Optional[Span] = None
+        self, var: Var, value: Expr, struct_info: StructInfo, span: Span | None = None
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.MatchCast,
@@ -946,9 +944,9 @@ class VarBinding(Binding):
 
     var: Var
     value: Expr
-    span: Optional[Span]
+    span: Span | None
 
-    def __init__(self, var: Var, value: Expr, span: Optional[Span] = None) -> None:
+    def __init__(self, var: Var, value: Expr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value, span)  # type: ignore
 
 
@@ -957,10 +955,10 @@ class BindingBlock(Node, Scriptable):
     """base class of binding block, bindings inside can be impure
     (with side effect or control flow)"""
 
-    bindings: List[Binding]
-    span: Optional[Span]
+    bindings: list[Binding]
+    span: Span | None
 
-    def __init__(self, bindings: List[Binding], span: Optional[Span] = None) -> None:
+    def __init__(self, bindings: list[Binding], span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings, span)  # type: ignore
 
 
@@ -968,11 +966,10 @@ class BindingBlock(Node, Scriptable):
 class DataflowBlock(BindingBlock):
     """dataflow block, bindings inside are pure (no side effect and no control flow)"""
 
-    bindings: List[Binding]
-    span: Optional[Span]
+    bindings: list[Binding]
+    span: Span | None
 
-    def __init__(self, bindings: List[Binding], span: Optional[Span] = None) -> None:
-        # pylint: disable=super-init-not-called
+    def __init__(self, bindings: list[Binding], span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, span)  # type: ignore
 
 
@@ -980,11 +977,11 @@ class DataflowBlock(BindingBlock):
 class SeqExpr(ExprWithOp):
     """A sequence of binding blocks followed by an expression."""
 
-    blocks: List[BindingBlock]
+    blocks: list[BindingBlock]
     body: Expr
-    span: Optional[Span]
+    span: Span | None
 
-    def __init__(self, blocks: List[BindingBlock], body: Expr, span: Optional[Span] = None) -> None:
+    def __init__(self, blocks: list[BindingBlock], body: Expr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span)  # type: ignore
 
 
@@ -992,21 +989,21 @@ class SeqExpr(ExprWithOp):
 class Function(BaseFunc, Scriptable):
     """A Relax function."""
 
-    params: List[Var]
+    params: list[Var]
     body: Expr
     ret_struct_info: StructInfo
     is_pure: bool
     attrs: tvm.ir.DictAttrs
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
         self,
-        params: List[Var],
+        params: list[Var],
         body: Expr,
-        ret_struct_info: Optional[StructInfo] = None,
-        is_pure: Optional[bool] = True,
-        attrs: Optional[tvm.ir.DictAttrs] = None,
-        span: Optional[Span] = None,
+        ret_struct_info: StructInfo | None = None,
+        is_pure: bool | None = True,
+        attrs: tvm.ir.DictAttrs | None = None,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.Function,
@@ -1020,11 +1017,11 @@ class Function(BaseFunc, Scriptable):
 
     @staticmethod
     def create_empty(
-        params: List[Var],
+        params: list[Var],
         ret_struct_info: StructInfo,
-        is_pure: Optional[bool] = True,
-        attrs: Optional[tvm.ir.DictAttrs] = None,
-        span: Optional[Span] = None,
+        is_pure: bool | None = True,
+        attrs: tvm.ir.DictAttrs | None = None,
+        span: Span | None = None,
     ):
         """Construct a relax.Function but without body"""
         return _ffi_api.FunctionCreateEmpty(params, ret_struct_info, is_pure, attrs, span)  # type: ignore
@@ -1034,14 +1031,12 @@ class Function(BaseFunc, Scriptable):
 
         Parameters
         ----------
-        args: List[relax.Expr]
+        args: list[relax.Expr]
             Arguments.
         """
         return Call(self, args, None, None)
 
-    def bind_symbolic_vars(
-        self, binding_map: Mapping[Union[str, tvm.tir.Var], PrimExpr]
-    ) -> "Function":
+    def bind_symbolic_vars(self, binding_map: Mapping[str | tvm.tir.Var, PrimExpr]) -> Function:
         """Return a new function with updated symbolic variable
 
         Parameters
@@ -1072,10 +1067,10 @@ class Function(BaseFunc, Scriptable):
     def bind_params(
         self,
         binding_map: Mapping[
-            Union[str, Var],
-            Union[int, float, PrimExpr, tvm.runtime.Tensor, _np.ndarray, Expr],
+            str | Var,
+            int | float | PrimExpr | tvm.runtime.Tensor | _np.ndarray | Expr,
         ],
-    ) -> "Function":
+    ) -> Function:
         """Return a new function with updated symbolic variable
 
         Parameters
@@ -1119,9 +1114,7 @@ class Function(BaseFunc, Scriptable):
 
         return _ffi_api.FunctionBindParams(self, binding_map)  # type: ignore
 
-    def inline_functions(
-        self, function_map: Mapping[Union[str, tvm.ir.GlobalVar], "Function"]
-    ) -> "Function":
+    def inline_functions(self, function_map: Mapping[str | tvm.ir.GlobalVar, Function]) -> Function:
         return _ffi_api.FunctionInlineFunctions(self, function_map)  # type: ignore
 
 
@@ -1130,13 +1123,13 @@ class ExternFunc(BaseFunc, ExprWithOp):
     """extern function, which represents a PackedFunc."""
 
     global_symbol: String
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
         self,
         global_symbol: String,
-        struct_info: Optional[StructInfo] = None,
-        span: Optional[Span] = None,
+        struct_info: StructInfo | None = None,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ExternFunc,
@@ -1146,13 +1139,13 @@ class ExternFunc(BaseFunc, ExprWithOp):
         )
 
 
-def extern(name: str, struct_info: Optional[StructInfo] = None, span: Optional[Span] = None):
+def extern(name: str, struct_info: StructInfo | None = None, span: Span | None = None):
     """Create extern function."""
     return ExternFunc(name, struct_info, span)
 
 
 def const(
-    value: Union[bool, int, float, _np.ndarray, tvm.runtime.Tensor], dtype: Optional[str] = None
+    value: bool | int | float | _np.ndarray | tvm.runtime.Tensor, dtype: str | None = None
 ) -> Constant:
     """Create a constant value.
 
@@ -1174,7 +1167,7 @@ def const(
     - other using the same default rule as numpy.
     """
     # Needed for bf16 and fp8 support (does not come with numpy)
-    import ml_dtypes  # pylint: disable=unused-import,import-outside-toplevel
+    import ml_dtypes
 
     if isinstance(value, (Number, (bool, list))):
         value = _np.array(value, dtype=dtype)
@@ -1206,7 +1199,7 @@ class TEPlaceholderOp(tvm.te.tensor.Operation):
 
 
 def te_tensor(
-    value: Expr, tir_var_map: Dict[tvm.tir.Var, tvm.tir.PrimExpr], name: str = "rxplaceholder"
+    value: Expr, tir_var_map: dict[tvm.tir.Var, tvm.tir.PrimExpr], name: str = "rxplaceholder"
 ):
     """Create a TE tensor from relax expression, with TIR variables in the
     tensor shape substituted by the given mapping
@@ -1216,7 +1209,7 @@ def te_tensor(
     value : Expr
         The relax expression, which is required to have TensorStructInfo.
 
-    tir_var_map : Dict[tvm.tir.Var, tvm.tir.PrimExpr]
+    tir_var_map : dict[tvm.tir.Var, tvm.tir.PrimExpr]
         The mapping to substitute the TIR variables appeared in the
         shape of the input Expr.
 
@@ -1250,5 +1243,5 @@ def get_shape_of(expr: Expr) -> Expr:
     return _ffi_api.GetShapeOf(expr)  # type: ignore
 
 
-def _update_struct_info(expr: Expr, struct_info: Optional[StructInfo]) -> None:
+def _update_struct_info(expr: Expr, struct_info: StructInfo | None) -> None:
     _ffi_api.UpdateStructInfo(expr, struct_info)  # type: ignore

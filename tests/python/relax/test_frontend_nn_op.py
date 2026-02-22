@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring, invalid-name
 import numpy as np
 
 import tvm
@@ -633,7 +632,7 @@ def test_tensor_ir_op():
     dtype = "float16"
 
     @T.prim_func(private=True)
-    def fused_rope(  # pylint: disable=too-many-locals
+    def fused_rope(
         var_qkv: T.handle,
         var_q: T.handle,
         var_k: T.handle,

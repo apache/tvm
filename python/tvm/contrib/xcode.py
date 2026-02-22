@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Utility to invoke Xcode compiler toolchain"""
 
 import json
@@ -39,7 +38,7 @@ def xcrun(cmd):
     out : str
         The output string.
     """
-    cmd = ["xcrun"] + cmd
+    cmd = ["xcrun", *cmd]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
     return out.strip()
@@ -136,7 +135,7 @@ def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
     file_target = path_target if path_target else temp_target
 
     # See:
-    # - https://developer.apple.com/documentation/metal/gpu_functions_libraries/building_a_library_with_metal_s_command-line_tools#overview # pylint: disable=line-too-long
+    # - https://developer.apple.com/documentation/metal/gpu_functions_libraries/building_a_library_with_metal_s_command-line_tools#overview
     #
     #   xcrun -sdk macosx metal -c MyLibrary.metal -o MyLibrary.air
     #   xcrun -sdk macosx metallib MyLibrary.air -o MyLibrary.metallib

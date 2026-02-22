@@ -60,7 +60,7 @@ def test_rpc_module():
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
     sch = tvm.s_tir.Schedule(mod)
     (x,) = sch.get_loops(block=sch.get_sblock("B"))
-    xo, xi = sch.split(i, [None, 32])
+    xo, xi = sch.split(i, [None, 32])  # noqa: F821
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")
 
@@ -77,7 +77,7 @@ def test_rpc_module():
         b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
         cost = time_f(a, b).mean
-        print("%g secs/op\n" % cost)
+        print(f"{cost:g} secs/op\n")
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 

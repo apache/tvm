@@ -44,7 +44,7 @@ requires_tensorrt_runtime = pytest.mark.skipif(
 )
 
 # Global variable in pytest that applies markers to all tests.
-pytestmark = [requires_tensorrt_codegen] + tvm.testing.requires_cuda.marks()
+pytestmark = [requires_tensorrt_codegen, *tvm.testing.requires_cuda.marks()]
 
 # Target gpu
 target_str = "nvidia/nvidia-t4"

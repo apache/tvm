@@ -16,10 +16,13 @@
 # under the License.
 """Utilities for meta schedule"""
 
+from __future__ import annotations
+
 import ctypes
 import os
 import shutil
-from typing import Any, Callable, List, Optional, Union
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np  # type: ignore
 import psutil  # type: ignore
@@ -68,8 +71,8 @@ def derived_object(cls: type) -> type:
                 ...
     """
 
-    import functools  # pylint: disable=import-outside-toplevel
-    import weakref  # pylint: disable=import-outside-toplevel
+    import functools
+    import weakref
 
     def _extract(inst: type, name: str):
         """Extract function from intrinsic class."""
@@ -127,7 +130,7 @@ def derived_object(cls: type) -> type:
             self._inst._outer = weakref.ref(self)
 
         def __getattr__(self, name):
-            import inspect  # pylint: disable=import-outside-toplevel
+            import inspect
 
             try:
                 # fall back to instance attribute if there is not any
@@ -243,8 +246,8 @@ def print_interactive_table(data: str) -> None:
     data : str
         The serialized performance table from MetaSchedule table printer.
     """
-    import pandas as pd  # type: ignore # pylint: disable=import-outside-toplevel
-    from IPython.display import display  # type: ignore # pylint: disable=import-outside-toplevel
+    import pandas as pd  # type: ignore
+    from IPython.display import display  # type: ignore
 
     pd.set_option("display.max_rows", None)
     pd.set_option("display.max_colwidth", None)
@@ -260,7 +263,7 @@ def print_interactive_table(data: str) -> None:
 
 
 def get_global_func_with_default_on_worker(
-    name: Union[None, str, Callable],
+    name: None | str | Callable,
     default: Callable,
 ) -> Callable:
     """Get the registered global function on the worker process.
@@ -299,7 +302,7 @@ def get_global_func_with_default_on_worker(
 def get_global_func_on_rpc_session(
     session: RPCSession,
     name: str,
-    extra_error_msg: Optional[str] = None,
+    extra_error_msg: str | None = None,
 ) -> PackedFunc:
     """Get a PackedFunc from the global registry from an RPCSession.
 
@@ -352,7 +355,7 @@ def _json_de_tvm(obj: Any) -> Any:
         return obj
     if isinstance(obj, (IntImm, FloatImm)):
         return obj.value
-    if isinstance(obj, (str,)):
+    if isinstance(obj, str):
         return str(obj)
     if isinstance(obj, Array):
         return [_json_de_tvm(i) for i in obj]
@@ -380,10 +383,8 @@ def shash2hex(mod: IRModule) -> str:
 
 def _get_default_str(obj: Any) -> str:
     return (
-        # pylint: disable=protected-access
         f"s_tir.meta_schedule.{obj.__class__.__name__}"
         + f"({_to_hex_address(obj._outer().__ctypes_handle__())})"  # type: ignore
-        # pylint: enable=protected-access
     )
 
 
@@ -401,7 +402,7 @@ def _to_hex_address(handle: ctypes.c_void_p) -> str:
     return hex(ctypes.cast(handle, ctypes.c_void_p).value)
 
 
-def fork_seed(seed: Optional[int], n: int) -> List[int]:
+def fork_seed(seed: int | None, n: int) -> list[int]:
     # fmt: off
     return np.random.RandomState(seed=seed).randint(1, 2 ** 30, size=n).tolist()
     # fmt: on

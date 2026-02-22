@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test roundtrip of runtime modules"""
-# pylint: disable=missing-docstring
 
 import pytest
 

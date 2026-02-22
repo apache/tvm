@@ -20,7 +20,7 @@ from ...expr import Expr
 from . import _ffi_api
 
 
-def allreduce(x, op_type: str = "sum", in_group: bool = True):  # pylint: disable=invalid-name
+def allreduce(x, op_type: str = "sum", in_group: bool = True):
     """Allreduce operator
 
     Parameters
@@ -45,10 +45,10 @@ def allreduce(x, op_type: str = "sum", in_group: bool = True):  # pylint: disabl
         "Allreduce only supports limited reduction operations, "
         f"including {supported_op_types}, but got {op_type}."
     )
-    return _ffi_api.allreduce(x, op_type, in_group)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.allreduce(x, op_type, in_group)  # type: ignore
 
 
-def allgather(x, num_workers: int, in_group: bool = True):  # pylint: disable=invalid-name
+def allgather(x, num_workers: int, in_group: bool = True):
     """AllGather operator
 
     Parameters
@@ -67,7 +67,7 @@ def allgather(x, num_workers: int, in_group: bool = True):  # pylint: disable=in
     result : relax.Expr
       The result of allgather.
     """
-    return _ffi_api.allgather(x, num_workers, in_group)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.allgather(x, num_workers, in_group)  # type: ignore
 
 
 def broadcast_from_worker0(x: Expr) -> Expr:

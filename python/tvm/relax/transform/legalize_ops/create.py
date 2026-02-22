@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Default legalization function for creation operators."""
 
 from typing import Optional
@@ -28,7 +27,7 @@ from ...expr import Call, Expr, PrimValue, const
 from .common import LegalizeFunc, _try_convert_to_scalar_const, register_legalize
 
 
-def _full(is_like: bool, fill_value: Optional[float], primfunc_name: str) -> LegalizeFunc:
+def _full(is_like: bool, fill_value: float | None, primfunc_name: str) -> LegalizeFunc:
     def full_call_te(bb: BlockBuilder, call: Call) -> Expr:
         _fill_value = (
             _try_convert_to_scalar_const(call.args[1], python_native=True)

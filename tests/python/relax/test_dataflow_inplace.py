@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import List, Set, Tuple
+from __future__ import annotations
 
 import numpy as np
 
@@ -346,7 +346,7 @@ def test_inplace_simple_case():
 
     # order does not matter for the listing of candidates, so we have to implement as sets
     def assert_candidate_list(
-        actual: List[Tuple[int, Set[int]]], expected: List[Tuple[int, Set[int]]]
+        actual: list[tuple[int, set[int]]], expected: list[tuple[int, set[int]]]
     ) -> None:
         assert len(actual) == len(expected)
         for i in range(len(actual)):

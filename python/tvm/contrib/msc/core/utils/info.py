@@ -16,7 +16,9 @@
 # under the License.
 """tvm.contrib.msc.core.utils.info"""
 
-from typing import Any, Dict, List, Tuple, Union
+from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 from packaging.version import parse
@@ -44,7 +46,7 @@ class MSCArray:
     def __str__(self):
         return f"<{self._framework} @{self._device}>{self.abstract()}"
 
-    def _analysis(self, data: Any) -> Tuple[str, str, np.ndarray]:
+    def _analysis(self, data: Any) -> tuple[str, str, np.ndarray]:
         if isinstance(data, (list, tuple)) and all(isinstance(d, (int, float)) for d in data):
             return MSCFramework.MSC, "list", "cpu"
         if isinstance(data, np.ndarray):
@@ -57,7 +59,7 @@ class MSCArray:
         if isinstance(data, tvm.relax.Var):
             return MSCFramework.TVM, "var", "cpu"
         try:
-            import torch  # pylint: disable=import-outside-toplevel
+            import torch
 
             if isinstance(data, torch.Tensor):
                 ref_dev = data.device
@@ -66,7 +68,7 @@ class MSCArray:
                 else:
                     device = ref_dev.type
                 return MSCFramework.TORCH, "tensor", device
-        except:  # pylint: disable=bare-except
+        except:
             pass
 
         raise Exception(f"Unkonwn data {data}({type(data)})")
@@ -147,14 +149,14 @@ class MSCArray:
             return self._to_device(device)
         data = self._to_tensor()
         if framework == MSCFramework.TORCH:
-            import torch  # pylint: disable=import-outside-toplevel
+            import torch
 
             return torch.from_numpy(data).to(self.get_device(device, framework))
         if framework == MSCFramework.TVM:
             return tvm.runtime.tensor(data, device=self.get_device(device, framework))
         return data
 
-    def get_device(self, device: str, framework: str = None) -> Any:
+    def get_device(self, device: str, framework: str | None = None) -> Any:
         """Change device from name to device obj
 
         Parameters
@@ -179,7 +181,7 @@ class MSCArray:
                 return tvm.cuda(dev_id)
             raise TypeError("Unexpected tvm device " + str(device))
         if framework == MSCFramework.TORCH:
-            import torch  # pylint: disable=import-outside-toplevel
+            import torch
 
             return torch.device(device)
         return device
@@ -205,11 +207,11 @@ class MSCArray:
         if isinstance(data, (list, tuple)) and all(isinstance(d, (int, float)) for d in data):
             return True
         try:
-            import torch  # pylint: disable=import-outside-toplevel
+            import torch
 
             if isinstance(data, torch.Tensor):
                 return True
-        except:  # pylint: disable=bare-except
+        except:
             pass
 
         return False
@@ -266,7 +268,7 @@ def cast_array(data: Any, framework: str = MSCFramework.MSC, device: str = "cpu"
     return MSCArray(data).cast(framework, device)
 
 
-def inspect_array(data: Any, as_str: bool = True) -> Union[Dict[str, Any], str]:
+def inspect_array(data: Any, as_str: bool = True) -> dict[str, Any] | str:
     """Inspect the array
 
     Parameters
@@ -297,8 +299,8 @@ def inspect_array(data: Any, as_str: bool = True) -> Union[Dict[str, Any], str]:
 
 
 def compare_arrays(
-    golden: Dict[str, Any],
-    datas: Dict[str, Any],
+    golden: dict[str, Any],
+    datas: dict[str, Any],
     atol: float = 1e-2,
     rtol: float = 1e-2,
     report_detail: bool = False,
@@ -368,12 +370,12 @@ def compare_arrays(
         try:
             tvm.testing.assert_allclose(gol, data, rtol=rtol, atol=atol, verbose=False)
             _add_report(name, gol, data, True)
-        except:  # pylint: disable=bare-except
+        except:
             _add_report(name, gol, data, False)
     return report
 
 
-def get_version(framework: str) -> List[int]:
+def get_version(framework: str) -> list[int]:
     """Get the version list of framework.
 
     Parameters
@@ -391,11 +393,11 @@ def get_version(framework: str) -> List[int]:
         if framework in (MSCFramework.MSC, MSCFramework.TVM):
             raw_version = tvm.__version__
         elif framework == MSCFramework.TORCH:
-            import torch  # pylint: disable=import-outside-toplevel
+            import torch
 
             raw_version = torch.__version__
         elif framework == MSCFramework.TENSORFLOW:
-            import tensorflow  # pylint: disable=import-outside-toplevel
+            import tensorflow
 
             raw_version = tensorflow.__version__
         if framework == MSCFramework.TENSORRT:
@@ -404,13 +406,13 @@ def get_version(framework: str) -> List[int]:
             )
         else:
             raw_version = "1.0.0"
-    except:  # pylint: disable=bare-except
+    except:
         raw_version = "1.0.0"
     version = parse(raw_version or "1.0.0")
     return [version.major, version.minor, version.micro]
 
 
-def compare_version(given_version: List[int], target_version: List[int]) -> int:
+def compare_version(given_version: list[int], target_version: list[int]) -> int:
     """Compare version
 
     Parameters

@@ -17,7 +17,8 @@
 """The entry point of TVM parser for tir."""
 
 import inspect
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
@@ -28,8 +29,8 @@ from ..core.parser import Parser, ScriptMacro
 
 
 def prim_func(
-    func: Optional[Callable] = None, private: bool = False, check_well_formed=True
-) -> Union[PrimFunc, Callable]:
+    func: Callable | None = None, private: bool = False, check_well_formed=True
+) -> PrimFunc | Callable:
     """The parsing method for tir prim func, by using `@prim_func` as decorator.
 
     Parameters
@@ -51,7 +52,7 @@ def prim_func(
     res : Union[PrimFunc, Callable]
         The parsed tir prim func.
     """
-    # pylint: disable=unused-argument
+
     # (private will be used in the parser, but not immediately)
 
     # need to capture this var outside the wrapper because the wrapper
@@ -205,7 +206,7 @@ class BufferProxy:
             return self(keys)
         if len(keys) >= 2 and not isinstance(keys[1], str):
             return self(keys)
-        return self(*keys)  # type: ignore[attr-defined] # pylint: disable=no-member
+        return self(*keys)  # type: ignore[attr-defined]
 
 
 class PtrProxy:
@@ -215,7 +216,7 @@ class PtrProxy:
     def __call__(self, dtype, storage_scope="global"):
         if callable(dtype):
             dtype = dtype().dtype
-        return ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
+        return ptr(dtype, storage_scope)  # type: ignore[attr-defined]
 
     @deprecated("T.Ptr[...]", "T.handle(...)")
     def __getitem__(self, keys):
@@ -224,5 +225,5 @@ class PtrProxy:
         return self(*keys)
 
 
-Buffer = BufferProxy()  # pylint: disable=invalid-name
-Ptr = PtrProxy()  # pylint: disable=invalid-name
+Buffer = BufferProxy()
+Ptr = PtrProxy()

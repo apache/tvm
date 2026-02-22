@@ -104,7 +104,7 @@ def test_unary_intrin():
         func(a, b)
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=atol, rtol=rtol)
 
-        # Out‐of‐bounds test for asin/acos
+        # Out-of-bounds test for asin/acos
         name = tvm_intrin.__name__
         if name in ("asin", "acos"):
             # generate some values outside [-1, 1]

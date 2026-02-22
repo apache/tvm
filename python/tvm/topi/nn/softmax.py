@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, pointless-exception-statement
 """TVM operator for softmax and log_softmax compute."""
 
 import tvm
@@ -74,7 +73,7 @@ def softmax_common(x, axis, use_fast_exp):
     k2 = te.reduce_axis((0, shape[axis]), name="k")
 
     def insert_reduce_index(indices, reduce_index):
-        return indices[:axis] + (reduce_index,) + indices[axis:]
+        return (*indices[:axis], reduce_index, *indices[axis:])
 
     def get_non_reduce_indices(indices):
         return tuple([var for (i, var) in enumerate(indices) if i != axis])
@@ -149,7 +148,7 @@ def log_softmax(x, axis=-1):
     k2 = te.reduce_axis((0, shape[axis]), name="k")
 
     def insert_reduce_index(indices, reduce_index):
-        return indices[:axis] + (reduce_index,) + indices[axis:]
+        return (*indices[:axis], reduce_index, *indices[axis:])
 
     def get_non_reduce_indices(indices):
         return tuple([var for (i, var) in enumerate(indices) if i != axis])

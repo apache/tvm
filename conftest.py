@@ -19,8 +19,6 @@ import os
 import sys
 from pathlib import Path
 
-import pytest
-
 pytest_plugins = ["tvm.testing.plugin"]
 IS_IN_CI = os.getenv("CI", "") == "true"
 REPO_ROOT = Path(__file__).resolve().parent
@@ -49,7 +47,8 @@ def find_shard_index(nodeid: str, num_shards: int) -> int:
         if nodeid.startswith(prefix):
             if target_shard_idx >= num_shards:
                 raise RuntimeError(
-                    f"Cannot collect sharded tests, {nodeid} has hardcoded shard index {target_shard_idx} among only {num_shards} shards"
+                    f"Cannot collect sharded tests, {nodeid} has hardcoded shard index "
+                    f"{target_shard_idx} among only {num_shards} shards"
                 )
             return target_shard_idx
 

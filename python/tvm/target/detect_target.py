@@ -91,7 +91,7 @@ def _detect_vulkan(dev: Device) -> Target:
     )
 
 
-def _detect_cpu(dev: Device) -> Target:  # pylint: disable=unused-argument
+def _detect_cpu(dev: Device) -> Target:
     """Detect the host CPU architecture."""
     return Target(
         {
@@ -108,7 +108,7 @@ def _detect_cpu(dev: Device) -> Target:  # pylint: disable=unused-argument
     )
 
 
-def detect_target_from_device(dev: Union[str, Device]) -> Target:
+def detect_target_from_device(dev: str | Device) -> Target:
     """Detects Target associated with the given device. If the device does not exist,
     there will be an Error.
 

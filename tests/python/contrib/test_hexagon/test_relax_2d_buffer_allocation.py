@@ -28,7 +28,6 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 
-# pylint: disable=missing-docstring,no-self-argument,invalid-name
 @I.ir_module
 class Module:
     @T.prim_func
@@ -64,7 +63,6 @@ class Module:
         return out2
 
 
-# pylint: enable=missing-docstring,no-self-argument,invalid-name
 @pytest.mark.skip
 def test_alloc_storage_with_scope_global(hexagon_launcher):
     """

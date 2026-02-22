@@ -24,10 +24,10 @@ from .. import args_converter
 from ..expr import Expr
 from . import _ffi_api
 
-PrimExprLike = Union[int, PrimExpr]
+PrimExprLike = int | PrimExpr
 
 
-def take(x: Expr, indices: Expr, axis: Optional[int] = None, mode: str = "fast") -> Expr:
+def take(x: Expr, indices: Expr, axis: int | None = None, mode: str = "fast") -> Expr:
     """Take elements from a tensor along an axis.
     Its semantic is mostly similar to `numpy.take`
     (https://numpy.org/doc/stable/reference/generated/numpy.take.html),
@@ -66,7 +66,7 @@ def strided_slice(
     axes: Expr,
     begin: Expr,
     end: Expr,
-    strides: Optional[Expr] = None,
+    strides: Expr | None = None,
     assume_inbound: bool = False,
 ) -> Expr:
     """Strided slice of a tensor.

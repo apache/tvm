@@ -16,7 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=redefined-builtin, wildcard-import
 """TVM Operator Inventory.
 
 TOPI is the operator collection library for TVM, to provide sugars

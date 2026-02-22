@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """NLLLoss in python"""
 
 import numpy as np
@@ -63,7 +62,7 @@ def nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-100)
         class_id = targets[index]
         if class_id != ignore_index:
             index_list = list(index)
-            pred_index = tuple(index_list[:1] + [class_id] + index_list[1:])
+            pred_index = tuple([*index_list[:1], class_id, *index_list[1:]])
             res[index] = -predictions[pred_index] * weights[class_id]
             weight_sum += weights[class_id]
     if reduction == "mean":

@@ -16,7 +16,9 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.tools.distill.distiller"""
 
-from typing import Any, Dict
+from __future__ import annotations
+
+from typing import Any
 
 import torch
 from torch import optim
@@ -118,7 +120,7 @@ class TorchDistillerFactory:
                 self._optimizer.step()
                 return loss
 
-            def _distill(self) -> Dict[str, Any]:
+            def _distill(self) -> dict[str, Any]:
                 """Distill the knowledge
 
                 Returns

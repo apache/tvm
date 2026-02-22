@@ -14,13 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, invalid-name
 """Loss functions library for relax."""
 
 from typing import Optional, Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -30,7 +29,7 @@ from ..op import abs, argmax, mean, multiply, reshape, subtract, sum
 from ..op.nn import log_softmax, nll_loss
 
 
-def _create_param_var(param: Union[Var, StructInfo], param_name: str) -> Var:
+def _create_param_var(param: Var | StructInfo, param_name: str) -> Var:
     """If param is a StructInfo, create a Var with the given StructInfo and name.
 
     If param is a Var, create a Var with the same StructInfo and name as the given param Var."""
@@ -139,8 +138,8 @@ class L1Loss(Loss):
 
     def __call__(
         self,
-        predictions: Union[Var, StructInfo],
-        targets: Union[Var, StructInfo],
+        predictions: Var | StructInfo,
+        targets: Var | StructInfo,
     ) -> Function:
         """Get the relax function of L1Loss. If the parameters are
         struct info, it will create corresponding variables.
@@ -188,8 +187,8 @@ class MSELoss(Loss):
 
     def __call__(
         self,
-        predictions: Union[Var, StructInfo],
-        targets: Union[Var, StructInfo],
+        predictions: Var | StructInfo,
+        targets: Var | StructInfo,
     ) -> Function:
         """Get the relax function of MSELoss. If the parameters are
         struct info, it will create corresponding variables.
@@ -248,9 +247,9 @@ class CrossEntropyLoss(Loss):
 
     def __call__(
         self,
-        predictions: Union[Var, StructInfo],
-        targets: Union[Var, StructInfo],
-        weights: Optional[Union[Var, StructInfo]] = None,
+        predictions: Var | StructInfo,
+        targets: Var | StructInfo,
+        weights: Var | StructInfo | None = None,
     ) -> Function:
         """Get the relax function of CrossEntropyLoss. If the parameters are
         struct info, it will create corresponding variables.
@@ -321,9 +320,9 @@ class CategoricalCrossEntropyLoss(Loss):
 
     def __call__(
         self,
-        predictions: Union[Var, StructInfo],
-        targets: Union[Var, StructInfo],
-        weights: Optional[Union[Var, StructInfo]] = None,
+        predictions: Var | StructInfo,
+        targets: Var | StructInfo,
+        weights: Var | StructInfo | None = None,
     ) -> Function:
         """Get the relax function of CategoricalCrossEntropyLoss. If the parameters are
         struct info, it will create corresponding variables.

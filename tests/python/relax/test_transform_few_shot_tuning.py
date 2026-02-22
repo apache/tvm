@@ -14,8 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,,missing-function-docstring
-from typing import List, Tuple
+from __future__ import annotations
 
 import numpy as np
 import pytest
@@ -25,12 +24,11 @@ import tvm.testing
 from tvm.relax.transform import FewShotTuning
 from tvm.s_tir.meta_schedule.arg_info import ArgInfo
 from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
-from tvm.s_tir.tensor_intrin.cuda import *  # pylint: disable=wildcard-import,unused-wildcard-import
-from tvm.s_tir.tensor_intrin.x86 import *  # pylint: disable=wildcard-import,unused-wildcard-import
+from tvm.s_tir.tensor_intrin.cuda import *
+from tvm.s_tir.tensor_intrin.x86 import *
 from tvm.script import tir as T
 
 
-# pylint: disable=no-self-argument,missing-class-docstring,line-too-long
 # fmt: off
 @tvm.script.ir_module
 class MatMul:
@@ -310,7 +308,6 @@ class Module:
                 T.writes(T_multiply[v_ax0, v_ax1, v_ax2])
                 T_multiply[v_ax0, v_ax1, v_ax2] = T_strided_slice_with_axes_1[v_ax0, v_ax1, v_ax2] * T_multiply_7[v_ax0, v_ax1, v_ax2]
 # fmt: on
-# pylint: enable=no-self-argument,missing-class-docstring,line-too-long
 
 
 def _target() -> tvm.target.Target:
@@ -329,7 +326,7 @@ def _get_single_prim_func(mod: tvm.ir.IRModule) -> tvm.tir.PrimFunc:
     return funcs[0]
 
 
-def _get_input_output_info(func: tvm.tir.PrimFunc) -> Tuple[List[np.ndarray], Tuple, str]:
+def _get_input_output_info(func: tvm.tir.PrimFunc) -> tuple[list[np.ndarray], tuple, str]:
     args = ArgInfo.from_prim_func(func)
     inputs = [generate_input_data(x.shape, x.dtype) for x in args[:-1]]
     output_shape = args[-1].shape
@@ -338,7 +335,7 @@ def _get_input_output_info(func: tvm.tir.PrimFunc) -> Tuple[List[np.ndarray], Tu
 
 
 def _expected_results(
-    mod: tvm.ir.IRModule, inputs: List[np.ndarray], output_shape: Tuple, output_dtype: str
+    mod: tvm.ir.IRModule, inputs: list[np.ndarray], output_shape: tuple, output_dtype: str
 ) -> np.ndarray:
     func = _get_single_prim_func(mod)
     func = func.with_attr("global_symbol", "main")
@@ -355,7 +352,7 @@ def _expected_results(
 
 
 def _actual_results(
-    actual: tvm.ir.IRModule, inputs: List[np.ndarray], output_shape: Tuple, output_dtype: str
+    actual: tvm.ir.IRModule, inputs: list[np.ndarray], output_shape: tuple, output_dtype: str
 ):
     target = _target()
     actual_rt_mod = tvm.compile(actual, target=target)

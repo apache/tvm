@@ -75,7 +75,7 @@ def test_rocm_copy():
 @tvm.testing.requires_rocm
 def test_rocm_vectorize_add():
     def check_rocm(dtype, n, lanes):
-        vec_dtype = "%sx%d" % (dtype, lanes)
+        vec_dtype = f"{dtype}x{lanes}"
         num_blocks = n // 4
 
         @I.ir_module

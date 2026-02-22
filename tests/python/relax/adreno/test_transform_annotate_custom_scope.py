@@ -27,7 +27,7 @@ from tvm.script.parser import tir as T
 
 
 @visitor
-class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
+class ValidateScope(PyExprVisitor):
     def __init__(self, scope_info: dict) -> None:
         self.scope_info = scope_info
         self.matched = True
@@ -39,7 +39,7 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
                 self.visit_expr(func)
         return self.matched
 
-    def visit_call_(self, call: relax.Call) -> None:  # pylint: disable=arguments-renamed
+    def visit_call_(self, call: relax.Call) -> None:
         if call.op.name == "relax.call_tir":
             # if call.args[0].name_hint in self.scope_info:
             for idx, arg in enumerate(call.args[1]):

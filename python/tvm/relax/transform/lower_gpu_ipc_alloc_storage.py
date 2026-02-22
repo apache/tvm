@@ -51,7 +51,7 @@ class _Rewriter(PyExprMutator):
                 self.builder_.update_func(g_var, updated_func)
         return self.builder_.get()
 
-    def visit_call_(self, call: relax.Call) -> Expr:  # pylint: disable=arguments-renamed
+    def visit_call_(self, call: relax.Call) -> Expr:
         if call.op == self.memory_alloc_storage_op and call.args[2].value == "ipc_memory":
             return self.rewrite_alloc_storage(call)
         elif call.op == self.builtin_alloc_tensor_op and call.args[3].value == "ipc_memory":

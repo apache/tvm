@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Helper utility to save and load parameter dicts."""
 
 from . import Tensor, _ffi_api, tensor

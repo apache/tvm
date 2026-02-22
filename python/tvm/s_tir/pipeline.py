@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name
 """The S-TIR backend compilation pipeline."""
 
 import tvm
@@ -128,7 +127,7 @@ def default_s_tir_pipeline():
     return _pipeline
 
 
-def finalize_host_passes():  # pylint: disable=unused-argument
+def finalize_host_passes():
     """The default finalization passes for TIR backend."""
     host_pass_list = [
         tir.transform.LowerTVMBuiltin(),

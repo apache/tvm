@@ -129,7 +129,7 @@ def test_basic():
     a = tvm.tir.Var("a", "int32")
     b = tvm.tir.Var("b", "int32")
     c = a + b
-    assert str(c) == "%s + %s" % (a.name, b.name)
+    assert str(c) == f"{a.name} + {b.name}"
 
 
 def test_stmt():
@@ -164,22 +164,11 @@ def test_any():
         assert False
     except ValueError:
         pass
-    assert str(tvm.tir.any(x < y)) == "%s < %s" % (x.name, y.name)
-    assert str(tvm.tir.any(x < y, x > z)) == "%s < %s or %s > %s" % (
-        x.name,
-        y.name,
-        x.name,
-        z.name,
-    )
-    assert str(
-        tvm.tir.any(x < y, y > z + 1, x < z * 2)
-    ) == "%s < %s or %s > %s + 1 or %s < %s * 2" % (
-        x.name,
-        y.name,
-        y.name,
-        z.name,
-        x.name,
-        z.name,
+    assert str(tvm.tir.any(x < y)) == f"{x.name} < {y.name}"
+    assert str(tvm.tir.any(x < y, x > z)) == f"{x.name} < {y.name} or {x.name} > {z.name}"
+    assert (
+        str(tvm.tir.any(x < y, y > z + 1, x < z * 2))
+        == f"{x.name} < {y.name} or {y.name} > {z.name} + 1 or {x.name} < {z.name} * 2"
     )
 
 
@@ -197,22 +186,11 @@ def test_all():
         assert False
     except ValueError:
         pass
-    assert str(tvm.tir.all(x < y)) == "%s < %s" % (x.name, y.name)
-    assert str(tvm.tir.all(x < y, x > z)) == "%s < %s and %s > %s" % (
-        x.name,
-        y.name,
-        x.name,
-        z.name,
-    )
-    assert str(
-        tvm.tir.all(x < y, y > z + 1, x < z * 2)
-    ) == "%s < %s and %s > %s + 1 and %s < %s * 2" % (
-        x.name,
-        y.name,
-        y.name,
-        z.name,
-        x.name,
-        z.name,
+    assert str(tvm.tir.all(x < y)) == f"{x.name} < {y.name}"
+    assert str(tvm.tir.all(x < y, x > z)) == f"{x.name} < {y.name} and {x.name} > {z.name}"
+    assert (
+        str(tvm.tir.all(x < y, y > z + 1, x < z * 2))
+        == f"{x.name} < {y.name} and {y.name} > {z.name} + 1 and {x.name} < {z.name} * 2"
     )
 
 

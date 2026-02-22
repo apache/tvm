@@ -16,7 +16,9 @@
 # under the License.
 """Common schedule strategies for TIR."""
 
-from typing import Callable, List
+from __future__ import annotations
+
+from collections.abc import Callable
 
 from tvm import s_tir
 
@@ -25,8 +27,8 @@ from ..analysis import SBlockInfo
 
 def try_inline(
     sch: s_tir.Schedule,
-    blocks: List[SBlockInfo],
-) -> List[SBlockInfo]:
+    blocks: list[SBlockInfo],
+) -> list[SBlockInfo]:
     """Try to inline as many blocks as possible, and return the remaining blocks.
 
     Parameters
@@ -46,7 +48,7 @@ def try_inline(
         for i, block in enumerate(blocks):
             try:
                 func(block.block_rv)
-            except:  # pylint: disable=bare-except
+            except:
                 continue
             return i
         return None
@@ -63,8 +65,8 @@ def try_inline(
 
 def try_inline_contiguous_spatial(
     sch: s_tir.Schedule,
-    block_infos: List[SBlockInfo],
-) -> List[SBlockInfo]:
+    block_infos: list[SBlockInfo],
+) -> list[SBlockInfo]:
     """Try to inline contiguous spatial blocks in a schedule
 
     Parameters

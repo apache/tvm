@@ -29,7 +29,7 @@ from ..patterns import make_matmul_pattern
 from ..utils import has_leaking_intermediate_variables
 
 
-def _is_supported_dtype(lhs_dtype, rhs_dtype, out_dtype):  # pylint: disable=unused-argument
+def _is_supported_dtype(lhs_dtype, rhs_dtype, out_dtype):
     """Check if dtypes in the given workload are supported by hipblas BYOC."""
     if lhs_dtype == "float8_e4m3fn" and rhs_dtype == "float8_e4m3fn":
         # The output cannot be 'float8_e5m2' if inputs are 'float8_e4m3fn'

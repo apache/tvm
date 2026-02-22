@@ -16,12 +16,14 @@
 # under the License.
 """External kernel integration fro TIR"""
 
+from __future__ import annotations
+
 import json
 import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any
 
 from tvm import __version__ as tvm_version
 from tvm import tir
@@ -29,12 +31,12 @@ from tvm.contrib import nvcc
 from tvm.runtime import Module, const, load_module
 
 
-class BaseKernel:  # pylint: disable=too-few-public-methods
+class BaseKernel:
     """Base class for external kernels."""
 
     def compile_to_device_module(
         self, launch_args, *args, **kwargs
-    ) -> Tuple[str, Module, List[Any]]:
+    ) -> tuple[str, Module, list[Any]]:
         """Compile the kernel to a device module."""
         raise NotImplementedError()
 
@@ -104,20 +106,20 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
         return kernel_module
 
 
-class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
+class SourceKernel(BaseKernel):
     """A kernel from source code."""
 
     def __init__(self, source_code: str):
         self.source_code = source_code
 
-    def compile_to_device_module(  # pylint: disable=arguments-differ
+    def compile_to_device_module(
         self,
-        grid: List[List[Union[int, tir.PrimExpr]]],
-        *args: List[Any],
-        **kwargs: Dict[str, Any],
-    ) -> Tuple[str, Module, List[Any]]:
+        grid: list[list[int | tir.PrimExpr]],
+        *args: list[Any],
+        **kwargs: dict[str, Any],
+    ) -> tuple[str, Module, list[Any]]:
         """Compile the kernel to a device module."""
-        from tvm.relax.frontend.nn import (  # pylint: disable=import-outside-toplevel
+        from tvm.relax.frontend.nn import (
             SourceModule,
         )
 
@@ -145,7 +147,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             if source_path.is_file():
                 with open(source_path) as f:
                     source_code = f.read()
-        except:  # pylint: disable=bare-except
+        except:
             pass
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -181,9 +183,9 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
 
 def call_kernel(
     kernel,
-    launch_args: List[Union[int, tir.PrimExpr, List[Union[int, tir.PrimExpr]]]],
-    *args: List[Any],
-    **kwargs: Dict[str, Any],
+    launch_args: list[int | tir.PrimExpr | list[int | tir.PrimExpr]],
+    *args: list[Any],
+    **kwargs: dict[str, Any],
 ):
     """
     Call an external kernel.
@@ -203,15 +205,15 @@ def call_kernel(
     kwargs : Dict[str, Any]
         Additional keyword arguments to pass to the kernel or compilation.
     """
-    from ..ir import (  # pylint: disable=import-outside-toplevel
+    from ..ir import (
         module_get_attr,
         module_set_attr,
     )
-    from .ir import call_packed  # pylint: disable=import-outside-toplevel
+    from .ir import call_packed
 
     kernel_type = f"{type(kernel).__module__}.{type(kernel).__qualname__}"
     if kernel_type == "triton.runtime.jit.JITFunction":
-        from .triton import TritonKernel  # pylint: disable=import-outside-toplevel
+        from .triton import TritonKernel
 
         kernel = TritonKernel(kernel)
     elif kernel_type == "builtins.str":
@@ -224,7 +226,7 @@ def call_kernel(
     )
 
     # Attach the kernel module to the current IRModule
-    external_mods: List[Module] = module_get_attr("external_mods") or []
+    external_mods: list[Module] = module_get_attr("external_mods") or []
     kernel_exists = any([mod.implements_function(kernel_name) for mod in external_mods])
     if kernel_exists:
         logging.debug("Kernel %s already exists in the IRModule", kernel_name)

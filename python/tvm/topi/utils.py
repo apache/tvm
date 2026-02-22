@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Common topi utilities"""
 
 from __future__ import absolute_import as _abs
@@ -526,7 +525,7 @@ def ceil_div(a, b):
 
 def swap(arr, axis):
     """swap arr[axis] and arr[-1]"""
-    return arr[:axis] + [arr[-1]] + arr[axis + 1 : -1] + [arr[axis]]
+    return [*arr[:axis], arr[-1], *arr[axis + 1 : -1], arr[axis]]
 
 
 def is_target(names):

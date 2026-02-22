@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import gc
 import sys
 
@@ -25,8 +24,6 @@ import tvm.testing
 from tvm import tir
 from tvm.ir import IRModule
 from tvm.script import tir as T
-
-# pylint: disable=no-member,invalid-name,unused-variable
 
 
 @T.prim_func
@@ -85,9 +82,6 @@ def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
                         with T.sblock("F"):
                             vj = T.axis.S(128, j)
                             B[vi, vj] = A[vi, vj] * 2.0
-
-
-# pylint: enable=no-member,invalid-name,unused-variable
 
 
 def replace_ir_builder(deep_copy=False, realize=False):

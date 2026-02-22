@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring, unused-variable, invalid-name
 import tvm
 import tvm.testing
 from tvm.s_tir import dlight as dl

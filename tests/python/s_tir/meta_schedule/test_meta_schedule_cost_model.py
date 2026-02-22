@@ -14,14 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
+from __future__ import annotations
+
 import os
 import re
 import shutil
 import tempfile
 import unittest
 from functools import partial
-from typing import List
 
 import numpy as np
 
@@ -38,11 +38,10 @@ from tvm.s_tir.schedule.schedule import Schedule
 from tvm.script import tir as T
 
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 @tvm.script.ir_module
 class Matmul:
     @T.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
@@ -68,9 +67,6 @@ class FullModule:
                 T_full[v_ax0, v_ax1] = T.float32(1)
 
 
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,disable=unused-argument
-
-
 def test_meta_schedule_cost_model():
     @derived_object
     class FancyCostModel(PyCostModel):
@@ -83,12 +79,12 @@ def test_meta_schedule_cost_model():
         def update(
             self,
             context: TuneContext,
-            candidates: List[MeasureCandidate],
-            results: List[RunnerResult],
+            candidates: list[MeasureCandidate],
+            results: list[RunnerResult],
         ) -> None:
             pass
 
-        def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+        def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
             return np.random.rand(10)
 
     model = FancyCostModel()
@@ -113,12 +109,12 @@ def test_meta_schedule_cost_model_as_string():
         def update(
             self,
             context: TuneContext,
-            candidates: List[MeasureCandidate],
-            results: List[RunnerResult],
+            candidates: list[MeasureCandidate],
+            results: list[RunnerResult],
         ) -> None:
             pass
 
-        def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+        def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
             return np.random.rand(10)
 
     cost_model = NotSoFancyCostModel()
@@ -223,15 +219,13 @@ def test_meta_schedule_xgb_model_reload():
     assert (res1 == res2).all()
     assert old_data_size == new_data_size
     assert len(old_data) == len(new_data)
-    for (k1, g1), (k2, g2) in zip(  # pylint: disable=invalid-name
-        old_data.items(), new_data.items()
-    ):
+    for (k1, g1), (k2, g2) in zip(old_data.items(), new_data.items()):
         assert k1 == k2
         assert k1 == g1.group_hash
         assert k2 == g2.group_hash
         assert (g1.costs == g2.costs).all()
         assert len(g1.features) == len(g2.features)
-        for f1, f2 in zip(g1.features, g2.features):  # pylint: disable=invalid-name
+        for f1, f2 in zip(g1.features, g2.features):
             assert (f1 == f2).all()
 
 
@@ -259,12 +253,9 @@ def test_meta_schedule_xgb_model_reupdate():
 
 
 def test_meta_schedule_xgb_model_callback_as_function():
-    # pylint: disable=import-outside-toplevel
     from itertools import chain as itertools_chain
 
     import xgboost as xgb
-
-    # pylint: enable=import-outside-toplevel
 
     extractor = RandomFeatureExtractor()
     model = XGBModel(extractor=extractor, num_warmup_samples=10)
@@ -284,7 +275,7 @@ def test_meta_schedule_xgb_model_callback_as_function():
         model.save(path.name)
 
         old_booster = model.booster
-        xs = [  # pylint: disable=invalid-name
+        xs = [
             x.numpy().astype("float32")
             for x in extractor.extract_from(
                 TuneContext(),
@@ -305,13 +296,13 @@ def test_meta_schedule_xgb_model_callback_as_function():
             ),
         )
 
-        def obj(ys_pred: np.ndarray, d_train1: "xgb.DMatrix"):  # type: ignore # pylint: disable = unused-argument
+        def obj(ys_pred: np.ndarray, d_train1: xgb.DMatrix):  # type: ignore
             return d_train.obj_square_error(ys_pred)
 
-        def rmse(ys_pred: np.ndarray, d_train1: "xgb.DMatrix"):  # type: ignore # pylint: disable = unused-argument
+        def rmse(ys_pred: np.ndarray, d_train1: xgb.DMatrix):  # type: ignore
             return d_train.rmse(ys_pred)
 
-        def avg_peak_score(ys_pred: np.ndarray, d_train1: "xgb.DMatrix"):  # type: ignore # pylint: disable = unused-argument
+        def avg_peak_score(ys_pred: np.ndarray, d_train1: xgb.DMatrix):  # type: ignore
             return d_train.average_peak_score(ys_pred, model.average_peak_n)
 
         new_booster = xgb.train(
@@ -330,7 +321,7 @@ def test_meta_schedule_xgb_model_callback_as_function():
             ],
         )
 
-        xs = [  # pylint: disable=invalid-name
+        xs = [
             x.numpy().astype("float32")
             for x in extractor.extract_from(
                 TuneContext(),

@@ -16,8 +16,11 @@
 # under the License.
 """tvm.contrib.msc.core.tools.execute"""
 
+from __future__ import annotations
+
+from collections.abc import Iterable
 from functools import wraps
-from typing import Any, Dict, Iterable, List
+from typing import Any
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -215,8 +218,8 @@ def process_tensor(tensor: Any, name: str, consumer: str, scope: str, tag: str =
 
 @tvm.register_global_func("msc_tool.codegen_tensor")
 def codegen_tensor(
-    tensor_ctx: Dict[str, str], name: str, consumer: str, scope: str, tag: str = "main"
-) -> List[str]:
+    tensor_ctx: dict[str, str], name: str, consumer: str, scope: str, tag: str = "main"
+) -> list[str]:
     """Codegen processed tensor describe with tools
 
     Parameters
@@ -320,8 +323,8 @@ def execute_step(step: str, *args, **kwargs):
 
 
 def _execute_step_with_context(
-    step_ctx: Dict[str, Any], step: str, graph_name: str, tag: str = "main"
-) -> Dict[str, Any]:
+    step_ctx: dict[str, Any], step: str, graph_name: str, tag: str = "main"
+) -> dict[str, Any]:
     """Execute step with contect
 
     Parameters
@@ -357,8 +360,8 @@ def _execute_step_with_context(
 
 @tvm.register_global_func("msc_tool.codegen_step")
 def codegen_step(
-    step_ctx: Dict[str, str], step: str, graph_name: str, tag: str = "main"
-) -> List[str]:
+    step_ctx: dict[str, str], step: str, graph_name: str, tag: str = "main"
+) -> list[str]:
     """Codegen step codes
 
     Parameters
@@ -384,7 +387,7 @@ def codegen_step(
 
 
 @tvm.register_global_func("msc_tool.callback_step")
-def callback_step(step_ctx: Dict[str, Any], step: str, graph_name: str = "main", tag: str = "main"):
+def callback_step(step_ctx: dict[str, Any], step: str, graph_name: str = "main", tag: str = "main"):
     """Execute tools for a step
 
     Parameters

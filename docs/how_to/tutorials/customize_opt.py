@@ -192,7 +192,7 @@ with target:
     mod = tvm.ir.transform.Sequential(
         [
             relax.get_pipeline("zero"),
-            dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.ApplyDefaultSchedule(
                 dl.gpu.Matmul(),
                 dl.gpu.GEMV(),
                 dl.gpu.Reduction(),

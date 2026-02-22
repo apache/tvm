@@ -132,7 +132,7 @@ def test_tensor_args():
 
 
 def test_dict_function_value_type():
-    from tvm import tir  # pylint: disable=import-outside-toplevel
+    from tvm import tir
 
     te_func_dict = {"add": lambda a, b: a + b}
 

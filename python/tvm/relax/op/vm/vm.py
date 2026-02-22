@@ -25,9 +25,9 @@ from . import _ffi_api
 @args_converter.auto
 def alloc_storage(
     shape: Expr,
-    runtime_device_index: Union[int, Expr],
-    dtype: Union[str, Expr],
-    storage_scope: Union[str, StringImm] = "global",
+    runtime_device_index: int | Expr,
+    dtype: str | Expr,
+    storage_scope: str | StringImm = "global",
 ) -> Call:
     """Construct a Call to allocate a storage with specific size,
     runtime_device_index, and dtype.
@@ -64,10 +64,10 @@ def alloc_storage(
 @args_converter.auto
 def alloc_tensor(
     storage: Expr,
-    offset: Union[int, Expr],
+    offset: int | Expr,
     shape: Expr,
-    dtype: Union[str, Expr],
-    runtime_device_ind: Union[int, Expr] = PrimValue(0),
+    dtype: str | Expr,
+    runtime_device_ind: int | Expr = PrimValue(0),
 ) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 

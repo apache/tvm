@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-nested-blocks
 "Roi pool in python"
 
 import math
@@ -36,10 +35,10 @@ def roi_pool_nchw_python(a_np, rois_np, pooled_size, spatial_scale):
     for i in range(num_roi):
         roi = rois_np[i]
         batch_index = int(roi[0])
-        roi_start_w = int(round(roi[1] * spatial_scale))
-        roi_start_h = int(round(roi[2] * spatial_scale))
-        roi_end_w = int(round(roi[3] * spatial_scale))
-        roi_end_h = int(round(roi[4] * spatial_scale))
+        roi_start_w = round(roi[1] * spatial_scale)
+        roi_start_h = round(roi[2] * spatial_scale)
+        roi_end_w = round(roi[3] * spatial_scale)
+        roi_end_h = round(roi[4] * spatial_scale)
         roi_h = max(roi_end_h - roi_start_h + 1, 1)
         roi_w = max(roi_end_w - roi_start_w + 1, 1)
 
@@ -48,10 +47,10 @@ def roi_pool_nchw_python(a_np, rois_np, pooled_size, spatial_scale):
 
         for ph in range(pooled_size_h):
             for pw in range(pooled_size_w):
-                hstart = int(math.floor(ph * bin_h))
-                wstart = int(math.floor(pw * bin_w))
-                hend = int(math.ceil((ph + 1) * bin_h))
-                wend = int(math.ceil((pw + 1) * bin_w))
+                hstart = math.floor(ph * bin_h)
+                wstart = math.floor(pw * bin_w)
+                hend = math.ceil((ph + 1) * bin_h)
+                wend = math.ceil((pw + 1) * bin_w)
                 hstart = min(max(hstart + roi_start_h, 0), height)
                 hend = min(max(hend + roi_start_h, 0), height)
                 wstart = min(max(wstart + roi_start_w, 0), width)

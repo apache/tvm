@@ -16,7 +16,9 @@
 # under the License.
 """tvm.contrib.msc.core.tools.track.tracker"""
 
-from typing import Any, List
+from __future__ import annotations
+
+from typing import Any
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools.tool import BaseTool, ToolStrategy, ToolType
@@ -123,7 +125,7 @@ class BaseTracker(BaseTool):
         return False
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Process tensor
 
@@ -149,7 +151,7 @@ class BaseTracker(BaseTool):
         return self._track_tensor(tensor, name, consumer, strategys)
 
     def _track_tensor(
-        self, tensor: Any, name: str, consumer: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Process tensor
 

@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """tvm.contrib.msc.core.tools.prune.method"""
 
-from typing import List
+from __future__ import annotations
 
 import numpy as np
 
@@ -31,7 +30,7 @@ class PruneMethod:
     """Default prune method"""
 
     @classmethod
-    def prune_axis(cls, data: np.ndarray, axis: int, indices: List[int]) -> np.ndarray:
+    def prune_axis(cls, data: np.ndarray, axis: int, indices: list[int]) -> np.ndarray:
         """Delete indices on axis
 
         Parameters
@@ -63,7 +62,7 @@ class PruneMethod:
         consumer: str,
         in_axis: int,
         out_axis: int,
-        in_indices: List[int],
+        in_indices: list[int],
         density: float,
         stride: int = 8,
     ) -> np.ndarray:

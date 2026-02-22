@@ -33,7 +33,7 @@ def test_cuda_multi_lib():
     dev = tvm.cuda(0)
     for device in ["llvm", "cuda"]:
         if not tvm.testing.device_enabled(device):
-            print("skip because %s is not enabled..." % device)
+            print(f"skip because {device} is not enabled...")
             return
 
     @tvm.script.ir_module

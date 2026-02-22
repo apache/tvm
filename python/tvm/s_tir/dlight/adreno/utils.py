@@ -16,8 +16,7 @@
 # under the License.
 """Utilis for Adreno operators."""
 
-# pylint: disable=import-outside-toplevel, unused-argument, invalid-name, missing-function-docstring
-from typing import List
+from __future__ import annotations
 
 from tvm import s_tir
 from tvm.target import Target
@@ -67,13 +66,15 @@ def get_texture_storage(block_info: SBlockInfo):
     return "global"
 
 
-def schedule_inline_blocks(sch: s_tir.Schedule, blocks: List[s_tir.schedule.SBlockRV] = None):
+def schedule_inline_blocks(
+    sch: s_tir.Schedule, blocks: list[s_tir.schedule.SBlockRV] | None = None
+):
     from .fallback import Fallback
 
     return Fallback.schedule_inline_blocks(sch, blocks)
 
 
-def schedule_default(sch, blocks: List[s_tir.schedule.SBlockRV] = None):
+def schedule_default(sch, blocks: list[s_tir.schedule.SBlockRV] | None = None):
     from .fallback import Fallback
 
     ret = []

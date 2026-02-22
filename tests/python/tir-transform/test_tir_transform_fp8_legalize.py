@@ -21,8 +21,6 @@ from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir.transform.transform import BindTarget
 
-# pylint: disable=no-member,invalid-name,unused-variable
-
 
 def get_before(dtype: str):
     @tvm.script.ir_module

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Convolution 3D in python"""
 
 import numpy as np
@@ -83,7 +82,6 @@ def correlation_nchw_python(
     else:
         corr_func = lambda x, y: abs(x - y)
 
-    # pylint: disable=too-many-nested-blocks
     for i in range(out_height):
         for j in range(out_width):
             for nbatch in range(data1.shape[0]):

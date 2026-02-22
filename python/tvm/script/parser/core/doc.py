@@ -16,13 +16,15 @@
 # under the License.
 """TVM Script Parser doc AST"""
 
+from __future__ import annotations
+
 import ast
 import inspect
 import typing
 from collections import defaultdict
 
 from . import doc_core as doc
-from .doc_core import *  # pylint: disable=unused-import,wildcard-import,redefined-builtin,W0614
+from .doc_core import *
 
 FnToDoc = typing.Callable[[ast.AST], doc.AST]
 FnFromDoc = typing.Callable[[doc.AST], ast.AST]
@@ -40,8 +42,8 @@ class Entry:
         The callable methods for converting doc AST to python AST node.
     """
 
-    to_doc: typing.Optional[FnToDoc]
-    from_doc: typing.Optional[FnFromDoc]
+    to_doc: FnToDoc | None
+    from_doc: FnFromDoc | None
 
     def __init__(self):
         self.to_doc = None
@@ -62,8 +64,8 @@ class Registry:
         between python AST node and doc AST node.
     """
 
-    _inst: typing.Optional["Registry"] = None
-    table: typing.Dict[str, Entry]
+    _inst: Registry | None = None
+    table: dict[str, Entry]
 
     def __init__(self):
         self.table = defaultdict(Entry)
@@ -83,8 +85,8 @@ def register_to_doc(name: str):
         The function of registering the to_doc method for python AST node type.
     """
 
-    def f(to_doc: FnToDoc):  # pylint: disable=redefined-outer-name
-        reg = Registry._inst  # pylint: disable=protected-access
+    def f(to_doc: FnToDoc):
+        reg = Registry._inst
         reg.table[name].to_doc = to_doc
 
     return f
@@ -104,8 +106,8 @@ def register_from_doc(name: str):
         The function of registering the from_doc method for python AST node type.
     """
 
-    def f(to_doc: FnFromDoc):  # pylint: disable=redefined-outer-name
-        reg = Registry._inst  # pylint: disable=protected-access
+    def f(to_doc: FnFromDoc):
+        reg = Registry._inst
         reg.table[name].from_doc = to_doc
 
     return f
@@ -131,7 +133,7 @@ def _is_atomic_type(node):
 
 def _get_registry_entry(cls_name, attr):
     cls_name = cls_name.split(".")[-1]
-    reg = Registry._inst  # pylint: disable=protected-access
+    reg = Registry._inst
     if cls_name in reg.table:
         entry = reg.table[cls_name]
         return getattr(entry, attr, None)
@@ -216,13 +218,13 @@ def parse(
         The parsed doc AST.
     """
     try:
-        program = ast.parse(  # pylint: disable=unexpected-keyword-arg
+        program = ast.parse(
             source=source,
             filename=filename,
             mode=mode,
             feature_version=(3, 8),
         )
-    except:  # pylint: disable=bare-except
+    except:
         program = ast.parse(
             source=source,
             filename=filename,
@@ -248,7 +250,7 @@ class NodeVisitor:
         )(node)
 
     def generic_visit(self, node: doc.AST) -> None:
-        for field in node.__class__._FIELDS:  # pylint: disable=protected-access
+        for field in node.__class__._FIELDS:
             value = getattr(node, field, None)
             if value is None:
                 pass
@@ -273,8 +275,8 @@ class NodeTransformer:
         )(node)
 
     def generic_visit(self, node: doc.AST) -> doc.AST:
-        kv: typing.Dict[str, typing.Any] = {}
-        for field in node.__class__._FIELDS:  # pylint: disable=protected-access
+        kv: dict[str, typing.Any] = {}
+        for field in node.__class__._FIELDS:
             value = getattr(node, field, None)
             if value is None:
                 pass
@@ -295,7 +297,7 @@ def _register_default():
             kv = {attr: self.func(getattr(node, attr, None)) for attr in self.fields}
             return self.doc_cls(**kv)
 
-    Registry._inst = Registry()  # pylint: disable=protected-access
+    Registry._inst = Registry()
     for cls_name in dir(doc):
         doc_cls = getattr(doc, cls_name)
         if not hasattr(ast, cls_name):
@@ -306,14 +308,14 @@ def _register_default():
                 DefaultTranslator(
                     getattr(doc, cls_name),
                     to_doc,
-                    doc_cls._FIELDS,  # pylint: disable=protected-access
+                    doc_cls._FIELDS,
                 )
             )
             register_from_doc(cls_name)(
                 DefaultTranslator(
                     getattr(ast, cls_name),
                     from_doc,
-                    doc_cls._FIELDS,  # pylint: disable=protected-access
+                    doc_cls._FIELDS,
                 )
             )
 

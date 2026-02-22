@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Utils for BYOC pattern matching"""
 
-from typing import Tuple
+from __future__ import annotations
 
 from tvm import relax
 from tvm.relax import DataflowVar, PyExprMutator
@@ -37,7 +36,7 @@ class BackendDispatcher(PyExprMutator):
         return "gpu" in target.keys
 
     @staticmethod
-    def get_shape_dtype(expr: relax.Expr) -> Tuple[relax.ShapeExpr, str]:
+    def get_shape_dtype(expr: relax.Expr) -> tuple[relax.ShapeExpr, str]:
         """Get shape and dtype from an expression.
         If the shape and dtype is unknown, raise an error."""
         sinfo = expr.struct_info

@@ -16,25 +16,24 @@
 # under the License.
 """Workloads in TE"""
 
-# pylint: disable=missing-docstring
-from typing import Tuple
+from __future__ import annotations
 
 from tvm import te, tir, topi
 from tvm.target import Target
 
 
-def batch_matmul_nkkm(  # pylint: disable=invalid-name,missing-docstring
+def batch_matmul_nkkm(
     B: int,
     N: int,
     M: int,
     K: int,
     in_dtype: str = "float32",
     out_dtype: str = "float32",
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     x = te.placeholder((B, N, K), name="X", dtype=in_dtype)
     y = te.placeholder((B, K, M), name="Y", dtype=in_dtype)
     k = te.reduce_axis((0, K), name="k")
-    z = te.compute(  # pylint: disable=invalid-name
+    z = te.compute(
         (B, N, M),
         lambda b, i, j: te.sum(
             x[b][i][k].astype(out_dtype) * y[b][k][j].astype(out_dtype),
@@ -45,7 +44,7 @@ def batch_matmul_nkkm(  # pylint: disable=invalid-name,missing-docstring
     return (x, y, z)
 
 
-def conv1d_nlc(  # pylint: disable=invalid-name,missing-docstring
+def conv1d_nlc(
     N: int,
     L: int,
     CI: int,
@@ -57,7 +56,7 @@ def conv1d_nlc(  # pylint: disable=invalid-name,missing-docstring
     groups: int = 1,
     in_dtype: str = "float32",
     out_dtype: str = "float32",
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     inputs = te.placeholder((N, L, CI), name="inputs", dtype=in_dtype)
     weight = te.placeholder((kernel_size, CI // groups, CO), name="weight", dtype=in_dtype)
 
@@ -87,7 +86,7 @@ def conv1d_nlc(  # pylint: disable=invalid-name,missing-docstring
     return (inputs, weight, output)
 
 
-def conv2d_nhwc(  # pylint: disable=invalid-name,missing-docstring
+def conv2d_nhwc(
     N: int,
     H: int,
     W: int,
@@ -100,7 +99,7 @@ def conv2d_nhwc(  # pylint: disable=invalid-name,missing-docstring
     groups: int = 1,
     in_dtype: str = "float32",
     out_dtype: str = "float32",
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     inputs = te.placeholder((N, H, W, CI), name="inputs", dtype=in_dtype)
     weight = te.placeholder(
         (kernel_size, kernel_size, CI // groups, CO), name="weight", dtype=in_dtype
@@ -135,7 +134,7 @@ def conv2d_nhwc(  # pylint: disable=invalid-name,missing-docstring
     return (inputs, weight, output)
 
 
-def conv3d_ndhwc(  # pylint: disable=invalid-name,missing-docstring
+def conv3d_ndhwc(
     N: int,
     D: int,
     H: int,
@@ -149,7 +148,7 @@ def conv3d_ndhwc(  # pylint: disable=invalid-name,missing-docstring
     groups: int = 1,
     in_dtype: str = "float32",
     out_dtype: str = "float32",
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     inputs = te.placeholder((N, D, H, W, CI), name="inputs", dtype=in_dtype)
     weight = te.placeholder(
         (kernel_size, kernel_size, kernel_size, CI // groups, CO), name="weight", dtype=in_dtype
@@ -187,7 +186,7 @@ def conv3d_ndhwc(  # pylint: disable=invalid-name,missing-docstring
     return (inputs, weight, output)
 
 
-def depthwise_conv2d_nhwc(  # pylint: disable=invalid-name,missing-docstring
+def depthwise_conv2d_nhwc(
     N: int,
     H: int,
     W: int,
@@ -199,7 +198,7 @@ def depthwise_conv2d_nhwc(  # pylint: disable=invalid-name,missing-docstring
     factor: int = 1,
     in_dtype: str = "float32",
     out_dtype: str = "float32",
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     inputs = te.placeholder((N, H, W, C), dtype=in_dtype)
     weight = te.placeholder((factor, kernel_size, kernel_size, C), dtype=in_dtype)
     batch_size, in_h, in_w, in_channel = inputs.shape
@@ -230,7 +229,7 @@ def depthwise_conv2d_nhwc(  # pylint: disable=invalid-name,missing-docstring
     return (inputs, weight, output)
 
 
-def conv2d_transpose_nhwc(  # pylint: disable=invalid-name,missing-docstring
+def conv2d_transpose_nhwc(
     N: int,
     H: int,
     W: int,
@@ -241,7 +240,7 @@ def conv2d_transpose_nhwc(  # pylint: disable=invalid-name,missing-docstring
     padding: int = 0,
     in_dtype: str = "float32",
     out_dtype: str = "float32",
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     inputs = te.placeholder((N, H, W, CI), name="inputs", dtype=in_dtype)
     weight = te.placeholder((kernel_size, kernel_size, CI, CO), name="weight", dtype=in_dtype)
 
@@ -320,7 +319,7 @@ def conv2d_transpose_nhwc(  # pylint: disable=invalid-name,missing-docstring
     return (inputs, weight, output)
 
 
-def conv2d_capsule_nhwijc(  # pylint: disable=invalid-name,missing-docstring
+def conv2d_capsule_nhwijc(
     N: int,
     H: int,
     W: int,
@@ -332,7 +331,7 @@ def conv2d_capsule_nhwijc(  # pylint: disable=invalid-name,missing-docstring
     capsule_size: int = 4,
     in_dtype: str = "float32",
     out_dtype: str = "float32",
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     inputs = te.placeholder(
         (N, H, W, capsule_size, capsule_size, CI), name="inputs", dtype=in_dtype
     )
@@ -367,11 +366,11 @@ def conv2d_capsule_nhwijc(  # pylint: disable=invalid-name,missing-docstring
     return (inputs, weight, output)
 
 
-def norm_bmn(  # pylint: disable=invalid-name,missing-docstring
+def norm_bmn(
     B: int,
     M: int,
     N: int,
-) -> Tuple[te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor]:
     a = te.placeholder((B, M, N), name="A")
     i = te.reduce_axis((0, M), name="i")
     j = te.reduce_axis((0, N), name="j")
@@ -384,7 +383,7 @@ def norm_bmn(  # pylint: disable=invalid-name,missing-docstring
     return (a, d)
 
 
-def conv2d_nhwc_without_layout_rewrite(  # pylint: disable=invalid-name
+def conv2d_nhwc_without_layout_rewrite(
     Input: te.Tensor,
     Filter: te.Tensor,
     stride: int,
@@ -446,7 +445,7 @@ def conv2d_nhwc_without_layout_rewrite(  # pylint: disable=invalid-name
     return Output
 
 
-def conv2d_nhwc_bn_relu(  # pylint: disable=invalid-name,missing-docstring
+def conv2d_nhwc_bn_relu(
     N: int,
     H: int,
     W: int,
@@ -458,7 +457,7 @@ def conv2d_nhwc_bn_relu(  # pylint: disable=invalid-name,missing-docstring
     dilation: int = 1,
     in_dtype: str = "float32",
     out_dtype: str = "float32",
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor]:
     data = te.placeholder((N, H, W, CI), name="data", dtype=in_dtype)
     kernel = te.placeholder((kernel_size, kernel_size, CI, CO), name="kernel", dtype=in_dtype)
     bias = te.placeholder((CO,), name="bias")
@@ -480,14 +479,14 @@ def conv2d_nhwc_bn_relu(  # pylint: disable=invalid-name,missing-docstring
     return (data, kernel, bias, bn_offset, bn_scale, out)
 
 
-def transpose_batch_matmul(  # pylint: disable=invalid-name,missing-docstring
+def transpose_batch_matmul(
     batch: int,
     seq_len: int,
     n_head: int,
     n_dim: int,
     in_dtype: str = "float32",
     out_dtype: str = "float32",
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     query = te.placeholder((batch, seq_len, n_head, n_dim), name="query", dtype=in_dtype)
     value = te.placeholder((batch, seq_len, n_head, n_dim), name="value", dtype=in_dtype)
     query_T = te.compute(
@@ -511,7 +510,7 @@ def transpose_batch_matmul(  # pylint: disable=invalid-name,missing-docstring
     return (query, value, out)
 
 
-def conv2d_winograd_nhwc(  # pylint: disable=invalid-name,missing-docstring
+def conv2d_winograd_nhwc(
     N: int,
     H: int,
     W: int,
@@ -522,8 +521,8 @@ def conv2d_winograd_nhwc(  # pylint: disable=invalid-name,missing-docstring
     padding: int = 0,
     dilation: int = 1,
     tile_size: int = 4,
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    from tvm.topi.nn.conv2d import (  # pylint: disable=import-outside-toplevel
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
+    from tvm.topi.nn.conv2d import (
         _conv2d_winograd_nhwc_impl,
     )
 
@@ -552,7 +551,7 @@ def conv2d_winograd_nhwc(  # pylint: disable=invalid-name,missing-docstring
 
 def matmul(
     n: int, m: int, k: int, in_dtype: str = "float32", out_dtype: str = "float32"
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     a = te.placeholder((n, k), name="A", dtype=in_dtype)
     b = te.placeholder((k, m), name="B", dtype=in_dtype)
     k = te.reduce_axis((0, k), name="k")
@@ -566,7 +565,7 @@ def matmul(
 
 def matmul_relu(
     n: int, m: int, k: int, in_dtype: str = "float32", out_dtype: str = "float32"
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     a = te.placeholder((n, k), name="A", dtype=in_dtype)
     b = te.placeholder((k, m), name="B", dtype=in_dtype)
     k = te.reduce_axis((0, k), name="k")
@@ -575,11 +574,11 @@ def matmul_relu(
         lambda i, j: te.sum(a[i, k].astype(out_dtype) * b[k, j].astype(out_dtype), axis=[k]),
         name="C",
     )
-    d = topi.nn.relu(c)  # pylint: disable=invalid-name
+    d = topi.nn.relu(c)
     return (a, b, d)
 
 
-def conv2d_nchw(  # pylint: disable=invalid-name
+def conv2d_nchw(
     n: int,
     h: int,
     w: int,
@@ -592,7 +591,7 @@ def conv2d_nchw(  # pylint: disable=invalid-name
     dilation: int = 1,
     in_dtype: str = "float32",
     out_dtype: str = "float32",
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
+) -> tuple[te.Tensor, te.Tensor, te.Tensor]:
     x = te.placeholder((n, ci, h, w), name="X", dtype=in_dtype)
     w = te.placeholder((co, ci, kh, kw), name="W", dtype=in_dtype)
     y = topi.nn.conv2d_nchw(
@@ -601,7 +600,7 @@ def conv2d_nchw(  # pylint: disable=invalid-name
     return (x, w, y)
 
 
-def conv2d_nchw_bias_bn_relu(  # pylint: disable=invalid-name
+def conv2d_nchw_bias_bn_relu(
     n: int,
     h: int,
     w: int,
@@ -614,9 +613,9 @@ def conv2d_nchw_bias_bn_relu(  # pylint: disable=invalid-name
     dilation: int = 1,
     in_dtype: str = "float32",
     out_dtype: str = "float32",
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor]:
-    oh = (h + 2 * padding - (kh - 1) * dilation - 1) // stride + 1  # pylint: disable=invalid-name
-    ow = (w + 2 * padding - (kw - 1) * dilation - 1) // stride + 1  # pylint: disable=invalid-name
+) -> tuple[te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor, te.Tensor]:
+    oh = (h + 2 * padding - (kh - 1) * dilation - 1) // stride + 1
+    ow = (w + 2 * padding - (kw - 1) * dilation - 1) // stride + 1
     x = te.placeholder((n, ci, h, w), name="X", dtype=in_dtype)
     w = te.placeholder((co, ci, kh, kw), name="W", dtype=in_dtype)
     b = te.placeholder((co, 1, 1), name="B", dtype=out_dtype)
@@ -636,19 +635,19 @@ def conv2d_nchw_bias_bn_relu(  # pylint: disable=invalid-name
     return (x, w, b, bn_scale, bn_offset, y)
 
 
-def max_pool2d_nchw(  # pylint: disable=invalid-name
+def max_pool2d_nchw(
     n: int,
     h: int,
     w: int,
     ci: int,
     padding: int,
-) -> Tuple[te.Tensor, te.Tensor]:  # pylint: disable=invalid-name
+) -> tuple[te.Tensor, te.Tensor]:
     x = te.placeholder((n, ci, h, w), name="X")
     y = topi.nn.pool2d(x, [2, 2], [1, 1], [1, 1], [padding, padding, padding, padding], "max")
     return (x, y)
 
 
-def softmax_mn(m, n) -> Tuple[te.Tensor, te.Tensor]:  # pylint: disable=invalid-name
+def softmax_mn(m, n) -> tuple[te.Tensor, te.Tensor]:
     a = te.placeholder((m, n), name="A")
     b = topi.nn.softmax(a, axis=1)
 

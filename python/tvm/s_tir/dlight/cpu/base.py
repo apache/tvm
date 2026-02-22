@@ -21,7 +21,7 @@ from tvm.target import Target
 from ..base import ScheduleRule
 
 
-class CPUScheduleRule(ScheduleRule):  # pylint: disable=too-few-public-methods
+class CPUScheduleRule(ScheduleRule):
     """The Schedule Rule specific to CPU targets, will return None if the target is not CPU."""
 
     def is_target_available(self, target: Target) -> bool:

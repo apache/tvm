@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 """A RMS norm schedule rule for GPU operators."""
 
 from __future__ import annotations
@@ -76,7 +75,7 @@ def identify_rsqrt_block(block: SBlock) -> bool:
 class RMSNorm(ScheduleRule):
     """A rule for RMS norm."""
 
-    def apply(  # pylint: disable=too-many-locals,missing-docstring
+    def apply(
         self,
         func: tir.PrimFunc,
         target: Target,

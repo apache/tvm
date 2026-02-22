@@ -16,8 +16,7 @@
 # under the License.
 """Wrapping existing analysis utils."""
 
-# pylint: disable=invalid-name
-from typing import List, Optional, Union
+from __future__ import annotations
 
 from tvm.ir import IRModule
 from tvm.tir.expr import Var
@@ -97,7 +96,7 @@ def verify_memory(func: PrimFunc) -> bool:
     return _ffi_api.verify_memory(func)  # type: ignore
 
 
-def undefined_vars(node: Union[Stmt, PrimExpr], defs: Optional[List[Var]] = None) -> List[Var]:
+def undefined_vars(node: Stmt | PrimExpr, defs: list[Var] | None = None) -> list[Var]:
     """Find undefined vars in a TIR statement or expression.
 
     Parameters
@@ -114,10 +113,10 @@ def undefined_vars(node: Union[Stmt, PrimExpr], defs: Optional[List[Var]] = None
         The undefined vars.
     """
     defs = defs or []
-    return _ffi_api.UndefinedVars(node, defs)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.UndefinedVars(node, defs)  # type: ignore
 
 
-def verify_well_formed(obj: Union[PrimFunc, IRModule], assert_mode: bool = True) -> bool:
+def verify_well_formed(obj: PrimFunc | IRModule, assert_mode: bool = True) -> bool:
     """Verify if the given TIR is well-formed. The verification includes:
         - Check if expressions not contain vars that is defined outside the block.
 
@@ -134,4 +133,4 @@ def verify_well_formed(obj: Union[PrimFunc, IRModule], assert_mode: bool = True)
     result: bool
         Whether it is a well-formed TIR function.
     """
-    return _ffi_api.VerifyWellFormed(obj, assert_mode)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.VerifyWellFormed(obj, assert_mode)  # type: ignore

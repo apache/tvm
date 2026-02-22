@@ -16,13 +16,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations
+
 import argparse
 import csv
 import os
 import pickle
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
@@ -136,7 +139,7 @@ def fetch_pr_data(args, cache):
 
 
 def write_csv(
-    filename: str, data: List[Dict[str, Any]], threshold_filter: Callable[[Dict[str, Any]], bool]
+    filename: str, data: list[dict[str, Any]], threshold_filter: Callable[[dict[str, Any]], bool]
 ) -> None:
     with open(filename, "w", newline="") as csvfile:
         writer = csv.writer(csvfile, quotechar='"')
@@ -189,7 +192,7 @@ def write_csv(
 
 
 if __name__ == "__main__":
-    help = "List out commits with attached PRs since a certain commit"
+    help = "list out commits with attached PRs since a certain commit"
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--from-commit", help="commit to start checking PRs from")
     parser.add_argument("--to-commit", help="commit to stop checking PRs from")

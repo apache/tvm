@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
-# pylint: disable=import-outside-toplevel
 """Base class for PyTorch FX Graph importer."""
+
+from __future__ import annotations
 
 import abc
 import math
+from collections.abc import Callable
 from functools import reduce
-from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm import relax, tir
@@ -38,16 +38,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         import torch  # type: ignore
         from torch import fx
 
-        self.env: Dict[fx.Node, relax.Expr] = {}
-        self.params: Dict[torch.Tensor, relax.Expr] = {}
+        self.env: dict[fx.Node, relax.Expr] = {}
+        self.params: dict[torch.Tensor, relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
-        self.convert_map: Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]] = (
+        self.convert_map: dict[torch.nn.Module | str, Callable[[fx.Node], relax.Var]] = (
             self.create_convert_map()
         )
 
     ########## Utilities ##########
 
-    def update_convert_map(self, custom_convert_map: Dict[str, Callable]):
+    def update_convert_map(self, custom_convert_map: dict[str, Callable]):
         """Update self.convert_map with custom convert map
 
         Parameters
@@ -59,7 +59,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self.convert_map.update(custom_convert_map)
 
     @staticmethod
-    def _convert_data_type(input_type: Union[str, torch.dtype], env: Optional[Dict] = None):
+    def _convert_data_type(input_type: str | torch.dtype, env: dict | None = None):
         """converts the PyTorch scalar type input_type to a TVM dtype."""
         import torch  # type: ignore
 
@@ -120,7 +120,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         raise ValueError(f"Unsupported type: {type(tensor)}")
 
     @staticmethod
-    def _promote_common_dtype(lhs_dtype: Optional[str], rhs_dtype: Optional[str]) -> Optional[str]:
+    def _promote_common_dtype(lhs_dtype: str | None, rhs_dtype: str | None) -> str | None:
         """Return the promoted dtype following PyTorch rules, or None if unsupported."""
         import torch  # type: ignore
 
@@ -184,7 +184,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         else:
             return node
 
-    def _check_unsupported_func_type(self, nodes: List[fx.Node]):
+    def _check_unsupported_func_type(self, nodes: list[fx.Node]):
         missing_func_types = list(
             {
                 node.target.__name__
@@ -334,7 +334,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             if not isinstance(alpha, relax.Var):
                 alpha = self.block_builder.emit(relax.const(-alpha, dtype))
 
-        # alpha * ReLU(1 − exp(x)) + ReLU(x)
+        # alpha * ReLU(1 - exp(x)) + ReLU(x)
         return self.block_builder.emit(
             relax.op.add(
                 relax.op.multiply(
@@ -688,11 +688,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _avg_pool1d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int]] = 1,
-        stride: Optional[Union[int, Tuple[int]]] = None,
-        padding: Optional[int] = 0,
-        ceil_mode: Optional[bool] = False,
-        count_include_pad: Optional[bool] = True,
+        kernel_size: int | tuple[int] = 1,
+        stride: int | tuple[int] | None = None,
+        padding: int | None = 0,
+        ceil_mode: bool | None = False,
+        count_include_pad: bool | None = True,
     ) -> relax.Var:
         # Expand to 3D by adding batch dim if input is 2D
         x_ndim = x.struct_info.ndim
@@ -730,11 +730,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _avg_pool2d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int, int]] = (1, 1),
-        stride: Optional[Union[int, Tuple[int, int]]] = None,
-        padding: Optional[int] = 0,
-        ceil_mode: Optional[bool] = False,
-        count_include_pad: Optional[bool] = True,
+        kernel_size: int | tuple[int, int] = (1, 1),
+        stride: int | tuple[int, int] | None = None,
+        padding: int | None = 0,
+        ceil_mode: bool | None = False,
+        count_include_pad: bool | None = True,
     ) -> relax.Var:
         # Expand to 4D by adding batch dim if input is 3D
         x_ndim = x.struct_info.ndim
@@ -771,11 +771,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _avg_pool3d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int, int, int]] = (1, 1, 1),
-        stride: Optional[Union[int, Tuple[int, int, int]]] = None,
-        padding: Optional[int] = 0,
-        ceil_mode: Optional[bool] = False,
-        count_include_pad: Optional[bool] = True,
+        kernel_size: int | tuple[int, int, int] = (1, 1, 1),
+        stride: int | tuple[int, int, int] | None = None,
+        padding: int | None = 0,
+        ceil_mode: bool | None = False,
+        count_include_pad: bool | None = True,
     ) -> relax.Var:
         # Expand to 5D by adding batch dim if input is 4D
         x_ndim = x.struct_info.ndim
@@ -836,12 +836,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         x: relax.Expr,
         weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
-        output_padding: Optional[Tuple],
+        bias: relax.Expr | None,
+        strides: tuple | None,
+        padding: tuple | None,
+        dilation: tuple | None,
+        groups: tuple | None,
+        output_padding: tuple | None,
     ) -> relax.Var:
         conv1d_transpose = self.block_builder.emit(
             relax.op.nn.conv1d_transpose(
@@ -890,12 +890,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         x: relax.Expr,
         weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
-        output_padding: Optional[Tuple],
+        bias: relax.Expr | None,
+        strides: tuple | None,
+        padding: tuple | None,
+        dilation: tuple | None,
+        groups: tuple | None,
+        output_padding: tuple | None,
     ) -> relax.Var:
         conv2d_transpose = self.block_builder.emit(
             relax.op.nn.conv2d_transpose(
@@ -944,11 +944,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         x: relax.Expr,
         weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
+        bias: relax.Expr | None,
+        strides: tuple | None,
+        padding: tuple | None,
+        dilation: tuple | None,
+        groups: tuple | None,
     ) -> relax.Var:
         conv1d = self.block_builder.emit(
             relax.op.nn.conv1d(
@@ -993,11 +993,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         x: relax.Expr,
         weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
+        bias: relax.Expr | None,
+        strides: tuple | None,
+        padding: tuple | None,
+        dilation: tuple | None,
+        groups: tuple | None,
     ):
         conv2d = self.block_builder.emit(
             relax.op.nn.conv2d(
@@ -1042,11 +1042,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         x: relax.Expr,
         weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
+        bias: relax.Expr | None,
+        strides: tuple | None,
+        padding: tuple | None,
+        dilation: tuple | None,
+        groups: tuple | None,
     ):
         conv3d = self.block_builder.emit(
             relax.op.nn.conv3d(
@@ -1165,7 +1165,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         preds: relax.Expr,
         targets: relax.Expr,
-        weights: Optional[relax.Expr],
+        weights: relax.Expr | None,
         reduction: str,
         ignore_index: int,
     ) -> relax.Expr:
@@ -1269,11 +1269,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _max_pool1d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int]] = 1,
-        stride: Optional[Union[int, Tuple[int]]] = None,
-        padding: Optional[int] = 0,
-        dilation: Optional[int] = 1,
-        ceil_mode: Optional[bool] = False,
+        kernel_size: int | tuple[int] = 1,
+        stride: int | tuple[int] | None = None,
+        padding: int | None = 0,
+        dilation: int | None = 1,
+        ceil_mode: bool | None = False,
     ) -> relax.Var:
         # Expand to 3D by adding batch dim if input is 2D
         x_ndim = x.struct_info.ndim
@@ -1313,11 +1313,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _max_pool2d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int, int]] = (1, 1),
-        stride: Optional[Union[int, Tuple[int, int]]] = None,
-        padding: Optional[int] = 0,
-        dilation: Optional[int] = 1,
-        ceil_mode: Optional[bool] = False,
+        kernel_size: int | tuple[int, int] = (1, 1),
+        stride: int | tuple[int, int] | None = None,
+        padding: int | None = 0,
+        dilation: int | None = 1,
+        ceil_mode: bool | None = False,
     ) -> relax.Var:
         # Expand to 4D by adding batch dim if input is 3D
         x_ndim = x.struct_info.ndim
@@ -1357,11 +1357,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _max_pool3d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int, int, int]] = (1, 1, 1),
-        stride: Optional[Union[int, Tuple[int, int, int]]] = None,
-        padding: Optional[int] = 0,
-        dilation: Optional[int] = 1,
-        ceil_mode: Optional[bool] = False,
+        kernel_size: int | tuple[int, int, int] = (1, 1, 1),
+        stride: int | tuple[int, int, int] | None = None,
+        padding: int | None = 0,
+        dilation: int | None = 1,
+        ceil_mode: bool | None = False,
     ) -> relax.Var:
         # Expand to 5D by adding batch dim if input is 4D
         x_ndim = x.struct_info.ndim
@@ -2619,5 +2619,5 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def create_convert_map(
         self,
-    ) -> Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]]:
+    ) -> dict[torch.nn.Module | str, Callable[[fx.Node], relax.Var]]:
         """Create convert map"""

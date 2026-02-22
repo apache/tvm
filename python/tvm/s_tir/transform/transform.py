@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """S-TIR specific transformations."""
-# pylint: disable=invalid-name, unsupported-binary-operation
 
 from ... import ffi as _ffi
 from ... import ir as _ir

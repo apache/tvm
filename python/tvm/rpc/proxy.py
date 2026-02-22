@@ -22,7 +22,6 @@ RPCProxy allows both client and server connect to the proxy server,
 the proxy server will forward the message between the client and server.
 """
 
-# pylint: disable=unused-variable, unused-argument
 import asyncio
 import errno
 import logging

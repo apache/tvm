@@ -14,7 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Callable, List, Tuple, Union
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Union
 
 import numpy as np
 import pytest
@@ -31,11 +34,11 @@ from tvm.testing.utils import check_numerical_grads
 
 def relax_check_gradients(
     op_func: Callable,
-    inputs_numpy: List[np.array],
-    target: Union[str, tvm.target.Target],
+    inputs_numpy: list[np.array],
+    target: str | tvm.target.Target,
     dev: tvm.runtime.Device,
     tuple_input: bool = False,
-    ignore_grads: List[int] = [],
+    ignore_grads: list[int] = [],
     **kwargs,  # attr for operators
 ):
     """Generate the forward and the gradient module. Then run them and check numeric gradients.
@@ -45,7 +48,7 @@ def relax_check_gradients(
     op_func : Callable
         The forward operator function. Should be a function in package relax.op.
 
-    inputs_numpy : List[np.array]
+    inputs_numpy : list[np.array]
         The np array inputs for op_func. inputs_numpy will be transformed into TVM Tensor inside
         this function.
 
@@ -63,7 +66,7 @@ def relax_check_gradients(
         tuple of tensors as input; otherwise, operator accept one or more tensors as input. See
         test_concat(). Default: False.
 
-    ignore_grads: List[int]
+    ignore_grads: list[int]
         Specifies which input we do not need to find gradient.
 
         Sometimes the input is not differentiable, such as shape, boolean values, positions, etc.
@@ -111,7 +114,7 @@ def relax_check_gradients(
 
     # Generate the forward call
     if tuple_input:
-        t = relax.Tuple(param_vars)
+        t = relax.tuple(param_vars)
         call = op_func(t, **kwargs)
     else:
         call = op_func(*param_vars, **kwargs)
@@ -164,7 +167,7 @@ def relax_check_gradients(
 
     # Gradient mod
     grad_bb = relax.BlockBuilder()
-    with grad_bb.function(func_name, param_vars + [grad_var]):
+    with grad_bb.function(func_name, [*param_vars, grad_var]):
         with grad_bb.dataflow():
             orig = grad_bb.emit(call)
             # op_grad_func returns a list of Exprs representing the gradients
@@ -182,8 +185,8 @@ def relax_check_gradients(
                 # The gradient tuple is the first (the only) element of grad_call.
                 out = grad_bb.emit_output(grad_call[0])
             else:
-                # We need to wrap the list into a relax.Tuple so as to emit it
-                out = grad_bb.emit_output(relax.Tuple(grad_call))
+                # We need to wrap the list into a relax.tuple so as to emit it
+                out = grad_bb.emit_output(relax.tuple(grad_call))
         grad_bb.emit_func_output(out)
 
     grad_mod = grad_bb.get()

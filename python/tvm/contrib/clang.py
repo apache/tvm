@@ -16,7 +16,6 @@
 # under the License.
 """Util to invoke clang in the system."""
 
-# pylint: disable=invalid-name
 import subprocess
 
 import tvm.target

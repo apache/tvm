@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name
 """The TIR backend compilation pipeline for Adreno"""
 
 import tvm

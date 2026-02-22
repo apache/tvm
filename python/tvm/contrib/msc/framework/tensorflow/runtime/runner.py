@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=not-context-manager,unused-import
 """tvm.contrib.msc.framework.tensorflow.runtime.runner"""
 
+from __future__ import annotations
+
 import time
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Union
 
 import numpy as np
 from tensorflow.python.client import device_lib
@@ -42,7 +43,7 @@ class WrapSession(tf_v1.Session):
         super().__init__(*args, **kwargs)
         self._inputs, self._outputs = None, None
 
-    def set_bindings(self, inputs: List[Dict[str, str]], outputs: List[Dict[str, str]]):
+    def set_bindings(self, inputs: list[dict[str, str]], outputs: list[dict[str, str]]):
         """Set inputs and outputs for session
 
         Parameters
@@ -56,7 +57,7 @@ class WrapSession(tf_v1.Session):
         self._inputs = inputs
         self._outputs = outputs
 
-    def run(self, fetches, *args, **kwargs):  # pylint: disable=useless-parent-delegation
+    def run(self, fetches, *args, **kwargs):
         return super().run(fetches, *args, **kwargs)
 
 
@@ -87,7 +88,7 @@ class TensorflowRunner(ModelRunner):
         super().destory()
 
     def _generate_model(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
     ) -> tf_v1.Graph:
         """Codegen the model according to framework
 
@@ -135,8 +136,8 @@ class TensorflowRunner(ModelRunner):
         return self._session
 
     def _call_runnable(
-        self, runnable: WrapSession, inputs: Dict[str, np.ndarray], device: str
-    ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
+        self, runnable: WrapSession, inputs: dict[str, np.ndarray], device: str
+    ) -> list[np.ndarray] | dict[str, np.ndarray]:
         """Call the runnable to get outputs
 
         Parameters
@@ -167,7 +168,7 @@ class TensorflowRunner(ModelRunner):
         return MSCFramework.TENSORFLOW
 
     @classmethod
-    def load_native(cls, model: Any, config: dict) -> Tuple[tf_v1.GraphDef, str, bool]:
+    def load_native(cls, model: Any, config: dict) -> tuple[tf_v1.GraphDef, str, bool]:
         """Load the native model
 
         Parameters
@@ -204,12 +205,12 @@ class TensorflowRunner(ModelRunner):
     def run_native(
         cls,
         model: tf_v1.GraphDef,
-        inputs: Dict[str, np.ndarray],
-        input_names: List[str],
-        output_names: List[str],
+        inputs: dict[str, np.ndarray],
+        input_names: list[str],
+        output_names: list[str],
         warm_up: int = 10,
         repeat: int = 0,
-    ) -> Tuple[Dict[str, np.ndarray], float]:
+    ) -> tuple[dict[str, np.ndarray], float]:
         """Run the datas and get outputs
 
         Parameters

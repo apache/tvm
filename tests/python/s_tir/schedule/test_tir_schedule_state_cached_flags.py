@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import sys
 
 import pytest
@@ -26,7 +25,6 @@ from tvm.s_tir.schedule.state import CachedFlags
 from tvm.script import tir as T
 from tvm.tir.stmt_functor import post_order_visit
 
-# pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 # fmt: off
 
 @T.prim_func
@@ -458,7 +456,6 @@ def splitted_square_sum_with_predicate(
                 B[ax0_1, ax1_1, ax2_1, ax3_1] += A[ax0_1, ax1_1 * 7 + rv0, ax2_1 * 7 + rv1, ax3_1]
 
 
-# pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 # fmt: on
 
 
@@ -478,7 +475,7 @@ def _get_sblock(s: s_tir.ScheduleState, name_hint: str) -> s_tir.StmtSRef:
 
 def test_elementwise():
     s = tvm.s_tir.ScheduleState(elementwise, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -494,12 +491,11 @@ def test_elementwise():
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_matmul():
     s = tvm.s_tir.ScheduleState(matmul, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "init")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -515,12 +511,11 @@ def test_matmul():
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_block_in_opaque_block():
     s = tvm.s_tir.ScheduleState(block_in_opaque_block, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -546,12 +541,11 @@ def test_block_in_opaque_block():
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_write_after_read():
     s = tvm.s_tir.ScheduleState(write_after_read, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -567,12 +561,11 @@ def test_write_after_read():
         region_cover=True,
         stage_pipeline=False,
     )
-    # pylint: enable=protected-access
 
 
 def test_loop_carried_dependency():
     s = tvm.s_tir.ScheduleState(loop_carried_dependency, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -588,12 +581,11 @@ def test_loop_carried_dependency():
         region_cover=True,
         stage_pipeline=False,
     )
-    # pylint: enable=protected-access
 
 
-def test_concatenate_multi_producer_covered():  # pylint: disable=invalid-name
+def test_concatenate_multi_producer_covered():
     s = tvm.s_tir.ScheduleState(concatenate_multi_producer, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "A_0")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -614,12 +606,11 @@ def test_concatenate_multi_producer_covered():  # pylint: disable=invalid-name
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
-def test_concatenate_multi_producer_uncovered():  # pylint: disable=invalid-name
+def test_concatenate_multi_producer_uncovered():
     s = tvm.s_tir.ScheduleState(concatenate_multi_producer_uncovered, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "A_0")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -640,12 +631,11 @@ def test_concatenate_multi_producer_uncovered():  # pylint: disable=invalid-name
         region_cover=True,
         stage_pipeline=False,
     )
-    # pylint: enable=protected-access
 
 
 def test_lca_at_loop():
     s = tvm.s_tir.ScheduleState(lca_at_loop, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -661,12 +651,11 @@ def test_lca_at_loop():
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_multi_producer_consumer():
     s = tvm.s_tir.ScheduleState(multi_producer_consumer, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "A_0")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -687,12 +676,11 @@ def test_multi_producer_consumer():
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_elementwise_affine_producer():
     s = tvm.s_tir.ScheduleState(elementwise_affine_producer, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -708,12 +696,11 @@ def test_elementwise_affine_producer():
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_subblock():
     s = tvm.s_tir.ScheduleState(elementwise_subblock, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -734,12 +721,11 @@ def test_subblock():
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_subblock_uncovered():
     s = tvm.s_tir.ScheduleState(elementwise_subblock_uncovered, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -760,12 +746,11 @@ def test_subblock_uncovered():
         region_cover=False,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_thread_binding():
     s = tvm.s_tir.ScheduleState(bound_to_thread, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -781,12 +766,11 @@ def test_thread_binding():
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_equal_ranked_threads():
     s = tvm.s_tir.ScheduleState(equal_ranked_threads, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -802,12 +786,11 @@ def test_equal_ranked_threads():
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_warp_memory():
     s = tvm.s_tir.ScheduleState(warp_memory, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -823,12 +806,11 @@ def test_warp_memory():
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_warp_memory_negative():
     s = tvm.s_tir.ScheduleState(warp_memory_negative, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "root")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -844,12 +826,11 @@ def test_warp_memory_negative():
         region_cover=False,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_non_perfect_tiling_cache():
     s = tvm.s_tir.ScheduleState(non_perfect_tiling_cache, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "cache")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
@@ -860,40 +841,36 @@ def test_non_perfect_tiling_cache():
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_uncovered_producer_region():
     s = tvm.s_tir.ScheduleState(uncovered_producer_region, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "consumer")) == CachedFlags(
         affine_binding=True,
         region_cover=False,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_matmul_relu_padding():
     s = tvm.s_tir.ScheduleState(matmul_relu_padding, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "C_reindex_shared")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 def test_splitted_square_sum_with_predicate():
     s = tvm.s_tir.ScheduleState(splitted_square_sum_with_predicate, debug_mask="all")
-    # pylint: disable=protected-access
+
     assert s._get_cached_flags(_get_sblock(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
         stage_pipeline=True,
     )
-    # pylint: enable=protected-access
 
 
 if __name__ == "__main__":

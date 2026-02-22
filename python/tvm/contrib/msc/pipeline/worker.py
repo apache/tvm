@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-outside-toplevel, unused-argument
 """tvm.contrib.msc.pipeline.worker"""
+
+from __future__ import annotations
 
 import logging
 import os
 import time
-from typing import Any, List, Tuple
+from typing import Any
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -60,8 +61,8 @@ class BasePipeWorker:
         model: Any,
         config: dict,
         workspace: msc_utils.MSCDirectory,
-        plugins: dict = None,
-        logger: logging.Logger = None,
+        plugins: dict | None = None,
+        logger: logging.Logger | None = None,
         name: str = "main",
     ):
         # check/set default stage
@@ -128,7 +129,7 @@ class BasePipeWorker:
             {"inputs": self._config["inputs"], "outputs": self._config["outputs"]}
         )
 
-        def _set_debug_level(stage: str, sub_config: dict, default: int = None) -> dict:
+        def _set_debug_level(stage: str, sub_config: dict, default: int | None = None) -> dict:
             if "debug_level" in sub_config:
                 debug_levels[stage] = sub_config["debug_level"]
             elif default is not None:
@@ -165,7 +166,7 @@ class BasePipeWorker:
         self._config = {k: self._config[k] for k in ordered_keys if k in self._config}
         return debug_levels
 
-    def _update_tools_config(self, tools: List[dict]) -> List[dict]:
+    def _update_tools_config(self, tools: list[dict]) -> list[dict]:
         """Update tool in stage config.
 
         Parameters
@@ -188,7 +189,7 @@ class BasePipeWorker:
             )
         return tools
 
-    def prepare(self, data_loader: Any = None) -> Tuple[dict, dict]:
+    def prepare(self, data_loader: Any = None) -> tuple[dict, dict]:
         """Prepare datas for the pipeline.
 
         Parameters
@@ -237,7 +238,7 @@ class BasePipeWorker:
                         outputs, _ = run_func(
                             self._model, inputs, input_names, self._config["outputs"]
                         )
-                    except Exception as exc:  # pylint: disable=broad-exception-caught
+                    except Exception as exc:
                         if cnt == 0:
                             msg = f"Failed to test native: {exc}"
                             self._logger.warning(self.worker_mark(msg))
@@ -282,13 +283,13 @@ class BasePipeWorker:
                 latency = f"{avg_time:.2f} ms @ {self._device}"
                 info["latency"] = latency + " (X{})".format(benchmark["repeat"])
                 report["profile"] = latency
-            except Exception as exc:  # pylint: disable=broad-exception-caught
+            except Exception as exc:
                 msg = f"Failed to profile native: {exc}"
                 self._logger.warning(self.worker_mark(msg))
                 report["profile"] = "failed run native"
         return info, report
 
-    def parse(self) -> Tuple[dict, dict]:
+    def parse(self) -> tuple[dict, dict]:
         """Parse the model to IRModule.
 
         Returns
@@ -376,8 +377,8 @@ class BasePipeWorker:
         return os.path.isfile(config["plan_file"])
 
     def apply_tool(
-        self, tool_type: str, knowledge: dict = None, data_loader: Any = None
-    ) -> Tuple[dict, dict]:
+        self, tool_type: str, knowledge: dict | None = None, data_loader: Any = None
+    ) -> tuple[dict, dict]:
         """Apply tool with runner
 
         Parameters
@@ -415,13 +416,13 @@ class BasePipeWorker:
     def create_runner(
         self,
         stage: str,
-        tools: List[str] = None,
-        run_type: str = None,
-        run_config: dict = None,
+        tools: list[str] | None = None,
+        run_type: str | None = None,
+        run_config: dict | None = None,
         visualize: bool = True,
         profile: bool = True,
         use_cache: bool = True,
-    ) -> Tuple[dict, dict]:
+    ) -> tuple[dict, dict]:
         """Create runner.
 
         Parameters
@@ -492,7 +493,7 @@ class BasePipeWorker:
         self._runner = runner
         return info, report
 
-    def _profile_runner(self, runner: BaseRunner, profile_config: dict) -> Tuple[dict, str]:
+    def _profile_runner(self, runner: BaseRunner, profile_config: dict) -> tuple[dict, str]:
         """Profile the runner.
 
         Parameters
@@ -670,7 +671,7 @@ class BasePipeWorker:
             return self._runner.model
         raise TypeError("Unexpect return type " + str(ret_type))
 
-    def _get_repeat(self, benchmark: dict, device: str = None) -> int:
+    def _get_repeat(self, benchmark: dict, device: str | None = None) -> int:
         """Get the repeat number for benchmark
 
         Parameters

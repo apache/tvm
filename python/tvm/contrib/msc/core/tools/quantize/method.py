@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """tvm.contrib.msc.core.tools.quantize.method"""
 
 from typing import Any, Union
@@ -84,7 +83,7 @@ class QuantizeMethod:
         axis: int = -1,
         epsilon: float = 1.0 / (1 << 24),
         expand_dims: bool = True,
-    ) -> Union[float, np.ndarray]:
+    ) -> float | np.ndarray:
         """Get the scale tensor
 
         Parameters
@@ -213,7 +212,7 @@ class QuantizeMethod:
             return cls.gather_maxmin(quantizer, name, data, plan, nbits)
         hist, edge = np.histogram(data, bins=bins, range=[-plan["abs_max"], plan["abs_max"]])
         hist_list = plan.get("hist_list", [])
-        return {"hist_list": hist_list + [hist], "edge": edge, **plan}
+        return {"hist_list": [*hist_list, hist], "edge": edge, **plan}
 
     @classmethod
     def gather_max_per_channel(
@@ -337,7 +336,6 @@ class QuantizeMethod:
             The plan of the tensor.
         """
 
-        # pylint: disable=import-outside-toplevel
         import ctypes
 
         from tvm.relay import quantize as _quantize

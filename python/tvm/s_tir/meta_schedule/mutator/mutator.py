@@ -16,10 +16,13 @@
 # under the License.
 """Meta Schedule Mutator."""
 
-from typing import TYPE_CHECKING, Callable, Dict, Optional
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -38,7 +41,7 @@ if TYPE_CHECKING:
 class Mutator(Object):
     """Mutator is designed to mutate the trace to explore the design space."""
 
-    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: TuneContext) -> None:
         """Initialize the mutator with a tune context.
 
         Parameters
@@ -46,11 +49,11 @@ class Mutator(Object):
         context : TuneContext
             The tuning context for initializing the mutator.
         """
-        _ffi_api.MutatorInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
+        _ffi_api.MutatorInitializeWithTuneContext(  # type: ignore
             self, context
         )
 
-    def apply(self, trace: Trace) -> Optional[Trace]:
+    def apply(self, trace: Trace) -> Trace | None:
         """Apply the mutator function to the given trace.
 
         Parameters
@@ -63,9 +66,9 @@ class Mutator(Object):
         trace : Optional[Trace]
             None if mutator failed, otherwise return the mutated trace.
         """
-        return _ffi_api.MutatorApply(self, trace, -1)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.MutatorApply(self, trace, -1)  # type: ignore
 
-    def clone(self) -> "Mutator":
+    def clone(self) -> Mutator:
         """Clone the mutator.
 
         Returns
@@ -73,7 +76,7 @@ class Mutator(Object):
         mutator : Mutator
             The cloned mutator.
         """
-        return _ffi_api.MutatorClone(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.MutatorClone(self)  # type: ignore
 
     @staticmethod
     def create(
@@ -83,7 +86,7 @@ class Mutator(Object):
             "cuda-tensorcore",
             "hexagon",
         ],
-    ) -> Dict["Mutator", float]:
+    ) -> dict[Mutator, float]:
         """Create a list of default mutators.
 
         Parameters
@@ -97,12 +100,10 @@ class Mutator(Object):
             The list of mutators.
         """
         funcs = {
-            # pylint: disable=no-member
             "llvm": _ffi_api.MutatorDefaultLLVM,  # type: ignore
             "cuda": _ffi_api.MutatorDefaultCUDA,  # type: ignore
             "cuda-tensorcore": _ffi_api.MutatorDefaultCUDATensorCore,  # type: ignore
             "hexagon": _ffi_api.MutatorDefaultHexagon,  # type: ignore
-            # pylint: enable=no-member
         }
         for k, v in funcs.items():
             if k == kind:
@@ -110,7 +111,7 @@ class Mutator(Object):
         raise ValueError(f"Unsupported kind {kind} for mutator creation.")
 
 
-create = Mutator.create  # pylint: disable=invalid-name
+create = Mutator.create
 
 
 @register_object("s_tir.meta_schedule.PyMutator")
@@ -124,15 +125,15 @@ class _PyMutator(Mutator):
 
     def __init__(
         self,
-        f_initialize_with_tune_context: Callable = None,
-        f_apply: Callable = None,
-        f_clone: Callable = None,
-        f_as_string: Callable = None,
+        f_initialize_with_tune_context: Callable | None = None,
+        f_apply: Callable | None = None,
+        f_clone: Callable | None = None,
+        f_as_string: Callable | None = None,
     ):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
-            _ffi_api.MutatorPyMutator,  # type: ignore # pylint: disable=no-member
+            _ffi_api.MutatorPyMutator,  # type: ignore
             f_initialize_with_tune_context,
             f_apply,
             f_clone,
@@ -153,7 +154,7 @@ class PyMutator:
         "methods": ["_initialize_with_tune_context", "apply", "clone", "__str__"],
     }
 
-    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: TuneContext) -> None:
         """Initialize the mutator with a tune context.
 
         Parameters
@@ -163,7 +164,7 @@ class PyMutator:
         """
         raise NotImplementedError
 
-    def apply(self, trace: Trace, _) -> Optional[Trace]:
+    def apply(self, trace: Trace, _) -> Trace | None:
         """Apply the mutator function to the given trace.
 
         Parameters

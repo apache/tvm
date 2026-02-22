@@ -16,9 +16,11 @@
 # under the License.
 """A rule for reduction."""
 
-# TODO: combine reduction rule and general reduction rule into one file.
-from typing import List, Mapping, Optional, Tuple, Union
+from __future__ import annotations
 
+from collections.abc import Mapping
+
+# TODO: combine reduction rule and general reduction rule into one file.
 from tvm import arith, ir, s_tir, tir
 from tvm.target import Target
 
@@ -32,7 +34,7 @@ from ..base import suggest_threads_per_block, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tir.SBlock) -> Optional[tir.PrimExpr]:
+def _get_reduction_expr(block: tir.SBlock) -> tir.PrimExpr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
     buffer_store = block.body
     if not isinstance(buffer_store, tir.BufferStore):
@@ -55,12 +57,12 @@ def _has_reduction_loop(block_info):
 class Reduction(GPUScheduleRule):
     """A rule for Reduction."""
 
-    def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
+    def apply(
         self,
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
@@ -111,12 +113,12 @@ class Reduction(GPUScheduleRule):
             )
         return sch
 
-    def _normalize(  # pylint: disable=too-many-branches
+    def _normalize(
         self,
         sch: s_tir.Schedule,
         block_info: SBlockInfo,
         access: arith.IterSumExpr,
-    ) -> Tuple[Optional[bool], Optional[int], Optional[Mapping[int, int]], Optional[int]]:
+    ) -> tuple[bool | None, int | None, Mapping[int, int] | None, int | None]:
         if access.base != 0:
             return None, None, None, None
         iter_to_info = {i.var: i for i in block_info.iters}
@@ -174,21 +176,18 @@ class Reduction(GPUScheduleRule):
         sch.fuse(*r_loops)
         return is_inner_reduction, c_factor, loop_order, s_split_index
 
-    def _sch_inner_reduction(  # pylint: disable=too-many-arguments
+    def _sch_inner_reduction(
         self,
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        unroll_spatial_factor: Optional[int],
-        epilogue_info: Optional[SBlockInfo],
+        unroll_spatial_factor: int | None,
+        epilogue_info: SBlockInfo | None,
         loop_order,
         s_split_index,
     ):
-        # pylint: disable=invalid-name
         _, r, _ = sch.get_loops(block)
-        (len_tx,) = suggest_threads_per_block(  # pylint: disable=unbalanced-tuple-unpacking
-            target, [sch.get(r)]
-        )
+        (len_tx,) = suggest_threads_per_block(target, [sch.get(r)])
 
         _, tx = sch.split(r, factors=[None, len_tx])
         # Schedule the RF block
@@ -225,12 +224,11 @@ class Reduction(GPUScheduleRule):
             sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
             if is_broadcast_epilogue(sch, block, epilogue):
                 sch.set_scope(block, 0, "shared")
-                _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
+                _, *s = sch.get_loops(epilogue)
                 _, tx = sch.split(sch.fuse(*s), factors=[None, len_tx])
                 sch.bind(tx, "threadIdx.x")
             else:
                 sch.set_scope(block, 0, "local")
-        # pylint: enable=invalid-name
 
     def _sch_inner_spatial(
         self,
@@ -238,12 +236,11 @@ class Reduction(GPUScheduleRule):
         _: Target,
         block: s_tir.schedule.SBlockRV,
         block_info: SBlockInfo,
-        unroll_spatial_factor: Optional[int],
-        epilogue_info: Optional[SBlockInfo],
+        unroll_spatial_factor: int | None,
+        epilogue_info: SBlockInfo | None,
         loop_order,
         s_split_index,
     ):
-        # pylint: disable=invalid-name
         s, r, _ = sch.get_loops(block)
         len_tx, len_ty = 16, 16
         s_factor = [i.dom for i in block_info.iters if i.kind == "S"][-1]
@@ -289,7 +286,7 @@ class Reduction(GPUScheduleRule):
             sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
             if is_broadcast_epilogue(sch, block, epilogue):
                 sch.set_scope(block, 0, "shared")
-                _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
+                _, *s = sch.get_loops(epilogue)
                 _, tx, ty = sch.split(sch.fuse(*s), factors=[None, len_tx, len_ty])
                 sch.bind(tx, "threadIdx.x")
                 sch.bind(ty, "threadIdx.y")
@@ -297,7 +294,6 @@ class Reduction(GPUScheduleRule):
                 # The epilogue is element-wise without broadcasting.
                 # Thus the remaining spatial part should be bind to tx.
                 sch.set_scope(block, 0, "local")
-                _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
+                _, *s = sch.get_loops(epilogue)
                 tx, _ = sch.split(sch.fuse(*s), factors=[len_tx, None])
                 sch.bind(tx, "threadIdx.x")
-        # pylint: enable=invalid-name

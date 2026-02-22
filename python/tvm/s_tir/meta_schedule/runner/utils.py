@@ -16,18 +16,21 @@
 # under the License.
 """Runner utility functions"""
 
+from __future__ import annotations
+
 import itertools
-from typing import Any, Callable, Dict, List
+from collections.abc import Callable
+from typing import Any
 
 import tvm.runtime
 
 from ....runtime import Device, Module
 from .config import EvaluatorConfig
 
-T_ARG_INFO_JSON_OBJ = List[Any]  # pylint: disable=invalid-name
-T_ARG_INFO_JSON_OBJ_LIST = List[T_ARG_INFO_JSON_OBJ]  # pylint: disable=invalid-name
-T_ARGUMENT = Any  # pylint: disable=invalid-name
-T_ARGUMENT_LIST = List[T_ARGUMENT]  # pylint: disable=invalid-name
+T_ARG_INFO_JSON_OBJ = list[Any]
+T_ARG_INFO_JSON_OBJ_LIST = list[T_ARG_INFO_JSON_OBJ]
+T_ARGUMENT = Any
+T_ARGUMENT_LIST = list[T_ARGUMENT]
 
 
 def alloc_argument_common(
@@ -35,7 +38,7 @@ def alloc_argument_common(
     device: Device,
     args_info: T_ARG_INFO_JSON_OBJ_LIST,
     alloc_repeat: int,
-) -> List[T_ARGUMENT_LIST]:
+) -> list[T_ARGUMENT_LIST]:
     """Common function to allocate the arguments
 
     Parameters
@@ -63,12 +66,12 @@ def alloc_argument_common(
     def alloc_fail(*arg_info) -> None:
         raise NotImplementedError(arg_info)
 
-    dispatcher: Dict[Any, Callable] = {
+    dispatcher: dict[Any, Callable] = {
         "TENSOR": alloc_tensor,
         None: alloc_fail,
     }
 
-    repeated_args: List[T_ARGUMENT_LIST] = []
+    repeated_args: list[T_ARGUMENT_LIST] = []
     for _ in range(alloc_repeat):
         args: T_ARGUMENT_LIST = []
         arg_info: T_ARG_INFO_JSON_OBJ
@@ -84,8 +87,8 @@ def run_evaluator_common(
     rt_mod: Module,
     device: Device,
     evaluator_config: EvaluatorConfig,
-    repeated_args: List[T_ARGUMENT_LIST],
-) -> List[float]:
+    repeated_args: list[T_ARGUMENT_LIST],
+) -> list[float]:
     """Common function to run the evaluator
 
     Parameters
@@ -114,7 +117,7 @@ def run_evaluator_common(
         if evaluator_config.enable_cpu_cache_flush
         else "",
     )
-    repeated_costs: List[List[float]] = []
+    repeated_costs: list[list[float]] = []
     for args in repeated_args:
         device.sync()
         profile_result = evaluator(*args)

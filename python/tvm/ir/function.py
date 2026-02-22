@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Function definitions."""
 
+from __future__ import annotations
+
 from enum import IntEnum
-from typing import Dict, Union
 
 import tvm_ffi
 
@@ -47,7 +47,7 @@ class BaseFunc(RelaxExpr):
         """Return the attrs member of the function."""
         return _ffi_api.BaseFunc_Attrs(self)
 
-    def with_attr(self, attr_key_or_dict, attr_value=None) -> "BaseFunc":
+    def with_attr(self, attr_key_or_dict, attr_value=None) -> BaseFunc:
         """Create a new copy of the function and update the attribute.
 
         Parameters
@@ -76,7 +76,7 @@ class BaseFunc(RelaxExpr):
             res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value)
         )
 
-    def with_attrs(self, attr_map: Union[DictAttrs, Dict[str, Object]]) -> "BaseFunc":
+    def with_attrs(self, attr_map: DictAttrs | dict[str, Object]) -> BaseFunc:
         """Copy the IRModule and add the given attribute map to it.
         Parameters
         ----------
@@ -92,7 +92,7 @@ class BaseFunc(RelaxExpr):
 
         return _ffi_api.BaseFuncWithAttrs(self, attr_map)
 
-    def without_attr(self, attr_key: str) -> "BaseFunc":
+    def without_attr(self, attr_key: str) -> BaseFunc:
         """Create a new copy of the function with an attribute without provided key.
 
         Parameters

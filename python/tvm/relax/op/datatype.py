@@ -24,7 +24,7 @@ from ..expr import Expr
 from . import _ffi_api
 
 
-def astype(x: Expr, dtype: Union[str, DataType]) -> Expr:
+def astype(x: Expr, dtype: str | DataType) -> Expr:
     """Cast input tensor to the given data type.
 
     Parameters
@@ -43,7 +43,7 @@ def astype(x: Expr, dtype: Union[str, DataType]) -> Expr:
     return _ffi_api.astype(x, dtype)  # type: ignore
 
 
-def wrap_param(data: Expr, dtype: Union[str, DataType] = "float32") -> Expr:
+def wrap_param(data: Expr, dtype: str | DataType = "float32") -> Expr:
     """Cast input tensor which is model param to data type if the dtype of the input data is not
     the same as the given dtype.
     Parameters

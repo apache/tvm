@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import sys
 
 import pytest
@@ -30,7 +29,6 @@ from tvm.script import ir as I
 from tvm.script import tir as T
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
 
 def packed_index_map_func(m, n):
@@ -228,7 +226,6 @@ def test_transform_layout_with_cache_write_and_axis_separators():
     After = sch.mod
     tvm.ir.assert_structural_equal(After, Expected)
 
-# pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
 use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
@@ -1251,7 +1248,7 @@ def test_index_map_dtype_legalize_with_constant():
 
 def test_transform_layout_with_symbolic_bound():
     # fmt: off
-    # pylint: disable=invalid-name,line-too-long,too-many-locals
+
     @T.prim_func
     def before(a: T.handle, b: T.handle, c: T.handle):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -1283,9 +1280,9 @@ def test_transform_layout_with_symbolic_bound():
                 with T.init():
                     C[v_i1 * n + v_i3] = T.float16(0)
                 C[v_i1 * n + v_i3] = C[v_i1 * n + v_i3] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_i3, v_k]
-    # pylint: enable=invalid-name,line-too-long,too-many-locals
+
     # fmt: on
-    # pylint: disable=invalid-name
+
     _, _, n, _ = before.buffer_map[before.params[1]].shape
     sch = tvm.s_tir.Schedule(before)
     block = sch.get_sblock("NT_matmul")
@@ -1295,13 +1292,13 @@ def test_transform_layout_with_symbolic_bound():
         lambda x, y, z, w: x * 32 * n + y * n + z * n + w,
         assume_injective_transform=True,
     )
-    # pylint: enable=invalid-name
+
     tvm.ir.assert_structural_equal(after, sch.mod["main"])
 
 
 def test_transform_block_layout_with_symbolic_bound():
     # fmt: off
-    # pylint: disable=invalid-name,line-too-long,too-many-locals
+
     @T.prim_func
     def before(a: T.handle, b: T.handle, c: T.handle):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
@@ -1333,9 +1330,9 @@ def test_transform_block_layout_with_symbolic_bound():
                 with T.init():
                     C[v0] = T.float16(0)
                 C[v0] = C[v0] + A[T.int64(0), v0 // n, T.int64(0), v1] * B[T.int64(0), v0 // n, v0 % n, v1]
-    # pylint: enable=invalid-name,line-too-long,too-many-locals
+
     # fmt: on
-    # pylint: disable=invalid-name
+
     _, _, n, _ = before.buffer_map[before.params[1]].shape
     sch = tvm.s_tir.Schedule(before)
     block = sch.get_sblock("NT_matmul")
@@ -1346,7 +1343,7 @@ def test_transform_block_layout_with_symbolic_bound():
             k,
         ),
     )
-    # pylint: enable=invalid-name
+
     tvm.ir.assert_structural_equal(after, sch.mod["main"])
 
 

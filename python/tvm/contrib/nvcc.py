@@ -14,17 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Utility to invoke nvcc compiler in the system"""
 
 from __future__ import absolute_import as _abs
+from __future__ import annotations
 
 import glob
 import os
 import platform
 import subprocess
 import warnings
-from typing import Tuple
 
 import tvm_ffi
 
@@ -262,7 +261,7 @@ def _compile_cuda_nvrtc(
         Compiled binary data.
     """
     try:
-        from cuda.bindings import nvrtc  # pylint: disable=import-outside-toplevel
+        from cuda.bindings import nvrtc
     except ImportError as e:
         raise RuntimeError(
             "Failed to compile CUDA with NVRTC because the `cuda-python` package "
@@ -273,7 +272,7 @@ def _compile_cuda_nvrtc(
 
     # For NVSHMEM, we also need the CUDA driver API to initialize the context for linking
     if use_nvshmem:
-        import importlib.util  # pylint: disable=import-outside-toplevel
+        import importlib.util
 
         if importlib.util.find_spec("cuda.bindings.driver") is None:
             raise RuntimeError(
@@ -547,9 +546,9 @@ namespace std {
 
 def _link_nvshmem_nvrtc(binary_buf, nvshmem_lib_path):
     """Link compiled CUBIN with NVSHMEM device library using CUDA driver API."""
-    import ctypes  # pylint: disable=import-outside-toplevel
+    import ctypes
 
-    from cuda.bindings import driver as cu  # pylint: disable=import-outside-toplevel
+    from cuda.bindings import driver as cu
 
     # cuLinkCreate requires a valid CUDA context.
     # Always create a fresh context for linking to avoid issues with stale contexts
@@ -679,14 +678,14 @@ def get_cuda_version(cuda_path=None):
     (out, _) = proc.communicate()
     out = py_str(out)
     if proc.returncode == 0:
-        release_line = [line for line in out.split("\n") if "release" in line][0]
+        release_line = next(line for line in out.split("\n") if "release" in line)
         release_fields = [s.strip() for s in release_line.split(",")]
-        version_str = [f[1:] for f in release_fields if f.startswith("V")][0]
+        version_str = next(f[1:] for f in release_fields if f.startswith("V"))
         return tuple(int(field) for field in version_str.split("."))
     raise RuntimeError("Cannot read CUDA version file")
 
 
-def find_nvshmem_paths() -> Tuple[str, str]:
+def find_nvshmem_paths() -> tuple[str, str]:
     """
     Searches for the NVSHMEM include and library directories.
 
@@ -773,7 +772,7 @@ def find_nvshmem_paths() -> Tuple[str, str]:
 
 
 @tvm_ffi.register_global_func
-def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
+def tvm_callback_cuda_compile(code, target):
     """
     Compile CUDA code using the configured backend (nvcc or nvrtc).
 
@@ -938,7 +937,6 @@ def parse_compute_version(compute_version):
         minor = int(split_ver[1])
         return major, minor
     except (IndexError, ValueError) as err:
-        # pylint: disable=raise-missing-from
         raise RuntimeError("Compute version parsing error: " + str(err))
 
 

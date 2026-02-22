@@ -45,6 +45,6 @@ class MemoryDatabase(Database):
         module_equality: str = "structural",
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.DatabaseMemoryDatabase,  # type: ignore # pylint: disable=no-member,
+            _ffi_api.DatabaseMemoryDatabase,  # type: ignore
             module_equality,
         )

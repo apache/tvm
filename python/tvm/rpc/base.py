@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Base definitions for RPC."""
-# pylint: disable=invalid-name
 
 import errno
 import json

@@ -194,9 +194,9 @@ class Buffer(Object, Scriptable):
         return _ffi_api.BufferOffsetOf(self, indices)  # type: ignore
 
     def __getitem__(self, indices):
-        from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
-        from .expr import BufferLoad, Ramp, const  # pylint: disable=import-outside-toplevel
-        from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
+        from ..arith import Analyzer
+        from .expr import BufferLoad, Ramp, const
+        from .stmt import BufferRegion
 
         if not isinstance(indices, (tuple, list)):
             indices = [indices]
@@ -324,7 +324,7 @@ def decl_buffer(
     If user pass a fully generic symbolic array to the strides,
     then the resulting function becomes fully generic.
     """
-    # pylint: disable=import-outside-toplevel
+
     from .expr import Var
 
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape

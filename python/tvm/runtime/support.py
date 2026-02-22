@@ -109,8 +109,8 @@ def derived_object(cls: type[T]) -> type[T]:
                 ...
     """
 
-    import functools  # pylint: disable=import-outside-toplevel
-    import weakref  # pylint: disable=import-outside-toplevel
+    import functools
+    import weakref
 
     def _extract(inst: type, name: str):
         """Extract function from intrinsic class."""
@@ -168,7 +168,7 @@ def derived_object(cls: type[T]) -> type[T]:
             self._inst._outer = weakref.ref(self)
 
         def __getattr__(self, name):
-            import inspect  # pylint: disable=import-outside-toplevel
+            import inspect
 
             try:
                 # fall back to instance attribute if there is not any

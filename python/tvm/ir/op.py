@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Primitive operators in the TVM IR."""
 
 import tvm_ffi
@@ -102,7 +101,7 @@ class Op(RelaxExpr):
         """
         _ffi_api.OpResetAttr(self, attr_name)
 
-    def add_argument(self, name, type, description):  # pylint: disable=redefined-builtin
+    def add_argument(self, name, type, description):
         """Add arguments information to the function.
 
         Parameters

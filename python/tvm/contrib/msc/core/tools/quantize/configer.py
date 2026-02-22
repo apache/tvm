@@ -28,7 +28,7 @@ from .quantizer import QuantizeStage
 class QuantizeConfiger(ToolConfiger):
     """Configer for quantize"""
 
-    def config_gym(self, gym_config: Union[dict, str]) -> dict:
+    def config_gym(self, gym_config: dict | str) -> dict:
         """Config the gym
 
         Parameters

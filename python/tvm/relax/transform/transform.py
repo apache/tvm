@@ -14,14 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Relax transformation passes."""
+
+from __future__ import annotations
 
 import functools
 import inspect
 import types
 import warnings
-from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from collections.abc import Callable, Mapping, Sequence
+from typing import Optional, Union
 
 import numpy as np  # type: ignore
 import tvm_ffi
@@ -51,7 +53,7 @@ class DataflowBlockPass(tvm.ir.transform.Pass):
 
 
 def Gradient(
-    func_name: str, require_grads: Optional[Union[Var, List[Var]]] = None, target_index: int = 0
+    func_name: str, require_grads: Var | list[Var] | None = None, target_index: int = 0
 ) -> tvm.ir.transform.Pass:
     """Reverse-mode automatic differentiation.
 
@@ -89,7 +91,7 @@ def Gradient(
     func_name : str
         The name of the specific function.
 
-    require_grads : Optional[Union[relax.Var, List[relax.Var]]]
+    require_grads : Optional[Union[relax.Var, list[relax.Var]]]
         The relax variables whose adjoints is needed. Must be parameters of the given function and
         should not be duplicate. If it is not specified, adjoints of all parameters would be
         computed.
@@ -143,9 +145,9 @@ def Gradient(
             @R.function
             def main_adjoint(
                 x: R.Tensor((3, 3), dtype="float32"), y: R.Tensor((3, 3), dtype="float32")
-            ) -> R.Tuple(
+            ) -> R.tuple(
                 R.Tensor((), dtype="float32"),
-                R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")),
+                R.tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")),
             ):
                 with R.dataflow():
                     # original bindings
@@ -172,7 +174,7 @@ def Gradient(
             @R.function
             def main(
                 x: R.Tensor((3, 3), dtype="float32"), y: R.Tensor((3, 3), dtype="float32")
-            ) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")):
+            ) -> R.tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")):
                 with R.dataflow():
                     lv1: R.Tensor((), dtype="float32") = R.sum(x, axis=None, keepdims=False)
                     lv2: R.Tensor((), dtype="float32") = R.sum(y, axis=None, keepdims=False)
@@ -190,7 +192,7 @@ def Gradient(
             @R.function
             def main(
                 x: R.Tensor((3, 3), dtype="float32"), y: R.Tensor((3, 3), dtype="float32")
-            ) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")):
+            ) -> R.tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")):
                 with R.dataflow():
                     lv1: R.Tensor((), dtype="float32") = R.sum(x, axis=None, keepdims=False)
                     lv2: R.Tensor((), dtype="float32") = R.sum(y, axis=None, keepdims=False)
@@ -200,9 +202,9 @@ def Gradient(
             @R.function
             def main_adjoint(
                 x: R.Tensor((3, 3), dtype="float32"), y: R.Tensor((3, 3), dtype="float32")
-            ) -> R.Tuple(
-                R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")),
-                R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")),
+            ) -> R.tuple(
+                R.tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")),
+                R.tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")),
             ):
                 with R.dataflow():
                     # original bindings
@@ -640,7 +642,7 @@ def AttachGlobalSymbol() -> tvm.ir.transform.Pass:
 
 def BindParams(
     func_name: str,
-    params: Dict[Union[str, Var], Union[tvm.runtime.Tensor, np.ndarray]],
+    params: dict[str | Var, tvm.runtime.Tensor | np.ndarray],
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
 
@@ -649,7 +651,7 @@ def BindParams(
     func_name: str
         The function name to be bound
 
-    params: Dict[Union[str,relax.Var], Union[tvm.runtime.Tensor, np.ndarray]]
+    params: dict[Union[str,relax.Var], Union[tvm.runtime.Tensor, np.ndarray]]
         The map from parameter or parameter name to constant tensors.
 
     Returns
@@ -670,8 +672,8 @@ def BindParams(
 
 
 def BindSymbolicVars(
-    binding_map: Mapping[Union[str, tvm.tir.Var], tvm.tir.PrimExpr],
-    func_name: Optional[str] = None,
+    binding_map: Mapping[str | tvm.tir.Var, tvm.tir.PrimExpr],
+    func_name: str | None = None,
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
 
@@ -698,8 +700,8 @@ def BindSymbolicVars(
 
 
 def RunCodegen(
-    target_options: Optional[dict] = None,
-    entry_functions: Optional[List[str]] = None,
+    target_options: dict | None = None,
+    entry_functions: list[str] | None = None,
 ) -> tvm.ir.transform.Pass:
     """Produce the runtime::Module with an annotated codegen and global symbol.
 
@@ -707,7 +709,7 @@ def RunCodegen(
     ----------
     target_options: Optional[dict]
         Pairs of a target name and compilation options
-    entry_functions: Optional[List[str]]
+    entry_functions: Optional[list[str]]
         The set of entry functions to start from.
 
     Returns
@@ -719,7 +721,7 @@ def RunCodegen(
         entry_functions = []
 
     # enable cutlass byoc registries
-    # pylint: disable=unused-import,import-outside-toplevel
+
     from tvm.contrib import cutlass as _cutlass
 
     return _ffi_api.RunCodegen(target_options, entry_functions)  # type: ignore
@@ -883,15 +885,15 @@ class FusionPattern(Object):
     pattern: DFPattern
     annotation_patterns: Mapping[str, DFPattern]
     check: Callable[[PatternCheckContext], bool]
-    attrs_getter: Callable[[Dict[str, Expr]], Dict[str, str]]
+    attrs_getter: Callable[[dict[str, Expr]], dict[str, str]]
 
     def __init__(
         self,
         name: str,
         pattern: DFPattern,
-        annotation_patterns: Optional[Mapping[str, DFPattern]] = None,
-        check: Optional[Callable[[PatternCheckContext], bool]] = None,
-        attrs_getter: Optional[Callable[[Dict[str, Expr]], Dict[str, str]]] = None,
+        annotation_patterns: Mapping[str, DFPattern] | None = None,
+        check: Callable[[PatternCheckContext], bool] | None = None,
+        attrs_getter: Callable[[dict[str, Expr]], dict[str, str]] | None = None,
     ):
         if annotation_patterns is None:
             annotation_patterns = {}
@@ -901,10 +903,10 @@ class FusionPattern(Object):
 
 
 def FuseOpsByPattern(
-    patterns: List[Union[FusionPattern, Tuple]],
+    patterns: list[FusionPattern | tuple],
     bind_constants: bool = True,
     annotate_codegen: bool = False,
-    entry_functions: Optional[List[str]] = None,
+    entry_functions: list[str] | None = None,
 ) -> tvm.ir.transform.Pass:
     """Apply pattern matching to each function in the given module, and group matched expressions
     into a new function.
@@ -915,7 +917,7 @@ def FuseOpsByPattern(
 
     Parameters
     ----------
-    patterns : List[Union[FusionPattern, Tuple]]
+    patterns : list[Union[FusionPattern, tuple]]
         A list of patterns to be matched. The order of the patterns determines the order of priority
         in which they are matched. Higher-priority patterns should come earlier in the list.
 
@@ -934,7 +936,7 @@ def FuseOpsByPattern(
         This must be True if the created composite functions are intended to be offloaded to
         an external backend without using the MergeCompositeFunctions pass.
 
-    entry_functions : Optional[List[str]]
+    entry_functions : Optional[list[str]]
         The set of entry functions to start from.
 
     Returns
@@ -1002,7 +1004,7 @@ def SplitLayoutRewritePreproc() -> tvm.ir.transform.Pass:
     return _ffi_api.SplitLayoutRewritePreproc()  # type: ignore
 
 
-def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm.ir.transform.Pass:
+def LiftTransformParams(shared_transform: bool | list[str] = False) -> tvm.ir.transform.Pass:
     """Lift transformation of the parameters of a function.
 
     When some inputs of the function is marked as 'parameters' (the model weights), this pass
@@ -1016,7 +1018,7 @@ def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm
 
     Parameters
     ----------
-    shared_transform: Union[bool, List[str]]
+    shared_transform: Union[bool, list[str]]
 
         Indicates how the parameter transformation function will be produced
 
@@ -1027,7 +1029,7 @@ def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm
           containing the preprocessing steps common across all functions with
           the `"num_input"` attribute.
 
-        - List[str]: A single parameter transformation function will be produced,
+        - list[str]: A single parameter transformation function will be produced,
           containing the preprocessing steps common across each function whose
           name is in the list.  Passing a list of all functions with the `"num_input"`
           attribute or an empty list is equivalent to passing `True`.
@@ -1040,7 +1042,7 @@ def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm
     return _ffi_api.LiftTransformParams(shared_transform)  # type: ignore
 
 
-def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transform.Pass:
+def BundleModelParams(param_tuple_name: str | None = None) -> tvm.ir.transform.Pass:
     """Bundle several model parameters into a single tuple paramters
 
     For each function, if the function has the attribute "num_input",
@@ -1064,8 +1066,8 @@ def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transfor
 
 
 def LegalizeOps(
-    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None,
-    skip_ops: Optional[List[str]] = None,
+    customize_legalize_map: dict[str, LegalizeFunc] | None = None,
+    skip_ops: list[str] | None = None,
     enable_warning: bool = False,
 ):
     """Legalize high-level operator calls in Relax functions to call_tir
@@ -1088,12 +1090,12 @@ def LegalizeOps(
 
     Parameters
     ----------
-    customize_legalize_map : Optional[Dict[str, LegalizeFunc]]
+    customize_legalize_map : Optional[dict[str, LegalizeFunc]]
         The customized operator legalization function map. The customized function will override
         the default one.
 
-    skip_ops : Optional,List[str]]
-        List of ops that need to be skipped from legalization
+    skip_ops : Optional,list[str]]
+        list of ops that need to be skipped from legalization
 
     enable_warning : bool
         A boolean value indicating if to print warnings for CallNode whose op's
@@ -1190,7 +1192,7 @@ def RealizeVDevice() -> tvm.ir.transform.Pass:
 
 
 def MetaScheduleApplyDatabase(
-    work_dir: Optional[str] = None, enable_warning: bool = False
+    work_dir: str | None = None, enable_warning: bool = False
 ) -> tvm.ir.transform.Pass:
     """Apply the best schedule from tuning database.
 
@@ -1231,17 +1233,17 @@ def MetaScheduleTuneTIR(
 
 
 def MetaScheduleTuneIRMod(
-    params: Dict[str, Tensor],
+    params: dict[str, Tensor],
     work_dir: str,
     max_trials_global: int,
-    max_trials_per_task: Optional[int] = None,
-    op_names: Optional[List[str]] = None,
+    max_trials_per_task: int | None = None,
+    op_names: list[str] | None = None,
 ) -> tvm.ir.transform.Pass:
     """Tune Relax IRModule with MetaSchedule.
 
     Parameters
     ----------
-    params: Dict[str, Tensor]
+    params: dict[str, Tensor]
        model params
     work_dir: str
        work directory
@@ -1249,7 +1251,7 @@ def MetaScheduleTuneIRMod(
        maximum number of total trials allowed for tuning
     max_trials_per_task: int
        maximum number of trials per task
-    op_names: Optional[List[str]]
+    op_names: Optional[list[str]]
        A list of operator names to specify which op to tune. When it is None, all operators
        are tuned.
 
@@ -1286,7 +1288,7 @@ def FewShotTuning(
     return _ffi_api.FewShotTuning(valid_count, benchmark)  # type: ignore
 
 
-def DecomposeOpsForInference(func_name: Optional[str] = None) -> tvm.ir.transform.Pass:
+def DecomposeOpsForInference(func_name: str | None = None) -> tvm.ir.transform.Pass:
     """Decompose composite operators that are composed by other operators during inference.
     For example, the result of batch norm (a triple) will be simplified. Attention, tensor_to_shape,
     etc. can be also decomposed into a number of simplified operators as well.
@@ -1305,7 +1307,7 @@ def DecomposeOpsForInference(func_name: Optional[str] = None) -> tvm.ir.transfor
     return _ffi_api.DecomposeOpsForInference(func_name)  # type: ignore
 
 
-def DecomposeOpsForTraining(func_name: Optional[str] = None) -> tvm.ir.transform.Pass:
+def DecomposeOpsForTraining(func_name: str | None = None) -> tvm.ir.transform.Pass:
     """Decompose composite operators that are composed by other operators during training.
     For example, the result of batch norm (a triple) will be simplified. Attention, tensor_to_shape,
     etc. can be also decomposed into a number of simplified operators as well.
@@ -1325,10 +1327,10 @@ def DecomposeOpsForTraining(func_name: Optional[str] = None) -> tvm.ir.transform
 
 
 def AlterOpImpl(
-    op_impl_map: Dict[str, PrimFunc],
-    op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]],
-    op_buffer_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]],
-    op_buffer_input_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]],
+    op_impl_map: dict[str, PrimFunc],
+    op_buffer_transforms: dict[str, list[IndexMap | Callable]],
+    op_buffer_axis_separators: dict[str, list[IndexMap.AXIS_SEPARATOR | Callable]],
+    op_buffer_input_axis_separators: dict[str, list[IndexMap.AXIS_SEPARATOR | Callable]],
 ):
     """Replace all PrimFunc's which have matching 'operator_name' attribute, with replacement
     PrimFunc that could possibly have different layouts on i/o buffers. The layout
@@ -1338,13 +1340,13 @@ def AlterOpImpl(
 
     Parameters
     ----------
-    op_impl_map: Dict[str, PrimFunc]
+    op_impl_map: dict[str, PrimFunc]
         op_kind to PrimFunc map
-    op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]
+    op_buffer_transforms: dict[str, list[Union[IndexMap, Callable]]
         op_kind to layout transformation map for each of the buffers
-    op_buffer_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]]
+    op_buffer_axis_separators: dict[str, list[Union[IndexMap.AXIS_SEPARATOR, Callable]]]
         op_kind to axis_separator for each index_map
-    op_buffer_input_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]]
+    op_buffer_input_axis_separators: dict[str, list[Union[IndexMap.AXIS_SEPARATOR, Callable]]]
         op_kind to axis_separator for input index_map
 
     Returns
@@ -1371,14 +1373,14 @@ def AlterOpImpl(
 
 
 def ConvertLayout(
-    desired_layouts: Dict[str, List[str]],
-    layout_cb: Callable = None,
+    desired_layouts: dict[str, list[str]],
+    layout_cb: Callable | None = None,
 ) -> tvm.ir.transform.Pass:
     """Automatic layout conversion pass.
 
     Parameters
     ----------
-    desired_layouts : Dict[str, List[str]]
+    desired_layouts : dict[str, list[str]]
         The desired layout of conv2d ops is a map from the name of the op to the desired layout
         of the desired feature map, weight and output. For example, if we want to convert the
         layout of conv2d from NCHW to NHWC, we can set the desired layout of conv2d to be
@@ -1395,7 +1397,7 @@ def ConvertLayout(
     return _ffi_api.ConvertLayout(desired_layouts, layout_cb)  # type: ignore
 
 
-def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:
+def DeadCodeElimination(entry_functions: list[str] | None = None) -> tvm.ir.transform.Pass:
     """Remove dead code in the IRModule.
     Currently it removes:
 
@@ -1412,7 +1414,7 @@ def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.t
 
     Parameters
     ----------
-    entry_functions: Optional[List[str]]
+    entry_functions: Optional[list[str]]
         The set of entry functions to start from.
 
     Returns
@@ -1426,7 +1428,7 @@ def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.t
 
 
 def ToMixedPrecision(
-    out_dtype="float32", fp16_input_names: Optional[List[str]] = None
+    out_dtype="float32", fp16_input_names: list[str] | None = None
 ) -> tvm.ir.transform.Pass:
     """Automatic mixed precision pass. Currently the pass assumes the input module to be fp32
     only, and will automatically cast fp32 to fp16 for certain ops.
@@ -1437,7 +1439,7 @@ def ToMixedPrecision(
     ----------
     out_dtype : str
         The output data type of gemm/conv, which is the data type of the accumulator.
-    fp16_input_names : List[str]
+    fp16_input_names : list[str]
         The names of function parameters whose dtype should become fp16. The  function signature
         would change accordingly.
 
@@ -1449,7 +1451,7 @@ def ToMixedPrecision(
     return _ffi_api.ToMixedPrecision(out_dtype, fp16_input_names)  # type: ignore
 
 
-def SplitCallTIRByPattern(patterns: List[PrimFunc], fcodegen: Callable) -> tvm.ir.transform.Pass:
+def SplitCallTIRByPattern(patterns: list[PrimFunc], fcodegen: Callable) -> tvm.ir.transform.Pass:
     """Split a PrimFunc into 2 parts: the first part is a TIR PrimFunc which is
        matched with some pattern, and the second part is the rest of the original
        PrimFunc. It will call fcodegen to generate the code for the matched pattern
@@ -1457,10 +1459,10 @@ def SplitCallTIRByPattern(patterns: List[PrimFunc], fcodegen: Callable) -> tvm.i
 
     Parameters
     ----------
-    patterns : List[PrimFunc]
+    patterns : list[PrimFunc]
         The list of patterns to match.
 
-    fcodegen: Callable[[List[MatchResult]], List[Object]]
+    fcodegen: Callable[[list[MatchResult]], list[Object]]
         The function to generate the code for the matched patterns.
 
     Returns
@@ -1471,7 +1473,7 @@ def SplitCallTIRByPattern(patterns: List[PrimFunc], fcodegen: Callable) -> tvm.i
     return _ffi_api.SplitCallTIRByPattern(patterns, fcodegen)  # type: ignore
 
 
-def UpdateParamStructInfo(sinfo_func: Callable[[Var], Optional[StructInfo]]):
+def UpdateParamStructInfo(sinfo_func: Callable[[Var], StructInfo | None]):
     """Update struct info of parameters
 
     Update struct info of parameters.  Internal bindings and function
@@ -1578,7 +1580,7 @@ def CombineParallelMatmul(check=None):
 
     Parameters
     ----------
-    check : Callable[[Var, List[Var], List[Var], Dict[Var, Expr]], bool]
+    check : Callable[[Var, list[Var], list[Var], dict[Var, Expr]], bool]
         A function to filter out unwanted branches, with the signature
         (input, [rhs], [bias], binding) -> bool.
 
@@ -1670,7 +1672,7 @@ def function_pass(
     name=None,
     required=None,
     traceable=False,
-) -> Union[Callable, FunctionPass]:
+) -> Callable | FunctionPass:
     """Decorate a function pass.
 
     This function returns a callback when pass_func
@@ -1689,7 +1691,7 @@ def function_pass(
         The name of the function pass. The name could be empty. In this case, the
         name of the optimization function will be used as the pass name.
 
-    required : Optional[List[str]]
+    required : Optional[list[str]]
         The list of passes that the function pass is dependent on.
 
     traceable: Boolean
@@ -1814,7 +1816,7 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
 
 def dataflowblock_pass(
     pass_func=None, opt_level=None, name=None, required=None, traceable=False
-) -> Union[Callable, DataflowBlockPass]:
+) -> Callable | DataflowBlockPass:
     """Decorate a dataflowblock pass.
 
     This function returns a callback when pass_func
@@ -1833,7 +1835,7 @@ def dataflowblock_pass(
         The name of the dataflowblock pass. The name could be empty. In this case, the
         name of the optimization function will be used as the pass name.
 
-    required : Optional[List[str]]
+    required : Optional[list[str]]
         The list of passes that the dataflowblock pass is dependent on.
 
     traceable: Boolean

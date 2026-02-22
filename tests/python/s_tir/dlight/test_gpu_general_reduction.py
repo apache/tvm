@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 import tvm
 import tvm.testing
 from tvm.ir import IRModule, assert_structural_equal
@@ -27,7 +26,7 @@ from tvm.target import Target
 def _check(mod_before: IRModule, mod_after: IRModule):
     target = Target("nvidia/geforce-rtx-3090-ti")
     with target:
-        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+        mod = dl.ApplyDefaultSchedule(
             dl.gpu.GeneralReduction(),
         )(mod_before)
     assert_structural_equal(mod, mod_after)
@@ -540,7 +539,8 @@ def test_group_norm():
                             v1 = T.axis.spatial(2048, ax1_0 * 256 + ax1_1)
                             T.reads(A[0, v1], A_red_temp_v0_shared[0, v1 // 64], A_red_temp_v1_shared[0, v1 // 64], B[v1], C[v1])
                             T.writes(T_reshape[0, v1])
-                            T_reshape[0, v1] = (A[0, v1] - A_red_temp_v0_shared[0, v1 // 64] * T.float32(0.015625)) * T.rsqrt(A_red_temp_v1_shared[0, v1 // 64] * T.float32(0.015625) - A_red_temp_v0_shared[0, v1 // 64] * T.float32(0.015625) * (A_red_temp_v0_shared[0, v1 // 64] * T.float32(0.015625)) + T.float32(1.0000000000000001e-05)) * B[v1] + C[v1]    # fmt: on
+                            T_reshape[0, v1] = (A[0, v1] - A_red_temp_v0_shared[0, v1 // 64] * T.float32(0.015625)) * T.rsqrt(A_red_temp_v1_shared[0, v1 // 64] * T.float32(0.015625) - A_red_temp_v0_shared[0, v1 // 64] * T.float32(0.015625) * (A_red_temp_v0_shared[0, v1 // 64] * T.float32(0.015625)) + T.float32(1.0000000000000001e-05)) * B[v1] + C[v1]
+    # fmt: on
     _check(Before, After)
 
 

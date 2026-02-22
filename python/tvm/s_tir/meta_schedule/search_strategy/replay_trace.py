@@ -39,6 +39,6 @@ class ReplayTrace(SearchStrategy):
     def __init__(self, max_fail_count: int = 100):
         """Constructor"""
         self.__init_handle_by_constructor__(
-            _ffi_api.SearchStrategyReplayTrace,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SearchStrategyReplayTrace,  # type: ignore
             max_fail_count,
         )

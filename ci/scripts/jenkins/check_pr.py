@@ -20,8 +20,9 @@ import json
 import os
 import re
 import textwrap
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, List
+from typing import Any
 
 from cmd_utils import init_log, tags_from_title
 from git_utils import GitHubRepo, git, parse_remote
@@ -81,7 +82,7 @@ body_checks = [
 ]
 
 
-def run_checks(checks: List[Check], s: str, name: str) -> bool:
+def run_checks(checks: list[Check], s: str, name: str) -> bool:
     print(f"Running checks for {name}")
     print(textwrap.indent(s, prefix="    "))
     passed = True
@@ -136,6 +137,6 @@ if __name__ == "__main__":
         exit(0)
     else:
         print(
-            "Some checks failed, please review the logs above and edit your PR on GitHub accordingly"
+            "Some checks failed, please review the logs above and edit your PR on GitHub accordingly"  # noqa: E501
         )
         exit(1)

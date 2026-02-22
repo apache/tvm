@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-argument
 """Default legalization function for perators to implement operaor gradients."""
 
 import logging
@@ -164,7 +163,6 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_take_backward(output_grad, x, indices):
         def gen_ir(output_grad_ptr, x_ptr, indices_ptr, out_ptr):
-            # pylint: disable=invalid-name
             # Use buffer_proxy for flat indexing on multi-dimensional buffers
             out = buffer_proxy(out_ptr)
             grad = buffer_proxy(output_grad_ptr)

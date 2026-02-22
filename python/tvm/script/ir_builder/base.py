@@ -16,7 +16,10 @@
 # under the License.
 """A generic IRBuilder across the TVM stack"""
 
-from typing import Any, Callable, List
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
 
 from tvm_ffi import register_object as _register_object
 
@@ -64,14 +67,14 @@ class IRBuilderFrame(_Object):
 
     """
 
-    def __enter__(self) -> "IRBuilderFrame":
-        _ffi_api.IRBuilderFrameEnter(self)  # type: ignore[attr-defined] # pylint: disable=no-member
+    def __enter__(self) -> IRBuilderFrame:
+        _ffi_api.IRBuilderFrameEnter(self)  # type: ignore[attr-defined]
         return self
 
-    def __exit__(self, exc_type, exc_value, trace) -> None:  # pylint: disable=unused-argument
+    def __exit__(self, exc_type, exc_value, trace) -> None:
         if exc_type is None and exc_value is None:
             # Do not execute `FrameExit` if the with scope exits because of exceptions
-            _ffi_api.IRBuilderFrameExit(self)  # type: ignore[attr-defined] # pylint: disable=no-member
+            _ffi_api.IRBuilderFrameExit(self)  # type: ignore[attr-defined]
 
     def add_callback(self, callback: Callable[[], None]) -> None:
         """Add a callback method invoked when exiting the with-scope.
@@ -81,7 +84,7 @@ class IRBuilderFrame(_Object):
         callback : Callable[[], None]
             The callback method to be invoked.
         """
-        _ffi_api.IRBuilderFrameAddCallback(  # type: ignore[attr-defined] # pylint: disable=no-member
+        _ffi_api.IRBuilderFrameAddCallback(  # type: ignore[attr-defined]
             self, callback
         )
 
@@ -111,10 +114,10 @@ class IRBuilder(_Object):
     def __init__(self) -> None:
         """Construct an IRBuilder."""
         self.__init_handle_by_constructor__(
-            _ffi_api.IRBuilder  # type: ignore[attr-defined] # pylint: disable=no-member
+            _ffi_api.IRBuilder  # type: ignore[attr-defined]
         )
 
-    def __enter__(self) -> "IRBuilder":
+    def __enter__(self) -> IRBuilder:
         """Enter the with-scope for IRBuilder, which allows the IRBuilder to be discoverable
         using `IRBuilder.current()`.
 
@@ -128,14 +131,14 @@ class IRBuilder(_Object):
                 assert IRBuilder.current() == builder
 
         """
-        _ffi_api.IRBuilderEnter(self)  # type: ignore[attr-defined] # pylint: disable=no-member
+        _ffi_api.IRBuilderEnter(self)  # type: ignore[attr-defined]
         return self
 
-    def __exit__(self, ptype, value, trace) -> None:  # pylint: disable=unused-argument
-        _ffi_api.IRBuilderExit(self)  # type: ignore[attr-defined] # pylint: disable=no-member
+    def __exit__(self, ptype, value, trace) -> None:
+        _ffi_api.IRBuilderExit(self)  # type: ignore[attr-defined]
 
     @staticmethod
-    def current() -> "IRBuilder":
+    def current() -> IRBuilder:
         """Get the current IRBuilder put in the with-scope.
 
         Returns
@@ -143,7 +146,7 @@ class IRBuilder(_Object):
         builder : IRBuilder
             The current IRBuilder.
         """
-        return _ffi_api.IRBuilderCurrent()  # type: ignore[attr-defined] # pylint: disable=no-member
+        return _ffi_api.IRBuilderCurrent()  # type: ignore[attr-defined]
 
     @staticmethod
     def is_in_scope() -> bool:
@@ -154,11 +157,11 @@ class IRBuilder(_Object):
         bool
             Whether the current thread-local scope has an IRBuilder
         """
-        return _ffi_api.IRBuilderIsInScope()  # type: ignore[attr-defined] # pylint: disable=no-member
+        return _ffi_api.IRBuilderIsInScope()  # type: ignore[attr-defined]
 
     def get(self) -> _Object:
         """Get the constructed IR."""
-        return _ffi_api.IRBuilderGet(self)  # type: ignore[attr-defined] # pylint: disable=no-member
+        return _ffi_api.IRBuilderGet(self)  # type: ignore[attr-defined]
 
     @staticmethod
     def name(s: str, v: Any) -> Any:
@@ -176,13 +179,13 @@ class IRBuilder(_Object):
         v : Any
             The same object with the name set.
         """
-        return _ffi_api.IRBuilderName(s, v)  # type: ignore[attr-defined] # pylint: disable=no-member
+        return _ffi_api.IRBuilderName(s, v)  # type: ignore[attr-defined]
 
     @staticmethod
-    def name_many(  # pylint: disable=invalid-name
-        s: List[str],
-        vs: List[Any],
-    ) -> List[Any]:
+    def name_many(
+        s: list[str],
+        vs: list[Any],
+    ) -> list[Any]:
         """Set the name of a list of objects.
 
         Parameters

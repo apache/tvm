@@ -18,10 +18,13 @@
 with the distributed runtime.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import pickle
-from typing import Any, Callable, Optional, Sequence, Union
+from collections.abc import Callable, Sequence
+from typing import Any, Optional, Union
 
 import numpy as np
 from tvm_ffi import get_global_func, register_global_func, register_object
@@ -31,7 +34,7 @@ from .._tensor import tensor as _as_Tensor
 from ..container import ShapeTuple
 from ..device import Device
 from ..object import Object
-from . import _ffi_api, process_pool  # pylint: disable=unused-import
+from . import _ffi_api, process_pool
 
 
 @register_object("runtime.disco.DRef")
@@ -53,12 +56,12 @@ class DRef(Object):
         value : object
             The value of the register.
         """
-        return _ffi_api.DRefDebugGetFromRemote(self, worker_id)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DRefDebugGetFromRemote(self, worker_id)  # type: ignore
 
     def debug_copy_from(
         self,
         worker_id: int,
-        value: Union[np.ndarray, Tensor],
+        value: np.ndarray | Tensor,
     ) -> None:
         """Copy an Tensor value to remote for debugging purposes.
 
@@ -72,13 +75,13 @@ class DRef(Object):
         """
         if not isinstance(value, Tensor):
             value = _as_Tensor(value)
-        return _ffi_api.DRefDebugCopyFrom(self, worker_id, value)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.DRefDebugCopyFrom(self, worker_id, value)  # type: ignore
 
 
 class DPackedFunc(DRef):
     """A PackedFunc in a Disco session."""
 
-    def __init__(self, dref: DRef, session: "Session") -> None:
+    def __init__(self, dref: DRef, session: Session) -> None:
         self.__move_handle_from__(dref)
         self.session = session
 
@@ -89,7 +92,7 @@ class DPackedFunc(DRef):
 class DModule(DRef):
     """A Module in a Disco session."""
 
-    def __init__(self, dref: DRef, session: "Session") -> None:
+    def __init__(self, dref: DRef, session: Session) -> None:
         self.__move_handle_from__(dref)
         self.session = session
 
@@ -105,7 +108,7 @@ class Session(Object):
 
     def _get_cached_method(self, name: str) -> Callable:
         if "_cache" not in self.__dict__:
-            cache = self._cache = {}  # pylint: disable=attribute-defined-outside-init
+            cache = self._cache = {}
         else:
             cache = self._cache
         if name not in cache:
@@ -118,7 +121,7 @@ class Session(Object):
         self,
         shape: Sequence[int],
         dtype: str,
-        device: Optional[Device] = None,
+        device: Device | None = None,
         worker0_only: bool = False,
         in_group: bool = True,
     ) -> DRef:
@@ -155,12 +158,12 @@ class Session(Object):
 
     def shutdown(self):
         """Shut down the Disco session"""
-        _ffi_api.SessionShutdown(self)  # type: ignore # pylint: disable=no-member
+        _ffi_api.SessionShutdown(self)  # type: ignore
 
     @property
     def num_workers(self) -> int:
         """Return the number of workers in the session"""
-        return _ffi_api.SessionGetNumWorkers(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.SessionGetNumWorkers(self)  # type: ignore
 
     def get_global_func(self, name: str) -> DRef:
         """Get a global function on workers.
@@ -175,7 +178,7 @@ class Session(Object):
         func : DRef
             The global packed function
         """
-        return DPackedFunc(_ffi_api.SessionGetGlobalFunc(self, name), self)  # type: ignore # pylint: disable=no-member
+        return DPackedFunc(_ffi_api.SessionGetGlobalFunc(self, name), self)  # type: ignore
 
     def import_python_module(self, module_name: str) -> None:
         """Import a python module in each worker
@@ -220,7 +223,7 @@ class Session(Object):
         - Tensor, DLTensor,;
         - TVM Objects, including PackedFunc, Module and String.
         """
-        return _ffi_api.SessionCallPacked(self, 0, 0, func, *args)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.SessionCallPacked(self, 0, 0, func, *args)  # type: ignore
 
     def _sync_worker(self, worker_id: int) -> None:
         """Synchronize the controller with a worker, and it will wait until the worker finishes
@@ -233,7 +236,7 @@ class Session(Object):
         worker_id : int
             The id of the worker to be synced with.
         """
-        return _ffi_api.SessionSyncWorker(self, worker_id)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.SessionSyncWorker(self, worker_id)  # type: ignore
 
     def _sync_all(self) -> None:
         """Synchronize the controller with all workers in the current session, and it will
@@ -257,9 +260,9 @@ class Session(Object):
         remote_array : Tensor
             The Tensor on worker-0.
         """
-        return _ffi_api.SessionCopyFromWorker0(self, host_array, remote_array)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.SessionCopyFromWorker0(self, host_array, remote_array)  # type: ignore
 
-    def copy_to_worker_0(self, host_array: Tensor, remote_array: Optional[DRef] = None) -> DRef:
+    def copy_to_worker_0(self, host_array: Tensor, remote_array: DRef | None = None) -> DRef:
         """Copy the controller-side Tensor to worker-0.
 
         Parameters
@@ -283,13 +286,13 @@ class Session(Object):
         if remote_array is None:
             remote_array = self.empty(host_array.shape, host_array.dtype, worker0_only=True)
 
-        _ffi_api.SessionCopyToWorker0(self, host_array, remote_array)  # type: ignore # pylint: disable=no-member
+        _ffi_api.SessionCopyToWorker0(self, host_array, remote_array)  # type: ignore
         return remote_array
 
     def load_vm_module(
         self,
         path: str,
-        device: Optional[Device] = None,
+        device: Device | None = None,
     ) -> DModule:
         """Load a VM module from a file.
 
@@ -324,13 +327,13 @@ class Session(Object):
             The device IDs to be used by the underlying communication library.
         """
         assert ccl in ("nccl", "rccl"), f"Unsupported CCL backend: {ccl}"
-        _ffi_api.SessionInitCCL(self, ccl, ShapeTuple(device_ids))  # type: ignore # pylint: disable=no-member
+        _ffi_api.SessionInitCCL(self, ccl, ShapeTuple(device_ids))  # type: ignore
         self._clear_ipc_memory_pool()
 
     def broadcast(
         self,
-        src: Union[np.ndarray, Tensor],
-        dst: Optional[DRef] = None,
+        src: np.ndarray | Tensor,
+        dst: DRef | None = None,
         in_group: bool = True,
     ) -> DRef:
         """Broadcast an array to all workers
@@ -387,8 +390,8 @@ class Session(Object):
 
     def scatter(
         self,
-        src: Union[np.ndarray, Tensor],
-        dst: Optional[DRef] = None,
+        src: np.ndarray | Tensor,
+        dst: DRef | None = None,
         in_group: bool = True,
     ) -> DRef:
         """Scatter an array across all workers
@@ -472,7 +475,7 @@ class Session(Object):
         self,
         src: DRef,
         dst: DRef,
-        op: str = "sum",  # pylint: disable=invalid-name
+        op: str = "sum",
         in_group: bool = True,
     ) -> DRef:
         """Perform an allreduce operation on an array.
@@ -535,7 +538,7 @@ class ThreadedSession(Session):
     def __init__(self, num_workers: int, num_groups: int = 1) -> None:
         """Create a disco session backed by multiple threads in the same process."""
         self.__init_handle_by_constructor__(
-            _ffi_api.SessionThreaded,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SessionThreaded,  # type: ignore
             num_workers,
             num_groups,
         )
@@ -552,7 +555,7 @@ class ProcessSession(Session):
         entrypoint: str = "tvm.exec.disco_worker",
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.SessionProcess,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SessionProcess,  # type: ignore
             num_workers,
             num_groups,
             "runtime.disco.create_process_pool",
@@ -562,7 +565,7 @@ class ProcessSession(Session):
 
     def _configure_structlog(self) -> None:
         try:
-            import structlog  # pylint: disable=import-outside-toplevel
+            import structlog
         except ImportError:
             return
 
@@ -602,7 +605,7 @@ class SocketSession(Session):
         port: int,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.SocketSession,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SocketSession,  # type: ignore
             num_nodes,
             num_workers_per_node,
             num_groups,
@@ -630,7 +633,7 @@ def _configure_structlog(pickled_config: bytes, parent_pid: int) -> None:
     if os.getpid() == parent_pid:
         return
 
-    import structlog  # pylint: disable=import-outside-toplevel
+    import structlog
 
     full_config = pickle.loads(pickled_config)
     structlog_config, stdlib_formatter, stdlib_level = full_config

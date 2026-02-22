@@ -16,10 +16,12 @@
 # under the License.
 """The class of Space used to optimize the Meta parameters"""
 
+from __future__ import annotations
+
 import json
 import random
 from copy import deepcopy
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np  # type: ignore
 
@@ -52,9 +54,9 @@ class Space:
         self.target = target
         self.dev = self.get_device_type(target)
         self.total_dims = 0
-        self.dims: List[int] = []
-        self.start: List[int] = []
-        self.config_space: Dict[str, List[int]] = dict()
+        self.dims: list[int] = []
+        self.start: list[int] = []
+        self.config_space: dict[str, list[int]] = dict()
         self.create_space()
 
     def __repr__(self) -> str:
@@ -77,7 +79,7 @@ class Space:
         """Return the space"""
         return self.config_space[key][pos]
 
-    def add_space(self, space_list: list, element_list: list, limit=10000) -> List[int]:
+    def add_space(self, space_list: list, element_list: list, limit=10000) -> list[int]:
         """Return a list without repeat and with limited value"""
         new_list = element_list
         for elem in space_list:
@@ -234,7 +236,7 @@ class Space:
                 record.trace.apply_to_schedule(sch, remove_postproc=remove_postproc)
                 mods.append(sch.mod)
                 records.append(record)
-            except Exception:  # pylint: disable=broad-except, invalid-name
+            except Exception:
                 continue
 
         builder_res = builder.build([ms.builder.BuilderInput(mod, self.target) for mod in mods])
@@ -248,7 +250,7 @@ class Space:
                 )
                 runner_res = runner.run([inp])[0].result()
                 results[i] = [v.value for v in runner_res.run_secs]  # type: ignore
-            except Exception:  # pylint: disable=broad-except, invalid-name
+            except Exception:
                 results[i] = [1e10]
                 continue
 

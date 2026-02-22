@@ -16,7 +16,9 @@
 # under the License.
 """Triton kernel integration with TIR"""
 
-from typing import Any, Dict, List, Tuple, Union
+from __future__ import annotations
+
+from typing import Any
 
 import triton
 from packaging import version
@@ -44,10 +46,10 @@ class TritonKernel(BaseKernel):
 
     def compile_to_device_module(
         self,
-        launch_args: List[Union[int, tir.PrimExpr]],
-        *args: List[Any],
-        **kwargs: Dict[str, Any],
-    ) -> Tuple[str, Module, List[Any]]:
+        launch_args: list[int | tir.PrimExpr],
+        *args: list[Any],
+        **kwargs: dict[str, Any],
+    ) -> tuple[str, Module, list[Any]]:
         """Compile the kernel to a device module.
 
         Parameters
@@ -69,10 +71,11 @@ class TritonKernel(BaseKernel):
         assert kernel_metadata.num_ctas == 1, "Cluster is not supported"
         num_warps = kernel_metadata.num_warps
         grid = launch_args
-        launch_param_tags = ["threadIdx.x"] + ["blockIdx.x", "blockIdx.y", "blockIdx.z"][
-            : len(grid)
+        launch_param_tags = [
+            "threadIdx.x",
+            *["blockIdx.x", "blockIdx.y", "blockIdx.z"][: len(grid)],
         ]
-        launch_args = [num_warps * 32] + list(grid)
+        launch_args = [num_warps * 32, *list(grid)]
         if version.parse(triton.__version__) >= version.parse("3.3.0"):
             kernel_arg_types = [
                 arg.dtype if not isinstance(arg, int) else "int64" for arg in kernel_args
@@ -92,7 +95,7 @@ class TritonKernel(BaseKernel):
 
     def _generate_triton_kernel(
         self, func, *args, **kwargs
-    ) -> Tuple["triton.compiler.CompiledKernel", List[tir.PrimExpr]]:
+    ) -> tuple[triton.compiler.CompiledKernel, list[tir.PrimExpr]]:
         """Deduce the kernel signature and generate the Triton kernel"""
 
         kernel_params = func.params

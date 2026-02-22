@@ -58,7 +58,7 @@ def test_call_tir_with_grad():
     )
     assert v2.attrs.te_grad_name == "identity_k_grad"
     assert isinstance(v2.attrs.te_grad_kwargs, tvm.ir.container.Map)
-    val = list(v2.attrs.te_grad_kwargs.items())[0]
+    val = next(iter(v2.attrs.te_grad_kwargs.items()))
     assert val[0] == "k" and float(val[1]) == 1.0
 
 

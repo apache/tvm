@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.core.tools.configer"""
 
-from typing import Union
+from typing import Optional, Union
 
 from tvm.contrib.msc.core import utils as msc_utils
 
@@ -26,7 +26,7 @@ from .tool import ToolType
 class ToolConfiger:
     """Base configer for tool"""
 
-    def config(self, raw_config: dict = None) -> dict:
+    def config(self, raw_config: dict | None = None) -> dict:
         """Get the config
 
         Parameters
@@ -78,7 +78,7 @@ class ToolConfiger:
         config = self.config_tool()
         return msc_utils.update_dict(config, raw_config)
 
-    def config_gym(self, gym_config: Union[dict, str]) -> dict:
+    def config_gym(self, gym_config: dict | str) -> dict:
         """Config the gym
 
         Parameters

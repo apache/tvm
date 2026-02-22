@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import gc
 import sys
 
@@ -29,8 +28,6 @@ from tvm.s_tir.sblock_scope import DepKind
 from tvm.script import tir as T
 from tvm.tir import PrimFunc
 from tvm.tir.stmt_functor import post_order_visit
-
-# pylint: disable=no-member,invalid-name,unused-variable
 
 
 @T.prim_func
@@ -80,9 +77,6 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             with T.sblock("update"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
-
-
-# pylint: enable=no-member,invalid-name,unused-variable
 
 
 def get_sblocks(func: PrimFunc):

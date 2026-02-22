@@ -16,7 +16,6 @@
 # under the License.
 """Deprecation RPC module"""
 
-# pylint: disable=unused-import
 from __future__ import absolute_import as _abs
 
 import warnings

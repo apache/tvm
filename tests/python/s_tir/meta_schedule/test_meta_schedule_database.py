@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 """Test Meta Schedule Database"""
+
+from __future__ import annotations
 
 import os.path as osp
 import tempfile
-from typing import Callable, List, Optional
+from collections.abc import Callable
+from typing import Optional
 
 import pytest
 
@@ -34,7 +36,6 @@ from tvm.script import tir as T
 from tvm.target import Target
 
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 @tvm.script.ir_module
 class Matmul:
@@ -55,7 +56,7 @@ class Matmul:
 @tvm.script.ir_module
 class MatmulRelu:
     @T.prim_func
-    def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(a: T.handle, b: T.handle, d: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
         B = T.match_buffer(b, (16, 16), "float32")
@@ -74,7 +75,6 @@ class MatmulRelu:
 
 
 # fmt: on
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
 def _schedule_matmul(sch: Schedule):
@@ -115,8 +115,8 @@ def _equal_record(a: ms.database.TuningRecord, b: ms.database.TuningRecord):
 class PyMemoryDatabaseDefault(ms.database.PyDatabase):
     def __init__(self):
         super().__init__()
-        self.tuning_records_: List[TuningRecord] = []
-        self.workloads_: List[Workload] = []
+        self.tuning_records_: list[TuningRecord] = []
+        self.workloads_: list[Workload] = []
 
     def has_workload(self, mod: IRModule) -> bool:
         for workload in self.workloads_:
@@ -136,10 +136,10 @@ class PyMemoryDatabaseDefault(ms.database.PyDatabase):
     def commit_tuning_record(self, record: TuningRecord) -> None:
         self.tuning_records_.append(record)
 
-    def get_all_tuning_records(self) -> List[TuningRecord]:
+    def get_all_tuning_records(self) -> list[TuningRecord]:
         return self.tuning_records_
 
-    def get_top_k(self, workload: ms.database.Workload, top_k: int) -> List[TuningRecord]:
+    def get_top_k(self, workload: ms.database.Workload, top_k: int) -> list[TuningRecord]:
         return sorted(
             list(
                 filter(
@@ -158,8 +158,8 @@ class PyMemoryDatabaseDefault(ms.database.PyDatabase):
 class PyMemoryDatabaseOverride(ms.database.PyDatabase):
     def __init__(self):
         super().__init__()
-        self.tuning_records_: List[TuningRecord] = []
-        self.workloads_: List[Workload] = []
+        self.tuning_records_: list[TuningRecord] = []
+        self.workloads_: list[Workload] = []
 
     def has_workload(self, mod: IRModule) -> bool:
         for workload in self.workloads_:
@@ -179,10 +179,10 @@ class PyMemoryDatabaseOverride(ms.database.PyDatabase):
     def commit_tuning_record(self, record: TuningRecord) -> None:
         self.tuning_records_.append(record)
 
-    def get_all_tuning_records(self) -> List[TuningRecord]:
+    def get_all_tuning_records(self) -> list[TuningRecord]:
         return self.tuning_records_
 
-    def get_top_k(self, workload: ms.database.Workload, top_k: int) -> List[TuningRecord]:
+    def get_top_k(self, workload: ms.database.Workload, top_k: int) -> list[TuningRecord]:
         return sorted(
             list(
                 filter(
@@ -197,8 +197,8 @@ class PyMemoryDatabaseOverride(ms.database.PyDatabase):
         return len(self.tuning_records_)
 
     def query_tuning_record(
-        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
-    ) -> Optional[TuningRecord]:
+        self, mod: IRModule, target: Target, workload_name: str | None = None
+    ) -> TuningRecord | None:
         if self.has_workload(mod):
             records = self.get_top_k(self.commit_workload(mod), 2)
             if len(records) == 1:
@@ -208,8 +208,8 @@ class PyMemoryDatabaseOverride(ms.database.PyDatabase):
         return None
 
     def query_schedule(
-        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
-    ) -> Optional[Schedule]:
+        self, mod: IRModule, target: Target, workload_name: str | None = None
+    ) -> Schedule | None:
         record = self.query_tuning_record(mod, target, workload_name)
         if record is not None:
             sch = Schedule(record.workload.mod)
@@ -218,8 +218,8 @@ class PyMemoryDatabaseOverride(ms.database.PyDatabase):
         return None
 
     def query_ir_module(
-        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
-    ) -> Optional[IRModule]:
+        self, mod: IRModule, target: Target, workload_name: str | None = None
+    ) -> IRModule | None:
         record = self.query_tuning_record(mod, target, workload_name)
         if record is not None:
             sch = Schedule(record.workload.mod)
@@ -424,10 +424,10 @@ def test_meta_schedule_database_union():
     db_2 = ms.database.MemoryDatabase()
     trace = _create_schedule(mod, _schedule_matmul).trace
 
-    def query(db):  # pylint: disable=invalid-name
+    def query(db):
         return db.query_tuning_record(mod=mod, target=target, workload_name="main").run_secs
 
-    def commit_record(db, run_sec):  # pylint: disable=invalid-name
+    def commit_record(db, run_sec):
         db.commit_tuning_record(
             ms.database.TuningRecord(
                 trace,
@@ -457,14 +457,14 @@ def test_meta_schedule_pydatabase_default_query():
     mod: IRModule = Matmul
     target = tvm.target.Target("llvm")
     arg_info = ms.arg_info.ArgInfo.from_prim_func(func=mod["main"])
-    db = PyMemoryDatabaseDefault()  # pylint: disable=invalid-name
+    db = PyMemoryDatabaseDefault()
     sch = _create_schedule(mod, _schedule_matmul)
     trace = sch.trace
 
-    def query(db, mod, target, kind):  # pylint: disable=invalid-name
+    def query(db, mod, target, kind):
         return db.query(mod=mod, target=target, workload_name="main", kind=kind)
 
-    def commit_record(trace, db, run_sec):  # pylint: disable=invalid-name
+    def commit_record(trace, db, run_sec):
         db.commit_tuning_record(
             ms.database.TuningRecord(
                 trace,
@@ -496,14 +496,14 @@ def test_meta_schedule_pydatabase_override_query():
     mod: IRModule = Matmul
     target = tvm.target.Target("llvm")
     arg_info = ms.arg_info.ArgInfo.from_prim_func(func=mod["main"])
-    db = PyMemoryDatabaseOverride()  # pylint: disable=invalid-name
+    db = PyMemoryDatabaseOverride()
     sch = _create_schedule(mod, _schedule_matmul)
     trace = sch.trace
 
-    def query(db, mod, target, kind):  # pylint: disable=invalid-name
+    def query(db, mod, target, kind):
         return db.query(mod=mod, target=target, workload_name="main", kind=kind)
 
-    def commit_record(trace, db, run_sec):  # pylint: disable=invalid-name
+    def commit_record(trace, db, run_sec):
         db.commit_tuning_record(
             ms.database.TuningRecord(
                 trace,
@@ -532,8 +532,8 @@ def test_meta_schedule_pydatabase_override_query():
 
 
 def test_meta_schedule_pydatabase_current():
-    db = PyMemoryDatabaseDefault()  # pylint: disable=invalid-name
-    with db:  # pylint: disable=not-context-manager
+    db = PyMemoryDatabaseDefault()
+    with db:
         assert ms.database.Database.current() == db
 
 

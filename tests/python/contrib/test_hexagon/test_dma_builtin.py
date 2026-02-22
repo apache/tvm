@@ -30,8 +30,6 @@ from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
 
-# pylint: disable=invalid-name, missing-class-docstring, missing-function-docstring, no-self-argument
-
 data_type = "int32"
 
 

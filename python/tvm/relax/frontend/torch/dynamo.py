@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name, missing-function-docstring, not-callable
-# pylint: disable=import-outside-toplevel, unused-argument, use-list-literal
 # mypy: ignore-errors
 """PyTorch Dynamo backend of Relax."""
 
@@ -36,7 +34,7 @@ def device_from_inputs(example_inputs):
     return None
 
 
-def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
+def relax_dynamo(pipeline: tvm.transform.Pass | None = None):
     """A helper function to create a relax backend.
 
     Parameters

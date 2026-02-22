@@ -59,7 +59,7 @@ def to_pytorch_func(tvm_func):
     wrapped_func: Function
         Wrapped tvm function that operates on PyTorch tensors
     """
-    # pylint: disable=import-outside-toplevel
+
     import torch
     import torch.utils.dlpack
 

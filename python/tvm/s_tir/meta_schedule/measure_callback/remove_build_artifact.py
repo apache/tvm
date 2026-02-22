@@ -27,5 +27,5 @@ class RemoveBuildArtifact(MeasureCallback):
     def __init__(self) -> None:
         """A callback that removes the build artifacts from the disk"""
         self.__init_handle_by_constructor__(
-            _ffi_api.MeasureCallbackRemoveBuildArtifact,  # type: ignore # pylint: disable=no-member
+            _ffi_api.MeasureCallbackRemoveBuildArtifact,  # type: ignore
         )

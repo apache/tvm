@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
 """tvm.contrib.msc.framework.runtime.tvm.runner"""
+
+from __future__ import annotations
 
 import os
 import time
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Union
 
 import numpy as np
 
@@ -50,7 +51,7 @@ class WrapRunnable:
         self._runnable = runnable
         self._entry = entry
 
-    def __call__(self, *inputs) -> List[tvm.runtime.Tensor]:
+    def __call__(self, *inputs) -> list[tvm.runtime.Tensor]:
         execute_step("before_forward", *inputs)
         output = self._runnable[self._entry](*inputs)
         return execute_step("after_forward", output)
@@ -114,8 +115,8 @@ class TVMRunner(ModelRunner):
         return WrapRunnable(runnable)
 
     def _call_runnable(
-        self, runnable: WrapRunnable, inputs: Dict[str, np.ndarray], device: str
-    ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
+        self, runnable: WrapRunnable, inputs: dict[str, np.ndarray], device: str
+    ) -> list[np.ndarray] | dict[str, np.ndarray]:
         """Call the runnable to get outputs
 
         Parameters
@@ -171,7 +172,7 @@ class TVMRunner(ModelRunner):
         return MSCFramework.TVM
 
     @classmethod
-    def load_native(cls, model: Any, config: dict) -> Tuple[tvm.IRModule, str, bool]:
+    def load_native(cls, model: Any, config: dict) -> tuple[tvm.IRModule, str, bool]:
         """Load the native model
 
         Parameters
@@ -210,12 +211,12 @@ class TVMRunner(ModelRunner):
     def run_native(
         cls,
         model: tvm.IRModule,
-        inputs: Dict[str, np.ndarray],
-        input_names: List[str],
-        output_names: List[str],
+        inputs: dict[str, np.ndarray],
+        input_names: list[str],
+        output_names: list[str],
         warm_up: int = 10,
         repeat: int = 0,
-    ) -> Tuple[Dict[str, np.ndarray], float]:
+    ) -> tuple[dict[str, np.ndarray], float]:
         """Run the datas and get outputs
 
         Parameters
@@ -303,7 +304,7 @@ class TVMRunner(ModelRunner):
         if stage not in config:
             return config
         if stage == MSCStage.PARSE:
-            # pylint: disable=unused-argument
+
             def passby(mod, *args, **kwargs):
                 return mod, None
 

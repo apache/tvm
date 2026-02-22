@@ -16,13 +16,15 @@
 # under the License.
 """A lightweight wrapper on an arbitrary function that can be used to schedule a TIR PrimFunc."""
 
-from typing import Callable, List, Union
+from __future__ import annotations
+
+from collections.abc import Callable
 
 from tvm import s_tir, tir
 from tvm.target import Target
 
 
-class ScheduleRule:  # pylint: disable=too-few-public-methods
+class ScheduleRule:
     """A thin wrapper on an arbitrary function that can be used to schedule a TIR PrimFunc.
 
     Given a PrimFunc, a target, and a tunable flag, the apply method of a ScheduleRule
@@ -38,7 +40,7 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
         func: tir.PrimFunc,
         target: Target,
         tunable: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         """Apply the ScheduleRule to the given PrimFunc.
 
         Parameters
@@ -65,10 +67,10 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
         [
             Callable[
                 [tir.PrimFunc, Target, bool],
-                Union[None, s_tir.Schedule, List[s_tir.Schedule]],
+                None | s_tir.Schedule | list[s_tir.Schedule],
             ],
         ],
-        "ScheduleRule",
+        ScheduleRule,
     ]:
         """Create a ScheduleRule from a callable.
 
@@ -90,14 +92,14 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
                 # Do something with func and target
         """
 
-        def decorator(f) -> "ScheduleRule":  # pylint: disable=invalid-name
+        def decorator(f) -> ScheduleRule:
             class _Rule(ScheduleRule):
                 def apply(
                     self,
                     func: tir.PrimFunc,
                     target: Target,
                     tunable: bool,
-                ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+                ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
                     return f(func, target, tunable)
 
             _Rule.__name__ = name
@@ -105,7 +107,7 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
 
         return decorator
 
-    def is_target_available(self, target: Target) -> bool:  # pylint: disable=unused-argument
+    def is_target_available(self, target: Target) -> bool:
         """Check whether the rule is available for the given target.
 
         Parameters

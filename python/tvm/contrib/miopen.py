@@ -16,7 +16,6 @@
 # under the License.
 """External function interface to MIOpen library."""
 
-# pylint: disable-msg=C0103
 import ctypes
 
 import numpy as np

@@ -16,9 +16,11 @@
 # under the License.
 """The base parser for tir"""
 
+from __future__ import annotations
+
 import contextlib
 from functools import partial
-from typing import Any, Dict, Optional
+from typing import Any
 
 import tvm
 from tvm.ir import GlobalVar, PrimType
@@ -171,9 +173,9 @@ def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: b
 def range_sugar(
     start: PrimExpr,
     stop: PrimExpr = None,
-    step: Optional[PrimExpr] = None,
+    step: PrimExpr | None = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: dict[str, Any] | None = None,
 ) -> T.frame.ForFrame:
     """The sugar for python range builtin."""
 
@@ -184,7 +186,7 @@ def range_sugar(
             step = int(step)
             if step <= 0:
                 raise ValueError(f"Only support positive step in range(), get {step}")
-        except TypeError:  # pylint: disable=broad-except
+        except TypeError:
             raise ValueError(f"Only support literal step in range(), get {step}")
 
     return T.serial(start, stop, annotations=annotations, step=step)
@@ -424,7 +426,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                         ann = self.eval_expr(arg.annotation)
                         if callable(ann):
                             ann = ann()
-                    except Exception:  # pylint: disable=broad-except
+                    except Exception:
                         ann = func_annotation.get(arg.arg, None)
                         if ann is None:
                             raise
@@ -564,7 +566,7 @@ def visit_return(self: Parser, node: doc.Return) -> None:
 
 
 @dispatch.register(token="tir", type_name="Continue")
-def visit_continue(self: Parser, node: doc.Continue) -> None:  # pylint:disable=unused-argument
+def visit_continue(self: Parser, node: doc.Continue) -> None:
     """The continue visiting method for tir.
 
     Parameters
@@ -579,7 +581,7 @@ def visit_continue(self: Parser, node: doc.Continue) -> None:  # pylint:disable=
 
 
 @dispatch.register(token="tir", type_name="Break")
-def visit_break(self: Parser, node: doc.Break) -> None:  # pylint:disable=unused-argument
+def visit_break(self: Parser, node: doc.Break) -> None:
     """The continue visiting method for tir.
 
     Parameters
@@ -624,7 +626,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
                 ann = self.eval_expr(arg.annotation)
                 if callable(ann):
                     ann = ann()
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 ann = func_annotation.get(arg.arg, None)
                 if ann is None:
                     raise

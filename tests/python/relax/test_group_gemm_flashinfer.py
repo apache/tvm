@@ -37,7 +37,7 @@ fp8_dtype = "float8_e4m3fn"
 def has_flashinfer():
     """Check if FlashInfer is available"""
     try:
-        from tvm.relax.backend.cuda import (  # pylint: disable=import-outside-toplevel
+        from tvm.relax.backend.cuda import (
             flashinfer,
         )
 
@@ -51,7 +51,7 @@ def has_cutlass():
     if not tvm.get_global_func("device_api.cuda", True):
         return False
     try:
-        import pynvml  # pylint: disable=import-outside-toplevel
+        import pynvml
 
         pynvml.nvmlInit()
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
@@ -281,7 +281,7 @@ def generate_test_data(
     # print(f"Device object: {device}")
     torch_device = torch.device(f"cuda:{device.index}")
 
-    cum_m = [0] + list(np.cumsum(m_sizes))
+    cum_m = [0, *list(np.cumsum(m_sizes))]
     total_m = cum_m[-1]
 
     # Generate input matrices A and B (where we assert of form fp8) random data in fp32 first, then convert

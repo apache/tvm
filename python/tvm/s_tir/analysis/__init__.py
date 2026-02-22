@@ -17,8 +17,9 @@
 # under the License.
 """Analysis utilities for Schedulable TensorIR (S-TIR)."""
 
-# pylint: disable=invalid-name
-from typing import Dict, List, Optional, Union
+from __future__ import annotations
+
+from typing import Optional, Union
 
 import tvm
 from tvm.ir import IRModule
@@ -31,8 +32,8 @@ from . import _ffi_api
 
 
 def get_sblock_access_region(
-    block: SBlock, buffer_var_map: Dict[Var, Buffer]
-) -> List[List[BufferRegion]]:
+    block: SBlock, buffer_var_map: dict[Var, Buffer]
+) -> list[list[BufferRegion]]:
     """Detect which regions of tensors in this block are read or written to.
        Regions are sorted by order of appearance in the AST.
 
@@ -41,12 +42,12 @@ def get_sblock_access_region(
     block: tvm.tir.SBlock
         The block in which we are detecting read/write regions.
 
-    buffer_var_map : Dict[Var, Buffer]
+    buffer_var_map : dict[Var, Buffer]
         The outside buffers which may access the block. Mapping from buffer var to the buffer
 
     Returns
     -------
-    result : List[List[BufferRegion]]
+    result : list[list[BufferRegion]]
         Array of access regions. There are three arrays of BufferRegion:
             - first: read regions
             - second: write regions
@@ -56,8 +57,8 @@ def get_sblock_access_region(
 
 
 def get_sblock_read_write_region(
-    block: SBlock, buffer_var_map: Dict[Var, Buffer]
-) -> List[List[BufferRegion]]:
+    block: SBlock, buffer_var_map: dict[Var, Buffer]
+) -> list[list[BufferRegion]]:
     """Auto detect the block read/write region according to its body stmt.
        An opaque access will be counted as both a read and a write access
 
@@ -66,18 +67,18 @@ def get_sblock_read_write_region(
     block: tvm.tir.SBlock
         The block in which we are detecting read/write regions.
 
-    buffer_var_map : Dict[Var, Buffer]
+    buffer_var_map : dict[Var, Buffer]
         The outside buffers which may access the block. Mapping from buffer var to the buffer
 
     Returns
     -------
-    result : List[List[BufferRegion]]
+    result : list[list[BufferRegion]]
         An array only consisting of the read regions and write regions of the input block
     """
     return _ffi_api.GetSBlockReadWriteRegion(block, buffer_var_map)  # type: ignore
 
 
-def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
+def detect_buffer_access_lca(func: PrimFunc) -> dict[Buffer, Stmt]:
     """Detect the lowest common ancestor(LCA) of buffer access, including both high-level
     access (BufferLoad, BufferStore) and low-level access (BufferLoad, BufferStore and opaque
     access).
@@ -90,13 +91,13 @@ def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
 
     Returns
     -------
-    result : Dict[Buffer, Stmt]
+    result : dict[Buffer, Stmt]
         Map from buffer to the LCA of all access to it.
     """
-    return _ffi_api.detect_buffer_access_lca(func)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.detect_buffer_access_lca(func)  # type: ignore
 
 
-def find_anchor_sblock(mod: IRModule) -> Optional[SBlock]:
+def find_anchor_sblock(mod: IRModule) -> SBlock | None:
     """Find the "anchor block" of the given module.
 
     We define the anchor block to be the block with (1) an init statement and (2) having
@@ -120,10 +121,10 @@ def find_anchor_sblock(mod: IRModule) -> Optional[SBlock]:
     anchor_block: Optional[SBlock]
         The anchor block if found, None otherwise.
     """
-    return _ffi_api.find_anchor_sblock(mod)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.find_anchor_sblock(mod)  # type: ignore
 
 
-def verify_gpu_code(func: PrimFunc, constraints: Dict[str, int]) -> bool:
+def verify_gpu_code(func: PrimFunc, constraints: dict[str, int]) -> bool:
     """Verify if module contains illegal host side direct memory access.
 
     Parameters
@@ -131,7 +132,7 @@ def verify_gpu_code(func: PrimFunc, constraints: Dict[str, int]) -> bool:
     func: tvm.tir.PrimFunc
         The module to be verified.
 
-    constraints : Dict[str, int]
+    constraints : dict[str, int]
         The attribute constraints.
 
     Returns
@@ -143,8 +144,8 @@ def verify_gpu_code(func: PrimFunc, constraints: Dict[str, int]) -> bool:
 
 
 def calculate_allocated_bytes(
-    func_or_mod: Union[PrimFunc, IRModule],
-) -> Dict[str, Dict[str, int]]:
+    func_or_mod: PrimFunc | IRModule,
+) -> dict[str, dict[str, int]]:
     """Calculate allocated memory per memory scope required by TIR PrimFuncs.
 
     Parameters
@@ -155,7 +156,7 @@ def calculate_allocated_bytes(
 
     Returns
     -------
-    result : Dict[str, Dict[str, int]]
+    result : dict[str, dict[str, int]]
         Allocated memory size per scope in bytes for each function in the IRModule returned as a
         dict with function names as keys and a dict of allocated sizes as values. If a single
         PrimFunc is passed, the function name is returned as "main"
@@ -167,7 +168,7 @@ def calculate_allocated_bytes(
     return _ffi_api.calculate_allocated_bytes(func_or_mod)  # type: ignore
 
 
-def estimate_tir_flops(stmt_or_mod: Union[Stmt, IRModule]) -> float:
+def estimate_tir_flops(stmt_or_mod: Stmt | IRModule) -> float:
     """Estimate the FLOPs of a TIR fragment.
 
     Parameters
@@ -180,7 +181,7 @@ def estimate_tir_flops(stmt_or_mod: Union[Stmt, IRModule]) -> float:
     flops: float
         The estimated FLOPs.
     """
-    return _ffi_api.EstimateTIRFlops(stmt_or_mod)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.EstimateTIRFlops(stmt_or_mod)  # type: ignore
 
 
 def OOBChecker():
@@ -194,23 +195,23 @@ def OOBChecker():
     return _ffi_api.OOBChecker()  # type: ignore
 
 
-def get_vtcm_compaction_passes() -> List[tvm.transform.Pass]:
+def get_vtcm_compaction_passes() -> list[tvm.transform.Pass]:
     """Utility function to get the list of lowering passes to be applied to calculate the compacted
     VTCM allocation size
 
     Returns
     -------
-    result : List[tvm.transform.Pass]
+    result : list[tvm.transform.Pass]
         returns list of passes
     """
-    return _ffi_api.get_vtcm_compaction_passes()  # type: ignore # pylint: disable=no-member
+    return _ffi_api.get_vtcm_compaction_passes()  # type: ignore
 
 
 def is_pure_function(func: PrimFunc) -> bool:
     """Checks if the function is a pure function"""
-    return _ffi_api.is_pure_function(func, False)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.is_pure_function(func, False)  # type: ignore
 
 
 def assert_pure_function(func: PrimFunc) -> bool:
     """Asserts that the function is a pure function"""
-    return _ffi_api.is_pure_function(func, True)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.is_pure_function(func, True)  # type: ignore

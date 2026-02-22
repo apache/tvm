@@ -20,28 +20,34 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
-from git_utils import GitHubRepo
+from git_utils import GitHubRepo  # noqa: E402
 
 BOT_COMMENT_START = "<!---bot-comment-->"
-WELCOME_TEXT = "Thanks for contributing to TVM! Please refer to the contributing guidelines https://tvm.apache.org/docs/contribute/ for useful information and tips. Please request code reviews from [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers) by @-ing them in a comment."
+WELCOME_TEXT = (
+    "Thanks for contributing to TVM! Please refer to the contributing guidelines"
+    " https://tvm.apache.org/docs/contribute/ for useful information and tips."
+    " Please request code reviews from"
+    " [Reviewers](https://github.com/apache/incubator-tvm/blob/master/CONTRIBUTORS.md#reviewers)"
+    " by @-ing them in a comment."
+)
 
 
 class BotCommentBuilder:
-    ALLOWLIST_USERS = {"driazati", "gigiblender", "areusch"}
+    ALLOWLIST_USERS = {"driazati", "gigiblender", "areusch"}  # noqa: RUF012
 
-    def __init__(self, github: GitHubRepo, data: Dict[str, Any]):
+    def __init__(self, github: GitHubRepo, data: dict[str, Any]):
         self.github = github
         self.pr_number = data["number"]
         self.comment_data = data["comments"]["nodes"]
         self.author = data["author"]["login"]
 
-    def find_bot_comment(self) -> Optional[Dict[str, Any]]:
+    def find_bot_comment(self) -> dict[str, Any] | None:
         """
         Return the existing bot comment or None if it does not exist
         """
@@ -56,7 +62,7 @@ class BotCommentBuilder:
         logging.info("No existing comment found")
         return None
 
-    def find_existing_body(self) -> Dict[str, str]:
+    def find_existing_body(self) -> dict[str, str]:
         """
         Find existing dynamic bullet point items
         """
@@ -76,14 +82,14 @@ class BotCommentBuilder:
         for start, text, end in matches:
             if start != end:
                 raise RuntimeError(
-                    f"Malformed comment found: {start} marker did not have matching end, found instead {end}"
+                    f"Malformed comment found: {start} marker did not have matching end, found instead {end}"  # noqa: E501
                 )
             items[start] = text.strip().lstrip("* ")
 
         logging.info(f"Found body items: {items}")
         return items
 
-    def _post_comment(self, body_items: Dict[str, str]):
+    def _post_comment(self, body_items: dict[str, str]):
         comment = BOT_COMMENT_START + "\n\n" + WELCOME_TEXT + "\n\n"
         for key, content in body_items.items():
             line = self.start_key(key) + "\n * " + content.strip() + self.end_key(key)
@@ -117,7 +123,7 @@ class BotCommentBuilder:
     def end_key(self, key: str) -> str:
         return f"<!--bot-comment-{key}-end-->"
 
-    def post_items(self, items: List[Tuple[str, str]]):
+    def post_items(self, items: list[tuple[str, str]]):
         """
         Update or post bullet points in the PR based on 'items' which is a
         list of (key, text) pairs

@@ -26,21 +26,24 @@ while keeping the same underlying data.
 
 """
 
-from typing import Optional, Sequence, Union
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Union
 
 from tvm.relax import DataTypeImm, Expr, PrimValue, ShapeExpr
 from tvm.tir import PrimExpr
 
 from . import _ffi_api
 
-PrimExprLike = Union[int, PrimExpr]
+PrimExprLike = int | PrimExpr
 
 
 def view(
     data: Expr,
-    shape: Optional[Union[Sequence[PrimExprLike], Expr]] = None,
-    dtype: Optional[Expr] = None,
-    relative_byte_offset: Optional[Expr] = None,
+    shape: Sequence[PrimExprLike] | Expr | None = None,
+    dtype: Expr | None = None,
+    relative_byte_offset: Expr | None = None,
 ) -> Expr:
     """Provide a view into an existing tensor
 

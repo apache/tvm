@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-nested-blocks
 "Roi align in python"
 
 import math
@@ -29,8 +28,8 @@ def _bilinear(a_np, n, c, y, x, height, width, layout):
     y = min(max(y, 0), height - 1)
     x = min(max(x, 0), width - 1)
 
-    y_low = int(math.floor(y))
-    x_low = int(math.floor(x))
+    y_low = math.floor(y)
+    x_low = math.floor(x)
     y_high = y_low + 1
     x_high = x_low + 1
 
@@ -81,8 +80,8 @@ def roi_align_common(
         if sample_ratio > 0:
             roi_bin_grid_h = roi_bin_grid_w = int(sample_ratio)
         else:
-            roi_bin_grid_h = int(math.ceil(roi_h / pooled_size_h))
-            roi_bin_grid_w = int(math.ceil(roi_w / pooled_size_w))
+            roi_bin_grid_h = math.ceil(roi_h / pooled_size_h)
+            roi_bin_grid_w = math.ceil(roi_w / pooled_size_w)
 
         count = roi_bin_grid_h * roi_bin_grid_w
 

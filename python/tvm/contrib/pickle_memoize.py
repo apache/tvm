@@ -16,7 +16,6 @@
 # under the License.
 """Memoize result of function via pickle, used for cache testcases."""
 
-# pylint: disable=broad-except,superfluous-parens
 import atexit
 import functools
 import os
@@ -119,7 +118,7 @@ def memoize(key, save_at_exit=False):
             Cache.cache_by_key[fkey] = Cache(fkey, save_at_exit)
         cache = Cache.cache_by_key[fkey]
         cargs = tuple(x.cell_contents for x in f.__closure__) if f.__closure__ else ()
-        cargs = (len(cargs),) + cargs
+        cargs = (len(cargs), *cargs)
 
         @functools.wraps(f)
         def _memoized_f(*args, **kwargs):

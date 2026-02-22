@@ -140,7 +140,6 @@ def _workload(
     len_xi: int,
     dtype: str,
 ):
-    # pylint: disable=invalid-name
     A = te.placeholder((len_xo, len_k, len_xi), dtype=dtype, name="A")
     k = te.reduce_axis((0, len_k), "k")
     B = te.compute(
@@ -148,7 +147,7 @@ def _workload(
         lambda i, j: te.sum(A[i, k, j], axis=k),
         name="B",
     )
-    # pylint: enable=invalid-name
+
     return te.create_prim_func([A, B])
 
 
@@ -158,7 +157,6 @@ def _schedule(
     len_tx: int,
     len_vec: int,
 ):
-    # pylint: disable=invalid-name
     block = sch.get_sblock("B")
     xo, xi, k = sch.get_loops(block)
     bx, xo = sch.split(xo, factors=[len_bx, None])
@@ -171,13 +169,12 @@ def _schedule(
     sch.compute_at(ldg, k, preserve_unit_loops=True)
     sch.vectorize(sch.get_loops(ldg)[-1])
     sch.decompose_reduction(block, k)
-    # pylint: enable=invalid-name
 
 
-def main():  # pylint: disable=too-many-locals
+def main():
     """Entry point"""
     args = _parse_args()
-    # pylint: disable=invalid-name
+
     target = tvm.target.Target(args.target)
     if args.target_host is not None:
         target = tvm.target.Target(args.target, host=args.target_host)
@@ -203,7 +200,6 @@ def main():  # pylint: disable=too-many-locals
     print(f"Input size: {num_bytes / 1048576} MB")
     print(f"Target: {target}")
 
-    # pylint: enable=invalid-name
     best_bandwidth = -1
     for len_bx, len_tx, len_vec in itertools.product(
         args.bx,
@@ -246,7 +242,7 @@ def main():  # pylint: disable=too-many-locals
                 export_func=args.export_func,
             )
         bandwidth = num_bytes / profile_result.mean / (1024**3)
-        bx = len_bx * args.xi // (len_tx * len_vec)  # pylint: disable=invalid-name
+        bx = len_bx * args.xi // (len_tx * len_vec)
         mbs = num_bytes / 1024 / 1024
         print(
             f"bandwidth = {bandwidth:.3f} GB/s, bx = {bx}, tx = {len_tx}, "

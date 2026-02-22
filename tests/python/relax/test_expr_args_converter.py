@@ -15,7 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Any, Callable, List, Optional, Union
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 
@@ -42,20 +45,18 @@ def _test_expr(arg: Expr, *args: Expr, **kwargs: Expr) -> None:
     _test_base(f_checker, arg, *args, **kwargs)
 
 
-def _test_optional_expr(
-    arg: Optional[Expr], *args: Optional[Expr], **kwargs: Optional[Expr]
-) -> None:
+def _test_optional_expr(arg: Expr | None, *args: Expr | None, **kwargs: Expr | None) -> None:
     f_checker = lambda x: x is None or isinstance(x, Expr)
     _test_base(f_checker, arg, *args, **kwargs)
 
 
-def _test_list_expr(arg: List[Expr], *args: List[Expr], **kwargs: List[Expr]) -> None:
+def _test_list_expr(arg: list[Expr], *args: list[Expr], **kwargs: list[Expr]) -> None:
     f_checker = lambda x: isinstance(x, list) and all([isinstance(arg, Expr) for arg in x])
     _test_base(f_checker, arg, *args, **kwargs)
 
 
 def _test_optional_list_expr(
-    arg: Optional[List[Expr]], *args: Optional[List[Expr]], **kwargs: Optional[List[Expr]]
+    arg: list[Expr] | None, *args: list[Expr] | None, **kwargs: list[Expr] | None
 ) -> None:
     f_checker = lambda x: (
         x is None or (isinstance(x, list) and all([isinstance(arg, Expr) for arg in x]))
@@ -127,7 +128,7 @@ def test_auto_convert():
 
 
 def test_auto_convert_skip():
-    def _test_expr_skip(arg: int, *args: Union[str, Expr], **kwargs: List[Optional[Expr]]) -> None:
+    def _test_expr_skip(arg: int, *args: str | Expr, **kwargs: list[Expr | None]) -> None:
         f_checker = lambda x: not isinstance(x, Expr)
         _test_base(f_checker, arg, *args, **kwargs)
 

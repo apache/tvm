@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 # mypy: ignore-errors
 import sys
 
@@ -26,8 +25,6 @@ from tvm import s_tir, tir
 from tvm.s_tir.schedule import Instruction, InstructionKind, LoopRV, SBlockRV, Trace
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import tir as T
-
-# pylint: disable=no-member,invalid-name,unused-variable
 
 
 @T.prim_func
@@ -55,9 +52,6 @@ def elementwise_inlined(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
-# pylint: enable=no-member,invalid-name,unused-variable
-
-
 def _make_get_sblock(name, output):
     return Instruction(
         kind=InstructionKind.get("GetSBlock"),
@@ -67,7 +61,7 @@ def _make_get_sblock(name, output):
     )
 
 
-def _make_get_loops(input, outputs):  # pylint: disable=redefined-builtin
+def _make_get_loops(input, outputs):
     return Instruction(
         kind=InstructionKind.get("GetLoops"),
         inputs=[input],
@@ -76,7 +70,7 @@ def _make_get_loops(input, outputs):  # pylint: disable=redefined-builtin
     )
 
 
-def _make_compute_inline(input):  # pylint: disable=redefined-builtin
+def _make_compute_inline(input):
     return Instruction(
         kind=InstructionKind.get("ComputeInline"),
         inputs=[input],
@@ -85,7 +79,7 @@ def _make_compute_inline(input):  # pylint: disable=redefined-builtin
     )
 
 
-def _make_split(inputs, outputs):  # pylint: disable=redefined-builtin
+def _make_split(inputs, outputs):
     return Instruction(
         kind=InstructionKind.get("Split"),
         inputs=inputs,
@@ -112,7 +106,7 @@ def _make_annotate(block: SBlockRV, annotation: str):
     )
 
 
-def _make_trace_1(b0, l1, l2):  # pylint: disable=invalid-name
+def _make_trace_1(b0, l1, l2):
     return Trace(
         insts=[
             _make_get_sblock(name="block", output=b0),
@@ -122,7 +116,7 @@ def _make_trace_1(b0, l1, l2):  # pylint: disable=invalid-name
     )
 
 
-def _make_trace_2(b0):  # pylint: disable=invalid-name
+def _make_trace_2(b0):
     return Trace(
         insts=[
             _make_get_sblock(name="B", output=b0),
@@ -132,7 +126,7 @@ def _make_trace_2(b0):  # pylint: disable=invalid-name
     )
 
 
-def _make_trace_3(b0, b1, add_postproc):  # pylint: disable=invalid-name
+def _make_trace_3(b0, b1, add_postproc):
     if add_postproc:
         insts = [
             _make_get_sblock(name="B", output=b0),
@@ -150,7 +144,7 @@ def _make_trace_3(b0, b1, add_postproc):  # pylint: disable=invalid-name
     return Trace(insts=insts, decisions={})
 
 
-def _make_trace_4(b0, l1, l2, l3):  # pylint: disable=invalid-name
+def _make_trace_4(b0, l1, l2, l3):
     return Trace(
         insts=[
             _make_get_sblock(name="B", output=b0),

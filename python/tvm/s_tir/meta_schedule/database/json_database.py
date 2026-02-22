@@ -52,10 +52,10 @@ class JSONDatabase(Database):
 
     def __init__(
         self,
-        path_workload: Optional[str] = None,
-        path_tuning_record: Optional[str] = None,
+        path_workload: str | None = None,
+        path_tuning_record: str | None = None,
         *,
-        work_dir: Optional[str] = None,
+        work_dir: str | None = None,
         allow_missing: bool = True,
         module_equality: str = "structural",
     ) -> None:
@@ -85,7 +85,7 @@ class JSONDatabase(Database):
         if path_tuning_record is None:
             raise ValueError("`path_tuning_record` is not specified.")
         self.__init_handle_by_constructor__(
-            _ffi_api.DatabaseJSONDatabase,  # type: ignore # pylint: disable=no-member
+            _ffi_api.DatabaseJSONDatabase,  # type: ignore
             path_workload,
             path_tuning_record,
             allow_missing,

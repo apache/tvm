@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 
 import tvm
@@ -26,8 +25,6 @@ from tvm.s_tir.schedule.testing import (
 )
 from tvm.script import tir as T
 from tvm.tir.expr import IntImm
-
-# pylint: disable=no-member,invalid-name,unused-variable
 
 
 @T.prim_func
@@ -338,9 +335,6 @@ def opaque_access_loop_partition(a: T.handle, b: T.handle) -> None:
                         T.reads()
                         T.writes(B[0:16, 0:16])
                         T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj)
-
-
-# pylint: enable=no-member,invalid-name,unused-variable
 
 
 def test_loop_partition():

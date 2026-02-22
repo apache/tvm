@@ -18,8 +18,6 @@ import tvm
 from tvm import s_tir
 from tvm.script import tir as T
 
-# pylint: disable=no-self-argument
-
 
 @tvm.script.ir_module
 class WithInit:

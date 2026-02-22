@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 """Tests for NCCL/RCCL"""
 
 import tempfile
@@ -64,7 +63,7 @@ def test_allreduce(session_kind, ccl):
     d_array = sess.empty((3, 4), "float32")
     d_array.debug_copy_from(0, array_1)
     d_array.debug_copy_from(1, array_2)
-    for op, np_op in [  # pylint: disable=invalid-name
+    for op, np_op in [
         ("sum", np.add),
         ("prod", np.multiply),
         ("min", np.minimum),
@@ -95,7 +94,7 @@ def test_group_allreduce(session_kind, ccl):
     d_array_1.debug_copy_from(1, array_2)
     d_array_2.debug_copy_from(2, array_3)
     d_array_2.debug_copy_from(3, array_4)
-    for op, np_op in [  # pylint: disable=invalid-name
+    for op, np_op in [
         ("sum", np.add),
         ("prod", np.multiply),
         ("min", np.minimum),
@@ -431,14 +430,13 @@ def test_worker2_send_to_worker0(session_kind, ccl):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
+def test_mlp(session_kind, ccl):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
-    # pylint: disable=invalid-name
     @tvm.script.ir_module
-    class MLP:  # pylint: disable=too-few-public-methods
+    class MLP:
         @R.function
         def main(
             x: R.Tensor((128, 128), "float32"),
@@ -454,7 +452,7 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
             return lv2
 
     @tvm.script.ir_module
-    class ShardedMLP:  # pylint: disable=too-few-public-methods
+    class ShardedMLP:
         @R.function
         def main(
             x: R.Tensor((128, 128), "float32"),
@@ -471,13 +469,12 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
                 R.output(lv3)
             return lv3
 
-    # pylint: enable=invalid-name
     dev, target = create_device_target(ccl)
 
     def relax_build(mod, target):
         with target:
-            mod = rx.get_pipeline("zero")(mod)  # pylint: disable=no-value-for-parameter
-            mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            mod = rx.get_pipeline("zero")(mod)
+            mod = dl.ApplyDefaultSchedule(
                 dl.gpu.Matmul(),
                 dl.gpu.GEMV(),
                 dl.gpu.Reduction(),
@@ -486,7 +483,6 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
             )(mod)
             return tvm.compile(mod, target=target)
 
-    # pylint: disable=invalid-name
     X = np.random.randn(128, 128).astype("float32")
     W1 = np.random.randn(128, 128).astype("float32")
     W2 = np.random.randn(128, 128).astype("float32")
@@ -516,22 +512,21 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
         sess.copy_from_worker_0(Y_result, d_Y)
         sess.sync_worker_0()
         Y_result = Y_result.numpy()
-    # pylint: enable=invalid-name
+
     tvm.testing.assert_allclose(Y_result, Y_expected, rtol=1e-4, atol=1e-4)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-many-statements
+def test_attention(session_kind, ccl):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
-    # pylint: disable=invalid-name
     @tvm.script.ir_module
-    class Attention:  # pylint: disable=too-few-public-methods
+    class Attention:
         @R.function
-        def main(  # pylint: disable=too-many-locals
+        def main(
             x: R.Tensor((1, 10, 128), "float32"),
             Wq: R.Tensor((128, 512), "float32"),
             Wk: R.Tensor((128, 512), "float32"),
@@ -569,9 +564,9 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
             return lv16
 
     @tvm.script.ir_module
-    class ShardedAttention:  # pylint: disable=too-few-public-methods
+    class ShardedAttention:
         @R.function
-        def main(  # pylint: disable=too-many-locals
+        def main(
             x: R.Tensor((1, 10, 128), "float32"),
             Wq: R.Tensor((128, 256), "float32"),  # shard along axis 1
             Wk: R.Tensor((128, 256), "float32"),  # shard along axis 1
@@ -610,13 +605,12 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
                 R.output(lv17)
             return lv17
 
-    # pylint: enable=invalid-name
     dev, target = create_device_target(ccl)
 
     def relax_build(mod, target):
         with target:
-            mod = rx.get_pipeline("zero")(mod)  # pylint: disable=no-value-for-parameter
-            mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            mod = rx.get_pipeline("zero")(mod)
+            mod = dl.ApplyDefaultSchedule(
                 dl.gpu.Matmul(),
                 dl.gpu.GEMV(),
                 dl.gpu.Reduction(),
@@ -625,7 +619,6 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
             )(mod)
             return tvm.compile(mod, target=target)
 
-    # pylint: disable=invalid-name
     X = np.random.randn(1, 10, 128).astype("float32")
     Wq = np.random.randn(128, 512).astype("float32")
     Wk = np.random.randn(128, 512).astype("float32")
@@ -665,7 +658,7 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
         sess.copy_from_worker_0(Y_result, d_Y)
         sess.sync_worker_0()
         Y_result = Y_result.numpy()
-    # pylint: enable=invalid-name
+
     tvm.testing.assert_allclose(Y_result, Y_expected, rtol=1e-3, atol=1e-3)
 
 

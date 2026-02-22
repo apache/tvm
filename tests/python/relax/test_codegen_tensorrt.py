@@ -58,7 +58,8 @@ requires_tensorrt_runtime = pytest.mark.skipif(
 pytestmark = [
     requires_tensorrt_codegen,
     requires_tensorrt_runtime,
-] + tvm.testing.requires_cuda.marks()
+    *tvm.testing.requires_cuda.marks(),
+]
 
 
 def build_and_run(mod, inputs_np, target, legalize=False):

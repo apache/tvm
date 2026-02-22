@@ -35,7 +35,7 @@ def test_array_save_load_json():
     a_loaded = tvm.ir.load_json(json_str)
     assert a_loaded[1] == 2
     assert a_loaded[2] == 3.5
-    assert a_loaded[3] == True
+    assert a_loaded[3] is True
     assert isinstance(a_loaded[3], bool)
 
 

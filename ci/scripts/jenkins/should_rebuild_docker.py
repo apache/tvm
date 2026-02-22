@@ -20,7 +20,7 @@ import datetime
 import json
 import logging
 import subprocess
-from typing import Any, Dict, List
+from typing import Any
 
 from cmd_utils import Sh, init_log
 from http_utils import get
@@ -30,7 +30,7 @@ PAGE_SIZE = 25
 TEST_DATA = None
 
 
-def docker_api(url: str) -> Dict[str, Any]:
+def docker_api(url: str) -> dict[str, Any]:
     """
     Run a paginated fetch from the public Docker Hub API
     """
@@ -44,7 +44,7 @@ def docker_api(url: str) -> Dict[str, Any]:
         reset = datetime.datetime.fromtimestamp(int(reset))
         reset = reset.isoformat()
     logging.info(
-        f"Docker API Rate Limit: {headers.get('x-ratelimit-remaining')} / {headers.get('x-ratelimit-limit')} (reset at {reset})"
+        f"Docker API Rate Limit: {headers.get('x-ratelimit-remaining')} / {headers.get('x-ratelimit-limit')} (reset at {reset})"  # noqa: E501
     )
     if "results" not in r:
         raise RuntimeError(f"Error fetching data, no results found in: {r}")
@@ -80,7 +80,7 @@ def does_commit_exist(hash: str) -> bool:
     raise RuntimeError(f"Unexpected failure when running: {cmd}")
 
 
-def find_hash_for_tag(tag: Dict[str, Any]) -> str:
+def find_hash_for_tag(tag: dict[str, Any]) -> str:
     """
     Split the hash off of a name like <date>-<time>-<hash>
     """
@@ -92,7 +92,7 @@ def find_hash_for_tag(tag: Dict[str, Any]) -> str:
     return shorthash
 
 
-def find_commit_in_repo(tags: List[Dict[str, Any]]):
+def find_commit_in_repo(tags: list[dict[str, Any]]):
     """
     Look through all the docker tags, find the most recent one which references
     a commit that is present in the repo

@@ -160,7 +160,7 @@ class Target(Object):
         return _ffi_api.WithHost(self, Target(host))
 
     @staticmethod
-    def from_device(device: Union[str, Device]) -> "Target":
+    def from_device(device: str | Device) -> "Target":
         """Detects Target associated with the given device. If the device does not exist,
         there will be an Error.
 
@@ -175,7 +175,7 @@ class Target(Object):
         target : Target
             The detected target.
         """
-        from .detect_target import (  # pylint: disable=import-outside-toplevel
+        from .detect_target import (
             detect_target_from_device,
         )
 

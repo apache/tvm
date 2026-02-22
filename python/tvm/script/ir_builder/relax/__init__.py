@@ -18,4 +18,4 @@
 """Package tvm.script.ir_builder.relax"""
 
 from . import distributed, frame
-from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
+from .ir import *

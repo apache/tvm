@@ -144,7 +144,7 @@ def test_pass_config():
 
     assert cfg.config["tir.UnrollLoop"].auto_max_step == 10
     # default option
-    assert cfg.config["tir.UnrollLoop"].explicit_unroll == True
+    assert cfg.config["tir.UnrollLoop"].explicit_unroll is True
 
     # schema checking for specific config key
     with pytest.raises(TypeError):

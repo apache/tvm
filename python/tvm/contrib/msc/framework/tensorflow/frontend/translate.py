@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=unused-argument
 """tvm.contrib.msc.framework.torch.frontend.translate"""
 
-from typing import Dict, List, Optional, Tuple, Union
+from __future__ import annotations
 
 import tvm
 from tvm.contrib.msc.core.ir.graph import MSCGraph
@@ -27,13 +26,13 @@ from tvm.contrib.msc.framework.tensorflow import tf_v1
 
 def from_tensorflow(
     graph_def: tf_v1.GraphDef,
-    shape_dict: Dict[str, List[int]],
-    outputs: List[str],
-    trans_config: Optional[Dict[str, str]] = None,
-    build_config: Optional[Dict[str, str]] = None,
-    opt_config: Optional[Dict[str, str]] = None,
+    shape_dict: dict[str, list[int]],
+    outputs: list[str],
+    trans_config: dict[str, str] | None = None,
+    build_config: dict[str, str] | None = None,
+    opt_config: dict[str, str] | None = None,
     as_msc: bool = True,
-) -> Tuple[Union[MSCGraph, tvm.IRModule], Dict[str, tvm.runtime.Tensor]]:
+) -> tuple[MSCGraph | tvm.IRModule, dict[str, tvm.runtime.Tensor]]:
     """Change tensorflow GraphDef to MSCGraph.
 
     Parameters

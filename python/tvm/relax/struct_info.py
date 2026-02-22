@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-import
 """The struct info nodes of the Relax language."""
 
-from typing import List, Optional, Union
+from __future__ import annotations
+
+from typing import Optional, Union
 
 import tvm_ffi
 
@@ -50,13 +51,13 @@ class PrimStructInfo(StructInfo):
        value.
     """
 
-    value: Optional[PrimExpr]
+    value: PrimExpr | None
     dtype: str
 
     def __init__(
         self,
-        dtype: Optional[Union[str, DataType]] = None,
-        value: Optional[Union[int, float, PrimExpr]] = None,
+        dtype: str | DataType | None = None,
+        value: int | float | PrimExpr | None = None,
         span: Span = None,
     ) -> None:
         # Guard against incorrect usage.  For backwards compatibility,
@@ -110,7 +111,7 @@ class ShapeStructInfo(StructInfo):
 
     Parameters
     ----------
-    values : Optional[List[PrimExpr]]
+    values : Optional[list[PrimExpr]]
        The symbolic shape values if known.
 
     ndim : Optional[int]
@@ -121,12 +122,12 @@ class ShapeStructInfo(StructInfo):
     Do not specify values and ndim at the same time.
     """
 
-    values: Optional[List[PrimExpr]]
+    values: list[PrimExpr] | None
     ndim: int
     span: Span
 
     def __init__(
-        self, values: Optional[List[PrimExpr]] = None, ndim: int = -1, span: Span = None
+        self, values: list[PrimExpr] | None = None, ndim: int = -1, span: Span = None
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ShapeStructInfo,
@@ -159,17 +160,17 @@ class TensorStructInfo(StructInfo):
     Do not specify shape and ndim at the same time.
     """
 
-    shape: Optional[Expr]
+    shape: Expr | None
     dtype: str
-    vdevice: Optional[VDevice]
+    vdevice: VDevice | None
     ndim: int
     span: Span
 
     def __init__(
         self,
-        shape: Union[Optional[Expr], List[PrimExpr]] = None,
+        shape: Expr | None | list[PrimExpr] = None,
         dtype: str = "float32",
-        vdevice: Union[Optional[VDevice], str] = None,
+        vdevice: VDevice | None | str = None,
         ndim: int = -1,
         span: Span = None,
     ) -> None:
@@ -191,14 +192,14 @@ class TupleStructInfo(StructInfo):
 
     Parameters
     ----------
-    fields: List[StructInfo]
+    fields: list[StructInfo]
         The struct info of the fields.
     """
 
-    fields: List[StructInfo]
+    fields: list[StructInfo]
     span: Span
 
-    def __init__(self, fields: List[StructInfo], span: Span = None) -> None:
+    def __init__(self, fields: list[StructInfo], span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.TupleStructInfo, fields, span)  # type: ignore
 
 
@@ -208,7 +209,7 @@ class FuncStructInfo(StructInfo):
 
     Parameters
     ----------
-    params: List[StructInfo]
+    params: list[StructInfo]
         The struct info of the fields.
 
     ret: StructInfo
@@ -221,14 +222,14 @@ class FuncStructInfo(StructInfo):
         we still consider it impure.
     """
 
-    params: Optional[List[StructInfo]]
+    params: list[StructInfo] | None
     ret: StructInfo
-    derive_func: Optional[EnvFunc]
+    derive_func: EnvFunc | None
     purity: bool
     span: Span
 
     def __init__(
-        self, params: List[StructInfo], ret: StructInfo, purity: bool = True, span: Span = None
+        self, params: list[StructInfo], ret: StructInfo, purity: bool = True, span: Span = None
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.FuncStructInfo,
@@ -241,11 +242,11 @@ class FuncStructInfo(StructInfo):
     @staticmethod
     def opaque_func(
         *,
-        ret: Optional[StructInfo] = None,
-        derive_func: Optional[Union[str, EnvFunc]] = None,
+        ret: StructInfo | None = None,
+        derive_func: str | EnvFunc | None = None,
         purity: bool = False,
         span: Span = None,
-    ) -> "FuncStructInfo":
+    ) -> FuncStructInfo:
         """
         Create an opaque FuncStructInfo.
 

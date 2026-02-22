@@ -21,13 +21,13 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
-from git_utils import GitHubRepo, git, parse_remote
+from git_utils import GitHubRepo, git, parse_remote  # noqa: E402
 
 _commit_query_fields = """
     messageHeadline
@@ -57,7 +57,7 @@ _commit_query_fields = """
 """
 
 
-def commits_query(user: str, repo: str, cursor: str = None):
+def commits_query(user: str, repo: str, cursor: str | None = None):
     """
     Create a GraphQL query to find the last N commits along with their statuses
     and some metadata (paginated after 'cursor')
@@ -100,7 +100,7 @@ EXPECTED_CI_JOBS = [
 ]
 
 
-def commit_passed_ci(commit: Dict[str, Any]) -> bool:
+def commit_passed_ci(commit: dict[str, Any]) -> bool:
     """
     Returns true if all of a commit's statuses are SUCCESS
     """

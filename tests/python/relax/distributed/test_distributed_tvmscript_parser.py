@@ -32,8 +32,8 @@ from tvm.script.parser import tir as T
 
 
 def _check(
-    parsed: Union[relax.Function, IRModule],
-    expect: Optional[Union[relax.Function, IRModule]] = None,
+    parsed: relax.Function | IRModule,
+    expect: relax.Function | IRModule | None = None,
 ):
     test = parsed.script(show_meta=True)
     roundtrip_mod = tvm.script.from_source(test)

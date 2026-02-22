@@ -113,7 +113,7 @@ def test_buffer_index_merge_mult_mod():
     def assert_simplified_equal(index_simplified, index_direct):
         (
             tvm.ir.assert_structural_equal(index_simplified, index_direct),
-            "index_simplified=%s, index_direct=%s" % (index_simplified, index_direct),
+            f"index_simplified={index_simplified}, index_direct={index_direct}",
         )
 
     idxd = tvm.tir.indexdiv

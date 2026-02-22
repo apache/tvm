@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name, unused-import, import-outside-toplevel, inconsistent-return-statements
 """Runtime Module namespace."""
+
+from __future__ import annotations
 
 import json
 import os
 import struct
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 from tvm_ffi import (

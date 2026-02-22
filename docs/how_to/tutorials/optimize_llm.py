@@ -26,6 +26,8 @@ demonstrate how to optimize a large language model using Apache TVM. We will use
 TinyLlama model from Hugging Face and deploy it on various devices.
 """
 
+from __future__ import annotations
+
 ######################################################################
 # Review Overall Flow
 # -------------------
@@ -44,8 +46,6 @@ TinyLlama model from Hugging Face and deploy it on various devices.
 # - **Build and Universal Deployment**: Build the optimized model to a deployable module to the
 #   universal runtime, and execute it on different devices, such as CPU, GPU, or other accelerators.
 #
-
-
 ######################################################################
 # Construct the model architecture
 # --------------------------------
@@ -53,13 +53,12 @@ TinyLlama model from Hugging Face and deploy it on various devices.
 # pre-trained weight from Hugging Face but not the model architecture. We need to construct the
 # model architecture by ourselves. Apache TVM prepares a PyTorch-liked API to construct the model
 # architecture. We can use the API to construct the model architecture.
-
 import dataclasses
 import enum
 import os
 from pathlib import Path
 from pprint import pprint
-from typing import List, Optional
+from typing import Optional
 
 import tvm
 from tvm import relax, te, tir
@@ -170,7 +169,7 @@ class LlamaFFN(nn.Module):
 # - Attention: We leverage the horizontal fusion on attention and fuse the QKV projection and
 
 
-class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class LlamaAttention(nn.Module):
     def __init__(self, config: LlamaConfig):
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads
@@ -250,7 +249,7 @@ class LlamaForCasualLM(nn.Module):
         self.rope_theta = config.rope_theta
         self.dtype = "float32"
 
-    def to(self, dtype: Optional[str] = None):
+    def to(self, dtype: str | None = None):
         super().to(dtype=dtype)
         if dtype is not None:
             self.dtype = dtype
@@ -376,8 +375,8 @@ pprint(named_params[:5])  # Only show the first 5 parameters for demonstration
 
 
 @register_pipeline("opt_llm")
-def _pipeline(  # pylint: disable=too-many-arguments
-    ext_mods: List[nn.ExternModule] = None,
+def _pipeline(
+    ext_mods: list[nn.ExternModule] | None = None,
 ):
     ext_mods = ext_mods or []
 

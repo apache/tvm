@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, abstract-method, arguments-differ
 """
 Utility script for printing Relax modules as AST diagrams,
 only intended to show how the AST is put together.
@@ -22,7 +21,9 @@ It is not a pretty-printer and, in fact, is more of an ugly-printer,
 but it can be useful for tutorials and debugging.
 """
 
-from typing import Iterable
+from __future__ import annotations
+
+from collections.abc import Iterable
 
 import tvm
 from tvm import relax

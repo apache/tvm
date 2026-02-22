@@ -20,7 +20,6 @@ from tvm import s_tir
 from tvm.script import tir as T
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
 
 @tvm.script.ir_module
@@ -118,7 +117,6 @@ class MatmulAfter:
 
 
 # fmt: on
-# pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
 
 def _check(before, expected):

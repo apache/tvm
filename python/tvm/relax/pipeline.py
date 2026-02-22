@@ -21,7 +21,6 @@ This namespace offers a pre-defined collection that can be used
 as it is or serves as a basis to do further composition.
 """
 
-# pylint: disable=unused-argument
 from typing import Optional, Union
 
 import tvm
@@ -110,10 +109,10 @@ def default_build_pipeline():
 
 def static_shape_tuning_pipeline(
     total_trials: int,
-    target: Union[str, tvm.target.Target],
+    target: str | tvm.target.Target,
     work_dir: str = "tuning_logs",
     cpu_weight_prepack: bool = False,
-    max_trials_per_task: Optional[int] = None,
+    max_trials_per_task: int | None = None,
 ):
     """Tune the static shape model and store the log to database.
 

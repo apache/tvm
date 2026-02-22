@@ -16,7 +16,8 @@
 # under the License.
 """Batch normalization."""
 
-import typing
+from __future__ import annotations
+
 from functools import reduce
 
 from tvm import te, topi
@@ -28,13 +29,13 @@ def batch_norm(
     beta: te.Tensor,
     moving_mean: te.Tensor,
     moving_var: te.Tensor,
-    axis: typing.Optional[int] = None,
-    epsilon: typing.Optional[float] = None,
-    center: typing.Optional[bool] = None,
-    scale: typing.Optional[bool] = None,
-    training: typing.Optional[bool] = None,
-    momentum: typing.Optional[float] = None,
-) -> typing.List[te.Tensor]:
+    axis: int | None = None,
+    epsilon: float | None = None,
+    center: bool | None = None,
+    scale: bool | None = None,
+    training: bool | None = None,
+    momentum: float | None = None,
+) -> list[te.Tensor]:
     """Batch normalization layer (Ioffe and Szegedy, 2014).
 
     Normalizes the input at each batch, i.e. applies a transformation

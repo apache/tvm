@@ -27,7 +27,7 @@ from tvm.script.parser import tir as T
 
 
 @visitor
-class ValidateBufferScopes(PyExprVisitor):  # pylint: disable=abstract-method
+class ValidateBufferScopes(PyExprVisitor):
     def __init__(self, is_matched: bool) -> None:
         self.is_matched = is_matched
 
@@ -38,7 +38,7 @@ class ValidateBufferScopes(PyExprVisitor):  # pylint: disable=abstract-method
             if isinstance(func, relax.Function):
                 self.visit_expr(func)
 
-    def visit_call_(self, call: relax.Call) -> None:  # pylint: disable=arguments-renamed
+    def visit_call_(self, call: relax.Call) -> None:
         if call.op.name == "relax.call_tir":
             pfunc = self.mod[call.args[0]]
             if not self.is_matched:

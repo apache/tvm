@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
 """tvm.contrib.msc.framework.torch.runtime.runner"""
 
+from __future__ import annotations
+
 import time
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import torch
@@ -37,7 +38,7 @@ from tvm.contrib.msc.framework.torch.frontend import from_torch, set_weight_alia
 class TorchRunner(ModelRunner):
     """Runner of Torch"""
 
-    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+    def _translate(self, mod: tvm.IRModule) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Translate IRModule to MSCgraphs
 
         Parameters
@@ -82,8 +83,8 @@ class TorchRunner(ModelRunner):
         return model
 
     def _call_runnable(
-        self, runnable: torch.nn.Module, inputs: Dict[str, np.ndarray], device: str
-    ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
+        self, runnable: torch.nn.Module, inputs: dict[str, np.ndarray], device: str
+    ) -> list[np.ndarray] | dict[str, np.ndarray]:
         """Call the runnable to get outputs
 
         Parameters
@@ -107,7 +108,7 @@ class TorchRunner(ModelRunner):
         ]
         return runnable(*torch_inputs)
 
-    def _get_runtime_params(self) -> Dict[str, tvm.runtime.Tensor]:
+    def _get_runtime_params(self) -> dict[str, tvm.runtime.Tensor]:
         """Get the runtime parameters
 
         Returns
@@ -136,7 +137,7 @@ class TorchRunner(ModelRunner):
         return MSCFramework.TORCH
 
     @classmethod
-    def load_native(cls, model: Any, config: dict) -> Tuple[torch.nn.Module, str, bool]:
+    def load_native(cls, model: Any, config: dict) -> tuple[torch.nn.Module, str, bool]:
         """Load the native model
 
         Parameters
@@ -179,12 +180,12 @@ class TorchRunner(ModelRunner):
     def run_native(
         cls,
         model: torch.nn.Module,
-        inputs: Dict[str, np.ndarray],
-        input_names: List[str],
-        output_names: List[str],
+        inputs: dict[str, np.ndarray],
+        input_names: list[str],
+        output_names: list[str],
         warm_up: int = 10,
         repeat: int = 0,
-    ) -> Tuple[Dict[str, np.ndarray], float]:
+    ) -> tuple[dict[str, np.ndarray], float]:
         """Run the datas and get outputs
 
         Parameters
@@ -252,7 +253,7 @@ class TorchRunner(ModelRunner):
         cls,
         model: torch.nn.Module,
         folder: msc_utils.MSCDirectory,
-        dump_config: dict = None,
+        dump_config: dict | None = None,
     ) -> str:
         """Dump the nativate model
 

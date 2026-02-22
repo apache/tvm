@@ -16,7 +16,7 @@
 # under the License.
 """A rule for GEMV and DecodeGEMV."""
 
-from typing import List, Optional, Union
+from __future__ import annotations
 
 from tvm import s_tir, tir
 from tvm.target import Target
@@ -30,12 +30,12 @@ from .base import CPUScheduleRule
 class GEMV(CPUScheduleRule):
     """A rule for GEMV and DecodeGEMV."""
 
-    def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements, no-else-return
+    def apply(
         self,
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
@@ -74,17 +74,17 @@ class GEMV(CPUScheduleRule):
             # sch_outer reduction
             return None
 
-    def sch_inner_reduction(  # pylint: disable=too-many-arguments, too-many-positional-arguments, invalid-name, unused-argument
+    def sch_inner_reduction(
         self,
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[SBlockInfo],
+        vector_input_buffers: list[tir.Buffer],
+        epilogue_info: SBlockInfo | None,
     ):
         """Schedule the inner reduction block."""
 
-        def apply(  # pylint: disable=unused-variable, too-many-locals
+        def apply(
             sch: s_tir.Schedule,
             gemv,
             vector_width: int = 8,

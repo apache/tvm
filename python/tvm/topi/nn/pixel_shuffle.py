@@ -50,7 +50,7 @@ def pixel_shuffle(data, upscale_factor, name="PixelShuffle"):
     h_out = h_in * upscale_factor_const
     w_out = w_in * upscale_factor_const
 
-    out_shape = list(data.shape[:-3]) + [c_out, h_out, w_out]
+    out_shape = [*list(data.shape[:-3]), c_out, h_out, w_out]
 
     def _compute(*indices):
         batch_indices = indices[:-3]
@@ -68,7 +68,7 @@ def pixel_shuffle(data, upscale_factor, name="PixelShuffle"):
             + w_offset
         )
 
-        index_tuple = batch_indices + (c_in_idx, h_idx, w_idx)
+        index_tuple = (*batch_indices, c_in_idx, h_idx, w_idx)
         return data[index_tuple]
 
     return tvm.te.compute(out_shape, _compute, name=name)

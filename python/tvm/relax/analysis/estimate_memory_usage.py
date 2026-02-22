@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=abstract-method,unused-argument
-# pylint: disable=missing-function-docstring,missing-module-docstring
 from typing import Union
 
 import tvm
@@ -26,7 +24,7 @@ from ..expr import Call, Expr, Function, ShapeExpr
 from ..expr_functor import PyExprVisitor, visitor
 
 
-def estimate_memory_usage(mod: Union[IRModule, Function]) -> str:
+def estimate_memory_usage(mod: IRModule | Function) -> str:
     """Analysis function that estimates the memory usage of Relax functions
     in an IRModule. The estimation includes the total memory size needed to
     be allocated before and after memory planning.
@@ -107,7 +105,7 @@ def estimate_memory_usage(mod: Union[IRModule, Function]) -> str:
             self.planned_alloc_mem = 0
             self.planned_mem_num = 0
 
-        def visit_call_(self, call: Call) -> None:  # pylint: disable=arguments-differ
+        def visit_call_(self, call: Call) -> None:
             if call.op == self.builtin_alloc_tensor_op:
                 self.accumulate_builtin_tensor_alloc(
                     shape=call.args[0], dtype_str=call.args[1].value

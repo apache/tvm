@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Default legalization function for linear algebra operators."""
 
 from tvm import relax, te, tir, topi
@@ -87,7 +86,7 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
 
         return te.compute(
             output_shape,
-            lambda *idx: matmul_compute(*idx),  # pylint: disable=unnecessary-lambda
+            lambda *idx: matmul_compute(*idx),
             name="matmul",
         )
 

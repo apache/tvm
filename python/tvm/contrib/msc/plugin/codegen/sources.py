@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.plugin.codegen.sources"""
 
-from typing import Dict
+from __future__ import annotations
 
 
 def get_plugin_base_h_code() -> str:
@@ -1153,7 +1153,7 @@ namespace plugin {
     return code
 
 
-def get_plugin_sources() -> Dict[str, str]:
+def get_plugin_sources() -> dict[str, str]:
     """Create base sources for plugin codegen
 
     Returns

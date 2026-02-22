@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """tvm.contrib.msc.framework.torch.tools.distill.method"""
 
-from typing import List
+from __future__ import annotations
 
 import torch
 
@@ -34,8 +33,8 @@ class TorchDistillMethod(DistillMethod):
     def loss_kl_divergence(
         cls,
         distiller: BaseDistiller,
-        t_outputs: List[torch.Tensor],
-        s_outputs: List[torch.Tensor],
+        t_outputs: list[torch.Tensor],
+        s_outputs: list[torch.Tensor],
         temperature: int = 5,
         softmax_dim: int = -1,
     ):
@@ -82,8 +81,8 @@ class TorchDistillMethod(DistillMethod):
     def loss_lp_norm(
         cls,
         distiller: BaseDistiller,
-        t_outputs: List[torch.Tensor],
-        s_outputs: List[torch.Tensor],
+        t_outputs: list[torch.Tensor],
+        s_outputs: list[torch.Tensor],
         power: int = 2,
     ):
         """Calculate loss with mse

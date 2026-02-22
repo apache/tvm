@@ -21,7 +21,7 @@ from tvm import relax
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 
 
-def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def library_dispatch_passes(target: tvm.target.Target):
     """The default library dispatch passes for Adreno GPU backend."""
     if "clml" in target.keys:
         return [relax.backend.adreno.clml.OpenCLMLOffLoad()]
@@ -29,7 +29,7 @@ def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unuse
         return []
 
 
-def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def legalize_passes(target: tvm.target.Target):
     """The default legalization passes for Adreno GPU backend."""
     desired_layouts = {"relax.nn.conv2d": ["NCHW4c", "OIHW4o", "NCHW4c"]}
     skip_ops = [
@@ -83,7 +83,7 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
                 relax.transform.SpecializePrimFuncBasedOnCallSite(),
             ]
         )
-    from tvm.s_tir import dlight as dl  # pylint: disable=import-outside-toplevel
+    from tvm.s_tir import dlight as dl
 
     pass_list.extend([relax.transform.Normalize()])
     pass_list.extend(
@@ -107,12 +107,12 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
     return pass_list
 
 
-def dataflow_lower_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def dataflow_lower_passes(target: tvm.target.Target):
     """The default dataflow lowering passes for Adreno GPU backend."""
     return relax.backend.gpu_generic.dataflow_lower_passes(target)
 
 
-def finalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def finalize_passes(target: tvm.target.Target):
     """The default finalization passes for Adreno GPU backend."""
     return relax.backend.gpu_generic.finalize_passes(target)
 

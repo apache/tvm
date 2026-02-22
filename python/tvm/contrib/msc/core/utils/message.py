@@ -16,9 +16,10 @@
 # under the License.
 """tvm.contrib.msc.core.utils.message"""
 
+from __future__ import annotations
+
 import datetime
 import logging
-from typing import List, Tuple
 
 from .arguments import dump_dict, map_dict
 from .log import get_global_logger, split_line
@@ -56,12 +57,12 @@ class MSCStage:
     ]
 
     @classmethod
-    def all_stages(cls) -> List[str]:
+    def all_stages(cls) -> list[str]:
         """Get all stage names"""
         return cls.ALL
 
 
-def time_stamp(stage: str, log_stage: bool = True, logger: logging.Logger = None):
+def time_stamp(stage: str, log_stage: bool = True, logger: logging.Logger | None = None):
     """Mark the stamp and record time.
 
     Parameters
@@ -108,7 +109,7 @@ def get_duration() -> dict:
     def _get_duration(idx):
         return (time_stamps[idx + 1][1] - time_stamps[idx][1]).total_seconds()
 
-    def _set_stage(stage: str, info: Tuple[float, dict], collect: dict):
+    def _set_stage(stage: str, info: tuple[float, dict], collect: dict):
         if "." in stage:
             main_stage, sub_stage = stage.split(".", 1)
             _set_stage(sub_stage, info, collect.setdefault(main_stage, {}))

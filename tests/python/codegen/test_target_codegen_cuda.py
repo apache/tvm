@@ -64,7 +64,7 @@ def test_cuda_vectorize_add():
         if dtype == "int8" and not have_int8(tvm.cuda(0).compute_version):
             print("skip because gpu does not support int8")
             return
-        vec_dtype = "%sx%d" % (dtype, lanes)
+        vec_dtype = f"{dtype}x{lanes}"
         one = tvm.tir.const(1, vec_dtype)
         num_blocks = (n + num_thread - 1) // num_thread
 
@@ -127,7 +127,7 @@ def test_cuda_bf16_vectorize_add():
         return u32.view("<f4")
 
     def check_cuda(n, lanes):
-        vec_dtype = "bfloat16x%d" % lanes
+        vec_dtype = f"bfloat16x{lanes}"
         num_blocks = n // num_thread
         one = tvm.tir.Broadcast(tvm.tir.const(1, "bfloat16"), lanes)
 
@@ -172,7 +172,7 @@ def test_cuda_multiply_add():
         if dtype == "int8" and not have_int8(tvm.cuda(0).compute_version):
             print("skip because gpu does not support int8")
             return
-        vec_dtype = "%sx%d" % (dtype, lanes)
+        vec_dtype = f"{dtype}x{lanes}"
         num_blocks = n // num_thread
 
         @I.ir_module
@@ -217,7 +217,7 @@ def test_cuda_vectorize_load():
 
     def check_cuda(dtype, n, lanes):
         dev = tvm.cuda(0)
-        vec_dtype = "%sx%d" % (dtype, lanes)
+        vec_dtype = f"{dtype}x{lanes}"
         num_blocks = n // num_thread
 
         @I.ir_module

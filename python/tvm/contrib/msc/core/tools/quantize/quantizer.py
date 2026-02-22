@@ -16,7 +16,9 @@
 # under the License.
 """tvm.contrib.msc.core.tools.quantize.quantizer"""
 
-from typing import Any, Dict, List
+from __future__ import annotations
+
+from typing import Any
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools.tool import BaseTool, ToolStrategy, ToolType
@@ -81,7 +83,7 @@ class BaseQuantizer(BaseTool):
         self._forward_cnt = 0
         return new_plan
 
-    def _parse_strategys(self, strategy_list: List[dict]) -> Dict[str, ToolStrategy]:
+    def _parse_strategys(self, strategy_list: list[dict]) -> dict[str, ToolStrategy]:
         """Parse the strategy to get valid strategy
 
         Parameters
@@ -128,7 +130,7 @@ class BaseQuantizer(BaseTool):
         return True
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Process tensor
 
@@ -156,7 +158,7 @@ class BaseQuantizer(BaseTool):
         return self._quantize_tensor(tensor, name, consumer, strategys)
 
     def _gather_tensor(
-        self, tensor: Any, name: str, consumer: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Gather tensor datas
 
@@ -186,7 +188,7 @@ class BaseQuantizer(BaseTool):
         return tensor
 
     def _quantize_tensor(
-        self, tensor: Any, name: str, consumer: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Quantize tensor
 
@@ -212,7 +214,7 @@ class BaseQuantizer(BaseTool):
             tensor = strategy(self, tensor, name, consumer, **self._plan[tensor_id])
         return tensor
 
-    def create_tasks(self, **kwargs) -> List[dict]:
+    def create_tasks(self, **kwargs) -> list[dict]:
         """Create tasks for gym
 
         Parameters

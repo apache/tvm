@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """tvm.contrib.msc.core.tools.distill.method"""
 
-from typing import List
+from __future__ import annotations
 
 import numpy as np
 
@@ -34,8 +33,8 @@ class DistillMethod:
     def loss_lp_norm(
         cls,
         distiller: BaseTool,
-        t_outputs: List[np.ndarray],
-        s_outputs: List[np.ndarray],
+        t_outputs: list[np.ndarray],
+        s_outputs: list[np.ndarray],
         power: int = 2,
     ):
         """Calculate loss with mse

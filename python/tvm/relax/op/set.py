@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-outside-toplevel, redefined-builtin, unused-argument
 """Set operators."""
 
 from typing import Optional, Union
@@ -29,11 +28,11 @@ from . import _ffi_api
 
 def unique(
     x: Expr,
-    sorted: Union[bool, Expr] = True,
-    return_index: Union[bool, Expr] = False,
-    return_inverse: Union[bool, Expr] = False,
-    return_counts: Union[bool, Expr] = False,
-    axis: Optional[Union[int, Expr]] = None,
+    sorted: bool | Expr = True,
+    return_index: bool | Expr = False,
+    return_inverse: bool | Expr = False,
+    return_counts: bool | Expr = False,
+    axis: int | Expr | None = None,
 ) -> Expr:
     """Find the unique elements in a given tensor.
     In addition, it optionally returns
@@ -93,7 +92,7 @@ def numpy_unique(
     return_index: int,
     return_inverse: int,
     return_counts: int,
-    axis: Optional[int] = None,
+    axis: int | None = None,
 ) -> tvm.runtime.tensor:
     """Returns the unique elements of the input tensor.
 

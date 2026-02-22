@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 
 """Pytest plugin for using tvm testing extensions.
 
@@ -93,7 +92,7 @@ def pytest_generate_tests(metafunc):
 
 def pytest_collection_modifyitems(config, items):
     """Called after all tests are chosen, currently used for bookkeeping."""
-    # pylint: disable=unused-argument
+
     _count_num_fixture_uses(items)
     _remove_global_fixture_definitions(items)
     _sort_tests(items)

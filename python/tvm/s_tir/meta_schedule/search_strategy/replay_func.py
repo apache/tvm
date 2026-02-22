@@ -39,5 +39,5 @@ class ReplayFunc(SearchStrategy):
     def __init__(self):
         """Constructor"""
         self.__init_handle_by_constructor__(
-            _ffi_api.SearchStrategyReplayFunc,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SearchStrategyReplayFunc,  # type: ignore
         )

@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Default legalization function for statistical operators."""
 
-from typing import List, Tuple, Union
+from __future__ import annotations
 
 from tvm import te, tir, topi
 
@@ -33,7 +32,7 @@ def _statistical(te_func: TEFunc) -> LegalizeFunc:
     return statistical_call_te
 
 
-def _compute_shape_prod(x: te.Tensor, axis: List[tir.IntImm]) -> tir.PrimExpr:
+def _compute_shape_prod(x: te.Tensor, axis: list[tir.IntImm]) -> tir.PrimExpr:
     shape_prod = tir.const(1, "int32")
     axes = [_axis.value for _axis in axis] if axis is not None else range(0, len(x.shape))
     for dim in axes:
@@ -41,13 +40,13 @@ def _compute_shape_prod(x: te.Tensor, axis: List[tir.IntImm]) -> tir.PrimExpr:
     return shape_prod
 
 
-def _te_mean(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:
+def _te_mean(x: te.Tensor, axis: list[tir.IntImm], keepdims: bool) -> te.Tensor:
     shape_prod = _compute_shape_prod(x, axis)
     res_sum = topi.sum(x, axis, keepdims)
     return topi.divide(res_sum, shape_prod)
 
 
-def _te_variance(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:
+def _te_variance(x: te.Tensor, axis: list[tir.IntImm], keepdims: bool) -> te.Tensor:
     dev = x - _te_mean(x, axis, True)
     return _te_mean(dev * dev, axis, keepdims)
     # This version has better memory locality and performance
@@ -57,8 +56,8 @@ def _te_variance(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Ten
 
 
 def _te_median(
-    x: te.Tensor, axis: List[tir.IntImm], keepdims: bool
-) -> Union[te.Tensor, Tuple[te.Tensor, te.Tensor]]:
+    x: te.Tensor, axis: list[tir.IntImm], keepdims: bool
+) -> te.Tensor | tuple[te.Tensor, te.Tensor]:
     # currently only supports one axis or no axis ~ same pytorch
     # todo: support multiple axis ~ same numpy
     shape_prod = _compute_shape_prod(x, axis)
@@ -99,7 +98,7 @@ def _mean(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.std")
 def _std(bb: BlockBuilder, call: Call) -> Expr:
-    def te_std(x: te.Tensor, axis: List[tir.IntImm], keepdims: bool) -> te.Tensor:
+    def te_std(x: te.Tensor, axis: list[tir.IntImm], keepdims: bool) -> te.Tensor:
         return topi.sqrt(_te_variance(x, axis, keepdims))
 
     return bb.call_te(

@@ -23,18 +23,17 @@ import re
 import sys
 import textwrap
 from pathlib import Path
-from typing import List
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
-from git_utils import git, parse_remote
+from git_utils import git, parse_remote  # noqa: E402
 
 GIT_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 
-def prs_query(user: str, repo: str, cursor: str = None):
+def prs_query(user: str, repo: str, cursor: str | None = None):
     after = ""
     if cursor is not None:
         after = f', before:"{cursor}"'
@@ -85,7 +84,7 @@ def prs_query(user: str, repo: str, cursor: str = None):
     """
 
 
-def find_reviewers(body: str) -> List[str]:
+def find_reviewers(body: str) -> list[str]:
     matches = re.findall(r"(cc( @[-A-Za-z0-9]+)+)", body, flags=re.MULTILINE)
     matches = [full for full, last in matches]
 
@@ -168,7 +167,7 @@ def check_pr(pr, wait_time, now):
         return reviewers
     else:
         print(
-            f"  Not pinging PR {pr['number']} since it has been only {time_since_last_action} since the last action: {last_action[1]}"
+            f"  Not pinging PR {pr['number']} since it has been only {time_since_last_action} since the last action: {last_action[1]}"  # noqa: E501
         )
 
     return None
@@ -216,7 +215,7 @@ if __name__ == "__main__":
         r = json.loads(args.pr_json)
     else:
         q = prs_query(user, repo)
-        r = github.graphql(q)
+        r = github.graphql(q)  # noqa: F821
 
     now = datetime.datetime.utcnow()
     if args.now:
@@ -233,7 +232,7 @@ if __name__ == "__main__":
                 print(f"Skipping #{pr['number']} since it's a draft")
             elif pr["number"] <= cutoff_pr_number:
                 print(
-                    f"Skipping #{pr['number']} since it's too old ({pr['number']} <= {cutoff_pr_number})"
+                    f"Skipping #{pr['number']} since it's too old ({pr['number']} <= {cutoff_pr_number})"  # noqa: E501
                 )
             else:
                 print(f"Checking #{pr['number']}")
@@ -249,10 +248,10 @@ if __name__ == "__main__":
                 message = make_ping_message(pr, reviewers)
                 if args.dry_run:
                     print(
-                        f"Would have commented on #{pr['number']}:\n{textwrap.indent(message, prefix='  ')}"
+                        f"Would have commented on #{pr['number']}:\n{textwrap.indent(message, prefix='  ')}"  # noqa: E501
                     )
                 else:
-                    r = github.post(f"issues/{pr['number']}/comments", {"body": message})
+                    r = github.post(f"issues/{pr['number']}/comments", {"body": message})  # noqa: F821
                     print(r)
 
         edges = r["data"]["repository"]["pullRequests"]["edges"]
@@ -261,4 +260,4 @@ if __name__ == "__main__":
             break
 
         cursor = edges[0]["cursor"]
-        r = github.graphql(prs_query(user, repo, cursor))
+        r = github.graphql(prs_query(user, repo, cursor))  # noqa: F821

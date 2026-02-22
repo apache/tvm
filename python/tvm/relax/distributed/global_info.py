@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, invalid-name
 """Global Info Data structures for distributed tensor."""
 
-from typing import List, Tuple, Union
+from __future__ import annotations
 
 import tvm_ffi
 
@@ -41,9 +40,7 @@ class DeviceMesh(GlobalInfo):
         Represents the device id in the mesh
     """
 
-    def __init__(
-        self, shape: Union[ShapeTuple, List[int], Tuple[int]], device_ids: Union[List[int], Range]
-    ):
+    def __init__(self, shape: ShapeTuple | list[int] | tuple[int], device_ids: list[int] | Range):
         if isinstance(shape, (list, tuple)):
             shape = ShapeTuple(shape)
         device_range = None
@@ -53,7 +50,7 @@ class DeviceMesh(GlobalInfo):
         self.__init_handle_by_constructor__(ffi.DeviceMesh, shape, device_ids, device_range)  # type: ignore
 
 
-def device_mesh(shape: ShapeTuple, device_ids: Union[List[int], Range]) -> DeviceMesh:
+def device_mesh(shape: ShapeTuple, device_ids: list[int] | Range) -> DeviceMesh:
     """Create a device mesh expression.
     Parameters
     ----------
@@ -67,4 +64,4 @@ def device_mesh(shape: ShapeTuple, device_ids: Union[List[int], Range]) -> Devic
     res : DeviceMesh
         The device mesh.
     """
-    return DeviceMesh(shape, device_ids)  # pylint: disable=no-member # type: ignore
+    return DeviceMesh(shape, device_ids)

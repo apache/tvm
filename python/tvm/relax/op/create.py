@@ -16,7 +16,9 @@
 # under the License.
 """Creation operators."""
 
-from typing import Optional, Tuple, Union
+from __future__ import annotations
+
+from typing import Union
 
 from tvm import DataType, DataTypeCode
 from tvm.ir.expr import PrimExpr
@@ -24,13 +26,13 @@ from tvm.ir.expr import PrimExpr
 from ..expr import Expr, PrimValue, ShapeExpr
 from . import _ffi_api
 
-PrimExprLike = Union[int, PrimExpr]
+PrimExprLike = int | PrimExpr
 
 
 def full(
-    shape: Union[Tuple[PrimExprLike], Expr],
+    shape: tuple[PrimExprLike] | Expr,
     fill_value: Expr,
-    dtype: Optional[Union[str, DataType]] = None,
+    dtype: str | DataType | None = None,
 ) -> Expr:
     """Fill array with scalar value.
 
@@ -54,7 +56,7 @@ def full(
     return _ffi_api.full(shape, fill_value, dtype)  # type: ignore
 
 
-def full_like(x: Expr, fill_value: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
+def full_like(x: Expr, fill_value: Expr, dtype: str | DataType | None = None) -> Expr:
     """Construct a tensor such that
     - its shape is the same as the input data tensor's shape,
     - its value is filled with the input scalar fill value.
@@ -80,7 +82,7 @@ def full_like(x: Expr, fill_value: Expr, dtype: Optional[Union[str, DataType]] =
     return _ffi_api.full_like(x, fill_value, dtype)  # type: ignore
 
 
-def ones(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -> Expr:
+def ones(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
     """Construct a tensor of all ones, with the input shape and dtype.
 
     Parameters
@@ -101,7 +103,7 @@ def ones(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -
     return _ffi_api.ones(shape, dtype)  # type: ignore
 
 
-def ones_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
+def ones_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
     """Construct a tensor with all ones, with shape of the input tensor shape.
 
     Parameters
@@ -122,7 +124,7 @@ def ones_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
     return _ffi_api.ones_like(x, dtype)  # type: ignore
 
 
-def zeros(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -> Expr:
+def zeros(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
     """Construct a tensor of all zeros, with the input shape and dtype.
 
     Parameters
@@ -143,7 +145,7 @@ def zeros(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) 
     return _ffi_api.zeros(shape, dtype)  # type: ignore
 
 
-def zeros_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
+def zeros_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
     """Construct a tensor with all zeros, with shape of the input tensor shape.
 
     Parameters
@@ -165,10 +167,10 @@ def zeros_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
 
 
 def eye(
-    n: Union[PrimExprLike, PrimValue],
-    m: Optional[Union[PrimExprLike, PrimValue]] = None,
-    k: Union[PrimExprLike, PrimValue] = 0,
-    dtype: Union[str, DataType] = "float32",
+    n: PrimExprLike | PrimValue,
+    m: PrimExprLike | PrimValue | None = None,
+    k: PrimExprLike | PrimValue = 0,
+    dtype: str | DataType = "float32",
 ) -> Expr:
     """Construct a 2-D tensor with ones on the diagonal and zeros elsewhere.
 
@@ -202,8 +204,8 @@ def eye(
 
 def eye_like(
     x: Expr,
-    k: Union[PrimExprLike, PrimValue] = 0,
-    dtype: Optional[Union[str, DataType]] = None,
+    k: PrimExprLike | PrimValue = 0,
+    dtype: str | DataType | None = None,
 ) -> Expr:
     """Return a 2-D tensor with ones on the diagonal and zeros elsewhere,
     with the same shape as the input tensor.
@@ -233,10 +235,10 @@ def eye_like(
 
 
 def arange(
-    start: Union[PrimExprLike, PrimValue],
-    end: Optional[Union[PrimExprLike, PrimValue]] = None,
-    step: Union[PrimExprLike, PrimValue] = 1,
-    dtype: Optional[Union[str, DataType]] = None,
+    start: PrimExprLike | PrimValue,
+    end: PrimExprLike | PrimValue | None = None,
+    step: PrimExprLike | PrimValue = 1,
+    dtype: str | DataType | None = None,
 ) -> Expr:
     """Construct a tensor with evenly spaced elements.
 
@@ -317,7 +319,7 @@ def hamming_window(window_size, periodic, alpha, beta, dtype):
     return _ffi_api.hamming_window(window_size, periodic, alpha, beta, dtype)
 
 
-def tril(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
+def tril(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
     """Return the lower triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -343,7 +345,7 @@ def tril(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
     return _ffi_api.tril(x, k)  # type: ignore
 
 
-def triu(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
+def triu(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
     """Return the upper triangular part of a matrix or a batch of matrices.
 
     Parameters

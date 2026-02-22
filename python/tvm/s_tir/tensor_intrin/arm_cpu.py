@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,missing-function-docstring,unused-import
 """Intrinsics for ARM tensorization."""
 
 from tvm import tir
@@ -340,7 +339,6 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
 
 
 def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
-    # pylint: disable=line-too-long
     """
     Transpose and block pack a matrix of size 2SVL x 1SVL (where 'SVL' is the Scalable Vector
     Length for the fp16 datatype) using the Scalable Matrix Extension (SME).
@@ -384,7 +382,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
         The SME TensorIntrin that can be used in tensorizing a schedule.
 
     """
-    # pylint: enable=line-too-long
+
     SVF = tir.get_vscale_expr("float16")
     SVF2 = 2 * SVF
 

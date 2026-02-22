@@ -16,7 +16,7 @@
 # under the License.
 """A database for injecting handcrafted schedule functions."""
 
-from typing import Callable
+from collections.abc import Callable
 
 from tvm_ffi import register_object
 
@@ -53,7 +53,7 @@ class ScheduleFnDatabase(Database):
         module_equality: str = "structural",
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.DatabaseScheduleFnDatabase,  # type: ignore # pylint: disable=no-member
+            _ffi_api.DatabaseScheduleFnDatabase,  # type: ignore
             schedule_fn,
             module_equality,
         )
