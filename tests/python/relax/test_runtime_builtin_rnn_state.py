@@ -22,9 +22,9 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.s_tir import dlight as dl
 from tvm import tir
 from tvm.runtime import ShapeTuple
+from tvm.s_tir import dlight as dl
 from tvm.script import tir as T
 
 # pylint: disable=invalid-name

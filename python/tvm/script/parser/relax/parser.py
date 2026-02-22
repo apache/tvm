@@ -33,8 +33,8 @@ from .._core import Parser, dispatch, doc
 from .entry import (
     MatchCastPair,
     StructInfoProxy,
-    _normalize_struct_info_proxy,
     _normalize_struct_info,
+    _normalize_struct_info_proxy,
 )
 
 
@@ -422,9 +422,7 @@ def enter_token(self: Parser) -> Dict[str, Any]:
         if all(isinstance(x, Expr) for x in args):
             return relax.Call(self, args)
         arg_types = [type(x) for x in args]
-        raise RuntimeError(
-            "Do not know how to handle GlobalVar.__call__ for types {}".format(arg_types)
-        )
+        raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
 
     context = {"GlobalVar.__call__": GlobalVar.__call__}
     GlobalVar.__call__ = relax_call

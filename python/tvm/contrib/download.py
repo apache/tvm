@@ -19,10 +19,10 @@
 
 import logging
 import os
-from pathlib import Path
 import shutil
 import tempfile
 import time
+from pathlib import Path
 
 LOG = logging.getLogger("download")
 

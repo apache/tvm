@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,24 +17,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
+import argparse
+import getpass
+import grp
+import inspect
+import json
 import multiprocessing
 import os
-import getpass
-import inspect
-import argparse
-import json
-import shutil
-import grp
-import string
-import random
-import subprocess
 import platform
+import random
+import shutil
+import string
+import subprocess
+import sys
 import textwrap
 import typing
-
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple, Callable, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_DIR = REPO_ROOT / ".ci-py-scripts"
@@ -348,7 +346,7 @@ def lint(interactive: bool = False, fix: bool = False, docker_image: Optional[st
         env["INPLACE_FORMAT"] = "true"
 
     docker(
-        name=gen_name(f"ci-lint"),
+        name=gen_name("ci-lint"),
         image="ci_lint" if docker_image is None else docker_image,
         scripts=["./tests/scripts/task_lint.sh"],
         env=env,

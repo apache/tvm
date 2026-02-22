@@ -19,11 +19,12 @@
 
 from typing import Optional
 
-import tvm
 import tvm_ffi
+
+import tvm
 from tvm.runtime import Object
-from . import Binding, DataflowBlock, Expr, Function, Var
-from . import _ffi_api
+
+from . import Binding, DataflowBlock, Expr, Function, Var, _ffi_api
 
 
 @tvm_ffi.register_object("relax.DataflowBlockRewrite")
@@ -52,7 +53,9 @@ class DataflowBlockRewrite(Object):
         """
         self.func_name = root_fn.__name__ if hasattr(root_fn, "__name__") else None
         self.__init_handle_by_constructor__(
-            _ffi_api.DataflowBlockRewrite, dfb, root_fn  # type: ignore
+            _ffi_api.DataflowBlockRewrite,
+            dfb,
+            root_fn,  # type: ignore
         )
 
     def replace_all_uses(self, old_var: Var, new_var: Var) -> None:

@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Unique operator"""
+
 from tvm import te, tir
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T

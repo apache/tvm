@@ -154,7 +154,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     // Pattern var match IntImm
     PVar<IntImm> c1, c2;
     // x < c2 <=> x/c2 < 1 <=> floor(x / c2) < 1
-    TRY_RECURSIVE_REWRITE_IF(x<c2, floordiv(x, c2) < 1, c2.Eval()->value> 0);  // NOLINT
+    TRY_RECURSIVE_REWRITE_IF(x < c2, floordiv(x, c2) < 1, c2.Eval()->value > 0);  // NOLINT
     return ret;
   }
 

@@ -16,14 +16,15 @@
 # under the License.
 """tvm.contrib.msc.core.ir.graph"""
 
-from typing import Dict, Tuple, List, Optional, Union, Iterable, Any
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+
 import numpy as np
 import tvm_ffi
 
 import tvm
-from tvm.runtime import Object
 from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.runtime import Object
 
 
 @tvm_ffi.register_object("msc.core.MSCTensor")

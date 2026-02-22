@@ -19,11 +19,12 @@ import sys
 from typing import Callable, List
 
 import pytest
+from numpy.testing import assert_allclose
+
 import tvm
 import tvm.testing
-from numpy.testing import assert_allclose
+from tvm import s_tir, te, tir
 from tvm.s_tir import meta_schedule as ms
-from tvm import te, tir, s_tir
 from tvm.script import tir as T
 
 N_FEATURES = 164
@@ -234,11 +235,24 @@ def test_cpu_matmul():
         # fmt: off
         desired=[
             # float math ops
-            0, 27, 27, 0, 0, 0, 0,
+            0,
+            27,
+            27,
+            0,
+            0,
+            0,
+            0,
             # int math ops
-            0, 29, 29, 0, 0, 0, 0,
+            0,
+            29,
+            29,
+            0,
+            0,
+            0,
+            0,
             # bool/select ops
-            0, 0,
+            0,
+            0,
         ],
         # fmt: on
         rtol=1e-5,

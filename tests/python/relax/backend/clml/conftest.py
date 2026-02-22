@@ -17,8 +17,10 @@
 
 import os
 import sys
-import tvm
+
 import pytest
+
+import tvm
 from tvm import rpc as _rpc
 
 

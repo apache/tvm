@@ -33,22 +33,34 @@
 #define DLPACK_INTEGER_TYPE_SWITCH(type, DType, ...)     \
   if (type.code == kDLInt && type.bits == 32) {          \
     typedef int32_t DType;                               \
-    { __VA_ARGS__ }                                      \
+    {                                                    \
+      __VA_ARGS__                                        \
+    }                                                    \
   } else if (type.code == kDLInt && type.bits == 16) {   \
     typedef int16_t DType;                               \
-    { __VA_ARGS__ }                                      \
+    {                                                    \
+      __VA_ARGS__                                        \
+    }                                                    \
   } else if (type.code == kDLInt && type.bits == 8) {    \
     typedef int8_t DType;                                \
-    { __VA_ARGS__ }                                      \
+    {                                                    \
+      __VA_ARGS__                                        \
+    }                                                    \
   } else if (type.code == kDLUInt && type.bits == 32) {  \
     typedef uint32_t DType;                              \
-    { __VA_ARGS__ }                                      \
+    {                                                    \
+      __VA_ARGS__                                        \
+    }                                                    \
   } else if (type.code == kDLUInt && type.bits == 16) {  \
     typedef uint16_t DType;                              \
-    { __VA_ARGS__ }                                      \
+    {                                                    \
+      __VA_ARGS__                                        \
+    }                                                    \
   } else if (type.code == kDLUInt && type.bits == 8) {   \
     typedef uint8_t DType;                               \
-    { __VA_ARGS__ }                                      \
+    {                                                    \
+      __VA_ARGS__                                        \
+    }                                                    \
   } else {                                               \
     TVM_FFI_THROW(InternalError) << "unknown data type"; \
   }

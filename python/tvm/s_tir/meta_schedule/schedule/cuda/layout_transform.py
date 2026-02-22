@@ -22,7 +22,7 @@ from typing import List, Optional, Tuple, Union
 
 import tvm
 from tvm.s_tir import meta_schedule
-from tvm.s_tir.schedule import SBlockRV, ExprRV, LoopRV, Schedule
+from tvm.s_tir.schedule import ExprRV, LoopRV, SBlockRV, Schedule
 
 ## Tiling layout transforms:
 # Assume we have an input shape of [A, B, C, D] and want to layout transform
@@ -270,10 +270,8 @@ def tile_layout_transform(
         # [:rank + 1], since we placed dim0_loop_tiled in the end which we want to keep
         loops, cur_loop_extants = factor_dim_in_order(
             list(
-                (
-                    src_layout.index(dst_layout[loop_index_dst])
-                    for loop_index_dst in range(rank - 1, -1, -1)
-                )
+                src_layout.index(dst_layout[loop_index_dst])
+                for loop_index_dst in range(rank - 1, -1, -1)
             ),
             loops,
             cur_loop_extants,

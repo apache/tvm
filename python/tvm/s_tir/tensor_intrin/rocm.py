@@ -16,13 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for AMDGPU tensorization."""
-from tvm.script import tir as T
 
 from tvm.runtime import convert
+from tvm.script import tir as T
 from tvm.tir.expr import Cast, IntImm
-from .dot_product_common import get_dp4a_intrin
-from .. import TensorIntrin
 
+from .. import TensorIntrin
+from .dot_product_common import get_dp4a_intrin
 
 lift = convert
 

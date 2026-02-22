@@ -18,11 +18,14 @@
 
 import numpy as np
 import pytest
+
 import tvm.testing
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.transform import DeadCodeElimination, FuseTIR, OptimizeLayoutTransform
-from tvm.script import ir as I, tir as T, relax as R
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def _run_pass_compare_output(Before, Expected):

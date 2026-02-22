@@ -20,9 +20,7 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import te
-from tvm import tir
-from tvm import topi
+from tvm import te, tir, topi
 from tvm.contrib.hexagon import allocate_hexagon_array
 
 from .infrastructure import get_hexagon_target
@@ -43,7 +41,12 @@ def sigmoid_stir_schedule(sigmoid_input, sigmoid_output):
 
 
 class BaseSigmoid:
-    (in_shape, dtype, min_val, max_val,) = tvm.testing.parameters(
+    (
+        in_shape,
+        dtype,
+        min_val,
+        max_val,
+    ) = tvm.testing.parameters(
         ((64,), "float16", -8.0, 8.0),
         ((64,), "float16", -6.0, 7.0),
         ((64,), "float16", -10.0, 15.0),

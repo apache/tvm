@@ -108,9 +108,9 @@ def build_cutlass(mod, assert_all_bindings_fused=True, num_final_bindings=1):
     mod = partition_for_cutlass(mod)
 
     if assert_all_bindings_fused:
-        assert (
-            len(mod["main"].body.blocks[0].bindings) == num_final_bindings
-        ), "Not all bindings are fused. " + str(mod["main"])
+        assert len(mod["main"].body.blocks[0].bindings) == num_final_bindings, (
+            "Not all bindings are fused. " + str(mod["main"])
+        )
 
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
     mod = codegen_pass(mod)

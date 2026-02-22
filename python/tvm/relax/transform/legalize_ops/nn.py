@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Default legalization function for neural network operators."""
+
 import logging
 import math
 from typing import Optional
@@ -711,9 +712,9 @@ def _te_attention(
 
 @register_legalize("relax.nn.attention")
 def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
-    assert (
-        call.attrs.window_size is None
-    ), "Legalization for sliding-window attention is not supported yet."
+    assert call.attrs.window_size is None, (
+        "Legalization for sliding-window attention is not supported yet."
+    )
     return bb.call_te(
         _te_attention,
         call.args[0],
@@ -728,9 +729,9 @@ def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.nn.attention_bias")
 def _nn_attention_bias(bb: BlockBuilder, call: Call) -> Expr:
-    assert (
-        call.attrs.window_size is None
-    ), "Legalization for sliding-window attention is not supported yet."
+    assert call.attrs.window_size is None, (
+        "Legalization for sliding-window attention is not supported yet."
+    )
     return bb.call_te(
         _te_attention,
         call.args[0],

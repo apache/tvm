@@ -19,28 +19,30 @@
 
 import os
 import shutil
+
 import tvm_ffi
-from tvm.contrib import coreml_runtime
-from tvm.contrib.xcode import compile_coreml
 
 import tvm
+from tvm.contrib import coreml_runtime
+from tvm.contrib.xcode import compile_coreml
 from tvm.relax import transform
-from tvm.relax.struct_info import TensorStructInfo, PrimStructInfo
+from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr import (
     BindingBlock,
     Call,
+    Constant,
     Function,
     PrimValue,
     SeqExpr,
     Var,
     VarBinding,
-    Constant,
 )
-from tvm.relax.dpl.pattern import is_op, wildcard
+from tvm.relax.struct_info import PrimStructInfo, TensorStructInfo
 from tvm.relax.transform import PatternCheckContext
+
+from ...expr_functor import PyExprVisitor, visitor
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import make_matmul_pattern
-from ...expr_functor import PyExprVisitor, visitor
 
 
 def _check_default(context: PatternCheckContext) -> bool:
@@ -406,7 +408,7 @@ class CodegenCoreML(PyExprVisitor):
 
         layer_name = op_name + "_" + str(self.buf_idx_)
 
-        assert op_name in _convert_map, "{} is not supported".format(op_name)
+        assert op_name in _convert_map, f"{op_name} is not supported"
         outputs = ["buf_" + str(self.buf_idx_)]
         _convert_map[op_name](self.builder, layer_name, inputs, outputs, args, attrs[0])
         self.buf_idx_ = self.buf_idx_ + 1
@@ -478,7 +480,7 @@ def coreml_compiler(funcs, options, constant_names):
         builder = CodegenCoreML(name, func)
         builder.serialize(func)
 
-        mlmodelc_path = "{}/{}.mlmodelc".format(model_dir, name)
+        mlmodelc_path = f"{model_dir}/{name}.mlmodelc"
 
         if os.path.exists(mlmodelc_path):
             shutil.rmtree(mlmodelc_path)

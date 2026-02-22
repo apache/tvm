@@ -201,8 +201,8 @@ void blockize_hwc(void* out, void* inp_flat, int height, int width, int depth) {
           for (int x = 0; x < block_width; ++x)
             for (int c = 0; c < block_depth; ++c) block[index_func(y, x, c)] = 0;
       }  // cc
-    }    // cx
-  }      // cy
+    }  // cx
+  }  // cy
 }
 
 /**

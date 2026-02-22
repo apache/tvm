@@ -14,14 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
-import numpy as np
-from tvm import rpc
-from tvm.contrib import utils, xcode, coreml_runtime
-
-import pytest
 import os
+
+import numpy as np
+import pytest
+
+import tvm
+from tvm import rpc, te
+from tvm.contrib import coreml_runtime, utils, xcode
 
 proxy_host = os.environ.get("TVM_IOS_RPC_PROXY_HOST", "127.0.0.1")
 proxy_port = os.environ.get("TVM_IOS_RPC_PROXY_PORT", 9090)

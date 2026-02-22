@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """A database for injecting handcrafted schedule functions."""
+
 from typing import Callable
 
 from tvm_ffi import register_object
+
 from tvm.s_tir import Schedule
 
 from .. import _ffi_api

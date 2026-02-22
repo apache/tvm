@@ -93,12 +93,10 @@ and the Firefly-RK3399 for an OpenCL example.
 #
 # Here we will declare a simple kernel on the local machine:
 
-
 import numpy as np
 
 import tvm
-from tvm import te
-from tvm import rpc
+from tvm import rpc, te
 from tvm.contrib import utils
 
 n = tvm.runtime.convert(1024)
@@ -479,7 +477,7 @@ def run_pytorch_model_via_rpc():
 
     # Retrieve result from remote device to local
     result_np = result.numpy()
-    print(f"Inference completed on remote device")
+    print("Inference completed on remote device")
     print(f"  Output shape: {result_np.shape}")
     print(f"  Predicted class: {np.argmax(result_np)}")
 

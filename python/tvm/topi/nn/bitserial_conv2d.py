@@ -17,12 +17,14 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 # pylint: disable=unused-argument, redefined-builtin
 """Bitserial Conv2D operators"""
+
 import tvm
 from tvm import te
+
+from ..utils import get_const_tuple
+from .bitserial_util import bitpack
 from .pad import pad
 from .utils import get_pad_tuple
-from .bitserial_util import bitpack
-from ..utils import get_const_tuple
 
 
 def bitserial_conv2d_nchw(

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Compilation specifications, for example, dynamic shape inputs."""
+
 import inspect
 import typing
 

@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Definition of two pillar data structure for TensorIR scheduling: StmtSRef, SBlockScope."""
+
 from enum import IntEnum
 from typing import List, Optional, Union
 
 from tvm_ffi import register_object
+
 from tvm.runtime import Object
-from tvm.tir import SBlock, For
+from tvm.tir import For, SBlock
 
 from . import _ffi_api
 

@@ -16,11 +16,14 @@
 # under the License.
 
 import re
+
 import pytest
+
 import tvm
-import tvm.testing
 import tvm.contrib.hexagon as hexagon
-from tvm.script import tir as T, ir as I
+import tvm.testing
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 @pytest.fixture(autouse=True)

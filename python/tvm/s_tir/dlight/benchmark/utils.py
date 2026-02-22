@@ -16,7 +16,7 @@
 # under the License.
 """Util functions for benchmarking dynamic shape workloads"""
 
-from typing import Dict, List, Tuple, Union, Any
+from typing import Any, Dict, List, Tuple, Union
 
 import tvm
 from tvm import relax

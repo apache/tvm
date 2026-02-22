@@ -16,10 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Transposed 1D convolution operators (sometimes called Deconvolution)."""
+
 from tvm import te
+
+from ..utils import simplify
 from .dilate import dilate
 from .pad import pad
-from ..utils import simplify
 from .utils import get_pad_tuple1d
 
 
@@ -179,9 +181,9 @@ def group_conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype, output_
 
     _, in_channels, _ = data.shape
 
-    assert (
-        in_channels % groups == 0
-    ), f"input channels {in_channels} must divide group size {groups}"
+    assert in_channels % groups == 0, (
+        f"input channels {in_channels} must divide group size {groups}"
+    )
 
     data_pad, transformed_kernel = _conv1d_transpose_ncw_preprocess(
         data, kernel, stride, padding, out_dtype, output_padding

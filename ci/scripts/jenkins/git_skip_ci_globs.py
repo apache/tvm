@@ -22,7 +22,6 @@ from typing import Optional
 
 from git_utils import git
 
-
 globs = [
     "*.md",
     ".github/*",

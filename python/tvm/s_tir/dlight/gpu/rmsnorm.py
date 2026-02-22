@@ -16,12 +16,13 @@
 # under the License.
 # pylint: disable=missing-docstring
 """A RMS norm schedule rule for GPU operators."""
+
 from __future__ import annotations
 
 import tvm
 from tvm import tir
 from tvm.target import Target
-from tvm.tir import SBlock, BufferStore
+from tvm.tir import BufferStore, SBlock
 from tvm.tir.expr import BufferLoad, Call, Cast
 
 from ..base import ScheduleRule

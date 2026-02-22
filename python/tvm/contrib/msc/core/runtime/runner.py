@@ -17,25 +17,27 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.runtime.runner"""
 
-import os
 import json
 import logging
-from typing import Dict, Optional, Any, List, Tuple, Union, Iterable
+import os
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+
 import numpy as np
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.frontend import from_relax
-from tvm.contrib.msc.core.codegen import to_relax
-from tvm.contrib.msc.core.tools import BaseTool, ToolType, ToolScope, create_tool, remove_tools
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core.utils.message import MSCStage
-from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core import _ffi_api
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.codegen import to_relax
+from tvm.contrib.msc.core.frontend import from_relax
+from tvm.contrib.msc.core.ir import MSCGraph
+from tvm.contrib.msc.core.tools import BaseTool, ToolScope, ToolType, create_tool, remove_tools
+from tvm.contrib.msc.core.utils.message import MSCStage
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
+
 from .hook import load_runner_hook
 
 
-class BaseRunner(object):
+class BaseRunner:
     """Basic runner of MSC
 
     Parameters
@@ -219,7 +221,7 @@ class BaseRunner(object):
         if not self._graphs:
             self._graphs, self._weights = self.translate()
             build_msg += "Translate "
-        build_msg += "{} graphs {} weights -> ".format(len(self._graphs), len(self._weights))
+        build_msg += f"{len(self._graphs)} graphs {len(self._weights)} weights -> "
 
         # Load model from cache
         if not self._model and cache_info.get("model"):
@@ -979,7 +981,7 @@ class BaseRunner(object):
             The message with mark.
         """
 
-        return "RUNNER[{}]({} @ {}) {}".format(self._name, self.framework, self._stage, msg)
+        return f"RUNNER[{self._name}]({self.framework} @ {self._stage}) {msg}"
 
     @property
     def stage(self):
@@ -1378,7 +1380,7 @@ class BYOCRunner(BaseRunner):
         assert "sub_graphs" in cache_info, "sub_graphs should be given in cache_info, get " + str(
             cache_info
         )
-        with open(cache_dir.relpath(cache_info["byoc_mod"]), "r") as f:
+        with open(cache_dir.relpath(cache_info["byoc_mod"])) as f:
             self._byoc_mod = tvm.ir.load_json(f.read())
         graphs = [MSCGraph.from_json(cache_dir.relpath(g)) for g in cache_info["sub_graphs"]]
         self._byoc_graph = MSCGraph.from_json(cache_dir.relpath(cache_info["byoc_graph"]))
@@ -1513,7 +1515,7 @@ class BYOCRunner(BaseRunner):
 
         if self._debug_level >= 2:
             sub_graphs = {g.name: g.inspect for g in self._graphs}
-            title = self.runner_mark("SUBGRAPHS({})".format(len(sub_graphs)))
+            title = self.runner_mark(f"SUBGRAPHS({len(sub_graphs)})")
             self._logger.debug(msc_utils.msg_block(title, sub_graphs))
         return self._byoc_graph.inspect()
 

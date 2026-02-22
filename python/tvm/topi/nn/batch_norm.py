@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Batch normalization."""
+
 import typing
 from functools import reduce
 
-from tvm import te
-from tvm import topi
+from tvm import te, topi
 
 
 def batch_norm(

@@ -16,11 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name
 """ScatterND operator"""
+
 from tvm import te, tir  # hide redefinition of min and max
-from tvm.tir import expr
 from tvm.arith.analyzer import Analyzer
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T
+from tvm.tir import expr
 
 
 def _verify_scatter_nd_inputs(data, indices, updates):
@@ -35,7 +36,7 @@ def _verify_scatter_nd_inputs(data, indices, updates):
             continue
 
         assert analyzer.can_prove_equal(indices.shape[i + 1], updates.shape[i]), (
-            f"Dimension of indices[{i+1}] ({indices.shape[i+1]}) must equal dimension of "
+            f"Dimension of indices[{i + 1}] ({indices.shape[i + 1]}) must equal dimension of "
             f"updates[{i}] ({updates.shape[i]})."
         )
     for i in range(mdim, len(data.shape)):
@@ -47,9 +48,9 @@ def _verify_scatter_nd_inputs(data, indices, updates):
             f"of out_shape[{i}] ({data.shape[i]})."
         )
 
-    assert (
-        "int" in indices.dtype
-    ), f"Indices must be a tensor of integers, but its elements are {indices.dtype}."
+    assert "int" in indices.dtype, (
+        f"Indices must be a tensor of integers, but its elements are {indices.dtype}."
+    )
 
 
 def scatter_nd(data, indices, updates, mode):

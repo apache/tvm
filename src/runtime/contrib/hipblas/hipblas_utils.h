@@ -63,7 +63,7 @@ inline const char* GetHipblasErrorString(int error) {
     TVM_FFI_ICHECK_EQ(error, HIPBLAS_STATUS_SUCCESS)    \
         << "HIPBLAS: " << GetHipblasErrorString(error); \
   } while (0)  // ; intentionally left off.
-#endif         // CHECK_HIPBLAS_ERROR
+#endif  // CHECK_HIPBLAS_ERROR
 
 struct HipBlasThreadEntry {
   HipBlasThreadEntry();

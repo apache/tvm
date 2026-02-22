@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tests for MetaSchedule search space on CPU"""
+
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
-    print_sketches,
     generate_design_space,
+    print_sketches,
 )
 from tvm.s_tir.meta_schedule.testing.te_workload import create_te_workload
 from tvm.script import tir as T

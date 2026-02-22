@@ -17,11 +17,11 @@
 # pylint: disable=missing-docstring
 """Pool schedule rule for Adreno operators."""
 
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.target import Target
 
-from .base import AdrenoScheduleRule
 from .. import analysis
+from .base import AdrenoScheduleRule
 
 
 # pylint: disable=invalid-name, unused-variable
@@ -38,7 +38,7 @@ class Pool2D(AdrenoScheduleRule):
         blocks = sch.get_child_blocks(root)
         blocks_names = [sch.get(blk).name_hint for blk in blocks]
 
-        if not "adaptive_pool_sum" in blocks_names and not "pool_max" in blocks_names:
+        if "adaptive_pool_sum" not in blocks_names and "pool_max" not in blocks_names:
             return None
 
         def schedule_pad(blk: s_tir.schedule.SBlockRV):

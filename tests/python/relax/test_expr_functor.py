@@ -14,7 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
 import tvm
+import tvm.testing
 from tvm import relax, tir
 from tvm.ir import Op
 from tvm.ir.base import assert_structural_equal
@@ -25,25 +28,23 @@ from tvm.relax.expr import (
     Constant,
     DataflowBlock,
     DataflowVar,
+    DataTypeImm,
     Expr,
     ExternFunc,
     Function,
     GlobalVar,
     If,
     MatchCast,
+    PrimValue,
     SeqExpr,
     ShapeExpr,
+    StringImm,
     Tuple,
     TupleGetItem,
-    PrimValue,
-    StringImm,
-    DataTypeImm,
     Var,
     VarBinding,
 )
 from tvm.script import relax as R
-import pytest
-import tvm.testing
 
 m, n = tir.Var("m", "int64"), tir.Var("n", "int64")
 x = relax.Var("x", R.Tensor([n], "float32"))
@@ -848,15 +849,15 @@ def test_function_parameter_mutation():
                 return var
 
     @R.function(private=True)
-    def before(
-        A: R.Tensor((16, 32), "float32"), B: R.Tensor((32, 64), "float32")
-    ) -> R.Tensor((16, 64), "float32"):
+    def before(A: R.Tensor((16, 32), "float32"), B: R.Tensor((32, 64), "float32")) -> R.Tensor(
+        (16, 64), "float32"
+    ):
         return R.matmul(A, B)
 
     @R.function(private=True)
-    def expected(
-        A: R.Tensor((1, 32), "float32"), B: R.Tensor((32, 64), "float32")
-    ) -> R.Tensor((1, 64), "float32"):
+    def expected(A: R.Tensor((1, 32), "float32"), B: R.Tensor((32, 64), "float32")) -> R.Tensor(
+        (1, 64), "float32"
+    ):
         return R.matmul(A, B)
 
     after = ParamMutator({"A": (1, 32)}).visit_expr(before)

@@ -16,8 +16,10 @@
 # under the License.
 # pylint: disable=redefined-outer-name, invalid-name
 """Start an RPC server"""
+
 import argparse
 import logging
+
 from .. import rpc
 
 
@@ -72,7 +74,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--tracker",
         type=str,
-        help=("The address of RPC tracker in host:port format. " "e.g. (10.77.1.234:9190)"),
+        help=("The address of RPC tracker in host:port format. e.g. (10.77.1.234:9190)"),
     )
     parser.add_argument(
         "--key", type=str, default="", help="The key used to identify the device type in tracker."
@@ -94,7 +96,7 @@ if __name__ == "__main__":
     parser.set_defaults(fork=True)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
-    if not args.fork is False and not args.silent:
+    if args.fork is not False and not args.silent:
         logging.info(
             "If you are running ROCM/Metal, fork will cause "
             "compiler internal error. Try to launch with arg ```--no-fork```"

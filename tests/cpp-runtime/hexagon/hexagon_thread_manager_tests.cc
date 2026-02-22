@@ -232,7 +232,7 @@ TEST_F(HexagonThreadManagerTest, producer_consumer_signal_wait) {
 struct ToAppend {
   std::vector<int>* arr;
   int value;
-  ToAppend(std::vector<int>* addr, int value) : arr(addr), value(value){};
+  ToAppend(std::vector<int>* addr, int value) : arr(addr), value(value) {};
 };
 
 void append(void* toappend) {
@@ -311,7 +311,7 @@ TEST_F(HexagonThreadManagerTest, thread_order_signal_wait) {
 struct ToWrite {
   int* addr;
   int value;
-  ToWrite(int* addr, int value) : addr(addr), value(value){};
+  ToWrite(int* addr, int value) : addr(addr), value(value) {};
 };
 
 void thread_write_val(void* towrite) {

@@ -55,8 +55,10 @@
 #define CAT_I(a, b) a##b
 #define CAT(a, b) CAT_I(a, b)
 
-#define CLML_CHECK_ERROR(e, API) \
-  { TVM_FFI_ICHECK(e == CL_SUCCESS) << "CLML Error:" #API " code=" << e; }
+#define CLML_CHECK_ERROR(e, API)                                         \
+  {                                                                      \
+    TVM_FFI_ICHECK(e == CL_SUCCESS) << "CLML Error:" #API " code=" << e; \
+  }
 
 #if CL_QCOM_ML_OPS_H_MAJOR_VERSION > 3
 #define V4_API(API, ...)                                                            \

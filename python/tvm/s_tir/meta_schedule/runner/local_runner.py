@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Local Runner"""
+
 import logging
+import subprocess
 from contextlib import contextmanager
 from typing import Callable, List, Optional, Union
-import subprocess
 
 import tvm
 

@@ -18,22 +18,21 @@
 """tvm.contrib.msc.framework.tensorflow.runtime.runner"""
 
 import time
-from typing import Dict, List, Union, Any, Tuple
-import numpy as np
+from typing import Any, Dict, List, Tuple, Union
 
+import numpy as np
 from tensorflow.python.client import device_lib
 from tensorflow.python.ops import variables
 
 import tvm
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.runtime import ModelRunner
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
-from tvm.contrib.msc.framework.tensorflow.frontend import from_tensorflow
+from tvm.contrib.msc.framework.tensorflow import tf_v1, tools
 from tvm.contrib.msc.framework.tensorflow.codegen import to_tensorflow
-from tvm.contrib.msc.framework.tensorflow import tf_v1
-from tvm.contrib.msc.framework.tensorflow import tools
+from tvm.contrib.msc.framework.tensorflow.frontend import from_tensorflow
 
 
 class WrapSession(tf_v1.Session):
@@ -192,7 +191,7 @@ class TensorflowRunner(ModelRunner):
             native_model = model
         else:
             raise NotImplementedError(
-                "Load native model {} with type {} is not supported".format(model, type(model))
+                f"Load native model {model} with type {type(model)} is not supported"
             )
         device_protos = device_lib.list_local_devices()
         if any(dev.dlpack_device_type() == "GPU" for dev in device_protos):

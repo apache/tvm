@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configurations for measurements in the runner"""
+
 import os
 from threading import Thread
 from typing import NamedTuple, Optional, Union

@@ -587,9 +587,9 @@ def test_llvm_div():
 
         # This helper just prints additional info on failure
         def _show_info():
-            print("dtype: {}".format(dtype))
-            print("dividend range: [{}, {}]".format(start, end))
-            print("divisor range: [{}, {}]".format(dstart, dend))
+            print(f"dtype: {dtype}")
+            print(f"dividend range: [{start}, {end}]")
+            print(f"divisor range: [{dstart}, {dend}]")
 
         # Check that the computed values are correct
         for i in range(start, end + 1):
@@ -607,18 +607,14 @@ def test_llvm_div():
                 if D_arr[i - start, j - dstart] != dref:
                     _show_info()
                     raise AssertionError(
-                        "Incorrect division result: {}({}, {}) is {} "
-                        "but should be {}".format(
-                            div_fn.__name__, i, j, D_arr[i - start, j - dstart], dref
-                        )
+                        f"Incorrect division result: {div_fn.__name__}({i}, {j}) is {D_arr[i - start, j - dstart]} "
+                        f"but should be {dref}"
                     )
                 if M_arr[i - start, j - dstart] != mref:
                     _show_info()
                     raise AssertionError(
-                        "Incorrect modulo result: {}({}, {}) is {} "
-                        "but should be {}".format(
-                            mod_fn.__name__, i, j, M_arr[i - start, j - dstart], mref
-                        )
+                        f"Incorrect modulo result: {mod_fn.__name__}({i}, {j}) is {M_arr[i - start, j - dstart]} "
+                        f"but should be {mref}"
                     )
 
     # Try different ranges to cover different cases

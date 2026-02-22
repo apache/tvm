@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import sys
+
+import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-import sys
-import pytest
 from tvm import te
-import numpy as np
 
 
 def test_const_saveload_json():

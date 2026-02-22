@@ -17,8 +17,8 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 import tvm
-from tvm.s_tir import meta_schedule as ms
 from tvm import tir
+from tvm.s_tir import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
 

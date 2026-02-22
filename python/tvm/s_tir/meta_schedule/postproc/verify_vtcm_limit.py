@@ -17,6 +17,7 @@
 """A postprocessor that verifies the VTCM usage of a given schedule."""
 
 from tvm_ffi.registry import register_object
+
 from .. import _ffi_api
 from .postproc import Postproc
 

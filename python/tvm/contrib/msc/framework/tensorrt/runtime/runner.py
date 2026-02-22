@@ -18,21 +18,21 @@
 """tvm.contrib.msc.framework.tensorrt.runtime.runner"""
 
 import os
-from typing import Any, List, Dict
+from typing import Any, Dict, List
 
 import tvm
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.runtime import BYOCRunner
 from tvm.contrib.msc.core.tools import ToolType
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.framework.tensorrt import tools
+from tvm.contrib.msc.framework.tensorrt.codegen import to_tensorrt
 from tvm.contrib.msc.framework.tensorrt.frontend import (
     partition_for_tensorrt,
     transform_for_tensorrt,
 )
-from tvm.contrib.msc.framework.tensorrt.codegen import to_tensorrt
-from tvm.contrib.msc.framework.tensorrt import tools
 
 
 class TensorRTRunner(BYOCRunner):

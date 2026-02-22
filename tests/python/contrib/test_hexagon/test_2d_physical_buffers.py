@@ -23,15 +23,16 @@ import contextlib
 
 import numpy as np
 import pytest
+
 import tvm
 
 # Needed to register the link_shared packedfunc.
 import tvm.contrib.hexagon
 import tvm.testing
 from tvm import te
+from tvm.contrib.hexagon import allocate_hexagon_array
 from tvm.contrib.hexagon.pytest_plugin import requires_hexagon_toolchain
 from tvm.tir.stmt_functor import post_order_visit
-from tvm.contrib.hexagon import allocate_hexagon_array
 
 from .infrastructure import get_hexagon_target
 

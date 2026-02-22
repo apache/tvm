@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """RPC tracker and server running locally"""
-from tvm.rpc.tracker import Tracker
+
 from tvm.rpc.server import Server
+from tvm.rpc.tracker import Tracker
 
 
 class LocalRPC:

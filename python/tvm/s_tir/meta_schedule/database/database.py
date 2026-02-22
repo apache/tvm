@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """TuningRecord database"""
+
 from typing import Any, Callable, List, Optional, Union
 
 # isort: off
@@ -23,10 +24,11 @@ from typing_extensions import Literal
 # isort: on
 
 from tvm_ffi import register_object
+
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
-from tvm.target import Target
 from tvm.s_tir.schedule import Schedule, Trace
+from tvm.target import Target
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
@@ -575,7 +577,10 @@ class PyDatabase:
         """
         # Using self._outer to replace the self pointer
         return _ffi_api.DatabaseQueryTuningRecord(  # type: ignore # pylint: disable=no-member
-            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
+            self._outer(),
+            mod,
+            target,
+            workload_name,  # type: ignore # pylint: disable=no-member
         )
 
     def query_schedule(
@@ -599,7 +604,10 @@ class PyDatabase:
         """
         # Using self._outer to replace the self pointer
         return _ffi_api.DatabaseQuerySchedule(  # type: ignore # pylint: disable=no-member
-            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
+            self._outer(),
+            mod,
+            target,
+            workload_name,  # type: ignore # pylint: disable=no-member
         )
 
     def query_ir_module(
@@ -623,7 +631,10 @@ class PyDatabase:
         """
         # Using self._outer to replace the self pointer
         return _ffi_api.DatabaseQueryIRModule(  # type: ignore # pylint: disable=no-member
-            self._outer(), mod, target, workload_name  # type: ignore # pylint: disable=no-member
+            self._outer(),
+            mod,
+            target,
+            workload_name,  # type: ignore # pylint: disable=no-member
         )
 
     def __len__(self) -> int:

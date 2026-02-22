@@ -19,12 +19,13 @@
 import sys
 
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import tir, s_tir
-from tvm.script import tir as T
-from tvm.s_tir.schedule import SBlockRV, Instruction, InstructionKind, LoopRV, Trace
+from tvm import s_tir, tir
+from tvm.s_tir.schedule import Instruction, InstructionKind, LoopRV, SBlockRV, Trace
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+from tvm.script import tir as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 

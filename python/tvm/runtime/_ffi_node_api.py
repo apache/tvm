@@ -17,6 +17,7 @@
 
 # pylint: disable=invalid-name, unused-argument
 """FFI for tvm.node"""
+
 import tvm_ffi
 import tvm_ffi.core
 

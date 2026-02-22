@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Non-maximum suppression operator"""
+
 # from tvm import relax  # Unused import
 from . import _ffi_api
 

@@ -21,21 +21,21 @@ Sometimes this cannot be done when server do not have a static address.
 RPCProxy allows both client and server connect to the proxy server,
 the proxy server will forward the message between the client and server.
 """
+
 # pylint: disable=unused-variable, unused-argument
-import os
 import asyncio
-import logging
-import socket
-import threading
 import errno
+import logging
+import os
+import socket
 import struct
+import threading
 import time
 
 try:
     import tornado
-    from tornado import gen
-    from tornado import websocket
-    from tornado import ioloop
+    from tornado import gen, ioloop, websocket
+
     from . import tornado_util
 except ImportError as error_msg:
     raise ImportError(
@@ -43,19 +43,19 @@ except ImportError as error_msg:
     )
 
 from tvm.contrib.popen_pool import PopenWorker
-from . import _ffi_api
-from . import base
+
+from ..base import py_str
+from . import _ffi_api, base
 from .base import TrackerCode
 from .server import _server_env
-from ..base import py_str
 
 
-class ForwardHandler(object):
+class ForwardHandler:
     """Forward handler to forward the message."""
 
     def _init_handler(self):
         """Initialize handler."""
-        self._init_message = bytes()
+        self._init_message = b""
         self._init_req_nbytes = 4
         self._magic = None
         self.timeout = None
@@ -113,7 +113,7 @@ class ForwardHandler(object):
                 if self._init_req_nbytes == len(self._init_message):
                     temp = self._init_message
                     self._init_req_nbytes = 0
-                    self._init_message = bytes()
+                    self._init_message = b""
                     self._init_step(temp)
             if message:
                 logging.info("Invalid RPC protocol, too many bytes %s", self.name())
@@ -147,12 +147,12 @@ class TCPHandler(tornado_util.TCPHandler, ForwardHandler):
     """Event driven TCP handler."""
 
     def __init__(self, sock, addr):
-        super(TCPHandler, self).__init__(sock)
+        super().__init__(sock)
         self._init_handler()
         self.addr = addr
 
     def name(self):
-        return f"TCPSocketProxy:{str(self.addr[0])}:{self.rpc_key}"
+        return f"TCPSocketProxy:{self.addr[0]!s}:{self.rpc_key}"
 
     def send_data(self, message, binary=True):
         self.write_message(message, True)
@@ -174,7 +174,7 @@ class WebSocketHandler(websocket.WebSocketHandler, ForwardHandler):
     """Handler for websockets."""
 
     def __init__(self, *args, **kwargs):
-        super(WebSocketHandler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._init_handler()
 
     def name(self):
@@ -228,7 +228,7 @@ class RequestHandler(tornado.web.RequestHandler):
         else:
             self.page = open(file_path, "rb").read()
 
-        super(RequestHandler, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def data_received(self, _):
         pass
@@ -239,7 +239,7 @@ class RequestHandler(tornado.web.RequestHandler):
         self.write(self.page)
 
 
-class ProxyServerHandler(object):
+class ProxyServerHandler:
     """Internal proxy server handler class."""
 
     current = None
@@ -312,7 +312,7 @@ class ProxyServerHandler(object):
             try:
                 conn, addr = self.sock.accept()
                 TCPHandler(conn, addr)
-            except socket.error as err:
+            except OSError as err:
                 if err.args[0] in (errno.EAGAIN, errno.EWOULDBLOCK):
                     break
 
@@ -399,7 +399,7 @@ class ProxyServerHandler(object):
                 base.sendjson(self._tracker_conn, [TrackerCode.UPDATE_INFO, cinfo])
                 assert base.recvjson(self._tracker_conn) == TrackerCode.SUCCESS
             self._tracker_pending_puts = []
-        except (socket.error, IOError) as err:
+        except OSError as err:
             logging.info(
                 "Lost tracker connection: %s, try reconnect in %g sec",
                 str(err),
@@ -502,7 +502,7 @@ def _proxy_server(
     handler.run()
 
 
-class PopenProxyServerState(object):
+class PopenProxyServerState:
     """Internal PopenProxy State for Popen"""
 
     current = None
@@ -526,7 +526,7 @@ class PopenProxyServerState(object):
                 sock.bind((host, my_port))
                 self.port = my_port
                 break
-            except socket.error as sock_err:
+            except OSError as sock_err:
                 if sock_err.errno in [errno.EADDRINUSE]:
                     continue
                 raise sock_err
@@ -582,7 +582,7 @@ def _popen_start_proxy_server(
     return state.port
 
 
-class Proxy(object):
+class Proxy:
     """Start RPC proxy server on a separate process.
 
     Python implementation based on PopenWorker.

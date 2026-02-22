@@ -37,8 +37,10 @@ template <typename FStructInfo>
 class StructInfoFunctor;
 
 // functions to be overriden.
-#define STRUCT_INFO_FUNCTOR_DEFAULT \
-  { return VisitStructInfoDefault_(op, std::forward<Args>(args)...); }
+#define STRUCT_INFO_FUNCTOR_DEFAULT                                  \
+  {                                                                  \
+    return VisitStructInfoDefault_(op, std::forward<Args>(args)...); \
+  }
 
 #define TVM_STRUCT_INFO_FUNCTOR_DISPATCH(OP)                                                     \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {           \

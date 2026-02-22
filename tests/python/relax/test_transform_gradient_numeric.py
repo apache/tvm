@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
 from tvm.testing import assert_allclose
 from tvm.testing.utils import check_numerical_grads
-from tvm.script.parser import ir as I, relax as R
 
 
 def rand(dtype, *shape):

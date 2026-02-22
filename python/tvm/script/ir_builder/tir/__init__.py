@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Package tvm.script.ir_builder.tir"""
+
 from .ir import *  # pylint: disable=wildcard-import,redefined-builtin
 from .ir import boolean as bool  # pylint: disable=redefined-builtin
 from .ir import buffer as Buffer

@@ -20,13 +20,13 @@
 from typing import List, Union
 
 import tvm
-from tvm.contrib.msc.core.tools.tool import ToolType, ToolStrategy
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.tool import ToolStrategy, ToolType
 from tvm.contrib.msc.core.tools.track import BaseTracker
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
 
 
-class TVMTrackerFactory(object):
+class TVMTrackerFactory:
     """Tracker factory for tvm"""
 
     def create(self, base_cls: BaseTracker) -> BaseTracker:

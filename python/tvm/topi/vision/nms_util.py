@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Common utilities used in Non-maximum suppression operators"""
+
 import tvm
 from tvm import te
 from tvm.script.ir_builder import IRBuilder

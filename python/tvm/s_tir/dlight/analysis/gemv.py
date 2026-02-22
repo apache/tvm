@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Analysis for GEMV."""
+
 from typing import List, Optional
 
-from tvm import arith, ir, tir, s_tir
+from tvm import arith, ir, s_tir, tir
 
 from .common_analysis import (
     SBlockInfo,

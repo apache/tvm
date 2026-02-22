@@ -20,8 +20,8 @@
 import inspect
 from typing import Callable, Optional, Type
 
-from tvm.ir import IRModule, GlobalVar
 from tvm import cpu, ir
+from tvm.ir import GlobalVar, IRModule
 
 from .._core import parse, utils
 
@@ -58,10 +58,10 @@ def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRM
         if base_py_module_inherited:
             # Lazy import: tvm.relax cannot be imported at module level in tvm.script.parser
             # because tvm.script is loaded before tvm.relax during tvm initialization.
-            from tvm.relax.expr import ExternFunc  # pylint: disable=import-outside-toplevel
             from tvm.relax.base_py_module import (
                 BasePyModule,
             )
+            from tvm.relax.expr import ExternFunc  # pylint: disable=import-outside-toplevel
 
             # Collect pyfunc methods
             pyfunc_methods = [
@@ -108,7 +108,6 @@ def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRM
                     self.original_class = original_class
 
                 def __call__(self, device=None, target=None):
-
                     if device is None:
                         device = cpu(0)
 

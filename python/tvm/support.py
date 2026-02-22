@@ -15,16 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """Support infra of TVM."""
-import json
-import textwrap
+
 import ctypes
+import json
 import os
 import sys
+import textwrap
+
+import tvm_ffi
 
 import tvm
-import tvm_ffi
-from .runtime.module import Module
+
 from . import get_global_func
+from .runtime.module import Module
 
 tvm_ffi.init_ffi_api("support", __name__)
 
@@ -78,7 +81,7 @@ class FrontendTestModule(Module):
         # Both cython and ctypes FFI use c_void_p, so this is safe to assign here.
         underlying_mod.handle = ctypes.c_void_p(0)
 
-        super(FrontendTestModule, self).__init__(handle)
+        super().__init__(handle)
         if entry_name is not None:
             self.entry_name = entry_name
 

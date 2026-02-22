@@ -19,11 +19,11 @@
 import argparse
 import logging
 import re
+from enum import Enum
 from pathlib import Path
 from typing import List
-from enum import Enum
 
-from cmd_utils import Sh, REPO_ROOT, init_log
+from cmd_utils import REPO_ROOT, Sh, init_log
 
 RETRY_SCRIPT = REPO_ROOT / "ci" / "scripts" / "jenkins" / "retry.sh"
 S3_DOWNLOAD_REGEX = re.compile(r"download: s3://.* to (.*)")

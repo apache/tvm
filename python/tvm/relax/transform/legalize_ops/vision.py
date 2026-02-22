@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Default legalization function for vision network related operators."""
+
 from tvm import relax, te, tir, topi
 
 from ...block_builder import BlockBuilder

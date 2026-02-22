@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Detect target."""
+
 from typing import Union
 
 from tvm_ffi import get_global_func
+
 from ..runtime import Device, device
 from . import Target
 

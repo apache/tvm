@@ -14,15 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.contrib import tvmjs, utils
-
-import pytest
-import numpy as np
-
 from tvm.ir import assert_structural_equal
-from tvm.relax.testing.runtime_builtin import MatchShapeCode, MakeShapeCode
+from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
 
 
 def test_make_shape():

@@ -16,7 +16,6 @@
 # under the License.
 import tvm
 import tvm.testing
-
 from tvm import tir
 from tvm.arith.analyzer import Analyzer
 
@@ -29,7 +28,7 @@ class IntSetChecker:
         res = self.analyzer.int_set(data, dmap)
 
         def err_msg():
-            return "\ndata={}\ndmap={}\nres={}\nexpected={}".format(data, dmap, res, expected)
+            return f"\ndata={data}\ndmap={dmap}\nres={res}\nexpected={expected}"
 
         assert self.analyzer.can_prove_equal(res.min_value, expected[0]), err_msg()
         assert self.analyzer.can_prove_equal(res.max_value, expected[1]), err_msg()
@@ -190,22 +189,22 @@ def check_region_bound(expect_region, var_dom, mode, predicate=None):
                 expect_begin, expect_end = expect_desc[binding]
                 result_begin = analyzer.simplify(intset.min_value, 3)
                 result_end = analyzer.simplify(intset.max_value + 1, 3)
-                assert analyzer.can_prove_equal(
-                    result_begin - expect_begin, 0
-                ), f"{result_begin} vs {expect_begin}"
-                assert analyzer.can_prove_equal(
-                    result_end - expect_end, 0
-                ), f"{result_end} vs {expect_end}"
+                assert analyzer.can_prove_equal(result_begin - expect_begin, 0), (
+                    f"{result_begin} vs {expect_begin}"
+                )
+                assert analyzer.can_prove_equal(result_end - expect_end, 0), (
+                    f"{result_end} vs {expect_end}"
+                )
         else:
             # check range
             expect_begin, expect_end = expect_desc
             analyzer = Analyzer()
-            assert analyzer.can_prove_equal(
-                intset.min_value - expect_begin, 0
-            ), f"{intset.min_value} vs {expect_begin}"
-            assert analyzer.can_prove_equal(
-                intset.max_value - expect_end + 1, 0
-            ), f"{intset.max_value} vs {expect_end - 1}"
+            assert analyzer.can_prove_equal(intset.min_value - expect_begin, 0), (
+                f"{intset.min_value} vs {expect_begin}"
+            )
+            assert analyzer.can_prove_equal(intset.max_value - expect_end + 1, 0), (
+                f"{intset.max_value} vs {expect_end - 1}"
+            )
 
 
 def test_region_bound_not_independent():
@@ -309,8 +308,7 @@ def test_region_lower_bound_for_non_perfect_tile():
     }
     check_region_bound(
         {
-            h3 * 8
-            + h2: {
+            h3 * 8 + h2: {
                 (): (
                     tvm.tir.max(h3 * 8, 1),
                     tvm.tir.min(0, h3 * 8 - 214) + 224,
@@ -332,9 +330,7 @@ def test_region_lower_bound_for_non_perfect_tile():
     }
     check_region_bound(
         {
-            h3 * 8
-            + h2 * 5
-            + h1: {
+            h3 * 8 + h2 * 5 + h1: {
                 (): (
                     tvm.tir.max(h3 * 8, 1),
                     tvm.tir.min(0, h3 * 8 - 214) + 224,

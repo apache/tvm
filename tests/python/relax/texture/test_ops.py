@@ -15,12 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from adreno_utils import verify
+
 import tvm
 import tvm.testing
 from tvm.relax.transform import ConvertLayout, Normalize
-from tvm.script.parser import ir as I, relax as R, tir as T
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
-from adreno_utils import verify
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 @tvm.testing.requires_opencl

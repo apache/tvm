@@ -26,9 +26,9 @@ import tvm.testing
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.s_tir.meta_schedule.testing.local_rpc import LocalRPC
+from tvm.s_tir.schedule import SBlockRV, Schedule
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.s_tir.schedule import SBlockRV, Schedule
 
 logging.basicConfig()
 logging.getLogger("tvm.s_tir.meta_schedule").setLevel(logging.DEBUG)

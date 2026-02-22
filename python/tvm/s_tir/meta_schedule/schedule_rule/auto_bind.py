@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Auto-bind Rule that binds blocks to threads if needed"""
+
 from typing import List, Optional
 
 from tvm_ffi import register_object

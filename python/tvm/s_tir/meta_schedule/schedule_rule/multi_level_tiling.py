@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Multi-level tiling with reuse."""
-from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Callable
 
-from tvm.s_tir.schedule import Schedule, SBlockRV
+from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional
+
 from tvm_ffi import register_object
+
+from tvm.s_tir.schedule import SBlockRV, Schedule
 
 from .. import _ffi_api
 from .schedule_rule import ScheduleRule

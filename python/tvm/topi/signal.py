@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks, unused-argument
 """STFT operator"""
+
 from math import pi
+
 from tvm import te, tir
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T

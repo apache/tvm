@@ -16,8 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name, unused-import
 """The type nodes of the Relax language."""
+
 import tvm_ffi
-from tvm.ir import Type, TupleType, FuncType, Span
+
+from tvm.ir import FuncType, Span, TupleType, Type
 
 from . import _ffi_api
 

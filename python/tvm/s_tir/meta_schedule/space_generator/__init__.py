@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -19,6 +20,7 @@ The tvm.s_tir.meta_schedule.space_generator package.
 Meta Schedule design space generators that generates design
 space for generation of measure candidates.
 """
+
 from .post_order_apply import PostOrderApply
 from .schedule_fn import ScheduleFn
 from .space_generator import PySpaceGenerator, ScheduleFnType, SpaceGenerator, create

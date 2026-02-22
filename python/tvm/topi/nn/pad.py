@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Pad the data by constant value """
+"""Pad the data by constant value"""
+
 from __future__ import absolute_import as _abs
 
 import tvm

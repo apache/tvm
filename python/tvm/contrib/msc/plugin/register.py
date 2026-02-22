@@ -20,8 +20,8 @@ import os
 from typing import Dict
 
 import tvm
-from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core import _ffi_api
+from tvm.contrib.msc.core import utils as msc_utils
 
 
 def register_plugin(

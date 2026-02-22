@@ -18,11 +18,12 @@
 from typing import Callable
 
 import pytest
+
 import tvm
-from tvm import topi
-import tvm.testing
-from tvm.relax.transform import LegalizeOps
 import tvm.script
+import tvm.testing
+from tvm import topi
+from tvm.relax.transform import LegalizeOps
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T

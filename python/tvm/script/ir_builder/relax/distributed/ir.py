@@ -17,30 +17,35 @@
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name, unused-import
 
 """IRBuilder for distributed Relax dialect"""
-from typing import Union, List, Tuple, Optional
+
 from numbers import Number
+from typing import List, Optional, Tuple, Union
 
 import numpy as _np  # type: ignore
-import tvm
 
-from tvm.ir import PrimExpr
-from tvm.relax.expr import Expr, ShapeExpr, Call, ExternFunc, Constant
-from tvm.relax.expr import Tuple as RxTuple
-from tvm.relax.distributed import DTensorStructInfo
-from tvm.relax.utils import args_converter
+import tvm
 from tvm import base as _base
-from tvm.runtime import _tensor
+from tvm.ir import PrimExpr
+from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
+from tvm.relax.expr import Call, Constant, Expr, ExternFunc, ShapeExpr
+from tvm.relax.expr import Tuple as RxTuple
 from tvm.relax.op.distributed import (
-    redistribute as _redistribute,
     annotate_sharding as _annotate_sharding,
+)
+from tvm.relax.op.distributed import (
     call_tir_local_view,
     redistribute_replica_to_shard,
 )
-from tvm.relax.distributed import DeviceMesh, Placement
-from . import _ffi_api
-from ..ir import py_str
-from ...ir import IRModuleFrame
+from tvm.relax.op.distributed import (
+    redistribute as _redistribute,
+)
+from tvm.relax.utils import args_converter
+from tvm.runtime import _tensor
+
 from ... import IRBuilder
+from ...ir import IRModuleFrame
+from ..ir import py_str
+from . import _ffi_api
 
 
 @args_converter.auto

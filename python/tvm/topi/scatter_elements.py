@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """ScatterElements operator"""
-from tvm import te
-from tvm import tir
+
+from tvm import te, tir
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T
+
 from . import utils
 from .math import cast
 

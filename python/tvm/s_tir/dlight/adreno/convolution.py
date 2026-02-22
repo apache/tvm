@@ -16,14 +16,15 @@
 # under the License.
 # pylint: disable=missing-docstring, invalid-name
 """A Conv2d schedule rule for Adreno GPU operators."""
+
 from typing import Optional, Union
 
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.target import Target
 
-from .utils import schedule_inline_blocks, schedule_default
 from .. import analysis
 from .base import AdrenoScheduleRule
+from .utils import schedule_default, schedule_inline_blocks
 
 
 class Conv2d(AdrenoScheduleRule):

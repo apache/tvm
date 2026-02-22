@@ -18,11 +18,12 @@
 import sys
 
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import tir, s_tir
-from tvm.script import tir as T
+from tvm import s_tir, tir
 from tvm.s_tir.schedule.state import CachedFlags
+from tvm.script import tir as T
 from tvm.tir.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg

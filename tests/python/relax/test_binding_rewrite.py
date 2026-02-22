@@ -16,6 +16,7 @@
 # under the License.
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm.base import TVMError

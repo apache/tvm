@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for distir-related operators."""
-from tvm import tir, relax
+
+from tvm import relax, tir
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from ...op import call_pure_packed

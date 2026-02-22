@@ -16,8 +16,8 @@
 # under the License.
 
 import pytest
-import tvm.testing
 
+import tvm.testing
 from tvm import relax, tir
 from tvm.script import tir as T
 
@@ -192,7 +192,7 @@ def test_unpacked_iter_used_in_read_access():
                 output[v_ax0] = arg[v_ax0 % 8, v_ax2]
 
     suggested_transforms = relax.analysis.suggest_layout_transforms(
-        func=before, write_buffer_transforms=[lambda a, b: (a * 8 + b)]
+        func=before, write_buffer_transforms=[lambda a, b: a * 8 + b]
     )
     after = apply_transformations(before, suggested_transforms)
     tvm.ir.assert_structural_equal(after, expected)

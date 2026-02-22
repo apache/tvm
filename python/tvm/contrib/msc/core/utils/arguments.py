@@ -16,10 +16,11 @@
 # under the License.
 """tvm.contrib.msc.core.utils.arguments"""
 
-import os
-import json
 import copy
+import json
+import os
 from typing import Any
+
 from .info import MSCArray
 
 
@@ -42,14 +43,14 @@ def load_dict(str_dict: str, flavor: str = "json") -> dict:
     if not str_dict:
         return {}
     if isinstance(str_dict, str) and os.path.isfile(str_dict):
-        with open(str_dict, "r") as f:
+        with open(str_dict) as f:
             dict_obj = json.load(f)
     elif isinstance(str_dict, str):
         dict_obj = json.loads(str_dict)
     elif isinstance(str_dict, dict):
         dict_obj = copy_dict(str_dict)
     else:
-        raise Exception("Unexpected str_dict {}({})".format(str_dict, type(str_dict)))
+        raise Exception(f"Unexpected str_dict {str_dict}({type(str_dict)})")
     assert flavor == "json", "Unexpected flavor for load_dict: " + str(flavor)
     return dict_obj
 
@@ -97,9 +98,9 @@ def update_dict(src_dict: dict, new_dict: dict, soft_update: bool = False) -> di
 
     if not new_dict:
         return src_dict
-    assert isinstance(src_dict, dict) and isinstance(
-        new_dict, dict
-    ), "update_dict only support dict, get src {} and new {}".format(type(src_dict), type(new_dict))
+    assert isinstance(src_dict, dict) and isinstance(new_dict, dict), (
+        f"update_dict only support dict, get src {type(src_dict)} and new {type(new_dict)}"
+    )
     for k, v in new_dict.items():
         if not src_dict.get(k):
             src_dict[k] = v
@@ -165,7 +166,7 @@ def dump_dict(dict_obj: dict, flavor: str = "dmlc") -> str:
                     lines.append("{}{}: {}".format(indent * " ", k, v))
             return lines
 
-        lines = _get_lines(dict_obj) or ["  {}: {}".format(k, v) for k, v in dict_obj.items()]
+        lines = _get_lines(dict_obj) or [f"  {k}: {v}" for k, v in dict_obj.items()]
         return "\n".join(lines)
     return json.dumps(dict_obj)
 

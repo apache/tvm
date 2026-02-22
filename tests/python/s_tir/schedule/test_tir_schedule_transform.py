@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm.script import tir as T
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule.transform import tile_with_tensor_intrin
-from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN, AVX512_DOT_16x4_INTRIN
+from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN, VNNI_DOT_16x4_INTRIN
+from tvm.script import tir as T
 
 
 @tvm.script.ir_module

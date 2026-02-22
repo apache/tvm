@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Indexing operators."""
+
 from typing import Optional, Union
 
 from tvm.ir.expr import PrimExpr
 
-from . import _ffi_api
-from ..expr import Expr
 from .. import args_converter
+from ..expr import Expr
+from . import _ffi_api
 
 PrimExprLike = Union[int, PrimExpr]
 

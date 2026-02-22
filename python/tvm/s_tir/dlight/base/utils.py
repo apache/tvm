@@ -16,9 +16,10 @@
 # under the License.
 # pylint: disable=missing-docstring
 """Utility methods for generic GPU."""
+
 from typing import List, Optional, Union
 
-from tvm import DataType, tir, s_tir
+from tvm import DataType, s_tir, tir
 from tvm.target import Target
 
 

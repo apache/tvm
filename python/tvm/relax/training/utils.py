@@ -17,14 +17,15 @@
 # pylint: disable=invalid-name, unused-argument
 """Utility functions for relax training."""
 
-from typing import Optional, Callable
+from typing import Callable, Optional
+
 from tvm_ffi import register_global_func
 
 import tvm
 from tvm import relax
 from tvm.relax.block_builder import BlockBuilder
 
-from ..expr import Function, Var, Call
+from ..expr import Call, Function, Var
 from . import _ffi_api
 
 

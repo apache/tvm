@@ -16,15 +16,17 @@
 # under the License.
 """tvm.contrib.msc.core.tools.prune.pruner"""
 
-from typing import List, Dict, Tuple, Any
+from typing import Any, Dict, List, Tuple
+
 import numpy as np
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph, WeightJoint, MSCTensor
-from tvm.contrib.msc.core.tools.tool import ToolType, WeightTool, ToolStrategy
-from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.ir import MSCGraph, MSCTensor, WeightJoint
+from tvm.contrib.msc.core.tools.tool import ToolStrategy, ToolType, WeightTool
+from tvm.contrib.msc.core.utils.message import MSCStage
+
 from .method import PruneMethod
 
 
@@ -254,9 +256,9 @@ class BasePruner(WeightTool):
                 return []
             if w_node.name in self._plan and "in_indices" in self._plan[w_node.name]:
                 return self._plan[w_node.name]["in_indices"]
-            assert all(
-                p.name in self._plan for p in w_node.parents
-            ), "Missing some parents in runtime config " + str(w_node)
+            assert all(p.name in self._plan for p in w_node.parents), (
+                "Missing some parents in runtime config " + str(w_node)
+            )
             if len(w_node.parents) == 1:
                 return self._plan[w_node.parents[0].name]["out_indices"]
             if w_node.parents[0].friends:
@@ -361,10 +363,8 @@ class BasePruner(WeightTool):
                     elif w_node.get_attr("pruned_shape", "") != "":
                         pruned_weights[w_name] = weights[w_name]
                         pruned_shape = [int(i) for i in w_node.get_attr("pruned_shape").split(",")]
-                        assert pruned_shape == list(
-                            pruned_weights[w_name].shape
-                        ), "pruned_shape {} mismatch with data shape {}".format(
-                            pruned_shape, pruned_weights[w_name].shape
+                        assert pruned_shape == list(pruned_weights[w_name].shape), (
+                            f"pruned_shape {pruned_shape} mismatch with data shape {pruned_weights[w_name].shape}"
                         )
                     else:
                         data = msc_utils.cast_array(weights[w_name])
@@ -447,11 +447,9 @@ class BasePruner(WeightTool):
         # log compress rate
         if pruned_cnt > 0:
             new_size = _flatten_size(pruned_weights)
-            msg = "Prune {} weights, compress to {:.2f}% ({:.4f} M->{:.4f} M)".format(
-                pruned_cnt, new_size * 100 / raw_size, raw_size, new_size
-            )
+            msg = f"Prune {pruned_cnt} weights, compress to {new_size * 100 / raw_size:.2f}% ({raw_size:.4f} M->{new_size:.4f} M)"
         else:
-            msg = "No weights pruned, size {:.4f} M".format(raw_size)
+            msg = f"No weights pruned, size {raw_size:.4f} M"
         self._logger.info(self.tool_mark(msg))
         return pruned_graphs, pruned_weights
 
@@ -471,9 +469,7 @@ class BasePruner(WeightTool):
 
         if name in self._meta_weights:
             return msc_utils.cast_array(self._meta_weights[name])
-        raise Exception(
-            "Can not find data {} from {} weights".format(name, len(self._meta_weights))
-        )
+        raise Exception(f"Can not find data {name} from {len(self._meta_weights)} weights")
 
     def create_tasks(self, **kwargs) -> List[dict]:
         """Create tasks for gym

@@ -19,8 +19,8 @@
 import pytest
 
 import tvm
-from tvm.script import tir as T
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
+from tvm.script import tir as T
 
 
 @T.prim_func

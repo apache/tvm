@@ -16,13 +16,17 @@
 # under the License.
 # pylint: disable=invalid-name
 """A builder to build Relax VM executable."""
+
 from enum import IntEnum
-from typing import Optional, Union, List
-import tvm
+from typing import List, Optional, Union
+
 import tvm_ffi
+
+import tvm
 from tvm.runtime.container import ShapeTuple
-from .vm_build import VMExecutable
+
 from . import _ffi_api
+from .vm_build import VMExecutable
 
 
 class SpecialReg(IntEnum):
@@ -39,7 +43,7 @@ class VMFuncKind(IntEnum):
     VM_FUNC = 1
 
 
-class VMFuncScope(object):
+class VMFuncScope:
     """An object corresponds to each VM function, working as a context manager."""
 
     stack: List["VMFuncScope"] = []

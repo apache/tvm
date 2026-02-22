@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=too-many-arguments,invalid-name,protected-access,unused-argument
 """Builtin Modules."""
+
 from typing import List, Optional, Sequence, Union
 
 from tvm import relax as rx
@@ -692,8 +693,7 @@ class KVCache(Effect):
         """
         if new_element.dtype != self.dtype:
             raise TypeError(
-                f'KVCache has been set to use dtype "{self.dtype}", '
-                f'but got "{new_element.dtype}"'
+                f'KVCache has been set to use dtype "{self.dtype}", but got "{new_element.dtype}"'
             )
         self.cache = rx.BlockBuilder.current().emit(
             rx.op.call_inplace_packed(

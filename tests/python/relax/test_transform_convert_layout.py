@@ -18,7 +18,9 @@
 import tvm
 import tvm.testing
 from tvm.relax.transform import ConvertLayout, Normalize
-from tvm.script.parser import ir as I, relax as R, tir as T
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def verify(input, expected, extra_ops={}, cb=None):
@@ -78,9 +80,9 @@ def test_conv2d_onlydim():
     @I.ir_module
     class Input:
         @R.function
-        def main(
-            x: R.Tensor("float32", ndim=4), w: R.Tensor("float32", ndim=4)
-        ) -> R.Tensor(None, "float32", ndim=4):
+        def main(x: R.Tensor("float32", ndim=4), w: R.Tensor("float32", ndim=4)) -> R.Tensor(
+            None, "float32", ndim=4
+        ):
             with R.dataflow():
                 gv: R.Tensor("float32", ndim=4) = R.nn.conv2d(x, w, out_dtype="float32")
                 R.output(gv)
@@ -118,9 +120,9 @@ def test_conv2d_symbolic():
     @I.ir_module
     class Input:
         @R.function
-        def main(
-            x: R.Tensor("float32", ndim=4), w: R.Tensor("float32", ndim=4)
-        ) -> R.Tensor(None, "float32", ndim=4):
+        def main(x: R.Tensor("float32", ndim=4), w: R.Tensor("float32", ndim=4)) -> R.Tensor(
+            None, "float32", ndim=4
+        ):
             with R.dataflow():
                 N, C, H, W = T.int64(), T.int64(), T.int64(), T.int64()
                 lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
@@ -167,9 +169,9 @@ def test_conv2d_matchcast_bias():
     @I.ir_module
     class Input:
         @R.function
-        def main(
-            x: R.Tensor("float32", ndim=4), w: R.Tensor("float32", ndim=4)
-        ) -> R.Tensor(None, "float32", ndim=4):
+        def main(x: R.Tensor("float32", ndim=4), w: R.Tensor("float32", ndim=4)) -> R.Tensor(
+            None, "float32", ndim=4
+        ):
             with R.dataflow():
                 lv0: R.Tensor("float32", ndim=4) = R.nn.conv2d(x, w, out_dtype="float32")
                 N, C, H, W = T.int64(), T.int64(), T.int64(), T.int64()
@@ -1935,9 +1937,9 @@ def test_conv2d_symbolic_sub_indexed():
     @I.ir_module
     class Input:
         @R.function
-        def main(
-            x: R.Tensor("float32", ndim=4), w: R.Tensor("float32", ndim=4)
-        ) -> R.Tensor("float32", ndim=4):
+        def main(x: R.Tensor("float32", ndim=4), w: R.Tensor("float32", ndim=4)) -> R.Tensor(
+            "float32", ndim=4
+        ):
             with R.dataflow():
                 N, C, H, W = T.int64(), T.int64(16), T.int64(), T.int64()
                 Nw, Cw, Hw, Ww = T.int64(4), T.int64(16), T.int64(), T.int64()
@@ -2084,16 +2086,17 @@ def test_conv2d_matchcast_bias_sub_indexed():
                 lv_bias: R.Tensor((Nb, Cb, Hb, Wb), dtype="float32") = R.match_cast(
                     bias, R.Tensor((Nb, Cb, Hb, Wb), dtype="float32")
                 )
-                lv2_1: R.Tensor(
-                    (Nb, Hb, Wb, (Cb - Cb % -4) // 4, 4), dtype="float32"
-                ) = R.layout_transform(
-                    lv_bias,
-                    index_map=T.index_map(
-                        lambda i0, i1, i2, i3: (i0, i2, i3, i1 // 4, i1 % 4), index_dtype="int32"
-                    ),
-                    pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
+                lv2_1: R.Tensor((Nb, Hb, Wb, (Cb - Cb % -4) // 4, 4), dtype="float32") = (
+                    R.layout_transform(
+                        lv_bias,
+                        index_map=T.index_map(
+                            lambda i0, i1, i2, i3: (i0, i2, i3, i1 // 4, i1 % 4),
+                            index_dtype="int32",
+                        ),
+                        pad_value=None,
+                        axis_separators=[],
+                        input_axis_separators=[],
+                    )
                 )
                 lv3: R.Tensor(dtype="float32", ndim=5) = R.add(lv2, lv2_1)
                 gv: R.Tensor(dtype="float32", ndim=4) = R.layout_transform(
@@ -2153,13 +2156,14 @@ def test_conv2d_matchcast_bias_sub_indexed():
                 lv_bias: R.Tensor((Nb, Cb, Hb, Wb), dtype="float32") = R.match_cast(
                     bias, R.Tensor((Nb, Cb, Hb, Wb), dtype="float32")
                 )
-                lv2_1: R.Tensor(
-                    (Nb, (Cb - Cb % -4) // 4, Hb, Wb, 4), dtype="float32"
-                ) = R.layout_transform(
-                    lv_bias,
-                    index_map=T.index_map(
-                        lambda i0, i1, i2, i3: (i0, i1 // 4, i2, i3, i1 % 4), index_dtype="int32"
-                    ),
+                lv2_1: R.Tensor((Nb, (Cb - Cb % -4) // 4, Hb, Wb, 4), dtype="float32") = (
+                    R.layout_transform(
+                        lv_bias,
+                        index_map=T.index_map(
+                            lambda i0, i1, i2, i3: (i0, i1 // 4, i2, i3, i1 % 4),
+                            index_dtype="int32",
+                        ),
+                    )
                 )
                 lv3: R.Tensor(dtype="float32", ndim=5) = R.add(lv2, lv2_1)
                 gv: R.Tensor(dtype="float32", ndim=4) = R.layout_transform(

@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Manipulation operators."""
-from typing import List, Optional, Tuple, Union, Callable
+
+from typing import Callable, List, Optional, Tuple, Union
 
 from tvm.ir.expr import PrimExpr
-from tvm.tir import IntImm, FloatImm, IndexMap
+from tvm.tir import FloatImm, IndexMap, IntImm
 
+from ..expr import Expr, PrimValue, ShapeExpr
+from ..expr import Tuple as RxTuple
 from . import _ffi_api
-from ..expr import Expr, PrimValue, ShapeExpr, Tuple as RxTuple
-
 
 PrimExprLike = Union[int, PrimExpr]
 

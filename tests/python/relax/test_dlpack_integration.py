@@ -25,13 +25,15 @@ This test verifies:
 5. Error handling for unsupported data types
 """
 
+import numpy as np
 import pytest
 import torch
+
 import tvm
 from tvm import relax, tir
-from tvm.script import relax as R, tir as T
 from tvm.relax import BasePyModule
-import numpy as np
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 class TestDLPackIntegration:
@@ -206,6 +208,7 @@ class TestDLPackIntegration:
 
     def test_dlpack_with_base_py_module(self):
         """Test DLPack conversion within BasePyModule context."""
+
         # Create a simple IRModule
         @T.prim_func
         def identity_func(A: T.Buffer((3,), "float32"), B: T.Buffer((3,), "float32")):

@@ -16,10 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Sparse_Reshape operator"""
-from tvm.tir import decl_buffer, Cast
-from tvm.te import extern, div, floordiv, floormod
+
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T
+from tvm.te import div, extern, floordiv, floormod
+from tvm.tir import Cast, decl_buffer
 
 
 def sparse_reshape(

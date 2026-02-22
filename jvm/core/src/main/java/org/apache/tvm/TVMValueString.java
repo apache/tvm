@@ -24,7 +24,8 @@ public class TVMValueString extends TVMValue {
     this.value = value;
   }
 
-  @Override public String asString() {
+  @Override
+  public String asString() {
     return value;
   }
 }

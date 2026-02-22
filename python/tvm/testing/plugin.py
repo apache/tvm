@@ -32,8 +32,8 @@ directory as the test scripts.
 
 """
 
-import pytest
 import _pytest
+import pytest
 
 import tvm
 from tvm.testing import utils

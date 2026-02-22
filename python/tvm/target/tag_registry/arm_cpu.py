@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """ARM CPU target tags."""
-from .registry import register_tag
 
+from .registry import register_tag
 
 # ---------- Raspberry Pi (self-hosted, with host config) ----------
 register_tag(

@@ -151,6 +151,7 @@ def test_batch_decode_gemv():
 def test_batch_gemv():
     N = 4096
     K = 4096
+
     # fmt: off
     @T.prim_func(private=True)
     def before(var_A: T.handle, B: T.Buffer((T.int64(N), T.int64(K)), "float16"), var_NT_matmul: T.handle):

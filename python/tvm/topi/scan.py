@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Scan (cumulative binary) operators"""
+
 from typing import Callable, Optional
 
 import tvm
@@ -24,8 +25,8 @@ from tvm.script.ir_builder import tir as T
 
 from ..te import extern
 from ..tir import decl_buffer, generic
-from .math import cast
 from . import utils
+from .math import cast
 
 
 def scanop(

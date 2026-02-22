@@ -21,16 +21,16 @@ This file contains the set of passes for Relax, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
 
-from typing import Dict, List, Optional, Union, Callable
 from enum import IntEnum
+from typing import Callable, Dict, List, Optional, Union
 
 import tvm
-from tvm import tir
-from tvm import IRModule
+from tvm import IRModule, tir
+from tvm.relax.expr import Binding, Call, DataflowBlock, Expr, Function, GlobalVar, Var
+from tvm.relax.struct_info import FuncStructInfo, StructInfo
 from tvm.relax.ty import Type
-from tvm.relax.struct_info import StructInfo, FuncStructInfo
-from tvm.relax.expr import DataflowBlock, Var, GlobalVar, Expr, Function, Call, Binding
-from tvm.tir import IndexMap, PrimFunc, SBlock, Buffer
+from tvm.tir import Buffer, IndexMap, PrimFunc, SBlock
+
 from . import _ffi_api
 
 

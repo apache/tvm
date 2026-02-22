@@ -17,12 +17,12 @@
 # under the License.
 import inspect
 import json
-import os
 import logging
+import os
 import subprocess
-from xml.etree import ElementTree
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+from xml.etree import ElementTree
 
 
 def run_subprocess(command):
@@ -64,9 +64,7 @@ def get_main_jenkins_build_number(github, common_commit):
 def retrieve_test_reports(
     common_main_build, pr_number, build_number, s3_prefix, pr_test_report_dir, main_test_report_dir
 ):
-    cur_build_s3_link = (
-        f"s3://{s3_prefix}/tvm/PR-{str(pr_number)}/{str(build_number)}/pytest-results"
-    )
+    cur_build_s3_link = f"s3://{s3_prefix}/tvm/PR-{pr_number!s}/{build_number!s}/pytest-results"
     retrieve_test_report(cur_build_s3_link, pr_test_report_dir)
 
     common_build_s3_link = f"s3://{s3_prefix}/tvm/main/{common_main_build}/pytest-results"
@@ -119,7 +117,7 @@ def build_diff_comment_with_main(
     )
     for skip in skipped_list:
         text += skip + "\n"
-    text += f"```\n"
+    text += "```\n"
     return text
 
 
@@ -141,17 +139,17 @@ def build_comment(
     if len(additional_skipped_list) != 0:
         text += "\n"
         text += (
-            f"Additional tests that were skipped in the CI build and present in the [`required_tests_to_run`]"
-            f"(https://github.com/apache/tvm/blob/main/ci/scripts/github/required_tests_to_run.json) file:"
-            f"\n```\n"
+            "Additional tests that were skipped in the CI build and present in the [`required_tests_to_run`]"
+            "(https://github.com/apache/tvm/blob/main/ci/scripts/github/required_tests_to_run.json) file:"
+            "\n```\n"
         )
         for skip in additional_skipped_list:
             text += skip + "\n"
-        text += f"```\n"
+        text += "```\n"
 
     text += (
-        f"A detailed report of ran tests is [here](https://{jenkins_prefix}/job/tvm/job/PR-{str(pr_number)}"
-        f"/{str(build_number)}/testReport/)."
+        f"A detailed report of ran tests is [here](https://{jenkins_prefix}/job/tvm/job/PR-{pr_number!s}"
+        f"/{build_number!s}/testReport/)."
     )
     return text
 
@@ -229,9 +227,9 @@ def get_skipped_tests_comment(
         f"Checking additional tests in file {additional_tests_to_check_file} are not skipped."
     )
     try:
-        with open(additional_tests_to_check_file, "r") as f:
+        with open(additional_tests_to_check_file) as f:
             additional_tests_to_check = json.load(f)
-    except IOError:
+    except OSError:
         logging.info(
             f"Failed to read additional tests from file: {additional_tests_to_check_file}."
         )

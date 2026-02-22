@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -29,15 +27,15 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
-from functools import partial
 import gc
-from importlib import import_module
 import inspect
-from hashlib import md5
 import os
-from pathlib import Path
 import re
 import sys
+from functools import partial
+from hashlib import md5
+from importlib import import_module
+from pathlib import Path
 from textwrap import dedent, indent
 from typing import List
 from unittest.mock import patch
@@ -79,9 +77,7 @@ def git_describe_version(original_version):
 
 # Version information.
 import tvm
-from tvm import topi
-from tvm import te
-from tvm import testing
+from tvm import te, testing, topi
 
 version = git_describe_version(tvm.__version__)
 release = version
@@ -187,7 +183,7 @@ def save_rst_example(
 
 INCLUDE_DIRECTIVE_RE = re.compile(r"^([ \t]*)\.\. include::\s*(.+)\n", flags=re.M)
 COMMENT_DIRECTIVE_RE = re.compile(r"^\.\.(?: .*)?\n(?:(?:  .*)?\n)*", flags=re.M)
-ADMONITION_DIRECTIVE_RE = re.compile(rf"^\.\. admonition:: *(.*)\n((?:(?:  .*)?\n)*)\n", flags=re.M)
+ADMONITION_DIRECTIVE_RE = re.compile(r"^\.\. admonition:: *(.*)\n((?:(?:  .*)?\n)*)\n", flags=re.M)
 
 
 @monkey_patch("sphinx_gallery.notebook", "rst2md")
@@ -231,7 +227,7 @@ def install_request_hook(gallery_conf, fname):
     testing.utils.install_request_hook(depth=3)
 
 
-INSTALL_TVM_DEV = f"""\
+INSTALL_TVM_DEV = """\
 %%shell
 # Installs the latest dev build of TVM from PyPI. If you wish to build
 # from source, see https://tvm.apache.org/docs/install/from_source.html
@@ -243,7 +239,7 @@ INSTALL_TVM_FIXED = f"""\
 # from source, see https://tvm.apache.org/docs/install/from_source.html
 pip install apache-tvm=={version}"""
 
-INSTALL_TVM_CUDA_DEV = f"""\
+INSTALL_TVM_CUDA_DEV = """\
 %%shell
 # Installs the latest dev build of TVM from PyPI, with CUDA enabled. To use this,
 # you must request a Google Colab instance with a GPU by going to Runtime ->
@@ -273,7 +269,7 @@ def jupyter_notebook(script_blocks, gallery_conf, target_dir, real_func):
     """
 
     requires_cuda = CURRENT_FILE_CONF.get("requires_cuda", False)
-    fixed_version = not "dev" in version
+    fixed_version = "dev" not in version
 
     if fixed_version and requires_cuda:
         install_block = INSTALL_TVM_CUDA_FIXED
@@ -399,7 +395,7 @@ latex_documents = [
 ]
 
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
+    "python": (f"https://docs.python.org/{sys.version_info.major}", None),
     # "numpy": ("https://numpy.org/doc/stable", None),
     # "scipy": ("https://docs.scipy.org/doc/scipy", None),
     # "matplotlib": ("https://matplotlib.org/", None),
@@ -496,9 +492,7 @@ footer_note = " ".join(
     """
 Copyright © 2024 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
 and the Apache TVM project logo are either trademarks or registered trademarks of
-the Apache Software Foundation.""".split(
-        "\n"
-    )
+the Apache Software Foundation.""".split("\n")
 ).strip()
 
 header_logo = "https://tvm.apache.org/assets/images/logo.svg"

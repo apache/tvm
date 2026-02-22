@@ -16,7 +16,8 @@
 # under the License.
 import tvm
 from tvm import s_tir
-from tvm.script import ir as I, tir as T
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_rewrite_Select():

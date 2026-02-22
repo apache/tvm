@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """A script to measure GPU memory bandwidth"""
+
 import argparse
 import itertools
 

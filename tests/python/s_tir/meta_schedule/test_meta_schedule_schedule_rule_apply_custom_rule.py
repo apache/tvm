@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-from typing import List
 import tempfile
+from typing import List
+
 import pytest
 
 import tvm

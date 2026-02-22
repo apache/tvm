@@ -20,11 +20,11 @@
 import builtins
 import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Type
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import tvm
 from tvm import DataType, relax
-from tvm.ir import PrimExpr, VDevice, IRModule
+from tvm.ir import IRModule, PrimExpr, VDevice
 from tvm.relax import (
     Call,
     Expr,
@@ -65,7 +65,6 @@ from tvm.relax.op import (
     call_dps_packed,
     call_inplace_packed,
     call_pure_packed,
-    call_py_func as _call_py_func,
     call_tir,
     call_tir_inplace,
     call_tir_with_grad,
@@ -104,8 +103,8 @@ from tvm.relax.op import (
     greater_equal,
     hamming_window,
     hint_on_device,
-    index_put,
     image,
+    index_put,
     index_tensor,
     invoke_closure,
     invoke_pure_closure,
@@ -141,9 +140,9 @@ from tvm.relax.op import (
     nonzero,
     not_equal,
     null_value,
+    one_hot,
     ones,
     ones_like,
-    one_hot,
     outer,
     permute_dims,
     power,
@@ -186,12 +185,15 @@ from tvm.relax.op import (
     trunc,
     unique,
     variance,
+    vision,
     vm,
     where,
     wrap_param,
     zeros,
     zeros_like,
-    vision,
+)
+from tvm.relax.op import (
+    call_py_func as _call_py_func,
 )
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.struct_info import StructInfo

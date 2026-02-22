@@ -16,8 +16,8 @@
 # under the License.
 """tvm.contrib.msc.core.utils.namespace"""
 
-from typing import Any, Optional
 import copy
+from typing import Any, Optional
 
 
 class MSCMap:

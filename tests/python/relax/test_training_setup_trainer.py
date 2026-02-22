@@ -18,13 +18,13 @@ import pytest
 
 import tvm
 import tvm.testing
-
-from tvm import relax, TVMError
+from tvm import TVMError, relax
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.training import SetupTrainer
-from tvm.relax.training.optimizer import SGD, MomentumSGD
 from tvm.relax.training.loss import MSELoss
-from tvm.script import ir as I, relax as R
+from tvm.relax.training.optimizer import SGD, MomentumSGD
+from tvm.script import ir as I
+from tvm.script import relax as R
 
 
 def test_simple():

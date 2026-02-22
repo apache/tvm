@@ -18,20 +18,20 @@
 """tvm.contrib.msc.framework.torch.runtime.runner"""
 
 import time
-from typing import Dict, List, Union, Tuple, Any
-import numpy as np
+from typing import Any, Dict, List, Tuple, Union
 
+import numpy as np
 import torch
+
 import tvm
-from tvm.contrib.msc.core.runtime import ModelRunner
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.ir import MSCGraph
+from tvm.contrib.msc.core.runtime import ModelRunner
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
-from tvm.contrib.msc.framework.torch.frontend import from_torch
-from tvm.contrib.msc.framework.torch.codegen import to_torch
-from tvm.contrib.msc.framework.torch.frontend import set_weight_alias
 from tvm.contrib.msc.framework.torch import tools
+from tvm.contrib.msc.framework.torch.codegen import to_torch
+from tvm.contrib.msc.framework.torch.frontend import from_torch, set_weight_alias
 
 
 class TorchRunner(ModelRunner):
@@ -121,9 +121,7 @@ class TorchRunner(ModelRunner):
         params = {}
         for graph in self._graphs:
             for weight in graph.get_weights():
-                assert weight.alias in state_dict, "Missing weight {} in state_dict".format(
-                    weight.alias
-                )
+                assert weight.alias in state_dict, f"Missing weight {weight.alias} in state_dict"
                 params[weight.name] = msc_utils.cast_array(
                     state_dict[weight.alias], MSCFramework.TVM, "cpu"
                 )
@@ -164,13 +162,13 @@ class TorchRunner(ModelRunner):
             native_model = model
         else:
             raise NotImplementedError(
-                "Load native model {} with type {} is not supported".format(model, type(model))
+                f"Load native model {model} with type {type(model)} is not supported"
             )
         parameters = list(model.parameters())
         if parameters:
             ref_device = parameters[0].device
             if ref_device.index:
-                device = "{}:{}".format(ref_device.type, ref_device.index)
+                device = f"{ref_device.type}:{ref_device.index}"
             else:
                 device = ref_device.type
         else:
@@ -216,7 +214,7 @@ class TorchRunner(ModelRunner):
         if parameters:
             ref_dev = parameters[0].device
             if ref_dev.index:
-                device = "{}:{}".format(ref_dev.type, ref_dev.index)
+                device = f"{ref_dev.type}:{ref_dev.index}"
             else:
                 device = ref_dev.type
         else:
@@ -241,8 +239,8 @@ class TorchRunner(ModelRunner):
         if isinstance(outputs, torch.Tensor):
             assert len(output_names) == 1, "Expect 1 outputs, get " + str(output_names)
             return {output_names[0]: msc_utils.cast_array(outputs)}, avg_time
-        assert len(output_names) == len(outputs), "Outputs mismatch, {} with {}".format(
-            output_names, len(outputs)
+        assert len(output_names) == len(outputs), (
+            f"Outputs mismatch, {output_names} with {len(outputs)}"
         )
         outputs = {
             o_name: msc_utils.cast_array(o_data) for o_name, o_data in zip(output_names, outputs)

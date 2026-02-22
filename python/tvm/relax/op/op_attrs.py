@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """The attributes node used for Relax operators"""
-from tvm.ir import Attrs
+
 import tvm_ffi
+
+from tvm.ir import Attrs
 
 
 @tvm_ffi.register_object("relax.attrs.CallTIRWithGradAttrs")

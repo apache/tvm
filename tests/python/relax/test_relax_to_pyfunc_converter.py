@@ -20,18 +20,16 @@ Comprehensive test cases for Relax to PyFunc converter.
 Tests all major features including basic operations, call_tir, call_dps_packed, and symbolic shapes.
 """
 
-
+import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
-import numpy as np
-
 
 import tvm
-from tvm.script import ir as I
-from tvm.script import tir as T
-from tvm.script import relax as R
 from tvm.relax.relax_to_pyfunc_converter import RelaxToPyFuncConverter
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 @I.ir_module
@@ -58,9 +56,9 @@ class ComprehensiveTestModule:
                 out[i, j] = x[i, j] * y[i, j]
 
     @R.function
-    def simple_add(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "float32"):
+    def simple_add(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "float32"
+    ):
         return R.add(x, y)
 
     @R.function
@@ -68,9 +66,9 @@ class ComprehensiveTestModule:
         return R.nn.relu(x)
 
     @R.function
-    def with_call_tir(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "float32"):
+    def with_call_tir(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "float32"
+    ):
         cls = ComprehensiveTestModule
         return R.call_tir(cls.add_tir, (x, y), out_sinfo=R.Tensor((5,), "float32"))
 
@@ -81,9 +79,9 @@ class ComprehensiveTestModule:
         )
 
     @R.function
-    def complex_function(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "float32"):
+    def complex_function(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "float32"
+    ):
         added = R.add(x, y)
         relued = R.nn.relu(added)
         cls = ComprehensiveTestModule
@@ -91,9 +89,9 @@ class ComprehensiveTestModule:
         return R.nn.relu(tir_result)
 
     @R.function
-    def symbolic_add(
-        x: R.Tensor(("n",), "float32"), y: R.Tensor(("n",), "float32")
-    ) -> R.Tensor(("n",), "float32"):
+    def symbolic_add(x: R.Tensor(("n",), "float32"), y: R.Tensor(("n",), "float32")) -> R.Tensor(
+        ("n",), "float32"
+    ):
         return R.add(x, y)
 
     @R.function
@@ -103,15 +101,15 @@ class ComprehensiveTestModule:
         return R.matmul(x, y)
 
     @R.function
-    def symbolic_expand_dims(
-        x: R.Tensor(("batch", "seq_len"), "float32")
-    ) -> R.Tensor(("batch", "seq_len", 1), "float32"):
+    def symbolic_expand_dims(x: R.Tensor(("batch", "seq_len"), "float32")) -> R.Tensor(
+        ("batch", "seq_len", 1), "float32"
+    ):
         return R.expand_dims(x, axis=2)
 
     @R.function
-    def multi_ops(
-        x: R.Tensor((3, 4), "float32"), y: R.Tensor((3, 4), "float32")
-    ) -> R.Tensor((3, 4), "float32"):
+    def multi_ops(x: R.Tensor((3, 4), "float32"), y: R.Tensor((3, 4), "float32")) -> R.Tensor(
+        (3, 4), "float32"
+    ):
         added = R.add(x, y)
         multiplied = R.multiply(added, y)
         powered = R.power(multiplied, R.const(2.0))
@@ -126,9 +124,9 @@ class ComprehensiveTestModule:
         return R.add(R.add(sum_val, mean_val), max_val)
 
     @R.function
-    def comparison_ops(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "bool"):
+    def comparison_ops(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "bool"
+    ):
         eq_val = R.equal(x, y)
         gt_val = R.greater(x, y)
         return R.logical_and(eq_val, gt_val)
@@ -142,9 +140,9 @@ class ComprehensiveTestModule:
         return R.permute_dims(x, axes=[2, 0, 1])
 
     @R.function
-    def test_concat(
-        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
-    ) -> R.Tensor((4, 3), "float32"):
+    def test_concat(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")) -> R.Tensor(
+        (4, 3), "float32"
+    ):
         return R.concat((x, y), axis=0)
 
     @R.function
@@ -152,15 +150,15 @@ class ComprehensiveTestModule:
         return R.split(x, indices_or_sections=2, axis=0)
 
     @R.function
-    def test_stack(
-        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
-    ) -> R.Tensor((2, 2, 3), "float32"):
+    def test_stack(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")) -> R.Tensor(
+        (2, 2, 3), "float32"
+    ):
         return R.stack((x, y), axis=1)
 
     @R.function
-    def test_take(
-        x: R.Tensor((3, 4), "float32"), indices: R.Tensor((2,), "int64")
-    ) -> R.Tensor((2,), "float32"):
+    def test_take(x: R.Tensor((3, 4), "float32"), indices: R.Tensor((2,), "int64")) -> R.Tensor(
+        (2,), "float32"
+    ):
         return R.take(x, indices, axis=0)
 
     @R.function
@@ -569,52 +567,52 @@ class ExtendedOperatorsModule:
 
     # Comparison operations not covered in ComprehensiveTestModule
     @R.function
-    def test_less(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "bool"):
+    def test_less(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "bool"
+    ):
         return R.less(x, y)
 
     @R.function
-    def test_not_equal(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "bool"):
+    def test_not_equal(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "bool"
+    ):
         return R.not_equal(x, y)
 
     # Binary operations not covered in ComprehensiveTestModule
     @R.function
-    def test_multiply(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "float32"):
+    def test_multiply(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "float32"
+    ):
         return R.multiply(x, y)
 
     @R.function
-    def test_divide(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "float32"):
+    def test_divide(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "float32"
+    ):
         return R.divide(x, y)
 
     @R.function
-    def test_power(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "float32"):
+    def test_power(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "float32"
+    ):
         return R.power(x, y)
 
     @R.function
-    def test_maximum(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "float32"):
+    def test_maximum(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "float32"
+    ):
         return R.maximum(x, y)
 
     @R.function
-    def test_minimum(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "float32"):
+    def test_minimum(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "float32"
+    ):
         return R.minimum(x, y)
 
     @R.function
-    def test_subtract(
-        x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")
-    ) -> R.Tensor((5,), "float32"):
+    def test_subtract(x: R.Tensor((5,), "float32"), y: R.Tensor((5,), "float32")) -> R.Tensor(
+        (5,), "float32"
+    ):
         return R.subtract(x, y)
 
     # Additional tensor operations with different parameters
@@ -879,9 +877,9 @@ class TestDLPackAndTupleSupport:
                     out[i] = x[i] + y[i]
 
             @R.function
-            def test_func(
-                x: R.Tensor((4,), "float32"), y: R.Tensor((4,), "float32")
-            ) -> R.Tensor((4,), "float32"):
+            def test_func(x: R.Tensor((4,), "float32"), y: R.Tensor((4,), "float32")) -> R.Tensor(
+                (4,), "float32"
+            ):
                 return R.call_tir(
                     DLPackTestModule.test_tir, (x, y), out_sinfo=R.Tensor((4,), "float32")
                 )
@@ -932,9 +930,9 @@ class TestDLPackAndTupleSupport:
                     out[i] = x[i] * y[i]
 
             @R.function
-            def test_func(
-                x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")
-            ) -> R.Tensor((3,), "float32"):
+            def test_func(x: R.Tensor((3,), "float32"), y: R.Tensor((3,), "float32")) -> R.Tensor(
+                (3,), "float32"
+            ):
                 return R.call_tir(
                     RuntimeAPITestModule.test_tir, (x, y), out_sinfo=R.Tensor((3,), "float32")
                 )
@@ -952,6 +950,7 @@ class TestDLPackAndTupleSupport:
 
     def test_packed_function_with_primvalue_args(self):
         """Test packed function calls with PrimValue arguments."""
+
         # Register a test packed function
         def test_packed_func(x, axis):
             return x  # Simple identity function
@@ -989,9 +988,9 @@ class TestDLPackAndTupleSupport:
                     out[i] = x[i] + y[i]
 
             @R.function
-            def test_mixed(
-                x: R.Tensor((4,), "float32"), y: R.Tensor((4,), "float32")
-            ) -> R.Tensor((4,), "float32"):
+            def test_mixed(x: R.Tensor((4,), "float32"), y: R.Tensor((4,), "float32")) -> R.Tensor(
+                (4,), "float32"
+            ):
                 # TIR operation
                 tir_result = R.call_tir(
                     MixedOpsTestModule.add_tir, (x, y), out_sinfo=R.Tensor((4,), "float32")

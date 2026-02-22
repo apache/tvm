@@ -16,9 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
+
 from typing import List, Union
 
-from tvm import arith, tir, s_tir
+from tvm import arith, s_tir, tir
 from tvm.target import Target
 
 from ..analysis import normalize_prim_func

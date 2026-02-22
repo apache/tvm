@@ -16,10 +16,12 @@
 # under the License.
 # pylint: disable=used-before-assignment
 """A context manager that profiles tuning time cost for different parts."""
+
 from contextlib import contextmanager
 from typing import Dict, Optional
 
 from tvm_ffi import register_object
+
 from tvm.runtime import Object
 
 from . import _ffi_api

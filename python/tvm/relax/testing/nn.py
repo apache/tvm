@@ -17,14 +17,13 @@
 # pylint: disable=redefined-builtin, invalid-name
 """PyTorch-like nn.Module API for constructing workloads."""
 
-
 import typing
-from typing import List, Any, Callable, Union
+from typing import Any, Callable, List, Union
 
 import numpy as np  # type: ignore
 
 import tvm
-from tvm import relax, topi, tir
+from tvm import relax, tir, topi
 from tvm.relax.op.grad.grad import end_checkpoint, start_checkpoint
 
 

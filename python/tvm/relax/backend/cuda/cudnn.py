@@ -16,6 +16,7 @@
 # under the License.
 
 """Pattern table for cuDNN backend"""
+
 import operator
 from functools import partial, reduce
 

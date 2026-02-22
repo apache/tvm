@@ -17,13 +17,14 @@
 """Test the tune context of meta schedule."""
 
 import sys
+
 import pytest
 
 import tvm
 import tvm.testing
+from tvm.s_tir.meta_schedule import TuneContext
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.s_tir.meta_schedule import TuneContext
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 

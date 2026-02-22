@@ -17,11 +17,11 @@
 """tvm.contrib.msc.pipeline.config"""
 
 import copy
-from typing import List, Union, Dict, Tuple
+from typing import Dict, List, Tuple, Union
 
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools import ToolType
 from tvm.contrib.msc.core.utils.message import MSCStage
-from tvm.contrib.msc.core import utils as msc_utils
 
 
 def get_tool_stage(tool_type: str) -> str:
@@ -116,7 +116,7 @@ def config_tool(tool_type: str, raw_config: Union[dict, str]) -> dict:
     else:
         config_style, raw_config = raw_config, None
     configer_cls = msc_utils.get_registered_tool_configer(tool_type, config_style)
-    assert configer_cls, "Can not find configer for {}:{}".format(tool_type, config_style)
+    assert configer_cls, f"Can not find configer for {tool_type}:{config_style}"
     return {"tool_type": tool_type, **configer_cls().config(raw_config)}
 
 

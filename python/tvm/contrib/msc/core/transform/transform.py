@@ -20,8 +20,8 @@
 from typing import Dict
 
 import tvm
-from tvm.relax.transform import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.relax.transform import _ffi_api
 
 
 def SetExprName(

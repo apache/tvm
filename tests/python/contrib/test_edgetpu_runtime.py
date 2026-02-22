@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import os
-import tvm
-from tvm import te
+
 import numpy as np
-from tvm import rpc
-from tvm.contrib import utils, tflite_runtime
+
+import tvm
+from tvm import rpc, te
+from tvm.contrib import tflite_runtime, utils
 
 # import tflite_runtime.interpreter as tflite
 

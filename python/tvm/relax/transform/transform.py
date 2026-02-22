@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Relax transformation passes."""
+
 import functools
 import inspect
 import types
@@ -24,16 +25,17 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Uni
 
 import numpy as np  # type: ignore
 import tvm_ffi
+
 import tvm.ir
 from tvm.ir.container import Array
-from tvm.relax import Expr, Var, StructInfo
+from tvm.relax import Expr, StructInfo, Var
 from tvm.relax.dpl import DFPattern
-from tvm.runtime import Tensor, Object
+from tvm.runtime import Object, Tensor
 from tvm.tir import IndexMap, PrimFunc
 
+from ..expr import Var
 from . import _ffi_api
 from .legalize_ops.common import LegalizeFunc
-from ..expr import Var
 
 
 @tvm_ffi.register_object("relax.FunctionPass")
@@ -1645,7 +1647,9 @@ def _wrap_class_function_pass(pass_cls, pass_info):
                 return inst.transform_function(func, mod, ctx)
 
             self.__init_handle_by_constructor__(
-                _ffi_api.MakeFunctionPass, _pass_func, pass_info  # type: ignore
+                _ffi_api.MakeFunctionPass,
+                _pass_func,
+                pass_info,  # type: ignore
             )
             self._inst = inst
 
@@ -1791,7 +1795,9 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
                 return inst.transform_dataflowblock(func, mod, ctx)
 
             self.__init_handle_by_constructor__(
-                _ffi_api.MakeDataflowBlockPass, _pass_func, pass_info  # type: ignore
+                _ffi_api.MakeDataflowBlockPass,
+                _pass_func,
+                pass_info,  # type: ignore
             )
             self._inst = inst
 

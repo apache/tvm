@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
-
-from tvm import relax
-from tvm.script import tir as T, relax as R, ir as I
-
 import numpy as np
 import pytest
 
+import tvm
+import tvm.testing
+from tvm import relax
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 # fmt: off
 

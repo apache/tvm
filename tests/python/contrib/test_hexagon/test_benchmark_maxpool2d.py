@@ -42,21 +42,21 @@ Current limitations:
       primfuncs and demonstrate more coding strategies.
 """
 
-from typing import List
 import copy
 import os
+from typing import List
 
-import pytest
 import numpy as np
+import pytest
 
 import tvm.testing
-from tvm import te, topi, tir
-from tvm.topi import testing
-from tvm.contrib.hexagon.session import Session
+from tvm import te, tir, topi
 from tvm.contrib.hexagon import allocate_hexagon_array
+from tvm.contrib.hexagon.session import Session
+from tvm.topi import testing
 
-from .infrastructure import get_hexagon_target
 from . import benchmark_util as bu
+from .infrastructure import get_hexagon_target
 
 # Pytest seems to require that fixture names exist in the current module.
 # E.g., it doesn't allow: @pytest.mark.usefixtures("bu.benchmark_group")

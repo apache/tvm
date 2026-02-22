@@ -20,9 +20,10 @@
 from typing import List
 
 import torch
-from tvm.contrib.msc.core.tools.distill import DistillMethod, BaseDistiller
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
+
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.distill import BaseDistiller, DistillMethod
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
 @msc_utils.register_tool_method

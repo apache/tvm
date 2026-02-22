@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=redefined-builtin,consider-using-enumerate,no-member
 """Reduce operators"""
+
 from __future__ import absolute_import as _abs
+
 from . import cpp
 
 

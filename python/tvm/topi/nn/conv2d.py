@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-variable, too-many-locals
 # pylint: disable=unused-argument, redefined-builtin
 """Conv2D operators"""
+
 from __future__ import absolute_import as _abs
 
 import re
@@ -24,6 +25,7 @@ from collections import namedtuple
 from typing import Optional, Sequence, Union
 
 import numpy as np
+
 import tvm
 from tvm import te
 
@@ -126,9 +128,9 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
-    assert (data.dtype == kernel.dtype) or (
-        data.dtype == "uint8" and kernel.dtype == "int8"
-    ), f"Do not support inputs with different data types now. {data.dtype} vs. {kernel.dtype}"
+    assert (data.dtype == kernel.dtype) or (data.dtype == "uint8" and kernel.dtype == "int8"), (
+        f"Do not support inputs with different data types now. {data.dtype} vs. {kernel.dtype}"
+    )
     return Workload(
         data.dtype,
         out_dtype,

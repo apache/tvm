@@ -62,20 +62,23 @@ public class TVMType {
     this(typeStr, 1);
   }
 
-  @Override public int hashCode() {
-    return (typeCode << 16) | (bits  << 8) | lanes;
+  @Override
+  public int hashCode() {
+    return (typeCode << 16) | (bits << 8) | lanes;
   }
 
-  @Override public boolean equals(Object other) {
+  @Override
+  public boolean equals(Object other) {
     if (other != null && other instanceof TVMType) {
       TVMType otherInst = (TVMType) other;
-      return (bits == otherInst.bits)
-        && (typeCode == otherInst.typeCode) && (lanes == otherInst.lanes);
+      return (bits == otherInst.bits) && (typeCode == otherInst.typeCode)
+          && (lanes == otherInst.lanes);
     }
     return false;
   }
 
-  @Override public String toString() {
+  @Override
+  public String toString() {
     String typeCodeStr;
     switch (typeCode) {
       case INT:

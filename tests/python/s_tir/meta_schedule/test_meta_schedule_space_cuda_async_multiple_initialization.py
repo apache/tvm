@@ -15,18 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tests for MetaSchedule search space on CUDA"""
+
 from typing import List, Optional, Tuple, Union
 
 # isort: off
 from typing_extensions import Literal
 
 # isort: on
-from tvm.s_tir.meta_schedule.testing.space_generation import get_rules
-from tvm.s_tir import meta_schedule as ms
-from tvm.s_tir.meta_schedule.testing.te_workload import create_te_workload
-from tvm.target import Target
 from tvm.ir import IRModule
 from tvm.s_tir import Schedule
+from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir.meta_schedule.testing.space_generation import get_rules
+from tvm.s_tir.meta_schedule.testing.te_workload import create_te_workload
+from tvm.target import Target
 
 
 def generate_design_space(

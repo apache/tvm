@@ -17,8 +17,10 @@
 """tvm.contrib.msc.core.gym.prune_env"""
 
 from typing import List, Union
-from tvm.contrib.msc.core.tools import BaseTool, ToolType
+
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools import BaseTool, ToolType
+
 from .base_env import BaseEnv
 
 

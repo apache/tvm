@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.script import ir as I
 from tvm.script import tir as T
-from tvm.s_tir.meta_schedule.testing import te_workload
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,missing-class-docstring,missing-function-docstring
 # fmt: off
@@ -71,9 +71,9 @@ def test_host_func():
     )(mod)
     mod = tvm.tir.transform.BindTarget(target)(mod)
     tvm.ir.assert_structural_equal(mod, Module)
-    assert (
-        "tir.is_host_func" not in mod["main"].attrs
-    ), """Target and is_host_func attributes should be mutually exclusive"""
+    assert "tir.is_host_func" not in mod["main"].attrs, (
+        """Target and is_host_func attributes should be mutually exclusive"""
+    )
 
 
 if __name__ == "__main__":

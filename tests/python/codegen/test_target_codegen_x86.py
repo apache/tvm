@@ -20,7 +20,8 @@ import re
 import pytest
 
 import tvm
-from tvm.script import tir as T, ir as I
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 llvm_version = tvm.target.codegen.llvm_version_major()
 machine = platform.machine()

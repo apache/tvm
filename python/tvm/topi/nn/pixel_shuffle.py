@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM operator pixel shuffle compute."""
-from __future__ import absolute_import
 
 import tvm
 

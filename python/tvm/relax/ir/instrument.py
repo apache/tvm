@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common relax pass instrumentation across IR variants."""
+
 import tvm
 from tvm import relax
 

@@ -20,9 +20,9 @@
 from typing import List
 
 import tvm
-from tvm.relax.transform import _ffi_api as relax_api
-from tvm.contrib.msc.core.utils import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.utils import MSCFramework
+from tvm.relax.transform import _ffi_api as relax_api
 
 
 def TransformTensorRT(

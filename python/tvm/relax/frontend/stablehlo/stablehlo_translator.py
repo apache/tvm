@@ -17,7 +17,8 @@
 # pylint: disable=import-outside-toplevel, unused-argument
 
 """StableHLO frontend of Relax."""
-from typing import Callable, Dict, List, Tuple, Union, Any
+
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import tvm
 from tvm import relax, tir
@@ -73,8 +74,8 @@ class StableHLOImporter:
             raise NotImplementedError(f"input_type {input_type} is not handled yet")
 
     def _attr2value(self, node) -> Union[Any, List[Any]]:
-        from jaxlib import mlir
         import numpy as np
+        from jaxlib import mlir
 
         if mlir.ir.IntegerAttr.isinstance(node):
             int_attr = mlir.ir.IntegerAttr(node)
@@ -256,9 +257,9 @@ class StableHLOImporter:
 
         if node.body is not None:
             reducer_op = node.body.blocks[0].operations[0].OPERATION_NAME
-            assert (
-                reducer_op == "stablehlo.maximum"
-            ), f"the reducer {reducer_op} in reduce_window is not supported"
+            assert reducer_op == "stablehlo.maximum", (
+                f"the reducer {reducer_op} in reduce_window is not supported"
+            )
 
         pool_size = []
         for i, window_dim in enumerate(window_dimensions):

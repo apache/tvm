@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """AWS CPU instance target tags."""
+
 from .registry import register_tag
 
 

@@ -18,6 +18,7 @@
 according to the annotation of each block"""
 
 from tvm_ffi.registry import register_object
+
 from .. import _ffi_api
 from .postproc import Postproc
 

@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm.script import tir as T
 from tvm.tir import const
-import tvm.testing
 
 
 def lower_stmt(params, stmt, target_bits):
@@ -130,7 +130,7 @@ def test_thread_axis():
 def test_multilanes():
     # Test narrowing with vector types. Uses closure capture for m and lanes.
     def check(m, lanes, target_bits, target_dtype):
-        vec_dtype = "float32x{}".format(lanes)
+        vec_dtype = f"float32x{lanes}"
 
         @T.prim_func
         def func(
@@ -177,9 +177,7 @@ def test_slice():
     # The maximum index is (2**15 * 2**15 - 1) * 2 <= 2**31 - 1
     check(const(2**15, "int64"), const(2**15, "int64"), target_bits=32, target_dtype="int32")
     # The maximum index is (2**15 * 2**15 - 1 + 2**15) * 2 > 2**31 - 1
-    check(
-        const(2**15, "int64"), const((2**15 + 1), "int64"), target_bits=32, target_dtype="int64"
-    )
+    check(const(2**15, "int64"), const((2**15 + 1), "int64"), target_bits=32, target_dtype="int64")
 
 
 def test_condition():

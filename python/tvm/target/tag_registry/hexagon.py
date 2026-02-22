@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Qualcomm Hexagon target tags."""
+
 from .registry import register_tag
 
 _ONE_MB = 2**20

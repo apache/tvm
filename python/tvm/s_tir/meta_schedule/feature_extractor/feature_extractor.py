@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule FeatureExtractor."""
+
 from typing import Callable, List, Union
 
 # isort: off
@@ -23,6 +24,7 @@ from typing_extensions import Literal
 # isort: on
 
 from tvm_ffi import register_object
+
 from tvm.runtime import Object
 from tvm.runtime._tensor import Tensor
 

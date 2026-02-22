@@ -18,10 +18,9 @@
 import tvm
 import tvm.relax
 import tvm.testing
-
-from tvm.script import ir as I, relax as R
-
 from tvm.relax.transform import KillAfterLastUse
+from tvm.script import ir as I
+from tvm.script import relax as R
 
 
 def test_basic():

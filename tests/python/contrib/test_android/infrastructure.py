@@ -19,8 +19,9 @@
 """Android testing infrastructure"""
 
 import os
+
 import tvm
-from tvm.s_tir.meta_schedule.runner import RPCRunner, RPCConfig, EvaluatorConfig
+from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig, RPCRunner
 
 
 def get_rpc_runner() -> tvm.s_tir.meta_schedule.runner.RPCRunner:

@@ -19,8 +19,8 @@
 
 #include <cuda_fp16.h>
 #include <float.h>
-#include <tvm/ffi/function.h>
 #include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/tensor.h>
 
 #include "cutlass/bfloat16.h"
@@ -100,10 +100,9 @@ void tvm_cutlass_fp8_groupwise_scaled_gemm_impl(Tensor a, Tensor b, Tensor scale
 }
 
 template <int Arch, typename TileShape, typename ClusterShape>
-void tvm_cutlass_fp8_groupwise_scaled_bmm_impl(Tensor a, Tensor b, Tensor scales_a,
-                                               Tensor scales_b, Tensor workspace,
-                                               int64_t block_size_0, int64_t block_size_1,
-                                               Tensor out) {
+void tvm_cutlass_fp8_groupwise_scaled_bmm_impl(Tensor a, Tensor b, Tensor scales_a, Tensor scales_b,
+                                               Tensor workspace, int64_t block_size_0,
+                                               int64_t block_size_1, Tensor out) {
   // Workspace is used for storing device-side gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
   cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, a->device.device_id));

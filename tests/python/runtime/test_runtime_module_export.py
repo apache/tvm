@@ -17,7 +17,6 @@
 
 import tvm
 import tvm.testing
-
 from tvm.contrib import utils
 
 

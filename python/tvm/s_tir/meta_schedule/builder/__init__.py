@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -19,5 +20,6 @@ The tvm.s_tir.meta_schedule.builder package.
 Meta Schedule builders that translate IRModule to runtime.Module,
 and then export
 """
+
 from .builder import Builder, BuilderInput, BuilderResult, PyBuilder, create
 from .local_builder import LocalBuilder

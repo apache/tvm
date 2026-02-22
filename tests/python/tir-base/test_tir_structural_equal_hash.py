@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
 import numpy as np
 import pytest
-
 from tvm_ffi.access_path import AccessPath
-from tvm.script import tir as T, ir as I
+
+import tvm
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def consistent_equal(x, y, map_free_vars=False):
@@ -31,18 +32,14 @@ def consistent_equal(x, y, map_free_vars=False):
 
     if struct_equal0 != struct_equal1:
         raise ValueError(
-            "Non-commutative {} vs {}, sequal0={}, sequal1={}".format(
-                x, y, struct_equal0, struct_equal1
-            )
+            f"Non-commutative {x} vs {y}, sequal0={struct_equal0}, sequal1={struct_equal1}"
         )
 
     # NOTE: hash colision can happen but should be rare.
     # we can confirm that hash colison doesn't happen for our testcases
     if struct_equal0 != (xhash == yhash):
         raise ValueError(
-            "Inconsistent {} vs {}, sequal={}, xhash={}, yhash={}".format(
-                x, y, struct_equal0, xhash, yhash
-            )
+            f"Inconsistent {x} vs {y}, sequal={struct_equal0}, xhash={xhash}, yhash={yhash}"
         )
     return struct_equal0
 
@@ -61,9 +58,7 @@ def get_sequal_mismatch(x, y, map_free_vars=False):
         or mismatch_0[1] != mismatch_1[0]
     ):
         raise ValueError(
-            "Non-commutative {} vs {}, mismatch_0={}, mismatch_1={}".format(
-                x, y, mismatch_0, mismatch_1
-            )
+            f"Non-commutative {x} vs {y}, mismatch_0={mismatch_0}, mismatch_1={mismatch_1}"
         )
 
     return mismatch_0

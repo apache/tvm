@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """TVM operator for local response norm compute."""
-from __future__ import absolute_import
+
 from .. import cpp
 
 

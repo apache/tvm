@@ -51,8 +51,7 @@ TEST(ParallelFor, Basic) {
   for (int i = 0; i < 1000; i += 2) {
     a[i] *= 2;
   }
-  parallel_for(
-      0, 1000, [&b](int i) { b[i] *= 2; }, 2);
+  parallel_for(0, 1000, [&b](int i) { b[i] *= 2; }, 2);
   for (int i = 0; i < 1000; i++) {
     TVM_FFI_ICHECK_EQ(a[i], b[i]);
   }

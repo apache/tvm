@@ -16,9 +16,10 @@
 """Relax memory primitives."""
 
 from typing import Union
-from . import _ffi_api
-from ...expr import Expr, Call, PrimValue, DataTypeImm, StringImm
+
+from ...expr import Call, DataTypeImm, Expr, PrimValue, StringImm
 from ...utils import args_converter
+from . import _ffi_api
 
 
 @args_converter.auto

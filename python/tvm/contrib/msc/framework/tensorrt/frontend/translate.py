@@ -16,13 +16,13 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.frontend.translate"""
 
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, List, Optional, Tuple
 
 import tvm
 from tvm import relax
 from tvm.contrib.msc.core import transform as msc_transform
-from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.frontend import byoc_partition
+from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.framework.tensorrt import transform as trt_transform
 
 

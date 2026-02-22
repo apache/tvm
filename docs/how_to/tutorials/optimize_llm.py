@@ -54,7 +54,6 @@ TinyLlama model from Hugging Face and deploy it on various devices.
 # model architecture by ourselves. Apache TVM prepares a PyTorch-liked API to construct the model
 # architecture. We can use the API to construct the model architecture.
 
-
 import dataclasses
 import enum
 import os
@@ -64,12 +63,12 @@ from typing import List, Optional
 
 import tvm
 from tvm import relax, te, tir
-from tvm.s_tir import dlight
 from tvm.relax import register_pipeline
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.relax.frontend.nn.llm.kv_cache import PagedKVCache, TIRPagedKVCache
 from tvm.runtime import ShapeTuple
+from tvm.s_tir import dlight
 
 ######################################################################
 # First, we need to define the model configuration. The configuration includes the key parameters

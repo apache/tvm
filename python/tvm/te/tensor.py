@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tensor class for computation declaration."""
+
 # pylint: disable=invalid-name
 import tvm_ffi
 
 from tvm.runtime import Object, ObjectConvertible
-from tvm.tir import expr as _expr, DataProducer
+from tvm.tir import DataProducer
+from tvm.tir import expr as _expr
 
 from . import _ffi_api
 

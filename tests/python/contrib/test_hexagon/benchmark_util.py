@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Utility functions used for benchmarks """
+"""Utility functions used for benchmarks"""
 
 import csv
 import os

@@ -15,14 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test cross compilation"""
-import tvm
-import tvm.testing
+
 import os
 import struct
-from tvm import rpc
-from tvm.contrib import utils, cc
-from tvm.script import tir as T, ir as I
+
 import numpy as np
+
+import tvm
+import tvm.testing
+from tvm import rpc
+from tvm.contrib import cc, utils
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 @I.ir_module

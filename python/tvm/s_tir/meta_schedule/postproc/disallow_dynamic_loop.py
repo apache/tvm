@@ -17,6 +17,7 @@
 """A postprocessor that checks if the IRModule has any loop with non-constant extent"""
 
 from tvm_ffi.registry import register_object
+
 from .. import _ffi_api
 from .postproc import Postproc
 

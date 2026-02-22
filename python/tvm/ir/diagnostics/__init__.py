@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -21,6 +22,7 @@ diagnostic information by the compiler. This module exposes
 three key abstractions: a Diagnostic, the DiagnosticContext,
 and the DiagnosticRenderer.
 """
+
 import enum
 import tvm_ffi
 from . import _ffi_api

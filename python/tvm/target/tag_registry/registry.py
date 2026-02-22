@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target tag registry functions."""
+
 from typing import Any, Dict, Optional
+
 from .. import _ffi_api
 from ..target import Target
 

@@ -17,9 +17,12 @@
 # pylint: disable=invalid-name, unused-variable, too-many-locals
 # pylint: disable=unused-argument, redefined-builtin
 """Dilation2D operators"""
+
 from __future__ import absolute_import as _abs
+
 from tvm import te
 from tvm.topi.utils import simplify
+
 from ..nn.pad import pad
 from ..nn.utils import get_pad_tuple
 
@@ -68,9 +71,9 @@ def dilation2d_nchw(input, filter, stride, padding, dilations, out_dtype=None):
 
     batch, in_channel, in_height, in_width = input.shape
     channel, kernel_h, kernel_w = filter.shape
-    assert (
-        in_channel.value == channel.value
-    ), "For Dilation2D input and filter channels should be same."
+    assert in_channel.value == channel.value, (
+        "For Dilation2D input and filter channels should be same."
+    )
 
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
@@ -145,9 +148,9 @@ def dilation2d_nhwc(input, filter, stride, padding, dilations, out_dtype=None):
 
     batch, in_height, in_width, in_channel = input.shape
     kernel_h, kernel_w, channel = filter.shape
-    assert (
-        in_channel.value == channel.value
-    ), "For Dilation2D input and filter channels should be same."
+    assert in_channel.value == channel.value, (
+        "For Dilation2D input and filter channels should be same."
+    )
 
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1

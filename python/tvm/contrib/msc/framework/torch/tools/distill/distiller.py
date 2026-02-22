@@ -20,13 +20,14 @@ from typing import Any, Dict
 
 import torch
 from torch import optim
-from tvm.contrib.msc.core.tools.tool import ToolType
-from tvm.contrib.msc.core.tools.distill import BaseDistiller
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
+
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.distill import BaseDistiller
+from tvm.contrib.msc.core.tools.tool import ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
-class TorchDistillerFactory(object):
+class TorchDistillerFactory:
     """Distiller factory for torch"""
 
     def create(self, base_cls: BaseDistiller) -> BaseDistiller:
@@ -77,7 +78,7 @@ class TorchDistillerFactory(object):
                 elif optimizer == "adam":
                     self._optimizer = optim.Adam(student.parameters(), **opt_config)
                 else:
-                    raise NotImplementedError("optimizer {} is not supported".format(optimizer))
+                    raise NotImplementedError(f"optimizer {optimizer} is not supported")
 
                 # Get loss function
                 loss_strategy = self._strategys.get("loss")
@@ -91,7 +92,7 @@ class TorchDistillerFactory(object):
                     """Common distill model class"""
 
                     def __init__(self):
-                        super(DistillModel, self).__init__()
+                        super().__init__()
                         self.teacher = teacher
                         self.student = student
 

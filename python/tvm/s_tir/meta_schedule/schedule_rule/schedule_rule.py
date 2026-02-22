@@ -18,6 +18,7 @@
 Meta Schedule schedule rules are used for modification of
 blocks in a schedule. See also PostOrderApply.
 """
+
 from typing import TYPE_CHECKING, Callable, List
 
 # isort: off
@@ -26,6 +27,7 @@ from typing_extensions import Literal
 # isort: on
 
 from tvm_ffi import register_object
+
 from tvm.runtime import Object
 from tvm.s_tir.schedule import SBlockRV, Schedule
 

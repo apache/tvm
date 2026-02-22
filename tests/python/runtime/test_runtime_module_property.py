@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 import tvm.runtime._ffi_api
 import tvm.target._ffi_api
+from tvm import te
 
 
 def checker(mod, expected):

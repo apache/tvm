@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
-from tvm.tir import Buffer
-from tvm.script import tir as T
-
 import numpy as np
 import pytest
+
+import tvm
+import tvm.testing
+from tvm.script import tir as T
+from tvm.tir import Buffer
 
 
 def test_buffer():

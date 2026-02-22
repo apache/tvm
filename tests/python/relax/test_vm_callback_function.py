@@ -15,12 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import numpy as np
+
 import tvm
 import tvm.testing
-
 from tvm.script import relax as R
-
-import numpy as np
 
 exec_mode = tvm.testing.parameter("bytecode", "compiled")
 
@@ -112,9 +111,9 @@ def test_catch_exception_with_full_stack_trace(exec_mode, target, dev):
         while stack.tb_next is not None:
             stack = stack.tb_next
         frame = stack.tb_frame
-        assert (
-            frame.f_code.co_filename.find("test_vm_callback_function.py") != -1
-        ), "Inner-most stack frame should be from Python callback"
+        assert frame.f_code.co_filename.find("test_vm_callback_function.py") != -1, (
+            "Inner-most stack frame should be from Python callback"
+        )
 
     else:
         raise RuntimeError("Exception thrown in callback was not propagated to calling scope")

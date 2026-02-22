@@ -24,9 +24,10 @@ import numpy as np  # type: ignore
 import tvm
 
 from ..block_builder import BlockBuilder
+from ..expr import Function, TupleGetItem, Var, const
+from ..expr import Tuple as RxTuple
+from ..op import add, divide, multiply, sqrt, subtract
 from ..struct_info import TensorStructInfo, TupleStructInfo
-from ..op import add, subtract, multiply, divide, sqrt
-from ..expr import const, Var, Function, TupleGetItem, Tuple as RxTuple
 
 
 # TODO(chaofan, yixin): Migrate key logics to C++
@@ -146,7 +147,7 @@ class Optimizer:
                     f"struct info {x.struct_info}"
                 )
             data_type = tvm.DataType(x.struct_info.dtype)
-            if not data_type.type_code in (tvm.DataTypeCode.BFLOAT, tvm.DataTypeCode.FLOAT):
+            if data_type.type_code not in (tvm.DataTypeCode.BFLOAT, tvm.DataTypeCode.FLOAT):
                 raise ValueError(
                     f"Optimizers only support Tensor parameters of floating point dtype, but dtype "
                     f"of {x.name_hint} is {x.struct_info.dtype}"

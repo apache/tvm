@@ -107,7 +107,7 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
 
     for mma_multi_a_col in T.vectorized(4):
         MultiA[mma_multi_a_col] = A[
-            ((tx % 32) % 4) + (4 * ((((tx % 32) // 16 + (tx % 32) % 16 // 4 * 2)) % 4)),
+            ((tx % 32) % 4) + (4 * (((tx % 32) // 16 + (tx % 32) % 16 // 4 * 2) % 4)),
             mma_multi_a_col,
         ]
     for mma_multi_b_col in T.vectorized(4):
@@ -135,7 +135,7 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
     )
     for mma_accum_c_id in range(8):
         C[
-            ((tx % 32) % 4) + (4 * ((((tx % 32) // 16 + (tx % 32) % 16 // 4 * 2)) % 4)),
+            ((tx % 32) % 4) + (4 * (((tx % 32) // 16 + (tx % 32) % 16 // 4 * 2) % 4)),
             mma_accum_c_id % 4 + (4 * ((tx % 32) % 16 // 8)) + mma_accum_c_id // 4 * 8,
         ] = Accum[mma_accum_c_id]
 
@@ -184,7 +184,7 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
 
     for mma_multi_a_col in T.vectorized(4):
         MultiA[mma_multi_a_col] = A[
-            ((tx % 32) % 4) + (4 * ((((tx % 32) // 16 + (tx % 32) % 16 // 4 * 2)) % 4)),
+            ((tx % 32) % 4) + (4 * (((tx % 32) // 16 + (tx % 32) % 16 // 4 * 2) % 4)),
             mma_multi_a_col,
         ]
     for mma_multi_b_col in T.vectorized(4):

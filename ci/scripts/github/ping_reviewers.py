@@ -17,9 +17,9 @@
 # under the License.
 
 import argparse
-import re
 import datetime
 import json
+import re
 import sys
 import textwrap
 from pathlib import Path
@@ -176,7 +176,7 @@ def check_pr(pr, wait_time, now):
 
 def make_ping_message(pr, reviewers):
     reviewers = [f"@{r}" for r in reviewers]
-    author = f'@{pr["author"]["login"]}'
+    author = f"@{pr['author']['login']}"
     text = (
         "It has been a while since this PR was updated, "
         + " ".join(reviewers)

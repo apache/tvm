@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test Meta Schedule Task Scheduler"""
+
 import random
 import weakref
 from typing import Set
@@ -23,10 +24,10 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner
 from tvm.script import tir as T
-from tvm.s_tir import Schedule
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 

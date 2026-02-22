@@ -24,30 +24,30 @@ Server is TCP based with the following protocol:
 - The key is in format
    - {server|client}:device-type[:random-key] [-timeout=timeout]
 """
+
 # pylint: disable=invalid-name
-import os
 import ctypes
-import socket
-import select
-import struct
-import logging
-import threading
-import multiprocessing
-import time
 import errno
+import logging
+import multiprocessing
+import os
+import select
+import socket
+import struct
 import sys
+import threading
+import time
+
 import tvm_ffi
 
 from tvm.base import py_str
-from tvm.libinfo import find_lib_path
-from tvm.runtime.module import load_module as _load_module
 from tvm.contrib import utils
 from tvm.contrib.popen_pool import PopenWorker
-from . import _ffi_api
-from . import base
+from tvm.libinfo import find_lib_path
+from tvm.runtime.module import load_module as _load_module
 
 # pylint: disable=unused-import
-from . import testing
+from . import _ffi_api, base, testing
 from .base import TrackerCode
 
 logger = logging.getLogger("RPCServer")
@@ -96,7 +96,8 @@ def _server_env(load_library, work_path=None):
             path += ".so"
         elif path.endswith(".tar"):
             # Extra dependencies during runtime.
-            from tvm.contrib import cc as _cc, tar as _tar
+            from tvm.contrib import cc as _cc
+            from tvm.contrib import tar as _tar
 
             tar_temp = utils.tempdir(custom_path=path.replace(".tar", ""))
             _tar.untar(path, tar_temp.temp_dir)
@@ -149,7 +150,7 @@ def _serving(sock, addr, opts, load_library):
         logger.info("timeout in RPC session, kill..")
         _ffi_api.ReturnException(
             sock.fileno(),
-            f'RPCSessionTimeoutError: Your {opts["timeout"]}s session has expired, '
+            f"RPCSessionTimeoutError: Your {opts['timeout']}s session has expired, "
             f'try to increase the "session_timeout" value.',
         )
 
@@ -208,7 +209,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         while True:
             if tracker_conn:
                 trigger = select.select([listen_sock], [], [], ping_period)
-                if not listen_sock in trigger[0]:
+                if listen_sock not in trigger[0]:
                     base.sendjson(tracker_conn, [TrackerCode.GET_PENDING_MATCHKEYS])
                     pending_keys = base.recvjson(tracker_conn)
                     old_keyset.add(matchkey)
@@ -258,7 +259,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 tracker_conn.sendall(struct.pack("<i", base.RPC_TRACKER_MAGIC))
                 magic = struct.unpack("<i", base.recvall(tracker_conn, 4))[0]
                 if magic != base.RPC_TRACKER_MAGIC:
-                    raise RuntimeError(f"{str(tracker_addr)} is not RPC Tracker")
+                    raise RuntimeError(f"{tracker_addr!s} is not RPC Tracker")
                 # report status of current queue
                 cinfo = {"key": "server:" + rpc_key, "addr": (custom_addr, port)}
                 base.sendjson(tracker_conn, [TrackerCode.UPDATE_INFO, cinfo])
@@ -266,7 +267,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
 
             # step 2: wait for in-coming connections
             conn, addr, opts = _accept_conn(sock, tracker_conn)
-        except (socket.error, IOError):
+        except OSError:
             # retry when tracker is dropped
             if tracker_conn:
                 tracker_conn.close()
@@ -298,21 +299,21 @@ def _connect_proxy_loop(addr, key, load_library):
             if magic == base.RPC_CODE_MISMATCH:
                 logger.warning("RPCProxy do not have matching client key %s", key)
             elif magic != base.RPC_CODE_SUCCESS:
-                raise RuntimeError(f"{str(addr)} is not RPC Proxy")
+                raise RuntimeError(f"{addr!s} is not RPC Proxy")
             keylen = struct.unpack("<i", base.recvall(sock, 4))[0]
             remote_key = py_str(base.recvall(sock, keylen))
 
             _serving(sock, addr, _parse_server_opt(remote_key.split()[1:]), load_library)
             retry_count = 0
-        except (socket.error, IOError) as err:
+        except OSError as err:
             retry_count += 1
             logger.warning("Error encountered %s, retry in %g sec", str(err), retry_period)
             if retry_count > max_retry:
-                raise RuntimeError(f"Maximum retry error: last error: {str(err)}")
+                raise RuntimeError(f"Maximum retry error: last error: {err!s}")
             time.sleep(retry_period)
 
 
-class PopenRPCServerState(object):
+class PopenRPCServerState:
     """Internal PopenRPCServer State"""
 
     current = None
@@ -357,7 +358,7 @@ class PopenRPCServerState(object):
                     sock.bind((host, my_port))
                     self.port = my_port
                     break
-                except socket.error as sock_err:
+                except OSError as sock_err:
                     if sock_err.errno in [errno.EADDRINUSE]:
                         continue
                     raise sock_err
@@ -420,7 +421,7 @@ def _popen_start_rpc_server(
     return state.port
 
 
-class Server(object):
+class Server:
     """Start RPC server on a separate process.
 
     This is a simple python implementation based on multi-processing.

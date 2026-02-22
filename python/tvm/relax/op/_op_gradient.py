@@ -16,48 +16,47 @@
 # under the License.
 # pylint: disable=unused-argument, redefined-builtin, invalid-name
 """Gradient definitions for Relax operators."""
+
 import functools
 import operator
 from typing import List
 
 from tvm import relax
-from tvm.base import TVMError
 from tvm.arith import Analyzer
+from tvm.base import TVMError
 from tvm.relax.struct_info import ShapeStructInfo
 
-from ..block_builder import BlockBuilder
-from ..expr import Call, Var, Expr, ShapeExpr
 from ...tir import PrimExpr
-
+from ..block_builder import BlockBuilder
+from ..expr import Call, Expr, ShapeExpr, Var
 from .base import register_gradient
-from .binary import less, greater_equal
+from .binary import greater_equal, less
 from .create import triu
 from .datatype import astype
 from .grad import (
-    no_grad,
-    nll_loss_backward,
-    max_pool2d_backward,
     avg_pool2d_backward,
+    max_pool2d_backward,
+    nll_loss_backward,
+    no_grad,
     take_backward,
 )
 from .index import strided_slice
 from .linear_algebra import matmul
 from .manipulate import (
-    collapse_sum_to,
     broadcast_to,
-    permute_dims,
-    expand_dims,
+    collapse_sum_to,
     concat,
+    expand_dims,
+    flatten,
+    permute_dims,
     reshape,
     split,
     squeeze,
-    flatten,
 )
-from .nn import conv2d_transpose, conv2d
+from .nn import conv2d, conv2d_transpose
 from .search import where
-from .statistical import sum, cumsum
-from .unary import cos, exp, log, sin, sigmoid
-
+from .statistical import cumsum, sum
+from .unary import cos, exp, log, sigmoid, sin
 
 # TODO(yixin, chaofan): handle symbolic shape for most of the gradients
 

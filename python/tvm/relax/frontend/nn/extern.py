@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """External modules to be linked into the exported IRModule."""
+
 import os
 import shutil
 import sys
@@ -90,7 +91,7 @@ class ObjectModule(ExternModule):  # pylint: disable=too-few-public-methods
         if not isinstance(filepath, Path):
             filepath = Path(filepath)
         if not filepath.is_file():
-            raise ValueError(f"Not a file: {str(filepath)}")
+            raise ValueError(f"Not a file: {filepath!s}")
         self.filepath = filepath
         super().__init__(symbols)
 
@@ -222,7 +223,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
             if isinstance(source_code, Path):
                 path = source_code
                 if not path.is_file():
-                    raise ValueError(f"Not a file: {str(path)}")
+                    raise ValueError(f"Not a file: {path!s}")
             else:
                 try:
                     path = Path(source_code)
@@ -261,12 +262,10 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         if os.environ.get("TVM_HOME", None):
             tvm_path = Path(os.environ["TVM_HOME"])
             assert tvm_path.exists(), (
-                "Using environment variable `TVM_HOME`, "
-                f"but directory not found: {str(tvm_path)}"
+                f"Using environment variable `TVM_HOME`, but directory not found: {tvm_path!s}"
             )
             assert tvm_path.is_dir(), (
-                "Using environment variable `TVM_HOME`, "
-                f"but it is not a directory: {str(tvm_path)}"
+                f"Using environment variable `TVM_HOME`, but it is not a directory: {tvm_path!s}"
             )
         else:
             import tvm  # pylint: disable=import-outside-toplevel
@@ -316,8 +315,8 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
             for relative in tvm_pkg:
                 results.append(tvm_home / "3rdparty" / relative)
         for path in results:
-            assert path.exists(), f"Not found: {str(path)}"
-            assert path.is_dir(), f"Not a directory: {str(path)}"
+            assert path.exists(), f"Not found: {path!s}"
+            assert path.is_dir(), f"Not a directory: {path!s}"
         return results
 
     @staticmethod

@@ -18,11 +18,11 @@
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import tir as T
 from tvm.s_tir.schedule.testing import (
-    verify_trace_roundtrip,
     assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
 )
+from tvm.script import tir as T
 
 
 def test_annotate_read_buffer_access():

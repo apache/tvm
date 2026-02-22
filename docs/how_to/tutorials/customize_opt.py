@@ -50,7 +50,9 @@ tutorial we will
 
 import os
 import tempfile
+
 import numpy as np
+
 import tvm
 from tvm import IRModule, relax
 from tvm.relax.frontend import nn
@@ -73,7 +75,7 @@ from tvm.relax.frontend import nn
 
 class RelaxModel(nn.Module):
     def __init__(self):
-        super(RelaxModel, self).__init__()
+        super().__init__()
         self.fc1 = nn.Linear(784, 256)
         self.relu1 = nn.ReLU()
         self.fc2 = nn.Linear(256, 10, bias=False)

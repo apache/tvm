@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Script Parser utils"""
+
 import inspect
 from types import FrameType
 from typing import Any, Callable, Dict, List
@@ -29,7 +30,7 @@ def get_func_nonlocals(func):
         func = func.__func__
 
     if not inspect.isfunction(func):
-        raise TypeError("{!r} is not a Python function".format(func))
+        raise TypeError(f"{func!r} is not a Python function")
 
     code = func.__code__
     # Nonlocal references are named in co_freevars and resolved

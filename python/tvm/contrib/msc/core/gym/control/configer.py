@@ -19,7 +19,7 @@
 from tvm.contrib.msc.core import utils as msc_utils
 
 
-class BaseConfiger(object):
+class BaseConfiger:
     """Configer for Gym
 
     Parameters

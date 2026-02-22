@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configuration of TVMScript printer"""
+
 import os
 from typing import Dict, List, Optional, Sequence
 
 from tvm_ffi import get_global_func, register_object
 from tvm_ffi.access_path import AccessPath
+
 from tvm.runtime import Object
 
 from . import _ffi_node_api
@@ -101,7 +103,8 @@ class PrinterConfig(Object):
         if name is not None:
             cfg["name"] = name
         self.__init_handle_by_constructor__(
-            _ffi_node_api.PrinterConfig, cfg  # type: ignore # pylint: disable=no-member
+            _ffi_node_api.PrinterConfig,
+            cfg,  # type: ignore # pylint: disable=no-member
         )
 
 

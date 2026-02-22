@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
-import pytest
+
 import numpy as np
+import pytest
+
 import tvm
 from tvm import rpc
-from tvm.contrib import utils, tflite_runtime
+from tvm.contrib import tflite_runtime, utils
 
 
 def _create_tflite_model():

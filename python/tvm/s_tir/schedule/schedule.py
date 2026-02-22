@@ -15,16 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TensorIR schedule class"""
+
 import inspect
 from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
 
 from tvm_ffi import register_object as _register_object
+
 from tvm.error import TVMError, register_error
 from tvm.ir import GlobalVar, IRModule, PrimExpr
 from tvm.runtime import Object
-from tvm.tir import SBlock, Buffer, FloatImm, For, IntImm, PrimFunc
-
+from tvm.tir import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock
 from tvm.tir.function import IndexMap
+
 from . import _ffi_api
 from ._type_checker import type_checked
 from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
@@ -2397,9 +2399,7 @@ class Schedule(Object):
         reduction_block = self._normalize_block_arg(reduction_block)
         epilogue_block = self._normalize_block_arg(epilogue_block)
         # pylint: disable-next=no-member
-        _ffi_api.ScheduleFuseReductionEpilogue(
-            self, reduction_block, epilogue_block
-        )  # type: ignore
+        _ffi_api.ScheduleFuseReductionEpilogue(self, reduction_block, epilogue_block)  # type: ignore
 
     ########## Schedule: Reduction ##########
 
@@ -3258,9 +3258,9 @@ class Schedule(Object):
                     possible_buffers[buf] = (buffer_index_type, buffer_index)
 
             assert possible_buffers, f"Could not find buffer '{buffer}' in block '{block_name}'"
-            assert (
-                len(possible_buffers) == 1
-            ), f"Multiple buffers named '{buffer}' in block '{block_name}'"
+            assert len(possible_buffers) == 1, (
+                f"Multiple buffers named '{buffer}' in block '{block_name}'"
+            )
             buffer_obj, (buffer_index_type, buffer_index) = next(iter(possible_buffers.items()))
 
         elif isinstance(buffer, Buffer):

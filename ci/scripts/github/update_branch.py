@@ -16,9 +16,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-import json
 import argparse
+import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -27,8 +27,7 @@ from typing import Any, Dict
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
-from git_utils import git, GitHubRepo, parse_remote
-
+from git_utils import GitHubRepo, git, parse_remote
 
 _commit_query_fields = """
     messageHeadline

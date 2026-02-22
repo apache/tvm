@@ -16,22 +16,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-import json
 import argparse
+import json
 import logging
+import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
-from git_utils import git, GitHubRepo, parse_remote, find_ccs, dry_run_token
-from cmd_utils import tags_from_title, init_log
-
+from cmd_utils import init_log, tags_from_title
+from git_utils import GitHubRepo, dry_run_token, find_ccs, git, parse_remote
 
 GITHUB_NAME_REGEX = r"@[a-zA-Z0-9-]+"
 
@@ -276,7 +275,7 @@ if __name__ == "__main__":
 
     new_body = add_ccs_to_body(body, to_cc)
     if new_body is None:
-        logging.info(f"Everyone to cc is already cc'ed, no update needed")
+        logging.info("Everyone to cc is already cc'ed, no update needed")
         exit(0)
 
     logging.info(f"Changing body from:\n----\n{body}\n----\nto:\n----\n{new_body}\n----")

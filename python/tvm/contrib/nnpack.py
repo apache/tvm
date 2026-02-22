@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to NNPACK libraries."""
+
+import tvm_ffi
+
 import tvm
 from tvm import te
-import tvm_ffi
 
 
 def is_available():

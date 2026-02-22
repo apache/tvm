@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to BLAS libraries."""
+
 import tvm
 from tvm import te
+
 from ..topi.nn.utils import get_pad_tuple
 
 

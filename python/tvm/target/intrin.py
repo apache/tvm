@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target dependent intrinsic registration."""
+
 from tvm.ir import register_intrin_lowering
 from tvm.tir import call_pure_extern
 

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Evolutionary Search Strategy"""
+
 from tvm_ffi import register_object
 
 from .. import _ffi_api

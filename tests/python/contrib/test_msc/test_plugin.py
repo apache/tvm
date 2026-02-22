@@ -17,20 +17,19 @@
 
 """Test Plugin in MSC."""
 
-import pytest
 import numpy as np
-
+import pytest
 import torch
 from torch import nn
 
 import tvm.testing
 from tvm import relax
-from tvm.relax.transform import BindParams
-from tvm.script import relax as R
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.pipeline import MSCManager
 from tvm.contrib.msc.plugin import build_plugins
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
+from tvm.relax.transform import BindParams
+from tvm.script import relax as R
 
 
 def _get_externs_header():
@@ -209,7 +208,7 @@ def _get_torch_model(torch_manager):
         """Test model with plugin"""
 
         def __init__(self):
-            super(MyModel, self).__init__()
+            super().__init__()
             self.conv = torch.nn.Conv2d(3, 6, 7, bias=True)
             self.relu = torch_manager.MyRelu(max_val=0.5)
             self.maxpool = nn.MaxPool2d(kernel_size=[1, 1])
@@ -316,10 +315,10 @@ def _test_with_manager(plugins, compile_type, expected_info):
     report = manager.run_pipe()
     model_info = manager.get_runtime().model_info
     manager.destory()
-    assert report["success"], "Failed to run pipe for torch -> {}".format(compile_type)
-    assert msc_utils.dict_equal(
-        model_info, expected_info
-    ), "Model info {} mismatch with expected {}".format(model_info, expected_info)
+    assert report["success"], f"Failed to run pipe for torch -> {compile_type}"
+    assert msc_utils.dict_equal(model_info, expected_info), (
+        f"Model info {model_info} mismatch with expected {expected_info}"
+    )
 
 
 @pytest.mark.skip(

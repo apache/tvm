@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import json
+
 import tvm
-from tvm import te
 from tvm import te
 
 

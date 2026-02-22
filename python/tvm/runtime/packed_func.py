@@ -17,6 +17,7 @@
 
 # pylint: disable=invalid-name, unused-import
 """Packed Function namespace."""
+
 from tvm_ffi import Function as PackedFunc
 
 __all__ = ["PackedFunc"]

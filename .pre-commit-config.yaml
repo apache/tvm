@@ -15,71 +15,91 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Pre-commit hook
-# See documentation at: https://pre-commit.com/
-#
-# Pre-commit hook to run the sanity checks from Jenkins locally.
-#
-# Requirements:
-#   - How to configure:
-#        - $ pip install pre-commit
-#        - $ pre-commit install --hook-type pre-push
-#   - How to prevent running it:
-#        - git options: --no-verify or -n
-#        - $ git commit -n -m "YOUR COMMIT MESSAGE"
-#   - How to run it as standalone
-#        - $ pre-commit run
-#
-
-default_language_version:
-    python: python3.9
-fail_fast: True
-default_stages: [pre-push, pre-commit]
+default_install_hook_types:
+  - pre-commit
 repos:
-    - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v6.0.0
-      hooks:
-        - id: check-added-large-files
-        - id: check-merge-conflict
-        - id: check-yaml
-        - id: end-of-file-fixer
-        - id: trailing-whitespace
+  # ---------- Local hooks ----------
+  - repo: local
+    hooks:
+      - id: check-asf-header
+        name: check ASF Header
+        entry: python tests/lint/check_asf_header.py --check
+        language: python
+        language_version: python3
+        pass_filenames: false
+        verbose: false
+      - id: check-file-type
+        name: check file types
+        entry: python tests/lint/check_file_type.py
+        language: python
+        language_version: python3
+        pass_filenames: false
+        verbose: false
+      - id: check-cmake-options
+        name: check CMake options mirroring
+        entry: python tests/lint/check_cmake_options.py
+        language: python
+        language_version: python3
+        pass_filenames: false
+        verbose: false
 
-    - repo: local
-      hooks:
-        -   id: run-black
-            name: Running Black...
-            entry: docker/lint.sh python_format -i
-            language: system
-            files: \.py$
-            pass_filenames: false
-        -   id: run-file-checks
-            name: Checking File Types....
-            entry: docker/lint.sh file_type
-            language: system
-            always_run: true
-            pass_filenames: false
-        -   id: run-headers-check
-            name: Checking ASF License Headers ...
-            entry: docker/lint.sh asf -i
-            language: system
-            always_run: true
-            pass_filenames: false
-        -   id: run-cpplint
-            name: Linting the C++ code ...
-            entry: docker/lint.sh cpplint
-            language: system
-            files: \.(c|cc|cpp|h|hpp)$
-            pass_filenames: false
-        -   id: run-clang-format
-            name: Checking Clang format ...
-            entry: docker/lint.sh clang_format -i
-            language: system
-            files: \.(c|cc|cpp|h|hpp)$
-            pass_filenames: false
-        -   id: run-mypy
-            name: Type Checking with MyPY ...
-            entry: docker/lint.sh mypy
-            language: system
-            files: \.py$
-            pass_filenames: false
+  # ---------- General file checks ----------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: end-of-file-fixer
+        exclude: ^3rdparty/
+      - id: mixed-line-ending
+        exclude: ^3rdparty/
+      - id: requirements-txt-fixer
+        exclude: ^docker/python/bootstrap
+      - id: trailing-whitespace
+        exclude: ^3rdparty/
+      - id: check-yaml
+      - id: check-toml
+
+  # ---------- YAML lint ----------
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args:
+          - --config-file
+          - .yamllint.yaml
+        exclude: ^\.github/
+
+  # ---------- TOML format ----------
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: v0.9.3
+    hooks:
+      - id: taplo-format
+
+  # ---------- Python: ruff ----------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.3
+    hooks:
+      - id: ruff-check
+        types_or: [python, pyi, jupyter]
+        args: [--fix]
+      - id: ruff-format
+        types_or: [python, pyi, jupyter]
+
+  # ---------- C/C++: clang-format ----------
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: "v20.1.8"
+    hooks:
+      - id: clang-format
+        types_or: [c, c++, cuda, objective-c++]
+        exclude: ^3rdparty/
+
+  # ---------- Cython ----------
+  - repo: https://github.com/MarcoGorelli/cython-lint
+    rev: v0.16.7
+    hooks:
+      - id: cython-lint
+        args: [--max-line-length=120]
+      - id: double-quote-cython-strings

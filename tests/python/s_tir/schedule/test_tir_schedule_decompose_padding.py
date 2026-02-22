@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import tir

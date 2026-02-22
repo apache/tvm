@@ -17,6 +17,7 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
+
 from typing import Dict, Optional, Tuple, Union
 
 import tvm

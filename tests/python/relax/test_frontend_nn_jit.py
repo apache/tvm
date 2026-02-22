@@ -14,15 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import List, Tuple
+
 import pytest
-from typing import Tuple, List
 import torch
 
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.relax.frontend.nn import spec
 from tvm.relax.frontend import nn
+from tvm.relax.frontend.nn import spec
 
 
 @pytest.mark.parametrize("debug", [True, False])
