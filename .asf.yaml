@@ -62,7 +62,6 @@ github:
           - cpu/pr-head
           - docker/pr-head
           - gpu/pr-head
-          - lint/pr-head
           - wasm/pr-head
 
       required_pull_request_reviews:
