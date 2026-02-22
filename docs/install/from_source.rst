@@ -211,13 +211,27 @@ Please note that the commands above verify the presence of an actual device on t
 Step 5. Extra Python Dependencies
 ---------------------------------
 Building from source does not ensure the installation of all necessary Python dependencies.
+
+System Dependencies
+-------------------
+TVM requires several system libraries. On Ubuntu/Debian systems, install them with:
+
+.. code:: bash
+
+   sudo apt update
+   sudo apt install zlib1g-dev libxml2-dev
+
+For other operating systems, please refer to your package manager documentation.
+
+Python Dependencies
+~~~~~~~~~~~~~~~~~~~
 The following commands can be used to install the extra Python dependencies:
 
 * Necessary dependencies:
 
 .. code:: bash
 
-    pip3 install numpy
+    pip3 install numpy cython
 
 * If you want to use RPC Tracker
 
@@ -230,6 +244,15 @@ The following commands can be used to install the extra Python dependencies:
 .. code:: bash
 
     pip3 install tornado psutil 'xgboost>=1.1.0' cloudpickle
+
+Installing the Python Package
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+After building TVM successfully, install the Python package:
+
+.. code:: bash
+
+   cd python
+   pip install -e .
 
 
 .. _windows-build-notes:
