@@ -22,7 +22,7 @@ import inspect
 import sys
 import threading
 from numbers import Integral
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
 
 # isort: off
 from typing_extensions import Literal
@@ -37,7 +37,7 @@ from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tir import Buffer, BufferRegion, IndexMap, PrimExpr
+from tvm.tir import Buffer, BufferRegion, IndexMap, PrimExpr, PrimIntExpr, PrimLogicalExpr
 from tvm.tir import op as _tir_op
 from tvm.tir import type_annotation
 
@@ -117,34 +117,34 @@ def block_name_suffix_context(block_suffix: str):
 
 
 def buffer(
-    shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
+    shape: Union[List[PrimIntExpr], Tuple[PrimIntExpr, ...], PrimIntExpr],
     dtype: str = "float32",
-    data: Var = None,
-    strides: List[PrimExpr] = None,
-    elem_offset: PrimExpr = None,
+    data: Optional[Var] = None,
+    strides: Optional[Union[List[PrimIntExpr], Tuple[PrimIntExpr, ...]]] = None,
+    elem_offset: Optional[PrimIntExpr] = None,
     scope: str = "global",
     align: int = 0,
     offset_factor: int = 0,
     buffer_type: str = "",
-    axis_separators: List[int] = None,
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer:
     """The buffer declaration function.
 
     Parameters
     ----------
-    shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
+    shape : Union[List[PrimIntExpr], Tuple[PrimIntExpr, ...], PrimIntExpr]
         The type of the buffer prior to flattening.
 
     dtype : str
         The data type in the content of the buffer.
 
-    data : Var
+    data : Optional[Var]
         The pointer to the head of the data.
 
-    strides : List[PrimExpr]
+    strides : Optional[Union[List[PrimIntExpr], Tuple[PrimIntExpr, ...]]]
         The strides of each dimension.
 
-    elem_offset : PrimExpr
+    elem_offset : Optional[PrimIntExpr]
         The offset in terms of number of dtype elements (including lanes).
 
     scope : str
@@ -159,7 +159,7 @@ def buffer(
     buffer_type : str
         The buffer type.
 
-    axis_separators : List[int]
+    axis_separators : Optional[List[int]]
         The separators between input axes when generating flattened output axes.
 
     Returns
@@ -269,16 +269,16 @@ def func_ret(ret_type: Type) -> Type:
 
 def match_buffer(
     param: Union[Var, BufferLoad, BufferRegion],
-    shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral] = None,
+    shape: Optional[Union[List[PrimIntExpr], Tuple[PrimIntExpr, ...], PrimIntExpr]] = None,
     dtype: str = "float32",
-    data: Var = None,
-    strides: List[PrimExpr] = None,
-    elem_offset: PrimExpr = None,
+    data: Optional[Var] = None,
+    strides: Optional[Union[List[PrimIntExpr], Tuple[PrimIntExpr, ...]]] = None,
+    elem_offset: Optional[PrimIntExpr] = None,
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
-    axis_separators: List[int] = None,
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer:
     """The buffer match function.
 
@@ -303,19 +303,19 @@ def match_buffer(
     param : Union[Var, BufferLoad, BufferRegion]
         The parameter of the PrimFunc to match.
 
-    shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
+    shape : Optional[Union[List[PrimIntExpr], Tuple[PrimIntExpr, ...], PrimIntExpr]]
         The type of the buffer prior to flattening.
 
     dtype : str
         The data type in the content of the buffer.
 
-    data : Var
+    data : Optional[Var]
         The pointer to the head of the data.
 
-    strides : List[PrimExpr]
+    strides : Optional[Union[List[PrimIntExpr], Tuple[PrimIntExpr, ...]]]
         The strides of each dimension.
 
-    elem_offset : PrimExpr
+    elem_offset : Optional[PrimIntExpr]
         The offset in terms of number of dtype elements (including lanes).
 
     scope : str
@@ -330,7 +330,7 @@ def match_buffer(
     buffer_type : str
         The buffer type.
 
-    axis_separators : List[int]
+    axis_separators : Optional[List[int]]
         The separators between input axes when generating flattened output axes.
 
     Returns
@@ -344,7 +344,7 @@ def match_buffer(
             shape = [region.extent for region in param.region]
         else:
             raise ValueError("Shape must be specified when binding input param")
-    shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
+    shape = (shape,) if isinstance(shape, (PrimExpr, Integral, int)) else shape
     if strides is not None:
         idx_dtype = shape[0].dtype if isinstance(shape[0], PrimExpr) else "int32"
         strides = [Var(s, idx_dtype) if isinstance(s, str) else s for s in strides]
@@ -398,12 +398,12 @@ def init() -> frame.BlockInitFrame:
     return _ffi_api.Init()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def where(predicate: Union[PrimExpr, int]) -> None:
+def where(predicate: PrimLogicalExpr) -> None:
     """The block predicate statement.
 
     Parameters
     ----------
-    predicate : Union[PrimExpr, Literal[0, 1]]
+    predicate : PrimLogicalExpr
         The predicate condition.
     """
     if isinstance(predicate, bool):
@@ -416,27 +416,27 @@ def where(predicate: Union[PrimExpr, int]) -> None:
     _ffi_api.Where(predicate)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def reads(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
+def reads(*buffer_slices: Union[BufferRegion, BufferLoad]) -> None:
     """The block buffer region reading statement.
 
     Parameters
     ----------
-    buffer_slices : List[Union[BufferRegion, BufferLoad]]
+    buffer_slices : Union[BufferRegion, BufferLoad]
         The array of buffer regions to read.
     """
     if len(buffer_slices) == 1:
         if isinstance(buffer_slices[0], tuple):
-            buffer_slices = list(buffer_slices[0])
+            buffer_slices = list(buffer_slices[0])  # type: ignore[assignment]
         elif isinstance(buffer_slices[0], list):
             buffer_slices = buffer_slices[0]  # type: ignore[assignment]
         else:
-            buffer_slices = [buffer_slices[0]]
+            buffer_slices = [buffer_slices[0]]  # type: ignore[assignment]
     else:
         buffer_slices = list(buffer_slices)  # type: ignore[assignment]
     _ffi_api.Reads(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def writes(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
+def writes(*buffer_slices: Union[BufferRegion, BufferLoad]) -> None:
     """The block buffer region writing statement.
 
     Parameters
@@ -446,11 +446,11 @@ def writes(*buffer_slices: List[Union[BufferRegion, BufferLoad]]) -> None:
     """
     if len(buffer_slices) == 1:
         if isinstance(buffer_slices[0], tuple):
-            buffer_slices = list(buffer_slices[0])
+            buffer_slices = list(buffer_slices[0])  # type: ignore[assignment]
         elif isinstance(buffer_slices[0], list):
             buffer_slices = buffer_slices[0]  # type: ignore[assignment]
         else:
-            buffer_slices = [buffer_slices[0]]
+            buffer_slices = [buffer_slices[0]]  # type: ignore[assignment]
     else:
         buffer_slices = list(buffer_slices)  # type: ignore[assignment]
     _ffi_api.Writes(buffer_slices)  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -468,34 +468,34 @@ def sblock_attr(attrs: Dict[str, Any]) -> None:
 
 
 def alloc_buffer(
-    shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
+    shape: Union[List[PrimIntExpr], Tuple[PrimIntExpr], PrimIntExpr],
     dtype: str = "float32",
-    data: Var = None,
-    strides: List[PrimExpr] = None,
-    elem_offset: PrimExpr = None,
+    data: Optional[Var] = None,
+    strides: Optional[Union[List[PrimIntExpr], Tuple[PrimIntExpr, ...]]] = None,
+    elem_offset: Optional[PrimIntExpr] = None,
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
-    axis_separators: List[int] = None,
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer:
     """The buffer alllocation function.
 
     Parameters
     ----------
-    shape : Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral]
+    shape : Union[List[PrimIntExpr], Tuple[PrimIntExpr], PrimIntExpr]
         The type of the buffer prior to flattening.
 
     dtype : str
         The data type in the content of the buffer.
 
-    data : Var
+    data : Optional[Var]
         The pointer to the head of the data.
 
-    strides : List[PrimExpr]
+    strides : Optional[Union[List[PrimIntExpr], Tuple[PrimIntExpr, ...]]]
         The strides of each dimension.
 
-    elem_offset : PrimExpr
+    elem_offset : Optional[PrimIntExpr]
         The offset in terms of number of dtype elements (including lanes).
 
     scope : str
@@ -510,7 +510,7 @@ def alloc_buffer(
     buffer_type : str
         The buffer type.
 
-    axis_separators : List[int]
+    axis_separators : Optional[List[int]]
         The separators between input axes when generating flattened output axes.
 
     Returns
@@ -537,12 +537,14 @@ def alloc_buffer(
     )
 
 
-def _as_range(dom: Union[ir.Range, List[PrimExpr]]) -> ir.Range:
+def _as_range(
+    dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr],
+) -> ir.Range:
     """The range constructor.
 
     Parameters
     ----------
-    dom : Union[Range, List[PrimExpr]]
+    dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]
         The domain.
 
     Returns
@@ -560,7 +562,7 @@ def _as_range(dom: Union[ir.Range, List[PrimExpr]]) -> ir.Range:
             return ir.Range.from_min_extent(dom[0], extent)
         return ir.Range(dom[0], dom[1])
     if hasattr(dom, "dtype"):
-        return ir.Range(IntImm(dom.dtype, 0), dom)
+        return ir.Range(IntImm(dom.dtype, 0), dom)  # type: ignore[attr-defined] # pylint: disable=no-member
     return ir.Range(0, dom)
 
 
@@ -569,18 +571,18 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def spatial(
-        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
-        binding: PrimExpr,
+        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr],
+        binding: PrimIntExpr,
         dtype: str = "int32",
     ) -> Var:
         """The spatial block axis defining function.
 
         Parameters
         ----------
-        dom : Union[Range, List[PrimExpr], Tuple[PrimExpr]]
+        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]
             The domain of the iteration variable.
 
-        binding : PrimExpr
+        binding : PrimIntExpr
             The binding value of the iteration variable.
 
         dtype : str
@@ -597,18 +599,18 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def reduce(
-        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
-        binding: PrimExpr,
+        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr],
+        binding: PrimIntExpr,
         dtype: str = "int32",
     ) -> Var:
         """The reduced block axis defining function.
 
         Parameters
         ----------
-        dom : Union[Range, List[PrimExpr], Tuple[PrimExpr]]
+        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]
             The domain of the iteration variable.
 
-        binding : PrimExpr
+        binding : PrimIntExpr
             The binding value of the iteration variable.
 
         dtype : str
@@ -625,18 +627,18 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def scan(
-        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
-        binding: PrimExpr,
+        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr],
+        binding: PrimIntExpr,
         dtype: str = "int32",
     ) -> Var:
         """The scanning block axis defining function.
 
         Parameters
         ----------
-        dom : Union[Range, List[PrimExpr], Tuple[PrimExpr]]
+        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]
             The domain of the iteration variable.
 
-        binding : PrimExpr
+        binding : PrimIntExpr
             The binding value of the iteration variable.
 
         dtype : str
@@ -653,18 +655,18 @@ class axis:  # pylint: disable=invalid-name
 
     @staticmethod
     def opaque(
-        dom: Union[ir.Range, List[PrimExpr], Tuple[PrimExpr]],
-        binding: PrimExpr,
+        dom: Union[ir.Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr],
+        binding: PrimIntExpr,
         dtype: str = "int32",
     ) -> Var:
         """The opaque block axis defining function.
 
         Parameters
         ----------
-        dom : Union[Range, List[PrimExpr], Tuple[PrimExpr]]
+        dom : Union[Range, List[PrimIntExpr], Tuple[PrimIntExpr, PrimIntExpr], PrimIntExpr]
             The domain of the iteration variable.
 
-        binding : PrimExpr
+        binding : PrimIntExpr
             The binding value of the iteration variable.
 
         dtype : str
@@ -679,8 +681,27 @@ class axis:  # pylint: disable=invalid-name
             _as_range(dom), binding, dtype
         )
 
+    @overload
     @staticmethod
-    def remap(kinds: str, bindings: List[PrimExpr], dtype: str = "int32") -> Union[List[Var], Var]:
+    def remap(kinds: str, bindings: Union[PrimExpr, Tuple[PrimExpr]], dtype: str = "int32") -> Var:
+        ...
+
+    @overload
+    @staticmethod
+    def remap(kinds: str, bindings: Tuple[PrimExpr, ...], dtype: str = "int32") -> List[Var]:
+        ...
+
+    @overload
+    @staticmethod
+    def remap(kinds: str, bindings: List[PrimExpr], dtype: str = "int32") -> List[Var]:
+        ...
+
+    @staticmethod
+    def remap(
+        kinds: str,
+        bindings: Union[List[PrimExpr], Tuple[PrimExpr, ...], PrimExpr],
+        dtype: str = "int32",
+    ) -> Union[List[Var], Var]:
         """The block axis remapping function.
 
         Parameters
@@ -688,7 +709,7 @@ class axis:  # pylint: disable=invalid-name
         kinds : str
             The types of the iteration variables.
 
-        bindings : List[PrimExpr]
+        bindings : Union[List[PrimExpr], Tuple[PrimExpr, ...], PrimExpr]
             The binding values of the iteration variables.
 
         dtype : str
@@ -696,9 +717,10 @@ class axis:  # pylint: disable=invalid-name
 
         Returns
         -------
-        res : Var
+        res : Union[Var, List[Var]]
             The iteration variables.
         """
+        bindings = (bindings,) if isinstance(bindings, PrimExpr) else bindings
         iter_vars = _ffi_api.AxisRemap(  # type: ignore[attr-defined] # pylint: disable=no-member
             kinds, bindings, dtype
         )
@@ -709,26 +731,26 @@ class axis:  # pylint: disable=invalid-name
 
 
 def serial(
-    start: PrimExpr,
-    stop: PrimExpr = None,
+    start: PrimIntExpr,
+    stop: Optional[PrimIntExpr] = None,
     *,
-    annotations: Dict[str, Any] = None,
-    step: Optional[PrimExpr] = None,
+    annotations: Optional[Dict[str, Any]] = None,
+    step: Optional[PrimIntExpr] = None,
 ) -> frame.ForFrame:
     """The serial For statement.
 
     Parameters
     ----------
-    start : PrimExpr
+    start : PrimIntExpr
         The minimum value of iteration.
 
-    stop : PrimExpr
+    stop : Optional[PrimIntExpr]
         The maximum value of iteration.
 
-    annotations : Dict[str, Any]
+    annotations : Optional[Dict[str, Any]]
         The optional annotations of the For statement.
 
-    step : PrimExpr
+    step : Optional[PrimIntExpr]
         The optional step value of iteration.
 
     Returns
@@ -739,33 +761,33 @@ def serial(
     if stop is None:
         stop = start
         if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+            start = IntImm(start.dtype, 0)  # type: ignore[attr-defined] # pylint: disable=no-member
         else:
             start = 0
     return _ffi_api.Serial(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def parallel(
-    start: PrimExpr,
-    stop: PrimExpr = None,
+    start: PrimIntExpr,
+    stop: Optional[PrimIntExpr] = None,
     *,
-    annotations: Dict[str, Any] = None,
-    step: Optional[PrimExpr] = None,
+    annotations: Optional[Dict[str, Any]] = None,
+    step: Optional[PrimIntExpr] = None,
 ) -> frame.ForFrame:
     """The parallel For statement.
 
     Parameters
     ----------
-    start : PrimExpr
+    start : PrimIntExpr
         The minimum value of iteration.
 
-    stop : PrimExpr
+    stop : Optional[PrimIntExpr]
         The maximum value of iteration.
 
-    annotations : Dict[str, Any]
+    annotations : Optional[Dict[str, Any]]
         The optional annotations of the For statement.
 
-    step : PrimExpr
+    step : Optional[PrimIntExpr]
         The optional step value of iteration.
 
     Returns
@@ -776,33 +798,33 @@ def parallel(
     if stop is None:
         stop = start
         if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+            start = IntImm(start.dtype, 0)  # type: ignore[attr-defined] # pylint: disable=no-member
         else:
             start = 0
     return _ffi_api.Parallel(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def vectorized(
-    start: PrimExpr,
-    stop: PrimExpr = None,
+    start: PrimIntExpr,
+    stop: Optional[PrimIntExpr] = None,
     *,
-    annotations: Dict[str, Any] = None,
-    step: Optional[PrimExpr] = None,
+    annotations: Optional[Dict[str, Any]] = None,
+    step: Optional[PrimIntExpr] = None,
 ) -> frame.ForFrame:
     """The vectorized For statement.
 
     Parameters
     ----------
-    start : PrimExpr
+    start : PrimIntExpr
         The minimum value of iteration.
 
-    stop : PrimExpr
+    stop : Optional[PrimIntExpr]
         The maximum value of iteration.
 
-    annotations : Dict[str, Any]
+    annotations : Optional[Dict[str, Any]]
         The optional annotations of the For statement.
 
-    step : PrimExpr
+    step : Optional[PrimIntExpr]
         The optional step value of iteration.
 
     Returns
@@ -813,33 +835,33 @@ def vectorized(
     if stop is None:
         stop = start
         if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+            start = IntImm(start.dtype, 0)  # type: ignore[attr-defined] # pylint: disable=no-member
         else:
             start = 0
     return _ffi_api.Vectorized(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def unroll(
-    start: PrimExpr,
-    stop: PrimExpr = None,
+    start: PrimIntExpr,
+    stop: Optional[PrimIntExpr] = None,
     *,
-    annotations: Dict[str, Any] = None,
-    step: Optional[PrimExpr] = None,
+    annotations: Optional[Dict[str, Any]] = None,
+    step: Optional[PrimIntExpr] = None,
 ) -> frame.ForFrame:
     """The unrolled For statement.
 
     Parameters
     ----------
-    start : PrimExpr
+    start : PrimIntExpr
         The minimum value of iteration.
 
-    stop : PrimExpr
+    stop : Optional[PrimIntExpr]
         The maximum value of iteration.
 
-    annotations : Dict[str, Any]
+    annotations : Optional[Dict[str, Any]]
         The optional annotations of the For statement.
 
-    step : PrimExpr
+    step : Optional[PrimIntExpr]
         The optional step value of iteration.
 
     Returns
@@ -850,33 +872,33 @@ def unroll(
     if stop is None:
         stop = start
         if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+            start = IntImm(start.dtype, 0)  # type: ignore[attr-defined] # pylint: disable=no-member
         else:
             start = 0
     return _ffi_api.Unroll(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def thread_binding(
-    start: PrimExpr,
-    stop: PrimExpr = None,
-    thread: str = None,
+    start: PrimIntExpr,
+    stop: Optional[PrimIntExpr] = None,
+    thread: Optional[str] = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
 ) -> frame.ForFrame:
     """The thread-binding For statement.
 
     Parameters
     ----------
-    start : PrimExpr
+    start : PrimIntExpr
         The minimum value of iteration.
 
-    stop : PrimExpr
+    stop : Optional[PrimIntExpr]
         The maximum value of iteration.
 
-    thread : str
+    thread : Optional[str]
         The thread for loop variable to bind.
 
-    annotations : Dict[str, Any]
+    annotations : Optional[Dict[str, Any]]
         The optional annotations of the For statement.
 
     Returns
@@ -890,13 +912,13 @@ def thread_binding(
         thread = stop
         stop = start
         if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+            start = IntImm(start.dtype, 0)  # type: ignore[attr-defined]
         else:
             start = 0
     elif stop is None:
         stop = start
         if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+            start = IntImm(start.dtype, 0)  # type: ignore[attr-defined]
         else:
             start = 0
     return _ffi_api.ThreadBinding(  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -904,7 +926,7 @@ def thread_binding(
     )
 
 
-def grid(*extents: PrimExpr) -> frame.ForFrame:
+def grid(*extents: PrimIntExpr) -> frame.ForFrame:
     """The grid For statement.
 
     Parameters
@@ -920,12 +942,14 @@ def grid(*extents: PrimExpr) -> frame.ForFrame:
     return _ffi_api.Grid(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def Assert(condition: PrimExpr, message: str) -> frame.AssertFrame:  # pylint: disable=invalid-name
+def Assert(  # pylint: disable=invalid-name
+    condition: PrimLogicalExpr, message: str
+) -> frame.AssertFrame:
     """Create an assertion statement.
 
     Parameters
     ----------
-    condition : PrimExpr
+    condition : PrimLogicalExpr
         The PrimExpr to test.
 
     message : str

@@ -16,7 +16,7 @@
 # under the License.
 """Common expressions data structures in the IR."""
 from numbers import Number
-from typing import Optional
+from typing import Optional, Union
 
 import tvm
 import tvm_ffi
@@ -42,6 +42,11 @@ class PrimExpr(BaseExpr):
     """
 
     dtype: str
+
+
+PrimIntExpr = Union[PrimExpr, int]
+PrimFloatExpr = Union[PrimExpr, float]
+PrimLogicalExpr = Union[PrimExpr, int, bool]
 
 
 @tvm_ffi.register_object("ir.RelaxExpr")
@@ -115,11 +120,11 @@ class Range(Node, Scriptable):
 
     Parameters
     ----------
-    begin : PrimExpr
+    begin : PrimIntExpr
         The begin value of the range when end is None.
         Otherwise it is the length of the range.
 
-    end : Optional[PrimExpr]
+    end : Optional[PrimIntExpr]
         The end value of the range.
 
     span : Optional[Span]
@@ -136,13 +141,13 @@ class Range(Node, Scriptable):
     span: Optional[Span]
 
     def __init__(
-        self, begin: PrimExpr, end: Optional[PrimExpr] = None, span: Optional[Span] = None
+        self, begin: PrimIntExpr, end: Optional[PrimIntExpr] = None, span: Optional[Span] = None
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
 
     @staticmethod
     def from_min_extent(
-        min_value: PrimExpr, extent: PrimExpr, span: Optional[Span] = None
+        min_value: PrimIntExpr, extent: PrimIntExpr, span: Optional[Span] = None
     ) -> "Range":
         """Construct a Range by min and extent.
 
@@ -150,10 +155,10 @@ class Range(Node, Scriptable):
 
         Parameters
         ----------
-        min_value : PrimExpr
+        min_value : PrimIntExpr
             The minimum value of the range.
 
-        extent : PrimExpr
+        extent : PrimIntExpr
             The extent of the range.
 
         span : Optional[Span]
