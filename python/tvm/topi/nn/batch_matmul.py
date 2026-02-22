@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Batch matrix multiplication"""
+
 # pylint: disable=invalid-name
 import logging
 

@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
+import numpy as np
+import pytest
 import tvm_ffi
+
+import tvm
 import tvm.testing
 from tvm import s_tir
-from tvm.script import tir as T, ir as I
-
-import pytest
-import numpy as np
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def count_cp_async(stmt):
@@ -957,9 +958,9 @@ def test_multiplication_nodes_are_inlined():
             T.attr("default", "async_scope", 1)
             for i in range(16):
                 cse_v1: T.int64 = T.Cast("int64", i)
-                A_shared[
-                    T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)
-                ] = A_flattened[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)]
+                A_shared[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)] = (
+                    A_flattened[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)]
+                )
             T.ptx_commit_group()
             T.ptx_wait_group(0)
 

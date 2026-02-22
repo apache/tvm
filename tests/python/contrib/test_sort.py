@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
+
 # pylint: disable=invalid-name
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import te

@@ -15,40 +15,41 @@
 # specific language governing permissions and limitations
 # under the License.
 """CLML integration operator tests."""
-import pytest
-import numpy as np
-import tvm
-import tvm.testing
+
 import json
 
+import numpy as np
+import pytest
+from mod_utils import (
+    get_avgpool_expected_codegen,
+    get_batchnorm_mod,
+    get_binary_op_mod,
+    get_clml_conv2d_codegen,
+    get_conv2d_transpose_expected_codegen,
+    get_global_avgpool_expected_codegen,
+    get_global_maxpool_expected_codegen,
+    get_maxpool_expected_codegen,
+    get_relax_avgpool_mod,
+    get_relax_conv2d_mod,
+    get_relax_conv2d_transpose_mod,
+    get_relax_global_avgpool_mod,
+    get_relax_global_maxpool_mod,
+    get_relax_maxpool_mod,
+    get_relax_reshape_codegen,
+    get_relax_reshape_mod,
+    get_unary_op_mod,
+)
+
+import tvm
+import tvm.testing
 from tvm import relax
-from tvm.script import relax as R
+from tvm.relax.backend.adreno import clml
+from tvm.relax.backend.adreno.clml import OpenCLMLOffLoad
 from tvm.script import ir as I
+from tvm.script import relax as R
 from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
-from tvm.relax.backend.adreno import clml
-from tvm.relax.backend.adreno.clml import OpenCLMLOffLoad
-
-from mod_utils import (
-    get_relax_conv2d_mod,
-    get_clml_conv2d_codegen,
-    get_relax_conv2d_transpose_mod,
-    get_conv2d_transpose_expected_codegen,
-    get_batchnorm_mod,
-    get_binary_op_mod,
-    get_unary_op_mod,
-    get_relax_maxpool_mod,
-    get_maxpool_expected_codegen,
-    get_relax_avgpool_mod,
-    get_avgpool_expected_codegen,
-    get_relax_reshape_mod,
-    get_relax_reshape_codegen,
-    get_relax_global_avgpool_mod,
-    get_global_avgpool_expected_codegen,
-    get_relax_global_maxpool_mod,
-    get_global_maxpool_expected_codegen,
-)
 
 
 def compare_codegen(clml_mod, clml_codegen):

@@ -18,14 +18,14 @@
 
 import os
 import shutil
+import subprocess
 import tempfile
 import types
-import subprocess
 from functools import partial
-from typing import List, Any, Union
 from importlib.machinery import SourceFileLoader
+from typing import Any, List, Union
 
-from .namespace import MSCMap, MSCKey, MSCFramework
+from .namespace import MSCFramework, MSCKey, MSCMap
 from .register import get_registered_func
 
 
@@ -82,7 +82,7 @@ def load_callable(name: str, framework: str = MSCFramework.MSC) -> callable:
     raise Exception("Func {} is neighter registered nor path.py:name string")
 
 
-class MSCDirectory(object):
+class MSCDirectory:
     """Create a directory manager for MSC"""
 
     def __init__(self, path: str = None, keep_history: bool = True, cleanup: bool = False):
@@ -95,7 +95,7 @@ class MSCDirectory(object):
             os.mkdir(self._path)
 
     def __str__(self):
-        return "{}(Cleanup: {}): {} Files".format(self._path, self._cleanup, len(self.listdir()))
+        return f"{self._path}(Cleanup: {self._cleanup}): {len(self.listdir())} Files"
 
     def __enter__(self):
         if not os.path.isdir(self._path):
@@ -158,7 +158,7 @@ class MSCDirectory(object):
 
         if src_path != os.path.abspath(src_path):
             src_path = os.path.join(self.relpath(src_path))
-        assert os.path.isfile(src_path), "Source path {} not exist".format(src_path)
+        assert os.path.isfile(src_path), f"Source path {src_path} not exist"
         if not dst_path:
             dst_path = self.relpath(os.path.basename(src_path))
         if dst_path != os.path.abspath(dst_path):
@@ -186,7 +186,7 @@ class MSCDirectory(object):
             return None
         if src_path != os.path.abspath(src_path):
             src_path = os.path.join(self.relpath(src_path))
-        assert os.path.exists(src_path), "Source path {} not exist".format(src_path)
+        assert os.path.exists(src_path), f"Source path {src_path} not exist"
         if not dst_path:
             dst_path = self.relpath(os.path.basename(src_path))
         if dst_path != os.path.abspath(dst_path):
@@ -376,7 +376,7 @@ def get_workspace() -> MSCDirectory:
     return workspace
 
 
-class ChangeWorkspace(object):
+class ChangeWorkspace:
     """Change the workspace
 
     Parameters
@@ -476,17 +476,15 @@ def pack_folder(path: str, dst: str = None, style="tar.gz"):
     dst = dst or path + "." + style
     root = os.path.dirname(path)
     if style == "tar.gz":
-        cmd = "tar --exculde={0} -zcvf {0} {1} && rm -rf {1}".format(dst, path)
+        cmd = f"tar --exculde={dst} -zcvf {dst} {path} && rm -rf {path}"
     else:
-        raise NotImplementedError("Pack style {} is not supported".format(style))
+        raise NotImplementedError(f"Pack style {style} is not supported")
     if root:
         with msc_dir(root):
             retcode = subprocess.call(cmd, shell=True)
     else:
         retcode = subprocess.call(cmd, shell=True)
-    assert retcode == 0, "Failed to pack the folder {}->{}({}): {}".format(
-        path, dst, style, retcode
-    )
+    assert retcode == 0, f"Failed to pack the folder {path}->{dst}({style}): {retcode}"
     return dst
 
 
@@ -511,17 +509,15 @@ def unpack_folder(path: str, dst: str = None, style="tar.gz"):
     dst = dst or path.split(".")[0]
     root = os.path.dirname(path)
     if style == "tar.gz":
-        cmd = "tar -zxvf {} {}".format(path, dst)
+        cmd = f"tar -zxvf {path} {dst}"
     else:
-        raise NotImplementedError("Pack style {} is not supported".format(style))
+        raise NotImplementedError(f"Pack style {style} is not supported")
     if root:
         with msc_dir(root):
             retcode = subprocess.call(cmd, shell=True)
     else:
         retcode = subprocess.call(cmd, shell=True)
-    assert retcode == 0, "Failed to unpack the folder {}->{}({}): {}".format(
-        path, dst, style, retcode
-    )
+    assert retcode == 0, f"Failed to unpack the folder {path}->{dst}({style}): {retcode}"
     return dst
 
 

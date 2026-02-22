@@ -18,6 +18,7 @@
 from typing import List, Set, Union
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax as rx
@@ -27,11 +28,11 @@ from tvm.relax.analysis import (
     all_vars,
     bound_vars,
     free_vars,
-    used_vars,
     has_reshape_pattern,
     name_to_binding,
     remove_all_unused,
     udchain,
+    used_vars,
 )
 from tvm.script import ir as I
 from tvm.script import relax as R

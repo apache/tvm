@@ -16,25 +16,27 @@
 # under the License.
 
 """Test rpc based launcher for hexagon"""
+
 import tempfile
 
 import numpy as np
 import pytest
+
 import tvm.testing
 import tvm.topi.testing
-from tvm.s_tir import meta_schedule as ms
 from tvm import te
 from tvm.contrib.hexagon.meta_schedule import (
     get_hexagon_local_builder,
     get_hexagon_rpc_runner,
 )
+from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule import postproc, schedule_rule
 from tvm.s_tir.meta_schedule.arg_info import TensorInfo
 from tvm.s_tir.meta_schedule.builder import BuilderInput
 from tvm.s_tir.meta_schedule.runner import RunnerInput
+from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 from tvm.script import tir as T
 from tvm.tir import FloatImm
-from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 
 from .infrastructure import get_hexagon_target
 
@@ -290,9 +292,7 @@ class ModuleVRMPYAutoTensorize:
                     )
                     a_u8x4: T.uint8x4 = a_buffer[0:4]  # type: ignore
                     a_i32: T.int32 = T.reinterpret(a_u8x4, dtype="int32")  # type: ignore
-                    b_i32x32: T.int32x32 = T.reinterpret(
-                        b_buffer[0, 0:128], dtype="int32x32"
-                    )  # type: ignore
+                    b_i32x32: T.int32x32 = T.reinterpret(b_buffer[0, 0:128], dtype="int32x32")  # type: ignore
                     c_buffer[0:32] = T.call_llvm_pure_intrin(  # type: ignore
                         4390, c_buffer[0:32], b_i32x32, a_i32, dtype="int32x32"
                     )

@@ -16,17 +16,18 @@
 # under the License.
 # pylint: disable=invalid-name, unused-import
 """The struct info nodes of the Relax language."""
+
 from typing import List, Optional, Union
 
 import tvm_ffi
+
 import tvm
-
-from tvm.ir import Span, EnvFunc, Array, VDevice
-from tvm.tir import PrimExpr
+from tvm.ir import Array, EnvFunc, Span, VDevice
 from tvm.runtime import DataType
-from .expr import StructInfo, Expr, ShapeExpr
+from tvm.tir import PrimExpr
 
-from . import _ffi_api, ty, expr
+from . import _ffi_api, expr, ty
+from .expr import Expr, ShapeExpr, StructInfo
 
 
 @tvm_ffi.register_object("relax.ObjectStructInfo")
@@ -98,13 +99,9 @@ class PrimStructInfo(StructInfo):
             value = tvm.tir.IntImm("int64", value)
 
         if value is None:
-            self.__init_handle_by_constructor__(
-                _ffi_api.PrimStructInfoFromDtype, dtype, span
-            )  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.PrimStructInfoFromDtype, dtype, span)  # type: ignore
         else:
-            self.__init_handle_by_constructor__(
-                _ffi_api.PrimStructInfoFromValue, value, span
-            )  # type: ignore
+            self.__init_handle_by_constructor__(_ffi_api.PrimStructInfoFromValue, value, span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.ShapeStructInfo")
@@ -132,7 +129,10 @@ class ShapeStructInfo(StructInfo):
         self, values: Optional[List[PrimExpr]] = None, ndim: int = -1, span: Span = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ShapeStructInfo, values, ndim, span  # type: ignore
+            _ffi_api.ShapeStructInfo,
+            values,
+            ndim,
+            span,  # type: ignore
         )
 
 
@@ -176,7 +176,12 @@ class TensorStructInfo(StructInfo):
         if isinstance(shape, (list, tuple, Array)):
             shape = ShapeExpr(shape)
         self.__init_handle_by_constructor__(
-            _ffi_api.TensorStructInfo, shape, dtype, ndim, vdevice, span  # type: ignore
+            _ffi_api.TensorStructInfo,
+            shape,
+            dtype,
+            ndim,
+            vdevice,
+            span,  # type: ignore
         )
 
 
@@ -226,7 +231,11 @@ class FuncStructInfo(StructInfo):
         self, params: List[StructInfo], ret: StructInfo, purity: bool = True, span: Span = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.FuncStructInfo, params, ret, purity, span  # type: ignore
+            _ffi_api.FuncStructInfo,
+            params,
+            ret,
+            purity,
+            span,  # type: ignore
         )
 
     @staticmethod

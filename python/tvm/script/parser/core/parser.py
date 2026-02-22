@@ -567,9 +567,7 @@ class Parser(doc.NodeVisitor):
             self.var_table.add(k, var, allow_shadowing)
         return var_values
 
-    def report_error(
-        self, node: doc.AST, err: Union[Exception, str]
-    ) -> None:  # pylint: disable=no-self-use
+    def report_error(self, node: doc.AST, err: Union[Exception, str]) -> None:  # pylint: disable=no-self-use
         """The error reporting when parsing.
 
         Parameters

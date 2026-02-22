@@ -17,12 +17,12 @@
 
 """The Relax Dataflow Pattern Language."""
 
-from .pattern import *
 from .context import *
+from .pattern import *
 from .rewrite import (
-    rewrite_call,
-    rewrite_bindings,
-    PatternMatchingRewriter,
     ExprPatternRewriter,
     OrRewriter,
+    PatternMatchingRewriter,
+    rewrite_bindings,
+    rewrite_call,
 )

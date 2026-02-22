@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Base infra"""
+
 from .common_schedules import try_inline, try_inline_contiguous_spatial
 from .schedule_rule import ScheduleRule
 from .transform import ApplyDefaultSchedule

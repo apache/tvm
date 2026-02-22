@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
+
 # pylint: disable=invalid-name
 import logging
 import time
+
 import tvm
 from tvm import rpc
 
@@ -26,7 +28,7 @@ def check_server_drop():
     """test when server drops"""
     try:
         # pylint: disable=import-outside-toplevel
-        from tvm.rpc import tracker, proxy, base
+        from tvm.rpc import base, proxy, tracker
 
         # pylint: disable=import-outside-toplevel
         from tvm.rpc.base import TrackerCode

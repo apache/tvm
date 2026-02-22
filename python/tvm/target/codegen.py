@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Code generation related functions."""
+
+from ..ir.container import Array
 from . import _ffi_api
 from .target import Target
-from ..ir.container import Array
 
 
 def build_module(mod, target):

@@ -18,7 +18,8 @@
 The tvm.s_tir.meta_schedule.database package.
 The database that stores serialized tuning records and workloads
 """
-from .post_opt import PostOpt
+
 from .droplet import Droplet
+from .post_opt import PostOpt
 from .space import Space
-from .utils import write_file, get_time
+from .utils import get_time, write_file

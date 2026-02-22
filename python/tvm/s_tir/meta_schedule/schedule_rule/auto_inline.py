@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Auto-Inline. Rule that inlines spatial blocks if it satisfies some conditions"""
+
 from typing import List, Optional
 
 from tvm_ffi import register_object

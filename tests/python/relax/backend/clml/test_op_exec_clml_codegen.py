@@ -15,34 +15,35 @@
 # specific language governing permissions and limitations
 # under the License.
 """CLML integration operator tests."""
-import pytest
-import numpy as np
-import tvm
-import tvm.testing
+
 import json
 import os
 
+import numpy as np
+import pytest
+from mod_utils import (
+    get_batchnorm_mod,
+    get_binary_op_mod,
+    get_relax_avgpool_mod,
+    get_relax_conv2d_mod,
+    get_relax_global_avgpool_mod,
+    get_relax_global_maxpool_mod,
+    get_relax_maxpool_mod,
+    get_relax_reshape_codegen,
+    get_relax_reshape_mod,
+    get_unary_op_mod,
+)
+from utils import run_compare
+
+import tvm
+import tvm.testing
 from tvm import relax, rpc
-from tvm.script import relax as R
+from tvm.relax.backend.adreno import clml
 from tvm.script import ir as I
+from tvm.script import relax as R
 from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
-from tvm.relax.backend.adreno import clml
-from utils import run_compare
-
-from mod_utils import (
-    get_relax_conv2d_mod,
-    get_batchnorm_mod,
-    get_binary_op_mod,
-    get_unary_op_mod,
-    get_relax_maxpool_mod,
-    get_relax_avgpool_mod,
-    get_relax_reshape_mod,
-    get_relax_reshape_codegen,
-    get_relax_global_avgpool_mod,
-    get_relax_global_maxpool_mod,
-)
 
 
 @tvm.testing.requires_openclml

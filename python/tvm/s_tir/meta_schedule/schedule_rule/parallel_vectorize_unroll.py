@@ -16,6 +16,7 @@
 # under the License.
 """Rule that mark parallelize, vectorize and unroll to the root block. The mark will be applied to
 each block in a follow-up post processor"""
+
 from typing import List, Optional
 
 from tvm_ffi import register_object

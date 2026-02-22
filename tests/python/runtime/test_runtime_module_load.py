@@ -14,14 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
-from tvm.contrib import cc, utils, popen_pool
-import sys
-import numpy as np
 import subprocess
-import tvm.testing
+import sys
+
+import numpy as np
 import pytest
+
+import tvm
+import tvm.testing
+from tvm import te
+from tvm.contrib import cc, popen_pool, utils
 
 runtime_py = """
 import os
@@ -200,8 +202,9 @@ def test_combine_module_llvm():
         cc.create_shared(path_dso, [path1, path2])
 
         def popen_check():
-            import tvm.runtime
             import ctypes
+
+            import tvm.runtime
 
             # Load dll, will trigger system library registration
             ctypes.CDLL(path_dso)

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relax Neural Network (NN) operators"""
+
 from typing import List, Optional, Tuple, Union
 
 from tvm import DataType, relax
@@ -2034,9 +2035,7 @@ def attention(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(
-        query, key, value, bias, scale, causal_mask, window_size
-    )  # type: ignore
+    return _ffi_api.attention(query, key, value, bias, scale, causal_mask, window_size)  # type: ignore
 
 
 def attention_bias(
@@ -2131,9 +2130,7 @@ def attention_bias(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(
-        query, key, value, bias, scale, causal_mask, window_size
-    )  # type: ignore
+    return _ffi_api.attention(query, key, value, bias, scale, causal_mask, window_size)  # type: ignore
 
 
 def attention_var_len(

@@ -176,7 +176,8 @@ def test_regression_py_print():
 def test_function_subroutine_before_main():
     """The block builder can generate subroutines, and calls into subroutines"""
 
-    from tvm.script import ir as I, relax as R
+    from tvm.script import ir as I
+    from tvm.script import relax as R
 
     # create with TVMScript
     @I.ir_module
@@ -217,7 +218,8 @@ def test_function_subroutine_before_main():
 def test_function_subroutine_during_main():
     """Subroutines may be generated as needed, pausing the main function collection"""
 
-    from tvm.script import ir as I, relax as R
+    from tvm.script import ir as I
+    from tvm.script import relax as R
 
     # create with TVMScript
     @I.ir_module

@@ -15,23 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import math
 import operator
+
 import pytest
 import torch
 import torch.nn.functional as F
+import torchvision
 from torch import fx
 from torch.nn import Module
-import torchvision
-import math
 
 import tvm
-from tvm import relax
 import tvm.testing
+from tvm import relax
+from tvm.relax.frontend import detach_params
+from tvm.relax.frontend.torch import from_fx
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.relax.frontend import detach_params
-from tvm.relax.frontend.torch import from_fx
 
 
 def verify_model(torch_model, input_info, binding, expected):
@@ -524,9 +525,9 @@ def test_pad():
     @tvm.script.ir_module
     class expected_constant:
         @R.function
-        def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 14, 12), dtype="float32"):
+        def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 14, 12), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
                     x,
@@ -541,9 +542,9 @@ def test_pad():
     @tvm.script.ir_module
     class expected_reflect:
         @R.function
-        def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 14, 12), dtype="float32"):
+        def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 14, 12), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
                     x,
@@ -558,9 +559,9 @@ def test_pad():
     @tvm.script.ir_module
     class expected_replicate:
         @R.function
-        def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 14, 12), dtype="float32"):
+        def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 14, 12), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
                     x,
@@ -575,9 +576,9 @@ def test_pad():
     @tvm.script.ir_module
     class expected_circular:
         @R.function
-        def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 14, 12), dtype="float32"):
+        def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 14, 12), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
                     x,
@@ -616,9 +617,9 @@ def test_pixel_shuffle():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 8, 10, 15), dtype="float32")
-        ) -> R.Tensor((1, 2, 20, 30), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 8, 10, 15), dtype="float32")) -> R.Tensor(
+            (1, 2, 20, 30), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 2, 20, 30), dtype="float32") = R.nn.pixel_shuffle(
                     inp_0, upscale_factor=2
@@ -958,9 +959,9 @@ def test_leakyrelu():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(
-            input_1: R.Tensor((10, 10), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((10, 10), dtype="float32")) -> R.Tensor(
+            (10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.nn.leakyrelu(input_1, 0.02)
@@ -984,7 +985,7 @@ def test_prelu():
 
     class Prelu2(torch.nn.Module):
         def __init__(self):
-            super(Prelu2, self).__init__()
+            super().__init__()
             self.alpha = torch.nn.Parameter(torch.tensor([0.25]))
 
         def forward(self, x):
@@ -993,9 +994,9 @@ def test_prelu():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.prelu(
                     x, R.const([0.25], dtype="float32"), axis=1
@@ -1030,9 +1031,9 @@ def test_maxpool1d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 5), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 5), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 5), dtype="float32") = R.nn.max_pool1d(
                     input_1,
@@ -1058,9 +1059,9 @@ def test_maxpool1d():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10), dtype="float32") = R.nn.max_pool1d(
                     input_1,
@@ -1086,9 +1087,9 @@ def test_maxpool1d():
     @tvm.script.ir_module
     class expected3:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 3), dtype="float32"):  # Corrected here
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 3), dtype="float32"
+        ):  # Corrected here
             with R.dataflow():
                 lv: R.Tensor((1, 3, 3), dtype="float32") = R.nn.max_pool1d(
                     input_1,
@@ -1130,9 +1131,9 @@ def test_maxpool2d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.max_pool2d(
@@ -1159,9 +1160,9 @@ def test_maxpool2d():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 4, 4), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 4, 4), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 4, 4), dtype="float32") = R.nn.max_pool2d(
@@ -1188,9 +1189,9 @@ def test_maxpool2d():
     @tvm.script.ir_module
     class expected3:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 6, 6), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 6, 6), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 6, 6), dtype="float32") = R.nn.max_pool2d(
@@ -1233,9 +1234,9 @@ def test_maxpool3d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10, 10), dtype="float32") = R.nn.max_pool3d(
                     input_1,
@@ -1261,9 +1262,9 @@ def test_maxpool3d():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 5, 4, 4), dtype="float32"):  # Fixed here
+        def main(input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 5, 4, 4), dtype="float32"
+        ):  # Fixed here
             with R.dataflow():
                 lv: R.Tensor((1, 3, 5, 4, 4), dtype="float32") = R.nn.max_pool3d(
                     input_1,
@@ -1289,9 +1290,9 @@ def test_maxpool3d():
     @tvm.script.ir_module
     class expected3:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 5, 5, 5), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 5, 5, 5), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 5, 5, 5), dtype="float32") = R.nn.max_pool3d(
                     input_1,
@@ -1326,9 +1327,9 @@ def test_avgpool1d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv = R.nn.avg_pool1d(
                     input_1,
@@ -1423,9 +1424,9 @@ def test_avgpool2d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.avg_pool2d(
@@ -1520,9 +1521,9 @@ def test_avgpool3d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")
-        ) -> R.Tensor((1, 3, 8, 8, 8), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")) -> R.Tensor(
+            (1, 3, 8, 8, 8), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 8, 8, 8), dtype="float32") = R.nn.avg_pool3d(
                     input_1,
@@ -1623,9 +1624,9 @@ def test_adaptive_avgpool1d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 16), dtype="float32")
-        ) -> R.Tensor((1, 3, 8), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 16), dtype="float32")) -> R.Tensor(
+            (1, 3, 8), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 8), dtype="float32") = R.nn.adaptive_avg_pool1d(
                     input_1, output_size=[8], layout="NCW", out_layout="NCW"
@@ -1656,9 +1657,9 @@ def test_adaptive_avgpool2d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.adaptive_avg_pool2d(
@@ -1690,9 +1691,9 @@ def test_adaptive_avgpool3d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 16, 16, 16), dtype="float32")
-        ) -> R.Tensor((1, 3, 8, 8, 8), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 16, 16, 16), dtype="float32")) -> R.Tensor(
+            (1, 3, 8, 8, 8), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 8, 8, 8), dtype="float32") = R.nn.adaptive_avg_pool3d(
                     input_1, output_size=[8, 8, 8], layout="NCDHW", out_layout="NCDHW"
@@ -1719,9 +1720,9 @@ def test_flatten():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 100), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 100), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 100), dtype="float32") = R.reshape(input_1, (1, 3, 100))
@@ -1836,9 +1837,9 @@ def test_stochastic_depth():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = input_1
@@ -2561,9 +2562,9 @@ def test_squeeze():
     @tvm.script.ir_module
     class Expected1:
         @R.function
-        def main(
-            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")
-        ) -> R.Tensor((3, 4, 1), dtype="float32"):
+        def main(inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")) -> R.Tensor(
+            (3, 4, 1), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((3, 4, 1), dtype="float32") = R.squeeze(inp_0, axis=[1])
                 gv: R.Tensor((3, 4, 1), dtype="float32") = lv
@@ -2577,9 +2578,9 @@ def test_squeeze():
     @tvm.script.ir_module
     class Expected2:
         @R.function
-        def main(
-            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")
-        ) -> R.Tensor((3, 4), dtype="float32"):
+        def main(inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")) -> R.Tensor(
+            (3, 4), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(inp_0, axis=None)
                 gv: R.Tensor((3, 4), dtype="float32") = lv
@@ -2600,9 +2601,9 @@ def test_unsqueeze():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 1, 3, 10, 10), dtype="float32") = R.expand_dims(input_1, 1)
@@ -2617,9 +2618,9 @@ def test_unsqueeze():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10, 1), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10, 1), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10, 1), dtype="float32") = R.expand_dims(input_1, -1)
@@ -2659,9 +2660,9 @@ def test_getitem():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            x: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 1, 10, 3), dtype="float32"):
+        def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 1, 10, 3), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 1, 10, 3), dtype="float32") = R.strided_slice(
@@ -2683,9 +2684,9 @@ def test_getitem():
     @I.ir_module
     class expected2:
         @R.function
-        def main(
-            inp_0: R.Tensor((8, 16), dtype="float32")
-        ) -> R.Tensor((8, 1, 1, 16, 1), dtype="float32"):
+        def main(inp_0: R.Tensor((8, 16), dtype="float32")) -> R.Tensor(
+            (8, 1, 1, 16, 1), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((8, 16), dtype="float32") = R.strided_slice(
                     inp_0, axes=[0, 1], begin=[0, 0], end=[8, 16], strides=[1, 1]
@@ -2740,9 +2741,9 @@ def test_basic_unary_ops(pytorch_op, relax_op):
     @tvm.script.ir_module
     class expected_unary:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = relax_op(input_1)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
@@ -2791,9 +2792,9 @@ def test_bool_unary_ops(pytorch_op, relax_op):
     @tvm.script.ir_module
     class expected_unary:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="bool"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="bool") = relax_op(input_1)
                 gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv
@@ -2823,9 +2824,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_celu:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input_1)
@@ -2934,9 +2935,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_dropout:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = input_1
@@ -2962,9 +2963,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_elu:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input_1)
@@ -3002,9 +3003,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_gelu:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.gelu(input_1)
@@ -3031,9 +3032,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_hardsigmoid:
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(inp_0, R.const(3, "float32"))
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv, 0, 6)
@@ -3063,9 +3064,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_hardswish:
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(inp_0, R.const(3, "float32"))
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv, 0, 6)
@@ -3096,9 +3097,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
                     inp_0, R.prim_value(T.float64(-1.0)), R.prim_value(T.float64(1.0))
@@ -3192,9 +3193,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_logical_not:
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.logical_not(inp_0)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
@@ -3219,9 +3220,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_log_softmax:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.log_softmax(input_1, axis=1)
@@ -3240,9 +3241,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_reciprocal:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
                     R.const(1.0, "float32"), input_1
@@ -3269,9 +3270,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_relu:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input_1)
@@ -3298,9 +3299,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu6(inp_0)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
@@ -3326,9 +3327,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_selu:
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.selu(inp_0)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
@@ -3354,9 +3355,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_sigmoid:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.sigmoid(input_1)
@@ -3383,9 +3384,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_silu:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.silu(input_1)
@@ -3412,9 +3413,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_softmax:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.softmax(input_1, axis=1)
@@ -3441,9 +3442,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_tanh:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.tanh(input_1)
@@ -3467,9 +3468,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_tril:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.tril(input_1, 1)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
@@ -3492,9 +3493,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_triu:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.triu(input_1, 1)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
@@ -3512,9 +3513,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected_trunc:
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.trunc(inp_0)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
@@ -3534,9 +3535,9 @@ def test_interpolate():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 5, 5), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 5, 5), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 5, 5), dtype="float32") = R.image.resize2d(
@@ -3571,9 +3572,9 @@ def test_interpolate():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 20, 20), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 20, 20), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 20, 20), dtype="float32") = R.image.resize2d(
@@ -3608,9 +3609,9 @@ def test_interpolate():
     @tvm.script.ir_module
     class expected3:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 20, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 20, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 20, 10), dtype="float32") = R.image.resize2d(
@@ -3645,9 +3646,9 @@ def test_interpolate():
     @tvm.script.ir_module
     class expected4:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 20, 10), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 20, 10), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 20, 10), dtype="float32") = R.image.resize2d(
@@ -3681,9 +3682,9 @@ def test_interpolate_nhwc_layout():
     @tvm.script.ir_module
     class expected_default_nchw:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 5, 5), dtype="float32"):
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
+            (1, 3, 5, 5), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 3, 5, 5), dtype="float32") = R.image.resize2d(
@@ -3719,9 +3720,9 @@ def test_interpolate_nhwc_layout():
     @tvm.script.ir_module
     class expected_nhwc:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 10, 10, 3), dtype="float32")
-        ) -> R.Tensor((1, 5, 5, 3), dtype="float32"):
+        def main(input_1: R.Tensor((1, 10, 10, 3), dtype="float32")) -> R.Tensor(
+            (1, 5, 5, 3), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 5, 5, 3), dtype="float32") = R.image.resize2d(
@@ -3757,9 +3758,9 @@ def test_interpolate_nhwc_layout():
     @tvm.script.ir_module
     class expected_nhwc2:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 10, 10, 3), dtype="float32")
-        ) -> R.Tensor((1, 20, 20, 3), dtype="float32"):
+        def main(input_1: R.Tensor((1, 10, 10, 3), dtype="float32")) -> R.Tensor(
+            (1, 20, 20, 3), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 20, 20, 3), dtype="float32") = R.image.resize2d(
@@ -3858,9 +3859,7 @@ def test_split():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
@@ -3883,9 +3882,7 @@ def test_split():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"), R.Tensor((1, 2, 10, 10), dtype="float32")
         ):
             # block 0
@@ -3919,9 +3916,7 @@ def test_unbind():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((3, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
@@ -3955,9 +3950,7 @@ def test_unbind():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(
-            input_1: R.Tensor((3, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
@@ -4002,9 +3995,9 @@ def test_cumsum():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 2, 3, 4), dtype="float32")
-        ) -> R.Tensor((1, 2, 3, 4), dtype="int32"):
+        def main(input_1: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
+            (1, 2, 3, 4), dtype="int32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 2, 3, 4), dtype="int32") = R.cumsum(input_1, axis=1, dtype="int32")
@@ -4025,9 +4018,7 @@ def test_chunk():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
@@ -4190,9 +4181,9 @@ def test_new_zeros():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(
-            x: R.Tensor((1, 128, 128), dtype="float32")
-        ) -> R.Tensor((1, 128, 128), dtype="float32"):
+        def main(x: R.Tensor((1, 128, 128), dtype="float32")) -> R.Tensor(
+            (1, 128, 128), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 128, 128), dtype="float32") = R.full(
@@ -4219,9 +4210,9 @@ def test_expand():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32")
-        ) -> R.Tensor((4, 2, 3, 4), dtype="float32"):
+        def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
+            (4, 2, 3, 4), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((4, 2, 3, 4), dtype="float32") = R.broadcast_to(x, (4, 2, 3, 4))
@@ -4244,9 +4235,9 @@ def test_reduce():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
-        ) -> R.Tensor((1, 4), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
+            (1, 4), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 4), dtype="float32") = R.sum(inp_0, axis=[2, 1], keepdims=False)
@@ -4268,9 +4259,9 @@ def test_datatype():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32")
-        ) -> R.Tensor((1, 2, 3, 4), dtype="float32"):
+        def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
+            (1, 2, 3, 4), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 2, 3, 4), dtype="float32") = R.astype(x, dtype="float32")
@@ -4288,9 +4279,9 @@ def test_datatype():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32")
-        ) -> R.Tensor((1, 2, 3, 4), dtype="float16"):
+        def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
+            (1, 2, 3, 4), dtype="float16"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 2, 3, 4), dtype="float16") = R.astype(x, dtype="float16")
@@ -4394,9 +4385,9 @@ def test_permute():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32")
-        ) -> R.Tensor((1, 4, 3, 2), dtype="float32"):
+        def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
+            (1, 4, 3, 2), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 4, 3, 2), dtype="float32") = R.permute_dims(x, axes=[0, 3, 2, 1])
@@ -4481,9 +4472,9 @@ def test_transpose():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            x: R.Tensor((1, 2, 3, 4), dtype="float32")
-        ) -> R.Tensor((1, 4, 3, 2), dtype="float32"):
+        def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor(
+            (1, 4, 3, 2), dtype="float32"
+        ):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 4, 3, 2), dtype="float32") = R.permute_dims(x, axes=[0, 3, 2, 1])
@@ -4736,9 +4727,9 @@ def test_unwrap_unit_return_tuple():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
-        ) -> R.Tensor((256, 256), dtype="float32"):
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor(
+            (256, 256), dtype="float32"
+        ):
             with R.dataflow():
                 gv: R.Tensor((256, 256), dtype="float32") = inp_0
                 R.output(gv)
@@ -4867,9 +4858,9 @@ def test_to():
     @I.ir_module
     class Expected1:
         @R.function
-        def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
-        ) -> R.Tensor((256, 256), dtype="float16"):
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor(
+            (256, 256), dtype="float16"
+        ):
             with R.dataflow():
                 lv: R.Tensor((256, 256), dtype="float16") = R.astype(inp_0, dtype="float16")
                 gv: R.Tensor((256, 256), dtype="float16") = lv
@@ -4879,9 +4870,9 @@ def test_to():
     @I.ir_module
     class Expected2:
         @R.function
-        def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
-        ) -> R.Tensor((256, 256), dtype="float32"):
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor(
+            (256, 256), dtype="float32"
+        ):
             with R.dataflow():
                 gv: R.Tensor((256, 256), dtype="float32") = inp_0
                 R.output(gv)
@@ -4913,9 +4904,9 @@ def test_mean():
     @I.ir_module
     class Expected2:
         @R.function
-        def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
-        ) -> R.Tensor((256, 1), dtype="float32"):
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor(
+            (256, 1), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((256, 1), dtype="float32") = R.mean(inp_0, axis=[-1], keepdims=True)
                 gv: R.Tensor((256, 1), dtype="float32") = lv
@@ -5721,9 +5712,9 @@ def test_ones_like():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            inp_0: R.Tensor((128, 128), dtype="float32")
-        ) -> R.Tensor((128, 128), dtype="float32"):
+        def main(inp_0: R.Tensor((128, 128), dtype="float32")) -> R.Tensor(
+            (128, 128), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(inp_0, dtype="void")
                 gv: R.Tensor((128, 128), dtype="float32") = lv
@@ -5741,9 +5732,9 @@ def test_zero_inplace():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            inp_0: R.Tensor((128, 128), dtype="float32")
-        ) -> R.Tensor((128, 128), dtype="float32"):
+        def main(inp_0: R.Tensor((128, 128), dtype="float32")) -> R.Tensor(
+            (128, 128), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
                 gv: R.Tensor((128, 128), dtype="float32") = lv
@@ -5761,9 +5752,9 @@ def test_zeros_like():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            inp_0: R.Tensor((128, 128), dtype="float32")
-        ) -> R.Tensor((128, 128), dtype="float32"):
+        def main(inp_0: R.Tensor((128, 128), dtype="float32")) -> R.Tensor(
+            (128, 128), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
                 gv: R.Tensor((128, 128), dtype="float32") = lv
@@ -6108,9 +6099,9 @@ def test_sort():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            inp_0: R.Tensor((5, 3), dtype="float32")
-        ) -> R.Tuple(R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int32")):
+        def main(inp_0: R.Tensor((5, 3), dtype="float32")) -> R.Tuple(
+            R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int32")
+        ):
             with R.dataflow():
                 lv: R.Tensor((5, 3), dtype="int32") = R.argsort(
                     inp_0, axis=1, descending=True, dtype="int32"
@@ -6120,9 +6111,9 @@ def test_sort():
                     lv1,
                     lv,
                 )
-                gv: R.Tuple(
-                    R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int32")
-                ) = lv2
+                gv: R.Tuple(R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int32")) = (
+                    lv2
+                )
                 R.output(gv)
             return gv
 
@@ -6141,9 +6132,9 @@ def test_topk():
             inp_0: R.Tensor((5, 3), dtype="float32"),
         ) -> R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")):
             with R.dataflow():
-                lv: R.Tuple(
-                    R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")
-                ) = R.topk(inp_0, k=2, axis=1, ret_type="both", largest=True, dtype="int64")
+                lv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = (
+                    R.topk(inp_0, k=2, axis=1, ret_type="both", largest=True, dtype="int64")
+                )
                 gv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = lv
                 R.output(gv)
             return gv
@@ -6195,7 +6186,6 @@ def test_narrow():
 
 
 def test_norm():
-
     input_info = [([1, 3, 5, 3], "float32")]
 
     class Norm(Module):
@@ -6310,9 +6300,9 @@ def test_norm():
         ((float("inf"), None, False), Expected1),
         ((float("-inf"), None, False), Expected2),
         ((float(2), None, False), Expected3),
-        ((float(1.0), None, False), Expected4),
+        ((1.0, None, False), Expected4),
         ((float(-4), None, True), Expected5),
-        ((float(0.5), None, True), Expected6),
+        ((0.5, None, True), Expected6),
         (("fro", None, False), Expected7),
     ]
 

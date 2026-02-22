@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Global Info."""
-import tvm
+
 import tvm_ffi
-from tvm.runtime.object import Object
+
+import tvm
 from tvm.runtime import Device
+from tvm.runtime.object import Object
+
 from . import _ffi_api
 
 

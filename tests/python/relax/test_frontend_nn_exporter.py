@@ -19,11 +19,12 @@ import pytest
 
 import tvm
 import tvm.testing
-
 from tvm import relax, tir
 from tvm.ir import assert_structural_equal
 from tvm.relax.frontend import nn
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_simple():
@@ -371,9 +372,9 @@ def test_generate_parameters():
                 # written within the body of the function.  This will
                 # later be extracted into a pre-processing step using
                 # `relax.transform.LiftTransformParams`.
-                gate_up_proj_weights: R.Tensor(
-                    [intermediate_size * 2, hidden_size], "float16"
-                ) = R.concat([gate_proj_weights, up_proj_weights], axis=0)
+                gate_up_proj_weights: R.Tensor([intermediate_size * 2, hidden_size], "float16") = (
+                    R.concat([gate_proj_weights, up_proj_weights], axis=0)
+                )
                 gate_up: R.Tensor([batch_size, intermediate_size * 2], "float16") = R.matmul(
                     x, R.permute_dims(gate_up_proj_weights)
                 )
@@ -422,25 +423,25 @@ def test_generate_parameters():
                 R.Tensor([intermediate_size, hidden_size], "float16"),
                 R.Tensor([intermediate_size, hidden_size], "float16"),
                 R.Tensor([hidden_size, intermediate_size], "float16"),
-            )
+            ),
         ):
             R.func_attr({"num_input": 0})
             with R.dataflow():
-                gate_proj_weights: R.Tensor(
-                    [intermediate_size, hidden_size], "float16"
-                ) = model_params[0]
-                up_proj_weights: R.Tensor(
-                    [intermediate_size, hidden_size], "float16"
-                ) = model_params[1]
-                gate_up_proj_weights: R.Tensor(
-                    [intermediate_size * 2, hidden_size], "float16"
-                ) = R.concat([gate_proj_weights, up_proj_weights], axis=0)
+                gate_proj_weights: R.Tensor([intermediate_size, hidden_size], "float16") = (
+                    model_params[0]
+                )
+                up_proj_weights: R.Tensor([intermediate_size, hidden_size], "float16") = (
+                    model_params[1]
+                )
+                gate_up_proj_weights: R.Tensor([intermediate_size * 2, hidden_size], "float16") = (
+                    R.concat([gate_proj_weights, up_proj_weights], axis=0)
+                )
                 gate_up_proj_weights_transpose: R.Tensor(
                     [hidden_size, intermediate_size * 2], "float16"
                 ) = R.permute_dims(gate_up_proj_weights)
-                down_proj_weights: R.Tensor(
-                    [hidden_size, intermediate_size], "float16"
-                ) = model_params[2]
+                down_proj_weights: R.Tensor([hidden_size, intermediate_size], "float16") = (
+                    model_params[2]
+                )
                 down_proj_weights_transpose: R.Tensor(
                     [intermediate_size, hidden_size], "float16"
                 ) = R.permute_dims(down_proj_weights)

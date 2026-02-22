@@ -18,16 +18,18 @@
 # pylint: disable=missing-function-docstring, missing-class-docstring
 # pylint: disable=unused-argument, unused-variable
 """Analysis on TIR blocks, loops and functions."""
-from collections import namedtuple
-from typing import List, Optional, Set, Union, Tuple
-from typing_extensions import Literal
-from tvm_ffi import get_global_func
 
-from tvm import ir, tir, s_tir
-from tvm.target.target import Target
+from collections import namedtuple
+from typing import List, Optional, Set, Tuple, Union
+
+from tvm_ffi import get_global_func
+from typing_extensions import Literal
+
+from tvm import ir, s_tir, tir
+from tvm.runtime import DataType
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
-from tvm.runtime import DataType
+from tvm.target.target import Target
 
 
 class IterInfo:
@@ -132,7 +134,7 @@ class BufferInfo:
         assoc_lps = [
             (
                 var_lp.get(getattr(idx, "sub"), None)
-                if not isinstance(idx, DivIndex) and not idx is None
+                if not isinstance(idx, DivIndex) and idx is not None
                 else None
             )
             for idx in indexes

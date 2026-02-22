@@ -16,10 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """TVM operator fully connected compute."""
+
 import tvm
 from tvm import te
 
-from .. import tag, add
+from .. import add, tag
 
 
 def matmul(
@@ -67,9 +68,9 @@ def matmul(
     """
     # TODO(yixin): support cases for 1-dim input
     # TODO(yixin): adding support and further check for >2-dim input in autotvm template
-    assert (
-        len(tensor_a.shape) >= 2 and len(tensor_b.shape) >= 2
-    ), "1-dim matmul is not supported yet."
+    assert len(tensor_a.shape) >= 2 and len(tensor_b.shape) >= 2, (
+        "1-dim matmul is not supported yet."
+    )
 
     if bias is not None:
         assert len(bias.shape) == 1
@@ -94,9 +95,9 @@ def matmul(
     batch_dims_b = tensor_b.shape[:-2]
 
     if not isinstance(reduce_dim_a, tvm.tir.Var) and not isinstance(reduce_dim_b, tvm.tir.Var):
-        assert int(reduce_dim_a) == int(
-            reduce_dim_b
-        ), f"Reduction dimensions of dense do not match. {reduce_dim_a} vs {reduce_dim_b}."
+        assert int(reduce_dim_a) == int(reduce_dim_b), (
+            f"Reduction dimensions of dense do not match. {reduce_dim_a} vs {reduce_dim_b}."
+        )
 
     result_ndim = max(len(batch_dims_a), len(batch_dims_b))
     batch_dims_a = [1] * (result_ndim - len(batch_dims_a)) + batch_dims_a

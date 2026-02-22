@@ -16,7 +16,6 @@
 # under the License.
 import tvm
 import tvm.script
-from tvm.target import Target
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir.transform.transform import BindTarget

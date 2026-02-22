@@ -21,9 +21,9 @@ import enum
 
 from tvm.script import tir as T
 
+from ... import op
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
-from ... import op
 from .common import register_legalize
 
 
@@ -60,9 +60,9 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
         ndim: T.int32 = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kArrNDim), "int32"
         )
-        assert axis < T.Cast(
-            "int64", ndim
-        ), "Specified axis may not be larger than the tensor's dimensionality"
+        assert axis < T.Cast("int64", ndim), (
+            "Specified axis may not be larger than the tensor's dimensionality"
+        )
         stride_ptr: T.handle("int64") = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kArrStrides), "handle"
         )

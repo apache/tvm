@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Space to batch ND in python"""
+
 import numpy as np
 
 
@@ -67,7 +68,7 @@ def space_to_batch_nd_python(data, block_shape, pad_before, pad_after, pad_value
     trans_axis = []
     r_shape.append(in_batch)
     for i in range(1, M + 1):
-        r_shape.append((int(padded_shape[i] // block_shape[i - 1])))
+        r_shape.append(int(padded_shape[i] // block_shape[i - 1]))
         r_shape.append(block_shape[i - 1])
         trans_axis.append(len(r_shape) - 1)
 
@@ -77,7 +78,7 @@ def space_to_batch_nd_python(data, block_shape, pad_before, pad_after, pad_value
         trans_axis.append(trans_axis[i] - 1)
 
     out_shape = []
-    out_shape.append(int((in_batch * block_shape_prod)))
+    out_shape.append(int(in_batch * block_shape_prod))
     for i in range(1, M + 1):
         out_shape.append(int(padded_shape[i] // block_shape[i - 1]))
 

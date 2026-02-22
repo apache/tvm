@@ -16,12 +16,14 @@
 # under the License.
 
 import tvm
-from tvm import relax
 import tvm.testing
-from tvm.script.parser import ir as I, relax as R, tir as T
-from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
+from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
+from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 @visitor
@@ -42,33 +44,33 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
             # if call.args[0].name_hint in self.scope_info:
             for idx, arg in enumerate(call.args[1]):
                 arg_sinfo = arg.struct_info
-                assert isinstance(
-                    arg_sinfo, relax.TensorStructInfo
-                ), f"Expected TensorStructInfo but git {type(arg_sinfo)}"
+                assert isinstance(arg_sinfo, relax.TensorStructInfo), (
+                    f"Expected TensorStructInfo but git {type(arg_sinfo)}"
+                )
                 call_mem_scope = (
                     "global" if not arg_sinfo.vdevice else arg_sinfo.vdevice.memory_scope
                 )
-                assert (
-                    call_mem_scope == self.scope_info[call.args[0].name_hint][0][idx]
-                ), f"Scope mismatched for argument {idx} in {call.args[0].name_hint}"
+                assert call_mem_scope == self.scope_info[call.args[0].name_hint][0][idx], (
+                    f"Scope mismatched for argument {idx} in {call.args[0].name_hint}"
+                )
             if isinstance(call.sinfo_args[0], relax.TensorStructInfo):
                 call_mem_scope = (
                     "global"
                     if not call.sinfo_args[0].vdevice
                     else call.sinfo_args[0].vdevice.memory_scope
                 )
-                assert (
-                    call_mem_scope == self.scope_info[call.args[0].name_hint][1][0]
-                ), f"Scope mismatched for return scope: {call.args[0].name_hint}"
+                assert call_mem_scope == self.scope_info[call.args[0].name_hint][1][0], (
+                    f"Scope mismatched for return scope: {call.args[0].name_hint}"
+                )
             else:
-                assert isinstance(
-                    call.sinfo_args[0], relax.TupleStructInfo
-                ), f"Expected TupleStructInfo but git {type(call.sinfo_args[0])}"
+                assert isinstance(call.sinfo_args[0], relax.TupleStructInfo), (
+                    f"Expected TupleStructInfo but git {type(call.sinfo_args[0])}"
+                )
                 for idx, sinfo in enumerate(call.sinfo_args[0].fields):
                     call_mem_scope = "global" if not sinfo.vdevice else sinfo.vdevice.memory_scope
-                    assert (
-                        call_mem_scope == self.scope_info[call.args[0].name_hint][1][idx]
-                    ), f"Scope mismatched for return scope for {idx} in {call.args[0].name_hint}"
+                    assert call_mem_scope == self.scope_info[call.args[0].name_hint][1][idx], (
+                        f"Scope mismatched for return scope for {idx} in {call.args[0].name_hint}"
+                    )
 
 
 def verify(mod, expected):
@@ -197,9 +199,9 @@ def _test_conv2d_symbolic_sub_indexed():
     @I.ir_module
     class Input:
         @R.function
-        def main(
-            x: R.Tensor("float32", ndim=4), w: R.Tensor("float32", ndim=4)
-        ) -> R.Tensor("float32", ndim=4):
+        def main(x: R.Tensor("float32", ndim=4), w: R.Tensor("float32", ndim=4)) -> R.Tensor(
+            "float32", ndim=4
+        ):
             with R.dataflow():
                 N, C, H, W = T.int64(), T.int64(16), T.int64(), T.int64()
                 Nw, Cw, Hw, Ww = T.int64(4), T.int64(16), T.int64(), T.int64()

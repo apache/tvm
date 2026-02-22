@@ -16,10 +16,12 @@
 # under the License.
 
 import tvm
-from tvm import relax
 import tvm.testing
-from tvm.script.parser import ir as I, relax as R, tir as T
+from tvm import relax
 from tvm.ir.module import IRModule
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def verify(input, expected):
@@ -124,8 +126,8 @@ def test_maxpool2d_scope_folding():
 
         @R.function
         def main(
-            x: R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),  # noqa: F722
-        ) -> R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"):  # noqa: F722
+            x: R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
+        ) -> R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"):
             cls = Input
             with R.dataflow():
                 lv = R.call_tir(
@@ -142,9 +144,9 @@ def test_maxpool2d_scope_folding():
                         (2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:0:global.texture-weight"
                     ),
                 )
-                lv5: R.Tensor(
-                    (2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:1:global"  # noqa: F722
-                ) = R.to_vdevice(lv2, dst_vdevice="opencl:1:global")
+                lv5: R.Tensor((2, 1, 13, 13, 4), dtype="float32", vdevice="opencl:1:global") = (
+                    R.to_vdevice(lv2, dst_vdevice="opencl:1:global")
+                )
                 gv2 = R.call_tir(
                     cls.te_layout_transform2,
                     (lv5,),
@@ -249,8 +251,8 @@ def test_maxpool2d_scope_folding():
 
         @R.function
         def main(
-            x: R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),  # noqa: F722
-        ) -> R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"):  # noqa: F722
+            x: R.Tensor((2, 4, 26, 26), dtype="float32", vdevice="opencl:1:global"),
+        ) -> R.Tensor((2, 4, 13, 13), dtype="float32", vdevice="opencl:1:global"):
             cls = Expected
             with R.dataflow():
                 lv = R.call_tir(

@@ -16,9 +16,10 @@
 # under the License.
 
 import tvm
-from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T
 import tvm.testing
+from tvm.relax.transform import LegalizeOps
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_image_resize2d():

@@ -17,11 +17,12 @@
 # pylint: disable=invalid-name, unused-argument, broad-except
 """Utility to compile Marvell models"""
 
-import os
+import base64
 import json
+import os
 import shutil
 import tempfile
-import base64
+
 import numpy as np
 import tvm_ffi
 

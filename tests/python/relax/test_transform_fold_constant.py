@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm.testing
-from tvm import relax
 import numpy as np
 
+import tvm
 import tvm.script
-from tvm.script import ir as I, tir as T, relax as R
+import tvm.testing
+from tvm import relax
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def gen_mod(mod, name, binding):
@@ -75,7 +77,7 @@ def test_one_fold_addone():
         def expected(c1: R.Tensor((16, 16), "float32")):
             return c1
 
-    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    c0_np = np.arange(16 * 16).astype("float32").reshape(16, 16)
     c1_np = c0_np + 1
     before = gen_mod(Module, "before", {"c0": c0_np})
     expected = gen_mod(Module, "expected", {"c1": c1_np})
@@ -135,7 +137,7 @@ def test_two_hop_addone():
         def expected(c1: R.Tensor((2, 2), "float32"), c2: R.Tensor((2, 2), "float32")):
             return c2
 
-    c0_np = np.arange((2 * 2)).astype("float32").reshape(2, 2)
+    c0_np = np.arange(2 * 2).astype("float32").reshape(2, 2)
     c1_np = c0_np + 1
     c2_np = c1_np + 1
     before = gen_mod(Module, "before", {"c0": c0_np})
@@ -167,7 +169,7 @@ def test_dataflow_fold():
         def expected(c1: R.Tensor((16, 16), "float32")):
             return c1
 
-    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    c0_np = np.arange(16 * 16).astype("float32").reshape(16, 16)
     c1_np = c0_np
     before = gen_mod(Module, "before", {"c0": c0_np})
     expected = gen_mod(Module, "expected", {"c1": c1_np})
@@ -232,7 +234,7 @@ def test_fold_mixed_case():
             lv3 = relax.call_tir(cls.sub, (c2, x), R.Tensor((16, 16), dtype="float32"))
             return (lv0, lv3)
 
-    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    c0_np = np.arange(16 * 16).astype("float32").reshape(16, 16)
     c1_np = c0_np + 1
     c2_np = c0_np - c1_np
 
@@ -262,7 +264,7 @@ def test_int32_fold():
         def expected(c1: R.Tensor((16, 16), "int32")):
             return c1
 
-    c0_np = np.arange((16 * 16)).astype("int32").reshape(16, 16)
+    c0_np = np.arange(16 * 16).astype("int32").reshape(16, 16)
     c1_np = c0_np + 1
     before = gen_mod(Module, "before", {"c0": c0_np})
     expected = gen_mod(Module, "expected", {"c1": c1_np})
@@ -286,7 +288,7 @@ def test_fold_single_relax_op():
         def expected(c1: R.Tensor((16, 16), "float32")):
             return c1
 
-    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    c0_np = np.arange(16 * 16).astype("float32").reshape(16, 16)
     c1_np = c0_np + c0_np
     before = gen_mod(Module, "before", {"c0": c0_np})
     expected = gen_mod(Module, "expected", {"c1": c1_np})
@@ -312,8 +314,8 @@ def test_fold_multiple_relax_ops():
         def expected(c4: R.Tensor((16, 16), "float32")):
             return c4
 
-    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
-    c1_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    c0_np = np.arange(16 * 16).astype("float32").reshape(16, 16)
+    c1_np = np.arange(16 * 16).astype("float32").reshape(16, 16)
     c2_np = c0_np + c1_np
     c3_np = c0_np * c2_np
     c4_np = c3_np - c1_np
@@ -333,7 +335,7 @@ def test_do_not_fold_ops_outside_dataflow():
             gv = R.add(c0, c0)
             return gv
 
-    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    c0_np = np.arange(16 * 16).astype("float32").reshape(16, 16)
     before = gen_mod(Module, "before", {"c0": c0_np})
 
     after = relax.transform.FoldConstant()(before)
@@ -385,7 +387,7 @@ def test_unsupported_fold_ops_legalized_to_multiple_calls():
                 R.output(gv)
             return gv
 
-    c0_np = np.arange((16 * 16)).astype("float32").reshape(16, 16)
+    c0_np = np.arange(16 * 16).astype("float32").reshape(16, 16)
     before = gen_mod(Module, "before", {"c0": c0_np})
 
     from tvm.relax.transform.legalize_ops.common import register_legalize
@@ -474,9 +476,9 @@ def test_fold_tuple_output():
             return lv0
 
         @R.function
-        def expected(
-            c1: R.Tensor((2, 4), "float32"), c2: R.Tensor((2, 4), "float32")
-        ) -> R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")):
+        def expected(c1: R.Tensor((2, 4), "float32"), c2: R.Tensor((2, 4), "float32")) -> R.Tuple(
+            R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")
+        ):
             lv0: R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")) = (
                 c1,
                 c2,

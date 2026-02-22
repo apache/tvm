@@ -15,12 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """DLight package provides efficient schedules out-of-box for deep learning workloads."""
-from . import gpu
-from . import adreno
-from . import cpu
+
+from . import adreno, cpu, gpu
 from .analysis import (
-    SBlockInfo,
     IterInfo,
+    SBlockInfo,
     normalize_prim_func,
 )
 from .base import (

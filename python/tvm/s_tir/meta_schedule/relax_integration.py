@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta schedule integration with high-level IR"""
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+
 import warnings
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 # isort: off
 from typing_extensions import Literal
@@ -24,6 +25,7 @@ from typing_extensions import Literal
 # isort: on
 
 from tvm_ffi import get_global_func, register_global_func
+
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
 from tvm.runtime import Tensor
@@ -405,8 +407,8 @@ def compile_relax(
         The built runtime module or vm VMExecutable for the given relax workload.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm.relax.transform import BindParams, MetaScheduleApplyDatabase
     from tvm.relax import build as relax_build
+    from tvm.relax.transform import BindParams, MetaScheduleApplyDatabase
 
     # pylint: enable=import-outside-toplevel
     if not isinstance(target, Target):

@@ -19,10 +19,11 @@ import pytest
 
 import tvm
 import tvm.testing
-
 from tvm import relax as rx
 from tvm import tir
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 m = tir.Var("m", "int64")
 n = tir.Var("n", "int64")

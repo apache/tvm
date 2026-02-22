@@ -16,14 +16,13 @@
 # under the License.
 """tvm.contrib.msc.framework.tensorflow.codegen.codegen"""
 
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.codegen import CodeGen
 from tvm.contrib.msc.core import utils as msc_utils
-from tvm.contrib.msc.framework.tensorflow import tf_v1
-from tvm.contrib.msc.framework.tensorflow import _ffi_api
+from tvm.contrib.msc.core.codegen import CodeGen
+from tvm.contrib.msc.core.ir import MSCGraph
+from tvm.contrib.msc.framework.tensorflow import _ffi_api, tf_v1
 
 
 def to_tensorflow(

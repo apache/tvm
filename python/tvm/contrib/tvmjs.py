@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Namespace to store utilities for building web runtime."""
+
 import hashlib
 import json
 import math
@@ -259,7 +260,7 @@ def dump_tensor_cache(
 
     nd_cache_json = os.path.join(cache_dir, "tensor-cache.json")
     if update_if_exists and os.path.exists(nd_cache_json):
-        with open(nd_cache_json, "r") as infile:
+        with open(nd_cache_json) as infile:
             old_data = json.load(infile)
             if meta_data is None:
                 meta_data = old_data["metadata"]
@@ -348,7 +349,7 @@ def load_tensor_cache(cachepath: str, device: tvm.runtime.Device):
         cachepath = os.path.join(cachepath, "tensor-cache.json")
 
     cachedir = os.path.dirname(cachepath)
-    json_info = json.loads(open(cachepath, "r").read())
+    json_info = json.loads(open(cachepath).read())
     result_dict = {}
 
     for shard_rec in json_info["records"]:

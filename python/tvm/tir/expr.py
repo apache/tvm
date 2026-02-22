@@ -27,14 +27,16 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(isinstance(y, tvm.tir.Add))
   assert(y.a == x)
 """
+
 from typing import List, Optional, Union
 
 import tvm_ffi
+
 import tvm.ir._ffi_api
 from tvm import ir
 from tvm.ir import Op, PrimExpr
 from tvm.ir.base import Span
-from tvm.runtime import Object, ObjectConvertible, Scriptable, DataType, DataTypeCode, const
+from tvm.runtime import DataType, DataTypeCode, Object, ObjectConvertible, Scriptable, const
 
 from . import _ffi_api
 from . import generic as _generic
@@ -56,17 +58,13 @@ def div_ambiguity_error() -> RuntimeError:
 def _dtype_is_int(value):
     if isinstance(value, int):
         return True
-    return (
-        isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.INT
-    )  # type: ignore
+    return isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.INT  # type: ignore
 
 
 def _dtype_is_float(value):
     if isinstance(value, float):
         return True
-    return (
-        isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.FLOAT
-    )  # type: ignore
+    return isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.FLOAT  # type: ignore
 
 
 class ExprOp:
@@ -459,11 +457,16 @@ class IterVar(ExprOp, Object, Scriptable):
         dtype = "int32" if dom is None else dom.extent.dtype
         var = Var(name, dtype=dtype, span=span) if not isinstance(var, Var) else var
         if dom is not None:
-            assert (
-                var.dtype == dom.extent.dtype
-            ), "IterVar's Var dtype must match its domain's extent's dtype"
+            assert var.dtype == dom.extent.dtype, (
+                "IterVar's Var dtype must match its domain's extent's dtype"
+            )
         self.__init_handle_by_constructor__(
-            _ffi_api.IterVar, dom, var, iter_type, thread_tag, span  # type: ignore
+            _ffi_api.IterVar,
+            dom,
+            var,
+            iter_type,
+            thread_tag,
+            span,  # type: ignore
         )
 
 
@@ -503,7 +506,12 @@ class CommReducer(Object, Scriptable):
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.CommReducer, lhs, rhs, result, identity_element, span  # type: ignore
+            _ffi_api.CommReducer,
+            lhs,
+            rhs,
+            result,
+            identity_element,
+            span,  # type: ignore
         )
 
 
@@ -554,7 +562,14 @@ class Reduce(PrimExprWithOp):
     ) -> None:
         init = [] if init is None else init
         self.__init_handle_by_constructor__(
-            _ffi_api.Reduce, combiner, src, rdom, condition, value_index, init, span  # type: ignore
+            _ffi_api.Reduce,
+            combiner,
+            src,
+            rdom,
+            condition,
+            value_index,
+            init,
+            span,  # type: ignore
         )
 
 
@@ -578,7 +593,10 @@ class FloatImm(ConstExpr):
 
     def __init__(self, dtype: str, value: float, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(
-            tvm.ir._ffi_api.FloatImm, dtype, value, span  # type: ignore
+            tvm.ir._ffi_api.FloatImm,
+            dtype,
+            value,
+            span,  # type: ignore
         )
 
     def __float__(self) -> float:
@@ -605,7 +623,10 @@ class IntImm(ConstExpr):
 
     def __init__(self, dtype: str, value: int, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(
-            tvm.ir._ffi_api.IntImm, dtype, value, span  # type: ignore
+            tvm.ir._ffi_api.IntImm,
+            dtype,
+            value,
+            span,  # type: ignore
         )
 
     def __hash__(self) -> int:
@@ -1083,7 +1104,11 @@ class Select(PrimExprWithOp):
         if isinstance(condition, bool):
             condition = IntImm("bool", condition)
         self.__init_handle_by_constructor__(
-            _ffi_api.Select, condition, true_value, false_value, span  # type: ignore
+            _ffi_api.Select,
+            condition,
+            true_value,
+            false_value,
+            span,  # type: ignore
         )
 
 
@@ -1118,7 +1143,11 @@ class BufferLoad(PrimExprWithOp):
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.BufferLoad, buffer, indices, predicate, span  # type: ignore
+            _ffi_api.BufferLoad,
+            buffer,
+            indices,
+            predicate,
+            span,  # type: ignore
         )
 
 
@@ -1145,7 +1174,10 @@ class ProducerLoad(PrimExprWithOp):
         self, producer: DataProducer, indices: List[PrimExpr], span: Optional[Span] = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ProducerLoad, producer, indices, span  # type: ignore
+            _ffi_api.ProducerLoad,
+            producer,
+            indices,
+            span,  # type: ignore
         )
 
 
@@ -1176,7 +1208,11 @@ class Ramp(PrimExprWithOp):
         self, base: PrimExpr, stride: PrimExpr, lanes: PrimExpr, span: Optional[Span] = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Ramp, base, stride, lanes, span  # type: ignore
+            _ffi_api.Ramp,
+            base,
+            stride,
+            lanes,
+            span,  # type: ignore
         )
 
 
@@ -1226,7 +1262,10 @@ class Shuffle(PrimExprWithOp):
         self, vectors: List[PrimExpr], indices: List[PrimExpr], span: Optional[Span] = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Shuffle, vectors, indices, span  # type: ignore
+            _ffi_api.Shuffle,
+            vectors,
+            indices,
+            span,  # type: ignore
         )
 
 

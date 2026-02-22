@@ -23,9 +23,12 @@ from typing import Any, List
 
 import numpy as np
 import pytest
+from tvm_ffi import register_global_func
+
 import tvm
 import tvm.testing
-from tvm_ffi import register_global_func
+from tvm.rpc import RPCSession
+from tvm.runtime import Device, Module
 from tvm.s_tir.meta_schedule.arg_info import TensorInfo
 from tvm.s_tir.meta_schedule.builder import BuilderInput, LocalBuilder
 from tvm.s_tir.meta_schedule.runner import (
@@ -52,8 +55,6 @@ from tvm.s_tir.meta_schedule.utils import (
     derived_object,
     get_global_func_with_default_on_worker,
 )
-from tvm.rpc import RPCSession
-from tvm.runtime import Device, Module
 from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import FloatImm

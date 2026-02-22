@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring,unused-variable
 """Intrinsics for tensorization on NVIDIA GPU."""
+
 from typing import Dict, Literal, Optional, Tuple
 
 from tvm_ffi import register_global_func
+
 from tvm.runtime import convert
 from tvm.script import tir as T
 from tvm.tir import Cast, IntImm, TensorIntrin
@@ -108,20 +110,20 @@ def get_ldmatrix_intrin(
         index_map = shared_16x16_to_ldmatrix_32x8_layout
 
         if transpose_layout_for_ldmatrix_input:
-            smem_offset = (
-                lambda tx, stride: stride * 8 * (tx // HALF_WARP_expr)
+            smem_offset = lambda tx, stride: (
+                stride * 8 * (tx // HALF_WARP_expr)
                 + stride * (tx % 8)
                 + 8 * ((tx % HALF_WARP_expr) // 8)
             )
         else:
-            smem_offset = lambda tx, stride: stride * (tx % HALF_WARP_expr) + 8 * (
-                tx // HALF_WARP_expr
+            smem_offset = lambda tx, stride: (
+                stride * (tx % HALF_WARP_expr) + 8 * (tx // HALF_WARP_expr)
             )
     else:
         # TODO(yixin): Support TN and TT matmul for int8
-        assert (
-            matrix_name == "B" or not transposed
-        ), "Now only B matrix can be transposed for int8 matmul"
+        assert matrix_name == "B" or not transposed, (
+            "Now only B matrix can be transposed for int8 matmul"
+        )
         assert k_dim == 32 and (
             dtype == "int8" or dtype == "float8_e4m3fn" or dtype == "float8_e5m2"
         ), "Only k_dim == 16 (float16) or k_dim == 32 (int8) supported for now"
@@ -134,8 +136,8 @@ def get_ldmatrix_intrin(
             smem_offset = lambda _, stride: stride
         elif matrix_name == "B" and transposed:
             index_map = shared_16x32_to_ldmatrix_32x16_layout
-            smem_offset = (
-                lambda tx, stride: stride * 8 * (tx // HALF_WARP_expr)
+            smem_offset = lambda tx, stride: (
+                stride * 8 * (tx // HALF_WARP_expr)
                 + (tx % 8) * stride
                 + 16 * ((tx % HALF_WARP_expr) // 8)
             )

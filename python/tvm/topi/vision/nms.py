@@ -16,18 +16,18 @@
 # under the License.
 # pylint: disable=import-error, invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches, too-many-statements, too-many-function-args
 """Non-maximum suppression operator"""
+
 import tvm
 from tvm import te
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T
-
 from tvm.tir import if_then_else
 
-from ..sort import argsort
-from ..math import cast
-from ..transform import reshape, gather
 from .. import reduction
+from ..math import cast
 from ..scan import cumsum
+from ..sort import argsort
+from ..transform import gather, reshape
 from .nms_util import (
     binary_search,
     collect_selected_indices,
@@ -36,9 +36,7 @@ from .nms_util import (
 )
 
 
-def get_valid_counts(
-    data, score_threshold=0, id_index=0, score_index=1
-):  # pylint: disable=unused-argument
+def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):  # pylint: disable=unused-argument
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
     Parameters

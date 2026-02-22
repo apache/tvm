@@ -17,5 +17,6 @@
 
 # pylint: disable=redefined-builtin, wildcard-import
 """GPU specific declaration."""
-from .scan import cumsum, cumprod
+
+from .scan import cumprod, cumsum
 from .sort import *

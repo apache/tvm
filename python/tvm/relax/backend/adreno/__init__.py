@@ -17,11 +17,10 @@
 """The Relax Adreno backend compilation pipeline and other passes."""
 
 from . import transform
-
 from .pipeline import (
+    dataflow_lower_passes,
     finalize_passes,
     get_default_pipeline,
-    dataflow_lower_passes,
     legalize_passes,
     library_dispatch_passes,
 )

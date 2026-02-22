@@ -18,8 +18,10 @@
 
 Restrictions: all shape lowered, explicit allocation.
 """
+
 import numpy as np
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax

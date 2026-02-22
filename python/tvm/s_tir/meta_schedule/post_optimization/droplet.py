@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Droplet algorithm """
+"""Droplet algorithm"""
 
 import os
+
 import numpy as np  # type: ignore
 
-from .utils import write_file, get_time
 from .space import Space
+from .utils import get_time, write_file
 
 
 class Droplet:

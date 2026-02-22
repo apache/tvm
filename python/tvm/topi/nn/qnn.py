@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Quantized Neural Network (QNN) Operators"""
+
 import tvm
 from tvm import te, tir, topi
 

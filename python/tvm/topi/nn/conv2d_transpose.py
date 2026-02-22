@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Transposed 2D convolution operators (sometimes called Deconvolution)."""
+
 import collections
 
 from tvm import te
@@ -178,9 +179,9 @@ def group_conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output
 
     batch, in_channels, in_h, in_w = data.shape
     _, out_c, filter_h, filter_w = kernel.shape
-    assert (
-        in_channels % groups == 0
-    ), f"input channels {in_channels} must divide group size {groups}"
+    assert in_channels % groups == 0, (
+        f"input channels {in_channels} must divide group size {groups}"
+    )
     # assert out_c % groups == 0, f"output channels {in_c} must divide group size {groups}"
 
     strides = _pair(stride)
@@ -190,10 +191,10 @@ def group_conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output
 
     stride_h, stride_w = strides
     opad_h, opad_w = output_padding
-    assert (
-        opad_h < stride_h and opad_w < stride_w
-    ), f"[{output_padding}] opad_h:{opad_h} < stride_h:{stride_h} \
+    assert opad_h < stride_h and opad_w < stride_w, (
+        f"[{output_padding}] opad_h:{opad_h} < stride_h:{stride_h} \
         and opad_w:{opad_w} < stride_w:{stride_w} does not satisfy."
+    )
     # dilate data
     data_dilate = dilate(data, [1, 1, stride_h, stride_w], name="data_dilate")
     # pad data

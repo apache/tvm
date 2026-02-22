@@ -18,16 +18,17 @@
 """tvm.contrib.msc.core.gym.agent.method"""
 
 from typing import Any, List
+
 import numpy as np
 
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.gym.namespace import GYMObject
 from tvm.contrib.msc.core.runtime import BaseRunner
 from tvm.contrib.msc.core.tools import BaseTool
-from tvm.contrib.msc.core import utils as msc_utils
 
 
 @msc_utils.register_gym_method
-class EnvMethod(object):
+class EnvMethod:
     """Default prune method"""
 
     @classmethod
@@ -99,7 +100,7 @@ class EnvMethod(object):
             if loss_type == "lp_norm":
                 power = loss_config.get("power", 2)
                 return np.mean(np.power(np.abs(golden - result), power))
-            raise NotImplementedError("loss type {} is not implemented".format(loss_type))
+            raise NotImplementedError(f"loss type {loss_type} is not implemented")
 
         for idx, inputs in enumerate(data_loader()):
             outputs = runner.run(inputs)

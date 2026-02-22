@@ -18,17 +18,17 @@
 
 import os
 import subprocess
-from typing import Dict, List, Optional, Any, Callable
+from typing import Any, Callable, Dict, List, Optional
 
 import tvm
 from tvm import relax
-from tvm.relax import PyExprVisitor
 from tvm.contrib.msc.core import transform as msc_transform
-from tvm.contrib.msc.core.ir import MSCGraph, MSCTensor
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.ir import MSCGraph, MSCTensor
+from tvm.relax import PyExprVisitor
 
 
-class CodeGen(object):
+class CodeGen:
     """Manager class to generate codes and load model
 
     Parameters
@@ -100,25 +100,21 @@ class CodeGen(object):
             if build_model:
                 if self._code_format == "cpp":
                     with folder.create_dir("build"):
-                        command = "cmake ../ && make && mv {} ../".format(self._graph.name)
+                        command = f"cmake ../ && make && mv {self._graph.name} ../"
                         with open("codegen.log", "w") as log_f:
                             process = subprocess.Popen(
                                 command, stdout=log_f, stderr=log_f, shell=True
                             )
                         process.wait()
-                        assert (
-                            process.returncode == 0
-                        ), "Failed to build {} under {}, check codegen.log for detail".format(
-                            self._graph.name, os.getcwd()
+                        assert process.returncode == 0, (
+                            f"Failed to build {self._graph.name} under {os.getcwd()}, check codegen.log for detail"
                         )
                     obj = self._graph.name
                 elif self._code_format == "python":
                     builder = msc_utils.load_callable(self._graph.name + ".py:" + self._graph.name)
                     obj = builder(*inputs)
                 else:
-                    raise NotImplementedError(
-                        "Code format {} is not supported".format(self._code_format)
-                    )
+                    raise NotImplementedError(f"Code format {self._code_format} is not supported")
                 # post processing
                 if post_load:
                     obj = post_load(obj, folder)

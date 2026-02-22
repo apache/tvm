@@ -21,7 +21,7 @@
 import math
 from typing import Any, Dict, Tuple
 
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.runtime import DataType
 from tvm.script import tir as T
 from tvm.target import Target
@@ -288,9 +288,7 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any]):
     return batch_tree_attn
 
 
-def tree_attn(
-    h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target
-):  # pylint: disable=unused-argument
+def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target):  # pylint: disable=unused-argument
     """Generate tree attention kernel for batched tree attention.
 
     Parameters
@@ -679,6 +677,7 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[st
     global_symbol = "tree_attn_paged_kv_cpu"
     sliding_window = False
     group_size = h_q // h_kv
+
     # pylint: disable=line-too-long,too-many-branches
     # fmt: off
     @T.prim_func(check_well_formed=False)

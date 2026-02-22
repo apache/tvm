@@ -18,12 +18,25 @@
 from typing import List
 
 import pytest
+
 import tvm
 import tvm.testing
+from tvm.s_tir import Schedule
 from tvm.s_tir.meta_schedule.testing import te_workload
+from tvm.s_tir.schedule.analysis import (
+    TensorizeInfo,
+    get_auto_tensorize_mapping_info,
+    get_tensorize_loop_mapping,
+    is_output_block,
+    suggest_index_map,
+)
+from tvm.s_tir.tensor_intrin.cuda import (
+    WMMA_SYNC_16x16x16_f16f16f16_INTRIN,
+    WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
+)
+from tvm.s_tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
 from tvm.script import tir as T
 from tvm.te import create_prim_func
-from tvm.s_tir import Schedule
 from tvm.tir import (
     Evaluate,
     For,
@@ -36,19 +49,7 @@ from tvm.tir import (
 )
 from tvm.tir.analysis import expr_deep_equal
 from tvm.tir.function import TensorIntrin
-from tvm.s_tir.schedule.analysis import (
-    TensorizeInfo,
-    get_auto_tensorize_mapping_info,
-    get_tensorize_loop_mapping,
-    is_output_block,
-    suggest_index_map,
-)
 from tvm.tir.stmt_functor import pre_order_visit
-from tvm.s_tir.tensor_intrin.cuda import (
-    WMMA_SYNC_16x16x16_f16f16f16_INTRIN,
-    WMMA_SYNC_16x16x16_f16f16f32_INTRIN,
-)
-from tvm.s_tir.tensor_intrin.x86 import dot_product_16x4_u8i8i32_desc
 
 
 def _make_vars(*args: str) -> List[Var]:

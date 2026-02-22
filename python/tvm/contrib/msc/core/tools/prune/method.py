@@ -18,15 +18,16 @@
 """tvm.contrib.msc.core.tools.prune.method"""
 
 from typing import List
+
 import numpy as np
 
-from tvm.contrib.msc.core.tools.tool import ToolType, BaseTool
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.tool import BaseTool, ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
 @msc_utils.register_tool_method
-class PruneMethod(object):
+class PruneMethod:
     """Default prune method"""
 
     @classmethod

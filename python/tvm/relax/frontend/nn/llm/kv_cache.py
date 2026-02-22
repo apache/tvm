@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import tvm
 from tvm import relax as rx
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.relax.frontend.nn import Object, Tensor
 from tvm.runtime import DataType
 from tvm.script import tir as T
@@ -68,9 +68,9 @@ def check_thread_limits(target: Target, bdx: int, bdy: int, bdz: int, gdz: int):
     """
     max_num_threads_per_block = get_max_num_threads_per_block(target)
 
-    assert (
-        bdx * bdy * bdz <= max_num_threads_per_block
-    ), f"{target.kind} max num threads exceeded: {bdx}*{bdy}*{bdz}>{max_num_threads_per_block}"
+    assert bdx * bdy * bdz <= max_num_threads_per_block, (
+        f"{target.kind} max num threads exceeded: {bdx}*{bdy}*{bdz}>{max_num_threads_per_block}"
+    )
 
     if str(target.kind) == "webgpu":
         # https://gpuweb.github.io/gpuweb/#dom-supported-limits-maxcomputeworkgroupsizez
@@ -614,8 +614,13 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             rx.op.zeros((), dtype),
             # pylint: disable=line-too-long
             # fmt: off
-            bb.add_func(_kv_cache_transpose_append(num_key_value_heads, qk_head_dim, dtype), "kv_cache_transpose_append"),
-            bb.add_func(_kv_cache_transpose_append_mla(qk_head_dim, dtype), "kv_cache_transpose_append_mla"),
+            bb.add_func(
+                _kv_cache_transpose_append(num_key_value_heads, qk_head_dim, dtype),
+                "kv_cache_transpose_append",
+            ),
+            bb.add_func(
+                _kv_cache_transpose_append_mla(qk_head_dim, dtype), "kv_cache_transpose_append_mla"
+            ),
             # fmt: on
             # pylint: enable=line-too-long
         ]
@@ -926,6 +931,7 @@ def _attention_prefill_cpu(
         global_symbol += "_sliding_window"
 
     group_size = h_q // h_kv
+
     # pylint: disable=line-too-long,too-many-branches
     # fmt: off
     @T.prim_func
@@ -2050,9 +2056,7 @@ def _merge_state_inplace(
     return func
 
 
-def _attention_sequence_prefill(
-    h_kv, h_q, d, dtype, target: Target, causal=0, sm_scale=1.0
-):  # pylint: disable=line-too-long
+def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, sm_scale=1.0):  # pylint: disable=line-too-long
     (
         _,
         LOAD_VEC,

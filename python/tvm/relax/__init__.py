@@ -16,107 +16,107 @@
 # under the License.
 # pylint: disable=invalid-name, wrong-import-position
 """The Relax IR namespace containing the IR, type, operator, builder, vm, etc."""
+
 from tvm.runtime import vm
 from tvm.runtime.vm import VirtualMachine, VMInstrumentReturnKind
 
-from .type_converter import args_converter
-
-# Expr
-from .expr import (
-    Expr,
-    Span,
-    Id,
-    GlobalVar,
-    Var,
-    DataflowVar,
-    Binding,
-    MatchCast,
-    VarBinding,
-    BindingBlock,
-    DataflowBlock,
-    SeqExpr,
-    ShapeExpr,
-    Tuple,
-    TupleGetItem,
-    Function,
-    ExternFunc,
-    Call,
-    If,
-    Constant,
-    PrimValue,
-    DataTypeImm,
-    StringImm,
+# Import submodules in the last to avoid dependency
+from . import (
+    analysis,
+    backend,
+    block_builder,
+    distributed,
+    exec_builder,
+    expr,
+    frontend,
+    op,
+    struct_info,
+    training,
+    transform,
+    ty,
+    utils,
 )
 
-from .expr import const, extern, get_shape_of
-
-# Type
-from .ty import (
-    Type,
-    ObjectType,
-    ShapeType,
-    TensorType,
-    TupleType,
-    FuncType,
-    PackedFuncType,
-)
-
-# VM
-from .exec_builder import ExecBuilder
-
-# Operator
-from .op.base import (
-    call_tir,
-    call_tir_inplace,
-    call_pure_packed,
-    call_dps_packed,
-    call_tir_with_grad,
-)
+# BasePyModule
+from .base_py_module import BasePyModule
+from .binding_rewrite import DataflowBlockRewrite
 
 # BlockBuilder
 from .block_builder import BlockBuilder
 
-# ExprFunctor
-from .expr_functor import ExprFunctor, PyExprVisitor, PyExprMutator
+# VM
+from .exec_builder import ExecBuilder
 
-# StructInfo
-from .struct_info import (
-    StructInfo,
-    ObjectStructInfo,
-    PrimStructInfo,
-    ShapeStructInfo,
-    TensorStructInfo,
-    TupleStructInfo,
-    FuncStructInfo,
+# Expr
+from .expr import (
+    Binding,
+    BindingBlock,
+    Call,
+    Constant,
+    DataflowBlock,
+    DataflowVar,
+    DataTypeImm,
+    Expr,
+    ExternFunc,
+    Function,
+    GlobalVar,
+    Id,
+    If,
+    MatchCast,
+    PrimValue,
+    SeqExpr,
+    ShapeExpr,
+    Span,
+    StringImm,
+    Tuple,
+    TupleGetItem,
+    Var,
+    VarBinding,
+    const,
+    extern,
+    get_shape_of,
+)
+
+# ExprFunctor
+from .expr_functor import ExprFunctor, PyExprMutator, PyExprVisitor
+
+# Operator
+from .op.base import (
+    call_dps_packed,
+    call_pure_packed,
+    call_tir,
+    call_tir_inplace,
+    call_tir_with_grad,
 )
 
 # pipeline
-from .pipeline import get_default_pipeline
-from .pipeline import get_pipeline
-from .pipeline import register_pipeline
+from .pipeline import get_default_pipeline, get_pipeline, register_pipeline
+
+# StructInfo
+from .struct_info import (
+    FuncStructInfo,
+    ObjectStructInfo,
+    PrimStructInfo,
+    ShapeStructInfo,
+    StructInfo,
+    TensorStructInfo,
+    TupleStructInfo,
+)
+
+# Type
+from .ty import (
+    FuncType,
+    ObjectType,
+    PackedFuncType,
+    ShapeType,
+    TensorType,
+    TupleType,
+    Type,
+)
+from .type_converter import args_converter
 
 # utils
 from .utils import convert_to_expr
 
-# BasePyModule
-from .base_py_module import BasePyModule
-
-# Import submodules in the last to avoid dependency
-from . import exec_builder
-from . import expr
-from . import ty
-from . import analysis
-from . import transform
-from . import block_builder
-from . import op
-from . import struct_info
-from . import backend
-from . import training
-from . import distributed
-from . import frontend
-from . import utils
-
 # VM
-from .vm_build import build, VMExecutable
-
-from .binding_rewrite import DataflowBlockRewrite
+from .vm_build import VMExecutable, build

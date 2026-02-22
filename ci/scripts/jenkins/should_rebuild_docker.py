@@ -20,13 +20,10 @@ import datetime
 import json
 import logging
 import subprocess
+from typing import Any, Dict, List
 
-from typing import Dict, Any, List
-
-
-from http_utils import get
 from cmd_utils import Sh, init_log
-
+from http_utils import get
 
 DOCKER_API_BASE = "https://hub.docker.com/v2/"
 PAGE_SIZE = 25

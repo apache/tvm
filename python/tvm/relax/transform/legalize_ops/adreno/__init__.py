@@ -15,4 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 """Legalize high-level operator calls in Relax functions to call_tir."""
+
 from .convolution import conv2d_NCHWc_OIHWo

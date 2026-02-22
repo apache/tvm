@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
-import pytest
+
 import numpy as np
+import pytest
+
 import tvm
-from tvm import te
-from tvm.contrib import cblas
-from tvm.contrib import mkl
-from tvm.contrib import dnnl
 import tvm.testing
 import tvm.topi.testing
+from tvm import te
+from tvm.contrib import cblas, dnnl, mkl
 
 
 def verify_matmul_add(

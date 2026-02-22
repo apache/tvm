@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import TVMError, relax, tir
 from tvm.ir import Op, VDevice
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_op_correctness():
@@ -740,7 +741,7 @@ def test_layout_transform_infer_struct_info():
         relax.TensorStructInfo((10, 30, 7, 3), "float32"),
     )
 
-    flatten_transform = lambda a, b, c: (a * 600 + b * 30 + c)
+    flatten_transform = lambda a, b, c: a * 600 + b * 30 + c
     _check_inference(
         bb,
         relax.op.layout_transform(x, index_map=flatten_transform),

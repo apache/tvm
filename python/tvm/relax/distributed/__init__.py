@@ -17,7 +17,6 @@
 
 """The infrastructure for distributed inference on Relax."""
 
-from .global_info import DeviceMesh, device_mesh
-from .struct_info import Placement, DTensorStructInfo, PlacementSpec
-
 from . import transform
+from .global_info import DeviceMesh, device_mesh
+from .struct_info import DTensorStructInfo, Placement, PlacementSpec

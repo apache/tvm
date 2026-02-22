@@ -79,7 +79,7 @@ def test_vectorize_vector_scalable_error():
             for j in T.vectorized(T.vscale() * 4):
                 A[j * 4 : j * 4 + 4] = T.Broadcast(T.float32(1), 4)
 
-    error_msg = f"Creating scalable vectors from existing vectors is not supported."
+    error_msg = "Creating scalable vectors from existing vectors is not supported."
     with tvm.target.Target(sve_target):
         with pytest.raises(tvm.error.InternalError, match=error_msg):
             tvm.tir.transform.VectorizeLoop()(Module)
@@ -93,7 +93,7 @@ def test_vectorize_vector_scalable_error2():
             for j in T.vectorized(4):
                 A[j] = T.Broadcast(T.float32(1), T.vscale() * 4)
 
-    error_msg = f"Vectorizing over scalable buffer elements is not supported in vectorizer."
+    error_msg = "Vectorizing over scalable buffer elements is not supported in vectorizer."
     with pytest.raises(tvm.error.InternalError, match=error_msg):
         tvm.tir.transform.VectorizeLoop()(Module)
 
@@ -108,7 +108,7 @@ def test_vectorize_vector_scalable_error3():
                     T.float32(1), T.vscale() * 4
                 )
 
-    error_msg = f"Vectorizing over existing scalable vectors is not supported."
+    error_msg = "Vectorizing over existing scalable vectors is not supported."
     with pytest.raises(tvm.error.InternalError, match=error_msg):
         with tvm.target.Target(sve_target):
             tvm.tir.transform.VectorizeLoop()(Module)
@@ -124,7 +124,7 @@ def test_vectorize_vector_scalable_error4():
                     T.float32(1), T.vscale() * 4
                 )
 
-    error_msg = f"Creating scalable vectors from existing vectors is not supported."
+    error_msg = "Creating scalable vectors from existing vectors is not supported."
     with pytest.raises(tvm.error.InternalError, match=error_msg):
         with tvm.target.Target(sve_target):
             tvm.tir.transform.VectorizeLoop()(Module)
@@ -498,7 +498,7 @@ def test_illegal_extent():
             for j in T.vectorized(n):
                 A[j] = 3
 
-    error_msg = f"Failed to vectorize loop with extent n for target \\(nullptr\\)"
+    error_msg = "Failed to vectorize loop with extent n for target \\(nullptr\\)"
     with pytest.raises(tvm.error.InternalError, match=error_msg):
         tvm.tir.transform.VectorizeLoop()(Mod)
 

@@ -18,11 +18,12 @@
 """
 Test relax transform - Eliminate redundant reshape operations
 """
+
 import tvm.testing
 from tvm import relax
-from tvm.relax.transform import DeadCodeElimination
-from tvm.relax.transform import RemoveRedundantReshape
-from tvm.script import ir as I, relax as R
+from tvm.relax.transform import DeadCodeElimination, RemoveRedundantReshape
+from tvm.script import ir as I
+from tvm.script import relax as R
 
 
 def _run_pass_compare_output(Before, Expected):
@@ -35,9 +36,9 @@ def test_remove_redundant_reshape_pass_one_arg():
     @I.ir_module
     class Before:
         @R.function
-        def main(
-            x: R.Tensor((1, 1001, 1, 1), dtype="float16")
-        ) -> R.Tensor((1, 1001), dtype="float16"):
+        def main(x: R.Tensor((1, 1001, 1, 1), dtype="float16")) -> R.Tensor(
+            (1, 1001), dtype="float16"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 1001), dtype="float16") = R.reshape(x, R.shape([1, 1001]))
                 lv1: R.Tensor((1, 1001), dtype="float16") = R.reshape(lv, R.shape([1, 1001]))
@@ -48,9 +49,9 @@ def test_remove_redundant_reshape_pass_one_arg():
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            x: R.Tensor((1, 1001, 1, 1), dtype="float16")
-        ) -> R.Tensor((1, 1001), dtype="float16"):
+        def main(x: R.Tensor((1, 1001, 1, 1), dtype="float16")) -> R.Tensor(
+            (1, 1001), dtype="float16"
+        ):
             with R.dataflow():
                 gv: R.Tensor((1, 1001), dtype="float16") = R.reshape(x, R.shape([1, 1001]))
                 R.output(gv)
@@ -63,9 +64,9 @@ def test_remove_redundant_reshape_pass_two_arg():
     @I.ir_module
     class Before:
         @R.function
-        def main(
-            x: R.Tensor((1, 1001, 1, 1), dtype="float16")
-        ) -> R.Tensor((1, 1001), dtype="float16"):
+        def main(x: R.Tensor((1, 1001, 1, 1), dtype="float16")) -> R.Tensor(
+            (1, 1001), dtype="float16"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 1001, 1), dtype="float16") = R.reshape(x, R.shape([1, 1001, 1]))
                 lv1: R.Tensor((1, 1001), dtype="float16") = R.reshape(lv, R.shape([1, 1001]))
@@ -75,9 +76,9 @@ def test_remove_redundant_reshape_pass_two_arg():
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            x: R.Tensor((1, 1001, 1, 1), dtype="float16")
-        ) -> R.Tensor((1, 1001), dtype="float16"):
+        def main(x: R.Tensor((1, 1001, 1, 1), dtype="float16")) -> R.Tensor(
+            (1, 1001), dtype="float16"
+        ):
             with R.dataflow():
                 lv1: R.Tensor((1, 1001), dtype="float16") = R.reshape(x, R.shape([1, 1001]))
                 R.output(lv1)
@@ -90,9 +91,9 @@ def test_remove_redundant_reshape_pass_three_arg():
     @I.ir_module
     class Before:
         @R.function
-        def main(
-            x: R.Tensor((1, 1001, 1, 1), dtype="float16")
-        ) -> R.Tensor((1, 1001, 1, 1), dtype="float16"):
+        def main(x: R.Tensor((1, 1001, 1, 1), dtype="float16")) -> R.Tensor(
+            (1, 1001, 1, 1), dtype="float16"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1, 1001, 1, 1), dtype="float16") = R.reshape(
                     x, R.shape([1, 1001, 1, 1])
@@ -103,9 +104,9 @@ def test_remove_redundant_reshape_pass_three_arg():
     @I.ir_module
     class Expected:
         @R.function
-        def main(
-            x: R.Tensor((1, 1001, 1, 1), dtype="float16")
-        ) -> R.Tensor((1, 1001, 1, 1), dtype="float16"):
+        def main(x: R.Tensor((1, 1001, 1, 1), dtype="float16")) -> R.Tensor(
+            (1, 1001, 1, 1), dtype="float16"
+        ):
             return x
 
     _run_pass_compare_output(Before, Expected)

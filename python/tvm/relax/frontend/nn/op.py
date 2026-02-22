@@ -17,6 +17,7 @@
 # pylint: disable=too-many-lines,invalid-name,protected-access,redefined-outer-name
 # pylint: disable=redefined-builtin
 """nn.Tensor operators."""
+
 import inspect
 import math
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, TypeVar, Union
@@ -2689,13 +2690,13 @@ def multinomial_from_uniform(
     out_batch = uniform_sample.shape[0]
 
     if sample_indices is not None:
-        assert (
-            sample_indices.shape == uniform_sample.shape
-        ), "The shape of sample_indices must match the shape of uniform_sample."
+        assert sample_indices.shape == uniform_sample.shape, (
+            "The shape of sample_indices must match the shape of uniform_sample."
+        )
     else:
-        assert (
-            prob.shape[0] == uniform_sample.shape[0]
-        ), "Number of samples must match the number of probability distributions."
+        assert prob.shape[0] == uniform_sample.shape[0], (
+            "Number of samples must match the number of probability distributions."
+        )
         sample_indices = Tensor.from_const(np.arange(out_batch).reshape(out_batch, 1))
 
     return wrap_nested(
@@ -2778,13 +2779,13 @@ def sample_top_p_top_k_from_sorted_prob(
     out_batch = uniform_sample.shape[0]
 
     if sample_indices is not None:
-        assert (
-            sample_indices.shape == uniform_sample.shape
-        ), "The shape of sample_indices must match the shape of uniform_sample."
+        assert sample_indices.shape == uniform_sample.shape, (
+            "The shape of sample_indices must match the shape of uniform_sample."
+        )
     else:
-        assert (
-            sorted_prob.shape[0] == uniform_sample.shape[0]
-        ), "Number of samples must match the number of probability distributions."
+        assert sorted_prob.shape[0] == uniform_sample.shape[0], (
+            "Number of samples must match the number of probability distributions."
+        )
         sample_indices = Tensor.from_const(
             np.arange(out_batch).reshape(out_batch, 1).astype(np.int64)
         )

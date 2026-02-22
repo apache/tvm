@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """A lightweight wrapper on an arbitrary function that can be used to schedule a TIR PrimFunc."""
+
 from typing import Callable, List, Union
 
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.target import Target
 
 

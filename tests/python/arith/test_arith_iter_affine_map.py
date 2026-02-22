@@ -16,8 +16,8 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm.tir import floordiv, floormod
 from tvm.script import tir as T
+from tvm.tir import floordiv, floormod
 
 
 def ifuse(inputs, pred_extent=None):
@@ -349,9 +349,7 @@ def test_predicate():
     # constraint with differnent lower bound
     assert_iter_sum_pattern(
         {
-            (i * 16 + j) // 23 * 8
-            + (i * 16 + j) % 23
-            - 15: (
+            (i * 16 + j) // 23 * 8 + (i * 16 + j) % 23 - 15: (
                 64,
                 0,
                 1,
@@ -919,7 +917,7 @@ def test_inverse_affine_iter_map():
     iter_map = tvm.arith.detect_iter_map(
         [l0_1_l1_1_fused[0], l0_0[0], l1_0[0]], var_dom([l0, l1])
     ).indices
-    outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
+    outputs = [tvm.tir.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 2
     l0_inverse = floordiv(outputs[0], 4) + outputs[1] * 16
@@ -938,7 +936,7 @@ def test_inverse_affine_iter_map():
     iter_map = tvm.arith.detect_iter_map(
         [l0_1_l2_1_l1_1_l2_0_fused[0], l0_0[0], l2_2[0], l1_0[0]], var_dom([l0, l1, l2])
     ).indices
-    outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
+    outputs = [tvm.tir.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 3
     l0_inverse = floordiv(outputs[0], 64) + outputs[1] * 16
@@ -958,7 +956,7 @@ def test_inverse_affine_iter_map():
     l2 = ifuse([l1_1, l1_0])
 
     iter_map = tvm.arith.detect_iter_map([l2[0]], var_dom([l0])).indices
-    outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
+    outputs = [tvm.tir.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     assert len(res) == 1
     l1_inverse = floormod(outputs[0], 8) * 8 + floordiv(outputs[0], 8)
@@ -972,7 +970,7 @@ def test_inverse_affine_map_trivial_iter():
     l0 = create_iter("l0", 64)
     l1 = create_iter("l1", 64)
     iter_map = tvm.arith.detect_iter_map([0, l0[0], l1[0]], var_dom([l0, l1])).indices
-    outputs = [tvm.tir.Var("output_{}".format(i), "int32") for i in range(len(iter_map))]
+    outputs = [tvm.tir.Var(f"output_{i}", "int32") for i in range(len(iter_map))]
     res = tvm.arith.inverse_affine_iter_map(iter_map, outputs)
     # output_0 is expected to be constant and it is not included in the inverse map
     assert len(res) == 2

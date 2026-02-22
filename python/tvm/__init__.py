@@ -16,56 +16,41 @@
 # under the License.
 # pylint: disable=redefined-builtin, wildcard-import
 """TVM: Open Deep Learning Compiler Stack."""
+
 import multiprocessing
-import sys
 import os
+import sys
 
 # ffi module must load first
-from tvm_ffi import register_object, register_global_func, get_global_func
-
-# top-level alias
-from .base import TVMError, __version__, _RUNTIME_ONLY
-
-# top-level alias
-# tvm.runtime
-from .runtime.object import Object
-from .runtime._tensor import device, cpu, cuda, opencl, vulkan, metal
-from .runtime._tensor import vpi, rocm, ext_dev, hexagon
-from .runtime import DataType, DataTypeCode
+from tvm_ffi import get_global_func, register_global_func, register_object
 
 # tvm.error
-from . import error
-
-# tvm.ir
-from .ir import IRModule
-from .ir import transform
-from .ir import instrument
-from .ir import container
-from . import ir
-
 # tvm.tir
-from . import tir
-
 # tvm.s_tir
-from . import s_tir
-
 # tvm.target
-from . import target
-
 # tvm.te
-from . import te
+# others
+# support infra
+from . import arith, error, ir, s_tir, support, target, te, tir
+
+# top-level alias
+from .base import _RUNTIME_ONLY, TVMError, __version__
+from .contrib import nvcc as _nvcc
+
+# Contrib initializers
+from .contrib import rocm as _rocm
 
 # tvm.driver
 from .driver import build, compile
 
-# others
-from . import arith
+# tvm.ir
+from .ir import IRModule, container, instrument, transform
+from .runtime import DataType, DataTypeCode
+from .runtime._tensor import cpu, cuda, device, ext_dev, hexagon, metal, opencl, rocm, vpi, vulkan
 
-# support infra
-from . import support
-
-# Contrib initializers
-from .contrib import rocm as _rocm, nvcc as _nvcc
+# top-level alias
+# tvm.runtime
+from .runtime.object import Object
 
 # Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only
@@ -84,9 +69,7 @@ def _should_print_backtrace():
     try:
         tvm_backtrace = bool(int(tvm_backtrace))
     except ValueError:
-        raise ValueError(
-            "invalid value for TVM_BACKTRACE {}, please set to 0 or 1.".format(tvm_backtrace)
-        )
+        raise ValueError(f"invalid value for TVM_BACKTRACE {tvm_backtrace}, please set to 0 or 1.")
 
     return in_pytest or tvm_backtrace
 

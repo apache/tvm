@@ -16,15 +16,19 @@
 # under the License.
 
 import os
-import tvm
+
 import numpy as np
-from tvm import relax
-from tvm.contrib import utils, ndk
-from tvm.script.parser import ir as I, relax as R, tir as T
-from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
-from tvm.contrib import dlpack as dl
+
+import tvm
 import tvm.testing
+from tvm import relax
+from tvm.contrib import dlpack as dl
+from tvm.contrib import ndk, utils
+from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.rpc import connect_tracker
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def get_target(backend, is_adreno=False):
@@ -179,7 +183,6 @@ def build_run(mod, inputs, backend, is_adreno=False):
 
 
 def verify(mod, backend):
-
     if backend not in ["opencl", "vulkan"]:
         raise ValueError(f"Unsupported API: {backend}. Must be 'opencl' or 'vulkan'.")
 

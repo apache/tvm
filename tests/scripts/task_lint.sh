@@ -18,61 +18,31 @@
 
 set -euxo pipefail
 
-cleanup()
-{
+cleanup() {
   rm -rf /tmp/$$.*
 }
 trap cleanup 0
 
-
 # These shards are solely for CI to enable the lint job to have some parallelism.
 
 function shard1 {
-  # echo "Check Jenkinsfile generation"
-  # python3 ci/jenkins/generate.py --check
-
-  echo "Checking file types..."
-  python3 tests/lint/check_file_type.py
-
-  echo "Checking CMake <-> LibInfo options mirroring"
-  python3 tests/lint/check_cmake_options.py
-
-  echo "black check..."
-  tests/lint/git-black.sh
-
-  echo "Linting the Python code with flake8..."
-  tests/lint/flake8.sh
-
-#  echo "Type checking with MyPy ..."
-#  tests/scripts/task_mypy.sh
+  echo "Running pre-commit hooks..."
+  pre-commit run --all-files
 
   echo "Checking for non-inclusive language with blocklint..."
   tests/lint/blocklint.sh
 }
 
 function shard2 {
-  echo "check whitespace..."
-  tests/lint/whitespace.sh
-
-  echo "Linting the Python code with pylint..."
-  tests/lint/pylint.sh
-
   echo "Checking C++ documentation..."
   tests/lint/cppdocs.sh
 
-  echo "Checking ASF license headers..."
-  tests/lint/check_asf_header.sh --local
-
-  echo "Linting the C++ code..."
+  echo "Linting the C++ code (regex header check)..."
   tests/lint/cpplint.sh
-
-  echo "clang-format check..."
-  tests/lint/git-clang-format.sh
 
   echo "Docker check..."
   tests/lint/docker-format.sh
 }
-
 
 if [[ -n ${TVM_SHARD_INDEX+x} ]]; then
   if [[ "$TVM_SHARD_INDEX" == "0" ]]; then

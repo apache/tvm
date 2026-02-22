@@ -16,37 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-const path = require("path");
-const fs = require("fs");
-const assert = require("assert");
-const tvmjs = require("../../dist/tvmjs.bundle")
+const path = require('path');
+const fs = require('fs');
+const assert = require('assert');
+const tvmjs = require('../../dist/tvmjs.bundle')
 
 // for now skip exception testing
 // as it may not be compatible with asyncify
 const exceptionEnabled = false;
 const wasmPath = tvmjs.wasmPath();
-const wasmSource = fs.readFileSync(path.join(wasmPath, "tvmjs_runtime.wasm"));
+const wasmSource = fs.readFileSync(path.join(wasmPath, 'tvmjs_runtime.wasm'));
 
-let tvm = new tvmjs.Instance(
-  new WebAssembly.Module(wasmSource),
-  tvmjs.createPolyfillWASI()
-);
+let tvm = new tvmjs.Instance(new WebAssembly.Module(wasmSource), tvmjs.createPolyfillWASI());
 
 
-test("GetGlobal", () => {
+test('GetGlobal', () => {
   tvm.beginScope();
   let flist = tvm.listGlobalFuncNames();
-  let faddOne = tvm.getGlobalFunc("tvmjs.testing.add_one");
-  let fecho = tvm.getGlobalFunc("testing.echo");
+  let faddOne = tvm.getGlobalFunc('tvmjs.testing.add_one');
+  let fecho = tvm.getGlobalFunc('testing.echo');
 
-  assert(faddOne(tvm.scalar(1, "int")) == 2);
-  assert(faddOne(tvm.scalar(-1, "int")) == 0);
+  assert(faddOne(tvm.scalar(1, 'int')) == 2);
+  assert(faddOne(tvm.scalar(-1, 'int')) == 0);
 
   // check function argument with different types.
   assert(fecho(1123) == 1123);
-  assert(fecho("xyz") == "xyz");
+  assert(fecho('xyz') == 'xyz');
   // test long string as the abi can be different from small str
-  const long_str = "1234567890123456789abcdefghijklmnopqrstuvwxyz";
+  const long_str = '1234567890123456789abcdefghijklmnopqrstuvwxyz';
   assert(fecho(long_str) == long_str);
   let bytes = new Uint8Array([1, 2, 3]);
   let rbytes = fecho(bytes);
@@ -95,7 +92,7 @@ test("GetGlobal", () => {
   assert(faddOne._tvmPackedCell.getHandle(false) == 0);
 });
 
-test("ReturnFunc", () => {
+test('ReturnFunc', () => {
   tvm.beginScope();
   function addy(y) {
     function add(x, z) {
@@ -104,7 +101,7 @@ test("ReturnFunc", () => {
     return add;
   }
 
-  let fecho = tvm.getGlobalFunc("testing.echo");
+  let fecho = tvm.getGlobalFunc('testing.echo');
   let myf = tvm.toPackedFunc(addy);
   assert(tvm.isPackedFunc(myf));
   let myf2 = tvm.toPackedFunc(myf);
@@ -113,8 +110,8 @@ test("ReturnFunc", () => {
 
   assert(tvm.isPackedFunc(f));
   assert(f(11, 0) == 21);
-  assert(f("x", 1) == "x101");
-  assert(f("x", "yz") == "x10yz");
+  assert(f('x', 1) == 'x101');
+  assert(f('x', 'yz') == 'x10yz');
 
   fecho.dispose();
   myf.dispose();
@@ -125,13 +122,13 @@ test("ReturnFunc", () => {
   tvm.endScope();
 });
 
-test("RegisterGlobal", () => {
+test('RegisterGlobal', () => {
   tvm.beginScope();
-  tvm.registerFunc("xyz", function (x, y) {
+  tvm.registerFunc('xyz', function(x, y) {
     return x + y;
   });
 
-  let f = tvm.getGlobalFunc("xyz");
+  let f = tvm.getGlobalFunc('xyz');
   assert(f(1, 2) == 3);
   f.dispose();
 
@@ -140,29 +137,29 @@ test("RegisterGlobal", () => {
   tvm.endScope();
 });
 
-test("ExceptionPassing", () => {
+test('ExceptionPassing', () => {
   if (!exceptionEnabled) return;
 
   tvm.beginScope();
-  tvm.registerFunc("throw_error", function (msg) {
+  tvm.registerFunc('throw_error', function(msg) {
     throw Error(msg);
   });
-  let f = tvm.getGlobalFunc("throw_error");
+  let f = tvm.getGlobalFunc('throw_error');
   try {
-    f("error-xyz");
-    throw Error("error not caught");
+    f('error-xyz');
+    throw Error('error not caught');
   } catch (error) {
-    assert(error.message.indexOf("error-xyz") != -1);
+    assert(error.message.indexOf('error-xyz') != -1);
   }
   tvm.endScope();
 });
 
-test("TensorCbArg", () => {
+test('TensorCbArg', () => {
   tvm.beginScope();
-  let use_count = tvm.getGlobalFunc("testing.object_use_count");
+  let use_count = tvm.getGlobalFunc('testing.object_use_count');
   let record = [];
 
-  let fcheck = tvm.toPackedFunc(function (x, retain) {
+  let fcheck = tvm.toPackedFunc(function(x, retain) {
     assert(use_count(x) == 2);
     assert(x.handle != 0);
     record.push(x);
@@ -171,7 +168,7 @@ test("TensorCbArg", () => {
     }
   });
 
-  let x = tvm.empty([2], "float32").copyFrom([1, 2]);
+  let x = tvm.empty([2], 'float32').copyFrom([1, 2]);
   assert(use_count(x) == 1);
 
   fcheck(x, 0);
@@ -188,30 +185,26 @@ test("TensorCbArg", () => {
   assert(record[1].getHandle(false) == 0);
 });
 
-test("Logging", () => {
+test('Logging', () => {
   tvm.beginScope();
-  const log_info = tvm.getGlobalFunc("tvmjs.testing.log_info_str");
-  log_info("helow world")
+  const log_info = tvm.getGlobalFunc('tvmjs.testing.log_info_str');
+  log_info('helow world')
   log_info.dispose();
   tvm.endScope();
 });
 
-test("AsyncifyFunc", async () => {
+test('AsyncifyFunc', async () => {
   if (!tvm.asyncifyEnabled()) {
-    console.log("Skip asyncify tests as it is not enabled..");
+    console.log('Skip asyncify tests as it is not enabled..');
     return;
   }
   tvm.beginScope();
-  tvm.registerAsyncifyFunc("async_sleep_echo", async function (x) {
+  tvm.registerAsyncifyFunc('async_sleep_echo', async function(x) {
     await new Promise(resolve => setTimeout(resolve, 10));
     return x;
   });
-  let fecho = tvm.wrapAsyncifyPackedFunc(
-    tvm.getGlobalFunc("async_sleep_echo")
-  );
-  let fcall = tvm.wrapAsyncifyPackedFunc(
-    tvm.getGlobalFunc("tvmjs.testing.call")
-  );
+  let fecho = tvm.wrapAsyncifyPackedFunc(tvm.getGlobalFunc('async_sleep_echo'));
+  let fcall = tvm.wrapAsyncifyPackedFunc(tvm.getGlobalFunc('tvmjs.testing.call'));
   assert((await fecho(1)) == 1);
   assert((await fecho(2)) == 2);
   assert((await fcall(fecho, 2) == 2));

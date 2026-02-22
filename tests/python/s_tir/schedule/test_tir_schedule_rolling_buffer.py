@@ -16,15 +16,16 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-from tvm import tir, s_tir
-from tvm.script import tir as T
+from tvm import s_tir, tir
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
-import pytest
+from tvm.script import tir as T
 
 
 def check_rolling_buffer(

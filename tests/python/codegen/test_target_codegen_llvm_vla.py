@@ -20,6 +20,7 @@ Codegen tests for VLA extensions
 """
 
 import re
+
 import pytest
 
 import tvm

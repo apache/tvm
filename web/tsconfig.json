@@ -1,14 +1,21 @@
 {
-    "compilerOptions": {
-		"target": "es6",
-		"moduleResolution": "node",
-		"outDir": "lib",
-		"types": ["node", "@webgpu/types"],
-		"rootDir": "src",
-		"declaration": true,
-		"sourceMap": true,
-		"skipLibCheck": true,
-	},
-    "include": ["src"],
-    "exclude": ["**/node_modules/**"]
+  "compilerOptions": {
+    "target": "es6",
+    "moduleResolution": "node",
+    "outDir": "lib",
+    "types": [
+      "node",
+      "@webgpu/types"
+    ],
+    "rootDir": "src",
+    "declaration": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+  },
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "**/node_modules/**"
+  ]
 }

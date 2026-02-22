@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.script import tir as T
 
 

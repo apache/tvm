@@ -1,7 +1,5 @@
 CacheControl==0.12.11 \
     --hash=sha256:2c75d6a8938cb1933c75c50184549ad42728a27e9f6b92fd677c3151aa72555b
-SecretStorage==3.3.2 \
-    --hash=sha256:755dc845b6ad76dcbcbc07ea3da75ae54bb1ea529eb72d15f83d26499a5df319
 cachy==0.3.0 \
     --hash=sha256:338ca09c8860e76b275aff52374330efedc4d5a5e45dc1c5b539c1ead0786fe7
 certifi==2022.5.18.1 \
@@ -86,6 +84,8 @@ requests==2.27.1 \
     --hash=sha256:f22fa1e554c9ddfd16e6e41ac79759e17be9e492b3587efa038054674760e72d
 requests-toolbelt==0.9.1 \
     --hash=sha256:380606e1d10dc85c3bd47bf5a6095f815ec007be7a8b69c878507068df059e6f
+SecretStorage==3.3.2 \
+    --hash=sha256:755dc845b6ad76dcbcbc07ea3da75ae54bb1ea529eb72d15f83d26499a5df319
 setuptools==62.3.2 \
     --hash=sha256:68e45d17c9281ba25dc0104eadd2647172b3472d9e01f911efa57965e8d51a36
 shellingham==1.4.0 \

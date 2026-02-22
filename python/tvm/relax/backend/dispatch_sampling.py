@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Dispatch sampling operators to platform dependent implementation."""
 
-
 from tvm import relax
 from tvm.ir import Op
 from tvm.ir.module import IRModule

@@ -585,7 +585,7 @@ bool TensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
 
 template <typename T, typename Self, typename F>
 bool TensorizeComparator::CompareArray(const ffi::Array<T>& lhs, const ffi::Array<T>& rhs,
-                                       F Self::*cmp) {
+                                       F Self::* cmp) {
   if (lhs.same_as(rhs)) return true;
   if (lhs.size() != rhs.size()) {
     if (assert_mode_) {

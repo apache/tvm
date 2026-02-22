@@ -15,16 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Analysis utilities for Schedulable TensorIR (S-TIR)."""
+
 # pylint: disable=invalid-name
 from typing import Dict, List, Optional, Union
 
 import tvm
 from tvm.ir import IRModule
-from tvm.tir.expr import Var
-from tvm.tir.stmt import SBlock, BufferRegion
-
 from tvm.tir import Buffer, Stmt
+from tvm.tir.expr import Var
 from tvm.tir.function import PrimFunc
+from tvm.tir.stmt import BufferRegion, SBlock
+
 from . import _ffi_api
 
 

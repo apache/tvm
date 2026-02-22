@@ -18,6 +18,7 @@
 import sys
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import s_tir
@@ -1459,11 +1460,7 @@ def layer_norm_tuple_sum(
                     * (data_red_temp_v0[ax0] * T.float32(0.0013020833333333333))
                     + T.float32(1.0000000000000001e-05),
                     dtype="float32",
-                ) * gamma[
-                    ax1
-                ] + bias[
-                    ax1
-                ]
+                ) * gamma[ax1] + bias[ax1]
 
 
 @T.prim_func
@@ -1550,11 +1547,7 @@ def lowered_layer_norm_tuple_sum(
                     * (data_red_temp_v0[ax0] * T.float32(0.0013020833333333333))
                     + T.float32(1.0000000000000001e-05),
                     dtype="float32",
-                ) * gamma[
-                    ax1
-                ] + bias[
-                    ax1
-                ]
+                ) * gamma[ax1] + bias[ax1]
 
 
 @T.prim_func

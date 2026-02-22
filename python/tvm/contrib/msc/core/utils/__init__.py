@@ -16,12 +16,12 @@
 # under the License.
 """tvm.contrib.msc.core.utils"""
 
-from .expr import *
-from .info import *
-from .file import *
-from .namespace import *
-from .register import *
+from .arguments import *
 from .dataset import *
+from .expr import *
+from .file import *
+from .info import *
 from .log import *
 from .message import *
-from .arguments import *
+from .namespace import *
+from .register import *

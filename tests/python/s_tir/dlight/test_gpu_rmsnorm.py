@@ -16,12 +16,11 @@
 # under the License.
 # pylint: disable=missing-docstring
 import tvm.testing
-
 from tvm.ir import IRModule, assert_structural_equal
 from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
-from tvm.target import Target
 from tvm.script import tir as T
+from tvm.target import Target
 
 
 def _check(mod_before: IRModule, mod_after: IRModule):

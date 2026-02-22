@@ -30,8 +30,7 @@ TEST(Tensor, Basic) {
   Tensor A = placeholder({m, l}, DataType::Float(32), "A");
   Tensor B = placeholder({n, l}, DataType::Float(32), "B");
 
-  auto C = compute(
-      {m, n}, [&](Var i, Var j) { return A[i][j]; }, "C");
+  auto C = compute({m, n}, [&](Var i, Var j) { return A[i][j]; }, "C");
 
   Tensor::Slice x = A[n];
 }

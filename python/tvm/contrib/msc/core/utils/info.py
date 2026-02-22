@@ -16,17 +16,19 @@
 # under the License.
 """tvm.contrib.msc.core.utils.info"""
 
-from typing import List, Tuple, Dict, Any, Union
-from packaging.version import parse
+from typing import Any, Dict, List, Tuple, Union
+
 import numpy as np
+from packaging.version import parse
 
 import tvm
 import tvm.testing
 from tvm.contrib.msc.core import _ffi_api
+
 from .namespace import MSCFramework
 
 
-class MSCArray(object):
+class MSCArray:
     """MSC wrapper for array like object
 
     Parameters
@@ -40,7 +42,7 @@ class MSCArray(object):
         self._framework, self._type, self._device = self._analysis(data)
 
     def __str__(self):
-        return "<{} @{}>{}".format(self._framework, self._device, self.abstract())
+        return f"<{self._framework} @{self._device}>{self.abstract()}"
 
     def _analysis(self, data: Any) -> Tuple[str, str, np.ndarray]:
         if isinstance(data, (list, tuple)) and all(isinstance(d, (int, float)) for d in data):
@@ -50,7 +52,7 @@ class MSCArray(object):
         if isinstance(data, tvm.runtime.Tensor):
             device = tvm.runtime.Device._DEVICE_TYPE_TO_NAME[data.device.dlpack_device_type()]
             if data.device.index:
-                device += ":{}".format(data.device.index)
+                device += f":{data.device.index}"
             return MSCFramework.TVM, "tensor", device
         if isinstance(data, tvm.relax.Var):
             return MSCFramework.TVM, "var", "cpu"
@@ -60,14 +62,14 @@ class MSCArray(object):
             if isinstance(data, torch.Tensor):
                 ref_dev = data.device
                 if ref_dev.index:
-                    device = "{}:{}".format(ref_dev.type, ref_dev.index)
+                    device = f"{ref_dev.type}:{ref_dev.index}"
                 else:
                     device = ref_dev.type
                 return MSCFramework.TORCH, "tensor", device
         except:  # pylint: disable=bare-except
             pass
 
-        raise Exception("Unkonwn data {}({})".format(data, type(data)))
+        raise Exception(f"Unkonwn data {data}({type(data)})")
 
     def abstract(self) -> str:
         """Get abstract describe of the data"""
@@ -76,9 +78,7 @@ class MSCArray(object):
         prefix = "[{},{}]".format(";".join([str(s) for s in data.shape]), data.dtype.name)
         if data.size < 10:
             return "{} {}".format(prefix, ",".join([str(i) for i in data.flatten()]))
-        return "{} Max {:g}, Min {:g}, Avg {:g}".format(
-            prefix, data.max(), data.min(), data.sum() / data.size
-        )
+        return f"{prefix} Max {data.max():g}, Min {data.min():g}, Avg {data.sum() / data.size:g}"
 
     def _to_tensor(self) -> np.ndarray:
         """Cast array like object to np.ndarray
@@ -262,7 +262,7 @@ def cast_array(data: Any, framework: str = MSCFramework.MSC, device: str = "cpu"
         The output as numpy array or framework tensor(if given).
     """
 
-    assert MSCArray.is_array(data), "{} is not array like".format(data)
+    assert MSCArray.is_array(data), f"{data} is not array like"
     return MSCArray(data).cast(framework, device)
 
 
@@ -324,8 +324,8 @@ def compare_arrays(
         The compare results.
     """
 
-    assert golden.keys() == datas.keys(), "golden {} and datas {} mismatch".format(
-        golden.keys(), datas.keys()
+    assert golden.keys() == datas.keys(), (
+        f"golden {golden.keys()} and datas {datas.keys()} mismatch"
     )
     golden = {k: cast_array(v) for k, v in golden.items()}
     datas = {k: cast_array(v) for k, v in datas.items()}
@@ -340,7 +340,7 @@ def compare_arrays(
                     "d_pass": diff.abstract(),
                 }
             else:
-                report["info"][name] = "d_pass: {}".format(diff.abstract())
+                report["info"][name] = f"d_pass: {diff.abstract()}"
             report["passed"] += 1
         else:
             if report_detail:
@@ -350,20 +350,16 @@ def compare_arrays(
                     "d_fail": diff.abstract(),
                 }
             else:
-                report["info"][name] = "d_fail: {}".format(diff.abstract())
+                report["info"][name] = f"d_fail: {diff.abstract()}"
 
     for name, gol in golden.items():
         report["total"] += 1
         data = datas[name]
         if list(gol.shape) != list(data.shape):
-            report["info"][name] = "fail: shape mismatch [G]{} vs [D]{}".format(
-                gol.shape, data.shape
-            )
+            report["info"][name] = f"fail: shape mismatch [G]{gol.shape} vs [D]{data.shape}"
             continue
         if gol.dtype != data.dtype:
-            report["info"][name] = "fail: dtype mismatch [G]{} vs [D]{}".format(
-                gol.dtype, data.dtype
-            )
+            report["info"][name] = f"fail: dtype mismatch [G]{gol.dtype} vs [D]{data.dtype}"
             continue
         if gol.dtype.name in ("int32", "int64"):
             passed = np.abs(gol - data).max() == 0

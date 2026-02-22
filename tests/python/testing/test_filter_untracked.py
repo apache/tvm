@@ -39,7 +39,7 @@ def setup_git_repo(worktree=False):
         subprocess.check_output(["git", "add", "committed-ignored"], cwd=git_repo_dir)
 
         with open(f"{git_repo_dir}/.gitignore", "w") as gitignore_f:
-            gitignore_f.write("ignored\n" "committed-ignored\n")
+            gitignore_f.write("ignored\ncommitted-ignored\n")
 
         subprocess.check_output(["git", "add", ".gitignore"], cwd=git_repo_dir)
 
@@ -126,24 +126,24 @@ def run_test(repo_path, passed_files, filtered_files):
     filter_output_lines = [l for l in filter_output.split("\n") if l]
 
     for pass_f in passed_files:
-        assert (
-            pass_f in filter_output_lines
-        ), f"expected in filter output: {pass_f}\filter output: {filter_output}"
-        assert (
-            f"./{pass_f}" in filter_output_lines
-        ), f"expected in filter output: ./{pass_f}\filter output: {filter_output}"
+        assert pass_f in filter_output_lines, (
+            f"expected in filter output: {pass_f}\filter output: {filter_output}"
+        )
+        assert f"./{pass_f}" in filter_output_lines, (
+            f"expected in filter output: ./{pass_f}\filter output: {filter_output}"
+        )
 
     for filter_f in filtered_files:
-        assert (
-            filter_f not in filter_output_lines
-        ), f"expected not in filter output: {filter_f}\nfilter_output: {filter_output}"
-        assert (
-            f"./{filter_f}" not in filter_output_lines
-        ), f"expected not in filter output: ./{filter_f}\nfilter_output: {filter_output}"
+        assert filter_f not in filter_output_lines, (
+            f"expected not in filter output: {filter_f}\nfilter_output: {filter_output}"
+        )
+        assert f"./{filter_f}" not in filter_output_lines, (
+            f"expected not in filter output: ./{filter_f}\nfilter_output: {filter_output}"
+        )
 
-    assert len(filter_output_lines) == 2 * len(
-        passed_files
-    ), f"expected {len(filter_output_lines)} == 2 * {len(passed_files)}"
+    assert len(filter_output_lines) == 2 * len(passed_files), (
+        f"expected {len(filter_output_lines)} == 2 * {len(passed_files)}"
+    )
 
 
 def test_filter_untracked():

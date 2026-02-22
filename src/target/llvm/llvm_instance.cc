@@ -79,7 +79,7 @@
 namespace llvm {
 #if TVM_LLVM_VERSION < 170
 // SubtargetSubTypeKV view
-template <ArrayRef<SubtargetSubTypeKV> MCSubtargetInfo::*Member>
+template <ArrayRef<SubtargetSubTypeKV> MCSubtargetInfo::* Member>
 struct ArchViewer {
   friend ArrayRef<SubtargetSubTypeKV>& archViewer(MCSubtargetInfo Obj) { return Obj.*Member; }
 };
@@ -87,7 +87,7 @@ template struct ArchViewer<&MCSubtargetInfo::ProcDesc>;
 ArrayRef<SubtargetSubTypeKV>& archViewer(MCSubtargetInfo);
 #endif
 // SubtargetFeatureKV view
-template <ArrayRef<SubtargetFeatureKV> MCSubtargetInfo::*Member>
+template <ArrayRef<SubtargetFeatureKV> MCSubtargetInfo::* Member>
 struct FeatViewer {
   friend ArrayRef<SubtargetFeatureKV>& featViewer(MCSubtargetInfo Obj) { return Obj.*Member; }
 };

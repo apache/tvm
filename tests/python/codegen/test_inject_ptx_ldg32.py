@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm.script import tir as T
 import numpy as np
+
+import tvm
 import tvm.testing
+from tvm.script import tir as T
 
 
 @T.prim_func
@@ -48,13 +49,13 @@ def test_inject_ptx_intrin():
     with tvm.transform.PassContext(config={"tir.ptx_ldg32": True}):
         mod = tvm.compile(f, target="cuda")
     A_np = np.random.rand(16).astype("float32")
-    B_np = np.zeros((32)).astype("float32")
+    B_np = np.zeros(32).astype("float32")
     dev = tvm.cuda(0)
     A_nd = tvm.runtime.tensor(A_np, device=dev)
     B_nd = tvm.runtime.tensor(B_np, device=dev)
     mod(A_nd, B_nd)
 
-    C_np = np.zeros((32)).astype("float32")
+    C_np = np.zeros(32).astype("float32")
 
     for i in range(32):
         if i % 2 == 0:

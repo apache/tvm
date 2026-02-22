@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, dangerous-default-value, arguments-differ
 """Driver for partitioning and building a Relax module for CUTLASS offload."""
+
 import itertools
 import logging
 import multiprocessing
@@ -23,6 +24,7 @@ import operator
 import os
 from functools import reduce
 from typing import Optional, Sequence
+
 from tvm_ffi import register_global_func
 
 import tvm
@@ -815,7 +817,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         elif "layer_norm" in op_type or "rms_norm" in op_type:
             return self.handle_norm(f, op_type)
 
-        raise ValueError("Unsupported composite {}".format(op_type))
+        raise ValueError(f"Unsupported composite {op_type}")
 
     def visit_span(self, span):
         return span

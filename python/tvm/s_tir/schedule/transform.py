@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Transformation on TIR schedule."""
+
 from typing import Optional
 
-from tvm.s_tir.schedule import Schedule, SBlockRV, LoopRV
+from tvm.s_tir.schedule import LoopRV, SBlockRV, Schedule
+
 from . import _ffi_api
 
 

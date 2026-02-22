@@ -24,13 +24,15 @@ This test verifies:
 4. DLPack conversion between PyTorch and TVM
 """
 
+import numpy as np
 import pytest
 import torch
+
 import tvm
 from tvm import relax, tir
-from tvm.script import relax as R, tir as T
 from tvm.relax import BasePyModule
-import numpy as np
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 class TestBasePyModule:

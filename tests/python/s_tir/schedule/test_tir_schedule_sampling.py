@@ -14,17 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from collections import defaultdict
 import sys
+from collections import defaultdict
 
 import numpy
 import pytest
+
 import tvm.testing
-
 from tvm import tir
-from tvm.script import tir as T
 from tvm.s_tir.schedule.testing import verify_trace_roundtrip
-
+from tvm.script import tir as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 

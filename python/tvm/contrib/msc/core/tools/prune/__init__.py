@@ -16,6 +16,6 @@
 # under the License.
 """tvm.contrib.msc.core.tools.prune"""
 
-from .pruner import *
-from .method import *
 from .configer import *
+from .method import *
+from .pruner import *

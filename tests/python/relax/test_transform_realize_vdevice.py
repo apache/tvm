@@ -20,7 +20,9 @@ import tvm
 import tvm.testing
 from tvm.ir import VDevice
 from tvm.relax.transform import RealizeVDevice
-from tvm.script.parser import ir as I, relax as R, tir as T
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def verify(input, expected):

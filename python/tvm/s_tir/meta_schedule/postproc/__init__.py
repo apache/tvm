@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """The tvm.s_tir.meta_schedule.postproc package."""
-from .disallow_dynamic_loop import DisallowDynamicLoop
+
 from .disallow_async_strided_mem_copy import DisallowAsyncStridedMemCopy
+from .disallow_dynamic_loop import DisallowDynamicLoop
 from .postproc import Postproc, PyPostproc
 from .rewrite_cooperative_fetch import RewriteCooperativeFetch
 from .rewrite_layout import RewriteLayout

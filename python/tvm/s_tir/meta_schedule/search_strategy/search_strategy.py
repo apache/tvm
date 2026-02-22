@@ -18,6 +18,7 @@
 Meta Schedule search strategy that generates the measure
 candidates for measurement.
 """
+
 from typing import TYPE_CHECKING, Callable, List, Optional, Union
 
 # isort: off
@@ -25,6 +26,7 @@ from typing_extensions import Literal
 
 # isort: on
 from tvm_ffi import register_object
+
 from tvm.runtime import Object
 from tvm.s_tir.schedule import Schedule
 

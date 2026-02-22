@@ -17,25 +17,26 @@
 # pylint: disable=missing-function-docstring,missing-module-docstring
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import te, tir
-from tvm.script import tir as T
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
 from tvm.s_tir.tensor_intrin.arm_cpu import (
     DP4A_S8S8S32_INTRIN,
-    DP4A_U8U8U32_INTRIN,
-    DP4A_U8S8S32_INTRIN,
     DP4A_S8U8S32_INTRIN,
+    DP4A_U8S8S32_INTRIN,
+    DP4A_U8U8U32_INTRIN,
     ARM_DOT_4x4_i8_NEON_INTRIN,
     ARM_DOT_4x4_i8_SDOT_INTRIN,
 )
+from tvm.s_tir.tensor_intrin.hexagon import VDMPY_i16i16i32_INTRIN, VRMPY_u8u8i32_INTRIN
 from tvm.s_tir.tensor_intrin.rocm import AMDGPU_SDOT4_INTRIN
-from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN, AVX512_DOT_16x4_INTRIN
-from tvm.s_tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN, VDMPY_i16i16i32_INTRIN
+from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN, VNNI_DOT_16x4_INTRIN
+from tvm.script import tir as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks

@@ -16,15 +16,16 @@
 # under the License.
 """LLVM enablement tests."""
 
-import tvm
-import tvm.testing
-from tvm import te
-from tvm import topi
-from tvm.contrib import utils
-import numpy as np
 import ctypes
 import math
 import re
+
+import numpy as np
+
+import tvm
+import tvm.testing
+from tvm import te, topi
+from tvm.contrib import utils
 
 
 @tvm.testing.requires_llvm

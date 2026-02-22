@@ -24,17 +24,14 @@
 var __wasmLib = {};
 
 function __wasmLibInstantiateWasm(imports, successCallback) {
-    __wasmLib.imports = imports;
-    __wasmLib.successCallback = successCallback;
+  __wasmLib.imports = imports;
+  __wasmLib.successCallback = successCallback;
 }
 
 function __wasmLibStart(wasmInstance) {
-    __wasmLib.successCallback(wasmInstance);
+  __wasmLib.successCallback(wasmInstance);
 }
 
 __wasmLib.start = __wasmLibStart;
 
-var Module = {
-    "instantiateWasm": __wasmLibInstantiateWasm,
-    "wasmLibraryProvider": __wasmLib
-};
+var Module = {'instantiateWasm': __wasmLibInstantiateWasm, 'wasmLibraryProvider': __wasmLib};

@@ -16,11 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for ccl operators."""
-from tvm import tir, arith, topi
+
+from tvm import arith, tir, topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, ShapeExpr
 from ...op import call_dps_packed
-from ...struct_info import TensorStructInfo, ShapeStructInfo
+from ...struct_info import ShapeStructInfo, TensorStructInfo
 from .common import register_legalize
 
 
@@ -50,9 +52,9 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
 def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
     output_shape = []
     arg_sinfo = call.args[0].struct_info
-    assert isinstance(
-        arg_sinfo, TensorStructInfo
-    ), "The input struct info of allgather should be TensorStructInfo."
+    assert isinstance(arg_sinfo, TensorStructInfo), (
+        "The input struct info of allgather should be TensorStructInfo."
+    )
     assert isinstance(arg_sinfo.shape.struct_info, ShapeStructInfo)
     arg_shape = arg_sinfo.shape.struct_info
     for i, shape_value in enumerate(arg_shape.values):
@@ -83,9 +85,9 @@ def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
 # Since collective communication ops are performed on contiguous memory,
 # we need to reshape and transpose the input tensor to make sharding dimension in the highest order
 def _transpose_for_ccl(_bb: BlockBuilder, expr: Expr, axis: int, num_workers: int):
-    assert isinstance(
-        expr.struct_info, TensorStructInfo
-    ), "The input struct info should be TensorStructInfo."
+    assert isinstance(expr.struct_info, TensorStructInfo), (
+        "The input struct info should be TensorStructInfo."
+    )
     assert isinstance(expr.struct_info.shape.struct_info, ShapeStructInfo)
     arg_shape = expr.struct_info.shape.struct_info
     new_shape = []

@@ -19,8 +19,9 @@
 
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
-import tvm
 import tvm_ffi
+
+import tvm
 from tvm import relax as rx
 from tvm import tir
 from tvm.ir.module import IRModule
@@ -33,7 +34,7 @@ from .struct_info import StructInfo
 from .utils import gen_call_tir_inputs
 
 
-class FunctionScope(object):
+class FunctionScope:
     """Auxiliary scope for function"""
 
     def __init__(self, block_builder, name, params, attrs, is_pure):
@@ -58,7 +59,7 @@ class FunctionScope(object):
         self._bb._exit_function_scope(exc_type, exc_val, exc_tb)
 
 
-class DataflowScope(object):
+class DataflowScope:
     """Auxiliary scope for Dataflow block"""
 
     def __init__(self, block_builder):
@@ -77,7 +78,7 @@ class DataflowScope(object):
         self._bb._begin_binding_block()
 
 
-class TestingScope(object):
+class TestingScope:
     """Auxiliary scope for testing purposes"""
 
     def __init__(self, block_builder, def_vars):
@@ -248,10 +249,8 @@ class BlockBuilder(Object):
             for param in params:
                 if not isinstance(param, rx.Var):
                     raise TypeError(
-                        "each element of function parameters must be of type tvm.relax.Var,\
-                                    but got: {}".format(
-                            type(param)
-                        )
+                        f"each element of function parameters must be of type tvm.relax.Var,\
+                                    but got: {type(param)}"
                     )
         if attrs is None:
             attrs = {}

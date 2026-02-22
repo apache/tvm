@@ -15,30 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta schedule tuning utilities for Hexagon."""
+
 import os
 import tempfile
 from typing import Callable, Dict, List, Optional
-import tvm
 
+import tvm
+from tvm.contrib.popen_pool import PopenPoolExecutor
+from tvm.driver import build as tvm_build
 from tvm.ir.module import IRModule
 from tvm.runtime import Module, Tensor
-from tvm.target import Target
-from tvm.driver import build as tvm_build
-from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
-from tvm.contrib.popen_pool import PopenPoolExecutor
-from tvm.s_tir.meta_schedule.utils import cpu_count, derived_object
 from tvm.s_tir.meta_schedule.builder import LocalBuilder
 from tvm.s_tir.meta_schedule.runner import (
     EvaluatorConfig,
-    RunnerInput,
-    RunnerFuture,
     PyRunner,
+    RunnerFuture,
+    RunnerInput,
 )
 from tvm.s_tir.meta_schedule.runner.rpc_runner import (
+    RPCRunnerFuture,
     default_alloc_argument,
     default_run_evaluator,
-    RPCRunnerFuture,
 )
+from tvm.s_tir.meta_schedule.utils import cpu_count, derived_object
+from tvm.s_tir.transform import RemoveWeightLayoutRewriteBlock
+from tvm.target import Target
 
 from .build import HexagonLauncherRPC
 from .tools import export_module

@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-import tvm.testing
 import tvm.s_tir
+import tvm.testing
 from tvm import IRModule
 from tvm.script import tir as T
 from tvm.tir import PrimFunc

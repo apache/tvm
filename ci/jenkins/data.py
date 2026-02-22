@@ -17,7 +17,6 @@
 # under the License.
 import sys
 
-
 files_to_stash = {
     # Executables and build files needed to run c++ tests
     "cpptest": ["build/cpptest", "build/build.ninja", "build/CMakeFiles/rules.ninja"],

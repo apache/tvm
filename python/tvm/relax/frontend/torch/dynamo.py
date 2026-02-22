@@ -166,8 +166,8 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> tvm.IRModule:
         weights can be detached by `relax.frontend.detach_params`.
     """
     import torch  # type: ignore[import]
-    from torch import fx  # type: ignore[import]
     from torch import _dynamo as dynamo  # type: ignore[import]
+    from torch import fx  # type: ignore[import]
 
     keep_params_as_input = "keep_params_as_input" in kwargs and kwargs["keep_params_as_input"]
     kwargs.pop("keep_params_as_input", None)

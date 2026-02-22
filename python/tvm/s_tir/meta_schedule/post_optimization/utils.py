@@ -16,9 +16,10 @@
 # under the License.
 """Utils file for exploitation schedule"""
 
-import os
 import json
+import os
 from typing import Dict
+
 import numpy as np  # type: ignore
 
 
@@ -71,7 +72,7 @@ def get_time(log: str) -> list:
         A list with the best time and the json data
     """
     best_time = [1e10, None]
-    with open(log, "r", encoding="utf-8") as log_file:
+    with open(log, encoding="utf-8") as log_file:
         for line in log_file.readlines():
             data = json.loads(line)
             params = data[1]
@@ -95,12 +96,12 @@ def read_cfg_file(path_tuning_file: str, path_workload_file: str) -> Dict[int, l
         Returns the best time, total time, and data
     """
     workload_list = []
-    with open(path_workload_file, "r", encoding="utf-8") as log_file:
+    with open(path_workload_file, encoding="utf-8") as log_file:
         for line in log_file.readlines():
             workload_list.append(json.loads(line))
 
     cfg: Dict[int, list] = dict()
-    with open(path_tuning_file, "r", encoding="utf-8") as log_file:
+    with open(path_tuning_file, encoding="utf-8") as log_file:
         for line in log_file.readlines():
             data = json.loads(line)
             layer = data[0]

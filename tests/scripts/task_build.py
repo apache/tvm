@@ -16,18 +16,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import argparse
-import shutil
-import os
 import logging
-import sys
 import multiprocessing
-
+import os
+import shutil
+import sys
 from pathlib import Path
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
-from cmd_utils import Sh, init_log, REPO_ROOT
+from cmd_utils import REPO_ROOT, Sh, init_log
 
 if __name__ == "__main__":
     init_log()
@@ -57,7 +56,7 @@ if __name__ == "__main__":
             logging.info(f"Using sccache bucket: {args.sccache_bucket}")
             logging.info(f"Using sccache region: {env['SCCACHE_REGION']}")
         else:
-            logging.info(f"No sccache bucket set, using local cache")
+            logging.info("No sccache bucket set, using local cache")
         if "SCCACHE_SERVER_PORT" in os.environ:
             env["SCCACHE_SERVER_PORT"] = os.getenv("SCCACHE_SERVER_PORT")
         env["CXX"] = "/opt/sccache/c++"

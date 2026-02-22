@@ -15,16 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Base infra"""
+
 from .common_analysis import (
-    SBlockInfo,
     IterInfo,
+    SBlockInfo,
     collect_block_iter_vars_used_in_access_region,
     collect_vars_used_in_prim_expr,
     detect_dominant_read,
-    is_broadcast_epilogue,
-    normalize_prim_func,
     get_root_block,
     get_sblock_info,
+    is_broadcast_epilogue,
+    normalize_prim_func,
 )
 from .gemv import (
     is_gemv,

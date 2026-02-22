@@ -15,24 +15,78 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import, redefined-builtin, wildcard-import
-"""Namespace for Tensor Expression Language
-"""
+"""Namespace for Tensor Expression Language"""
+
 # expose all operators in tvm tir.op
-from tvm.tir import any, all, min_value, max_value, trace
-from tvm.tir import exp, erf, tanh, sigmoid, log, tan, cos, sin, sqrt, rsqrt, floor, ceil
-from tvm.tir import sinh, cosh, log2, log10
-from tvm.tir import asin, asinh, acos, acosh, atan, atanh
-from tvm.tir import trunc, abs, round, nearbyint, power, popcount, fmod, if_then_else
-from tvm.tir import isnan, isfinite, isinf
-from tvm.tir import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, logaddexp
-from tvm.tir import comm_reducer, min, max, sum
-from tvm.tir import add, subtract, multiply
+from tvm.tir import (
+    abs,
+    acos,
+    acosh,
+    add,
+    all,
+    any,
+    asin,
+    asinh,
+    atan,
+    atanh,
+    ceil,
+    comm_reducer,
+    cos,
+    cosh,
+    div,
+    erf,
+    exp,
+    floor,
+    floordiv,
+    floormod,
+    fmod,
+    if_then_else,
+    indexdiv,
+    indexmod,
+    isfinite,
+    isinf,
+    isnan,
+    log,
+    log2,
+    log10,
+    logaddexp,
+    max,
+    max_value,
+    min,
+    min_value,
+    multiply,
+    nearbyint,
+    popcount,
+    power,
+    round,
+    rsqrt,
+    sigmoid,
+    sin,
+    sinh,
+    sqrt,
+    subtract,
+    sum,
+    tan,
+    tanh,
+    trace,
+    trunc,
+    truncdiv,
+    truncmod,
+)
 
-from .tensor import TensorSlice, Tensor
+from .operation import (
+    AXIS_SEPARATOR,
+    compute,
+    const,
+    create_prim_func,
+    extern,
+    extern_primfunc,
+    placeholder,
+    reduce_axis,
+    scan,
+    size_var,
+    thread_axis,
+    var,
+)
 from .tag import tag_scope
-from .operation import placeholder, compute, scan, extern, var, size_var, const
-from .operation import thread_axis, reduce_axis, AXIS_SEPARATOR
-from .operation import create_prim_func
-from .operation import extern_primfunc
-
-from .tensor import PlaceholderOp, ComputeOp, ScanOp, ExternOp
+from .tensor import ComputeOp, ExternOp, PlaceholderOp, ScanOp, Tensor, TensorSlice

@@ -16,11 +16,7 @@
 # under the License.
 """The Relax training APIs."""
 
-from . import loss
-from . import optimizer
-from . import trainer
-from . import utils
-
+from . import loss, optimizer, trainer, utils
 from .setup_trainer import SetupTrainer
 from .trainer import Trainer
 from .utils import AppendLoss

@@ -16,5 +16,5 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.runtime"""
 
-from .runner import *
 from .jit import *
+from .runner import *

@@ -17,16 +17,17 @@
 # pylint: disable=unused-import
 """tvm.contrib.msc.framework.torch.runtime.jit_model"""
 
-from typing import Any, List, Tuple, Dict
 from functools import partial
+from typing import Any, Dict, List, Tuple
 
 import torch
-from torch import fx
 from torch import _dynamo as dynamo
+from torch import fx
 
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.runtime import BaseJIT
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
+
 from .runner import TorchRunner
 
 

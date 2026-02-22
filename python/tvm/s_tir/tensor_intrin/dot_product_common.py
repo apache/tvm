@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring
 """Dot product related intrinsics."""
+
 from tvm.script import tir as T
+
 from .. import TensorIntrin
 
 

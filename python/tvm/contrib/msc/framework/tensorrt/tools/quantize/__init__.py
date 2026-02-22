@@ -16,5 +16,5 @@
 # under the License.
 """tvm.contrib.msc.framework.tensorrt.tools.quantize"""
 
-from .quantizer import *
 from .method import *
+from .quantizer import *

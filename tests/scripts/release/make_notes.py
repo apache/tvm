@@ -17,12 +17,12 @@
 # under the License.
 
 import argparse
-import pickle
-from pathlib import Path
 import csv
-import sys
+import pickle
 import re
+import sys
 from collections import defaultdict
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "tests" / "scripts"))
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     repo = "tvm"
 
     if args.convert_with_link:
-        with open(args.notes, "r") as f:
+        with open(args.notes) as f:
             lines = f.readlines()
         formated = []
         for line in lines:

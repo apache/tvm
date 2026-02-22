@@ -18,7 +18,7 @@
 
 from .distributed import (
     annotate_sharding,
-    redistribute,
     call_tir_local_view,
+    redistribute,
     redistribute_replica_to_shard,
 )

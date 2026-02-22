@@ -17,10 +17,11 @@
 # pylint: disable=invalid-name
 """Utility to invoke Xcode compiler toolchain"""
 
-import os
-import sys
-import subprocess
 import json
+import os
+import subprocess
+import sys
+
 from ..base import py_str
 from . import utils
 

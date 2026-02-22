@@ -18,11 +18,13 @@
 """Intrinsics for RISCV tensorization"""
 
 import logging
+
 import tvm_ffi
 
 from tvm.runtime import DataType
 from tvm.script import tir as T
-from tvm.target.codegen import llvm_get_vector_width, target_has_features, Target
+from tvm.target.codegen import Target, llvm_get_vector_width, target_has_features
+
 from .. import TensorIntrin
 
 logger = logging.getLogger(__name__)
@@ -203,7 +205,6 @@ def register_rvv_isa_intrinsics(target: Target, inventory_only=False) -> dict():
 
         n_elems = max_elems
         while n_elems >= 4:
-
             dt = DataType(d_dtype)
             wt = DataType(w_dtype)
             ot = DataType(o_dtype)

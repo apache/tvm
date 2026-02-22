@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Batch to space ND in python"""
+
 import numpy as np
+
 from . import strided_slice_python
 
 
@@ -68,7 +70,7 @@ def batch_to_space_nd_python(data, block_shape, crop_begin_list, crop_end_list):
             axis.append(len(r_shape) - (M + 1))
         r_shape.append(in_shape[i])
 
-    r_p_shape.append(int((in_batch / block_shape_prod)))
+    r_p_shape.append(int(in_batch / block_shape_prod))
     for i in range(1, M + 1):
         r_p_shape.append(in_shape[i] * block_shape[i - 1])
     for i in range(M + 1, N):

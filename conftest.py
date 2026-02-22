@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import hashlib
-import pytest
-import sys
 import os
-
+import sys
 from pathlib import Path
+
+import pytest
 
 pytest_plugins = ["tvm.testing.plugin"]
 IS_IN_CI = os.getenv("CI", "") == "true"

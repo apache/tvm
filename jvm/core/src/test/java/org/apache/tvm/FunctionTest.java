@@ -17,16 +17,17 @@
 
 package org.apache.tvm;
 
-import org.junit.Test;
-
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+
+import org.junit.Test;
 
 public class FunctionTest {
   @Test
   public void test_reg_sum_number() {
     Function.register("sum_number", new Function.Callback() {
-      @Override public Object invoke(TVMValue... args) {
+      @Override
+      public Object invoke(TVMValue... args) {
         long res = 0L;
         for (TVMValue arg : args) {
           res += arg.asLong();
@@ -46,7 +47,8 @@ public class FunctionTest {
     System.err.println("[TEST] test_add_string");
 
     Function func = Function.convertFunc(new Function.Callback() {
-      @Override public Object invoke(TVMValue... args) {
+      @Override
+      public Object invoke(TVMValue... args) {
         String res = "";
         for (TVMValue arg : args) {
           res += arg.asString();
@@ -63,7 +65,8 @@ public class FunctionTest {
   @Test
   public void test_sum_first_byte() {
     Function func = Function.convertFunc(new Function.Callback() {
-      @Override public Object invoke(TVMValue... args) {
+      @Override
+      public Object invoke(TVMValue... args) {
         byte[] bt = new byte[1];
         for (TVMValue arg : args) {
           bt[0] += arg.asBytes()[0];
@@ -71,17 +74,18 @@ public class FunctionTest {
         return bt;
       }
     });
-    TVMValue res = func.pushArg(new byte[]{1}).pushArg(new byte[]{2, 3}).invoke();
-    assertArrayEquals(new byte[]{3}, res.asBytes());
+    TVMValue res = func.pushArg(new byte[] {1}).pushArg(new byte[] {2, 3}).invoke();
+    assertArrayEquals(new byte[] {3}, res.asBytes());
     res.release();
     func.release();
   }
 
   @Test
   public void test_sum_tensor() {
-    final long[] shape = new long[]{2, 1};
+    final long[] shape = new long[] {2, 1};
     Function func = Function.convertFunc(new Function.Callback() {
-      @Override public Object invoke(TVMValue... args) {
+      @Override
+      public Object invoke(TVMValue... args) {
         double sum = 0.0;
         for (TVMValue arg : args) {
           Tensor arr = Tensor.empty(shape, new TVMType("float32"));
@@ -96,7 +100,7 @@ public class FunctionTest {
       }
     });
     Tensor arr = Tensor.empty(shape, new TVMType("float32"));
-    arr.copyFrom(new float[]{2f, 3f});
+    arr.copyFrom(new float[] {2f, 3f});
     TVMValue res = func.pushArg(arr).pushArg(arr).invoke();
     assertEquals(10.0, res.asDouble(), 1e-3);
     res.release();
@@ -106,10 +110,12 @@ public class FunctionTest {
   @Test
   public void test_return_function() {
     Function myFunc = Function.convertFunc(new Function.Callback() {
-      @Override public Object invoke(TVMValue... args) {
+      @Override
+      public Object invoke(TVMValue... args) {
         final long y = args[0].asLong();
         return Function.convertFunc(new Function.Callback() {
-          @Override public Object invoke(TVMValue... args) {
+          @Override
+          public Object invoke(TVMValue... args) {
             final long x = args[0].asLong();
             return x + y;
           }

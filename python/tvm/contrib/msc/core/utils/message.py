@@ -22,10 +22,10 @@ from typing import List, Tuple
 
 from .arguments import dump_dict, map_dict
 from .log import get_global_logger, split_line
-from .namespace import MSCMap, MSCKey
+from .namespace import MSCKey, MSCMap
 
 
-class MSCStage(object):
+class MSCStage:
     """Enum all msc stage names"""
 
     SETUP = "setup"
@@ -82,13 +82,13 @@ def time_stamp(stage: str, log_stage: bool = True, logger: logging.Logger = None
         if log_stage:
             last_stage = MSCMap.get(MSCKey.MSC_STAGE)
             if last_stage:
-                end_msg = "End {}".format(last_stage.upper())
+                end_msg = f"End {last_stage.upper()}"
                 logger.info("%s\n", split_line(end_msg))
-            start_msg = "Start {}".format(stage.upper())
+            start_msg = f"Start {stage.upper()}"
             logger.info(split_line(start_msg))
         MSCMap.set(MSCKey.MSC_STAGE, stage.upper())
     elif log_stage:
-        start_msg = "Start {}".format(stage)
+        start_msg = f"Start {stage}"
         logger.debug(split_line(start_msg, "+"))
 
 
@@ -163,7 +163,7 @@ def msg_block(title: str, msg: str, width: int = 100, symbol: str = "-"):
 
     if isinstance(msg, dict):
         msg = dump_dict(msg, "table:" + str(width))
-    return "{}\n{}".format(split_line(title, symbol), msg)
+    return f"{split_line(title, symbol)}\n{msg}"
 
 
 def current_stage():

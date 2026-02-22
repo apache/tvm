@@ -15,19 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-from tvm.s_tir import meta_schedule as ms
 from tvm import te
 from tvm.ir import assert_structural_equal
+from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
     print_sketches,
 )
-from tvm.script import tir as T
-from tvm.target import Target
 from tvm.s_tir.tensor_intrin.arm_cpu import DP4A_S8S8S32_INTRIN
 from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN as AVX512_INTRIN
 from tvm.s_tir.tensor_intrin.x86 import VNNI_DOT_16x4_INTRIN as VNNI_INTRIN
+from tvm.script import tir as T
+from tvm.target import Target
 
 
 def test_x86_conv2d_nchwc(

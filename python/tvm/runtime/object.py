@@ -17,10 +17,10 @@
 # pylint: disable=invalid-name, unused-import
 """Runtime Object API"""
 
-from tvm_ffi.core import Object
 import tvm_ffi.core
-from . import _ffi_node_api
+from tvm_ffi.core import Object
 
+from . import _ffi_node_api
 
 tvm_ffi.core._set_class_object(Object)
 # override the default repr function for tvm_ffi.core.Object

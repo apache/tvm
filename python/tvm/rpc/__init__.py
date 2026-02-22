@@ -30,7 +30,6 @@ It allows writings of arbitrary files into the server and provide
 full remote code execution capabilities to anyone who can access this API.
 """
 
-from .server import Server
-from .client import connect, connect_tracker
-from .client import RPCSession, LocalSession, PopenSession, TrackerSession
+from .client import LocalSession, PopenSession, RPCSession, TrackerSession, connect, connect_tracker
 from .minrpc import with_minrpc
+from .server import Server

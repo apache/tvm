@@ -15,16 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Package tvm.script.ir_builder.ir"""
+
 from .frame import IRModuleFrame
 from .ir import (
     decl_function,
     def_function,
+    dummy_global_info,
     ir_module,
+    lookup_vdevice,
     module_attrs,
     module_get_attr,
-    module_set_attr,
     module_global_infos,
-    lookup_vdevice,
+    module_set_attr,
     vdevice,
-    dummy_global_info,
 )

@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """The entry point of TVM parser."""
+
 import inspect
 from typing import Any, Dict, Union
 
 import tvm
+
 from ....ir.module import IRModule
 from ...ir_builder import IRBuilder
 from . import doc
@@ -36,9 +38,11 @@ WELL_FORMED_ERROR_MESSAGE = (
 
 def _default_globals() -> Dict[str, Any]:
     # lazy import here to avoid circular deps
-    from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
-    from tvm.script.parser import relax  # pylint: disable=import-outside-toplevel
-    from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
+    from tvm.script.parser import (
+        ir,  # pylint: disable=import-outside-toplevel
+        relax,  # pylint: disable=import-outside-toplevel
+        tir,  # pylint: disable=import-outside-toplevel
+    )
 
     extra_vars = {
         "tvm": tvm,
@@ -126,7 +130,7 @@ def parse(
         except Exception as err:  # pylint: disable=broad-exception-caught
             parser.report_error(
                 source_ast,
-                err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {str(err)}",
+                err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {err!s}",
             )
     return ret
 

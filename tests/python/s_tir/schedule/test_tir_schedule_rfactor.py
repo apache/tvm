@@ -20,11 +20,11 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import te, tir, topi
-from tvm.script import tir as T
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import tir as T
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -1155,8 +1155,10 @@ def argmax_topi_rfactor(
                 placeholder_red_temp_v1_rf[ax0, vi1_1] = -2147483648
             v_placeholder_red_temp_v0_rf: T.int32 = T.Select(
                 placeholder_red_temp_v1_rf[ax0, vi1_1] > placeholder[ax0, vi1_0 * 8 + vi1_1]
-                or placeholder_red_temp_v1_rf[ax0, vi1_1] == placeholder[ax0, vi1_0 * 8 + vi1_1]
-                and placeholder_red_temp_v0_rf[ax0, vi1_1] < vi1_0 * 8 + vi1_1,
+                or (
+                    placeholder_red_temp_v1_rf[ax0, vi1_1] == placeholder[ax0, vi1_0 * 8 + vi1_1]
+                    and placeholder_red_temp_v0_rf[ax0, vi1_1] < vi1_0 * 8 + vi1_1
+                ),
                 placeholder_red_temp_v0_rf[ax0, vi1_1],
                 vi1_0 * 8 + vi1_1,
             )
@@ -1177,8 +1179,10 @@ def argmax_topi_rfactor(
                 placeholder_red_temp_v1[ax0] = -2147483648
             v_placeholder_red_temp_v0: T.int32 = T.Select(
                 placeholder_red_temp_v1[ax0] > placeholder_red_temp_v1_rf[ax0, vi1_1]
-                or placeholder_red_temp_v1[ax0] == placeholder_red_temp_v1_rf[ax0, vi1_1]
-                and placeholder_red_temp_v0[ax0] < placeholder_red_temp_v0_rf[ax0, vi1_1],
+                or (
+                    placeholder_red_temp_v1[ax0] == placeholder_red_temp_v1_rf[ax0, vi1_1]
+                    and placeholder_red_temp_v0[ax0] < placeholder_red_temp_v0_rf[ax0, vi1_1]
+                ),
                 placeholder_red_temp_v0[ax0],
                 placeholder_red_temp_v0_rf[ax0, vi1_1],
             )
@@ -1216,8 +1220,10 @@ def argmin_topi_rfactor(
                 placeholder_red_temp_v1_rf[ax0, vi1_1] = 2147483647
             v_placeholder_red_temp_v0_rf: T.int32 = T.Select(
                 placeholder_red_temp_v1_rf[ax0, vi1_1] < placeholder[ax0, vi1_0 * 8 + vi1_1]
-                or placeholder_red_temp_v1_rf[ax0, vi1_1] == placeholder[ax0, vi1_0 * 8 + vi1_1]
-                and placeholder_red_temp_v0_rf[ax0, vi1_1] < vi1_0 * 8 + vi1_1,
+                or (
+                    placeholder_red_temp_v1_rf[ax0, vi1_1] == placeholder[ax0, vi1_0 * 8 + vi1_1]
+                    and placeholder_red_temp_v0_rf[ax0, vi1_1] < vi1_0 * 8 + vi1_1
+                ),
                 placeholder_red_temp_v0_rf[ax0, vi1_1],
                 vi1_0 * 8 + vi1_1,
             )
@@ -1238,8 +1244,10 @@ def argmin_topi_rfactor(
                 placeholder_red_temp_v1[ax0] = 2147483647
             v_placeholder_red_temp_v0: T.int32 = T.Select(
                 placeholder_red_temp_v1[ax0] < placeholder_red_temp_v1_rf[ax0, vi1_1]
-                or placeholder_red_temp_v1[ax0] == placeholder_red_temp_v1_rf[ax0, vi1_1]
-                and placeholder_red_temp_v0[ax0] < placeholder_red_temp_v0_rf[ax0, vi1_1],
+                or (
+                    placeholder_red_temp_v1[ax0] == placeholder_red_temp_v1_rf[ax0, vi1_1]
+                    and placeholder_red_temp_v0[ax0] < placeholder_red_temp_v0_rf[ax0, vi1_1]
+                ),
                 placeholder_red_temp_v0[ax0],
                 placeholder_red_temp_v0_rf[ax0, vi1_1],
             )

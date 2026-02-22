@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import json
-import csv
-import subprocess
 import argparse
+import csv
+import json
 import os
-from re import search, compile
+import subprocess
 from collections import OrderedDict
+from re import compile, search
 
 ENABLE_DEBUG = False
 """
@@ -83,9 +83,9 @@ def find_func(func_info, offset):
         ms = func_info[midx]["start"]
         me = func_info[midx]["end"]
         if fidx == lidx:
-            assert (
-                offset >= ms and offset <= me
-            ), f"Couldn't find a function for this offset: {offset}"
+            assert offset >= ms and offset <= me, (
+                f"Couldn't find a function for this offset: {offset}"
+            )
             return fidx
         else:
             if offset > me:
@@ -102,9 +102,9 @@ def accumulate_cycles(overall_cycles, func_cycles, func_name):
     acc_cycles = overall_cycles[func_name]
     for id in func_cycles:
         assert id in acc_cycles, f"id [{id}] missing in the existing function record"
-        assert (
-            acc_cycles[id]["start"] == func_cycles[id]["start"]
-        ), "Offset value doesn't match with the existing function record."
+        assert acc_cycles[id]["start"] == func_cycles[id]["start"], (
+            "Offset value doesn't match with the existing function record."
+        )
         acc_cycles[id]["cycles"] += func_cycles[id]["cycles"]
         acc_cycles[id]["count"] += func_cycles[id]["count"]
     overall_cycles.update({func_name: acc_cycles})
@@ -248,9 +248,9 @@ def process_data(data, func_info, so_ld_addr):
             )
             ordered_visited_list.pop()
             entry_node = visited_set.pop(id)
-            assert (
-                entry_node["func_idx"] == func_idx
-            ), f'Error - Found under a different function name : {entry_node["func_idx"]}'
+            assert entry_node["func_idx"] == func_idx, (
+                f"Error - Found under a different function name : {entry_node['func_idx']}"
+            )
             cycles = entry["cyc"] - entry_node["cyc"]
             parent = -1
             if ordered_visited_list:
@@ -300,9 +300,9 @@ def get_load_addr(serial_number: str, lwp_json: str, run_log: str):
             # If the directory name is specified for the run_log of the
             # simulator (stdout.txt) then it must be same as lwp_json.
             run_log_dir = os.path.dirname(run_log)
-            assert (
-                run_log_dir == "" or run_log_dir == basedir
-            ), f"stdout.txt and {os.path.basename(lwp_json)} must be in the same directory"
+            assert run_log_dir == "" or run_log_dir == basedir, (
+                f"stdout.txt and {os.path.basename(lwp_json)} must be in the same directory"
+            )
             run_log = os.path.join(basedir, os.path.basename(run_log))
         # To extract load address for the simulator run
         pattern = compile(r"Model.*: (\w+):")
@@ -310,7 +310,7 @@ def get_load_addr(serial_number: str, lwp_json: str, run_log: str):
         # To extract load address for on-device run
         pattern = compile(r"Model.*: (\w+)")
 
-    with open(run_log, "r") as f:
+    with open(run_log) as f:
         lines = f.read()
         a = pattern.search(lines)
         load_addr = int(a.group(1), 16)
@@ -335,7 +335,7 @@ def process_lwp_output(
     # Get load address for the binary
     load_addr = get_load_addr(serial_number, lwp_json, run_log)
     # Opening JSON file
-    with open(lwp_json, "r") as f:
+    with open(lwp_json) as f:
         # Returns JSON object as a dictionary
         data = json.load(f)
 

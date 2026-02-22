@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The default database that uses a JSON File to store tuning records"""
+
 import os.path as osp
 from typing import Optional
 

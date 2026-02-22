@@ -16,5 +16,5 @@
 # under the License.
 """tvm.contrib.msc.core.runtime"""
 
-from .runner import *
 from .jit import *
+from .runner import *

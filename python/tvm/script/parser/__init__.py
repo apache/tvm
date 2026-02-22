@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The parser"""
+
 from . import _core, ir
 from ._core import parse
 from .ir import ir_module

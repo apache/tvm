@@ -20,9 +20,10 @@
 from typing import Dict
 
 import tvm
+
 from ..expr import DataflowBlock, Var
-from .pattern import DFPattern
 from . import _ffi as ffi
+from .pattern import DFPattern
 
 
 class PatternContext(tvm.runtime.Object):

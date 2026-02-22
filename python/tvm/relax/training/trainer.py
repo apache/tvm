@@ -16,11 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name
 """Unified Trainer API for relax training."""
-from typing import Union, List, Optional, Dict
+
+from typing import Dict, List, Optional, Union
+
 import numpy as np  # type: ignore
 
 import tvm
-from tvm import relax, TVMError
+from tvm import TVMError, relax
 from tvm.ir.module import IRModule
 from tvm.runtime._tensor import Tensor
 

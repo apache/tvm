@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Batch matmul in python"""
+
 import numpy as np
 
 

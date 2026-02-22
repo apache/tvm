@@ -51,8 +51,8 @@ If not already acquainted, please refer to :ref:`tir-learning` initially.
 # Let's take an example of ``mm_relu`` from :ref:`tir-learning`. Here is the complete
 # format of the ir_module and in TVMScript:
 
-
 import numpy as np
+
 import tvm
 from tvm.script import ir as I
 from tvm.script import tir as T

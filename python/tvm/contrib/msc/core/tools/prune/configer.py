@@ -17,9 +17,10 @@
 """tvm.contrib.msc.core.tools.prune.configer"""
 
 from typing import Union
-from tvm.contrib.msc.core.tools.tool import ToolType
-from tvm.contrib.msc.core.tools.configer import ToolConfiger
+
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.configer import ToolConfiger
+from tvm.contrib.msc.core.tools.tool import ToolType
 
 
 class PruneConfiger(ToolConfiger):

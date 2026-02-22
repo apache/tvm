@@ -16,15 +16,16 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
+
 import tvm
-import tvm.testing
 import tvm.s_tir.tensor_intrin
+import tvm.testing
 from tvm import tir
-from tvm.script import tir as T
 from tvm.s_tir.schedule.testing import (
-    verify_trace_roundtrip,
     assert_structural_equal_ignore_global_symbol,
+    verify_trace_roundtrip,
 )
+from tvm.script import tir as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -202,9 +203,7 @@ def elementwise_reverse_affine_load_inlined(
                 (vj + vi * 128) // 64 % 32,
                 ((vj + vi * 128) // 8) % 8,
                 (vj + vi * 128) % 8,
-            ] = (
-                A[vi, vj] * 2.0
-            )
+            ] = A[vi, vj] * 2.0
 
 
 @T.prim_func
@@ -701,7 +700,7 @@ def elementwise_producer_not_cover_consumer(
 def elementwise_producer_is_reduction(
     A: T.Buffer((128, 128), "float32"), D: T.Buffer((128), "float32")
 ) -> None:
-    B = T.alloc_buffer((128))
+    B = T.alloc_buffer(128)
     for i, j in T.grid(128, 128):
         with T.sblock("B"):
             vi, vj = T.axis.remap("SR", [i, j])

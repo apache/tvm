@@ -16,5 +16,5 @@
 # under the License.
 """tvm.contrib.msc.core.gym.control"""
 
-from .controller import *
 from .configer import *
+from .controller import *

@@ -17,5 +17,5 @@
 """Namespace of all TIR transformations"""
 # pylint: disable=wildcard-import, invalid-name
 
-from .function_pass import prim_func_pass, PrimFuncPass
+from .function_pass import PrimFuncPass, prim_func_pass
 from .transform import *

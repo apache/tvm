@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Package `tvm.s_tir.meta_schedule`. The meta schedule infrastructure."""
+
 from . import (
     arg_info,
     builder,
@@ -23,6 +24,7 @@ from . import (
     feature_extractor,
     measure_callback,
     mutator,
+    post_optimization,
     postproc,
     relax_integration,
     runner,
@@ -32,7 +34,6 @@ from . import (
     space_generator,
     tir_integration,
     trace_apply,
-    post_optimization,
 )
 from .builder import Builder
 from .cost_model import CostModel
@@ -41,6 +42,7 @@ from .extracted_task import ExtractedTask
 from .feature_extractor import FeatureExtractor
 from .measure_callback import MeasureCallback
 from .mutator import Mutator
+from .post_optimization import post_opt
 from .postproc import Postproc
 from .profiler import Profiler
 from .runner import Runner
@@ -52,4 +54,3 @@ from .tir_integration import tune_tir
 from .tune import tune_tasks
 from .tune_context import TuneContext
 from .utils import derived_object
-from .post_optimization import post_opt

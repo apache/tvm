@@ -52,13 +52,13 @@ from .binary import (
     divide,
     equal,
     floor_divide,
-    log_add_exp,
     floor_mod,
     greater,
     greater_equal,
     left_shift,
     less,
     less_equal,
+    log_add_exp,
     logical_and,
     logical_or,
     logical_xor,
@@ -73,13 +73,13 @@ from .binary import (
 )
 from .create import (
     arange,
+    eye,
+    eye_like,
     full,
     full_like,
     hamming_window,
     ones,
     ones_like,
-    eye,
-    eye_like,
     tril,
     triu,
     zeros,
@@ -100,8 +100,8 @@ from .manipulate import (
     gather_nd,
     index_put,
     index_tensor,
-    meshgrid,
     layout_transform,
+    meshgrid,
     one_hot,
     permute_dims,
     repeat,
@@ -117,10 +117,10 @@ from .manipulate import (
 from .mask import masked_fill
 from .qdq import dequantize, quantize
 from .sampling import multinomial_from_uniform
-from .search import argmax, argmin, where, bucketize
+from .search import argmax, argmin, bucketize, where
 from .set import nonzero, unique
 from .sorting import argsort, sort, topk
-from .statistical import cumprod, cumsum, max, mean, min, prod, std, sum, variance, median
+from .statistical import cumprod, cumsum, max, mean, median, min, prod, std, sum, variance
 from .ternary import ewise_fma
 from .unary import (
     abs,

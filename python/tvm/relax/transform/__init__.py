@@ -16,6 +16,17 @@
 # under the License.
 """Relax transformations."""
 
+# Import to register the legalization functions.
+from . import legalize_ops
+from .attach_external_modules import AttachExternModules
+from .fast_math import FastMathTransform
+from .fold_batch_norm_to_conv2d_for_inference import FoldBatchnormToConv2D
+from .fuse_transpose_matmul import FuseTransposeMatmul
+from .ipc_allreduce_rewrite import IPCAllReduceRewrite
+from .lazy_transform_params import LazyTransformParams
+from .lower_gpu_ipc_alloc_storage import LowerGPUIPCAllocStorage
+from .optimize_layout_transform import OptimizeLayoutTransform
+from .remove_redundant_reshape import RemoveRedundantReshape
 from .transform import (
     AdjustMatmulOrder,
     AllocateWorkspace,
@@ -73,6 +84,7 @@ from .transform import (
     RewriteCUDAGraph,
     RewriteDataflowReshape,
     RunCodegen,
+    SpecializePrimFuncBasedOnCallSite,
     SplitCallTIRByPattern,
     SplitLayoutRewritePreproc,
     StaticPlanBlockMemory,
@@ -83,20 +95,6 @@ from .transform import (
     UpdateVDevice,
     VMBuiltinLower,
     VMShapeLower,
-    SpecializePrimFuncBasedOnCallSite,
     dataflowblock_pass,
     function_pass,
 )
-
-from .attach_external_modules import AttachExternModules
-from .fast_math import FastMathTransform
-from .fuse_transpose_matmul import FuseTransposeMatmul
-from .ipc_allreduce_rewrite import IPCAllReduceRewrite
-from .lazy_transform_params import LazyTransformParams
-from .lower_gpu_ipc_alloc_storage import LowerGPUIPCAllocStorage
-from .optimize_layout_transform import OptimizeLayoutTransform
-from .fold_batch_norm_to_conv2d_for_inference import FoldBatchnormToConv2D
-from .remove_redundant_reshape import RemoveRedundantReshape
-
-# Import to register the legalization functions.
-from . import legalize_ops

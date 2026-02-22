@@ -19,9 +19,9 @@
 
 from typing import Dict
 
-from tvm.contrib.msc.core.tools.quantize import QuantizeMethod, BaseQuantizer
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.quantize import BaseQuantizer, QuantizeMethod
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
 @msc_utils.register_tool_method
@@ -84,7 +84,7 @@ class TensorRTQuantizeMethod(QuantizeMethod):
         elif dtype == "float32":
             precision += "FLOAT"
         else:
-            raise TypeError("nbits {} is not supported".format(nbits))
+            raise TypeError(f"nbits {nbits} is not supported")
         tensor_ctx["processed"].extend(
             [
                 "{}->setPrecision({})".format(tensor_ctx["producer"], precision),

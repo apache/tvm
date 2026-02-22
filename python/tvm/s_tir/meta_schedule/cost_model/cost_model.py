@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule CostModel."""
+
 import ctypes
 from typing import Callable, List, Union
 
@@ -25,6 +26,7 @@ from typing_extensions import Literal
 
 import numpy as np  # type: ignore
 from tvm_ffi import register_object
+
 from tvm.runtime import Object
 
 from .. import _ffi_api
@@ -175,9 +177,9 @@ class _PyCostModel(CostModel):
             array_wrapper = np.ctypeslib.as_array(return_ptr, shape=(n,))
             res = predict_func(context, candidates)
             array_wrapper[:] = res
-            assert (
-                array_wrapper.dtype == "float64"
-            ), "ValueError: Invalid data type returned from CostModel Predict!"
+            assert array_wrapper.dtype == "float64", (
+                "ValueError: Invalid data type returned from CostModel Predict!"
+            )
 
         self.__init_handle_by_constructor__(
             _ffi_api.CostModelPyCostModel,  # type: ignore # pylint: disable=no-member

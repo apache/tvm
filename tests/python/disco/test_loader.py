@@ -15,24 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test sharded loader"""
+
 # pylint: disable=missing-docstring
 import json
 import tempfile
 
 import numpy as np
+from tvm_ffi import register_global_func
 
 import tvm
 import tvm.testing
-from tvm.s_tir import dlight as dl
 from tvm import relax as rx
-from tvm_ffi import register_global_func
 from tvm.contrib import tvmjs
 from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
+from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.target import Target
-from tvm.contrib import tvmjs
 
 
 @register_global_func("tests.disco.shard_dim_0", override=True)
@@ -84,7 +84,7 @@ def _shard_qkv_1(src, tgt):
 def _create_loader(sess, path, param_dict, shard_info):
     path_tensor_cache = path + "/tensor-cache.json"
     tvmjs.dump_tensor_cache(param_dict, path, encode_format="raw")
-    with open(path_tensor_cache, "r", encoding="utf-8") as i_f:
+    with open(path_tensor_cache, encoding="utf-8") as i_f:
         tensor_cache = i_f.read()
     loader_create = sess.get_global_func("runtime.disco.ShardLoader")
     loader = loader_create(path_tensor_cache, tensor_cache, json.dumps(shard_info), None)
@@ -109,7 +109,7 @@ def _simulate_presharded_weights(base_path, param_dict, num_shards, shard_info):
     # and avoids having *.bin files that must be accessed by more than
     # one worker.
     sharded_params = {
-        f"{key}_shard-{i+1}-of-{num_shards}": shards[i]
+        f"{key}_shard-{i + 1}-of-{num_shards}": shards[i]
         for i in range(num_shards)
         for key, shards in sharded_params.items()
     }
@@ -171,7 +171,7 @@ def test_load_shard():
 
 def _create_presharded_loader(sess, path):
     path_tensor_cache = path + "/tensor-cache.json"
-    with open(path_tensor_cache, "r", encoding="utf-8") as i_f:
+    with open(path_tensor_cache, encoding="utf-8") as i_f:
         tensor_cache = i_f.read()
     loader_create = sess.get_global_func("runtime.disco.ShardLoader")
     loader = loader_create(path_tensor_cache, tensor_cache, json.dumps({}), None)

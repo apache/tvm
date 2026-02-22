@@ -15,17 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-""" Utility functions for implementing Winograd convolutions
-    [*] Fast Algorithms for Convolutional Neural Networks
-        Andrew Lavin, Scott Gray
-        https://arxiv.org/abs/1509.09308
-        https://github.com/andravin/wincnn
+"""Utility functions for implementing Winograd convolutions
+[*] Fast Algorithms for Convolutional Neural Networks
+    Andrew Lavin, Scott Gray
+    https://arxiv.org/abs/1509.09308
+    https://github.com/andravin/wincnn
 """
 
-from operator import mul
 from functools import reduce
+from operator import mul
+
 import numpy as np
+
 from tvm.contrib.pickle_memoize import memoize
+
 from ..utils import const_matrix
 
 
@@ -38,7 +41,7 @@ def _cook_toom_convolution(a, n, r):
         F = np.fromfunction(np.vectorize(f), (1, n - 1), dtype=int)
         F = np.diagflat(F)
         F = np.append(F, np.zeros((n - 1, 1), dtype=int), axis=1)
-        f = lambda i, j: (1 if j == (n - 1) else 0)
+        f = lambda i, j: 1 if j == (n - 1) else 0
         z = np.fromfunction(np.vectorize(f), (1, n), dtype=int)
 
         return np.append(F, z, axis=0)
@@ -46,7 +49,7 @@ def _cook_toom_convolution(a, n, r):
     def _A_m(a, m, n):
         f = lambda i, j: a[i] ** j
         A = np.fromfunction(np.vectorize(f), (m - 1, n), dtype=int)
-        f = lambda i, j: (1 if j == (n - 1) else 0)
+        f = lambda i, j: 1 if j == (n - 1) else 0
         z = np.fromfunction(np.vectorize(f), (1, n), dtype=int)
 
         return np.append(A, z, axis=0)
@@ -54,14 +57,14 @@ def _cook_toom_convolution(a, n, r):
     def _B_m(a, n):
         f = lambda j, i: reduce(mul, ((a[i] - a[k] if k != i else 1) for k in range(0, n - 1)), 1)
         Ff = np.fromfunction(np.vectorize(f), (1, n - 1), dtype=int)
-        f = (
-            lambda i, nth: (
+        f = lambda i, nth: (
+            (
                 reduce(mul, [(np.poly1d([1, -a[k]]) if k != i else 1) for k in range(0, n - 1)], 1)
             ).coef[n - 1 - nth - 1]
             / Ff[0, i]
         )
         F = np.fromfunction(np.vectorize(f), (n - 1, n - 1), dtype=int)
-        f = lambda i, j: -a[i] ** (n - 1)
+        f = lambda i, j: -(a[i] ** (n - 1))
         t = np.fromfunction(np.vectorize(f), (n - 1, 1), dtype=int)
         T = np.append(np.eye(n - 1), t, axis=1)
 

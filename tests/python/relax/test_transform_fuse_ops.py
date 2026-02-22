@@ -18,7 +18,9 @@
 import tvm
 import tvm.testing
 from tvm import relax, topi
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def _check(mod_actual, mod_expected):
@@ -1637,9 +1639,9 @@ def test_call_tir_inplace():
         ) -> R.Tensor((10, 20), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv1: R.Tensor(
-                    (10, 20), dtype="float32"
-                ) = cls.fused_add_exp_inplace_squeeze_inplace(x, p0)
+                gv1: R.Tensor((10, 20), dtype="float32") = (
+                    cls.fused_add_exp_inplace_squeeze_inplace(x, p0)
+                )
                 R.output(gv1)
             return gv1
 

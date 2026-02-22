@@ -17,7 +17,7 @@
 """tvm.contrib.msc.core.gym.namespace"""
 
 
-class GYMObject(object):
+class GYMObject:
     """Enum all gym objects"""
 
     BASE = "base"
@@ -26,7 +26,7 @@ class GYMObject(object):
     SERVICE = "service"
 
 
-class GYMAction(object):
+class GYMAction:
     """Enum all gym actions"""
 
     INIT = "init"

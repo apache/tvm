@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The Relax Metal backend compilation pipeline and other passes."""
+
 from .cumsum import gpu_2d_continuous_cumsum
 from .pipeline import (
     dataflow_lower_passes,

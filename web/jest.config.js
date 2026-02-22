@@ -17,9 +17,7 @@
  * under the License.
  */
 module.exports = {
-  testEnvironment: "node",
+  testEnvironment : 'node',
 
-  testMatch: [
-     "**/tests/node/*.js"
-  ],
+  testMatch : ['**/tests/node/*.js'],
 };

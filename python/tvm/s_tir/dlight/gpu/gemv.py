@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """A rule for GEMV and DecodeGEMV."""
+
 from functools import reduce
 from typing import List, Optional, Union
 
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.target import Target
 
 from ..analysis import (

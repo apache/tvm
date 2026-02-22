@@ -16,10 +16,12 @@
 # under the License.
 # pylint: disable=redefined-outer-name, invalid-name
 """RPC web proxy, allows redirect to websocket based RPC servers(browsers)"""
-import logging
+
 import argparse
-import os
 import glob
+import logging
+import os
+
 from tvm.rpc.proxy import Proxy
 
 

@@ -16,8 +16,11 @@
 # under the License.
 
 """Attention operator in python"""
+
 from typing import Optional
+
 import numpy as np
+
 from .softmax_python import softmax_python
 
 
@@ -103,7 +106,8 @@ def attention_python(
 
         if window_size:
             score_masked = np.triu(
-                score_masked, -window_size + 1  # pylint: disable=invalid-unary-operand-type
+                score_masked,
+                -window_size + 1,  # pylint: disable=invalid-unary-operand-type
             )
 
         score_masked_exp = np.tril(
@@ -112,7 +116,8 @@ def attention_python(
 
         if window_size:
             score_masked_exp = np.triu(
-                score_masked_exp, -window_size + 1  # pylint: disable=invalid-unary-operand-type
+                score_masked_exp,
+                -window_size + 1,  # pylint: disable=invalid-unary-operand-type
             )
 
         score_masked_sum = np.sum(score_masked_exp, axis=-1, keepdims=True)

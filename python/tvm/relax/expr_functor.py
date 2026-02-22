@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, arguments-differ
 """The expression functor of Relax."""
+
 from typing import Callable, Optional
 
 import tvm_ffi
+
 from tvm.ir import Op
 from tvm.runtime import Object
 from tvm.runtime.support import derived_object
@@ -166,7 +168,7 @@ class ExprFunctor:
         elif isinstance(expr, DataTypeImm):
             ret = self.visit_data_type_imm_(expr)
         else:
-            raise TypeError("Invalid type: {0}".format(type(expr)))
+            raise TypeError(f"Invalid type: {type(expr)}")
 
         return ret
 
@@ -242,7 +244,7 @@ class ExprFunctor:
         elif isinstance(binding, VarBinding):
             self.visit_var_binding_(binding)
         else:
-            raise TypeError("Invalid type: {0}".format(type(binding)))
+            raise TypeError(f"Invalid type: {type(binding)}")
 
     def visit_binding_block(self, block: BindingBlock):
         if isinstance(block, DataflowBlock):
@@ -250,7 +252,7 @@ class ExprFunctor:
         elif isinstance(block, BindingBlock):
             self.visit_binding_block_(block)
         else:
-            raise TypeError("Invalid type: {0}".format(type(block)))
+            raise TypeError(f"Invalid type: {type(block)}")
 
     def visit_var_def(self, var: Var):
         if isinstance(var, DataflowVar):
@@ -258,7 +260,7 @@ class ExprFunctor:
         elif isinstance(var, Var):
             self.visit_var_def_(var)
         else:
-            raise TypeError("Invalid type: {0}".format(type(var)))
+            raise TypeError(f"Invalid type: {type(var)}")
 
 
 @tvm_ffi.register_object("expr_functor.PyExprVisitor")

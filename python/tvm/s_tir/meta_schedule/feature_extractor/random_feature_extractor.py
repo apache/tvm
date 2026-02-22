@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Random Feature Extractor."""
+
 from typing import List, Tuple, Union
 
 import numpy as np  # type: ignore
+
 import tvm.runtime
 
 from ..feature_extractor import PyFeatureExtractor

@@ -16,14 +16,14 @@
 # under the License.
 
 import sys
-import pytest
+
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm import te
 from tvm.script import tir as T
-
 
 # TODO(csullivan): Additional tests cases needed:
 # - PrimFunc with 1 arg, inplace update

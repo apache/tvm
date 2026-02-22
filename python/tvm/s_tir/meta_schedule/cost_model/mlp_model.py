@@ -18,6 +18,7 @@
 """
 Segment Sum MLP cost model
 """
+
 import glob
 import math
 import os
@@ -29,6 +30,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
+
 import tvm
 
 from ....contrib.tar import tar, untar

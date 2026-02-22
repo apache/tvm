@@ -21,10 +21,13 @@ diagnostic information by the compiler. This module exposes
 three key abstractions: a Diagnostic, the DiagnosticContext,
 and the DiagnosticRenderer.
 """
+
 import enum
+
 import tvm_ffi
+
+from ... import Object, get_global_func, register_global_func
 from . import _ffi_api
-from ... import get_global_func, register_global_func, Object
 
 
 def get_renderer():

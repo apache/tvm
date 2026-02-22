@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Correlation operators"""
+
 from tvm import te
 
-from .pad import pad
 from ..utils import get_const_tuple
+from .pad import pad
 
 
 def correlation_nchw(

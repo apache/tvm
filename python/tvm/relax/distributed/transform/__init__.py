@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Relax distributed-related transformations. """
+"""Relax distributed-related transformations."""
 
 from .transform import (
-    PropagateSharding,
-    LowerGlobalViewToLocalView,
     LegalizeRedistribute,
     LowerDistIR,
+    LowerGlobalViewToLocalView,
+    PropagateSharding,
 )

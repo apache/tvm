@@ -17,6 +17,7 @@
 import itertools
 
 import pytest
+
 import tvm
 from tvm.script.printer.doc import (
     AssertDoc,

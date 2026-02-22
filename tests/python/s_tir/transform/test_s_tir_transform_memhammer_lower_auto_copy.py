@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import sys
+
+import pytest
+
 import tvm
 from tvm import s_tir
 from tvm.script import tir as T
-import sys
-import pytest
 
 
 @tvm.script.ir_module
@@ -650,8 +652,8 @@ class TransformedWmmaToGlobal:
                                             for (
                                                 ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_2
                                             ) in T.thread_binding(32, thread="threadIdx.x"):
-                                                for ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_3 in (
-                                                    T.vectorized(4)
+                                                for ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_3 in T.vectorized(
+                                                    4
                                                 ):
                                                     C[
                                                         bx * 128
@@ -852,8 +854,8 @@ class TransformedWmmaToGlobalWithFusion:
                                             for (
                                                 ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_2
                                             ) in T.thread_binding(32, thread="threadIdx.x"):
-                                                for ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_3 in (
-                                                    T.vectorized(4)
+                                                for ty_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_3 in T.vectorized(
+                                                    4
                                                 ):
                                                     C[
                                                         bx * 128

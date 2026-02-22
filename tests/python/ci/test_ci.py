@@ -15,18 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test various CI scripts and GitHub Actions workflows"""
+
+import json
+import logging
 import shutil
 import subprocess
-import json
-import textwrap
 import sys
-import logging
+import textwrap
 from pathlib import Path
 
 import pytest
+
 import tvm.testing
 
-from .test_utils import REPO_ROOT, GITHUB_SCRIPT_ROOT, JENKINS_SCRIPT_ROOT, TempGit, run_script
+from .test_utils import GITHUB_SCRIPT_ROOT, JENKINS_SCRIPT_ROOT, REPO_ROOT, TempGit, run_script
 
 # pylint: disable=wrong-import-position,wrong-import-order
 sys.path.insert(0, str(REPO_ROOT / "ci"))
@@ -35,7 +37,6 @@ sys.path.insert(0, str(GITHUB_SCRIPT_ROOT))
 
 import scripts.github
 import scripts.jenkins
-
 from scripts.github.update_branch import EXPECTED_CI_JOBS
 
 # pylint: enable=wrong-import-position,wrong-import-order

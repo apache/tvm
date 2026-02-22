@@ -17,6 +17,6 @@
 """LLM support for PyTorch-like API to build IRModules."""
 
 from . import kv_cache, position_embedding
+from .kv_cache import PagedKVCache
 from .position_embedding import llama_rope
 from .tree_attn import tree_attn
-from .kv_cache import PagedKVCache

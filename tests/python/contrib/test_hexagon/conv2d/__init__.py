@@ -15,4 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Testing infrastructure for Hexagon/TOPI/Conv2d """
+"""Testing infrastructure for Hexagon/TOPI/Conv2d"""

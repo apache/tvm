@@ -20,8 +20,9 @@ Doc objects, then access and modify their attributes correctly.
 """
 
 import pytest
-import tvm
 from tvm_ffi.access_path import AccessPath
+
+import tvm
 from tvm.script.printer.doc import (
     AssertDoc,
     AssignDoc,

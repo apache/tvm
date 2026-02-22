@@ -20,6 +20,7 @@
 import math
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm.base import TVMError
@@ -30,8 +31,8 @@ from tvm.s_tir.meta_schedule.space_generator import (
 )
 from tvm.s_tir.meta_schedule.tune_context import TuneContext
 from tvm.s_tir.meta_schedule.utils import derived_object
-from tvm.script import tir as T
 from tvm.s_tir.schedule import Schedule
+from tvm.script import tir as T
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off

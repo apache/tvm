@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs"""
+
 import tvm_ffi
 
 tvm_ffi.init_ffi_api("script.ir_builder.tir", __name__)  # pylint: disable=protected-access

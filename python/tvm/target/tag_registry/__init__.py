@@ -18,14 +18,17 @@
 
 Importing this package registers all Python-defined target tags.
 """
-from . import registry  # noqa: F401
-from . import cuda  # noqa: F401
-from . import arm_cpu  # noqa: F401
-from . import riscv_cpu  # noqa: F401
-from . import aws_cpu  # noqa: F401
-from . import metal  # noqa: F401
-from . import hexagon  # noqa: F401
-from . import adreno  # noqa: F401
+
+from . import (
+    adreno,
+    arm_cpu,
+    aws_cpu,
+    cuda,
+    hexagon,
+    metal,
+    registry,
+    riscv_cpu,
+)
 
 # Validate all tags at import time
 registry.list_tags()

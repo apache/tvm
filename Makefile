@@ -85,23 +85,15 @@ $(foreach CMAKE_TARGET,$(CMAKE_TARGETS),$(eval $(GEN_CMAKE_RULE)))
 # scripts that are executed in the CI should be in tests/lint. This
 # allows docker/lint.sh to behave similarly to the CI.
 format:
-	./tests/lint/git-clang-format.sh -i --rev origin/main
-	black .
+	pre-commit run ruff-format --all-files
+	pre-commit run clang-format --all-files
 	cd rust && which cargo && cargo fmt --all
 
-lint: cpplint pylint jnilint
+lint:
+	pre-commit run --all-files
 
 cpplint:
 	tests/lint/cpplint.sh
-
-pylint:
-	tests/lint/pylint.sh
-
-jnilint:
-	python3 -m cpplint jvm/native/src
-
-mypy:
-	tests/scripts/task_mypy.sh
 
 cppdoc:
 	doxygen docs/Doxyfile

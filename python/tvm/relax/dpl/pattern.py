@@ -413,7 +413,10 @@ class CallPattern(DFPattern):
         add_constraint=True,
     ):
         self.__init_handle_by_constructor__(
-            ffi.CallPattern, op, args, varg_default_wildcard  # type: ignore
+            ffi.CallPattern,
+            op,
+            args,
+            varg_default_wildcard,  # type: ignore
         )
 
         if add_constraint:
@@ -504,7 +507,9 @@ class TupleGetItemPattern(DFPattern):
     def __init__(self, tuple_value: "DFPattern", index: Optional[int] = None):
         match_index = index if index is not None else -1
         self.__init_handle_by_constructor__(
-            ffi.TupleGetItemPattern, tuple_value, match_index  # type: ignore
+            ffi.TupleGetItemPattern,
+            tuple_value,
+            match_index,  # type: ignore
         )
 
 

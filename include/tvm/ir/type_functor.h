@@ -37,8 +37,10 @@ template <typename FType>
 class TypeFunctor;
 
 // functions to be overriden.
-#define TYPE_FUNCTOR_DEFAULT \
-  { return VisitTypeDefault_(op, std::forward<Args>(args)...); }
+#define TYPE_FUNCTOR_DEFAULT                                   \
+  {                                                            \
+    return VisitTypeDefault_(op, std::forward<Args>(args)...); \
+  }
 
 #define TVM_TYPE_FUNCTOR_DISPATCH(OP)                                                      \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {     \

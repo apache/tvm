@@ -18,15 +18,16 @@
 """tvm.contrib.msc.core.runtime.jit_model"""
 
 import logging
-from typing import Any, List, Tuple, Union, Dict
+from typing import Any, Dict, List, Tuple, Union
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools import ToolType
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
+
 from .runner import BaseRunner
 
 
-class BaseJIT(object):
+class BaseJIT:
     """Base Just-In-Time compile for msc
 
     Parameters
@@ -203,7 +204,7 @@ class BaseJIT(object):
             plans = _finalize_tool(lambda t: t.tracked)
         else:
             plans = {n: t.finalize() for n, t in tools.items()}
-        plans_info = ", ".join(["{}({})".format(n, len(p)) for n, p in plans.items()])
+        plans_info = ", ".join([f"{n}({len(p)})" for n, p in plans.items()])
         self._logger.debug("Made %s plans for %s", plans_info, tool_type)
 
     def _redirect_run(self, *args, runner_name: str = "worker", **kwargs) -> Any:
@@ -338,7 +339,7 @@ class BaseJIT(object):
             The message with mark.
         """
 
-        return "JIT({}) {}".format(self.framework, msg)
+        return f"JIT({self.framework}) {msg}"
 
     @property
     def trained(self):

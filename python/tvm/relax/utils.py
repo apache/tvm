@@ -21,19 +21,21 @@
 
 import itertools
 import string
-
+from typing import Any, Callable, Dict, List, Optional
 from typing import Tuple as typing_Tuple
-from typing import Any, Callable, List, Dict, Optional
+
+import tvm_ffi
 
 import tvm
-import tvm_ffi
+
 from .. import tir
+from ..ir import Array, Attrs, Map, Type, VDevice
+from ..te import Tensor as te_Tensor
+from ..te import create_prim_func
 from ..tir import PrimExpr
 from . import _ffi_api
+from .expr import Expr, Function, PrimValue, ShapeExpr, StringImm, te_tensor
 from .expr import Tuple as rx_Tuple
-from .expr import Expr, ShapeExpr, Function, PrimValue, StringImm, te_tensor
-from ..te import Tensor as te_Tensor, create_prim_func
-from ..ir import Array, Attrs, Type, Map, VDevice
 from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo
 
 # Re-export `args_converter` here for backwards compatibility
@@ -221,9 +223,9 @@ def gen_call_tir_inputs(
         def _convert_te_arg_helper(arg):
             if isinstance(arg, Expr):  # type: ignore
                 if isinstance(arg.struct_info, TensorStructInfo):
-                    assert isinstance(
-                        arg.struct_info.shape, ShapeExpr
-                    ), "emit_te now only supports Tensor that has ShapeExpr shape"
+                    assert isinstance(arg.struct_info.shape, ShapeExpr), (
+                        "emit_te now only supports Tensor that has ShapeExpr shape"
+                    )
                     for shape_value in arg.struct_info.shape.values:
                         _copy_undefined_var(shape_value)
 
@@ -243,9 +245,9 @@ def gen_call_tir_inputs(
                     return te_arg
 
                 if isinstance(arg.struct_info, ShapeStructInfo):
-                    assert isinstance(
-                        arg, ShapeExpr
-                    ), "For Expr having ShapeStructInfo, emit_te now only supports ShapeExpr"
+                    assert isinstance(arg, ShapeExpr), (
+                        "For Expr having ShapeStructInfo, emit_te now only supports ShapeExpr"
+                    )
                     return [_convert_te_arg_helper(val) for val in arg.values]
 
                 if isinstance(arg.struct_info, PrimStructInfo):
@@ -273,9 +275,9 @@ def gen_call_tir_inputs(
                 return tuple(_convert_te_arg_helper(x) for x in arg)
             elif isinstance(arg, (dict, Map)):
                 for key in arg:
-                    assert isinstance(
-                        key, str
-                    ), "emit_te only supports dict with string as the key currently"
+                    assert isinstance(key, str), (
+                        "emit_te only supports dict with string as the key currently"
+                    )
                 return {k: _convert_te_arg_helper(arg[k]) for k in arg}
             elif isinstance(arg, tir.PrimExpr):
                 _copy_undefined_var(arg)
@@ -284,7 +286,7 @@ def gen_call_tir_inputs(
                 return new_arg
             elif isinstance(arg, (int, float, str, Type, Attrs)) or arg is None:
                 return arg
-            raise TypeError("not supported type in emit_te: {}".format(type(arg)))
+            raise TypeError(f"not supported type in emit_te: {type(arg)}")
 
         new_arg = _convert_te_arg_helper(te_args)
         return new_arg

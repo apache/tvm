@@ -17,14 +17,14 @@
 # pylint: disable=unused-import
 """Common data structures across all IR variants."""
 
-from . import diagnostics, instrument, transform
+from . import analysis, diagnostics, instrument, transform
 from .attrs import Attrs, DictAttrs, make_node
 from .base import (
     EnvFunc,
     Node,
+    SequentialSpan,
     SourceName,
     Span,
-    SequentialSpan,
     assert_structural_equal,
     load_json,
     save_json,
@@ -34,7 +34,7 @@ from .base import (
 from .container import Array, Map
 from .expr import BaseExpr, GlobalVar, PrimExpr, Range, RelaxExpr
 from .function import BaseFunc, CallingConv
-from .global_info import GlobalInfo, DummyGlobalInfo, VDevice
+from .global_info import DummyGlobalInfo, GlobalInfo, VDevice
 from .module import IRModule
 from .op import Op, register_intrin_lowering, register_op_attr
 from .type import (
@@ -44,5 +44,3 @@ from .type import (
     TupleType,
     Type,
 )
-
-from . import analysis

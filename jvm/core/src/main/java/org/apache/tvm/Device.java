@@ -17,10 +17,9 @@
 
 package org.apache.tvm;
 
-import org.apache.tvm.rpc.RPC;
-
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.tvm.rpc.RPC;
 
 public class Device {
   /**
@@ -172,9 +171,11 @@ public class Device {
    * @return true if exists.
    */
   public boolean exist() {
-    TVMValue ret =
-        APIInternal.get("runtime.GetDeviceAttr").pushArg(deviceType)
-        .pushArg(deviceId).pushArg(0).invoke();
+    TVMValue ret = APIInternal.get("runtime.GetDeviceAttr")
+                       .pushArg(deviceType)
+                       .pushArg(deviceId)
+                       .pushArg(0)
+                       .invoke();
     return ((TVMValueLong) ret).value != 0;
   }
 
@@ -183,9 +184,11 @@ public class Device {
    * @return the maximum thread number.
    */
   public long maxThreadsPerBlock() {
-    TVMValue ret =
-        APIInternal.get("runtime.GetDeviceAttr").pushArg(deviceType)
-        .pushArg(deviceId).pushArg(1).invoke();
+    TVMValue ret = APIInternal.get("runtime.GetDeviceAttr")
+                       .pushArg(deviceType)
+                       .pushArg(deviceId)
+                       .pushArg(1)
+                       .invoke();
     return ((TVMValueLong) ret).value;
   }
 
@@ -194,9 +197,11 @@ public class Device {
    * @return the thread number.
    */
   public long warpSize() {
-    TVMValue ret =
-        APIInternal.get("runtime.GetDeviceAttr").pushArg(deviceType)
-        .pushArg(deviceId).pushArg(2).invoke();
+    TVMValue ret = APIInternal.get("runtime.GetDeviceAttr")
+                       .pushArg(deviceType)
+                       .pushArg(deviceId)
+                       .pushArg(2)
+                       .invoke();
     return ret.asLong();
   }
 

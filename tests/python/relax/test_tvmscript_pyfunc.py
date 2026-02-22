@@ -24,13 +24,16 @@ This test verifies:
 4. ExternFunc nodes are created for Python functions
 """
 
+import numpy as np
 import pytest
 import torch
+
 import tvm
 from tvm import relax
-from tvm.script import ir as I, relax as R, tir as T
 from tvm.relax import BasePyModule
-import numpy as np
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 @I.ir_module

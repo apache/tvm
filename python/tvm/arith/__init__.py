@@ -16,24 +16,27 @@
 # under the License.
 """Integer bound analysis, simplification and pattern detection."""
 
+from .analyzer import Analyzer, ConstIntBound, Extension, ModularSet, ProofStrength
+from .bound import deduce_bound
 from .int_set import (
-    IntSet,
     IntervalSet,
+    IntSet,
     PresburgerSet,
     estimate_region_lower_bound,
     estimate_region_strict_bound,
     estimate_region_upper_bound,
 )
-from .analyzer import ModularSet, ConstIntBound, Analyzer, ProofStrength, Extension
-from .bound import deduce_bound
-from .pattern import detect_linear_equation, detect_clip_bound, detect_common_subexpr
 from .int_solver import solve_linear_equations, solve_linear_inequalities
-from .iter_affine_map import IterMapExpr, IterMark, IterSplitExpr, IterSumExpr
 from .iter_affine_map import (
+    IterMapExpr,
+    IterMark,
+    IterSplitExpr,
+    IterSumExpr,
     detect_iter_map,
+    inverse_affine_iter_map,
     iter_map_simplify,
     normalize_iter_map_to_expr,
     normalize_to_iter_sum,
     subspace_divide,
-    inverse_affine_iter_map,
 )
+from .pattern import detect_clip_bound, detect_common_subexpr, detect_linear_equation

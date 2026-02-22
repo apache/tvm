@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common schedule strategies for TIR."""
+
 from typing import Callable, List
 
 from tvm import s_tir

@@ -18,9 +18,10 @@
 
 from typing import Any, List, Tuple
 
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.gym.control import create_controller
 from tvm.contrib.msc.core.utils.message import MSCStage
-from tvm.contrib.msc.core import utils as msc_utils
+
 from .pipeline import BasePipeline
 from .worker import MSCPipeWorker
 

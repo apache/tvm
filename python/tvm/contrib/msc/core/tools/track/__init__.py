@@ -16,6 +16,6 @@
 # under the License.
 """tvm.contrib.msc.core.tools.track"""
 
-from .tracker import *
-from .method import *
 from .configer import *
+from .method import *
+from .tracker import *

@@ -21,12 +21,11 @@ from scipy import special
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import tir as T, relax as R
-from tvm.contrib.hexagon import generate_take_op
-from tvm.contrib.hexagon import hexagon_unary_ops
+from tvm.contrib.hexagon import generate_take_op, hexagon_unary_ops
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 from .infrastructure import quantize_np
-
 
 # Testing the structural and value correctness on replacing unary op with take op.
 

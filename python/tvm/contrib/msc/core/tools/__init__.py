@@ -16,9 +16,9 @@
 # under the License.
 """tvm.contrib.msc.core.tools"""
 
-from .tool import *
+from .distill import *
 from .execute import *
 from .prune import *
 from .quantize import *
-from .distill import *
+from .tool import *
 from .track import *

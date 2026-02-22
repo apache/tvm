@@ -17,7 +17,7 @@
 # pylint: disable=wildcard-import, redefined-builtin
 """The Relax testing namespace containing nn and translator."""
 
-from .nn import *
 from .ast_printer import dump_ast
-from .matmul import *
 from .attention import *
+from .matmul import *
+from .nn import *

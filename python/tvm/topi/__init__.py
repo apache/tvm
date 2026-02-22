@@ -24,34 +24,29 @@ for constructing compute declaration as well as optimized schedules.
 Some of the schedule function may have been specially optimized for a
 specific workload.
 """
+
 from tvm.libinfo import __version__
 
 # Ensure C++ schedules get registered first, so python schedules can
 # override them.
-from . import cpp
-
-from .math import *
-from .tensor import *
+from . import cpp, gpu, image, nn, utils, vision
+from .broadcast import *
+from .einsum import *
 from .generic_op_impl import *
 from .index_put import *
+from .math import *
 from .reduction import *
-from .transform import *
-from .broadcast import *
-from .sort import *
+from .scan import *
 from .scatter import *
 from .scatter_elements import *
-from .slice_scatter import *
-from .sparse_reshape import *
-from .scan import *
-from .einsum import *
-from .unique import *
 from .searchsorted import *
 from .signal import *
-from . import nn
-from . import utils
-from . import image
-from . import vision
-from . import gpu
+from .slice_scatter import *
+from .sort import *
+from .sparse_reshape import *
+from .tensor import *
+from .transform import *
+from .unique import *
 
 # error reporting
 from .utils import InvalidShapeError

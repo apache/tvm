@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utilities for thrust"""
+
 import logging
 
 from tvm_ffi import get_global_func

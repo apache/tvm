@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Logging interface in MetaSchedule"""
+
 import logging
 import logging.config
 import os

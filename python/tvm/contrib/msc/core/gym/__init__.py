@@ -16,6 +16,6 @@
 # under the License.
 """tvm.contrib.msc.core.gym"""
 
-from .environment import *
 from .agent import *
 from .control import *
+from .environment import *

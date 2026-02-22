@@ -33,6 +33,5 @@ public final class APIInternal {
   /**
    * Cannot be instantiated.
    */
-  private APIInternal() {
-  }
+  private APIInternal() {}
 }

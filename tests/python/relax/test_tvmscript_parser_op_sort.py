@@ -37,9 +37,9 @@ def _check(
 
 def test_sort():
     @R.function
-    def foo(
-        x: R.Tensor((2, 3), "int32")
-    ) -> R.Tuple(R.Tensor((2, 2), dtype="int32"), R.Tensor((2, 2), dtype="int32")):
+    def foo(x: R.Tensor((2, 3), "int32")) -> R.Tuple(
+        R.Tensor((2, 2), dtype="int32"), R.Tensor((2, 2), dtype="int32")
+    ):
         lv0 = R.sort(x, axis=1)
         lv1 = R.argsort(lv0)
         r = R.topk(lv1, axis=1, k=2)

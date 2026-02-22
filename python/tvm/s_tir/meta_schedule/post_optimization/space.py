@@ -19,14 +19,15 @@
 import json
 import random
 from copy import deepcopy
-from typing import Dict, List, Any
+from typing import Any, Dict, List
+
 import numpy as np  # type: ignore
 
-from tvm.s_tir import meta_schedule as ms
-from tvm.target import Target
 from tvm.s_tir import Schedule
-from tvm.s_tir.meta_schedule.database import Workload, TuningRecord
+from tvm.s_tir import meta_schedule as ms
+from tvm.s_tir.meta_schedule.database import TuningRecord, Workload
 from tvm.s_tir.meta_schedule.utils import remove_build_dir
+from tvm.target import Target
 
 from .utils import write_file
 

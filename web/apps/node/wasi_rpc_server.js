@@ -20,17 +20,14 @@
 /**
  * Example code to start the RPC server on nodejs using WASI
  */
-const { WASI } = require("wasi");
-const tvmjs = require("../../dist");
+const {WASI} = require('wasi');
+const tvmjs = require('../../dist');
 
 // Get import returns a fresh library in each call.
 const getImports = () => {
-  return new WASI({
-    args: process.argv,
-    env: process.env
-  });
+  return new WASI({args: process.argv, env: process.env});
 };
 
-const proxyUrl = "ws://localhost:8888/ws";
+const proxyUrl = 'ws://localhost:8888/ws';
 
-new tvmjs.RPCServer(proxyUrl, "wasm", getImports, console.log);
+new tvmjs.RPCServer(proxyUrl, 'wasm', getImports, console.log);

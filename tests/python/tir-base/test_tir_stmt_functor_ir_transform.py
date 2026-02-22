@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm.script import ir as I, tir as T
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_ir_transform():

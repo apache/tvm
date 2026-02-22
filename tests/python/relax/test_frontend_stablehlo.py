@@ -18,17 +18,18 @@
 # pylint: disable=c-extension-no-member
 
 import functools
-from typing import Union, Tuple, List
-import pytest
+from typing import List, Tuple, Union
+
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import ir as I
-from tvm.script import tir as T
-from tvm.script import relax as R
 from tvm.relax.frontend.stablehlo import from_stablehlo
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def generate_np_inputs(
@@ -329,8 +330,8 @@ def test_dot_general():
 # TODO(yongwww): fix flaky error of "invalid device ordinal"
 def test_conv():
     import jax
-    from flax import linen as nn
     import jax.random as jrandom
+    from flax import linen as nn
 
     conv = nn.Conv(64, (7, 7), (2, 2), padding=[(3, 3), (3, 3)], name="conv_init")
     input_shape = (7, 7, 5, 64)

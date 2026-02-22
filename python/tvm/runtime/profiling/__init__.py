@@ -16,10 +16,11 @@
 # under the License.
 """Registration of profiling objects in python."""
 
-from typing import Dict, Sequence, Optional
+from typing import Dict, Optional, Sequence
+
 from ... import ffi as _ffi
+from .. import Device, Object
 from . import _ffi_api
-from .. import Object, Device
 
 
 @_ffi.register_object("runtime.profiling.Report")

@@ -17,7 +17,8 @@
 """
 Adreno schedule rules.
 """
+
 from .convolution import Conv2d
-from .layout_transform import LayoutTransform
 from .fallback import Fallback
+from .layout_transform import LayoutTransform
 from .pool import Pool2D

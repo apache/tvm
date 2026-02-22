@@ -67,7 +67,6 @@ class LibInfo {
   // Device
   native int tvmSynchronize(int deviceType, int deviceId);
 
-  native int tvmTensorEmpty(long[] shape, int dtypeCode, int dtypeBits,
-                             int dtypeLanes, int deviceType, int deviceId,
-                             Base.RefLong handle);
+  native int tvmTensorEmpty(long[] shape, int dtypeCode, int dtypeBits, int dtypeLanes,
+      int deviceType, int deviceId, Base.RefLong handle);
 }

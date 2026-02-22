@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
+
 from typing import List, Union
 
-from tvm import arith, tir, s_tir
-from tvm.target import Target
+from tvm import arith, s_tir, tir
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
+from tvm.target import Target
 
 from ..analysis import detect_dominant_read, normalize_prim_func
 from ..base import try_inline_contiguous_spatial

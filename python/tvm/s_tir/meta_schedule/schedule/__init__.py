@@ -15,4 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 """Per-block schedule rules in MetaSchedule"""
+
 from . import cpu, cuda, generic, x86

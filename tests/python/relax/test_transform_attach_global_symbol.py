@@ -16,12 +16,14 @@
 # under the License.
 
 import pytest
-import tvm
-from tvm import tir, relax
-from tvm.ir import assert_structural_equal
 
+import tvm
 import tvm.script
-from tvm.script import tir as T, relax as R, ir as I
+from tvm import relax, tir
+from tvm.ir import assert_structural_equal
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_basic():

@@ -17,13 +17,13 @@
 import pytest
 
 import tvm
-import tvm.testing
-from tvm import relax
-from tvm import tir
-from tvm.ir.base import assert_structural_equal
-
 import tvm.script
-from tvm.script import tir as T, relax as R, ir as I
+import tvm.testing
+from tvm import relax, tir
+from tvm.ir.base import assert_structural_equal
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 @pytest.mark.skip_well_formed_check_before_transform

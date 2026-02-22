@@ -16,22 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-const path = require("path");
-const fs = require("fs");
-const assert = require("assert");
-const tvmjs = require("../../dist/tvmjs.bundle")
+const path = require('path');
+const fs = require('fs');
+const assert = require('assert');
+const tvmjs = require('../../dist/tvmjs.bundle')
 
 const wasmPath = tvmjs.wasmPath();
-const wasmSource = fs.readFileSync(path.join(wasmPath, "tvmjs_runtime.wasm"));
+const wasmSource = fs.readFileSync(path.join(wasmPath, 'tvmjs_runtime.wasm'));
 
-let tvm = new tvmjs.Instance(
-  new WebAssembly.Module(wasmSource),
-  tvmjs.createPolyfillWASI());
+let tvm = new tvmjs.Instance(new WebAssembly.Module(wasmSource), tvmjs.createPolyfillWASI());
 
-test("object", () => {
+test('object', () => {
   tvm.withNewScope(() => {
     let data = [1, 2, 3, 4, 5, 6];
-    let a = tvm.empty([2, 3], "float32").copyFrom(data);
+    let a = tvm.empty([2, 3], 'float32').copyFrom(data);
 
     let t = tvm.makeTVMArray([]);
     let b = tvm.makeTVMArray([a, t]);

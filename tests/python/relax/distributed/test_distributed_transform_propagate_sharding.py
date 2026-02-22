@@ -17,13 +17,13 @@
 
 #  type: ignore
 
+import tvm
+import tvm.testing
+from tvm import relax
+from tvm.ir import assert_structural_equal
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
-import tvm
-from tvm import relax
-from tvm.ir import assert_structural_equal
-import tvm.testing
 
 
 def test_mlp():

@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-const tvmjs = require("../../dist");
+const tvmjs = require('../../dist');
 
-test("Test coverage of [0,100] inclusive", () => {
+test('Test coverage of [0,100] inclusive', () => {
   const covered = Array(100);
   const rng = new tvmjs.LinearCongruentialGenerator();
   for (let i = 0; i < 100000; i++) {
@@ -33,7 +33,7 @@ test("Test coverage of [0,100] inclusive", () => {
   expect(notCovered).toEqual([]);
 });
 
-test("Test whether the same seed make two RNGs generate same results", () => {
+test('Test whether the same seed make two RNGs generate same results', () => {
   const rng1 = new tvmjs.LinearCongruentialGenerator();
   const rng2 = new tvmjs.LinearCongruentialGenerator();
   rng1.setSeed(42);
@@ -44,7 +44,7 @@ test("Test whether the same seed make two RNGs generate same results", () => {
   }
 });
 
-test("Test two RNGs with different seeds generate different results", () => {
+test('Test two RNGs with different seeds generate different results', () => {
   const rng1 = new tvmjs.LinearCongruentialGenerator();
   const rng2 = new tvmjs.LinearCongruentialGenerator();
   rng1.setSeed(41);
@@ -65,5 +65,5 @@ test('Illegal argument to `setSeed()`', () => {
   expect(() => {
     const rng1 = new tvmjs.LinearCongruentialGenerator();
     rng1.setSeed(42.5);
-  }).toThrow("Seed should be an integer.");
+  }).toThrow('Seed should be an integer.');
 });

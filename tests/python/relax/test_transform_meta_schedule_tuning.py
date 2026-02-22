@@ -18,13 +18,12 @@
 import tempfile
 
 import tvm
-import tvm.testing
 import tvm.s_tir.meta_schedule as ms
+import tvm.testing
 from tvm import relax
 from tvm.ir import transform
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
-
 from tvm.script import relax as R
 from tvm.script import tir as T
 

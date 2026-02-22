@@ -16,6 +16,6 @@
 # under the License.
 """tvm.contrib.msc.core.tools.distill"""
 
+from .configer import *
 from .distiller import *
 from .method import *
-from .configer import *

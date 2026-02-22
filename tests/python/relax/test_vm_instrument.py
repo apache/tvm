@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+
 import tvm
 import tvm.testing
-
 from tvm import relax
 from tvm.relax.testing import nn
 from tvm.relax.testing.lib_comparator import LibCompareVMInstrument

@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.framework.tvm.tools"""
 
+from .distill import *
 from .prune import *
 from .quantize import *
-from .distill import *
 from .track import *

@@ -17,8 +17,8 @@
  * under the License.
  */
 import commonjs from '@rollup/plugin-commonjs';
-import ignore from "rollup-plugin-ignore";
 import resolve from '@rollup/plugin-node-resolve';
+import ignore from 'rollup-plugin-ignore';
 import typescript from 'rollup-plugin-typescript2';
 
 export default {
@@ -28,17 +28,12 @@ export default {
     format: 'umd',
     name: 'tvmjs',
     exports: 'named',
-    globals: {'ws': 'ws',
-              'perf_hooks': 'perf_hooks'}
+    globals: {'ws': 'ws', 'perf_hooks': 'perf_hooks'}
   },
-  plugins: [
-    ignore(["fs", "path", "crypto"]),
-    resolve({ browser: true }),
-    commonjs(),
-    typescript({
-      rollupCommonJSResolveHack: false,
-      clean: true
-    })
-  ],
+  plugins:
+      [
+        ignore(['fs', 'path', 'crypto']), resolve({browser: true}), commonjs(),
+        typescript({rollupCommonJSResolveHack: false, clean: true})
+      ],
   external: ['ws', 'perf_hooks']
 };

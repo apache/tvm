@@ -17,16 +17,17 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.tools.quantize.method"""
 
-from typing import Union, Any
+from typing import Any, Union
+
 import numpy as np
 
-from tvm.contrib.msc.core.tools.tool import ToolType, BaseTool
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.tool import BaseTool, ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
 @msc_utils.register_tool_method
-class QuantizeMethod(object):
+class QuantizeMethod:
     """Default quantize method"""
 
     @classmethod
@@ -338,6 +339,7 @@ class QuantizeMethod(object):
 
         # pylint: disable=import-outside-toplevel
         import ctypes
+
         from tvm.relay import quantize as _quantize
 
         if plan and "abs_max_list" in plan:

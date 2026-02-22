@@ -17,6 +17,7 @@
 """Test layout and bijective-layout node"""
 
 import pytest
+
 import tvm
 import tvm.error
 from tvm.topi.utils import get_const_tuple

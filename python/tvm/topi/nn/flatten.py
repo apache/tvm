@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM operator flatten compute."""
-from __future__ import absolute_import
+
 import tvm
 from tvm import te
+
 from .. import tag
 
 

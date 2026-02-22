@@ -20,7 +20,7 @@
 source "$(dirname $0)/dev_common.sh"
 
 SCRIPT_NAME="$0"
-DEFAULT_STEPS=( file_type asf clang_format cpplint python_format pylint jnilint cppdocs mypy )
+DEFAULT_STEPS=( precommit cpplint cppdocs blocklint docker_format )
 
 inplace_fix=0
 
@@ -32,54 +32,43 @@ function run_lint_step() {
     fi
 
     case "$1" in
-        file_type)
-            cmd=( python3 tests/lint/check_file_type.py )
-            ;;
-        asf)
-            cmd=( tests/lint/check_asf_header.sh --local )
-            if [ $inplace_fix -eq 1 ]; then
-                cmd=( "${cmd[@]}" --fix )
-            fi
-            ;;
-        clang_format)
-            if [ $inplace_fix -eq 0 ]; then
-                cmd=( tests/lint/git-clang-format.sh )
-            else
-                # NOTE: need to run git status to update some docker-side cache. Otherwise,
-                # git-clang-format will fail with "The following files would be modified but have
-                # unstaged changes:"
-                cmd=( bash -c 'git status &>/dev/null && tests/lint/git-clang-format.sh -i --rev origin/main' )
-            fi
+        precommit)
+            cmd=( pre-commit run --all-files )
             ;;
         cpplint)
             cmd=( tests/lint/cpplint.sh )
             ;;
-        flake8)
-            if [ $inplace_fix -eq 0 ]; then
-                cmd=( tests/lint/flake8.sh )
-            else
-                cmd=( tests/lint/flake8.sh --rev origin/main )
-            fi
-            ;;
-        pylint)
-            if [ $inplace_fix -eq 0 ]; then
-                cmd=( tests/lint/pylint.sh )
-            else
-                cmd=( tests/lint/pylint.sh --rev origin/main )
-            fi
-            ;;
-        python_format)
-            if [ $inplace_fix -eq 0 ]; then
-                cmd=( tests/lint/git-black.sh )
-            else
-                cmd=( tests/lint/git-black.sh -i --rev origin/main )
-            fi
-            ;;
         cppdocs)
             cmd=( tests/lint/cppdocs.sh )
             ;;
+        blocklint)
+            cmd=( tests/lint/blocklint.sh )
+            ;;
+        docker_format)
+            cmd=( tests/lint/docker-format.sh )
+            ;;
+        # Legacy aliases for backward compatibility
+        file_type)
+            cmd=( python3 tests/lint/check_file_type.py )
+            ;;
+        asf)
+            cmd=( python3 tests/lint/check_asf_header.py --check )
+            if [ $inplace_fix -eq 1 ]; then
+                cmd=( python3 tests/lint/check_asf_header.py --fix )
+            fi
+            ;;
+        clang_format)
+            cmd=( pre-commit run clang-format --all-files )
+            ;;
+        python_format)
+            cmd=( pre-commit run ruff-format --all-files )
+            ;;
+        pylint)
+            cmd=( pre-commit run ruff-check --all-files )
+            ;;
         mypy)
-            cmd=( tests/scripts/task_mypy.sh )
+            echo "mypy: now handled by pre-commit (skipping standalone run)"
+            return 0
             ;;
         *)
             echo "error: don't know how to run lint step: $1" >&2

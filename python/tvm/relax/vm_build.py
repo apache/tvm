@@ -16,13 +16,14 @@
 # under the License.
 # pylint: disable=invalid-name, no-member
 """VM build logics"""
+
 from typing import Dict, List, Optional, Union
 
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
-from tvm.tir.function import PrimFunc
 from tvm.runtime import Executable
+from tvm.tir.function import PrimFunc
 
 from . import _ffi_api
 

@@ -18,11 +18,12 @@
 
 import numpy as np
 import pytest
+
 import tvm.testing
 from tvm import relax, runtime
+from tvm.contrib.hexagon.session import Session
 from tvm.relax.frontend import onnx
 from tvm.relax.testing import relay_translator
-from tvm.contrib.hexagon.session import Session
 
 
 def get_onnx_mobilenet():

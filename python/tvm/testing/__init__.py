@@ -17,6 +17,7 @@
 
 # pylint: disable=redefined-builtin, wildcard-import
 """Utility Python functions for TVM testing"""
+
 from ._ffi_api import (
     ErrorTest,
     FrontendTestModule,
@@ -30,6 +31,7 @@ from ._ffi_api import (
     test_raise_error,
     test_wrap_callback,
 )
+from .attrs import *
 from .popen_pool import (
     after_initializer,
     call_cpp_ffi,
@@ -43,4 +45,3 @@ from .popen_pool import (
 )
 from .runner import local_run, rpc_run
 from .utils import *
-from .attrs import *

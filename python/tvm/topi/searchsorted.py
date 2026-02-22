@@ -16,11 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name
 """searchsorted operator"""
+
 import tvm
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T
-from . import utils
-from . import te
+
+from . import te, utils
 from .math import cast
 
 

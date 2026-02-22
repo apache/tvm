@@ -21,8 +21,8 @@ from typing import Dict, List
 
 import tvm
 from tvm import relax
-from tvm.relax import PyExprVisitor
 from tvm.contrib.msc.core import _ffi_api
+from tvm.relax import PyExprVisitor
 
 
 def legalize_expr_name(name: str, symbols: List[str] = None, dst: str = "_") -> str:
@@ -213,10 +213,6 @@ def msc_script(mod: tvm.IRModule, script: str = "") -> str:
         if ": " in line:
             v_name = line.strip().split(": ")[0]
             if v_name in cur_attr:
-                line += (
-                    " # "
-                    + ", ".join(["{}={}".format(k, v) for k, v in cur_attr[v_name].items()])
-                    + " #"
-                )
+                line += " # " + ", ".join([f"{k}={v}" for k, v in cur_attr[v_name].items()]) + " #"
         lines.append(line)
     return "\n".join(lines)

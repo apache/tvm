@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method, missing-class-docstring
 """Relax LazyTransformParams pass."""
+
 from typing import Optional
 
 import tvm

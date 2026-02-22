@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """affine_grid and grid_sample operators in python"""
+
 import math
+
 import numpy as np
 
 

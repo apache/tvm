@@ -16,11 +16,12 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-from tvm import te, tir, s_tir, topi
+from tvm import s_tir, te, tir, topi
 from tvm.script import tir as T
-import pytest
 
 
 def test_unique_name_complete_block():

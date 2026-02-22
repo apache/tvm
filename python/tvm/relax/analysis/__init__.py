@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Relax IR analysis. """
+"""Relax IR analysis."""
 
 from .analysis import (
     BaseCheckResult,
@@ -32,7 +32,6 @@ from .analysis import (
     free_symbolic_vars,
     free_vars,
     get_static_type,
-    used_vars,
     get_var2val,
     has_reshape_pattern,
     name_to_binding,
@@ -43,6 +42,7 @@ from .analysis import (
     suggest_layout_transforms,
     tir_vars_in_struct_info,
     udchain,
+    used_vars,
     well_formed,
 )
 from .estimate_memory_usage import estimate_memory_usage

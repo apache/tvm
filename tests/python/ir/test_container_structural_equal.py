@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+from tvm_ffi.access_path import AccessPath
 
 import tvm
 import tvm.testing
-from tvm_ffi.access_path import AccessPath
 from tvm.ir.base import get_first_structural_mismatch
 
 
@@ -37,9 +37,7 @@ def get_first_mismatch_ensure_symmetry(a, b):
     ):
         raise AssertionError(
             "get_first_structural_mismatch(a, b) and get_first_structural_mismatch(b, a) returned"
-            " inconsistent results '{}' and '{}' for a='{}', b='{}'".format(
-                mismatch, mismatch_swapped, a, b
-            )
+            f" inconsistent results '{mismatch}' and '{mismatch_swapped}' for a='{a}', b='{b}'"
         )
 
     a_path, b_path = mismatch

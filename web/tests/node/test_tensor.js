@@ -16,18 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-const path = require("path");
-const fs = require("fs");
-const assert = require("assert");
-const tvmjs = require("../../dist/tvmjs.bundle")
+const path = require('path');
+const fs = require('fs');
+const assert = require('assert');
+const tvmjs = require('../../dist/tvmjs.bundle')
 
 const wasmPath = tvmjs.wasmPath();
-const wasmSource = fs.readFileSync(path.join(wasmPath, "tvmjs_runtime.wasm"));
+const wasmSource = fs.readFileSync(path.join(wasmPath, 'tvmjs_runtime.wasm'));
 
-let tvm = new tvmjs.Instance(
-  new WebAssembly.Module(wasmSource),
-  tvmjs.createPolyfillWASI()
-);
+let tvm = new tvmjs.Instance(new WebAssembly.Module(wasmSource), tvmjs.createPolyfillWASI());
 
 // Basic fields.
 assert(tvm.listGlobalFuncNames() !== undefined);
@@ -37,7 +34,7 @@ function testArrayCopy(dtype, arrayType) {
   let data = [1, 2, 3, 4, 5, 6];
   let a = tvm.empty([2, 3], dtype).copyFrom(data);
 
-  assert(a.device.toString() == "cpu:0");
+  assert(a.device.toString() == 'cpu:0');
   assert(a.shape[0] == 2 && a.shape[1] == 3);
 
   let ret = a.toArray();
@@ -45,12 +42,12 @@ function testArrayCopy(dtype, arrayType) {
   assert(ret.toString() == arrayType.from(data).toString());
 }
 
-test("array copy", () => {
+test('array copy', () => {
   tvm.withNewScope(() => {
-    testArrayCopy("float32", Float32Array);
-    testArrayCopy("int", Int32Array);
-    testArrayCopy("int8", Int8Array);
-    testArrayCopy("uint8", Uint8Array);
-    testArrayCopy("float64", Float64Array);
+    testArrayCopy('float32', Float32Array);
+    testArrayCopy('int', Int32Array);
+    testArrayCopy('int8', Int8Array);
+    testArrayCopy('uint8', Uint8Array);
+    testArrayCopy('float64', Float64Array);
   });
 });

@@ -14,18 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
-from typing import Callable, Union, Tuple, List
+from typing import Callable, List, Tuple, Union
 
 import numpy as np
+import pytest
+
 import tvm
-from tvm.relax.expr import Call
-from tvm.relax.struct_info import TensorStructInfo, TupleStructInfo
 import tvm.testing
 from tvm import relax
+from tvm.ir.op import Op
+from tvm.relax.expr import Call
+from tvm.relax.struct_info import TensorStructInfo, TupleStructInfo
 from tvm.relax.transform import LegalizeOps
 from tvm.testing.utils import check_numerical_grads
-from tvm.ir.op import Op
 
 
 def relax_check_gradients(

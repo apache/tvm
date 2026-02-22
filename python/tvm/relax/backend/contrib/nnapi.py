@@ -16,19 +16,21 @@
 # under the License.
 
 """Pattern table for NNAPI backend"""
+
 from typing import (
+    List,
     Mapping,
     Optional,
     Tuple,
-    List,
 )
+
 from tvm.ir import IRModule
-from tvm.relax.transform import FuseOpsByPattern, MergeCompositeFunctions
 from tvm.relax.dpl.pattern import (
     DFPattern,
-    wildcard,
     is_op,
+    wildcard,
 )
+from tvm.relax.transform import FuseOpsByPattern, MergeCompositeFunctions
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 

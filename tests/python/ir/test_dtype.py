@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test data type related API"""
+
 import pytest
 
 import tvm

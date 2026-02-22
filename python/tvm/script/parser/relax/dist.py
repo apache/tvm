@@ -16,25 +16,24 @@
 # under the License.
 # pylint: disable=redefined-builtin,missing-docstring, invalid-name, unused-import, redefined-outer-name
 
-from typing import Any
-from typing import Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
-from tvm.relax import TensorStructInfo
 from tvm.ir import Range
-from tvm.tir import PrimExpr
-from tvm.relax.distributed import DeviceMesh, Placement, DTensorStructInfo, device_mesh
+from tvm.relax import TensorStructInfo
+from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement, device_mesh
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder.ir import IRModuleFrame
 from tvm.script.ir_builder.relax.distributed import (
-    call_tir,
-    const,
     annotate_sharding,
+    call_tir,
+    call_tir_local_view,
+    const,
     redistribute,
     redistribute_replica_to_shard,
-    call_tir_local_view,
 )
-from .entry import StructInfoProxy, TensorProxy
+from tvm.tir import PrimExpr
 
+from .entry import StructInfoProxy, TensorProxy
 
 ############################### R.DTensor ###############################
 

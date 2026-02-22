@@ -18,6 +18,7 @@
 vectorized cooperative fetching in loop bindings."""
 
 from tvm_ffi.registry import register_object
+
 from .. import _ffi_api
 from .postproc import Postproc
 

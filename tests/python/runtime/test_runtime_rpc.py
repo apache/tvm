@@ -22,19 +22,17 @@ import sys
 import tempfile
 import time
 
-import pytest
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
-
-from tvm import te
-from tvm import rpc
-from tvm.contrib import utils, cc
-from tvm.rpc.tracker import Tracker
+from tvm import rpc, te
+from tvm.contrib import cc, utils
 from tvm.rpc.proxy import Proxy
-from tvm.script import ir as I, tir as T
-
+from tvm.rpc.tracker import Tracker
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 if __name__ == "__main__":
     # NOTE: must live here to avoid registering PackedFunc with libtvm.so twice.

@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target data structure."""
+
 from typing import Union
 
 import tvm_ffi
-from tvm.runtime import Device
-from tvm.runtime import Object, convert
-from tvm.runtime.container import String
+
 from tvm.ir.container import Map
+from tvm.runtime import Device, Object, convert
+from tvm.runtime.container import String
 
 from . import _ffi_api
 

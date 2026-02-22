@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for relax optimizer APIs."""
+
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax
 from tvm.ir.base import assert_structural_equal
-from tvm.relax.training.optimizer import SGD, MomentumSGD, Adam
+from tvm.relax.training.optimizer import SGD, Adam, MomentumSGD
 from tvm.script.parser import relax as R
 
 

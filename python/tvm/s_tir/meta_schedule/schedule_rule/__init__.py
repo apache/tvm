@@ -19,6 +19,7 @@ The tvm.s_tir.meta_schedule.schedule_rule package.
 Meta Schedule schedule rules are used for modification of
 blocks in a schedule. See also PostOrderApply.
 """
+
 from .add_rfactor import AddRFactor
 from .apply_custom_rule import ApplyCustomRule
 from .auto_bind import AutoBind

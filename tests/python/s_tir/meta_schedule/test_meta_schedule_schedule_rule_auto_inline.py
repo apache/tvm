@@ -19,12 +19,12 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.s_tir import meta_schedule as ms
 from tvm.ir.base import assert_structural_equal
+from tvm.s_tir import Schedule
+from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.space_generation import generate_design_space
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.s_tir import Schedule
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks

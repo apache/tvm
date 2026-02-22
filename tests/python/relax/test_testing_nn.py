@@ -18,7 +18,9 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.relax.testing import nn
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_emit():
@@ -98,9 +100,9 @@ def test_define_subroutine():
             return state
 
         @R.function(private=True)
-        def activation(
-            state: R.Tensor(("batch_size", 32), dtype="float32")
-        ) -> R.Tensor(("batch_size", 32), dtype="float32"):
+        def activation(state: R.Tensor(("batch_size", 32), dtype="float32")) -> R.Tensor(
+            ("batch_size", 32), dtype="float32"
+        ):
             state = R.nn.relu(state)
             return state
 

@@ -17,32 +17,42 @@
 """TVM runtime namespace."""
 
 from tvm_ffi import convert
-from tvm_ffi._dtype import dtype as DataType, DataTypeCode
-
-# class exposures
-from .packed_func import PackedFunc
-from .object import Object
-from .script_printer import Scriptable
-from .object_generic import ObjectConvertible
-from .device import Device
-from ._tensor import Tensor, tensor, empty
-from .module import Module
-from .profiling import Report
-from .executable import Executable
-
-# function exposures
-from ._tensor import device, cpu, cuda, opencl, vulkan, metal
-from ._tensor import vpi, rocm, ext_dev, from_dlpack
-from .module import load_module, enabled, system_lib, load_static_library, num_threads
-from .container import String, ShapeTuple
-from .object_generic import const
-from .params import (
-    save_param_dict,
-    load_param_dict,
-    save_param_dict_to_file,
-    load_param_dict_from_file,
-)
+from tvm_ffi._dtype import DataTypeCode
+from tvm_ffi._dtype import dtype as DataType
 
 from . import disco
 
+# function exposures
+from ._tensor import (
+    Tensor,
+    cpu,
+    cuda,
+    device,
+    empty,
+    ext_dev,
+    from_dlpack,
+    metal,
+    opencl,
+    rocm,
+    tensor,
+    vpi,
+    vulkan,
+)
+from .container import ShapeTuple, String
+from .device import Device
+from .executable import Executable
+from .module import Module, enabled, load_module, load_static_library, num_threads, system_lib
+from .object import Object
+from .object_generic import ObjectConvertible, const
+
+# class exposures
+from .packed_func import PackedFunc
+from .params import (
+    load_param_dict,
+    load_param_dict_from_file,
+    save_param_dict,
+    save_param_dict_to_file,
+)
+from .profiling import Report
+from .script_printer import Scriptable
 from .support import _regex_match

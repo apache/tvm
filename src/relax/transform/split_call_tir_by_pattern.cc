@@ -358,7 +358,7 @@ class ForMatcher : public TensorizeComparator {
   }
 
   template <typename T, typename Self, typename F>
-  bool CompareArray(const ffi::Array<T>& lhs, const ffi::Array<T>& rhs, F Self::*cmp) {
+  bool CompareArray(const ffi::Array<T>& lhs, const ffi::Array<T>& rhs, F Self::* cmp) {
     if (lhs.same_as(rhs)) return true;
     if (lhs.size() != rhs.size()) return false;
     for (size_t i = 0; i < lhs.size(); ++i) {

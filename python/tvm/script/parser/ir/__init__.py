@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """The ir module parser"""
+
 from tvm.ir import Range
+
 from ...ir_builder.ir import *  # pylint: disable=redefined-builtin
 from . import parser as _parser
 from .entry import ir_module, pyfunc
-
 
 __all__ = [
     "ir_module",

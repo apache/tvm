@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=missing-docstring
 import tvm
-from tvm.s_tir import dlight as dl
 from tvm.ir import IRModule, assert_structural_equal
+from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
 from tvm.script import tir as T
 from tvm.target import Target

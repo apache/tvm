@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-locals, too-many-statements
 "Scan related operators"
+
 from typing import Callable, Optional, Union
 
 import tvm

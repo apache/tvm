@@ -19,6 +19,7 @@ import gc
 import sys
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import tir

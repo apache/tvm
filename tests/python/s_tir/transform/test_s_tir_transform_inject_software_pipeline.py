@@ -18,13 +18,12 @@ import sys
 
 import numpy as np
 import pytest
+
 import tvm
-import tvm.testing
 import tvm.s_tir.tensor_intrin.cuda
+import tvm.testing
 from tvm import TVMError, te, tir
 from tvm.s_tir.meta_schedule.testing import te_workload
-from tvm.script import tir as T
-from tvm.testing.tir import mma_schedule
 from tvm.s_tir.tensor_intrin.cuda import (
     LDMATRIX_f16_A_DYN_INTRIN,
     LDMATRIX_f16_B_DYN_INTRIN,
@@ -33,6 +32,8 @@ from tvm.s_tir.tensor_intrin.cuda import (
     MMA_store_16x16_f32_global_INTRIN,
     shared_16x16_to_ldmatrix_32x8_layout,
 )
+from tvm.script import tir as T
+from tvm.testing.tir import mma_schedule
 
 
 def _check(original, transformed):

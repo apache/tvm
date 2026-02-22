@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy
 import pytest
+
 import tvm
 import tvm.testing
 from tvm.ir.module import IRModule
 from tvm.script import tir as T
-import numpy
 
 
 def collect_visit(stmt, f):

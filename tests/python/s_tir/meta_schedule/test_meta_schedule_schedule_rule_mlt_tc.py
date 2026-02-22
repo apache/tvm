@@ -20,8 +20,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.s_tir import meta_schedule as ms
 from tvm import te
+from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing import te_workload
 from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
@@ -29,8 +29,8 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     get_rules,
     print_sketches,
 )
-from tvm.script import tir as T
 from tvm.s_tir.tensor_intrin.cuda import get_wmma_intrin_group
+from tvm.script import tir as T
 
 
 def multi_level_tiling_tensor_core(
@@ -80,6 +80,7 @@ def multi_level_tiling_tensor_core(
 @pytest.mark.parametrize("shared_scope", ["shared", "shared.dyn"])
 def test_matmul_relu(shared_scope):
     intrin_suffix = shared_scope.replace(".", "_")
+
     # fmt: off
     @T.prim_func
     def matmul_relu_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
@@ -388,6 +389,7 @@ def test_matmul_relu_with_fallback():
 @pytest.mark.parametrize("shared_scope", ["shared", "shared.dyn"])
 def test_conv2d(shared_scope):
     intrin_suffix = shared_scope.replace(".", "_")
+
     # fmt: off
     @T.prim_func
     def conv2d_0(inputs: T.Buffer((1, 16, 16, 32), "float16"), weight: T.Buffer((3, 3, 32, 32), "float16"), conv2d_nhwc: T.Buffer((1, 16, 16, 32), "float32")):
@@ -569,6 +571,7 @@ def test_conv2d(shared_scope):
 @pytest.mark.parametrize("shared_scope", ["shared", "shared.dyn"])
 def test_matmul_relu_pipeline(shared_scope):
     intrin_suffix = shared_scope.replace(".", "_")
+
     # fmt: off
     @T.prim_func
     def matmul_relu_pipeline_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:

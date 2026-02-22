@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Adreno TIR transformations. """
+"""Adreno TIR transformations."""
 
 from .transform import (
     InjectTextureAlloc,

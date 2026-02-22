@@ -89,9 +89,9 @@ class TestAutopad:
                         )
 
             @R.function
-            def main(
-                x: R.Tensor((1, 1, 4, 4), dtype="float32")
-            ) -> R.Tensor((1, 1, 5, 5), dtype="float32"):
+            def main(x: R.Tensor((1, 1, 4, 4), dtype="float32")) -> R.Tensor(
+                (1, 1, 5, 5), dtype="float32"
+            ):
                 cls = expected
                 with R.dataflow():
                     lv = R.call_tir(
@@ -150,9 +150,9 @@ class TestAutopad:
                         ]
 
             @R.function
-            def main(
-                x: R.Tensor((1, 1, 4, 4), dtype="float32")
-            ) -> R.Tensor((1, 1, 5, 5), dtype="float32"):
+            def main(x: R.Tensor((1, 1, 4, 4), dtype="float32")) -> R.Tensor(
+                (1, 1, 5, 5), dtype="float32"
+            ):
                 cls = expected
                 with R.dataflow():
                     lv = R.call_tir(
@@ -196,9 +196,9 @@ class TestAutopad:
                         ]
 
             @R.function
-            def main(
-                x: R.Tensor((1, 1, 4, 4), dtype="float32")
-            ) -> R.Tensor((1, 1, 5, 5), dtype="float32"):
+            def main(x: R.Tensor((1, 1, 4, 4), dtype="float32")) -> R.Tensor(
+                (1, 1, 5, 5), dtype="float32"
+            ):
                 cls = expected
                 with R.dataflow():
                     lv = R.call_tir(

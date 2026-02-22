@@ -15,19 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[mypy]
-ignore_missing_imports = False
-show_column_numbers = True
-show_error_context = True
-follow_imports = skip
-ignore_errors = False
-strict_optional = False
-
-[mypy-python.tvm.auto_scheduler.*]
-ignore_errors = True
-
-[mypy-python.tvm.runtime.*]
-ignore_errors = True
-
-[mypy-python.tvm.s_tir.schedule.*]
-ignore_errors = False
+config:
+  MD013: false

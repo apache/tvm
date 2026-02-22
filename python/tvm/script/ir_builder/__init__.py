@@ -15,4 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.script.ir_builder is a generic IR builder for TVM."""
+
 from .base import IRBuilder

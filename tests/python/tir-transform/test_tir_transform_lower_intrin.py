@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
+
 import tvm
 import tvm.testing
-import numpy as np
 
 
 def lower_intrin(params, stmt):

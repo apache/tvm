@@ -94,7 +94,7 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   template <typename T>
   bool CompareBufferAccess(const T* lhs, const T* rhs);
   template <typename T, typename Self, typename F>
-  bool CompareArray(const ffi::Array<T>& lhs, const ffi::Array<T>& rhs, F Self::*cmp);
+  bool CompareArray(const ffi::Array<T>& lhs, const ffi::Array<T>& rhs, F Self::* cmp);
   bool CompareRange(const Range& lhs, const Range& rhs);
   bool CompareIterVar(const IterVar& lhs, const IterVar& rhs);
   void EmitError(const std::string& error_message);

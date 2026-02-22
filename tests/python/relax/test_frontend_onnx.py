@@ -33,9 +33,9 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
+from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.script import ir as I
 
 bg = np.random.MT19937(0)
 rg = np.random.Generator(bg)
@@ -2115,9 +2115,9 @@ def test_expand_incompatible_broadcasting():
             from_onnx(model, keep_params_in_input=True)
 
         error_msg = str(exc_info.value)
-        assert (
-            "broadcast" in error_msg.lower() or "incompatible" in error_msg.lower()
-        ), f"Expected broadcasting error, but got: {error_msg}"
+        assert "broadcast" in error_msg.lower() or "incompatible" in error_msg.lower(), (
+            f"Expected broadcasting error, but got: {error_msg}"
+        )
 
     # Test case 1: Reproduce the exact error from the issue-17769
     # Input shape: (25,), target shape: (1, 1, 1, 56)
@@ -3243,9 +3243,9 @@ def test_symbolic_shape_deduction():
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
     @R.function
-    def expected(
-        data: R.Tensor(("batch", "seq"), dtype="float32")
-    ) -> R.Tensor(dtype="float32", ndim=1):
+    def expected(data: R.Tensor(("batch", "seq"), dtype="float32")) -> R.Tensor(
+        dtype="float32", ndim=1
+    ):
         batch = T.int64()
         seq = T.int64()
         R.func_attr({"num_input": 1})

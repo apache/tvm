@@ -20,10 +20,12 @@ Codegen tests for AArch64
 """
 
 import re
+
 import pytest
 
 import tvm
-from tvm.script import tir as T, ir as I
+from tvm.script import ir as I
+from tvm.script import tir as T
 from tvm.target.codegen import llvm_version_major
 
 
@@ -612,16 +614,14 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
 
     # Check if the vscale_range() attribute exists
     ll = f.inspect_source("ll")
-    attr = re.findall(rf".*vscale_range\(\d+,\d+\)*.", ll)
+    attr = re.findall(r".*vscale_range\(\d+,\d+\)*.", ll)
 
     if expect_attr:
-        assert (
-            len(attr) > 0
-        ), f"Function attribute vscale_range() was not found in generated LLVM IR"
+        assert len(attr) > 0, "Function attribute vscale_range() was not found in generated LLVM IR"
     else:
-        assert (
-            len(attr) == 0
-        ), f"Unexpected function attribute vscale_range() was found in generated LLVM IR"
+        assert len(attr) == 0, (
+            "Unexpected function attribute vscale_range() was found in generated LLVM IR"
+        )
 
 
 if __name__ == "__main__":

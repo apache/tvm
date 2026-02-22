@@ -1582,9 +1582,9 @@ def test_add():
             T.evaluate(0)
 
         @R.function
-        def main(
-            probs: R.Tensor(("batch_size", "vocab_size"), dtype="float32")
-        ) -> R.Tensor(("batch_size", "vocab_size"), dtype="float32"):
+        def main(probs: R.Tensor(("batch_size", "vocab_size"), dtype="float32")) -> R.Tensor(
+            ("batch_size", "vocab_size"), dtype="float32"
+        ):
             batch_size = T.int64()
             vocab_size = T.int64()
             R.func_attr(
@@ -1628,9 +1628,9 @@ def test_add():
             T.evaluate(0)
 
         @R.function
-        def main(
-            probs: R.Tensor(("batch_size", "vocab_size"), dtype="float32")
-        ) -> R.Tensor(("batch_size", "vocab_size"), dtype="float32"):
+        def main(probs: R.Tensor(("batch_size", "vocab_size"), dtype="float32")) -> R.Tensor(
+            ("batch_size", "vocab_size"), dtype="float32"
+        ):
             batch_size = T.int64()
             vocab_size = T.int64()
             R.func_attr(

@@ -19,8 +19,9 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import s_tir
+from tvm.script import ir as I
+from tvm.script import tir as T
 from tvm.topi.math import cast
-from tvm.script import ir as I, tir as T
 
 
 def test_matmul_t_buffer():
@@ -80,9 +81,9 @@ def test_matmul_t_buffer():
             C_sh[threadIdx_y * 16 + threadIdx_x] = C_local[0]
             T.tvm_storage_sync("shared.dyn")
 
-            matmul_flat[
-                blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
-            ] = C_sh[threadIdx_y * 16 + threadIdx_x]
+            matmul_flat[blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x] = (
+                C_sh[threadIdx_y * 16 + threadIdx_x]
+            )
 
     @I.ir_module
     class Expected:
@@ -130,9 +131,9 @@ def test_matmul_t_buffer():
             C_sh[threadIdx_y * 16 + threadIdx_x] = C_local[0]
             T.tvm_storage_sync("shared.dyn")
 
-            matmul_flat[
-                blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
-            ] = C_sh[threadIdx_y * 16 + threadIdx_x]
+            matmul_flat[blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x] = (
+                C_sh[threadIdx_y * 16 + threadIdx_x]
+            )
 
     After = transform(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -195,9 +196,9 @@ def test_matmul_decl_buffer():
             C_sh[threadIdx_y * 16 + threadIdx_x] = C_local[0]
             T.tvm_storage_sync("shared.dyn")
 
-            matmul_flat[
-                blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
-            ] = C_sh[threadIdx_y * 16 + threadIdx_x]
+            matmul_flat[blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x] = (
+                C_sh[threadIdx_y * 16 + threadIdx_x]
+            )
 
     @I.ir_module
     class Expected:
@@ -245,9 +246,9 @@ def test_matmul_decl_buffer():
             C_sh[threadIdx_y * 16 + threadIdx_x] = C_local[0]
             T.tvm_storage_sync("shared.dyn")
 
-            matmul_flat[
-                blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x
-            ] = C_sh[threadIdx_y * 16 + threadIdx_x]
+            matmul_flat[blockIdx_y * 16384 + threadIdx_y * 1024 + blockIdx_x * 16 + threadIdx_x] = (
+                C_sh[threadIdx_y * 16 + threadIdx_x]
+            )
 
     After = transform(Before)
     tvm.ir.assert_structural_equal(After, Expected)

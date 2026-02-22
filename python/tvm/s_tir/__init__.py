@@ -17,25 +17,18 @@
 # pylint: disable=invalid-name
 """S-TIR namespace for scheduable TensorIR"""
 
-from tvm.tir.function import TensorIntrin
-
 # dlight depends on compiler-only C++ functions (e.g. s_tir.schedule.GetSBlockRealize),
 # so skip it in runtime-only builds.
 from tvm.base import _RUNTIME_ONLY
+from tvm.tir.function import TensorIntrin
 
-from . import _ffi_api
-from . import backend
-from . import pipeline
-from . import transform
-from . import schedule
-from .schedule import StmtSRef, SBlockScope, ScheduleState, Schedule, ScheduleError, Trace
+from . import _ffi_api, backend, pipeline, schedule, transform
+from .data_layout import BijectiveLayout, Layout, bijective_layout, layout
 from .sblock_dependence_info import SBlockDependenceInfo
-from .data_layout import Layout, BijectiveLayout, bijective_layout, layout
+from .schedule import SBlockScope, Schedule, ScheduleError, ScheduleState, StmtSRef, Trace
 
 if not _RUNTIME_ONLY:
-    from . import analysis
-    from . import meta_schedule
-    from . import dlight
+    from . import analysis, dlight, meta_schedule
 
 
 def renew_defs(func):

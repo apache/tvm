@@ -19,10 +19,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.runtime import Device
-from tvm.runtime import ShapeTuple
+from tvm.runtime import Device, ShapeTuple
 from tvm.runtime import disco as di
-
 
 page_size = 4
 num_layers = 4

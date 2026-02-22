@@ -19,9 +19,10 @@ The tvm.s_tir.meta_schedule.mutator package.
 Meta Schedule mutator that mutates the trace to explore the
 design space.
 """
-from .mutator import Mutator, PyMutator
+
 from .mutate_compute_location import MutateComputeLocation
-from .mutate_tile_size import MutateTileSize
-from .mutate_thread_binding import MutateThreadBinding
 from .mutate_parallel import MutateParallel
+from .mutate_thread_binding import MutateThreadBinding
+from .mutate_tile_size import MutateTileSize
 from .mutate_unroll import MutateUnroll
+from .mutator import Mutator, PyMutator

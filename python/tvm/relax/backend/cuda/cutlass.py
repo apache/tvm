@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Pattern table for CUTLASS backend"""
+
 import operator
 from functools import reduce
 from typing import Mapping, Sequence
@@ -93,7 +94,7 @@ def _check_residual(root_call: Call, context: PatternCheckContext) -> bool:
     if "residual" in context.annotated_expr:
         residual = context.annotated_expr["residual"]
         if not isinstance(residual, Var):
-            if not residual in context.value_to_bound_var:
+            if residual not in context.value_to_bound_var:
                 return False
 
             residual = context.value_to_bound_var[residual]

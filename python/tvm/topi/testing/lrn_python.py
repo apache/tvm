@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """LRN in python"""
+
 from itertools import product
+
 import numpy as np
 
 

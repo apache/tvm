@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
-from tvm.script import ir as I, relax as R, tir as T
-
 import numpy as np
 import pytest
+
+import tvm
+import tvm.testing
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_infer_shape_of_1d_static_view():

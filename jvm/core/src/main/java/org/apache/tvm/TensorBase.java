@@ -32,7 +32,8 @@ public class TensorBase extends TVMValue {
     this.isView = isView;
   }
 
-  @Override public TensorBase asTensor() {
+  @Override
+  public TensorBase asTensor() {
     return this;
   }
 
@@ -46,7 +47,8 @@ public class TensorBase extends TVMValue {
     }
   }
 
-  @Override protected void finalize() throws Throwable {
+  @Override
+  protected void finalize() throws Throwable {
     release();
     super.finalize();
   }

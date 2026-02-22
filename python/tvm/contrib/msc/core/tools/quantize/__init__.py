@@ -16,6 +16,6 @@
 # under the License.
 """tvm.contrib.msc.core.tools.quantize"""
 
-from .quantizer import *
-from .method import *
 from .configer import *
+from .method import *
+from .quantizer import *

@@ -16,12 +16,12 @@
 # under the License.
 """tvm.contrib.msc.framework.tvm.codegen.codegen"""
 
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core import codegen as msc_codegen
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.ir import MSCGraph
 
 
 def to_relax(

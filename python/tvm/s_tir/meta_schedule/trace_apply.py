@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Specialized applications of trace"""
+
 from tvm.s_tir import Schedule, Trace
+
 from ...target import Target
 from . import _ffi_api
 

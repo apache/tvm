@@ -16,11 +16,13 @@
 # under the License.
 """Unittests for tvm.script.parser.ir"""
 
-import pytest
 import inspect
+
+import pytest
+
 import tvm.testing
-from tvm.script.parser import ir_module
 from tvm.ir import IRModule
+from tvm.script.parser import ir_module
 
 
 def test_ir_base():

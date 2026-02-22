@@ -16,9 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name,,missing-function-docstring
 import tvm
+import tvm.testing
 from tvm.s_tir.transform import DefaultGPUSchedule
 from tvm.script import tir as T
-import tvm.testing
 
 
 def test_broadcast_to_symbolic():

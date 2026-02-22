@@ -20,11 +20,10 @@ from typing import TYPE_CHECKING
 
 from ...ir_builder.relax import *  # pylint: disable=redefined-builtin
 from ...ir_builder.relax import ir as _relax
-from . import parser as _parser
-from .entry import Callable, Object, Prim, Shape, Tensor, Tuple, match_cast
-
 from . import dist
+from . import parser as _parser
 from .dist import *  # pylint: disable=wildcard-import,redefined-builtin
+from .entry import Callable, Object, Prim, Shape, Tensor, Tuple, match_cast
 
 if TYPE_CHECKING:
     # pylint: disable=invalid-name

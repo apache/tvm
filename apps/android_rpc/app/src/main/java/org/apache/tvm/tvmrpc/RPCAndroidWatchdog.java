@@ -33,7 +33,8 @@ public class RPCAndroidWatchdog extends RPCWatchdog {
   /**
    * Method to non-destructively terminate the running thread on Android
    */
-  @Override protected void terminate() {
+  @Override
+  protected void terminate() {
     rpc_activity.finish();
   }
 }

@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Adreno Relax transformation passes."""
+
 from typing import Optional
 
 import tvm.ir

@@ -17,4 +17,5 @@
 """
 CPU-generic schedule rules.
 """
+
 from .gemv import GEMV

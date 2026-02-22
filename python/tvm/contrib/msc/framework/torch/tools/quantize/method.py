@@ -18,13 +18,14 @@
 """tvm.contrib.msc.framework.torch.tools.quantize.method"""
 
 from functools import wraps
-import numpy as np
 
+import numpy as np
 import torch
 from torch.autograd import Function
-from tvm.contrib.msc.core.tools.quantize import QuantizeMethod, BaseQuantizer
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
+
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.quantize import BaseQuantizer, QuantizeMethod
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
 def fake_quantize(func):

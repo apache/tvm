@@ -19,7 +19,7 @@
 """The TIR backend compilation pipeline for Adreno"""
 
 import tvm
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.tir import pipeline as tir_pipeline
 
 
