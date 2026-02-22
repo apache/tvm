@@ -38,7 +38,7 @@ def test_func_type():
     tf = tvm.ir.FuncType(arg_types, ret_type)
     assert tf.arg_types == arg_types
     assert tf.ret_type == ret_type
-    assert tf.span == None
+    assert tf.span is None
     # TODO make sure we can set span
     str(tf)
     check_json_roundtrip(tf)

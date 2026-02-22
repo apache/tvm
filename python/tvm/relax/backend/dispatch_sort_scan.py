@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Dispatch sort and scan operators to platform dependent implementation."""
+
+from __future__ import annotations
 
 from functools import reduce
 from operator import mul
-from typing import Dict
 
 from tvm import DataType, relax, topi
 from tvm.contrib.thrust import can_use_thrust
@@ -36,7 +36,7 @@ from .utils import BackendDispatcher
 class SortScanDispatcher(BackendDispatcher):
     """Dispatcher to dispatch sort and scan."""
 
-    calls_to_update: Dict[GlobalVar, Target]
+    calls_to_update: dict[GlobalVar, Target]
 
     def __init__(self, mod):
         super().__init__(mod)
@@ -46,7 +46,7 @@ class SortScanDispatcher(BackendDispatcher):
         self,
     ) -> None:
         """Apply DLight rules for all the calls that need to be updated."""
-        from tvm.s_tir import dlight  # pylint: disable=import-outside-toplevel
+        from tvm.s_tir import dlight
 
         for gvar, target in self.calls_to_update.items():
             func = self.builder_.get()[gvar]
@@ -157,7 +157,7 @@ class SortScanDispatcher(BackendDispatcher):
                 and call.op.name == "relax.cumsum"
                 and call.attrs.exclusive == 0
             ):
-                from tvm.relax.backend.gpu_generic import (  # pylint: disable=import-outside-toplevel
+                from tvm.relax.backend.gpu_generic import (
                     gpu_2d_continuous_cumsum,
                 )
 

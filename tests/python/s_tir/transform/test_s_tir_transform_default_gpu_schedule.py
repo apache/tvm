@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,,missing-function-docstring
 import tvm
 import tvm.testing
 from tvm.s_tir.transform import DefaultGPUSchedule
@@ -22,7 +21,6 @@ from tvm.script import tir as T
 
 
 def test_broadcast_to_symbolic():
-    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
     @tvm.script.ir_module
     class Before:
@@ -59,7 +57,7 @@ def test_broadcast_to_symbolic():
                             T.where((ax0_ax1_fused_0 * T.int64(256) + ax0_ax1_fused_1) * T.int64(1024) + ax0_ax1_fused_2 < x_0 * x_1)
                             T_broadcast_to[v_ax0, v_ax1] = rxplaceholder[v_ax0, T.int64(0)]
     # fmt: on
-    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
@@ -67,7 +65,6 @@ def test_broadcast_to_symbolic():
 
 
 def test_matmul():
-    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
     @tvm.script.ir_module
     class Before:
@@ -188,7 +185,7 @@ def test_matmul():
                                 C[v_i, v_j] = T.float16(0)
                             C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
     # fmt: on
-    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
@@ -196,7 +193,6 @@ def test_matmul():
 
 
 def test_add():
-    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
     @tvm.script.ir_module
     class Before:
@@ -260,7 +256,7 @@ def test_add():
                         )
 
     # fmt: on
-    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
@@ -268,7 +264,6 @@ def test_add():
 
 
 def test_full():
-    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
     @tvm.script.ir_module
     class Before:
@@ -307,7 +302,7 @@ def test_full():
                         T_full[ax0, ax1] = rxplaceholder[()]
 
     # fmt: on
-    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
@@ -315,7 +310,6 @@ def test_full():
 
 
 def test_scheduled():
-    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
 
     @tvm.script.ir_module
@@ -343,7 +337,7 @@ def test_scheduled():
                         T_full[ax0, ax1] = rxplaceholder[()]
 
     # fmt: on
-    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
         # should do nothing
@@ -352,7 +346,6 @@ def test_scheduled():
 
 
 def test_multiple():
-    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
     @tvm.script.ir_module
     class Before:
@@ -447,7 +440,7 @@ def test_multiple():
                         T.writes(T_full[ax0, ax1])
                         T_full[ax0, ax1] = rxplaceholder[()]
     # fmt: on
-    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
@@ -455,7 +448,6 @@ def test_multiple():
 
 
 def test_add_on_metal():
-    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
     @tvm.script.ir_module
     class Before:
@@ -485,7 +477,7 @@ def test_add_on_metal():
                         T.writes(T_add[ax0, ax1, ax2, ax3])
                         T_add[ax0, ax1, ax2, ax3] = rxplaceholder[T.int64(0), ax2, ax3] + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
     # fmt: on
-    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
     target = tvm.target.Target("apple/m1-gpu")
     with target, tvm.transform.PassContext(opt_level=0):
         mod = DefaultGPUSchedule()(Before)
@@ -493,7 +485,6 @@ def test_add_on_metal():
 
 
 def test_scalar_add():
-    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
     # fmt: off
     @tvm.script.ir_module
     class Before:
@@ -520,7 +511,7 @@ def test_scalar_add():
                         T.writes(T_add[()])
                         T_add[()] = rxplaceholder[()] + T.int64(1)
     # fmt: on
-    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=0):
         mod = DefaultGPUSchedule()(Before)
@@ -529,7 +520,7 @@ def test_scalar_add():
 
 def test_sum():
     # sum has two reduction axes and no spatial axis
-    # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
+
     # fmt: off
     @tvm.script.ir_module
     class Before:
@@ -559,7 +550,7 @@ def test_sum():
                                 A_red[()] = T.float64(0)
                             A_red[()] = A_red[()] + A[v_k0, v_k1]
     # fmt: on
-    # pylint: enable=no-self-argument,missing-class-docstring,line-too-long
+
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=0):
         mod = DefaultGPUSchedule()(Before)

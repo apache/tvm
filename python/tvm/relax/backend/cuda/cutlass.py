@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Pattern table for CUTLASS backend"""
 
+from __future__ import annotations
+
 import operator
+from collections.abc import Mapping, Sequence
 from functools import reduce
-from typing import Mapping, Sequence
 
 import tvm
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
@@ -138,7 +139,6 @@ def _check_conv2d(context: PatternCheckContext) -> bool:
         if isinstance(dim, tvm.tir.Var):
             return False
 
-    # pylint: disable=invalid-name
     IC = data.struct_info.shape.values[3]
     OC = weight.struct_info.shape.values[0]
     # not depthwise conv2d

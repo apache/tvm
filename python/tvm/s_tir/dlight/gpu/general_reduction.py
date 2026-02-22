@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
-from typing import List, Union
+from __future__ import annotations
 
 from tvm import arith, s_tir, tir
 from tvm.target import Target
@@ -30,12 +29,12 @@ from .base import GPUScheduleRule
 class GeneralReduction(GPUScheduleRule):
     """General Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
-    def apply(  # pylint: disable=too-many-locals
+    def apply(
         self,
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
 

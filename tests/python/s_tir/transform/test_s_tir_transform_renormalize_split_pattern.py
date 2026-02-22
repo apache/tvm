@@ -21,7 +21,6 @@ from tvm import s_tir
 from tvm.script import tir as T
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,redundant-keyword-arg
 
 @tvm.script.ir_module
 class Before:
@@ -115,7 +114,6 @@ class After_simplified:
         for ax1, ax2 in T.grid(2, 4):
             conv2d_transpose_nhwc_flat[threadIdx_x // 8 * 4096 + ax1 * 2048 + blockIdx_x // 32 * 1024 + ax2 * 256 + blockIdx_x % 32 * 8 + threadIdx_x % 8] = conv2d_transpose_nhwc_local[ax1 * 4 + ax2]
 
-# pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,redundant-keyword-arg
 # fmt: on
 
 

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """The base parser for ir module"""
 
 from tvm.ir import GlobalVar
@@ -155,7 +154,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
 
     # Lazy import: tvm.relax cannot be imported at module level in tvm.script.parser
     # because tvm.script is loaded before tvm.relax during tvm initialization.
-    from tvm.relax import ExternFunc  # pylint: disable=import-outside-toplevel
+    from tvm.relax import ExternFunc
 
     # Create ExternFunc with proper attributes for Python functions
     func = ExternFunc(node.name)

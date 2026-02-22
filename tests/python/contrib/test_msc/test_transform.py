@@ -27,12 +27,11 @@ from tvm.relax.frontend.torch import from_fx
 def test_relax_layout():
     """Test SetExprLayout for relax"""
 
-    # pylint: disable=import-outside-toplevel
     try:
         import torch
         import torchvision
         from torch import fx
-    except:  # pylint: disable=bare-except
+    except:
         print("please install pytorch python package")
         return
 
@@ -69,12 +68,11 @@ def test_relax_layout():
 def test_relax():
     """Test SetExprName for relax"""
 
-    # pylint: disable=import-outside-toplevel
     try:
         import torch
         import torchvision
         from torch import fx
-    except:  # pylint: disable=bare-except
+    except:
         print("please install pytorch python package")
         return
 

@@ -108,6 +108,6 @@ class UnionDatabase(Database):
             The list of databases to combine.
         """
         self.__init_handle_by_constructor__(
-            _ffi_api.DatabaseUnionDatabase,  # type: ignore # pylint: disable=no-member
+            _ffi_api.DatabaseUnionDatabase,  # type: ignore
             databases,
         )

@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=too-many-lines,invalid-name,protected-access,redefined-outer-name
-# pylint: disable=redefined-builtin
 """nn.Tensor operators."""
+
+from __future__ import annotations
 
 import inspect
 import math
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, TypeVar, Union
+from collections.abc import Callable, Sequence
+from typing import Any, TypeVar, Union
 
 import numpy as np
 
@@ -33,7 +34,7 @@ from ... import op as _op
 from ...block_builder import BlockBuilder
 from .core import Tensor, get_default_dtype, wrap_nested
 
-IntExpr = Union[int, _tir.PrimExpr]
+IntExpr = int | _tir.PrimExpr
 
 
 def unsqueeze(x: Tensor, dim: int, name: str = "unsqueeze") -> Tensor:
@@ -56,7 +57,7 @@ def unsqueeze(x: Tensor, dim: int, name: str = "unsqueeze") -> Tensor:
     return wrap_nested(_op.expand_dims(x._expr, dim), name)
 
 
-def concat(x: List[Tensor], dim: int, name: str = "concat") -> Tensor:
+def concat(x: list[Tensor], dim: int, name: str = "concat") -> Tensor:
     """Concatenate a list of tensors along an axis.
 
     Parameters
@@ -214,7 +215,7 @@ def chunk(x: Tensor, chunks: int, dim: int = 0, name: str = "chunk") -> Tensor:
 
 def sum(
     x: Tensor,
-    axis: Optional[Union[int, List[int]]] = None,
+    axis: int | list[int] | None = None,
     keepdims: bool = False,
     name: str = "sum",
 ) -> Tensor:
@@ -248,7 +249,7 @@ def sum(
 
 def max(
     x: Tensor,
-    axis: Optional[Union[int, List[int]]] = None,
+    axis: int | list[int] | None = None,
     keepdims: bool = False,
     name: str = "max",
 ) -> Tensor:
@@ -282,7 +283,7 @@ def max(
 
 def min(
     x: Tensor,
-    axis: Optional[Union[int, List[int]]] = None,
+    axis: int | list[int] | None = None,
     keepdims: bool = False,
     name: str = "min",
 ) -> Tensor:
@@ -314,7 +315,7 @@ def min(
     return wrap_nested(_op.min(x._expr, axis, keepdims), name)
 
 
-def matmul(a: Tensor, b: Tensor, out_dtype: Optional[str] = None, name: str = "matmul") -> Tensor:
+def matmul(a: Tensor, b: Tensor, out_dtype: str | None = None, name: str = "matmul") -> Tensor:
     """General matrix multiplication of two tensors, with broadcasting on batched dimensions.
 
     The semantics and output shape deduction rule is specified as
@@ -352,11 +353,11 @@ def matmul(a: Tensor, b: Tensor, out_dtype: Optional[str] = None, name: str = "m
 def conv1d(
     x: Tensor,
     weight: Tensor,
-    bias: Optional[Tensor] = None,
-    stride: Optional[Union[int, Tuple]] = 1,
-    padding: Optional[Union[int, Tuple, str]] = 0,
-    dilation: Optional[Union[int, Tuple]] = 1,
-    groups: Optional[int] = 1,
+    bias: Tensor | None = None,
+    stride: int | tuple | None = 1,
+    padding: int | tuple | str | None = 0,
+    dilation: int | tuple | None = 1,
+    groups: int | None = 1,
     name: str = "conv1d",
 ) -> Tensor:
     r"""1D convolution.
@@ -435,12 +436,12 @@ def conv1d(
 def conv2d(
     x: Tensor,
     weight: Tensor,
-    bias: Optional[Tensor] = None,
-    stride: Optional[Union[int, Tuple]] = 1,
-    padding: Optional[Union[int, Tuple, str]] = 0,
-    dilation: Optional[Union[int, Tuple]] = 1,
-    groups: Optional[int] = 1,
-    data_layout: Optional[str] = "NCHW",
+    bias: Tensor | None = None,
+    stride: int | tuple | None = 1,
+    padding: int | tuple | str | None = 0,
+    dilation: int | tuple | None = 1,
+    groups: int | None = 1,
+    data_layout: str | None = "NCHW",
     name: str = "conv2d",
 ) -> Tensor:
     """Applies a 2D convolution over an input image composed of sevaral input planes
@@ -503,12 +504,12 @@ def conv2d(
 def conv3d(
     x: Tensor,
     weight: Tensor,
-    bias: Optional[Tensor] = None,
-    stride: Optional[Union[int, Tuple]] = 1,
-    padding: Optional[Union[int, Tuple, str]] = 0,
-    dilation: Optional[Union[int, Tuple]] = 1,
-    groups: Optional[int] = 1,
-    data_layout: Optional[str] = "NCDHW",
+    bias: Tensor | None = None,
+    stride: int | tuple | None = 1,
+    padding: int | tuple | str | None = 0,
+    dilation: int | tuple | None = 1,
+    groups: int | None = 1,
+    data_layout: str | None = "NCDHW",
     name: str = "conv3d",
 ) -> Tensor:
     """Applies a 3D convolution over an input image composed of sevaral input planes
@@ -571,12 +572,12 @@ def conv3d(
 def conv1d_transpose(
     x: Tensor,
     weight: Tensor,
-    bias: Optional[Tensor] = None,
-    stride: Optional[Union[int, Tuple[int]]] = 1,
-    padding: Optional[Union[int, Tuple[int, ...]]] = 0,
-    output_padding: Optional[Union[int, Tuple[int]]] = 0,
-    dilation: Optional[Union[int, Tuple]] = 1,
-    groups: Optional[int] = 1,
+    bias: Tensor | None = None,
+    stride: int | tuple[int] | None = 1,
+    padding: int | tuple[int, ...] | None = 0,
+    output_padding: int | tuple[int] | None = 0,
+    dilation: int | tuple | None = 1,
+    groups: int | None = 1,
     name: str = "conv1d_transpose",
 ) -> Tensor:
     """1D transposed convolution operator.
@@ -726,7 +727,7 @@ def broadcast_to(x: Tensor, shape: Sequence[IntExpr], name: str = "broadcast_to"
     return wrap_nested(_op.broadcast_to(x._expr, shape), name)
 
 
-def permute_dims(x: Tensor, axes: Optional[List[int]] = None, name: str = None) -> Tensor:
+def permute_dims(x: Tensor, axes: list[int] | None = None, name: str | None = None) -> Tensor:
     """Permutes the dimensions of an array.
 
     Parameters
@@ -793,7 +794,7 @@ def reshape(x: Tensor, shape: Sequence[IntExpr], name="reshape") -> Tensor:
     return wrap_nested(_op.reshape(x._expr, shape), name)
 
 
-def repeat(x: Tensor, repeats: int, axis: Optional[int] = None, name="repeat") -> Tensor:
+def repeat(x: Tensor, repeats: int, axis: int | None = None, name="repeat") -> Tensor:
     """Repeats elements of an array.
 
     Parameters
@@ -854,7 +855,7 @@ def squeeze(x: Tensor, axis: int = -1, name: str = "squeeze") -> Tensor:
     return wrap_nested(_op.squeeze(x._expr, axis), name)
 
 
-def take(x: Tensor, indices: Tensor, axis: Optional[int] = None, name="take") -> Tensor:
+def take(x: Tensor, indices: Tensor, axis: int | None = None, name="take") -> Tensor:
     """Take elements from a tensor along an axis.
     Its semantic is mostly similar to `numpy.take`
     (https://numpy.org/doc/stable/reference/generated/numpy.take.html),
@@ -979,7 +980,7 @@ def silu(x: Tensor, name: str = "silu") -> Tensor:
     return wrap_nested(_op.nn.silu(x._expr), name)
 
 
-def gelu(x: Tensor, approximate: Optional[str] = None, name: str = "gelu") -> Tensor:
+def gelu(x: Tensor, approximate: str | None = None, name: str = "gelu") -> Tensor:
     r"""Applies the Gaussian Error Linear Units function
 
     .. math::
@@ -1228,9 +1229,9 @@ def floor(x: Tensor, name: str = "floor") -> Tensor:
 
 def arange(
     start: int,
-    end: Optional[int] = None,
+    end: int | None = None,
     step: int = 1,
-    dtype: Optional[str] = "float32",
+    dtype: str | None = "float32",
     name: str = "arange",
 ) -> Tensor:
     r"""Construct a tensor with evenly spaced elements.
@@ -1261,7 +1262,7 @@ def arange(
     return wrap_nested(_op.arange(start, end, step, dtype), name)
 
 
-def permute(x: Tensor, axes: Optional[List[int]], name: str = "permute") -> Tensor:
+def permute(x: Tensor, axes: list[int] | None, name: str = "permute") -> Tensor:
     """Permutes the dimensions of the input tensor.
 
     Parameters
@@ -1305,9 +1306,9 @@ def negative(x: Tensor, name: str = "neg") -> Tensor:
 
 def layer_norm(
     x: Tensor,
-    normalized_shape: Union[int, List[int]],
-    weight: Optional[Tensor] = None,
-    bias: Optional[Tensor] = None,
+    normalized_shape: int | list[int],
+    weight: Tensor | None = None,
+    bias: Tensor | None = None,
     eps: float = 1e-5,
     name: str = "layer_norm",
 ) -> Tensor:
@@ -1387,7 +1388,7 @@ def layer_norm(
 def rms_norm(
     x: Tensor,
     weight: Tensor,
-    axes: Union[int, List[int]],
+    axes: int | list[int],
     epsilon: float = 1e-5,
     name: str = "rms_norm",
 ) -> Tensor:
@@ -1429,11 +1430,11 @@ def rms_norm(
 def group_norm(
     x: Tensor,
     num_groups: int,
-    weight: Optional[Tensor],
-    bias: Optional[Tensor],
+    weight: Tensor | None,
+    bias: Tensor | None,
     eps: float = 1e-5,
     channel_axis: int = 1,
-    axes: Optional[List[int]] = None,
+    axes: list[int] | None = None,
     name: str = "group_norm",
 ) -> Tensor:
     r"""
@@ -1640,10 +1641,10 @@ def empty(
 
 def split(
     ary: Tensor,
-    indices_or_sections: Union[int, Sequence[int]],
+    indices_or_sections: int | Sequence[int],
     axis: int = 0,
     name: str = "split",
-) -> Tuple[Tensor, ...]:
+) -> tuple[Tensor, ...]:
     """Split an array into multiple sub-arrays.
 
     Parameters
@@ -1667,7 +1668,7 @@ def split(
 
 def pad(
     x: Tensor,
-    pad: List[int],
+    pad: list[int],
     mode: str = "constant",
     value: float = 0.0,
     name: str = "pad",
@@ -1809,9 +1810,9 @@ def scaled_dot_product_attention(
     query: Tensor,
     key: Tensor,
     value: Tensor,
-    attn_mask: Optional[Tensor] = None,
-    is_causal: Optional[bool] = False,
-    scale: Optional[float] = None,
+    attn_mask: Tensor | None = None,
+    is_causal: bool | None = False,
+    scale: float | None = None,
     name: str = "scaled_dot_product_attention",
 ):
     """
@@ -1849,13 +1850,13 @@ def scaled_dot_product_attention(
 
 def interpolate(
     x: Tensor,
-    size: Optional[Union[int, Tuple[int]]] = None,
-    scale_factor: Optional[Union[float, Tuple[float]]] = None,
+    size: int | tuple[int] | None = None,
+    scale_factor: float | tuple[float] | None = None,
     mode: str = "nearest",
-    align_corners: Optional[bool] = None,
-    recompute_scale_factor: Optional[bool] = None,
-    antialias: Optional[bool] = None,
-    data_layout: Optional[str] = "NCHW",
+    align_corners: bool | None = None,
+    recompute_scale_factor: bool | None = None,
+    antialias: bool | None = None,
+    data_layout: str | None = "NCHW",
     name: str = "interpolate",
 ):
     """Resize a tensor using the specified mode.
@@ -1993,9 +1994,9 @@ def ccl_broadcast_from_worker0(x: Tensor, name="broadcast_from_worker"):
 def tensor_expr_op(
     tensor_expr_func: Callable,
     name_hint: str,
-    args: List[Union[Tensor, _tir.Var, int]],
+    args: list[Tensor | _tir.Var | int],
     *,
-    attrs: Optional[Dict[str, Any]] = None,
+    attrs: dict[str, Any] | None = None,
 ):
     """Build the given tensor_expr_func with te.
 
@@ -2021,7 +2022,7 @@ def tensor_expr_op(
 
     def _convert(arg):
         if isinstance(arg, Tensor):
-            return arg._expr  # pylint: disable=protected-access
+            return arg._expr
         return arg
 
     return wrap_nested(
@@ -2035,13 +2036,13 @@ def tensor_expr_op(
     )
 
 
-OutType = TypeVar("OutType", bound=Union[Tensor, Sequence[Tensor]])
+OutType = TypeVar("OutType", bound=Tensor | Sequence[Tensor])
 
 
 def tensor_ir_op(
     func: _tir.PrimFunc,
     name_hint: str,
-    args: Union[Tensor, Sequence[Union[Tensor, rx.ShapeExpr, _tir.PrimExpr]]],
+    args: Tensor | Sequence[Tensor | rx.ShapeExpr | _tir.PrimExpr],
     out: OutType,
 ) -> OutType:
     """Create a `call_tir` binding with given PrimFunc
@@ -2065,7 +2066,7 @@ def tensor_ir_op(
     result : Tensor
         The result tensor
     """
-    from tvm import relax as rx  # pylint: disable=import-outside-toplevel
+    from tvm import relax as rx
 
     call_tir_args, tir_vars = [], []
     if not isinstance(args, (tuple, list)):
@@ -2102,8 +2103,8 @@ def tensor_ir_op(
 def tensor_ir_inplace_op(
     func: _tir.PrimFunc,
     name_hint: str,
-    args: Union[Tensor, Sequence[Union[Tensor, rx.ShapeExpr, _tir.PrimExpr]]],
-    inplace_indices: Union[int, List[int]],
+    args: Tensor | Sequence[Tensor | rx.ShapeExpr | _tir.PrimExpr],
+    inplace_indices: int | list[int],
     out: OutType,
 ) -> OutType:
     """Create a `call_tir_inplace` binding with given PrimFunc
@@ -2135,7 +2136,7 @@ def tensor_ir_inplace_op(
     result : Tensor
         The result tensor
     """
-    from tvm import relax as rx  # pylint: disable=import-outside-toplevel
+    from tvm import relax as rx
 
     call_tir_args, tir_vars = [], []
     if not isinstance(args, (tuple, list)):
@@ -2170,7 +2171,7 @@ def tensor_ir_inplace_op(
 
 def extern(
     name: str,
-    args: Sequence[Union[Tensor, _tir.PrimExpr, int, float, str]],
+    args: Sequence[Tensor | _tir.PrimExpr | int | float | str],
     out: OutType,
 ) -> OutType:
     """Invoke an extern function during runtime. The extern function must be registered with the "
@@ -2192,11 +2193,11 @@ def extern(
     result : Tensor
         The result
     """
-    from tvm import relax as rx  # pylint: disable=import-outside-toplevel
+    from tvm import relax as rx
 
     def _convert(arg, name: str):
         if isinstance(arg, Tensor):
-            return arg._expr  # pylint: disable=protected-access
+            return arg._expr
         if isinstance(arg, int):
             return rx.PrimValue(_tir.IntImm("int64", arg))
         if isinstance(arg, float):
@@ -2223,8 +2224,8 @@ def extern(
 
 def debug_func(
     name: str,
-    *args: Union[Tensor, _tir.PrimExpr, int, float, str],
-    _line_info: Optional[str] = None,
+    *args: Tensor | _tir.PrimExpr | int | float | str,
+    _line_info: str | None = None,
 ):
     """Call a debug function during runtime. The debug function must be registered with the
     following type signature:
@@ -2243,13 +2244,11 @@ def debug_func(
     *args : Union[Tensor, _tir.PrimExpr, int, float, str]
         The arguments to pass to the debug function.
     """
-    # pylint: disable=import-outside-toplevel
+
     from tvm import relax as rx
 
     from .exporter import Exporter
     from .modules import IOEffect
-
-    # pylint: enable=import-outside-toplevel
 
     if Exporter.current().io_effect is None:
         raise RuntimeError("Debugging is only supported when debug mode is on.")
@@ -2262,7 +2261,7 @@ def debug_func(
     converted_args = []
     for arg in args:
         if isinstance(arg, Tensor):
-            converted_args.append(arg._expr)  # pylint: disable=protected-access
+            converted_args.append(arg._expr)
         elif isinstance(arg, int):
             converted_args.append(rx.PrimValue(_tir.IntImm("int64", arg)))
         elif isinstance(arg, float):
@@ -2463,9 +2462,9 @@ def where(condition: Tensor, x1: Tensor, x2: Tensor, name: str = "where") -> Ten
 
 def cumsum(
     data: Tensor,
-    axis: Optional[int] = None,
-    dtype: Optional[str] = None,
-    exclusive: Optional[bool] = None,
+    axis: int | None = None,
+    dtype: str | None = None,
+    exclusive: bool | None = None,
     name: str = "cumsum",
 ) -> Tensor:
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
@@ -2633,7 +2632,7 @@ def topk(
 def multinomial_from_uniform(
     prob: Tensor,
     uniform_sample: Tensor,
-    sample_indices: Optional[Tensor] = None,
+    sample_indices: Tensor | None = None,
     dtype: str = "int64",
     name: str = "multinomial_from_uniform",
 ):
@@ -2711,7 +2710,7 @@ def sample_top_p_top_k_from_sorted_prob(
     top_p: Tensor,
     top_k: Tensor,
     uniform_sample: Tensor,
-    sample_indices: Optional[Tensor] = None,
+    sample_indices: Tensor | None = None,
 ):
     """Samples indices from a sorted probability tensor based on top_p and top_k criteria.
 

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Deformable convolution in python"""
 
 import itertools
@@ -84,8 +83,8 @@ def deformable_conv2d_nchw_python(
         dilation_h, dilation_w = dilation
 
     def _bilinear(n, c, h, w):
-        y_low = int(math.floor(h))
-        x_low = int(math.floor(w))
+        y_low = math.floor(h)
+        x_low = math.floor(w)
         y_high = y_low + 1
         x_high = x_low + 1
 

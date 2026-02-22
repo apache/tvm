@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 import tvm
 from tvm.ir import IRModule, assert_structural_equal
 from tvm.s_tir import dlight as dl
@@ -26,7 +25,7 @@ from tvm.target import Target
 def _check(mod_before: IRModule, mod_after: IRModule):
     target = Target("nvidia/geforce-rtx-3090-ti")
     with target:
-        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+        mod = dl.ApplyDefaultSchedule(
             dl.gpu.Transpose(),
         )(mod_before)
     assert_structural_equal(mod, mod_after)

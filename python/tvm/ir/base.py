@@ -45,7 +45,7 @@ class SourceName(Object):
     """
 
     def __init__(self, name):
-        self.__init_handle_by_constructor__(_ffi_api.SourceName, name)  # type: ignore # pylint: disable=no-member
+        self.__init_handle_by_constructor__(_ffi_api.SourceName, name)  # type: ignore
 
 
 @register_object("ir.Span")
@@ -71,7 +71,7 @@ class Span(Object):
             line,
             end_line,
             column,
-            end_column,  # type: ignore # pylint: disable=no-member
+            end_column,  # type: ignore
         )
 
 
@@ -100,11 +100,11 @@ class EnvFunc(Object):
     """
 
     def __call__(self, *args):
-        return _ffi_api.EnvFuncCall(self, *args)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.EnvFuncCall(self, *args)  # type: ignore
 
     @property
     def func(self):
-        return _ffi_api.EnvFuncGetFunction(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.EnvFuncGetFunction(self)  # type: ignore
 
     @staticmethod
     def get(name):
@@ -115,7 +115,7 @@ class EnvFunc(Object):
         name : str
             The name of the function.
         """
-        return _ffi_api.EnvFuncGet(name)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.EnvFuncGet(name)  # type: ignore
 
 
 def load_json(json_str) -> Object:
@@ -199,7 +199,7 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    return bool(_ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars))  # type: ignore # pylint: disable=no-member
+    return bool(_ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars))  # type: ignore
 
 
 def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_tensor_content=False):
@@ -228,7 +228,7 @@ def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_tensor_con
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    return _ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, skip_tensor_content)  # type: ignore # pylint: disable=no-member
+    return _ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, skip_tensor_content)  # type: ignore
 
 
 def assert_structural_equal(lhs, rhs, map_free_vars=False):
@@ -256,7 +256,7 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    _ffi_node_api.StructuralEqual(lhs, rhs, True, map_free_vars)  # type: ignore # pylint: disable=no-member
+    _ffi_node_api.StructuralEqual(lhs, rhs, True, map_free_vars)  # type: ignore
 
 
 def structural_hash(node, map_free_vars=False):
@@ -298,7 +298,7 @@ def structural_hash(node, map_free_vars=False):
     --------
     structrual_equal
     """
-    return _ffi_node_api.StructuralHash(node, map_free_vars)  # type: ignore # pylint: disable=no-member
+    return _ffi_node_api.StructuralHash(node, map_free_vars)  # type: ignore
 
 
 def deprecated(
@@ -314,8 +314,8 @@ def deprecated(
     new_method_name : str
         The name of the new method to use instead
     """
-    import functools  # pylint: disable=import-outside-toplevel
-    import warnings  # pylint: disable=import-outside-toplevel
+    import functools
+    import warnings
 
     def _deprecate(func):
         @functools.wraps(func)

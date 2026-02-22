@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """tvm.contrib.msc.core.tools.track.method"""
 
-from typing import Dict, List
+from __future__ import annotations
 
 import numpy as np
 
@@ -37,7 +36,7 @@ class TrackMethod:
         data: np.ndarray,
         name: str,
         consumer: str,
-        compare_to: Dict[str, List[str]],
+        compare_to: dict[str, list[str]],
     ) -> np.ndarray:
         """Compare and save the data
 

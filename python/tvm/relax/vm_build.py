@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, no-member
 """VM build logics"""
 
-from typing import Dict, List, Optional, Union
+from __future__ import annotations
 
 import tvm
 from tvm import relax
@@ -51,7 +50,7 @@ class VMExecutable(Executable):
 
 
 def _vmcodegen(
-    builder: "relax.ExecBuilder",
+    builder: relax.ExecBuilder,
     mod: tvm.IRModule,
     exec_mode: str = "bytecode",
 ) -> tvm.IRModule:
@@ -83,8 +82,8 @@ def _vmcodegen(
 
 def _auto_attach_system_lib_prefix(
     tir_mod: tvm.IRModule,
-    target: Optional[tvm.target.Target] = None,
-    system_lib: Optional[bool] = None,
+    target: tvm.target.Target | None = None,
+    system_lib: bool | None = None,
 ):
     """Automatically detect system lib req and attach prefix attr"""
     if target is not None:
@@ -105,14 +104,14 @@ def _is_device_module(mod: tvm.runtime.Module) -> bool:
 
 
 def _vmlink(
-    builder: "relax.ExecBuilder",
-    target: Optional[Union[str, tvm.target.Target]],
-    tir_mod: Optional[tvm.IRModule] = None,
-    tir_pipeline: Optional[Union[str, tvm.transform.Pass]] = "default",
-    ext_libs: List[tvm.runtime.Module] = None,
-    params: Optional[Dict[str, list]] = None,
+    builder: relax.ExecBuilder,
+    target: str | tvm.target.Target | None,
+    tir_mod: tvm.IRModule | None = None,
+    tir_pipeline: str | tvm.transform.Pass | None = "default",
+    ext_libs: list[tvm.runtime.Module] | None = None,
+    params: dict[str, list] | None = None,
     *,
-    system_lib: Optional[bool] = None,
+    system_lib: bool | None = None,
 ):
     """
     Internal codegen function to make executable.
@@ -173,13 +172,13 @@ def _vmlink(
 
 def build(
     mod: tvm.IRModule,
-    target: Optional[Union[str, tvm.target.Target]] = None,
-    params: Optional[Dict[str, list]] = None,
-    relax_pipeline: Union[None, str, tvm.transform.Pass] = "default",
-    tir_pipeline: Union[None, str, tvm.transform.Pass] = "default",
+    target: str | tvm.target.Target | None = None,
+    params: dict[str, list] | None = None,
+    relax_pipeline: None | str | tvm.transform.Pass = "default",
+    tir_pipeline: None | str | tvm.transform.Pass = "default",
     exec_mode: str = "bytecode",
     *,
-    system_lib: Optional[bool] = None,
+    system_lib: bool | None = None,
 ) -> Executable:
     """
     Build an IRModule to VM executable.
@@ -272,7 +271,7 @@ def build(
     )
 
 
-def _filter_tir(mod: tvm.IRModule) -> Optional[tvm.IRModule]:
+def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule | None:
     tir_mod = {gvar: func for gvar, func in mod.functions.items() if isinstance(func, PrimFunc)}
 
     if tir_mod:

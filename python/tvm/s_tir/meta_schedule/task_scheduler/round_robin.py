@@ -22,7 +22,7 @@ from .. import _ffi_api
 from ..logging import get_logger, get_logging_func
 from .task_scheduler import TaskScheduler
 
-logger = get_logger(__name__)  # pylint: disable=invalid-name
+logger = get_logger(__name__)
 
 
 @register_object("s_tir.meta_schedule.RoundRobin")
@@ -32,6 +32,6 @@ class RoundRobin(TaskScheduler):
     def __init__(self) -> None:
         """Constructor."""
         self.__init_handle_by_constructor__(
-            _ffi_api.TaskSchedulerRoundRobin,  # type: ignore # pylint: disable=no-member
+            _ffi_api.TaskSchedulerRoundRobin,  # type: ignore
             get_logging_func(logger),
         )

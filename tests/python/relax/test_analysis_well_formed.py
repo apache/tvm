@@ -34,7 +34,7 @@ cond = rx.Var("cond", R.Tensor([], "bool"))
 def build_function(blocks, params=[]):
     """Returns relax.function with given blocks"""
     seq_expr = rx.SeqExpr(blocks, blocks[-1].bindings[-1].var)
-    func = rx.Function([x, cond] + params, seq_expr, R.Tensor("float32")).with_attr(
+    func = rx.Function([x, cond, *params], seq_expr, R.Tensor("float32")).with_attr(
         "global_symbol", "foo"
     )
     return func

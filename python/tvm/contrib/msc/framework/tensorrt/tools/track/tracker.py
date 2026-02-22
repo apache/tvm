@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """tvm.contrib.msc.framework.tensorrt.tools.track.tracker"""
 
-from typing import Dict, List
+from __future__ import annotations
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools.tool import ToolStrategy, ToolType
@@ -109,12 +108,12 @@ class TensorRTTrackerFactory:
 
             def _process_tensor(
                 self,
-                tensor_ctx: Dict[str, str],
+                tensor_ctx: dict[str, str],
                 name: str,
                 consumer: str,
                 scope: str,
-                strategys: List[ToolStrategy],
-            ) -> Dict[str, str]:
+                strategys: list[ToolStrategy],
+            ) -> dict[str, str]:
                 """Process tensor
 
                 Parameters

@@ -17,15 +17,16 @@
 
 """FlashInfer JIT compilation module for CUDA backend"""
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
-from typing import List
 
 import tvm
 from tvm.target import Target
 
 
-def _rename_exported_func_names(source_paths: List[Path], prefix: str):
+def _rename_exported_func_names(source_paths: list[Path], prefix: str):
     """Rename the ffi-exported function names in the source files to the given prefix."""
     pattern = re.compile(r"^(\s*TVM_FFI_DLL_EXPORT_TYPED_FUNC\()([A-Za-z0-9_]+)(,.*)$")
     for source_path in source_paths:
@@ -49,7 +50,7 @@ def _rename_exported_func_names(source_paths: List[Path], prefix: str):
             source_path.write_text("".join(lines), encoding="utf-8")
 
 
-def _load_flashinfer_modules(object_files: List[Path]) -> List[tvm.runtime.Module]:
+def _load_flashinfer_modules(object_files: list[Path]) -> list[tvm.runtime.Module]:
     return [
         tvm.runtime.load_static_library(str(obj_path.absolute()), func_names=[])
         for obj_path in object_files
@@ -64,7 +65,7 @@ def gen_flashinfer_prefill_module(
     v_head_dim: int,
     enable_inline_rope: bool,
     return_static_libs: bool = False,
-) -> List[tvm.runtime.Module]:
+) -> list[tvm.runtime.Module]:
     """Generate a FlashInfer module for prefill.
 
     Parameters
@@ -91,7 +92,7 @@ def gen_flashinfer_prefill_module(
     A list of compiled static library modules for FlashInfer prefill kernels.
     """
     try:
-        from flashinfer.jit import (  # pylint: disable=import-outside-toplevel
+        from flashinfer.jit import (
             gen_customize_batch_prefill_module,
         )
     except ImportError:
@@ -100,7 +101,7 @@ def gen_flashinfer_prefill_module(
             "in https://docs.flashinfer.ai to install FlashInfer."
         )
     try:
-        import torch  # pylint: disable=import-outside-toplevel
+        import torch
     except ImportError:
         raise ImportError("PyTorch is not installed. Please install PyTorch to use FlashInfer.")
 
@@ -159,7 +160,7 @@ def gen_flashinfer_decode_module(
     v_head_dim: int,
     enable_inline_rope: bool,
     return_static_libs: bool = False,
-) -> List[tvm.runtime.Module]:
+) -> list[tvm.runtime.Module]:
     """Generate a FlashInfer module for decode.
 
     Parameters
@@ -186,7 +187,7 @@ def gen_flashinfer_decode_module(
     A list of compiled static library modules for FlashInfer decode kernels.
     """
     try:
-        from flashinfer.jit import (  # pylint: disable=import-outside-toplevel
+        from flashinfer.jit import (
             gen_customize_batch_decode_module,
         )
     except ImportError:
@@ -195,7 +196,7 @@ def gen_flashinfer_decode_module(
             "in https://docs.flashinfer.ai to install FlashInfer."
         )
     try:
-        import torch  # pylint: disable=import-outside-toplevel
+        import torch
     except ImportError:
         raise ImportError("PyTorch is not installed. Please install PyTorch to use FlashInfer.")
 
@@ -237,7 +238,7 @@ def gen_flashinfer_mla_module(
     head_dim_ckv: int,
     head_dim_kpe: int,
     return_static_libs: bool = False,
-) -> List[tvm.runtime.Module]:
+) -> list[tvm.runtime.Module]:
     """Generate a FlashInfer module for MLA.
 
     Parameters
@@ -266,7 +267,7 @@ def gen_flashinfer_mla_module(
     A list of compiled static library modules for FlashInfer MLA kernels.
     """
     try:
-        from flashinfer.jit import (  # pylint: disable=import-outside-toplevel
+        from flashinfer.jit import (
             gen_batch_mla_module,
         )
     except ImportError:
@@ -275,7 +276,7 @@ def gen_flashinfer_mla_module(
             "in https://docs.flashinfer.ai to install FlashInfer."
         )
     try:
-        import torch  # pylint: disable=import-outside-toplevel
+        import torch
     except ImportError:
         raise ImportError("PyTorch is not installed. Please install PyTorch to use FlashInfer.")
 
@@ -301,7 +302,7 @@ def gen_flashinfer_mla_module(
 
 def gen_grouped_gemm_module(
     target: Target, return_static_libs: bool = False
-) -> List[tvm.runtime.Module]:
+) -> list[tvm.runtime.Module]:
     """Generate a FlashInfer module for FP8 grouped GEMM.
 
     Parameters
@@ -326,7 +327,7 @@ def gen_grouped_gemm_module(
     # NOTE: This function is still under development,
     # and we currently only support SM100 grouped gemm
     try:
-        from flashinfer.gemm import (  # pylint: disable=import-outside-toplevel
+        from flashinfer.gemm import (
             gen_gemm_sm100_module,
         )
     except ImportError:

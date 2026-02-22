@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """tvm.contrib.msc.framework.tvm.tools.track.tracker"""
 
-from typing import List, Union
+from __future__ import annotations
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -61,8 +60,8 @@ class TVMTrackerFactory:
                 super()._execute_before_build(block_builder)
 
             def _execute_after_build(
-                self, output: Union[tvm.relax.Var, List[tvm.relax.DataflowVar]]
-            ) -> List[tvm.relax.Var]:
+                self, output: tvm.relax.Var | list[tvm.relax.DataflowVar]
+            ) -> list[tvm.relax.Var]:
                 """Execute after model build
 
                 Parameters
@@ -79,12 +78,12 @@ class TVMTrackerFactory:
                 self._track_names = list(sorted(self._track_tensors.keys()))
                 track_tensors = [self._track_tensors[o]["tensor"] for o in self._track_names]
                 if isinstance(output, tvm.relax.Var):
-                    return super()._execute_after_build([output] + track_tensors)
+                    return super()._execute_after_build([output, *track_tensors])
                 return super()._execute_after_build(output + track_tensors)
 
             def _execute_after_forward(
-                self, outputs: List[tvm.runtime.Tensor]
-            ) -> Union[tvm.runtime.Tensor, List[tvm.runtime.Tensor]]:
+                self, outputs: list[tvm.runtime.Tensor]
+            ) -> tvm.runtime.Tensor | list[tvm.runtime.Tensor]:
                 """Execute after model forward
 
                 Parameters
@@ -116,7 +115,7 @@ class TVMTrackerFactory:
                 name: str,
                 consumer: str,
                 scope: str,
-                strategys: List[ToolStrategy],
+                strategys: list[ToolStrategy],
             ) -> tvm.relax.DataflowVar:
                 """Process tensor
 

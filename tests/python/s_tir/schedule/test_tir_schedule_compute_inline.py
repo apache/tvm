@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 
 import tvm
@@ -26,8 +25,6 @@ from tvm.s_tir.schedule.testing import (
     verify_trace_roundtrip,
 )
 from tvm.script import tir as T
-
-# pylint: disable=no-member,invalid-name,unused-variable
 
 
 @T.prim_func
@@ -977,7 +974,6 @@ class Conv2dInt8_TensorCore_with_predicate_after:
                             compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.max(T.min(T.q_multiply_shift(T.max(T.min(p7[()] + T.q_multiply_shift_per_axis(conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1], p4[v1], p5[v1], p6[v1], 31, T.bool(False), T.bool(True)), 255), 0) - p8[0], 1457846997, 31, 0) + T.q_multiply_shift(p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1], 2101000910, 31, 0), 255), 0)
 # fmt: on
 
-# pylint: enable=no-member,invalid-name,unused-variable
 
 use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 

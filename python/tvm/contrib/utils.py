@@ -270,7 +270,7 @@ def which(exec_name):
     path : str
         The full path of executable if found, otherwise returns None
     """
-    base_list = ["", "/bin"] + os.environ.get("PATH", "").split(os.pathsep)
+    base_list = ["", "/bin", *os.environ.get("PATH", "").split(os.pathsep)]
     for path in base_list:
         full_path = os.path.join(path, exec_name)
         if os.path.isfile(full_path) and os.access(full_path, os.X_OK):

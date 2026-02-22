@@ -16,8 +16,10 @@
 # under the License.
 """Configuration of TVMScript printer"""
 
+from __future__ import annotations
+
 import os
-from typing import Dict, List, Optional, Sequence
+from collections.abc import Sequence
 
 from tvm_ffi import get_global_func, register_object
 from tvm_ffi.access_path import AccessPath
@@ -47,15 +49,15 @@ class PrinterConfig(Object):
     syntax_sugar: bool
     show_object_address: bool
     show_all_struct_info: bool
-    path_to_underline: Optional[List[AccessPath]]
-    path_to_annotate: Optional[Dict[AccessPath, str]]
-    obj_to_underline: Optional[List[AccessPath]]
-    obj_to_annotate: Optional[Dict[AccessPath, str]]
+    path_to_underline: list[AccessPath] | None
+    path_to_annotate: dict[AccessPath, str] | None
+    obj_to_underline: list[AccessPath] | None
+    obj_to_annotate: dict[AccessPath, str] | None
 
     def __init__(
         self,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
@@ -67,14 +69,14 @@ class PrinterConfig(Object):
         verbose_expr: bool = False,
         indent_spaces: int = 4,
         print_line_numbers: bool = False,
-        num_context_lines: Optional[int] = None,
+        num_context_lines: int | None = None,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
         show_all_struct_info: bool = True,
-        path_to_underline: Optional[List[AccessPath]] = None,
-        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
-        obj_to_underline: Optional[List[Object]] = None,
-        obj_to_annotate: Optional[Dict[Object, str]] = None,
+        path_to_underline: list[AccessPath] | None = None,
+        path_to_annotate: dict[AccessPath, str] | None = None,
+        obj_to_underline: list[Object] | None = None,
+        obj_to_annotate: dict[Object, str] | None = None,
     ) -> None:
         if num_context_lines is None:
             num_context_lines = -1
@@ -104,12 +106,12 @@ class PrinterConfig(Object):
             cfg["name"] = name
         self.__init_handle_by_constructor__(
             _ffi_node_api.PrinterConfig,
-            cfg,  # type: ignore # pylint: disable=no-member
+            cfg,  # type: ignore
         )
 
 
 def _script(obj: Object, config: PrinterConfig) -> str:
-    return _ffi_node_api.TVMScriptPrinterScript(obj, config)  # type: ignore # pylint: disable=no-member
+    return _ffi_node_api.TVMScriptPrinterScript(obj, config)  # type: ignore
 
 
 def _relax_script(obj: Object, config: PrinterConfig) -> str:
@@ -123,7 +125,7 @@ class Scriptable:
     def script(
         self,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
@@ -139,10 +141,10 @@ class Scriptable:
         syntax_sugar: bool = True,
         show_object_address: bool = False,
         show_all_struct_info: bool = True,
-        path_to_underline: Optional[List[AccessPath]] = None,
-        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
-        obj_to_underline: Optional[List[Object]] = None,
-        obj_to_annotate: Optional[Dict[Object, str]] = None,
+        path_to_underline: list[AccessPath] | None = None,
+        path_to_annotate: dict[AccessPath, str] | None = None,
+        obj_to_underline: list[Object] | None = None,
+        obj_to_annotate: dict[Object, str] | None = None,
     ) -> str:
         """Print TVM IR into TVMScript text format
 
@@ -227,7 +229,7 @@ class Scriptable:
     def _relax_script(
         self,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
@@ -242,10 +244,10 @@ class Scriptable:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        path_to_underline: Optional[List[AccessPath]] = None,
-        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
-        obj_to_underline: Optional[List[Object]] = None,
-        obj_to_annotate: Optional[Dict[Object, str]] = None,
+        path_to_underline: list[AccessPath] | None = None,
+        path_to_annotate: dict[AccessPath, str] | None = None,
+        obj_to_underline: list[Object] | None = None,
+        obj_to_annotate: dict[Object, str] | None = None,
     ) -> str:
         return _relax_script(
             self,
@@ -274,10 +276,10 @@ class Scriptable:
 
     def show(
         self,
-        style: Optional[str] = None,
-        black_format: Optional[bool] = None,
+        style: str | None = None,
+        black_format: bool | None = None,
         *,
-        name: Optional[str] = None,
+        name: str | None = None,
         show_meta: bool = False,
         ir_prefix: str = "I",
         tir_prefix: str = "T",
@@ -293,10 +295,10 @@ class Scriptable:
         syntax_sugar: bool = True,
         show_object_address: bool = False,
         show_all_struct_info: bool = True,
-        path_to_underline: Optional[List[AccessPath]] = None,
-        path_to_annotate: Optional[Dict[AccessPath, str]] = None,
-        obj_to_underline: Optional[List[Object]] = None,
-        obj_to_annotate: Optional[Dict[Object, str]] = None,
+        path_to_underline: list[AccessPath] | None = None,
+        path_to_annotate: dict[AccessPath, str] | None = None,
+        obj_to_underline: list[Object] | None = None,
+        obj_to_annotate: dict[Object, str] | None = None,
     ) -> None:
         """A sugar for print highlighted TVM script.
 
@@ -370,7 +372,7 @@ class Scriptable:
             Object to be annotated
 
         """
-        from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
+        from tvm.script.highlight import (
             cprint,
         )
 

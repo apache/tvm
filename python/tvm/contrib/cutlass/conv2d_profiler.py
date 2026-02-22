@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-outside-toplevel, invalid-name
 """Instantiate a C++ source for profiling CUTLASS kernels."""
 
 from .library import DataTypeTag
@@ -34,17 +33,17 @@ class Conv2dProfilerEmitter:
         problem_size.split_k_slices,
         cutlass::conv::implicit_gemm_tensor_c_size(kConvolutionalOperator, problem_size),
         {
-      	 reinterpret_cast<ImplicitGemm::ElementC*> (workspace.get()),
-      	   ReductionStrideIndex(tensor_c.stride()[ImplicitGemm::UnderlyingKernel::kTensorCStrideIdx])
-      	   },
+         reinterpret_cast<ImplicitGemm::ElementC*> (workspace.get()),
+           ReductionStrideIndex(tensor_c.stride()[ImplicitGemm::UnderlyingKernel::kTensorCStrideIdx])
+           },
         {
-      	 tensor_d.device_data(),
-      	   ReductionStrideIndex(tensor_d.stride()[ImplicitGemm::UnderlyingKernel::kTensorCStrideIdx])
-      	   },
+         tensor_d.device_data(),
+           ReductionStrideIndex(tensor_d.stride()[ImplicitGemm::UnderlyingKernel::kTensorCStrideIdx])
+           },
         {
-      	 tensor_c.device_data(),
-      	   ReductionStrideIndex(tensor_c.stride()[ImplicitGemm::UnderlyingKernel::kTensorCStrideIdx])
-      	   },
+         tensor_c.device_data(),
+           ReductionStrideIndex(tensor_c.stride()[ImplicitGemm::UnderlyingKernel::kTensorCStrideIdx])
+           },
         {ElementComputeEpilogue(1), ElementComputeEpilogue(0)}
         );
 
@@ -124,15 +123,15 @@ double profile_convolution(Options const &options) {
 
   int split_k_slices = {{SplitK}};
   cutlass::conv::Conv2dProblemSize problem_size(
-						options.input_size,
-						options.filter_size,
-						options.padding,
-						options.conv_stride,
-						options.dilation,
-						options.output_size(),
-						cutlass::conv::Mode::kCrossCorrelation,
-						split_k_slices
-						);
+                        options.input_size,
+                        options.filter_size,
+                        options.padding,
+                        options.conv_stride,
+                        options.dilation,
+                        options.output_size(),
+                        cutlass::conv::Mode::kCrossCorrelation,
+                        split_k_slices
+                        );
 
   auto conv_kind = ImplicitGemm::kConvolutionalOperator;
   auto a_extent = implicit_gemm_tensor_a_extent(conv_kind, problem_size);

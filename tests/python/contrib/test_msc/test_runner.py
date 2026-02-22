@@ -38,7 +38,6 @@ requires_tensorrt = pytest.mark.skipif(
 def _get_torch_model(name, training=False):
     """Get model from torch vision"""
 
-    # pylint: disable=import-outside-toplevel
     try:
         import torchvision
 
@@ -48,7 +47,7 @@ def _get_torch_model(name, training=False):
         else:
             model = model.eval()
         return model
-    except:  # pylint: disable=bare-except
+    except:
         print("please install torchvision package")
         return None
 

@@ -14,11 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-from typing import List, Optional, Tuple, Union
+from __future__ import annotations
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -32,8 +31,8 @@ from tvm.target import Target
 
 def get_rules(
     kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"],
-    types: Union[type, Tuple[type, ...]],
-) -> List[ms.ScheduleRule]:
+    types: type | tuple[type, ...],
+) -> list[ms.ScheduleRule]:
     """Get default schedule rules"""
     rules = ms.ScheduleRule.create(kind)
     return [rule for rule in rules if isinstance(rule, types)]
@@ -59,9 +58,9 @@ def generate_design_space(
     kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"],
     mod: IRModule,
     target: Target,
-    types: Union[type, Tuple[type, ...]],
-    sch_rules: Optional[List[ms.ScheduleRule]] = None,
-) -> List[Schedule]:
+    types: type | tuple[type, ...],
+    sch_rules: list[ms.ScheduleRule] | None = None,
+) -> list[Schedule]:
     if sch_rules is None:
         sch_rules = get_rules(kind, types)
     else:
@@ -80,12 +79,12 @@ def generate_design_space(
 
 def _find_match_sketch_id(
     mod: IRModule,
-    sketches: List[Schedule],
+    sketches: list[Schedule],
     expected_mod: IRModule,
-    expected_decision: List[Tuple[str, List[int]]],
+    expected_decision: list[tuple[str, list[int]]],
     *,
     debug_mask="all",
-) -> Optional[int]:
+) -> int | None:
     for sketch_id, sketch in enumerate(sketches):
         i = 0
         new_decisions = {}
@@ -111,9 +110,9 @@ def _find_match_sketch_id(
 
 def check_sketches(
     mod: IRModule,
-    sketches: List[Schedule],
-    expected_mods: List[IRModule],
-    expected_decisions: List[List[Tuple[str, List[int]]]],
+    sketches: list[Schedule],
+    expected_mods: list[IRModule],
+    expected_decisions: list[list[tuple[str, list[int]]]],
     *,
     debug_mask="all",
 ):
@@ -140,7 +139,7 @@ def check_sketches(
         sketches.pop(sketch_id)
 
 
-def print_sketches(sketches: List[Schedule]):
+def print_sketches(sketches: list[Schedule]):
     for i, sch in enumerate(sketches):
         print(f"###### {i}")
         sch.mod.show(black_format=False)

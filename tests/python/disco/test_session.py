@@ -16,7 +16,6 @@
 # under the License.
 """Basic tests for a Disco session"""
 
-# pylint: disable=missing-docstring
 import subprocess
 import sys
 import tempfile
@@ -28,7 +27,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax as rx
-from tvm.exec import disco_worker as _  # pylint: disable=unused-import
+from tvm.exec import disco_worker as _
 from tvm.runtime import ShapeTuple, String
 from tvm.runtime import disco as di
 from tvm.script import ir as I
@@ -83,7 +82,7 @@ class SocketSessionTester:
 
         cmd = "tvm.exec.disco_remote_socket_session"
         self.remote_nodes = []
-        for _ in range(num_nodes - 1):
+        for _i in range(num_nodes - 1):
             self.remote_nodes.append(
                 subprocess.Popen(
                     [
@@ -122,7 +121,7 @@ _all_session_kinds = [di.ThreadedSession, di.ProcessSession, create_socket_sessi
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
-def test_int(session_kind):  # pylint: disable=invalid-name
+def test_int(session_kind):
     num_workers = 4
     sess = session_kind(num_workers=num_workers)
     func: di.DPackedFunc = sess.get_global_func("tests.disco.add_one")
@@ -196,7 +195,6 @@ def test_vm_module(session_kind):
     num_workers = 4
     sess = session_kind(num_workers=num_workers)
 
-    # pylint: disable=invalid-name
     @I.ir_module
     class TestMod:
         @T.prim_func
@@ -214,7 +212,6 @@ def test_vm_module(session_kind):
                 R.output(B)
             return B
 
-    # pylint: enable=invalid-name
     with tempfile.TemporaryDirectory() as tmpdir:
         path = tmpdir + "/test.so"
         device = tvm.cpu()
@@ -240,7 +237,6 @@ def test_vm_multi_func(session_kind):
     num_workers = 4
     sess = session_kind(num_workers=num_workers)
 
-    # pylint: disable=invalid-name
     @I.ir_module
     class TestMod:
         @T.prim_func
@@ -279,7 +275,6 @@ def test_vm_multi_func(session_kind):
                 R.output(B)
             return B
 
-    # pylint: enable=invalid-name
     with tempfile.TemporaryDirectory() as tmpdir:
         path = tmpdir + "/test.so"
         device = tvm.cpu()

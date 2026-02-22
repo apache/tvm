@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method, missing-class-docstring
 """Relax LazyTransformParams pass."""
 
 from typing import Optional
@@ -231,7 +230,7 @@ class LazyTransformParamsFuncCreator:
 
 @mutator
 class LazyInputMutator(PyExprMutator):
-    def __init__(self, func_creator, mod: Optional[IRModule] = None) -> None:
+    def __init__(self, func_creator, mod: IRModule | None = None) -> None:
         self.func_creator = func_creator
         super().__init__(mod)
 
@@ -267,7 +266,7 @@ class LazyInputMutator(PyExprMutator):
             get_item_result = self.builder_.emit(
                 relax.Call(
                     relax.ExternFunc(self.func_creator.fget_item),
-                    self.func_creator.extra_get_item_params + [relax.PrimValue(index)],
+                    [*self.func_creator.extra_get_item_params, relax.PrimValue(index)],
                     None,
                     [relax.ObjectStructInfo()],
                 )
@@ -288,7 +287,7 @@ class LazyInputMutator(PyExprMutator):
             get_item_result = self.builder_.emit(
                 relax.Call(
                     relax.ExternFunc(self.func_creator.fget_item),
-                    self.func_creator.extra_get_item_params + [relax.PrimValue(node.index)],
+                    [*self.func_creator.extra_get_item_params, relax.PrimValue(node.index)],
                     None,
                     [relax.ObjectStructInfo()],
                 )
@@ -300,7 +299,7 @@ class LazyInputMutator(PyExprMutator):
 
 @mutator
 class LazyOutputMutator(PyExprMutator):
-    def __init__(self, func_creator, mod: Optional[IRModule] = None) -> None:
+    def __init__(self, func_creator, mod: IRModule | None = None) -> None:
         self.func_creator = func_creator
         self.killed_vars = set()
         super().__init__(mod)
@@ -327,8 +326,11 @@ class LazyOutputMutator(PyExprMutator):
                         self.builder_.emit(
                             relax.Call(
                                 relax.ExternFunc(self.func_creator.fset_item),
-                                self.func_creator.extra_set_item_params
-                                + [index, super().visit_var_(var)],
+                                [
+                                    *self.func_creator.extra_set_item_params,
+                                    index,
+                                    super().visit_var_(var),
+                                ],
                                 None,
                                 [relax.ObjectStructInfo()],
                             ),

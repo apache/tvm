@@ -45,7 +45,7 @@ def prepare_relax_lib(base_path):
 def prepare_cpu_lib(base_path):
     target = "llvm"
     if not tvm.runtime.enabled(target):
-        raise RuntimeError("Target %s is not enbaled" % target)
+        raise RuntimeError(f"Target {target} is not enbaled")
     n = te.var("n")
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")

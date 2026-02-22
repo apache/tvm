@@ -24,18 +24,13 @@
   impure external function callings, inplace mutation, etc.
 """
 
+from __future__ import annotations
+
 from collections import OrderedDict
+from collections.abc import Callable, Iterator, Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
 )
 
 import numpy as np  # type: ignore
@@ -89,7 +84,7 @@ def set_default_dtype(dtype: str) -> None:
     dtype : str
         The default dtype to be set
     """
-    global _DEFAULT_DTYPE  # pylint: disable=global-statement
+    global _DEFAULT_DTYPE
     _DEFAULT_DTYPE = dtype
 
 
@@ -118,17 +113,17 @@ class Tensor(_TensorOp):
         self._expr = _expr
 
     @staticmethod
-    def from_const(data) -> "Tensor":
+    def from_const(data) -> Tensor:
         """Construct a tensor from numpy constants."""
         return Tensor(_expr=rx.const(data))
 
     @staticmethod
-    def from_scalar(data: Union[int, float], dtype: str) -> "Tensor":
+    def from_scalar(data: int | float, dtype: str) -> Tensor:
         """Construct a tensor from a scalar with dtype specified."""
         return Tensor(_expr=rx.const(data, dtype=dtype))
 
     @staticmethod
-    def from_struct_info(struct_info: rx.TensorStructInfo, name: str = "tensor") -> "Tensor":
+    def from_struct_info(struct_info: rx.TensorStructInfo, name: str = "tensor") -> Tensor:
         """Construct a nn.Tensor from relax TensorStructInfo"""
         return Tensor(
             _expr=rx.Var(
@@ -139,10 +134,10 @@ class Tensor(_TensorOp):
 
     @staticmethod
     def placeholder(
-        shape: Sequence[Union[int, str, tir.PrimExpr]],
+        shape: Sequence[int | str | tir.PrimExpr],
         dtype: str,
         name: str = "tensor",
-    ) -> "Tensor":
+    ) -> Tensor:
         """Create a placeholder tensor with given shape and dtype. A placeholder tensor should
         never be created directly by users in usual cases, and the only exception is to indicate
         the shape/dtype of return values of an external function.
@@ -175,7 +170,7 @@ class Tensor(_TensorOp):
         )
 
     @property
-    def shape(self) -> List[Union[int, tir.PrimExpr]]:
+    def shape(self) -> list[int | tir.PrimExpr]:
         """Returns the shape of the tensor as a list of integers.
 
         An integer can be a python int or tvm.tir.PrimExpr, depending on whether the shape is
@@ -226,13 +221,13 @@ class Parameter(Tensor):
     it is called a bound parameter, otherwise it is called an unbound parameter.
     """
 
-    _data: Optional[Tensor]
-    attrs: Dict[str, Any]
+    _data: Tensor | None
+    attrs: dict[str, Any]
 
     def __init__(
         self,
-        shape: Sequence[Union[int, str, tir.PrimExpr]],
-        dtype: Optional[str] = None,
+        shape: Sequence[int | str | tir.PrimExpr],
+        dtype: str | None = None,
     ) -> None:
         """Create a parameter with given shape and dtype. The parameter is not bound to any
         concrete values.
@@ -252,13 +247,13 @@ class Parameter(Tensor):
         self.attrs = OrderedDict()
 
     @property
-    def data(self) -> Optional[Tensor]:
+    def data(self) -> Tensor | None:
         """Returns the concrete value of the parameter if it is bound to a concrete value,
         otherwise returns None. The returned value is a tvm.runtime.Tensor."""
         return self._data
 
     @data.setter
-    def data(self, data: Union[None, tvm.runtime.Tensor, np.ndarray, "torch.Tensor"]) -> None:
+    def data(self, data: None | tvm.runtime.Tensor | np.ndarray | torch.Tensor) -> None:
         """Set the concrete value of the parameter. The data should be one of the following:
         - None: unbind the parameter to concrete values
         - tvm.runtime.Tensor
@@ -283,7 +278,7 @@ class Parameter(Tensor):
             raise ValueError(f"Dtype mismatch: expected {self.dtype}, got {data.dtype}")
         self._data = data
 
-    def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+    def to(self, dtype: str | None = None) -> None:
         """Change the dtype of the parameter if it is not bound to any concrete data"""
         if dtype is not None:
             if self._data is not None:
@@ -292,9 +287,7 @@ class Parameter(Tensor):
                     "data is not recommended. It might lead to potential precision loss "
                     "or other unexpected behaviors"
                 )
-            self._expr = Tensor.placeholder(  # pylint: disable=protected-access
-                self.shape, dtype=dtype, name="param"
-            )._expr
+            self._expr = Tensor.placeholder(self.shape, dtype=dtype, name="param")._expr
 
 
 class Object:
@@ -318,24 +311,24 @@ class Effect:
     effects, for example, print. It is used to represent the output of a computation.
     """
 
-    def emit_init(self, name_hint: str, builder: BlockBuilder) -> List[rx.DataflowVar]:
+    def emit_init(self, name_hint: str, builder: BlockBuilder) -> list[rx.DataflowVar]:
         """Emit the initialization of the effect. This method is called by the compiler to
         initialize the effect."""
         raise NotImplementedError
 
-    def create(self, name_hint: str) -> List[rx.Var]:
+    def create(self, name_hint: str) -> list[rx.Var]:
         """Create the implicit inputs to a relax.Function that represents the side effect"""
         raise NotImplementedError
 
-    def set_state(self, state_vars: List[rx.Var]) -> None:
+    def set_state(self, state_vars: list[rx.Var]) -> None:
         """Set the variables that represents the effect"""
         raise NotImplementedError
 
-    def finalize(self) -> List[rx.Var]:
+    def finalize(self) -> list[rx.Var]:
         """finalize the effect as the implicit return value of a relax.Function"""
         raise NotImplementedError
 
-    def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+    def to(self, dtype: str | None = None) -> None:
         """Convert the effect to specific dtype. Usually it is no-op for most of the effects"""
 
 
@@ -343,7 +336,7 @@ class Module(SubroutineMixin):
     """Base class for neural network components. Subclass it to build your models.
     Modules can nest within each other in a tree structure using regular attribute assignment."""
 
-    def named_parameters(self, prefix: str = "") -> Iterator[Tuple[str, Parameter]]:
+    def named_parameters(self, prefix: str = "") -> Iterator[tuple[str, Parameter]]:
         """This method provides an iterator over module parameters,
         yielding both the parameter name and its corresponding value.
 
@@ -372,8 +365,8 @@ class Module(SubroutineMixin):
             yield param
 
     def state_dict(
-        self, *, prefix: str = "", destination: Optional[Dict[str, Parameter]] = None
-    ) -> Dict[str, Parameter]:
+        self, *, prefix: str = "", destination: dict[str, Parameter] | None = None
+    ) -> dict[str, Parameter]:
         """Returns a dictionary containing references to the whole state of the module.
 
         Parameters
@@ -397,8 +390,8 @@ class Module(SubroutineMixin):
         return destination
 
     def load_state_dict(
-        self, state_dict: Dict[str, Parameter], strict: bool = True
-    ) -> Tuple[List[str], List[str]]:
+        self, state_dict: dict[str, Parameter], strict: bool = True
+    ) -> tuple[list[str], list[str]]:
         """This function copies parameters and buffers from the state_dict into the current module
         and its descendants. If `strict` is set to True, the keys in the `state_dict` must exactly
         match the keys returned by the `state_dict()` function of this module.
@@ -417,8 +410,8 @@ class Module(SubroutineMixin):
             A tuple of two lists: the missing keys and the unexpected keys.
         """
         self_state_dict = self.state_dict()
-        missing_keys: List[str] = []
-        unexpected_keys: List[str] = []
+        missing_keys: list[str] = []
+        unexpected_keys: list[str] = []
         for key, value in state_dict.items():
             if key not in self_state_dict:
                 unexpected_keys.append(key)
@@ -435,32 +428,25 @@ class Module(SubroutineMixin):
         """Call the module with the given inputs and returns the output."""
         if not hasattr(self, "forward"):
             raise NotImplementedError(f"Module {type(self)} does not have a `forward` method")
-        return self.forward(*args, **kwargs)  # pylint: disable=no-member
+        return self.forward(*args, **kwargs)
 
-    def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+    def to(self, dtype: str | None = None) -> None:
         """Convert the module to specific dtype recursively"""
         for _, item in self.__dict__.items():
             if hasattr(item, "to") and callable(item.to):
                 item.to(dtype=dtype)
         if dtype is not None and isinstance(getattr(self, "dtype", None), str):
-            self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
+            self.dtype = dtype
 
     def export_tvm(
         self,
-        spec: "_spec.ModuleSpecType",
+        spec: _spec.ModuleSpecType,
         debug: bool = False,
         allow_extern: bool = False,
-    ) -> Union[
-        Tuple[
-            IRModule,
-            List[Tuple[str, Parameter]],
-        ],
-        Tuple[
-            IRModule,
-            List[Tuple[str, Parameter]],
-            List["ExternModule"],
-        ],
-    ]:
+    ) -> (
+        tuple[IRModule, list[tuple[str, Parameter]]]
+        | tuple[IRModule, list[tuple[str, Parameter]], list[ExternModule]]
+    ):
         """Export the module to TVM IRModule and parameters
 
         Parameters
@@ -481,11 +467,10 @@ class Module(SubroutineMixin):
         ext_mods : List[nn.ExternModule]
             A list of ExternModules that are used in the model.
         """
-        # pylint: disable=import-outside-toplevel
+
         from . import spec as _spec
         from .exporter import Exporter
 
-        # pylint: enable=import-outside-toplevel
         spec = _spec.ModuleSpec.from_raw(spec, self)
         mod, params, ext_mods = Exporter(debug=debug).build(spec)
         if allow_extern:
@@ -497,29 +482,26 @@ class Module(SubroutineMixin):
             )
         return mod, params
 
-    def jit(  # pylint: disable=too-many-arguments
+    def jit(
         self,
-        spec: "_spec.ModuleSpec",
-        device: Union[str, Device] = "cpu",
-        pipeline: Union[None, str, Pass] = "default_build",
+        spec: _spec.ModuleSpec,
+        device: str | Device = "cpu",
+        pipeline: None | str | Pass = "default_build",
         out_format: str = "torch",
         debug: bool = False,
     ) -> Any:
         """Just-in-time compilation of a nn.model to an executable"""
 
         def _compile(spec, device, pipeline, debug):
-            # pylint: disable=import-outside-toplevel
             from ...transform import AttachExternModules
             from ...vm_build import build as relax_build
             from . import spec as _spec
             from .exporter import Exporter
 
-            # pylint: enable=import-outside-toplevel
-
             spec = _spec.ModuleSpec.from_raw(spec, self)
             mod, params, ext_mods = Exporter(debug=debug).build(spec)
-            mod = AttachExternModules(ext_mods)(mod)  # pylint: disable=not-callable
-            vm = VirtualMachine(  # pylint: disable=invalid-name
+            mod = AttachExternModules(ext_mods)(mod)
+            vm = VirtualMachine(
                 relax_build(
                     mod,
                     target=Target.from_device(device),
@@ -531,10 +513,10 @@ class Module(SubroutineMixin):
             return spec, vm, params
 
         device = as_device(device)
-        spec, vm, params = _compile(spec, device, pipeline, debug)  # pylint: disable=invalid-name
+        spec, vm, params = _compile(spec, device, pipeline, debug)
 
         if out_format == "torch":
-            from . import torch  # pylint: disable=import-outside-toplevel
+            from . import torch
 
             return torch.TorchModule(spec=spec, params=params, vm=vm)
 
@@ -544,7 +526,7 @@ class Module(SubroutineMixin):
 class ModuleDict(Module):
     """Holds submodules in a dict."""
 
-    def __init__(self, modules: Optional[OrderedDict[str, Module]] = None):
+    def __init__(self, modules: OrderedDict[str, Module] | None = None):
         if modules is None:
             self.modules = OrderedDict()
         else:
@@ -568,13 +550,13 @@ class ModuleDict(Module):
     def values(self) -> Iterator[Module]:
         return self.modules.values()
 
-    def items(self) -> Iterator[Tuple[str, Module]]:
+    def items(self) -> Iterator[tuple[str, Module]]:
         return self.modules.items()
 
-    def get(self, key: str, default: Optional[Module] = None) -> Optional[Module]:
+    def get(self, key: str, default: Module | None = None) -> Module | None:
         return self.modules.get(key, default)
 
-    def update(self, modules: Dict[str, Module]) -> None:
+    def update(self, modules: dict[str, Module]) -> None:
         self.modules.update(modules)
 
     def clear(self) -> None:
@@ -586,7 +568,7 @@ class ModuleDict(Module):
     def __contains__(self, key: str) -> bool:
         return key in self.modules
 
-    def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+    def to(self, dtype: str | None = None) -> None:
         for module in self.modules.values():
             module.to(dtype=dtype)
 
@@ -594,7 +576,7 @@ class ModuleDict(Module):
 class ModuleList(Module):
     """Holds submodules in a list."""
 
-    def __init__(self, modules: List[Module]):
+    def __init__(self, modules: list[Module]):
         self.modules = modules
 
     def __iter__(self):
@@ -613,18 +595,18 @@ class ModuleList(Module):
         """Add a module to the end of the ModuleList"""
         self.modules.append(module)
 
-    def to(self, dtype: Optional[str] = None) -> None:  # pylint: disable=invalid-name
+    def to(self, dtype: str | None = None) -> None:
         for module in self.modules:
             module.to(dtype=dtype)
 
-    def forward(self, x):  # pylint: disable=invalid-name
+    def forward(self, x):
         """Feed-forward pass of the module"""
         for module in self.modules:
             x = module(x)
         return x
 
 
-def wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Sequence[Tensor]]:
+def wrap_nested(expr: rx.Expr, name: str) -> Tensor | Sequence[Tensor]:
     """Wrap the given relax.Expr, emit it using the current BlockBuilder,
     and automatically handle nested cases if the expr represents a Tuple.
 
@@ -708,8 +690,8 @@ def _from_dlpack(tensor) -> tvm.runtime.Tensor:
 
 
 def _param_to_tensor(
-    params: List[Tuple[str, Parameter]], device: Device
-) -> List[tvm.runtime.Tensor]:
+    params: list[tuple[str, Parameter]], device: Device
+) -> list[tvm.runtime.Tensor]:
     results = []
     missing = []
     for name, param in params:

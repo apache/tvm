@@ -30,7 +30,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import sys
 
 import pytest
@@ -44,10 +43,9 @@ from tvm.s_tir.schedule.testing import (
 from tvm.script import tir as T
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks,not-callable
 
 @T.prim_func
-def cuda_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=undefined-loop-variable
+def cuda_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
@@ -199,16 +197,15 @@ def cuda_matmul_write_at_c(a: T.handle, b: T.handle, c: T.handle) -> None:
                                     C[v0 * 64 + ax0, v1 * 64 + ax1] = C_shared[v0 * 64 + ax0, v1 * 64 + ax1]
 
 
-# pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks,not-callable
 # fmt: on
 
 
 def test_read_at_global_to_shared_a():
     sch = tvm.s_tir.Schedule(cuda_matmul, debug_mask="all")
     block = sch.get_sblock("C")
-    # pylint: disable=invalid-name
+
     _by, _bx, _vy, _vx, _ty, _tx, k0, _k1, _, _i, _j = sch.get_loops(block)
-    # pylint: enable=invalid-name
+
     sch.read_at(k0, block, 1, "shared")
     assert_structural_equal_ignore_global_symbol(sch.mod["main"], cuda_matmul_read_at_a)
     verify_trace_roundtrip(sch, cuda_matmul)
@@ -217,9 +214,9 @@ def test_read_at_global_to_shared_a():
 def test_read_at_global_to_shared_ab():
     sch = tvm.s_tir.Schedule(cuda_matmul_read_at_a, debug_mask="all")
     block = sch.get_sblock("C")
-    # pylint: disable=invalid-name
+
     _by, _bx, _vy, _vx, _ty, _tx, k0, _k1, _, _i, _j = sch.get_loops(block)
-    # pylint: enable=invalid-name
+
     sch.read_at(k0, block, 2, "shared")
     assert_structural_equal_ignore_global_symbol(sch.mod["main"], cuda_matmul_read_at_ab)
     verify_trace_roundtrip(sch, cuda_matmul_read_at_a)
@@ -228,9 +225,9 @@ def test_read_at_global_to_shared_ab():
 def test_read_at_local_to_shared_c():
     sch = tvm.s_tir.Schedule(cuda_matmul_read_at_ab, debug_mask="all")
     block = sch.get_sblock("C")
-    # pylint: disable=invalid-name
+
     _by, _bx, _vy, _vx, _ty, tx, _k0, _k1, _, _i, _j = sch.get_loops(block)
-    # pylint: enable=invalid-name
+
     sch.write_at(tx, block, 0, "shared")
     assert_structural_equal_ignore_global_symbol(sch.mod["main"], cuda_matmul_write_at_c)
     verify_trace_roundtrip(sch, cuda_matmul_read_at_ab)

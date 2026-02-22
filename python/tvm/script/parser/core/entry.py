@@ -16,8 +16,10 @@
 # under the License.
 """The entry point of TVM parser."""
 
+from __future__ import annotations
+
 import inspect
-from typing import Any, Dict, Union
+from typing import Any
 
 import tvm
 
@@ -36,12 +38,12 @@ WELL_FORMED_ERROR_MESSAGE = (
 )
 
 
-def _default_globals() -> Dict[str, Any]:
+def _default_globals() -> dict[str, Any]:
     # lazy import here to avoid circular deps
     from tvm.script.parser import (
-        ir,  # pylint: disable=import-outside-toplevel
-        relax,  # pylint: disable=import-outside-toplevel
-        tir,  # pylint: disable=import-outside-toplevel
+        ir,
+        relax,
+        tir,
     )
 
     extra_vars = {
@@ -56,7 +58,7 @@ def _default_globals() -> Dict[str, Any]:
     return extra_vars
 
 
-def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> Any:
+def scan_macro(program: Any | str, extra_vars: dict[str, Any] | None = None) -> Any:
     """Generate the AST, and the source code for __repr__."""
     # The AST will be converted into TIR at the time of expansion.
     source = Source(program)
@@ -65,8 +67,8 @@ def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> A
 
 
 def parse(
-    program: Union[doc.AST, Any, str],
-    extra_vars: Dict[str, Any] = None,
+    program: doc.AST | Any | str,
+    extra_vars: dict[str, Any] | None = None,
     check_well_formed: bool = True,
 ) -> Any:
     """Register a method for a operand type, AST operator node and operand index.
@@ -127,7 +129,7 @@ def parse(
 
         try:
             tvm.tir.analysis.verify_well_formed(check_ret)
-        except Exception as err:  # pylint: disable=broad-exception-caught
+        except Exception as err:
             parser.report_error(
                 source_ast,
                 err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {err!s}",

@@ -16,10 +16,12 @@
 # under the License.
 """Meta Schedule tuning context."""
 
-from typing import TYPE_CHECKING, List, Optional, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Optional, Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 from tvm_ffi import register_object, register_global_func
 
@@ -44,7 +46,7 @@ if TYPE_CHECKING:
 
 
 @register_global_func("tvm.s_tir.meta_schedule.normalize_mod")
-def _normalize_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
+def _normalize_mod(mod: PrimFunc | IRModule) -> IRModule:
     """Normalize the input to an IRModule"""
     if isinstance(mod, PrimFunc):
         if not (mod.attrs and "global_symbol" in mod.attrs):
@@ -85,34 +87,32 @@ class TuneContext(Object):
         The number of threads to be used, None means using the logical cpu count.
     """
 
-    mod: Optional[IRModule]
-    target: Optional[Target]
-    space_generator: Optional["SpaceGenerator"]
-    search_strategy: Optional["SearchStrategy"]
+    mod: IRModule | None
+    target: Target | None
+    space_generator: SpaceGenerator | None
+    search_strategy: SearchStrategy | None
     task_name: str
-    logger: Optional[Logger]
+    logger: Logger | None
     rand_state: int
     num_threads: int
 
     def __init__(
         self,
-        mod: Optional[IRModule] = None,
+        mod: IRModule | None = None,
         *,
-        target: Union[Target, str, None] = None,
-        space_generator: Union["SpaceGenerator.SpaceGeneratorType", None] = None,
-        search_strategy: Union["SearchStrategy.SearchStrategyType", None] = None,
+        target: Target | str | None = None,
+        space_generator: SpaceGenerator.SpaceGeneratorType | None = None,
+        search_strategy: SearchStrategy.SearchStrategyType | None = None,
         task_name: str = "main",
         rand_state: int = -1,
-        num_threads: Union[int, Literal["physical", "logical"]] = "physical",
-        logger: Optional[Logger] = None,
+        num_threads: int | Literal["physical", "logical"] = "physical",
+        logger: Logger | None = None,
     ):
-        # pylint: disable=import-outside-toplevel
-        import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
+        import tvm.s_tir.tensor_intrin
 
         from .search_strategy import SearchStrategy
         from .space_generator import SpaceGenerator
 
-        # pylint: enable=import-outside-toplevel
         if isinstance(mod, PrimFunc):
             mod = _normalize_mod(mod)
         if target is not None:
@@ -126,7 +126,7 @@ class TuneContext(Object):
                 search_strategy = SearchStrategy.create(search_strategy)
             # Additional check: ensure it's not the abstract SearchStrategy class itself
             # Use type() for exact type check (not isinstance which would match subclasses)
-            elif type(search_strategy) is SearchStrategy:  # pylint: disable=unidiomatic-typecheck
+            elif type(search_strategy) is SearchStrategy:
                 raise TypeError(
                     "Cannot use abstract SearchStrategy class directly. "
                     "Use SearchStrategy.create() with a valid strategy type "
@@ -146,7 +146,7 @@ class TuneContext(Object):
                     "should be either an integer, 'physical', or 'logical'"
                 )
         self.__init_handle_by_constructor__(
-            _ffi_api.TuneContext,  # type: ignore # pylint: disable=no-member
+            _ffi_api.TuneContext,  # type: ignore
             mod,
             target,
             space_generator,
@@ -156,16 +156,16 @@ class TuneContext(Object):
             rand_state,
             get_logging_func(logger),
         )
-        _ffi_api.TuneContextInitialize(self)  # type: ignore # pylint: disable=no-member
+        _ffi_api.TuneContextInitialize(self)  # type: ignore
 
-    def generate_design_space(self) -> List[Schedule]:
+    def generate_design_space(self) -> list[Schedule]:
         """Generate design spaces given a module.
 
         Delegated to self.space_generator.generate_design_space with self.mod
 
         Returns
         -------
-        design_spaces : List[tvm.s_tir.Schedule]
+        design_spaces : list[tvm.s_tir.Schedule]
             The generated design spaces, i.e., schedules.
         """
         if self.mod is None:
@@ -180,9 +180,9 @@ class TuneContext(Object):
         self,
         max_trials: int,
         num_trials_per_iter: int = 64,
-        design_spaces: Optional[List[Schedule]] = None,
-        database: Optional["Database"] = None,
-        cost_model: Optional["CostModel"] = None,
+        design_spaces: list[Schedule] | None = None,
+        database: Database | None = None,
+        cost_model: CostModel | None = None,
     ) -> None:
         """A method to be called for SearchStrategy to do necessary preparation before tuning.
 
@@ -194,7 +194,7 @@ class TuneContext(Object):
             The maximum number of trials to be executed.
         num_trials_per_iter : int = 64
             The number of trials to be executed per iteration.
-        design_spaces : Optional[List[tvm.s_tir.Schedule]]
+        design_spaces : Optional[list[tvm.s_tir.Schedule]]
             The design spaces used during tuning process.
             If None, use the outcome of `self.generate_design_space()`.
         database : Optional[Database] = None
@@ -206,12 +206,10 @@ class TuneContext(Object):
             If None, and the search strategy is `EvolutionarySearch`,
             then use `tvm.s_tir.meta_schedule.cost_model.RandomModel`.
         """
-        # pylint: disable=import-outside-toplevel
+
         from .cost_model import RandomModel
         from .database import MemoryDatabase
         from .search_strategy import EvolutionarySearch
-
-        # pylint: enable=import-outside-toplevel
 
         if self.search_strategy is None:
             raise ValueError(
@@ -244,14 +242,14 @@ class TuneContext(Object):
             )
         return self.search_strategy.post_tuning()
 
-    def generate_measure_candidates(self) -> Optional[List["MeasureCandidate"]]:
+    def generate_measure_candidates(self) -> list[MeasureCandidate] | None:
         """Generate a batch of measure candidates from design spaces for measurement.
 
         Delegated to self.search_strategy.generate_measure_candidates.
 
         Returns
         -------
-        measure_candidates : Optional[List[IRModule]]
+        measure_candidates : Optional[list[IRModule]]
             The measure candidates generated, None if search is finished.
         """
         if self.search_strategy is None:
@@ -262,8 +260,8 @@ class TuneContext(Object):
 
     def notify_runner_results(
         self,
-        measure_candidates: List["MeasureCandidate"],
-        results: List["RunnerResult"],
+        measure_candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the state in SearchStrategy with profiling results.
 
@@ -271,9 +269,9 @@ class TuneContext(Object):
 
         Parameters
         ----------
-        measure_candidates : List[MeasureCandidate]
+        measure_candidates : list[MeasureCandidate]
             The measure candidates for update.
-        results : List[RunnerResult]
+        results : list[RunnerResult]
             The profiling results from the runner.
         """
         if self.search_strategy is None:
@@ -282,7 +280,7 @@ class TuneContext(Object):
             )
         return self.search_strategy.notify_runner_results(measure_candidates, results)
 
-    def clone(self) -> "TuneContext":
+    def clone(self) -> TuneContext:
         """Clone the TuneContext.
 
         Returns
@@ -290,4 +288,4 @@ class TuneContext(Object):
         cloned_context : TuneContext
             The cloned TuneContext.
         """
-        return _ffi_api.TuneContextClone(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.TuneContextClone(self)  # type: ignore

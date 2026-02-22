@@ -97,7 +97,6 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
     ind_before_axis_stride = ind_axis_range * ind_after_axis_range
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr, reduce_func):
-        # pylint: disable=invalid-name
         data = T.buffer_proxy(data_ptr)
         indices = T.buffer_proxy(indices_ptr)
         updates = T.buffer_proxy(updates_ptr)

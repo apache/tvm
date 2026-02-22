@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-error, invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches, too-many-statements, too-many-function-args
 """Non-maximum suppression operator"""
 
 import tvm
@@ -36,7 +35,7 @@ from .nms_util import (
 )
 
 
-def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):  # pylint: disable=unused-argument
+def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
     Parameters

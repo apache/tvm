@@ -14,17 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, f-string-without-interpolation, consider-using-from-import
 """Tools/compilers/linkers for Hexagon"""
 
+from __future__ import annotations
+
 import io
+import itertools
 import os
 import pathlib
 import re
 import subprocess
 import sys
 import tarfile
-from typing import List, Union
 
 import numpy
 from tvm_ffi import register_global_func
@@ -46,12 +47,12 @@ import tvm.contrib.cc as cc
 #
 # Subsequent calls to 'link_shared' will use the newly registered linker.
 
-HEXAGON_TOOLCHAIN = os.environ.get("HEXAGON_TOOLCHAIN", default="")  # pylint: disable=invalid-name
-HEXAGON_SDK_ROOT = os.environ.get("HEXAGON_SDK_ROOT", default="")  # pylint: disable=invalid-name
-HEXAGON_SDK_DOCKER_IMAGE = os.environ.get("HEXAGON_SDK_DOCKER_IMAGE", default="")  # pylint: disable=invalid-name
-HEXAGON_LINK_MAIN = pathlib.Path(HEXAGON_TOOLCHAIN) / "bin" / "hexagon-link"  # pylint: disable=invalid-name
-HEXAGON_CLANG_PLUS = pathlib.Path(HEXAGON_TOOLCHAIN) / "bin" / "hexagon-clang++"  # pylint: disable=invalid-name
-HEXAGON_SDK_INCLUDE_DIRS = [  # pylint: disable=invalid-name
+HEXAGON_TOOLCHAIN = os.environ.get("HEXAGON_TOOLCHAIN", default="")
+HEXAGON_SDK_ROOT = os.environ.get("HEXAGON_SDK_ROOT", default="")
+HEXAGON_SDK_DOCKER_IMAGE = os.environ.get("HEXAGON_SDK_DOCKER_IMAGE", default="")
+HEXAGON_LINK_MAIN = pathlib.Path(HEXAGON_TOOLCHAIN) / "bin" / "hexagon-link"
+HEXAGON_CLANG_PLUS = pathlib.Path(HEXAGON_TOOLCHAIN) / "bin" / "hexagon-clang++"
+HEXAGON_SDK_INCLUDE_DIRS = [
     pathlib.Path(HEXAGON_SDK_ROOT) / "incs",
     pathlib.Path(HEXAGON_SDK_ROOT) / "incs" / "stddef",
 ]
@@ -75,7 +76,7 @@ def hexagon_clang_plus() -> str:
     return str(HEXAGON_CLANG_PLUS)
 
 
-def toolchain_version(toolchain=None) -> List[int]:
+def toolchain_version(toolchain=None) -> list[int]:
     """Return the version of the Hexagon toolchain.
 
     Parameters
@@ -167,7 +168,6 @@ def link_shared(so_name, objs, extra_args=None):
     cc.create_shared(
         so_name,
         objs,
-        # pylint: disable=bad-whitespace
         options=[
             "-Bdynamic",
             "-shared",
@@ -248,7 +248,7 @@ else:  # Linux and Win32
     register_global_func("tvm.contrib.hexagon.link_shared", f=link_shared, override=True)
 
 
-def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: str, options=None):
+def create_aot_shared(so_name: str | pathlib.Path, files, hexagon_arch: str, options=None):
     """Export Hexagon AOT module."""
     options = options or []
     if not os.access(str(HEXAGON_CLANG_PLUS), os.X_OK):
@@ -302,7 +302,7 @@ def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: st
 
 def pack_imports(
     module: tvm.runtime.Module,
-    is_system_lib: bool,  # pylint: disable=unused-argument
+    is_system_lib: bool,
     c_symbol_prefix: str,
     workspace_dir: str,
 ):
@@ -426,8 +426,7 @@ def allocate_hexagon_array(
 
     boundaries = [0, *axis_separators, len(tensor_shape)]
     physical_shape = [
-        numpy.prod(tensor_shape[dim_i:dim_f])
-        for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
+        numpy.prod(tensor_shape[dim_i:dim_f]) for dim_i, dim_f in itertools.pairwise(boundaries)
     ]
 
     arr = tvm.runtime.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
@@ -477,7 +476,6 @@ class ContainerSession:
     @staticmethod
     def _get_docker_client():
         try:
-            # pylint: disable=import-outside-toplevel
             from docker import from_env
             from docker.errors import DockerException
         except (ModuleNotFoundError, ImportError):

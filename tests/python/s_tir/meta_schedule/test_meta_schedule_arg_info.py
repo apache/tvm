@@ -14,12 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 from tvm.s_tir.meta_schedule.arg_info import ArgInfo, TensorInfo
 from tvm.script import tir as T
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 
 @T.prim_func
@@ -36,7 +34,6 @@ def Matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 # fmt: on
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
 def test_meta_schedule_tensor_info_creation():

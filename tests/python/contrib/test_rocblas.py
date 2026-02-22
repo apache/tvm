@@ -16,7 +16,6 @@
 # under the License.
 """Configure pytest"""
 
-# pylint: disable=invalid-name
 import numpy as np
 
 import tvm
@@ -68,7 +67,7 @@ def verify_batch_matmul(batch, m, k, n, lib, transa=False, transb=False, dtype="
 
     def verify(target="rocm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func(lib.__name__ + ".batch_matmul", True):
             print("skip because extern function is not available")

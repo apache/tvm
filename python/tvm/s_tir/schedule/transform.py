@@ -25,7 +25,7 @@ from . import _ffi_api
 
 def tile_with_tensor_intrin(
     sch: Schedule, block: SBlockRV, intrin_name: str, allow_padding: bool = False
-) -> Optional[LoopRV]:
+) -> LoopRV | None:
     """Tile a subset of loops in the block according to the given tensor intrinsic.
 
     Parameters

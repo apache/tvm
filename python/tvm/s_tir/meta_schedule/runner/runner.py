@@ -16,10 +16,13 @@
 # under the License.
 """Runners"""
 
-from typing import Callable, List, Optional, Union
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -47,13 +50,13 @@ class RunnerInput(Object):
 
     artifact_path: str
     device_type: str
-    args_info: List[ArgInfo]
+    args_info: list[ArgInfo]
 
     def __init__(
         self,
         artifact_path: str,
         device_type: str,
-        args_info: List[ArgInfo],
+        args_info: list[ArgInfo],
     ) -> None:
         """Constructor
 
@@ -67,7 +70,7 @@ class RunnerInput(Object):
             The argument information.
         """
         self.__init_handle_by_constructor__(
-            _ffi_api.RunnerInput,  # type: ignore # pylint: disable=no-member
+            _ffi_api.RunnerInput,  # type: ignore
             artifact_path,
             device_type,
             args_info,
@@ -86,13 +89,13 @@ class RunnerResult(Object):
         The error message, if any.
     """
 
-    run_secs: Optional[List[float]]
-    error_msg: Optional[str]
+    run_secs: list[float] | None
+    error_msg: str | None
 
     def __init__(
         self,
-        run_secs: Optional[List[float]],
-        error_msg: Optional[str],
+        run_secs: list[float] | None,
+        error_msg: str | None,
     ) -> None:
         """Constructor
 
@@ -104,7 +107,7 @@ class RunnerResult(Object):
             The error message, if any.
         """
         self.__init_handle_by_constructor__(
-            _ffi_api.RunnerResult,  # type: ignore # pylint: disable=no-member
+            _ffi_api.RunnerResult,  # type: ignore
             run_secs,
             error_msg,
         )
@@ -120,22 +123,22 @@ class RunnerFuture(Object):
     See also: PyRunnerFuture
     """
 
-    def __init__(self, f_done: Callable, f_result: Callable = None) -> None:
+    def __init__(self, f_done: Callable, f_result: Callable | None = None) -> None:
         """Constructor"""
 
         self.__init_handle_by_constructor__(
-            _ffi_api.RunnerFuture,  # type: ignore # pylint: disable=no-member
+            _ffi_api.RunnerFuture,  # type: ignore
             f_done,
             f_result,
         )
 
     def done(self) -> bool:
         """Check whether the runner has finished."""
-        return _ffi_api.RunnerFutureDone(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.RunnerFutureDone(self)  # type: ignore
 
     def result(self) -> RunnerResult:
         """Fetch the runner's output if it is ready."""
-        return _ffi_api.RunnerFutureResult(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.RunnerFutureResult(self)  # type: ignore
 
 
 class PyRunnerFuture:
@@ -171,7 +174,7 @@ class Runner(Object):
 
     RunnerType = Union["Runner", Literal["local", "rpc"]]
 
-    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
+    def run(self, runner_inputs: list[RunnerInput]) -> list[RunnerFuture]:
         """Run the built artifact and get runner futures.
 
         Parameters
@@ -184,16 +187,16 @@ class Runner(Object):
         runner_futures: List[RunnerFuture]
             The runner futures.
         """
-        return _ffi_api.RunnerRun(self, runner_inputs)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.RunnerRun(self, runner_inputs)  # type: ignore
 
     @staticmethod
-    def create(  # pylint: disable=keyword-arg-before-vararg
+    def create(
         kind: Literal["local", "rpc"] = "local",
         *args,
         **kwargs,
-    ) -> "Runner":
+    ) -> Runner:
         """Create a Runner."""
-        from . import LocalRunner, RPCRunner  # pylint: disable=import-outside-toplevel
+        from . import LocalRunner, RPCRunner
 
         if kind == "local":
             if "max_workers" in kwargs:
@@ -204,7 +207,7 @@ class Runner(Object):
         raise ValueError(f"Unknown Runner: {kind}")
 
 
-create = Runner.create  # pylint: disable=invalid-name
+create = Runner.create
 
 
 @register_object("s_tir.meta_schedule.PyRunner")
@@ -216,11 +219,11 @@ class _PyRunner(Runner):
     See also: PyRunner
     """
 
-    def __init__(self, f_run: Callable = None) -> None:
+    def __init__(self, f_run: Callable | None = None) -> None:
         """Constructor"""
 
         self.__init_handle_by_constructor__(
-            _ffi_api.RunnerPyRunner,  # type: ignore # pylint: disable=no-member
+            _ffi_api.RunnerPyRunner,  # type: ignore
             f_run,
         )
 
@@ -238,7 +241,7 @@ class PyRunner:
         "methods": ["run"],
     }
 
-    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
+    def run(self, runner_inputs: list[RunnerInput]) -> list[RunnerFuture]:
         """Run the built artifact and get runner futures.
 
         Parameters

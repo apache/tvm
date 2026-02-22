@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument, arguments-differ
 """tvm.contrib.msc.core.runtime.hook"""
 
-from typing import Any, Dict, List, Tuple, Union
+from __future__ import annotations
+
+from typing import Any
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -96,7 +97,7 @@ class CustomizedHook(RunnerHook):
         The config of the func.
     """
 
-    def __init__(self, func: Union[str, callable], config: dict):
+    def __init__(self, func: str | callable, config: dict):
         super().__init__(config)
         self._func = msc_utils.load_callable(func)
 
@@ -135,10 +136,10 @@ class UpdateWeightsHook(RunnerHook):
     def _apply(
         self,
         runner: object,
-        graphs: List[MSCGraph],
-        weights: Dict[str, tvm.runtime.Tensor],
+        graphs: list[MSCGraph],
+        weights: dict[str, tvm.runtime.Tensor],
         weights_path: str,
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Apply the default funcion
 
         Parameters

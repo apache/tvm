@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name
 """The TIR backend compilation pipeline."""
+
+from typing import Optional
 
 import tvm
 from tvm import tir
 
 
-def finalize_host_passes():  # pylint: disable=unused-argument
+def finalize_host_passes():
     """The default finalization passes for TIR backend."""
     host_pass_list = [
         tir.transform.LowerTVMBuiltin(),
@@ -32,7 +33,7 @@ def finalize_host_passes():  # pylint: disable=unused-argument
     return tvm.ir.transform.Sequential(host_pass_list)
 
 
-def finalize_device_passes():  # pylint: disable=unused-argument
+def finalize_device_passes():
     """The default finalization passes for TIR backend."""
     device_pass_list = [
         tir.transform.LowerWarpMemory(),
@@ -47,7 +48,7 @@ def finalize_device_passes():  # pylint: disable=unused-argument
 PIPELINE_MAP = {}
 
 
-def get_tir_pipeline(name: str = None, **kwargs) -> tvm.transform.Pass:
+def get_tir_pipeline(name: str | None = None, **kwargs) -> tvm.transform.Pass:
     """Get pre-build pipeline by name
 
     Parameters
@@ -66,7 +67,7 @@ def get_tir_pipeline(name: str = None, **kwargs) -> tvm.transform.Pass:
 
 
 def get_default_tir_pipeline(
-    target: tvm.target.Target,  # pylint: disable=unused-argument
+    target: tvm.target.Target,
 ) -> tvm.transform.Pass:
     """Get the default TIR pipeline for the given target."""
     if target.kind.name == "opencl" and "adreno" in target.keys:

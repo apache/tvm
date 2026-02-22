@@ -38,7 +38,7 @@ def get_exec(data_shape):
         )
         data = nn.Placeholder(data_shape, name="data")
         output = model(data)
-        params = [data] + model.parameters()
+        params = [data, *model.parameters()]
         builder.emit_func_output(output, params=params)
 
     mod = builder.get()

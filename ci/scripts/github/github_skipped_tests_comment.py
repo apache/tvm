@@ -15,13 +15,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import inspect
+from __future__ import annotations
+
 import json
 import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 from xml.etree import ElementTree
 
 
@@ -139,8 +140,8 @@ def build_comment(
     if len(additional_skipped_list) != 0:
         text += "\n"
         text += (
-            "Additional tests that were skipped in the CI build and present in the [`required_tests_to_run`]"
-            "(https://github.com/apache/tvm/blob/main/ci/scripts/github/required_tests_to_run.json) file:"
+            "Additional tests that were skipped in the CI build and present in the [`required_tests_to_run`]"  # noqa: E501
+            "(https://github.com/apache/tvm/blob/main/ci/scripts/github/required_tests_to_run.json) file:"  # noqa: E501
             "\n```\n"
         )
         for skip in additional_skipped_list:
@@ -154,7 +155,7 @@ def build_comment(
     return text
 
 
-def find_target_url(pr_head: Dict[str, Any]):
+def find_target_url(pr_head: dict[str, Any]):
     for status in pr_head["statusCheckRollup"]["contexts"]["nodes"]:
         if status.get("context", "") == "tvm-ci/pr-head":
             return status["targetUrl"]
@@ -163,14 +164,14 @@ def find_target_url(pr_head: Dict[str, Any]):
 
 
 def get_skipped_tests_comment(
-    pr: Dict[str, Any],
+    pr: dict[str, Any],
     github,
     s3_prefix: str = "tvm-jenkins-artifacts-prod",
     jenkins_prefix: str = "ci.tlcpack.ai",
     pr_test_report_dir: str = "pr-reports",
     main_test_report_dir: str = "main-reports",
-    common_commit_sha: Optional[str] = None,
-    common_main_build: Optional[Dict[str, Any]] = None,
+    common_commit_sha: str | None = None,
+    common_main_build: dict[str, Any] | None = None,
     additional_tests_to_check_file: str = "required_tests_to_run.json",
 ) -> str:
     pr_head = pr["commits"]["nodes"][0]["commit"]

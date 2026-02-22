@@ -16,7 +16,9 @@
 # under the License.
 """tvm.contrib.msc.core.tools.prune.pruner"""
 
-from typing import Any, Dict, List, Tuple
+from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 
@@ -46,7 +48,7 @@ class BasePruner(WeightTool):
             self.change_stage(MSCStage.PRUNE)
         return super().setup()
 
-    def _get_wtypes(self) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
+    def _get_wtypes(self) -> tuple[dict[str, list[str]], dict[str, str]]:
         """Get the weight types from options
 
         Returns
@@ -81,7 +83,7 @@ class BasePruner(WeightTool):
             }
         return main_wtypes, relation_wtypes
 
-    def _parse_strategys(self, strategy_list: List[dict]) -> Dict[str, ToolStrategy]:
+    def _parse_strategys(self, strategy_list: list[dict]) -> dict[str, ToolStrategy]:
         """Parse the strategy to get valid strategy
 
         Parameters
@@ -106,8 +108,8 @@ class BasePruner(WeightTool):
         return super()._parse_strategys([_update_stages(s) for s in strategy_list])
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
+    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
@@ -189,7 +191,7 @@ class BasePruner(WeightTool):
         return True
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Process tensor
 
@@ -232,7 +234,7 @@ class BasePruner(WeightTool):
             }
         return tensor
 
-    def _prune_tensor(self, name: str, consumer: str, strategys: List[ToolStrategy]) -> Any:
+    def _prune_tensor(self, name: str, consumer: str, strategys: list[ToolStrategy]) -> Any:
         """Prune tensor
 
         Parameters
@@ -250,7 +252,7 @@ class BasePruner(WeightTool):
         assert len(strategys) == 1, "pruner should only has 1 strategy, get " + str(strategys)
         strategy = strategys[0]
 
-        def _get_in_indices(w_node: WeightJoint) -> List[int]:
+        def _get_in_indices(w_node: WeightJoint) -> list[int]:
             """Get input indices for weight node"""
             if not w_node.parents:
                 return []
@@ -317,8 +319,8 @@ class BasePruner(WeightTool):
             self._plan[w_node.name]["out_indices"] = []
 
     def prune_graphs(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
+    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
@@ -336,10 +338,10 @@ class BasePruner(WeightTool):
             The weights.
         """
 
-        def _prune_by_shape(tensor: MSCTensor, shape: List[int]):
+        def _prune_by_shape(tensor: MSCTensor, shape: list[int]):
             return MSCTensor(tensor.name, tensor.dtype, tensor.layout.name, shape, tensor.alias)
 
-        def _prune_by_channel(tensor: MSCTensor, dim, channel_axis: int = None):
+        def _prune_by_channel(tensor: MSCTensor, dim, channel_axis: int | None = None):
             shape = tensor.get_shape()
             if channel_axis is None:
                 if self.has_w_node(tensor.name):
@@ -471,7 +473,7 @@ class BasePruner(WeightTool):
             return msc_utils.cast_array(self._meta_weights[name])
         raise Exception(f"Can not find data {name} from {len(self._meta_weights)} weights")
 
-    def create_tasks(self, **kwargs) -> List[dict]:
+    def create_tasks(self, **kwargs) -> list[dict]:
         """Create tasks for gym
 
         Parameters
@@ -496,7 +498,7 @@ class BasePruner(WeightTool):
             )
         return tasks
 
-    def change_strategys(self, strategy_list: List[dict]):
+    def change_strategys(self, strategy_list: list[dict]):
         """Change the strategys
 
         Parameters

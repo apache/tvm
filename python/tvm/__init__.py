@@ -15,7 +15,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, wildcard-import
 """TVM: Open Deep Learning Compiler Stack."""
 
 import multiprocessing
@@ -103,7 +102,6 @@ def tvm_wrap_excepthook(exception_hook):
             exception_hook(exctype, value, trbk)
 
         if hasattr(multiprocessing, "active_children"):
-            # pylint: disable=not-callable
             for p in multiprocessing.active_children():
                 p.terminate()
 

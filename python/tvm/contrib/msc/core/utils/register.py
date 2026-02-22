@@ -47,7 +47,7 @@ class MSCRegistery:
         return None
 
     @classmethod
-    def get(cls, key: str, default: Optional[Any] = None) -> Any:
+    def get(cls, key: str, default: Any | None = None) -> Any:
         return cls.REGISTERY.get(key, default)
 
     @classmethod

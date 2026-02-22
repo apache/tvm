@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name,too-many-locals
 
 """Argument converter utility for Relax
 
@@ -27,9 +26,12 @@ be exclusively in function bodies to avoid having a circular reference
 during module imports.
 """
 
+from __future__ import annotations
+
 import functools
 import inspect
-from typing import Any, Callable, List, Optional, TypeVar
+from collections.abc import Callable
+from typing import Any, Optional, TypeVar
 
 import tvm
 
@@ -40,7 +42,7 @@ class _ArgsConverter:
     """A helper class to convert the arguments to Expr."""
 
     @staticmethod
-    def convert(args_to_expr: List[str], args_to_list_expr: List[str]):
+    def convert(args_to_expr: list[str], args_to_list_expr: list[str]):
         """Convert the arguments to Expr.
 
         Parameters
@@ -163,16 +165,16 @@ class _ArgsConverter:
         args_to_expr = []
         args_to_list_expr = []
 
-        from . import Expr  # pylint: disable=import-outside-toplevel
+        from . import Expr
 
         for param in sig.parameters.values():
             anno = param.annotation
-            if anno in (Expr, Optional[Expr]):
+            if anno in (Expr, Optional[Expr]):  # noqa: UP045
                 args_to_expr.append(param.name)
-            if anno in (List[Expr], Optional[List[Expr]]):
+            if anno in (list[Expr], Optional[list[Expr]]):  # noqa: UP045
                 args_to_list_expr.append(param.name)
 
         return _ArgsConverter.convert(args_to_expr, args_to_list_expr)(func)
 
 
-args_converter = _ArgsConverter()  # pylint: disable=invalid-name
+args_converter = _ArgsConverter()

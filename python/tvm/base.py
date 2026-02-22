@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # coding: utf-8
-# pylint: disable=invalid-name, import-outside-toplevel
 """Base library for TVM."""
 
 import ctypes
@@ -49,7 +48,7 @@ def _load_lib():
 
 try:
     # The following import is needed for TVM to work with pdb
-    import readline  # pylint: disable=unused-import
+    import readline
 except ImportError:
     pass
 

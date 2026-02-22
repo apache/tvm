@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """Tools to compare libraries."""
 
-from typing import Iterable, List, Tuple, Union
+from __future__ import annotations
+
+from collections.abc import Iterable
 
 import tvm
 import tvm.testing
@@ -64,8 +65,8 @@ class LibCompareVMInstrument:
     def compare(
         self,
         name: str,
-        ref_args: Union[List[tvm.runtime.Tensor], Tuple[tvm.runtime.Tensor, ...]],
-        new_args: Union[List[tvm.runtime.Tensor], Tuple[tvm.runtime.Tensor, ...]],
+        ref_args: list[tvm.runtime.Tensor] | tuple[tvm.runtime.Tensor, ...],
+        new_args: list[tvm.runtime.Tensor] | tuple[tvm.runtime.Tensor, ...],
         ret_indices: Iterable[int],
     ):
         """Comparison function, can be overloaded.

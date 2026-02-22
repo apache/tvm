@@ -16,8 +16,9 @@
 # under the License.
 """Definition of two pillar data structure for TensorIR scheduling: StmtSRef, SBlockScope."""
 
+from __future__ import annotations
+
 from enum import IntEnum
-from typing import List, Optional, Union
 
 from tvm_ffi import register_object
 
@@ -45,26 +46,26 @@ class StmtSRef(Object):
     seq_index: int
 
     @property
-    def stmt(self) -> Optional[Union[SBlock, For]]:
+    def stmt(self) -> SBlock | For | None:
         """The block/for stmt the object refers to"""
-        return _ffi_api.StmtSRefStmt(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.StmtSRefStmt(self)  # type: ignore
 
     @property
-    def parent(self) -> Optional["StmtSRef"]:
+    def parent(self) -> StmtSRef | None:
         """The parent sref"""
-        return _ffi_api.StmtSRefParent(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.StmtSRefParent(self)  # type: ignore
 
     @staticmethod
-    def inline_mark() -> "StmtSRef":
+    def inline_mark() -> StmtSRef:
         """A special StmtSRef, which doesn't point to any stmt in the AST,
         only serving as a "mark" to hint compute-at to do the work of compute-inline"""
-        return _ffi_api.StmtSRefInlineMark()  # type: ignore # pylint: disable=no-member
+        return _ffi_api.StmtSRefInlineMark()  # type: ignore
 
     @staticmethod
-    def root_mark() -> "StmtSRef":
+    def root_mark() -> StmtSRef:
         """A special StmtSRef, which doesn't point to any stmt in the AST,
         only serving as a "mark" to hint compute-at to do nothing"""
-        return _ffi_api.StmtSRefRootMark()  # type: ignore # pylint: disable=no-member
+        return _ffi_api.StmtSRefRootMark()  # type: ignore
 
 
 class DepKind(IntEnum):
@@ -126,7 +127,7 @@ class SBlockScope(Object):
     - Child SBlock: The scope leaf SBlocks under the scope root or a specific internal sref
     """
 
-    def get_deps_by_src(self, block: StmtSRef) -> List[Dependency]:
+    def get_deps_by_src(self, block: StmtSRef) -> list[Dependency]:
         """Get all dependencies whose `src` is the target`block`.
 
         Parameters
@@ -139,9 +140,9 @@ class SBlockScope(Object):
         blocks: List[Dependency]
             The dependencies
         """
-        return _ffi_api.SBlockScopeGetDepsBySrc(self, block)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.SBlockScopeGetDepsBySrc(self, block)  # type: ignore
 
-    def get_deps_by_dst(self, block: StmtSRef) -> List[Dependency]:
+    def get_deps_by_dst(self, block: StmtSRef) -> list[Dependency]:
         """Get all dependencies whose `dst` is the target `block`.
 
         Parameters
@@ -154,4 +155,4 @@ class SBlockScope(Object):
         blocks: List[Dependency]
             The dependencies
         """
-        return _ffi_api.SBlockScopeGetDepsByDst(self, block)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.SBlockScopeGetDepsByDst(self, block)  # type: ignore

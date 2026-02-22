@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=too-many-arguments,invalid-name,protected-access,unused-argument
 """Builtin Modules."""
 
-from typing import List, Optional, Sequence, Union
+from __future__ import annotations
+
+from collections.abc import Sequence
 
 from tvm import relax as rx
 from tvm import tir
@@ -32,23 +33,23 @@ class IOEffect(Effect):
     debug breakpoints, etc.
     """
 
-    effect: Optional[rx.Var]
+    effect: rx.Var | None
 
     def __init__(self):
         self.effect = None
 
-    def emit_init(self, name_hint, builder: rx.BlockBuilder) -> List[rx.DataflowVar]:
+    def emit_init(self, name_hint, builder: rx.BlockBuilder) -> list[rx.DataflowVar]:
         return [builder.emit(rx.op.null_value(), f"{name_hint}.io")]
 
-    def create(self, name_hint: str) -> List[rx.Var]:
+    def create(self, name_hint: str) -> list[rx.Var]:
         assert self.effect is None
         effect = rx.Var(f"{name_hint}.io", struct_info=rx.ObjectStructInfo())
         return [effect]
 
-    def set_state(self, state_vars: List[rx.Var]) -> None:
+    def set_state(self, state_vars: list[rx.Var]) -> None:
         (self.effect,) = state_vars
 
-    def finalize(self) -> List[rx.Var]:
+    def finalize(self) -> list[rx.Var]:
         result = self.effect
         self.effect = None
         return [result]
@@ -100,11 +101,11 @@ class Linear(Module):
 
     def __init__(
         self,
-        in_features: Union[int, str, tir.PrimExpr],
-        out_features: Union[int, str, tir.PrimExpr],
+        in_features: int | str | tir.PrimExpr,
+        out_features: int | str | tir.PrimExpr,
         bias: bool = True,
-        dtype: Optional[str] = None,
-        out_dtype: Optional[str] = None,
+        dtype: str | None = None,
+        out_dtype: str | None = None,
     ):
         super().__init__()
         self.in_features = in_features
@@ -139,7 +140,7 @@ class Linear(Module):
             x = x + self.bias
         return x
 
-    def to(self, dtype: Optional[str] = None) -> None:
+    def to(self, dtype: str | None = None) -> None:
         """
         Override to() such that we do not convert bias if there is `out_dtype`.
         Otherwise, we might run into dtype mismatch when computing `x + self.bias`
@@ -149,7 +150,7 @@ class Linear(Module):
         if self.bias is not None and self.out_dtype is None:
             self.bias.to(dtype=dtype)
         if dtype is not None and isinstance(getattr(self, "dtype", None), str):
-            self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
+            self.dtype = dtype
 
 
 class Conv1D(Module):
@@ -167,7 +168,7 @@ class Conv1D(Module):
         dilation: int = 1,
         groups: int = 1,
         bias: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ) -> None:
         super().__init__()
         self.in_channels = in_channels
@@ -215,17 +216,17 @@ class Conv2D(Module):
     Module for conv2d layer.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         in_channels: int,
         out_channels: int,
-        kernel_size: Union[List[int], int],
+        kernel_size: list[int] | int,
         stride: int = 1,
         padding: int = 0,
         dilation: int = 1,
         groups: int = 1,
         bias: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
         data_layout: str = "NCHW",
     ):
         super().__init__()
@@ -249,7 +250,7 @@ class Conv2D(Module):
         else:
             self.kernel_size = kernel_size
 
-        kernel_shape = [self.out_channels, in_channels] + list(self.kernel_size)
+        kernel_shape = [self.out_channels, in_channels, *list(self.kernel_size)]
 
         self.weight = Parameter(kernel_shape, dtype)
 
@@ -258,7 +259,7 @@ class Conv2D(Module):
         else:
             self.bias = None
 
-    def forward(self, x: Tensor) -> Tensor:  # pylint: disable=invalid-name
+    def forward(self, x: Tensor) -> Tensor:
         """
         Forward method for conv2d layer.
 
@@ -289,17 +290,17 @@ class Conv3D(Module):
     Module for conv3d layer.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         in_channels: int,
         out_channels: int,
-        kernel_size: Union[List[int], int],
-        stride: Union[List[int], int] = 1,
-        padding: Union[List[int], int] = 0,
+        kernel_size: list[int] | int,
+        stride: list[int] | int = 1,
+        padding: list[int] | int = 0,
         dilation: int = 1,
         groups: int = 1,
         bias: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
         data_layout: str = "NCDHW",
     ):
         super().__init__()
@@ -323,7 +324,7 @@ class Conv3D(Module):
         else:
             self.kernel_size = kernel_size
 
-        kernel_shape = [self.out_channels, self.in_channels] + list(self.kernel_size)
+        kernel_shape = [self.out_channels, self.in_channels, *list(self.kernel_size)]
 
         self.weight = Parameter(kernel_shape, dtype)
 
@@ -332,7 +333,7 @@ class Conv3D(Module):
         else:
             self.bias = None
 
-    def forward(self, x: Tensor) -> Tensor:  # pylint: disable=invalid-name
+    def forward(self, x: Tensor) -> Tensor:
         """
         Forward method for conv3d layer.
 
@@ -374,7 +375,7 @@ class ConvTranspose1D(Module):
         dilation: int = 1,
         groups: int = 1,
         bias: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ) -> None:
         super().__init__()
         self.in_channels = in_channels
@@ -433,9 +434,9 @@ class LayerNorm(Module):
     def __init__(
         self,
         normalized_shape: int,
-        eps: Optional[float] = 1e-5,
+        eps: float | None = 1e-5,
         elementwise_affine: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ) -> None:
         super().__init__()
         self.normalized_shape = normalized_shape
@@ -479,10 +480,10 @@ class RMSNorm(Module):
     def __init__(
         self,
         hidden_size: int,
-        axes: Union[int, List[int]],
+        axes: int | list[int],
         epsilon: float = 1e-5,
         bias: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ):
         super().__init__()
         self.epsilon = epsilon
@@ -524,7 +525,7 @@ class GroupNorm(Module):
         num_channels: int,
         eps: float = 1e-5,
         affine: bool = True,
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ):
         super().__init__()
         self.num_groups = num_groups
@@ -537,7 +538,7 @@ class GroupNorm(Module):
             self.weight = None
             self.bias = None
 
-    def forward(self, x: Tensor, channel_axis: int = 1, axes: Optional[List[int]] = None):
+    def forward(self, x: Tensor, channel_axis: int = 1, axes: list[int] | None = None):
         """
         Forward method for group norm layer.
 
@@ -567,15 +568,15 @@ class KVCache(Effect):
     """
 
     init_seq_len: int
-    unit_shape: List[int]
+    unit_shape: list[int]
     dtype: str
-    cache: Optional[rx.Var]
+    cache: rx.Var | None
 
     def __init__(
         self,
         init_seq_len: int,
         unit_shape: Sequence[int],
-        dtype: Optional[str] = None,
+        dtype: str | None = None,
     ):
         if dtype is None:
             dtype = get_default_dtype()
@@ -585,7 +586,7 @@ class KVCache(Effect):
         self.unit_shape = [int(i) for i in unit_shape]
         self.dtype = dtype
 
-    def emit_init(self, name_hint: str, bb: rx.BlockBuilder):  # pylint: disable=arguments-renamed
+    def emit_init(self, name_hint: str, bb: rx.BlockBuilder):
         """
         Emit the initialization of the KVCache effect.
 
@@ -597,7 +598,7 @@ class KVCache(Effect):
         bb : relax.BlockBuilder
             The relax BlockBuilder to emit.
         """
-        init_shape = rx.ShapeExpr([self.init_seq_len] + self.unit_shape)
+        init_shape = rx.ShapeExpr([self.init_seq_len, *self.unit_shape])
         return [
             bb.emit(
                 rx.op.call_pure_packed(
@@ -611,7 +612,7 @@ class KVCache(Effect):
             )
         ]
 
-    def create(self, name_hint: str) -> List[rx.Var]:
+    def create(self, name_hint: str) -> list[rx.Var]:
         """
         Create the implicit inputs to a relax.Function that represents the KVCache effect.
 
@@ -628,10 +629,10 @@ class KVCache(Effect):
         cache = rx.Var(name_hint, struct_info=rx.ObjectStructInfo())
         return [cache]
 
-    def set_state(self, state_vars: List[rx.Var]) -> None:
+    def set_state(self, state_vars: list[rx.Var]) -> None:
         (self.cache,) = state_vars
 
-    def finalize(self) -> List[rx.Var]:
+    def finalize(self) -> list[rx.Var]:
         """
         Finalize the KVCache effect as the implicit return value of a relax.Function.
 
@@ -644,7 +645,7 @@ class KVCache(Effect):
         self.cache = None
         return [result]
 
-    def to(self, dtype: Optional[str] = None) -> None:
+    def to(self, dtype: str | None = None) -> None:
         """
         Convert the KVCache effect to specific dtype.
 
@@ -670,7 +671,7 @@ class KVCache(Effect):
         ret : Tensor
             The last tensor to view.
         """
-        shape = rx.ShapeExpr([seq_len] + self.unit_shape)
+        shape = rx.ShapeExpr([seq_len, *self.unit_shape])
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
                 rx.op.call_pure_packed(
@@ -713,9 +714,9 @@ class Embedding(Module):
 
     def __init__(
         self,
-        num: Union[int, str, tir.PrimExpr],
-        dim: Union[int, str, tir.PrimExpr],
-        dtype: Optional[str] = None,
+        num: int | str | tir.PrimExpr,
+        dim: int | str | tir.PrimExpr,
+        dtype: str | None = None,
     ):
         self.num = num
         self.dim = dim
@@ -757,9 +758,9 @@ class TimestepEmbedding(Module):
         in_channels: int,
         time_embed_dim: int,
         act_fn: str = "silu",
-        out_dim: int = None,
-        post_act_fn: Optional[str] = None,
-        cond_proj_dim: Optional[int] = None,
+        out_dim: int | None = None,
+        post_act_fn: str | None = None,
+        cond_proj_dim: int | None = None,
     ):
         self.linear_1 = Linear(in_channels, time_embed_dim)
 
@@ -784,7 +785,7 @@ class TimestepEmbedding(Module):
             assert self.post_act == "silu", "Only SiLU post-activation supported."
             self.post_act = SiLU()
 
-    def forward(self, sample: Tensor, condition: Optional[Tensor] = None):
+    def forward(self, sample: Tensor, condition: Tensor | None = None):
         """
         Forward method for TimestepEmbedding layer.
 
@@ -863,11 +864,11 @@ class Attention(Module):
     def __init__(
         self,
         query_dim: int,
-        cross_attention_dim: Optional[int] = None,
+        cross_attention_dim: int | None = None,
         heads: int = 8,
         dim_head: int = 64,
         bias: bool = False,
-        norm_num_groups: Optional[int] = None,
+        norm_num_groups: int | None = None,
         out_bias: bool = True,
         scale_qk: bool = True,
     ):
@@ -899,8 +900,8 @@ class Attention(Module):
     def forward(
         self,
         hidden_states: Tensor,
-        encoder_hidden_states: Optional[Tensor] = None,
-        attention_mask: Optional[Tensor] = None,
+        encoder_hidden_states: Tensor | None = None,
+        attention_mask: Tensor | None = None,
         **cross_attention_kwargs,
     ):
         """

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring,line-too-long,invalid-name,too-many-locals,too-many-statements,too-many-nested-blocks,too-many-branches,too-many-lines,chained-comparison
 
 import pytest
 
@@ -220,8 +219,8 @@ def test_matmul_relu(shared_scope):
             multi_level_tiling_tensor_core(
                 read_reuse_scope=shared_scope, write_reuse_scope=shared_scope
             ),
-        ]
-        + get_rules(kind="cuda", types=ms.schedule_rule.AutoInline),
+            *get_rules(kind="cuda", types=ms.schedule_rule.AutoInline),
+        ],
     )
     check_sketches(
         mod,
@@ -369,14 +368,8 @@ def test_matmul_relu_with_fallback():
         types=None,
         sch_rules=[
             multi_level_tiling_tensor_core(),
-        ]
-        + get_rules(
-            "cuda",
-            (
-                ms.schedule_rule.MultiLevelTiling,
-                ms.schedule_rule.AutoInline,
-            ),
-        ),
+            *get_rules("cuda", (ms.schedule_rule.MultiLevelTiling, ms.schedule_rule.AutoInline)),
+        ],
     )
     check_sketches(
         mod,
@@ -746,8 +739,10 @@ def test_matmul_relu_non_tensorizable():
         mod=mod,
         target=tvm.target.Target({"kind": "cuda", "arch": "sm_70"}),
         types=None,
-        sch_rules=[multi_level_tiling_tensor_core(write_reuse_scope="shared")]
-        + get_rules("cuda", ms.schedule_rule.AutoInline),
+        sch_rules=[
+            multi_level_tiling_tensor_core(write_reuse_scope="shared"),
+            *get_rules("cuda", ms.schedule_rule.AutoInline),
+        ],
     )
     tvm.ir.assert_structural_equal(mod, sch.mod["main"])
 
@@ -889,8 +884,10 @@ def test_padded_matmul_relu():
         mod=mod,
         target=tvm.target.Target({"kind": "cuda", "arch": "sm_70"}),
         types=None,
-        sch_rules=[multi_level_tiling_tensor_core(write_reuse_scope="shared")]
-        + get_rules("cuda", ms.schedule_rule.AutoInline),
+        sch_rules=[
+            multi_level_tiling_tensor_core(write_reuse_scope="shared"),
+            *get_rules("cuda", ms.schedule_rule.AutoInline),
+        ],
     )
     check_sketches(
         mod,
@@ -1047,8 +1044,10 @@ def test_conv_1x1():
         mod=mod,
         target=tvm.target.Target({"kind": "cuda", "arch": "sm_70"}),
         types=None,
-        sch_rules=[multi_level_tiling_tensor_core(write_reuse_scope="shared")]
-        + get_rules("cuda", ms.schedule_rule.AutoInline),
+        sch_rules=[
+            multi_level_tiling_tensor_core(write_reuse_scope="shared"),
+            *get_rules("cuda", ms.schedule_rule.AutoInline),
+        ],
     )
     check_sketches(
         mod,
@@ -1199,8 +1198,10 @@ def test_padded_conv():
         mod=mod,
         target=tvm.target.Target({"kind": "cuda", "arch": "sm_70"}),
         types=None,
-        sch_rules=[multi_level_tiling_tensor_core(write_reuse_scope="shared")]
-        + get_rules("cuda", ms.schedule_rule.AutoInline),
+        sch_rules=[
+            multi_level_tiling_tensor_core(write_reuse_scope="shared"),
+            *get_rules("cuda", ms.schedule_rule.AutoInline),
+        ],
     )
     check_sketches(
         mod,
@@ -1347,8 +1348,10 @@ def test_padded_matmul_single_padded_input():
         mod=mod,
         target=tvm.target.Target({"kind": "cuda", "arch": "sm_70"}),
         types=None,
-        sch_rules=[multi_level_tiling_tensor_core()]
-        + get_rules("cuda", ms.schedule_rule.AutoInline),
+        sch_rules=[
+            multi_level_tiling_tensor_core(),
+            *get_rules("cuda", ms.schedule_rule.AutoInline),
+        ],
     )
     check_sketches(
         mod,
@@ -1494,8 +1497,10 @@ def test_padded_matmul_no_padded_output():
         mod=mod,
         target=tvm.target.Target({"kind": "cuda", "arch": "sm_70"}),
         types=None,
-        sch_rules=[multi_level_tiling_tensor_core()]
-        + get_rules("cuda", ms.schedule_rule.AutoInline),
+        sch_rules=[
+            multi_level_tiling_tensor_core(),
+            *get_rules("cuda", ms.schedule_rule.AutoInline),
+        ],
     )
     check_sketches(
         mod,

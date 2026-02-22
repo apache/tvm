@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 
 import tvm
@@ -26,7 +25,6 @@ from tvm.s_tir.schedule.testing import (
 from tvm.script import tir as T
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name
 
 @T.prim_func
 def element_wise(a: T.handle, c: T.handle) -> None:

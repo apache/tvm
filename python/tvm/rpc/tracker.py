@@ -39,7 +39,6 @@ List of available APIs:
   - input: [TrackerCode.REQUEST, [key, user, priority]]
   - return: [TrackerCode.SUCCESS, [url, port, match-key]]
 """
-# pylint: disable=invalid-name
 
 import asyncio
 import errno
@@ -230,7 +229,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
                 msg = py_str(bytes(self._data[4 : 4 + self._msg_size]))
                 del self._data[: 4 + self._msg_size]
                 self._msg_size = 0
-                # pylint: disable=broad-except
+
                 self.call_handler(json.loads(msg))
             else:
                 return

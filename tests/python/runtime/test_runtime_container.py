@@ -96,7 +96,7 @@ def test_map_argument_returns_value():
 
     res = func({"a": True, "b": False}, "a")
     assert isinstance(res, bool)
-    assert res == True
+    assert res is True
 
 
 def test_map_argument_returns_map():

@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+
+from __future__ import annotations
 
 import math
 import sys
-from typing import List
 
 import pytest
 from tvm_ffi import register_global_func
@@ -36,7 +36,6 @@ from tvm.s_tir.schedule import SBlockRV, Schedule
 from tvm.script import tir as T
 from tvm.target import Target
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off
 
 
@@ -143,7 +142,6 @@ class TrinityMatmulProcessedForReference:
 
 
 # fmt: on
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
 def _is_root(sch: Schedule, block: SBlockRV) -> bool:
@@ -158,10 +156,10 @@ def _check_correct(schedule: Schedule):
 
 @derived_object
 class WowSoFancyScheduleRule(PyScheduleRule):
-    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: TuneContext) -> None:
         pass
 
-    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -175,10 +173,10 @@ class WowSoFancyScheduleRule(PyScheduleRule):
 
 @derived_object
 class DoubleScheduleRule(PyScheduleRule):
-    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: TuneContext) -> None:
         pass
 
-    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -200,10 +198,10 @@ class DoubleScheduleRule(PyScheduleRule):
 
 @derived_object
 class TrinityDoubleRule(PyScheduleRule):
-    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: TuneContext) -> None:
         pass
 
-    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -223,10 +221,10 @@ class TrinityDoubleRule(PyScheduleRule):
 
 @derived_object
 class ReorderScheduleRule(PyScheduleRule):
-    def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+    def _initialize_with_tune_context(self, context: TuneContext) -> None:
         pass
 
-    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -322,10 +320,10 @@ def test_meta_schedule_post_order_apply_duplicate_matmul():
 def test_meta_schedule_post_order_apply_remove_block():
     @derived_object
     class RemoveBlock(PyScheduleRule):
-        def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+        def _initialize_with_tune_context(self, context: TuneContext) -> None:
             pass
 
-        def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+        def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
             if _is_root(sch, block):
                 return [sch]
             sch = sch.copy()

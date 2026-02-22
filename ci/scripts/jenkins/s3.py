@@ -15,13 +15,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
 import argparse
 import logging
 import re
 from enum import Enum
 from pathlib import Path
-from typing import List
 
 from cmd_utils import REPO_ROOT, Sh, init_log
 
@@ -40,7 +40,7 @@ def show_md5(item: str) -> None:
         sh.run(f"md5sum {item}")
 
 
-def parse_output_files(stdout: str) -> List[str]:
+def parse_output_files(stdout: str) -> list[str]:
     """
     Grab the list of downloaded files from the output of 'aws s3 cp'. Lines look
     like:
@@ -59,7 +59,7 @@ def parse_output_files(stdout: str) -> List[str]:
     return files
 
 
-def chmod(files: List[str]) -> None:
+def chmod(files: list[str]) -> None:
     """
     S3 has no concept of file permissions so add them back in here to every file
     """
@@ -70,7 +70,7 @@ def chmod(files: List[str]) -> None:
         SH.run(f"chmod +x {' '.join(to_chmod)}")
 
 
-def s3(source: str, destination: str, recursive: bool) -> List[str]:
+def s3(source: str, destination: str, recursive: bool) -> list[str]:
     """
     Send or download the source to the destination in S3
     """

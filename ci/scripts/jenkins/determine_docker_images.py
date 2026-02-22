@@ -15,6 +15,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import argparse
 import configparser
 import datetime
@@ -22,7 +24,7 @@ import json
 import logging
 import urllib.error
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from cmd_utils import REPO_ROOT, init_log
 from http_utils import get
@@ -34,7 +36,7 @@ IMAGE_TAGS_FILE = REPO_ROOT / "ci" / "jenkins" / "docker-images.ini"
 TVM_CI_ECR = "477529581014.dkr.ecr.us-west-2.amazonaws.com"
 
 
-def docker_api(url: str, use_pagination: bool = False) -> Dict[str, Any]:
+def docker_api(url: str, use_pagination: bool = False) -> dict[str, Any]:
     """
     Run a paginated fetch from the public Docker Hub API
     """
@@ -52,7 +54,7 @@ def docker_api(url: str, use_pagination: bool = False) -> Dict[str, Any]:
         reset = datetime.datetime.fromtimestamp(int(reset))
         reset = reset.isoformat()
     logging.info(
-        f"Docker API Rate Limit: {headers.get('x-ratelimit-remaining')} / {headers.get('x-ratelimit-limit')} (reset at {reset})"
+        f"Docker API Rate Limit: {headers.get('x-ratelimit-remaining')} / {headers.get('x-ratelimit-limit')} (reset at {reset})"  # noqa: E501
     )
     return r
 
@@ -97,7 +99,10 @@ if __name__ == "__main__":
         config.read(IMAGE_TAGS_FILE)
         repo_image_tags = {}
         for name in other:
-            repo_image_tags[name] = config.get("jenkins", name)
+            if config.has_option("jenkins", name):
+                repo_image_tags[name] = config.get("jenkins", name)
+            else:
+                raise RuntimeError(f"{name} not found in {IMAGE_TAGS_FILE}")
 
     images = {}
     for name in other:

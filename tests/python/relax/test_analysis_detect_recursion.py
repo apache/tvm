@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import List
+from __future__ import annotations
 
 import tvm
 import tvm.testing
@@ -24,7 +24,7 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 
-def assert_groups(groups: List[List[rx.GlobalVar]], expected: List[List[str]]) -> None:
+def assert_groups(groups: list[list[rx.GlobalVar]], expected: list[list[str]]) -> None:
     assert len(groups) == len(expected)
 
     # disregard order, search only by name for convenience

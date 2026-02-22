@@ -199,7 +199,6 @@ def parse_compute_version(compute_version):
         minor = int(split_ver[1])
         return major, minor
     except (IndexError, ValueError) as err:
-        # pylint: disable=raise-missing-from
         raise RuntimeError("Compute version parsing error: " + str(err))
 
 

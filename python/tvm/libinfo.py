@@ -176,7 +176,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
         return None
 
     if use_runtime:
-        sys.stderr.write("Loading runtime library %s... exec only\n" % lib_found[0])
+        sys.stderr.write(f"Loading runtime library {lib_found[0]}... exec only\n")
         sys.stderr.flush()
     return lib_found
 

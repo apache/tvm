@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+from __future__ import annotations
+
 import sys
-from typing import Callable, List
+from collections.abc import Callable
 
 import pytest
 from numpy.testing import assert_allclose
@@ -50,7 +51,6 @@ def matmul(
             C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 
 # from tvm.script import tir as T
@@ -75,7 +75,6 @@ class LayoutTransform:
 
 
 # fmt: on
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
 def _make_context(target) -> ms.TuneContext:
@@ -89,10 +88,10 @@ def _make_candidate(f_sch: Callable[[], s_tir.Schedule]) -> ms.MeasureCandidate:
     return ms.MeasureCandidate(sch=f_sch(), args_info=[])
 
 
-def _feature_names(  # pylint: disable=invalid-name
+def _feature_names(
     buffers_per_store: int = 5,
     arith_intensity_curve_num_samples: int = 10,
-) -> List[str]:
+) -> list[str]:
     result = [
         "float_mad",
         "float_addsub",
@@ -200,7 +199,7 @@ def _zip_feature(feature, names):
     return list(zip(names, feature))
 
 
-def _print_feature(feature, st, ed):  # pylint: disable=invalid-name
+def _print_feature(feature, st, ed):
     named_feature = _zip_feature(feature, _feature_names())
     for k, v in named_feature[st:ed]:
         print("\t", k, v)
@@ -230,9 +229,9 @@ def test_cpu_matmul():
     assert feature.shape == (1, N_FEATURES)
     f = feature[0]
     # Group 1.1: arith
+    # fmt: off
     assert_allclose(
         actual=f[0:16],
-        # fmt: off
         desired=[
             # float math ops
             0,
@@ -254,10 +253,10 @@ def test_cpu_matmul():
             0,
             0,
         ],
-        # fmt: on
         rtol=1e-5,
         atol=1e-5,
     )
+    # fmt: on
     # Group 1.2: vectorize
     assert_allclose(
         actual=f[16:27],
@@ -417,7 +416,6 @@ def test_cpu_matmul():
 
 
 def test_cpu_fusion():
-    # pylint: disable=all
     @T.prim_func
     def func(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, [64, 32], dtype="float32")
@@ -436,8 +434,6 @@ def test_cpu_fusion():
                     T.writes([C[i, j]])  # type: ignore
                     C[i, j] = B[i, j]  # type: ignore
 
-    # pylint: enable=all
-
     def _create_schedule():
         return s_tir.Schedule(func, debug_mask="all")
 
@@ -453,9 +449,7 @@ def test_cpu_fusion():
     # Group 1.1: arith
     assert_allclose(
         actual=f[0:16],
-        # fmt: off
         desired=[0.0] * 16,
-        # fmt: on
         rtol=1e-5,
         atol=1e-5,
     )
@@ -587,9 +581,7 @@ def test_cpu_fusion():
     # Group 1.1: arith
     assert_allclose(
         actual=f[0:16],
-        # fmt: off
         desired=[0.0] * 16,
-        # fmt: on
         rtol=1e-5,
         atol=1e-5,
     )
@@ -747,11 +739,11 @@ def test_gpu():
         c = sch.get_sblock("C")
         c_local = sch.cache_write(c, 0, "local")
         i, j, k = sch.get_loops(c)
-        # pylint: disable=invalid-name
+
         i0, i1, i2, i3, i4 = sch.split(i, factors=[None, 1, 16, 32, 1])  # outer: 1
         j0, j1, j2, j3, j4 = sch.split(j, factors=[None, 4, 1, 1, 16])  # outer: 8
         k0, k1, k2 = sch.split(k, factors=[None, 1, 2])  # outer: 256
-        # pylint: enable=invalid-name
+
         # fmt: off
         sch.reorder(
             i0, j0,  # S

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test Meta Schedule SpaceGenerator"""
-# pylint: disable=missing-function-docstring
 
 import math
 
@@ -34,7 +33,6 @@ from tvm.s_tir.meta_schedule.utils import derived_object
 from tvm.s_tir.schedule import Schedule
 from tvm.script import tir as T
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 # fmt: off
 
 @tvm.script.ir_module
@@ -53,7 +51,6 @@ class Matmul:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 # fmt: on
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
 def schedule_matmul(sch: Schedule):

@@ -16,10 +16,13 @@
 # under the License.
 """Meta Schedule FeatureExtractor."""
 
-from typing import Callable, List, Union
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -41,8 +44,8 @@ class FeatureExtractor(Object):
     FeatureExtractorType = Union[Literal["per-store-feature"], "FeatureExtractor"]
 
     def extract_from(
-        self, context: TuneContext, candidates: List[MeasureCandidate]
-    ) -> List[Tensor]:
+        self, context: TuneContext, candidates: list[MeasureCandidate]
+    ) -> list[Tensor]:
         """Extract features from the given measure candidate.
 
         Parameters
@@ -57,7 +60,7 @@ class FeatureExtractor(Object):
         features : List[Tensor]
             The feature tvm ndarray extracted.
         """
-        result = _ffi_api.FeatureExtractorExtractFrom(  # type: ignore # pylint: disable=no-member
+        result = _ffi_api.FeatureExtractorExtractFrom(  # type: ignore
             self, context, candidates
         )
         return result
@@ -67,9 +70,9 @@ class FeatureExtractor(Object):
         kind: Literal["per-store-feature"],
         *args,
         **kwargs,
-    ) -> "FeatureExtractor":
+    ) -> FeatureExtractor:
         """Create a CostModel."""
-        from . import PerStoreFeature  # pylint: disable=import-outside-toplevel
+        from . import PerStoreFeature
 
         if kind == "per-store-feature":
             return PerStoreFeature(*args, **kwargs)  # type: ignore
@@ -85,11 +88,11 @@ class _PyFeatureExtractor(FeatureExtractor):
     See also: PyFeatureExtractor
     """
 
-    def __init__(self, f_extract_from: Callable, f_as_string: Callable = None):
+    def __init__(self, f_extract_from: Callable, f_as_string: Callable | None = None):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
-            _ffi_api.FeatureExtractorPyFeatureExtractor,  # type: ignore # pylint: disable=no-member
+            _ffi_api.FeatureExtractorPyFeatureExtractor,  # type: ignore
             f_extract_from,
             f_as_string,
         )
@@ -109,8 +112,8 @@ class PyFeatureExtractor:
     }
 
     def extract_from(
-        self, context: TuneContext, candidates: List[MeasureCandidate]
-    ) -> List[Tensor]:
+        self, context: TuneContext, candidates: list[MeasureCandidate]
+    ) -> list[Tensor]:
         """Extract features from the given measure candidate.
 
         Parameters

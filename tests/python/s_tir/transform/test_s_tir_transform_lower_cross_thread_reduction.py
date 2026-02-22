@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import sys
 
 import pytest
@@ -23,8 +22,6 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.script import tir as T
-
-# pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
 def _check(original, transformed):
@@ -1781,9 +1778,6 @@ def lowered_no_thread_broadcast(
                 T.reads(temp_2_local[0])
                 T.writes(B[vi, vj])
                 B[vi, vj] = A[vi, vj] + temp_2_local[0]
-
-
-# pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
 def test_loop_split():

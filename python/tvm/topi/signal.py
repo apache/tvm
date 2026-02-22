@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks, unused-argument
 """STFT operator"""
 
 from math import pi

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,unused-argument
 """Common pass instrumentation across IR variants."""
 
 import functools
@@ -300,7 +299,7 @@ class PrintBeforeAll:
 class DumpIR:
     """Dump the IR after the pass runs."""
 
-    def __init__(self, dump_dir: Union[Path, str], refresh: bool = False):
+    def __init__(self, dump_dir: Path | str, refresh: bool = False):
         if isinstance(dump_dir, Path):
             self.dump_dir = dump_dir
         else:
@@ -336,7 +335,7 @@ class DumpIR:
             sanitized_pass_name = re.sub(r'[<>:"/\\|?*]', "_", info.name)
             with open(self.dump_dir / f"{self.counter:03d}_{sanitized_pass_name}.py", "w") as f:
                 f.write(mod.script())
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             print(f"WARNING: Failed to dump IR for pass {info.name}")
         finally:
             self.counter += 1

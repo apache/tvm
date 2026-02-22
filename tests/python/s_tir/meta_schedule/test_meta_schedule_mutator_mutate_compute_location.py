@@ -14,13 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
-
-# pylint: disable=invalid-name, no-member
 
 
 @T.prim_func
@@ -47,16 +44,13 @@ def add(a: T.handle, b: T.handle) -> None:
             B[vi, vj, vk] = A_cached[vi, vj, vk] + T.float32(1)
 
 
-# pylint: enable=invalid-name, no-member
-
-
 def _sch(decision: int) -> Schedule:
     sch = Schedule(add, debug_mask="all")
-    # pylint: disable=invalid-name
+
     b0 = sch.get_sblock(name="move", func_name="main")
     l1 = sch.sample_compute_location(block=b0, decision=decision)
     sch.compute_at(block=b0, loop=l1, preserve_unit_loops=True)
-    # pylint: enable=invalid-name
+
     return sch
 
 
@@ -70,7 +64,7 @@ def _make_mutator(target: Target) -> ms.Mutator:
             mutator_probs={ms.mutator.MutateComputeLocation(): 1.0},
         ),
     )
-    return list(ctx.space_generator.mutator_probs.keys())[0]
+    return next(iter(ctx.space_generator.mutator_probs.keys()))
 
 
 def test_mutate_compute_location_add():

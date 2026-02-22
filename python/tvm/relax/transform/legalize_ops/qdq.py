@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Default legalization function for quantize/dequantize operators."""
 
 from typing import Union
@@ -48,8 +47,8 @@ def _quantize(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_quantize(
         data: te.Tensor,
-        scale: Union[te.Tensor, tir.IntImm, tir.FloatImm],
-        zp: Union[te.Tensor, tir.IntImm, tir.FloatImm],
+        scale: te.Tensor | tir.IntImm | tir.FloatImm,
+        zp: te.Tensor | tir.IntImm | tir.FloatImm,
     ):
         def quantize_compute(*indices):
             scale_value = scale if is_const_scalar(scale) else scale[indices[axis]]
@@ -96,8 +95,8 @@ def _dequantize(bb: BlockBuilder, call: Call) -> Expr:
 
     def te_dequantize(
         data: te.Tensor,
-        scale: Union[te.Tensor, tir.IntImm, tir.FloatImm],
-        zp: Union[te.Tensor, tir.IntImm, tir.FloatImm],
+        scale: te.Tensor | tir.IntImm | tir.FloatImm,
+        zp: te.Tensor | tir.IntImm | tir.FloatImm,
     ):
         def dequantize_compute(*indices):
             scale_value = scale if is_const_scalar(scale) else scale[indices[axis]]

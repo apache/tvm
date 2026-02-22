@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import List, Set, Union
+from __future__ import annotations
 
 import pytest
 
@@ -39,7 +39,7 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 
-def var_name_set(vars: List[Union[rx.Var, rx.GlobalVar]]) -> Set[str]:
+def var_name_set(vars: list[rx.Var | rx.GlobalVar]) -> set[str]:
     return set(map(lambda v: v.name_hint, vars))
 
 

@@ -18,7 +18,7 @@
 The pass is written in Python for experiment, fast development.
 """
 
-from typing import Dict
+from __future__ import annotations
 
 import tvm
 from tvm import relax
@@ -56,15 +56,15 @@ class IPCAllReduceRewrite:
 
 
 @visitor
-class _Visitor(PyExprVisitor):  # pylint: disable=abstract-method
+class _Visitor(PyExprVisitor):
     def __init__(self, allreduce_strategy: int) -> None:
         self.allreduce_strategy = allreduce_strategy
-        self.alloc_map: Dict[Var, relax.Call] = {}
-        self.binding_replacement_map: Dict[relax.Expr, relax.Expr] = {}
+        self.alloc_map: dict[Var, relax.Call] = {}
+        self.binding_replacement_map: dict[relax.Expr, relax.Expr] = {}
         self.builtin_alloc_tensor_op = tvm.ir.Op.get("relax.builtin.alloc_tensor")
         self.reshape_op = tvm.ir.Op.get("relax.reshape")
 
-    def visit(self, mod: IRModule) -> Dict[relax.Expr, relax.Expr]:
+    def visit(self, mod: IRModule) -> dict[relax.Expr, relax.Expr]:
         """Entry point"""
         for _, func in mod.functions_items():
             if isinstance(func, relax.Function):
@@ -88,7 +88,7 @@ class _Visitor(PyExprVisitor):  # pylint: disable=abstract-method
         ):
             self.alloc_map[binding.var] = self.alloc_map[binding.value.args[0]]
 
-    def visit_call_(self, call: relax.Call) -> None:  # pylint: disable=arguments-renamed
+    def visit_call_(self, call: relax.Call) -> None:
         if (
             not isinstance(call.op, relax.ExternFunc)
             or call.op.global_symbol != "runtime.disco.allreduce"
@@ -128,7 +128,7 @@ class _Rewriter(PyExprMutator):
     """Rewrite the IRModule according to the binding replacement provided by the visitor."""
 
     def __init__(
-        self, mod: IRModule, binding_replacement_map: Dict[relax.Expr, relax.Expr]
+        self, mod: IRModule, binding_replacement_map: dict[relax.Expr, relax.Expr]
     ) -> None:
         super().__init__(mod)
         self.mod = mod
@@ -142,7 +142,7 @@ class _Rewriter(PyExprMutator):
                 self.builder_.update_func(g_var, updated_func)
         return self.builder_.get()
 
-    def visit_call_(self, call: relax.Call) -> Expr:  # pylint: disable=arguments-renamed
+    def visit_call_(self, call: relax.Call) -> Expr:
         return (
             super().visit_call_(self.binding_replacement_map[call])
             if call in self.binding_replacement_map

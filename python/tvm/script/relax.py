@@ -16,4 +16,4 @@
 # under the License.
 """TVM Script APIs of TVM Python Package for Relax"""
 
-from .parser.relax import *  # pylint: disable=redefined-builtin,unused-wildcard-import,wildcard-import
+from .parser.relax import *

@@ -14,15 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 
 import tvm
 import tvm.testing
 from tvm import s_tir, tir
 from tvm.script import tir as T
-
-# pylint: disable=no-member,invalid-name,unused-variable
 
 
 @T.prim_func
@@ -57,9 +54,6 @@ def two_kernels(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
                 i: T.int32 = blockIdx_x * 1024 + threadIdx_x
                 if i < s8:
                     B[i // s8, i % s8] = A[i // s8, i % s8]
-
-
-# pylint: enable=no-member,invalid-name,unused-variable
 
 
 def test_tir_schedule_error_detail():

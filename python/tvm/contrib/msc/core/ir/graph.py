@@ -16,7 +16,10 @@
 # under the License.
 """tvm.contrib.msc.core.ir.graph"""
 
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from __future__ import annotations
+
+from collections.abc import Iterable
+from typing import Any
 
 import numpy as np
 import tvm_ffi
@@ -50,11 +53,11 @@ class MSCTensor(Object):
     def __init__(
         self,
         name: str,
-        dtype: Union[str, np.dtype, tvm.DataType],
+        dtype: str | np.dtype | tvm.DataType,
         layout: str,
-        shape: List[int],
-        alias: Optional[str] = None,
-        prims: List[str] = None,
+        shape: list[int],
+        alias: str | None = None,
+        prims: list[str] | None = None,
     ):
         if not isinstance(dtype, tvm.DataType):
             dtype = tvm.DataType(dtype)
@@ -62,7 +65,7 @@ class MSCTensor(Object):
             _ffi_api.MSCTensor, name, dtype, layout, shape, alias or "", prims or []
         )
 
-    def get_shape(self, with_prims: bool = False) -> List[Union[int, str]]:
+    def get_shape(self, with_prims: bool = False) -> list[int | str]:
         """Get shape of the tensor
 
         Parameters
@@ -83,7 +86,7 @@ class MSCTensor(Object):
     def get_size(self) -> int:
         return int(_ffi_api.MSCTensorGetSize(self))
 
-    def dim_at(self, axis: Union[int, str]) -> int:
+    def dim_at(self, axis: int | str) -> int:
         if isinstance(axis, int):
             return int(self.shape[axis])
         return int(_ffi_api.MSCTensorDimAt(self, axis))
@@ -231,10 +234,10 @@ class MSCJoint(BaseJoint):
         name: str,
         shared_ref: str,
         optype: str,
-        attrs: Dict[str, str],
-        inputs: List[Tuple[BaseJoint, int]],
-        outputs: List[MSCTensor],
-        weights: Dict[str, MSCTensor],
+        attrs: dict[str, str],
+        inputs: list[tuple[BaseJoint, int]],
+        outputs: list[MSCTensor],
+        weights: dict[str, MSCTensor],
     ):
         parents = [i[0] for i in inputs]
         out_indices = [i[1] for i in inputs]
@@ -318,7 +321,7 @@ class MSCJoint(BaseJoint):
                 return w_type
         raise Exception("Can not find weight type for " + name)
 
-    def get_inputs(self) -> List[MSCTensor]:
+    def get_inputs(self) -> list[MSCTensor]:
         """Get all the inputs.
 
         Returns
@@ -329,7 +332,7 @@ class MSCJoint(BaseJoint):
 
         return _ffi_api.MSCJointGetInputs(self)
 
-    def get_outputs(self) -> List[MSCTensor]:
+    def get_outputs(self) -> list[MSCTensor]:
         """Get all the outputs.
 
         Returns
@@ -340,7 +343,7 @@ class MSCJoint(BaseJoint):
 
         return _ffi_api.MSCJointGetOutputs(self)
 
-    def get_weights(self) -> Dict[str, MSCTensor]:
+    def get_weights(self) -> dict[str, MSCTensor]:
         """Get all the weights.
 
         Returns
@@ -352,7 +355,7 @@ class MSCJoint(BaseJoint):
         src_weights = _ffi_api.MSCJointGetWeights(self)
         return {wtype: src_weights[wtype] for wtype in src_weights}
 
-    def get_attrs(self) -> Dict[str, str]:
+    def get_attrs(self) -> dict[str, str]:
         """Get all the attributes from node
 
         Returns
@@ -363,7 +366,7 @@ class MSCJoint(BaseJoint):
 
         return _ffi_api.MSCJointGetAttrs(self)
 
-    def get_attr(self, key: str, default: Optional[Any] = None) -> str:
+    def get_attr(self, key: str, default: Any | None = None) -> str:
         """Get the attribute of key from node
 
         Parameters
@@ -445,7 +448,7 @@ class MSCPrim(BaseJoint):
     """
 
     def __init__(
-        self, index: int, name: str, optype: str, attrs: Dict[str, str], parents: List[BaseJoint]
+        self, index: int, name: str, optype: str, attrs: dict[str, str], parents: list[BaseJoint]
     ):
         self.__init_handle_by_constructor__(_ffi_api.MSCPrim, index, name, optype, attrs, parents)
 
@@ -487,9 +490,9 @@ class WeightJoint(BaseJoint):
         wtype: str,
         strategy: str,
         weight: MSCTensor,
-        attrs: Dict[str, str],
-        parents: List[BaseJoint],
-        friends: List[BaseJoint],
+        attrs: dict[str, str],
+        parents: list[BaseJoint],
+        friends: list[BaseJoint],
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.WeightJoint,
@@ -518,7 +521,7 @@ class WeightJoint(BaseJoint):
 
         _ffi_api.WeightJointSetAttr(self, key, value)
 
-    def get_attrs(self) -> Dict[str, str]:
+    def get_attrs(self) -> dict[str, str]:
         """Get all the attributes from node
 
         Returns
@@ -529,7 +532,7 @@ class WeightJoint(BaseJoint):
 
         return _ffi_api.WeightJointGetAttrs(self)
 
-    def get_attr(self, key: str, default: Optional[Any] = None) -> str:
+    def get_attr(self, key: str, default: Any | None = None) -> str:
         """Get the attribute of key from node
 
         Parameters
@@ -588,9 +591,9 @@ class MSCGraph(BaseGraph):
     def __init__(
         self,
         name: str,
-        nodes: List[MSCJoint],
-        input_names: List[str],
-        output_names: List[str],
+        nodes: list[MSCJoint],
+        input_names: list[str],
+        output_names: list[str],
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.MSCGraph,
@@ -693,7 +696,7 @@ class MSCGraph(BaseGraph):
 
         _ffi_api.MSCGraphSetTensorAlias(self, tensor, alias)
 
-    def find_producer(self, ref: Union[str, MSCTensor]) -> MSCJoint:
+    def find_producer(self, ref: str | MSCTensor) -> MSCJoint:
         """Find producer by tensor_name or tensor.
 
         Parameters
@@ -711,7 +714,7 @@ class MSCGraph(BaseGraph):
             return _ffi_api.MSCGraphFindProducer(self, ref.name)
         return _ffi_api.MSCGraphFindProducer(self, ref)
 
-    def find_consumers(self, ref: Union[str, MSCTensor]) -> List[MSCJoint]:
+    def find_consumers(self, ref: str | MSCTensor) -> list[MSCJoint]:
         """Find consumers by tensor_name or tensor.
 
         Parameters
@@ -763,8 +766,7 @@ class MSCGraph(BaseGraph):
         """
 
         for node in self.get_nodes():
-            for weight in node.get_weights().values():
-                yield weight
+            yield from node.get_weights().values()
 
     def input_at(self, idx: int) -> MSCTensor:
         """Get input at idx.
@@ -798,7 +800,7 @@ class MSCGraph(BaseGraph):
 
         return _ffi_api.MSCGraphOutputAt(self, idx)
 
-    def get_inputs(self) -> List[MSCTensor]:
+    def get_inputs(self) -> list[MSCTensor]:
         """Get all the inputs.
 
         Returns
@@ -809,7 +811,7 @@ class MSCGraph(BaseGraph):
 
         return _ffi_api.MSCGraphGetInputs(self)
 
-    def get_outputs(self) -> List[MSCTensor]:
+    def get_outputs(self) -> list[MSCTensor]:
         """Get all the outputs.
 
         Returns
@@ -820,7 +822,7 @@ class MSCGraph(BaseGraph):
 
         return _ffi_api.MSCGraphGetOutputs(self)
 
-    def get_tensors(self) -> List[MSCTensor]:
+    def get_tensors(self) -> list[MSCTensor]:
         """Get all the tensors.
 
         Returns
@@ -830,12 +832,9 @@ class MSCGraph(BaseGraph):
         """
 
         for node in self.get_nodes():
-            for t_input in node.get_inputs():
-                yield t_input
-            for weight in node.get_weights().values():
-                yield weight
-        for t_output in self.get_outputs():
-            yield t_output
+            yield from node.get_inputs()
+            yield from node.get_weights().values()
+        yield from self.get_outputs()
 
     def to_json(self) -> str:
         """Dump the graph to json.
@@ -937,7 +936,7 @@ class MSCGraph(BaseGraph):
                 return False
         return True
 
-    def visualize(self, path: Optional[str] = None) -> str:
+    def visualize(self, path: str | None = None) -> str:
         """Dump the graph to prototxt format.
 
         Parameters
@@ -973,7 +972,7 @@ class WeightGraph(BaseGraph):
     def __init__(
         self,
         name: str,
-        nodes: List[WeightJoint],
+        nodes: list[WeightJoint],
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.WeightGraph,
@@ -1085,7 +1084,7 @@ class WeightGraph(BaseGraph):
 
         return MSCGraph.from_json(self.to_json())
 
-    def visualize(self, path: Optional[str] = None) -> str:
+    def visualize(self, path: str | None = None) -> str:
         """Dump the graph to prototxt format.
 
         Parameters

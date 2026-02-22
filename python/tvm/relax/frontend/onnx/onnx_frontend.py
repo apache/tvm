@@ -35,12 +35,15 @@ Not all TVM kernels currently support dynamic shapes, please file an issue on
 github.com/apache/tvm/issues if you hit an error with dynamic kernels.
 """
 
+from __future__ import annotations
+
 import functools
 import math
 import operator
 import re
 import warnings
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any
 
 import numpy as _np
 import onnx.onnx_ml_pb2
@@ -55,7 +58,7 @@ from tvm.topi.utils import get_const_tuple
 from ..common import autopad
 
 
-def get_type(elem_type: Union[str, int]) -> str:
+def get_type(elem_type: str | int) -> str:
     """Converts onnx integer datatype to numpy datatype"""
     # If a string was passed instead of a tensor type, it does not need
     # conversion and can be returned.
@@ -63,7 +66,7 @@ def get_type(elem_type: Union[str, int]) -> str:
         return elem_type
 
     try:
-        from onnx.helper import (  # pylint: disable=import-outside-toplevel
+        from onnx.helper import (
             tensor_dtype_to_np_dtype,
         )
     except ImportError as exception:
@@ -73,9 +76,9 @@ def get_type(elem_type: Union[str, int]) -> str:
 
 
 def get_constant(
-    var: Union[relax.Constant, relax.Var],
-    params: List[Dict[str, relax.Var]],
-) -> Union[relax.Constant, relax.Var]:
+    var: relax.Constant | relax.Var,
+    params: list[dict[str, relax.Var]],
+) -> relax.Constant | relax.Var:
     """Attempt to convert a variable to a constant if possible.
     This is the primary function meant to interact with params.
 
@@ -108,7 +111,7 @@ def get_constant(
         return var
 
 
-def get_value(token, value_dict: Dict[str, tvm.tir.SizeVar]) -> Union[int, tvm.tir.SizeVar]:
+def get_value(token, value_dict: dict[str, tvm.tir.SizeVar]) -> int | tvm.tir.SizeVar:
     """Converts to token to an integer value if it a constant, otherwise it generates a SizeVar
 
     Parameters
@@ -135,8 +138,8 @@ def get_value(token, value_dict: Dict[str, tvm.tir.SizeVar]) -> Union[int, tvm.t
 
 
 def parse_shape_name(
-    name: str, value_dict: Dict[str, tvm.tir.SizeVar]
-) -> Union[tir.PrimExpr, tvm.tir.SizeVar]:
+    name: str, value_dict: dict[str, tvm.tir.SizeVar]
+) -> tir.PrimExpr | tvm.tir.SizeVar:
     """Converts expressions in the shape dimension name to prim expressions.
 
     Parameters
@@ -186,8 +189,8 @@ def parse_shape_name(
 
 
 def get_info(
-    info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict: Dict[str, tvm.tir.SizeVar]
-) -> Tuple[str, List, str, List, Dict]:
+    info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict: dict[str, tvm.tir.SizeVar]
+) -> tuple[str, list, str, list, dict]:
     """Extract the shape from a ValueInfoProto.
 
     Parameters
@@ -227,15 +230,15 @@ def get_info(
 def get_numpy(tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> _np.ndarray:
     """Grab data in TensorProto and convert to numpy array."""
     try:
-        from onnx.numpy_helper import to_array  # pylint: disable=import-outside-toplevel
+        from onnx.numpy_helper import to_array
     except ImportError as exception:
         raise ImportError(f"Unable to import onnx which is required {exception}")
     return to_array(tensor_proto)
 
 
 def get_prim_expr_list(
-    inputs: Union[relax.Constant, relax.ShapeExpr],
-) -> List[Union[int, tir.PrimExpr]]:
+    inputs: relax.Constant | relax.ShapeExpr,
+) -> list[int | tir.PrimExpr]:
     """Attempt to convert a variable to list of PrimExpr if possible.
 
     Parameters
@@ -261,7 +264,7 @@ def get_prim_expr_list(
         raise ValueError(f"Cannot cast {type(inputs)} to list of PrimExpr")
 
 
-class onnx_input(list):  # pylint: disable=invalid-name
+class onnx_input(list):
     """A list that returns None when out-of-bounds indices are accessed."""
 
     def __getitem__(self, item):
@@ -274,10 +277,9 @@ class onnx_input(list):  # pylint: disable=invalid-name
             return [self[i] for i in indices]
         if isinstance(item, int):
             return list(self)[item] if item < len(self) else None
-        raise TypeError("list indices must be integers or slices, not %s" % type(item).__name__)
+        raise TypeError(f"list indices must be integers or slices, not {type(item).__name__}")
 
 
-# pylint: disable=invalid-name, len-as-condition, unused-argument, too-many-lines, redefined-builtin
 class OnnxOpConverter:
     """A helper class for holding the common logic for ONNX op converters.
     Each converter maps to a single ONNX op and defines the equivalent
@@ -300,7 +302,7 @@ class OnnxOpConverter:
             number smaller than or equal to opset belongs to all support versions.
         """
         versions = [int(d.replace("_impl_v", "")) for d in dir(cls) if "_impl_v" in d]
-        versions = sorted(versions + [opset])
+        versions = sorted([*versions, opset])
         version = versions[max([i for i, v in enumerate(versions) if v == opset]) - 1]
         if hasattr(cls, f"_impl_v{version}"):
             return getattr(cls, f"_impl_v{version}")
@@ -339,18 +341,18 @@ class BinaryBase(OnnxOpConverter):
         if all([not isinstance(inp, (relax.expr.Call, relax.Var)) for inp in inputs]):
             x = _to_numpy(inputs[0])
             y = _to_numpy(inputs[1])
-            output = cls.numpy_op(x, y)  # pylint: disable=not-callable
+            output = cls.numpy_op(x, y)
             if isinstance(x, relax.PrimValue) and isinstance(y, relax.PrimValue):
                 return relax.PrimValue(output.item())
             if x.dtype == y.dtype:
                 # no numpy precision widening
                 output = output.astype(x.dtype)
             if all([isinstance(inp, relax.Constant) for inp in inputs]):
-                return relax.const(output, output.dtype)  # pylint: disable=not-callable
+                return relax.const(output, output.dtype)
             if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
-                return relax.PrimValue(output.item())  # pylint: disable=not-callable
+                return relax.PrimValue(output.item())
 
-        return cls.relax_op(inputs[0], inputs[1])  # pylint: disable=not-callable
+        return cls.relax_op(inputs[0], inputs[1])
 
 
 class Add(BinaryBase):
@@ -681,7 +683,7 @@ class Unsqueeze(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
         axes = list(attr.get("axes"))
-        inputs = inputs + [relax.const(axes, "int64")]
+        inputs = [*inputs, relax.const(axes, "int64")]
         return cls._impl_v13(bb, inputs, attr, params)
 
     @classmethod
@@ -854,7 +856,7 @@ class ScatterND(OnnxOpConverter):
     """Convert an onnx ScatterND node into an equivalent Relax expression."""
 
     @staticmethod
-    def _reduction_check(attr, valid_reductions: List[str]):
+    def _reduction_check(attr, valid_reductions: list[str]):
         reduction = attr.get("reduction", None)
         reduction = reduction or b"update"
         reduction = reduction.decode("utf-8")
@@ -1700,7 +1702,7 @@ class MultiInputBase(OnnxOpConverter):
             raise NotImplementedError("numpy_op and relax_op must be defined for MultiInputBase")
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
             np_inputs = [inp.data.numpy() for inp in inputs]
-            output = cls.numpy_op(*np_inputs)  # pylint: disable=not-callable
+            output = cls.numpy_op(*np_inputs)
             return relax.const(output, output.dtype)
 
         input_shapes = [inp.struct_info.shape for inp in inputs]
@@ -1709,7 +1711,7 @@ class MultiInputBase(OnnxOpConverter):
         # broadcast_to, stack them, then perform minimum over the new axis.
         inputs = [bb.normalize(relax.op.broadcast_to(i, target_shape)) for i in inputs]
         stacked_tensor = bb.normalize(relax.op.stack(inputs, axis=0))
-        return cls.relax_op(stacked_tensor, axis=0)  # pylint: disable=not-callable
+        return cls.relax_op(stacked_tensor, axis=0)
 
 
 class Min(MultiInputBase):
@@ -2083,7 +2085,7 @@ class Expand(OnnxOpConverter):
             return relax.op.broadcast_to(data, relax.ShapeExpr(new_shape))
 
         # Otherwise handle dynamic shapes.
-        shape_ndim = [dim.value for dim in shape.struct_info.shape.values][0]
+        shape_ndim = next(dim.value for dim in shape.struct_info.shape.values)
         shape_dataflow_var = bb.emit(
             relax.Call(
                 relax.ExternFunc("vm.builtin.tensor_to_shape"),
@@ -2094,7 +2096,7 @@ class Expand(OnnxOpConverter):
 
         shape_vars = []
         for i in range(shape_ndim):
-            shape_vars.append(tvm.tir.Var("x_%d" % i, "int64"))
+            shape_vars.append(tvm.tir.Var(f"x_{i}", "int64"))
         bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
 
         # Applying broadcasting rules for dynamic shapes
@@ -4040,22 +4042,22 @@ class ONNXGraphImporter:
 
     def __init__(
         self,
-        shape_dict: Dict[str, List],
-        dtype_dict: Union[str, Dict[str, str]],
+        shape_dict: dict[str, list],
+        dtype_dict: str | dict[str, str],
         keep_params_in_input: bool = False,
         sanitize: bool = True,
     ):
-        self._nodes: Dict[str, relax.Expr] = {}
-        self._inputs: Dict[str, relax.Var] = {}
+        self._nodes: dict[str, relax.Expr] = {}
+        self._inputs: dict[str, relax.Var] = {}
         self._num_input: int = 0
         self._shape = shape_dict.copy() if shape_dict else {}
-        self._input_names: List[str] = []
+        self._input_names: list[str] = []
         self._dtype = dtype_dict
         self.opset: int = None
         self._name_supply = NameSupply()
         self._keep_params_in_input = keep_params_in_input
         self._sanitize: bool = sanitize
-        self.bb: relax.BlockBuilder = relax.BlockBuilder()  # pylint: disable=invalid-name
+        self.bb: relax.BlockBuilder = relax.BlockBuilder()
         self._params = {}
 
     def from_onnx(self, graph: onnx.onnx_ml_pb2.ModelProto, opset: int) -> IRModule:
@@ -4073,7 +4075,7 @@ class ONNXGraphImporter:
             The returned relax module
         """
         with self.bb.function("main"):
-            with self.bb.dataflow() as df:  # pylint: disable=invalid-name, unused-variable
+            with self.bb.dataflow() as df:
                 self.opset = opset
                 self._parse_graph_initializers(graph)
                 self._parse_graph_input(graph)
@@ -4149,10 +4151,10 @@ class ONNXGraphImporter:
             new_name = str(self._name_supply.fresh_name(new_name))
 
         if new_name != name:
-            warnings.warn("Renaming name %s to %s" % (name, new_name))
+            warnings.warn(f"Renaming name {name} to {new_name}")
         return new_name
 
-    def _new_var(self, var_name: str, shape: List, dtype: str = "float32"):
+    def _new_var(self, var_name: str, shape: list, dtype: str = "float32"):
         """Creates a new Relax variable."""
         return relax.Var(
             name_hint=var_name, struct_info=relax.TensorStructInfo(shape=shape, dtype=dtype)
@@ -4173,9 +4175,8 @@ class ONNXGraphImporter:
                 else:
                     if "?" in str(i_shape):
                         warning_msg = (
-                            "Input %s has unknown dimension shapes: %s. "
+                            f"Input {i_name} has unknown dimension shapes: {i_shape_name!s}. "
                             "Specifying static values may improve performance"
-                            % (i_name, str(i_shape_name))
                         )
                         warnings.warn(warning_msg)
                 if isinstance(self._dtype, dict):
@@ -4296,7 +4297,7 @@ class ONNXGraphImporter:
         np_array = get_numpy(tensor_proto).reshape(tuple(tensor_proto.dims))
         return tvm.runtime.tensor(np_array)
 
-    def _parse_attr(self, attr_proto: onnx.onnx_ml_pb2.AttributeProto) -> Dict[str, Any]:
+    def _parse_attr(self, attr_proto: onnx.onnx_ml_pb2.AttributeProto) -> dict[str, Any]:
         """Convert a list of AttributeProto to a dict, with names as keys."""
         attrs = {}
         for a in attr_proto:
@@ -4324,8 +4325,8 @@ class ONNXGraphImporter:
     def _convert_operator(
         self,
         op_name: str,
-        inputs: List[relax.Expr],
-        attrs: Dict,
+        inputs: list[relax.Expr],
+        attrs: dict,
         opset: int,
     ) -> relax.Expr:
         """Convert ONNX operator into a Relax operator.
@@ -4359,9 +4360,9 @@ class ONNXGraphImporter:
 
 def from_onnx(
     model: onnx.onnx_ml_pb2.GraphProto,
-    shape_dict: Optional[Dict[str, List]] = None,
-    dtype_dict: Optional[Union[str, Dict[str, str]]] = "float32",
-    opset: int = None,
+    shape_dict: dict[str, list] | None = None,
+    dtype_dict: str | dict[str, str] | None = "float32",
+    opset: int | None = None,
     keep_params_in_input: bool = False,
     sanitize_input_names: bool = True,
 ) -> IRModule:
@@ -4399,13 +4400,13 @@ def from_onnx(
         )
 
     try:
-        import onnx  # pylint: disable=import-outside-toplevel, redefined-outer-name
+        import onnx
 
         if hasattr(onnx.checker, "check_model"):
             # try use onnx's own model checker before converting any model
             try:
                 onnx.checker.check_model(model)
-            except Exception as exception:  # pylint: disable=c-extension-no-member, broad-except
+            except Exception as exception:
                 # the checker is a bit violent about errors, so simply print warnings here
                 warnings.warn(str(exception))
     except ImportError as error:

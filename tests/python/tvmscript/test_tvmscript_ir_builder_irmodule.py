@@ -26,7 +26,7 @@ from tvm.script.ir_builder import ir as I
 
 
 def test_ir_builder_irmodule():
-    with IRBuilder() as ib:  # pylint: disable=invalid-name
+    with IRBuilder() as ib:
         with I.ir_module():
             pass
 

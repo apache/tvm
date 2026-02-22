@@ -41,10 +41,10 @@ class AddRFactor(ScheduleRule):
     def __init__(
         self,
         max_jobs_per_core: int = 16,
-        max_innermost_factor: Optional[int] = None,
+        max_innermost_factor: int | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ScheduleRuleAddRFactor,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ScheduleRuleAddRFactor,  # type: ignore
             max_jobs_per_core,
             max_innermost_factor,
         )

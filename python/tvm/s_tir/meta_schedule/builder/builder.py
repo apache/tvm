@@ -16,10 +16,13 @@
 # under the License.
 """Meta Schedule builders that translate IRModule to runtime.Module, and then export"""
 
-from typing import Callable, Dict, List, Optional, Union
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 from tvm_ffi import register_object
@@ -47,13 +50,13 @@ class BuilderInput(Object):
 
     mod: IRModule
     target: Target
-    params: Optional[Dict[str, Tensor]]
+    params: dict[str, Tensor] | None
 
     def __init__(
         self,
         mod: IRModule,
         target: Target,
-        params: Optional[Dict[str, Tensor]] = None,
+        params: dict[str, Tensor] | None = None,
     ) -> None:
         """Constructor.
 
@@ -67,7 +70,7 @@ class BuilderInput(Object):
             The parameters for Relax build module
         """
         self.__init_handle_by_constructor__(
-            _ffi_api.BuilderInput,  # type: ignore # pylint: disable=no-member
+            _ffi_api.BuilderInput,  # type: ignore
             mod,
             target,
             params,
@@ -86,13 +89,13 @@ class BuilderResult(Object):
         The error message.
     """
 
-    artifact_path: Optional[str]
-    error_msg: Optional[str]
+    artifact_path: str | None
+    error_msg: str | None
 
     def __init__(
         self,
-        artifact_path: Optional[str],
-        error_msg: Optional[str],
+        artifact_path: str | None,
+        error_msg: str | None,
     ) -> None:
         """Constructor.
 
@@ -104,7 +107,7 @@ class BuilderResult(Object):
             The error message.
         """
         self.__init_handle_by_constructor__(
-            _ffi_api.BuilderResult,  # type: ignore # pylint: disable=no-member
+            _ffi_api.BuilderResult,  # type: ignore
             artifact_path,
             error_msg,
         )
@@ -116,7 +119,7 @@ class Builder(Object):
 
     BuilderType = Union["Builder", Literal["local"]]
 
-    def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
+    def build(self, build_inputs: list[BuilderInput]) -> list[BuilderResult]:
         """Build the given inputs.
 
         Parameters
@@ -128,14 +131,14 @@ class Builder(Object):
         build_results : List[BuilderResult]
             The results of building the given inputs.
         """
-        return _ffi_api.BuilderBuild(self, build_inputs)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.BuilderBuild(self, build_inputs)  # type: ignore
 
     @staticmethod
-    def create(  # pylint: disable=keyword-arg-before-vararg
+    def create(
         kind: Literal["local"] = "local",
         *args,
         **kwargs,
-    ) -> "Builder":
+    ) -> Builder:
         """Create a Builder.
 
         Parameters
@@ -148,14 +151,14 @@ class Builder(Object):
         builder : Builder
             The builder created.
         """
-        from . import LocalBuilder  # pylint: disable=import-outside-toplevel
+        from . import LocalBuilder
 
         if kind == "local":
             return LocalBuilder(*args, **kwargs)  # type: ignore
         raise ValueError(f"Unknown Builder: {kind}")
 
 
-create = Builder.create  # pylint: disable=invalid-name
+create = Builder.create
 
 
 @register_object("s_tir.meta_schedule.PyBuilder")
@@ -167,11 +170,11 @@ class _PyBuilder(Builder):
     See also: PyBuilder
     """
 
-    def __init__(self, f_build: Callable = None):
+    def __init__(self, f_build: Callable | None = None):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
-            _ffi_api.BuilderPyBuilder,  # type: ignore # pylint: disable=no-member
+            _ffi_api.BuilderPyBuilder,  # type: ignore
             f_build,
         )
 
@@ -186,7 +189,7 @@ class PyBuilder:
 
     _tvm_metadata = {"cls": _PyBuilder, "methods": ["build"]}
 
-    def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
+    def build(self, build_inputs: list[BuilderInput]) -> list[BuilderResult]:
         """Build the given inputs.
 
         Parameters

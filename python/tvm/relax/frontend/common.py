@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Commons for Relax frontend."""
 
-from typing import Dict, List, Tuple
+from __future__ import annotations
 
 import numpy as _np
 
@@ -25,7 +24,7 @@ import tvm
 from tvm import topi
 
 
-def detach_params(mod: tvm.IRModule) -> Tuple[tvm.IRModule, Dict[str, List[tvm.runtime.Tensor]]]:
+def detach_params(mod: tvm.IRModule) -> tuple[tvm.IRModule, dict[str, list[tvm.runtime.Tensor]]]:
     """Detach the attribute "params" in the functions of the input IRModule as
     separate dictionary of params.
 

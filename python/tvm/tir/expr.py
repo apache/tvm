@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin
 """TIR expression nodes.
 
 Each expression node have subfields that can be visited from python side.
@@ -28,7 +27,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
   assert(y.a == x)
 """
 
-from typing import List, Optional, Union
+from __future__ import annotations
 
 import tvm_ffi
 
@@ -188,7 +187,7 @@ class ExprOp:
     def __bool__(self) -> bool:
         return self.__nonzero__()
 
-    def equal(self, other: PrimExpr, span: Optional[Span] = None) -> bool:
+    def equal(self, other: PrimExpr, span: Span | None = None) -> bool:
         """Build an equal check expression with other expr.
 
         Parameters
@@ -206,7 +205,7 @@ class ExprOp:
         """
         return _ffi_api._OpEQ(self, other, span)  # type: ignore
 
-    def astype(self, dtype: str, span: Optional[Span] = None) -> PrimExpr:
+    def astype(self, dtype: str, span: Span | None = None) -> PrimExpr:
         """Cast the expression to other type.
 
         Parameters
@@ -246,7 +245,7 @@ class EqualOp(ObjectConvertible, ExprOp):
     # This class is not manipulated by C++. So use python's identity check function is sufficient
     same_as = object.__eq__
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None):
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None):
         self.a = a
         self.b = b
         self.span = span
@@ -283,7 +282,7 @@ class NotEqualOp(ObjectConvertible, ExprOp):
     # This class is not manipulated by C++. So use python's identity check function is sufficient
     same_as = object.__eq__
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.a = a
         self.b = b
         self.span = span
@@ -312,11 +311,11 @@ class IntImmEnum(ObjectConvertible):
         The location of the cast in the source.
     """
 
-    def __init__(self, value: int, span: Optional[Span] = None) -> None:
+    def __init__(self, value: int, span: Span | None = None) -> None:
         self.value = value
         self.span = span
 
-    def asobject(self) -> "IntImm":
+    def asobject(self) -> IntImm:
         """Convert object."""
         return IntImm("int32", self.value, self.span)  # type: ignore
 
@@ -366,7 +365,7 @@ class Var(PrimExprWithOp):
     name_hint: str
     type_annotation: ir.Type
 
-    def __init__(self, name: str, dtype: Union[str, ir.Type], span: Optional[Span] = None) -> None:
+    def __init__(self, name: str, dtype: str | ir.Type, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Var, name, dtype, span)  # type: ignore
 
 
@@ -387,8 +386,7 @@ class SizeVar(Var):
         The location of this expression in the source code.
     """
 
-    # pylint: disable=super-init-not-called
-    def __init__(self, name: str, dtype: Union[str, ir.Type], span: Optional[Span] = None) -> None:
+    def __init__(self, name: str, dtype: str | ir.Type, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SizeVar, name, dtype, span)  # type: ignore
 
 
@@ -439,10 +437,10 @@ class IterVar(ExprOp, Object, Scriptable):
     def __init__(
         self,
         dom: ir.Range,
-        var: Union[Var, str],
+        var: Var | str,
         iter_type: int,
         thread_tag: str = "",
-        span: Optional[Span] = None,
+        span: Span | None = None,
     ) -> None:
         if dom is not None:
             if isinstance(dom, (list, tuple)):
@@ -492,18 +490,18 @@ class CommReducer(Object, Scriptable):
         The location of this expression in the source code.
     """
 
-    lhs: List[Var]
-    rhs: List[Var]
-    result: List[PrimExpr]
-    identity_element: List[PrimExpr]
+    lhs: list[Var]
+    rhs: list[Var]
+    result: list[PrimExpr]
+    identity_element: list[PrimExpr]
 
     def __init__(
         self,
-        lhs: List[Var],
-        rhs: List[Var],
-        result: List[PrimExpr],
-        identity_element: List[PrimExpr],
-        span: Optional[Span] = None,
+        lhs: list[Var],
+        rhs: list[Var],
+        result: list[PrimExpr],
+        identity_element: list[PrimExpr],
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.CommReducer,
@@ -544,21 +542,21 @@ class Reduce(PrimExprWithOp):
     """
 
     combiner: CommReducer
-    source: List[PrimExpr]
-    init: List[PrimExpr]
-    axis: List[IterVar]
+    source: list[PrimExpr]
+    init: list[PrimExpr]
+    axis: list[IterVar]
     condition: PrimExpr
     value_index: int
 
     def __init__(
         self,
         combiner: CommReducer,
-        src: List[PrimExpr],
-        rdom: List[IterVar],
+        src: list[PrimExpr],
+        rdom: list[IterVar],
         condition: PrimExpr,
         value_index: int,
-        init: Optional[List[PrimExpr]] = None,
-        span: Optional[Span] = None,
+        init: list[PrimExpr] | None = None,
+        span: Span | None = None,
     ) -> None:
         init = [] if init is None else init
         self.__init_handle_by_constructor__(
@@ -591,7 +589,7 @@ class FloatImm(ConstExpr):
 
     value: float
 
-    def __init__(self, dtype: str, value: float, span: Optional[Span] = None) -> None:
+    def __init__(self, dtype: str, value: float, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
             tvm.ir._ffi_api.FloatImm,
             dtype,
@@ -621,7 +619,7 @@ class IntImm(ConstExpr):
 
     value: int
 
-    def __init__(self, dtype: str, value: int, span: Optional[Span] = None) -> None:
+    def __init__(self, dtype: str, value: int, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
             tvm.ir._ffi_api.IntImm,
             dtype,
@@ -663,7 +661,7 @@ class StringImm(ConstExpr):
 
     value: str
 
-    def __init__(self, value: str, span: Optional[Span] = None) -> None:
+    def __init__(self, value: str, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)  # type: ignore
 
     def __eq__(self, other: PrimExpr) -> bool:
@@ -698,7 +696,7 @@ class Cast(PrimExprWithOp):
 
     value: PrimExpr
 
-    def __init__(self, dtype, value, span: Optional[Span] = None) -> None:
+    def __init__(self, dtype, value, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Cast, dtype, value, span)  # type: ignore
 
 
@@ -718,7 +716,7 @@ class Add(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Add, a, b, span)  # type: ignore
 
 
@@ -738,7 +736,7 @@ class Sub(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Sub, a, b, span)  # type: ignore
 
 
@@ -758,7 +756,7 @@ class Mul(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Mul, a, b, span)  # type: ignore
 
 
@@ -778,7 +776,7 @@ class Div(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Div, a, b, span)  # type: ignore
 
 
@@ -798,7 +796,7 @@ class Mod(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Mod, a, b, span)  # type: ignore
 
 
@@ -818,7 +816,7 @@ class FloorDiv(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.FloorDiv, a, b, span)  # type: ignore
 
 
@@ -838,7 +836,7 @@ class FloorMod(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.FloorMod, a, b, span)  # type: ignore
 
 
@@ -858,7 +856,7 @@ class Min(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Min, a, b, span)  # type: ignore
 
 
@@ -878,7 +876,7 @@ class Max(BinaryOpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Max, a, b, span)  # type: ignore
 
 
@@ -898,7 +896,7 @@ class EQ(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.EQ, a, b, span)  # type: ignore
 
 
@@ -918,7 +916,7 @@ class NE(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.NE, a, b, span)  # type: ignore
 
 
@@ -938,7 +936,7 @@ class LT(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.LT, a, b, span)  # type: ignore
 
 
@@ -958,7 +956,7 @@ class LE(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.LE, a, b, span)  # type: ignore
 
 
@@ -978,7 +976,7 @@ class GT(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.GT, a, b, span)  # type: ignore
 
 
@@ -998,7 +996,7 @@ class GE(CmpExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.GE, a, b, span)  # type: ignore
 
 
@@ -1018,7 +1016,7 @@ class And(LogicalExpr):
         The location of this expression in the source code.
     """
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.And, a, b, span)  # type: ignore
 
 
@@ -1041,7 +1039,7 @@ class Or(LogicalExpr):
     a: PrimExpr
     b: PrimExpr
 
-    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Or, a, b, span)  # type: ignore
 
 
@@ -1060,7 +1058,7 @@ class Not(LogicalExpr):
 
     a: PrimExpr
 
-    def __init__(self, a: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, a: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Not, a, span)  # type: ignore
 
 
@@ -1099,7 +1097,7 @@ class Select(PrimExprWithOp):
         condition: PrimExpr,
         true_value: PrimExpr,
         false_value: PrimExpr,
-        span: Optional[Span] = None,
+        span: Span | None = None,
     ) -> None:
         if isinstance(condition, bool):
             condition = IntImm("bool", condition)
@@ -1133,14 +1131,14 @@ class BufferLoad(PrimExprWithOp):
     """
 
     buffer: Buffer
-    indices: List[PrimExpr]
+    indices: list[PrimExpr]
 
     def __init__(
         self,
         buffer: Buffer,
-        indices: List[PrimExpr],
-        predicate: Optional[PrimExpr] = None,
-        span: Optional[Span] = None,
+        indices: list[PrimExpr],
+        predicate: PrimExpr | None = None,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.BufferLoad,
@@ -1168,10 +1166,10 @@ class ProducerLoad(PrimExprWithOp):
     """
 
     producer: DataProducer
-    indices: List[PrimExpr]
+    indices: list[PrimExpr]
 
     def __init__(
-        self, producer: DataProducer, indices: List[PrimExpr], span: Optional[Span] = None
+        self, producer: DataProducer, indices: list[PrimExpr], span: Span | None = None
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ProducerLoad,
@@ -1205,7 +1203,7 @@ class Ramp(PrimExprWithOp):
     lanes: PrimExpr
 
     def __init__(
-        self, base: PrimExpr, stride: PrimExpr, lanes: PrimExpr, span: Optional[Span] = None
+        self, base: PrimExpr, stride: PrimExpr, lanes: PrimExpr, span: Span | None = None
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.Ramp,
@@ -1235,7 +1233,7 @@ class Broadcast(PrimExprWithOp):
     value: PrimExpr
     lanes: PrimExpr
 
-    def __init__(self, value: PrimExpr, lanes: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, value: PrimExpr, lanes: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Broadcast, value, lanes, span)  # type: ignore
 
 
@@ -1255,11 +1253,11 @@ class Shuffle(PrimExprWithOp):
         The location of this expression in the source code.
     """
 
-    vectors: List[PrimExpr]
-    indices: List[PrimExpr]
+    vectors: list[PrimExpr]
+    indices: list[PrimExpr]
 
     def __init__(
-        self, vectors: List[PrimExpr], indices: List[PrimExpr], span: Optional[Span] = None
+        self, vectors: list[PrimExpr], indices: list[PrimExpr], span: Span | None = None
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.Shuffle,
@@ -1301,10 +1299,10 @@ class Call(PrimExprWithOp):
     """
 
     op: Op
-    args: List[PrimExpr]
+    args: list[PrimExpr]
 
     def __init__(
-        self, dtype: str, op: Union[Op, str], args: List[PrimExpr], span: Optional[Span] = None
+        self, dtype: str, op: Op | str, args: list[PrimExpr], span: Span | None = None
     ) -> None:
         if isinstance(op, str):
             if not op.startswith("tir."):
@@ -1343,7 +1341,5 @@ class Let(PrimExprWithOp):
     value: PrimExpr
     body: PrimExpr
 
-    def __init__(
-        self, var: Var, value: PrimExpr, body: PrimExpr, span: Optional[Span] = None
-    ) -> None:
+    def __init__(self, var: Var, value: PrimExpr, body: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Let, var, value, body, span)  # type: ignore

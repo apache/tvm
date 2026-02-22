@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 
 import tvm
@@ -26,8 +25,6 @@ from tvm.s_tir.schedule.testing import (
 )
 from tvm.script import tir as T
 from tvm.tir.expr import IntImm
-
-# pylint: disable=no-member,invalid-name,unused-variable
 
 
 @T.prim_func
@@ -353,9 +350,6 @@ def elementwise_not_affine_fused(a: T.handle, b: T.handle) -> None:
                 T.reads([A[vi, vj]])
                 T.writes([B[vi, vj]])
                 B[vi, vj] = A[vi, vj]
-
-
-# pylint: enable=no-member,invalid-name,unused-variable
 
 
 def test_fuse():

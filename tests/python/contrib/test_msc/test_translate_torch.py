@@ -750,7 +750,6 @@ def test_inplace_fill():
 def test_arange():
     """test torch translator for arange"""
 
-    # pylint: disable=unused-argument
     class Arange(Module):
         def forward(self, data):
             return torch.arange(0, 20, dtype=torch.int32)
@@ -1116,7 +1115,6 @@ def test_masked_scatter():
 def test_attention():
     """test torch translator for attention"""
 
-    # pylint: disable=import-outside-toplevel
     import torch.nn.functional as F
 
     class Attention1(Module):

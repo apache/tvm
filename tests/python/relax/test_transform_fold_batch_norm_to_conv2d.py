@@ -105,14 +105,14 @@ def test_fold_batchnorm_info_conv2d():
 
 
 @visitor
-class VerifyFolding(PyExprVisitor):  # pylint: disable=abstract-method
+class VerifyFolding(PyExprVisitor):
     def visit(self, mod: IRModule) -> None:
         """Entry point"""
         for _, func in mod.functions_items():
             if isinstance(func, relax.Function):
                 self.visit_expr(func)
 
-    def visit_call_(self, call: relax.Call) -> None:  # pylint: disable=arguments-renamed
+    def visit_call_(self, call: relax.Call) -> None:
         assert call.op.name != "relax.nn.batch_norm", (
             "Batchnorm op shouldn't be present after folding to previous conv2d"
         )

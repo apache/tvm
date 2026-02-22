@@ -15,10 +15,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
 import argparse
 import fnmatch
-from typing import Optional
 
 from git_utils import git
 
@@ -35,7 +35,7 @@ globs = [
 ]
 
 
-def match_any(f: str) -> Optional[str]:
+def match_any(f: str) -> str | None:
     for glob in globs:
         if fnmatch.fnmatch(f, glob):
             return glob
@@ -43,7 +43,7 @@ def match_any(f: str) -> Optional[str]:
 
 
 if __name__ == "__main__":
-    help = "Exits with code 1 if a change only touched files, indicating that CI could be skipped for this changeset"
+    help = "Exits with code 1 if a change only touched files, indicating that CI could be skipped for this changeset"  # noqa: E501
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--files", help="(testing only) comma separated list of files to check")
     args = parser.parse_args()

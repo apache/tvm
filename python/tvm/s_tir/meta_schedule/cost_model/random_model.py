@@ -18,7 +18,7 @@
 Random cost model
 """
 
-from typing import List, Optional, Tuple, Union
+from __future__ import annotations
 
 from ..cost_model import PyCostModel
 from ..runner import RunnerResult
@@ -45,19 +45,19 @@ class RandomModel(PyCostModel):
     https://numpy.org/doc/stable/reference/random/generated/numpy.random.get_state.html
     """
 
-    import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
+    import numpy as np  # type: ignore
 
-    random_state: Union[Tuple[str, np.ndarray, int, int, float], dict]
-    path: Optional[str]
+    random_state: tuple[str, np.ndarray, int, int, float] | dict
+    path: str | None
 
     def __init__(
         self,
         *,
-        seed: Optional[int] = None,
-        path: Optional[str] = None,
-        max_range: Optional[int] = 100,
+        seed: int | None = None,
+        path: str | None = None,
+        max_range: int | None = 100,
     ):
-        import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
+        import numpy as np  # type: ignore
 
         super().__init__()
         if path is not None:
@@ -75,7 +75,7 @@ class RandomModel(PyCostModel):
         path : str
             The file path.
         """
-        import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
+        import numpy as np  # type: ignore
 
         self.random_state = tuple(np.load(path, allow_pickle=True))  # type: ignore
 
@@ -87,15 +87,15 @@ class RandomModel(PyCostModel):
         path : str
             The file path.
         """
-        import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
+        import numpy as np  # type: ignore
 
         np.save(path, np.array(self.random_state, dtype=object), allow_pickle=True)
 
     def update(
         self,
         context: TuneContext,
-        candidates: List[MeasureCandidate],
-        results: List[RunnerResult],
+        candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the cost model given running results.
 
@@ -109,7 +109,7 @@ class RandomModel(PyCostModel):
             The running results of the measure candidates.
         """
 
-    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:  # type: ignore # pylint: disable=used-before-assignment
+    def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:  # type: ignore
         """Update the cost model given running results.
 
         Parameters
@@ -124,7 +124,7 @@ class RandomModel(PyCostModel):
         result : np.ndarray
             The predicted running results.
         """
-        import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
+        import numpy as np  # type: ignore
 
         np.random.set_state(self.random_state)
         # TODO(@zxybazh): Use numpy's RandState object:

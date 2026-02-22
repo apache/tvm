@@ -15,15 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=missing-function-docstring, missing-class-docstring
-# pylint: disable=unused-argument, unused-variable
 """Analysis on TIR blocks, loops and functions."""
 
+from __future__ import annotations
+
 from collections import namedtuple
-from typing import List, Optional, Set, Tuple, Union
+from typing import Literal, Union
 
 from tvm_ffi import get_global_func
-from typing_extensions import Literal
 
 from tvm import ir, s_tir, tir
 from tvm.runtime import DataType
@@ -54,7 +53,7 @@ class IterInfo:
         self.loop_rv = loop_rv
 
     @property
-    def dom(self) -> Union[int, tir.PrimExpr]:
+    def dom(self) -> int | tir.PrimExpr:
         """The iteration domain of the loop."""
         return int(self._dom) if isinstance(self._dom, tir.IntImm) else self._dom
 
@@ -71,23 +70,23 @@ Index = namedtuple("Index", ["sub"])  # c
 RemIndex = namedtuple("RemIndex", ["sub", "div"])  # c%len
 DivIndex = namedtuple("DivIndex", ["sub", "div"])  # c//len
 MergeIndex = namedtuple("MulIndex", ["dom", "mul", "sub"])  # co*len + cb
-BufIndex = List[Union[Index, RemIndex, DivIndex, MergeIndex, None]]
+BufIndex = list[Index | RemIndex | DivIndex | MergeIndex | None]
 
 
 class BufferInfo:
     "Information about Buffer. Provides useful analysis"
 
     buf_region: tir.BufferRegion
-    shape: Tuple[int]
-    assoc_lps: List[Union[s_tir.schedule.LoopRV, None]]
-    assoc_lps_info: List[Union[tir.For, None]]
+    shape: tuple[int]
+    assoc_lps: list[s_tir.schedule.LoopRV | None]
+    assoc_lps_info: list[tir.For | None]
 
     def __init__(
         self,
         sch: s_tir.Schedule,
         block_rv: s_tir.schedule.SBlockRV,
         buf_region: tir.BufferRegion,
-        lps: Union[List[s_tir.schedule.LoopRV], None],
+        lps: list[s_tir.schedule.LoopRV] | None,
     ):
         block = sch.get(block_rv)
         if lps is None:
@@ -170,14 +169,14 @@ class SBlockInfo:
     """Information about a TIR block."""
 
     name: str
-    iters: List[IterInfo]
+    iters: list[IterInfo]
     block_rv: s_tir.schedule.SBlockRV
     _reduction_block: bool
 
     def __init__(
         self,
         name: str,
-        iters: List[IterInfo],
+        iters: list[IterInfo],
         block_rv: s_tir.schedule.SBlockRV,
         reduction_block: bool = False,
     ):
@@ -187,16 +186,16 @@ class SBlockInfo:
         self.iters = iters
         self._reduction_block = reduction_block
 
-    def dom(self) -> List[Union[int, tir.PrimExpr]]:
+    def dom(self) -> list[int | tir.PrimExpr]:
         """The iteration domain of the block."""
         return [i.dom for i in self.iters]
 
-    def read_bufs(self, sch: s_tir.Schedule) -> List[BufferInfo]:
+    def read_bufs(self, sch: s_tir.Schedule) -> list[BufferInfo]:
         block_stmt = sch.get(self.block_rv)
         lps = sch.get_loops(self.block_rv)
         return [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.reads]
 
-    def write_bufs(self, sch: s_tir.Schedule) -> List[BufferInfo]:
+    def write_bufs(self, sch: s_tir.Schedule) -> list[BufferInfo]:
         block_stmt = sch.get(self.block_rv)
         lps = sch.get_loops(self.block_rv)
         return [BufferInfo(sch, self.block_rv, buf, lps) for buf in block_stmt.writes]
@@ -229,7 +228,7 @@ class SBlockInfo:
                 return False
         return True
 
-    def get_loops(self) -> List[s_tir.schedule.LoopRV]:
+    def get_loops(self) -> list[s_tir.schedule.LoopRV]:
         return [iter_info.loop_rv for iter_info in self.iters]
 
     def is_reduction(self) -> bool:
@@ -285,13 +284,13 @@ class SBlockInfo:
 _normalize_prim_func = get_global_func("s_tir.schedule.NormalizePrimFunc")
 
 
-def normalize_prim_func(sch: s_tir.Schedule) -> Optional[List[SBlockInfo]]:
+def normalize_prim_func(sch: s_tir.Schedule) -> list[SBlockInfo] | None:
     """Normalize the primfunc to normal form"""
     try:
         result = _normalize_prim_func(sch)
         if result is None:
             return None
-    except Exception:  # pylint: disable=broad-except
+    except Exception:
         return None
 
     def _iter_kind(i: tir.IterVar) -> str:
@@ -300,7 +299,7 @@ def normalize_prim_func(sch: s_tir.Schedule) -> Optional[List[SBlockInfo]]:
             tir.IterVar.CommReduce: "R",
         }.get(i.iter_type, "O")
 
-    blocks: List[SBlockInfo] = []
+    blocks: list[SBlockInfo] = []
     for block, loops, iters, is_reduction in zip(*result):
         blocks.append(
             SBlockInfo(
@@ -385,8 +384,8 @@ def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
 
 
 def collect_block_iter_vars_used_in_access_region(
-    block: tir.SBlock, region: List[ir.Range]
-) -> Set[tir.Var]:
+    block: tir.SBlock, region: list[ir.Range]
+) -> set[tir.Var]:
     """Collect the block iter variables used in the access region of a buffer region."""
     tir_vars = set()
     for expr in region:
@@ -396,7 +395,7 @@ def collect_block_iter_vars_used_in_access_region(
     return tir_vars
 
 
-def collect_vars_used_in_prim_expr(expr: tir.PrimExpr) -> Set[tir.Var]:
+def collect_vars_used_in_prim_expr(expr: tir.PrimExpr) -> set[tir.Var]:
     """Collect the variables used in the PrimExpr."""
     tir_vars = set()
 

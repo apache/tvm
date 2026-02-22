@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, invalid-name
 """Struct Info for distributed tensor."""
 
+from __future__ import annotations
+
 import enum
-from typing import List
 
 import tvm_ffi
 
@@ -56,7 +56,7 @@ class PlacementSpec(Object):
         raise TVMError("PlacementSpec is not intended to be constructed directly, ")
 
     @staticmethod
-    def sharding(axis: int) -> "PlacementSpec":
+    def sharding(axis: int) -> PlacementSpec:
         """Create a sharding placement spec
 
         Parameters
@@ -72,7 +72,7 @@ class PlacementSpec(Object):
         return _ffi_api.Sharding(axis)
 
     @staticmethod
-    def replica() -> "PlacementSpec":
+    def replica() -> PlacementSpec:
         """Create a replica placement spec
 
         Returns
@@ -93,11 +93,11 @@ class Placement(Object):
         The placement spec for each dimension of the device mesh.
     """
 
-    def __init__(self, dim_specs: List[PlacementSpec]):
+    def __init__(self, dim_specs: list[PlacementSpec]):
         self.__init_handle_by_constructor__(_ffi_api.Placement, dim_specs)  # type: ignore
 
     @staticmethod
-    def from_text(text: str) -> "Placement":
+    def from_text(text: str) -> Placement:
         """Create a placement from a text string.
 
         Parameters

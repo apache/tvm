@@ -31,5 +31,5 @@ class RewriteCooperativeFetch(Postproc):
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.PostprocRewriteCooperativeFetch,  # type: ignore # pylint: disable=no-member
+            _ffi_api.PostprocRewriteCooperativeFetch,  # type: ignore
         )

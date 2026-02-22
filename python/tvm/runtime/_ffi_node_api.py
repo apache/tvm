@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name, unused-argument
 """FFI for tvm.node"""
 
 import tvm_ffi

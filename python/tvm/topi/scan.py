@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Scan (cumulative binary) operators"""
 
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Optional
 
 import tvm
 from tvm.script.ir_builder import IRBuilder
@@ -34,9 +34,9 @@ def scanop(
     binop: Callable[["tvm.Expr", "tvm.Expr"], "tvm.Expr"],
     identity_value: "tvm.Expr",
     op_name: str,
-    axis: Optional[int] = None,
-    dtype: Optional[str] = None,
-    exclusive: Optional[bool] = None,
+    axis: int | None = None,
+    dtype: str | None = None,
+    exclusive: bool | None = None,
 ) -> tvm.te.Tensor:
     """Cumulative binary operator (scan) with similar axis behavior as np.cumsum and np.cumprod.
 
@@ -153,9 +153,9 @@ def scanop(
 
 def cumsum(
     data: tvm.te.Tensor,
-    axis: Optional[int] = None,
-    dtype: Optional[str] = None,
-    exclusive: Optional[bool] = None,
+    axis: int | None = None,
+    dtype: str | None = None,
+    exclusive: bool | None = None,
 ) -> tvm.te.Tensor:
     """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
 
@@ -197,9 +197,9 @@ def cumsum(
 
 def cumprod(
     data: tvm.te.Tensor,
-    axis: Optional[int] = None,
-    dtype: Optional[int] = None,
-    exclusive: Optional[bool] = None,
+    axis: int | None = None,
+    dtype: int | None = None,
+    exclusive: bool | None = None,
 ) -> tvm.te.Tensor:
     """Numpy style cumprod op. Return the cumulative product of the elements along a given axis.
 

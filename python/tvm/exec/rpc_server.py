@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-outer-name, invalid-name
 """Start an RPC server"""
 
 import argparse

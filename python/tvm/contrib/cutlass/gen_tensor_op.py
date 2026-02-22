@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Common functions and classes for CUTLASS GEMM and Conv2d geneator."""
 
 import logging
@@ -86,7 +85,7 @@ def generate_tensor_op_common(
 
 def generate_sm50_simt(out_dtype, arg0_dtype, arg1_dtype, op_creator, accumulator_dtype="float32"):
     """Gemerate GEMM or Conv2D SIMT kernels"""
-    # pylint: disable=unused-argument
+
     min_cc = 50
     max_cc = 1024
     if arg0_dtype == "float32" and arg1_dtype == "float32":

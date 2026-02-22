@@ -16,7 +16,7 @@
 # under the License.
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
-from typing import List, Union
+from __future__ import annotations
 
 from tvm import arith, s_tir, tir
 from tvm.s_tir import Schedule
@@ -42,13 +42,12 @@ class Transpose(GPUScheduleRule):
                     return True
         return False
 
-    def apply(  # pylint: disable=too-many-locals
+    def apply(
         self,
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
-        # pylint: disable=invalid-name
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         if target.kind.name == "cuda":

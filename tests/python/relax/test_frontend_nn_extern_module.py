@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 import subprocess
 import tempfile
 from pathlib import Path
@@ -29,7 +28,7 @@ from tvm.relax.frontend.nn import spec
 from tvm.relax.transform import AttachExternModules
 
 
-def _infer_scalar_add(x, y):  # pylint: disable=invalid-name
+def _infer_scalar_add(x, y):
     assert isinstance(x, nn.Tensor)
     assert isinstance(y, nn.Tensor)
     assert x.ndim == 0 and x.dtype == "float32"
@@ -37,15 +36,15 @@ def _infer_scalar_add(x, y):  # pylint: disable=invalid-name
     return nn.Tensor.placeholder(shape=(), dtype="float32")
 
 
-def _infer_test_sym(a, b):  # pylint: disable=invalid-name
-    def _var_equal(a, b):  # pylint: disable=invalid-name
+def _infer_test_sym(a, b):
+    def _var_equal(a, b):
         return tvm.ir.structural_equal(a, b, map_free_vars=True)
 
     assert isinstance(a, nn.Tensor)
     assert isinstance(b, nn.Tensor)
     assert a.ndim == 3 and a.dtype == "float32"  # [x, y, 1]
     assert b.ndim == 3 and b.dtype == "float32"  # [y, z, 5]
-    x, y, z = a.shape[0], b.shape[0], b.shape[1]  # pylint: disable=invalid-name
+    x, y, z = a.shape[0], b.shape[0], b.shape[1]
     assert _var_equal(a.shape[0], x)
     assert _var_equal(a.shape[1], y)
     assert a.shape[2] == 1
@@ -56,32 +55,27 @@ def _infer_test_sym(a, b):  # pylint: disable=invalid-name
 
 
 def _test_scalar_add(func):
-    # pylint: disable=invalid-name
     x = tvm.runtime.tensor(np.array(1.0).astype("float32"))
     y = tvm.runtime.tensor(np.array(3.0).astype("float32"))
     z = func(x, y).numpy()
-    # pylint: enable=invalid-name
+
     assert z.ndim == 0
     assert z.dtype == "float32"
     assert float(z) == 4.0
 
 
-def _test_infer_sym(func, x, y, z):  # pylint: disable=invalid-name
-    # pylint: disable=invalid-name
+def _test_infer_sym(func, x, y, z):
     a = tvm.runtime.tensor(np.random.uniform(size=(x, y, 1)).astype("float32"))
     b = tvm.runtime.tensor(np.random.uniform(size=(y, z, 5)).astype("float32"))
     c = func(a, b).numpy()
-    # pylint: enable=invalid-name
+
     assert c.shape == (x, y, z, 9)
 
 
 def _check_ir_equality(mod):
-    # pylint: disable=import-outside-toplevel
     from tvm.script import ir as I
     from tvm.script import relax as R
     from tvm.script import tir as T
-
-    # pylint: enable=import-outside-toplevel
 
     @I.ir_module
     class ExpectedModule:
@@ -118,11 +112,8 @@ def _check_ir_equality(mod):
 
 
 def _compile_cc(src: Path, dst: Path):
-    # pylint: disable=import-outside-toplevel
     from tvm.base import py_str
     from tvm.libinfo import find_include_path
-
-    # pylint: enable=import-outside-toplevel
 
     cmd = ["g++", str(src)]
     for include_path in find_include_path():
@@ -167,10 +158,10 @@ def test_extern_object():
                     nn.add_extern(self.ext_mod)
                 return self.ext_mod
 
-            def scalar_add(self, a: nn.Tensor, b: nn.Tensor):  # pylint: disable=invalid-name
+            def scalar_add(self, a: nn.Tensor, b: nn.Tensor):
                 return self._get_ext_mod()["ext_scalar_add"](a, b)
 
-            def test_sym(self, a: nn.Tensor, b: nn.Tensor):  # pylint: disable=invalid-name
+            def test_sym(self, a: nn.Tensor, b: nn.Tensor):
                 return self._get_ext_mod()["ext_test_sym"](a, b)
 
         mod, _, ext_mods = TestModule().export_tvm(
@@ -187,7 +178,7 @@ def test_extern_object():
             allow_extern=True,
         )
         _check_ir_equality(mod)
-        mod = AttachExternModules(ext_mods)(mod)  # pylint: disable=not-callable
+        mod = AttachExternModules(ext_mods)(mod)
         compiled = tvm.runtime.vm.VirtualMachine(
             tvm.compile(mod, target="llvm"),
             device=tvm.cpu(),
@@ -216,10 +207,10 @@ def test_extern_source():
                 nn.add_extern(self.ext_mod)
             return self.ext_mod
 
-        def scalar_add(self, a: nn.Tensor, b: nn.Tensor):  # pylint: disable=invalid-name
+        def scalar_add(self, a: nn.Tensor, b: nn.Tensor):
             return self._get_ext_mod()["ext_scalar_add"](a, b)
 
-        def test_sym(self, a: nn.Tensor, b: nn.Tensor):  # pylint: disable=invalid-name
+        def test_sym(self, a: nn.Tensor, b: nn.Tensor):
             return self._get_ext_mod()["ext_test_sym"](a, b)
 
     mod, _, ext_mods = TestModule().export_tvm(
@@ -236,7 +227,7 @@ def test_extern_source():
         allow_extern=True,
     )
     _check_ir_equality(mod)
-    mod = AttachExternModules(ext_mods)(mod)  # pylint: disable=not-callable
+    mod = AttachExternModules(ext_mods)(mod)
     compiled = tvm.runtime.vm.VirtualMachine(
         tvm.compile(mod, target="llvm"),
         device=tvm.cpu(),

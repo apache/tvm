@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """
 ONNX testcases
 ================
 This file is a test script to test Relax ONNX frontend coverage.
 """
 
-from typing import Dict, List, Literal, Optional
+from __future__ import annotations
+
+from typing import Literal
 
 import numpy as np
 import onnx
@@ -42,8 +43,8 @@ rg = np.random.Generator(bg)
 
 
 def generate_random_inputs(
-    model: ModelProto, inputs: Optional[Dict[str, np.ndarray]] = None
-) -> Dict[str, np.ndarray]:
+    model: ModelProto, inputs: dict[str, np.ndarray] | None = None
+) -> dict[str, np.ndarray]:
     input_values = {}
     # Iterate through model inputs and extract their shape.
     for i in model.graph.input:
@@ -82,7 +83,7 @@ def generate_random_value(shape, elem_type) -> np.ndarray:
 
 def check_correctness(
     model: ModelProto,
-    inputs: Optional[Dict[str, np.ndarray]] = None,
+    inputs: dict[str, np.ndarray] | None = None,
     ir_version: int = 8,
     opset: int = 14,
     rtol: float = 1e-7,
@@ -716,9 +717,9 @@ def test_scatter_nd(reduction):
 @pytest.mark.parametrize("condition_shape", [None, [8], [16]])
 @pytest.mark.parametrize("axis", [None, 0, 1])
 def test_compress(
-    tensor_shape: List[int],
-    condition_shape: Optional[List[int]],
-    axis: Optional[int],
+    tensor_shape: list[int],
+    condition_shape: list[int] | None,
+    axis: int | None,
 ):
     if condition_shape is None and axis is None:
         pytest.skip("Either condition_shape or axis must be specified")
@@ -2907,11 +2908,11 @@ def test_batch_norm():
 )
 def test_pool(
     pool_name: str,
-    shape: List[int],
+    shape: list[int],
     auto_pad: str,
-    kernel_shape: List[int],
-    strides: List[int],
-    pads: List[int],
+    kernel_shape: list[int],
+    strides: list[int],
+    pads: list[int],
 ):
     verify_unary(
         pool_name,
@@ -3014,7 +3015,7 @@ def test_onehot():
 @pytest.mark.parametrize("axis", [None, 0, 1, -1])
 @pytest.mark.parametrize("sorted", [0, 1])
 @pytest.mark.parametrize("num_outputs", [1, 2, 3, 4])
-def test_unique(axis: Optional[int], sorted: int, num_outputs: int):
+def test_unique(axis: int | None, sorted: int, num_outputs: int):
     input_shape = [8, 8]
     if axis is None:
         output_shape = [-1]
@@ -3084,7 +3085,7 @@ def test_space_to_depth():
     check_correctness(model)
 
 
-def construct_sequence(input_shape: List[int], num_tensors: int, name: str = "sequence"):
+def construct_sequence(input_shape: list[int], num_tensors: int, name: str = "sequence"):
     inputs = [f"data{i}" for i in range(num_tensors)]
     sequence_construct_node = helper.make_node("SequenceConstruct", inputs, [name])
     graph_inputs = [
@@ -3094,7 +3095,7 @@ def construct_sequence(input_shape: List[int], num_tensors: int, name: str = "se
     return sequence_construct_node, graph_inputs
 
 
-def make_constant_node(name: str, data_type: int, dims: List[int], vals: List[int]):
+def make_constant_node(name: str, data_type: int, dims: list[int], vals: list[int]):
     return helper.make_node(
         "Constant",
         inputs=[],

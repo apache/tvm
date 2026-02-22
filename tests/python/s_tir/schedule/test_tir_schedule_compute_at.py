@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 
 import tvm
@@ -27,7 +26,6 @@ from tvm.s_tir.schedule.testing import (
 from tvm.script import tir as T
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
 @T.prim_func
 def two_elementwise(a: T.handle, c: T.handle) -> None:
@@ -204,7 +202,7 @@ def blockized_2_after_compute_at(a: T.handle, c: T.handle) -> None:
                 C[vi, vj] = B[vi, vj] + 1.0
 
 @T.prim_func
-def cuda_matmul_0(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=undefined-loop-variable
+def cuda_matmul_0(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
@@ -249,7 +247,7 @@ def cuda_matmul_0(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
 
 
 @T.prim_func
-def cuda_matmul_0_after_compute_at(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=undefined-loop-variable
+def cuda_matmul_0_after_compute_at(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
@@ -296,7 +294,7 @@ def cuda_matmul_0_after_compute_at(a: T.handle, b: T.handle, c: T.handle) -> Non
 
 
 @T.prim_func
-def cuda_matmul_1(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=undefined-loop-variable
+def cuda_matmul_1(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
@@ -345,7 +343,7 @@ def cuda_matmul_1(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
 
 
 @T.prim_func
-def cuda_matmul_2(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=undefined-loop-variable
+def cuda_matmul_2(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
@@ -395,7 +393,7 @@ def cuda_matmul_2(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
 
 
 @T.prim_func
-def cuda_matmul_3(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=undefined-loop-variable
+def cuda_matmul_3(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
@@ -446,7 +444,7 @@ def cuda_matmul_3(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
 
 
 @T.prim_func
-def cuda_matmul_4(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=undefined-loop-variable
+def cuda_matmul_4(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
@@ -498,7 +496,7 @@ def cuda_matmul_4(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: dis
 
 
 @T.prim_func
-def cuda_matmul_5(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=undefined-loop-variable
+def cuda_matmul_5(a: T.handle, b: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, [2048, 2048], "float32")
     B = T.match_buffer(b, [2048, 2048], "float32")
     C = T.match_buffer(c, [2048, 2048], "float32")
@@ -1095,7 +1093,6 @@ def static_bound_after_compute_at(A: T.Buffer((32, 1), "float32"), C: T.Buffer((
                 vj = T.axis.spatial(1, j)
                 T.where(j < 1)
                 C[vi, vj] = B[vi, vj] + 1.0
-# pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
 use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})

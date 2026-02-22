@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name
 """Testing utilities for runtime builtin functions."""
 
 from enum import IntEnum

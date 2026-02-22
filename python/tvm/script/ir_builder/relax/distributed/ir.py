@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name, unused-import
 
 """IRBuilder for distributed Relax dialect"""
 
+from __future__ import annotations
+
 from numbers import Number
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as _np  # type: ignore
 
@@ -50,10 +51,10 @@ from . import _ffi_api
 
 @args_converter.auto
 def call_tir(
-    func: Union[str, Expr],
+    func: str | Expr,
     args: Expr,
-    out_sinfo: Union[DTensorStructInfo, List[DTensorStructInfo]],
-    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+    out_sinfo: DTensorStructInfo | list[DTensorStructInfo],
+    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """Distributed version of call_tir
 
@@ -65,12 +66,12 @@ def call_tir(
     args : Expr
         The input arguments.
 
-    out_sinfo : Union[DTensorStructInfo, List[DTensorStructInfo]]
+    out_sinfo : Union[DTensorStructInfo, list[DTensorStructInfo]]
         The structure info of the call_tir output.
         It should be a single or a list of DTensorStructInfo. Each one denotes the
         structure info of a returned distributed tensor.
 
-    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
+    tir_vars : Optional[Union[ShapeExpr, tuple[PrimExpr], list[PrimExpr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns
@@ -94,7 +95,7 @@ def call_tir(
 
 
 def const(
-    value: Union[bool, int, float, _np.ndarray, tvm.runtime.Tensor],
+    value: bool | int | float | _np.ndarray | tvm.runtime.Tensor,
     struct_info: DTensorStructInfo,
 ) -> Constant:
     """Create a constant value.
@@ -149,7 +150,7 @@ def _lookup_device_mesh(device_mesh_str: py_str) -> DeviceMesh:
 
 
 def annotate_sharding(
-    value: Expr, device_mesh: Union[py_str, DeviceMesh], placement: Union[py_str, Placement]
+    value: Expr, device_mesh: py_str | DeviceMesh, placement: py_str | Placement
 ) -> Expr:
     if isinstance(device_mesh, py_str):
         device_mesh = _lookup_device_mesh(device_mesh)
@@ -159,7 +160,7 @@ def annotate_sharding(
 
 
 def redistribute(
-    value: Expr, device_mesh: Union[py_str, DeviceMesh], placement: Union[py_str, Placement]
+    value: Expr, device_mesh: py_str | DeviceMesh, placement: py_str | Placement
 ) -> Expr:
     if isinstance(device_mesh, py_str):
         device_mesh = _lookup_device_mesh(device_mesh)

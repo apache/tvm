@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, unused-variable
 """adaptive pool in python"""
 
 import numpy as np
@@ -77,7 +76,7 @@ def adaptive_pool_channel_first(np_data, out_size, pool_op, np_op):
     """The reference function for adaptive pool, channel first layout"""
     ishape = np_data.shape
     n, c = ishape[:2]
-    oshape = (n, c) + out_size
+    oshape = (n, c, *out_size)
     np_out = np.zeros(oshape).astype(np_data.dtype)
 
     for i in range(n):
@@ -91,7 +90,7 @@ def adaptive_pool_channel_last(np_data, out_size, pool_op, np_op):
     """The reference function for adaptive pool, channel last layout"""
     ishape = np_data.shape
     n, c = ishape[0], ishape[-1]
-    oshape = (n,) + out_size + (c,)
+    oshape = (n, *out_size, c)
     np_out = np.zeros(oshape).astype(np_data.dtype)
 
     for i in range(n):

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Group normalization in python"""
 
 import numpy as np

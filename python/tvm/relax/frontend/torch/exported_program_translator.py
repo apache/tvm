@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
-# pylint: disable=import-outside-toplevel
 """PyTorch ExportedProgram of Relax."""
 
+from __future__ import annotations
+
 from collections import ChainMap, OrderedDict
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 from torch import fx
@@ -212,7 +212,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # and eval-mode BatchNorm without track_running_stats
         # Determine axes for instance norm (all spatial dimensions after channel and batch dim)
         dim = len(self.shape_of(x))
-        axes = [0] + list(range(2, dim))
+        axes = [0, *list(range(2, dim))]
 
         return self.block_builder.emit(
             relax.op.nn.instance_norm(
@@ -1174,7 +1174,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def create_convert_map(
         self,
-    ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
+    ) -> dict[str, Callable[[fx.Node], relax.Var]]:
         import operator
 
         return {
@@ -1507,8 +1507,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         }
 
     def _process_derived_symbol(
-        self, symbol, torch_symbol_to_relax_var: Dict[str, tvm.tir.Var]
-    ) -> Tuple[str, Optional[tvm.tir.PrimExpr]]:
+        self, symbol, torch_symbol_to_relax_var: dict[str, tvm.tir.Var]
+    ) -> tuple[str, tvm.tir.PrimExpr | None]:
         """Process a sympy symbol to generate a descriptive name and TIR expression."""
         import sympy
 
@@ -1553,11 +1553,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, Optional[int]]]]:
+    ) -> tuple[dict[str, relax.Var], dict[str, relax.Var], dict[str, tuple[int, int | None]]]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
-        torch_symbol_to_relax_var: Dict[str, tvm.tir.Var] = {}
+        torch_symbol_to_relax_var: dict[str, tvm.tir.Var] = {}
         range_constraints = {}
 
         if hasattr(exported_program, "range_constraints"):
@@ -1631,9 +1631,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         keep_params_as_input: bool,
         unwrap_unit_return_tuple: bool,
         no_bind_return_tuple: bool,
-        custom_convert_map: Optional[
-            Dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]]
-        ],
+        custom_convert_map: dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]] | None,
     ) -> tvm.IRModule:
         """Convert a PyTorch ExportedProgram to a Relax program."""
 
@@ -1671,7 +1669,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             if upper_bounds:
                 func_attrs["tir_var_upper_bound"] = upper_bounds
 
-        nodes: List[fx.Node] = exported_program.graph.nodes
+        nodes: list[fx.Node] = exported_program.graph.nodes
 
         # Find all the missing function types
         self._check_unsupported_func_type(nodes)
@@ -1750,9 +1748,8 @@ def from_exported_program(
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
     no_bind_return_tuple: bool = False,
-    custom_convert_map: Optional[
-        Dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]]
-    ] = None,
+    custom_convert_map: dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]]
+    | None = None,
     run_ep_decomposition: bool = True,
 ) -> tvm.IRModule:
     """Convert a PyTorch ExportedProgram to a Relax program

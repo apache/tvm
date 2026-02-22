@@ -16,9 +16,12 @@
 # under the License.
 """TVM Script Parser utils"""
 
+from __future__ import annotations
+
 import inspect
+from collections.abc import Callable
 from types import FrameType
-from typing import Any, Callable, Dict, List
+from typing import Any
 
 from .diagnostics import findsource
 
@@ -47,7 +50,7 @@ def get_func_nonlocals(func):
     return nonlocal_vars
 
 
-def inspect_function_capture(func: Callable) -> Dict[str, Any]:
+def inspect_function_capture(func: Callable) -> dict[str, Any]:
     """Capture function non-locals and global variables.
 
     Parameters
@@ -67,7 +70,7 @@ def inspect_function_capture(func: Callable) -> Dict[str, Any]:
     return captured
 
 
-def inspect_class_capture(cls: type) -> Dict[str, Any]:
+def inspect_class_capture(cls: type) -> dict[str, Any]:
     """Capture class non-locals and global variables.
 
     Parameters
@@ -80,7 +83,7 @@ def inspect_class_capture(cls: type) -> Dict[str, Any]:
     res : Dict[str, Any]
         The class variables map with non-local or global variables.
     """
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     for _, v in cls.__dict__.items():
         if inspect.isfunction(v):
             func_vars = inspect_function_capture(v)
@@ -88,7 +91,7 @@ def inspect_class_capture(cls: type) -> Dict[str, Any]:
     return result
 
 
-def is_defined_in_class(frames: List[FrameType], obj: Any) -> bool:
+def is_defined_in_class(frames: list[FrameType], obj: Any) -> bool:
     """Check whether a object is defined in a class scope.
 
     Parameters

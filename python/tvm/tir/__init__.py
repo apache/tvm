@@ -15,7 +15,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import, redefined-builtin
 """Namespace for Tensor-level IR"""
 
 from tvm.ir import PrimExpr

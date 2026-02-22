@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from tvm import te
 from tvm.ir import assert_structural_equal
 from tvm.s_tir import meta_schedule as ms

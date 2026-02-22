@@ -15,11 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name
 """The build utils in python."""
 
 import warnings
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 import tvm
 from tvm.ir.module import IRModule
@@ -29,9 +29,9 @@ from tvm.tir import PrimFunc
 
 
 def build(
-    mod: Union[PrimFunc, IRModule],
-    target: Optional[Union[str, Target]] = None,
-    pipeline: Optional[Union[str, tvm.transform.Pass]] = "default",
+    mod: PrimFunc | IRModule,
+    target: str | Target | None = None,
+    pipeline: str | tvm.transform.Pass | None = "default",
 ):
     """
     Build a function with a signature, generating code for devices
@@ -60,7 +60,7 @@ def build(
     return tvm.tir.build(mod, target, pipeline)
 
 
-def _contains_relax(mod: Union[PrimFunc, IRModule]) -> bool:
+def _contains_relax(mod: PrimFunc | IRModule) -> bool:
     if isinstance(mod, PrimFunc):
         return False
     if isinstance(mod, IRModule):
@@ -69,12 +69,12 @@ def _contains_relax(mod: Union[PrimFunc, IRModule]) -> bool:
     raise ValueError(f"Function input must be a PrimFunc or IRModule, but got {type(mod)}")
 
 
-def compile(  # pylint: disable=redefined-builtin
-    mod: Union[PrimFunc, IRModule],
-    target: Optional[Target] = None,
+def compile(
+    mod: PrimFunc | IRModule,
+    target: Target | None = None,
     *,
-    relax_pipeline: Optional[Union[tvm.transform.Pass, Callable, str]] = "default",
-    tir_pipeline: Optional[Union[tvm.transform.Pass, Callable, str]] = "default",
+    relax_pipeline: tvm.transform.Pass | Callable | str | None = "default",
+    tir_pipeline: tvm.transform.Pass | Callable | str | None = "default",
 ) -> Executable:
     """
     Compile an IRModule to a runtime executable.

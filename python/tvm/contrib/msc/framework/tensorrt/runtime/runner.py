@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
 """tvm.contrib.msc.framework.tensorrt.runtime.runner"""
 
+from __future__ import annotations
+
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -80,7 +81,7 @@ class TensorRTRunner(BYOCRunner):
         return super().make_plan(tool_type, data_loader)
 
     def _generate_model(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
     ) -> Any:
         """Codegen the model according to framework
 

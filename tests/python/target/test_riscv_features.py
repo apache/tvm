@@ -38,7 +38,8 @@ min_llvm_version, tvm_target, vec_width = tvm.testing.parameters(
     (17, {"kind": "llvm", "device": "riscv_cpu", "mtriple": "riscv64-linux-gnu", "mcpu": "sifive-x280"}, 512),
     (18, {"kind": "llvm", "device": "riscv_cpu", "mtriple": "riscv64-linux-gnu", "mcpu": "sifive-p670"}, 128),
     (19, {"kind": "llvm", "device": "riscv_cpu", "mtriple": "riscv64-linux-gnu", "mcpu": "spacemit-x60"}, 256),
-)  # fmt: on
+)
+# fmt: on
 
 
 def test_riscv_rvv_features(min_llvm_version, tvm_target, vec_width):

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Arithmetic data structure and utility"""
 
 import enum
@@ -267,7 +266,7 @@ class Analyzer:
         """
         return self._can_prove(expr, strength)
 
-    def bind(self, var: tir.Var, expr: Union[tir.PrimExpr, ir.Range]) -> None:
+    def bind(self, var: tir.Var, expr: tir.PrimExpr | ir.Range) -> None:
         """Bind a variable to the expression.
 
         Parameters
@@ -355,7 +354,7 @@ class Analyzer:
         return Extension(value)
 
     @enabled_extensions.setter
-    def enabled_extensions(self, flags: Union[int, Extension]):
+    def enabled_extensions(self, flags: int | Extension):
         """Enable extensions for the analyzer
 
         Parameters

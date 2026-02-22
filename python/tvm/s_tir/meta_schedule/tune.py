@@ -16,7 +16,7 @@
 # under the License.
 """The core tuning API"""
 
-from typing import List, Optional
+from __future__ import annotations
 
 from .builder import Builder
 from .cost_model import CostModel
@@ -30,11 +30,11 @@ from .tune_context import TuneContext
 
 def tune_tasks(
     *,
-    tasks: List[TuneContext],
-    task_weights: List[float],
+    tasks: list[TuneContext],
+    task_weights: list[float],
     work_dir: str,
     max_trials_global: int,
-    max_trials_per_task: Optional[int] = None,
+    max_trials_per_task: int | None = None,
     num_trials_per_iter: int = 64,
     builder: Builder.BuilderType = "local",
     runner: Runner.RunnerType = "local",
@@ -43,7 +43,7 @@ def tune_tasks(
     measure_callbacks: MeasureCallback.CallbackListType = "default",
     task_scheduler: TaskScheduler.TaskSchedulerType = "gradient",
     module_equality: str = "structural",
-    post_optimization: Optional[bool] = False,
+    post_optimization: bool | None = False,
 ) -> Database:
     """Tune a list of tasks. Using a task scheduler.
 

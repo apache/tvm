@@ -16,7 +16,7 @@
 # under the License.
 """Package tvm.script.ir_builder.ir.ir"""
 
-from typing import Dict, List, Optional
+from __future__ import annotations
 
 from tvm.ir import BaseFunc, DummyGlobalInfo, GlobalInfo, GlobalVar, VDevice
 from tvm.runtime import Object as tvm_Object
@@ -32,7 +32,7 @@ def ir_module() -> IRModuleFrame:
     frame: IRModuleFrame
         The constructed frame.
     """
-    return _ffi_api.IRModule()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.IRModule()  # type: ignore[attr-defined]
 
 
 def decl_function(func_name: str, func_signature: BaseFunc) -> GlobalVar:
@@ -59,7 +59,7 @@ def decl_function(func_name: str, func_signature: BaseFunc) -> GlobalVar:
             "decl_function expects an instance of BaseFunc, "
             f"but {func_signature} is of type {type(func_signature)}"
         )
-    return _ffi_api.DeclFunction(  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.DeclFunction(  # type: ignore[attr-defined]
         func_name, func_signature
     )
 
@@ -73,10 +73,10 @@ def def_function(func_name: str, func: BaseFunc) -> None:
     func: BaseFunc
         The given function implementation
     """
-    return _ffi_api.DefFunction(func_name, func)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.DefFunction(func_name, func)  # type: ignore[attr-defined]
 
 
-def module_attrs(attrs: Dict[str, tvm_Object], allow_overwrite=False) -> None:
+def module_attrs(attrs: dict[str, tvm_Object], allow_overwrite=False) -> None:
     """Specify the attrs of the ir_module frame.
     Parameters
     ----------
@@ -85,7 +85,7 @@ def module_attrs(attrs: Dict[str, tvm_Object], allow_overwrite=False) -> None:
     allow_overwrite: bool
         Whether allow overwrite the existing attrs.
     """
-    return _ffi_api.ModuleAttrs(attrs, allow_overwrite)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.ModuleAttrs(attrs, allow_overwrite)  # type: ignore[attr-defined]
 
 
 def current_ir_module() -> IRModuleFrame:
@@ -95,20 +95,20 @@ def current_ir_module() -> IRModuleFrame:
     frame: IRModuleFrame
         The current frame.
     """
-    return _ffi_api.CurrentIRModule()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.CurrentIRModule()  # type: ignore[attr-defined]
 
 
-def module_get_attrs() -> Dict[str, tvm_Object]:
+def module_get_attrs() -> dict[str, tvm_Object]:
     """Get the attrs of the ir_module frame.
     Returns
     -------
     attrs: Dict[str, Object]
         The module attrs.
     """
-    return _ffi_api.ModuleGetAttrs()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.ModuleGetAttrs()  # type: ignore[attr-defined]
 
 
-def module_get_attr(attr_key: str) -> Optional[tvm_Object]:
+def module_get_attr(attr_key: str) -> tvm_Object | None:
     """Get the specified attr of the ir_module frame.
     Parameters
     ----------
@@ -119,11 +119,11 @@ def module_get_attr(attr_key: str) -> Optional[tvm_Object]:
     attr: Optional[Object]
         The specified module attr or None if not found.
     """
-    return _ffi_api.ModuleGetAttr(attr_key)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.ModuleGetAttr(attr_key)  # type: ignore[attr-defined]
 
 
 def module_set_attr(
-    attr_key: str, attr_value: Optional[tvm_Object], allow_overwrite: bool = False
+    attr_key: str, attr_value: tvm_Object | None, allow_overwrite: bool = False
 ) -> None:
     """Set the specified attr of the ir_module frame.
     Parameters
@@ -135,17 +135,17 @@ def module_set_attr(
     allow_overwrite: bool
         Whether allow overwrite the existing attr.
     """
-    return _ffi_api.ModuleSetAttr(attr_key, attr_value, allow_overwrite)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.ModuleSetAttr(attr_key, attr_value, allow_overwrite)  # type: ignore[attr-defined]
 
 
-def module_global_infos(global_infos: Dict[str, List[GlobalInfo]]) -> None:
+def module_global_infos(global_infos: dict[str, list[GlobalInfo]]) -> None:
     """Specify the global infos of the ir_module frame.
     Parameters
     ----------
     global_infos: Dict[str, List[GlobalInfo]]
         The module global infos.
     """
-    return _ffi_api.ModuleGlobalInfos(global_infos)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.ModuleGlobalInfos(global_infos)  # type: ignore[attr-defined]
 
 
 ############################### GlobalInfo ###############################
@@ -158,7 +158,7 @@ def dummy_global_info() -> DummyGlobalInfo:
     res : DummyGlobalInfo
         The result dummy global info.
     """
-    return DummyGlobalInfo()  # type: ignore[attr-defined] # pylint: disable=no-member
+    return DummyGlobalInfo()  # type: ignore[attr-defined]
 
 
 def vdevice(target=None, vdevice_id: int = 0, memory_scope: str = "global") -> VDevice:
@@ -177,10 +177,10 @@ def vdevice(target=None, vdevice_id: int = 0, memory_scope: str = "global") -> V
     res : VDevice
         The result virtual device.
     """
-    return VDevice(target, vdevice_id, memory_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return VDevice(target, vdevice_id, memory_scope)  # type: ignore[attr-defined]
 
 
-def lookup_vdevice(target_kind: str = None, device_index: int = -1) -> VDevice:
+def lookup_vdevice(target_kind: str | None = None, device_index: int = -1) -> VDevice:
     """Retrieve a virtual device from the globalinfo vdevice list.
     Parameters
     ----------
@@ -194,4 +194,4 @@ def lookup_vdevice(target_kind: str = None, device_index: int = -1) -> VDevice:
     res : VDevice
         The result virtual device.
     """
-    return _ffi_api.LookupVDevice(target_kind, device_index)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.LookupVDevice(target_kind, device_index)  # type: ignore[attr-defined]

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 
 import argparse
 import glob
@@ -79,7 +78,6 @@ def _parse_args():
     return parser.parse_args()
 
 
-# pylint: disable=too-many-locals
 def measure_candidates(database, builder, runner):
     """Send the candidates to builder and runner for distributed measurement,
     and save the results in a new json database.
@@ -105,19 +103,19 @@ def measure_candidates(database, builder, runner):
     with ms.Profiler() as profiler:
         for idx in range(0, len(candidates), args.batch_size):
             batch_candidates = candidates[idx : idx + args.batch_size]
-            context._set_measure_candidates(batch_candidates)  # pylint: disable=protected-access
+            context._set_measure_candidates(batch_candidates)
             with ms.Profiler.timeit("build"):
-                context._send_to_builder(builder)  # pylint: disable=protected-access
+                context._send_to_builder(builder)
             with ms.Profiler.timeit("run"):
-                context._send_to_runner(runner)  # pylint: disable=protected-access
-                batch_runner_results = context._join()  # pylint: disable=protected-access
+                context._send_to_runner(runner)
+                batch_runner_results = context._join()
             runner_results.extend(batch_runner_results)
             for i, result in enumerate(context.builder_results):
                 if result.error_msg is None:
                     ms.utils.remove_build_dir(result.artifact_path)
                 else:
                     build_fail_indices.append(i + idx)
-            context._clear_measure_state()  # pylint: disable=protected-access
+            context._clear_measure_state()
 
     model_name, workload_name = database.path_workload.split("/")[-2:]
     record_name = database.path_tuning_record.split("/")[-1]
@@ -151,7 +149,7 @@ def measure_candidates(database, builder, runner):
     )
 
 
-args = _parse_args()  # pylint: disable=invalid-name
+args = _parse_args()
 
 
 def main():

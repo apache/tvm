@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """tvm.contrib.msc.pipeline.pipeline"""
+
+from __future__ import annotations
 
 import json
 import os
 import traceback
-from typing import Any, List, Tuple, Union
+from typing import Any
 
 from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
@@ -56,10 +57,10 @@ class BasePipeline:
         self,
         model: Any,
         config: dict,
-        plugins: dict = None,
+        plugins: dict | None = None,
         run_optimize: bool = True,
         run_compile: bool = True,
-        root: str = None,
+        root: str | None = None,
     ):
         # change path to root path
         if root:
@@ -167,7 +168,7 @@ class BasePipeline:
                 self.optimize()
             if MSCStage.COMPILE in self._config:
                 self.compile()
-        except Exception as exc:  # pylint: disable=broad-exception-caught
+        except Exception as exc:
             err_msg = "Pipeline failed: " + str(exc)
             err_info = traceback.format_exc()
         self.summary(err_msg, err_info)
@@ -202,7 +203,7 @@ class BasePipeline:
         info, report = self._prepare(self._get_loader(MSCStage.PREPARE))
         self._record_stage(MSCStage.PREPARE, info, report)
 
-    def _prepare(self, data_loader: Any) -> Tuple[dict, dict]:
+    def _prepare(self, data_loader: Any) -> tuple[dict, dict]:
         """Prepare datas for the pipeline.
 
         Parameters
@@ -227,7 +228,7 @@ class BasePipeline:
         info, report = self._parse()
         self._record_stage(MSCStage.PARSE, info, report)
 
-    def _parse(self) -> Tuple[dict, dict]:
+    def _parse(self) -> tuple[dict, dict]:
         """Parse relax module for the pipeline.
 
         Returns
@@ -245,7 +246,7 @@ class BasePipeline:
 
         self._run_stage(MSCStage.BASELINE)
 
-    def optimize(self) -> Tuple[dict, dict]:
+    def optimize(self) -> tuple[dict, dict]:
         """Run the optimize.
 
         Returns
@@ -259,7 +260,7 @@ class BasePipeline:
         self._run_stage(MSCStage.OPTIMIZE)
         self._optimized = True
 
-    def compile(self) -> Tuple[dict, dict]:
+    def compile(self) -> tuple[dict, dict]:
         """Run the compile.
 
         Returns
@@ -273,7 +274,7 @@ class BasePipeline:
         self._run_stage(MSCStage.COMPILE)
         self._compiled = True
 
-    def _run_stage(self, stage: str) -> Tuple[dict, dict]:
+    def _run_stage(self, stage: str) -> tuple[dict, dict]:
         """Run the stage.
 
         Parameters
@@ -361,8 +362,8 @@ class BasePipeline:
         return False
 
     def _apply_tool(
-        self, tool_type: str, knowledge: dict = None, data_loader: Any = None
-    ) -> Tuple[dict, dict]:
+        self, tool_type: str, knowledge: dict | None = None, data_loader: Any = None
+    ) -> tuple[dict, dict]:
         """Apply tool with runner
 
         Parameters
@@ -387,13 +388,13 @@ class BasePipeline:
     def _create_runtime(
         self,
         stage: str,
-        tools: List[str] = None,
-        run_type: str = None,
-        run_config: dict = None,
+        tools: list[str] | None = None,
+        run_type: str | None = None,
+        run_config: dict | None = None,
         visualize: bool = True,
         profile: bool = True,
         use_cache: bool = True,
-    ) -> Tuple[dict, dict]:
+    ) -> tuple[dict, dict]:
         """Create runtime.
 
         Parameters
@@ -445,7 +446,7 @@ class BasePipeline:
 
         raise NotImplementedError("_run_gym is not implemented in " + str(self.__class__))
 
-    def summary(self, err_msg: str = None, err_info: str = None) -> dict:
+    def summary(self, err_msg: str | None = None, err_info: str | None = None) -> dict:
         """Summary the pipeline.
 
         Parameters
@@ -469,7 +470,7 @@ class BasePipeline:
         self._report["duration"] = msc_utils.get_duration()
         return self._report
 
-    def export(self, path: str = None, dump: bool = True) -> Union[str, dict]:
+    def export(self, path: str | None = None, dump: bool = True) -> str | dict:
         """Export the pipeline
 
         Parameters
@@ -719,7 +720,7 @@ class BasePipeline:
         self._logger.debug(self.pipe_mark(msg))
         return loader
 
-    def _record_stage(self, stage: str, info: dict = None, report: dict = None):
+    def _record_stage(self, stage: str, info: dict | None = None, report: dict | None = None):
         """Record the stage
 
         Parameters
@@ -790,7 +791,7 @@ class BasePipeline:
 
         raise NotImplementedError("get_runtime is not implemented in " + str(self.__class__))
 
-    def create_worker(self, model: Any, name: str, config: dict = None):
+    def create_worker(self, model: Any, name: str, config: dict | None = None):
         """Create pipe worker
 
         Parameters

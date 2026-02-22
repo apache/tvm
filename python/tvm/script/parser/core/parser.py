@@ -16,11 +16,14 @@
 # under the License.
 """The core parser"""
 
+from __future__ import annotations
+
 import abc
 import inspect
 from collections import defaultdict
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, List, Optional, Set, Union
+from typing import Any
 
 import numpy as np
 
@@ -64,7 +67,7 @@ def _deferred(exit_f: Callable[[], None]):
     return context()
 
 
-def _do_nothing(*args, **kwargs):  # pylint: disable=unused-argument
+def _do_nothing(*args, **kwargs):
     pass
 
 
@@ -95,7 +98,7 @@ class ScriptMacro(abc.ABC):
     def __init__(
         self,
         source: Source,
-        closure_vars: Dict[str, Any],
+        closure_vars: dict[str, Any],
         func: Callable,
         hygienic: bool,
     ) -> None:
@@ -108,7 +111,7 @@ class ScriptMacro(abc.ABC):
         return self.source.source
 
     @abc.abstractmethod
-    def parse_macro(self, parser: "Parser") -> Any:
+    def parse_macro(self, parser: Parser) -> Any:
         """The main macro parsing function. Different scripts may have different
         ways to parse a macro, and to return a value to the evaluator.
 
@@ -180,7 +183,7 @@ class VarTableFrame:
         The set of variable names in the variable table frame.
     """
 
-    vars: Set[str]
+    vars: set[str]
 
     def __init__(self):
         self.vars = set()
@@ -223,8 +226,8 @@ class VarTable:
         The dictionary for variable table name-based query.
     """
 
-    frames: List[VarTableFrame]
-    name2value: Dict[str, List[Any]]
+    frames: list[VarTableFrame]
+    name2value: dict[str, list[Any]]
 
     def __init__(self):
         self.frames = []
@@ -273,7 +276,7 @@ class VarTable:
             self.frames[-1].add(var)
             self.name2value[var].append(value)
 
-    def get(self) -> Dict[str, Any]:
+    def get(self) -> dict[str, Any]:
         """Get a variable dictionary of latest variables.
 
         Returns
@@ -304,17 +307,17 @@ class VarTable:
 
 
 def _dispatch_wrapper(func: dispatch.ParseMethod) -> dispatch.ParseMethod:
-    def _wrapper(self: "Parser", node: doc.AST) -> None:
+    def _wrapper(self: Parser, node: doc.AST) -> None:
         try:
             return func(self, node)
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:
             self.report_error(node, err)
             raise
 
     return _wrapper
 
 
-def _dispatch(self: "Parser", type_name: str) -> dispatch.ParseMethod:
+def _dispatch(self: Parser, type_name: str) -> dispatch.ParseMethod:
     for token in [self.dispatch_tokens[-1], "default"]:
         func = dispatch.get(token=token, type_name=type_name, default=None)
         if func is not None:
@@ -339,17 +342,17 @@ class Parser(doc.NodeVisitor):
     """
 
     diag: Diagnostics
-    dispatch_tokens: List[str]
-    function_annotations: Optional[Dict[str, Dict[str, Any]]]
+    dispatch_tokens: list[str]
+    function_annotations: dict[str, dict[str, Any]] | None
     var_table: VarTable
     inside_function: bool  # whether we are within a function
-    current_class: Optional[str] = None  # current class being parsed
+    current_class: str | None = None  # current class being parsed
     base_py_module_context: bool = False  # whether current class inherits from BasePyModule
 
     def __init__(
         self,
         source: Source,
-        function_annotations: Dict[str, Dict[str, Any]],
+        function_annotations: dict[str, dict[str, Any]],
     ) -> None:
         self.diag = Diagnostics(source)
         self.dispatch_tokens = ["default"]
@@ -357,7 +360,7 @@ class Parser(doc.NodeVisitor):
         self.var_table = VarTable()
         self.inside_function = False
 
-    def parse(self, extra_vars: Optional[Dict[str, Any]] = None) -> Any:
+    def parse(self, extra_vars: dict[str, Any] | None = None) -> Any:
         """The main parse method for parser.
 
         Parameters
@@ -429,7 +432,7 @@ class Parser(doc.NodeVisitor):
         self.current_class = class_name
         self.base_py_module_context = is_base_py_module
 
-    def _get_current_class_context(self) -> Optional[str]:
+    def _get_current_class_context(self) -> str | None:
         """Get the current class context.
 
         Returns
@@ -473,8 +476,8 @@ class Parser(doc.NodeVisitor):
 
     def eval_expr(
         self,
-        node: Union[doc.Expression, doc.expr],
-        extra_vars: Optional[Dict[str, Any]] = None,
+        node: doc.Expression | doc.expr,
+        extra_vars: dict[str, Any] | None = None,
     ) -> Any:
         """Expression evaluation when parsing.
 
@@ -498,7 +501,7 @@ class Parser(doc.NodeVisitor):
         var_values[ScriptMacro.parser_object_name] = self
         return eval_expr(self, node, var_values)
 
-    def _duplicate_lhs_check(self, target: doc.expr) -> Union[bool, Set[str]]:
+    def _duplicate_lhs_check(self, target: doc.expr) -> bool | set[str]:
         """Check whether duplicate lhs exists in assignment.
 
         Parameters
@@ -513,7 +516,7 @@ class Parser(doc.NodeVisitor):
             or the set of lhs names if no duplicate lhs exists.
         """
         if isinstance(target, (doc.Tuple, doc.List)):
-            vars: Set[str] = set()  # pylint: disable=redefined-builtin
+            vars: set[str] = set()
             for i in target.elts:
                 res = self._duplicate_lhs_check(i)
                 if isinstance(res, bool) and res:
@@ -535,9 +538,9 @@ class Parser(doc.NodeVisitor):
         self,
         target: doc.expr,
         source: Any,
-        bind_value: Callable[["Parser", doc.expr, str, Any], Any],
+        bind_value: Callable[[Parser, doc.expr, str, Any], Any],
         allow_shadowing: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Expression assignment evaluation when parsing.
 
         Parameters
@@ -567,7 +570,7 @@ class Parser(doc.NodeVisitor):
             self.var_table.add(k, var, allow_shadowing)
         return var_values
 
-    def report_error(self, node: doc.AST, err: Union[Exception, str]) -> None:  # pylint: disable=no-self-use
+    def report_error(self, node: doc.AST, err: Exception | str) -> None:
         """The error reporting when parsing.
 
         Parameters
@@ -632,10 +635,10 @@ class Parser(doc.NodeVisitor):
             raise NotImplementedError(f"Visitor of AST node is not implemented: {name}")
         try:
             func(node)
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:
             self.report_error(node, err)
 
-    def visit_body(self, node: List[doc.stmt]) -> Any:
+    def visit_body(self, node: list[doc.stmt]) -> Any:
         """The general body visiting method.
 
         Parameters
@@ -666,7 +669,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "tvm_annotation")(self, node)
 
-    def visit_FunctionDef(self, node: doc.FunctionDef) -> None:  # pylint: disable=invalid-name
+    def visit_FunctionDef(self, node: doc.FunctionDef) -> None:
         """The general function definition visit method.
 
         Parameters
@@ -687,7 +690,7 @@ class Parser(doc.NodeVisitor):
         with self.with_dispatch_token(token):
             return _dispatch(self, "tvm_declare_function")(self, node)
 
-    def visit_ClassDef(self, node: doc.ClassDef) -> Any:  # pylint: disable=invalid-name
+    def visit_ClassDef(self, node: doc.ClassDef) -> Any:
         """The general class definition visiting method.
 
         Parameters
@@ -720,7 +723,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "arguments")(self, node)
 
-    def visit_For(self, node: doc.For) -> Any:  # pylint: disable=invalid-name
+    def visit_For(self, node: doc.For) -> Any:
         """The general for visiting method.
 
         Parameters
@@ -735,7 +738,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "For")(self, node)
 
-    def visit_While(self, node: doc.While) -> Any:  # pylint: disable=invalid-name
+    def visit_While(self, node: doc.While) -> Any:
         """The general while visiting method.
 
         Parameters
@@ -750,7 +753,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "While")(self, node)
 
-    def visit_With(self, node: doc.With) -> Any:  # pylint: disable=invalid-name
+    def visit_With(self, node: doc.With) -> Any:
         """The general with visiting method.
 
         Parameters
@@ -765,7 +768,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "With")(self, node)
 
-    def visit_Assign(self, node: doc.Assign) -> Any:  # pylint: disable=invalid-name
+    def visit_Assign(self, node: doc.Assign) -> Any:
         """The general assign visiting method.
 
         Parameters
@@ -780,7 +783,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "Assign")(self, node)
 
-    def visit_AnnAssign(self, node: doc.AnnAssign) -> Any:  # pylint: disable=invalid-name
+    def visit_AnnAssign(self, node: doc.AnnAssign) -> Any:
         """The general annotated assign visiting method.
 
         Parameters
@@ -795,7 +798,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "AnnAssign")(self, node)
 
-    def visit_Expr(self, node: doc.Expr) -> Any:  # pylint: disable=invalid-name
+    def visit_Expr(self, node: doc.Expr) -> Any:
         """The general expression visiting method.
 
         Parameters
@@ -810,7 +813,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "Expr")(self, node)
 
-    def visit_If(self, node: doc.If) -> Any:  # pylint: disable=invalid-name
+    def visit_If(self, node: doc.If) -> Any:
         """The general if visiting method.
 
         Parameters
@@ -825,7 +828,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "If")(self, node)
 
-    def visit_AugAssign(self, node: doc.AugAssign) -> Any:  # pylint: disable=invalid-name
+    def visit_AugAssign(self, node: doc.AugAssign) -> Any:
         """The general augmented assignment visiting method.
 
         Parameters
@@ -840,7 +843,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "AugAssign")(self, node)
 
-    def visit_Assert(self, node: doc.Assert) -> Any:  # pylint: disable=invalid-name
+    def visit_Assert(self, node: doc.Assert) -> Any:
         """The general assert visiting method.
 
         Parameters
@@ -855,7 +858,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "Assert")(self, node)
 
-    def visit_Return(self, node: doc.Return) -> Any:  # pylint: disable=invalid-name
+    def visit_Return(self, node: doc.Return) -> Any:
         """The general return visiting method.
 
         Parameters
@@ -870,7 +873,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "Return")(self, node)
 
-    def visit_Continue(self, node: doc.Continue) -> Any:  # pylint: disable=invalid-name
+    def visit_Continue(self, node: doc.Continue) -> Any:
         """The general continue visiting method.
 
         Parameters
@@ -885,7 +888,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "Continue")(self, node)
 
-    def visit_Break(self, node: doc.Break) -> Any:  # pylint: disable=invalid-name
+    def visit_Break(self, node: doc.Break) -> Any:
         """The general break visiting method.
 
         Parameters
@@ -900,7 +903,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "Break")(self, node)
 
-    def visit_Nonlocal(self, node: doc.Nonlocal) -> Any:  # pylint: disable=invalid-name
+    def visit_Nonlocal(self, node: doc.Nonlocal) -> Any:
         """The general nonlocal visiting method.
 
         Parameters

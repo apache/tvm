@@ -32,7 +32,6 @@ from tvm.contrib.pickle_memoize import memoize
 from ..utils import const_matrix
 
 
-# pylint: disable=invalid-name
 def _cook_toom_convolution(a, n, r):
     """Compute Cook-Toom convolution A,B,G matrices"""
 
@@ -100,7 +99,6 @@ def _interpolation_points(degree):
     #     https://arxiv.org/abs/1803.10986
     #
 
-    # pylint: disable=bad-whitespace,line-too-long
     in_pts = [
         #   {invalid}
         [],
@@ -154,7 +152,7 @@ def _interpolation_points(degree):
             -2 / 3,
             3 / 2,
         ],
-    ]  # pylint: enable=bad-whitespace,line-too-long
+    ]
 
     return np.array(in_pts[degree - 1], dtype=np.float64)
 

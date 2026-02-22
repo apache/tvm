@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=used-before-assignment
 """A context manager that profiles tuning time cost for different parts."""
 
+from __future__ import annotations
+
 from contextlib import contextmanager
-from typing import Dict, Optional
 
 from tvm_ffi import register_object
 
@@ -33,30 +33,30 @@ class Profiler(Object):
 
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.Profiler,  # type: ignore # pylint: disable=no-member
+            _ffi_api.Profiler,  # type: ignore
         )
 
-    def get(self) -> Dict[str, float]:
+    def get(self) -> dict[str, float]:
         """Get the profiling results in seconds"""
-        return _ffi_api.ProfilerGet(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ProfilerGet(self)  # type: ignore
 
     def table(self) -> str:
         """Get the profiling results in a table format"""
-        return _ffi_api.ProfilerTable(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ProfilerTable(self)  # type: ignore
 
-    def __enter__(self) -> "Profiler":
+    def __enter__(self) -> Profiler:
         """Entering the scope of the context manager"""
-        _ffi_api.ProfilerEnterWithScope(self)  # type: ignore # pylint: disable=no-member
+        _ffi_api.ProfilerEnterWithScope(self)  # type: ignore
         return self
 
     def __exit__(self, ptype, value, trace) -> None:
         """Exiting the scope of the context manager"""
-        _ffi_api.ProfilerExitWithScope(self)  # type: ignore # pylint: disable=no-member
+        _ffi_api.ProfilerExitWithScope(self)  # type: ignore
 
     @staticmethod
-    def current() -> Optional["Profiler"]:
+    def current() -> Profiler | None:
         """Get the current profiler."""
-        return _ffi_api.ProfilerCurrent()  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ProfilerCurrent()  # type: ignore
 
     @staticmethod
     def timeit(name: str):
@@ -65,7 +65,7 @@ class Profiler(Object):
         @contextmanager
         def _timeit():
             try:
-                f = _ffi_api.ProfilerTimedScope(name)  # type: ignore # pylint: disable=no-member
+                f = _ffi_api.ProfilerTimedScope(name)  # type: ignore
                 yield
             finally:
                 if f:

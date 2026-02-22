@@ -17,7 +17,7 @@
 """Rule that mark parallelize, vectorize and unroll to the root block. The mark will be applied to
 each block in a follow-up post processor"""
 
-from typing import List, Optional
+from __future__ import annotations
 
 from tvm_ffi import register_object
 
@@ -51,13 +51,13 @@ class ParallelizeVectorizeUnroll(ScheduleRule):
         self,
         max_jobs_per_core: int = 16,
         max_vectorize_extent: int = 16,
-        unroll_max_steps: Optional[List[int]] = None,
+        unroll_max_steps: list[int] | None = None,
         unroll_explicit: bool = True,
     ) -> None:
         if unroll_max_steps is None:
             unroll_max_steps = []
         self.__init_handle_by_constructor__(
-            _ffi_api.ScheduleRuleParallelizeVectorizeUnroll,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ScheduleRuleParallelizeVectorizeUnroll,  # type: ignore
             max_jobs_per_core,
             max_vectorize_extent,
             unroll_max_steps,

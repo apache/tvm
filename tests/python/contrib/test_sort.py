@@ -16,7 +16,6 @@
 # under the License.
 """Configure pytest"""
 
-# pylint: disable=invalid-name
 import numpy as np
 
 import tvm

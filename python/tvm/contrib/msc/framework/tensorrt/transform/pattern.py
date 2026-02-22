@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """tvm.contrib.msc.framework.tensorrt.transform.pattern"""
 
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
 from functools import partial, wraps
-from typing import Callable, Dict, List, Mapping, Tuple, Union
+from typing import Union
 
 import tvm
 from tvm import relax
@@ -30,8 +32,8 @@ from tvm.relax.transform import FusionPattern, PatternCheckContext
 
 
 def basic_pattern(
-    op_name: str, input_types: List[str] = None
-) -> Tuple[pattern.DFPattern, Mapping[str, pattern.DFPattern]]:
+    op_name: str, input_types: list[str] | None = None
+) -> tuple[pattern.DFPattern, Mapping[str, pattern.DFPattern]]:
     """create basic pattern for tensorrt support ops.
 
     Parameters
@@ -67,7 +69,7 @@ def basic_pattern(
     return out, annotations
 
 
-def elemwise_pattern(op_name: str) -> Tuple[pattern.DFPattern, Mapping[str, pattern.DFPattern]]:
+def elemwise_pattern(op_name: str) -> tuple[pattern.DFPattern, Mapping[str, pattern.DFPattern]]:
     """create elemwise pattern for tensorrt support ops.
 
     Parameters
@@ -89,7 +91,7 @@ def elemwise_pattern(op_name: str) -> Tuple[pattern.DFPattern, Mapping[str, patt
     return basic_pattern(op_name, ["input", "input"])
 
 
-def argmaxmin_pattern(op_name: str) -> Tuple[pattern.DFPattern, Mapping[str, pattern.DFPattern]]:
+def argmaxmin_pattern(op_name: str) -> tuple[pattern.DFPattern, Mapping[str, pattern.DFPattern]]:
     """create argmaxmin pattern for tensorrt support ops.
 
     Parameters
@@ -114,7 +116,7 @@ def argmaxmin_pattern(op_name: str) -> Tuple[pattern.DFPattern, Mapping[str, pat
     return out, {"input": data, "argmaxmin": argmaxmin, "out": out}
 
 
-def _check_expr(expr: relax.Expr, dtypes: Tuple[str] = None) -> bool:
+def _check_expr(expr: relax.Expr, dtypes: tuple[str] | None = None) -> bool:
     """Check if the expr can be fused on tensorrt.
 
     Parameters
@@ -257,8 +259,8 @@ def _plugin_check(context: PatternCheckContext) -> bool:
 
 
 def plugin_attrs_getter(
-    annotated_expr: Dict[str, tvm.relax.Expr],
-) -> Dict[str, str]:
+    annotated_expr: dict[str, tvm.relax.Expr],
+) -> dict[str, str]:
     """Get attributes for plugin pattern
 
     Parameters
@@ -301,17 +303,17 @@ def wrap_basic_check(
 
 
 CheckFunc = Callable[[Mapping[pattern.DFPattern, relax.Expr], relax.Expr], bool]
-GetterFunc = Callable[[Mapping[pattern.DFPattern, relax.Expr], relax.Expr], Dict[str, str]]
-Pattern = Union[
-    FusionPattern,
-    Tuple[str, pattern.DFPattern],
-    Tuple[str, pattern.DFPattern, Mapping[str, pattern.DFPattern]],
-    Tuple[str, pattern.DFPattern, Mapping[str, pattern.DFPattern], CheckFunc],
-    Tuple[str, pattern.DFPattern, Mapping[str, pattern.DFPattern], CheckFunc, GetterFunc],
-]
+GetterFunc = Callable[[Mapping[pattern.DFPattern, relax.Expr], relax.Expr], dict[str, str]]
+Pattern = (
+    FusionPattern
+    | tuple[str, pattern.DFPattern]
+    | tuple[str, pattern.DFPattern, Mapping[str, pattern.DFPattern]]
+    | tuple[str, pattern.DFPattern, Mapping[str, pattern.DFPattern], CheckFunc]
+    | tuple[str, pattern.DFPattern, Mapping[str, pattern.DFPattern], CheckFunc, GetterFunc]
+)
 
 
-def get_patterns(target) -> List[Pattern]:
+def get_patterns(target) -> list[Pattern]:
     """Get all the tensorrt patterns.
 
     Parameters

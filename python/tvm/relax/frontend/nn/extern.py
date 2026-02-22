@@ -16,12 +16,14 @@
 # under the License.
 """External modules to be linked into the exported IRModule."""
 
+from __future__ import annotations
+
 import os
 import shutil
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
 
 from tvm import tir
 from tvm.contrib import cc as _cc
@@ -37,9 +39,9 @@ class ExternModule:
     incorporate user-provided handcrafted kernels into the exported TVM IRModule.
     """
 
-    _symbols: Dict[str, Callable]
+    _symbols: dict[str, Callable]
 
-    def __init__(self, symbols: Dict[str, Callable]) -> None:
+    def __init__(self, symbols: dict[str, Callable]) -> None:
         self._symbols = symbols
 
     def __getitem__(self, func_name: str) -> Callable:
@@ -47,10 +49,10 @@ class ExternModule:
 
         def _call(*input_args):
             def _convert(arg, name: str):
-                from tvm import relax as rx  # pylint: disable=import-outside-toplevel
+                from tvm import relax as rx
 
                 if isinstance(arg, core.Tensor):
-                    return arg._expr  # pylint: disable=protected-access
+                    return arg._expr
                 if isinstance(arg, int):
                     return rx.PrimValue(tir.IntImm("int64", arg))
                 if isinstance(arg, float):
@@ -77,7 +79,7 @@ class ExternModule:
         raise NotImplementedError
 
 
-class ObjectModule(ExternModule):  # pylint: disable=too-few-public-methods
+class ObjectModule(ExternModule):
     """A subclass of `nn.ExternModule`, which allows
     users to provide an object `.o` file to be linked into compiled
     artifact;
@@ -85,7 +87,7 @@ class ObjectModule(ExternModule):  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        symbols: Dict[str, Callable],
+        symbols: dict[str, Callable],
         filepath: Path,
     ) -> None:
         if not isinstance(filepath, Path):
@@ -99,7 +101,7 @@ class ObjectModule(ExternModule):  # pylint: disable=too-few-public-methods
         return self._load(self.filepath)
 
 
-class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
+class SourceModule(ExternModule):
     """A subclass of `nn.ExternModule`. It compiles C++/CUDA source code and link them into the
     eventual IRModule.
 
@@ -165,13 +167,13 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
     and otherwise an error will be raised.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
-        symbols: Dict[str, Callable],
-        source_code: Union[str, Path],
+        symbols: dict[str, Callable],
+        source_code: str | Path,
         source_format: str,  # "cpp", "cu"
-        compile_options: Optional[List[str]] = None,
-        compiler: Optional[str] = None,
+        compile_options: list[str] | None = None,
+        compiler: str | None = None,
         output_format: str = "obj",  # "obj", "wasm"
     ):
         """Constructs a `nn.SourceModule` from source code.
@@ -210,9 +212,9 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
 
         def _detect_output_suffix(output_format: str) -> str:
             if output_format == "obj":
-                if _cc._is_linux_like():  # pylint: disable=protected-access
+                if _cc._is_linux_like():
                     return ".o"
-                if _cc._is_windows_like():  # pylint: disable=protected-access
+                if _cc._is_windows_like():
                     return ".obj"
                 raise ValueError(f"Unsupported platform: {sys.platform}")
             if output_format == "wasm":
@@ -227,12 +229,12 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
             else:
                 try:
                     path = Path(source_code)
-                except:  # pylint: disable=bare-except
+                except:
                     return source_code
                 try:
                     if not path.is_file():
                         return source_code
-                except:  # pylint: disable=bare-except
+                except:
                     return source_code
             with path.open("r", encoding="utf-8") as file:
                 return file.read()
@@ -268,7 +270,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
                 f"Using environment variable `TVM_HOME`, but it is not a directory: {tvm_path!s}"
             )
         else:
-            import tvm  # pylint: disable=import-outside-toplevel
+            import tvm
 
             tvm_path = Path(tvm.__file__).parent
             assert tvm_path.is_dir()
@@ -289,7 +291,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         return tvm_path.resolve()
 
     @staticmethod
-    def get_includes(tvm_pkg: Optional[List[str]] = None) -> List[Path]:
+    def get_includes(tvm_pkg: list[str] | None = None) -> list[Path]:
         """Returns the default include paths according to `tvm_home()`.
         By default, it includes TVM, DLPack. With `tvm_pkg` provided, it also
         includes the specified package under `tvm_home/3rdparty`.
@@ -322,8 +324,8 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
     @staticmethod
     def get_compile_options(
         source_format: str,
-        tvm_pkg: Optional[List[str]] = None,
-    ) -> List[str]:
+        tvm_pkg: list[str] | None = None,
+    ) -> list[str]:
         """Returns the default compile options depending on `source_format`, including the default
         inlcude paths w.r.t. `tvm_home()`, and by default,
         it uses "-O3" and "-std=c++17".

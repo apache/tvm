@@ -14,15 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-from typing import List
+from __future__ import annotations
 
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
-
-# pylint: disable=invalid-name, no-member
 
 
 @T.prim_func
@@ -38,12 +35,9 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-# pylint: enable=invalid-name, no-member
-
-
-def _sch(decisions: List[List[int]], ann_val: int) -> Schedule:
+def _sch(decisions: list[list[int]], ann_val: int) -> Schedule:
     sch = Schedule(matmul, debug_mask="all")
-    # pylint: disable=invalid-name
+
     d0, d1, d2 = decisions
     b0 = sch.get_sblock(name="C", func_name="main")
     root = sch.get_sblock(name="root", func_name="main")
@@ -74,7 +68,7 @@ def _sch(decisions: List[List[int]], ann_val: int) -> Schedule:
     sch.reorder(l9, l17, l10, l18, l23, l11, l19, l24, l12, l20)
     sch.reverse_compute_at(block=b1, loop=l18, preserve_unit_loops=True)
     sch.annotate(block_or_loop=root, ann_key="meta_schedule.parallel", ann_val=ann_val)
-    # pylint: enable=invalid-name
+
     return sch
 
 
@@ -88,7 +82,7 @@ def _make_mutator(target: Target, max_jobs_per_core: int) -> ms.Mutator:
             mutator_probs={ms.mutator.MutateParallel(max_jobs_per_core): 1.0},
         ),
     )
-    return list(ctx.space_generator.mutator_probs.keys())[0]
+    return next(iter(ctx.space_generator.mutator_probs.keys()))
 
 
 def test_mutate_parallel_matmul():

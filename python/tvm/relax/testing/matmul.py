@@ -45,7 +45,7 @@ def get_relax_matmul_module(
 
             with R.dataflow() as frame:
                 if transposed_y:
-                    axes = list(range(len(y_shape) - 2)) + [-1, -2]
+                    axes = [*list(range(len(y_shape) - 2)), -1, -2]
                     y = R.emit(R.permute_dims(y, axes=axes))
                 result = R.emit(R.matmul(x, y, out_dtype=out_dtype))
                 if bias_shape is not None:

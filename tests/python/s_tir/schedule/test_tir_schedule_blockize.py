@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 
 import tvm
@@ -24,7 +23,6 @@ from tvm.s_tir.schedule.testing import verify_trace_roundtrip
 from tvm.script import tir as T
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
 @T.prim_func
 def single_elementwise(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
@@ -34,7 +32,6 @@ def single_elementwise(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128
             B[vi, vj] = A[vi, vj] * 2.0
 
 # fmt: on
-# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
 
 def test_blockize_outer():

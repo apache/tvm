@@ -16,9 +16,11 @@
 # under the License.
 """Meta schedule tuning utilities for Hexagon."""
 
+from __future__ import annotations
+
 import os
 import tempfile
-from typing import Callable, Dict, List, Optional
+from collections.abc import Callable
 
 import tvm
 from tvm.contrib.popen_pool import PopenPoolExecutor
@@ -52,11 +54,11 @@ class HexagonRPCRunner(PyRunner):
     def __init__(
         self,
         hexagon_launcher: HexagonLauncherRPC,
-        evaluator_config: Optional[EvaluatorConfig] = None,
+        evaluator_config: EvaluatorConfig | None = None,
         cooldown_sec: float = 0.0,
         alloc_repeat: int = 1,
-        max_workers: Optional[int] = None,
-        initializer: Optional[Callable[[], None]] = None,
+        max_workers: int | None = None,
+        initializer: Callable[[], None] | None = None,
     ):
         """
         Parameters
@@ -89,7 +91,7 @@ class HexagonRPCRunner(PyRunner):
             initializer=initializer,
         )
 
-    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
+    def run(self, runner_inputs: list[RunnerInput]) -> list[RunnerFuture]:
         results = []
         for runner_input in runner_inputs:
             future = RPCRunnerFuture(
@@ -131,7 +133,7 @@ def _worker_func(hexagon_launcher, evaluator_config, alloc_repeat, artifact_path
 
 def get_hexagon_local_builder(
     pass_context: tvm.transform.PassContext = None,
-    max_workers: Optional[int] = None,
+    max_workers: int | None = None,
     timeout_sec: float = 30.0,
 ):
     """Return Hexagon-compatible Builder for meta schedule."""
@@ -141,7 +143,7 @@ def get_hexagon_local_builder(
         return str(binary_path)
 
     def default_build_with_context(
-        mod: IRModule, target: Target, _params: Optional[Dict[str, Tensor]]
+        mod: IRModule, target: Target, _params: dict[str, Tensor] | None
     ) -> Module:
         with pass_context:
             mod = RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=True)(mod)
@@ -163,7 +165,7 @@ def get_hexagon_rpc_runner(
     number=3,
     repeat=1,
     min_repeat_ms=100,
-    max_workers: Optional[int] = None,
+    max_workers: int | None = None,
 ):
     """Return Hexagon-compatible RPC Runner for meta schedule.
 

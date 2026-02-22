@@ -115,7 +115,7 @@ class ReluRewriter(PyExprMutator):
 
 
 @tvm.transform.module_pass(opt_level=0, name="ReluToGelu")
-class ReluToGelu:  # pylint: disable=too-few-public-methods
+class ReluToGelu:
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         rewriter = ReluRewriter(mod)

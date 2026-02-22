@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Pipe worker for multi-processing."""
 
 import os
@@ -50,7 +49,7 @@ class DiscoPopenWorker:
         The standard error streams handler specified for the popen process.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         worker_id: int,
         num_workers: int,
@@ -128,7 +127,7 @@ class DiscoPopenWorker:
             str(self.num_groups),
         ]
         if sys.platform == "win32":
-            import msvcrt  # pylint: disable=import-error,import-outside-toplevel
+            import msvcrt
 
             worker_read_handle = msvcrt.get_osfhandle(worker_read)
             worker_write_handle = msvcrt.get_osfhandle(worker_write)
@@ -143,7 +142,7 @@ class DiscoPopenWorker:
             )
         else:
             cmd += [str(worker_read), str(worker_write)]
-            self._proc = subprocess.Popen(  # pylint: disable=consider-using-with
+            self._proc = subprocess.Popen(
                 cmd,
                 pass_fds=(worker_read, worker_write),
                 stdout=self._stdout,
@@ -164,7 +163,7 @@ def _kill_child_processes(pid):
     pid : int
         The given parameter id.
     """
-    import psutil  # pylint: disable=import-outside-toplevel
+    import psutil
 
     try:
         parent = psutil.Process(pid)

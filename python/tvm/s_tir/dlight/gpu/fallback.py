@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 """A fallback schedule rule for GPU operators."""
 
-from typing import List, Tuple
+from __future__ import annotations
 
 from tvm import s_tir, tir
 from tvm.target import Target
@@ -34,7 +33,7 @@ class Fallback(GPUScheduleRule):
     and then apply a simple block/grid mapping to the spatial loops on top of the remaining blocks.
     """
 
-    def apply(  # pylint: disable=too-many-locals,missing-docstring
+    def apply(
         self,
         func: tir.PrimFunc,
         target: Target,
@@ -51,11 +50,11 @@ class Fallback(GPUScheduleRule):
             return None
 
         block_infos = try_inline(sch, block_infos)
-        reduction_blocks: List[Tuple[s_tir.schedule.SBlockRV, s_tir.schedule.LoopRV]] = []
+        reduction_blocks: list[tuple[s_tir.schedule.SBlockRV, s_tir.schedule.LoopRV]] = []
         for block in block_infos:
-            s_loops: List[s_tir.schedule.LoopRV] = []
-            r_loops: List[s_tir.schedule.LoopRV] = []
-            o_loops: List[s_tir.schedule.LoopRV] = []
+            s_loops: list[s_tir.schedule.LoopRV] = []
+            r_loops: list[s_tir.schedule.LoopRV] = []
+            o_loops: list[s_tir.schedule.LoopRV] = []
             dom_kind = block.dom_kind()
             block = block.block_rv
 
@@ -76,7 +75,7 @@ class Fallback(GPUScheduleRule):
             if not s_loops:
                 s_loops.append(sch.add_unit_loop(block))
             sch.reorder(*s_loops, *r_loops, *o_loops)
-            bx, tx = sch.split(  # pylint: disable=invalid-name
+            bx, tx = sch.split(
                 sch.fuse(*s_loops),
                 factors=[None, max_threads_per_block],
             )

@@ -16,11 +16,10 @@
 # under the License.
 """Operation class for computation declaration."""
 
-import inspect
+from __future__ import annotations
 
-# pylint: disable=invalid-name
+import inspect
 from numbers import Integral as _Integral
-from typing import List, Optional, Union
 
 import tvm.arith._ffi_api
 import tvm.tir
@@ -291,15 +290,13 @@ def extern(
         in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
         if len(inputs) != len(in_buffers):
             raise RuntimeError(
-                "Number of inputs and in_buffers mismatch: %d vs %d."
-                % (len(inputs), len(in_buffers))
+                f"Number of inputs and in_buffers mismatch: {len(inputs)} vs {len(in_buffers)}."
             )
     if out_buffers is not None:
         out_buffers = [out_buffers] if not isinstance(out_buffers, list) else out_buffers
         if len(shape) != len(out_buffers):
             raise RuntimeError(
-                "Number of outputs and out_buffers mismatch: %d vs %d."
-                % (len(shape), len(out_buffers))
+                f"Number of outputs and out_buffers mismatch: {len(shape)} vs {len(out_buffers)}."
             )
     input_placeholders = in_buffers or []
     output_placeholders = out_buffers or []
@@ -342,7 +339,7 @@ def extern(
     return res[0] if len(res) == 1 else res
 
 
-def extern_primfunc(input_tensors: List[_tensor.Tensor], primfunc: tvm.tir.PrimFunc, **kwargs):
+def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tir.PrimFunc, **kwargs):
     """Compute tensors via a schedulable TIR PrimFunc
 
     Parameters
@@ -549,7 +546,7 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
 
 
 def create_prim_func(
-    ops: List[Union[_tensor.Tensor, tvm.tir.Var]], index_dtype_override: Optional[str] = None
+    ops: list[_tensor.Tensor | tvm.tir.Var], index_dtype_override: str | None = None
 ) -> tvm.tir.PrimFunc:
     """Create a TensorIR PrimFunc from tensor expression
 

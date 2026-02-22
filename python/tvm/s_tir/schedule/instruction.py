@@ -16,7 +16,9 @@
 # under the License.
 """Schedule instructions each corresponds to a schedule primitive"""
 
-from typing import TYPE_CHECKING, Any, List, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Union
 
 from tvm_ffi import register_object as _register_object
 
@@ -27,8 +29,8 @@ from . import _ffi_api
 if TYPE_CHECKING:
     from .schedule import RAND_VAR_TYPE
 
-    INPUT_RV_TYPE = Union[RAND_VAR_TYPE, float, int, str, None]  # pylint: disable=invalid-name
-    OUTPUT_RV_TYPE = Union[RAND_VAR_TYPE]  # pylint: disable=invalid-name
+    INPUT_RV_TYPE = RAND_VAR_TYPE | float | int | str | None
+    OUTPUT_RV_TYPE = RAND_VAR_TYPE
     ATTR_TYPE = Any
 else:
     INPUT_RV_TYPE = OUTPUT_RV_TYPE = ATTR_TYPE = Any
@@ -74,7 +76,7 @@ class InstructionKind(Object):
         return bool(self._is_pure)
 
     @staticmethod
-    def get(name: str) -> "InstructionKind":
+    def get(name: str) -> InstructionKind:
         """Retrieve an InstructionKind using its name
 
         Parameters
@@ -87,7 +89,7 @@ class InstructionKind(Object):
         kind : InstructionKind
             The InstructionKind retrieved
         """
-        return _ffi_api.InstructionKindGet(name)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.InstructionKindGet(name)  # type: ignore
 
 
 @_register_object("s_tir.Instruction")
@@ -121,16 +123,16 @@ class Instruction(Object):
     """
 
     kind: InstructionKind
-    inputs: List[INPUT_RV_TYPE]
-    attrs: List[ATTR_TYPE]
-    outputs: List[OUTPUT_RV_TYPE]
+    inputs: list[INPUT_RV_TYPE]
+    attrs: list[ATTR_TYPE]
+    outputs: list[OUTPUT_RV_TYPE]
 
     def __init__(
         self,
         kind: InstructionKind,
-        inputs: List[INPUT_RV_TYPE],
-        attrs: List[ATTR_TYPE],
-        outputs: List[OUTPUT_RV_TYPE],
+        inputs: list[INPUT_RV_TYPE],
+        attrs: list[ATTR_TYPE],
+        outputs: list[OUTPUT_RV_TYPE],
     ) -> None:
         """Constructor
 
@@ -160,7 +162,7 @@ class Instruction(Object):
             - ExprRV, atomic variables only, won't be constants or composite PrimExpr
         """
         self.__init_handle_by_constructor__(
-            _ffi_api.Instruction,  # type: ignore # pylint: disable=no-member
+            _ffi_api.Instruction,  # type: ignore
             kind,
             inputs,
             attrs,

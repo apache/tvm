@@ -16,8 +16,11 @@
 # under the License.
 """An execution trace of a scheduling program"""
 
+from __future__ import annotations
+
 import os
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from tvm_ffi import register_object as _register_object
 
@@ -80,13 +83,13 @@ class Trace(Object):
         The random decisions made upon those instructions
     """
 
-    insts: List[Instruction]
-    decisions: Dict[Instruction, DECISION_TYPE]
+    insts: list[Instruction]
+    decisions: dict[Instruction, DECISION_TYPE]
 
     def __init__(
         self,
-        insts: List[Instruction],
-        decisions: Dict[Instruction, DECISION_TYPE],
+        insts: list[Instruction],
+        decisions: dict[Instruction, DECISION_TYPE],
     ) -> None:
         """Constructor
 
@@ -98,12 +101,12 @@ class Trace(Object):
             The random decisions made upon those instructions
         """
         self.__init_handle_by_constructor__(
-            _ffi_api.Trace,  # type: ignore # pylint: disable=no-member
+            _ffi_api.Trace,  # type: ignore
             insts,
             decisions,
         )
 
-    def get_decision(self, inst: Instruction) -> Optional[DECISION_TYPE]:
+    def get_decision(self, inst: Instruction) -> DECISION_TYPE | None:
         """Retrieve the decision made on a specific instruction
 
         Parameters
@@ -116,12 +119,12 @@ class Trace(Object):
         decision : Optional[DECISION_TYPE]
             The corresponding decision; None if there is no decision made on the instruction
         """
-        return _ffi_api.TraceGetDecision(self, inst)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.TraceGetDecision(self, inst)  # type: ignore
 
     def append(
         self,
         inst: Instruction,
-        decision: Optional[DECISION_TYPE] = None,
+        decision: DECISION_TYPE | None = None,
     ) -> None:
         """Append a new instruction to the trace
 
@@ -132,9 +135,9 @@ class Trace(Object):
         decision : Optional[DECISION_TYPE] = None
             The random decision made on this instruction
         """
-        _ffi_api.TraceAppend(self, inst, decision)  # type: ignore # pylint: disable=no-member
+        _ffi_api.TraceAppend(self, inst, decision)  # type: ignore
 
-    def pop(self) -> Optional[Instruction]:
+    def pop(self) -> Instruction | None:
         """Remove the last instruction, along with the decision made on that instruction, if any
 
         Returns
@@ -142,17 +145,16 @@ class Trace(Object):
         popped_inst : Instruction
             Returns the instruction removed; std::nullopt if the trace is empty
         """
-        return _ffi_api.TracePop(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.TracePop(self)  # type: ignore
 
     def apply_to_schedule(
         self,
-        sch: "Schedule",
+        sch: Schedule,
         remove_postproc: bool,
-        decision_provider: Optional[
-            Callable[
-                [Instruction, List[INPUT_RV_TYPE], List[ATTR_TYPE], DECISION_TYPE], DECISION_TYPE
-            ]
-        ] = None,
+        decision_provider: Callable[
+            [Instruction, list[INPUT_RV_TYPE], list[ATTR_TYPE], DECISION_TYPE], DECISION_TYPE
+        ]
+        | None = None,
     ) -> None:
         """Apply the trace to a TensorIR schedule
 
@@ -171,7 +173,7 @@ class Trace(Object):
             - The 4th argument: The decision
             - Return: A new decision
         """
-        _ffi_api.TraceApplyToSchedule(  # type: ignore # pylint: disable=no-member
+        _ffi_api.TraceApplyToSchedule(  # type: ignore
             self,
             sch,
             remove_postproc,
@@ -191,10 +193,10 @@ class Trace(Object):
         json: JSON_TYPE
             The JSON-style object
         """
-        obj = _ffi_api.TraceAsJSON(self, remove_postproc)  # type: ignore # pylint: disable=no-member
+        obj = _ffi_api.TraceAsJSON(self, remove_postproc)  # type: ignore
         return _json_from_tvm(obj)
 
-    def as_python(self, remove_postproc: bool = False) -> List[str]:
+    def as_python(self, remove_postproc: bool = False) -> list[str]:
         """Serialize the trace as a sequence of python statements
 
         Parameters
@@ -207,14 +209,14 @@ class Trace(Object):
         py_stmts: List[str]
             A sequence of python statements
         """
-        return _ffi_api.TraceAsPython(self, remove_postproc)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.TraceAsPython(self, remove_postproc)  # type: ignore
 
     def with_decision(
         self,
         inst: Instruction,
         decision: DECISION_TYPE,
         remove_postproc: bool,
-    ) -> "Trace":
+    ) -> Trace:
         """Create a new trace with an instruction whose decision is changed,
         assuming this instruction exists in the resulting trace
 
@@ -232,14 +234,14 @@ class Trace(Object):
         trace: Trace
             The new trace with the decision changed
         """
-        return _ffi_api.TraceWithDecision(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.TraceWithDecision(  # type: ignore
             self,
             inst,
             decision,
             remove_postproc,
         )
 
-    def simplified(self, remove_postproc: bool) -> "Trace":
+    def simplified(self, remove_postproc: bool) -> Trace:
         """Simplify the trace with dead-code elimination
 
         Parameters
@@ -252,10 +254,10 @@ class Trace(Object):
         trace: Trace
             A simplified trace
         """
-        return _ffi_api.TraceSimplified(self, remove_postproc)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.TraceSimplified(self, remove_postproc)  # type: ignore
 
     @staticmethod
-    def apply_json_to_schedule(json_obj: JSON_TYPE, sch: "Schedule") -> None:
+    def apply_json_to_schedule(json_obj: JSON_TYPE, sch: Schedule) -> None:
         """Apply a JSON-serialized trace to a TensorIR schedule
 
         Parameters
@@ -265,9 +267,9 @@ class Trace(Object):
         sch : Schedule
             The TensorIR schedule
         """
-        _ffi_api.TraceApplyJSONToSchedule(json_obj, sch)  # type: ignore # pylint: disable=no-member
+        _ffi_api.TraceApplyJSONToSchedule(json_obj, sch)  # type: ignore
 
-    def show(self, style: Optional[str] = None, black_format: bool = False) -> None:
+    def show(self, style: str | None = None, black_format: bool = False) -> None:
         """A sugar for print highlighted TVM script.
 
         Parameters
@@ -283,7 +285,7 @@ class Trace(Object):
             If None, determine based on the "TVM_BLACK_FORMAT" environment
             variable.
         """
-        from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
+        from tvm.script.highlight import (
             cprint,
         )
 

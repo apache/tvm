@@ -84,9 +84,9 @@ class RPCConfig(NamedTuple):
         Priority of the RPC session
     """
 
-    tracker_host: Optional[str] = None
-    tracker_port: Union[None, int, str] = None
-    tracker_key: Optional[str] = None
+    tracker_host: str | None = None
+    tracker_port: None | int | str = None
+    tracker_key: str | None = None
     session_priority: int = 1
     session_timeout_sec: int = 10
 
@@ -118,7 +118,7 @@ class RPCConfig(NamedTuple):
             session_priority=config.session_priority,
             session_timeout_sec=config.session_timeout_sec,
         )
-        config._sanity_check()  # pylint: disable=protected-access
+        config._sanity_check()
         return config
 
     def connect_tracker(self) -> rpc.TrackerSession:
@@ -129,7 +129,7 @@ class RPCConfig(NamedTuple):
         tracker : TrackerSession
             The connected tracker session
         """
-        tracker: Optional[rpc.TrackerSession] = None
+        tracker: rpc.TrackerSession | None = None
 
         def _connect():
             nonlocal tracker

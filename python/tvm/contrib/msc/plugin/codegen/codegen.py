@@ -16,9 +16,10 @@
 # under the License.
 """tvm.contrib.msc.core.codegen.codegen"""
 
+from __future__ import annotations
+
 import os
 import subprocess
-from typing import Dict, List, Optional
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -52,11 +53,11 @@ class BasePluginCodeGen:
     def __init__(
         self,
         workspace: msc_utils.MSCDirectory,
-        codegen_config: Optional[Dict[str, str]] = None,
-        cpp_print_config: Optional[Dict[str, str]] = None,
-        py_print_config: Optional[Dict[str, str]] = None,
-        extern_sources: Dict[str, str] = None,
-        extern_libs: Dict[str, str] = None,
+        codegen_config: dict[str, str] | None = None,
+        cpp_print_config: dict[str, str] | None = None,
+        py_print_config: dict[str, str] | None = None,
+        extern_sources: dict[str, str] | None = None,
+        extern_libs: dict[str, str] | None = None,
         on_debug: bool = False,
     ):
         self._codegen_config = msc_utils.copy_dict(codegen_config)
@@ -97,7 +98,7 @@ class BasePluginCodeGen:
 
         return any(self._project_name in f for f in self._lib_folder.listdir())
 
-    def build_libs(self) -> List[str]:
+    def build_libs(self) -> list[str]:
         """Generate source and build the lib
 
         Returns
@@ -142,7 +143,7 @@ class BasePluginCodeGen:
 
         return os.path.isfile(self._manager_folder.relpath("manager.py"))
 
-    def build_manager(self, ops_info: dict) -> List[str]:
+    def build_manager(self, ops_info: dict) -> list[str]:
         """Generate manager source for plugin
 
         Parameters
@@ -217,7 +218,7 @@ class TorchPluginCodegen(BasePluginCodeGen):
 
     def setup(self):
         """Set up the codegen"""
-        # pylint: disable=import-outside-toplevel
+
         import torch.utils
 
         super().setup()
@@ -243,7 +244,7 @@ class TensorRTPluginCodegen(BasePluginCodeGen):
 
     def setup(self):
         """Set up the codegen"""
-        # pylint: disable=import-outside-toplevel
+
         from tvm.contrib.msc.framework.tensorrt import _ffi_api as _trt_api
 
         super().setup()
@@ -267,11 +268,11 @@ class TensorRTPluginCodegen(BasePluginCodeGen):
 def get_codegen(
     framework: str,
     workspace: msc_utils.MSCDirectory,
-    codegen_config: Optional[Dict[str, str]] = None,
-    cpp_print_config: Optional[Dict[str, str]] = None,
-    py_print_config: Optional[Dict[str, str]] = None,
-    extern_sources: Dict[str, str] = None,
-    extern_libs: Dict[str, str] = None,
+    codegen_config: dict[str, str] | None = None,
+    cpp_print_config: dict[str, str] | None = None,
+    py_print_config: dict[str, str] | None = None,
+    extern_sources: dict[str, str] | None = None,
+    extern_libs: dict[str, str] | None = None,
     on_debug: bool = False,
 ):
     """Create codegen for framework

@@ -15,6 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
 import base64
 import json
@@ -22,7 +23,7 @@ import logging
 import os
 import re
 import subprocess
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from urllib import error, request
 
 DRY_RUN = object()
@@ -34,7 +35,7 @@ def compress_query(query: str) -> str:
     return query
 
 
-def post(url: str, body: Optional[Any] = None, auth: Optional[Tuple[str, str]] = None):
+def post(url: str, body: Any | None = None, auth: tuple[str, str] | None = None):
     logging.info(f"Requesting POST to {url} with {body}")
     headers = {}
     req = request.Request(url, headers=headers, method="POST")
@@ -79,7 +80,7 @@ class GitHubRepo:
     def dry_run(self) -> bool:
         return self.token == DRY_RUN
 
-    def graphql(self, query: str, variables: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    def graphql(self, query: str, variables: dict[str, str] | None = None) -> dict[str, Any]:
         query = compress_query(query)
         if variables is None:
             variables = {}
@@ -93,7 +94,7 @@ class GitHubRepo:
             return self.testing_response("POST", self.GRAPHQL_URL)
 
         if "data" not in response:
-            msg = f"Error fetching data with query:\n{query}\n\nvariables:\n{variables}\n\nerror:\n{json.dumps(response, indent=2)}"
+            msg = f"Error fetching data with query:\n{query}\n\nvariables:\n{variables}\n\nerror:\n{json.dumps(response, indent=2)}"  # noqa: E501
             raise RuntimeError(msg)
         return response
 
@@ -105,7 +106,7 @@ class GitHubRepo:
         logging.info(f"Unknown URL in dry run: {key}")
         return {}
 
-    def _request(self, full_url: str, body: Dict[str, Any], method: str) -> Dict[str, Any]:
+    def _request(self, full_url: str, body: dict[str, Any], method: str) -> dict[str, Any]:
         if self.dry_run():
             logging.info(f"Dry run, would have requested a {method} to {full_url} with {body}")
             return self.testing_response(method, full_url)
@@ -128,21 +129,21 @@ class GitHubRepo:
         logging.info(f"Got response from {full_url}: {content}")
         try:
             response = json.loads(content)
-        except json.decoder.JSONDecodeError as e:
+        except json.decoder.JSONDecodeError:
             return content
 
         return response
 
-    def put(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    def put(self, url: str, data: dict[str, Any]) -> dict[str, Any]:
         return self._request(self.base + url, data, method="PUT")
 
-    def patch(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    def patch(self, url: str, data: dict[str, Any]) -> dict[str, Any]:
         return self._request(self.base + url, data, method="PATCH")
 
-    def post(self, url: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    def post(self, url: str, data: dict[str, Any]) -> dict[str, Any]:
         return self._request(self.base + url, data, method="POST")
 
-    def get(self, url: str) -> Dict[str, Any]:
+    def get(self, url: str) -> dict[str, Any]:
         if self.dry_run():
             logging.info(f"Dry run, would have requested a GET to {url}")
             return self.testing_response("GET", url)
@@ -153,7 +154,7 @@ class GitHubRepo:
             response = json.loads(response.read())
         return response
 
-    def delete(self, url: str) -> Dict[str, Any]:
+    def delete(self, url: str) -> dict[str, Any]:
         if self.dry_run():
             logging.info(f"Dry run, would have requested a DELETE to {url}")
             return self.testing_response("DELETE", url)
@@ -165,7 +166,7 @@ class GitHubRepo:
         return response
 
 
-def parse_remote(remote: str) -> Tuple[str, str]:
+def parse_remote(remote: str) -> tuple[str, str]:
     """
     Get a GitHub (user, repo) pair out of a git remote
     """
@@ -188,7 +189,7 @@ def parse_remote(remote: str) -> Tuple[str, str]:
 
 
 def git(command, **kwargs):
-    command = ["git"] + command
+    command = ["git", *command]
     logging.info(f"Running {command}")
     proc = subprocess.run(command, stdout=subprocess.PIPE, encoding="utf-8", **kwargs)
     if proc.returncode != 0:
@@ -196,7 +197,7 @@ def git(command, **kwargs):
     return proc.stdout.strip()
 
 
-def find_ccs(body: str) -> List[str]:
+def find_ccs(body: str) -> list[str]:
     matches = re.findall(r"(cc( @[-A-Za-z0-9]+)+)", body, flags=re.MULTILINE)
     matches = [full for full, last in matches]
 

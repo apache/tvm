@@ -16,7 +16,6 @@
 # under the License.
 """Implementation of generic operators in the presence of Tensor"""
 
-# pylint: disable=invalid-name, too-many-arguments
 import tvm
 from tvm import te
 

@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring, invalid-name
+from __future__ import annotations
+
 import inspect
-from typing import Any, Dict, List, Optional, Set, TypeVar, Union
-from typing import Callable as _Callable
+from collections.abc import Callable as _Callable
+from typing import Any, TypeVar
 
 import tvm
 from tvm.relax import (
@@ -52,9 +53,8 @@ FType = TypeVar("FType", bound=_Callable)
 # appear as a decorator by itself or to have optional arguments
 # like @R.function(pure=False)
 def function(
-    f: Optional[FType] = None, pure: bool = True, private: bool = False, check_well_formed=True
-) -> Union[Function, FType]:
-    # pylint: disable=unused-argument
+    f: FType | None = None, pure: bool = True, private: bool = False, check_well_formed=True
+) -> Function | FType:
     # (pure and private aren't used here, but are used later in parsing)
 
     # need to inspect the stack first because is_defined_in_class expects the outer class
@@ -147,10 +147,10 @@ def macro(*args, hygienic: bool = True) -> _Callable:
 
 
 class StructInfoProxy(ObjectConvertible):
-    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> StructInfo:
+    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> StructInfo:
         raise NotImplementedError()
 
-    def get_symbolic_vars(self) -> Set[str]:
+    def get_symbolic_vars(self) -> set[str]:
         return {}
 
     def asobject(self):
@@ -175,10 +175,10 @@ class ObjectProxy(StructInfoProxy):
     def __init__(self) -> None:
         pass
 
-    def get_symbolic_vars(self) -> Set[str]:
+    def get_symbolic_vars(self) -> set[str]:
         return set()
 
-    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> ShapeStructInfo:
+    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> ShapeStructInfo:
         return ObjectStructInfo()
 
 
@@ -189,25 +189,25 @@ def Object() -> ObjectProxy:
 ############################### R.Tensor ###############################
 
 
-def _eval_shape(expr: Union[str, PrimExpr], dict_globals: Optional[Dict[str, Any]]) -> PrimExpr:
+def _eval_shape(expr: str | PrimExpr, dict_globals: dict[str, Any] | None) -> PrimExpr:
     if isinstance(expr, str):
         code = compile(expr, "<string>", "eval")
-        return eval(code, dict_globals or {})  # pylint: disable=eval-used
+        return eval(code, dict_globals or {})
     else:
         return expr
 
 
 class TensorProxy(StructInfoProxy):
-    shape: Optional[List[Union[str, PrimExpr]]]
+    shape: list[str | PrimExpr] | None
     dtype: str
-    vdevice: Optional[str]
+    vdevice: str | None
     ndim: int
 
     def __init__(
         self,
-        shape: Optional[Union[List[Union[PrimExpr, str]], Expr]] = None,
-        dtype: Optional[str] = None,
-        vdevice: Optional[str] = None,
+        shape: list[PrimExpr | str] | Expr | None = None,
+        dtype: str | None = None,
+        vdevice: str | None = None,
         ndim: int = -1,
     ) -> None:
         if isinstance(shape, Expr):
@@ -226,13 +226,13 @@ class TensorProxy(StructInfoProxy):
         self.vdevice = vdevice
         self.ndim = ndim
 
-    def get_symbolic_vars(self) -> Set[str]:
+    def get_symbolic_vars(self) -> set[str]:
         if self.shape is None or isinstance(self.shape, Expr):
             return {}
         else:
             return {s for s in self.shape if isinstance(s, str) and s.isidentifier()}
 
-    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> TensorStructInfo:
+    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> TensorStructInfo:
         vdev = self.vdevice
         if isinstance(self.vdevice, str):
             if ":" in self.vdevice:
@@ -256,9 +256,9 @@ class TensorProxy(StructInfoProxy):
 
 
 def Tensor(
-    shape: Optional[Union[List[Union[PrimExpr, str]], Expr]] = None,
-    dtype: Optional[str] = None,
-    vdevice: Optional[str] = None,
+    shape: list[PrimExpr | str] | Expr | None = None,
+    dtype: str | None = None,
+    vdevice: str | None = None,
     ndim: int = -1,
 ) -> TensorProxy:
     # scalar tensor case
@@ -277,10 +277,10 @@ def Tensor(
 
 
 class CallableProxy(StructInfoProxy):
-    params: List[StructInfoProxy]
+    params: list[StructInfoProxy]
     ret: StructInfoProxy
     purity: bool
-    derive_func: Optional[Union[str, tvm.ir.EnvFunc]]
+    derive_func: str | tvm.ir.EnvFunc | None
 
     """Function type.
 
@@ -311,10 +311,10 @@ class CallableProxy(StructInfoProxy):
 
     def __init__(
         self,
-        params: Optional[Union[StructInfoProxy, List[StructInfoProxy]]] = None,
-        ret: Optional[StructInfoProxy] = None,
-        purity: Optional[bool] = None,
-        derive_func: Optional[Union[str, tvm.ir.EnvFunc]] = None,
+        params: StructInfoProxy | list[StructInfoProxy] | None = None,
+        ret: StructInfoProxy | None = None,
+        purity: bool | None = None,
+        derive_func: str | tvm.ir.EnvFunc | None = None,
     ) -> None:
         if params is None:
             self.params = params
@@ -334,13 +334,13 @@ class CallableProxy(StructInfoProxy):
         self.purity = purity
         self.derive_func = derive_func
 
-    def get_symbolic_vars(self) -> Set[str]:
+    def get_symbolic_vars(self) -> set[str]:
         if self.params is None:
             return set()
         else:
             return set().union(*[p.get_symbolic_vars() for p in self.params])
 
-    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> FuncStructInfo:
+    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> FuncStructInfo:
         if self.ret is None:
             ret = None
         else:
@@ -360,10 +360,10 @@ class CallableProxy(StructInfoProxy):
 
 
 def Callable(
-    params: Optional[Union[StructInfoProxy, List[StructInfoProxy]]] = None,
-    ret: Optional[StructInfoProxy] = None,
-    purity: Optional[bool] = None,
-    derive_func: Optional[Union[str, tvm.ir.EnvFunc]] = None,
+    params: StructInfoProxy | list[StructInfoProxy] | None = None,
+    ret: StructInfoProxy | None = None,
+    purity: bool | None = None,
+    derive_func: str | tvm.ir.EnvFunc | None = None,
 ) -> CallableProxy:
     return CallableProxy(params, ret, purity=purity, derive_func=derive_func)
 
@@ -372,7 +372,7 @@ def Callable(
 
 
 class TupleProxy(StructInfoProxy):
-    fields: List[StructInfoProxy]
+    fields: list[StructInfoProxy]
     """The type of tuple values.
 
     Parameters
@@ -383,22 +383,22 @@ class TupleProxy(StructInfoProxy):
 
     def __init__(
         self,
-        *fields: List[StructInfoProxy],
+        *fields: list[StructInfoProxy],
     ) -> None:
         if len(fields) == 1 and isinstance(fields[0], (tuple, list)):
             fields = fields[0]
         # convert `R.Tensor` to `R.Tensor()`
         self.fields = [field() if callable(field) else field for field in fields]
 
-    def get_symbolic_vars(self) -> Set[str]:
+    def get_symbolic_vars(self) -> set[str]:
         return set().union(*[f.get_symbolic_vars() for f in self.fields])
 
-    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> TupleStructInfo:
+    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> TupleStructInfo:
         fields = [field.as_struct_info(dict_globals) for field in self.fields]
         return TupleStructInfo(fields)
 
 
-def Tuple(*fields: List[StructInfoProxy]) -> TupleProxy:
+def Tuple(*fields: list[StructInfoProxy]) -> TupleProxy:
     return TupleProxy(*fields)
 
 
@@ -406,7 +406,7 @@ def Tuple(*fields: List[StructInfoProxy]) -> TupleProxy:
 
 
 class ShapeProxy(StructInfoProxy):
-    values: Optional[List[PrimExpr]]
+    values: list[PrimExpr] | None
     ndim: int
     """The type of shape values.
 
@@ -421,24 +421,24 @@ class ShapeProxy(StructInfoProxy):
 
     def __init__(
         self,
-        values: Optional[List[PrimExpr]] = None,
+        values: list[PrimExpr] | None = None,
         ndim: int = -1,
     ) -> None:
         self.values = values
         self.ndim = ndim
 
-    def get_symbolic_vars(self) -> Set[str]:
+    def get_symbolic_vars(self) -> set[str]:
         if self.values is None:
             return set()
         else:
             return {v for v in self.values if isinstance(v, str) and v.isidentifier()}
 
-    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> ShapeStructInfo:
+    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> ShapeStructInfo:
         values = [_eval_shape(v, dict_globals) for v in self.values] if self.values else None
         return ShapeStructInfo(values, self.ndim)
 
 
-def Shape(values: Optional[List[PrimExpr]] = None, ndim: int = -1) -> ShapeProxy:
+def Shape(values: list[PrimExpr] | None = None, ndim: int = -1) -> ShapeProxy:
     return ShapeProxy(values, ndim)
 
 
@@ -446,8 +446,8 @@ def Shape(values: Optional[List[PrimExpr]] = None, ndim: int = -1) -> ShapeProxy
 
 
 class PrimProxy(StructInfoProxy):
-    dtype: Optional[str]
-    value: Optional[Union[int, float, str, PrimExpr]]
+    dtype: str | None
+    value: int | float | str | PrimExpr | None
 
     """The type of TIR-representable values.
 
@@ -462,8 +462,8 @@ class PrimProxy(StructInfoProxy):
 
     def __init__(
         self,
-        dtype: Optional[str] = None,
-        value: Optional[Union[int, float, str, PrimExpr]] = None,
+        dtype: str | None = None,
+        value: int | float | str | PrimExpr | None = None,
     ) -> None:
         if dtype is None and value is None:
             raise TypeError(
@@ -473,13 +473,13 @@ class PrimProxy(StructInfoProxy):
         self.dtype = dtype
         self.value = value
 
-    def get_symbolic_vars(self) -> Set[str]:
+    def get_symbolic_vars(self) -> set[str]:
         if isinstance(self.value, str) and self.value.isidentifier():
             return {self.value}
         else:
             return set()
 
-    def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> ShapeStructInfo:
+    def as_struct_info(self, dict_globals: dict[str, Any] | None = None) -> ShapeStructInfo:
         if self.value is None:
             return PrimStructInfo(dtype=self.dtype)
         else:
@@ -488,8 +488,8 @@ class PrimProxy(StructInfoProxy):
 
 
 def Prim(
-    dtype: Optional[str] = None,
-    value: Optional[Union[int, float, str, PrimExpr]] = None,
+    dtype: str | None = None,
+    value: int | float | str | PrimExpr | None = None,
 ) -> PrimProxy:
     return PrimProxy(dtype, value)
 
@@ -525,9 +525,7 @@ def _normalize_struct_info_proxy(annotation) -> StructInfoProxy:
         raise TypeError(f"Expected StructInfoProxy but got {type(annotation)}.")
 
 
-def _normalize_struct_info(
-    struct_info, dict_globals: Optional[Dict[str, Any]] = None
-) -> StructInfo:
+def _normalize_struct_info(struct_info, dict_globals: dict[str, Any] | None = None) -> StructInfo:
     if isinstance(struct_info, StructInfo):
         return struct_info
     else:

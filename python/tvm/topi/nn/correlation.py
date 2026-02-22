@@ -60,7 +60,7 @@ def correlation_nchw(
     Output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    # pylint: disable=unnecessary-lambda, invalid-name
+
     data_shape = get_const_tuple(data1.shape)
     assert get_const_tuple(data2.shape) == data_shape, "data1 and data2 should have the same shape"
     assert kernel_size > 0 and kernel_size % 2, "kernel_size should be non-negative odd number"

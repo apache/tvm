@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=used-before-assignment,broad-exception-caught
 """RPC client tools"""
 
 import os
@@ -39,7 +38,6 @@ class RPCSession:
     Do not directly create the object, call connect
     """
 
-    # pylint: disable=invalid-name
     def __init__(self, sess):
         self._sess = sess
         self._tbl_index = _ffi_api.SessTableIndex(sess)
@@ -351,7 +349,7 @@ class TrackerSession:
         sorted_server = sorted(data["server_info"], key=lambda x: x["key"])
         for item in sorted_server:
             addr = item["addr"]
-            res += "%21s    " % ":".join(map(str, addr))
+            res += "{:21s}    ".format(":".join(map(str, addr)))
             res += item["key"] + "\n"
             key = item["key"].split(":")[1]  # 'server:rasp3b` -> 'rasp3b'
             if key not in total_ct:

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.tensor_intrin import cuda, rocm, x86

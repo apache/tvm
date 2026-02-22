@@ -16,7 +16,9 @@
 # under the License.
 """Numeric tests for relax optimizer APIs."""
 
-from typing import Callable, List
+from __future__ import annotations
+
+from collections.abc import Callable
 
 import numpy as np
 
@@ -57,7 +59,7 @@ def _assert_allclose_nested(data1, data2):
         assert_allclose(data1, data2)
 
 
-def _assert_run_result_same(tvm_func: Callable, np_func: Callable, np_inputs: List):
+def _assert_run_result_same(tvm_func: Callable, np_func: Callable, np_inputs: list):
     result = _tvm_to_numpy(tvm_func(*[_numpy_to_tvm(i) for i in np_inputs]))
     expected = np_func(*np_inputs)
     _assert_allclose_nested(result, expected)

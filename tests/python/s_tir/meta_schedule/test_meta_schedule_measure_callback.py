@@ -14,10 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+from __future__ import annotations
+
 import re
 import tempfile
-from typing import List
 
 import pytest
 
@@ -26,7 +26,6 @@ from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.schedule import Schedule
 from tvm.script import tir as T
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,
 # fmt: off
 
 @tvm.script.ir_module
@@ -45,7 +44,6 @@ class Matmul:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 # fmt: on
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
 def test_meta_schedule_measure_callback():
@@ -55,9 +53,9 @@ def test_meta_schedule_measure_callback():
             self,
             task_scheduler: ms.task_scheduler.TaskScheduler,
             task_id: int,
-            measure_candidates: List[ms.MeasureCandidate],
-            builder_results: List[ms.builder.BuilderResult],
-            runner_results: List[ms.runner.RunnerResult],
+            measure_candidates: list[ms.MeasureCandidate],
+            builder_results: list[ms.builder.BuilderResult],
+            runner_results: list[ms.runner.RunnerResult],
         ) -> None:
             assert len(measure_candidates) == 1
             tvm.ir.assert_structural_equal(measure_candidates[0].sch.mod, Matmul)
@@ -89,9 +87,9 @@ def test_meta_schedule_measure_callback_fail():
             self,
             task_scheduler: ms.task_scheduler.TaskScheduler,
             task_id: int,
-            measure_candidates: List[ms.MeasureCandidate],
-            builder_results: List[ms.builder.BuilderResult],
-            runner_results: List[ms.runner.RunnerResult],
+            measure_candidates: list[ms.MeasureCandidate],
+            builder_results: list[ms.builder.BuilderResult],
+            runner_results: list[ms.runner.RunnerResult],
         ) -> None:
             raise ValueError("test")
 
@@ -113,9 +111,9 @@ def test_meta_schedule_measure_callback_as_string():
             self,
             task_scheduler: ms.task_scheduler.TaskScheduler,
             task_id: int,
-            measure_candidates: List[ms.MeasureCandidate],
-            builder_results: List[ms.builder.BuilderResult],
-            runner_results: List[ms.runner.RunnerResult],
+            measure_candidates: list[ms.MeasureCandidate],
+            builder_results: list[ms.builder.BuilderResult],
+            runner_results: list[ms.runner.RunnerResult],
         ) -> None:
             pass
 
@@ -135,7 +133,7 @@ def test_meta_schedule_measure_callback_update_cost_model_with_zero():
 
     @ms.derived_object
     class AllZeroRunner(ms.runner.PyRunner):
-        def run(self, runner_inputs: List[ms.runner.RunnerInput]) -> List[ms.runner.RunnerResult]:
+        def run(self, runner_inputs: list[ms.runner.RunnerInput]) -> list[ms.runner.RunnerResult]:
             return [AllZeroRunnerFuture() for _ in runner_inputs]
 
     with tempfile.TemporaryDirectory() as work_dir:
@@ -160,7 +158,7 @@ def test_meta_schedule_measure_callback_update_cost_model_with_runtime_error():
 
     @ms.derived_object
     class EmptyRunner(ms.runner.PyRunner):
-        def run(self, runner_inputs: List[ms.runner.RunnerInput]) -> List[ms.runner.RunnerResult]:
+        def run(self, runner_inputs: list[ms.runner.RunnerInput]) -> list[ms.runner.RunnerResult]:
             return [EmptyRunnerFuture() for _ in runner_inputs]
 
     with tempfile.TemporaryDirectory() as work_dir:

@@ -16,7 +16,6 @@
 # under the License.
 """Common implementation of object generic related logic"""
 
-# pylint: disable=unused-import, invalid-name
 from tvm_ffi import ObjectConvertible
 
 from . import _ffi_node_api

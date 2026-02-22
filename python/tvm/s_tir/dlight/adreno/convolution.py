@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring, invalid-name
 """A Conv2d schedule rule for Adreno GPU operators."""
 
 from typing import Optional, Union
@@ -62,12 +61,12 @@ class Conv2d(AdrenoScheduleRule):
         init_blk = sch.decompose_reduction(blk, tx)
         sch.vectorize(sch.get_loops(init_blk)[-1])
 
-    def apply(  # pylint: disable=too-many-locals,missing-docstring
+    def apply(
         self,
-        func: Union[tir.PrimFunc, s_tir.Schedule],
+        func: tir.PrimFunc | s_tir.Schedule,
         target: Target,
         _: bool,
-    ) -> Optional[s_tir.Schedule]:
+    ) -> s_tir.Schedule | None:
         if not (isinstance(func, (tir.PrimFunc, s_tir.Schedule))) or not self.is_target_available(
             target
         ):

@@ -31,7 +31,7 @@ def test_highlight_script():
             a: T.handle,
             b: T.handle,
             c: T.handle,
-        ) -> None:  # pylint: disable=no-self-argument
+        ) -> None:
             T.func_attr({"global_symbol": "main", "tir.noalias": True})
             A = T.match_buffer(a, [16, 128, 128])
             B = T.match_buffer(b, [16, 128, 128])

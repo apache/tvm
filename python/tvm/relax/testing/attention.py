@@ -34,7 +34,7 @@ def get_relax_attention_module(
     qk_scale=None,
     causal_mask=None,
     window_size=None,
-):  # pylint: disable=too-many-arguments, too-many-locals, invalid-name
+):
     """Get a relax module for attention."""
 
     if qk_scale is not None:
@@ -75,8 +75,7 @@ def get_relax_stacked_attention_module(
     qk_scale=None,
     single_shape=False,
     layout="BS3NH",
-):  # pylint: disable=too-many-arguments, too-many-locals, too-many-branches, invalid-name
-    # pylint: disable=too-many-statements
+):
     """Get a relax module for stacked attention."""
     dtype = str(qkv.dtype)
     assert layout in ["BS3NH", "SBN3H"]

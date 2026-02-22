@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import numpy as np
 
 import tvm
@@ -22,8 +21,6 @@ import tvm.testing
 from tvm import tir
 from tvm.s_tir.schedule.testing import assert_structural_equal_ignore_global_symbol
 from tvm.script import tir as T
-
-# pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
 def check_decompose_padding(origin, scheduled, expected, check_run=False):

@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-nested-blocks
 """Backend kernels for sampling operator."""
 
 import math
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Optional
 
 import tvm
 from tvm.script import tir as T
@@ -165,7 +165,7 @@ def gpu_multinomial_from_uniform(
         output_local: T.Buffer,
         dtype: str,
         reduce_op: Callable,  # T.macro
-        mask_local: Optional[T.Buffer] = None,
+        mask_local: T.Buffer | None = None,
     ):
         with T.sblock():
             local_sum = T.alloc_buffer((), dtype, scope="local")

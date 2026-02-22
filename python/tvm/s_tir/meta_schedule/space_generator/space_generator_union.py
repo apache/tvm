@@ -16,7 +16,7 @@
 # under the License.
 """Union of meta Schedule design space generators."""
 
-from typing import List
+from __future__ import annotations
 
 from tvm_ffi import register_object
 
@@ -36,7 +36,7 @@ class SpaceGeneratorUnion(SpaceGenerator):
 
     def __init__(
         self,
-        space_generators: List[SpaceGenerator],
+        space_generators: list[SpaceGenerator],
         sch_rules: ScheduleRuleType = "from-target",
         postprocs: PostprocType = "from-target",
         mutator_probs: MutatorProbType = "from-target",
@@ -50,7 +50,7 @@ class SpaceGeneratorUnion(SpaceGenerator):
         """
         sch_rules, postprocs, mutator_probs = _normalize_rules(sch_rules, postprocs, mutator_probs)
         self.__init_handle_by_constructor__(
-            _ffi_api.SpaceGeneratorSpaceGeneratorUnion,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SpaceGeneratorSpaceGeneratorUnion,  # type: ignore
             space_generators,
             sch_rules,
             postprocs,

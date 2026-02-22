@@ -140,7 +140,6 @@ def _get_irmod_elemwise_add(shape: list, dtype: str, mem_scope: str) -> tvm.ir.m
     class BenchmarkModule:
         """Elementwise STIR module for benchmarking"""
 
-        # pylint: disable=no-self-argument,invalid-name,missing-function-docstring
         @T.prim_func
         def main(a: T.handle, b: T.handle, c: T.handle):
             # We exchange data between function by handles, which are similar to pointer.
@@ -153,8 +152,6 @@ def _get_irmod_elemwise_add(shape: list, dtype: str, mem_scope: str) -> tvm.ir.m
             for i in range(dim0_size):
                 for j in range(dim1_size):
                     C[i, j] = A[i, j] + B[i, j]
-
-        # pylint: enable=no-self-argument,invalid-name,missing-function-docstring
 
     return BenchmarkModule
 

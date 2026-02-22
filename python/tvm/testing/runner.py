@@ -14,20 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, missing-function-docstring
 """A utility method to run a TVM module on a remote device."""
 
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, Union
+from __future__ import annotations
 
-from typing_extensions import Literal
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     import numpy as np
 
     from tvm.runtime import Device, Module, Tensor
     from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
-
-# pylint: disable=import-outside-toplevel,protected-access
 
 
 def _args_to_device(args, device):
@@ -58,7 +56,7 @@ def _args_to_numpy(args):
     return downloaded_args
 
 
-def _normalize_export_func(export_func, output_format) -> Tuple[Callable, str]:
+def _normalize_export_func(export_func, output_format) -> tuple[Callable, str]:
     from tvm.contrib import ndk, tar
 
     def export_with(func):
@@ -78,13 +76,13 @@ def _normalize_export_func(export_func, output_format) -> Tuple[Callable, str]:
     return export_func, output_format
 
 
-def local_run(  # pylint: disable=too-many-arguments,too-many-locals
-    mod: "Module",
+def local_run(
+    mod: Module,
     device_type: str,
-    args: List[Union["np.ndarray", "Tensor", int, float]],
-    evaluator_config: Optional["EvaluatorConfig"] = None,
-    export_func: Union[Callable[["Module", str], None], Literal["tar", "ndk"]] = "tar",
-    output_format: Optional[str] = None,
+    args: list[np.ndarray | Tensor | int | float],
+    evaluator_config: EvaluatorConfig | None = None,
+    export_func: Callable[[Module, str], None] | Literal["tar", "ndk"] = "tar",
+    output_format: str | None = None,
 ):
     """Run a TVM module on a local device.
 
@@ -150,14 +148,14 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     return args, profile_result
 
 
-def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
-    mod: "Module",
+def rpc_run(
+    mod: Module,
     device_type: str,
-    args: List[Union["np.ndarray", "Tensor", int, float]],
-    evaluator_config: Optional["EvaluatorConfig"] = None,
-    rpc_config: Optional["RPCConfig"] = None,
-    export_func: Union[Callable[["Module", str], None], Literal["tar", "ndk"]] = "tar",
-    output_format: Optional[str] = None,
+    args: list[np.ndarray | Tensor | int | float],
+    evaluator_config: EvaluatorConfig | None = None,
+    rpc_config: RPCConfig | None = None,
+    export_func: Callable[[Module, str], None] | Literal["tar", "ndk"] = "tar",
+    output_format: str | None = None,
 ):
     """Run a TVM module on a remote device.
 

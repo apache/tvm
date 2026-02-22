@@ -16,10 +16,13 @@
 # under the License.
 """Meta Schedule MeasureCallback."""
 
-from typing import TYPE_CHECKING, Callable, List, Union
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -41,15 +44,15 @@ if TYPE_CHECKING:
 class MeasureCallback(Object):
     """Rules to apply after measure results is available."""
 
-    CallbackListType = Union[List["MeasureCallback"], "MeasureCallback", Literal["default"]]
+    CallbackListType = Union[list["MeasureCallback"], "MeasureCallback", Literal["default"]]
 
     def apply(
         self,
-        task_scheduler: "TaskScheduler",
+        task_scheduler: TaskScheduler,
         task_id: int,
-        measure_candidates: List[MeasureCandidate],
-        builder_results: List[BuilderResult],
-        runner_results: List[RunnerResult],
+        measure_candidates: list[MeasureCandidate],
+        builder_results: list[BuilderResult],
+        runner_results: list[RunnerResult],
     ) -> None:
         """Apply a measure callback to the given schedule.
 
@@ -66,7 +69,7 @@ class MeasureCallback(Object):
         runner_results: List[RunnerResult]
             The runner results by running the built measure candidates.
         """
-        return _ffi_api.MeasureCallbackApply(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.MeasureCallbackApply(  # type: ignore
             self,
             task_scheduler,
             task_id,
@@ -76,10 +79,10 @@ class MeasureCallback(Object):
         )
 
     @staticmethod
-    def create(kind: Literal["default"]) -> List["MeasureCallback"]:
+    def create(kind: Literal["default"]) -> list[MeasureCallback]:
         """Create a list of measure callbacks."""
         if kind == "default":
-            return _ffi_api.MeasureCallbackDefault()  # type: ignore # pylint: disable=no-member
+            return _ffi_api.MeasureCallbackDefault()  # type: ignore
         raise ValueError(f"Unknown kind of MeasureCallback list: {kind}")
 
 
@@ -92,11 +95,11 @@ class _PyMeasureCallback(MeasureCallback):
     See also: PyMeasureCallback
     """
 
-    def __init__(self, f_apply: Callable, f_as_string: Callable = None):
+    def __init__(self, f_apply: Callable, f_as_string: Callable | None = None):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
-            _ffi_api.MeasureCallbackPyMeasureCallback,  # type: ignore # pylint: disable=no-member
+            _ffi_api.MeasureCallbackPyMeasureCallback,  # type: ignore
             f_apply,
             f_as_string,
         )
@@ -117,11 +120,11 @@ class PyMeasureCallback:
 
     def apply(
         self,
-        task_scheduler: "TaskScheduler",
+        task_scheduler: TaskScheduler,
         task_id: int,
-        measure_candidates: List[MeasureCandidate],
-        builder_results: List[BuilderResult],
-        runner_results: List[RunnerResult],
+        measure_candidates: list[MeasureCandidate],
+        builder_results: list[BuilderResult],
+        runner_results: list[RunnerResult],
     ) -> None:
         """Apply a measure callback to the given schedule.
 

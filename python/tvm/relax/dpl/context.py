@@ -17,7 +17,7 @@
 
 """The Graph Matching Context Manager for Dataflow Pattern Language."""
 
-from typing import Dict
+from __future__ import annotations
 
 import tvm
 
@@ -50,7 +50,7 @@ class PatternContext(tvm.runtime.Object):
         ffi.exit_context(self)  # type: ignore
 
     @staticmethod
-    def current() -> "PatternContext":
+    def current() -> PatternContext:
         """
         Get the current context
 
@@ -64,7 +64,7 @@ class PatternContext(tvm.runtime.Object):
     def match_dfb(
         self,
         dfb: DataflowBlock,
-    ) -> Dict[DFPattern, Var]:
+    ) -> dict[DFPattern, Var]:
         """
         Match a DataflowBlock via a graph of DFPattern and corresponding constraints
 

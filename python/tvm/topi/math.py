@@ -16,7 +16,6 @@
 # under the License.
 """Elementwise operators"""
 
-# pylint: disable=redefined-builtin,unused-argument
 import tvm
 from tvm import te
 from tvm.tir import PrimExpr
@@ -39,7 +38,7 @@ def identity(x):
     y : tvm.te.Tensor
         The result.
     """
-    # pylint: disable=unnecessary-lambda
+
     return te.compute(x.shape, lambda *i: x(*i))
 
 
@@ -57,7 +56,7 @@ def negative(x):
     y : tvm.te.Tensor
         The result.
     """
-    # pylint: disable=unnecessary-lambda
+
     return te.compute(x.shape, lambda *i: -x(*i))
 
 
@@ -746,7 +745,7 @@ def cast(x, dtype, span=None):
     """
     if isinstance(x, te.tensor.Tensor):
         return te.compute(x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
-    # pylint: disable=import-outside-toplevel
+
     from tvm.tir import _ffi_api
 
     return _ffi_api._cast(dtype, x, span)

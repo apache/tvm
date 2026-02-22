@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,missing-function-docstring,unused-variable
 """Intrinsics for tensorization on NVIDIA GPU."""
 
-from typing import Dict, Literal, Optional, Tuple
+from __future__ import annotations
+
+from typing import Literal
 
 from tvm_ffi import register_global_func
 
@@ -712,8 +713,8 @@ def get_mma_intrin_group(
     trans_a: bool,
     trans_b: bool,
     not_use_mma_store_intrinic: bool = True,
-    store_to_smem_dtype: Optional[Literal["float16", "float32", "int32"]] = None,
-) -> Dict[str, str]:
+    store_to_smem_dtype: Literal["float16", "float32", "int32"] | None = None,
+) -> dict[str, str]:
     """Get a group of intrinsics for mma tensor core with the given configurations
 
     Parameters
@@ -821,7 +822,7 @@ def get_wmma_load_intrin(
     shared_scope: str,
     is_b: bool,
     is_col_major: bool,
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     """Generator of wmma_load intrins"""
     wmma_fragment_scope = f"wmma.matrix_{'b' if is_b else 'a'}"
     layout = "col_major" if is_col_major else "row_major"
@@ -898,7 +899,7 @@ def get_wmma_load_intrin(
 
 def get_wmma_fill_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     """Generator of wmma_fill intrins"""
     zero = IntImm("int32", 0).astype(dtype)
     offset_factor = n_dim
@@ -954,7 +955,7 @@ def get_wmma_fill_intrin(
 
 def get_wmma_store_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str, scope: str
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     """Generator of wmma_store intrins"""
     offset_factor = n_dim
 
@@ -1025,7 +1026,7 @@ def get_wmma_store_intrin(
 
 def get_wmma_sync_intrin(
     m_dim: int, n_dim: int, k_dim: int, in_dtype: str, out_dtype: str, b_transposed: bool
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     """Generator of wmma_sync intrins"""
 
     def maybe_cast(v):
@@ -1379,7 +1380,7 @@ def get_wmma_intrin_group(
     in_dtype: str,
     out_dtype: str,
     trans_b: bool,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Get a group of intrinsics for wmma tensor core with the given configurations
 
     Parameters
@@ -1472,7 +1473,7 @@ def get_index_C(elem_offset, stride):
 
 def get_mma_init_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     """Generator of mma init intrins"""
     del k_dim  # unused
     zero = IntImm("int32", 0).astype(dtype)
@@ -1519,7 +1520,7 @@ def get_mma_load_intrin(
     shared_scope: str,
     is_b: bool,
     is_col_major: bool,
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     """Generator of mma ldmatrix intrins"""
     mma_fragment_scope = f"m16n8k8.matrix{'B' if is_b else 'A'}"
     frag_m, frag_n = (k_dim, n_dim) if is_b else (m_dim, k_dim)
@@ -1596,7 +1597,7 @@ def get_mma_load_intrin(
 
 def get_mma_sync_intrin(
     m_dim: int, n_dim: int, k_dim: int, in_dtype: str, out_dtype: str, b_transposed: bool
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     """Generator of mma sync intrins"""
 
     def maybe_cast(v):
@@ -1697,7 +1698,7 @@ def get_mma_sync_intrin(
 
 def get_mma_store_dummy_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     """Disable mma store intrin for now."""
     del k_dim  # unused
 

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Internal PopenWorker for PopenPool."""
 
 import logging
@@ -43,7 +42,6 @@ def main():
         print("Usage: <read_fd> <write_fd>")
         return
     if sys.platform == "win32":
-        # pylint: disable=import-outside-toplevel
         import msvcrt
 
         reader = os.fdopen(msvcrt.open_osfhandle(int(sys.argv[1]), os.O_BINARY), "rb")
@@ -84,7 +82,6 @@ def main():
             watcher.daemon = True
             watcher.start()
 
-        # pylint: disable=broad-except
         try:
             result = fn(*args, **kwargs)
             ret_value = (StatusKind.COMPLETE, result)

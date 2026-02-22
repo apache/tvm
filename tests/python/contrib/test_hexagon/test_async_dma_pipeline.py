@@ -27,7 +27,6 @@ VRMPY_SIZE_B = 128
 VRMPY_SIZE_INT32 = 32
 
 
-# pylint: disable=invalid-name
 @T.prim_func
 def conv2d_async_non_contig(
     p0: T.Buffer((T.int64(1), T.int64(1), T.int64(56), T.int64(56), T.int64(4)), "uint8"),
@@ -40,7 +39,7 @@ def conv2d_async_non_contig(
     ),
 ):
     """Non contiguous memory access is used in this conv2d taken from MS."""
-    # pylint: disable=no-self-argument
+
     # function attr dict
     T.func_attr({"tir.noalias": True, "global_symbol": "main"})
     # body
@@ -532,14 +531,12 @@ class TestAsyncDMAPipeline:
 class ModulePipelined:
     """Pipelined module class."""
 
-    # pylint: disable=no-self-argument
     @T.prim_func
     def main(
         p0_buffer: T.Buffer((1, 1, 230, 230, 4), "uint8"),
         p1_buffer: T.Buffer((2, 1, 7, 7, 1, 32, 4), "int8"),
         t_cast: T.Buffer((1, 2, 112, 112, 32), "int32"),
     ) -> None:
-        # pylint: disable=missing-function-docstring
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # body
@@ -579,7 +576,7 @@ class ModulePipelined:
                             112, (p_outer * 28 + index_0) // 14 * 14 + index_2
                         )
                         o_width = T.axis.spatial(112, (p_outer * 28 + index_0) % 14 * 8 + index_3)
-                        oc_block_o = T.axis.spatial(1, 0)  # pylint: disable=unused-variable
+                        oc_block_o = T.axis.spatial(1, 0)
                         T.reads()
                         T.writes(conv2d_nchwc_int8[n, oc_chunk, o_height, o_width, 0:32])
                         for i4_1 in T.vectorized(32):
@@ -600,12 +597,12 @@ class ModulePipelined:
                         oc_chunk = T.axis.spatial(2, i1_1)
                         o_height = T.axis.spatial(112, (p_outer * 28 + index_0) // 14 * 14 + i2_2)
                         o_width = T.axis.spatial(112, (p_outer * 28 + index_0) % 14 * 8 + i3_2)
-                        oc_block_o = T.axis.spatial(1, 0)  # pylint: disable=unused-variable
+                        oc_block_o = T.axis.spatial(1, 0)
                         k_height = T.axis.reduce(7, i5_1)
                         k_width = T.axis.reduce(7, i6_1)
                         ic_outer = T.axis.reduce(1, 0)
                         ic_f_inner = T.axis.reduce(1, 0)
-                        ic_s_inner_o = T.axis.reduce(1, 0)  # pylint: disable=unused-variable
+                        ic_s_inner_o = T.axis.reduce(1, 0)
                         T.reads(
                             conv2d_nchwc_int8[n, oc_chunk, o_height, o_width, 0:32],
                             p0_global_vtcm[
@@ -683,14 +680,12 @@ class ModulePipelined:
 class ModuleBase:
     """Base module test class."""
 
-    # pylint: disable=no-self-argument
     @T.prim_func
     def main(
         p0_buffer: T.Buffer((1, 1, 230, 230, 4), "uint8"),
         p1_buffer: T.Buffer((2, 1, 7, 7, 1, 32, 4), "int8"),
         t_cast: T.Buffer((1, 2, 112, 112, 32), "int32"),
     ) -> None:
-        # pylint: disable=missing-function-docstring
         # function attr dict
         T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # buffer definition
@@ -700,7 +695,7 @@ class ModuleBase:
         for i0_0_i1_0_i2_0_i3_0_fused in T.parallel(
             112, annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}
         ):
-            for i4_0_0 in T.serial(1):  # pylint: disable=unused-variable
+            for i4_0_0 in T.serial(1):
                 for i1_1_init, i2_1_init, i3_1_init, i1_2_init, i2_2_init, i3_2_init in T.grid(
                     2, 1, 1, 1, 14, 8
                 ):
@@ -713,7 +708,7 @@ class ModuleBase:
                         o_width = T.axis.spatial(
                             112, i0_0_i1_0_i2_0_i3_0_fused % 14 * 8 + i3_1_init * 8 + i3_2_init
                         )
-                        oc_block_o = T.axis.spatial(1, 0)  # pylint: disable=unused-variable
+                        oc_block_o = T.axis.spatial(1, 0)
                         T.reads()
                         T.writes(conv2d_nchwc_int8[n, oc_chunk, o_height, o_width, 0:32])
                         for i4_1 in T.vectorized(32):
@@ -728,25 +723,23 @@ class ModuleBase:
                                 conv2d_nchwc_int8[
                                     n, oc_chunk, o_height, o_width, oc_block_i_init
                                 ] = 0
-                for i5_0, i6_0, i7_0, i8_0, i9_0_0 in T.grid(  # pylint: disable=unused-variable
-                    1, 1, 1, 1, 1
-                ):  # pylint: disable=unused-variable
+                for i5_0, i6_0, i7_0, i8_0, i9_0_0 in T.grid(1, 1, 1, 1, 1):
                     for (
-                        i0_1,  # pylint: disable=unused-variable
+                        i0_1,
                         i1_1,
                         i2_1,
                         i3_1,
-                        i4_0_1,  # pylint: disable=unused-variable
+                        i4_0_1,
                         i5_1,
                         i6_1,
-                        i7_1,  # pylint: disable=unused-variable
-                        i8_1,  # pylint: disable=unused-variable
-                        i9_0_1,  # pylint: disable=unused-variable
-                        i0_2,  # pylint: disable=unused-variable
+                        i7_1,
+                        i8_1,
+                        i9_0_1,
+                        i0_2,
                         i1_2,
                         i2_2,
                         i3_2,
-                        i4_0_2,  # pylint: disable=unused-variable
+                        i4_0_2,
                     ) in T.grid(1, 2, 1, 1, 1, 7, 7, 1, 1, 1, 1, 1, 14, 8, 1):
                         with T.sblock("conv2d_NCHWc_int8_o_update"):
                             n = T.axis.spatial(1, 0)
@@ -757,12 +750,12 @@ class ModuleBase:
                             o_width = T.axis.spatial(
                                 112, i0_0_i1_0_i2_0_i3_0_fused % 14 * 8 + i3_1 * 8 + i3_2
                             )
-                            oc_block_o = T.axis.spatial(1, 0)  # pylint: disable=unused-variable
+                            oc_block_o = T.axis.spatial(1, 0)
                             k_height = T.axis.reduce(7, i5_0 * 7 + i5_1)
                             k_width = T.axis.reduce(7, i6_0 * 7 + i6_1)
                             ic_outer = T.axis.reduce(1, 0)
                             ic_f_inner = T.axis.reduce(1, 0)
-                            ic_s_inner_o = T.axis.reduce(1, 0)  # pylint: disable=unused-variable
+                            ic_s_inner_o = T.axis.reduce(1, 0)
                             T.reads(
                                 conv2d_nchwc_int8[n, oc_chunk, o_height, o_width, 0:32],
                                 p0_buffer[

@@ -70,7 +70,7 @@ class EvolutionarySearch(SearchStrategy):
     ) -> None:
         """Constructor"""
         self.__init_handle_by_constructor__(
-            _ffi_api.SearchStrategyEvolutionarySearch,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SearchStrategyEvolutionarySearch,  # type: ignore
             population_size,
             init_measured_ratio,
             init_min_unmeasured,

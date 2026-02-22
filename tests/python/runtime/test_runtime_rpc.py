@@ -49,7 +49,7 @@ if __name__ == "__main__":
 # lost, so the server ends up not registering the functions.
 pytestmark = pytest.mark.skipif(
     # Windows does not support fork so we can enable Windows for testing
-    sys.platform.startswith("win") == False and multiprocessing.get_start_method() != "fork",
+    not sys.platform.startswith("win") and multiprocessing.get_start_method() != "fork",
     reason=(
         "pytest + multiprocessing spawn method causes tvm.register_global_func to "
         "not work on the rpc.Server."
@@ -253,7 +253,7 @@ def test_rpc_remote_module():
         b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
         cost = time_f(a, b).mean
-        print("%g secs/op" % cost)
+        print(f"{cost:g} secs/op")
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
         # Download the file from the remote
@@ -493,7 +493,7 @@ def test_rpc_tracker_register(device_key):
     def exist_address(summary, key, host, port):
         server_info = summary["server_info"]
         for device in server_info:
-            if device["key"] == "server:%s" % key:
+            if device["key"] == f"server:{key}":
                 addr = device["addr"]
                 if (host is None or host == addr[0]) and port == addr[1]:
                     return True
@@ -614,8 +614,8 @@ def test_rpc_tracker_via_proxy(device_key):
     )
 
     client = rpc.connect_tracker(tracker_server.host, tracker_server.port)
-    remote1 = client.request(device_key, session_timeout=30)  # pylint: disable=unused-variable
-    remote2 = client.request(device_key, session_timeout=30)  # pylint: disable=unused-variable
+    remote1 = client.request(device_key, session_timeout=30)
+    remote2 = client.request(device_key, session_timeout=30)
 
     server2.terminate()
     server1.terminate()

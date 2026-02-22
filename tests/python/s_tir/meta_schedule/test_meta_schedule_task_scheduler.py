@@ -16,9 +16,10 @@
 # under the License.
 """Test Meta Schedule Task Scheduler"""
 
+from __future__ import annotations
+
 import random
 import weakref
-from typing import Set
 
 import pytest
 
@@ -29,8 +30,6 @@ from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing.dummy_object import DummyBuilder, DummyRunner
 from tvm.script import tir as T
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
-
 
 @tvm.script.ir_module
 class MatmulModule:
@@ -39,7 +38,7 @@ class MatmulModule:
         a: T.handle,
         b: T.handle,
         c: T.handle,
-    ) -> None:  # pylint: disable=no-self-argument
+    ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
@@ -59,7 +58,7 @@ class MatmulReluModule:
         a: T.handle,
         b: T.handle,
         d: T.handle,
-    ) -> None:  # pylint: disable=no-self-argument
+    ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
@@ -84,7 +83,7 @@ class BatchMatmulModule:
         a: T.handle,
         b: T.handle,
         c: T.handle,
-    ) -> None:  # pylint: disable=no-self-argument
+    ) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, [16, 128, 128])
         B = T.match_buffer(b, [16, 128, 128])
@@ -95,9 +94,6 @@ class BatchMatmulModule:
                 with T.init():
                     C[vn, vi, vj] = 0.0  # type: ignore
                 C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
-
-
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks
 
 
 def _schedule_matmul(sch: Schedule):
@@ -121,7 +117,7 @@ def _schedule_batch_matmul(sch: Schedule):
 
 @ms.derived_object
 class MyTaskScheduler(ms.task_scheduler.PyTaskScheduler):
-    done: Set = set()
+    done: set = set()
 
     def next_task_id(self) -> int:
         tasks = self._outer().tasks_
@@ -232,7 +228,7 @@ def test_meta_schedule_task_scheduler_multiple():
         )
 
 
-def test_meta_schedule_task_scheduler_NIE():  # pylint: disable=invalid-name
+def test_meta_schedule_task_scheduler_NIE():
     @ms.derived_object
     class NIETaskScheduler(ms.task_scheduler.PyTaskScheduler):
         pass
@@ -242,14 +238,14 @@ def test_meta_schedule_task_scheduler_NIE():  # pylint: disable=invalid-name
         scheduler.next_task_id()
 
 
-def test_meta_schedule_task_scheduler_avoid_cyclic():  # pylint: disable=invalid-name
+def test_meta_schedule_task_scheduler_avoid_cyclic():
     scheduler = MyTaskScheduler()
     test = weakref.ref(scheduler)  # test if it can be destructed successfully
     del scheduler
     assert test() is None
 
 
-def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: disable=invalid-name
+def test_meta_schedule_task_scheduler_override_next_task_id_only():
     max_trials_per_task = 101
     tasks = [
         ms.TuneContext(
@@ -365,7 +361,7 @@ def test_meta_schedule_task_scheduler_gradient_based_with_null_search_strategy()
         def __init__(self, rounds_with_empty_candidates):
             self.rounds_with_empty_candidates = rounds_with_empty_candidates
 
-        def _initialize_with_tune_context(self, context: "TuneContext") -> None:
+        def _initialize_with_tune_context(self, context: TuneContext) -> None:
             pass
 
         def pre_tuning(self, *args, **kwargs):

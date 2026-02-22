@@ -18,4 +18,4 @@
 
 import tvm_ffi
 
-tvm_ffi.init_ffi_api("script.printer", __name__)  # pylint: disable=protected-access
+tvm_ffi.init_ffi_api("script.printer", __name__)

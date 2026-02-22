@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 import torch
 
 import tvm
@@ -27,7 +26,7 @@ from tvm.runtime import Tensor
 
 def test_debug_print():
     class Layer(nn.Module):
-        def forward(self, x: nn.Tensor):  # pylint: disable=invalid-name
+        def forward(self, x: nn.Tensor):
             op.print_(x)
             return x
 
@@ -37,14 +36,14 @@ def test_debug_print():
         },
         debug=True,
     )
-    x = torch.rand((10, 5), dtype=torch.float32)  # pylint: disable=invalid-name
-    y = model["forward"](x)  # pylint: disable=invalid-name
+    x = torch.rand((10, 5), dtype=torch.float32)
+    y = model["forward"](x)
     assert isinstance(y, torch.Tensor)
 
 
 def test_debug_func():
     @tvm.register_global_func("testing.relax.frontend.nn.test_debug_func")
-    def _debug(  # pylint: disable=too-many-arguments
+    def _debug(
         lineno: str,
         tensor: Tensor,
         const_int: int,
@@ -60,7 +59,7 @@ def test_debug_func():
         assert var_int == 8
 
     class Layer(nn.Module):
-        def forward(self, x: nn.Tensor, v: tir.Var):  # pylint: disable=invalid-name
+        def forward(self, x: nn.Tensor, v: tir.Var):
             op.debug_func("testing.relax.frontend.nn.test_debug_func", x, 1, 2.0, "test", v)
             return x
 
@@ -73,8 +72,8 @@ def test_debug_func():
         },
         debug=True,
     )
-    x = torch.rand((10, 5), dtype=torch.float32)  # pylint: disable=invalid-name
-    y = model["forward"](x, 8)  # pylint: disable=invalid-name
+    x = torch.rand((10, 5), dtype=torch.float32)
+    y = model["forward"](x, 8)
     assert isinstance(y, torch.Tensor)
 
 

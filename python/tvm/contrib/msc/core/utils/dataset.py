@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """tvm.contrib.msc.core.utils.dataset"""
+
+from __future__ import annotations
 
 import json
 import os
 import shutil
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any
 
 import numpy as np
 
@@ -31,7 +32,7 @@ from .info import cast_array, is_array
 from .namespace import MSCFramework
 
 
-def format_datas(datas: Union[List[Any], Dict[str, Any]], names: List[str], style="dict") -> Any:
+def format_datas(datas: list[Any] | dict[str, Any], names: list[str], style="dict") -> Any:
     """Format datas to style format
 
     Parameters
@@ -66,10 +67,10 @@ def format_datas(datas: Union[List[Any], Dict[str, Any]], names: List[str], styl
 
 
 def random_data(
-    info: Union[List, Tuple, dict],
+    info: list | tuple | dict,
     framework: str = MSCFramework.MSC,
     device: str = "cpu",
-    max_val: int = None,
+    max_val: int | None = None,
 ) -> Any:
     """Create random data from info
 
@@ -365,7 +366,7 @@ class BaseDataSaver:
     def __init__(
         self,
         folder: str,
-        options: dict = None,
+        options: dict | None = None,
         start: int = 0,
         max_size: int = -1,
     ):
@@ -480,7 +481,7 @@ class BaseDataSaver:
 class SimpleDataSaver(BaseDataSaver):
     """Dataset Saver for simple datas"""
 
-    def save_datas(self, datas: Dict[str, np.ndarray], index: int = -1) -> Dict[str, str]:
+    def save_datas(self, datas: dict[str, np.ndarray], index: int = -1) -> dict[str, str]:
         """Save 1 simple datas.
 
         Parameters
@@ -556,8 +557,8 @@ class IODataSaver(BaseDataSaver):
 
     def save_batch(
         self,
-        inputs: Union[Dict[str, np.ndarray], List[np.ndarray]],
-        outputs: Union[Dict[str, np.ndarray], List[np.ndarray]] = None,
+        inputs: dict[str, np.ndarray] | list[np.ndarray],
+        outputs: dict[str, np.ndarray] | list[np.ndarray] | None = None,
     ) -> int:
         """Save 1 batch inputs and outputs.
 

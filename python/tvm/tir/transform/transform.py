@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Wrapping existing transformations."""
-# pylint: disable=invalid-name, unsupported-binary-operation
 
 import enum
-from typing import Callable
+from collections.abc import Callable
 
 from ... import ffi as _ffi
 from ... import ir as _ir
@@ -42,7 +41,6 @@ def Apply(ftransform):
         The result pass
     """
 
-    # pylint: disable=unused-argument
     def _transform(func, mod, ctx):
         return ftransform(func)
 

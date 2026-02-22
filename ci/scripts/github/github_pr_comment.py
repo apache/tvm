@@ -25,12 +25,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 
-from cmd_utils import init_log
-from git_utils import DRY_RUN, GitHubRepo, git, parse_remote
-from github_commenter import BotCommentBuilder
-from github_docs_comment import get_doc_url
-from github_skipped_tests_comment import get_skipped_tests_comment
-from github_tag_teams import get_tags
+from cmd_utils import init_log  # noqa: E402
+from git_utils import DRY_RUN, GitHubRepo, git, parse_remote  # noqa: E402
+from github_commenter import BotCommentBuilder  # noqa: E402
+from github_docs_comment import get_doc_url  # noqa: E402
+from github_skipped_tests_comment import get_skipped_tests_comment  # noqa: E402
+from github_tag_teams import get_tags  # noqa: E402
 
 PR_QUERY = """
     query ($owner: String!, $name: String!, $number: Int!) {

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method
 """Relax Remove Redundant Reshape ops"""
 
 from tvm import IRModule, relax

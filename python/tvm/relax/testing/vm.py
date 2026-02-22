@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Testing utilities for relax VM"""
 
-from typing import Any, List
+from __future__ import annotations
+
+from typing import Any
 
 import numpy as np  # type: ignore
 
@@ -75,7 +76,7 @@ def get_device_id(device):
     return device.index
 
 
-def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: List[Any]) -> Object:
+def check_saved_func(vm: relax.VirtualMachine, func_name: str, *inputs: list[Any]) -> Object:
     # uses save_function to create a closure with the given inputs
     # and ensure the result is the same
     # (assumes the functions return tensors and that they're idempotent)

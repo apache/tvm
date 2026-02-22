@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 """Pool schedule rule for Adreno operators."""
 
 from tvm import s_tir, tir
@@ -24,9 +23,8 @@ from .. import analysis
 from .base import AdrenoScheduleRule
 
 
-# pylint: disable=invalid-name, unused-variable
 class Pool2D(AdrenoScheduleRule):
-    def apply(  # pylint: disable=too-many-locals,missing-docstring
+    def apply(
         self,
         func: tir.PrimFunc,
         target: Target,
@@ -87,6 +85,6 @@ class Pool2D(AdrenoScheduleRule):
                         sch.reverse_compute_inline(blk)
                     else:
                         sch.compute_inline(blk)
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     pass
         return sch

@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=c-extension-no-member
+
+from __future__ import annotations
 
 import functools
-from typing import List, Tuple, Union
 
 import numpy as np
 import pytest
@@ -33,8 +33,8 @@ from tvm.script import tir as T
 
 
 def generate_np_inputs(
-    input_shapes: Union[Tuple, List[Tuple]], dtype: str = "float32"
-) -> Union[np.ndarray, List[np.ndarray]]:
+    input_shapes: tuple | list[tuple], dtype: str = "float32"
+) -> np.ndarray | list[np.ndarray]:
     """Generate numpy data as the inputs of model
 
     Parameters
@@ -57,7 +57,7 @@ def generate_np_inputs(
     return out
 
 
-def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]):
+def np2jnp(inputs_np: np.ndarray | list[np.ndarray]):
     """Convert data from numpy to jax.numpy
 
     Parameters
@@ -83,7 +83,7 @@ def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]):
 
 def check_correctness(
     jax_jit_mod,
-    input_shapes: Union[Tuple, List[Tuple]],
+    input_shapes: tuple | list[tuple],
     dtype: str = "float32",
 ) -> None:
     """Run a jax model and the translated TVM IRModule,
@@ -138,8 +138,8 @@ def check_correctness(
 
 
 def get_vm_res(
-    ir_mod: tvm.IRModule, weights: Union[np.ndarray, List[np.ndarray]]
-) -> Union[tvm.runtime.Tensor, List[tvm.runtime.Tensor]]:
+    ir_mod: tvm.IRModule, weights: np.ndarray | list[np.ndarray]
+) -> tvm.runtime.Tensor | list[tvm.runtime.Tensor]:
     """Compile and run an ir_module on Relax VM
 
     Parameters

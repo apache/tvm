@@ -19,6 +19,8 @@
 Segment Sum MLP cost model
 """
 
+from __future__ import annotations
+
 import glob
 import math
 import os
@@ -26,7 +28,7 @@ import random
 import tempfile
 from collections import OrderedDict
 from itertools import chain as itertools_chain
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
@@ -45,9 +47,7 @@ from ..search_strategy import MeasureCandidate
 from ..tune_context import TuneContext
 from ..utils import derived_object, shash2hex
 
-logger = get_logger("mlp_model")  # pylint: disable=invalid-name
-
-# pylint: disable=no-member,import-outside-toplevel
+logger = get_logger("mlp_model")
 
 
 class SegmentSumMLPConfig(NamedTuple):
@@ -73,7 +73,7 @@ class SegmentSumMLPConfig(NamedTuple):
     use_norm: bool = False
     use_sigmoid: bool = False
 
-    def to_dict(self):  # pylint: disable=missing-function-docstring
+    def to_dict(self):
         return {
             "input_dim": self.input_dim,
             "hidden_dim": self.hidden_dim,
@@ -121,7 +121,7 @@ class TrainerConfig(NamedTuple):
     test_split: float = 0.2
     frozen: bool = False
 
-    def to_dict(self):  # pylint: disable=missing-function-docstring
+    def to_dict(self):
         return {
             "batch_size": self.batch_size,
             "learning_rate": self.learning_rate,
@@ -136,7 +136,6 @@ class TrainerConfig(NamedTuple):
         }
 
 
-# pylint: disable=too-few-public-methods
 class FeatureGroup:
     """Feature group
 
@@ -153,14 +152,14 @@ class FeatureGroup:
     """
 
     group_hash: str
-    features: List[np.ndarray]
+    features: list[np.ndarray]
     costs: np.ndarray
     min_cost: float
 
     def __init__(
         self,
         group_hash: str,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         costs: np.ndarray,
     ) -> None:
         self.group_hash = group_hash
@@ -168,9 +167,9 @@ class FeatureGroup:
         self.costs = costs
         self.min_cost = np.min(costs)
 
-    def append(  # pylint: disable=missing-function-docstring
+    def append(
         self,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         costs: np.ndarray,
     ) -> None:
         self.features.extend(features)
@@ -178,7 +177,6 @@ class FeatureGroup:
         self.min_cost = np.min(self.costs)
 
 
-# pylint: disable=too-many-instance-attributes
 class SegmentDataLoader:
     """Dataloader for Segment Sum MLP model.
 
@@ -249,13 +247,13 @@ class SegmentDataLoader:
         return segment_sizes, features, results
 
 
-def lambda_rank_loss(  # pylint: disable=too-many-locals
-    preds: "torch.Tensor",
-    labels: "torch.Tensor",
-    k: int = None,
+def lambda_rank_loss(
+    preds: torch.Tensor,
+    labels: torch.Tensor,
+    k: int | None = None,
     eps: float = 1e-10,
     sigma: float = 1.0,
-) -> "torch.Tensor":
+) -> torch.Tensor:
     """
     LambdaLoss: Metric-Driven Loss for Learning-to-Rank
 
@@ -292,11 +290,9 @@ def lambda_rank_loss(  # pylint: disable=too-many-locals
     true_sorted_by_preds.clamp_(min=0.0)
     y_true_sorted.clamp_(min=0.0)
     pos_idxs = torch.arange(1, y_pred.shape[1] + 1).to(device)
-    D = torch.log2(1.0 + pos_idxs.float())[None, :]  # pylint: disable=invalid-name
-    maxDCGs = torch.sum(  # pylint: disable=invalid-name
-        ((torch.pow(2, y_true_sorted) - 1) / D)[:, :k], dim=-1
-    ).clamp(min=eps)
-    G = (torch.pow(2, true_sorted_by_preds) - 1) / maxDCGs[:, None]  # pylint: disable=invalid-name
+    D = torch.log2(1.0 + pos_idxs.float())[None, :]
+    maxDCGs = torch.sum(((torch.pow(2, y_true_sorted) - 1) / D)[:, :k], dim=-1).clamp(min=eps)
+    G = (torch.pow(2, true_sorted_by_preds) - 1) / maxDCGs[:, None]
     weights = torch.abs(
         torch.pow(D[:, :, None], -1.0) - torch.pow(D[:, None, :], -1.0)
     ) * torch.abs(G[:, :, None] - G[:, None, :])
@@ -310,8 +306,8 @@ def lambda_rank_loss(  # pylint: disable=too-many-locals
 
 
 def topk_score(
-    pred_results: "torch.Tensor",
-    gt_results: "torch.Tensor",
+    pred_results: torch.Tensor,
+    gt_results: torch.Tensor,
     k: int,
 ) -> float:
     """
@@ -360,7 +356,7 @@ class SegmentSumMLP(torch.nn.Module):
     use_norm: bool
     use_sigmoid: bool
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         input_dim: int = 172,
         hidden_dim: int = 256,
@@ -389,11 +385,11 @@ class SegmentSumMLP(torch.nn.Module):
         self.decoder = nn.Linear(hidden_dim, output_dim)
         self.sigmoid = nn.Sigmoid() if use_sigmoid else nn.Identity()
 
-    def forward(  # pylint: disable=missing-function-docstring
+    def forward(
         self,
-        segment_sizes: "torch.Tensor",
-        features: "torch.Tensor",
-    ) -> "torch.Tensor":
+        segment_sizes: torch.Tensor,
+        features: torch.Tensor,
+    ) -> torch.Tensor:
         n_seg = len(segment_sizes)
         encoded_features = self.encoder(features)
         segment_indices = torch.repeat_interleave(
@@ -417,9 +413,9 @@ class SegmentSumMLP(torch.nn.Module):
 
 def extract_features(
     context: TuneContext,
-    candidates: List[MeasureCandidate],
-    results: Optional[List[RunnerResult]] = None,
-    extractor: Optional[FeatureExtractor] = None,
+    candidates: list[MeasureCandidate],
+    results: list[RunnerResult] | None = None,
+    extractor: FeatureExtractor | None = None,
 ):
     """Extract feature vectors and compute mean costs.
 
@@ -476,14 +472,14 @@ class State:
     """
 
     model: SegmentSumMLP
-    data: Dict[str, FeatureGroup]
+    data: dict[str, FeatureGroup]
     data_size: int
     untrained_size: int
 
     def __init__(
         self,
-        model_config: Optional[SegmentSumMLPConfig] = None,
-        extractor: Optional[FeatureExtractor] = None,
+        model_config: SegmentSumMLPConfig | None = None,
+        extractor: FeatureExtractor | None = None,
     ):
         model_config = model_config or SegmentSumMLPConfig()
         extractor = extractor or PerStoreFeature(extract_workload=True)
@@ -494,7 +490,7 @@ class State:
         self.untrained_size = 0
         self.extractor = extractor
 
-    def load(  # pylint: disable=too-many-locals
+    def load(
         self,
         path: str,
         target: str = "nvidia/nvidia-v100",
@@ -536,7 +532,6 @@ class State:
                         if json_file.endswith("_workload.json"):
                             workload_paths.append(json_file)
                 for workload_path in tqdm(workload_paths):
-                    # pylint: disable=protected-access,broad-exception-caught
                     try:
                         database = JSONDatabase(
                             path_workload=workload_path,
@@ -589,7 +584,7 @@ class State:
 
     def add_to_group(
         self,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         costs: np.ndarray,
         group_hash: str,
     ):
@@ -662,13 +657,13 @@ class SegmentSumMLPTrainer:
     test_interval: int = 1
     test_split: float = 0.2
     frozen: bool = False
-    optimizer: "torch.optim.adam.Adam"  # type: ignore
-    scheduler: "torch.optim.lr_scheduler.StepLR"  # type: ignore
+    optimizer: torch.optim.adam.Adam  # type: ignore
+    scheduler: torch.optim.lr_scheduler.StepLR  # type: ignore
 
     def __init__(
         self,
-        train_config: Optional[TrainerConfig] = None,
-        state: Optional[State] = None,
+        train_config: TrainerConfig | None = None,
+        state: State | None = None,
     ):
         train_config = train_config or TrainerConfig()
         state = state or State()
@@ -682,9 +677,9 @@ class SegmentSumMLPTrainer:
 
     def train_step(
         self,
-        data: Tuple["torch.Tensor", "torch.Tensor", "torch.Tensor"],
+        data: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
         batch: int = 0,
-        train_loss: Optional[float] = None,
+        train_loss: float | None = None,
     ) -> float:
         """Helper function for training on a single batch.
 
@@ -729,7 +724,7 @@ class SegmentSumMLPTrainer:
 
     def predict_step(
         self,
-        data: Tuple["torch.Tensor", "torch.Tensor", "torch.Tensor"],
+        data: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     ):
         """Helper function for predicting (validating) on a single batch.
 
@@ -766,7 +761,7 @@ class SegmentSumMLPTrainer:
                 test_scores_batch.append(topk_score(pred_results, gt_results, k))
         return pred_results.numpy(), test_loss_batch, test_scores_batch
 
-    def train_full(self):  # pylint: disable=too-many-locals
+    def train_full(self):
         """Training on the full dataset."""
         # split into training and testing set
         keys = list(self.state.data.keys())
@@ -805,7 +800,7 @@ class SegmentSumMLPTrainer:
         min_test_loss = 1e10
         logger.info("Training size: %d; Testing size: %d", len(train_loader), len(test_loader))
 
-        model_cache_path = tempfile.NamedTemporaryFile().name  # pylint: disable=consider-using-with
+        model_cache_path = tempfile.NamedTemporaryFile().name
         for epoch in range(self.num_epoch_full):
             logger.info("Epoch: %d", epoch)
             # training
@@ -840,7 +835,7 @@ class SegmentSumMLPTrainer:
 
     def train_incremental(
         self,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         results: np.ndarray,
     ):
         """Training on incremental data.
@@ -870,8 +865,8 @@ class SegmentSumMLPTrainer:
 
     def predict_incremental(
         self,
-        features: List[np.ndarray],
-        results: Optional[np.ndarray] = None,
+        features: list[np.ndarray],
+        results: np.ndarray | None = None,
     ) -> np.ndarray:
         """Predicting (validating) on incremental data.
 
@@ -912,7 +907,7 @@ class SegmentSumMLPTrainer:
 
     def update(
         self,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         costs: np.ndarray,
         group_hash: str,
     ):
@@ -951,7 +946,7 @@ class MLPModel(PyCostModel):
     def __init__(
         self,
         *,
-        trainer: Optional[SegmentSumMLPTrainer] = None,
+        trainer: SegmentSumMLPTrainer | None = None,
     ):
         super().__init__()
         self.trainer = trainer or SegmentSumMLPTrainer()
@@ -979,8 +974,8 @@ class MLPModel(PyCostModel):
     def update(
         self,
         context: TuneContext,
-        candidates: List[MeasureCandidate],
-        results: List[RunnerResult],
+        candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the dataset, re-train the cost model if not frozen.
 
@@ -998,7 +993,7 @@ class MLPModel(PyCostModel):
         )
         self.trainer.update(features, mean_costs, shash2hex(context.mod))
 
-    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+    def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
         """Predict given the measure candidates.
 
         Parameters

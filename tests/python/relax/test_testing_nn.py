@@ -40,7 +40,7 @@ def test_emit():
         model = ReLU()
         x = nn.Placeholder((32, 32), dtype="float32", name="x")
         output = model(x)
-        params = [x] + model.parameters()
+        params = [x, *model.parameters()]
         bb.emit_func_output(output, params)
 
     tvm.ir.assert_structural_equal(bb.get(), Expected)

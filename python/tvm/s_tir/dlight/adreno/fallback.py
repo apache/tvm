@@ -33,7 +33,7 @@
 # under the License.
 """Dlight Adreno Fallback Schedules"""
 
-from typing import List, Union
+from __future__ import annotations
 
 from tvm import s_tir, tir
 from tvm.target import Target
@@ -58,14 +58,13 @@ def get_max_threads_per_block(target: Target) -> int:
     return int(max_threads_per_block)
 
 
-# pylint: disable=invalid-name,missing-function-docstring,unused-variable,unused-import
 class Fallback(AdrenoScheduleRule):
     """Texture Based Fallback Schedule(s) for Adreno"""
 
     @staticmethod
     def schedule_inline_blocks(
-        sch: s_tir.Schedule, blocks: List[s_tir.schedule.SBlockRV]
-    ) -> List[s_tir.schedule.SBlockRV]:
+        sch: s_tir.Schedule, blocks: list[s_tir.schedule.SBlockRV]
+    ) -> list[s_tir.schedule.SBlockRV]:
         """
         Auto Inlines Injective and Element-wise Operations while trying to omit data pad blocks...
         """
@@ -81,7 +80,7 @@ class Fallback(AdrenoScheduleRule):
                 if len(sch.get_consumers(blk)) == 1:
                     try:
                         sch.compute_inline(blk)
-                    except Exception:  # pylint: disable=broad-exception-caught
+                    except Exception:
                         remaining_blocks.append(blk)
                 elif len(sch.get_producers(blk)) == 1:
                     inlined_once = False
@@ -93,7 +92,7 @@ class Fallback(AdrenoScheduleRule):
                         ):
                             sch.reverse_compute_inline(blk)
                             inlined_once = True
-                    except Exception:  # pylint: disable=broad-exception-caught
+                    except Exception:
                         break
                     if not inlined_once:
                         remaining_blocks.append(blk)
@@ -168,14 +167,12 @@ class Fallback(AdrenoScheduleRule):
         for blk in remaining_blocks:
             Fallback.schedule_default(sch, blk)
 
-    def apply(  # pylint: disable=too-many-locals
+    def apply(
         self,
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
-        # pylint: disable=invalid-name
-
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
 

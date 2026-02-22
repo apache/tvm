@@ -26,8 +26,8 @@ from typing import Any, Optional, Union
 
 
 def cprint(
-    printable: Union[Any, str],
-    style: Optional[str] = None,
+    printable: Any | str,
+    style: str | None = None,
     black_format: bool = False,
 ) -> None:
     """Print TVMScript string with Pygments highlight and Black auto-formatting.
@@ -78,13 +78,12 @@ def cprint(
         print(printable)
         return
 
-    # pylint: disable=import-outside-toplevel
     from pygments import highlight
     from pygments.formatters import HtmlFormatter, Terminal256Formatter
     from pygments.lexers.python import Python3Lexer
 
     if is_in_notebook:
-        from IPython import display  # pylint: disable=import-outside-toplevel
+        from IPython import display
 
         formatter = HtmlFormatter(style=style)
         formatter.noclasses = True  # inline styles
@@ -95,7 +94,7 @@ def cprint(
 
 
 @functools.lru_cache
-def _get_formatter(formatter: Optional[str] = None):
+def _get_formatter(formatter: str | None = None):
     def get_ruff_formatter():
         if shutil.which("ruff") is None:
             return None
@@ -114,7 +113,6 @@ def _get_formatter(formatter: Optional[str] = None):
 
     def get_black_formatter():
         try:
-            # pylint: disable=import-outside-toplevel
             import black
         except ImportError:
             return None
@@ -160,7 +158,7 @@ def _get_formatter(formatter: Optional[str] = None):
     return get_fallback_formatter()
 
 
-def _format(code_str: str, formatter: Optional[str] = None) -> str:
+def _format(code_str: str, formatter: str | None = None) -> str:
     """Format a code string using Black.
 
     Parameters
@@ -185,8 +183,8 @@ def _format(code_str: str, formatter: Optional[str] = None) -> str:
 
 
 def _get_pygments_style(
-    style: Optional[str], is_in_notebook: bool
-) -> Optional[Union["pygments.style.Style", str]]:
+    style: str | None, is_in_notebook: bool
+) -> Union["pygments.style.Style", str] | None:
     """Select a pygments style to use
 
     Parameters
@@ -210,7 +208,6 @@ def _get_pygments_style(
 
     """
     try:
-        # pylint: disable=import-outside-toplevel
         import pygments
         from packaging import version
         from pygments.style import Style

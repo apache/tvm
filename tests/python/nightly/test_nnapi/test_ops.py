@@ -16,7 +16,7 @@
 # under the License.
 """NNAPI integration operator tests."""
 
-from typing import List
+from __future__ import annotations
 
 import numpy as np
 import pytest
@@ -351,7 +351,7 @@ def test_max_pool2d():
 
 
 def verify(remote_obj, tracker, mod, inputs):
-    inputs_tvm: List[tvm.runtime.Tensor] = [tvm.runtime.tensor(v) for v in inputs]
+    inputs_tvm: list[tvm.runtime.Tensor] = [tvm.runtime.tensor(v) for v in inputs]
     outputs = _build_and_run_network(remote_obj, tracker, mod, inputs_tvm)
     nnapi_out = outputs[0]
     expected_out = outputs[1]

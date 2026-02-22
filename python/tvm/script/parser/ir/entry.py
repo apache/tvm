@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=import-outside-toplevel
 """The entry point of TVM parser for ir module."""
 
+from __future__ import annotations
+
 import inspect
-from typing import Callable, Optional, Type
+from collections.abc import Callable
 
 from tvm import cpu, ir
 from tvm.ir import GlobalVar, IRModule
@@ -29,7 +30,7 @@ from .._core import parse, utils
 # this formulation allows us to support having @I.ir_module
 # appear as a decorator by itself or to have optional arguments
 # like @I.ir_module(check_well_formed=False)
-def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRModule:
+def ir_module(mod: type | None = None, check_well_formed: bool = True) -> IRModule:
     """The parsing method for ir module, by using `@ir_module` as decorator.
 
     Parameters
@@ -61,7 +62,7 @@ def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRM
             from tvm.relax.base_py_module import (
                 BasePyModule,
             )
-            from tvm.relax.expr import ExternFunc  # pylint: disable=import-outside-toplevel
+            from tvm.relax.expr import ExternFunc
 
             # Collect pyfunc methods
             pyfunc_methods = [
@@ -96,7 +97,7 @@ def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRM
                     else:
                         m[GlobalVar(method_name)] = extern_func
 
-                except Exception:  # pylint: disable=broad-exception-caught
+                except Exception:
                     continue
 
             class ModuleFactory:

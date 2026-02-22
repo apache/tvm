@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, line-too-long
 """Depthwise convolution in python"""
 
 import numpy as np
@@ -132,7 +131,6 @@ def depthwise_conv2d_python_nchwc(input_np, filter_np, stride, padding):
 
     # Transform back to NCHWc
 
-    # pylint: disable=unpacking-non-sequence
     batch_size, out_channel, out_height, out_width = output_np.shape
     return output_np.reshape(
         (batch_size, out_channel_chunk, out_channel_block, out_height, out_width)

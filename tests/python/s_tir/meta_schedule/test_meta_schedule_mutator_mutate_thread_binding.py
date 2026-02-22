@@ -14,13 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.script import tir as T
 from tvm.target import Target
-
-# pylint: disable=invalid-name, no-member
 
 
 @T.prim_func
@@ -33,12 +30,9 @@ def element_wise(var_A: T.handle, var_B: T.handle) -> None:
             B[vi, vj] = A[vi, vj] + 1.0
 
 
-# pylint: enable=invalid-name, no-member
-
-
 def _sch() -> Schedule:
     sch = Schedule(element_wise, debug_mask="all")
-    # pylint: disable=invalid-name
+
     b0 = sch.get_sblock(name="C", func_name="main")
     l1, l2 = sch.get_loops(block=b0)
     l3 = sch.fuse(l1, l2)
@@ -57,7 +51,7 @@ def _sch() -> Schedule:
     l5, l6 = sch.split(loop=l3, factors=[None, v4])
     sch.bind(loop=l5, thread_axis="blockIdx.x")
     sch.bind(loop=l6, thread_axis="threadIdx.x")
-    # pylint: enable=invalid-name
+
     return sch
 
 
@@ -71,7 +65,7 @@ def _make_mutator(target: Target) -> ms.Mutator:
             mutator_probs={ms.mutator.MutateThreadBinding(): 1.0},
         ),
     )
-    return list(ctx.space_generator.mutator_probs.keys())[0]
+    return next(iter(ctx.space_generator.mutator_probs.keys()))
 
 
 def test_mutate_thread_binding():

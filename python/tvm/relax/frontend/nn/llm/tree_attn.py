@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 
 """Operators for tree attention."""
 
+from __future__ import annotations
+
 import math
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from tvm import s_tir, tir
 from tvm.runtime import DataType
@@ -29,7 +30,6 @@ from tvm.target import Target
 from .position_embedding import switch_rope_freq_func
 
 # mypy: disable-error-code="attr-defined,valid-type,no-redef"
-# pylint: disable=too-many-statements,too-many-locals,too-many-arguments
 
 
 def _var(dtype):
@@ -42,9 +42,9 @@ def _rope(
     rotary_dim: int,
     theta: tir.Var,
     scale: tir.Var,
-    indices: Tuple[tir.Var, ...],
+    indices: tuple[tir.Var, ...],
     qkv_dtype: str,
-    rope_scaling: Dict[str, Any],
+    rope_scaling: dict[str, Any],
 ):
     d = indices[-1]
     cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(
@@ -53,8 +53,8 @@ def _rope(
     cos = cos_freq * buffer[indices].astype("float32")
     sin = sin_freq * tir.if_then_else(
         d < rotary_dim // 2,
-        -buffer[indices[:-1] + (d + rotary_dim // 2,)],
-        buffer[indices[:-1] + (d - rotary_dim // 2,)],
+        -buffer[(*indices[:-1], d + rotary_dim // 2)],
+        buffer[(*indices[:-1], d - rotary_dim // 2)],
     ).astype("float32")
     expr = (cos + sin).astype(qkv_dtype)
     for var, value in var_map.items():
@@ -90,7 +90,7 @@ def _declare_length_info(var_length_info, batch_size, sliding_window, elem_offse
     )
 
 
-def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any]):
+def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
     """Generate tree attention kernel for batched tree attention.
 
     Parameters
@@ -115,7 +115,7 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any]):
 
     # fmt: off
     @T.prim_func
-    def batch_tree_attn(  # pylint: disable=too-many-branches,line-too-long
+    def batch_tree_attn(
         var_q: T.handle,  # [total_len, h_q, d]
         var_q_indptr: T.handle,  # [batch_size + 1]
         var_k: T.handle,  # [total_len, h_kv, d]
@@ -158,7 +158,7 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any]):
         )
         mask = T.match_buffer(var_mask, (tree_size, 2), "int32", elem_offset=mask_elem_offset)
         output = T.match_buffer(var_output, (qo_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
+        lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")
 
         for b in T.serial(batch_size_plus_1 - 1):
             with T.sblock("attn"):
@@ -284,11 +284,11 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any]):
                         lse[q_indptr[b] + q_idx, h] = m_prev[h] + T.log2(d_prev[h])
 
     # fmt: on
-    # pylint: enable=line-too-long,too-many-branches
+
     return batch_tree_attn
 
 
-def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target):  # pylint: disable=unused-argument
+def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target):
     """Generate tree attention kernel for batched tree attention.
 
     Parameters
@@ -309,7 +309,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target)
     mod : tvm.IRModule
         The generated IR module.
     """
-    # pylint: disable=invalid-name,line-too-long
+
     NUM_BLKS = 16
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
     group_size = h_q // h_kv
@@ -338,7 +338,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target)
 
     # fmt: off
     @T.prim_func
-    def batch_tree_attn(  # pylint: disable=too-many-branches
+    def batch_tree_attn(
         var_q: T.handle, # [total_len, h_q, d]
         var_q_indptr: T.handle, # [batch_size + 1]
         var_k: T.handle, # [total_len, h_kv, d]
@@ -373,7 +373,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target)
         mn_indptr = T.match_buffer(var_mn_indptr, (batch_size_plus_1,), "int32", elem_offset=mn_indptr_elem_offset)
         mask = T.match_buffer(var_mask, (tree_size, 2), "int32", elem_offset=mask_elem_offset)
         output = T.match_buffer(var_output, (qo_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
+        lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")
 
         # kernel code
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
@@ -578,13 +578,13 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target)
                                     # move to next tile
                                     tile_id[0] += NUM_BLKS
     # fmt: on
-    # pylint: enable=line-too-long,too-many-branches
+
     sch = s_tir.Schedule(batch_tree_attn)
 
     def get_tile_size(x, y, t):
         cnt = (x * y) // t
         assert (x * y) % t == 0
-        tile_y = (int)(math.ceil(math.sqrt(cnt)))
+        tile_y = math.ceil(math.sqrt(cnt))
         while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
@@ -611,9 +611,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target)
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
-    def apply_to_gemm(  # pylint: disable=unused-argument
-        sch: s_tir.Schedule, block, tile, read_0, read_1, r_len=8, k_major=False
-    ):
+    def apply_to_gemm(sch: s_tir.Schedule, block, tile, read_0, read_1, r_len=8, k_major=False):
         loop_x, loop_y, loop_z = sch.get_loops(block)[-3:]
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
@@ -650,7 +648,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target)
     return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
-def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any]):
+def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
     """Generate tree attention kernel for batched tree attention with paged key-value cache.
 
     Parameters
@@ -671,14 +669,13 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[st
     mod : tvm.IRModule
         The generated IR module.
     """
-    # pylint: disable=import-outside-toplevel
+
     from .kv_cache import _declare_length_info, _get_kv_chunk_len, _get_seq_offset
 
     global_symbol = "tree_attn_paged_kv_cpu"
     sliding_window = False
     group_size = h_q // h_kv
 
-    # pylint: disable=line-too-long,too-many-branches
     # fmt: off
     @T.prim_func(check_well_formed=False)
     def tree_attn_paged_kv_cpu(
@@ -721,7 +718,7 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[st
         k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
         q_rope_position = T.match_buffer(var_q_rope_position, (total_len,), "int32", elem_offset=q_rope_position_elem_offset)
         output = T.match_buffer(var_output, (total_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (total_len, h_q), "float32")  # pylint: disable=unused-variable
+        lse = T.match_buffer(var_lse, (total_len, h_q), "float32")
         tree_order_indptr = T.match_buffer(
             tree_order_indptr_handle,
             (batch_size + 1,),
@@ -846,7 +843,7 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[st
 
 
 def tree_attn_with_paged_kv_cache(
-    h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target
+    h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target
 ):
     """Generate tree attention kernel for batched tree attention with paged key-value cache.
 
@@ -868,7 +865,7 @@ def tree_attn_with_paged_kv_cache(
     mod : tvm.IRModule
         The generated IR module.
     """
-    # pylint: disable=import-outside-toplevel
+
     from .kv_cache import (
         _declare_length_info,
         _get_kv_chunk_len,
@@ -876,7 +873,6 @@ def tree_attn_with_paged_kv_cache(
         check_thread_limits,
     )
 
-    # pylint: disable=invalid-name, line-too-long
     NUM_BLKS = 16
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
     group_size = h_q // h_kv
@@ -927,7 +923,7 @@ def tree_attn_with_paged_kv_cache(
         tree_order_indptr_handle: T.handle,  # [batch_size + 1]
         tree_order_handle: T.handle,  # [total_len, 2]
     ):
-        # pylint: disable=unused-variable, too-many-branches
+
         T.func_attr({"global_symbol": global_symbol})
         batch_size = T.int32(is_size_var=True)
         total_len = T.int32(is_size_var=True)
@@ -962,7 +958,7 @@ def tree_attn_with_paged_kv_cache(
         output = T.match_buffer(var_output, (total_len, h_q, d), dtype)
         lse = T.match_buffer(
             var_lse, (total_len, h_q), "float32"
-        )  # pylint: disable=unused-variable
+        )
         tree_order_indptr = T.match_buffer(
             tree_order_indptr_handle,
             (batch_size + 1,),
@@ -1271,13 +1267,13 @@ def tree_attn_with_paged_kv_cache(
                                     tile_id[0] += NUM_BLKS
 
     # fmt: on
-    # pylint: enable=line-too-long,too-many-branches
+
     sch = s_tir.Schedule(tree_attn_paged_kv)
 
     def get_tile_size(x, y, t):
         cnt = (x * y) // t
         assert (x * y) % t == 0
-        tile_y = (int)(math.ceil(math.sqrt(cnt)))
+        tile_y = math.ceil(math.sqrt(cnt))
         while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
@@ -1304,9 +1300,7 @@ def tree_attn_with_paged_kv_cache(
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
 
-    def apply_to_gemm(  # pylint: disable=unused-argument
-        sch: s_tir.Schedule, block, tile, read_0, read_1, r_len=8, k_major=False
-    ):
+    def apply_to_gemm(sch: s_tir.Schedule, block, tile, read_0, read_1, r_len=8, k_major=False):
         loop_x, loop_y, loop_z = sch.get_loops(block)[-3:]
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])

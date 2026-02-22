@@ -89,7 +89,6 @@ def get_tools(tool_type, use_distill=False, run_type=MSCFramework.MSC):
         }
         tools.append({"tool_type": ToolType.PRUNER, "tool_config": config})
     elif tool_type == ToolType.QUANTIZER:
-        # pylint: disable=import-outside-toplevel
         from tvm.contrib.msc.core.tools.quantize import QuantizeStage
 
         if run_type == MSCFramework.TENSORRT:
@@ -125,7 +124,6 @@ def get_tools(tool_type, use_distill=False, run_type=MSCFramework.MSC):
             }
         tools.append({"tool_type": ToolType.QUANTIZER, "tool_config": config})
     elif tool_type == ToolType.TRACKER:
-        # pylint: disable=import-outside-toplevel
         from tvm.contrib.msc.core.utils import MSCStage
 
         config = {
@@ -163,7 +161,6 @@ def get_tools(tool_type, use_distill=False, run_type=MSCFramework.MSC):
 def _get_torch_model(name, training=False):
     """Get model from torch vision"""
 
-    # pylint: disable=import-outside-toplevel
     try:
         import torchvision
 
@@ -173,7 +170,7 @@ def _get_torch_model(name, training=False):
         else:
             model = model.eval()
         return model
-    except:  # pylint: disable=bare-except
+    except:
         print("please install torchvision package")
         return None
 

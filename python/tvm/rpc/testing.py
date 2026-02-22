@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name,unnecessary-comprehension
 """Testing functions for the RPC server."""
 
 import numpy as np

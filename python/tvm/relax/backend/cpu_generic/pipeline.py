@@ -20,12 +20,12 @@ import tvm
 from tvm import relax
 
 
-def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def library_dispatch_passes(target: tvm.target.Target):
     """The default library dispatch passes for CPU backend."""
     return []
 
 
-def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def legalize_passes(target: tvm.target.Target):
     """The default legalization passes for CPU backend."""
     return [
         tvm.relax.transform.LegalizeOps(),
@@ -36,7 +36,7 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
     ]
 
 
-def dataflow_lower_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def dataflow_lower_passes(target: tvm.target.Target):
     """The default dataflow lowering passes for CPU backend."""
     return [
         relax.transform.RewriteDataflowReshape(),
@@ -46,7 +46,7 @@ def dataflow_lower_passes(target: tvm.target.Target):  # pylint: disable=unused-
     ]
 
 
-def finalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def finalize_passes(target: tvm.target.Target):
     """The default finalization passes for CPU backend."""
     return [
         relax.transform.StaticPlanBlockMemory(),

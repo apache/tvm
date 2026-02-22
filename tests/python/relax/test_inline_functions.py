@@ -54,9 +54,9 @@ def test_inline_simple(key_type):
         return D
 
     gvar = Before.get_global_var("subroutine")
-    if key_type == tvm.ir.GlobalVar:
+    if key_type is tvm.ir.GlobalVar:
         key = gvar
-    elif key_type == str:
+    elif key_type is str:
         key = gvar.name_hint
     else:
         raise TypeError(f"Unknown key_type: {key_type}")

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 
 import tvm
@@ -25,8 +24,6 @@ from tvm.s_tir.schedule.testing import (
     verify_trace_roundtrip,
 )
 from tvm.script import tir as T
-
-# pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
 @T.prim_func
@@ -1266,9 +1263,6 @@ def argmin_topi_rfactor(
             placeholder_red[ax0] = placeholder_red_temp_v0[ax0]
 
 
-# pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
-
-
 def test_reduction_rfactor_matmul():
     s = tvm.s_tir.Schedule(transformed_matmul, debug_mask="all")
     update = s.get_sblock("update")
@@ -1428,7 +1422,7 @@ def test_reduction_rfactor_zero_dim():
     verify_trace_roundtrip(s, mod=rowsum_zero_dim)
 
 
-def test_reduction_rfactor_outermost_loop_multiple_children_fail():  # pylint: disable=invalid-name
+def test_reduction_rfactor_outermost_loop_multiple_children_fail():
     s = tvm.s_tir.Schedule(multiple_reduction_blocks, debug_mask="all")
     _, _, k2o, k2i = s.get_loops(s.get_sblock("D"))
     _, _, k3o, k3i = s.get_loops(s.get_sblock("E"))
@@ -1447,7 +1441,7 @@ def test_reduction_rfactor_outermost_loop_multiple_children_fail():  # pylint: d
         s.rfactor(k4i, 0)
 
 
-def test_reduction_rfactor_outermost_loop_multiple_children():  # pylint: disable=invalid-name
+def test_reduction_rfactor_outermost_loop_multiple_children():
     s = tvm.s_tir.Schedule(multiple_reduction_blocks, debug_mask="all")
     C = s.get_sblock("C")
     _, _, k1o, _ = s.get_loops(C)
@@ -1458,7 +1452,7 @@ def test_reduction_rfactor_outermost_loop_multiple_children():  # pylint: disabl
     verify_trace_roundtrip(s, mod=multiple_reduction_blocks)
 
 
-def test_reduction_rfactor_predicate():  # pylint: disable=invalid-name
+def test_reduction_rfactor_predicate():
     s = tvm.s_tir.Schedule(rowsum_predicate, debug_mask="all")
     B = s.get_sblock("B")
     _, ko, _ = s.get_loops(B)

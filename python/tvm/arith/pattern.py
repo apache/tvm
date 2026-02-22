@@ -16,7 +16,7 @@
 # under the License.
 """Detect common patterns."""
 
-from typing import Dict
+from __future__ import annotations
 
 from tvm.tir import PrimExpr
 
@@ -65,7 +65,7 @@ def detect_clip_bound(expr, var_list):
     return _ffi_api.DetectClipBound(expr, var_list)
 
 
-def detect_common_subexpr(expr: PrimExpr, threshold: int) -> Dict[PrimExpr, int]:
+def detect_common_subexpr(expr: PrimExpr, threshold: int) -> dict[PrimExpr, int]:
     """Detect common sub expression which shows up more than a threshold times
 
     Parameters

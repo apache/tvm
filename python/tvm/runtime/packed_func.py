@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name, unused-import
 """Packed Function namespace."""
 
 from tvm_ffi import Function as PackedFunc

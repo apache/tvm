@@ -29,6 +29,6 @@ class MutateParallel(Mutator):
     def __init__(self, max_jobs_per_core: int) -> None:
         """Mutator that mutates the parallel extent"""
         self.__init_handle_by_constructor__(
-            _ffi_api.MutatorMutateParallel,  # type: ignore # pylint: disable=no-member
+            _ffi_api.MutatorMutateParallel,  # type: ignore
             max_jobs_per_core,
         )

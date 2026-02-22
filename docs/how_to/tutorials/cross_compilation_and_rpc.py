@@ -195,7 +195,7 @@ np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 time_f = func.time_evaluator(func.entry_name, dev, number=10)
 cost = time_f(a, b).mean
-print("%g secs/op" % cost)
+print(f"{cost:g} secs/op")
 
 #########################################################################
 # Run OpenCL Kernel Remotely by RPC

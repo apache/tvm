@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 
 import pytest
 
@@ -39,7 +38,6 @@ from tvm.s_tir.tensor_intrin.x86 import AVX512_DOT_16x4_INTRIN, VNNI_DOT_16x4_IN
 from tvm.script import tir as T
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
 @T.prim_func
 def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -493,7 +491,6 @@ def annotated_tensorized_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
 tir.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
 tir.TensorIntrin.register("test_annotated_mma_intrin", annotated_mma_desc, mma_intrin)
@@ -692,7 +689,7 @@ def test_tensorize_vdmpy():
 
 
 def test_tensorize_dp4a():
-    # pylint: disable=too-many-locals
+
     def _test_intrin(dtype_a, dtype_b, dtype_c, intrin):
         m, n, k = 128, 128, 128
         X = te.placeholder((m, k), name="X", dtype=dtype_a)

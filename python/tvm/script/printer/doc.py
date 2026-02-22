@@ -16,8 +16,11 @@
 # under the License.
 """Doc types for TVMScript Unified Printer"""
 
+from __future__ import annotations
+
+from collections.abc import Sequence
 from enum import IntEnum, unique
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Union
 
 from tvm_ffi import register_object
 from tvm_ffi.access_path import AccessPath
@@ -37,7 +40,7 @@ class Doc(Object):
 class ExprDoc(Doc):
     """Base class of all expression Docs"""
 
-    def attr(self, name: str) -> "AttrAccessDoc":
+    def attr(self, name: str) -> AttrAccessDoc:
         """
         Create a doc that represents attribute access on self.
 
@@ -50,9 +53,9 @@ class ExprDoc(Doc):
         -------
         doc : AttrAccessDoc
         """
-        return _ffi_api.ExprDocAttr(self, name)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ExprDocAttr(self, name)  # type: ignore
 
-    def call(self, *args: Tuple["ExprDoc"], **kwargs: Dict[str, "ExprDoc"]) -> "CallDoc":
+    def call(self, *args: tuple[ExprDoc], **kwargs: dict[str, ExprDoc]) -> CallDoc:
         """
         Create a doc that represents function call, with self as callee.
 
@@ -69,11 +72,11 @@ class ExprDoc(Doc):
         """
         kwargs_keys = list(kwargs.keys())
         kwargs_values = list(kwargs.values())
-        return _ffi_api.ExprDocCall(self, args, kwargs_keys, kwargs_values)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ExprDocCall(self, args, kwargs_keys, kwargs_values)  # type: ignore
 
     _IndexType = Union["ExprDoc", "SliceDoc"]
 
-    def __getitem__(self, indices: Union[Tuple[_IndexType], _IndexType]) -> "IndexDoc":
+    def __getitem__(self, indices: tuple[_IndexType] | _IndexType) -> IndexDoc:
         """
         Create a doc that represents index access on self.
 
@@ -88,7 +91,7 @@ class ExprDoc(Doc):
         """
         if not isinstance(indices, tuple):
             indices = (indices,)
-        return _ffi_api.ExprDocIndex(self, indices)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ExprDocIndex(self, indices)  # type: ignore
 
     def __iter__(self):
         """
@@ -118,44 +121,44 @@ class StmtBlockDoc(Doc):
 
     stmts: Sequence[StmtDoc]
 
-    def __init__(self, stmts: List[StmtDoc]):
-        self.__init_handle_by_constructor__(_ffi_api.StmtBlockDoc, stmts)  # type: ignore # pylint: disable=no-member
+    def __init__(self, stmts: list[StmtDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.StmtBlockDoc, stmts)  # type: ignore
 
 
 @register_object("script.printer.LiteralDoc")
 class LiteralDoc(ExprDoc):
     """Doc that represents literal value"""
 
-    value: Union[str, IntImm, FloatImm, None]
+    value: str | IntImm | FloatImm | None
 
     def __init__(
         self,
-        value: Union[str, float, bool, int, None],
-        path: Optional[AccessPath] = None,
+        value: str | float | bool | int | None,
+        path: AccessPath | None = None,
     ):
         if value is None:
-            self.__init_handle_by_constructor__(_ffi_api.LiteralDocNone, path)  # type: ignore # pylint: disable=no-member
+            self.__init_handle_by_constructor__(_ffi_api.LiteralDocNone, path)  # type: ignore
         elif isinstance(value, str):
             self.__init_handle_by_constructor__(
-                _ffi_api.LiteralDocStr,  # type: ignore # pylint: disable=no-member
+                _ffi_api.LiteralDocStr,  # type: ignore
                 value,
                 path,
             )
         elif isinstance(value, float):
             self.__init_handle_by_constructor__(
-                _ffi_api.LiteralDocFloat,  # type: ignore # pylint: disable=no-member
+                _ffi_api.LiteralDocFloat,  # type: ignore
                 value,
                 path,
             )
         elif isinstance(value, bool):
             self.__init_handle_by_constructor__(
-                _ffi_api.LiteralDocBoolean,  # type: ignore # pylint: disable=no-member
+                _ffi_api.LiteralDocBoolean,  # type: ignore
                 value,
                 path,
             )
         elif isinstance(value, int):
             self.__init_handle_by_constructor__(
-                _ffi_api.LiteralDocInt,  # type: ignore # pylint: disable=no-member
+                _ffi_api.LiteralDocInt,  # type: ignore
                 value,
                 path,
             )
@@ -170,7 +173,7 @@ class IdDoc(ExprDoc):
     name: str
 
     def __init__(self, name: str):
-        self.__init_handle_by_constructor__(_ffi_api.IdDoc, name)  # type: ignore # pylint: disable=no-member
+        self.__init_handle_by_constructor__(_ffi_api.IdDoc, name)  # type: ignore
 
 
 @register_object("script.printer.AttrAccessDoc")
@@ -181,7 +184,7 @@ class AttrAccessDoc(ExprDoc):
     name: str
 
     def __init__(self, value: ExprDoc, name: str):
-        self.__init_handle_by_constructor__(_ffi_api.AttrAccessDoc, value, name)  # type: ignore # pylint: disable=no-member
+        self.__init_handle_by_constructor__(_ffi_api.AttrAccessDoc, value, name)  # type: ignore
 
 
 @register_object("script.printer.IndexDoc")
@@ -189,10 +192,10 @@ class IndexDoc(ExprDoc):
     """Doc that represents index access on an expression"""
 
     value: ExprDoc
-    indices: Sequence[Union[ExprDoc, "SliceDoc"]]
+    indices: Sequence[ExprDoc | SliceDoc]
 
-    def __init__(self, value: ExprDoc, indices: List[Union[ExprDoc, "SliceDoc"]]):
-        self.__init_handle_by_constructor__(_ffi_api.IndexDoc, value, indices)  # type: ignore # pylint: disable=no-member
+    def __init__(self, value: ExprDoc, indices: list[ExprDoc | SliceDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.IndexDoc, value, indices)  # type: ignore
 
 
 @register_object("script.printer.CallDoc")
@@ -204,11 +207,11 @@ class CallDoc(ExprDoc):
     kwargs_keys: Sequence[str]
     kwargs_values: Sequence[ExprDoc]
 
-    def __init__(self, callee: ExprDoc, *args: Tuple[ExprDoc], **kwargs: Dict[str, ExprDoc]):
+    def __init__(self, callee: ExprDoc, *args: tuple[ExprDoc], **kwargs: dict[str, ExprDoc]):
         kwargs_keys = list(kwargs.keys())
         kwargs_values = list(kwargs.values())
         self.__init_handle_by_constructor__(
-            _ffi_api.CallDoc,  # type: ignore # pylint: disable=no-member
+            _ffi_api.CallDoc,  # type: ignore
             callee,
             args,
             kwargs_keys,
@@ -225,7 +228,6 @@ class OperationKind(IntEnum):
     """
 
     # The name convention follows https://docs.python.org/3/library/ast.html
-    # pylint: disable=invalid-name
 
     _UnaryStart = 0
     USub = 1
@@ -260,8 +262,6 @@ class OperationKind(IntEnum):
     IfThenElse = 28
     _SpecialEnd = 29
 
-    # pylint: enable=invalid-name
-
 
 @register_object("script.printer.OperationDoc")
 class OperationDoc(ExprDoc):
@@ -275,8 +275,8 @@ class OperationDoc(ExprDoc):
     kind: OperationKind
     operands: Sequence[ExprDoc]
 
-    def __init__(self, kind: OperationKind, operands: List[ExprDoc]):
-        self.__init_handle_by_constructor__(_ffi_api.OperationDoc, kind, operands)  # type: ignore # pylint: disable=no-member
+    def __init__(self, kind: OperationKind, operands: list[ExprDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.OperationDoc, kind, operands)  # type: ignore
 
 
 @register_object("script.printer.LambdaDoc")
@@ -286,8 +286,8 @@ class LambdaDoc(ExprDoc):
     args: Sequence[IdDoc]
     body: ExprDoc
 
-    def __init__(self, args: List[IdDoc], body: ExprDoc):
-        self.__init_handle_by_constructor__(_ffi_api.LambdaDoc, args, body)  # type: ignore # pylint: disable=no-member
+    def __init__(self, args: list[IdDoc], body: ExprDoc):
+        self.__init_handle_by_constructor__(_ffi_api.LambdaDoc, args, body)  # type: ignore
 
 
 @register_object("script.printer.TupleDoc")
@@ -296,8 +296,8 @@ class TupleDoc(ExprDoc):
 
     elements: Sequence[ExprDoc]
 
-    def __init__(self, elements: List[ExprDoc]):
-        self.__init_handle_by_constructor__(_ffi_api.TupleDoc, elements)  # type: ignore # pylint: disable=no-member
+    def __init__(self, elements: list[ExprDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.TupleDoc, elements)  # type: ignore
 
 
 @register_object("script.printer.ListDoc")
@@ -306,8 +306,8 @@ class ListDoc(ExprDoc):
 
     elements: Sequence[ExprDoc]
 
-    def __init__(self, elements: List[ExprDoc]):
-        self.__init_handle_by_constructor__(_ffi_api.ListDoc, elements)  # type: ignore # pylint: disable=no-member
+    def __init__(self, elements: list[ExprDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.ListDoc, elements)  # type: ignore
 
 
 @register_object("script.printer.DictDoc")
@@ -317,10 +317,10 @@ class DictDoc(ExprDoc):
     keys: Sequence[ExprDoc]
     values: Sequence[ExprDoc]
 
-    def __init__(self, content: Dict[ExprDoc, ExprDoc]):
+    def __init__(self, content: dict[ExprDoc, ExprDoc]):
         keys = list(content.keys())
         values = list(content.values())
-        self.__init_handle_by_constructor__(_ffi_api.DictDoc, keys, values)  # type: ignore # pylint: disable=no-member
+        self.__init_handle_by_constructor__(_ffi_api.DictDoc, keys, values)  # type: ignore
 
 
 @register_object("script.printer.SliceDoc")
@@ -331,17 +331,17 @@ class SliceDoc(ExprDoc):
     This doc can only appear in `IndexDoc.indices`.
     """
 
-    start: Optional[ExprDoc]
-    stop: Optional[ExprDoc]
-    step: Optional[ExprDoc]
+    start: ExprDoc | None
+    stop: ExprDoc | None
+    step: ExprDoc | None
 
     def __init__(
         self,
-        start: Optional[ExprDoc] = None,
-        stop: Optional[ExprDoc] = None,
-        step: Optional[ExprDoc] = None,
+        start: ExprDoc | None = None,
+        stop: ExprDoc | None = None,
+        step: ExprDoc | None = None,
     ):
-        self.__init_handle_by_constructor__(_ffi_api.SliceDoc, start, stop, step)  # type: ignore # pylint: disable=no-member
+        self.__init_handle_by_constructor__(_ffi_api.SliceDoc, start, stop, step)  # type: ignore
 
 
 @register_object("script.printer.AssignDoc")
@@ -349,12 +349,12 @@ class AssignDoc(StmtDoc):
     """Doc that represents assign statement."""
 
     lhs: ExprDoc
-    rhs: Optional[ExprDoc]
-    annotation: Optional[ExprDoc]
+    rhs: ExprDoc | None
+    annotation: ExprDoc | None
 
-    def __init__(self, lhs: ExprDoc, rhs: Optional[ExprDoc], annotation: Optional[ExprDoc] = None):
+    def __init__(self, lhs: ExprDoc, rhs: ExprDoc | None, annotation: ExprDoc | None = None):
         self.__init_handle_by_constructor__(
-            _ffi_api.AssignDoc,  # type: ignore # pylint: disable=no-member
+            _ffi_api.AssignDoc,  # type: ignore
             lhs,
             rhs,
             annotation,
@@ -369,9 +369,9 @@ class IfDoc(StmtDoc):
     then_branch: Sequence[StmtDoc]
     else_branch: Sequence[StmtDoc]
 
-    def __init__(self, predicate: ExprDoc, then_branch: List[StmtDoc], else_branch: List[StmtDoc]):
+    def __init__(self, predicate: ExprDoc, then_branch: list[StmtDoc], else_branch: list[StmtDoc]):
         self.__init_handle_by_constructor__(
-            _ffi_api.IfDoc,  # type: ignore # pylint: disable=no-member
+            _ffi_api.IfDoc,  # type: ignore
             predicate,
             then_branch,
             else_branch,
@@ -385,8 +385,8 @@ class WhileDoc(StmtDoc):
     predicate: ExprDoc
     body: Sequence[StmtDoc]
 
-    def __init__(self, predicate: ExprDoc, body: List[StmtDoc]):
-        self.__init_handle_by_constructor__(_ffi_api.WhileDoc, predicate, body)  # type: ignore # pylint: disable=no-member
+    def __init__(self, predicate: ExprDoc, body: list[StmtDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.WhileDoc, predicate, body)  # type: ignore
 
 
 @register_object("script.printer.ForDoc")
@@ -397,8 +397,8 @@ class ForDoc(StmtDoc):
     rhs: ExprDoc
     body: Sequence[StmtDoc]
 
-    def __init__(self, lhs: ExprDoc, rhs: ExprDoc, body: List[StmtDoc]):
-        self.__init_handle_by_constructor__(_ffi_api.ForDoc, lhs, rhs, body)  # type: ignore # pylint: disable=no-member
+    def __init__(self, lhs: ExprDoc, rhs: ExprDoc, body: list[StmtDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.ForDoc, lhs, rhs, body)  # type: ignore
 
 
 @register_object("script.printer.ScopeDoc")
@@ -412,12 +412,12 @@ class ScopeDoc(StmtDoc):
         <body...>
     """
 
-    lhs: Optional[ExprDoc]
+    lhs: ExprDoc | None
     rhs: ExprDoc
     body: Sequence[StmtDoc]
 
-    def __init__(self, lhs: Optional[ExprDoc], rhs: ExprDoc, body: List[StmtDoc]):
-        self.__init_handle_by_constructor__(_ffi_api.ScopeDoc, lhs, rhs, body)  # type: ignore # pylint: disable=no-member
+    def __init__(self, lhs: ExprDoc | None, rhs: ExprDoc, body: list[StmtDoc]):
+        self.__init_handle_by_constructor__(_ffi_api.ScopeDoc, lhs, rhs, body)  # type: ignore
 
 
 @register_object("script.printer.ExprStmtDoc")
@@ -427,7 +427,7 @@ class ExprStmtDoc(StmtDoc):
     expr: ExprDoc
 
     def __init__(self, expr: ExprDoc):
-        self.__init_handle_by_constructor__(_ffi_api.ExprStmtDoc, expr)  # type: ignore # pylint: disable=no-member
+        self.__init_handle_by_constructor__(_ffi_api.ExprStmtDoc, expr)  # type: ignore
 
 
 @register_object("script.printer.AssertDoc")
@@ -435,10 +435,10 @@ class AssertDoc(StmtDoc):
     """Doc that represents assert statement."""
 
     test: ExprDoc
-    msg: Optional[ExprDoc]
+    msg: ExprDoc | None
 
-    def __init__(self, test: ExprDoc, msg: Optional[ExprDoc] = None):
-        self.__init_handle_by_constructor__(_ffi_api.AssertDoc, test, msg)  # type: ignore # pylint: disable=no-member
+    def __init__(self, test: ExprDoc, msg: ExprDoc | None = None):
+        self.__init_handle_by_constructor__(_ffi_api.AssertDoc, test, msg)  # type: ignore
 
 
 @register_object("script.printer.ReturnDoc")
@@ -448,7 +448,7 @@ class ReturnDoc(StmtDoc):
     value: ExprDoc
 
     def __init__(self, value: ExprDoc):
-        self.__init_handle_by_constructor__(_ffi_api.ReturnDoc, value)  # type: ignore # pylint: disable=no-member
+        self.__init_handle_by_constructor__(_ffi_api.ReturnDoc, value)  # type: ignore
 
 
 @register_object("script.printer.FunctionDoc")
@@ -458,19 +458,19 @@ class FunctionDoc(StmtDoc):
     name: IdDoc
     args: Sequence[AssignDoc]
     decorators: Sequence[ExprDoc]
-    return_type: Optional[ExprDoc]
+    return_type: ExprDoc | None
     body: Sequence[StmtDoc]
 
     def __init__(
         self,
         name: IdDoc,
-        args: List[AssignDoc],
-        decorators: List[ExprDoc],
-        return_type: Optional[ExprDoc],
-        body: List[StmtDoc],
+        args: list[AssignDoc],
+        decorators: list[ExprDoc],
+        return_type: ExprDoc | None,
+        body: list[StmtDoc],
     ):
         self.__init_handle_by_constructor__(
-            _ffi_api.FunctionDoc,  # type: ignore # pylint: disable=no-member
+            _ffi_api.FunctionDoc,  # type: ignore
             name,
             args,
             decorators,
@@ -487,9 +487,9 @@ class ClassDoc(StmtDoc):
     decorators: Sequence[ExprDoc]
     body: Sequence[StmtDoc]
 
-    def __init__(self, name: IdDoc, decorators: List[ExprDoc], body: List[StmtDoc]):
+    def __init__(self, name: IdDoc, decorators: list[ExprDoc], body: list[StmtDoc]):
         self.__init_handle_by_constructor__(
-            _ffi_api.ClassDoc,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ClassDoc,  # type: ignore
             name,
             decorators,
             body,
@@ -503,7 +503,7 @@ class CommentDoc(StmtDoc):
     def __init__(self, comment: str):
         self.__init_handle_by_constructor__(
             _ffi_api.CommentDoc,
-            comment,  # type: ignore # pylint: disable=no-member
+            comment,  # type: ignore
         )
 
 
@@ -514,5 +514,5 @@ class DocStringDoc(StmtDoc):
     def __init__(self, docs: str):
         self.__init_handle_by_constructor__(
             _ffi_api.DocStringDoc,
-            docs,  # type: ignore # pylint: disable=no-member
+            docs,  # type: ignore
         )

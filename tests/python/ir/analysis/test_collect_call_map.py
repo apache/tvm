@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Dict, List
+from __future__ import annotations
 
 import tvm
 import tvm.testing
@@ -26,7 +26,7 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 
-def _build_str_map(call_map: Dict[GlobalVar, List[GlobalVar]]) -> Dict[str, List[str]]:
+def _build_str_map(call_map: dict[GlobalVar, list[GlobalVar]]) -> dict[str, list[str]]:
     return {
         caller.name_hint: [callee.name_hint for callee in callees]
         for caller, callees in call_map.items()

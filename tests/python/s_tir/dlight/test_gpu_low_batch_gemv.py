@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 
 import tvm.testing
 from tvm.s_tir import dlight as dl
@@ -524,7 +523,7 @@ def test_outer_reduction():
     # fmt: on
     mod = tvm.IRModule({"main": before})
     with Target("metal"):
-        mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)  # pylint: disable=not-callable
+        mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 

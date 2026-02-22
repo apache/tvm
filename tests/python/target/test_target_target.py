@@ -32,7 +32,7 @@ def test_all_targets_device_type_verify():
     for tgt in all_targets:
         if tgt.kind.name not in tvm.runtime.Device._DEVICE_NAME_TO_TYPE:
             raise KeyError(
-                "Cannot find target kind: %s in Device._DEVICE_NAME_TO_TYPE" % tgt.kind.name
+                f"Cannot find target kind: {tgt.kind.name} in Device._DEVICE_NAME_TO_TYPE"
             )
 
         assert (

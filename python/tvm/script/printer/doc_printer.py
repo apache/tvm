@@ -16,7 +16,7 @@
 # under the License.
 """Functions to print doc into text format"""
 
-from typing import List, Optional
+from __future__ import annotations
 
 from tvm_ffi.access_path import AccessPath
 
@@ -30,8 +30,8 @@ def to_python_script(
     doc: Doc,
     indent_spaces: int = 4,
     print_line_numbers: bool = False,
-    num_context_lines: Optional[int] = None,
-    path_to_underline: Optional[List[AccessPath]] = None,
+    num_context_lines: int | None = None,
+    path_to_underline: list[AccessPath] | None = None,
 ) -> str:
     """Convert Doc into Python script.
 
@@ -59,4 +59,4 @@ def to_python_script(
         num_context_lines=num_context_lines,
         path_to_underline=path_to_underline,
     )
-    return _ffi_api.DocToPythonScript(doc, cfg)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.DocToPythonScript(doc, cfg)  # type: ignore

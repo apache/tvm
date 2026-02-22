@@ -17,7 +17,6 @@
 # under the License.
 """A PyTorch-like API to build IRModules."""
 
-# pylint: disable=redefined-builtin
 from . import op, spec
 from .core import Effect, Module, ModuleDict, ModuleList, Object, Parameter, Tensor
 from .exporter import add_extern

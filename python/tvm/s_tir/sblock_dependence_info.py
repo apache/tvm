@@ -47,17 +47,17 @@ class SBlockDependenceInfo(Object):
 
     mod: IRModule
 
-    def __init__(self, mod: Union[IRModule, PrimFunc]):
+    def __init__(self, mod: IRModule | PrimFunc):
         if isinstance(mod, PrimFunc):
             mod = IRModule({"main": mod})
         if not isinstance(mod, IRModule):
             raise TypeError(f"Expected `mod` to be PrimFunc or IRModule, but gets: {mod}")
         self.__init_handle_by_constructor__(
-            _ffi_api.SBlockDependenceInfo,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SBlockDependenceInfo,  # type: ignore
             mod,
         )
 
-    def get_sref(self, block: SBlock) -> Optional[StmtSRef]:
+    def get_sref(self, block: SBlock) -> StmtSRef | None:
         """Return the corresponding sref that points to the block
 
         Parameters
@@ -70,7 +70,7 @@ class SBlockDependenceInfo(Object):
         sref : StmtSRef
             The corresponding sref
         """
-        return _ffi_api.SBlockDependenceInfoGetSRef(self, block)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.SBlockDependenceInfoGetSRef(self, block)  # type: ignore
 
     def get_sblock_scope(self, block_sref: StmtSRef) -> SBlockScope:
         """Get the SBlockScope correpsonding to the block sref
@@ -85,6 +85,6 @@ class SBlockDependenceInfo(Object):
         scope : SBlockScope
             The corresponding SBlockScope
         """
-        return _ffi_api.SBlockDependenceInfoGetSBlockScope(  # type: ignore # pylint: disable=no-member
+        return _ffi_api.SBlockDependenceInfoGetSBlockScope(  # type: ignore
             self, block_sref
         )

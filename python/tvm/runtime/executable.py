@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, no-member
 
 """Executable object for TVM Runtime"""
 
-from typing import Any, Callable, Dict, List, Optional
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
 
 import tvm
 from tvm.contrib import utils as _utils
@@ -32,7 +34,7 @@ class Executable:
     def __init__(self, mod: Module):
         """Initialize the Executable object."""
         self.mod: Module = mod
-        self._jitted_mod: Optional[Module] = None
+        self._jitted_mod: Module | None = None
 
     def __getitem__(self, name: str) -> PackedFunc:
         """Get the PackedFunc from the jitted module."""
@@ -45,8 +47,8 @@ class Executable:
     def jit(
         self,
         *,
-        fcompile: Optional[Callable[[str, List[str], Dict[str, Any]], None]] = None,
-        addons: Optional[List[str]] = None,
+        fcompile: Callable[[str, list[str], dict[str, Any]], None] | None = None,
+        addons: list[str] | None = None,
         force_recompile: bool = False,
         **kwargs,
     ) -> Module:
@@ -95,7 +97,6 @@ class Executable:
         def _not_runnable(x):
             return x.kind in ("c", "static_library")
 
-        # pylint:disable = protected-access
         not_runnable_list = self.mod._collect_from_import_tree(_not_runnable)
 
         # everything is runnable, directly return mod.

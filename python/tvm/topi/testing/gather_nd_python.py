@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """gather_nd in python"""
 
 import numpy as np
@@ -48,7 +47,7 @@ def gather_nd_python(a_np, indices_np):
     for idx in np.ndindex(*indices_shape[1:]):
         a_idx = []
         for i in range(indices_shape[0]):
-            indices_pos = tuple([i] + list(idx))
+            indices_pos = tuple([i, *list(idx)])
             a_idx.append(indices_np[indices_pos])
         b_np[idx] = a_np[tuple(a_idx)]
     return b_np

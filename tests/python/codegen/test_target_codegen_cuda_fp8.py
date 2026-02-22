@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations
+
 from itertools import product
-from typing import List, Tuple
 
 import numpy as np
 import pytest
@@ -347,7 +348,7 @@ class BaseFP8E4M3QuantScaleOnly:
         else:
             assert NotImplementedError()
 
-        bb = relax.BlockBuilder()  # pylint: disable=invalid-name
+        bb = relax.BlockBuilder()
         weight_var = relax.Var("weight", relax.TensorStructInfo(weight_shape, model_dtype))
         compute_scale, compute_quantize, compute_transpose = quantize_func(
             weight_shape,
@@ -391,7 +392,7 @@ class BaseFP8E4M3QuantScaleOnly:
         else:
             assert NotImplementedError()
 
-        bb = relax.BlockBuilder()  # pylint: disable=invalid-name
+        bb = relax.BlockBuilder()
         packed_weight_var = relax.Var(
             "weight", relax.TensorStructInfo(packed_weight_shape, storage_dtype)
         )
@@ -415,9 +416,9 @@ class BaseFP8E4M3QuantScaleOnly:
         return bb.finalize()
 
     @classmethod
-    def quantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
+    def quantize_fp8x4_e4m3(
         cls,
-        weight_shape: List[tir.PrimExpr],
+        weight_shape: list[tir.PrimExpr],
         model_dtype,
         quantize_dtype,
         storage_dtype,
@@ -426,15 +427,15 @@ class BaseFP8E4M3QuantScaleOnly:
         max_int_value,
         axis: int = -1,
         output_transpose: bool = False,
-    ) -> Tuple[te.Tensor, te.Tensor]:
+    ) -> tuple[te.Tensor, te.Tensor]:
         """Group quantization for weight tensor, defined in tensor expression."""
         max_int = tir.const(max_int_value, model_dtype)
-        shape = weight_shape  # pylint: disable=invalid-name
+        shape = weight_shape
         axis = axis if axis >= 0 else len(shape) + axis
         k = shape[axis]
         quantize_dtype = DataType(quantize_dtype)
         # compute scale per group
-        r = te.reduce_axis((0, group_size), name="r")  # pylint: disable=invalid-name
+        r = te.reduce_axis((0, group_size), name="r")
         num_group = tir.ceildiv(k, group_size)
         # (4096, 4096) -> quantize axis = 0, group size = 32 -> (128, 4096)
         # for channel quant group_size = 4096 -> (1, 4096)
@@ -502,9 +503,9 @@ class BaseFP8E4M3QuantScaleOnly:
         return compute_scale, compute_quantize_weight, compute_transpose
 
     @classmethod
-    def dequantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
+    def dequantize_fp8x4_e4m3(
         cls,
-        packed_weight_shape: List[tir.PrimExpr],
+        packed_weight_shape: list[tir.PrimExpr],
         scale_shape,
         dequant_shape,
         model_dtype,
@@ -513,7 +514,7 @@ class BaseFP8E4M3QuantScaleOnly:
         group_size,
         num_elem_per_storage,
         axis: int = -1,
-    ) -> Tuple[te.Tensor, te.Tensor]:
+    ) -> tuple[te.Tensor, te.Tensor]:
         """Group quantization for weight tensor, defined in tensor expression."""
         axis = axis if axis >= 0 else len(shape) + axis
 

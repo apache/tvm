@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, dangerous-default-value
 """Conv2d kernel generator and profiler for CUTLASS."""
 
 import os
@@ -283,7 +282,7 @@ class CutlassConv2DProfiler:
             elif dtype in ["float", "float32"]:
                 alignments = [4, 2, 1]
             else:
-                raise ValueError("Unsupported data type: %s" % dtype)
+                raise ValueError(f"Unsupported data type: {dtype}")
             return alignments
 
         alignments_c = [align for align in alignments(out_dtype) if OC % align == 0]
@@ -313,9 +312,9 @@ class CutlassConv2DProfiler:
             self.engine.compile_all(ops, use_multiprocessing)
 
         args = (
-            "--n=%d --h=%d --w=%d --c=%d --k=%d --r=%d --s=%d --pad_h=%d --pad_w=%d "
-            "--stride_h=%d --stride_w=%d --dilation_h=%d --dilation_w=%d"
-        ) % workload
+            "--n={} --h={} --w={} --c={} --k={} --r={} --s={} --pad_h={} --pad_w={} "
+            "--stride_h={} --stride_w={} --dilation_h={} --dilation_w={}"
+        ).format(*workload)
 
         for op in ops:
             out = self.engine.evaluate(op, args.split(" "))

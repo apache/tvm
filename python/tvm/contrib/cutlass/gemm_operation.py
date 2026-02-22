@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-wildcard-import, wildcard-import, pointless-exception-statement
 """Generator for CUTLASS GEMM kernels."""
 
 from .library import *
@@ -59,7 +58,7 @@ class GemmOperation:
             self.tile_description.math_instruction.opcode_class == OpcodeClass.TensorOp
             or self.tile_description.math_instruction.opcode_class == OpcodeClass.WmmaTensorOp
         ):
-            inst_shape = "%d%d%d" % tuple(self.tile_description.math_instruction.instruction_shape)
+            inst_shape = "{}{}{}".format(*self.tile_description.math_instruction.instruction_shape)
             if (
                 self.tile_description.math_instruction.element_a != self.A.element
                 and self.tile_description.math_instruction.element_a

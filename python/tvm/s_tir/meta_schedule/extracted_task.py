@@ -16,7 +16,7 @@
 # under the License.
 """Extracted tasks from high-level IR."""
 
-from typing import List
+from __future__ import annotations
 
 from tvm_ffi import register_object
 
@@ -47,7 +47,7 @@ class ExtractedTask(Object):
 
     task_name: str
     mod: IRModule
-    dispatched: List[IRModule]
+    dispatched: list[IRModule]
     weight: int
 
     def __init__(
@@ -55,11 +55,11 @@ class ExtractedTask(Object):
         task_name: str,
         mod: IRModule,
         target: Target,
-        dispatched: List[IRModule],
+        dispatched: list[IRModule],
         weight: int,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ExtractedTask,  # type: ignore # pylint: disable=no-member
+            _ffi_api.ExtractedTask,  # type: ignore
             task_name,
             mod,
             target,

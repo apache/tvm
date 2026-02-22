@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
 """Dispatch sampling operators to platform dependent implementation."""
 
 from tvm import relax
@@ -35,7 +34,7 @@ class SamplingDispatcher(BackendDispatcher):
             return super().visit_call_(call)
 
         if call.op.name == "relax.multinomial_from_uniform":
-            from tvm.relax.backend.gpu_generic import (  # pylint: disable=import-outside-toplevel
+            from tvm.relax.backend.gpu_generic import (
                 generic_get_sample_index,
                 gpu_multinomial_from_uniform,
             )

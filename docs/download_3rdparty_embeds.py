@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=redefined-outer-name, missing-module-docstring
+from __future__ import annotations
+
 import argparse
 import hashlib
 import os
 import re
+from collections.abc import Callable
 from html.parser import HTMLParser
-from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urlparse
 
 import requests
@@ -43,7 +44,7 @@ class ExternalURLParser(HTMLParser):
 
     def __init__(self):
         super().__init__()
-        self.external_urls: List[str] = []
+        self.external_urls: list[str] = []
         self.base_domain = urlparse(BASE_URL).netloc
         # Tags and their attributes that might contain external resources
         self.tags_to_check = {
@@ -57,7 +58,7 @@ class ExternalURLParser(HTMLParser):
             "embed": "src",
         }
 
-    def handle_starttag(self, tag: str, attrs: List[tuple[str, Union[str, None]]]) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Handle HTML start tags to find external URLs."""
         if tag not in self.tags_to_check:
             return
@@ -73,7 +74,7 @@ class ExternalURLParser(HTMLParser):
                     self.external_urls.append(value)
 
 
-def detect_html_external_urls(html_content: str) -> List[str]:
+def detect_html_external_urls(html_content: str) -> list[str]:
     """
     Detect third-party embedded resources in HTML content.
 
@@ -92,7 +93,7 @@ def detect_html_external_urls(html_content: str) -> List[str]:
     return parser.external_urls
 
 
-def detect_css_external_urls(css_content: str) -> List[str]:
+def detect_css_external_urls(css_content: str) -> list[str]:
     """
     Detect external URLs in CSS content.
 
@@ -106,7 +107,7 @@ def detect_css_external_urls(css_content: str) -> List[str]:
     List[str]
         List of external URLs found in the CSS content
     """
-    external_urls: List[str] = []
+    external_urls: list[str] = []
     # Regex to find URLs in CSS
     url_pattern = re.compile(r'url\(["\']?(.*?)["\']?\)')
     matches = url_pattern.findall(css_content)
@@ -116,7 +117,7 @@ def detect_css_external_urls(css_content: str) -> List[str]:
     return external_urls
 
 
-def all_files_in_dir(path: str) -> List[str]:
+def all_files_in_dir(path: str) -> list[str]:
     """
     Get a list of all files in a directory and its subdirectories.
 
@@ -133,7 +134,7 @@ def all_files_in_dir(path: str) -> List[str]:
     return [os.path.join(root, file) for root, _, files in os.walk(path) for file in files]
 
 
-def detect_urls(files: List[str], verbose: bool = False) -> List[str]:
+def detect_urls(files: list[str], verbose: bool = False) -> list[str]:
     """
     Detect external URLs in the given HTML and CSS files.
 
@@ -150,9 +151,9 @@ def detect_urls(files: List[str], verbose: bool = False) -> List[str]:
         List of external URLs found in the files
     """
 
-    external_urls: Set[str] = set()
+    external_urls: set[str] = set()
     for file in files:
-        f_detect: Union[Callable[[str, str], List[str]], None] = None
+        f_detect: Callable[[str, str], list[str]] | None = None
         if file.endswith(".html"):
             f_detect = detect_html_external_urls
         elif file.endswith(".css"):
@@ -183,8 +184,8 @@ def detect_urls(files: List[str], verbose: bool = False) -> List[str]:
 
 
 def download_external_urls(
-    external_urls: List[str], verbose: bool = False
-) -> Tuple[Dict[str, str], List[str]]:
+    external_urls: list[str], verbose: bool = False
+) -> tuple[dict[str, str], list[str]]:
     """
     Download external URLs and save them to docs/_static/downloads.
 
@@ -204,9 +205,9 @@ def download_external_urls(
     """
     download_dir = os.path.join(HTML_DIR, "_static/downloads")
     os.makedirs(download_dir, exist_ok=True)
-    used_file_names: Set[str] = set()
-    downloaded_files: List[str] = []
-    remap_urls: Dict[str, str] = {}
+    used_file_names: set[str] = set()
+    downloaded_files: list[str] = []
+    remap_urls: dict[str, str] = {}
     for url in external_urls:
         query = urlparse(url).query
         if url.startswith("https://fonts.googleapis.com/css2"):
@@ -242,7 +243,7 @@ def download_external_urls(
     return remap_urls, downloaded_files
 
 
-def replace_urls_in_files(remap_urls: Dict[str, str], verbose: bool = False):
+def replace_urls_in_files(remap_urls: dict[str, str], verbose: bool = False):
     """
     Replace external URLs with their downloaded versions in HTML/CSS files.
 
@@ -282,7 +283,7 @@ def replace_urls_in_files(remap_urls: Dict[str, str], verbose: bool = False):
                     print(f"Updated {file_path}")
 
 
-def download_and_replace_urls(files: Optional[List[str]] = None, verbose: bool = False):
+def download_and_replace_urls(files: list[str] | None = None, verbose: bool = False):
     """
     Download external URLs found in files and replace them with local copies.
     Recursively processes any new external URLs found in downloaded content.

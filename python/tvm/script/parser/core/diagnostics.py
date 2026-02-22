@@ -54,7 +54,7 @@ class Source:
     source: str
     full_source: str
 
-    def __init__(self, program: Union[str, doc.AST]):
+    def __init__(self, program: str | doc.AST):
         if isinstance(program, str):
             self.source_name = "<str>"
             self.start_line = 1
@@ -100,8 +100,8 @@ class Source:
         return doc.parse(self.source)
 
 
-_getfile = inspect.getfile  # pylint: disable=invalid-name
-_findsource = inspect.findsource  # pylint: disable=invalid-name
+_getfile = inspect.getfile
+_findsource = inspect.findsource
 
 
 def _patched_inspect_getfile(obj):
@@ -122,7 +122,7 @@ def _patched_inspect_getfile(obj):
 
 def findsource(obj):
     """Return the entire source file and starting line number for an object."""
-    import linecache  # pylint: disable=import-outside-toplevel
+    import linecache
 
     if not inspect.isclass(obj):
         return _findsource(obj)

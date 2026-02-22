@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.framework.tensorrt.codegen.sources"""
 
-from typing import Dict
+from __future__ import annotations
 
 from tvm.contrib.msc.core.codegen import get_base_sources
 
@@ -467,7 +467,7 @@ void CalibrateHelper::WriteCache(const void* cache, size_t length) {
 """
 
 
-def get_trt_sources() -> Dict[str, str]:
+def get_trt_sources() -> dict[str, str]:
     """Create trt sources for cpp codegen
 
     Returns

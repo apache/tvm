@@ -1496,9 +1496,9 @@ def test_fp16A_int4B_gemm():
         with_residual = "residual" in f_name
 
         if with_residual:
-            inp = [x_nd, residual_nd] + params
+            inp = [x_nd, residual_nd, *params]
         else:
-            inp = [x_nd] + params
+            inp = [x_nd, *params]
 
         out = vm[f_name](*inp).numpy()
 
@@ -1779,7 +1779,7 @@ def test_conv2d_cuda_graph():
 
     mod = partition_for_cutlass(Conv2d)
     mod = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})(mod)
-    mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
+    mod = relax.pipeline.get_pipeline()(mod)
 
     with tvm.target.Target("cuda"):
         mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)

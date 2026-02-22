@@ -18,7 +18,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Union
+from typing import Union
 
 import tvm_ffi
 
@@ -53,7 +53,7 @@ class IRModule(Node, Scriptable):
                 if isinstance(k, str):
                     k = _expr.GlobalVar(k)
                 if not isinstance(k, _expr.GlobalVar):
-                    raise TypeError("Expect functions to be Dict[GlobalVar, Function]")
+                    raise TypeError("Expect functions to be dict[GlobalVar, Function]")
                 mapped_funcs[k] = v
             functions = mapped_funcs
 
@@ -125,10 +125,10 @@ class IRModule(Node, Scriptable):
         assert isinstance(var, _expr.GlobalVar)
         return _ffi_api.Module_Lookup(self, var)
 
-    def __delitem__(self, var: Union[str, _expr.GlobalVar]):
+    def __delitem__(self, var: str | _expr.GlobalVar):
         _ffi_api.Module_Remove(self, var)
 
-    def __contains__(self, var: Union[str, _expr.GlobalVar]) -> bool:
+    def __contains__(self, var: str | _expr.GlobalVar) -> bool:
         return _ffi_api.Module_Contains(self, var)
 
     def update(self, other):
@@ -202,7 +202,7 @@ class IRModule(Node, Scriptable):
 
     def replace_global_vars(
         self,
-        replacements: Dict[Union[str, _expr.GlobalVar], Union[str, _expr.GlobalVar]],
+        replacements: dict[str | _expr.GlobalVar, str | _expr.GlobalVar],
     ) -> IRModule:
         """Replace GlobalVar instances within the module
 
@@ -213,7 +213,7 @@ class IRModule(Node, Scriptable):
 
         Parameters
         ----------
-        replacements: Dict[Union[str, _expr.GlobalVar], Union[str, _expr.GlobalVar]]
+        replacements: dict[Union[str, _expr.GlobalVar], Union[str, _expr.GlobalVar]]
 
             A dictionary where each key is a GlobalVar to be replaced,
             and the corresponding value is the GlobalVar with which to
@@ -298,11 +298,11 @@ class IRModule(Node, Scriptable):
 
         return _ffi_api.Module_WithoutAttr(self, attr_key)
 
-    def with_attrs(self, attr_map: Union[DictAttrs, Dict[str, Object]]) -> IRModule:
+    def with_attrs(self, attr_map: DictAttrs | dict[str, Object]) -> IRModule:
         """Copy the IRModule and add the given attribute map to it.
         Parameters
         ----------
-        attr_map: Union[DictAttrs, Dict[str, Object]]
+        attr_map: Union[DictAttrs, dict[str, Object]]
             The attribute map
         Returns
         -------

@@ -16,7 +16,6 @@
 # under the License.
 """Configure pytest"""
 
-# pylint: disable=invalid-name
 import threading
 
 import numpy as np
@@ -35,7 +34,7 @@ def test_randint():
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func("tvm.contrib.random.randint", True):
             print("skip because extern function is not available")
@@ -60,7 +59,7 @@ def test_uniform():
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func("tvm.contrib.random.uniform", True):
             print("skip because extern function is not available")
@@ -85,7 +84,7 @@ def test_normal():
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func("tvm.contrib.random.normal", True):
             print("skip because extern function is not available")
@@ -175,7 +174,7 @@ def test_random_fill_mt():
             test_input = tvm.runtime.empty((10, 10))
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill_for_measure")
             random_fill(test_input)
-        except:  # pylint: disable=bare-except
+        except:
             nonlocal no_exception_happened
             no_exception_happened = False
 

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Dict, List, Tuple, Union
+from __future__ import annotations
 
 import pytest
 import torch
@@ -242,9 +242,9 @@ def f_apply_rotary(x, offset, scale, theta):
 def apply_attention(
     kv_cache,
     rope_mode: RopeMode,
-    batch: List[Tuple[Union[int, Tuple[int, int, int]], int]],
-    cached_k: Dict[int, torch.Tensor],
-    cached_v: Dict[int, torch.Tensor],
+    batch: list[tuple[int | tuple[int, int, int], int]],
+    cached_k: dict[int, torch.Tensor],
+    cached_v: dict[int, torch.Tensor],
 ) -> None:
     seq_ids = []
     append_lengths = []

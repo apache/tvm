@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """affine_grid and grid_sample operators in python"""
 
 import math
@@ -124,8 +123,8 @@ def grid_sample_2d(
                 for _h in range(out_height):
                     for _w in range(out_width):
                         y, x = _compute_source_index(_b, _h, _w)
-                        y0 = int(math.floor(y))
-                        x0 = int(math.floor(x))
+                        y0 = math.floor(y)
+                        x0 = math.floor(x)
                         y1 = y0 + 1
                         x1 = x0 + 1
 
@@ -205,8 +204,8 @@ def grid_sample_2d(
                         y = grid[_b, 1, _h, _w]
                         x = grid[_b, 0, _h, _w]
                         y, x = _unnormalize(y, x)
-                        y_floor = int(math.floor(y))
-                        x_floor = int(math.floor(x))
+                        y_floor = math.floor(y)
+                        x_floor = math.floor(x)
                         y_fraction = y - y_floor
                         x_fraction = x - x_floor
 
@@ -331,9 +330,9 @@ def grid_sample_3d(
                     for _h in range(out_height):
                         for _w in range(out_width):
                             z, y, x = _compute_source_index(_b, _d, _h, _w)
-                            z0 = int(math.floor(z))
-                            y0 = int(math.floor(y))
-                            x0 = int(math.floor(x))
+                            z0 = math.floor(z)
+                            y0 = math.floor(y)
+                            x0 = math.floor(x)
                             z1 = z0 + 1
                             y1 = y0 + 1
                             x1 = x0 + 1

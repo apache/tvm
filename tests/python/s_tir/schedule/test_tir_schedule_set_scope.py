@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring
 import pytest
 
 import tvm
@@ -27,7 +26,6 @@ from tvm.s_tir.schedule.testing import (
 from tvm.script import tir as T
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 @T.prim_func
 def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
@@ -89,7 +87,6 @@ def element_wise_subregion_match_set_scope(A: T.Buffer((128, 128), "float32"), C
             C[vi, vj] = B_subregion1_shared[()] + T.float32(1)
 
 
-# pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 use_block_name = tvm.testing.parameter(by_dict={"block_obj": False, "block_name": True})
 use_buffer_name = tvm.testing.parameter(by_dict={"buffer_index": False, "buffer_name": True})

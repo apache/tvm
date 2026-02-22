@@ -16,22 +16,24 @@
 # under the License.
 """Basic tests for a Disco nvshmem support"""
 
-# pylint: disable=missing-docstring
+from __future__ import annotations
+
 import multiprocessing
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+from collections.abc import Callable
 from multiprocessing import Process
-from typing import Any, Callable, List
+from typing import Any
 
 import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
-from tvm.exec import disco_worker as _  # pylint: disable=unused-import
+from tvm.exec import disco_worker as _
 from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
 from tvm.script import ir as I
@@ -71,7 +73,7 @@ class SocketSessionTester:
 
         cmd = "tvm.exec.disco_remote_socket_session"
         self.remote_nodes = []
-        for _ in range(num_nodes - 1):
+        for _i in range(num_nodes - 1):
             self.remote_nodes.append(
                 subprocess.Popen(
                     [

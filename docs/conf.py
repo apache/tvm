@@ -27,6 +27,8 @@
 #
 # All configuration values have a default; values that are commented out
 # serve to show the default.
+from __future__ import annotations
+
 import gc
 import inspect
 import os
@@ -37,7 +39,6 @@ from hashlib import md5
 from importlib import import_module
 from pathlib import Path
 from textwrap import dedent, indent
-from typing import List
 from unittest.mock import patch
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -58,7 +59,7 @@ sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 # General information about the project.
 project = "tvm"
 author = "Apache Software Foundation"
-copyright = "2020 - 2023, %s" % author
+copyright = f"2020 - 2023, {author}"
 github_doc_root = "https://github.com/apache/tvm/tree/main/docs/"
 
 os.environ["TVM_BUILD_DOC"] = "1"
@@ -71,7 +72,7 @@ def git_describe_version(original_version):
     exec(compile(open(ver_py, "rb").read(), ver_py, "exec"), libver, libver)
     _, gd_version = libver["git_describe_version"]()
     if gd_version != original_version:
-        print("Use git describe based version %s" % gd_version)
+        print(f"Use git describe based version {gd_version}")
     return gd_version
 
 
@@ -326,7 +327,7 @@ language = None
 # Else, today_fmt is used as the format for a strftime call.
 # today_fmt = '%B %d, %Y'
 
-# List of patterns, relative to source directory, that match files and
+# list of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 exclude_patterns = ["_build", "_staging"]
 
@@ -387,11 +388,11 @@ htmlhelp_basename = project + "doc"
 # -- Options for LaTeX output ---------------------------------------------
 latex_elements = {}
 
-# Grouping the document tree into LaTeX files. List of tuples
+# Grouping the document tree into LaTeX files. list of tuples
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (main_doc, "%s.tex" % project, project, author, "manual"),
+    (main_doc, f"{project}.tex", project, author, "manual"),
 ]
 
 intersphinx_mapping = {
@@ -436,7 +437,7 @@ class WithinSubsectionOrder:
         ):
             index = within_subsection_order[self.src_dir].index(filename)
             assert index < 1e10
-            return "\0%010d" % index
+            return f"\0{index:010d}"
 
         # Otherwise, sort by filename
         return filename
@@ -468,9 +469,8 @@ sphinx_gallery_conf = {
     "download_all_examples": False,
     "min_reported_time": 60,
     "expected_failing_examples": [],
-    "reset_modules": ("matplotlib", "seaborn", force_gc),
+    "reset_modules": ("matplotlib", "seaborn", force_gc, install_request_hook),
     "promote_jupyter_magic": True,
-    "reset_modules": (install_request_hook),
 }
 
 autodoc_default_options = {
@@ -603,7 +603,7 @@ def update_alias_docstring(name, obj, lines):
 
         if hasattr(sys.modules[amod], target_name):
             obj_type = ":py:func" if callable(obj) else ":py:class"
-            lines.append(".. rubric:: Alias of %s:`%s.%s`" % (obj_type, amod, target_name))
+            lines.append(f".. rubric:: Alias of {obj_type}:`{amod}.{target_name}`")
 
 
 tvm_class_name_rewrite_map = {
@@ -613,7 +613,7 @@ tvm_class_name_rewrite_map = {
 }
 
 
-def distinguish_class_name(name: str, lines: List[str]):
+def distinguish_class_name(name: str, lines: list[str]):
     """Distinguish the docstring of type annotations.
 
     In the whole TVM, there are many classes with the same name but in different modules,

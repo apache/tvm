@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 import argparse
 import logging
 from typing import Optional
@@ -113,7 +112,7 @@ def main():
     describe()
     print(f"Workload: {ARGS.workload}")
     with ms.Profiler() as profiler:
-        sch: Optional[s_tir.Schedule] = ms.tir_integration.tune_tir(
+        sch: s_tir.Schedule | None = ms.tir_integration.tune_tir(
             mod=create_te_workload(ARGS.workload, 0),
             target=ARGS.target,
             work_dir=ARGS.work_dir,

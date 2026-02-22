@@ -15,14 +15,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib import request
 
 
-def get(url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+def get(url: str, headers: dict[str, str] | None = None) -> dict[str, Any]:
     logging.info(f"Requesting GET to {url}")
     if headers is None:
         headers = {}

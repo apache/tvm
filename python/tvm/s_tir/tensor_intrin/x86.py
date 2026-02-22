@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for x86 tensorization."""
 
 from tvm.script import tir as T

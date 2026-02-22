@@ -16,8 +16,7 @@
 # under the License.
 """Test Meta Schedule SearchStrategy"""
 
-# pylint: disable=missing-function-docstring
-from typing import List
+from __future__ import annotations
 
 import pytest
 
@@ -31,7 +30,6 @@ from tvm.script import tir as T
 
 MATMUL_M = 32
 
-# pylint: disable=missing-class-docstring,invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument, unbalanced-tuple-unpacking
 # fmt: off
 
 @tvm.script.ir_module
@@ -50,7 +48,6 @@ class Matmul:
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 # fmt: on
-# pylint: enable=missing-class-docstring,invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
 
 def _is_trace_equal(sch_1: Schedule, sch_2: Schedule, remove_decisions=True) -> bool:
@@ -81,7 +78,7 @@ def _schedule_matmul(sch: Schedule):
 )
 def test_meta_schedule_replay_func(
     TestClass: ms.search_strategy.SearchStrategy,
-):  # pylint: disable = invalid-name
+):
     num_trials_per_iter = 7
     max_trials_per_task = 20
 
@@ -100,11 +97,11 @@ def test_meta_schedule_replay_func(
     (correct_sch,) = ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(
         Matmul
     )
-    num_trials_each_iter: List[int] = []
+    num_trials_each_iter: list[int] = []
     candidates = strategy.generate_measure_candidates()
     while candidates is not None:
         num_trials_each_iter.append(len(candidates))
-        runner_results: List[ms.runner.RunnerResult] = []
+        runner_results: list[ms.runner.RunnerResult] = []
         for candidate in candidates:
             _is_trace_equal(
                 candidate.sch,
@@ -123,7 +120,7 @@ def test_meta_schedule_replay_func(
     assert num_trials_each_iter == [7, 7, 6]
 
 
-def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
+def test_meta_schedule_evolutionary_search():
     def _schedule_matmul_small(sch: Schedule):
         block = sch.get_sblock("matmul")
         _, j, k = sch.get_loops(block=block)
@@ -166,11 +163,11 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
         database=ms.database.MemoryDatabase(),
         cost_model=ms.cost_model.RandomModel(),
     )
-    num_trials_each_iter: List[int] = []
+    num_trials_each_iter: list[int] = []
     candidates = strategy.generate_measure_candidates()
     while candidates is not None:
         num_trials_each_iter.append(len(candidates))
-        runner_results: List[ms.runner.RunnerResult] = []
+        runner_results: list[ms.runner.RunnerResult] = []
         for candidate in candidates:
             _is_trace_equal(
                 candidate.sch,
@@ -190,7 +187,7 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
     assert num_trials_each_iter.count(0) < 5
 
 
-def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = invalid-name
+def test_meta_schedule_evolutionary_search_early_stop():
     def _schedule_matmul_empty(sch: Schedule):
         return sch
 
@@ -231,11 +228,11 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
         database=ms.database.MemoryDatabase(),
         cost_model=ms.cost_model.RandomModel(),
     )
-    num_trials_each_iter: List[int] = []
+    num_trials_each_iter: list[int] = []
     candidates = strategy.generate_measure_candidates()
     while candidates is not None:
         num_trials_each_iter.append(len(candidates))
-        runner_results: List[ms.runner.RunnerResult] = []
+        runner_results: list[ms.runner.RunnerResult] = []
         for candidate in candidates:
             _is_trace_equal(
                 candidate.sch,
@@ -254,7 +251,7 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
     assert num_trials_each_iter == [1, 0, 0, 0, 0]
 
 
-def test_meta_schedule_evolutionary_search_fail_init_population():  # pylint: disable = invalid-name
+def test_meta_schedule_evolutionary_search_fail_init_population():
     @derived_object
     class AlwaysFailPostproc(ms.postproc.PyPostproc):
         """A postproc that always fails."""
@@ -265,7 +262,7 @@ def test_meta_schedule_evolutionary_search_fail_init_population():  # pylint: di
         def apply(self, sch: Schedule) -> bool:
             return False
 
-        def clone(self) -> "AlwaysFailPostproc":
+        def clone(self) -> AlwaysFailPostproc:
             return AlwaysFailPostproc()
 
         def __str__(self) -> str:

@@ -48,10 +48,8 @@ MATMUL_M = 32
 class MatmulModule:
     """Matmultest class"""
 
-    # pylint: disable=no-self-argument
     @T.prim_func
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # type: ignore
-        # pylint: disable=missing-function-docstring
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         a_buffer = T.match_buffer(a, (16, 16), "float32")
         b_buffer = T.match_buffer(b, (16, 16), "float32")
@@ -186,7 +184,7 @@ def verify_dense(sch, target, m_size, n_size, k_size, hexagon_session):
     evaluator = mod.time_evaluator(mod.entry_name, dev, number=10)
     gflops = (n_size * m_size * k_size) * 2 / 1e9
     time_ms = evaluator(a, b, c).mean * 1e3
-    print("%f ms, %f GOPS" % (time_ms, gflops / (time_ms / 1e3)))
+    print(f"{time_ms:f} ms, {gflops / (time_ms / 1e3):f} GOPS")
 
 
 @tvm.testing.requires_hexagon
@@ -240,14 +238,12 @@ def test_vrmpy_dense(hexagon_launcher):
 class ModuleVRMPYAutoTensorize:
     """Vector Reduce Multimply auto tensorize test class."""
 
-    # pylint: disable=no-self-argument
     @T.prim_func
     def main(  # type: ignore
         X: T.Buffer((128, 768), "uint8"),  # type: ignore
         packed_width: T.Buffer((24, 192, 32, 4), "uint8"),  # type: ignore
         compute: T.Buffer((128, 768), "int32"),  # type: ignore
     ) -> None:
-        # pylint: disable=missing-function-docstring
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i0_0_i1_0_0_fused in T.parallel(
             512, annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}

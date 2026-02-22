@@ -16,7 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=redefined-builtin, wildcard-import
 """GPU specific declaration."""
 
 from .scan import cumsum, cumprod

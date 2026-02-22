@@ -53,7 +53,7 @@ class PostOrderApply(SpaceGenerator):
         """Constructor"""
         sch_rules, postprocs, mutator_probs = _normalize_rules(sch_rules, postprocs, mutator_probs)
         self.__init_handle_by_constructor__(
-            _ffi_api.SpaceGeneratorPostOrderApply,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SpaceGeneratorPostOrderApply,  # type: ignore
             f_block_filter,
             sch_rules,
             postprocs,

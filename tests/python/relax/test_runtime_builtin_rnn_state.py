@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring,
-from typing import Sequence, Union
+from __future__ import annotations
+
+from collections.abc import Sequence
 
 import numpy as np
 import pytest
@@ -26,8 +27,6 @@ from tvm import tir
 from tvm.runtime import ShapeTuple
 from tvm.s_tir import dlight as dl
 from tvm.script import tir as T
-
-# pylint: disable=invalid-name
 
 np_zero = np.full((16, 16), 0.0, "float16")
 np_one = np.full((32, 32), 1.0, "float32")
@@ -55,8 +54,6 @@ f_debug_get = None
 f_tir_gets = []
 f_tir_sets = []
 
-# pylint: enable=invalid-name
-
 
 def set_global_func():
     global f_clear, f_add_sequence, f_remove_sequence, f_fork_sequence, f_popn
@@ -79,7 +76,7 @@ def set_global_func():
     def _build(tir_func):
         mod = tvm.IRModule({"main": tir_func})
         with target:
-            mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)  # pylint: disable=not-callable
+            mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
         f = tvm.tir.build(mod["main"], target=target)
         return f.main
 
@@ -117,7 +114,7 @@ def verify_state(state, seq_ids, expected_values):
 
 
 @tvm.testing.requires_cuda
-def test_rnn_state_get(rnn_state):  # pylint: disable=redefined-outer-name
+def test_rnn_state_get(rnn_state):
     state = rnn_state
     f_clear(state)
     f_add_sequence(state, 0)
@@ -132,7 +129,7 @@ def test_rnn_state_get(rnn_state):  # pylint: disable=redefined-outer-name
 
 
 @tvm.testing.requires_cuda
-def test_rnn_state_set(rnn_state):  # pylint: disable=redefined-outer-name
+def test_rnn_state_set(rnn_state):
     state = rnn_state
     f_clear(state)
     for seq_id in range(3):
@@ -148,7 +145,7 @@ def test_rnn_state_set(rnn_state):  # pylint: disable=redefined-outer-name
 
 
 @tvm.testing.requires_cuda
-def test_rnn_state_popn(rnn_state):  # pylint: disable=redefined-outer-name
+def test_rnn_state_popn(rnn_state):
     state = rnn_state
     f_clear(state)
 
@@ -166,7 +163,7 @@ def test_rnn_state_popn(rnn_state):  # pylint: disable=redefined-outer-name
 
 
 @tvm.testing.requires_cuda
-def test_rnn_state_fork_sequence(rnn_state):  # pylint: disable=redefined-outer-name
+def test_rnn_state_fork_sequence(rnn_state):
     state = rnn_state
     f_clear(state)
 
@@ -218,7 +215,7 @@ def rnn_state_get(
 
 
 def rnn_state_set(
-    shape: Sequence[Union[int, tir.Var]],
+    shape: Sequence[int | tir.Var],
     dtype: str,
 ):
     # fmt: off

@@ -17,7 +17,10 @@
 # under the License.
 """Registration of profiling objects in python."""
 
-from typing import Dict, Sequence, Optional
+from __future__ import annotations
+
+from typing import Optional
+from collections.abc import Sequence
 from ... import ffi as _ffi
 from . import _ffi_api
 from .. import Object, Device
@@ -29,30 +32,30 @@ class Report(Object):
 
     Attributes
     ----------
-    calls : Array[Dict[str, Object]]
+    calls : Array[dict[str, Object]]
         Per-call profiling metrics (function name, runtime, device, ...).
 
-    device_metrics : Dict[Device, Dict[str, Object]]
+    device_metrics : dict[Device, dict[str, Object]]
         Per-device metrics collected over the entire run.
     """
 
     def __init__(
         self,
-        calls: Sequence[Dict[str, Object]],
-        device_metrics: Dict[str, Dict[str, Object]],
-        configuration: Dict[str, Object],
+        calls: Sequence[dict[str, Object]],
+        device_metrics: dict[str, dict[str, Object]],
+        configuration: dict[str, Object],
     ):
         """Construct a profiling report from a list of metrics and per-device metrics.
 
         Parameters
         ----------
-        calls : Sequence[Dict[str, Object]]
+        calls : Sequence[dict[str, Object]]
             Per function call metrics.
 
-        device_metrics : Dict[str, Dict[str, Object]]
+        device_metrics : dict[str, dict[str, Object]]
             Per device metrics.
 
-        configuration : Dict[str, Object]
+        configuration : dict[str, Object]
             Configuration of TVM for this profiling run. Includes number of
             threads, executor.
         """
@@ -259,9 +262,9 @@ def profile_function(mod, dev, collectors, func_name=None, warmup_iters=10):
 
     Returns
     -------
-    prof: PackedFunc[args, Dict[str, ObjectRef]]
+    prof: PackedFunc[args, dict[str, ObjectRef]]
         PackedFunc which takes the same arguments as the `mod[func_name]` and
-        returns performance metrics as a `Dict[str, ObjectRef]` where values
+        returns performance metrics as a `dict[str, ObjectRef]` where values
         can be `CountNode`, `DurationNode`, `PercentNode`.
     """
     if func_name is None:
@@ -280,11 +283,11 @@ if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=T
         Application Programming Interface (PAPI).
         """
 
-        def __init__(self, metric_names: Optional[Dict[Device, Sequence[str]]] = None):
+        def __init__(self, metric_names: dict[Device, Sequence[str]] | None = None):
             """
             Parameters
             ----------
-            metric_names : Optional[Dict[Device, Sequence[str]]]
+            metric_names : Optional[dict[Device, Sequence[str]]]
                 List of per-device metrics to collect. You can find a list of valid
                 metrics by runing `papi_native_avail` from the command line.
             """

@@ -16,10 +16,12 @@
 # under the License.
 """Test Meta Schedule Runner"""
 
+from __future__ import annotations
+
 import itertools
 import sys
 import time
-from typing import Any, List
+from typing import Any
 
 import numpy as np
 import pytest
@@ -62,13 +64,11 @@ from tvm.tir import FloatImm
 MATMUL_N = 16
 MATMUL_M = 32
 
-# pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring,unbalanced-tuple-unpacking
-
 
 @tvm.script.ir_module
 class MatmulModule:
     @T.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
         B = T.match_buffer(b, (16, 16), "float32")
@@ -84,7 +84,7 @@ class MatmulModule:
 @tvm.script.ir_module
 class MatmulReluModule:
     @T.prim_func
-    def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(a: T.handle, b: T.handle, d: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, (16, 16), "float32")
         B = T.match_buffer(b, (16, 16), "float32")
@@ -105,7 +105,7 @@ class MatmulReluModule:
 @tvm.script.ir_module
 class BatchMatmulModule:
     @T.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, [16, 32, 32])
         B = T.match_buffer(b, [16, 32, 32])
@@ -121,7 +121,7 @@ class BatchMatmulModule:
 @tvm.script.ir_module
 class AddModule:
     @T.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, [32], "float32")
         B = T.match_buffer(b, [32], "float32")
@@ -136,7 +136,7 @@ class AddModule:
 @tvm.script.ir_module
 class MatmulHugeModule:
     @T.prim_func
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:  # pylint: disable=no-self-argument
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A = T.match_buffer(a, (4096, 4096), "float32")
         B = T.match_buffer(b, (4096, 4096), "float32")
@@ -147,9 +147,6 @@ class MatmulHugeModule:
                 with T.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-
-
-# pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
 
 def _clean_build(artifact_path: str) -> None:
@@ -383,7 +380,7 @@ def test_meta_schedule_py_runner():
 
     @derived_object
     class TestRunner(PyRunner):
-        def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
+        def run(self, runner_inputs: list[RunnerInput]) -> list[RunnerFuture]:
             raise ValueError("TestRunner")
 
     runner = TestRunner()
@@ -458,10 +455,10 @@ def test_meta_schedule_local_runner_time_out():
 
     def initializer():
         @register_global_func("s_tir.meta_schedule.runner.test_time_out")
-        def timeout_session_creator(  # pylint: disable=unused-variable
-            device: Device,  # pylint: disable=unused-argument
-            args_info: T_ARG_INFO_JSON_OBJ_LIST,  # pylint: disable=unused-argument
-            alloc_repeat: int,  # pylint: disable=unused-argument
+        def timeout_session_creator(
+            device: Device,
+            args_info: T_ARG_INFO_JSON_OBJ_LIST,
+            alloc_repeat: int,
         ) -> RPCSession:
             time.sleep(2)
 
@@ -496,8 +493,8 @@ def test_meta_schedule_rpc_runner_exception():
 
     def initializer():
         @register_global_func("s_tir.meta_schedule.runner.test_exception")
-        def exception_session_creator(  # pylint: disable=unused-variable
-            rpc_config: RPCConfig,  # pylint: disable=unused-argument
+        def exception_session_creator(
+            rpc_config: RPCConfig,
         ) -> RPCSession:
             raise Exception("Test")
 
@@ -560,10 +557,10 @@ def test_meta_schedule_local_runner_exception():
 
     def initializer():
         @register_global_func("s_tir.meta_schedule.runner.test_exception")
-        def timeout_session_creator(  # pylint: disable=unused-variable
-            device: Device,  # pylint: disable=unused-argument
-            args_info: T_ARG_INFO_JSON_OBJ_LIST,  # pylint: disable=unused-argument
-            alloc_repeat: int,  # pylint: disable=unused-argument
+        def timeout_session_creator(
+            device: Device,
+            args_info: T_ARG_INFO_JSON_OBJ_LIST,
+            alloc_repeat: int,
         ) -> RPCSession:
             raise Exception("Test")
 
@@ -595,8 +592,8 @@ def test_meta_schedule_runner_matmul_test():
     """Test meta schedule runner with add module"""
 
     def _check_correct_matmul(
-        args_before: List[np.ndarray],
-        args_after: List[np.ndarray],
+        args_before: list[np.ndarray],
+        args_after: list[np.ndarray],
     ) -> None:
         a_before, b_before, c_before = args_before
         a_after, b_after, c_after = args_after
@@ -610,8 +607,8 @@ def test_meta_schedule_runner_matmul_test():
         device: Device,
         args_info: Any,
         alloc_repeat: int,
-    ) -> List[Any]:
-        global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
+    ) -> list[Any]:
+        global repeated_args_before
         repeated_args_before = []  # type: ignore
         repeated_args = rpc_default_alloc_argument(session, device, args_info, alloc_repeat)
         for args in repeated_args:
@@ -619,13 +616,13 @@ def test_meta_schedule_runner_matmul_test():
         return repeated_args
 
     def test_run_evaluator(
-        session: RPCSession,  # pylint: disable=unused-argument
+        session: RPCSession,
         rt_mod: Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
-        repeated_args: List[Any],
-    ) -> List[float]:
-        global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
+        repeated_args: list[Any],
+    ) -> list[float]:
+        global repeated_args_before
         repeated_args_after = []
         evaluator = rt_mod.time_evaluator(
             func_name=rt_mod.entry_name,
@@ -637,7 +634,7 @@ def test_meta_schedule_runner_matmul_test():
                 "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
             ),
         )
-        repeated_costs: List[List[float]] = []
+        repeated_costs: list[list[float]] = []
         for args in repeated_args:
             device.sync()
             profile_result = evaluator(*args)
@@ -704,7 +701,7 @@ def test_meta_schedule_runner_matmul_test():
 def test_meta_schedule_runner_add_test():
     """Test meta schedule runner with add module"""
 
-    def _check_correct_add(args_before: List[np.ndarray], args_after: List[np.ndarray]) -> None:
+    def _check_correct_add(args_before: list[np.ndarray], args_after: list[np.ndarray]) -> None:
         a_before, b_before, c_before = args_before
         a_after, b_after, c_after = args_after
         c_before = a_before + b_before
@@ -717,8 +714,8 @@ def test_meta_schedule_runner_add_test():
         device: Device,
         args_info: Any,
         alloc_repeat: int,
-    ) -> List[Any]:
-        global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
+    ) -> list[Any]:
+        global repeated_args_before
         repeated_args_before = []  # type: ignore
         repeated_args = rpc_default_alloc_argument(
             session,
@@ -731,13 +728,13 @@ def test_meta_schedule_runner_add_test():
         return repeated_args
 
     def test_run_evaluator(
-        session: RPCSession,  # pylint: disable=unused-argument
+        session: RPCSession,
         rt_mod: Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
-        repeated_args: List[Any],
-    ) -> List[float]:
-        global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
+        repeated_args: list[Any],
+    ) -> list[float]:
+        global repeated_args_before
         repeated_args_after = []
         evaluator = rt_mod.time_evaluator(
             func_name=rt_mod.entry_name,
@@ -749,7 +746,7 @@ def test_meta_schedule_runner_add_test():
                 "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
             ),
         )
-        repeated_costs: List[List[float]] = []
+        repeated_costs: list[list[float]] = []
         for args in repeated_args:
             device.sync()
             profile_result = evaluator(*args)
@@ -816,7 +813,7 @@ def test_meta_schedule_runner_add_test():
 def test_meta_schedule_local_runner_add_test():
     """Test meta schedule local runner with add module"""
 
-    def _check_correct_add(args_before: List[np.array], args_after: List[np.array]) -> None:
+    def _check_correct_add(args_before: list[np.array], args_after: list[np.array]) -> None:
         a_before, b_before, c_before = args_before
         a_after, b_after, c_after = args_after
         c_before = a_before + b_before
@@ -826,10 +823,10 @@ def test_meta_schedule_local_runner_add_test():
 
     def test_alloc_argument(
         device: Device,
-        args_info: T_ARG_INFO_JSON_OBJ_LIST,  # pylint: disable=unused-argument
+        args_info: T_ARG_INFO_JSON_OBJ_LIST,
         alloc_repeat: int,
-    ) -> List[T_ARGUMENT_LIST]:
-        global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
+    ) -> list[T_ARGUMENT_LIST]:
+        global repeated_args_before
         repeated_args_before = []
         repeated_args = local_default_alloc_argument(device, args_info, alloc_repeat)
         for args in repeated_args:
@@ -840,9 +837,9 @@ def test_meta_schedule_local_runner_add_test():
         rt_mod: Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
-        repeated_args: List[Any],
-    ) -> List[float]:
-        global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
+        repeated_args: list[Any],
+    ) -> list[float]:
+        global repeated_args_before
         repeated_args_after = []
         evaluator = rt_mod.time_evaluator(
             func_name=rt_mod.entry_name,
@@ -854,7 +851,7 @@ def test_meta_schedule_local_runner_add_test():
                 "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
             ),
         )
-        repeated_costs: List[List[float]] = []
+        repeated_costs: list[list[float]] = []
         for args in repeated_args:
             device.sync()
             profile_result = evaluator(*args)

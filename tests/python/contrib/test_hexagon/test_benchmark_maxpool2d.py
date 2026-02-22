@@ -42,9 +42,10 @@ Current limitations:
       primfuncs and demonstrate more coding strategies.
 """
 
+from __future__ import annotations
+
 import copy
 import os
-from typing import List
 
 import numpy as np
 import pytest
@@ -82,7 +83,7 @@ def _int8_nhwc_8h8w32c_map(n_batch, height, width, channel):
     ]
 
 
-def _int8_nhwc_8h8w32c_shape(n_batch, height, width, channel) -> List[int]:
+def _int8_nhwc_8h8w32c_shape(n_batch, height, width, channel) -> list[int]:
     return [
         n_batch,
         _ceil_div(height, 8),

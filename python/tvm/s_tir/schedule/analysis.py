@@ -16,7 +16,7 @@
 # under the License.
 """Analysis used in TensorIR scheduling"""
 
-from typing import List, Optional
+from __future__ import annotations
 
 import tvm_ffi
 
@@ -32,10 +32,10 @@ from .schedule import SBlockRV, Schedule
 
 def suggest_index_map(
     buffer: Buffer,
-    indices: List[PrimExpr],
-    loops: List[For],
+    indices: list[PrimExpr],
+    loops: list[For],
     predicate: PrimExpr,
-) -> Optional[IndexMap]:
+) -> IndexMap | None:
     """Provided the access pattern to a buffer, suggest one of the possible layout
     transformation to maximize the locality of the access pattern.
 
@@ -55,7 +55,7 @@ def suggest_index_map(
     index_map : Optional[IndexMap]
         The suggested index map. None if no transformation is suggested.
     """
-    return _ffi_api.SuggestIndexMap(  # type: ignore # pylint: disable=no-member
+    return _ffi_api.SuggestIndexMap(  # type: ignore
         buffer,
         indices,
         loops,
@@ -70,7 +70,7 @@ class TensorizeInfo(Object):
 
 def get_tensorize_loop_mapping(
     sch: Schedule, block: SBlockRV, desc_func: PrimFunc, allow_padding: bool = False
-) -> Optional[TensorizeInfo]:
+) -> TensorizeInfo | None:
     """Establish a mapping between loops in a target block and an intrinsic description
 
     Parameters
@@ -98,7 +98,7 @@ class AutoTensorizeMappingInfo(Object):
 
 def get_auto_tensorize_mapping_info(
     sch: Schedule, block: SBlockRV, desc_func: PrimFunc
-) -> Optional[AutoTensorizeMappingInfo]:
+) -> AutoTensorizeMappingInfo | None:
     """Get mapping info between a target block and an intrinsic description including layout
     transformations to apply.
 

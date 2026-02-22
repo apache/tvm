@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,consider-using-enumerate,redefined-outer-name
 """Einsum operator"""
 
 from . import cpp
@@ -28,7 +27,7 @@ def einsum(subscripts, *operand):
     subscripts : string
         Specifies the subscripts for summation as comma separated list of subscript labels.
         An implicit (classical Einstein summation) calculation is performed unless the
-        explicit indicator ‘->’ is included as well as subscript labels of the precise
+        explicit indicator `->` is included as well as subscript labels of the precise
         output form.
 
     a_tuple : tuple of tvm.te.Tensor

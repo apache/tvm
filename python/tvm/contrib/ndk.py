@@ -16,15 +16,14 @@
 # under the License.
 """Util to invoke NDK compiler toolchain."""
 
-# pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
+from __future__ import annotations
 
 import os
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Dict
 
 from tvm_ffi import register_global_func
 
@@ -134,7 +133,7 @@ def create_staticlib(output, inputs):
 create_staticlib.output_format = "a"
 
 
-def get_global_symbol_section_map(path, *, nm=None) -> Dict[str, str]:
+def get_global_symbol_section_map(path, *, nm=None) -> dict[str, str]:
     """Get global symbols from a library via nm -gU in NDK
 
     Parameters

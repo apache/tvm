@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 
 import tvm
 import tvm.testing
@@ -245,7 +244,7 @@ def test_packed_func_type():
 def test_tuple_type():
     obj = relax.TupleType([relax.ShapeType(ndim=3), relax.ObjectType()])
     _assert_print(
-        obj._relax_script(),  # pylint: disable=protected-access
+        obj._relax_script(),
         "R.Tuple(R.Shape(ndim=3), R.Object)",
     )
 
@@ -262,7 +261,7 @@ def test_func_type():
         ),
     )
     _assert_print(
-        obj._relax_script(),  # pylint: disable=protected-access
+        obj._relax_script(),
         'R.Callable((R.Object, R.Shape(ndim=3)), R.Tensor(ndim=3, dtype="float32"))',
     )
 

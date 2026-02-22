@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import pytest
 
 import tvm
@@ -22,7 +21,6 @@ from tvm import tir
 from tvm.script import tir as T
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 
 @tvm.script.ir_module
 class Module:
@@ -43,7 +41,6 @@ class Module:
             with T.sblock("C"):
                 c[i] = B[i] * T.int8(3)
 
-# pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on
 
 

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
 """Upsampling in python"""
 
 import math
@@ -45,9 +44,9 @@ def get_index(x, image_width, target_width, coordinate_transformation_mode):
     in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode)
     if coordinate_transformation_mode == "align_corners":
         # round prefer ceil
-        out = int(math.floor(in_x + 0.5))
+        out = math.floor(in_x + 0.5)
     else:
-        out = int(math.floor(in_x))
+        out = math.floor(in_x)
     out = max(min(out, image_width - 1), 0)
     return out
 
@@ -55,7 +54,7 @@ def get_index(x, image_width, target_width, coordinate_transformation_mode):
 def resize3d_nearest(arr, scale, coordinate_transformation_mode):
     """Populate the array by scale factor"""
     d, h, w = arr.shape
-    out_d, out_h, out_w = [int(round(i * s)) for i, s in zip(arr.shape, scale)]
+    out_d, out_h, out_w = [round(i * s) for i, s in zip(arr.shape, scale)]
     out = np.empty((out_d, out_h, out_w))
     for z in range(out_d):
         for y in range(out_h):
@@ -71,7 +70,7 @@ def resize3d_linear(data_in, scale, coordinate_transformation_mode):
     """Trilinear 3d scaling using python"""
     dtype = data_in.dtype
     d, h, w = data_in.shape
-    new_d, new_h, new_w = [int(round(i * s)) for i, s in zip(data_in.shape, scale)]
+    new_d, new_h, new_w = [round(i * s) for i, s in zip(data_in.shape, scale)]
     data_out = np.ones((new_d, new_h, new_w))
 
     indexes = np.mgrid[0:2, 0:2, 0:2]
@@ -116,7 +115,7 @@ def resize3d_cubic(data_in, scale, coordinate_transformation_mode):
     """Tricubic 3d scaling using python"""
     dtype = data_in.dtype
     d, h, w = data_in.shape
-    new_d, new_h, new_w = [int(round(i * s)) for i, s in zip(data_in.shape, scale)]
+    new_d, new_h, new_w = [round(i * s) for i, s in zip(data_in.shape, scale)]
     data_out = np.ones((new_d, new_h, new_w))
 
     def _cubic_spline_weights(t, alpha=-0.5):
@@ -177,9 +176,9 @@ def resize3d_ncdhw(
     oshape = (
         ishape[0],
         ishape[1],
-        int(round(ishape[2] * scale[0])),
-        int(round(ishape[3] * scale[1])),
-        int(round(ishape[4] * scale[2])),
+        round(ishape[2] * scale[0]),
+        round(ishape[3] * scale[1]),
+        round(ishape[4] * scale[2]),
     )
 
     output_np = np.zeros(oshape, dtype=data.dtype)
@@ -217,7 +216,7 @@ def resize1d_python(
         data = data.transpose([0, 2, 1])
 
     data = np.expand_dims(data, axis=[2, 3])
-    output_np = resize3d_ncdhw(data, (1, 1) + scale, method, coordinate_transformation_mode)
+    output_np = resize3d_ncdhw(data, (1, 1, *scale), method, coordinate_transformation_mode)
     output_np = np.squeeze(output_np, axis=2)
     output_np = np.squeeze(output_np, axis=2)
 
@@ -247,7 +246,7 @@ def resize2d_python(
         )
 
     data = np.expand_dims(data, axis=2)
-    output_np = resize3d_ncdhw(data, (1,) + scale, method, coordinate_transformation_mode)
+    output_np = resize3d_ncdhw(data, (1, *scale), method, coordinate_transformation_mode)
     output_np = np.squeeze(output_np, axis=2)
 
     if layout == "NHWC":

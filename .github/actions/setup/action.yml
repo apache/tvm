@@ -16,7 +16,7 @@ runs:
       environment-file: tests/conda/build-environment.yaml
       auto-activate-base: false
       miniforge-version: latest
-      python-version: 3.9
+      python-version: "3.11"
       condarc-file: tests/conda/condarc
   - uses: conda-incubator/setup-miniconda@fc2d68f6413eb2d87b895e92f8584b5b94a10167 # v3.3.0
     if: steps.conda1.outcome == 'failure'
@@ -27,7 +27,7 @@ runs:
       auto-activate-base: false
       miniforge-version: latest
       use-only-tar-bz2: true
-      python-version: 3.9
+      python-version: "3.11"
       condarc-file: tests/conda/condarc
   - name: Conda info
     shell: pwsh

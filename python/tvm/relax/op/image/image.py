@@ -16,7 +16,9 @@
 # under the License.
 """Image operators."""
 
-from typing import Optional, Tuple, Union
+from __future__ import annotations
+
+from typing import Union
 
 from tvm import DataType
 from tvm.ir.expr import PrimExpr
@@ -24,13 +26,13 @@ from tvm.ir.expr import PrimExpr
 from ...expr import Expr, ShapeExpr
 from . import _ffi_api
 
-PrimExprLike = Union[int, PrimExpr]
+PrimExprLike = int | PrimExpr
 
 
 def resize2d(
     data: Expr,
-    size: Union[Expr, PrimExprLike, Tuple[PrimExprLike]],
-    roi: Optional[Union[float, Tuple[float]]] = None,
+    size: Expr | PrimExprLike | tuple[PrimExprLike],
+    roi: float | tuple[float] | None = None,
     layout: str = "NCHW",
     method: str = "linear",
     coordinate_transformation_mode: str = "half_pixel",
@@ -38,7 +40,7 @@ def resize2d(
     cubic_alpha: float = -0.75,
     cubic_exclude: int = 0,
     extrapolation_value: float = 0.0,
-    out_dtype: Optional[Union[str, DataType]] = None,
+    out_dtype: str | DataType | None = None,
 ) -> Expr:
     """Image resize2d operator.
 

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name,unnecessary-comprehension,redefined-outer-name
 """TVM testing utilities
 
 Organization
@@ -63,6 +62,8 @@ function in this module. Then targets using this node should be added to the
 
 """
 
+from __future__ import annotations
+
 import copy
 import copyreg
 import ctypes
@@ -77,8 +78,8 @@ import platform
 import shutil
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import pytest
@@ -428,9 +429,9 @@ def _get_targets(target_names=None):
             return _get_targets(["llvm"])
 
         raise TVMError(
-            "None of the following targets are supported by this build of TVM: %s."
+            f"None of the following targets are supported by this build of TVM: {target_names}."
             " Try setting TVM_TEST_TARGETS to a supported target."
-            " Cannot default to llvm, as it is not enabled." % target_names
+            " Cannot default to llvm, as it is not enabled."
         )
 
     return targets
@@ -601,13 +602,13 @@ class Feature:
     def __init__(
         self,
         name: str,
-        long_name: Optional[str] = None,
-        cmake_flag: Optional[str] = None,
-        target_kind_enabled: Optional[str] = None,
-        compile_time_check: Optional[Callable[[], Union[bool, str]]] = None,
-        target_kind_hardware: Optional[str] = None,
-        run_time_check: Optional[Callable[[], Union[bool, str]]] = None,
-        parent_features: Optional[Union[str, List[str]]] = None,
+        long_name: str | None = None,
+        cmake_flag: str | None = None,
+        target_kind_enabled: str | None = None,
+        compile_time_check: Callable[[], bool | str] | None = None,
+        target_kind_hardware: str | None = None,
+        run_time_check: Callable[[], bool | str] | None = None,
+        parent_features: str | list[str] | None = None,
     ):
         self.name = name
         self.long_name = long_name or name
@@ -1669,7 +1670,7 @@ def fixture(func=None, *, cache_return_value=False):
     return wraps(func)
 
 
-def get_dtype_range(dtype: str) -> Tuple[int, int]:
+def get_dtype_range(dtype: str) -> tuple[int, int]:
     """
     Produces the min,max for a give data type.
 
@@ -1895,7 +1896,7 @@ def install_request_hook(depth: int) -> None:
     # keeping a database of URLs inside the tvm Python package
     sys.path.append(str(hook_script_dir))
     # This import is intentionally delayed since it should only happen in CI
-    import request_hook  # pylint: disable=import-outside-toplevel
+    import request_hook
 
     request_hook.init()
 
@@ -1951,4 +1952,4 @@ def strtobool(val):
 
 def main():
     test_file = inspect.getsourcefile(sys._getframe(1))
-    sys.exit(pytest.main([test_file] + sys.argv[1:]))
+    sys.exit(pytest.main([test_file, *sys.argv[1:]]))

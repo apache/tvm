@@ -14,16 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-docstring
 """Utility methods for generic GPU."""
 
-from typing import List, Optional, Union
+from __future__ import annotations
 
 from tvm import DataType, s_tir, tir
 from tvm.target import Target
 
 
-def get_bytes(dtype: Union[DataType, str]) -> int:
+def get_bytes(dtype: DataType | str) -> int:
     if isinstance(dtype, str):
         dtype = DataType(dtype)
     return dtype.itemsize
@@ -67,9 +66,9 @@ def max_threads_per_block(target: Target) -> int:
 
 def suggest_threads_per_block(
     target: Target,
-    loops: List[tir.For],
+    loops: list[tir.For],
     max_threads_for_dynamic_loop: int = 32,
-) -> List[int]:
+) -> list[int]:
     if target.kind.name == "cuda":
         threads = 1024
     elif target.kind.name == "rocm":
@@ -80,8 +79,8 @@ def suggest_threads_per_block(
         threads = 256
     else:
         threads = 64
-    results: List[Optional[int]] = []
-    dynamic: List[int] = []
+    results: list[int | None] = []
+    dynamic: list[int] = []
     for i, loop in enumerate(loops):
         loop_extent = loop.extent
         if isinstance(loop_extent, tir.IntImm):

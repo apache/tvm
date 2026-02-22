@@ -69,7 +69,7 @@ def check_value(expr, variables, data, fref):
         make_store(loop_var),
     )
 
-    prim_func = tvm.tir.PrimFunc(input_bufs + [out_buf], loop)
+    prim_func = tvm.tir.PrimFunc([*input_bufs, out_buf], loop)
     prim_func = prim_func.with_attr({"tir.noalias": True, "global_symbol": "main"})
     f = tvm.compile(prim_func, "llvm")
 

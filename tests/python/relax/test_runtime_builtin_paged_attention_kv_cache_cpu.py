@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import enum
 import itertools
-from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pytest
@@ -254,7 +255,7 @@ def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
         tvm.testing.assert_allclose(values.numpy(), values_expected, rtol=1e-3, atol=1e-3)
 
 
-def f_apply_rotary(x, offset, scale, theta, offset_list: Optional[List[int]] = None):
+def f_apply_rotary(x, offset, scale, theta, offset_list: list[int] | None = None):
     # x: (N, H, D)
     assert len(x.shape) == 3
     nfeat = x.shape[-1]
@@ -279,13 +280,13 @@ def f_apply_rotary(x, offset, scale, theta, offset_list: Optional[List[int]] = N
 def apply_attention(
     kv_cache,
     rope_mode: RopeMode,
-    batch: List[Tuple[Union[int, Tuple[int, int, int]], int]],
-    cached_k: Dict[int, np.ndarray],
-    cached_v: Dict[int, np.ndarray],
-    sliding_window_sizes: Optional[List[int]] = None,
-    attn_sink_sizes: Optional[List[int]] = None,
-    token_tree_parent_ptr_list: Optional[List[List[int]]] = None,
-    accepted_leaf_indices: Optional[List[int]] = None,
+    batch: list[tuple[int | tuple[int, int, int], int]],
+    cached_k: dict[int, np.ndarray],
+    cached_v: dict[int, np.ndarray],
+    sliding_window_sizes: list[int] | None = None,
+    attn_sink_sizes: list[int] | None = None,
+    token_tree_parent_ptr_list: list[list[int]] | None = None,
+    accepted_leaf_indices: list[int] | None = None,
 ) -> None:
     seq_ids = []
     append_lengths = []
@@ -313,7 +314,7 @@ def apply_attention(
             cached_v[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
 
     flattened_token_tree_parent_ptr = None
-    token_tree_node_depths_list: List[Optional[List[int]]] = [None for _ in batch]
+    token_tree_node_depths_list: list[list[int] | None] = [None for _ in batch]
 
     if token_tree_parent_ptr_list:
         assert len(token_tree_node_depths_list) == len(seq_ids)

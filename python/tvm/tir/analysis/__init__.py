@@ -15,6 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 """Namespace of all TIR analysis utils."""
-# pylint: disable=wildcard-import, invalid-name
 
 from .analysis import *

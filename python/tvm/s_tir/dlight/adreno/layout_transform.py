@@ -32,11 +32,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name, unused-variable
 
-"Schedules for Texture Based Layout Transforms"
-
-from typing import List, Union
+from __future__ import annotations
 
 from tvm import s_tir, tir
 from tvm.target import Target
@@ -52,13 +49,12 @@ class LayoutTransform(AdrenoScheduleRule):
         self.use_op_name = use_op_name
 
     # TODO: Try using Coalesced Writes...
-    def apply(  # pylint: disable=too-many-locals
+    def apply(
         self,
-        func: Union[tir.PrimFunc, s_tir.Schedule],
+        func: tir.PrimFunc | s_tir.Schedule,
         target: Target,
         _: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
-        # pylint: disable=invalid-name
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         if not (isinstance(func, (tir.PrimFunc, s_tir.Schedule))) or not self.is_target_available(
             target
         ):

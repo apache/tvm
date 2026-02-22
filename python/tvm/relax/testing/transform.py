@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument, invalid-name, no-else-return, abstract-method, arguments-differ
 """Relax transformation passes for testing"""
+
+from __future__ import annotations
 
 import logging
 import os
-from typing import Dict, List, Set, Tuple
 
 import tvm_ffi
 
@@ -35,7 +35,7 @@ def ApplyEmptyCppMutator() -> tvm.ir.transform.Pass:
     return packed_func()
 
 
-def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int]]:
+def dataflow_liveness_analysis(block: DataflowBlock) -> dict[Var, tuple[int, int]]:
     """
     Inner function for the dataflow inplace transformation exposed for testing.
     """
@@ -50,8 +50,8 @@ def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int
 
 
 def dataflow_alias_analysis(
-    block: DataflowBlock, inputs: List[Var]
-) -> Tuple[Dict[Var, Set[int]], Dict[int, List[Set[int]]]]:
+    block: DataflowBlock, inputs: list[Var]
+) -> tuple[dict[Var, set[int]], dict[int, list[set[int]]]]:
     """
     Inner function for the dataflow inplace transformation exposed for testing.
     """
@@ -91,8 +91,8 @@ class InplaceOpportunity(Object):
 
 
 def dataflow_inplace_analysis(
-    block: DataflowBlock, inputs: List[Var], mod: IRModule
-) -> Tuple[List[Tuple[int, Set[int]]], List[Tuple[int, Set[int]]]]:
+    block: DataflowBlock, inputs: list[Var], mod: IRModule
+) -> tuple[list[tuple[int, set[int]]], list[tuple[int, set[int]]]]:
     """
     Inner function for the dataflow inplace transformation exposed for testing.
     """
@@ -109,8 +109,8 @@ def dataflow_inplace_analysis(
 
 
 def dataflow_single_inplace_call(
-    mod: IRModule, call: Call, inplace_indices: List[int]
-) -> Tuple[Call, IRModule]:
+    mod: IRModule, call: Call, inplace_indices: list[int]
+) -> tuple[Call, IRModule]:
     """
     Inner function for the dataflow inplace transformation exposed for testing.
     """

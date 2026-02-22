@@ -21,7 +21,7 @@ from tvm.target import Target
 from ..base import ScheduleRule
 
 
-class GPUScheduleRule(ScheduleRule):  # pylint: disable=too-few-public-methods
+class GPUScheduleRule(ScheduleRule):
     """The Schedule Rule specific to GPU targets, will return None if the target is not GPU."""
 
     def is_target_available(self, target: Target) -> bool:

@@ -16,9 +16,11 @@
 # under the License.
 """tvm.contrib.msc.framework.tensorrt.tools.quantize.quantizer"""
 
+from __future__ import annotations
+
 import os
 import struct
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -67,8 +69,8 @@ class TensorRTQuantizerFactory:
                 return super().setup()
 
             def _reset(
-                self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.runtime.Tensor]]
-            ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.runtime.Tensor]]]:
+                self, graphs: list[MSCGraph], weights: list[dict[str, tvm.runtime.Tensor]]
+            ) -> tuple[list[MSCGraph], list[dict[str, tvm.runtime.Tensor]]]:
                 """Reset the tool
 
                 Parameters
@@ -190,11 +192,11 @@ class TensorRTQuantizerFactory:
 
             def _quantize_tensor(
                 self,
-                tensor_ctx: Dict[str, str],
+                tensor_ctx: dict[str, str],
                 name: str,
                 consumer: str,
-                strategys: List[ToolStrategy],
-            ) -> Dict[str, str]:
+                strategys: list[ToolStrategy],
+            ) -> dict[str, str]:
                 """Quantize tensor
 
                 Parameters
@@ -234,7 +236,7 @@ class TensorRTQuantizerFactory:
                 self.change_stage("quantize")
                 return self._plan
 
-            def config_generate(self, generate_config: Dict[str, Any]) -> Dict[str, Any]:
+            def config_generate(self, generate_config: dict[str, Any]) -> dict[str, Any]:
                 """Update the generate configs
 
                 Parameters

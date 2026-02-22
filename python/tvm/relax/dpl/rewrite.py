@@ -16,7 +16,9 @@
 # under the License.
 """APIs for pattern-based rewriting."""
 
-from typing import Callable, Dict, Union
+from __future__ import annotations
+
+from collections.abc import Callable
 
 from tvm_ffi import register_object
 
@@ -36,8 +38,8 @@ class PatternMatchingRewriter(Object):
     @staticmethod
     def from_pattern(
         pattern: DFPattern,
-        func: Callable[[Expr, Dict[DFPattern, Expr]], Expr],
-    ) -> "PatternMatchingRewriter":
+        func: Callable[[Expr, dict[DFPattern, Expr]], Expr],
+    ) -> PatternMatchingRewriter:
         """Construct from a pattern and rewriter-function
 
         The replacements performed by the rewriter will be equivalent
@@ -69,7 +71,7 @@ class PatternMatchingRewriter(Object):
         )  # type: ignore
 
     @staticmethod
-    def from_module(mod: IRModule) -> "PatternMatchingRewriter":
+    def from_module(mod: IRModule) -> PatternMatchingRewriter:
         """Construct a rewriter from an IRModule
 
         The IRModule must have two publicly-exposed functions,
@@ -131,7 +133,7 @@ class PatternMatchingRewriter(Object):
         """
         return ffi.PatternMatchingRewriterFromModule(mod)  # type: ignore
 
-    def __call__(self, obj: Union[Expr, IRModule]) -> Union[Expr, IRModule]:
+    def __call__(self, obj: Expr | IRModule) -> Expr | IRModule:
         """Apply the rewriter
 
         Parameters
@@ -150,7 +152,7 @@ class PatternMatchingRewriter(Object):
         """
         return ffi.PatternMatchingRewriterApply(self, obj)
 
-    def __or__(self, other: "PatternMatchingRewriter") -> "PatternMatchingRewriter":
+    def __or__(self, other: PatternMatchingRewriter) -> PatternMatchingRewriter:
         """Compose two rewriters
 
         Composing two rewrite rules together allows them to be applied
@@ -204,7 +206,7 @@ class TupleRewriter(PatternMatchingRewriter):
 
 def rewrite_call(
     pattern: DFPattern,
-    rewriter: Callable[[Expr, Dict[DFPattern, Expr]], Expr],
+    rewriter: Callable[[Expr, dict[DFPattern, Expr]], Expr],
     func: Function,
 ) -> Function:
     """
@@ -242,7 +244,7 @@ def rewrite_call(
 
 def rewrite_bindings(
     ctx: PatternContext,
-    rewriter: Callable[[Dict[DFPattern, Var], Dict[Var, Expr]], Dict[Var, Expr]],
+    rewriter: Callable[[dict[DFPattern, Var], dict[Var, Expr]], dict[Var, Expr]],
     func: Function,
 ) -> Function:
     """

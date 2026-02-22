@@ -16,8 +16,10 @@
 # under the License.
 """tvm.contrib.msc.pipeline.wrapper"""
 
+from __future__ import annotations
+
 import shutil
-from typing import Any, List, Union
+from typing import Any
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.utils.message import MSCStage
@@ -42,7 +44,11 @@ class BaseWrapper:
     """
 
     def __init__(
-        self, model: Any, config: dict, workspace: str = "msc_workspace", plugins: dict = None
+        self,
+        model: Any,
+        config: dict,
+        workspace: str = "msc_workspace",
+        plugins: dict | None = None,
     ):
         self._meta_model = model
         self._optimized_model, self._compiled_model = None, None
@@ -139,7 +145,7 @@ class BaseWrapper:
 
     def export(
         self, path: str = "msc_export", dump: bool = True, keep_workspace: bool = False
-    ) -> Union[str, dict]:
+    ) -> str | dict:
         """Export compile pipeline
 
         Parameters
@@ -203,11 +209,11 @@ class BaseWrapper:
     @classmethod
     def create_config(
         cls,
-        inputs: List[dict],
-        outputs: List[str],
-        baseline_type: str = None,
-        optimize_type: str = None,
-        compile_type: str = None,
+        inputs: list[dict],
+        outputs: list[str],
+        baseline_type: str | None = None,
+        optimize_type: str | None = None,
+        compile_type: str | None = None,
         **kwargs,
     ) -> dict:
         """Create config for msc pipeline

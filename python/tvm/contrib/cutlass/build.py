@@ -14,16 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, dangerous-default-value, arguments-differ
 """Driver for partitioning and building a Relax module for CUTLASS offload."""
+
+from __future__ import annotations
 
 import itertools
 import logging
 import multiprocessing
 import operator
 import os
+from collections.abc import Sequence
 from functools import reduce
-from typing import Optional, Sequence
 
 from tvm_ffi import register_global_func
 
@@ -362,7 +363,7 @@ def tune_cutlass_kernels(
     return mod, num_cutlass_partition
 
 
-def _get_call_node(expr: relax.Expr, op_name: str) -> Optional[relax.Call]:
+def _get_call_node(expr: relax.Expr, op_name: str) -> relax.Call | None:
     node = None
 
     def fvisit(e):
@@ -380,10 +381,10 @@ def _extract_relax_function_signature(f):
     for i, arg in enumerate(f.params):
         sinfo = arg.struct_info
         if isinstance(sinfo, relax.TensorStructInfo):
-            signature["arg%d_shape" % i] = get_const_tuple(sinfo.shape)
-            signature["arg%d_dtype" % i] = sinfo.dtype
+            signature[f"arg{i}_shape"] = get_const_tuple(sinfo.shape)
+            signature[f"arg{i}_dtype"] = sinfo.dtype
         elif isinstance(sinfo, relax.ShapeStructInfo):
-            signature["arg%d_shape" % i] = get_const_tuple(sinfo.values)
+            signature[f"arg{i}_shape"] = get_const_tuple(sinfo.values)
         else:
             raise NotImplementedError()
 

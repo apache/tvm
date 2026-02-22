@@ -16,9 +16,11 @@
 # under the License.
 """tvm.contrib.msc.core.gym.base_agent"""
 
+from __future__ import annotations
+
 import copy
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.gym.namespace import GYMObject
@@ -48,9 +50,9 @@ class BaseAgent:
         name: str,
         workspace: msc_utils.MSCDirectory,
         executors: dict,
-        options: dict = None,
+        options: dict | None = None,
         debug_level: int = 0,
-        logger: logging.Logger = None,
+        logger: logging.Logger | None = None,
     ):
         self._name = name
         self._workspace = workspace
@@ -60,7 +62,7 @@ class BaseAgent:
         self._logger = logger or msc_utils.get_global_logger()
         self._logger.info(msc_utils.msg_block(self.agent_mark("SETUP"), self.setup()))
 
-    def _parse_executors(self, executors_dict: dict) -> Dict[str, Tuple[callable, dict]]:
+    def _parse_executors(self, executors_dict: dict) -> dict[str, tuple[callable, dict]]:
         """Parse the executors
 
         Parameters
@@ -109,7 +111,7 @@ class BaseAgent:
             "debug_level": self._debug_level,
         }
 
-    def init(self, max_task: int, baseline: Dict[str, Any]):
+    def init(self, max_task: int, baseline: dict[str, Any]):
         """Init the agent
 
         Parameters
@@ -128,7 +130,7 @@ class BaseAgent:
 
         self._knowledge = {"observations": [], "actions": [], "rewards": []}
 
-    def choose_action(self, task_id: int, observation: Any, action_space: List[dict]) -> List[dict]:
+    def choose_action(self, task_id: int, observation: Any, action_space: list[dict]) -> list[dict]:
         """Choose action based on observation
 
         Parameters
@@ -161,8 +163,8 @@ class BaseAgent:
         return actions
 
     def _choose_action(
-        self, task_id: int, observation: Any, action_space: List[dict]
-    ) -> List[dict]:
+        self, task_id: int, observation: Any, action_space: list[dict]
+    ) -> list[dict]:
         """Choose action based on observation
 
         Parameters
@@ -182,7 +184,7 @@ class BaseAgent:
 
         raise NotImplementedError("_choose_action is not implemented in BaseAgent")
 
-    def store(self, task_id: int, rewards: List[dict]) -> int:
+    def store(self, task_id: int, rewards: list[dict]) -> int:
         """Store rewards
 
         Parameters

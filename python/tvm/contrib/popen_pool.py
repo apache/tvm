@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Multiprocessing via Popen.
 
 This module provides a multi-processing pool backed by Popen.
@@ -40,7 +39,7 @@ def kill_child_processes(pid):
     pid : int
         The given parameter id.
     """
-    # pylint: disable=import-outside-toplevel
+
     import psutil
 
     try:
@@ -167,7 +166,6 @@ class PopenWorker:
 
         cmd = [sys.executable, "-m", "tvm.exec.popen_worker"]
         if sys.platform == "win32":
-            # pylint: disable=import-outside-toplevel
             import msvcrt
 
             worker_read_handle = msvcrt.get_osfhandle(worker_read)
@@ -235,7 +233,7 @@ class PopenWorker:
         won't affect the later requests.
         """
         # use cloud pickle
-        # pylint: disable=import-outside-toplevel
+
         import cloudpickle
 
         if self._proc is not None and self._maximum_uses and self._remaining_uses == 0:
@@ -283,7 +281,7 @@ class PopenWorker:
         TimeoutError: if timeout happens
         Exception: if other exception happens during the execution.
         """
-        # pylint: disable=import-outside-toplevel
+
         import cloudpickle
 
         try:
@@ -431,7 +429,6 @@ class PopenPoolExecutor:
         return proc.recv()
 
     def _worker_run_with_error_catching(self, fn, args, kwargs) -> MapResult:
-        # pylint: disable=broad-except
         try:
             return MapResult(status=StatusKind.COMPLETE, value=self._worker_run(fn, args, kwargs))
         except TimeoutError as exception:
@@ -458,7 +455,7 @@ class PopenPoolExecutor:
         future : concurrent.futures.Future
             A future that can be used to access the result.
         """
-        # pylint: disable=unnecessary-lambda
+
         worker = lambda *args: self._worker_run(*args)
         return self._threadpool.submit(worker, fn, args, kwargs)
 

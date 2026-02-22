@@ -21,7 +21,7 @@ from tvm.target import Target
 from ..base import ScheduleRule
 
 
-class AdrenoScheduleRule(ScheduleRule):  # pylint: disable=too-few-public-methods
+class AdrenoScheduleRule(ScheduleRule):
     """The Schedule Rule specific to Adreno targets,
     will return None if the target is not Adreno."""
 

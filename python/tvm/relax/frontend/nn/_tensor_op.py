@@ -22,13 +22,13 @@ from tvm import tir
 
 
 def _op():
-    from tvm.relax.frontend.nn import op  # pylint: disable=import-outside-toplevel
+    from tvm.relax.frontend.nn import op
 
     return op
 
 
 def _convert_scalar(scalar, ref) -> "Tensor":
-    from .core import Tensor  # pylint: disable=import-outside-toplevel
+    from .core import Tensor
 
     if isinstance(scalar, Tensor):
         return scalar
@@ -101,5 +101,5 @@ class _TensorOp:
     def permute_dims(self, *axes):
         return _op().permute_dims(self, axes)
 
-    def repeat(self, repeats: int, axis: Optional[int] = None):
+    def repeat(self, repeats: int, axis: int | None = None):
         return _op().repeat(self, repeats, axis)

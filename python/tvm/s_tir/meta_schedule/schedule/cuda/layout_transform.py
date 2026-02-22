@@ -16,9 +16,10 @@
 # under the License.
 """layout_transform scheduling rule for CUDA."""
 
+from __future__ import annotations
+
 import math
 from collections import deque
-from typing import List, Optional, Tuple, Union
 
 import tvm
 from tvm.s_tir import meta_schedule
@@ -89,9 +90,9 @@ def tile_layout_transform(
     block_write: SBlockRV,
     src_layout: str,
     dst_layout: str,
-    input_shape: List[int],
+    input_shape: list[int],
     tile_size: ExprRV,
-) -> Tuple[SBlockRV, SBlockRV]:
+) -> tuple[SBlockRV, SBlockRV]:
     """
     High level tiling for layout transform block. Mutates sch in place.
 
@@ -139,7 +140,7 @@ def tile_layout_transform(
 
     def pad_dimension_to_factor_of_tile_size(
         loop: LoopRV, initial_size: int, tile_size: int = tile_size
-    ) -> Tuple[LoopRV, int]:
+    ) -> tuple[LoopRV, int]:
         """
         Pads loop of given size until it is divisible into tile_size.
         If the given size of the loop is greater than tile size. Do not pad.
@@ -166,8 +167,8 @@ def tile_layout_transform(
         return pad_dimension_to_at_least_number(loop, size), int(size)
 
     def spin_out_factor(
-        loops: List[LoopRV], loop_extants: List[int], index: int, factor_needed: int
-    ) -> Tuple[List[LoopRV], List[int], int]:
+        loops: list[LoopRV], loop_extants: list[int], index: int, factor_needed: int
+    ) -> tuple[list[LoopRV], list[int], int]:
         """
         Factor out the requested loop's dimensions to reach the requested factor and
         places the requested factor as the innermost loop.
@@ -218,11 +219,11 @@ def tile_layout_transform(
         return loops, loop_extants, factor_needed
 
     def factor_dim_in_order(
-        indices: List[int],
-        loops: List[LoopRV],
-        cur_loop_extants: List[int],
+        indices: list[int],
+        loops: list[LoopRV],
+        cur_loop_extants: list[int],
         work_needed_inner_loop: int = tile_size,
-    ) -> Tuple[List[LoopRV], List[int]]:
+    ) -> tuple[list[LoopRV], list[int]]:
         """Factors out the loops in the order of indices until we reach needed work.
 
         Adds new loop factors to the back in reverse order of access. Returns new list
@@ -237,7 +238,7 @@ def tile_layout_transform(
         return loops, cur_loop_extants
 
     def get_high_level_loop_structure(
-        block_read: SBlockRV, input_shape: List[int], src_layout: str, dst_layout: str
+        block_read: SBlockRV, input_shape: list[int], src_layout: str, dst_layout: str
     ):
         """Runs the factorization described above."""
         # index 0 ... rank - 1 will always correspond to original loops
@@ -301,7 +302,7 @@ def tile_layout_transform(
     # where n >= 2.
     dim0_loop_index = src_layout.index(dst_layout[-1])
     dim0_loop = loops.pop(dim0_loop_index)
-    loops = loops[:-3] + [dim0_loop, loops[-3]] + loops[-2:]
+    loops = [*loops[:-3], dim0_loop, loops[-3], *loops[-2:]]
     sch.reorder(*loops)
 
     # After this loops are: [outer_loop (block binding), dim0_tiled, dim1_tiled]
@@ -328,10 +329,10 @@ def tile_layout_transform(
 def create_cached_read(
     sch: Schedule,
     block_write: SBlockRV,
-    orig_input_shape: List[int],
+    orig_input_shape: list[int],
     orig_src_layout: str,
     orig_dst_layout: str,
-) -> Tuple[SBlockRV, List[int], str, str]:
+) -> tuple[SBlockRV, list[int], str, str]:
     """
     Creates the cached read block with expected structure.
 
@@ -377,7 +378,7 @@ def create_cached_read(
         the new src_layout, and new dst_layout string.
     """
     # Figure out split dimensions, entries are (loop index in src_layout, split amount)
-    split_dimensions: List[Tuple[int, int]] = []
+    split_dimensions: list[tuple[int, int]] = []
 
     # This is without numeric digits, e.g. NCHW4c -> NCHWc
     new_dst_layout = []
@@ -402,8 +403,8 @@ def create_cached_read(
 
     # Calculate final input shapes, each of these are a single element for unsplit dims
     # and tuples for split dims associated with the two new axis
-    input_shape: List[Union[int, Tuple]] = list(orig_input_shape)
-    new_src_layout: List[Union[str, Tuple]] = list(orig_src_layout)
+    input_shape: list[int | tuple] = list(orig_input_shape)
+    new_src_layout: list[str | tuple] = list(orig_src_layout)
     for src_layout_split_index, split_factor in split_dimensions:
         dimension_name = orig_src_layout[src_layout_split_index]
         new_src_layout[src_layout_split_index] = (dimension_name, dimension_name.lower())
@@ -413,8 +414,8 @@ def create_cached_read(
         )
 
     # Unpack any tuples introduced via appending
-    def unpack_list(target_list) -> List:
-        output: List = []
+    def unpack_list(target_list) -> list:
+        output: list = []
         for ele in target_list:
             if isinstance(ele, tuple):
                 output.extend(ele)
@@ -501,8 +502,8 @@ def get_max_tile_size() -> int:
 
 @tvm.register_global_func("s_tir.meta_schedule.cuda.layout_transform")
 def cuda_layout_transform_schedule_rule(
-    sch: Schedule, block: SBlockRV, testing_tile_sizes: Optional[List[int]] = None
-) -> List[Schedule]:
+    sch: Schedule, block: SBlockRV, testing_tile_sizes: list[int] | None = None
+) -> list[Schedule]:
     """
     Applies tiling scheme to layout transform task (potentially fused with other injective funcs).
 

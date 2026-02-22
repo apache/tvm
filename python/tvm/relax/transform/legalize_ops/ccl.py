@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
 """Default legalization function for ccl operators."""
 
 from tvm import arith, tir, topi
@@ -106,7 +105,7 @@ def _transpose_for_ccl(_bb: BlockBuilder, expr: Expr, axis: int, num_workers: in
     reshape_var = _bb.emit_te(topi.reshape, expr, new_shape)
     if axis == 0:
         return reshape_var
-    permute_order = [axis] + list(range(axis)) + list(range(axis + 1, len(new_shape)))
+    permute_order = [axis, *list(range(axis)), *list(range(axis + 1, len(new_shape)))]
     transpose_var = _bb.emit_te(topi.transpose, reshape_var, permute_order)
     return transpose_var
 

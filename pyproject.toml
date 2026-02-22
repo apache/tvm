@@ -184,10 +184,20 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 
 [tool.ruff]
-include = ["python/**/*.py", "tests/**/*.py", "docs/**/*.py"]
+include = [
+  "python/**/*.py",
+  "tests/**/*.py",
+  "docs/**/*.py",
+  "apps/**/*.py",
+  "ci/scripts/**/*.py",
+  "conftest.py",
+  "jvm/**/*.py",
+  "version.py",
+  "web/tests/**/*.py",
+]
 line-length = 100
 indent-width = 4
-target-version = "py39"
+target-version = "py310"
 exclude = [
   "3rdparty",
   "build",
@@ -207,48 +217,88 @@ select = [
   "RUF", # ruff, https://docs.astral.sh/ruff/rules/#ruff-specific-rules-ruf
 ]
 ignore = [
-  "E101",   # mixed-spaces-and-tabs (legacy code)
-  "E402",   # module-import-not-at-top-of-file
-  "E501",   # line-too-long (let ruff-format handle soft wrapping)
-  "E711",   # none-comparison
-  "E712",   # true-false-comparison
-  "E721",   # type-comparison
-  "E731",   # lambda-assignment (common pattern in TVM)
-  "E741",   # ambiguous-variable-name (common in math-heavy code)
-  "F401",   # unused-import (too many false positives with __init__.py re-exports)
-  "F402",   # import-shadowed-by-loop-var
-  "F403",   # undefined-local-with-import-star
-  "F405",   # undefined-local-with-import-star-usage
-  "F601",   # multi-value-repeated-key-literal
-  "F811",   # redefined-while-unused
-  "F821",   # undefined-name (false positives from star imports)
-  "F841",   # unused-variable (too many in test code)
-  "UP006",  # non-pep585-annotation (requires Python 3.9+ everywhere)
-  "UP007",  # non-pep604-annotation-union
-  "UP028",  # yield-in-for-loop
-  "UP030",  # format-literals
-  "UP031",  # printf-string-formatting
-  "UP035",  # deprecated-import (typing compat)
-  "RUF002", # ambiguous-unicode-character-docstring
-  "RUF003", # ambiguous-unicode-character-comment
-  "RUF005", # collection-literal-concatenation
-  "RUF012", # mutable-class-default
-  "RUF013", # implicit-optional
-  "RUF015", # unnecessary-iterable-allocation-for-first-element
-  "RUF017", # quadratic-list-summation
-  "RUF022", # unsorted-dunder-all
-  "RUF028", # invalid-formatter-suppression-comment
-  "RUF043", # pytest-raises-ambiguous-pattern
-  "RUF046", # unnecessary-cast-to-int
-  "RUF059", # unused-unpacked-variable
-  "E722",   # bare-except
-  "UP022",  # replace-stdout-stderr
+  "RUF043", # pytest-raises-ambiguous-pattern (preview)
+  "RUF059", # unused-unpacked-variable (preview)
+  "UP038",  # non-pep604-isinstance (deprecated, breaks Python 3.9)
 ]
 fixable = ["ALL"]
 unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"] # pyflakes: unused-import
+"__init__.py" = ["E402", "F401", "F403", "F405"]
+"python/tvm/**" = [
+  "E501",
+  "E711",
+  "E712",
+  "E722",
+  "E731",
+  "E741",
+  "F401",
+  "F403",
+  "F405",
+  "F811",
+  "F821",
+  "F841",
+  "RUF005",
+  "RUF012",
+]
+"python/tvm_ffi/**" = [
+  "E402",
+  "E501",
+  "E711",
+  "E712",
+  "E722",
+  "E731",
+  "F401",
+  "F403",
+  "F405",
+  "F811",
+  "F821",
+  "F841",
+  "RUF005",
+  "RUF012",
+]
+"python/typing_extensions.py" = [
+  "E501",
+  "F822",
+  "UP007",
+  "UP035",
+  "UP036",
+  "UP045",
+]
+"tests/**" = [
+  "E501",
+  "E711",
+  "E712",
+  "E722",
+  "E731",
+  "E741",
+  "F401",
+  "F403",
+  "F405",
+  "F811",
+  "F821",
+  "F841",
+  "RUF005",
+  "RUF012",
+]
+"tests/scripts/**" = ["E402"]
+"docs/**" = [
+  "E402",
+  "E501",
+  "E711",
+  "E712",
+  "E722",
+  "E731",
+  "F401",
+  "F403",
+  "F405",
+  "F811",
+  "F821",
+  "F841",
+  "RUF005",
+  "RUF012",
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["tvm"]

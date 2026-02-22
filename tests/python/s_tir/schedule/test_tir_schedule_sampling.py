@@ -25,8 +25,6 @@ from tvm import tir
 from tvm.s_tir.schedule.testing import verify_trace_roundtrip
 from tvm.script import tir as T
 
-# pylint: disable=no-member,invalid-name,unused-variable
-
 
 @T.prim_func
 def elementwise(a: T.handle, b: T.handle) -> None:
@@ -99,9 +97,6 @@ def tiled_conv2d_with_padding(
             )
 
 
-# pylint: enable=no-member,invalid-name,unused-variable
-
-
 def test_sample_categorical():
     """Test sample categorical sampling function"""
     n = 1000
@@ -125,10 +120,10 @@ def test_sample_categorical_copy():
     probs = [0.1, 0.2, 0.3, 0.4]
     rv_decisions = []
     for _ in range(n):
-        rv = sch.sample_categorical(candidates, probs)  # pylint: disable=invalid-name
+        rv = sch.sample_categorical(candidates, probs)
         rv_decisions.append((rv, sch.get(rv)))
     sch_copy = sch.copy()
-    for rv, decision in rv_decisions:  # pylint: disable=invalid-name
+    for rv, decision in rv_decisions:
         decision_copy = sch_copy.get(rv)
         assert int(decision) == int(decision_copy)
 
@@ -141,7 +136,7 @@ def test_sample_categorical_serialize():
     probs = [0.23, 0.19, 0.37, 0.21]
     decisions = []
     for _ in range(n):
-        rv = sch.get(sch.sample_categorical(candidates, probs))  # pylint: disable=invalid-name
+        rv = sch.get(sch.sample_categorical(candidates, probs))
         decisions.append(rv)
     new_sch = verify_trace_roundtrip(sch, mod=elementwise)
     for i, new_inst in enumerate(new_sch.trace.insts):
@@ -190,7 +185,7 @@ def test_sample_compute_location(use_sugared_block):
         pad_input = sch.get_sblock("PadInput")
     decision_dict = dict()
     for _ in range(n):
-        _ = sch.sample_compute_location(pad_input)  # pylint: disable=invalid-name
+        _ = sch.sample_compute_location(pad_input)
         decision = sch.trace.decisions[sch.trace.insts[-1]]
         decision_dict[decision] = decision_dict[decision] + 1 if decision in decision_dict else 1
 

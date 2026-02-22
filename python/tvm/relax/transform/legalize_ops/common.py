@@ -16,7 +16,8 @@
 # under the License.
 """Common functionality for legalization."""
 
-from typing import Callable, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 import tvm
 from tvm import te
@@ -43,7 +44,7 @@ LegalizeFunc = Callable[[BlockBuilder, Call], Expr]
 
 def _try_convert_to_scalar_const(
     expr: Expr, python_native: bool = False
-) -> Union[Expr, FloatImm, IntImm, bool, float, int]:
+) -> Expr | FloatImm | IntImm | bool | float | int:
     """Check if the input Expr is a scalar constant.
     If it is, return its plain value with the same data type or in native python type.
     If it is not, return the input expr.
@@ -79,7 +80,7 @@ def _try_convert_to_scalar_const(
     return expr
 
 
-def _call_topi_without_attr(te_func: TEFunc, primfunc_name: Optional[str] = None) -> LegalizeFunc:
+def _call_topi_without_attr(te_func: TEFunc, primfunc_name: str | None = None) -> LegalizeFunc:
     """A common wrapper util for the ops who has no attributes and whose
     legalization is simply passing its arguments to some TE function.
 

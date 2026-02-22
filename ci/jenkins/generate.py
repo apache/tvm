@@ -15,6 +15,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import argparse
 import datetime
 import difflib
@@ -22,7 +24,6 @@ import re
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
 
 import jinja2
 from data import data
@@ -41,7 +42,7 @@ class Change:
 
 @dataclass
 class ChangeData:
-    diff: Optional[str]
+    diff: str | None
     content: str
     destination: Path
     source: Path
@@ -53,7 +54,7 @@ def lines_without_generated_tag(content):
     ]
 
 
-def change_type(lines: List[str]) -> Change:
+def change_type(lines: list[str]) -> Change:
     """
     Return True if 'line' only edits an image tag or if 'line' is not a changed
     line in a diff

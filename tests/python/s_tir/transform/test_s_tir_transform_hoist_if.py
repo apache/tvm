@@ -56,9 +56,8 @@ def verify_structure(stmt, expected_struct):
             node_dict[child][1] if child in node_dict else None for child in val[0]
         )
 
-    assert struct == expected_struct, "Structure mismatch: expect %s but got %s" % (
-        expected_struct,
-        struct,
+    assert struct == expected_struct, (
+        f"Structure mismatch: expect {expected_struct} but got {struct}"
     )
     var_list.clear()
 

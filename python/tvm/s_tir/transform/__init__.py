@@ -16,7 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Namespace of all S-TIR transformations"""
-# pylint: disable=wildcard-import, invalid-name
 
 from .transform import *
 from ...tir.transform.transform import HoistedConditionals, HoistedLetBindings

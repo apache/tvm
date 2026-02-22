@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 
 import tvm
 from tvm import tir
@@ -44,7 +43,6 @@ def _create_context(mod, target) -> ms.TuneContext:
 
 
 # fmt: off
-# pylint: disable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 
 @tvm.script.ir_module
 class Matmul_before_rewrite:
@@ -193,7 +191,6 @@ class Softmax_cross_thread_reduction:
                         T_softmax_norm[i0_3, i1] = T.exp(A[i0_3, i1] - T_softmax_maxelem_shared[i0_3], dtype="float32") / T_softmax_expsum_shared[i0_3]
 
 
-# pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on
 
 

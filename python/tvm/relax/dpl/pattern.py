@@ -16,11 +16,8 @@
 # under the License.
 
 """Pattern types in Relax Dataflow Pattern Language"""
-# pylint: disable=no-member
-# pylint: disable=pointless-statement
 
-import typing
-from typing import Dict, List, Optional, Tuple, Union
+from __future__ import annotations
 
 import tvm_ffi
 
@@ -53,7 +50,7 @@ def register_df_node(type_key=None):
 class DFPattern(Node):
     """Base class of all Patterns."""
 
-    def __call__(self, *args, varg_default_wildcard=False, add_constraint=True) -> "CallPattern":
+    def __call__(self, *args, varg_default_wildcard=False, add_constraint=True) -> CallPattern:
         """
         Syntax sugar for creating a CallPattern with argument patterns
 
@@ -64,7 +61,7 @@ class DFPattern(Node):
         """
         return CallPattern(self, args, varg_default_wildcard, add_constraint)
 
-    def __or__(self, other: "DFPattern") -> "OrPattern":
+    def __or__(self, other: DFPattern) -> OrPattern:
         """
         Syntax sugar for creating an OrPattern
 
@@ -80,7 +77,7 @@ class DFPattern(Node):
         """
         return OrPattern(self, other)
 
-    def __and__(self, other: "DFPattern") -> "AndPattern":
+    def __and__(self, other: DFPattern) -> AndPattern:
         """
         Syntax sugar for creating an AndPattern
 
@@ -96,7 +93,7 @@ class DFPattern(Node):
         """
         return AndPattern(self, other)
 
-    def __invert__(self) -> "NotPattern":
+    def __invert__(self) -> NotPattern:
         """
         Syntax sugar for creating a DFPattern to reject
 
@@ -107,7 +104,7 @@ class DFPattern(Node):
         """
         return reject(self)
 
-    def has_attr(self, attrs: Dict[str, Object]) -> "AttrPattern":
+    def has_attr(self, attrs: dict[str, Object]) -> AttrPattern:
         """
         Add an attribute constraint to this pattern
 
@@ -123,10 +120,10 @@ class DFPattern(Node):
         attrs = make_node("ir.DictAttrs", **attrs)
         return AttrPattern(self, attrs)
 
-    def has_struct_info(self, struct_info: "StructInfo") -> "StructInfoPattern":
+    def has_struct_info(self, struct_info: StructInfo) -> StructInfoPattern:
         return StructInfoPattern(self, struct_info)
 
-    def has_dtype(self, dtype: str) -> "DataTypePattern":
+    def has_dtype(self, dtype: str) -> DataTypePattern:
         """
         Add a type constraint to this pattern
 
@@ -142,7 +139,7 @@ class DFPattern(Node):
         """
         return has_dtype(dtype, self)
 
-    def has_shape(self, shape: List[PrimExpr]) -> "ShapePattern":
+    def has_shape(self, shape: list[PrimExpr]) -> ShapePattern:
         """
         Add a shape constraint to this pattern
 
@@ -165,7 +162,7 @@ class DFPattern(Node):
             raise ValueError("has_shape takes a list or tuple as input.")
         return ShapePattern(pattern=self, shape=shape)
 
-    def match(self, expr, var2val: Optional[Dict[Var, Expr]] = None) -> bool:
+    def match(self, expr, var2val: dict[Var, Expr] | None = None) -> bool:
         """
         Match a relax.Expr syntactically
 
@@ -192,8 +189,8 @@ class DFPattern(Node):
         return ffi.match_expr(self, expr, var2val)  # type: ignore
 
     def extract_matched_expr(
-        self, expr, var2val: Optional[Dict[Var, Expr]] = None
-    ) -> Optional[Dict["DFPattern", Expr]]:
+        self, expr, var2val: dict[Var, Expr] | None = None
+    ) -> dict[DFPattern, Expr] | None:
         """
         Match a relax.Expr and return a map from matching patterns to matched expressions.
 
@@ -216,7 +213,7 @@ class DFPattern(Node):
         """
         return ffi.extract_matched_expr(self, expr, var2val)
 
-    def used_by(self, other: Union["DFPattern", "PatternSeq"], index=-1) -> "PatternSeq":
+    def used_by(self, other: DFPattern | PatternSeq, index=-1) -> PatternSeq:
         """
         The current pattern being used by another pattern (sequence)
 
@@ -234,11 +231,11 @@ class DFPattern(Node):
         """
         return _used_by(self, other, index)
 
-    def __xor__(self, other: Union["DFPattern", "PatternSeq"]) -> "PatternSeq":
+    def __xor__(self, other: DFPattern | PatternSeq) -> PatternSeq:
         """Syntax sugar of DFPattern.used_by"""
         return self.used_by(other, -1)
 
-    def only_used_by(self, other: Union["DFPattern", "PatternSeq"], index=-1) -> "PatternSeq":
+    def only_used_by(self, other: DFPattern | PatternSeq, index=-1) -> PatternSeq:
         """
         The current pattern being **ONLY** used by another pattern (sequence)
 
@@ -256,11 +253,11 @@ class DFPattern(Node):
         """
         return _only_used_by(self, other, index)
 
-    def __rshift__(self, other: Union["DFPattern", "PatternSeq"]) -> "PatternSeq":
+    def __rshift__(self, other: DFPattern | PatternSeq) -> PatternSeq:
         """Syntax sugar of DFPattern.only_used_by"""
         return self.only_used_by(other, -1)
 
-    def dup(self) -> "DFPattern":
+    def dup(self) -> DFPattern:
         """
         Duplicate the current pattern (new object under different address)
 
@@ -276,7 +273,7 @@ class DFPattern(Node):
         for v in args:
             self ^ v
 
-    def same_shape_as(self, *args: List["DFPattern"]) -> "SameShapeConstraint":
+    def same_shape_as(self, *args: list[DFPattern]) -> SameShapeConstraint:
         """
         The current pattern with the same shape as another pattern (sequence)
 
@@ -407,8 +404,8 @@ class CallPattern(DFPattern):
 
     def __init__(
         self,
-        op: "DFPattern",
-        args: Union[List["DFPattern"], typing.Tuple["DFPattern", ...]],
+        op: DFPattern,
+        args: list[DFPattern] | tuple[DFPattern, ...],
         varg_default_wildcard: bool = False,
         add_constraint=True,
     ):
@@ -440,8 +437,8 @@ class FunctionPattern(DFPattern):
 
     def __init__(
         self,
-        params: List["DFPattern"],
-        body: "DFPattern",
+        params: list[DFPattern],
+        body: DFPattern,
     ):
         self.__init_handle_by_constructor__(ffi.FunctionPattern, params, body)  # type: ignore
 
@@ -459,7 +456,7 @@ class TuplePattern(DFPattern):
     def __init__(self, fields: list):
         self.__init_handle_by_constructor__(ffi.TuplePattern, fields)  # type: ignore
 
-    def __getitem__(self, index: Optional[int]) -> "TupleGetItemPattern":
+    def __getitem__(self, index: int | None) -> TupleGetItemPattern:
         if index is not None:
             # support negative index for being pythonic
             if index < 0:
@@ -504,7 +501,7 @@ class TupleGetItemPattern(DFPattern):
         The index to match; Default (None) to match a TupleGetItem with any index.
     """
 
-    def __init__(self, tuple_value: "DFPattern", index: Optional[int] = None):
+    def __init__(self, tuple_value: DFPattern, index: int | None = None):
         match_index = index if index is not None else -1
         self.__init_handle_by_constructor__(
             ffi.TupleGetItemPattern,
@@ -525,7 +522,7 @@ class OrPattern(DFPattern):
         One possible matching pattern.
     """
 
-    def __init__(self, left: "DFPattern", right: "DFPattern"):
+    def __init__(self, left: DFPattern, right: DFPattern):
         self.__init_handle_by_constructor__(ffi.OrPattern, left, right)  # type: ignore
 
 
@@ -541,7 +538,7 @@ class AndPattern(DFPattern):
         One must-matching pattern.
     """
 
-    def __init__(self, left: "DFPattern", right: "DFPattern"):
+    def __init__(self, left: DFPattern, right: DFPattern):
         self.__init_handle_by_constructor__(ffi.AndPattern, left, right)  # type: ignore
 
 
@@ -555,7 +552,7 @@ class NotPattern(DFPattern):
         The pattern to deny.
     """
 
-    def __init__(self, to_reject: "DFPattern"):
+    def __init__(self, to_reject: DFPattern):
         self.__init_handle_by_constructor__(ffi.NotPattern, to_reject)  # type: ignore
 
 
@@ -580,7 +577,7 @@ class StructInfoPattern(DFPattern):
         The struct info to match against
     """
 
-    def __init__(self, pattern: "DFPattern", struct_info: "StructInfo"):
+    def __init__(self, pattern: DFPattern, struct_info: StructInfo):
         self.__init_handle_by_constructor__(
             ffi.StructInfoPattern,
             pattern,
@@ -601,7 +598,7 @@ class DataTypePattern(DFPattern):
         The dtype to match.
     """
 
-    def __init__(self, pattern: "DFPattern", dtype: str):
+    def __init__(self, pattern: DFPattern, dtype: str):
         self.__init_handle_by_constructor__(ffi.DataTypePattern, pattern, dtype)  # type: ignore
 
 
@@ -618,7 +615,7 @@ class ShapePattern(DFPattern):
         The shape to match.
     """
 
-    def __init__(self, pattern: "DFPattern", shape: List[tvm.ir.PrimExpr]):
+    def __init__(self, pattern: DFPattern, shape: list[tvm.ir.PrimExpr]):
         self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)  # type: ignore
 
 
@@ -632,7 +629,7 @@ class SameShapeConstraint(DFConstraint):
         A set of patterns which must all provide the same shape.
     """
 
-    def __init__(self, *args: List[DFPattern]):
+    def __init__(self, *args: list[DFPattern]):
         self.__init_handle_by_constructor__(ffi.SameShapeConstraint, args)  # type: ignore
 
 
@@ -647,7 +644,7 @@ class PrimArrPattern(DFPattern):
         The shape to match.
     """
 
-    def __init__(self, shape: List[tvm.ir.PrimExpr]):
+    def __init__(self, shape: list[tvm.ir.PrimExpr]):
         self.__init_handle_by_constructor__(ffi.PrimArrPattern, shape)  # type: ignore
 
     def __getitem__(self, index: int):
@@ -673,7 +670,7 @@ class AttrPattern(DFPattern):
         The attributes to match.
     """
 
-    def __init__(self, pattern: "DFPattern", attrs: tvm.ir.attrs.Attrs):
+    def __init__(self, pattern: DFPattern, attrs: tvm.ir.attrs.Attrs):
         self.__init_handle_by_constructor__(ffi.AttrPattern, pattern, attrs)  # type: ignore
 
 
@@ -756,9 +753,7 @@ def is_op(op_name: str) -> ExprPattern:
     return ExprPattern(op)
 
 
-def is_tuple(
-    fields: Union[Array, List, Tuple], unordered=False
-) -> Union[TuplePattern, UnorderedTuplePattern]:
+def is_tuple(fields: Array | list | tuple, unordered=False) -> TuplePattern | UnorderedTuplePattern:
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -779,7 +774,7 @@ def is_tuple(
     return TuplePattern(fields)
 
 
-def is_tuple_get_item(tuple_value: DFPattern, index: Optional[int] = None) -> TupleGetItemPattern:
+def is_tuple_get_item(tuple_value: DFPattern, index: int | None = None) -> TupleGetItemPattern:
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -833,7 +828,7 @@ def has_dtype(dtype: str, pattern: DFPattern = None) -> DataTypePattern:
     return DataTypePattern(pattern, dtype)
 
 
-def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":
+def is_shape(shape: list[tvm.ir.PrimExpr]) -> PrimArrPattern:
     """
     Directly matches a shape which is an array of PrimExpr
 
@@ -866,8 +861,8 @@ def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":
 # Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
 def _is_call_tir(
     func_pattern: DFPattern,
-    args: Union[List, Tuple, TuplePattern] = None,
-    tir_vars: Optional[DFPattern] = None,
+    args: list | tuple | TuplePattern = None,
+    tir_vars: DFPattern | None = None,
 ) -> CallPattern:
     if args is None:
         args = wildcard()
@@ -882,8 +877,8 @@ def _is_call_tir(
 # Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
 def is_call_tir(
     func_name: str,
-    args: Union[List, Tuple, TuplePattern] = None,
-    tir_vars: Optional[DFPattern] = None,
+    args: list | tuple | TuplePattern = None,
+    tir_vars: DFPattern | None = None,
 ) -> CallPattern:
     """
     Syntax sugar for creating a CallPattern for call_tir that calls an function through global var.
@@ -907,7 +902,7 @@ def is_call_tir(
 
 def _is_call_dps_packed(
     func_pattern: DFPattern,
-    args: Union[List, Tuple, TuplePattern] = None,
+    args: list | tuple | TuplePattern = None,
 ) -> CallPattern:
     if args is None:
         args = wildcard()
@@ -919,7 +914,7 @@ def _is_call_dps_packed(
 
 def is_call_dps_packed(
     func_name: str,
-    args: Union[List, Tuple, TuplePattern] = None,
+    args: list | tuple | TuplePattern = None,
 ) -> CallPattern:
     """Syntax sugar for creating a CallPattern for call_dps_packed
 
@@ -940,7 +935,7 @@ def is_call_dps_packed(
 
 
 def is_call_packed(
-    func_name: str, args: Union[List[DFPattern], Tuple[DFPattern]] = None
+    func_name: str, args: list[DFPattern] | tuple[DFPattern] | None = None
 ) -> CallPattern:
     """
     Syntax sugar for creating a CallPattern for call_packed
@@ -1005,7 +1000,7 @@ def has_attr(attrs, pattern=None) -> AttrPattern:
 class PatternSeq(Node):
     """A sequence of patterns with consecutive constraints"""
 
-    def __init__(self, patterns: List[DFPattern], only_use=False):
+    def __init__(self, patterns: list[DFPattern], only_use=False):
         """
         Initializer to PatternSeq
 
@@ -1018,7 +1013,7 @@ class PatternSeq(Node):
         """
         self.__init_handle_by_constructor__(ffi.PatternSeq, patterns, only_use)  # type: ignore
 
-    def used_by(self, other: Union[DFPattern, "PatternSeq"], index=-1) -> "PatternSeq":
+    def used_by(self, other: DFPattern | PatternSeq, index=-1) -> PatternSeq:
         """
         Assuming the right-most pattern must be used by the `other` pattern as a producer
 
@@ -1041,7 +1036,7 @@ class PatternSeq(Node):
         """
         return _used_by(self, other, index)
 
-    def only_used_by(self, other: Union[DFPattern, "PatternSeq"], index=-1) -> "PatternSeq":
+    def only_used_by(self, other: DFPattern | PatternSeq, index=-1) -> PatternSeq:
         """
         Assuming the right-most pattern must be **ONLY** used by the `other` pattern as a producer
 
@@ -1080,15 +1075,15 @@ class PatternSeq(Node):
         """
         return self.patterns[index]
 
-    def __xor__(self, other) -> "PatternSeq":
+    def __xor__(self, other) -> PatternSeq:
         """Syntax sugar of PatternSeq.used_by"""
         return self.used_by(other, -1)
 
-    def __rshift__(self, other) -> "PatternSeq":
+    def __rshift__(self, other) -> PatternSeq:
         """Syntax sugar of PatternSeq.only_used_by"""
         return self.only_used_by(other, -1)
 
-    def dup(self) -> "PatternSeq":
+    def dup(self) -> PatternSeq:
         """
         Duplicate the pattern sequence (new object under different address)
 
@@ -1104,8 +1099,8 @@ class PatternSeq(Node):
 
 
 def _used_by(
-    lhs: Union[DFPattern, PatternSeq],
-    rhs: Union[DFPattern, PatternSeq],
+    lhs: DFPattern | PatternSeq,
+    rhs: DFPattern | PatternSeq,
     index=-1,
 ) -> PatternSeq:
     if isinstance(lhs, DFPattern):
@@ -1115,9 +1110,7 @@ def _used_by(
     return ffi.used_by(lhs, rhs, index)  # type: ignore
 
 
-def _only_used_by(
-    lhs: Union[DFPattern, PatternSeq], rhs: Union[DFPattern, PatternSeq], index=-1
-) -> PatternSeq:
+def _only_used_by(lhs: DFPattern | PatternSeq, rhs: DFPattern | PatternSeq, index=-1) -> PatternSeq:
     if isinstance(lhs, DFPattern):
         lhs = PatternSeq([lhs])
     if isinstance(rhs, DFPattern):

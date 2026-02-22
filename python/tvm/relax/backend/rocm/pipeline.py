@@ -20,7 +20,7 @@ import tvm
 from tvm import relax
 
 
-def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def library_dispatch_passes(target: tvm.target.Target):
     """The default library dispatch passes for ROCm backend."""
     return [
         relax.backend.DispatchSampling(),
@@ -28,9 +28,9 @@ def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unuse
     ]
 
 
-def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def legalize_passes(target: tvm.target.Target):
     """The default legalization passes for ROCm backend."""
-    from tvm.s_tir import dlight as dl  # pylint: disable=import-outside-toplevel
+    from tvm.s_tir import dlight as dl
 
     return [
         tvm.relax.transform.LegalizeOps(),
@@ -48,7 +48,7 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
     ]
 
 
-def dataflow_lower_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def dataflow_lower_passes(target: tvm.target.Target):
     """The default dataflow lowering passes for ROCm backend."""
     return [
         relax.transform.RewriteDataflowReshape(),
@@ -58,7 +58,7 @@ def dataflow_lower_passes(target: tvm.target.Target):  # pylint: disable=unused-
     ]
 
 
-def finalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
+def finalize_passes(target: tvm.target.Target):
     """The default finalization passes for ROCm backend."""
     return [
         relax.transform.StaticPlanBlockMemory(),

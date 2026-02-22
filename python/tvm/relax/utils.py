@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name,too-many-locals
 
 """Utility functions for Relax"""
 
+from __future__ import annotations
+
 import itertools
 import string
-from typing import Any, Callable, Dict, List, Optional
-from typing import Tuple as typing_Tuple
+from collections.abc import Callable
+from typing import Any, Optional
 
 import tvm_ffi
 
@@ -39,10 +40,10 @@ from .expr import Tuple as rx_Tuple
 from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo
 
 # Re-export `args_converter` here for backwards compatibility
-from .type_converter import args_converter  # pylint: disable=unused-import
+from .type_converter import args_converter
 
 
-def metadata_partitioner(rx_txt: str) -> List[str]:
+def metadata_partitioner(rx_txt: str) -> list[str]:
     """Extract Relax program and metadata section.
 
     Parameters
@@ -52,7 +53,7 @@ def metadata_partitioner(rx_txt: str) -> List[str]:
 
     Returns
     -------
-    output : List[str]
+    output : list[str]
         The result list of partitioned text, the first element
         is the relax program, and the second is metadata section.
     """
@@ -89,7 +90,7 @@ def convert_to_expr(value: Any) -> Expr:
     1. Return the input itself if it's already a `relax.Expr`;
     2. Return `relax.PrimValue` if the input is a `PrimExpr`;
     3. Return `relax.StringImm` if the input is `tvm.String` or `str`;
-    4. Return `relax.Tuple` if the input is a tuple/list of `Expr`.
+    4. Return `relax.tuple` if the input is a tuple/list of `Expr`.
 
     Notes
     -----
@@ -116,7 +117,7 @@ def convert_to_expr(value: Any) -> Expr:
     if isinstance(tvm_value, PrimExpr):
         return PrimValue(value)
     # Case 3
-    if isinstance(tvm_value, (str,)):
+    if isinstance(tvm_value, str):
         return StringImm(value)
     # Case 4
     if isinstance(value, (tuple, list)):
@@ -147,7 +148,7 @@ def copy_with_new_vars(func: Function) -> Function:
 
 def gen_call_tir_inputs(
     func: Callable, *args: Any, **kwargs: Any
-) -> typing_Tuple[tir.PrimFunc, Expr, List[TensorStructInfo], Optional[ShapeExpr]]:
+) -> tuple[tir.PrimFunc, Expr, list[TensorStructInfo], ShapeExpr | None]:
     """Generate the inputs for call_tir according to the te function.
     This function converts arguments from relax expression to te tensor,
     The callback func should return a te tensor or a list of te tensors.
@@ -167,12 +168,12 @@ def gen_call_tir_inputs(
 
     Returns
     -------
-    ret : Tuple[tir.PrimFunc, Expr, List[TensorStructInfo], Optional[ShapeExpr]]
+    ret : tuple[tir.PrimFunc, Expr, list[TensorStructInfo], Optional[ShapeExpr]]
         ret contains the inputs for call_tir, including a tir prim_func, args,
         out_sinfo, and tir_vars.
     """
 
-    tir_var_map: Dict[tir.Var, tir.PrimExpr] = {}
+    tir_var_map: dict[tir.Var, tir.PrimExpr] = {}
 
     call_tir_args = []
     create_primfunc_args = []
@@ -209,7 +210,7 @@ def gen_call_tir_inputs(
         te_args : Any
             Argument to convert to TE
 
-        tir_var_map : Dict[tir.Var, tir.PrimExpr]
+        tir_var_map : dict[tir.Var, tir.PrimExpr]
             The TIR variable mapping, which maps TIR variables on the Relax function
             side to the new set of variables used on the PrimFunc side.
 
@@ -292,8 +293,8 @@ def gen_call_tir_inputs(
         return new_arg
 
     def _get_unbound_tir_vars(
-        args: List[te_Tensor], extra_tir_args: List[PrimExpr]
-    ) -> List[tir.Var]:
+        args: list[te_Tensor], extra_tir_args: list[PrimExpr]
+    ) -> list[tir.Var]:
         """get unbound TIR vars (i.e TIR vars used in the shape but is not
         itself a dimension of a shape)"""
 
@@ -323,7 +324,7 @@ def gen_call_tir_inputs(
         diff = used_vars - bound_vars
         return list(diff)
 
-    def _get_vdevice(arg: Any) -> Optional[VDevice]:
+    def _get_vdevice(arg: Any) -> VDevice | None:
         """get the virtual device from arguments."""
         vdevice = None
         if isinstance(arg, Expr):  # type: ignore
@@ -342,7 +343,7 @@ def gen_call_tir_inputs(
         return vdevice
 
     def _shape_with_old_tir_var(
-        shape_values: List[tir.PrimExpr], tir_var_inverse_map: Dict[tir.Var, tir.PrimExpr]
+        shape_values: list[tir.PrimExpr], tir_var_inverse_map: dict[tir.Var, tir.PrimExpr]
     ):
         return ShapeExpr(
             [tir.stmt_functor.substitute(value, tir_var_inverse_map) for value in shape_values]
@@ -362,7 +363,7 @@ def gen_call_tir_inputs(
     outs = [te_out] if isinstance(te_out, te_Tensor) else list(te_out)
     unbound_tir_vars = _get_unbound_tir_vars([*create_primfunc_args, *outs], extra_tir_args_list)
 
-    inputs = [*create_primfunc_args] + outs + unbound_tir_vars
+    inputs = [*create_primfunc_args, *outs, *unbound_tir_vars]
     tir_func = create_prim_func(inputs, "int64")
 
     if primfunc_attrs:

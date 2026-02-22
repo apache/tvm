@@ -16,7 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Namespace of all TIR transformations"""
-# pylint: disable=wildcard-import, invalid-name
 
 from .function_pass import prim_func_pass, PrimFuncPass
 from .transform import *

@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, redefined-builtin, no-else-return, consider-using-dict-items
 """The Relax virtual machine."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
 from enum import IntEnum
 from numbers import Integral, Number
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np  # type: ignore
 from tvm_ffi import register_global_func
@@ -45,9 +47,9 @@ class VirtualMachine:
 
     def __init__(
         self,
-        rt_mod: Union[tvm.runtime.Module, tvm.runtime.Executable],
-        device: Union[Device, List[Device]],
-        memory_cfg: Optional[Union[str, Dict[Device, str]]] = None,
+        rt_mod: tvm.runtime.Module | tvm.runtime.Executable,
+        device: Device | list[Device],
+        memory_cfg: str | dict[Device, str] | None = None,
         profile: bool = False,
     ) -> None:
         """
@@ -91,7 +93,7 @@ class VirtualMachine:
         self._set_instrument = self.module["set_instrument"]
         self._setup_device(device, memory_cfg)
 
-    def _setup_device(self, dev: Device, memory_cfg: Union[str, Dict[Device, str]]) -> None:
+    def _setup_device(self, dev: Device, memory_cfg: str | dict[Device, str]) -> None:
         """init devices and allocators."""
         devs = dev
         if not isinstance(dev, (list, tuple)):
@@ -149,9 +151,9 @@ class VirtualMachine:
         self,
         func_name: str,
         saved_name: str,
-        *args: List[Any],
+        *args: list[Any],
         include_return: bool = True,
-        **kwargs: Dict[str, Any],
+        **kwargs: dict[str, Any],
     ) -> None:
         """
         Convenience function. Takes a function from the module and saves
@@ -186,14 +188,14 @@ class VirtualMachine:
         kwargs : Dict[str, Any]
             Any named arguments to package up with the function
         """
-        cargs: List[Any] = []
+        cargs: list[Any] = []
         if kwargs:
             args = self._convert_func_named_args(func_name, args, **kwargs)
         for arg in args:
             self._convert(arg, cargs)
         self._save_function(func_name, saved_name, int(include_return), *cargs)
 
-    def _convert(self, arg: Any, cargs: List) -> None:
+    def _convert(self, arg: Any, cargs: list) -> None:
         """helper function to convert arguments to vm function."""
 
         def _gettype(arg):
@@ -212,7 +214,7 @@ class VirtualMachine:
         elif isinstance(arg, tvm.runtime.Tensor):
             cargs.append(arg)
         elif isinstance(arg, (tuple, list)):
-            field_args: List[Any] = []
+            field_args: list[Any] = []
             for field in arg:
                 self._convert(field, field_args)
             cargs.append(tuple(field_args))
@@ -223,7 +225,7 @@ class VirtualMachine:
         elif isinstance(arg, str):
             cargs.append(arg)
         else:
-            raise TypeError("Unsupported type: %s" % (type(arg)))
+            raise TypeError(f"Unsupported type: {type(arg)}")
 
     def _convert_func_named_args(self, func_name: str, args: Any, **kwargs: Any) -> Any:
         """
@@ -269,7 +271,7 @@ class VirtualMachine:
         kwargs: dict of str to tvm.runtime.Tensor or np.ndarray
             Named arguments to the function.
         """
-        cargs: List[Any] = []
+        cargs: list[Any] = []
 
         if kwargs:
             args = self._convert_func_named_args(func_name, args, **kwargs)
@@ -295,7 +297,7 @@ class VirtualMachine:
         """
         self._invoke_stateful(func_name)
 
-    def get_outputs(self, func_name: str) -> Union[tvm.Object, Tuple[Any]]:
+    def get_outputs(self, func_name: str) -> tvm.Object | tuple[Any]:
         """
         Get the value output by the function by the given name
         after a call of `invoke_stateful`.
@@ -322,7 +324,7 @@ class VirtualMachine:
                 return self._get_output(func_name, *idx)
             # otherwise we need to specify more indices
             idx_list = list(idx)
-            return tuple(get_output_rec(func_name, *(idx_list + [i])) for i in range(arity))
+            return tuple(get_output_rec(func_name, *([*idx_list, i])) for i in range(arity))
 
         return get_output_rec(func_name)
 
@@ -491,7 +493,7 @@ class VirtualMachine:
         report: tvm.runtime.profiling.Report
             The formatted profiling result, showing per-op timing measurements.
         """
-        cargs: List[Any] = []
+        cargs: list[Any] = []
 
         for arg in args:
             self._convert(arg, cargs)

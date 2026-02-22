@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-nested-blocks
 """Backend kernels for cumsum operator."""
 
 import math
@@ -34,7 +33,7 @@ def gpu_2d_continuous_cumsum(
     tx_len: int = 32,
     thread_elem: int = 4,
     in_dtype: str = "int32",
-    out_dtype: Optional[str] = None,
+    out_dtype: str | None = None,
 ) -> PrimFunc:
     """Generate GPU kernel for 2D continuous cumsum, i.e. The cumsum axis is -1
 

@@ -16,7 +16,9 @@
 # under the License.
 """The argument information"""
 
-from typing import Any, List, Union
+from __future__ import annotations
+
+from typing import Any
 
 from tvm_ffi import register_object
 
@@ -34,10 +36,10 @@ class ArgInfo(Object):
 
     def as_json(self) -> Any:
         """Converts the ArgInfo to its corresponding JSON representation."""
-        return _json_de_tvm(_ffi_api.ArgInfoAsJSON(self))  # type: ignore # pylint: disable=no-member
+        return _json_de_tvm(_ffi_api.ArgInfoAsJSON(self))  # type: ignore
 
     @staticmethod
-    def from_json(json_obj: Any) -> "ArgInfo":
+    def from_json(json_obj: Any) -> ArgInfo:
         """Parse the argument information from a JSON object.
 
         Parameters
@@ -50,10 +52,10 @@ class ArgInfo(Object):
         parsed : ArgInfo
             The argument information parsed.
         """
-        return _ffi_api.ArgInfoFromJSON(json_obj)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ArgInfoFromJSON(json_obj)  # type: ignore
 
     @staticmethod
-    def from_prim_func(func: PrimFunc) -> List["ArgInfo"]:
+    def from_prim_func(func: PrimFunc) -> list[ArgInfo]:
         """Extract a list of the argument information from PrimFunc.
 
         Parameters
@@ -66,10 +68,10 @@ class ArgInfo(Object):
         extracted : List[ArgInfo]
             An array of the argument information derived.
         """
-        return _ffi_api.ArgInfoFromPrimFunc(func)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ArgInfoFromPrimFunc(func)  # type: ignore
 
     @staticmethod
-    def from_entry_func(mod: IRModule, remove_preproc: bool = True) -> List["ArgInfo"]:
+    def from_entry_func(mod: IRModule, remove_preproc: bool = True) -> list[ArgInfo]:
         """Extract a list of the argument information from the entry func of an IRModule.
 
         Parameters
@@ -84,7 +86,7 @@ class ArgInfo(Object):
         extracted : List[ArgInfo]
             An array of the argument information derived.
         """
-        return _ffi_api.ArgInfoFromEntryFunc(mod, remove_preproc)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ArgInfoFromEntryFunc(mod, remove_preproc)  # type: ignore
 
 
 @register_object("s_tir.meta_schedule.TensorInfo")
@@ -105,7 +107,7 @@ class TensorInfo(ArgInfo):
     def __init__(
         self,
         dtype: DataType,
-        shape: Union[ShapeTuple, List[int]],
+        shape: ShapeTuple | list[int],
     ) -> None:
         """Constructor
 
@@ -121,7 +123,7 @@ class TensorInfo(ArgInfo):
         else:
             shape_tuple = ShapeTuple(shape)
         self.__init_handle_by_constructor__(
-            _ffi_api.TensorInfo,  # type: ignore # pylint: disable=no-member
+            _ffi_api.TensorInfo,  # type: ignore
             dtype,
             shape_tuple,
         )

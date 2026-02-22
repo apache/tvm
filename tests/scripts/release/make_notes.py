@@ -63,7 +63,6 @@ TAG_DICT = {
     "onnx": "Frontend",
     "roofline": "Misc",
     "rpc": "Misc",
-    "transform": "Misc",
     "tophub": "Misc",
     "ux": "Misc",
     "APP": "Misc",
