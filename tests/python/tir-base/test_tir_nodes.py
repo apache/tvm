@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+
 import tvm
 from tvm import ir
 

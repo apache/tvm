@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -29,9 +30,10 @@ Use ``target.attrs["key"]`` to access target attributes such as
 Use :py:func:`tvm.target.list_tags` to list all available target tags,
 and :py:func:`tvm.target.register_tag` to register new tags.
 """
+
 from .target import Target, TargetKind
 from .virtual_device import VirtualDevice
 from .tag import list_tags, register_tag
 from . import datatype
 from . import codegen
-from . import tag_registry  # noqa: F401  -- registers tags on import
+from . import tag_registry  # registers tags on import

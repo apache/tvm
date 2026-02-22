@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name, too-many-arguments
 """Operators used in TIR expression."""
+
 from typing import Any, Optional, Union
 
 import tvm_ffi
+
 import tvm
 from tvm import tir
 from tvm.ir import Array, Op, PrimExpr
@@ -571,7 +573,6 @@ def address_of(obj: Union[Buffer, BufferLoad], span: Optional[Span] = None) -> P
         The call expression.
     """
     if isinstance(obj, Buffer):
-
         n_dim = len(obj.shape)
         buffer_load = BufferLoad(obj, [0] * n_dim)
         return call_intrin("handle", "tir.address_of", buffer_load, span=span)

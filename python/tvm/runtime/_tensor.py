@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-import, redefined-outer-name
 """Runtime Tensor API"""
+
 import ctypes
 import warnings
 from typing import Optional
@@ -28,10 +29,11 @@ except ImportError:
     ml_dtypes = None
 
 import tvm_ffi
-from tvm_ffi import device, DLDeviceType
+from tvm_ffi import DLDeviceType, device
 
 import tvm
 from tvm.runtime import Device
+
 from . import _ffi_api
 
 

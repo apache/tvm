@@ -15,9 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Suppliers that are used to guarantee uniqueness of names and GlobalVars."""
-import tvm
+
 import tvm_ffi
-from tvm import Object, IRModule
+
+import tvm
+from tvm import IRModule, Object
+
 from . import _ffi_api
 
 

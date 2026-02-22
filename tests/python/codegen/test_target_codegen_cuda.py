@@ -686,7 +686,7 @@ def test_vectorized_intrin1():
             tvm.tir.sinh,
         }
         if dtype == "float16" and tvm_intrin in skip_set:
-            print("Skip because '{0}' does not support fp16 yet".format(tvm_intrin.__name__))
+            print(f"Skip because '{tvm_intrin.__name__}' does not support fp16 yet")
             return
 
         n = 128

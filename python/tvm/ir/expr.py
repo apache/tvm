@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common expressions data structures in the IR."""
+
 from numbers import Number
 from typing import Optional
 
-import tvm
 import tvm_ffi
+
+import tvm
 
 from ..runtime import Object, Scriptable
 from . import _ffi_api

@@ -22,5 +22,4 @@ from ..base import IRBuilderFrame
 
 
 @_register_object("script.ir_builder.IRModuleFrame")
-class IRModuleFrame(IRBuilderFrame):
-    ...
+class IRModuleFrame(IRBuilderFrame): ...

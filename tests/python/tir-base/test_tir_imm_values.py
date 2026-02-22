@@ -16,13 +16,14 @@
 # under the License.
 import math
 import random
+
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-import pytest
 from tvm import tir
 from tvm.script import tir as T
-import pytest
 
 
 @pytest.mark.parametrize(

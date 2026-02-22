@@ -26,16 +26,18 @@ Each statement node have subfields that can be visited from python side.
     assert isinstance(st, tvm.tir.stmt.BufferStore)
     assert(st.buffer == buffer)
 """
+
 from enum import IntEnum
 from typing import List, Mapping, Optional, Union
 
 import tvm_ffi
+
 from tvm.ir import PrimExpr, Range, Span
 from tvm.runtime import Object, Scriptable, const
 
 from . import _ffi_api
 from .buffer import Buffer
-from .expr import Var, IterVar
+from .expr import IterVar, Var
 
 
 class Stmt(Object, Scriptable):
@@ -68,7 +70,11 @@ class LetStmt(Stmt):
 
     def __init__(self, var: Var, value: PrimExpr, body: Stmt, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.LetStmt, var, value, body, span  # type: ignore
+            _ffi_api.LetStmt,
+            var,
+            value,
+            body,
+            span,  # type: ignore
         )
 
 
@@ -100,7 +106,11 @@ class AssertStmt(Stmt):
         self, condition: PrimExpr, message: PrimExpr, body: Stmt, span: Optional[Span] = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.AssertStmt, condition, message, body, span  # type: ignore
+            _ffi_api.AssertStmt,
+            condition,
+            message,
+            body,
+            span,  # type: ignore
         )
 
 
@@ -255,7 +265,12 @@ class BufferStore(Stmt):
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.BufferStore, buffer, value, indices, predicate, span  # type: ignore
+            _ffi_api.BufferStore,
+            buffer,
+            value,
+            indices,
+            predicate,
+            span,  # type: ignore
         )
 
 
@@ -375,7 +390,12 @@ class AttrStmt(Stmt):
         self, node: Object, attr_key: str, value: PrimExpr, body: Stmt, span: Optional[Span] = None
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.AttrStmt, node, attr_key, value, body, span  # type: ignore
+            _ffi_api.AttrStmt,
+            node,
+            attr_key,
+            value,
+            body,
+            span,  # type: ignore
         )
 
 
@@ -436,7 +456,11 @@ class IfThenElse(Stmt):
         span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.IfThenElse, condition, then_case, else_case, span  # type: ignore
+            _ffi_api.IfThenElse,
+            condition,
+            then_case,
+            else_case,
+            span,  # type: ignore
         )
 
 
@@ -498,7 +522,9 @@ class MatchBufferRegion(Object, Scriptable):
 
     def __init__(self, buffer: Buffer, source: BufferRegion) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.MatchBufferRegion, buffer, source  # type: ignore
+            _ffi_api.MatchBufferRegion,
+            buffer,
+            source,  # type: ignore
         )
 
 

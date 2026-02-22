@@ -30,7 +30,7 @@
 #include <string>
 #include <vector>
 
-#define ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
+#define ALIGN_UP(num, align) (((num) + ((align) - 1)) & ~((align) - 1))
 
 namespace tvm {
 namespace runtime {

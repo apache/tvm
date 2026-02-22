@@ -15,15 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utility for ROCm backend"""
+
+import os
 import re
 import subprocess
-import os
-from os.path import join, exists
+from os.path import exists, join
 
 import tvm_ffi
-from tvm.base import py_str
+
 import tvm.runtime
 import tvm.target
+from tvm.base import py_str
 
 from . import utils
 

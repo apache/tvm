@@ -17,14 +17,13 @@
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name, unsupported-binary-operation
 
-
 import enum
 from typing import Callable
 
+from ... import ffi as _ffi
+from ... import ir as _ir
 from . import _ffi_api
 from . import function_pass as _fpass
-from ... import ir as _ir
-from ... import ffi as _ffi
 
 
 def Apply(ftransform):

@@ -17,12 +17,13 @@
 # pylint: disable=invalid-name, no-member
 
 """Executable object for TVM Runtime"""
+
 from typing import Any, Callable, Dict, List, Optional
 
 import tvm
-
 from tvm.contrib import utils as _utils
-from . import PackedFunc, Module
+
+from . import Module, PackedFunc
 
 
 class Executable:

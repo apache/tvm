@@ -15,12 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test contrib.cc with ccache"""
+
 import os
-import pytest
 import shutil
 import tempfile
+
+import pytest
+
 import tvm
-from tvm.contrib.cc import create_shared, create_executable, _is_linux_like, _is_windows_like
+from tvm.contrib.cc import _is_linux_like, _is_windows_like, create_executable, create_shared
 
 
 def _src_gen(text):
@@ -30,9 +33,7 @@ def _src_gen(text):
 int main() {
     std::cout << "text";
     return 0;
-}""".replace(
-        "text", text
-    )
+}""".replace("text", text)
 
 
 def _compile(f_create, text, output):
@@ -46,7 +47,7 @@ def _compile(f_create, text, output):
             "CCACHE_LOGFILE": log_path,
         }
         f_create(output, ["src.cpp"], ["-c"], cwd=temp_dir, ccache_env=ccache_env)
-        with open(log_path, "r", encoding="utf-8") as file:
+        with open(log_path, encoding="utf-8") as file:
             log = file.read()
         return log
 

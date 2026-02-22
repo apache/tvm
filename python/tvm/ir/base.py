@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common base structures."""
-import tvm.error
+
 from tvm_ffi import get_global_func, register_object
+
+import tvm.error
 from tvm.runtime import Object, _ffi_node_api
 
 from . import _ffi_api, json_compact
@@ -64,7 +66,12 @@ class Span(Object):
 
     def __init__(self, source_name, line, end_line, column, end_column):
         self.__init_handle_by_constructor__(
-            _ffi_api.Span, source_name, line, end_line, column, end_column  # type: ignore # pylint: disable=no-member
+            _ffi_api.Span,
+            source_name,
+            line,
+            end_line,
+            column,
+            end_column,  # type: ignore # pylint: disable=no-member
         )
 
 

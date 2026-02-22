@@ -23,9 +23,8 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import DataType, DataTypeCode, IRModule
+from tvm import DataType, DataTypeCode, IRModule, relax, te, tir, topi
 from tvm.s_tir import dlight as dl
-from tvm import relax, te, tir, topi
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -555,9 +554,9 @@ class BaseFP8E4M3QuantScaleOnly:
         vec_model_dtype = f"{model_dtype}x{vector_length}"
         num_elem_per_storage = vector_length
         # TODO(csullivan) assert on storage dtype / quantize type bytes == vector length
-        assert (
-            group_size % vector_length == 0
-        ), f"Number of elements in a group must be divisible by fp8 vector length {vector_length}"
+        assert group_size % vector_length == 0, (
+            f"Number of elements in a group must be divisible by fp8 vector length {vector_length}"
+        )
 
         @T.prim_func(private=True)
         def quant_pack(
