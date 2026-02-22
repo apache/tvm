@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,19 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-set -euxo pipefail
-
-source tests/scripts/setup-pytest-env.sh
-
-# setup tvm-ffi into python folder
-python3 -m pip install  -v --target=python ./3rdparty/tvm-ffi/
-
-# cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
-
-run_pytest python-topi-nightly tests/python/topi/nightly
-
-# Tensorflow device verification and network tests on nightly
-export CI_ENV_NIGHTLY
-python3 tests/python/relax/test_frontend_tflite.py
+"""
+Tools for converting TFLite graphs into Relax graphs.
+"""
+from .tflite_frontend import from_tflite
