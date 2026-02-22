@@ -15,6 +15,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import argparse
 import configparser
 import datetime
@@ -97,7 +99,10 @@ if __name__ == "__main__":
         config.read(IMAGE_TAGS_FILE)
         repo_image_tags = {}
         for name in other:
-            repo_image_tags[name] = config.get("jenkins", name)
+            if config.has_option("jenkins", name):
+                repo_image_tags[name] = config.get("jenkins", name)
+            else:
+                raise RuntimeError(f"{name} not found in {IMAGE_TAGS_FILE}")
 
     images = {}
     for name in other:
