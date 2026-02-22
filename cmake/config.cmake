@@ -189,24 +189,6 @@ set(USE_OPENMP none)
 set(USE_RANDOM ON)
 
 # Possible values:
-# - ON: enable tflite with CMake's find search
-# - OFF: disable tflite
-# - /path/to/libtensorflow-lite.a: use specific path to tensorflow lite library
-set(USE_TFLITE OFF)
-
-# /path/to/tensorflow: tensorflow root path when use tflite library
-set(USE_TENSORFLOW_PATH none)
-
-# Required for full builds with TFLite. Not needed for runtime with TFLite.
-# /path/to/flatbuffers: flatbuffers root path when using tflite library
-set(USE_FLATBUFFERS_PATH none)
-
-# Possible values:
-# - OFF: disable tflite support for edgetpu
-# - /path/to/edgetpu: use specific path to edgetpu library
-set(USE_EDGETPU OFF)
-
-# Possible values:
 # - ON: enable cuDNN with CMake's auto search in CUDA directory
 # - OFF: disable cuDNN
 # - /path/to/cudnn: use specific path to cuDNN path
@@ -222,31 +204,8 @@ set(USE_CUDNN_FRONTEND OFF)
 # Whether use cuBLAS
 set(USE_CUBLAS OFF)
 
-# Whether use MIOpen
-set(USE_MIOPEN OFF)
-
-# Whether use MPS
-set(USE_MPS OFF)
-
-# Whether use rocBlas
-set(USE_ROCBLAS OFF)
-
 # Whether use contrib sort
 set(USE_SORT ON)
-
-# Whether to use Arm Compute Library (ACL) codegen
-# We provide 2 separate flags since we cannot build the ACL runtime on x86.
-# This is useful for cases where you want to cross-compile a graph
-# on x86 then run on AArch.
-#
-# An example of how to use this can be found here: docs/deploy/arm_compute_lib.rst.
-#
-# USE_ARM_COMPUTE_LIB - Support for compiling a graph offloading supported
-#                       operators to Arm Compute Library. OFF/ON
-# USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR - Run Arm Compute Library annotated functions via the ACL
-#                                     runtime. OFF/ON/"path/to/ACL"
-set(USE_ARM_COMPUTE_LIB OFF)
-set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
 
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
@@ -290,14 +249,8 @@ set(USE_HEXAGON_RPC OFF)
 # Valid values are v65, v66, v68, v69, v73, v75.
 set(USE_HEXAGON_ARCH "v68")
 
-# Whether use MRVL codegen
-set(USE_MRVL OFF)
-
 # Whether to use QHL library
 set(USE_HEXAGON_QHL OFF)
-
-# Whether enable BNNS runtime
-set(USE_BNNS OFF)
 
 # Whether to build static libtvm_runtime.a, the default is to build the dynamic
 # version: libtvm_runtime.so.
@@ -332,14 +285,6 @@ set(TVM_FFI_USE_LIBBACKTRACE ON)
 # Whether to install a signal handler to print a backtrace on segfault.
 # Need to have TVM_FFI_USE_LIBBACKTRACE enabled.
 set(TVM_FFI_BACKTRACE_ON_SEGFAULT ON)
-
-# Whether to enable PAPI support in profiling. PAPI provides access to hardware
-# counters while profiling.
-# Possible values:
-# - ON: enable PAPI support. Will search PKG_CONFIG_PATH for a papi.pc
-# - OFF: disable PAPI support.
-# - /path/to/folder/containing/: Path to folder containing papi.pc.
-set(USE_PAPI OFF)
 
 # Whether to use GoogleTest for C++ unit tests. When enabled, the generated
 # build file (e.g. Makefile) will have a target "cpptest".
