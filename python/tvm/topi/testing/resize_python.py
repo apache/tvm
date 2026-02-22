@@ -40,19 +40,25 @@ def get_inx(x, image_width, target_width, coordinate_transformation_mode):
     return in_x
 
 
-def get_index(x, image_width, target_width, coordinate_transformation_mode):
+def get_index(x, image_width, target_width, coordinate_transformation_mode, rounding_method=""):
     """get and round the nearest index for nearest_neighbor"""
     in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode)
-    if coordinate_transformation_mode == "align_corners":
+
+    if rounding_method == "":
+        rounding_method = "round" if coordinate_transformation_mode == "align_corners" else "floor"
+
+    if rounding_method == "round":
         # round prefer ceil
         out = int(math.floor(in_x + 0.5))
+    elif rounding_method == "ceil":
+        out = int(math.ceil(in_x))
     else:
         out = int(math.floor(in_x))
     out = max(min(out, image_width - 1), 0)
     return out
 
 
-def resize3d_nearest(arr, scale, coordinate_transformation_mode):
+def resize3d_nearest(arr, scale, coordinate_transformation_mode, rounding_method=""):
     """Populate the array by scale factor"""
     d, h, w = arr.shape
     out_d, out_h, out_w = [int(round(i * s)) for i, s in zip(arr.shape, scale)]
@@ -60,9 +66,9 @@ def resize3d_nearest(arr, scale, coordinate_transformation_mode):
     for z in range(out_d):
         for y in range(out_h):
             for x in range(out_w):
-                in_z = get_index(z, d, out_d, coordinate_transformation_mode)
-                in_y = get_index(y, h, out_h, coordinate_transformation_mode)
-                in_x = get_index(x, w, out_w, coordinate_transformation_mode)
+                in_z = get_index(z, d, out_d, coordinate_transformation_mode, rounding_method)
+                in_y = get_index(y, h, out_h, coordinate_transformation_mode, rounding_method)
+                in_x = get_index(x, w, out_w, coordinate_transformation_mode, rounding_method)
                 out[z, y, x] = arr[in_z, in_y, in_x]
     return out
 
@@ -169,7 +175,11 @@ def resize3d_cubic(data_in, scale, coordinate_transformation_mode):
 
 
 def resize3d_ncdhw(
-    data, scale, method="nearest_neighbor", coordinate_transformation_mode="align_corners"
+    data,
+    scale,
+    method="nearest_neighbor",
+    coordinate_transformation_mode="align_corners",
+    rounding_method="",
 ):
     """reference kernel for 3D image resizing"""
     ishape = data.shape
@@ -188,7 +198,7 @@ def resize3d_ncdhw(
         for c in range(oshape[1]):
             if method == "nearest_neighbor":
                 output_np[b, c, :, :, :] = resize3d_nearest(
-                    data[b, c, :, :, :], scale, coordinate_transformation_mode
+                    data[b, c, :, :, :], scale, coordinate_transformation_mode, rounding_method
                 )
             elif method == "linear":
                 output_np[b, c, :, :, :] = resize3d_linear(
@@ -210,6 +220,7 @@ def resize1d_python(
     layout="NCW",
     method="nearest_neighbor",
     coordinate_transformation_mode="align_corners",
+    rounding_method="",
 ):
     """Python version of 3D scaling using nearest neighbour"""
 
@@ -217,7 +228,9 @@ def resize1d_python(
         data = data.transpose([0, 2, 1])
 
     data = np.expand_dims(data, axis=[2, 3])
-    output_np = resize3d_ncdhw(data, (1, 1) + scale, method, coordinate_transformation_mode)
+    output_np = resize3d_ncdhw(
+        data, (1, 1) + scale, method, coordinate_transformation_mode, rounding_method
+    )
     output_np = np.squeeze(output_np, axis=2)
     output_np = np.squeeze(output_np, axis=2)
 
@@ -233,6 +246,7 @@ def resize2d_python(
     layout="NCHW",
     method="nearest_neighbor",
     coordinate_transformation_mode="align_corners",
+    rounding_method="",
 ):
     """Python version of scaling using nearest neighbour"""
 
@@ -247,7 +261,9 @@ def resize2d_python(
         )
 
     data = np.expand_dims(data, axis=2)
-    output_np = resize3d_ncdhw(data, (1,) + scale, method, coordinate_transformation_mode)
+    output_np = resize3d_ncdhw(
+        data, (1,) + scale, method, coordinate_transformation_mode, rounding_method
+    )
     output_np = np.squeeze(output_np, axis=2)
 
     if layout == "NHWC":
@@ -265,13 +281,14 @@ def resize3d_python(
     layout="NCDHW",
     method="nearest_neighbor",
     coordinate_transformation_mode="align_corners",
+    rounding_method="",
 ):
     """Python version of 3D scaling using nearest neighbour"""
 
     if layout == "NDHWC":
         data = data.transpose([0, 4, 1, 2, 3])
 
-    output_np = resize3d_ncdhw(data, scale, method, coordinate_transformation_mode)
+    output_np = resize3d_ncdhw(data, scale, method, coordinate_transformation_mode, rounding_method)
 
     if layout == "NDHWC":
         output_np = output_np.transpose([0, 2, 3, 4, 1])
