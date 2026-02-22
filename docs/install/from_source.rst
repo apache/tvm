@@ -43,7 +43,18 @@ Apache TVM requires the following dependencies:
 - Python (>= 3.8)
 - (Optional) Conda (Strongly Recommended)
 
-To easiest way to manage dependency is via conda, which maintains a set of toolchains
+System Dependencies (Non-Conda)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+If you are not using Conda, TVM requires several system libraries. On Ubuntu/Debian systems, install them with:
+
+.. code:: bash
+
+   sudo apt update
+   sudo apt install zlib1g-dev libxml2-dev
+
+For other operating systems, please refer to your package manager documentation.
+
+The easiest way to manage dependency is via conda, which maintains a set of toolchains
 including LLVM across platforms. To create the environment of those build dependencies,
 one may simply use:
 
@@ -59,7 +70,6 @@ one may simply use:
         python=3.11
     # enter the build environment
     conda activate tvm-build-venv
-
 
 Step 2. Get Source from GitHub
 ------------------------------
@@ -212,17 +222,6 @@ Step 5. Extra Python Dependencies
 ---------------------------------
 Building from source does not ensure the installation of all necessary Python dependencies.
 
-System Dependencies
--------------------
-TVM requires several system libraries. On Ubuntu/Debian systems, install them with:
-
-.. code:: bash
-
-   sudo apt update
-   sudo apt install zlib1g-dev libxml2-dev
-
-For other operating systems, please refer to your package manager documentation.
-
 Python Dependencies
 ~~~~~~~~~~~~~~~~~~~
 The following commands can be used to install the extra Python dependencies:
@@ -244,18 +243,6 @@ The following commands can be used to install the extra Python dependencies:
 .. code:: bash
 
     pip3 install tornado psutil 'xgboost>=1.1.0' cloudpickle
-
-Installing the Python Package
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-After building TVM successfully, install the Python package:
-
-.. code:: bash
-
-   cd python
-   pip install -e .
-
-
-.. _windows-build-notes:
 
 Windows-Specific Build Notes
 ----------------------------
