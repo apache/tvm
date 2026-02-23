@@ -269,4 +269,3 @@ def profile_function(mod, dev, collectors, func_name=None, warmup_iters=10):
     return _ffi_api.ProfileFunction(
         mod, func_name, dev.dlpack_device_type(), dev.index, warmup_iters, collectors
     )
-
