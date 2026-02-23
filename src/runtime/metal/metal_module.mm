@@ -86,7 +86,7 @@ class MetalModuleNode final : public ffi::ModuleObj {
   // get a from primary context in device_id
   id<MTLComputePipelineState> GetPipelineState(size_t device_id, const std::string& func_name) {
     metal::MetalWorkspace* w = metal::MetalWorkspace::Global();
-    ICHECK_LT(device_id, w->devices.size());
+    TVM_FFI_ICHECK_LT(device_id, w->devices.size());
     // start lock scope.
     std::lock_guard<std::mutex> lock(mutex_);
     if (finfo_.size() <= device_id) {
@@ -100,7 +100,7 @@ class MetalModuleNode final : public ffi::ModuleObj {
     id<MTLLibrary> lib = nil;
     auto kernel = smap_.find(func_name);
     // Directly lookup kernels
-    ICHECK(kernel != smap_.end());
+    TVM_FFI_ICHECK(kernel != smap_.end());
     const std::string& source = kernel->second;
 
     if (fmt_ == "metal") {
@@ -132,18 +132,18 @@ class MetalModuleNode final : public ffi::ModuleObj {
       }
     }
     id<MTLFunction> f = [lib newFunctionWithName:[NSString stringWithUTF8String:func_name.c_str()]];
-    ICHECK(f != nil) << "cannot find function " << func_name;
+    TVM_FFI_ICHECK(f != nil) << "cannot find function " << func_name;
     id<MTLComputePipelineState> state =
         [w->devices[device_id] newComputePipelineStateWithFunction:f error:&err_msg];
-    ICHECK(state != nil) << "cannot get state:"
-                         << " for function " << func_name
-                         << [[err_msg localizedDescription] UTF8String];
+    TVM_FFI_ICHECK(state != nil) << "cannot get state:"
+                                 << " for function " << func_name
+                                 << [[err_msg localizedDescription] UTF8String];
     [f release];
     [lib release];
     // The state.threadExecutionWidth can change dynamically according
     // to the resource constraint in kernel, so it is not strictly hold
     // Turn of warp aware optimziation for now.
-    // ICHECK_EQ(state.threadExecutionWidth, w->warp_size[device_id]);
+    // TVM_FFI_ICHECK_EQ(state.threadExecutionWidth, w->warp_size[device_id]);
     if (e.smap[func_name] != nil) [e.smap[func_name] release];
     e.smap[func_name] = state;
     return state;
@@ -235,7 +235,7 @@ class MetalWrappedFunc {
       // attach error message with function name
       [cb addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
         if (buffer.status == MTLCommandBufferStatusError) {
-          ICHECK(buffer.error != nil);
+          TVM_FFI_ICHECK(buffer.error != nil);
           std::ostringstream os;
           os << "GPUError happens after running " << func_name_ << ": "
              << buffer.error.localizedDescription.UTF8String;
@@ -270,7 +270,7 @@ ffi::Optional<ffi::Function> MetalModuleNode::GetFunction(const ffi::String& nam
   ffi::Function ret;
   AUTORELEASEPOOL {
     ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
-    ICHECK_EQ(sptr_to_self.get(), this);
+    TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
     auto opt_info = fmap_.Get(name);
     if (!opt_info.has_value()) {
       return;
@@ -325,7 +325,7 @@ ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
 
   stream.Read(&ver);
   stream.Read(&smap);
-  ICHECK(stream.Read(&fmap));
+  TVM_FFI_ICHECK(stream.Read(&fmap));
   stream.Read(&fmt);
 
   return MetalModuleCreate(smap, fmap, fmt, "");
