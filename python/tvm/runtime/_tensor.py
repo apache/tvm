@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-import, redefined-outer-name
+# ruff: noqa: E722, F401, RUF005
 """Runtime Tensor API"""
 
 import ctypes

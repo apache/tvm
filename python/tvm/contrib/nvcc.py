@@ -679,9 +679,9 @@ def get_cuda_version(cuda_path=None):
     (out, _) = proc.communicate()
     out = py_str(out)
     if proc.returncode == 0:
-        release_line = [line for line in out.split("\n") if "release" in line][0]
+        release_line = next(line for line in out.split("\n") if "release" in line)
         release_fields = [s.strip() for s in release_line.split(",")]
-        version_str = [f[1:] for f in release_fields if f.startswith("V")][0]
+        version_str = next(f[1:] for f in release_fields if f.startswith("V"))
         return tuple(int(field) for field in version_str.split("."))
     raise RuntimeError("Cannot read CUDA version file")
 
