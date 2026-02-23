@@ -69,7 +69,7 @@ def _wrap_class_function_pass(pass_cls, pass_info):
 
 def prim_func_pass(
     pass_func=None,
-    opt_level: int = None,
+    opt_level: Optional[int] = None,
     name: Optional[str] = None,
     required: Optional[List[str]] = None,
     traceable=False,

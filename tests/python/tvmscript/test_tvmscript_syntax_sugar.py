@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring,invalid-name,pointless-string-statement
+# ruff: noqa: E741, F401, F841
 import sys
 from typing import Any
 

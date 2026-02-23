@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, missing-docstring
+# ruff: noqa: F401, F841
 """Unittests for tvm.script.ir_builder.tir"""
 
 import numpy as np

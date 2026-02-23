@@ -48,7 +48,7 @@ def test_basic():
 
 
 def test_multivariate():
-    v = [tvm.tir.Var("v%d" % i, "int32") for i in range(4)]
+    v = [tvm.tir.Var(f"v{i}", "int32") for i in range(4)]
     b = tvm.tir.Var("b", "int32")
     m = tvm.arith.detect_linear_equation(v[0] * (b + 4) + v[0] + v[1] * 8, v)
 

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 import pytest
 
 import tvm
@@ -34,7 +35,7 @@ def test_const_fold():
         x = f(*[tvm.tir.const(x, "int32") for x in args])
         y = f(*args)
         if not isinstance(x, (tvm.tir.IntImm,)) or x.value != int(y):
-            raise ValueError("check error: %s vs %s " % (x, y))
+            raise ValueError(f"check error: {x} vs {y} ")
 
     tmod = tvm.tir.truncmod
     check(lambda x, y: x + y, 3, 4)

@@ -16,6 +16,7 @@
 # under the License.
 # coding: utf-8
 # pylint: disable=invalid-name, import-outside-toplevel
+# ruff: noqa: F401
 """Base library for TVM."""
 
 import ctypes
