@@ -997,9 +997,6 @@ requires_cutlass = Feature("cutlass", "CUTLASS", cmake_flag="USE_CUTLASS")
 # Mark a test as requiring rpc to run
 requires_rpc = Feature("rpc", "RPC", cmake_flag="USE_RPC")
 
-# Mark a test as requiring the MRVL Library
-requires_mrvl = Feature("mrvl", "Marvell", cmake_flag="USE_MRVL")
-
 # Mark a test as requiring Hexagon to run
 requires_hexagon = Feature(
     "hexagon",
