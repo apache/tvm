@@ -113,7 +113,7 @@ def test_device_module_dump():
     def check_device(device):
         dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+            print(f"Skip because {device} is not enabled")
             return
         temp = utils.tempdir()
         f = tvm.compile(sch.mod, target=device)
@@ -139,7 +139,7 @@ def test_device_module_dump():
     def check_c(device):
         dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+            print(f"Skip because {device} is not enabled")
             return
         f = tvm.compile(sch.mod, target=tvm.target.Target(device, host="c"))
         a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)

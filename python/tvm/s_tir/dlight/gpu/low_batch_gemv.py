@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741, F821
 """A rule for low-batch GEMM / decode-GEMM using GEMV schedule."""
 
 from functools import reduce
@@ -88,11 +89,11 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> Optional[List[tir.Bu
     )
     if len(block_stmt.iter_vars) - len(const_iter_vars) != 1:
         return None
-    symbolic_iter_var = list(
+    symbolic_iter_var = next(
         iter_var
         for iter_var in block_stmt.iter_vars
         if not isinstance(iter_var.dom.extent, tir.IntImm)
-    )[0]
+    )
     if symbolic_iter_var.iter_type != tir.stmt.IterVar.DataPar:
         return None
     ret = [

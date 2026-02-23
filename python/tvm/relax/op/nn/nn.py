@@ -557,7 +557,7 @@ def pixel_shuffle(data: Expr, upscale_factor: int):
     This operator performs the pixel shuffle operation on the input tensor,
     which is often used for efficient sub-pixel convolution in image
     super-resolution tasks. It rearranges elements in a tensor of shape
-    (N, C × r^2, H, W) to a tensor of shape (N, C, H × r, W × r), where `r`
+    (N, C x r^2, H, W) to a tensor of shape (N, C, H x r, W x r), where `r`
     is the upscale factor.
 
     Parameters

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, f-string-without-interpolation, consider-using-from-import
+# ruff: noqa: E501
 """Tools/compilers/linkers for Hexagon"""
 
 import io
@@ -477,8 +478,7 @@ class ContainerSession:
     @staticmethod
     def _get_docker_client():
         try:
-            # pylint: disable=import-outside-toplevel
-            from docker import from_env
+            from docker import from_env  # pylint: disable=import-outside-toplevel
             from docker.errors import DockerException
         except (ModuleNotFoundError, ImportError):
             raise Exception("Docker SDK module is not installed. Please install it.")

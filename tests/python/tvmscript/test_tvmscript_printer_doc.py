@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 """
 In this test file, we want to make sure the Python code can construct
 Doc objects, then access and modify their attributes correctly.

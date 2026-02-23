@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 """
 .. _tutorial-cross-compilation-and-rpc:
 
@@ -195,7 +196,7 @@ np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 time_f = func.time_evaluator(func.entry_name, dev, number=10)
 cost = time_f(a, b).mean
-print("%g secs/op" % cost)
+print(f"{cost:g} secs/op")
 
 #########################################################################
 # Run OpenCL Kernel Remotely by RPC

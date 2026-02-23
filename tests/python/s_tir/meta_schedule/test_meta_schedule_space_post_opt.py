@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring,no-member,invalid-name,unused-variable
+# ruff: noqa: F401
 import logging
 import tempfile
 

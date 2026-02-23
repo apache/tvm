@@ -281,3 +281,9 @@ tvm-site/
 # Agent tracking files
 LOG.md
 STATUS.md
+
+# Local editable-install artifacts (pip install -e .)
+python/tvm_ffi/
+python/bin/
+python/typing_extensions.py
+python/*.dist-info/

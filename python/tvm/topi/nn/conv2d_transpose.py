@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
+# ruff: noqa: F821
 """Transposed 2D convolution operators (sometimes called Deconvolution)."""
 
 import collections

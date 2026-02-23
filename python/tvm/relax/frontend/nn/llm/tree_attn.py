@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E501, F841, RUF005
 
 """Operators for tree attention."""
 
@@ -584,7 +585,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target)
     def get_tile_size(x, y, t):
         cnt = (x * y) // t
         assert (x * y) % t == 0
-        tile_y = (int)(math.ceil(math.sqrt(cnt)))
+        tile_y = math.ceil(math.sqrt(cnt))
         while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
@@ -1277,7 +1278,7 @@ def tree_attn_with_paged_kv_cache(
     def get_tile_size(x, y, t):
         cnt = (x * y) // t
         assert (x * y) % t == 0
-        tile_y = (int)(math.ceil(math.sqrt(cnt)))
+        tile_y = math.ceil(math.sqrt(cnt))
         while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt

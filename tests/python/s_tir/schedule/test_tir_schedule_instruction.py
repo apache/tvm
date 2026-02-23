@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
 # mypy: ignore-errors
+# ruff: noqa: F401
 import sys
 
 import pytest

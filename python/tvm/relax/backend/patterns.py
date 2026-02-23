@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Common patterns used in BYOC"""
 
-from typing import Dict, Mapping, Tuple, Union
+from typing import Dict, Mapping, Optional, Tuple, Union
 
 from tvm.relax.dpl.pattern import (
     DFPattern,
@@ -36,7 +36,7 @@ def _with_bias_activation_pattern(
     out: DFPattern,
     annotations: Dict[str, DFPattern],
     with_bias: bool = False,
-    activation: str = None,
+    activation: Optional[str] = None,
 ) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
     if with_bias:
         annotations["bias"] = bias = wildcard()
@@ -51,7 +51,7 @@ def _with_bias_activation_pattern(
 def make_fused_bias_activation_pattern(
     op_name: str,
     with_bias: bool = False,
-    activation: str = None,
+    activation: Optional[str] = None,
 ) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
     """
     A simple utility to create patterns for an operation fused with bias addition and activation.
@@ -133,7 +133,7 @@ def make_residual_block_pattern(
 
 def make_conv2d_pattern(
     with_bias: bool = False,
-    activation: str = None,
+    activation: Optional[str] = None,
 ) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
     """
     Create pattern for 2D convolution.
@@ -169,7 +169,7 @@ def make_conv2d_pattern(
 
 def make_matmul_pattern(
     with_bias: bool = False,
-    activation: str = None,
+    activation: Optional[str] = None,
     transposed_rhs: bool = False,
 ) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
     """

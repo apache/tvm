@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, E731, RUF005, RUF012
 
 """Attention KV cache modeling."""
 
@@ -490,7 +491,6 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             bb.add_func(_copy_single_page(num_key_value_heads, page_size, qk_head_dim, dtype, target) if attn_kind_single == "mha" else _copy_single_page_mla(page_size, qk_head_dim, dtype, target), "kv_cache_copy_single_page"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, qk_head_dim, dtype), "kv_cache_debug_get_kv"),
             bb.add_func(_compact_kv_copy(num_key_value_heads, qk_head_dim, dtype, target), "kv_cache_compact_kv_copy"),
-            # fmt: on
             # pylint: enable=line-too-long
         ]
         super().__init__(
@@ -613,7 +613,6 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             rope_ext_factors,
             rx.op.zeros((), dtype),
             # pylint: disable=line-too-long
-            # fmt: off
             bb.add_func(
                 _kv_cache_transpose_append(num_key_value_heads, qk_head_dim, dtype),
                 "kv_cache_transpose_append",
@@ -621,7 +620,6 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             bb.add_func(
                 _kv_cache_transpose_append_mla(qk_head_dim, dtype), "kv_cache_transpose_append_mla"
             ),
-            # fmt: on
             # pylint: enable=line-too-long
         ]
 
@@ -1139,7 +1137,7 @@ def _schedule_prefill_kernel(
     def get_tile_size(x, y, t):
         cnt = (x * y) // t
         assert (x * y) % t == 0
-        tile_y = (int)(math.ceil(math.sqrt(cnt)))
+        tile_y = math.ceil(math.sqrt(cnt))
         while (cnt % tile_y != 0 or y % tile_y != 0 or x % (cnt // tile_y) != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt

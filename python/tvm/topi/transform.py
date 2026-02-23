@@ -1064,11 +1064,11 @@ def trilu(data, k, upper):
 
 
 def index_tensor(data, indices):
-    """Advanced‑tensor indexing (NumPy/PyTorch‐style).
+    """Advanced-tensor indexing (NumPy/PyTorch-style).
 
-    Given k index tensors ``indices = (I0, I1, …, Ik‑1)`` this
+    Given k index tensors ``indices = (I0, I1, …, Ik-1)`` this
     operator selects elements from ``data`` as if one had written
-    ``data[I0, I1, …, Ik‑1]`` in NumPy/PyTorch:
+    ``data[I0, I1, …, Ik-1]`` in NumPy/PyTorch:
 
     * All index tensors must have an integer dtype.
     * Their shapes are broadcast together to a common shape ``B`` in
@@ -1076,7 +1076,7 @@ def index_tensor(data, indices):
     * The result shape is ``B + data.shape[k:]`` (i.e. the broadcast
       shape followed by the remaining axes of ``data`` that are *not*
       indexed).
-    *  ``k`` must not exceed ``data.ndim``; otherwise a compile‑time
+    *  ``k`` must not exceed ``data.ndim``; otherwise a compile-time
        error is raised.
 
     Parameters

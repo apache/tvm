@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, redefined-builtin, no-else-return, consider-using-dict-items
+# ruff: noqa: RUF005
 """The Relax virtual machine."""
 
 from enum import IntEnum
@@ -223,7 +224,7 @@ class VirtualMachine:
         elif isinstance(arg, str):
             cargs.append(arg)
         else:
-            raise TypeError("Unsupported type: %s" % (type(arg)))
+            raise TypeError(f"Unsupported type: {type(arg)}")
 
     def _convert_func_named_args(self, func_name: str, args: Any, **kwargs: Any) -> Any:
         """

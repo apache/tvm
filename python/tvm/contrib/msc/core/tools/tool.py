@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
+# ruff: noqa: RUF012
 """tvm.contrib.msc.core.tools.base_tool"""
 
 import copy
 import logging
 import os
 from itertools import product
-from typing import Any, Dict, Iterable, List, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -68,7 +69,7 @@ class ToolExecutor:
         The config for execute
     """
 
-    def __init__(self, name: str, method: callable, config: dict = None):
+    def __init__(self, name: str, method: callable, config: Optional[dict] = None):
         self._name = name
         self._method = method
         self._config = config or {}
@@ -95,7 +96,12 @@ class ToolExecutor:
         kwargs.update(self._config)
         return self._method(*args, **kwargs)
 
-    def copy(self, name: str = None, method: callable = None, config: dict = None):
+    def copy(
+        self,
+        name: Optional[str] = None,
+        method: Optional[callable] = None,
+        config: Optional[dict] = None,
+    ):
         """Copy a executor
 
         Parameters
@@ -208,7 +214,7 @@ class ToolStrategy:
         if not self._stage:
             self._stage = stage
 
-    def get_executor(self, stage: str = None) -> Tuple[callable, dict]:
+    def get_executor(self, stage: Optional[str] = None) -> Tuple[callable, dict]:
         """Get executor of current stage
 
         Parameters
@@ -250,10 +256,10 @@ class ToolStrategy:
 
     def copy(
         self,
-        name: str = None,
-        tensor_type: str = None,
-        stage: str = None,
-        configs: Dict[str, dict] = None,
+        name: Optional[str] = None,
+        tensor_type: Optional[str] = None,
+        stage: Optional[str] = None,
+        configs: Optional[Dict[str, dict]] = None,
     ):
         """Copy a strategy
 
@@ -319,10 +325,10 @@ class BaseTool:
         strategys: List[dict],
         training: bool = False,
         cache_processed: bool = True,
-        options: dict = None,
+        options: Optional[dict] = None,
         debug_level: int = 0,
         verbose_step: int = 50,
-        logger: logging.Logger = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self._tag = tag
         self._stage = stage
@@ -1134,8 +1140,7 @@ class BaseTool:
         """
 
         for g in self._graphs:
-            for n in g.get_nodes():
-                yield n
+            yield from g.get_nodes()
 
     def find_node(self, name: str) -> MSCJoint:
         """Find node by name.
@@ -1166,8 +1171,7 @@ class BaseTool:
         """
 
         for graph in self._graphs:
-            for tensor in graph.get_tensors():
-                yield tensor
+            yield from graph.get_tensors()
 
     def get_tensor_ids(self) -> Iterable[MSCTensor]:
         """Get all the tensor ids in the graphs.
@@ -1547,8 +1551,7 @@ class WeightTool(BaseTool):
         """
 
         for g in self._weight_graphs:
-            for n in g.get_nodes():
-                yield n
+            yield from g.get_nodes()
 
     def has_w_node(self, name: str) -> bool:
         """Check if name in weight_graphs.

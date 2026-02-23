@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.core.tools.configer"""
 
-from typing import Union
+from typing import Optional, Union
 
 from tvm.contrib.msc.core import utils as msc_utils
 
@@ -26,7 +26,7 @@ from .tool import ToolType
 class ToolConfiger:
     """Base configer for tool"""
 
-    def config(self, raw_config: dict = None) -> dict:
+    def config(self, raw_config: Optional[dict] = None) -> dict:
         """Get the config
 
         Parameters

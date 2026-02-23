@@ -15,6 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402, E501, F841, RUF012
 
 import argparse
 import json
@@ -193,7 +194,7 @@ class PR:
         owner: str,
         repo: str,
         dry_run: bool = False,
-        raw_data: Dict[str, Any] = None,
+        raw_data: Optional[Dict[str, Any]] = None,
     ):
         self.owner = owner
         self.number = number

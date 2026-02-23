@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 """
 .. _opt_llm:
@@ -377,7 +378,7 @@ pprint(named_params[:5])  # Only show the first 5 parameters for demonstration
 
 @register_pipeline("opt_llm")
 def _pipeline(  # pylint: disable=too-many-arguments
-    ext_mods: List[nn.ExternModule] = None,
+    ext_mods: Optional[List[nn.ExternModule]] = None,
 ):
     ext_mods = ext_mods or []
 

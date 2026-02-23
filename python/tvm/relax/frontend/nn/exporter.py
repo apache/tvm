@@ -16,6 +16,8 @@
 # under the License.
 """Export `nn.Module` to TVM's IRModule."""
 
+import functools
+import operator
 import threading
 import typing
 
@@ -226,7 +228,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
             effect_input = effect.create(name)
             effect.set_state(effect_input)
             unflat_inputs.append(effect_input)
-        inputs: typing.List[rx.Var] = sum(unflat_inputs, [])
+        inputs: typing.List[rx.Var] = functools.reduce(operator.iadd, unflat_inputs, [])
         if mode == "none":
             return []
         if mode == "plain":

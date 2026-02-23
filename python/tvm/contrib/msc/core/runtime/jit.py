@@ -18,7 +18,7 @@
 """tvm.contrib.msc.core.runtime.jit_model"""
 
 import logging
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools import ToolType
@@ -55,8 +55,8 @@ class BaseJIT:
         outputs: List[str],
         device: str = "cpu",
         training: bool = False,
-        hooks: dict = None,
-        logger: logging.Logger = None,
+        hooks: Optional[dict] = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self._model = model
         self._jit_model = model
@@ -174,7 +174,9 @@ class BaseJIT:
         tools = {n: r["runner"].get_tool(tool_type) for n, r in self._runner_ctxs.items()}
 
         def _finalize_tool(
-            checker: callable, post_batch: callable = None, post_iter: callable = None
+            checker: callable,
+            post_batch: Optional[callable] = None,
+            post_iter: Optional[callable] = None,
         ):
             while any(not checker(t) for t in tools.values()):
                 assert data_loader, "data_loader should be given to make plan for " + tool_type

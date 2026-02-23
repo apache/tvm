@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E731, E741, F401, F811
 """Relax transformation passes."""
 
 import functools
@@ -1372,7 +1373,7 @@ def AlterOpImpl(
 
 def ConvertLayout(
     desired_layouts: Dict[str, List[str]],
-    layout_cb: Callable = None,
+    layout_cb: Optional[Callable] = None,
 ) -> tvm.ir.transform.Pass:
     """Automatic layout conversion pass.
 

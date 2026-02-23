@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F403
 """TVM Script APIs of TVM Python Package for Relax"""
 
 from .parser.relax import *  # pylint: disable=redefined-builtin,unused-wildcard-import,wildcard-import

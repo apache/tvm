@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring,unused-import
+# ruff: noqa: E501, F401
 """Intrinsics for ARM tensorization."""
 
 from tvm import tir

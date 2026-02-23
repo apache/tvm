@@ -109,7 +109,7 @@ def _vmlink(
     target: Optional[Union[str, tvm.target.Target]],
     tir_mod: Optional[tvm.IRModule] = None,
     tir_pipeline: Optional[Union[str, tvm.transform.Pass]] = "default",
-    ext_libs: List[tvm.runtime.Module] = None,
+    ext_libs: Optional[List[tvm.runtime.Module]] = None,
     params: Optional[Dict[str, list]] = None,
     *,
     system_lib: Optional[bool] = None,

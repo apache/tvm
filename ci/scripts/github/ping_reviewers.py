@@ -15,6 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402, E501, F821
 
 import argparse
 import datetime
@@ -23,7 +24,7 @@ import re
 import sys
 import textwrap
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -34,7 +35,7 @@ from git_utils import git, parse_remote
 GIT_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 
-def prs_query(user: str, repo: str, cursor: str = None):
+def prs_query(user: str, repo: str, cursor: Optional[str] = None):
     after = ""
     if cursor is not None:
         after = f', before:"{cursor}"'

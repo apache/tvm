@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 """Meta Schedule MeasureCallback."""
 
-from typing import TYPE_CHECKING, Callable, List, Union
+from typing import TYPE_CHECKING, Callable, List, Optional, Union
 
 # isort: off
 from typing_extensions import Literal
@@ -92,7 +93,7 @@ class _PyMeasureCallback(MeasureCallback):
     See also: PyMeasureCallback
     """
 
-    def __init__(self, f_apply: Callable, f_as_string: Callable = None):
+    def __init__(self, f_apply: Callable, f_as_string: Optional[Callable] = None):
         """Constructor."""
 
         self.__init_handle_by_constructor__(

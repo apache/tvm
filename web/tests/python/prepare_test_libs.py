@@ -45,7 +45,7 @@ def prepare_relax_lib(base_path):
 def prepare_tir_lib(base_path):
     target = {"kind": "llvm", "mtriple": "wasm32-unknown-unknown-wasm"}
     if not tvm.runtime.enabled("llvm"):
-        raise RuntimeError("Target %s is not enbaled" % target)
+        raise RuntimeError(f"Target {target} is not enbaled")
     n = te.var("n")
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")

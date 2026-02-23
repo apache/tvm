@@ -18,7 +18,7 @@
 """tvm.contrib.msc.core.transform.pattern"""
 
 from functools import partial
-from typing import Dict, List, Mapping, Tuple
+from typing import Dict, List, Mapping, Optional, Tuple
 
 import tvm
 from tvm.contrib.msc.core import _ffi_api
@@ -32,8 +32,8 @@ from tvm.relax.transform import PatternCheckContext
 def msc_attrs_getter(
     annotated_expr: Dict[str, tvm.relax.Expr],
     anchor: str = "out",
-    output: str = None,
-    inputs: List[str] = None,
+    output: Optional[str] = None,
+    inputs: Optional[List[str]] = None,
 ) -> Dict[str, str]:
     """Get attributes for fused pattern
 

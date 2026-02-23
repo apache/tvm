@@ -20,7 +20,7 @@
 import json
 import os
 import shutil
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -69,7 +69,7 @@ def random_data(
     info: Union[List, Tuple, dict],
     framework: str = MSCFramework.MSC,
     device: str = "cpu",
-    max_val: int = None,
+    max_val: Optional[int] = None,
 ) -> Any:
     """Create random data from info
 
@@ -365,7 +365,7 @@ class BaseDataSaver:
     def __init__(
         self,
         folder: str,
-        options: dict = None,
+        options: Optional[dict] = None,
         start: int = 0,
         max_size: int = -1,
     ):
@@ -557,7 +557,7 @@ class IODataSaver(BaseDataSaver):
     def save_batch(
         self,
         inputs: Union[Dict[str, np.ndarray], List[np.ndarray]],
-        outputs: Union[Dict[str, np.ndarray], List[np.ndarray]] = None,
+        outputs: Optional[Union[Dict[str, np.ndarray], List[np.ndarray]]] = None,
     ) -> int:
         """Save 1 batch inputs and outputs.
 

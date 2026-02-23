@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F403
 """JSON Database validation script"""
 
 import argparse
@@ -21,7 +22,7 @@ import itertools
 import logging
 import warnings
 from statistics import mean
-from typing import Any, Callable, List, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np  # type: ignore
 from tvm_ffi import get_global_func, register_global_func
@@ -327,13 +328,13 @@ def print_with_counter_func(counter: int, total: int) -> Callable:
         *,
         original_mod: IRModule = None,
         scheduled_mod: IRModule = None,
-        inputs: List[np.ndarray] = None,
-        original_res: List[np.ndarray] = None,
-        scheduled_res: List[np.ndarray] = None,
-        original_run_secs: List[float] = None,
-        scheduled_run_secs: List[float] = None,
-        exception: Exception = None,
-        trace: str = None,
+        inputs: Optional[List[np.ndarray]] = None,
+        original_res: Optional[List[np.ndarray]] = None,
+        scheduled_res: Optional[List[np.ndarray]] = None,
+        original_run_secs: Optional[List[float]] = None,
+        scheduled_run_secs: Optional[List[float]] = None,
+        exception: Optional[Exception] = None,
+        trace: Optional[str] = None,
     ) -> None:
         """Print the validation result."""
         status = f"Progress {counter: 6d} / {total: 6d} (estimated) checked, result: {result:>10}, "

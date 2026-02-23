@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, wrong-import-order, no-member, invalid-name, unused-import
+# ruff: noqa: F401
 
 """IRBuilder for distributed Relax dialect"""
 

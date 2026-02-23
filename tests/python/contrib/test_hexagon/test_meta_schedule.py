@@ -186,7 +186,7 @@ def verify_dense(sch, target, m_size, n_size, k_size, hexagon_session):
     evaluator = mod.time_evaluator(mod.entry_name, dev, number=10)
     gflops = (n_size * m_size * k_size) * 2 / 1e9
     time_ms = evaluator(a, b, c).mean * 1e3
-    print("%f ms, %f GOPS" % (time_ms, gflops / (time_ms / 1e3)))
+    print(f"{time_ms:f} ms, {gflops / (time_ms / 1e3):f} GOPS")
 
 
 @tvm.testing.requires_hexagon

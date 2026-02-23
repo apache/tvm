@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: RUF012
 """Internal PopenWorker for PopenPool."""
 
 import logging

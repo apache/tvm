@@ -17,7 +17,7 @@
 """The entry point of TVM parser."""
 
 import inspect
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 import tvm
 
@@ -56,7 +56,7 @@ def _default_globals() -> Dict[str, Any]:
     return extra_vars
 
 
-def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> Any:
+def scan_macro(program: Union[Any, str], extra_vars: Optional[Dict[str, Any]] = None) -> Any:
     """Generate the AST, and the source code for __repr__."""
     # The AST will be converted into TIR at the time of expansion.
     source = Source(program)
@@ -66,7 +66,7 @@ def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> A
 
 def parse(
     program: Union[doc.AST, Any, str],
-    extra_vars: Dict[str, Any] = None,
+    extra_vars: Optional[Dict[str, Any]] = None,
     check_well_formed: bool = True,
 ) -> Any:
     """Register a method for a operand type, AST operator node and operand index.

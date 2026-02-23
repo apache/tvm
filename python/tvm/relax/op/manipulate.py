@@ -534,11 +534,11 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
 
 
 def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
-    """Advanced‑tensor indexing (NumPy/PyTorch‐style).
+    """Advanced-tensor indexing (NumPy/PyTorch-style).
 
-    Given k index tensors ``indices = (I0, I1, …, Ik‑1)`` this
+    Given k index tensors ``indices = (I0, I1, …, Ik-1)`` this
     operator selects elements from ``data`` as if one had written
-    ``data[I0, I1, …, Ik‑1]`` in NumPy/PyTorch:
+    ``data[I0, I1, …, Ik-1]`` in NumPy/PyTorch:
 
     All index tensors must have an integer dtype.
 
@@ -549,9 +549,9 @@ def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
     shape followed by the remaining axes of ``data`` that are *not*
     indexed).
 
-    At compile‑time Relax checks that the number of index tensors
+    At compile-time Relax checks that the number of index tensors
     ``k`` does not exceed ``data.ndim``, that the dtypes are integer,
-    and that the shapes are consitent (broadcast‑compatible).
+    and that the shapes are consitent (broadcast-compatible).
 
     Parameters
     ----------

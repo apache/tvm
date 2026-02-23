@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
 """Helper tool to check and fix ASF headers in source files tracked by git.
 
 Ported from tvm-ffi. Replaces the previous RAT-based check_asf_header.sh

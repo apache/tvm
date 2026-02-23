@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """This module defines a Session in Disco. Session is the primary interface that users interact
 with the distributed runtime.
 """

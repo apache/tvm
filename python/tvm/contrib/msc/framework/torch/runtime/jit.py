@@ -18,7 +18,7 @@
 """tvm.contrib.msc.framework.torch.runtime.jit_model"""
 
 from functools import partial
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 from torch import _dynamo as dynamo
@@ -178,7 +178,10 @@ class TorchJIT(BaseJIT):
 
     @classmethod
     def dump_nativate(
-        cls, model: torch.nn.Module, folder: msc_utils.MSCDirectory, dump_config: dict = None
+        cls,
+        model: torch.nn.Module,
+        folder: msc_utils.MSCDirectory,
+        dump_config: Optional[dict] = None,
     ) -> str:
         """Dump the nativate model
 

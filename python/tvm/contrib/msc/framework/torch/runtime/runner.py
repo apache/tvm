@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import
+# ruff: noqa: F401
 """tvm.contrib.msc.framework.torch.runtime.runner"""
 
 import time
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -252,7 +253,7 @@ class TorchRunner(ModelRunner):
         cls,
         model: torch.nn.Module,
         folder: msc_utils.MSCDirectory,
-        dump_config: dict = None,
+        dump_config: Optional[dict] = None,
     ) -> str:
         """Dump the nativate model
 

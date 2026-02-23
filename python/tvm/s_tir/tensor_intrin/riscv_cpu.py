@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,line-too-long
+# ruff: noqa: E501
 """Intrinsics for RISCV tensorization"""
 
 import logging

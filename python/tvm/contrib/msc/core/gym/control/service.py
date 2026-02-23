@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 """tvm.contrib.msc.core.gym.control.service"""
 
 import copy
@@ -22,7 +23,7 @@ import queue
 import time
 from functools import partial, reduce
 from multiprocessing import Manager
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -53,7 +54,7 @@ def _send_message(msg_queue: queue.Queue, header: str, body: dict, header_type: 
 def _wait_message(
     msg_queue: queue.Queue,
     header: str,
-    checker: callable = None,
+    checker: Optional[callable] = None,
     wait_time: int = 2,
     max_retry: int = -1,
     header_type: str = "message",
@@ -81,7 +82,7 @@ def _wait_message(
         The message body
     """
 
-    def _check_message(message: dict, checker: callable = None) -> bool:
+    def _check_message(message: dict, checker: Optional[callable] = None) -> bool:
         """Check the message
 
         Parameters
@@ -160,13 +161,13 @@ class BaseService:
         workspace: msc_utils.MSCDirectory,
         env: Dict[str, Any],
         agent: Dict[str, Any],
-        tasks: List[str] = None,
-        dist_manager: Manager = None,
+        tasks: Optional[List[str]] = None,
+        dist_manager: Optional[Manager] = None,
         world_size: int = 1,
         max_iter: int = 1,
         record_step: int = 5,
         debug_level: int = 0,
-        verbose: str = None,
+        verbose: Optional[str] = None,
     ):
         self._workspace = workspace
         tasks = tasks or [GYMObject.ENV + ":0", GYMObject.AGENT + ":0"]
@@ -322,7 +323,7 @@ class BaseService:
     def _wait_request(
         self,
         msg_key: str,
-        checker: callable = None,
+        checker: Optional[callable] = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:
@@ -345,7 +346,7 @@ class BaseService:
     def _wait_response(
         self,
         msg_key: str,
-        checker: callable = None,
+        checker: Optional[callable] = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:
@@ -597,7 +598,7 @@ class MainService(BaseService):
         self,
         msg_key: str,
         requests: List[dict],
-        checker: callable = None,
+        checker: Optional[callable] = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:

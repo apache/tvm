@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 """Meta Schedule Mutator."""
 
 from typing import TYPE_CHECKING, Callable, Dict, Optional
@@ -124,10 +125,10 @@ class _PyMutator(Mutator):
 
     def __init__(
         self,
-        f_initialize_with_tune_context: Callable = None,
-        f_apply: Callable = None,
-        f_clone: Callable = None,
-        f_as_string: Callable = None,
+        f_initialize_with_tune_context: Optional[Callable] = None,
+        f_apply: Optional[Callable] = None,
+        f_clone: Optional[Callable] = None,
+        f_as_string: Optional[Callable] = None,
     ):
         """Constructor."""
 

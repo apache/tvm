@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
+# ruff: noqa: RUF012
 """Loss functions library for relax."""
 
 from typing import Optional, Union

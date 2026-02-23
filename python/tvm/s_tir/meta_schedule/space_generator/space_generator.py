@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 """
 Meta Schedule design space generators that generates design
 space for generation of measure candidates.

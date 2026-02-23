@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
 """Configure pytest"""
 
 # pylint: disable=invalid-name
@@ -68,7 +69,7 @@ def verify_batch_matmul(batch, m, k, n, lib, transa=False, transb=False, dtype="
 
     def verify(target="rocm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func(lib.__name__ + ".batch_matmul", True):
             print("skip because extern function is not available")

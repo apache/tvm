@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 """Meta Schedule builders that translate IRModule to runtime.Module, and then export"""
 
 from typing import Callable, Dict, List, Optional, Union
@@ -167,7 +168,7 @@ class _PyBuilder(Builder):
     See also: PyBuilder
     """
 
-    def __init__(self, f_build: Callable = None):
+    def __init__(self, f_build: Optional[Callable] = None):
         """Constructor."""
 
         self.__init_handle_by_constructor__(

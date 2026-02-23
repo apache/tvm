@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 """tvm.contrib.msc.core.utils.message"""
 
 import datetime
 import logging
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from .arguments import dump_dict, map_dict
 from .log import get_global_logger, split_line
@@ -61,7 +62,7 @@ class MSCStage:
         return cls.ALL
 
 
-def time_stamp(stage: str, log_stage: bool = True, logger: logging.Logger = None):
+def time_stamp(stage: str, log_stage: bool = True, logger: Optional[logging.Logger] = None):
     """Mark the stamp and record time.
 
     Parameters

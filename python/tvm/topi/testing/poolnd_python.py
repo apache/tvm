@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, unused-variable
+# ruff: noqa: RUF005
 """Ground truth max and average pooling operators in python."""
 
 import itertools

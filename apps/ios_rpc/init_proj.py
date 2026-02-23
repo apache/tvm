@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import argparse
-import re
 
 default_team_id = "3FR42MXLK9"
 default_tvm_build_dir = "path-to-tvm-ios-build-folder"

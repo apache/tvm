@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=consider-using-with, unnecessary-ellipsis
+# ruff: noqa: RUF005, RUF012
 
 """Defines top-level glue functions for building Hexagon."""
 
@@ -32,7 +33,7 @@ import string
 import subprocess
 import sys
 import tempfile
-from typing import Union
+from typing import Optional, Union
 
 from tvm_ffi import libinfo
 
@@ -57,8 +58,7 @@ def _check_call_verbose(cmd, **kwargs) -> None:
             cmd,
             check=True,
             encoding="UTF-8",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             **kwargs,
         )
     except subprocess.CalledProcessError as err:
@@ -191,7 +191,10 @@ class HexagonLauncherRPC(metaclass=abc.ABCMeta):
     """
 
     def __init__(
-        self, rpc_info: dict, workspace: Union[str, pathlib.Path] = None, serial_number: str = None
+        self,
+        rpc_info: dict,
+        workspace: Optional[Union[str, pathlib.Path]] = None,
+        serial_number: Optional[str] = None,
     ):
         self._rpc_info = {
             "rpc_tracker_host": "0.0.0.0",
@@ -331,7 +334,7 @@ class HexagonLauncherAndroid(HexagonLauncherRPC):
         self,
         serial_number: str,
         rpc_info: dict,
-        workspace: Union[str, pathlib.Path] = None,
+        workspace: Optional[Union[str, pathlib.Path]] = None,
         hexagon_debug: bool = False,
         clear_logcat: bool = False,
         sysmon_profile: bool = False,
@@ -656,7 +659,7 @@ class HexagonLauncherSimulator(HexagonLauncherRPC):
 
     SIMULATOR_HEXAGON_RPC_FILES = ["tvm_rpc_x86", "libhexagon_rpc_sim.so"]
 
-    def __init__(self, rpc_info: dict, workspace: Union[str, pathlib.Path] = None):
+    def __init__(self, rpc_info: dict, workspace: Optional[Union[str, pathlib.Path]] = None):
         """Configure a new HexagonLauncherSimulator
 
         Parameters are same as for HexagonLauncherRPC.
@@ -827,7 +830,7 @@ def farf_config_from_python_log_level(level) -> str:
 def HexagonLauncher(
     serial_number: str,
     rpc_info: dict,
-    workspace: Union[str, pathlib.Path] = None,
+    workspace: Optional[Union[str, pathlib.Path]] = None,
     hexagon_debug: bool = False,
     clear_logcat: bool = False,
     sysmon_profile: bool = False,

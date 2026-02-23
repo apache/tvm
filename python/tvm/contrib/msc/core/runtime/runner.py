@@ -83,7 +83,7 @@ class BaseRunner:
         plugin: Any = None,
         name: str = "main",
         debug_level: int = 0,
-        logger: logging.Logger = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self._mod = mod
         if tools_config:
@@ -174,7 +174,7 @@ class BaseRunner:
         self,
         cache_dir: msc_utils.MSCDirectory = None,
         force_build: bool = False,
-        disable_tools: List[str] = None,
+        disable_tools: Optional[List[str]] = None,
     ) -> Any:
         """Build the runnable object
 
@@ -390,9 +390,9 @@ class BaseRunner:
 
     def reset_tools(
         self,
-        graphs: List[MSCGraph] = None,
-        weights: List[Dict[str, tvm.runtime.Tensor]] = None,
-        tools: List[BaseTool] = None,
+        graphs: Optional[List[MSCGraph]] = None,
+        weights: Optional[List[Dict[str, tvm.runtime.Tensor]]] = None,
+        tools: Optional[List[BaseTool]] = None,
         cache_dir: msc_utils.MSCDirectory = None,
     ):
         """Reset the tools
@@ -647,7 +647,9 @@ class BaseRunner:
         """
 
         def _finalize_tool(
-            checker: callable, post_batch: callable = None, post_iter: callable = None
+            checker: callable,
+            post_batch: Optional[callable] = None,
+            post_iter: Optional[callable] = None,
         ):
             tool = self.get_tool(tool_type)
             while not checker(tool):
@@ -770,7 +772,7 @@ class BaseRunner:
         return self._model_info["outputs"]
 
     def get_weights(
-        self, framework: str = None, device: str = None
+        self, framework: Optional[str] = None, device: Optional[str] = None
     ) -> Iterable[tvm.runtime.Tensor]:
         """Get the weights from graphs
 
@@ -1081,7 +1083,7 @@ class BaseRunner:
 
     @classmethod
     def dump_nativate(
-        cls, model: Any, folder: msc_utils.MSCDirectory, dump_config: dict = None
+        cls, model: Any, folder: msc_utils.MSCDirectory, dump_config: Optional[dict] = None
     ) -> str:
         """Dump the nativate model
 

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: F821
 """Common functions and classes for CUTLASS GEMM and Conv2d geneator."""
 
 import logging

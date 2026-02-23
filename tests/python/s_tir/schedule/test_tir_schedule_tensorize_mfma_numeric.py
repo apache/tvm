@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+# ruff: noqa: E501
 import numpy as np
 
 import tvm

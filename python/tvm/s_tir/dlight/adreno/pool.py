@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+# ruff: noqa: F841
 """Pool schedule rule for Adreno operators."""
 
 from tvm import s_tir, tir

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin,missing-docstring, invalid-name, unused-import, redefined-outer-name
+# ruff: noqa: F401
 
 from typing import Any, Dict, List, Optional, Set, Union
 

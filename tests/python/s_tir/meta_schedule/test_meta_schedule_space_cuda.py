@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401
 """Tests for MetaSchedule search space on CUDA"""
 
 from tvm.s_tir import meta_schedule as ms

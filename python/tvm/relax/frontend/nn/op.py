@@ -726,7 +726,7 @@ def broadcast_to(x: Tensor, shape: Sequence[IntExpr], name: str = "broadcast_to"
     return wrap_nested(_op.broadcast_to(x._expr, shape), name)
 
 
-def permute_dims(x: Tensor, axes: Optional[List[int]] = None, name: str = None) -> Tensor:
+def permute_dims(x: Tensor, axes: Optional[List[int]] = None, name: Optional[str] = None) -> Tensor:
     """Permutes the dimensions of an array.
 
     Parameters

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741, F401, F841
 
 import numpy as np
 import pytest
@@ -113,7 +114,7 @@ def test_buffer_index_merge_mult_mod():
     def assert_simplified_equal(index_simplified, index_direct):
         (
             tvm.ir.assert_structural_equal(index_simplified, index_direct),
-            "index_simplified=%s, index_direct=%s" % (index_simplified, index_direct),
+            f"index_simplified={index_simplified}, index_direct={index_direct}",
         )
 
     idxd = tvm.tir.indexdiv

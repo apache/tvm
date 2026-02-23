@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
+# ruff: noqa: RUF005
 """PyTorch-like nn.Module API for constructing workloads."""
 
 import typing

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
+# ruff: noqa: E741
 """LRN in python"""
 
 from itertools import product

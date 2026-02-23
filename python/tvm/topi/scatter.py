@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E741
 """ScatterND operator"""
 
 from tvm import te, tir  # hide redefinition of min and max

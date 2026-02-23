@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821, F841
 
 import ctypes
 
@@ -33,7 +34,7 @@ def test_cuda_multi_lib():
     dev = tvm.cuda(0)
     for device in ["llvm", "cuda"]:
         if not tvm.testing.device_enabled(device):
-            print("skip because %s is not enabled..." % device)
+            print(f"skip because {device} is not enabled...")
             return
 
     @tvm.script.ir_module

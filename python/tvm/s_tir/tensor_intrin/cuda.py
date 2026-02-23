@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring,unused-variable
+# ruff: noqa: E731
 """Intrinsics for tensorization on NVIDIA GPU."""
 
 from typing import Dict, Literal, Optional, Tuple

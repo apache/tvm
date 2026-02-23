@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
+# ruff: noqa: RUF005
 """tvm.contrib.msc.framework.tvm.tools.quantize.quantizer"""
 
 from typing import List, Union

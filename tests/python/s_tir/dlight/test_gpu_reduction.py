@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring,line-too-long,invalid-name,too-few-public-methods,too-many-locals
+# ruff: noqa: E501, F841
 
 import tvm.testing
 from tvm.ir import assert_structural_equal

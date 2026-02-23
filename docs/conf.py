@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402, E501, F401
 
 #
 # documentation build configuration file, created by
@@ -58,7 +59,7 @@ sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 # General information about the project.
 project = "tvm"
 author = "Apache Software Foundation"
-copyright = "2020 - 2023, %s" % author
+copyright = f"2020 - 2023, {author}"
 github_doc_root = "https://github.com/apache/tvm/tree/main/docs/"
 
 os.environ["TVM_BUILD_DOC"] = "1"
@@ -71,7 +72,7 @@ def git_describe_version(original_version):
     exec(compile(open(ver_py, "rb").read(), ver_py, "exec"), libver, libver)
     _, gd_version = libver["git_describe_version"]()
     if gd_version != original_version:
-        print("Use git describe based version %s" % gd_version)
+        print(f"Use git describe based version {gd_version}")
     return gd_version
 
 
@@ -391,7 +392,7 @@ latex_elements = {}
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (main_doc, "%s.tex" % project, project, author, "manual"),
+    (main_doc, f"{project}.tex", project, author, "manual"),
 ]
 
 intersphinx_mapping = {
@@ -436,7 +437,7 @@ class WithinSubsectionOrder:
         ):
             index = within_subsection_order[self.src_dir].index(filename)
             assert index < 1e10
-            return "\0%010d" % index
+            return f"\0{index:010d}"
 
         # Otherwise, sort by filename
         return filename
@@ -468,9 +469,8 @@ sphinx_gallery_conf = {
     "download_all_examples": False,
     "min_reported_time": 60,
     "expected_failing_examples": [],
-    "reset_modules": ("matplotlib", "seaborn", force_gc),
+    "reset_modules": ("matplotlib", "seaborn", force_gc, install_request_hook),
     "promote_jupyter_magic": True,
-    "reset_modules": (install_request_hook),
 }
 
 autodoc_default_options = {
@@ -603,7 +603,7 @@ def update_alias_docstring(name, obj, lines):
 
         if hasattr(sys.modules[amod], target_name):
             obj_type = ":py:func" if callable(obj) else ":py:class"
-            lines.append(".. rubric:: Alias of %s:`%s.%s`" % (obj_type, amod, target_name))
+            lines.append(f".. rubric:: Alias of {obj_type}:`{amod}.{target_name}`")
 
 
 tvm_class_name_rewrite_map = {

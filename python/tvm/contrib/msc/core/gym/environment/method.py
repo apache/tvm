@@ -17,7 +17,7 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.gym.agent.method"""
 
-from typing import Any, List
+from typing import Any, List, Optional
 
 import numpy as np
 
@@ -60,7 +60,7 @@ class EnvMethod:
         data_loader: callable,
         task_id: int,
         loss_type: str = "lp_norm",
-        loss_config: dict = None,
+        loss_config: Optional[dict] = None,
     ) -> dict:
         """Reward runner with baseline
 

@@ -18,7 +18,7 @@
 
 import copy
 import logging
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.gym.namespace import GYMObject
@@ -56,11 +56,11 @@ class BaseEnv:
         data_loader: Any,
         workspace: msc_utils.MSCDirectory,
         executors: dict,
-        knowledge: dict = None,
-        options: dict = None,
+        knowledge: Optional[dict] = None,
+        options: Optional[dict] = None,
         max_tasks: int = -1,
         debug_level: int = 0,
-        logger: logging.Logger = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self._name = name
         self._runner = runner

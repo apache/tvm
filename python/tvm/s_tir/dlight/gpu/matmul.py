@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring, invalid-name
+# ruff: noqa: E722
 """A GEMM schedule rule for GPU operators."""
 
 from dataclasses import dataclass

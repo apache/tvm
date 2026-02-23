@@ -48,7 +48,7 @@ def rpc_proxy_check():
                 return
 
             server = multiprocessing.Process(
-                target=proxy.websocket_proxy_server, args=("ws://localhost:%d/ws" % web_port, "x1")
+                target=proxy.websocket_proxy_server, args=(f"ws://localhost:{web_port}/ws", "x1")
             )
             # Need to make sure that the connection start after proxy comes up
             time.sleep(0.1)

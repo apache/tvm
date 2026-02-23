@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import
+# ruff: noqa: F401
 """tvm.contrib.msc.framework.tensorrt.runtime.runner"""
 
 import os

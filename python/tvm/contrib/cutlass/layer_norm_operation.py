@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E501
 """Generator for CUTLASS layer norm kernels."""
 
 from .library import substitute_template

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, missing-function-docstring, abstract-method, missing-class-docstring
+# ruff: noqa: RUF005
 """Relax LazyTransformParams pass."""
 
 from typing import Optional

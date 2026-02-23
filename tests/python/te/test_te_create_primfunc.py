@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+# ruff: noqa: E501, F841
 import numpy as np
 import pytest
 

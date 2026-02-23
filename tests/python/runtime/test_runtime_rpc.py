@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E712, F841
 
 import multiprocessing
 import os
@@ -253,7 +254,7 @@ def test_rpc_remote_module():
         b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
         cost = time_f(a, b).mean
-        print("%g secs/op" % cost)
+        print(f"{cost:g} secs/op")
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
         # Download the file from the remote
@@ -493,7 +494,7 @@ def test_rpc_tracker_register(device_key):
     def exist_address(summary, key, host, port):
         server_info = summary["server_info"]
         for device in server_info:
-            if device["key"] == "server:%s" % key:
+            if device["key"] == f"server:{key}":
                 addr = device["addr"]
                 if (host is None or host == addr[0]) and port == addr[1]:
                     return True

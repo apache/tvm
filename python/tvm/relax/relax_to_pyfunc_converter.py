@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Relax to Python Function Converter.
 
 This module provides functionality to convert Relax functions to Python functions
@@ -363,7 +364,7 @@ class RelaxExpressionConverter:
         self,
         operator_map: Dict[str, str],
         ir_module: IRModule = None,
-        op_cache: Dict[str, str] = None,
+        op_cache: Optional[Dict[str, str]] = None,
     ):
         """Initialize the expression converter.
 
@@ -859,7 +860,7 @@ class RelaxExpressionConverter:
             # Handle different types of axis
             if hasattr(axis, "__iter__") and not isinstance(axis, str):
                 # It's an array/list, take the first element
-                axis = list(axis)[0] if len(axis) > 0 else None
+                axis = next(iter(axis)) if len(axis) > 0 else None
 
             # Handle TVM types
             if hasattr(axis, "value"):

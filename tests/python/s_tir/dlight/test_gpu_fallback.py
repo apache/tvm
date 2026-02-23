@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+# ruff: noqa: E501, E741, F841
 import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.s_tir import dlight as dl

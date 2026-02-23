@@ -47,7 +47,7 @@ def find_example_resource():
     for base in resource_bases:
         if not os.path.isdir(base):
             continue
-        for full_name in glob.glob("%s/**" % base, recursive=True):
+        for full_name in glob.glob(f"{base}/**", recursive=True):
             fname = os.path.relpath(full_name, base)
             dirname = os.path.dirname(fname)
             fmt = fname.rsplit(".", 1)[-1]
@@ -57,7 +57,7 @@ def find_example_resource():
     for item in resource_files:
         fname = item[-1]
         if not os.path.exists(fname):
-            raise RuntimeError("Cannot find %s" % fname)
+            raise RuntimeError(f"Cannot find {fname}")
 
     if not any(item[-1].endswith("rpc_plugin.html") for item in resource_files):
         resource_files.append(("/", default_plugin_page))

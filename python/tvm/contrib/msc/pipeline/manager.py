@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.pipeline.manager"""
 
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.gym.control import create_controller
@@ -90,7 +90,7 @@ class MSCManager(BasePipeline):
         return self._worker.tool_applied(tool_type)
 
     def _apply_tool(
-        self, tool_type: str, knowledge: dict = None, data_loader: Any = None
+        self, tool_type: str, knowledge: Optional[dict] = None, data_loader: Any = None
     ) -> Tuple[dict, dict]:
         """Apply tool with runner
 
@@ -116,9 +116,9 @@ class MSCManager(BasePipeline):
     def _create_runtime(
         self,
         stage: str,
-        tools: List[str] = None,
-        run_type: str = None,
-        run_config: dict = None,
+        tools: Optional[List[str]] = None,
+        run_type: Optional[str] = None,
+        run_config: Optional[dict] = None,
         visualize: bool = True,
         profile: bool = True,
         use_cache: bool = True,

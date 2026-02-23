@@ -15,13 +15,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
 import argparse
 import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -57,7 +58,7 @@ _commit_query_fields = """
 """
 
 
-def commits_query(user: str, repo: str, cursor: str = None):
+def commits_query(user: str, repo: str, cursor: Optional[str] = None):
     """
     Create a GraphQL query to find the last N commits along with their statuses
     and some metadata (paginated after 'cursor')

@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=import-outside-toplevel, unused-argument
+# ruff: noqa: E501
 """tvm.contrib.msc.pipeline.worker"""
 
 import logging
 import os
 import time
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -60,8 +61,8 @@ class BasePipeWorker:
         model: Any,
         config: dict,
         workspace: msc_utils.MSCDirectory,
-        plugins: dict = None,
-        logger: logging.Logger = None,
+        plugins: Optional[dict] = None,
+        logger: Optional[logging.Logger] = None,
         name: str = "main",
     ):
         # check/set default stage
@@ -128,7 +129,7 @@ class BasePipeWorker:
             {"inputs": self._config["inputs"], "outputs": self._config["outputs"]}
         )
 
-        def _set_debug_level(stage: str, sub_config: dict, default: int = None) -> dict:
+        def _set_debug_level(stage: str, sub_config: dict, default: Optional[int] = None) -> dict:
             if "debug_level" in sub_config:
                 debug_levels[stage] = sub_config["debug_level"]
             elif default is not None:
@@ -376,7 +377,7 @@ class BasePipeWorker:
         return os.path.isfile(config["plan_file"])
 
     def apply_tool(
-        self, tool_type: str, knowledge: dict = None, data_loader: Any = None
+        self, tool_type: str, knowledge: Optional[dict] = None, data_loader: Any = None
     ) -> Tuple[dict, dict]:
         """Apply tool with runner
 
@@ -415,9 +416,9 @@ class BasePipeWorker:
     def create_runner(
         self,
         stage: str,
-        tools: List[str] = None,
-        run_type: str = None,
-        run_config: dict = None,
+        tools: Optional[List[str]] = None,
+        run_type: Optional[str] = None,
+        run_config: Optional[dict] = None,
         visualize: bool = True,
         profile: bool = True,
         use_cache: bool = True,
@@ -670,7 +671,7 @@ class BasePipeWorker:
             return self._runner.model
         raise TypeError("Unexpect return type " + str(ret_type))
 
-    def _get_repeat(self, benchmark: dict, device: str = None) -> int:
+    def _get_repeat(self, benchmark: dict, device: Optional[str] = None) -> int:
         """Get the repeat number for benchmark
 
         Parameters

@@ -17,7 +17,7 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.pipeline.dynamic"""
 
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.runtime import BaseJIT
@@ -175,7 +175,7 @@ class MSCDynamic(BasePipeline):
         return all(w["worker"].tool_applied(tool_type) for w in self._worker_ctxs.values())
 
     def _apply_tool(
-        self, tool_type: str, knowledge: dict = None, data_loader: Any = None
+        self, tool_type: str, knowledge: Optional[dict] = None, data_loader: Any = None
     ) -> Tuple[dict, dict]:
         """Apply tool with runner
 
@@ -209,9 +209,9 @@ class MSCDynamic(BasePipeline):
     def _create_runtime(
         self,
         stage: str,
-        tools: List[str] = None,
-        run_type: str = None,
-        run_config: dict = None,
+        tools: Optional[List[str]] = None,
+        run_type: Optional[str] = None,
+        run_config: Optional[dict] = None,
         visualize: bool = True,
         profile: bool = True,
         use_cache: bool = True,
@@ -437,7 +437,7 @@ class MSCDynamic(BasePipeline):
 
         return outputs
 
-    def _record_stage(self, stage: str, info: dict = None, report: dict = None):
+    def _record_stage(self, stage: str, info: Optional[dict] = None, report: Optional[dict] = None):
         """Record the stage
 
         Parameters

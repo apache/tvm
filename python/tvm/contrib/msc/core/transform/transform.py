@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """tvm.contrib.msc.core.transform.transform"""
 
-from typing import Dict
+from typing import Dict, Optional
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -27,7 +27,7 @@ from tvm.relax.transform import _ffi_api
 def SetExprName(
     entry_name: str = "main",
     target: str = "",
-    var_names: Dict[str, str] = None,
+    var_names: Optional[Dict[str, str]] = None,
 ) -> tvm.ir.transform.Pass:
     """Set name for the call and constant in IRModule.
 

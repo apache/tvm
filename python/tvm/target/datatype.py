@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821
 """Bring Your Own Datatypes custom datatype framework
 
 TODO(@gussmith23 @hypercubestart) link to BYODT docs when they exist"""

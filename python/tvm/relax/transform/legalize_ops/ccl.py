@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: RUF005
 """Default legalization function for ccl operators."""
 
 from tvm import arith, tir, topi

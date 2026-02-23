@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 import numpy as np
 
 import tvm
@@ -75,7 +76,7 @@ def test_rocm_copy():
 @tvm.testing.requires_rocm
 def test_rocm_vectorize_add():
     def check_rocm(dtype, n, lanes):
-        vec_dtype = "%sx%d" % (dtype, lanes)
+        vec_dtype = f"{dtype}x{lanes}"
         num_blocks = n // 4
 
         @I.ir_module

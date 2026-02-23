@@ -88,7 +88,7 @@ def _make_mutator(target: Target, max_jobs_per_core: int) -> ms.Mutator:
             mutator_probs={ms.mutator.MutateParallel(max_jobs_per_core): 1.0},
         ),
     )
-    return list(ctx.space_generator.mutator_probs.keys())[0]
+    return next(iter(ctx.space_generator.mutator_probs.keys()))
 
 
 def test_mutate_parallel_matmul():

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, RUF005
 """Test various CI scripts and GitHub Actions workflows"""
 
 import json

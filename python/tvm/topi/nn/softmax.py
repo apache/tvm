@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, pointless-exception-statement
+# ruff: noqa: RUF005
 """TVM operator for softmax and log_softmax compute."""
 
 import tvm

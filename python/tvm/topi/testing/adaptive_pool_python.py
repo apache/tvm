@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, unused-variable
+# ruff: noqa: E741, RUF005
 """adaptive pool in python"""
 
 import numpy as np

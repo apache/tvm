@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 """Meta Schedule CostModel."""
 
 import ctypes
-from typing import Callable, List, Union
+from typing import Callable, List, Optional, Union
 
 # isort: off
 from typing_extensions import Literal
@@ -163,11 +164,11 @@ class _PyCostModel(CostModel):
 
     def __init__(
         self,
-        f_load: Callable = None,
-        f_save: Callable = None,
-        f_update: Callable = None,
-        predict_func: Callable = None,
-        f_as_string: Callable = None,
+        f_load: Optional[Callable] = None,
+        f_save: Optional[Callable] = None,
+        f_update: Optional[Callable] = None,
+        predict_func: Optional[Callable] = None,
+        f_as_string: Optional[Callable] = None,
     ):
         """Constructor."""
 

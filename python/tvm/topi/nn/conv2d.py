@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, too-many-locals
 # pylint: disable=unused-argument, redefined-builtin
+# ruff: noqa: F841, RUF005
 """Conv2D operators"""
 
 from __future__ import absolute_import as _abs

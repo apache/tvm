@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, E731, E741, F841, RUF005
 """ONNX: Open Neural Network Exchange importer for Relax.
 
 This module implements the required functionality to read ONNX models
@@ -274,7 +275,7 @@ class onnx_input(list):  # pylint: disable=invalid-name
             return [self[i] for i in indices]
         if isinstance(item, int):
             return list(self)[item] if item < len(self) else None
-        raise TypeError("list indices must be integers or slices, not %s" % type(item).__name__)
+        raise TypeError(f"list indices must be integers or slices, not {type(item).__name__}")
 
 
 # pylint: disable=invalid-name, len-as-condition, unused-argument, too-many-lines, redefined-builtin
@@ -2083,7 +2084,7 @@ class Expand(OnnxOpConverter):
             return relax.op.broadcast_to(data, relax.ShapeExpr(new_shape))
 
         # Otherwise handle dynamic shapes.
-        shape_ndim = [dim.value for dim in shape.struct_info.shape.values][0]
+        shape_ndim = next(dim.value for dim in shape.struct_info.shape.values)
         shape_dataflow_var = bb.emit(
             relax.Call(
                 relax.ExternFunc("vm.builtin.tensor_to_shape"),
@@ -2094,7 +2095,7 @@ class Expand(OnnxOpConverter):
 
         shape_vars = []
         for i in range(shape_ndim):
-            shape_vars.append(tvm.tir.Var("x_%d" % i, "int64"))
+            shape_vars.append(tvm.tir.Var(f"x_{i}", "int64"))
         bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
 
         # Applying broadcasting rules for dynamic shapes
@@ -4149,7 +4150,7 @@ class ONNXGraphImporter:
             new_name = str(self._name_supply.fresh_name(new_name))
 
         if new_name != name:
-            warnings.warn("Renaming name %s to %s" % (name, new_name))
+            warnings.warn(f"Renaming name {name} to {new_name}")
         return new_name
 
     def _new_var(self, var_name: str, shape: List, dtype: str = "float32"):
@@ -4173,9 +4174,8 @@ class ONNXGraphImporter:
                 else:
                     if "?" in str(i_shape):
                         warning_msg = (
-                            "Input %s has unknown dimension shapes: %s. "
+                            f"Input {i_name} has unknown dimension shapes: {i_shape_name!s}. "
                             "Specifying static values may improve performance"
-                            % (i_name, str(i_shape_name))
                         )
                         warnings.warn(warning_msg)
                 if isinstance(self._dtype, dict):
@@ -4361,7 +4361,7 @@ def from_onnx(
     model: onnx.onnx_ml_pb2.GraphProto,
     shape_dict: Optional[Dict[str, List]] = None,
     dtype_dict: Optional[Union[str, Dict[str, str]]] = "float32",
-    opset: int = None,
+    opset: Optional[int] = None,
     keep_params_in_input: bool = False,
     sanitize_input_names: bool = True,
 ) -> IRModule:

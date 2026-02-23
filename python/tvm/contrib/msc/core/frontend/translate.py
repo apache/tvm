@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
 """tvm.contrib.msc.core.frontend.translate"""
 
 from typing import Dict, List, Optional, Tuple

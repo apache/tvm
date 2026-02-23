@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 """RPC proxy, allows both client/server to connect and match connection.
 
 In normal RPC, client directly connect to server's IP address.

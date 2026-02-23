@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=used-before-assignment,broad-exception-caught
+# ruff: noqa: F401
 """RPC client tools"""
 
 import os
@@ -351,7 +352,7 @@ class TrackerSession:
         sorted_server = sorted(data["server_info"], key=lambda x: x["key"])
         for item in sorted_server:
             addr = item["addr"]
-            res += "%21s    " % ":".join(map(str, addr))
+            res += f"{':'.join(map(str, addr)):21s}    "
             res += item["key"] + "\n"
             key = item["key"].split(":")[1]  # 'server:rasp3b` -> 'rasp3b'
             if key not in total_ct:

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=too-many-arguments,invalid-name,protected-access,unused-argument
+# ruff: noqa: RUF005
 """Builtin Modules."""
 
 from typing import List, Optional, Sequence, Union
@@ -757,7 +758,7 @@ class TimestepEmbedding(Module):
         in_channels: int,
         time_embed_dim: int,
         act_fn: str = "silu",
-        out_dim: int = None,
+        out_dim: Optional[int] = None,
         post_act_fn: Optional[str] = None,
         cond_proj_dim: Optional[int] = None,
     ):

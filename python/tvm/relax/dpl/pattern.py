@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821
 
 """Pattern types in Relax Dataflow Pattern Language"""
 # pylint: disable=no-member
@@ -940,7 +941,7 @@ def is_call_dps_packed(
 
 
 def is_call_packed(
-    func_name: str, args: Union[List[DFPattern], Tuple[DFPattern]] = None
+    func_name: str, args: Optional[Union[List[DFPattern], Tuple[DFPattern]]] = None
 ) -> CallPattern:
     """
     Syntax sugar for creating a CallPattern for call_packed

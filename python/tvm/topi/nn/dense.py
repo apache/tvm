@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,unused-argument
+# ruff: noqa: E741, F821
 """TVM operator fully connected compute."""
 
 import tvm

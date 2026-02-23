@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
+# ruff: noqa: E501, F841
 """
 ONNX testcases
 ================

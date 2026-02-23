@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E501, RUF005
 """Utility to invoke Xcode compiler toolchain"""
 
 import json

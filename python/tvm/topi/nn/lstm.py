@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E731
 """General LSTM implementation using TE scan."""
 
 from tvm import te, tir

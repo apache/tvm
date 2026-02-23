@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,line-too-long
+# ruff: noqa: E501
 """Various type definitions to help instantiate CUTLASS kernels."""
 
 import enum
@@ -290,12 +291,7 @@ class TileDescription:
         self.maximum_compute_capability = max_compute
 
     def procedural_name(self):
-        return "%dx%d_%dx%d" % (
-            self.threadblock_shape[0],
-            self.threadblock_shape[1],
-            self.threadblock_shape[2],
-            self.stages,
-        )
+        return f"{self.threadblock_shape[0]}x{self.threadblock_shape[1]}_{self.threadblock_shape[2]}x{self.stages}"
 
 
 class TensorDescription:

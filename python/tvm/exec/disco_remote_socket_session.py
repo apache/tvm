@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: F401
 """Launch disco session in the remote node and connect to the server."""
 
 import sys

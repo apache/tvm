@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=wildcard-import
+# ruff: noqa: F403
 """Redirects to tvm_ffi"""
 
 from tvm_ffi import *

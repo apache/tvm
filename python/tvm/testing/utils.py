@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, RUF005, RUF012
 
 # pylint: disable=invalid-name,unnecessary-comprehension,redefined-outer-name
 """TVM testing utilities
@@ -428,9 +429,9 @@ def _get_targets(target_names=None):
             return _get_targets(["llvm"])
 
         raise TVMError(
-            "None of the following targets are supported by this build of TVM: %s."
+            f"None of the following targets are supported by this build of TVM: {target_names}."
             " Try setting TVM_TEST_TARGETS to a supported target."
-            " Cannot default to llvm, as it is not enabled." % target_names
+            " Cannot default to llvm, as it is not enabled."
         )
 
     return targets

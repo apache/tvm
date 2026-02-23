@@ -40,8 +40,8 @@ def main():
 
     conn = rpc.connect_tracker(args.host, args.port)
     # pylint: disable=superfluous-parens
-    print("Tracker address %s:%d\n" % (args.host, args.port))
-    print("%s" % conn.text_summary())
+    print(f"Tracker address {args.host}:{args.port}\n")
+    print(f"{conn.text_summary()}")
 
 
 if __name__ == "__main__":

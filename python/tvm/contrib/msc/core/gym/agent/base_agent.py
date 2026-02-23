@@ -18,7 +18,7 @@
 
 import copy
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.gym.namespace import GYMObject
@@ -48,9 +48,9 @@ class BaseAgent:
         name: str,
         workspace: msc_utils.MSCDirectory,
         executors: dict,
-        options: dict = None,
+        options: Optional[dict] = None,
         debug_level: int = 0,
-        logger: logging.Logger = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self._name = name
         self._workspace = workspace

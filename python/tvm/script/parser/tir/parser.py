@@ -173,7 +173,7 @@ def range_sugar(
     stop: PrimExpr = None,
     step: Optional[PrimExpr] = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
 ) -> T.frame.ForFrame:
     """The sugar for python range builtin."""
 

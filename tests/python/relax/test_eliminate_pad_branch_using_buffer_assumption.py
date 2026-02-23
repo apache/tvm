@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring, unused-variable
+# ruff: noqa: F841
 
 # The test attempts to eliminate redundant pad branch and overcompute the value for elementwise ops.
 # This helps to expose more opportunities to vectorize the code.

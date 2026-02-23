@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E731, F401, F841
 
 """Tests analysis functions of struct info"""
 
@@ -355,7 +356,7 @@ def _check_derive(ctx, finfo, args_sinfo, ret):
     rx.expr._update_struct_info(gv, finfo)
     args = []
     for i, sinfo in enumerate(args_sinfo):
-        arg = rx.Var("arg%i" % i, sinfo)
+        arg = rx.Var(f"arg{i}", sinfo)
         args.append(arg)
     call = rx.Call(gv, args)
     derived_ret = rx.analysis.derive_call_ret_struct_info(finfo, call, ctx)

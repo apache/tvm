@@ -20,7 +20,7 @@
 """PyTorch FX frontend of Relax."""
 
 from functools import partial, reduce
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm import relax
@@ -1045,7 +1045,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         keep_params_as_input: bool,
         unwrap_unit_return_tuple: bool,
         no_bind_return_tuple: bool,
-        custom_convert_map: dict = None,
+        custom_convert_map: Optional[dict] = None,
     ) -> tvm.IRModule:
         """Convert a PyTorch FX GraphModule to a Relax program."""
         from torch import fx
@@ -1091,7 +1091,7 @@ class TorchFXImporter(BaseFXGraphImporter):
                         if not keep_params_as_input:
                             self.params[param] = self._convert_torch_tensor_to_relax(param)
                     else:
-                        raise ValueError("Unsupported data type for model parameters: %s" % dtype)
+                        raise ValueError(f"Unsupported data type for model parameters: {dtype}")
                 # Translate the model.
                 for node in graph.nodes:
                     if node.op == "placeholder":
@@ -1155,7 +1155,7 @@ def from_fx(
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
     no_bind_return_tuple: bool = False,
-    custom_convert_map: dict = None,
+    custom_convert_map: Optional[dict] = None,
     default_image_layout: str = "NCHW",
 ) -> tvm.IRModule:
     """Convert a PyTorch FX GraphModule to a Relax program

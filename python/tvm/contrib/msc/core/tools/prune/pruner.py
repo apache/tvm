@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 """tvm.contrib.msc.core.tools.prune.pruner"""
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -339,7 +340,7 @@ class BasePruner(WeightTool):
         def _prune_by_shape(tensor: MSCTensor, shape: List[int]):
             return MSCTensor(tensor.name, tensor.dtype, tensor.layout.name, shape, tensor.alias)
 
-        def _prune_by_channel(tensor: MSCTensor, dim, channel_axis: int = None):
+        def _prune_by_channel(tensor: MSCTensor, dim, channel_axis: Optional[int] = None):
             shape = tensor.get_shape()
             if channel_axis is None:
                 if self.has_w_node(tensor.name):

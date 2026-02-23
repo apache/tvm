@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+# ruff: noqa: E731
 """Utility functions for implementing Winograd convolutions
 [*] Fast Algorithms for Convolutional Neural Networks
     Andrew Lavin, Scott Gray

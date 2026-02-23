@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 """IRBuilder for TIR"""
 
 import contextlib
@@ -119,13 +120,13 @@ def buffer(
     shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
     dtype: str = "float32",
     data: Var = None,
-    strides: List[PrimExpr] = None,
+    strides: Optional[List[PrimExpr]] = None,
     elem_offset: PrimExpr = None,
     scope: str = "global",
     align: int = 0,
     offset_factor: int = 0,
     buffer_type: str = "",
-    axis_separators: List[int] = None,
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer:
     """The buffer declaration function.
 
@@ -271,13 +272,13 @@ def match_buffer(
     shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral] = None,
     dtype: str = "float32",
     data: Var = None,
-    strides: List[PrimExpr] = None,
+    strides: Optional[List[PrimExpr]] = None,
     elem_offset: PrimExpr = None,
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
-    axis_separators: List[int] = None,
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer:
     """The buffer match function.
 
@@ -470,13 +471,13 @@ def alloc_buffer(
     shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
     dtype: str = "float32",
     data: Var = None,
-    strides: List[PrimExpr] = None,
+    strides: Optional[List[PrimExpr]] = None,
     elem_offset: PrimExpr = None,
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
-    axis_separators: List[int] = None,
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer:
     """The buffer alllocation function.
 
@@ -711,7 +712,7 @@ def serial(
     start: PrimExpr,
     stop: PrimExpr = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
     step: Optional[PrimExpr] = None,
 ) -> frame.ForFrame:
     """The serial For statement.
@@ -748,7 +749,7 @@ def parallel(
     start: PrimExpr,
     stop: PrimExpr = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
     step: Optional[PrimExpr] = None,
 ) -> frame.ForFrame:
     """The parallel For statement.
@@ -785,7 +786,7 @@ def vectorized(
     start: PrimExpr,
     stop: PrimExpr = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
     step: Optional[PrimExpr] = None,
 ) -> frame.ForFrame:
     """The vectorized For statement.
@@ -822,7 +823,7 @@ def unroll(
     start: PrimExpr,
     stop: PrimExpr = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
     step: Optional[PrimExpr] = None,
 ) -> frame.ForFrame:
     """The unrolled For statement.
@@ -858,9 +859,9 @@ def unroll(
 def thread_binding(
     start: PrimExpr,
     stop: PrimExpr = None,
-    thread: str = None,
+    thread: Optional[str] = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
 ) -> frame.ForFrame:
     """The thread-binding For statement.
 
@@ -977,7 +978,7 @@ def Let(  # pylint: disable=invalid-name
 ) -> PrimExpr:
     """Create a Let expression binding"""
     assert len(where) == 1, "T.Let only allows `where` to have exactly one element"
-    var, value = list(where.items())[0]  # pylint: disable=redefined-outer-name
+    var, value = next(iter(where.items()))  # pylint: disable=redefined-outer-name
     return tir.Let(var, value, expr)
 
 

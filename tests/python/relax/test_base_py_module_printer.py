@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring, invalid-name, unused-argument
+# ruff: noqa: F401, F841
 
 import pytest
 

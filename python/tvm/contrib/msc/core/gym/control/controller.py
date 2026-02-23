@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.core.gym.control.controller"""
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.gym.namespace import GYMAction, GYMObject
@@ -68,7 +68,7 @@ class BaseController:
         return self._service.summary()
 
 
-def create_controller(stage: str, config: dict, extra_config: dict = None):
+def create_controller(stage: str, config: dict, extra_config: Optional[dict] = None):
     """Update the gym config
 
     Parameters

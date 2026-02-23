@@ -70,7 +70,7 @@ def _make_mutator(target: Target) -> ms.Mutator:
             mutator_probs={ms.mutator.MutateComputeLocation(): 1.0},
         ),
     )
-    return list(ctx.space_generator.mutator_probs.keys())[0]
+    return next(iter(ctx.space_generator.mutator_probs.keys()))
 
 
 def test_mutate_compute_location_add():

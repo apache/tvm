@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,,missing-function-docstring
+# ruff: noqa: E501, F841
 import tvm
 import tvm.testing
 from tvm.s_tir.transform import DefaultGPUSchedule

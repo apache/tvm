@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F841
 """Test cross compilation"""
 
 import os
@@ -62,7 +63,7 @@ def test_llvm_add_pipeline():
     def build_arm():
         target = {"kind": "llvm", "mtriple": "armv7-none-linux-gnueabihf"}
         if not tvm.runtime.enabled("llvm"):
-            print("Skip because %s is not enabled.." % target)
+            print(f"Skip because {target} is not enabled..")
             return
         temp = utils.tempdir()
         f = tvm.tir.build(AddModule, target=target)

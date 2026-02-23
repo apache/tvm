@@ -16,6 +16,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import logging
 import urllib.request
@@ -36,10 +37,6 @@ URL_MAP = {
     "http://download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz": f"{BASE}/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz",
     "http://images.cocodataset.org/zips/val2017.zip": f"{BASE}/cocodataset-val2017.zip",
     "http://pjreddie.com/media/files/alexnet.weights?raw=true": f"{BASE}/media/files/alexnet.weights"
-    + quote("?raw=true"),
-    "http://pjreddie.com/media/files/alexnet.weights?raw=true": f"{BASE}/media/files/alexnet.weights"
-    + quote("?raw=true"),
-    "http://pjreddie.com/media/files/extraction.weights?raw=true": f"{BASE}/media/files/extraction.weights"
     + quote("?raw=true"),
     "http://pjreddie.com/media/files/extraction.weights?raw=true": f"{BASE}/media/files/extraction.weights"
     + quote("?raw=true"),
@@ -113,7 +110,6 @@ URL_MAP = {
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_synset_to_human_label_map.txt": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/InceptionV1/imagenet_synset_to_human_label_map.txt",
     "https://github.com/dmlc/web-data/raw/main/tensorflow/models/RNN/ptb/ptb_model_with_lstmblockcell.pb": f"{BASE}/dmlc/web-data/raw/main/tensorflow/models/RNN/ptb/ptb_model_with_lstmblockcell.pb",
     "https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/elephant-299.jpg": f"{BASE}/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/elephant-299.jpg",
-    "https://github.com/fernchen/CaffeModels/raw/master/resnet/ResNet-50-deploy.prototxt": f"{BASE}/fernchen/CaffeModels/raw/master/resnet/ResNet-50-deploy.prototxt",
     "https://github.com/fernchen/CaffeModels/raw/master/resnet/ResNet-50-deploy.prototxt": f"{BASE}/fernchen/CaffeModels/raw/master/resnet/ResNet-50-deploy.prototxt",
     "https://github.com/fernchen/CaffeModels/raw/master/resnet/ResNet-50-model.caffemodel": f"{BASE}/fernchen/CaffeModels/raw/master/resnet/ResNet-50-model.caffemodel",
     "https://github.com/google/mediapipe/raw/v0.7.4/mediapipe/models/hand_landmark.tflite": f"{BASE}/google/mediapipe/raw/v0.7.4/mediapipe/models/hand_landmark.tflite",

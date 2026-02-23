@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F841
 """Basic tests for a Disco nvshmem support"""
 
 # pylint: disable=missing-docstring
@@ -71,7 +72,7 @@ class SocketSessionTester:
 
         cmd = "tvm.exec.disco_remote_socket_session"
         self.remote_nodes = []
-        for _ in range(num_nodes - 1):
+        for _i in range(num_nodes - 1):
             self.remote_nodes.append(
                 subprocess.Popen(
                     [

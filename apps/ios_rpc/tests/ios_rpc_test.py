@@ -21,9 +21,6 @@ And configure the proxy host field as commented.
 """
 
 import argparse
-import os
-import re
-import sys
 
 import numpy as np
 
@@ -77,7 +74,7 @@ def test_rpc_module(host, port, key, mode):
     b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
     time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
-    print("Metal: %g secs/op" % cost)
+    print(f"Metal: {cost:g} secs/op")
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 

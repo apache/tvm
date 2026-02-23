@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+# ruff: noqa: E501, F401
 import sys
 from typing import Callable, List
 
@@ -232,7 +233,6 @@ def test_cpu_matmul():
     # Group 1.1: arith
     assert_allclose(
         actual=f[0:16],
-        # fmt: off
         desired=[
             # float math ops
             0,
@@ -254,7 +254,6 @@ def test_cpu_matmul():
             0,
             0,
         ],
-        # fmt: on
         rtol=1e-5,
         atol=1e-5,
     )
@@ -453,9 +452,7 @@ def test_cpu_fusion():
     # Group 1.1: arith
     assert_allclose(
         actual=f[0:16],
-        # fmt: off
         desired=[0.0] * 16,
-        # fmt: on
         rtol=1e-5,
         atol=1e-5,
     )
@@ -587,9 +584,7 @@ def test_cpu_fusion():
     # Group 1.1: arith
     assert_allclose(
         actual=f[0:16],
-        # fmt: off
         desired=[0.0] * 16,
-        # fmt: on
         rtol=1e-5,
         atol=1e-5,
     )

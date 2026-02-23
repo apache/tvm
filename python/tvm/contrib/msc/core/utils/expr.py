@@ -17,7 +17,7 @@
 """tvm.contrib.msc.core.utils.expr"""
 
 import copy
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import tvm
 from tvm import relax
@@ -25,7 +25,7 @@ from tvm.contrib.msc.core import _ffi_api
 from tvm.relax import PyExprVisitor
 
 
-def legalize_expr_name(name: str, symbols: List[str] = None, dst: str = "_") -> str:
+def legalize_expr_name(name: str, symbols: Optional[List[str]] = None, dst: str = "_") -> str:
     """Legalize expr name
 
     Parameters

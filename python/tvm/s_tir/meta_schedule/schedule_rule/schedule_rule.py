@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 """
 Meta Schedule schedule rules are used for modification of
 blocks in a schedule. See also PostOrderApply.
 """
 
-from typing import TYPE_CHECKING, Callable, List
+from typing import TYPE_CHECKING, Callable, List, Optional
 
 # isort: off
 from typing_extensions import Literal
@@ -125,10 +126,10 @@ class _PyScheduleRule(ScheduleRule):
 
     def __init__(
         self,
-        f_initialize_with_tune_context: Callable = None,
-        f_apply: Callable = None,
-        f_clone: Callable = None,
-        f_as_string: Callable = None,
+        f_initialize_with_tune_context: Optional[Callable] = None,
+        f_apply: Optional[Callable] = None,
+        f_clone: Optional[Callable] = None,
+        f_as_string: Optional[Callable] = None,
     ):
         """Constructor."""
 

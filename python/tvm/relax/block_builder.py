@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=no-else-return, invalid-name, unused-argument, import-outside-toplevel
+# ruff: noqa: RUF012
 """Developer API of constructing Relax AST."""
 
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
@@ -370,7 +371,7 @@ class BlockBuilder(Object):
         func: Callable,
         *args: Any,
         te_grad_name: str,
-        te_grad_kwargs: Dict[str, Object] = None,
+        te_grad_kwargs: Optional[Dict[str, Object]] = None,
         **kwargs: Any,
     ) -> Expr:
         """Generate a call node according to the te function.

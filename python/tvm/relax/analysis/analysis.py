@@ -52,8 +52,8 @@ def get_static_type(sinfo: StructInfo) -> Type:
 
 def erase_to_well_defined(
     sinfo: StructInfo,
-    shape_var_map: Dict[tir.Var, tir.PrimExpr] = None,
-    var_map: Dict[Var, Expr] = None,
+    shape_var_map: Optional[Dict[tir.Var, tir.PrimExpr]] = None,
+    var_map: Optional[Dict[Var, Expr]] = None,
 ) -> StructInfo:
     """Erase sinfo into a well defined form.
 

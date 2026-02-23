@@ -15,6 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E722
 
 import argparse
 import csv
@@ -63,7 +64,6 @@ TAG_DICT = {
     "onnx": "Frontend",
     "roofline": "Misc",
     "rpc": "Misc",
-    "transform": "Misc",
     "tophub": "Misc",
     "ux": "Misc",
     "APP": "Misc",

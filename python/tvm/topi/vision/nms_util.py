@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E741
 """Common utilities used in Non-maximum suppression operators"""
 
 import tvm

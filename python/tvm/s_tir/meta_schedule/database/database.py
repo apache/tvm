@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 """TuningRecord database"""
 
 from typing import Any, Callable, List, Optional, Union
@@ -440,15 +441,15 @@ class _PyDatabase(Database):
 
     def __init__(
         self,
-        f_has_workload: Callable = None,
-        f_commit_workload: Callable = None,
-        f_commit_tuning_record: Callable = None,
-        f_get_top_k: Callable = None,
-        f_get_all_tuning_records: Callable = None,
-        f_query_tuning_record: Callable = None,
-        f_query_schedule: Callable = None,
-        f_query_ir_module: Callable = None,
-        f_size: Callable = None,
+        f_has_workload: Optional[Callable] = None,
+        f_commit_workload: Optional[Callable] = None,
+        f_commit_tuning_record: Optional[Callable] = None,
+        f_get_top_k: Optional[Callable] = None,
+        f_get_all_tuning_records: Optional[Callable] = None,
+        f_query_tuning_record: Optional[Callable] = None,
+        f_query_schedule: Optional[Callable] = None,
+        f_query_ir_module: Optional[Callable] = None,
+        f_size: Optional[Callable] = None,
         module_equality: str = "structural",
     ):
         """Constructor."""

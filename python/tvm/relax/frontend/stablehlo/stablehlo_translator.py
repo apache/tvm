@@ -18,7 +18,7 @@
 
 """StableHLO frontend of Relax."""
 
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm import relax, tir
@@ -416,7 +416,7 @@ class StableHLOImporter:
 
 def from_stablehlo(
     stablehlo_module,
-    input_info: List[Tuple[Tuple[int], str]] = None,
+    input_info: Optional[List[Tuple[Tuple[int], str]]] = None,
 ) -> tvm.IRModule:
     """Convert a StableHLO Module to a Relax program
 

@@ -675,7 +675,7 @@ def _get_custom_call_back(
     fevals: List[Callable],
     evals: List[Tuple["xgb.DMatrix", str]],
     focused_metric: str = "tr-p-rmse",
-    cvfolds: List["xgb.training.CVPack"] = None,
+    cvfolds: Optional[List["xgb.training.CVPack"]] = None,
 ) -> "TrainingCallback":
     """Get a customized callback function for XGBoost. Work around xgboost import."""
 
@@ -706,7 +706,7 @@ def _get_custom_call_back(
             fevals: List[Callable],
             evals: List[Tuple["xgb.DMatrix", str]],
             focused_metric: str = "tr-p-rmse",
-            cvfolds: List["xgb.training.CVPack"] = None,
+            cvfolds: Optional[List["xgb.training.CVPack"]] = None,
         ):
             self.early_stopping_rounds = early_stopping_rounds
             self.verbose_eval = verbose_eval

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F841
 """Block builder unit test"""
 
 # The test here do not depend on tvmscript to cover most basic features

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821
 """Testcode for Android RPC.
 
 To use it, start an RPC tracker with "python -m tvm.exec.rpc_tracker".
@@ -77,7 +78,7 @@ def test_rpc_module():
         b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
         cost = time_f(a, b).mean
-        print("%g secs/op\n" % cost)
+        print(f"{cost:g} secs/op\n")
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 

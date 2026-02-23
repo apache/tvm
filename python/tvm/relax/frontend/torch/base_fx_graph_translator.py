@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E731
 
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
@@ -334,7 +335,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             if not isinstance(alpha, relax.Var):
                 alpha = self.block_builder.emit(relax.const(-alpha, dtype))
 
-        # alpha * ReLU(1 − exp(x)) + ReLU(x)
+        # alpha * ReLU(1 - exp(x)) + ReLU(x)
         return self.block_builder.emit(
             relax.op.add(
                 relax.op.multiply(

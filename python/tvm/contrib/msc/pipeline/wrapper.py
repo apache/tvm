@@ -17,7 +17,7 @@
 """tvm.contrib.msc.pipeline.wrapper"""
 
 import shutil
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.utils.message import MSCStage
@@ -42,7 +42,11 @@ class BaseWrapper:
     """
 
     def __init__(
-        self, model: Any, config: dict, workspace: str = "msc_workspace", plugins: dict = None
+        self,
+        model: Any,
+        config: dict,
+        workspace: str = "msc_workspace",
+        plugins: Optional[dict] = None,
     ):
         self._meta_model = model
         self._optimized_model, self._compiled_model = None, None
@@ -205,9 +209,9 @@ class BaseWrapper:
         cls,
         inputs: List[dict],
         outputs: List[str],
-        baseline_type: str = None,
-        optimize_type: str = None,
-        compile_type: str = None,
+        baseline_type: Optional[str] = None,
+        optimize_type: Optional[str] = None,
+        compile_type: Optional[str] = None,
         **kwargs,
     ) -> dict:
         """Create config for msc pipeline

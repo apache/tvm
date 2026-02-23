@@ -15,6 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, RUF005
 
 import base64
 import json
@@ -128,7 +129,7 @@ class GitHubRepo:
         logging.info(f"Got response from {full_url}: {content}")
         try:
             response = json.loads(content)
-        except json.decoder.JSONDecodeError as e:
+        except json.decoder.JSONDecodeError:
             return content
 
         return response

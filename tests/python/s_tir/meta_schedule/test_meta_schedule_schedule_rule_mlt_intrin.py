@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+# ruff: noqa: E501, F401, F841
 from tvm import te
 from tvm.ir import assert_structural_equal
 from tvm.s_tir import meta_schedule as ms

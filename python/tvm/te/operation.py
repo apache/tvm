@@ -291,15 +291,13 @@ def extern(
         in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
         if len(inputs) != len(in_buffers):
             raise RuntimeError(
-                "Number of inputs and in_buffers mismatch: %d vs %d."
-                % (len(inputs), len(in_buffers))
+                f"Number of inputs and in_buffers mismatch: {len(inputs)} vs {len(in_buffers)}."
             )
     if out_buffers is not None:
         out_buffers = [out_buffers] if not isinstance(out_buffers, list) else out_buffers
         if len(shape) != len(out_buffers):
             raise RuntimeError(
-                "Number of outputs and out_buffers mismatch: %d vs %d."
-                % (len(shape), len(out_buffers))
+                f"Number of outputs and out_buffers mismatch: {len(shape)} vs {len(out_buffers)}."
             )
     input_placeholders = in_buffers or []
     output_placeholders = out_buffers or []

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E722
 """Configure pytest"""
 
 # pylint: disable=invalid-name
@@ -35,7 +36,7 @@ def test_randint():
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func("tvm.contrib.random.randint", True):
             print("skip because extern function is not available")
@@ -60,7 +61,7 @@ def test_uniform():
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func("tvm.contrib.random.uniform", True):
             print("skip because extern function is not available")
@@ -85,7 +86,7 @@ def test_normal():
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func("tvm.contrib.random.normal", True):
             print("skip because extern function is not available")

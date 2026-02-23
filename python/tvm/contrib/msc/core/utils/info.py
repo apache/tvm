@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E722
 """tvm.contrib.msc.core.utils.info"""
 
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from packaging.version import parse
@@ -154,7 +155,7 @@ class MSCArray:
             return tvm.runtime.tensor(data, device=self.get_device(device, framework))
         return data
 
-    def get_device(self, device: str, framework: str = None) -> Any:
+    def get_device(self, device: str, framework: Optional[str] = None) -> Any:
         """Change device from name to device obj
 
         Parameters

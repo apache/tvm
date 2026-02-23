@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 """
 Meta Schedule search strategy that generates the measure
 candidates for measurement.
@@ -232,12 +233,12 @@ class _PySearchStrategy(SearchStrategy):
 
     def __init__(
         self,
-        f_initialize_with_tune_context: Callable = None,
-        f_pre_tuning: Callable = None,
-        f_post_tuning: Callable = None,
-        f_generate_measure_candidates: Callable = None,
-        f_notify_runner_results: Callable = None,
-        f_clone: Callable = None,
+        f_initialize_with_tune_context: Optional[Callable] = None,
+        f_pre_tuning: Optional[Callable] = None,
+        f_post_tuning: Optional[Callable] = None,
+        f_generate_measure_candidates: Optional[Callable] = None,
+        f_notify_runner_results: Optional[Callable] = None,
+        f_clone: Optional[Callable] = None,
     ):
         """Constructor."""
 

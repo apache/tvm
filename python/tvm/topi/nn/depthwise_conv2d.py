@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-variable, too-many-locals, unused-argument
+# ruff: noqa: F841
 """Depthwise convolution operators"""
 
 from __future__ import absolute_import as _abs

@@ -252,7 +252,7 @@ class SegmentDataLoader:
 def lambda_rank_loss(  # pylint: disable=too-many-locals
     preds: "torch.Tensor",
     labels: "torch.Tensor",
-    k: int = None,
+    k: Optional[int] = None,
     eps: float = 1e-10,
     sigma: float = 1.0,
 ) -> "torch.Tensor":

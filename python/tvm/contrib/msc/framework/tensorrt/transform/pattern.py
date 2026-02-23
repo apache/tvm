@@ -18,7 +18,7 @@
 """tvm.contrib.msc.framework.tensorrt.transform.pattern"""
 
 from functools import partial, wraps
-from typing import Callable, Dict, List, Mapping, Tuple, Union
+from typing import Callable, Dict, List, Mapping, Optional, Tuple, Union
 
 import tvm
 from tvm import relax
@@ -30,7 +30,7 @@ from tvm.relax.transform import FusionPattern, PatternCheckContext
 
 
 def basic_pattern(
-    op_name: str, input_types: List[str] = None
+    op_name: str, input_types: Optional[List[str]] = None
 ) -> Tuple[pattern.DFPattern, Mapping[str, pattern.DFPattern]]:
     """create basic pattern for tensorrt support ops.
 
@@ -114,7 +114,7 @@ def argmaxmin_pattern(op_name: str) -> Tuple[pattern.DFPattern, Mapping[str, pat
     return out, {"input": data, "argmaxmin": argmaxmin, "out": out}
 
 
-def _check_expr(expr: relax.Expr, dtypes: Tuple[str] = None) -> bool:
+def _check_expr(expr: relax.Expr, dtypes: Optional[Tuple[str]] = None) -> bool:
     """Check if the expr can be fused on tensorrt.
 
     Parameters

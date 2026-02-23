@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E722
 
 # pylint: disable=missing-function-docstring, missing-class-docstring
 # pylint: disable=unused-argument, unused-variable

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
 """tvm.contrib.msc.core.codegen.codegen"""
 
 import os
@@ -55,8 +56,8 @@ class BasePluginCodeGen:
         codegen_config: Optional[Dict[str, str]] = None,
         cpp_print_config: Optional[Dict[str, str]] = None,
         py_print_config: Optional[Dict[str, str]] = None,
-        extern_sources: Dict[str, str] = None,
-        extern_libs: Dict[str, str] = None,
+        extern_sources: Optional[Dict[str, str]] = None,
+        extern_libs: Optional[Dict[str, str]] = None,
         on_debug: bool = False,
     ):
         self._codegen_config = msc_utils.copy_dict(codegen_config)
@@ -270,8 +271,8 @@ def get_codegen(
     codegen_config: Optional[Dict[str, str]] = None,
     cpp_print_config: Optional[Dict[str, str]] = None,
     py_print_config: Optional[Dict[str, str]] = None,
-    extern_sources: Dict[str, str] = None,
-    extern_libs: Dict[str, str] = None,
+    extern_sources: Optional[Dict[str, str]] = None,
+    extern_libs: Optional[Dict[str, str]] = None,
     on_debug: bool = False,
 ):
     """Create codegen for framework

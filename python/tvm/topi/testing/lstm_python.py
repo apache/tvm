@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E741
 """LSTM reference implementation using numpy."""
 
 import numpy as np
