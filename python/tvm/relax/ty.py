@@ -31,12 +31,11 @@ class ShapeType(Type):
 
     Parameters
     ----------
-    ndim : Optional[int]
-        The size of the shape.
+    ndim : int
+        The number of dimensions of the shape. Use -1 for unknown ndim.
     """
 
-    # TODO(relax-team): consider make ndim mandatory
-    def __init__(self, ndim: int = -1, span: Span = None) -> None:
+    def __init__(self, ndim: int, span: Span = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ShapeType, ndim, span)  # type: ignore
 
 

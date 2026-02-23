@@ -52,8 +52,8 @@ def test_object_struct_info():
 
 
 def test_shape_type():
-    t0 = rx.ShapeType()
-    t1 = rx.ShapeType()
+    t0 = rx.ShapeType(ndim=-1)
+    t1 = rx.ShapeType(ndim=-1)
     assert t0 == t1
 
 

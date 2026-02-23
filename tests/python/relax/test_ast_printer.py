@@ -256,7 +256,7 @@ def test_shape_expr():
 
 def test_types():
     printer = ASTPrinter()
-    assert strip_whitespace(printer.visit_type_(rx.ShapeType())) == "ShapeType(ndim=-1)"
+    assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=-1))) == "ShapeType(ndim=-1)"
     assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=1))) == "ShapeType(ndim=1)"
     object_type = rx.ObjectType()
     assert strip_whitespace(printer.visit_type_(object_type)) == "ObjectType()"
@@ -266,7 +266,7 @@ def test_types():
     assert strip_whitespace(printer.visit_type_(tensor_type)) == "TensorType(ndim=2,dtype=int32)"
     unit_type = rx.TupleType([])
     assert strip_whitespace(printer.visit_type_(unit_type)) == "TupleType(fields=[])"
-    tuple_type = rx.TupleType([rx.ShapeType(), object_type])
+    tuple_type = rx.TupleType([rx.ShapeType(ndim=-1), object_type])
     assert_fields(
         "TupleType",
         {"fields": "[ShapeType(ndim=-1),ObjectType()]"},
