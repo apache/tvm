@@ -991,6 +991,27 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             relax.op.hamming_window(window_size, periodic, alpha, beta, dtype)
         )
 
+    def _randn(self, node: fx.Node) -> relax.Var:
+        import numpy as np
+
+        args = self.retrieve_args(node)
+        size = args[0] if isinstance(args[0], (list, tuple)) else (args[0],)
+        dtype = self._convert_data_type(
+            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
+        )
+        data = np.random.randn(*size).astype(dtype)
+        return self.block_builder.emit(relax.const(data, dtype))
+
+    def _randn_like(self, node: fx.Node) -> relax.Var:
+        import numpy as np
+
+        x = self.env[node.args[0]]
+        x_sinfo = x.struct_info
+        shape = [int(s) for s in x_sinfo.shape]
+        dtype = self._convert_data_type(node.kwargs.get("dtype", None) or x_sinfo.dtype, self.env)
+        data = np.random.randn(*shape).astype(dtype)
+        return self.block_builder.emit(relax.const(data, dtype))
+
     def _zeros(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
@@ -1484,6 +1505,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "new_zeros.default": self._new_zeros,
             "one_hot.default": self._one_hot,
             "ones.default": self._ones,
+            "randn.default": self._randn,
+            "randn_like.default": self._randn_like,
             "ones_like.default": lambda node: self.block_builder.emit(
                 relax.op.ones_like(self.env[node.args[0]])
             ),
