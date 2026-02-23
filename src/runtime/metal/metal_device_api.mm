@@ -234,7 +234,8 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
     int to_dev_type = static_cast<int>(dev_to.device_type);
 
     if (from_dev_type == kDLMetal && to_dev_type == kDLMetal) {
-      TVM_FFI_ICHECK_EQ(dev_from.device_id, dev_to.device_id) << "Metal disallow cross device copy.";
+      TVM_FFI_ICHECK_EQ(dev_from.device_id, dev_to.device_id)
+          << "Metal disallow cross device copy.";
       id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
       [encoder copyFromBuffer:(id<MTLBuffer>)(from)
                  sourceOffset:from_offset

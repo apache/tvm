@@ -136,8 +136,8 @@ class MetalModuleNode final : public ffi::ModuleObj {
     id<MTLComputePipelineState> state =
         [w->devices[device_id] newComputePipelineStateWithFunction:f error:&err_msg];
     TVM_FFI_ICHECK(state != nil) << "cannot get state:"
-                         << " for function " << func_name
-                         << [[err_msg localizedDescription] UTF8String];
+                                 << " for function " << func_name
+                                 << [[err_msg localizedDescription] UTF8String];
     [f release];
     [lib release];
     // The state.threadExecutionWidth can change dynamically according
