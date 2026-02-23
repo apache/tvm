@@ -48,7 +48,7 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
       *rv = int(index < devices.size());
       return;
     }
-    ICHECK_LT(index, devices.size()) << "Invalid device id " << index;
+    TVM_FFI_ICHECK_LT(index, devices.size()) << "Invalid device id " << index;
     switch (kind) {
       case kMaxThreadsPerBlock: {
         *rv = static_cast<int>([devices[dev.device_id] maxThreadsPerThreadgroup].width);
@@ -125,11 +125,11 @@ int GetWarpSize(id<MTLDevice> dev) {
   id<MTLLibrary> lib = [dev newLibraryWithSource:[NSString stringWithUTF8String:kDummyKernel]
                                          options:nil
                                            error:&error_msg];
-  ICHECK(lib != nil) << [[error_msg localizedDescription] UTF8String];
+  TVM_FFI_ICHECK(lib != nil) << [[error_msg localizedDescription] UTF8String];
   id<MTLFunction> f = [lib newFunctionWithName:[NSString stringWithUTF8String:"CopyKernel"]];
-  ICHECK(f != nil);
+  TVM_FFI_ICHECK(f != nil);
   id<MTLComputePipelineState> state = [dev newComputePipelineStateWithFunction:f error:&error_msg];
-  ICHECK(state != nil) << [[error_msg localizedDescription] UTF8String];
+  TVM_FFI_ICHECK(state != nil) << [[error_msg localizedDescription] UTF8String];
   int size = static_cast<int>(state.threadExecutionWidth);
   [state release];
   [f release];
@@ -193,7 +193,7 @@ void* MetalWorkspace::AllocDataSpace(Device device, size_t nbytes, size_t alignm
     #endif
     */
     buf = [dev newBufferWithLength:nbytes options:storage_mode];
-    ICHECK(buf != nil);
+    TVM_FFI_ICHECK(buf != nil);
   };
   return (void*)(buf);
 }
@@ -214,8 +214,8 @@ void MetalWorkspace::FreeDataSpace(Device dev, void* ptr) {
 
 Stream* MetalWorkspace::CastStreamOrGetDefault(TVMStreamHandle stream, int device_id) {
   if (stream != nullptr) return static_cast<Stream*>(stream);
-  ICHECK_LT(static_cast<size_t>(device_id), default_streams_.size());
-  ICHECK(default_streams_[device_id] != nullptr);
+  TVM_FFI_ICHECK_LT(static_cast<size_t>(device_id), default_streams_.size());
+  TVM_FFI_ICHECK(default_streams_[device_id] != nullptr);
   return default_streams_[device_id];
 }
 
@@ -234,7 +234,8 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
     int to_dev_type = static_cast<int>(dev_to.device_type);
 
     if (from_dev_type == kDLMetal && to_dev_type == kDLMetal) {
-      ICHECK_EQ(dev_from.device_id, dev_to.device_id) << "Metal disallow cross device copy.";
+      TVM_FFI_ICHECK_EQ(dev_from.device_id, dev_to.device_id)
+          << "Metal disallow cross device copy.";
       id<MTLBlitCommandEncoder> encoder = [cb blitCommandEncoder];
       [encoder copyFromBuffer:(id<MTLBuffer>)(from)
                  sourceOffset:from_offset
@@ -287,14 +288,14 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
 }
 
 TVMStreamHandle MetalWorkspace::CreateStream(Device dev) {
-  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
+  TVM_FFI_ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
   Stream* stream = new Stream(devices[dev.device_id]);
   return static_cast<TVMStreamHandle>(stream);
 }
 
 void MetalWorkspace::FreeStream(Device dev, TVMStreamHandle stream) {
-  ICHECK(stream != nullptr);
-  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
+  TVM_FFI_ICHECK(stream != nullptr);
+  TVM_FFI_ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
   delete static_cast<Stream*>(stream);
 }
 
