@@ -20,6 +20,7 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
@@ -665,7 +666,7 @@ class AutoCopyMutator : public StmtExprMutator {
   Stmt VisitStmt_(const SBlockNode* op) final {
     SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
     // only rewrite the block annotated with "auto_copy"
-    if (!GetAnn<bool>(op, tir::attr::auto_copy).value_or(false)) {
+    if (!GetAnn<bool>(op, s_tir::attr::auto_copy).value_or(false)) {
       SBlockNode* n = block.CopyOnWrite();
       n->alloc_buffers = padder.PadSharedMemory(std::move(n->alloc_buffers));
       return block;

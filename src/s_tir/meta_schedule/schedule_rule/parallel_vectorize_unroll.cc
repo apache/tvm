@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
@@ -61,12 +62,12 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
 
     // Parallelization
     if (max_jobs_per_core != -1) {
-      sch->Annotate(root_rv, tir::attr::meta_schedule_parallel,
+      sch->Annotate(root_rv, s_tir::attr::meta_schedule_parallel,
                     Integer(this->max_parallel_extent_));
     }
     // Vectorization
     if (max_vectorize_extent != -1) {
-      sch->Annotate(root_rv, tir::attr::meta_schedule_vectorize, Integer(max_vectorize_extent));
+      sch->Annotate(root_rv, s_tir::attr::meta_schedule_vectorize, Integer(max_vectorize_extent));
     }
     // Unroll
     if (!unroll_max_steps.empty() && !s_tir::CheckSpatialPrimFunc(sch, root_rv)) {
@@ -75,9 +76,9 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
       ffi::Array<FloatImm> probs(n, FloatImm(DataType::Float(32), prob));
       PrimExpr max_step = sch->SampleCategorical(unroll_max_steps, probs);
       if (unroll_explicit) {
-        sch->Annotate(root_rv, tir::attr::meta_schedule_unroll_explicit, max_step);
+        sch->Annotate(root_rv, s_tir::attr::meta_schedule_unroll_explicit, max_step);
       } else {
-        sch->Annotate(root_rv, tir::attr::meta_schedule_unroll_implicit, max_step);
+        sch->Annotate(root_rv, s_tir::attr::meta_schedule_unroll_implicit, max_step);
       }
     }
     return {sch};

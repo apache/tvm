@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
@@ -43,10 +44,10 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     // access the input block. Hence we collect its producer ahead of time.
     // - Note that only single producer is allowed in this case.
     ffi::Array<s_tir::SBlockRV> producers{nullptr};
-    if (s_tir::HasAnn(sch->GetSRef(block_rv), tir::attr::meta_schedule_random_compute_producer,
+    if (s_tir::HasAnn(sch->GetSRef(block_rv), s_tir::attr::meta_schedule_random_compute_producer,
                       true)) {
       producers = sch->GetProducers(block_rv);
-      sch->Unannotate(block_rv, tir::attr::meta_schedule_random_compute_producer);
+      sch->Unannotate(block_rv, s_tir::attr::meta_schedule_random_compute_producer);
       TVM_FFI_ICHECK_EQ(producers.size(), 1);
     }
 

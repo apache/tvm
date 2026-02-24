@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/index_map.h>
 #include <tvm/tir/op.h>
@@ -52,7 +53,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
   Stmt VisitStmt_(const SBlockNode* op) final {
     SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
 
-    auto it = block->annotations.find(tir::attr::meta_schedule_layout_rewrite_preproc);
+    auto it = block->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
     if (it == block->annotations.end() || !is_one(Downcast<PrimExpr>((*it).second))) {
       // The block is not a weight layout block
       // Remove allocates if needed

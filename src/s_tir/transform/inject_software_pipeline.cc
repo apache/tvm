@@ -22,6 +22,7 @@
  * \brief Transform annotated loops into pipelined one that parallelize producers and consumers
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
@@ -1134,9 +1135,9 @@ class PipelineInjector : private StmtExprMutator {
     }
 
     auto pipeline_stages =
-        Downcast<ffi::Array<Integer>>(op->annotations.at(tir::attr::software_pipeline_stage));
+        Downcast<ffi::Array<Integer>>(op->annotations.at(s_tir::attr::software_pipeline_stage));
     auto pipeline_orders =
-        Downcast<ffi::Array<Integer>>(op->annotations.at(tir::attr::software_pipeline_order));
+        Downcast<ffi::Array<Integer>>(op->annotations.at(s_tir::attr::software_pipeline_order));
     TVM_FFI_ICHECK_EQ(pipeline_stages.size(), original_order.size())
         << "PrimFunc " << global_symbol_ << " has original order "
         << original_order.Map([](const auto& block) { return block->name_hint; })
@@ -1147,7 +1148,7 @@ class PipelineInjector : private StmtExprMutator {
         << ", but pipeline annotation is " << pipeline_orders << " with different size";
 
     std::unordered_set<int> pipeline_async_stages;
-    if (auto annot = op->annotations.Get(tir::attr::software_pipeline_async_stages)) {
+    if (auto annot = op->annotations.Get(s_tir::attr::software_pipeline_async_stages)) {
       for (auto s : Downcast<ffi::Array<Integer>>(annot.value())) {
         pipeline_async_stages.insert(s->value);
       }
@@ -1156,9 +1157,9 @@ class PipelineInjector : private StmtExprMutator {
     ffi::Map<ffi::String, ffi::Any> preserved_annotations;
     for (const auto& kv : op->annotations) {
       const ffi::String& key = kv.first;
-      if (kv.first != tir::attr::software_pipeline_stage &&
-          kv.first != tir::attr::software_pipeline_order &&
-          kv.first != tir::attr::software_pipeline_async_stages) {
+      if (kv.first != s_tir::attr::software_pipeline_stage &&
+          kv.first != s_tir::attr::software_pipeline_order &&
+          kv.first != s_tir::attr::software_pipeline_async_stages) {
         preserved_annotations.Set(key, kv.second);
       }
     }
@@ -1228,8 +1229,8 @@ class PipelineInjector : private StmtExprMutator {
   }
 
   bool HasPipelineAnnotation(const ForNode* op) const {
-    auto it1 = op->annotations.find(tir::attr::software_pipeline_stage);
-    auto it2 = op->annotations.find(tir::attr::software_pipeline_order);
+    auto it1 = op->annotations.find(s_tir::attr::software_pipeline_stage);
+    auto it2 = op->annotations.find(s_tir::attr::software_pipeline_order);
     bool has_stage = it1 != op->annotations.end();
     bool has_order = it2 != op->annotations.end();
     if (has_stage && has_order) {

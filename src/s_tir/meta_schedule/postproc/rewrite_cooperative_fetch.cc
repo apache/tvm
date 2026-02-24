@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
@@ -62,7 +63,7 @@ ffi::Optional<SBlockRV> ParseAnnotate(const Schedule& sch, const Instruction& in
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
-  if (ann_key != tir::attr::meta_schedule_cooperative_fetch) {
+  if (ann_key != s_tir::attr::meta_schedule_cooperative_fetch) {
     return std::nullopt;
   }
   *vector_lane = Downcast<Integer>(sch->Get(Downcast<ExprRV>(inst->inputs[1])))->value;
@@ -83,7 +84,7 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
-  return ann_key == tir::attr::warp_execution;
+  return ann_key == s_tir::attr::warp_execution;
 }
 
 size_t GetMaxUsedDtypeBytes(SBlock block) {
@@ -176,7 +177,7 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
     }
     auto task = [thread_extent_x, thread_extent_y, vector_lane, sch,
                  block = opt_block_rv.value()]() mutable -> void {
-      sch->Unannotate(block, tir::attr::meta_schedule_cooperative_fetch);
+      sch->Unannotate(block, s_tir::attr::meta_schedule_cooperative_fetch);
       s_tir::LoopRV fused = sch->GetLoops(block).back();
       int64_t fused_extent = -1;
       if (const int64_t* extent = s_tir::GetLoopIntExtent(sch->Get(fused).get())) {

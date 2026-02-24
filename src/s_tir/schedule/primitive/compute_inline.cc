@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/s_tir/stmt.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -684,7 +686,7 @@ class ReverseComputeInliner : public BaseInliner {
       producer_store = producer_if->then_case.as<BufferStoreNode>();
     } else {
       producer_store = producer_block_->body.as<BufferStoreNode>();
-      if (producer_block_->annotations.count(tir::attr::auto_copy) != 0) {
+      if (producer_block_->annotations.count(s_tir::attr::auto_copy) != 0) {
         const ForNode* producer_inner_loop = producer_block_->body.as<ForNode>();
         while (producer_inner_loop->body.as<ForNode>()) {
           producer_inner_loop = producer_inner_loop->body.as<ForNode>();
@@ -720,7 +722,7 @@ class ReverseComputeInliner : public BaseInliner {
       subst_map.Set(iter->var, binding);
       analyzer_.Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
     }
-    if (producer_block->annotations.count(tir::attr::auto_copy) != 0) {
+    if (producer_block->annotations.count(s_tir::attr::auto_copy) != 0) {
       auto bind = [&](const ForNode* loop) {
         analyzer_.Bind(loop->loop_var,
                        Range::FromMinExtent(make_zero(loop->extent->dtype), loop->extent));

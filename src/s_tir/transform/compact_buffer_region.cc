@@ -25,6 +25,7 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -260,8 +261,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       }
     };
 
-    record_explicit_region(tir::attr::explicit_read_region, BufferIndexType::kRead);
-    record_explicit_region(tir::attr::explicit_write_region, BufferIndexType::kWrite);
+    record_explicit_region(s_tir::attr::explicit_read_region, BufferIndexType::kRead);
+    record_explicit_region(s_tir::attr::explicit_write_region, BufferIndexType::kWrite);
 
     // Step 3. Record relax position of ancestor_loops_
     for (const Buffer& buffer : op->alloc_buffers) {

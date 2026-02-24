@@ -25,6 +25,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -166,7 +167,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
   }
   Stmt VisitStmt_(const SBlockNode* op) final {
     SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
-    auto it = op->annotations.find(attr::meta_schedule_layout_rewrite_preproc);
+    auto it = op->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
     bool is_layout_rewrite_preproc =
         it != op->annotations.end() && is_one(Downcast<PrimExpr>((*it).second));
 
@@ -204,7 +205,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
           RewriteInfo{buffer_index, op->reads[0]->buffer, op->writes[0]->buffer});
 
       auto new_annotations = op->annotations;
-      new_annotations.erase(attr::meta_schedule_layout_rewrite_preproc);
+      new_annotations.erase(s_tir::attr::meta_schedule_layout_rewrite_preproc);
       auto n = ffi::make_object<SBlockNode>(*block.get());
       n->annotations = new_annotations;
       return SBlock(n);

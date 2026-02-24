@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/s_tir/stmt.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -51,8 +53,8 @@ class AnnotateRegionRewriter : public StmtExprMutator {
     // Annotate the block with explicit_read_region or explicit_write_region
     ffi::Map<ffi::String, ffi::Any> new_annotations = n->annotations;
     ffi::String annotation_key = buffer_index_type_ == BufferIndexType::kWrite
-                                     ? tir::attr::explicit_write_region
-                                     : tir::attr::explicit_read_region;
+                                     ? s_tir::attr::explicit_write_region
+                                     : s_tir::attr::explicit_read_region;
     if (new_annotations.count(annotation_key)) {
       ffi::Array<Integer> buffer_indices =
           Downcast<ffi::Array<Integer>>(new_annotations[annotation_key]);

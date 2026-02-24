@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/name_supply.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
@@ -145,7 +146,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
     for (int i : this->layout_free_buffer_indices_) {
       indices.push_back(i);
     }
-    return WithAttr(std::move(func), tir::attr::layout_free_buffers, indices);
+    return WithAttr(std::move(func), s_tir::attr::layout_free_buffers, indices);
   }
 
   Stmt VisitStmt_(const SBlockNode* _block) final {
@@ -318,7 +319,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
     }
   }
   // Set script_parsing_detect_access
-  annotations.Set(tir::attr::script_parsing_detect_access, IntImm(DataType::Int(32), 3));
+  annotations.Set(s_tir::attr::script_parsing_detect_access, IntImm(DataType::Int(32), 3));
   return annotations;
 }
 

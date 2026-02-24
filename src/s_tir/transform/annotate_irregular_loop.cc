@@ -20,6 +20,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -45,11 +46,11 @@ class IrregularLoopAnnotator : public StmtMutator {
           << "Loop kind " << op->kind << " is invalid for irregular loop " << op->loop_var;
       for (const char* key :
            {tir::attr::pragma_auto_unroll_max_step, tir::attr::pragma_unroll_explicit,
-            tir::attr::pragma_loop_partition_hint, tir::attr::software_pipeline_stage}) {
+            tir::attr::pragma_loop_partition_hint, s_tir::attr::software_pipeline_stage}) {
         TVM_FFI_ICHECK(!res->annotations.count(key))
             << "Annotation `" << key << "` is invalid for irregular loop " << op->loop_var;
       }
-      res.CopyOnWrite()->annotations.Set(tir::attr::irregular_loop_mark, 1);
+      res.CopyOnWrite()->annotations.Set(s_tir::attr::irregular_loop_mark, 1);
     }
     std::swap(cur_has_jump, has_jump_);
     return res;

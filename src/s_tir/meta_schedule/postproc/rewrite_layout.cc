@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <optional>
 #include <unordered_set>
@@ -121,7 +122,7 @@ class LayoutFreeBufferCollector : public StmtVisitor {
 ffi::Array<Buffer> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
   // Only rewrite PrimFuncs with attr "layout_free_buffers"
   ffi::Array<Integer> layout_free_buffer_index =
-      func->GetAttr(tir::attr::layout_free_buffers, ffi::Array<Integer>()).value();
+      func->GetAttr(s_tir::attr::layout_free_buffers, ffi::Array<Integer>()).value();
 
   ffi::Array<Buffer> layout_free_buffers;
   for (const Integer& index : layout_free_buffer_index) {
@@ -186,7 +187,7 @@ bool RewriteLayout(const Schedule& sch) {
   std::vector<std::pair<StmtSRef, ffi::String>> results;
   auto add_layout_rewrite_block = [&sch](SBlockRV consumer_block_rv, int buffer_index) {
     SBlockRV rewrite_block_rv = sch->CacheRead(consumer_block_rv, buffer_index, "global");
-    sch->Annotate(rewrite_block_rv, tir::attr::meta_schedule_layout_rewrite_preproc, true);
+    sch->Annotate(rewrite_block_rv, s_tir::attr::meta_schedule_layout_rewrite_preproc, true);
   };
 
   for (const auto& [g_var, base_func] : sch->mod()->functions) {

@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
@@ -107,22 +108,22 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
   bool found = false;
   *parsed = ParsedAnnotation{-1, -1, -1, -1, -1, -1};
   for (const auto& ann : block->annotations) {
-    if (ann.first == tir::attr::meta_schedule_parallel) {
+    if (ann.first == s_tir::attr::meta_schedule_parallel) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_parallel_extent = (*opt_int_imm)->value;
       }
-    } else if (ann.first == tir::attr::meta_schedule_vectorize) {
+    } else if (ann.first == s_tir::attr::meta_schedule_vectorize) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_vectorize_extent = (*opt_int_imm)->value;
       }
-    } else if (ann.first == tir::attr::meta_schedule_unroll_explicit) {
+    } else if (ann.first == s_tir::attr::meta_schedule_unroll_explicit) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_explicit = (*opt_int_imm)->value;
       }
-    } else if (ann.first == tir::attr::meta_schedule_unroll_implicit) {
+    } else if (ann.first == s_tir::attr::meta_schedule_unroll_implicit) {
       found = true;
       if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_implicit = (*opt_int_imm)->value;
@@ -135,16 +136,16 @@ bool ParseAnnotation(const SBlock& block, ParsedAnnotation* parsed) {
 void RemoveParsedAnn(const Schedule& sch, const SBlockRV& block_rv,
                      const ParsedAnnotation& parsed) {
   if (parsed.max_parallel_extent != -1) {
-    sch->Unannotate(block_rv, tir::attr::meta_schedule_parallel);
+    sch->Unannotate(block_rv, s_tir::attr::meta_schedule_parallel);
   }
   if (parsed.max_vectorize_extent != -1) {
-    sch->Unannotate(block_rv, tir::attr::meta_schedule_vectorize);
+    sch->Unannotate(block_rv, s_tir::attr::meta_schedule_vectorize);
   }
   if (parsed.unroll_explicit != -1) {
-    sch->Unannotate(block_rv, tir::attr::meta_schedule_unroll_explicit);
+    sch->Unannotate(block_rv, s_tir::attr::meta_schedule_unroll_explicit);
   }
   if (parsed.unroll_implicit != -1) {
-    sch->Unannotate(block_rv, tir::attr::meta_schedule_unroll_implicit);
+    sch->Unannotate(block_rv, s_tir::attr::meta_schedule_unroll_implicit);
   }
 }
 
