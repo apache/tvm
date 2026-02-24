@@ -26,6 +26,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -744,7 +745,7 @@ class StorageAlignCollector : public StmtVisitor {
 
   /*! \brief For s-stir, the alignment annotations reside in block annotations. */
   void VisitStmt_(const SBlockNode* op) final {
-    auto it = op->annotations.find(attr::buffer_dim_align);
+    auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != op->annotations.end()) {
       auto storage_align_annotation = Downcast<StorageAlignAnnotation>((*it).second);
       for (const auto& storage_align_tuple : storage_align_annotation) {
@@ -758,7 +759,7 @@ class StorageAlignCollector : public StmtVisitor {
 
   /*! \brief For lowered tir, the alignment annotations reside in allocate annotations. */
   void VisitStmt_(const AllocateNode* op) final {
-    auto it = op->annotations.find(attr::buffer_dim_align);
+    auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != op->annotations.end()) {
       auto storage_align_annotation = Downcast<StorageAlignAnnotation>((*it).second);
       for (const auto& storage_align_tuple : storage_align_annotation) {
