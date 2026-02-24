@@ -66,8 +66,7 @@ apt-install-and-clear -y \
     acl \
     python${PYTHON_VERSION} \
     python${PYTHON_VERSION}-dev \
-    python3-pip \
-    python${PYTHON_VERSION}-venv
+    python3-pip
 
 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1
 update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1
@@ -79,7 +78,7 @@ export PYTHONNOUSERSITE=1
 
 venv_dir="$(python3 -c "import os.path;print(os.path.dirname(\"${TVM_VENV}\"))")"
 mkdir -p "${venv_dir}"
-python3 -mvenv "${TVM_VENV}"
+uv venv "${TVM_VENV}" --python "python${PYTHON_VERSION}" --seed
 
 # NOTE: Only in python3.9 does venv guarantee it creates the python3.X binary.
 # This is needed so that CMake's find_package(PythonInterp) works inside the venv.

@@ -19,6 +19,7 @@
 # CI docker lint env
 # tag: v0.60
 FROM ubuntu:22.04
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 COPY utils/download-and-verify.sh /usr/local/bin/download-and-verify
@@ -30,6 +31,9 @@ RUN bash /install/ubuntu_setup_tz.sh
 
 RUN apt-get update && \
     apt-install-and-clear -y wget git sudo make parallel doxygen graphviz curl shellcheck ca-certificates curl gnupg
+
+# Globally disable uv cache
+ENV UV_NO_CACHE=1
 
 ENV TVM_VENV=/venv/apache-tvm-py3.10
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
