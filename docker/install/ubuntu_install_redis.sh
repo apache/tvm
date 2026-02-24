@@ -21,5 +21,5 @@ set -u
 set -o pipefail
 
 apt-get update && apt-install-and-clear -y redis-server
-pip3 install \
+uv pip install \
     xgboost==3.2.0

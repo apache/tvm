@@ -27,17 +27,17 @@ PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.v
 DEVICE=${1:-cpu}
 
 # Install the onnx package
-pip3 install \
+uv pip install \
     onnx==1.20.1 \
     onnxruntime==1.23.2 \
     onnxoptimizer==0.4.2
 
 if [ "$DEVICE" == "cuda" ]; then
-    pip3 install \
+    uv pip install \
         torch==2.10.0 \
         torchvision==0.25.0
 else
-    pip3 install \
+    uv pip install \
         torch==2.10.0 \
         torchvision==0.25.0 \
         --extra-index-url https://download.pytorch.org/whl/cpu

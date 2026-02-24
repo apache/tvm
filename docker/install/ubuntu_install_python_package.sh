@@ -21,25 +21,25 @@ set -u
 set -o pipefail
 
 # install libraries for python package on ubuntu
-pip3 install --upgrade \
-    "Pygments>=2.4.0" \
-    cloudpickle \
-    cython \
-    mypy \
+uv pip install --upgrade \
+    "Pygments~=2.19" \
+    "cloudpickle~=3.1" \
+    "cython~=3.0" \
+    "mypy~=1.15" \
     numpy==1.26.* \
-    orderedset \
-    packaging \
+    "orderedset~=2.0" \
+    "packaging~=25.0" \
     Pillow==12.1.1 \
-    psutil \
-    pytest \
+    "psutil~=7.0" \
+    "pytest~=8.3" \
     git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@768ec1dce349fe4708f6ad68be1ebb3f3dabafa1 \
-    pytest-profiling \
-    pytest-xdist \
+    "pytest-profiling~=1.8" \
+    "pytest-xdist~=3.6" \
     pytest-rerunfailures==16.1 \
-    requests \
-    scipy \
-    Jinja2 \
+    "requests~=2.32" \
+    "scipy~=1.13" \
+    "Jinja2~=3.1" \
     junitparser==4.0.2 \
-    six \
-    tornado \
-    "ml_dtypes>=0.5.1"
+    "six~=1.17" \
+    "tornado~=6.4" \
+    "ml_dtypes~=0.5"
