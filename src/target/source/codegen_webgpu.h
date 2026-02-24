@@ -93,6 +93,8 @@ class CodeGenWebGPU final : public CodeGenC {
 
   // whether enable fp16
   bool enable_fp16_{false};
+  // whether enable subgroups
+  bool enable_subgroups_{false};
 
   /*! \brief the header stream for function label and enable directive if any, goes before any other
    * declaration */

@@ -105,6 +105,9 @@ std::string CodeGenWebGPU::Finish() {
   if (enable_fp16_) {
     header_stream << "enable f16;\n\n";
   }
+  if (enable_subgroups_) {
+    header_stream << "enable subgroups;\n\n";
+  }
   return header_stream.str() + decl_stream.str() + this->fwd_decl_stream.str() + stream.str();
 }
 
@@ -118,7 +121,9 @@ void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
   }
 }
 
-CodeGenWebGPU::CodeGenWebGPU(Target target) : target_(target) {}
+CodeGenWebGPU::CodeGenWebGPU(Target target) : target_(target) {
+  enable_subgroups_ = target_->GetAttr<Bool>("supports_subgroups").value_or(Bool(false));
+}
 
 runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_readonly_decl) {
   // clear previous generated state.
