@@ -32,8 +32,8 @@ RUN bash /install/ubuntu_setup_tz.sh
 RUN apt-get update && \
     apt-install-and-clear -y wget git sudo make parallel doxygen graphviz curl shellcheck ca-certificates curl gnupg
 
-# Globally disable uv cache
 ENV UV_NO_CACHE=1
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
 
 ENV TVM_VENV=/venv/apache-tvm-py3.10
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles

@@ -30,6 +30,7 @@ apt-get update && apt-install-and-clear -y --no-install-recommends \
     g++ \
     gdb \
     git \
+    gnupg \
     graphviz \
     libcurl4-openssl-dev \
     libopenblas-dev \

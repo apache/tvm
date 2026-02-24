@@ -43,42 +43,24 @@ esac
 
 apt-get update
 
-# Ensure lsb-release is installed.
-apt-install-and-clear -y lsb-core software-properties-common
+# Install base dependencies required by this script.
+apt-install-and-clear -y acl
 
-release=$(lsb_release -sc)
-case "${release}" in
-    jammy)
-        if [ "${PYTHON_VERSION}" == "3.10" ] || \
-           [ "${PYTHON_VERSION}" == "3.11" ]; then
-            add-apt-repository -y ppa:deadsnakes/ppa
-        fi
-        ;;
-    *)
-        echo "Don't know which version of python to install for lsb-release ${release}"
-        exit 2
-        ;;
-esac
-
-# Install python and pip. Don't modify this to add Python package dependencies,
-# instead modify install_python_package.sh
-apt-install-and-clear -y \
-    acl \
-    python${PYTHON_VERSION} \
-    python${PYTHON_VERSION}-dev \
-    python3-pip
-
-update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1
-update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1
+# Install managed Python to a shared location so both root and the CI runtime user can use it.
+UV_PYTHON_INSTALL_DIR=${UV_PYTHON_INSTALL_DIR:-/opt/uv/python}
+export UV_PYTHON_INSTALL_DIR
+mkdir -p "${UV_PYTHON_INSTALL_DIR}"
+chmod 755 "${UV_PYTHON_INSTALL_DIR}"
+uv python install "${PYTHON_VERSION}" --install-dir "${UV_PYTHON_INSTALL_DIR}" --no-bin
 
 # Allow disabling user site-packages, even with sudo; this makes it harder to repro CI failures
 # locally because it's hard to tell what might be in this directory.
 echo "Defaults env_keep += \"PYTHONNOUSERSITE\"" >/etc/sudoers.d/91-preserve-python-nousersite
 export PYTHONNOUSERSITE=1
 
-venv_dir="$(python3 -c "import os.path;print(os.path.dirname(\"${TVM_VENV}\"))")"
+venv_dir="$(dirname "${TVM_VENV}")"
 mkdir -p "${venv_dir}"
-uv venv "${TVM_VENV}" --python "python${PYTHON_VERSION}" --seed
+uv venv "${TVM_VENV}" --python "${PYTHON_VERSION}" --managed-python --seed
 
 # NOTE: Only in python3.9 does venv guarantee it creates the python3.X binary.
 # This is needed so that CMake's find_package(PythonInterp) works inside the venv.
@@ -110,9 +92,9 @@ setfacl -R -m group:tvm-venv:rwx "${TVM_VENV}"
 
 # Prevent further use of pip3 via the system.
 # There may be multiple (i.e. from python3-pip apt package and pip3 install -U).
-while [ "$(which pip3)" != "" ]; do
-    rm "$(which pip3)"
+while command -v pip3 >/dev/null 2>&1; do
+    rm -f "$(command -v pip3)"
 done
-while [ "$(which pip)" != "" ]; do
-    rm "$(which pip)"
+while command -v pip >/dev/null 2>&1; do
+    rm -f "$(command -v pip)"
 done
