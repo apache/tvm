@@ -212,7 +212,7 @@ class MetalWrappedFunc {
       ThreadWorkLoad wl = launch_param_config_.Extract(args);
       int blockSize = wl.block_dim(0) * wl.block_dim(1) * wl.block_dim(2);
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
-      CHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
+      TVM_FFI_ICHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
       // attach error message directly in this functio
       id<MTLCommandBuffer> cb = stream->GetCommandBuffer(/*label=*/"TVMKernel:" + func_name_,
                                                          /*attach_error_callback=*/false);
