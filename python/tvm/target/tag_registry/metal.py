@@ -19,7 +19,7 @@
 from .registry import register_tag
 
 
-def _register_metal_tag(name, max_threads, shared_mem, warp_size):
+def _register_metal_tag(name, max_threads, shared_mem, warp_size, mcpu):
     register_tag(
         name,
         {
@@ -30,12 +30,12 @@ def _register_metal_tag(name, max_threads, shared_mem, warp_size):
             "host": {
                 "kind": "llvm",
                 "mtriple": "arm64-apple-macos",
-                "mcpu": "apple-m4",
+                "mcpu": mcpu,
             },
         },
     )
 
 
-_register_metal_tag("apple/m1-gpu", 1024, 32768, 32)
-_register_metal_tag("apple/m1-gpu-restricted", 256, 32768, 32)
-_register_metal_tag("apple/m2-gpu", 1024, 32768, 32)
+_register_metal_tag("apple/m1-gpu", 1024, 32768, 32, "apple-m1")
+_register_metal_tag("apple/m1-gpu-restricted", 256, 32768, 32, "apple-m1")
+_register_metal_tag("apple/m2-gpu", 1024, 32768, 32, "apple-m2")
