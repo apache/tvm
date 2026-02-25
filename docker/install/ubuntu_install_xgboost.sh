@@ -20,16 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-apt-get update --fix-missing
-
-# deps
-apt-install-and-clear -y linux-tools-common linux-tools-generic kmod
-
-cd /
-# Pulling the latest version of this has broken the images before. Checkout the tagged version below for now.
-git clone --branch papi-6-0-0-1-t https://github.com/icl-utk-edu/papi
-cd papi/src
-export PAPI_CUDA_ROOT=/usr/local/cuda
-export PAPI_ROCM_ROOT=/opt/rocm
-./configure --with-components="$1"
-make -j $(nproc) && make install
+uv pip install xgboost==3.2.0

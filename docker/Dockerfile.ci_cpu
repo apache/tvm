@@ -59,16 +59,9 @@ RUN bash /install/ubuntu_install_llvm.sh
 COPY install/ubuntu_install_dnnl.sh /install/ubuntu_install_dnnl.sh
 RUN bash /install/ubuntu_install_dnnl.sh
 
-COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
-RUN bash /install/ubuntu_install_papi.sh ""
-
-# wasmtime
-COPY install/ubuntu_install_wasmtime.sh /install/ubuntu_install_wasmtime.sh
-RUN bash /install/ubuntu_install_wasmtime.sh
-
-# AutoTVM deps
-COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
-RUN bash /install/ubuntu_install_redis.sh
+# MetaScheduler deps
+COPY install/ubuntu_install_xgboost.sh /install/ubuntu_install_xgboost.sh
+RUN bash /install/ubuntu_install_xgboost.sh
 
 # BYODT deps
 COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh
@@ -86,18 +79,10 @@ RUN bash /install/ubuntu_install_tflite.sh
 COPY install/ubuntu_install_jax.sh /install/ubuntu_install_jax.sh
 RUN bash /install/ubuntu_install_jax.sh "cpu"
 
-# Compute Library
-COPY install/ubuntu_download_arm_compute_lib_binaries.sh /install/ubuntu_download_arm_compute_lib_binaries.sh
-RUN bash /install/ubuntu_download_arm_compute_lib_binaries.sh
-
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
 ENV PATH=/opt/sccache:$PATH
-
-# Libxsmm deps
-COPY install/ubuntu_install_libxsmm.sh /install
-RUN bash /install/ubuntu_install_libxsmm.sh
 
 # ONNX and PyTorch
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh

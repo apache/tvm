@@ -94,6 +94,7 @@ RUN bash /install/ubuntu_install_tensorflow.sh
 COPY install/ubuntu_install_jax.sh /install/ubuntu_install_jax.sh
 RUN bash /install/ubuntu_install_jax.sh "cuda"
 
+# ONNX and PyTorch
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh "cuda"
 
@@ -110,21 +111,13 @@ ENV NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh
 
-# wasmtime
-COPY install/ubuntu_install_wasmtime.sh /install/ubuntu_install_wasmtime.sh
-RUN bash /install/ubuntu_install_wasmtime.sh
-
-# AutoTVM deps
-COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
-RUN bash /install/ubuntu_install_redis.sh
+# MetaScheduler deps
+COPY install/ubuntu_install_xgboost.sh /install/ubuntu_install_xgboost.sh
+RUN bash /install/ubuntu_install_xgboost.sh
 
 # BYODT deps
 COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh
 RUN bash /install/ubuntu_install_universal.sh
-
-# PAPI profiling deps
-COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
-RUN bash /install/ubuntu_install_papi.sh "cuda rocm"
 
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh

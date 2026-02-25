@@ -70,14 +70,10 @@ RUN bash /install/ubuntu_install_tensorflow_aarch64.sh
 COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
 RUN bash /install/ubuntu_install_tflite.sh
 
-# ONNX
+# ONNX and PyTorch
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
 
-# AutoTVM deps
-COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
-RUN bash /install/ubuntu_install_redis.sh
-
-# Arm(R) Compute Library
-COPY install/ubuntu_download_arm_compute_lib_binaries.sh /install/ubuntu_download_arm_compute_lib_binaries.sh
-RUN bash /install/ubuntu_download_arm_compute_lib_binaries.sh
+# MetaScheduler deps
+COPY install/ubuntu_install_xgboost.sh /install/ubuntu_install_xgboost.sh
+RUN bash /install/ubuntu_install_xgboost.sh
