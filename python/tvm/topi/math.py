@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Elementwise operators"""
+
 # pylint: disable=redefined-builtin,unused-argument
 import tvm
 from tvm import te
@@ -783,6 +784,8 @@ def fast_exp(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int") or x.dtype.startswith("uint"):
+        x = cast(x, "float32")
     return cpp.fast_exp(x, x.dtype, tag.ELEMWISE)
 
 
@@ -799,6 +802,8 @@ def fast_tanh(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int") or x.dtype.startswith("uint"):
+        x = cast(x, "float32")
     return cpp.fast_tanh(x, x.dtype, tag.ELEMWISE)
 
 
@@ -849,7 +854,11 @@ def ceil_log2(x):
             return cast(res, x.dtype)
         return res
 
-    if "adreno" in target.device_name or target.kind.name in ["metal", "rocm", "webgpu"]:
+    if "adreno" in str(target.attrs.get("device", "")) or target.kind.name in [
+        "metal",
+        "rocm",
+        "webgpu",
+    ]:
         return cast(tvm.tir.ceil(tvm.tir.log2(cast(x, "float32"))), x.dtype)
 
     return cast(tvm.tir.ceil(tvm.tir.log2(cast(x, "float64"))), x.dtype)

@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """The entry point of TVM parser."""
+
 import inspect
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 import tvm
-from tvm.relax import ExternFunc
+
 from ....ir.module import IRModule
 from ...ir_builder import IRBuilder
 from . import doc
@@ -36,9 +37,12 @@ WELL_FORMED_ERROR_MESSAGE = (
 
 
 def _default_globals() -> Dict[str, Any]:
-    from tvm.script.parser import ir  # pylint: disable=import-outside-toplevel
-    from tvm.script.parser import relax  # pylint: disable=import-outside-toplevel
-    from tvm.script.parser import tir  # pylint: disable=import-outside-toplevel
+    # lazy import here to avoid circular deps
+    from tvm.script.parser import (
+        ir,  # pylint: disable=import-outside-toplevel
+        relax,  # pylint: disable=import-outside-toplevel
+        tir,  # pylint: disable=import-outside-toplevel
+    )
 
     extra_vars = {
         "tvm": tvm,
@@ -52,7 +56,7 @@ def _default_globals() -> Dict[str, Any]:
     return extra_vars
 
 
-def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> Any:
+def scan_macro(program: Union[Any, str], extra_vars: Optional[Dict[str, Any]] = None) -> Any:
     """Generate the AST, and the source code for __repr__."""
     # The AST will be converted into TIR at the time of expansion.
     source = Source(program)
@@ -62,7 +66,7 @@ def scan_macro(program: Union[Any, str], extra_vars: Dict[str, Any] = None) -> A
 
 def parse(
     program: Union[doc.AST, Any, str],
-    extra_vars: Dict[str, Any] = None,
+    extra_vars: Optional[Dict[str, Any]] = None,
     check_well_formed: bool = True,
 ) -> Any:
     """Register a method for a operand type, AST operator node and operand index.
@@ -126,7 +130,7 @@ def parse(
         except Exception as err:  # pylint: disable=broad-exception-caught
             parser.report_error(
                 source_ast,
-                err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {str(err)}",
+                err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {err!s}",
             )
     return ret
 
@@ -169,7 +173,7 @@ def _attach_pyfuncs_to_irmodule(irmodule, all_pyfuncs):
         irmodule.pyfuncs = {}
 
     for global_var, func in irmodule.functions_items():
-        if not isinstance(func, ExternFunc):
+        if not isinstance(func, tvm.relax.ExternFunc):
             continue
         if not func.attrs.get("is_pyfunc", False):
             continue

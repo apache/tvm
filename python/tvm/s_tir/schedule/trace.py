@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """An execution trace of a scheduling program"""
+
 import os
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from tvm_ffi import register_object as _register_object
+
 from tvm.runtime import Object
 from tvm.tir.expr import FloatImm, IntImm
 from tvm.tir.function import IndexMap
@@ -54,7 +56,7 @@ def _json_from_tvm(obj):
         raise TypeError("Not supported type: " + str(type(obj)))
 
 
-@_register_object("tir.Trace")
+@_register_object("s_tir.Trace")
 class Trace(Object):
     """An execution trace of a scheduling program.
 

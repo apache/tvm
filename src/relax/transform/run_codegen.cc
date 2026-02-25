@@ -92,7 +92,7 @@ class CodeGenRunner : ExprMutator {
       // Some backends (e.g. TensorRT) expect constants to be passed when they are instantiated
       ffi::Map<ffi::String, runtime::Tensor> constants;
       for (const auto& [constant, name] : constant_names) {
-        ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
+        TVM_FFI_ICHECK(!constants.count(name)) << "More than one constant with the name " << name;
         constants.Set(name, constant->data);
       }
       out_mod = WithAttr(out_mod, tvm::attr::kConstNameToConstant, std::move(constants));
@@ -132,7 +132,7 @@ class CodeGenRunner : ExprMutator {
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
           const auto RemoveFuncAttrFunc = tvm::ffi::Function::GetGlobal("ir.BaseFuncWithoutAttr");
-          ICHECK(RemoveFuncAttrFunc.has_value());
+          TVM_FFI_ICHECK(RemoveFuncAttrFunc.has_value());
           func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol).cast<Function>();
           func = (*RemoveFuncAttrFunc)(func, attr::kCodegen).cast<Function>();
           builder_->UpdateFunction(gvar, func);
@@ -196,7 +196,7 @@ class CodeGenRunner : ExprMutator {
       // Get the codegen with its ffi key.
       ffi::String codegen_name = "relax.ext." + target;
       const auto codegen = tvm::ffi::Function::GetGlobal(codegen_name);
-      ICHECK(codegen.has_value()) << "Codegen is not found: " << codegen_name << "\n";
+      TVM_FFI_ICHECK(codegen.has_value()) << "Codegen is not found: " << codegen_name << "\n";
 
       ffi::Array<ffi::Module> compiled_functions =
           (*codegen)(functions, options, constant_names).cast<ffi::Array<ffi::Module>>();

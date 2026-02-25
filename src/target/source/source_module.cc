@@ -22,20 +22,20 @@
  * \brief Source code module, only for viewing
  */
 
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
+#include <tvm/support/io.h>
 
 #include <algorithm>
 #include <functional>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "../../runtime/file_utils.h"
+#include "../../support/bytes_io.h"
 #include "codegen_source_base.h"
 
 namespace tvm {
@@ -57,8 +57,8 @@ class SourceModuleNode : public ffi::ModuleObj {
   const char* kind() const final { return "source"; }
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
-    LOG(FATAL) << "Source module cannot execute, to get executable module"
-               << " build TVM with \'" << fmt_ << "\' runtime support";
+    TVM_FFI_THROW(InternalError) << "Source module cannot execute, to get executable module"
+                                 << " build TVM with \'" << fmt_ << "\' runtime support";
   }
 
   ffi::String InspectSource(const ffi::String& format) const final { return code_; }
@@ -112,32 +112,30 @@ class CSourceModuleNode : public ffi::ModuleObj {
   ffi::Array<ffi::String> GetWriteFormats() const override { return {fmt_}; }
 
   ffi::Bytes SaveToBytes() const final {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
-    stream->Write(code_);
-    stream->Write(fmt_);
+    std::string result;
+    support::BytesOutStream stream(&result);
+    stream.Write(code_);
+    stream.Write(fmt_);
 
     std::vector<std::string> func_names;
     for (const auto func_name : func_names_) func_names.push_back(func_name);
     std::vector<std::string> const_vars;
     for (auto const_var : const_vars_) const_vars.push_back(const_var);
-    stream->Write(func_names);
-    stream->Write(const_vars);
-    return ffi::Bytes(buffer);
+    stream.Write(func_names);
+    stream.Write(const_vars);
+    return ffi::Bytes(std::move(result));
   }
 
   static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
-    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-    dmlc::Stream* stream = &ms;
+    support::BytesInStream stream(bytes);
 
     std::string code, fmt;
-    ICHECK(stream->Read(&code)) << "Loading code failed";
-    ICHECK(stream->Read(&fmt)) << "Loading format failed";
+    TVM_FFI_ICHECK(stream.Read(&code)) << "Loading code failed";
+    TVM_FFI_ICHECK(stream.Read(&fmt)) << "Loading format failed";
 
     std::vector<std::string> tmp_func_names, tmp_const_vars;
-    CHECK(stream->Read(&tmp_func_names)) << "Loading func names failed";
-    CHECK(stream->Read(&tmp_const_vars)) << "Loading const vars failed";
+    TVM_FFI_ICHECK(stream.Read(&tmp_func_names)) << "Loading func names failed";
+    TVM_FFI_ICHECK(stream.Read(&tmp_const_vars)) << "Loading const vars failed";
 
     ffi::Array<ffi::String> func_names;
     for (auto func_name : tmp_func_names) func_names.push_back(ffi::String(func_name));
@@ -153,10 +151,10 @@ class CSourceModuleNode : public ffi::ModuleObj {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     if (fmt == "c" || fmt == "cc" || fmt == "cpp" || fmt == "cu") {
-      ICHECK_NE(code_.length(), 0);
+      TVM_FFI_ICHECK_NE(code_.length(), 0);
       SaveBinaryToFile(file_name, code_);
     } else {
-      ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+      TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     }
   }
 
@@ -208,13 +206,13 @@ class ConcreteCodegenSourceBase : public CodeGenSourceBase {
 class DeviceSourceModuleNode final : public ffi::ModuleObj {
  public:
   DeviceSourceModuleNode(std::string data, std::string fmt,
-                         std::unordered_map<std::string, FunctionInfo> fmap, std::string type_key,
+                         ffi::Map<ffi::String, FunctionInfo> fmap, std::string type_key,
                          std::function<std::string(const std::string&)> fget_source)
       : data_(data), fmt_(fmt), fmap_(fmap), type_key_(type_key), fget_source_(fget_source) {}
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final {
-    LOG(FATAL) << "Source module cannot execute, to get executable module"
-               << " build TVM with \'" << fmt_ << "\' runtime support";
+    TVM_FFI_THROW(InternalError) << "Source module cannot execute, to get executable module"
+                                 << " build TVM with \'" << fmt_ << "\' runtime support";
   }
 
   ffi::String InspectSource(const ffi::String& format) const final {
@@ -231,33 +229,31 @@ class DeviceSourceModuleNode final : public ffi::ModuleObj {
 
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
-    ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+    TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     std::string meta_file = GetMetaFilePath(file_name);
     SaveMetaDataToFile(meta_file, fmap_);
     SaveBinaryToFile(file_name, data_);
   }
 
   ffi::Bytes SaveToBytes() const final {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
-    stream->Write(fmt_);
-    stream->Write(fmap_);
-    stream->Write(data_);
-    return ffi::Bytes(buffer);
+    std::string result;
+    support::BytesOutStream stream(&result);
+    stream.Write(fmt_);
+    stream.Write(fmap_);
+    stream.Write(data_);
+    return ffi::Bytes(std::move(result));
   }
 
  private:
   std::string data_;
   std::string fmt_;
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   std::string type_key_;
   std::function<std::string(const std::string&)> fget_source_;
 };
 
 ffi::Module DeviceSourceModuleCreate(std::string data, std::string fmt,
-                                     std::unordered_map<std::string, FunctionInfo> fmap,
-                                     std::string type_key,
+                                     ffi::Map<ffi::String, FunctionInfo> fmap, std::string type_key,
                                      std::function<std::string(const std::string&)> fget_source) {
   auto n = ffi::make_object<DeviceSourceModuleNode>(data, fmt, fmap, type_key, fget_source);
   return ffi::Module(n);

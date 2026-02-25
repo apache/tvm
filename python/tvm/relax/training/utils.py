@@ -17,14 +17,15 @@
 # pylint: disable=invalid-name, unused-argument
 """Utility functions for relax training."""
 
-from typing import Optional, Callable
+from typing import Callable, Optional
+
 from tvm_ffi import register_global_func
 
 import tvm
 from tvm import relax
 from tvm.relax.block_builder import BlockBuilder
 
-from ..expr import Function, Var, Call
+from ..expr import Call, Function, Var
 from . import _ffi_api
 
 
@@ -159,7 +160,7 @@ def AppendLoss(
     )
 
 
-def register_te_gradient(te_grad_name: str, te_grad_func: Callable = None):
+def register_te_gradient(te_grad_name: str, te_grad_func: Optional[Callable] = None):
     """Register a te gradient function bind with name te_grad_name. te_grad_name can be referenced
     later in call_tir_with_grad nodes.
 

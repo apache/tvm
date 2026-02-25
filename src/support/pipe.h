@@ -24,8 +24,8 @@
 #ifndef TVM_SUPPORT_PIPE_H_
 #define TVM_SUPPORT_PIPE_H_
 
-#include <dmlc/io.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/support/io.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -42,7 +42,7 @@ namespace tvm {
 namespace support {
 
 /*! \brief Platform independent pipe */
-class Pipe : public dmlc::Stream {
+class Pipe : public tvm::support::Stream {
  public:
 #ifdef _WIN32
   using PipeHandle = HANDLE;
@@ -84,21 +84,21 @@ class Pipe : public dmlc::Stream {
       return static_cast<ssize_t>(nread);
     };
     DWORD nread = static_cast<DWORD>(RetryCallOnEINTR(fread, GetLastErrorCode));
-    ICHECK_EQ(static_cast<size_t>(nread), size) << "Read Error: " << GetLastError();
+    TVM_FFI_ICHECK_EQ(static_cast<size_t>(nread), size) << "Read Error: " << GetLastError();
 #else
     size_t nread = 0;
     while (size) {
       ssize_t nread_chunk =
           RetryCallOnEINTR([&]() { return read(handle_, ptr, size); }, GetLastErrorCode);
-      ICHECK_NE(nread_chunk, -1) << "Write Error: " << strerror(errno);
+      TVM_FFI_ICHECK_NE(nread_chunk, -1) << "Write Error: " << strerror(errno);
 
       if (nread_chunk == 0) {
         break;
       }
 
-      ICHECK_GE(nread_chunk, 0);
-      ICHECK_LE(nread_chunk, size) << "Read " << nread_chunk << " bytes, "
-                                   << "but only expected to read " << size << " bytes";
+      TVM_FFI_ICHECK_GE(nread_chunk, 0);
+      TVM_FFI_ICHECK_LE(nread_chunk, size) << "Read " << nread_chunk << " bytes, "
+                                           << "but only expected to read " << size << " bytes";
       size -= nread_chunk;
       ptr = static_cast<char*>(ptr) + nread_chunk;
       nread += nread_chunk;
@@ -122,14 +122,14 @@ class Pipe : public dmlc::Stream {
       return static_cast<ssize_t>(nwrite);
     };
     DWORD nwrite = static_cast<DWORD>(RetryCallOnEINTR(fwrite, GetLastErrorCode));
-    ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << GetLastError();
+    TVM_FFI_ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << GetLastError();
 #else
     ssize_t nwrite =
         RetryCallOnEINTR([&]() { return write(handle_, ptr, size); }, GetLastErrorCode);
-    ICHECK_NE(nwrite, -1) << "Write Error: " << strerror(errno);
+    TVM_FFI_ICHECK_NE(nwrite, -1) << "Write Error: " << strerror(errno);
 
-    ICHECK_LE(nwrite, size) << "Wrote " << nwrite << " bytes, "
-                            << "but only expected to write " << size << " bytes";
+    TVM_FFI_ICHECK_LE(nwrite, size) << "Wrote " << nwrite << " bytes, "
+                                    << "but only expected to write " << size << " bytes";
 
 #endif
 

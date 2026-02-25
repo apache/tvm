@@ -157,18 +157,19 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
      * the number of lanes of the index.
      */
     void CheckContentType(DataType type, int index_lanes = 1) const {
-      ICHECK(element_type_known) << "Cannot check element type of buffer " << name_hint
-                                 << " no previous element type defined";
+      TVM_FFI_ICHECK(element_type_known) << "Cannot check element type of buffer " << name_hint
+                                         << " no previous element type defined";
       DataType expected_type = element_type.with_lanes(index_lanes * element_type.lanes());
-      ICHECK_EQ(type, expected_type) << "Attempted to access buffer " << name_hint
-                                     << " as element type " << type << " using an index of size "
-                                     << index_lanes << " when the element type is " << element_type;
+      TVM_FFI_ICHECK_EQ(type, expected_type)
+          << "Attempted to access buffer " << name_hint << " as element type " << type
+          << " using an index of size " << index_lanes << " when the element type is "
+          << element_type;
     }
 
     // Update content type if it hasn't been updated.
     void SetContentType(DataType type, std::string name_hint) {
-      ICHECK(!element_type_known) << "Cannot set element type of buffer " << name_hint
-                                  << " a second time.";
+      TVM_FFI_ICHECK(!element_type_known)
+          << "Cannot set element type of buffer " << name_hint << " a second time.";
       this->element_type = type;
       this->name_hint = name_hint;
       element_type_known = true;

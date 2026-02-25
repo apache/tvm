@@ -16,12 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name
 """Type checking functionality"""
+
 import collections
 import collections.abc
 import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 import typing
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
 
 def _is_none_type(type_: Any) -> bool:

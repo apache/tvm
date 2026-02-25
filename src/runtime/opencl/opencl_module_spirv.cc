@@ -17,13 +17,13 @@
  * under the License.
  */
 
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
+#include <tvm/support/io.h>
 
 #include <string>
-#include <unordered_map>
 #include <vector>
 
+#include "../../support/bytes_io.h"
 #include "../source_utils.h"
 #include "../spirv/spirv_shader.h"
 #include "opencl_common.h"
@@ -36,7 +36,7 @@ class OpenCLSPIRVModuleNode : public OpenCLModuleNodeBase {
  public:
   explicit OpenCLSPIRVModuleNode(const std::unordered_map<std::string, SPIRVShader>& shaders,
                                  const std::string& spirv_text,
-                                 std::unordered_map<std::string, FunctionInfo> fmap)
+                                 ffi::Map<ffi::String, FunctionInfo> fmap)
       : OpenCLModuleNodeBase(fmap), shaders_(shaders), spirv_text_(spirv_text) {}
 
   void WriteToFile(const ffi::String& file_name, const ffi::String& format) const final;
@@ -55,16 +55,15 @@ class OpenCLSPIRVModuleNode : public OpenCLModuleNodeBase {
 void OpenCLSPIRVModuleNode::WriteToFile(const ffi::String& file_name,
                                         const ffi::String& format) const {
   // TODO(masahi): How SPIRV binaries should be save to a file?
-  LOG(FATAL) << "Not implemented.";
+  TVM_FFI_THROW(InternalError) << "Not implemented.";
 }
 
 ffi::Bytes OpenCLSPIRVModuleNode::SaveToBytes() const {
-  std::string buffer;
-  dmlc::MemoryStringStream ms(&buffer);
-  dmlc::Stream* stream = &ms;
-  stream->Write(fmap_);
-  stream->Write(shaders_);
-  return ffi::Bytes(buffer);
+  std::string result;
+  support::BytesOutStream stream(&result);
+  stream.Write(fmap_);
+  stream.Write(shaders_);
+  return ffi::Bytes(std::move(result));
 }
 
 void OpenCLSPIRVModuleNode::Init() {
@@ -117,7 +116,7 @@ cl_kernel OpenCLSPIRVModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenC
       log.resize(len);
       clGetProgramBuildInfo(programs_[func_name][device_id], dev, CL_PROGRAM_BUILD_LOG, len,
                             &log[0], nullptr);
-      LOG(FATAL) << "OpenCL build error for device=" << dev << "\n" << log;
+      TVM_FFI_THROW(InternalError) << "OpenCL build error for device=" << dev << "\n" << log;
     }
   }
   // build kernel
@@ -132,7 +131,7 @@ cl_kernel OpenCLSPIRVModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenC
 
 ffi::Module OpenCLModuleCreate(const std::unordered_map<std::string, SPIRVShader>& shaders,
                                const std::string& spirv_text,
-                               std::unordered_map<std::string, FunctionInfo> fmap) {
+                               ffi::Map<ffi::String, FunctionInfo> fmap) {
   auto n = ffi::make_object<OpenCLSPIRVModuleNode>(shaders, spirv_text, fmap);
   n->Init();
   return ffi::Module(n);

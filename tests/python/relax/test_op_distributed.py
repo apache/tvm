@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
-from tvm.base import TVMError
 import tvm.testing
 from tvm import relax
+from tvm.base import TVMError
 from tvm.script.parser import relax as R
 
 

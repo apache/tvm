@@ -14,21 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F811
 import pytest
 
 pytest.importorskip("torch._dynamo")
 
 
-import tvm
-from tvm import relax, meta_schedule as ms, tir
-import tvm.testing
 import torch
 import torch._dynamo as dynamo
+from packaging import version
+
+import tvm
+import tvm.testing
+from tvm import relax, tir
 from tvm.relax.frontend.torch import relax_dynamo
+from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from packaging import version
 
 torch_version = torch.__version__
 
@@ -123,6 +126,25 @@ def test_relax_dynamo():
     tvm.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
 
 
+def test_relax_dynamo_scalar_params():
+    class ScalarParams(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.x = torch.nn.Parameter(torch.tensor(1.0))
+            self.y = torch.nn.Parameter(torch.tensor(2.0))
+
+        def forward(self):
+            return self.x + self.y
+
+    model = ScalarParams()
+
+    opt_model = torch.compile(model, backend=relax_dynamo())
+
+    default_output = model().detach().numpy()
+    optimized_output = opt_model().detach().numpy()
+    tvm.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
+
+
 def test_relax_dynamo_dynamic():
     class Input1(torch.nn.Module):
         def __init__(self):
@@ -159,6 +181,7 @@ def test_relax_dynamo_dynamic():
 
 def test_subgraph_capture():
     import torch
+
     from tvm.relax.frontend.torch.dynamo import dynamo_capture_subgraphs
 
     class Input1(torch.nn.Module):
@@ -202,7 +225,7 @@ def test_subgraph_capture():
         @R.function
         def subgraph_0(
             inp_0: R.Tensor((10,), dtype="float32"), inp_1: R.Tensor((10,), dtype="float32")
-        ) -> R.Tuple(R.Tensor((10,), dtype="float32"), R.Tensor((), dtype="bool")):
+        ) -> R.Tuple(R.Tensor((), dtype="bool"), R.Tensor((10,), dtype="float32")):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((10,), dtype="float32") = R.sin(inp_0)
@@ -210,9 +233,9 @@ def test_subgraph_capture():
                 lv2: R.Tensor((10,), dtype="float32") = R.divide(inp_0, lv1)
                 lv3: R.Tensor((), dtype="float32") = R.sum(inp_1, axis=None, keepdims=False)
                 lv4: R.Tensor((), dtype="bool") = R.less(lv3, R.const(1.0, "float32"))
-                gv: R.Tuple(R.Tensor((10,), dtype="float32"), R.Tensor((), dtype="bool")) = (
-                    lv2,
+                gv: R.Tuple(R.Tensor((), dtype="bool"), R.Tensor((10,), dtype="float32")) = (
                     lv4,
+                    lv2,
                 )
                 R.output(gv)
             return gv
@@ -268,6 +291,7 @@ def test_subgraph_capture():
 def verify_dynamo_model(torch_model, input_info, binding, expected):
     import torch
     import torch._dynamo as dynamo
+
     from tvm.relax.frontend.torch import from_fx
 
     args = []
@@ -316,7 +340,7 @@ def _convert_data_type(input_type):
     elif input_type == "bool":
         return torch.bool
     else:
-        raise NotImplementedError("input_type {} is not handled yet".format(input_type))
+        raise NotImplementedError(f"input_type {input_type} is not handled yet")
 
 
 @tvm.testing.requires_gpu
@@ -531,9 +555,7 @@ def test_getitem():
 
     class Select2(Module):
         def forward(self, input1):
-            result = input1[
-                torch.arange(1),
-            ]
+            result = input1[torch.arange(1),]
             return result
 
     verify_dynamo_model(

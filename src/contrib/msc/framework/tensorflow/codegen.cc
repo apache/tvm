@@ -142,7 +142,8 @@ void TensorflowCodeGen::CodeGenInference() {
 const ffi::Array<Doc> TensorflowCodeGen::GetOpCodes(const MSCJoint& node) {
   const auto& ops_map = GetTFV1OpCodes();
   auto it = ops_map->find(node->optype);
-  ICHECK(it != ops_map->end()) << "Unsupported tensorflow op(" << node->optype << "): " << node;
+  TVM_FFI_ICHECK(it != ops_map->end())
+      << "Unsupported tensorflow op(" << node->optype << "): " << node;
   it->second->Config(node, config(), prims());
   try {
     return it->second->GetDocs();

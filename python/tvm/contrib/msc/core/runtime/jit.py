@@ -18,15 +18,16 @@
 """tvm.contrib.msc.core.runtime.jit_model"""
 
 import logging
-from typing import Any, List, Tuple, Union, Dict
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools import ToolType
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
+
 from .runner import BaseRunner
 
 
-class BaseJIT(object):
+class BaseJIT:
     """Base Just-In-Time compile for msc
 
     Parameters
@@ -54,8 +55,8 @@ class BaseJIT(object):
         outputs: List[str],
         device: str = "cpu",
         training: bool = False,
-        hooks: dict = None,
-        logger: logging.Logger = None,
+        hooks: Optional[dict] = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self._model = model
         self._jit_model = model
@@ -173,7 +174,9 @@ class BaseJIT(object):
         tools = {n: r["runner"].get_tool(tool_type) for n, r in self._runner_ctxs.items()}
 
         def _finalize_tool(
-            checker: callable, post_batch: callable = None, post_iter: callable = None
+            checker: callable,
+            post_batch: Optional[callable] = None,
+            post_iter: Optional[callable] = None,
         ):
             while any(not checker(t) for t in tools.values()):
                 assert data_loader, "data_loader should be given to make plan for " + tool_type
@@ -203,7 +206,7 @@ class BaseJIT(object):
             plans = _finalize_tool(lambda t: t.tracked)
         else:
             plans = {n: t.finalize() for n, t in tools.items()}
-        plans_info = ", ".join(["{}({})".format(n, len(p)) for n, p in plans.items()])
+        plans_info = ", ".join([f"{n}({len(p)})" for n, p in plans.items()])
         self._logger.debug("Made %s plans for %s", plans_info, tool_type)
 
     def _redirect_run(self, *args, runner_name: str = "worker", **kwargs) -> Any:
@@ -338,7 +341,7 @@ class BaseJIT(object):
             The message with mark.
         """
 
-        return "JIT({}) {}".format(self.framework, msg)
+        return f"JIT({self.framework}) {msg}"
 
     @property
     def trained(self):

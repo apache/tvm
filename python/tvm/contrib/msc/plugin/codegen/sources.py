@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 """tvm.contrib.msc.plugin.codegen.sources"""
 
 from typing import Dict

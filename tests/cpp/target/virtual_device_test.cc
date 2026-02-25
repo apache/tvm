@@ -117,8 +117,12 @@ TEST(VirtualDeviceCache, Memoized) {
   EXPECT_NE(cache.Make(kDLCPU, 3, target_b, "local"), virtual_device_a);
   EXPECT_NE(cache.Make(kDLCUDA, 3, target_a, "global"), virtual_device_a);
   EXPECT_EQ(cache.Make(kDLCUDA, 3, Target("cuda"), "local"), virtual_device_a);
-  EXPECT_NE(cache.Make(kDLCUDA, 3, Target("cuda -max_threads_per_block=4096"), "local"),
-            virtual_device_a);
+  EXPECT_NE(
+      cache.Make(kDLCUDA, 3,
+                 Target(ffi::Map<ffi::String, ffi::Any>{{"kind", ffi::String("cuda")},
+                                                        {"max_threads_per_block", int64_t(4096)}}),
+                 "local"),
+      virtual_device_a);
 }
 
 }  // namespace

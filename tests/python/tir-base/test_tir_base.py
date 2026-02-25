@@ -14,15 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E711, F821, F841
+import itertools
+
 import numpy as np
-import tvm
 import pytest
+
+import tvm
 from tvm import tir
 from tvm.base import TVMError
 from tvm.ir.transform import PassContext
 from tvm.script import tir as T
-import itertools
-import pytest
 
 
 def build_tir_func(func):
@@ -102,14 +104,12 @@ def test_ret_const():
 
 
 def test_control_flow_jump():
-    ib = tvm.tir.ir_builder.create()
-    a = tir.Var("a", "float32")
-    b = tir.Var("b", "float32")
-    with ib.if_scope(True):
-        ib.emit(tir.Evaluate(tir.ret(a)))
-    ib.emit(tir.Evaluate(tir.ret(b)))
-    stmt = ib.get()
-    func = tir.PrimFunc([a, b], stmt)
+    @T.prim_func
+    def func(a: T.float32, b: T.float32):
+        if True:
+            T.evaluate(T.ret(a))
+        T.evaluate(T.ret(b))
+
     func = build_tir_func(func)
     out = func(1.0, 2.0)
     assert out == 1.0

@@ -14,14 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import tvm.testing
 from tvm.ir import Range
+from tvm.relax import TensorStructInfo
+from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
-from tvm.relax.distributed import DeviceMesh, DTensorStructInfo, Placement
-from tvm.relax import TensorStructInfo
 
 
 def _assert_print(obj, expected):

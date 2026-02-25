@@ -15,12 +15,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402, E501, RUF012
 
-import re
 import logging
+import re
 import sys
 from pathlib import Path
-from typing import Dict, Tuple, Any, Optional, List, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -62,7 +63,7 @@ class BotCommentBuilder:
         """
         existing_comment = self.find_bot_comment()
         if existing_comment is None:
-            logging.info(f"No existing comment while searching for body items")
+            logging.info("No existing comment while searching for body items")
             return {}
 
         matches = re.findall(

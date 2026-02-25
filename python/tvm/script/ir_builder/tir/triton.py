@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 """Triton kernel integration with TIR"""
 
 from typing import Any, Dict, List, Tuple, Union
@@ -96,9 +97,9 @@ class TritonKernel(BaseKernel):
         """Deduce the kernel signature and generate the Triton kernel"""
 
         kernel_params = func.params
-        assert len(kernel_params) == len(
-            args
-        ), f"Number of arguments does not match, expected {len(kernel_params)}, got {len(args)}"
+        assert len(kernel_params) == len(args), (
+            f"Number of arguments does not match, expected {len(kernel_params)}, got {len(args)}"
+        )
 
         signature = {}
         constants = {}

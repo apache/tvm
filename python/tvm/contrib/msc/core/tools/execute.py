@@ -17,12 +17,13 @@
 """tvm.contrib.msc.core.tools.execute"""
 
 from functools import wraps
-from typing import List, Iterable, Any, Dict
+from typing import Any, Dict, Iterable, List
 
 import tvm
-from tvm.contrib.msc.core.utils.namespace import MSCMap, MSCKey
 from tvm.contrib.msc.core import utils as msc_utils
-from .tool import ToolType, BaseTool
+from tvm.contrib.msc.core.utils.namespace import MSCKey, MSCMap
+
+from .tool import BaseTool, ToolType
 
 
 def _get_tool_key(tool_type: str) -> str:
@@ -85,9 +86,7 @@ def get_tool_cls(framework: str, tool_type: str, config: dict) -> BaseTool:
 
     tool_style = config.pop("tool_style") if "tool_style" in config else "default"
     tool_cls = msc_utils.get_registered_tool(framework, tool_type, tool_style)
-    assert tool_cls, "Can not find tool class for {}:{} @ {}".format(
-        tool_type, tool_style, framework
-    )
+    assert tool_cls, f"Can not find tool class for {tool_type}:{tool_style} @ {framework}"
     return tool_cls
 
 
@@ -301,9 +300,9 @@ def execute_step(step: str, *args, **kwargs):
     if step in ("before_build", "before_forward"):
         output = None
     else:
-        assert (
-            len(args) == 1 and not kwargs
-        ), "after step only accept 1 argument, get args {}, kwargs {}".format(args, kwargs)
+        assert len(args) == 1 and not kwargs, (
+            f"after step only accept 1 argument, get args {args}, kwargs {kwargs}"
+        )
         output = args[0]
     tag = kwargs.pop("tag") if "tag" in kwargs else "main"
     for tool in get_tools(tag):

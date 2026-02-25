@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 import pytest
 
 import tvm
-from tvm.script import tir as T, ir as I
 import tvm.testing
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_annotate_entry_func_single_primfunc():
@@ -186,14 +188,14 @@ def test_bind_target_updates_host():
             T.func_attr(
                 {
                     "global_symbol": "func",
-                    "target": T.target("nvptx", host="llvm -opt-level=0"),
+                    "target": T.target("nvptx", host={"kind": "llvm", "opt-level": 0}),
                 }
             )
             T.evaluate(0)
 
-    After = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm -opt-level=0"))(
-        Before
-    )
+    After = tvm.tir.transform.BindTarget(
+        tvm.target.Target("cuda", host={"kind": "llvm", "opt-level": 0})
+    )(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 
@@ -256,7 +258,7 @@ def test_bind_target_with_device_host_call_same_func():
 
         @T.prim_func(private=True)
         def add_host(a: T.int32, b: T.int32) -> T.int32:
-            T.func_attr({"target": T.target("llvm -opt-level=0")})
+            T.func_attr({"target": T.target({"kind": "llvm", "opt-level": 0})})
             return a + b
 
         @T.prim_func
@@ -266,16 +268,19 @@ def test_bind_target_with_device_host_call_same_func():
             C: T.Buffer((128, 128), "int32"),
         ):
             T.func_attr(
-                {"global_symbol": "main", "target": T.target("cuda", host="llvm -opt-level=0")}
+                {
+                    "global_symbol": "main",
+                    "target": T.target("cuda", host={"kind": "llvm", "opt-level": 0}),
+                }
             )
             length: T.int32 = Expected.add_host(64, 64)  # Call from host
             for bx in T.thread_binding(length, "blockIdx.x"):
                 for tx in T.thread_binding(length, "threadIdx.x"):
                     C[bx, tx] = Expected.add(A[bx, tx], B[bx, tx])  # Call from device
 
-    After = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm -opt-level=0"))(
-        Before
-    )
+    After = tvm.tir.transform.BindTarget(
+        tvm.target.Target("cuda", host={"kind": "llvm", "opt-level": 0})
+    )(Before)
     tvm.ir.assert_structural_equal(After, Expected)
 
 

@@ -110,7 +110,7 @@ class DataflowReshapeRewriter : public ExprMutator {
   bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
     const auto* func = mod_->functions.Get(global_var).value().as<tir::PrimFuncNode>();
-    ICHECK_NOTNULL(func);
+    TVM_FFI_ICHECK_NOTNULL(func);
     if (!HasReshapePattern(ffi::GetRef<tir::PrimFunc>(func))) {
       return false;
     }
@@ -119,14 +119,14 @@ class DataflowReshapeRewriter : public ExprMutator {
     // as the number of elements in the result. There are operators that could have a reshape
     // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
     // converted to reshape.
-    ICHECK(inp->struct_info_.defined() && call->struct_info_.defined());
+    TVM_FFI_ICHECK(inp->struct_info_.defined() && call->struct_info_.defined());
     TensorStructInfo inp_sinfo = Downcast<TensorStructInfo>(inp->struct_info_.value());
     TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_.value());
 
     if (inp_sinfo->IsUnknownDtype() || inp_sinfo->dtype != res_sinfo->dtype) {
       return false;
     }
-    ICHECK(inp_sinfo->shape.defined() && res_sinfo->shape.defined());
+    TVM_FFI_ICHECK(inp_sinfo->shape.defined() && res_sinfo->shape.defined());
     if (inp_sinfo->IsUnknownNdim() || res_sinfo->IsUnknownNdim()) {
       return false;
     }

@@ -14,21 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E722
 
 """Test Runners in MSC."""
 
-import pytest
 import numpy as np
-
+import pytest
 import torch
 from torch import fx
 
 import tvm.testing
-from tvm.relax.frontend.torch import from_fx
-from tvm.contrib.msc.framework.tvm.runtime import TVMRunner
-from tvm.contrib.msc.framework.torch.runtime import TorchRunner
-from tvm.contrib.msc.framework.tensorrt.runtime import TensorRTRunner
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.framework.tensorrt.runtime import TensorRTRunner
+from tvm.contrib.msc.framework.torch.runtime import TorchRunner
+from tvm.contrib.msc.framework.tvm.runtime import TVMRunner
+from tvm.relax.frontend.torch import from_fx
 
 requires_tensorrt = pytest.mark.skipif(
     tvm.get_global_func("relax.ext.tensorrt", True) is None,
@@ -59,7 +59,7 @@ def _test_from_torch(runner_cls, device, training=False, atol=1e-1, rtol=1e-1):
 
     torch_model = _get_torch_model("resnet50", training)
     if torch_model:
-        path = "test_runner_torch_{}_{}".format(runner_cls.__name__, device)
+        path = f"test_runner_torch_{runner_cls.__name__}_{device}"
         workspace = msc_utils.set_workspace(msc_utils.msc_dir(path, keep_history=False))
         log_path = workspace.relpath("MSC_LOG", keep_history=False)
         msc_utils.set_global_logger("critical", log_path)
@@ -91,7 +91,7 @@ def test_tvm_runner_cpu(training):
 @tvm.testing.requires_cuda
 @pytest.mark.parametrize("training", [True, False])
 def test_tvm_runner_cuda(training):
-    """Test runner for tvm on cuda"""
+    """Test runner for tvm on CUDA"""
 
     _test_from_torch(TVMRunner, "cuda", training=training)
 
@@ -106,7 +106,7 @@ def test_torch_runner_cpu(training):
 @tvm.testing.requires_cuda
 @pytest.mark.parametrize("training", [True, False])
 def test_torch_runner_cuda(training):
-    """Test runner for torch on cuda"""
+    """Test runner for torch on CUDA"""
 
     _test_from_torch(TorchRunner, "cuda", training=training, atol=1e-1, rtol=1e-1)
 

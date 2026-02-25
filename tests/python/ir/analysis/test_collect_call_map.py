@@ -20,10 +20,10 @@ from typing import Dict, List
 import tvm
 import tvm.testing
 from tvm.ir import GlobalVar
-
-from tvm.script import ir as I, tir as T, relax as R
-
 from tvm.ir.analysis import collect_call_map
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def _build_str_map(call_map: Dict[GlobalVar, List[GlobalVar]]) -> Dict[str, List[str]]:

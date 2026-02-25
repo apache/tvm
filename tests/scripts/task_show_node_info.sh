@@ -41,4 +41,4 @@ echo "===== RUNNER INFO ====="
 df --human-readable
 lscpu
 free
-nvidia-smi 2>/dev/null || echo "cuda not found"
+nvidia-smi 2>/dev/null || echo "CUDA not found"

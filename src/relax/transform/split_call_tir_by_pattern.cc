@@ -27,11 +27,12 @@
 #include <tvm/relax/tir_pattern.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../../tir/schedule/ir_comparator.h"
+#include "../../s_tir/schedule/ir_comparator.h"
 
 namespace tvm {
 
@@ -45,6 +46,8 @@ namespace tir {
 using relax::FCodegen;
 using relax::MatchResult;
 using relax::TIRPattern;
+using s_tir::ExprComparator;
+using s_tir::TensorizeComparator;
 
 /*! \brief helper to match a for stmt to a pattern*/
 class ForMatcher : public TensorizeComparator {
@@ -60,7 +63,7 @@ class ForMatcher : public TensorizeComparator {
 
   bool Match(const For& top) {
     const ForNode* pattern_top = pattern_->body.as<SBlockRealizeNode>()->block->body.as<ForNode>();
-    ICHECK(pattern_top) << "Invalid pattern function";
+    TVM_FFI_ICHECK(pattern_top) << "Invalid pattern function";
     if (!VisitStmt(top, ffi::GetRef<Stmt>(pattern_top))) {
       return false;
     }
@@ -69,7 +72,7 @@ class ForMatcher : public TensorizeComparator {
       auto it = pattern_->buffer_map.find(arg);
       if (it != pattern_->buffer_map.end()) {
         auto itt = rhs_buffer_map_.find((*it).second);
-        ICHECK(itt != rhs_buffer_map_.end());
+        TVM_FFI_ICHECK(itt != rhs_buffer_map_.end());
         evaluated_buffers.push_back(itt->second);
       }
     }
@@ -355,7 +358,7 @@ class ForMatcher : public TensorizeComparator {
   }
 
   template <typename T, typename Self, typename F>
-  bool CompareArray(const ffi::Array<T>& lhs, const ffi::Array<T>& rhs, F Self::*cmp) {
+  bool CompareArray(const ffi::Array<T>& lhs, const ffi::Array<T>& rhs, F Self::* cmp) {
     if (lhs.same_as(rhs)) return true;
     if (lhs.size() != rhs.size()) return false;
     for (size_t i = 0; i < lhs.size(); ++i) {
@@ -517,7 +520,7 @@ class BlockRemover : public StmtExprMutator {
     SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
     ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block.operator->());
     if (op->name_hint != "root") {
-      ICHECK(block_partition.count(ffi::GetRef<SBlock>(op)));
+      TVM_FFI_ICHECK(block_partition.count(ffi::GetRef<SBlock>(op)));
       bool block_is_library = block_partition[ffi::GetRef<SBlock>(op)]->value;
       if (!(is_library_part_ ^ block_is_library)) {
         n->body = block->body;
@@ -575,7 +578,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     return {func, std::nullopt};
   }
   ffi::Array<ffi::Any> codegen_result = f_codegen(match_results);
-  ICHECK(codegen_result.size() == 3);
+  TVM_FFI_ICHECK(codegen_result.size() == 3);
   ffi::String library_code = Downcast<ffi::String>(codegen_result[0]);
   int num_matched_ops = Downcast<Integer>(codegen_result[1])->value;
   ffi::Array<Buffer> func1_args = Downcast<ffi::Array<Buffer>>(codegen_result[2]);
@@ -606,9 +609,9 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   // Step 3. Craft the first function.
   ffi::Array<Var> new_params1;
   std::vector<int> arg_partition1;
-  ICHECK_LE(func1_args.size(), partitioner.input1.size());
+  TVM_FFI_ICHECK_LE(func1_args.size(), partitioner.input1.size());
   for (const auto& buffer : func1_args) {
-    ICHECK(partitioner.input1.find(buffer) != partitioner.input1.end());
+    TVM_FFI_ICHECK(partitioner.input1.find(buffer) != partitioner.input1.end());
     for (size_t i = 0; i < func->params.size(); i++) {
       if (func->buffer_map[func->params[i]].same_as(buffer)) {
         new_params1.push_back(func->params[i]);
@@ -726,7 +729,7 @@ class SplitMutator : public ExprMutator {
       tvm::BaseFunc lib_func = CodegenWithLibrary(split_funcs.first.get(), gv->name_hint);
       if (lib_func->IsInstance<tir::PrimFuncNode>()) return ffi::GetRef<Call>(op);
       // Update the function in the module with the library kernel
-      ICHECK(lib_func->IsInstance<ExternFuncNode>());
+      TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
       builder_->UpdateFunction(gv, lib_func);
       // emit the call to the library kernel
       ObjectPtr<CallNode> new_call = ffi::make_object<CallNode>(*call.operator->());
@@ -734,9 +737,9 @@ class SplitMutator : public ExprMutator {
       new_call->args = {lib_func, call->args[1]};
       return Call(new_call);
     }
-    tir::PrimFunc func1 = tir::RenewDefs(split_funcs.first);
-    tir::PrimFunc func2 = tir::RenewDefs(split_funcs.second.value());
-    ICHECK(arg_partition.size() == 2);
+    tir::PrimFunc func1 = s_tir::RenewDefs(split_funcs.first);
+    tir::PrimFunc func2 = s_tir::RenewDefs(split_funcs.second.value());
+    TVM_FFI_ICHECK(arg_partition.size() == 2);
     // emit the first call to the library kernel
     ffi::Array<Expr> args1;
     for (int p : arg_partition[0]) {
@@ -745,7 +748,7 @@ class SplitMutator : public ExprMutator {
     // replace the function in the module with the library kernel
     tvm::BaseFunc lib_func = CodegenWithLibrary(func1.get(), gv->name_hint);
     if (lib_func->IsInstance<tir::PrimFuncNode>()) return ffi::GetRef<Call>(op);
-    ICHECK(lib_func->IsInstance<ExternFuncNode>());
+    TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
     builder_->UpdateFunction(gv, lib_func);
     tir::Buffer intermediate_buffer = func1->buffer_map.at(func1->params.back());
     DataType dtype = intermediate_buffer->dtype;

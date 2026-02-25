@@ -63,7 +63,7 @@ class UDChain : relax::ExprVisitor {
   ffi::Optional<Var> cur_user_;
 
   void VisitBinding_(const VarBindingNode* binding) override {
-    CHECK(!bound_values.count(binding->var))
+    TVM_FFI_ICHECK(!bound_values.count(binding->var))
         << "Variable " << binding->var << " was defined multiple times";
     bound_values.Set(binding->var, binding->value);
 
@@ -104,7 +104,8 @@ class UDChain : relax::ExprVisitor {
   }
 
   void DefineVar(const Var& var) {
-    CHECK(!usage_map.count(var)) << "Variable " << var << " was used before its definition";
+    TVM_FFI_ICHECK(!usage_map.count(var))
+        << "Variable " << var << " was used before its definition";
     usage_map[var] = {};
   }
 };

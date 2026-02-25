@@ -18,6 +18,8 @@
 # pylint: disable=invalid-name
 """The TIR backend compilation pipeline."""
 
+from typing import Optional
+
 import tvm
 from tvm import tir
 
@@ -28,8 +30,6 @@ def finalize_host_passes():  # pylint: disable=unused-argument
         tir.transform.LowerTVMBuiltin(),
         tir.transform.LowerCustomDatatypes(),
         tir.transform.LowerIntrin(),
-        tir.transform.LowerDeviceStorageAccessInfo(),
-        tir.transform.CombineContextCall(),
     ]
     return tvm.ir.transform.Sequential(host_pass_list)
 
@@ -40,7 +40,6 @@ def finalize_device_passes():  # pylint: disable=unused-argument
         tir.transform.LowerWarpMemory(),
         tir.transform.Simplify(),
         tir.transform.LowerCustomDatatypes(),
-        tir.transform.LowerDeviceStorageAccessInfo(),
         tir.transform.LowerIntrin(),
     ]
     return tvm.ir.transform.Sequential(device_pass_list)
@@ -50,7 +49,7 @@ def finalize_device_passes():  # pylint: disable=unused-argument
 PIPELINE_MAP = {}
 
 
-def get_tir_pipeline(name: str = None, **kwargs) -> tvm.transform.Pass:
+def get_tir_pipeline(name: Optional[str] = None, **kwargs) -> tvm.transform.Pass:
     """Get pre-build pipeline by name
 
     Parameters
@@ -63,7 +62,7 @@ def get_tir_pipeline(name: str = None, **kwargs) -> tvm.transform.Pass:
         name = "s_tir"
     if name not in PIPELINE_MAP:
         raise ValueError(
-            f"Unknown pre-built pipeline {name}," f"candidates are {list(PIPELINE_MAP.keys())}"
+            f"Unknown pre-built pipeline {name},candidates are {list(PIPELINE_MAP.keys())}"
         )
     return PIPELINE_MAP[name](**kwargs)
 

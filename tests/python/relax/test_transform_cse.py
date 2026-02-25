@@ -14,13 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 """Test eliminate common subexpr pass"""
+
+import numpy as np
+
 import tvm
 import tvm.testing
 from tvm.relax.transform import EliminateCommonSubexpr
-from tvm.script.parser import ir as I, relax as R, tir as T
-
-import numpy as np
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def verify(input, expected, call_only=False):

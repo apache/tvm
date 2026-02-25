@@ -102,15 +102,15 @@ void RegisterArgsortNMS() {
         }
 
         // Currently only supports input dtype to be float32.
-        ICHECK_EQ(dtype.code, 2) << "Currently only supports input dtype "
-                                    "to be float.";
+        TVM_FFI_ICHECK_EQ(dtype.code, 2) << "Currently only supports input dtype "
+                                            "to be float.";
 #if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC != 1)
-        ICHECK_EQ(dtype.bits, 32) << "Currently only supports input dtype "
-                                     "to be float32.";
+        TVM_FFI_ICHECK_EQ(dtype.bits, 32) << "Currently only supports input dtype "
+                                             "to be float32.";
 #endif
-        ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
-                                        "input ndim "
-                                     << input->ndim;
+        TVM_FFI_ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
+                                                "input ndim "
+                                             << input->ndim;
 
         for (int i = 0; i < input->ndim; ++i) {
           if (i < axis) {
@@ -232,9 +232,9 @@ void RegisterArgsort() {
     if (axis < 0) {
       axis = input->ndim + axis;
     }
-    ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
-                                    "input ndim "
-                                 << input->ndim;
+    TVM_FFI_ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
+                                            "input ndim "
+                                         << input->ndim;
 
     auto data_dtype = ffi::DLDataTypeToString(input->dtype);
     auto out_dtype = ffi::DLDataTypeToString(output->dtype);
@@ -249,7 +249,7 @@ void RegisterArgsort() {
       } else if (out_dtype == "float64") {
         argsort<float, double>(input, output, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
     } else if (data_dtype == "float64") {
       if (out_dtype == "int32") {
@@ -261,14 +261,14 @@ void RegisterArgsort() {
       } else if (out_dtype == "float64") {
         argsort<double, double>(input, output, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
 #if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC == 1)
     } else if (data_dtype == "float16") {
       if (out_dtype == "float16") {
         argsort<__fp16, __fp16>(input, output, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
 #endif
     } else if (data_dtype == "int32") {
@@ -281,7 +281,7 @@ void RegisterArgsort() {
       } else if (out_dtype == "float64") {
         argsort<int32_t, double>(input, output, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
     } else if (data_dtype == "int64") {
       if (out_dtype == "int32") {
@@ -293,7 +293,7 @@ void RegisterArgsort() {
       } else if (out_dtype == "float64") {
         argsort<int64_t, double>(input, output, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
     } else if (data_dtype == "float16") {
       if (out_dtype == "int32") {
@@ -305,10 +305,10 @@ void RegisterArgsort() {
       } else if (out_dtype == "float64") {
         argsort<float16, double>(input, output, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
     } else {
-      LOG(FATAL) << "Unsupported input dtype: " << data_dtype;
+      TVM_FFI_THROW(InternalError) << "Unsupported input dtype: " << data_dtype;
     }
   });
 }
@@ -330,14 +330,14 @@ void RegisterSort() {
     if (axis < 0) {
       axis = input->ndim + axis;
     }
-    ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
-                                    "input ndim "
-                                 << input->ndim;
+    TVM_FFI_ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
+                                            "input ndim "
+                                         << input->ndim;
 
     auto data_dtype = DLDataTypeToString(input->dtype);
     auto out_dtype = DLDataTypeToString(output->dtype);
 
-    ICHECK_EQ(data_dtype, out_dtype);
+    TVM_FFI_ICHECK_EQ(data_dtype, out_dtype);
 
     if (data_dtype == "float32") {
       sort<float>(input, output, axis, is_ascend);
@@ -354,7 +354,7 @@ void RegisterSort() {
     } else if (data_dtype == "float16") {
       sort<float16>(input, output, axis, is_ascend);
     } else {
-      LOG(FATAL) << "Unsupported input dtype: " << data_dtype;
+      TVM_FFI_THROW(InternalError) << "Unsupported input dtype: " << data_dtype;
     }
   });
 }
@@ -470,12 +470,12 @@ void RegisterTopk() {
     } else if (ret_type == "indices") {
       indices_out = args[1].cast<DLTensor*>();
     } else {
-      LOG(FATAL) << "Unsupported ret type: " << ret_type;
+      TVM_FFI_THROW(InternalError) << "Unsupported ret type: " << ret_type;
     }
     if (axis < 0) {
       axis = input->ndim + axis;
     }
-    ICHECK(axis >= 0 && axis < input->ndim)
+    TVM_FFI_ICHECK(axis >= 0 && axis < input->ndim)
         << "Axis out of boundary for input ndim " << input->ndim;
 
     auto data_dtype = ffi::DLDataTypeToString(input->dtype);
@@ -492,7 +492,7 @@ void RegisterTopk() {
       } else if (out_dtype == "float64") {
         topk<float, double>(input, values_out, indices_out, k, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
     } else if (data_dtype == "float64") {
       if (out_dtype == "int32") {
@@ -504,7 +504,7 @@ void RegisterTopk() {
       } else if (out_dtype == "float64") {
         topk<double, double>(input, values_out, indices_out, k, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
     } else if (data_dtype == "uint8") {
       if (out_dtype == "uint8") {
@@ -518,7 +518,7 @@ void RegisterTopk() {
       } else if (out_dtype == "float64") {
         topk<uint8_t, double>(input, values_out, indices_out, k, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
     } else if (data_dtype == "int8") {
       if (out_dtype == "int8") {
@@ -532,7 +532,7 @@ void RegisterTopk() {
       } else if (out_dtype == "float64") {
         topk<int8_t, double>(input, values_out, indices_out, k, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
     } else if (data_dtype == "int32") {
       if (out_dtype == "int32") {
@@ -544,7 +544,7 @@ void RegisterTopk() {
       } else if (out_dtype == "float64") {
         topk<int32_t, double>(input, values_out, indices_out, k, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
     } else if (data_dtype == "int64") {
       if (out_dtype == "int32") {
@@ -556,7 +556,7 @@ void RegisterTopk() {
       } else if (out_dtype == "float64") {
         topk<int64_t, double>(input, values_out, indices_out, k, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
     } else if (data_dtype == "float16") {
       if (out_dtype == "int32") {
@@ -568,10 +568,10 @@ void RegisterTopk() {
       } else if (out_dtype == "float64") {
         topk<float16, double>(input, values_out, indices_out, k, axis, is_ascend);
       } else {
-        LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+        TVM_FFI_THROW(InternalError) << "Unsupported output dtype: " << out_dtype;
       }
     } else {
-      LOG(FATAL) << "Unsupported input dtype: " << data_dtype;
+      TVM_FFI_THROW(InternalError) << "Unsupported input dtype: " << data_dtype;
     }
   });
 }

@@ -14,10 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import tvm
 import tvm.testing
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_simple():
@@ -59,7 +62,7 @@ def test_nested():
                     R.Tuple([R.Tensor, R.Tensor]),
                     R.Tuple([R.Tensor, R.Tensor]),
                 ]
-            )
+            ),
         ) -> R.Tensor:
             return args[0][1]
 

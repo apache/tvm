@@ -34,15 +34,14 @@ namespace backend {
 ffi::Map<ffi::String, IntImm> ExtractArgIdx(ffi::String pattern_name, Function f) {
   ffi::Map<ffi::String, IntImm> arg_idx;
   auto pattern = backend::GetPattern(pattern_name);
-  ICHECK(pattern) << "Unsupported op_type " << pattern_name;
+  TVM_FFI_ICHECK(pattern) << "Unsupported op_type " << pattern_name;
 
   auto bindings = AnalyzeVar2Value(f);
   auto inner_body = f->body->body;
   auto matched_expr = relax::ExtractMatchedExpr(pattern.value()->pattern, inner_body, bindings);
-  ICHECK(matched_expr) << "ValueError: "
-                       << "For named pattern \"" << pattern_name
-                       << "\", expected to find a match for " << pattern.value()->pattern
-                       << ".  However, the function did not include this pattern " << f;
+  TVM_FFI_CHECK(matched_expr, ValueError)
+      << "For named pattern \"" << pattern_name << "\", expected to find a match for "
+      << pattern.value()->pattern << ".  However, the function did not include this pattern " << f;
 
   auto find_index = [](const ffi::Array<Var>& params, Var v) -> std::optional<size_t> {
     for (size_t i = 0; i < params.size(); ++i) {

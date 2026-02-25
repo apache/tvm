@@ -206,9 +206,7 @@ class TensorIntrin(Object):
         override: bool
             Whether override existing intrinsic.
         """
-        return _ffi_api.TensorIntrinRegister(
-            name, TensorIntrin(desc, impl), override
-        )  # type: ignore
+        return _ffi_api.TensorIntrinRegister(name, TensorIntrin(desc, impl), override)  # type: ignore
 
     @staticmethod
     def get(name: str, allow_missing: bool = False) -> Optional["TensorIntrin"]:

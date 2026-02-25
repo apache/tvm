@@ -54,28 +54,31 @@ Function FunctionBindSymbolicVars(
     if (auto opt = key.as<ffi::String>()) {
       ffi::String string_key = opt.value();
       auto it = string_lookup.find(string_key);
-      CHECK(it != string_lookup.end())
+      TVM_FFI_ICHECK(it != string_lookup.end())
           << "Function does not use symbolic var with name \"" << string_key << "\".  "
           << "Function has symbolic variables " << old_symbolic_vars;
 
-      CHECK_EQ(it->second.size(), 1)
+      TVM_FFI_ICHECK_EQ(it->second.size(), 1)
           << "Function contains multiple symbolic variables with name \"" << string_key << "\".  "
           << "The TIR variables " << it->second << " are all named \"" << string_key << "\"";
       auto var = it->second[0];
 
-      CHECK(!var_remap.count(var)) << "Remap of variable " << var << " was defined multiple times";
+      TVM_FFI_ICHECK(!var_remap.count(var))
+          << "Remap of variable " << var << " was defined multiple times";
       var_remap.Set(var, replacement);
     } else if (auto opt = key.as<tir::Var>()) {
       auto var = opt.value();
 
-      CHECK(!var_remap.count(var)) << "Remap of variable " << var << " was defined multiple times";
-      CHECK(symbolic_var_set.count(var.get()))
+      TVM_FFI_ICHECK(!var_remap.count(var))
+          << "Remap of variable " << var << " was defined multiple times";
+      TVM_FFI_ICHECK(symbolic_var_set.count(var.get()))
           << "Function does not use variable " << var << " as a symbolic variable.  "
           << "Function has symbolic variables " << old_symbolic_vars;
       var_remap.Set(var, replacement);
     } else {
-      LOG(FATAL) << "Expected symbolic variable to be a tir::Var or a string name, "
-                 << "but " << key << " was of type " << key.GetTypeKey();
+      TVM_FFI_THROW(InternalError)
+          << "Expected symbolic variable to be a tir::Var or a string name, "
+          << "but " << key << " was of type " << key.GetTypeKey();
     }
   }
 
@@ -83,7 +86,7 @@ Function FunctionBindSymbolicVars(
 
   auto free_symbolic_vars = FreeSymbolicVars(new_func);
 
-  CHECK(free_symbolic_vars.empty())
+  TVM_FFI_ICHECK(free_symbolic_vars.empty())
       << "Resulting function should not have any undefined symbolic variables, "
       << "but TIR variables " << free_symbolic_vars << " were undefined.";
 
@@ -116,8 +119,9 @@ IRModule ModuleBindSymbolicVars(
           } else if (auto ptr = key.as<tir::VarNode>()) {
             used_by_function = vars.count(ptr);
           } else {
-            LOG(FATAL) << "Expected symbolic variable to be a tir::Var "
-                       << "or a string name, but " << key << " was of type " << key.GetTypeKey();
+            TVM_FFI_THROW(InternalError)
+                << "Expected symbolic variable to be a tir::Var "
+                << "or a string name, but " << key << " was of type " << key.GetTypeKey();
           }
           if (used_by_function) {
             used.insert(key);
@@ -140,9 +144,9 @@ IRModule ModuleBindSymbolicVars(
       unused.push_back(key);
     }
   }
-  CHECK_EQ(unused.size(), 0) << "Binding map contains keys " << unused
-                             << ", which did not correspond to any symbolic variables "
-                             << "in the module.";
+  TVM_FFI_ICHECK_EQ(unused.size(), 0) << "Binding map contains keys " << unused
+                                      << ", which did not correspond to any symbolic variables "
+                                      << "in the module.";
 
   if (updates->functions.size()) {
     mod.CopyOnWrite()->Update(updates);

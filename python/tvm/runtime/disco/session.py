@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """This module defines a Session in Disco. Session is the primary interface that users interact
 with the distributed runtime.
 """
@@ -24,12 +25,12 @@ import pickle
 from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
-
 from tvm_ffi import get_global_func, register_global_func, register_object
-from ..device import Device
-from ..container import ShapeTuple
+
 from .._tensor import Tensor
 from .._tensor import tensor as _as_Tensor
+from ..container import ShapeTuple
+from ..device import Device
 from ..object import Object
 from . import _ffi_api, process_pool  # pylint: disable=unused-import
 

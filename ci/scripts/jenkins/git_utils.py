@@ -15,15 +15,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, RUF005
 
-import json
-import subprocess
-import re
-import os
 import base64
+import json
 import logging
-from urllib import request, error
-from typing import Dict, Tuple, Any, Optional, List
+import os
+import re
+import subprocess
+from typing import Any, Dict, List, Optional, Tuple
+from urllib import error, request
 
 DRY_RUN = object()
 
@@ -128,7 +129,7 @@ class GitHubRepo:
         logging.info(f"Got response from {full_url}: {content}")
         try:
             response = json.loads(content)
-        except json.decoder.JSONDecodeError as e:
+        except json.decoder.JSONDecodeError:
             return content
 
         return response

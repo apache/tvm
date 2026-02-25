@@ -29,8 +29,7 @@ during module imports.
 
 import functools
 import inspect
-
-from typing import List, Optional, Callable, TypeVar, Any
+from typing import Any, Callable, List, Optional, TypeVar
 
 import tvm
 

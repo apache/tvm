@@ -49,7 +49,8 @@ public class RPCWatchdog extends Thread {
   /**
    * Wait and kill RPC if timeout is exceeded.
    */
-  @Override public void run() {
+  @Override
+  public void run() {
     while (true) {
       // timeout not started
       synchronized (this) {

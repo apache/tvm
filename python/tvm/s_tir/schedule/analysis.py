@@ -15,18 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 """Analysis used in TensorIR scheduling"""
+
 from typing import List, Optional
 
 import tvm_ffi
-from tvm.runtime import Object
 
+from tvm.runtime import Object
 from tvm.tir.buffer import Buffer
-from tvm.tir.stmt import For
 from tvm.tir.expr import PrimExpr
 from tvm.tir.function import IndexMap, PrimFunc
+from tvm.tir.stmt import For
 
 from . import _ffi_api
-from .schedule import Schedule, SBlockRV
+from .schedule import SBlockRV, Schedule
 
 
 def suggest_index_map(
@@ -62,7 +63,7 @@ def suggest_index_map(
     )
 
 
-@tvm_ffi.register_object("tir.schedule.TensorizeInfo")
+@tvm_ffi.register_object("s_tir.schedule.TensorizeInfo")
 class TensorizeInfo(Object):
     """Necessary information used for tensorization."""
 
@@ -90,7 +91,7 @@ def get_tensorize_loop_mapping(
     return _ffi_api.GetTensorizeLoopMapping(sch, block, desc_func, allow_padding)  # type: ignore
 
 
-@tvm_ffi.register_object("tir.schedule.AutoTensorizeMappingInfo")
+@tvm_ffi.register_object("s_tir.schedule.AutoTensorizeMappingInfo")
 class AutoTensorizeMappingInfo(Object):
     """Necessary information used to perform transformations for tensorization."""
 

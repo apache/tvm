@@ -68,7 +68,7 @@ IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame,
 }
 
 void IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, DocCreator doc_factory) {
-  ICHECK(obj2info.find(obj) == obj2info.end()) << "Duplicated object: " << obj;
+  TVM_FFI_ICHECK(obj2info.find(obj) == obj2info.end()) << "Duplicated object: " << obj;
   obj2info.insert({obj, VariableInfo{std::move(doc_factory), std::nullopt}});
   frame->AddExitCallback([this, obj]() { this->RemoveVar(obj); });
 }
@@ -82,7 +82,7 @@ ffi::Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
 }
 
 ExprDoc IRDocsifierNode::AddMetadata(const ffi::Any& obj) {
-  ICHECK(obj != nullptr) << "TypeError: Cannot add nullptr to metadata";
+  TVM_FFI_CHECK(obj != nullptr, TypeError) << "Cannot add nullptr to metadata";
   ffi::String key = obj.GetTypeKey();
   ffi::Array<ffi::Any>& array = metadata[key];
   int index = std::find_if(array.begin(), array.end(),
@@ -96,7 +96,7 @@ ExprDoc IRDocsifierNode::AddMetadata(const ffi::Any& obj) {
 }
 
 void IRDocsifierNode::AddGlobalInfo(const ffi::String& name, const GlobalInfo& ginfo) {
-  ICHECK(ginfo.defined()) << "TypeError: Cannot add nullptr to global_infos";
+  TVM_FFI_CHECK(ginfo.defined(), TypeError) << "Cannot add nullptr to global_infos";
   ffi::Array<GlobalInfo>& array = global_infos[name];
   array.push_back(ginfo);
 }
@@ -105,7 +105,7 @@ bool IRDocsifierNode::IsVarDefined(const ObjectRef& obj) const { return obj2info
 
 void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {
   auto it = obj2info.find(obj);
-  ICHECK(it != obj2info.end()) << "No such object: " << obj;
+  TVM_FFI_ICHECK(it != obj2info.end()) << "No such object: " << obj;
   if (it->second.name.has_value()) {
     defined_names.erase(it->second.name.value());
   }

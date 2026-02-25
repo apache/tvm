@@ -40,7 +40,7 @@ NLayout LayoutUtils::InferNLayout(const Expr& expr, const VarLayoutMap& var_layo
 LayoutDecision LayoutUtils::InferLayoutDecision(const Expr& expr,
                                                 const VarLayoutMap& var_layout_map) {
   const auto& nlayout = InferNLayout(expr, var_layout_map);
-  ICHECK(nlayout.IsLeaf()) << "Cannot get layout for " << expr;
+  TVM_FFI_ICHECK(nlayout.IsLeaf()) << "Cannot get layout for " << expr;
   return nlayout.LeafValue();
 }
 
@@ -52,7 +52,7 @@ LayoutDecision LayoutUtils::InferLayoutDecisionAt(const Expr& expr,
     return index == 0 ? nlayouts.LeafValue() : LayoutDecision("");
   }
   const auto& nlayout = nlayouts.NestedArray()[0];
-  ICHECK(nlayout.IsLeaf()) << "Cannot get output layout for " << expr;
+  TVM_FFI_ICHECK(nlayout.IsLeaf()) << "Cannot get output layout for " << expr;
   return nlayout.LeafValue();
 }
 
@@ -121,7 +121,7 @@ const NLayout LayoutUtils::GetNLayout(const Expr& expr) {
 
 const LayoutDecision LayoutUtils::GetLayoutDecision(const Expr& expr) {
   NLayout nlayout = GetNLayout(expr);
-  ICHECK(nlayout.IsLeaf()) << "Cannot get layout for " << expr;
+  TVM_FFI_ICHECK(nlayout.IsLeaf()) << "Cannot get layout for " << expr;
   return nlayout.LeafValue();
 }
 
@@ -154,7 +154,7 @@ const LayoutDecision LayoutUtils::ExpandLayout(const LayoutDecision& src_layout,
   std::vector<size_t> axes = expand_axes;
   std::sort(std::begin(axes), std::end(axes));
   std::string new_layout = src_layout.name();
-  ICHECK_EQ(new_layout.size(), src_layout->layout.ndim())
+  TVM_FFI_ICHECK_EQ(new_layout.size(), src_layout->layout.ndim())
       << "Only support normal layout, get " << src_layout->layout;
   std::set<std::string> used_axes;
   for (size_t i = 0; i < src_layout->layout.ndim(); i++) {

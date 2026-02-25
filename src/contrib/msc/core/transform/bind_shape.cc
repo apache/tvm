@@ -70,7 +70,7 @@ class ShapeBinder : public ExprMutator {
       }
     }
     // update main
-    ICHECK(main_var.defined()) << "Can not find entry func " << entry_name_;
+    TVM_FFI_ICHECK(main_var.defined()) << "Can not find entry func " << entry_name_;
     const auto& new_func = Downcast<Function>(VisitExpr(mod_->Lookup(entry_name_)));
     builder_->UpdateFunction(main_var, new_func);
     return builder_->GetContextIRModule();
@@ -91,11 +91,11 @@ class ShapeBinder : public ExprMutator {
     if (new_args.size() == call_node->args.size()) {
       ExprMutator::VisitBinding_(binding, call_node);
     } else if (const auto* op_node = call_node->op.as<OpNode>()) {
-      ICHECK(op_node->name == "relax.reshape" || op_node->name == "relax.image.resize2d")
+      TVM_FFI_ICHECK(op_node->name == "relax.reshape" || op_node->name == "relax.image.resize2d")
           << "Expect ShapeExpr consumer as reshape or image.resize2d, get "
           << ffi::GetRef<Call>(call_node);
       const auto& opt_shape = Downcast<ShapeStructInfo>(GetStructInfo(call_node->args[1]))->values;
-      ICHECK(opt_shape.defined()) << "Expected shape defined, get " << call_node->args[1];
+      TVM_FFI_ICHECK(opt_shape.defined()) << "Expected shape defined, get " << call_node->args[1];
       new_args.push_back(ShapeExpr(opt_shape.value()));
       const auto& new_call =
           Call(call_node->op, new_args, call_node->attrs, call_node->sinfo_args, call_node->span);
@@ -104,7 +104,7 @@ class ShapeBinder : public ExprMutator {
       const auto& func_info = Downcast<FuncStructInfo>(gv_node->struct_info_);
       ffi::Array<StructInfo> params_info;
       for (const auto& a : new_args) {
-        ICHECK(a->struct_info_.defined())
+        TVM_FFI_ICHECK(a->struct_info_.defined())
             << "Global func argument without defined struct info " << a;
         params_info.push_back(Downcast<StructInfo>(a->struct_info_.value()));
       }

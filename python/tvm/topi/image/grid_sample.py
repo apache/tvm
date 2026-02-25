@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """affine_grid and grid_sample operator"""
+
 from tvm import te, tir
 
 
@@ -41,9 +42,9 @@ def affine_grid(data, target_shape):
     """
     assert target_shape is not None
     assert len(target_shape) == 2
-    assert (
-        target_shape[0] > 1 and target_shape[1] > 1
-    ), "target height/width should be greater than 1"
+    assert target_shape[0] > 1 and target_shape[1] > 1, (
+        "target height/width should be greater than 1"
+    )
 
     dtype = data.dtype
     y_step = tir.const((2.0 - 1e-7) / (target_shape[0] - 1), dtype=dtype)

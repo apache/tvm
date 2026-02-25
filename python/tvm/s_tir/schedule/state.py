@@ -16,17 +16,19 @@
 # under the License.
 # pylint: disable=invalid-name
 """This file defines ScheduleState, the core data structure of TensorIR scheduling."""
+
 from collections import namedtuple
 from enum import IntEnum
 from typing import Dict, Optional, Union
 
 from tvm_ffi import register_object
+
 from tvm.ir import IRModule
 from tvm.runtime import Object
-from tvm.tir import SBlock, SBlockRealize, For, PrimFunc
+from tvm.tir import For, PrimFunc, SBlock, SBlockRealize
 
+from ..sblock_scope import SBlockScope, StmtSRef
 from . import _ffi_api
-from ..block_scope import SBlockScope, StmtSRef
 
 CachedFlags = namedtuple("CachedFlags", ["affine_binding", "region_cover", "stage_pipeline"])
 
@@ -77,7 +79,7 @@ def _parse_enable_checks(enable_checks: bool) -> bool:
     return enable_checks
 
 
-@register_object("tir.ScheduleState")
+@register_object("s_tir.ScheduleState")
 class ScheduleState(Object):
     """The state of scheduling, which exposes a `Replace` method as
     the primary resort for all the scheduling primitives to manipulate the TensorIR.

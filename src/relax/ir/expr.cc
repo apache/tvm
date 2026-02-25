@@ -60,8 +60,8 @@ Id::Id(ffi::String name_hint) {
 
 Call::Call(Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<StructInfo> sinfo_args,
            Span span) {
-  CHECK(!op->struct_info_.defined() || op->struct_info_->IsInstance<FuncStructInfoNode>())
-      << "ValueError: "
+  TVM_FFI_CHECK(!op->struct_info_.defined() || op->struct_info_->IsInstance<FuncStructInfoNode>(),
+                ValueError)
       << "Call expects its operator to have FuncStructInfo, "
       << "but operator " << op << ", which was called with arguments " << args
       << ", has struct info " << op->struct_info_;
@@ -213,12 +213,12 @@ Tuple WithFields(Tuple tuple, ffi::Optional<ffi::Array<Expr>> opt_fields,
 }
 
 TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
-  CHECK_GE(index, 0) << "Index out of bounds: Tuple " << tuple
-                     << " cannot be accessed with negative index " << index;
+  TVM_FFI_ICHECK_GE(index, 0) << "Index out of bounds: Tuple " << tuple
+                              << " cannot be accessed with negative index " << index;
   ObjectPtr<TupleGetItemNode> n = ffi::make_object<TupleGetItemNode>();
 
   if (auto* tuple_info = tuple->struct_info_.as<TupleStructInfoNode>()) {
-    CHECK_LT(index, tuple_info->fields.size())
+    TVM_FFI_ICHECK_LT(index, tuple_info->fields.size())
         << "Index out of bounds: Tuple " << tuple << " is of size " << tuple_info->fields.size()
         << ", and cannot be accessed with index " << index;
     auto sinfo = tuple_info->fields[index];
@@ -261,7 +261,7 @@ ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Span span) {
     if (value->IsInstance<IntImmNode>()) {
       return tvm::cast(DataType::Int(64), value);
     }
-    ICHECK(value.dtype() == DataType::Int(64))
+    TVM_FFI_ICHECK(value.dtype() == DataType::Int(64))
         << "the value in ShapeStructInfo can only have dtype of int64";
     return value;
   });
@@ -291,7 +291,7 @@ VarNode* Var::CopyOnWrite() {
   // If the `TVM_DEFINE_OBJECT_REF_COW_METHOD` were used, the
   // automatic implementation would erroneously convert from a
   // `DataflowBlock` to a `Var`.
-  ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
   if (!data_.unique()) {
     ObjectPtr<VarNode> node;
     if (auto dataflow_var = as<DataflowVarNode>()) {
@@ -413,7 +413,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 MatchCast::MatchCast(Var var, Expr value, StructInfo struct_info, Span span) {
   ObjectPtr<MatchCastNode> n = ffi::make_object<MatchCastNode>();
-  ICHECK(var.defined()) << "MatchCast requires var to be defined";
+  TVM_FFI_ICHECK(var.defined()) << "MatchCast requires var to be defined";
   n->var = std::move(var);
   n->value = std::move(value);
   n->struct_info = std::move(struct_info);
@@ -485,7 +485,7 @@ BindingBlockNode* BindingBlock::CopyOnWrite() {
   // If the `TVM_DEFINE_OBJECT_REF_COW_METHOD` were used, the
   // automatic implementation would erroneously convert from a
   // `DataflowBlock` to a `BindingBlock`.
-  ICHECK(data_ != nullptr);
+  TVM_FFI_ICHECK(data_ != nullptr);
   if (!data_.unique()) {
     ObjectPtr<BindingBlockNode> node;
     if (auto dataflow_block = as<DataflowBlockNode>()) {
@@ -554,7 +554,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<StructInfo> 
   ffi::Array<StructInfo> param_sinfo;
 
   for (const Var& param : params) {
-    CHECK(param->struct_info_.defined())
+    TVM_FFI_ICHECK(param->struct_info_.defined())
         << "relax.Function requires params to contain struct_info_";
     param_sinfo.push_back(GetStructInfo(param));
   }
@@ -565,7 +565,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<StructInfo> 
     body_sinfo = GetStructInfo(body);
   }
 
-  CHECK(body_sinfo.defined() || ret_struct_info.defined())
+  TVM_FFI_ICHECK(body_sinfo.defined() || ret_struct_info.defined())
       << "Function must be constructed with either "
       << "an explicit struct info for the return type, "
       << "or a normalized body with struct info.";
@@ -623,7 +623,7 @@ Function Function::CreateEmpty(ffi::Array<Var> params, StructInfo ret_struct_inf
                                DictAttrs attrs, Span span) {
   ffi::Array<StructInfo> param_sinfo;
   for (const Var& param : params) {
-    ICHECK(param->struct_info_.defined())
+    TVM_FFI_ICHECK(param->struct_info_.defined())
         << "relax.Function requires params to contain struct_info_.";
     param_sinfo.push_back(GetStructInfo(param));
   }
@@ -665,7 +665,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tvm.relax.struct_info.infer_by_sinfo_args",
                         [](const Call& call, const BlockBuilder& ctx) -> StructInfo {
-                          ICHECK(call->sinfo_args.defined())
+                          TVM_FFI_ICHECK(call->sinfo_args.defined())
                               << "sinfo_args field of CallNode should always be defined";
                           if (call->sinfo_args.empty()) {
                             return ObjectStructInfo();
@@ -689,7 +689,7 @@ ExternFunc::ExternFunc(ffi::String global_symbol, Span span)
     : ExternFunc(global_symbol, GetExternFuncStructInfo(), span) {}
 
 ExternFunc::ExternFunc(ffi::String global_symbol, StructInfo struct_info, Span span) {
-  CHECK(struct_info.as<FuncStructInfoNode>())
+  TVM_FFI_ICHECK(struct_info.as<FuncStructInfoNode>())
       << "ExternFunc must have FuncStructInfo, "
       << "but declaration of '" << global_symbol << "' received " << struct_info;
 
@@ -714,10 +714,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr GetShapeOf(const Expr& expr) {
   // default case, to be normalized.
-  ICHECK(expr->struct_info_.defined()) << "GetShapeOf can only be applied to normalized expr";
+  TVM_FFI_ICHECK(expr->struct_info_.defined())
+      << "GetShapeOf can only be applied to normalized expr";
   auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr);
 
-  ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with TensorStructInfo";
+  TVM_FFI_ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with TensorStructInfo";
   if (tinfo->shape.defined()) return tinfo->shape.value();
 
   static const Op& op = Op::Get("relax.shape_of");

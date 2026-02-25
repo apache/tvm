@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """PyTorch integration with nn.Module"""
+
 import inspect
 from typing import Any, Callable, List
 
 import torch
 
 from tvm.ir import Array
-from tvm.runtime import Tensor, ShapeTuple, _tensor
+from tvm.runtime import ShapeTuple, Tensor, _tensor
 from tvm.runtime.vm import VirtualMachine
 
 from . import core
@@ -98,8 +99,7 @@ def _torch_to_tvm(arg_name, arg_spec, arg_torch):
     if isinstance(arg_spec, _spec.Tensor):
         if not isinstance(arg_torch, torch.Tensor):
             raise TypeError(
-                f"Expected argument `{arg_name}` to be `torch.Tensor`, "
-                f"but got {type(arg_torch)}"
+                f"Expected argument `{arg_name}` to be `torch.Tensor`, but got {type(arg_torch)}"
             )
         return core._from_dlpack(arg_torch)  # pylint: disable=protected-access
     if isinstance(arg_spec, _spec.Int):

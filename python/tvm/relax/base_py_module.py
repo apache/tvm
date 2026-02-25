@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F821
 """BasePyModule: Base class for IRModules with Python function support."""
 
 import inspect
@@ -21,10 +22,11 @@ import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+
 import tvm
 from tvm import relax, tir
 from tvm.ir import IRModule
-from tvm.runtime import Device, Tensor, PackedFunc
+from tvm.runtime import Device, PackedFunc, Tensor
 from tvm.target import Target
 
 try:
@@ -308,7 +310,6 @@ class BasePyModule:
         return out_tensors
 
     def _infer_concrete_shape_from_args(self, shape, in_args):
-
         concrete = []
         symbolic_positions = []
         for idx, dim in enumerate(shape):

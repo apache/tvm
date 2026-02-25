@@ -220,10 +220,6 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_call_cpacked)
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_thread_context)
-    .set_num_inputs(1)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
 TIR_DEFINE_BUILTIN_FUNC(tvm_thread_invariant)
     .set_num_inputs(1)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));

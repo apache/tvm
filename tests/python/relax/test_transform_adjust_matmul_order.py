@@ -21,7 +21,9 @@ import pytest
 
 import tvm.testing
 from tvm import relax
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 class Base:

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, E731, RUF005, RUF012
 
 """Attention KV cache modeling."""
 
@@ -24,7 +25,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import tvm
 from tvm import relax as rx
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.relax.frontend.nn import Object, Tensor
 from tvm.runtime import DataType
 from tvm.script import tir as T
@@ -48,7 +49,7 @@ def get_max_num_threads_per_block(target: Target) -> int:
     max(max_num_threads, max_threads_per_block); if latter does not exist, return max_num_threads.
     We add this method since some targets have both fields and `max_threads_per_block` is larger.
     """
-    max_num_threads = target.max_num_threads
+    max_num_threads = int(target.attrs["max_num_threads"])
     max_threads_per_block = target.attrs.get("max_threads_per_block", None)
     if max_threads_per_block is None:
         return max_num_threads
@@ -68,9 +69,9 @@ def check_thread_limits(target: Target, bdx: int, bdy: int, bdz: int, gdz: int):
     """
     max_num_threads_per_block = get_max_num_threads_per_block(target)
 
-    assert (
-        bdx * bdy * bdz <= max_num_threads_per_block
-    ), f"{target.kind} max num threads exceeded: {bdx}*{bdy}*{bdz}>{max_num_threads_per_block}"
+    assert bdx * bdy * bdz <= max_num_threads_per_block, (
+        f"{target.kind} max num threads exceeded: {bdx}*{bdy}*{bdz}>{max_num_threads_per_block}"
+    )
 
     if str(target.kind) == "webgpu":
         # https://gpuweb.github.io/gpuweb/#dom-supported-limits-maxcomputeworkgroupsizez
@@ -490,7 +491,6 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             bb.add_func(_copy_single_page(num_key_value_heads, page_size, qk_head_dim, dtype, target) if attn_kind_single == "mha" else _copy_single_page_mla(page_size, qk_head_dim, dtype, target), "kv_cache_copy_single_page"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, qk_head_dim, dtype), "kv_cache_debug_get_kv"),
             bb.add_func(_compact_kv_copy(num_key_value_heads, qk_head_dim, dtype, target), "kv_cache_compact_kv_copy"),
-            # fmt: on
             # pylint: enable=line-too-long
         ]
         super().__init__(
@@ -613,10 +613,13 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             rope_ext_factors,
             rx.op.zeros((), dtype),
             # pylint: disable=line-too-long
-            # fmt: off
-            bb.add_func(_kv_cache_transpose_append(num_key_value_heads, qk_head_dim, dtype), "kv_cache_transpose_append"),
-            bb.add_func(_kv_cache_transpose_append_mla(qk_head_dim, dtype), "kv_cache_transpose_append_mla"),
-            # fmt: on
+            bb.add_func(
+                _kv_cache_transpose_append(num_key_value_heads, qk_head_dim, dtype),
+                "kv_cache_transpose_append",
+            ),
+            bb.add_func(
+                _kv_cache_transpose_append_mla(qk_head_dim, dtype), "kv_cache_transpose_append_mla"
+            ),
             # pylint: enable=line-too-long
         ]
 
@@ -926,6 +929,7 @@ def _attention_prefill_cpu(
         global_symbol += "_sliding_window"
 
     group_size = h_q // h_kv
+
     # pylint: disable=line-too-long,too-many-branches
     # fmt: off
     @T.prim_func
@@ -1133,7 +1137,7 @@ def _schedule_prefill_kernel(
     def get_tile_size(x, y, t):
         cnt = (x * y) // t
         assert (x * y) % t == 0
-        tile_y = (int)(math.ceil(math.sqrt(cnt)))
+        tile_y = math.ceil(math.sqrt(cnt))
         while (cnt % tile_y != 0 or y % tile_y != 0 or x % (cnt // tile_y) != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
@@ -2050,9 +2054,7 @@ def _merge_state_inplace(
     return func
 
 
-def _attention_sequence_prefill(
-    h_kv, h_q, d, dtype, target: Target, causal=0, sm_scale=1.0
-):  # pylint: disable=line-too-long
+def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, sm_scale=1.0):  # pylint: disable=line-too-long
     (
         _,
         LOAD_VEC,

@@ -22,7 +22,7 @@
  * \brief Runtime profiling including timers.
  */
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/c_backend_api.h>
@@ -35,8 +35,11 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include <numeric>
+#include <set>
 #include <thread>
+#include <unordered_set>
 
 namespace tvm {
 namespace runtime {
@@ -191,7 +194,7 @@ std::vector<int64_t> ToShape(Tensor shape_tensor) {
 
   // Otherwise we should be rank-1, and we will extract the number of dimensions
   // for the output vector.
-  ICHECK_EQ(rank, 1U) << "shape tensor should be a k-length vector, found " << rank;
+  TVM_FFI_ICHECK_EQ(rank, 1U) << "shape tensor should be a k-length vector, found " << rank;
   int64_t ndim = shape_tensor.Shape().at(0);
   shape.resize(ndim);
 
@@ -203,7 +206,7 @@ std::vector<int64_t> ToShape(Tensor shape_tensor) {
     int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
     shape.assign(dims, dims + ndim);
   } else {
-    LOG(FATAL) << "invalid shape tensor datatype: " << dtype;
+    TVM_FFI_THROW(InternalError) << "invalid shape tensor datatype: " << dtype;
   }
 
   return shape;
@@ -315,15 +318,14 @@ void metric_as_json(std::ostream& os, ffi::Any o) {
     os << "{\"ratio\":" << std::setprecision(std::numeric_limits<double>::max_digits10)
        << std::fixed << n->ratio << "}";
   } else {
-    LOG(FATAL) << "Unprintable type " << o.GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Unprintable type " << o.GetTypeKey();
   }
 }
 }  // namespace
 
 ffi::String ReportNode::AsJSON() const {
   std::ostringstream s;
-  // DMLC's JSONWriter does not allow us to write a key value pair without
-  // implementing Write for the value. We want a specific write for the value,
+  // We want a specific write for the value,
   // so we would have to implement a custom data structure for each type of
   // value we want to print. Instead we construct the json by hand because it
   // is easier.
@@ -388,7 +390,7 @@ ffi::String ReportNode::AsJSON() const {
 // and Percent; average for Ratio; and assumes all Strings are the same. All
 // ObjectRefs in metrics must have the same type.
 Any AggregateMetric(const std::vector<ffi::Any>& metrics) {
-  ICHECK_GT(metrics.size(), 0) << "Must pass a non-zero number of metrics";
+  TVM_FFI_ICHECK_GT(metrics.size(), 0) << "Must pass a non-zero number of metrics";
   if (metrics[0].as<DurationNode>()) {
     double sum = 0;
     for (auto& metric : metrics) {
@@ -422,9 +424,10 @@ Any AggregateMetric(const std::vector<ffi::Any>& metrics) {
     // Assume all strings in metrics are the same.
     return metrics[0];
   } else {
-    LOG(FATAL) << "Can only aggregate metrics with types DurationNode, CountNode, "
-                  "PercentNode, RatioNode, and String, but got "
-               << metrics[0].GetTypeKey();
+    TVM_FFI_THROW(InternalError)
+        << "Can only aggregate metrics with types DurationNode, CountNode, "
+           "PercentNode, RatioNode, and String, but got "
+        << metrics[0].GetTypeKey();
     return ffi::Any();  // To silence warnings
   }
 }
@@ -465,7 +468,7 @@ static ffi::String print_metric(ffi::Any metric) {
   } else if (auto opt_str = metric.as<ffi::String>()) {
     val = *opt_str;
   } else {
-    LOG(FATAL) << "Cannot print metric of type " << metric.GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Cannot print metric of type " << metric.GetTypeKey();
   }
   return val;
 }
@@ -476,7 +479,7 @@ ffi::String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums
   if (aggregate) {
     std::unordered_map<std::string, std::vector<size_t>> aggregates;
     for (size_t i = 0; i < calls.size(); i++) {
-      auto& frame = calls[i];
+      auto frame = calls[i];
       auto it = frame.find("Hash");
       std::string name = frame["Name"].cast<ffi::String>();
       if (it != frame.end()) {
@@ -506,7 +509,7 @@ ffi::String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums
       for (const std::string& metric : metrics) {
         std::vector<ffi::Any> per_call;
         for (auto i : p.second) {
-          auto& call = calls[i];
+          auto call = calls[i];
           auto it = std::find_if(call.begin(), call.end(),
                                  [&metric](const std::pair<ffi::String, ffi::Any>& call_metric) {
                                    return std::string(call_metric.first) == metric;
@@ -639,8 +642,7 @@ ffi::String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums
       if (row < cols[col].size()) {
         s << std::setw(widths[col]) << cols[col][row] << "  ";
       } else {
-        s << std::setw(widths[col]) << ""
-          << "  ";
+        s << std::setw(widths[col]) << "  ";
       }
     }
     s << std::endl;
@@ -710,73 +712,58 @@ Report::Report(ffi::Array<ffi::Map<ffi::String, ffi::Any>> calls,
   data_ = std::move(node);
 }
 
-ffi::Map<ffi::String, ffi::Any> parse_metrics(dmlc::JSONReader* reader) {
-  reader->BeginObject();
-  std::string metric_name, metric_value_name;
+namespace json = ::tvm::ffi::json;
+
+ffi::Map<ffi::String, ffi::Any> parse_metrics(const json::Object& obj) {
   ffi::Map<ffi::String, ffi::Any> metrics;
-  while (reader->NextObjectItem(&metric_name)) {
+  for (const auto& [k, v] : obj) {
+    std::string metric_name = k.cast<ffi::String>();
+    json::Object metric_obj = v.cast<json::Object>();
     ffi::Any o;
-    reader->BeginObject();
-    reader->NextObjectItem(&metric_value_name);
-    if (metric_value_name == "microseconds") {
-      double microseconds;
-      reader->Read(&microseconds);
-      o = ObjectRef(ffi::make_object<DurationNode>(microseconds));
-    } else if (metric_value_name == "percent") {
-      double percent;
-      reader->Read(&percent);
-      o = ObjectRef(ffi::make_object<PercentNode>(percent));
-    } else if (metric_value_name == "count") {
-      int64_t count;
-      reader->Read(&count);
-      o = ObjectRef(ffi::make_object<CountNode>(count));
-    } else if (metric_value_name == "ratio") {
-      double ratio;
-      reader->Read(&ratio);
-      o = ObjectRef(ffi::make_object<RatioNode>(ratio));
-    } else if (metric_value_name == "string") {
-      std::string s;
-      reader->Read(&s);
-      o = ffi::String(s);
-    } else {
-      LOG(FATAL) << "Cannot parse metric of type " << metric_value_name
-                 << " valid types are microseconds, percent, count.";
+    // Each metric value is an object with a single key indicating the type
+    for (const auto& [type_key, type_val] : metric_obj) {
+      std::string metric_value_name = type_key.cast<ffi::String>();
+      if (metric_value_name == "microseconds") {
+        o = ObjectRef(ffi::make_object<DurationNode>(type_val.cast<double>()));
+      } else if (metric_value_name == "percent") {
+        o = ObjectRef(ffi::make_object<PercentNode>(type_val.cast<double>()));
+      } else if (metric_value_name == "count") {
+        o = ObjectRef(ffi::make_object<CountNode>(type_val.cast<int64_t>()));
+      } else if (metric_value_name == "ratio") {
+        o = ObjectRef(ffi::make_object<RatioNode>(type_val.cast<double>()));
+      } else if (metric_value_name == "string") {
+        o = ffi::String(type_val.cast<ffi::String>());
+      } else {
+        TVM_FFI_THROW(InternalError) << "Cannot parse metric of type " << metric_value_name
+                                     << " valid types are microseconds, percent, count.";
+      }
     }
     metrics.Set(metric_name, o);
-    // Necessary to make sure that the parser hits the end of the object.
-    ICHECK(!reader->NextObjectItem(&metric_value_name));
-    // EndObject does not exist, leaving this here for clarity
-    // reader.EndObject();
   }
-  // reader.EndObject();
   return metrics;
 }
 
-Report Report::FromJSON(ffi::String json) {
-  std::stringstream input(json.operator std::string());
-  dmlc::JSONReader reader(&input);
-  std::string key;
+Report Report::FromJSON(ffi::String json_str) {
+  auto root = json::Parse(json_str).cast<json::Object>();
   ffi::Array<ffi::Map<ffi::String, ffi::Any>> calls;
   ffi::Map<ffi::String, ffi::Map<ffi::String, ffi::Any>> device_metrics;
   ffi::Map<ffi::String, ffi::Any> configuration;
 
-  reader.BeginObject();
-  while (reader.NextObjectItem(&key)) {
+  for (const auto& [k, v] : root) {
+    std::string key = k.cast<ffi::String>();
     if (key == "calls") {
-      reader.BeginArray();
-      while (reader.NextArrayItem()) {
-        calls.push_back(parse_metrics(&reader));
+      json::Array calls_arr = v.cast<json::Array>();
+      for (const ffi::Any& item : calls_arr) {
+        calls.push_back(parse_metrics(item.cast<json::Object>()));
       }
-      // reader.EndArray();
     } else if (key == "device_metrics") {
-      reader.BeginObject();
-      std::string device_name;
-      while (reader.NextObjectItem(&device_name)) {
-        device_metrics.Set(device_name, parse_metrics(&reader));
+      json::Object dev_obj = v.cast<json::Object>();
+      for (const auto& [dev_key, dev_val] : dev_obj) {
+        std::string device_name = dev_key.cast<ffi::String>();
+        device_metrics.Set(device_name, parse_metrics(dev_val.cast<json::Object>()));
       }
-      // reader.EndObject();
     } else if (key == "configuration") {
-      configuration = parse_metrics(&reader);
+      configuration = parse_metrics(v.cast<json::Object>());
     }
   }
   return Report(calls, device_metrics, configuration);
@@ -799,48 +786,49 @@ ffi::Function ProfileFunction(ffi::Module mod, std::string func_name, int device
                               int device_id, int warmup_iters,
                               ffi::Array<MetricCollector> collectors) {
   // Module::GetFunction is not const, so this lambda has to be mutable
-  return ffi::Function::FromPacked([=](const ffi::AnyView* args, int32_t num_args,
-                                       ffi::Any* ret) mutable {
-    auto optf = mod->GetFunction(func_name);
-    CHECK(optf.has_value()) << "There is no function called \"" << func_name << "\" in the module";
-    auto f = *optf;
-    Device dev{static_cast<DLDeviceType>(device_type), device_id};
+  return ffi::Function::FromPacked(
+      [=](const ffi::AnyView* args, int32_t num_args, ffi::Any* ret) mutable {
+        auto optf = mod->GetFunction(func_name);
+        TVM_FFI_ICHECK(optf.has_value())
+            << "There is no function called \"" << func_name << "\" in the module";
+        auto f = *optf;
+        Device dev{static_cast<DLDeviceType>(device_type), device_id};
 
-    // warmup
-    for (int i = 0; i < warmup_iters; i++) {
-      f.CallPacked(args, num_args, ret);
-    }
+        // warmup
+        for (int i = 0; i < warmup_iters; i++) {
+          f.CallPacked(args, num_args, ret);
+        }
 
-    for (auto& collector : collectors) {
-      collector->Init({DeviceWrapper(dev)});
-    }
-    std::vector<ffi::Map<ffi::String, ffi::Any>> results;
-    results.reserve(collectors.size());
-    std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
-    collector_data.reserve(collectors.size());
-    for (auto& collector : collectors) {
-      ObjectRef o = collector->Start(dev);
-      // If not defined, then the collector cannot time this device.
-      if (o.defined()) {
-        collector_data.push_back({collector, o});
-      }
-    }
+        for (auto& collector : collectors) {
+          collector->Init({DeviceWrapper(dev)});
+        }
+        std::vector<ffi::Map<ffi::String, ffi::Any>> results;
+        results.reserve(collectors.size());
+        std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
+        collector_data.reserve(collectors.size());
+        for (auto& collector : collectors) {
+          ObjectRef o = collector->Start(dev);
+          // If not defined, then the collector cannot time this device.
+          if (o.defined()) {
+            collector_data.push_back({collector, o});
+          }
+        }
 
-    // TODO(tkonolige): repeated calls if the runtime is small?
-    f.CallPacked(args, num_args, ret);
+        // TODO(tkonolige): repeated calls if the runtime is small?
+        f.CallPacked(args, num_args, ret);
 
-    for (auto& kv : collector_data) {
-      results.push_back(kv.first->Stop(kv.second));
-    }
-    ffi::Map<ffi::String, ffi::Any> combined_results;
-    for (auto m : results) {
-      for (auto p : m) {
-        // assume that there is no shared metric name between collectors
-        combined_results.Set(p.first, p.second);
-      }
-    }
-    *ret = combined_results;
-  });
+        for (auto& kv : collector_data) {
+          results.push_back(kv.first->Stop(kv.second));
+        }
+        ffi::Map<ffi::String, ffi::Any> combined_results;
+        for (auto m : results) {
+          for (auto p : m) {
+            // assume that there is no shared metric name between collectors
+            combined_results.Set(p.first, p.second);
+          }
+        }
+        *ret = combined_results;
+      });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -850,7 +838,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       [](ffi::Module mod, ffi::String func_name, int device_type, int device_id, int warmup_iters,
          ffi::Array<MetricCollector> collectors) {
         if (mod->kind() == std::string("rpc")) {
-          LOG(FATAL)
+          TVM_FFI_THROW(InternalError)
               << "Profiling a module over RPC is not yet supported";  // because we can't send
                                                                       // MetricCollectors over rpc.
           throw;
@@ -864,7 +852,7 @@ ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int re
                                 int min_repeat_ms, int limit_zero_time_iterations,
                                 int cooldown_interval_ms, int repeats_to_cooldown,
                                 int cache_flush_bytes, ffi::Function f_preproc) {
-  ICHECK(pf != nullptr);
+  TVM_FFI_ICHECK(pf != nullptr);
 
   auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
                  cooldown_interval_ms, repeats_to_cooldown, cache_flush_bytes,

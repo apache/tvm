@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
+
 import sys
 
 COLLECT_IGNORE = []

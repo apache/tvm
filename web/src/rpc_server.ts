@@ -131,7 +131,6 @@ export class RPCServer {
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private onClose(_event: CloseEvent): void {
     if (this.inst !== undefined) {
       this.globalObjects.forEach(obj => {
@@ -152,7 +151,6 @@ export class RPCServer {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private onOpen(_event: Event): void {
     // Send the headers
     let bkey = StringToUint8Array("server:" + this.key);
@@ -223,9 +221,7 @@ export class RPCServer {
     if (this.inst === undefined) {
       // initialize server.
       const reader = new ByteStreamReader(body);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const code = reader.readU32();
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const ver = Uint8ArrayToString(reader.readByteArray());
       const nargs = reader.readU32();
 
@@ -377,10 +373,8 @@ export class RPCServer {
       const localSession = flocal();
       assert(localSession instanceof runtime.Module);
 
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       this.inst.registerFunc(
         "rpc.WasmSession",
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         (_args: unknown): runtime.Module => {
           return localSession;
         }
@@ -421,7 +415,6 @@ export class RPCServer {
   }
 
   private handleInitHeaderKey(): void {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const remoteKey = Uint8ArrayToString(
       this.readFromBuffer(this.remoteKeyLength)
     );

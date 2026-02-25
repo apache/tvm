@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, E741, F841
 import numpy as np
 import pytest
 
@@ -23,10 +24,10 @@ from tvm.relax.backend.cuda.cublas import partition_for_cublas
 from tvm.relax.backend.cuda.cutlass import partition_for_cutlass
 from tvm.relax.dpl.pattern import (
     is_op,
+    is_tuple,
     is_tuple_get_item,
     make_fused_bias_activation_pattern,
     wildcard,
-    is_tuple,
 )
 from tvm.relax.transform import PatternCheckContext
 from tvm.script import ir as I
@@ -908,9 +909,9 @@ def test_split():
     @tvm.script.ir_module
     class Expected1:
         @R.function(private=True)
-        def fused_relax_split(
-            inp: R.Tensor((16, 32), dtype="float32")
-        ) -> R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")):
+        def fused_relax_split(inp: R.Tensor((16, 32), dtype="float32")) -> R.Tuple(
+            R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")
+        ):
             R.func_attr({"Composite": "x.split", "Primitive": True})
             with R.dataflow():
                 gv: R.Tuple(
@@ -937,9 +938,9 @@ def test_split():
     @I.ir_module
     class Expected2:
         @R.function(private=True)
-        def fused_relax_split_relax_add(
-            inp: R.Tensor((16, 32), dtype="float32")
-        ) -> R.Tensor((16, 16), dtype="float32"):
+        def fused_relax_split_relax_add(inp: R.Tensor((16, 32), dtype="float32")) -> R.Tensor(
+            (16, 16), dtype="float32"
+        ):
             R.func_attr({"Composite": "x.split", "Primitive": True})
             with R.dataflow():
                 tup: R.Tuple(
@@ -983,9 +984,9 @@ def test_clip():
     @I.ir_module
     class Expected1:
         @R.function(private=True)
-        def fused_relax_clip(
-            x: R.Tensor((10, 10), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
+        def fused_relax_clip(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor(
+            (10, 10), dtype="float32"
+        ):
             R.func_attr({"Composite": "x.clip", "Primitive": True})
             with R.dataflow():
                 gv: R.Tensor((10, 10), dtype="float32") = R.clip(
@@ -1019,9 +1020,9 @@ def test_clip():
     @I.ir_module
     class Expected2:
         @R.function(private=True)
-        def fused_relax_clip(
-            x: R.Tensor((10, 10), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
+        def fused_relax_clip(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor(
+            (10, 10), dtype="float32"
+        ):
             R.func_attr({"Composite": "x.clip", "Primitive": True})
             with R.dataflow():
                 gv: R.Tensor((10, 10), dtype="float32") = R.clip(
@@ -1031,9 +1032,9 @@ def test_clip():
             return gv
 
         @R.function(private=True)
-        def fused_relax_clip1(
-            x: R.Tensor((10, 10), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
+        def fused_relax_clip1(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor(
+            (10, 10), dtype="float32"
+        ):
             R.func_attr({"Composite": "x.clip", "Primitive": True})
             with R.dataflow():
                 gv: R.Tensor((10, 10), dtype="float32") = R.clip(
@@ -1043,9 +1044,9 @@ def test_clip():
             return gv
 
         @R.function
-        def main(
-            x: R.Tensor((10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")):
+        def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tuple(
+            R.Tensor((10, 10), dtype="float32"), R.Tensor((10, 10), dtype="float32")
+        ):
             cls = Expected2
             with R.dataflow():
                 gv: R.Tensor((10, 10), dtype="float32") = cls.fused_relax_clip(x)
@@ -1380,9 +1381,9 @@ def test_concat():
             x: R.Tensor((10,), dtype="float32"), y: R.Tensor((10,), dtype="float32")
         ) -> R.Tensor((20,), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor(
-                    (20,), dtype="float32"
-                ) = Expected1.fused_relax_abs_relax_abs_relax_concat(x, y)
+                lv: R.Tensor((20,), dtype="float32") = (
+                    Expected1.fused_relax_abs_relax_abs_relax_concat(x, y)
+                )
                 gv: R.Tensor((20,), dtype="float32") = R.nn.relu(lv)
                 R.output(gv)
             return gv

@@ -22,12 +22,12 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include <functional>
 
+#include "data_type_rewriter.h"
 #include "functor_common.h"
 
 namespace tvm {
@@ -63,25 +63,11 @@ void StmtVisitor::VisitStmt_(const AllocateNode* op) {
   this->VisitExpr(op->condition);
 }
 
-void StmtVisitor::VisitStmt_(const AllocateConstNode* op) {
-  VisitArray(op->extents, [this](const PrimExpr& e) { this->VisitExpr(e); });
-  this->VisitStmt(op->body);
-}
-
 void StmtVisitor::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
 
 void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
   this->VisitExpr(op->value);
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
-}
-
-void StmtVisitor::VisitStmt_(const BufferRealizeNode* op) {
-  VisitArray(op->bounds, [this](const Range& r) {
-    this->VisitExpr(r->min);
-    this->VisitExpr(r->extent);
-  });
-  this->VisitExpr(op->condition);
-  this->VisitStmt(op->body);
 }
 
 void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
@@ -310,20 +296,6 @@ Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const AllocateConstNode* op) {
-  ffi::Array<PrimExpr> extents = Internal::Mutate(this, op->extents);
-  Stmt body = this->VisitStmt(op->body);
-
-  if (extents.same_as(op->extents) && body.same_as(op->body)) {
-    return ffi::GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->extents = std::move(extents);
-    n->body = std::move(body);
-    return Stmt(n);
-  }
-}
-
 Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
   Stmt body = this->VisitStmt(op->body);
 
@@ -365,22 +337,6 @@ Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
     auto n = CopyOnWrite(op);
     n->value = std::move(value);
     n->indices = std::move(indices);
-    return Stmt(n);
-  }
-}
-
-Stmt StmtMutator::VisitStmt_(const BufferRealizeNode* op) {
-  Region bounds = Internal::Mutate(this, op->bounds);
-  PrimExpr condition = this->VisitExpr(op->condition);
-  Stmt body = this->VisitStmt(op->body);
-
-  if (bounds.same_as(op->bounds) && condition.same_as(op->condition) && body.same_as(op->body)) {
-    return ffi::GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->bounds = std::move(bounds);
-    n->condition = std::move(condition);
-    n->body = std::move(body);
     return Stmt(n);
   }
 }
@@ -608,8 +564,9 @@ class IRSubstitute : public StmtExprMutator {
       // uses void variables for lambda parameters (since exact types are not known yet).
       if (!var.dtype().is_void()) {
         PrimExpr ret_ex = Downcast<PrimExpr>(ret.value());
-        ICHECK(ret_ex.dtype() == var.dtype()) << "substituting " << var << ":" << var.dtype()
-                                              << " -> " << ret_ex << ":" << ret_ex.dtype();
+        TVM_FFI_ICHECK(ret_ex.dtype() == var.dtype())
+            << "substituting " << var << ":" << var.dtype() << " -> " << ret_ex << ":"
+            << ret_ex.dtype();
       }
       return ret.value();
     }
@@ -651,7 +608,7 @@ class IRSubstitute : public StmtExprMutator {
     }
 
     PrimExpr new_buffer_var_expr = VisitExpr(buf->data);
-    CHECK(new_buffer_var_expr->IsInstance<VarNode>())
+    TVM_FFI_ICHECK(new_buffer_var_expr->IsInstance<VarNode>())
         << "Buffer " << buf << " uses backing allocation " << buf->data
         << ", which was substituted into the expression " << new_buffer_var_expr << ".  "
         << "However, this expression is of type " << new_buffer_var_expr->GetTypeKey()
@@ -746,8 +703,8 @@ void PreOrderVisit(const ObjectRef& stmt_or_expr,
   } else if (auto expr = stmt_or_expr.as<PrimExpr>()) {
     visitor(expr.value());
   } else {
-    LOG(FATAL) << "InternalError: PreOrderVisit does not accept object with type: "
-               << stmt_or_expr->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "PreOrderVisit does not accept object with type: "
+                                 << stmt_or_expr->GetTypeKey();
   }
 }
 

@@ -64,14 +64,6 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
             else:
                 raise ValueError(f"Unsupported type {type(nd_tensor)}")
 
-        def to_tvm_tensor(torch_tensor):
-            """A helper function to transfer a torch.tensor to Tensor."""
-            if not isinstance(torch_tensor, torch._subclasses.fake_tensor.FakeTensor):
-                return tvm.runtime.tensor(torch_tensor.numpy())
-            # Fake Tensor
-            real_tensor = torch.randn(torch_tensor.shape, dtype=torch_tensor.dtype)
-            return tvm.runtime.tensor(real_tensor.numpy())
-
         graph_module.graph.eliminate_dead_code()
 
         device = device_from_inputs(example_inputs)
@@ -111,7 +103,7 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
 
         if device.type == "cuda":
             dev = tvm.cuda(device.index)
-            target = tvm.target.cuda()
+            target = tvm.target.Target("cuda")
         else:
             dev = tvm.cpu(0)
             target = tvm.target.Target(llvm_target())
@@ -137,10 +129,12 @@ def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
             args = [a.contiguous() for a in i_args if isinstance(a, torch.Tensor)]
             vm_args = list()
             for arg in args:
-                if arg.dim() != 0:
-                    if arg.requires_grad:
-                        arg = arg.detach()
-                    vm_args.append(to_tvm_tensor(arg))
+                if arg.requires_grad:
+                    arg = arg.detach()
+                if isinstance(arg, torch._subclasses.fake_tensor.FakeTensor):
+                    # Materialize a real (eager) Tensor
+                    arg = torch.randn(arg.shape, dtype=arg.dtype, device=device)
+                vm_args.append(arg)
             outputs = vm["main"](*vm_args)
             return to_torch_tensor(outputs)
 
@@ -172,8 +166,8 @@ def dynamo_capture_subgraphs(model, *params, **kwargs) -> tvm.IRModule:
         weights can be detached by `relax.frontend.detach_params`.
     """
     import torch  # type: ignore[import]
-    from torch import fx  # type: ignore[import]
     from torch import _dynamo as dynamo  # type: ignore[import]
+    from torch import fx  # type: ignore[import]
 
     keep_params_as_input = "keep_params_as_input" in kwargs and kwargs["keep_params_as_input"]
     kwargs.pop("keep_params_as_input", None)
@@ -206,8 +200,8 @@ def llvm_target():
     import platform
     import subprocess
 
-    AVX512_TARGET = "llvm -mcpu=skylake-avx512"
-    AVX2_TARGET = "llvm -mcpu=core-avx2"
+    AVX512_TARGET = {"kind": "llvm", "mcpu": "skylake-avx512"}
+    AVX2_TARGET = {"kind": "llvm", "mcpu": "core-avx2"}
     DEFAULT_TARGET = "llvm"
 
     system = platform.system()

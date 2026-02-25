@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821
 """Testcode for Android RPC.
 
 To use it, start an RPC tracker with "python -m tvm.exec.rpc_tracker".
@@ -21,12 +22,13 @@ Use the tracker's address and port when configuring the RPC app.
 Use "android" as the key if you wish to avoid modifying this script.
 """
 
-import tvm
-from tvm import te
 import os
-from tvm import rpc
-from tvm.contrib import utils, ndk
+
 import numpy as np
+
+import tvm
+from tvm import rpc, te
+from tvm.contrib import ndk, utils
 
 # Set to be address of tvm proxy.
 tracker_host = os.environ["TVM_TRACKER_HOST"]
@@ -36,7 +38,7 @@ key = "android"
 # Change target configuration.
 # Run `adb shell cat /proc/cpuinfo` to find the arch.
 arch = "arm64"
-target = "llvm -mtriple=%s-linux-android" % arch
+target = {"kind": "llvm", "mtriple": f"{arch}-linux-android"}
 
 # whether enable to execute test on OpenCL target
 test_opencl = False
@@ -76,7 +78,7 @@ def test_rpc_module():
         b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
         cost = time_f(a, b).mean
-        print("%g secs/op\n" % cost)
+        print(f"{cost:g} secs/op\n")
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 

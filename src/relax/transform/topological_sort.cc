@@ -207,7 +207,7 @@ class TopologicalSorter : public ExprMutator {
         case StartingLocation::FromOutputs:
           return dependencies_.upstream_requirements;
         default:
-          LOG(FATAL) << "Invalid enum value for StartingLocation";
+          TVM_FFI_THROW(InternalError) << "Invalid enum value for StartingLocation";
       }
     }();
 
@@ -226,7 +226,7 @@ class TopologicalSorter : public ExprMutator {
         case StartingLocation::FromOutputs:
           return dependencies_.downstream_users;
         default:
-          LOG(FATAL) << "Invalid enum value for StartingLocation";
+          TVM_FFI_THROW(InternalError) << "Invalid enum value for StartingLocation";
       }
     }();
 
@@ -242,7 +242,7 @@ class TopologicalSorter : public ExprMutator {
         case StartingLocation::FromOutputs:
           return {OutputNode()};
         default:
-          LOG(FATAL) << "Invalid enum value for StartingLocation";
+          TVM_FFI_THROW(InternalError) << "Invalid enum value for StartingLocation";
       }
     }();
 
@@ -264,7 +264,7 @@ class TopologicalSorter : public ExprMutator {
           }
 
           auto it = backward_edge_lookup.find(adjacent_var);
-          ICHECK(it != backward_edge_lookup.end());
+          TVM_FFI_ICHECK(it != backward_edge_lookup.end());
           const auto& prerequisites = it->second;
           return std::all_of(prerequisites.begin(), prerequisites.end(),
                              [&visited](const auto& var) { return visited.count(var); });
@@ -291,7 +291,8 @@ class TopologicalSorter : public ExprMutator {
           break;
         }
         default: {
-          LOG(FATAL) << "Invalid value for TraversalOrder: " << static_cast<int>(order_);
+          TVM_FFI_THROW(InternalError)
+              << "Invalid value for TraversalOrder: " << static_cast<int>(order_);
         }
       }
 
@@ -305,18 +306,20 @@ class TopologicalSorter : public ExprMutator {
       push_descendents_to_stack(visiting);
     }
 
-    ICHECK_EQ(to_emit.size(), 0) << "After visiting all bindings, "
-                                 << "no bindings should remain to emit.  "
-                                 << "However, bindings " <<
+    TVM_FFI_ICHECK_EQ(to_emit.size(), 0)
+        << "After visiting all bindings, "
+        << "no bindings should remain to emit.  "
+        << "However, bindings " <<
         [&]() {
           ffi::Array<Var> arr;
           for (const auto& [var, binding] : to_emit) {
             arr.push_back(var);
           }
           return arr;
-        }() << " still remain after emitting "
-                                 << ffi::Array<Binding>(new_bindings.begin(), new_bindings.end())
-                                        .Map([](const Binding& binding) { return binding->var; });
+        }()
+        << " still remain after emitting "
+        << ffi::Array<Binding>(new_bindings.begin(), new_bindings.end())
+               .Map([](const Binding& binding) { return binding->var; });
 
     if (starting_location_ == StartingLocation::FromOutputs) {
       std::reverse(new_bindings.begin(), new_bindings.end());
@@ -345,35 +348,35 @@ Pass TopologicalSort(TraversalOrder order, StartingLocation starting_location) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "relax.transform.TopologicalSort",
-      [](ffi::String order_str, ffi::String direction_str) -> Pass {
-        TraversalOrder order = [&]() {
-          if (order_str == "depth-first") {
-            return TraversalOrder::DepthFirst;
-          } else if (order_str == "breadth-first") {
-            return TraversalOrder::BreadthFirst;
-          } else {
-            LOG(FATAL) << "ValueError: "
-                       << "Invalid value for traversal order: \"" << order_str << "\".  "
-                       << "Allowed values are \"depth-first\" or \"breadth-first\"";
-          }
-        }();
+  refl::GlobalDef().def("relax.transform.TopologicalSort",
+                        [](ffi::String order_str, ffi::String direction_str) -> Pass {
+                          TraversalOrder order = [&]() {
+                            if (order_str == "depth-first") {
+                              return TraversalOrder::DepthFirst;
+                            } else if (order_str == "breadth-first") {
+                              return TraversalOrder::BreadthFirst;
+                            } else {
+                              TVM_FFI_THROW(ValueError)
+                                  << "Invalid value for traversal order: \"" << order_str << "\".  "
+                                  << "Allowed values are \"depth-first\" or \"breadth-first\"";
+                            }
+                          }();
 
-        StartingLocation starting_location = [&]() {
-          if (direction_str == "from-inputs") {
-            return StartingLocation::FromInputs;
-          } else if (direction_str == "from-outputs") {
-            return StartingLocation::FromOutputs;
-          } else {
-            LOG(FATAL) << "ValueError: "
-                       << "Invalid value for starting location: \"" << direction_str << "\".  "
-                       << "Allowed values are \"from-inputs\" or \"from-outputs\"";
-          }
-        }();
+                          StartingLocation starting_location = [&]() {
+                            if (direction_str == "from-inputs") {
+                              return StartingLocation::FromInputs;
+                            } else if (direction_str == "from-outputs") {
+                              return StartingLocation::FromOutputs;
+                            } else {
+                              TVM_FFI_THROW(ValueError)
+                                  << "Invalid value for starting location: \"" << direction_str
+                                  << "\".  "
+                                  << "Allowed values are \"from-inputs\" or \"from-outputs\"";
+                            }
+                          }();
 
-        return TopologicalSort(order, starting_location);
-      });
+                          return TopologicalSort(order, starting_location);
+                        });
 }
 
 }  // namespace transform

@@ -17,20 +17,20 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.framework.tensorrt.transform.pattern"""
 
-from typing import Mapping, Tuple, List, Union, Callable, Dict
-from functools import wraps, partial
+from functools import partial, wraps
+from typing import Callable, Dict, List, Mapping, Optional, Tuple, Union
 
 import tvm
 from tvm import relax
-from tvm.relax.dpl import pattern
-from tvm.relax.transform import PatternCheckContext, FusionPattern
-from tvm.relax.backend.pattern_registry import register_patterns
-from tvm.contrib.msc.core.transform import pattern as msc_pattern
 from tvm.contrib.msc.core import _ffi_api
+from tvm.contrib.msc.core.transform import pattern as msc_pattern
+from tvm.relax.backend.pattern_registry import register_patterns
+from tvm.relax.dpl import pattern
+from tvm.relax.transform import FusionPattern, PatternCheckContext
 
 
 def basic_pattern(
-    op_name: str, input_types: List[str] = None
+    op_name: str, input_types: Optional[List[str]] = None
 ) -> Tuple[pattern.DFPattern, Mapping[str, pattern.DFPattern]]:
     """create basic pattern for tensorrt support ops.
 
@@ -114,7 +114,7 @@ def argmaxmin_pattern(op_name: str) -> Tuple[pattern.DFPattern, Mapping[str, pat
     return out, {"input": data, "argmaxmin": argmaxmin, "out": out}
 
 
-def _check_expr(expr: relax.Expr, dtypes: Tuple[str] = None) -> bool:
+def _check_expr(expr: relax.Expr, dtypes: Optional[Tuple[str]] = None) -> bool:
     """Check if the expr can be fused on tensorrt.
 
     Parameters
@@ -281,7 +281,7 @@ def plugin_attrs_getter(
 
 
 def wrap_basic_check(
-    func: Callable[[PatternCheckContext], bool]
+    func: Callable[[PatternCheckContext], bool],
 ) -> Callable[[PatternCheckContext], bool]:
     """Wrapper a checker with basic check
 

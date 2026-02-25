@@ -22,4 +22,4 @@ set -o pipefail
 
 apt-get update && apt-install-and-clear -y redis-server
 pip3 install \
-    xgboost==1.4.2
+    xgboost==3.2.0

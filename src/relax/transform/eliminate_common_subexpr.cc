@@ -114,8 +114,8 @@ class CommonSubexprEliminator : public ExprMutator {
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
         return MatchCast(binding->var, bound_value, match_cast->struct_info);
       } else {
-        LOG(FATAL) << "Binding must be either VarBinding or MatchCast, "
-                   << "but was " << binding->GetTypeKey();
+        TVM_FFI_THROW(InternalError) << "Binding must be either VarBinding or MatchCast, "
+                                     << "but was " << binding->GetTypeKey();
       }
     }();
 

@@ -16,11 +16,11 @@
 # under the License.
 """tvm.contrib.msc.core.tools.quantize.quantizer"""
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-from tvm.contrib.msc.core.tools.tool import ToolType, BaseTool, ToolStrategy
-from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.tool import BaseTool, ToolStrategy, ToolType
+from tvm.contrib.msc.core.utils.message import MSCStage
 
 
 class QuantizeStage:
@@ -76,7 +76,7 @@ class BaseQuantizer(BaseTool):
                 self._plan[name] = {k: v for k, v in plan.items() if k not in ("calibrated")}
             self.change_stage(MSCStage.QUANTIZE)
         calib_type = "calibrate" if self._calibrated else "gather"
-        msg = "{} {} plan after {} batch".format(calib_type, len(new_plan), self._forward_cnt)
+        msg = f"{calib_type} {len(new_plan)} plan after {self._forward_cnt} batch"
         self._logger.info(self.tool_mark(msg))
         self._forward_cnt = 0
         return new_plan

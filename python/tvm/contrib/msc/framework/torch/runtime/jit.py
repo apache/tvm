@@ -17,16 +17,17 @@
 # pylint: disable=unused-import
 """tvm.contrib.msc.framework.torch.runtime.jit_model"""
 
-from typing import Any, List, Tuple, Dict
 from functools import partial
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
-from torch import fx
 from torch import _dynamo as dynamo
+from torch import fx
 
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.runtime import BaseJIT
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
+
 from .runner import TorchRunner
 
 
@@ -177,7 +178,10 @@ class TorchJIT(BaseJIT):
 
     @classmethod
     def dump_nativate(
-        cls, model: torch.nn.Module, folder: msc_utils.MSCDirectory, dump_config: dict = None
+        cls,
+        model: torch.nn.Module,
+        folder: msc_utils.MSCDirectory,
+        dump_config: Optional[dict] = None,
     ) -> str:
         """Dump the nativate model
 

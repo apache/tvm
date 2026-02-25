@@ -17,22 +17,23 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.pipeline.pipeline"""
 
-import os
 import json
-from typing import Any, Union, List, Tuple
+import os
 import traceback
+from typing import Any, List, Optional, Tuple, Union
 
-from tvm.contrib.msc.core.tools import get_tool_cls, BaseTool
-from tvm.contrib.msc.core.utils.namespace import MSCFramework, MSCMap, MSCKey
-from tvm.contrib.msc.core.utils.message import MSCStage
-from tvm.contrib.msc.plugin.utils import export_plugins, load_plugins
-from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core import _ffi_api
-from .utils import support_tool, get_tool_stage, map_tools
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools import BaseTool, get_tool_cls
+from tvm.contrib.msc.core.utils.message import MSCStage
+from tvm.contrib.msc.core.utils.namespace import MSCFramework, MSCKey, MSCMap
+from tvm.contrib.msc.plugin.utils import export_plugins, load_plugins
+
+from .utils import get_tool_stage, map_tools, support_tool
 from .worker import BasePipeWorker
 
 
-class BasePipeline(object):
+class BasePipeline:
     """Base Pipeline of MSC
 
     Parameters
@@ -55,10 +56,10 @@ class BasePipeline(object):
         self,
         model: Any,
         config: dict,
-        plugins: dict = None,
+        plugins: Optional[dict] = None,
         run_optimize: bool = True,
         run_compile: bool = True,
-        root: str = None,
+        root: Optional[str] = None,
     ):
         # change path to root path
         if root:
@@ -128,7 +129,7 @@ class BasePipeline(object):
         # register plugins
         if self._plugins:
             for t in [self._model_type, self._optimize_type, self._compile_type]:
-                assert t in self._plugins, "Missing plugin for {}".format(t)
+                assert t in self._plugins, f"Missing plugin for {t}"
             for name, plugin in self._plugins[self._model_type].get_ops_info().items():
                 _ffi_api.RegisterPlugin(name, msc_utils.dump_dict(plugin))
 
@@ -295,8 +296,9 @@ class BasePipeline(object):
             if not support_tool(tool, stage, run_type):
                 continue
             tools.append(tool["tool_type"])
-            tool_cls, tool_stage = self.get_tool_cls(tool, run_type), get_tool_stage(
-                tool["tool_type"]
+            tool_cls, tool_stage = (
+                self.get_tool_cls(tool, run_type),
+                get_tool_stage(tool["tool_type"]),
             )
             t_stage = self.change_stage(stage + "." + tool_stage)
             if self._tool_applied(tool["tool_type"]):
@@ -316,17 +318,17 @@ class BasePipeline(object):
             if "gym_configs" in tool:
                 for idx, config in enumerate(tool["gym_configs"]):
                     knowledge_file = self._workspace.create_dir("Gym").relpath(
-                        "knowledge_{}.json".format(idx)
+                        f"knowledge_{idx}.json"
                     )
                     gym_mark = "GYM[{}/{}]({} @ {}) ".format(
                         idx, len(tool["gym_configs"]), self._config[stage]["run_type"], tool_stage
                     )
                     if os.path.isfile(knowledge_file):
                         knowledge = knowledge_file
-                        msg = "{}Load from {}".format(gym_mark, knowledge)
+                        msg = f"{gym_mark}Load from {knowledge}"
                         self._logger.info(self.pipe_mark(msg))
                     else:
-                        self.change_stage(tool_stage + ".gym_{}".format(idx))
+                        self.change_stage(tool_stage + f".gym_{idx}")
                         self._logger.info(self.pipe_mark(gym_mark + "Start search"))
                         knowledge = self._run_gym(tool_stage, config, knowledge, loader)
                         msc_utils.save_dict(knowledge, knowledge_file)
@@ -359,7 +361,7 @@ class BasePipeline(object):
         return False
 
     def _apply_tool(
-        self, tool_type: str, knowledge: dict = None, data_loader: Any = None
+        self, tool_type: str, knowledge: Optional[dict] = None, data_loader: Any = None
     ) -> Tuple[dict, dict]:
         """Apply tool with runner
 
@@ -385,9 +387,9 @@ class BasePipeline(object):
     def _create_runtime(
         self,
         stage: str,
-        tools: List[str] = None,
-        run_type: str = None,
-        run_config: dict = None,
+        tools: Optional[List[str]] = None,
+        run_type: Optional[str] = None,
+        run_config: Optional[dict] = None,
         visualize: bool = True,
         profile: bool = True,
         use_cache: bool = True,
@@ -443,7 +445,7 @@ class BasePipeline(object):
 
         raise NotImplementedError("_run_gym is not implemented in " + str(self.__class__))
 
-    def summary(self, err_msg: str = None, err_info: str = None) -> dict:
+    def summary(self, err_msg: Optional[str] = None, err_info: Optional[str] = None) -> dict:
         """Summary the pipeline.
 
         Parameters
@@ -467,7 +469,7 @@ class BasePipeline(object):
         self._report["duration"] = msc_utils.get_duration()
         return self._report
 
-    def export(self, path: str = None, dump: bool = True) -> Union[str, dict]:
+    def export(self, path: Optional[str] = None, dump: bool = True) -> Union[str, dict]:
         """Export the pipeline
 
         Parameters
@@ -712,14 +714,12 @@ class BasePipeline(object):
 
                 loader, source_type = get_source, "loaded_custom"
         else:
-            raise TypeError(
-                "Unexpected source loader {}({})".format(source_loader, type(source_loader))
-            )
-        msg = "Create data loader({}) {}({})".format(name, loader.__name__, source_type)
+            raise TypeError(f"Unexpected source loader {source_loader}({type(source_loader)})")
+        msg = f"Create data loader({name}) {loader.__name__}({source_type})"
         self._logger.debug(self.pipe_mark(msg))
         return loader
 
-    def _record_stage(self, stage: str, info: dict = None, report: dict = None):
+    def _record_stage(self, stage: str, info: Optional[dict] = None, report: Optional[dict] = None):
         """Record the stage
 
         Parameters
@@ -790,7 +790,7 @@ class BasePipeline(object):
 
         raise NotImplementedError("get_runtime is not implemented in " + str(self.__class__))
 
-    def create_worker(self, model: Any, name: str, config: dict = None):
+    def create_worker(self, model: Any, name: str, config: Optional[dict] = None):
         """Create pipe worker
 
         Parameters

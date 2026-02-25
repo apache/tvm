@@ -20,10 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install \
-    keras==3.5.0 \
-    tensorflow==2.18.0
-
-# tensorflow 2.18.0 requires ml-dtypes<0.5.0,>=0.4.0
-# ml_dtypes needs to be installed after tensorflow
-pip3 install ml_dtypes==0.5.1 --no-deps
+pip3 install tensorflow==2.19.0

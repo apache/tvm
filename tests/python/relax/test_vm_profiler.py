@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 import numpy as np
+
 import tvm
 import tvm.testing
-
 from tvm import relax, rpc
 from tvm.contrib import utils
 from tvm.relax.testing import nn
@@ -101,9 +102,7 @@ def test_tuple():
     @tvm.script.ir_module
     class NestedTuple:
         @R.function
-        def main(
-            x: R.Tensor((16,), "float32")
-        ) -> R.Tuple(
+        def main(x: R.Tensor((16,), "float32")) -> R.Tuple(
             R.Tuple(
                 R.Tensor((16,), "float32"),
                 R.Tuple(

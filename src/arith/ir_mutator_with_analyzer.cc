@@ -134,7 +134,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
     IterVar iv = Downcast<IterVar>(op->node);
-    ICHECK_NE(iv->thread_tag.length(), 0U);
+    TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
     Range dom = Range::FromMinExtent(make_zero(op->value.dtype()), op->value);
     analyzer_->Bind(iv->var, dom);
     iter_vars_.Set(iv->var, dom);

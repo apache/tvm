@@ -77,7 +77,7 @@ Doc PrintVar(const tir::Var& var, const AccessPath& var_p, const IRDocsifier& d)
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(var)) {
     return doc.value();
   }
-  LOG(FATAL) << "IndexError: Variable is not defined in the environment: " << var->name_hint;
+  TVM_FFI_THROW(IndexError) << "Variable is not defined in the environment: " << var->name_hint;
   TVM_FFI_UNREACHABLE();
 }
 
@@ -168,7 +168,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::CommReducer>(  //
         "", [](tir::CommReducer r, AccessPath p, IRDocsifier d) -> Doc {
-          ICHECK_EQ(r->lhs.size(), r->rhs.size());
+          TVM_FFI_ICHECK_EQ(r->lhs.size(), r->rhs.size());
           ffi::Optional<LambdaDoc> lambda;
           {
             With<TIRFrame> f(d, r);
@@ -284,7 +284,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       } else if (call->op.as<GlobalVarNode>()) {
         prefix = d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
       } else {
-        LOG(FATAL) << "call: " << call;
+        TVM_FFI_THROW(InternalError) << "call: " << call;
       }
       ffi::Array<ExprDoc> args;
       int n_args = call->args.size();
@@ -313,7 +313,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return TIR(d, "reduce")
           ->Call({combiner}, {"source", "init", "axis", "condition", "value_index"},
                  {source, init, axis, condition, value_index});
-      LOG(FATAL) << "ValueError: Reduce should never exist in TIR: " << r;
+      TVM_FFI_THROW(ValueError) << "Reduce should never exist in TIR: " << r;
     });
 
 #define TVM_SCRIPT_PRINTER_DEF_BINARY(NodeType, OpString)                                       \

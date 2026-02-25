@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import tvm
 import tvm.testing
-from tvm import tir, ir
-from tvm.script import tir as T, ir as I
+from tvm import ir, tir
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_reuse_in_sequential_let_stmt():
@@ -435,12 +437,11 @@ def test_track_forward_declarations_in_attr_stmt():
 
     # Generate the PrimFunc, which is already SSA
     #
-    # This is constructed directly, rather than using TVMScript or
-    # the `tvm.tir.ir_builder`.  This test case requires a
-    # `tir.AttrStmt` that references a variable, followed by the
-    # `tir.For` defining that variable.  This is not expressible in
-    # either TVMScript or `tvm.tir.ir_builder`, as they only provide
-    # the loop iterator within the body of the loop.
+    # This is constructed directly, rather than using TVMScript.
+    # This test case requires a `tir.AttrStmt` that references a
+    # variable, followed by the `tir.For` defining that variable.
+    # This is not expressible in TVMScript, as it only provides the
+    # loop iterator within the body of the loop.
     i0_outer_outer = tir.Var("i0_outer_outer", "int32")
     i0_outer_inner = tir.Var("i0_outer_inner", "int32")
     i0_inner = tir.Var("i0_inner", "int32")

@@ -195,7 +195,7 @@ static std::optional<MatchState> TryValidate(
   std::function<ffi::Optional<Var>(const DFPatternNode*)> query_match_state =
       [&pattern2node, &current_match](const DFPatternNode* pattern) -> ffi::Optional<Var> {
     auto it = pattern2node.find(pattern);
-    ICHECK(it != pattern2node.end())
+    TVM_FFI_ICHECK(it != pattern2node.end())
         << "DFConstraint attempted to access DFPattern " << ffi::GetRef<DFPattern>(pattern)
         << ", which does not appear in the PatternContext";
     const auto& p_node = it->second;
@@ -293,7 +293,8 @@ ffi::Optional<ffi::Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
                                                    const ffi::Array<Binding>& binding_arr,
                                                    const ffi::Map<Var, Expr>& bindings) {
   // TODO(@ganler): Handle non-may external use.
-  ICHECK(ctx->allow_extern_use == PatternContextNode::kMay) << "Only kMay is supported yet.";
+  TVM_FFI_ICHECK(ctx->allow_extern_use == PatternContextNode::kMay)
+      << "Only kMay is supported yet.";
   DFPatternMatcher matcher(bindings);
 
   MatcherUseDefAnalysis ud_analysis;
@@ -353,7 +354,7 @@ ffi::Optional<ffi::Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
 
   ffi::Map<DFPattern, Var> ret;
   for (const auto& [pat, p_node] : pattern2node) {
-    ICHECK(match->matched(p_node));
+    TVM_FFI_ICHECK(match->matched(p_node));
     ret.Set(ffi::GetRef<DFPattern>(pat), ffi::GetRef<Var>(match->matched(p_node)));
   }
   return ret;

@@ -22,20 +22,20 @@
  */
 #include "rocm_module.h"
 
-#include <dmlc/memory_io.h>
 #include <hip/hip_runtime_api.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/io.h>
 
 #include <array>
 #include <mutex>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
+#include "../../support/bytes_io.h"
 #include "../file_utils.h"
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "rocm_common.h"
@@ -50,8 +50,8 @@ namespace runtime {
 class ROCMModuleNode : public ffi::ModuleObj {
  public:
   explicit ROCMModuleNode(std::string data, std::string fmt,
-                          std::unordered_map<std::string, FunctionInfo> fmap,
-                          std::string hip_source, std::string assembly)
+                          ffi::Map<ffi::String, FunctionInfo> fmap, std::string hip_source,
+                          std::string assembly)
       : data_(data), fmt_(fmt), fmap_(fmap), hip_source_(hip_source), assembly_(assembly) {
     std::fill(module_.begin(), module_.end(), nullptr);
   }
@@ -75,19 +75,18 @@ class ROCMModuleNode : public ffi::ModuleObj {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     // note: llvm and asm formats are not laodable, so we don't save them
-    ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
+    TVM_FFI_ICHECK_EQ(fmt, fmt_) << "Can only save to format=" << fmt_;
     SaveMetaDataToFile(meta_file, fmap_);
     SaveBinaryToFile(file_name, data_);
   }
 
   ffi::Bytes SaveToBytes() const final {
-    std::string buffer;
-    dmlc::MemoryStringStream ms(&buffer);
-    dmlc::Stream* stream = &ms;
-    stream->Write(fmt_);
-    stream->Write(fmap_);
-    stream->Write(data_);
-    return ffi::Bytes(buffer);
+    std::string result;
+    support::BytesOutStream stream(&result);
+    stream.Write(fmt_);
+    stream.Write(fmap_);
+    stream.Write(data_);
+    return ffi::Bytes(std::move(result));
   }
 
   ffi::String InspectSource(const ffi::String& format) const final {
@@ -114,8 +113,8 @@ class ROCMModuleNode : public ffi::ModuleObj {
     hipFunction_t func;
     hipError_t result = hipModuleGetFunction(&func, module_[device_id], func_name.c_str());
     if (result != hipSuccess) {
-      LOG(FATAL) << "ROCMError: hipModuleGetFunction " << func_name
-                 << " failed with error: " << hipGetErrorString(result);
+      TVM_FFI_THROW(ROCMError) << "hipModuleGetFunction " << func_name
+                               << " failed with error: " << hipGetErrorString(result);
     }
     return func;
   }
@@ -130,7 +129,7 @@ class ROCMModuleNode : public ffi::ModuleObj {
     size_t nbytes = 0;
 
     ROCM_DRIVER_CALL(hipModuleGetGlobal(&global, &nbytes, module_[device_id], global_name.c_str()));
-    ICHECK_EQ(nbytes, expect_nbytes);
+    TVM_FFI_ICHECK_EQ(nbytes, expect_nbytes);
     return global;
   }
 
@@ -140,7 +139,7 @@ class ROCMModuleNode : public ffi::ModuleObj {
   // The format
   std::string fmt_;
   // function information table.
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   // The hip source.
   std::string hip_source_;
   // The gcn asm.
@@ -156,7 +155,7 @@ class ROCMWrappedFunc {
  public:
   // initialize the ROCM function.
   void Init(ROCMModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
-            size_t num_void_args, const std::vector<std::string>& launch_param_tags) {
+            size_t num_void_args, const ffi::Array<ffi::String>& launch_param_tags) {
     m_ = m;
     sptr_ = sptr;
     func_name_ = func_name;
@@ -200,25 +199,25 @@ class ROCMWrappedFunc {
 
 ffi::Optional<ffi::Function> ROCMModuleNode::GetFunction(const ffi::String& name) {
   ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
-  ICHECK_EQ(sptr_to_self.get(), this);
-  auto it = fmap_.find(name);
-  if (it == fmap_.end()) return std::nullopt;
-  const FunctionInfo& info = it->second;
+  TVM_FFI_ICHECK_EQ(sptr_to_self.get(), this);
+  auto opt_info = fmap_.Get(name);
+  if (!opt_info.has_value()) return std::nullopt;
+  FunctionInfo info = opt_info.value();
   ROCMWrappedFunc f;
-  f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
-  return PackFuncPackedArgAligned(f, info.arg_types);
+  f.Init(this, sptr_to_self, name, info->arg_types.size(), info->launch_param_tags);
+  return PackFuncPackedArgAligned(f, info->arg_types);
 }
 
 ffi::Module ROCMModuleCreate(std::string data, std::string fmt,
-                             std::unordered_map<std::string, FunctionInfo> fmap,
-                             std::string hip_source, std::string assembly) {
+                             ffi::Map<ffi::String, FunctionInfo> fmap, std::string hip_source,
+                             std::string assembly) {
   auto n = ffi::make_object<ROCMModuleNode>(data, fmt, fmap, hip_source, assembly);
   return ffi::Module(n);
 }
 
 ffi::Module ROCMModuleLoadFile(const std::string& file_name, const std::string& format) {
   std::string data;
-  std::unordered_map<std::string, FunctionInfo> fmap;
+  ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
@@ -227,14 +226,13 @@ ffi::Module ROCMModuleLoadFile(const std::string& file_name, const std::string& 
 }
 
 ffi::Module ROCMModuleLoadFromBytes(const ffi::Bytes& bytes) {
-  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-  dmlc::Stream* stream = &ms;
+  support::BytesInStream stream(bytes);
   std::string data;
-  std::unordered_map<std::string, FunctionInfo> fmap;
+  ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt;
-  stream->Read(&fmt);
-  stream->Read(&fmap);
-  stream->Read(&data);
+  stream.Read(&fmt);
+  TVM_FFI_ICHECK(stream.Read(&fmap));
+  stream.Read(&data);
   return ROCMModuleCreate(data, fmt, fmap, std::string(), std::string());
 }
 

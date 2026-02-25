@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 
-
-import tvm.testing
-from tvm.script import ir as I, relax as R, tir as T
 
 import pytest
+
+import tvm.testing
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_rewrite_defined_by_ir_module():

@@ -15,6 +15,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import argparse
 import fnmatch
@@ -22,10 +23,8 @@ from typing import Optional
 
 from git_utils import git
 
-
 globs = [
     "*.md",
-    "conda/*",
     ".github/*",
     ".asf.yaml",
     ".gitignore",

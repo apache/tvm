@@ -83,9 +83,9 @@ class AttentionKVCacheLegacyObj : public Object {
    * \param shape The cached values.
    */
   Tensor View(const ffi::Shape& shape) {
-    CHECK_EQ(shape[0], fill_count) << "Requested shape do not match the filled count";
+    TVM_FFI_ICHECK_EQ(shape[0], fill_count) << "Requested shape do not match the filled count";
     for (int i = 1; i < this->data->ndim; ++i) {
-      CHECK_EQ(shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
+      TVM_FFI_ICHECK_EQ(shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
     }
     return data.CreateView(shape, data->dtype);
   }
@@ -98,15 +98,16 @@ class AttentionKVCacheLegacyObj : public Object {
 
   /** pop n entries */
   void PopN(size_t n) {
-    ICHECK_LE(n, fill_count);
+    TVM_FFI_ICHECK_LE(n, fill_count);
     this->fill_count -= n;
   }
 
   void Update(Tensor value) {
-    CHECK(data.DataType() == value.DataType()) << "dtype mismatch";
-    CHECK_EQ(value->shape[0], fill_count) << "Requested shape do not match the filled count";
-    ICHECK(data.IsContiguous());
-    ICHECK(value.IsContiguous());
+    TVM_FFI_ICHECK(data.DataType() == value.DataType()) << "dtype mismatch";
+    TVM_FFI_ICHECK_EQ(value->shape[0], fill_count)
+        << "Requested shape do not match the filled count";
+    TVM_FFI_ICHECK(data.IsContiguous());
+    TVM_FFI_ICHECK(value.IsContiguous());
 
     DLTensor copy_dst = *(data.operator->());
     copy_dst.byte_offset = 0;
@@ -122,8 +123,9 @@ class AttentionKVCacheLegacyObj : public Object {
    * \param num_attention_sinks number of sinks to store (https://arxiv.org/abs/2309.17453).
    */
   void WindowOverride(Tensor value, int64_t max_cache_size, int64_t num_attention_sinks = 0) {
-    CHECK(data.DataType() == value.DataType()) << "dtype mismatch";
-    CHECK_LE(value->shape[0], max_cache_size - num_attention_sinks) << "dim 0 of value too large";
+    TVM_FFI_ICHECK(data.DataType() == value.DataType()) << "dtype mismatch";
+    TVM_FFI_ICHECK_LE(value->shape[0], max_cache_size - num_attention_sinks)
+        << "dim 0 of value too large";
     // reallocate cache
     if (fill_count + value->shape[0] <= max_cache_size) {
       int64_t reserved_slots = data->shape[0];
@@ -139,7 +141,7 @@ class AttentionKVCacheLegacyObj : public Object {
       }
     }
     // copy into the current position.
-    ICHECK(data.IsContiguous());
+    TVM_FFI_ICHECK(data.IsContiguous());
 
     int64_t num_elements_to_copy =
         std::min(value->shape[0], max_cache_size - window_attention_current_pos);
@@ -147,7 +149,7 @@ class AttentionKVCacheLegacyObj : public Object {
     std::vector<int64_t> shape;
     shape.push_back(num_elements_to_copy);
     for (int i = 1; i < data->ndim; ++i) {
-      CHECK_EQ(value->shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
+      TVM_FFI_ICHECK_EQ(value->shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
       num_elements_p_entry *= data->shape[i];
       shape.push_back(data->shape[i]);
     }
@@ -170,8 +172,8 @@ class AttentionKVCacheLegacyObj : public Object {
 
     // copy the remainder to the beginning of the cache
     if (num_elements_to_copy < value->shape[0]) {
-      ICHECK_EQ(this->fill_count, max_cache_size);
-      ICHECK_EQ(this->fill_count, this->window_attention_current_pos);
+      TVM_FFI_ICHECK_EQ(this->fill_count, max_cache_size);
+      TVM_FFI_ICHECK_EQ(this->fill_count, this->window_attention_current_pos);
 
       shape[0] = value->shape[0] - num_elements_to_copy;
       num_filled_elements = num_elements_to_copy * num_elements_p_entry;
@@ -197,7 +199,7 @@ class AttentionKVCacheLegacyObj : public Object {
    * \param value The value to be appended.
    */
   void Append(Tensor value) {
-    CHECK(data.DataType() == value.DataType()) << "dtype mismatch";
+    TVM_FFI_ICHECK(data.DataType() == value.DataType()) << "dtype mismatch";
     // reallocate cache
     int64_t reserved_slots = data->shape[0];
     while (fill_count + value->shape[0] > reserved_slots) {
@@ -211,12 +213,12 @@ class AttentionKVCacheLegacyObj : public Object {
       this->data = new_data;
     }
     // copy into the fill count position.
-    ICHECK_LE(fill_count + value->shape[0], data->shape[0]);
-    ICHECK(data.IsContiguous());
+    TVM_FFI_ICHECK_LE(fill_count + value->shape[0], data->shape[0]);
+    TVM_FFI_ICHECK(data.IsContiguous());
 
     int64_t num_filled_elements = fill_count;
     for (int i = 1; i < data->ndim; ++i) {
-      CHECK_EQ(value->shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
+      TVM_FFI_ICHECK_EQ(value->shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
       num_filled_elements *= data->shape[i];
     }
     // create a view of copy dest to copy the value into it.
@@ -317,8 +319,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "vm.builtin.attention_kv_cache_view", [](ffi::PackedArgs args, ffi::Any* rv) {
-        CHECK(args.size() == 1 || args.size() == 2)
-            << "ValueError: `vm.builtin.attention_kv_cache_view` expects 1 or 2 arguments, but got "
+        TVM_FFI_CHECK(args.size() == 1 || args.size() == 2, ValueError)
+            << "`vm.builtin.attention_kv_cache_view` expects 1 or 2 arguments, but got "
             << args.size() << ".";
         AttentionKVCacheLegacy cache = args[0].cast<AttentionKVCacheLegacy>();
         if (args.size() == 2) {
@@ -359,17 +361,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // NOTE this is a built-in highly related to LM so we put it here.
 int SampleTopPFromLogits(Tensor logits, double temperature, double top_p, double uniform_sample) {
-  ICHECK(logits.IsContiguous());
-  ICHECK(logits.DataType() == DataType::Float(32));
+  TVM_FFI_ICHECK(logits.IsContiguous());
+  TVM_FFI_ICHECK(logits.DataType() == DataType::Float(32));
 
   if (logits->device.device_type != kDLCPU) {
     logits = logits.CopyTo(DLDevice{kDLCPU, 0});
   }
 
-  ICHECK(logits->device.device_type == kDLCPU);
+  TVM_FFI_ICHECK(logits->device.device_type == kDLCPU);
 
   for (int i = 0; i < logits->ndim - 1; ++i) {
-    ICHECK_EQ(logits->shape[i], 1) << "The leading dimensions of logits must be 1";
+    TVM_FFI_ICHECK_EQ(logits->shape[i], 1) << "The leading dimensions of logits must be 1";
   }
 
   std::vector<std::pair<float, int>> data;
@@ -415,7 +417,7 @@ int SampleTopPFromLogits(Tensor logits, double temperature, double top_p, double
       return it->second;
     }
   }
-  ICHECK_LE(uniform_sample, data[0].first);
+  TVM_FFI_ICHECK_LE(uniform_sample, data[0].first);
   return data[0].second;
 }
 
@@ -425,17 +427,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 int SampleTopPFromProb(Tensor prob, double top_p, double uniform_sample) {
-  ICHECK(prob.IsContiguous());
-  ICHECK(prob.DataType() == DataType::Float(32));
+  TVM_FFI_ICHECK(prob.IsContiguous());
+  TVM_FFI_ICHECK(prob.DataType() == DataType::Float(32));
 
   if (prob->device.device_type != kDLCPU) {
     prob = prob.CopyTo(DLDevice{kDLCPU, 0});
   }
 
-  ICHECK(prob->device.device_type == kDLCPU);
+  TVM_FFI_ICHECK(prob->device.device_type == kDLCPU);
 
   for (int i = 0; i < prob->ndim - 1; ++i) {
-    ICHECK_EQ(prob->shape[i], 1) << "The leading dimensions of logits must be 1";
+    TVM_FFI_ICHECK_EQ(prob->shape[i], 1) << "The leading dimensions of logits must be 1";
   }
 
   // Key observation: when we are doing top_p sampling
@@ -510,9 +512,10 @@ int SampleTopPFromProb(Tensor prob, double top_p, double uniform_sample) {
   data.reserve(ndata);
   int64_t sampled_index = sample_top_p_with_filter(0.0f);
   if (sampled_index < 0 && is_all_nan()) {
-    LOG(FATAL) << "The output probabilities are all NaNs, can not sample from it";
+    TVM_FFI_THROW(InternalError) << "The output probabilities are all NaNs, can not sample from it";
   } else if (sampled_index < 0) {
-    LOG(FATAL) << "Cannot sample from the given probability distribution due to unknown reason";
+    TVM_FFI_THROW(InternalError)
+        << "Cannot sample from the given probability distribution due to unknown reason";
   }
   return sampled_index;
 }
@@ -523,8 +526,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Tensor MultinomialFromUniform(Tensor prob, Tensor uniform_sample) {
-  ICHECK(prob.IsContiguous());
-  ICHECK(uniform_sample.IsContiguous());
+  TVM_FFI_ICHECK(prob.IsContiguous());
+  TVM_FFI_ICHECK(uniform_sample.IsContiguous());
 
   if (prob->device.device_type != kDLCPU) {
     prob = prob.CopyTo(DLDevice{kDLCPU, 0});
@@ -533,8 +536,8 @@ Tensor MultinomialFromUniform(Tensor prob, Tensor uniform_sample) {
     uniform_sample = uniform_sample.CopyTo(DLDevice{kDLCPU, 0});
   }
 
-  ICHECK(prob->device.device_type == kDLCPU);
-  ICHECK(uniform_sample->device.device_type == kDLCPU);
+  TVM_FFI_ICHECK(prob->device.device_type == kDLCPU);
+  TVM_FFI_ICHECK(uniform_sample->device.device_type == kDLCPU);
 
   int64_t batch_size = prob->shape[0];
   int64_t vocab_size = prob->shape[prob->ndim - 1];
@@ -564,12 +567,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // This is an inplace operation.
 void ApplyRepetitionPenalty(Tensor logits, Tensor token_ids, double penalty) {
-  ICHECK(logits.IsContiguous());
-  ICHECK(token_ids.IsContiguous());
-  ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
-  ICHECK(token_ids.DataType() == DataType::Int(32)) << "token ids must be int32!";
-  ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
-  ICHECK(token_ids->device.device_type == kDLCPU) << "token_ids device must be CPU!";
+  TVM_FFI_ICHECK(logits.IsContiguous());
+  TVM_FFI_ICHECK(token_ids.IsContiguous());
+  TVM_FFI_ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
+  TVM_FFI_ICHECK(token_ids.DataType() == DataType::Int(32)) << "token ids must be int32!";
+  TVM_FFI_ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
+  TVM_FFI_ICHECK(token_ids->device.device_type == kDLCPU) << "token_ids device must be CPU!";
   float* logits_raw_data = static_cast<float*>(logits->data);
   int* token_ids_data = static_cast<int*>(token_ids->data);
   size_t num_token_ids = token_ids->shape[token_ids->ndim - 1];
@@ -600,15 +603,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 void ApplyPresenceAndFrequencyPenalty(Tensor logits, Tensor token_ids, Tensor token_freqs,
                                       double presence_penalty, double frequency_penalty) {
   // See https://platform.openai.com/docs/guides/text-generation/frequency-and-presence-penalties
-  ICHECK(logits.IsContiguous());
-  ICHECK(token_ids.IsContiguous());
-  ICHECK(token_freqs.IsContiguous());
-  ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
-  ICHECK(token_ids.DataType() == DataType::Int(32)) << "token ids must be int32!";
-  ICHECK(token_freqs.DataType() == DataType::Int(32)) << "token freqs must be int32!";
-  ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
-  ICHECK(token_ids->device.device_type == kDLCPU) << "token_ids device must be CPU!";
-  ICHECK(token_freqs->device.device_type == kDLCPU) << "token_ids device must be CPU!";
+  TVM_FFI_ICHECK(logits.IsContiguous());
+  TVM_FFI_ICHECK(token_ids.IsContiguous());
+  TVM_FFI_ICHECK(token_freqs.IsContiguous());
+  TVM_FFI_ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
+  TVM_FFI_ICHECK(token_ids.DataType() == DataType::Int(32)) << "token ids must be int32!";
+  TVM_FFI_ICHECK(token_freqs.DataType() == DataType::Int(32)) << "token freqs must be int32!";
+  TVM_FFI_ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
+  TVM_FFI_ICHECK(token_ids->device.device_type == kDLCPU) << "token_ids device must be CPU!";
+  TVM_FFI_ICHECK(token_freqs->device.device_type == kDLCPU) << "token_ids device must be CPU!";
 
   float* logits_raw_data = static_cast<float*>(logits->data);
   int* token_ids_data = static_cast<int*>(token_ids->data);
@@ -629,9 +632,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // This is an inplace operation.
 void ApplySoftmaxWithTemperature(Tensor logits, double temperature) {
-  ICHECK(logits.IsContiguous());
-  ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
-  ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
+  TVM_FFI_ICHECK(logits.IsContiguous());
+  TVM_FFI_ICHECK(logits.DataType() == DataType::Float(32)) << "Logits data type is not float32!";
+  TVM_FFI_ICHECK(logits->device.device_type == kDLCPU) << "logits device must be CPU!";
   int vocab_size = logits->shape[logits->ndim - 1];
   float* logits_raw_data = static_cast<float*>(logits->data);
   float inv_temp = 1.0f / temperature;

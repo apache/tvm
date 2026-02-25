@@ -37,9 +37,9 @@ def _check(
 
 def test_conv1d():
     @R.function
-    def foo(
-        x: R.Tensor((2, 3, 228), "float16"), w: R.Tensor((16, 3, 5), "float16")
-    ) -> R.Tensor((2, 16, 224), "float16"):
+    def foo(x: R.Tensor((2, 3, 228), "float16"), w: R.Tensor((16, 3, 5), "float16")) -> R.Tensor(
+        (2, 16, 224), "float16"
+    ):
         gv: R.Tensor((2, 16, 224), "float16") = R.nn.conv1d(x, w, out_dtype="float16")
         return gv
 
@@ -55,9 +55,9 @@ def test_conv1d():
 
 def test_conv1d_transpose():
     @R.function
-    def foo(
-        x: R.Tensor((2, 3, 228), "float16"), w: R.Tensor((3, 16, 5), "float16")
-    ) -> R.Tensor((2, 16, 232), "float16"):
+    def foo(x: R.Tensor((2, 3, 228), "float16"), w: R.Tensor((3, 16, 5), "float16")) -> R.Tensor(
+        (2, 16, 232), "float16"
+    ):
         gv: R.Tensor((2, 16, 232), "float16") = R.nn.conv1d_transpose(x, w, out_dtype="float16")
         return gv
 
@@ -111,9 +111,9 @@ def test_conv2d_transpose():
 
 def test_max_pool2d():
     @R.function
-    def foo(
-        x: R.Tensor((1, 1, 32, 32), dtype="float32")
-    ) -> R.Tensor((1, 1, 30, 30), dtype="float32"):
+    def foo(x: R.Tensor((1, 1, 32, 32), dtype="float32")) -> R.Tensor(
+        (1, 1, 30, 30), dtype="float32"
+    ):
         gv: R.Tensor((1, 1, 30, 30), dtype="float32") = R.nn.max_pool2d(x, pool_size=(3,))
         return gv
 
@@ -128,9 +128,9 @@ def test_max_pool2d():
 
 def test_avg_pool2d():
     @R.function
-    def foo(
-        x: R.Tensor((1, 1, 32, 32), dtype="float32")
-    ) -> R.Tensor((1, 1, 30, 30), dtype="float32"):
+    def foo(x: R.Tensor((1, 1, 32, 32), dtype="float32")) -> R.Tensor(
+        (1, 1, 30, 30), dtype="float32"
+    ):
         gv: R.Tensor((1, 1, 30, 30), dtype="float32") = R.nn.avg_pool2d(x, pool_size=(3,))
         return gv
 
@@ -285,9 +285,9 @@ def test_group_norm():
 
 def test_dropout():
     @R.function
-    def foo(
-        x: R.Tensor((2, 3), "float32")
-    ) -> R.Tuple(R.Tensor((2, 3), "float32"), R.Tensor((2, 3), "float32")):
+    def foo(x: R.Tensor((2, 3), "float32")) -> R.Tuple(
+        R.Tensor((2, 3), "float32"), R.Tensor((2, 3), "float32")
+    ):
         gv: R.Tuple(R.Tensor((2, 3), "float32"), R.Tensor((2, 3), "float32")) = R.nn.dropout(
             x, rate=0.5
         )

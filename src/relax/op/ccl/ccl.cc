@@ -148,7 +148,8 @@ StructInfo InferStructInfoScatter(const Call& call, const BlockBuilder& ctx) {
 
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   auto input_shape = input_sinfo->GetShape();
-  CHECK(input_shape.defined()) << "input tensor of scatter_from_worker0 should have defined shape.";
+  TVM_FFI_ICHECK(input_shape.defined())
+      << "input tensor of scatter_from_worker0 should have defined shape.";
 
   if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers)) != 0)) {
     ctx->ReportFatal(Diagnostic::Error(call)

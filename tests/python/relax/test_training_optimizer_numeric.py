@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Numeric tests for relax optimizer APIs."""
+
 from typing import Callable, List
 
 import numpy as np

@@ -17,7 +17,9 @@
 """tvm.contrib.msc.core.gym.search_agent"""
 
 from typing import Any, List
+
 from tvm.contrib.msc.core import utils as msc_utils
+
 from .base_agent import BaseAgent
 
 

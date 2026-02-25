@@ -45,7 +45,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
     ctx->ReportFatal(Diagnostic::Error(call) << "Input of distributed operator must be known ndim");
   } else {
     out_ndim = data_sinfo->ndim - axes.size();
-    ICHECK_GE(out_ndim, 0);
+    TVM_FFI_ICHECK_GE(out_ndim, 0);
   }
 
   // The inference rule for reduction operator output shapes:
@@ -70,7 +70,7 @@ StructInfo InferDistStructInfoStatistical(const Call& call, const BlockBuilder& 
       out_shape.push_back(IntImm(DataType::Int(64), /*value=*/1));
     }
   }
-  ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
+  TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
   TensorStructInfo output_tensor_sinfo = TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype);
 
   return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphReduce);

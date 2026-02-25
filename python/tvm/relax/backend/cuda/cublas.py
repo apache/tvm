@@ -16,6 +16,7 @@
 # under the License.
 
 """Pattern table for cuBLAS backend"""
+
 import operator
 from functools import reduce
 

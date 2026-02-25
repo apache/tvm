@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E501, F841, RUF005
 
 """Operators for tree attention."""
 
 import math
 from typing import Any, Dict, Tuple
 
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.runtime import DataType
 from tvm.script import tir as T
 from tvm.target import Target
@@ -288,9 +289,7 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any]):
     return batch_tree_attn
 
 
-def tree_attn(
-    h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target
-):  # pylint: disable=unused-argument
+def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target):  # pylint: disable=unused-argument
     """Generate tree attention kernel for batched tree attention.
 
     Parameters
@@ -586,7 +585,7 @@ def tree_attn(
     def get_tile_size(x, y, t):
         cnt = (x * y) // t
         assert (x * y) % t == 0
-        tile_y = (int)(math.ceil(math.sqrt(cnt)))
+        tile_y = math.ceil(math.sqrt(cnt))
         while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
@@ -679,6 +678,7 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[st
     global_symbol = "tree_attn_paged_kv_cpu"
     sliding_window = False
     group_size = h_q // h_kv
+
     # pylint: disable=line-too-long,too-many-branches
     # fmt: off
     @T.prim_func(check_well_formed=False)
@@ -1278,7 +1278,7 @@ def tree_attn_with_paged_kv_cache(
     def get_tile_size(x, y, t):
         cnt = (x * y) // t
         assert (x * y) % t == 0
-        tile_y = (int)(math.ceil(math.sqrt(cnt)))
+        tile_y = math.ceil(math.sqrt(cnt))
         while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt

@@ -58,7 +58,8 @@ runtime::DataType GetRuntimeDataType(const Type& type) {
   } else if (IsVoidType(type)) {
     return DataType::Void();
   } else {
-    LOG(FATAL) << "Type " << type << " does not have a corresponding runtime::DataType";
+    TVM_FFI_THROW(InternalError) << "Type " << type
+                                 << " does not have a corresponding runtime::DataType";
   }
 }
 
@@ -75,10 +76,11 @@ Type GetType(const PrimExpr& expr) {
 
   if (auto* access = expr.as<tir::CallNode>()) {
     if (access->op.same_as(builtin::tvm_access_ptr())) {
-      ICHECK(access->args.size()) << "Builtin tvm_access_ptr() may not have empty arguments";
+      TVM_FFI_ICHECK(access->args.size())
+          << "Builtin tvm_access_ptr() may not have empty arguments";
       auto type_annotation = Downcast<Call>(access->args[0]);
       static auto builtin_op = Op::Get("tir.type_annotation");
-      ICHECK(type_annotation->op.same_as(builtin_op))
+      TVM_FFI_ICHECK(type_annotation->op.same_as(builtin_op))
           << "Expected the first argument of builtin tvm_access_ptr() "
           << "to be a type annotation, but found " << type_annotation->op;
       return PointerType(PrimType(type_annotation->dtype));
@@ -87,11 +89,11 @@ Type GetType(const PrimExpr& expr) {
 
   if (auto* address_of = expr.as<tir::CallNode>()) {
     if (address_of->op.same_as(builtin::address_of())) {
-      ICHECK_EQ(address_of->args.size(), 1)
+      TVM_FFI_ICHECK_EQ(address_of->args.size(), 1)
           << "Builtin address_of() expects a single argument, but received arguments "
           << address_of->args;
       auto* address = address_of->args[0].as<BufferLoadNode>();
-      ICHECK(address)
+      TVM_FFI_ICHECK(address)
           << "Builtin address_of() expects the argument to be a BufferLoad, but received argument "
           << address_of->args[0];
 
@@ -141,8 +143,8 @@ void BroadcastToMatchLanes(PrimExpr& op_a, PrimExpr& op_b) {  // NOLINT(*)
 
 // The public function with a quick checking path.
 void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
-  CHECK(lhs.defined()) << "ValueError: `lhs` is null in the binary operator";
-  CHECK(rhs.defined()) << "ValueError: `rhs` is null in the binary operator";
+  TVM_FFI_CHECK(lhs.defined(), ValueError) << "`lhs` is null in the binary operator";
+  TVM_FFI_CHECK(rhs.defined(), ValueError) << "`rhs` is null in the binary operator";
   if (lhs.dtype() == rhs.dtype()) return;
 
   BroadcastToMatchLanes(lhs, rhs);
@@ -151,7 +153,7 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   DataType ltype = lhs.dtype();
   DataType rtype = rhs.dtype();
 
-  ICHECK(ltype.is_scalable_vector() == rtype.is_scalable_vector())
+  TVM_FFI_ICHECK(ltype.is_scalable_vector() == rtype.is_scalable_vector())
       << "Can't match scalable and fixed length vectors";
 
   bool lanes_match = false;
@@ -162,7 +164,7 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
     lanes_match = ltype.lanes() == rtype.lanes();
   }
 
-  ICHECK(lanes_match) << "Cannot match type " << ltype << " vs " << rtype;
+  TVM_FFI_ICHECK(lanes_match) << "Cannot match type " << ltype << " vs " << rtype;
   if (lhs.dtype() == rhs.dtype()) return;
 
   ltype = lhs.dtype();
@@ -243,12 +245,12 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
     }
   } else {
     LOG(INFO) << lhs << " " << rhs;
-    LOG(FATAL) << "Cannot match type " << ltype << " vs " << rtype;
+    TVM_FFI_THROW(InternalError) << "Cannot match type " << ltype << " vs " << rtype;
   }
 }
 
 PrimExpr ret(PrimExpr value, Span span) {
-  CHECK(value.defined());
+  TVM_FFI_ICHECK(value.defined());
   return tir::Call(value.dtype(), tir::builtin::ret(), {value}, span);
 }
 
@@ -276,7 +278,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
   using namespace tir;
-  ICHECK_EQ(dtype.lanes(), 1);
+  TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
   if (dtype.is_int()) {
     if (dtype.bits() == 64) {
       return IntImm(dtype, std::numeric_limits<int64_t>::max(), span);
@@ -330,16 +332,17 @@ PrimExpr max_value(const DataType& dtype, Span span) {
   } else if (dtype.is_float4()) {
     return FloatImm(dtype, 6.0, span);
   }
-  LOG(FATAL) << "Cannot decide max_value for type" << dtype;
+  TVM_FFI_THROW(InternalError) << "Cannot decide max_value for type" << dtype;
 }
 
 PrimExpr min_value(const DataType& dtype, Span span) {
   using namespace tir;
-  ICHECK_EQ(dtype.lanes(), 1);
+  TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
   if (datatype::Registry::Global()->GetTypeRegistered(dtype.code())) {
     // TODO(tkonolige): need to convert all registered min functions to use the span.
     auto f = datatype::GetMinFunc(dtype.code());
-    ICHECK(f) << "No minimum function registered for custom dtype " << (unsigned int)dtype.code();
+    TVM_FFI_ICHECK(f) << "No minimum function registered for custom dtype "
+                      << (unsigned int)dtype.code();
     // TODO(@hypercubestart) Document this change (and others associated with the overflowing
     // floatimm min bug)
     return (*f)(dtype.bits()).cast<PrimExpr>();
@@ -391,13 +394,13 @@ PrimExpr min_value(const DataType& dtype, Span span) {
   } else if (dtype.is_float4()) {
     return FloatImm(dtype, -6.0, span);
   }
-  LOG(FATAL) << "Cannot decide min_value for type" << dtype;
+  TVM_FFI_THROW(InternalError) << "Cannot decide min_value for type" << dtype;
 }
 
 // infinity
 PrimExpr infinity(const DataType& dtype, Span span) {
   using namespace tir;
-  ICHECK_EQ(dtype.lanes(), 1);
+  TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
   if (dtype.is_float()) {
     if (dtype.bits() == 64) {
       return FloatImm(dtype, std::numeric_limits<double>::infinity(), span);
@@ -405,7 +408,7 @@ PrimExpr infinity(const DataType& dtype, Span span) {
       return FloatImm(dtype, std::numeric_limits<float>::infinity(), span);
     }
   }
-  LOG(FATAL) << "Cannot decide infinity for type " << dtype;
+  TVM_FFI_THROW(InternalError) << "Cannot decide infinity for type " << dtype;
 }
 
 namespace tir {
@@ -442,7 +445,7 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
     } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
       return make_const(t, op->value, op->span);
     }
-    ICHECK(!value.dtype().is_handle()) << "Can't cast a handle to other types.";
+    TVM_FFI_ICHECK(!value.dtype().is_handle()) << "Can't cast a handle to other types.";
     return tir::Cast(t, value, span);
   } else {
     DataType vtype = t.element_of();
@@ -465,7 +468,7 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
         return tir::Broadcast(value, t.lanes(), span);
       }
     } else { /* value is a vector */
-      ICHECK(value.dtype().is_scalable_vector() == t.is_scalable_vector());
+      TVM_FFI_ICHECK(value.dtype().is_scalable_vector() == t.is_scalable_vector());
 
       bool lanes_match = false;
       if (value.dtype().is_scalable_vector()) {
@@ -473,7 +476,7 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
       } else {
         lanes_match = value.dtype().lanes() == t.lanes();
       }
-      ICHECK(lanes_match);
+      TVM_FFI_ICHECK(lanes_match);
       if (const auto* broadcast = value.as<tir::BroadcastNode>()) {
         return tir::Broadcast(cast(vtype, broadcast->value, span), broadcast->lanes, span);
       } else if (const auto* ramp = value.as<tir::RampNode>()) {
@@ -492,9 +495,9 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
 PrimExpr reinterpret(const DataType& t, PrimExpr value, Span span) {
   if (value.dtype() == t) return value;
   if (!t.is_scalable_vector() && !value.dtype().is_scalable_vector()) {
-    ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes() ||
-           ((value.dtype().is_float4_e2m1fn() || t.is_float4_e2m1fn()) &&
-            value.dtype().bytes() * value.dtype().lanes() == t.bytes() * t.lanes()))
+    TVM_FFI_ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes() ||
+                   ((value.dtype().is_float4_e2m1fn() || t.is_float4_e2m1fn()) &&
+                    value.dtype().bytes() * value.dtype().lanes() == t.bytes() * t.lanes()))
         << "Reinterpret requires size match " << t << " vs " << value.dtype();
   }
   return tir::Call(t, tir::builtin::reinterpret(), {value}, span);
@@ -544,8 +547,8 @@ PrimExpr div(PrimExpr a, PrimExpr b, Span span) {
 }
 
 PrimExpr truncdiv(PrimExpr a, PrimExpr b, Span span) {
-  ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
-  ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
+  TVM_FFI_ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  TVM_FFI_ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   return div(a, b, span);
 }
 
@@ -567,16 +570,16 @@ PrimExpr shapediv(PrimExpr a, PrimExpr b, Span span) { return ceildiv(a, b, span
 PrimExpr indexmod(PrimExpr a, PrimExpr b, Span span) { return floormod(a, b, span); }
 
 PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span) {
-  ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
-  ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
+  TVM_FFI_ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  TVM_FFI_ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   BinaryOpMatchTypes(a, b, span);
   if (auto ret = arith::TryConstFold<tir::FloorDiv>(a, b)) return ret.value();
   return tir::FloorDiv(a, b, span);
 }
 
 PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span) {
-  ICHECK(a.dtype().is_float()) << a;
-  ICHECK(b.dtype().is_float()) << b;
+  TVM_FFI_ICHECK(a.dtype().is_float()) << a;
+  TVM_FFI_ICHECK(b.dtype().is_float()) << b;
   BinaryOpMatchTypes(a, b, span);
   PrimExpr exp_sum = add(exp(a), exp(b));
   PrimExpr log_exp_sum = log(exp_sum);
@@ -584,16 +587,16 @@ PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span) {
 }
 
 PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span) {
-  ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
-  ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
+  TVM_FFI_ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  TVM_FFI_ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   BinaryOpMatchTypes(a, b, span);
   if (auto ret = arith::TryConstFold<tir::FloorDiv>(a + b - 1, b)) return ret.value();
   return tir::FloorDiv(a + b - 1, b, span);
 }
 
 PrimExpr floormod(PrimExpr a, PrimExpr b, Span span) {
-  ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
-  ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
+  TVM_FFI_ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  TVM_FFI_ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
   BinaryOpMatchTypes(a, b, span);
   if (auto ret = arith::TryConstFold<tir::FloorMod>(a, b)) return ret.value();
   return tir::FloorMod(a, b, span);
@@ -627,7 +630,7 @@ PrimExpr max(PrimExpr a, PrimExpr b, Span span) {
 
 // if_then_else
 PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Span span) {
-  ICHECK(cond.dtype() == DataType::Bool())
+  TVM_FFI_ICHECK(cond.dtype() == DataType::Bool())
       << "if_then_else only accept the condition to be boolean type.";
   BinaryOpMatchTypes(true_value, false_value, span);
   if (const IntImmNode* op = cond.as<IntImmNode>()) {
@@ -694,36 +697,36 @@ PrimExpr not_equal(PrimExpr a, PrimExpr b, Span span) {
 
 namespace {
 void type_check_boolean_args(const PrimExpr& arg, const char* op) {
-  ICHECK(arg.dtype().is_bool()) << "Expected boolean argument for " << op << ", but received "
-                                << arg << " of type " << arg.dtype();
+  TVM_FFI_ICHECK(arg.dtype().is_bool()) << "Expected boolean argument for " << op
+                                        << ", but received " << arg << " of type " << arg.dtype();
 }
 void type_check_boolean_args(const PrimExpr& lhs, const PrimExpr& rhs, const char* op) {
-  ICHECK(lhs.dtype().is_bool()) << "Expected boolean argument as LHS of " << op << ", but received "
-                                << lhs << " of type " << lhs.dtype();
-  ICHECK(rhs.dtype().is_bool()) << "Expected boolean argument as RHS of " << op << ", but received "
-                                << rhs << " of type " << rhs.dtype();
+  TVM_FFI_ICHECK(lhs.dtype().is_bool()) << "Expected boolean argument as LHS of " << op
+                                        << ", but received " << lhs << " of type " << lhs.dtype();
+  TVM_FFI_ICHECK(rhs.dtype().is_bool()) << "Expected boolean argument as RHS of " << op
+                                        << ", but received " << rhs << " of type " << rhs.dtype();
 }
 
 void type_check_int_or_bool_args(const PrimExpr& arg, const char* op) {
-  ICHECK(arg.dtype().is_int() || arg.dtype().is_uint() || arg.dtype().is_bool())
+  TVM_FFI_ICHECK(arg.dtype().is_int() || arg.dtype().is_uint() || arg.dtype().is_bool())
       << "Expected integer or boolean argument for " << op << ", but received " << arg
       << " of type " << arg.dtype();
 }
 
 void type_check_integer_args(const PrimExpr& lhs, const PrimExpr& rhs, const char* op) {
-  ICHECK(lhs.dtype().is_int() || lhs.dtype().is_uint())
+  TVM_FFI_ICHECK(lhs.dtype().is_int() || lhs.dtype().is_uint())
       << "Expected integer argument as LHS of " << op << ", but received " << lhs << " of type "
       << lhs.dtype();
-  ICHECK(rhs.dtype().is_int() || rhs.dtype().is_uint())
+  TVM_FFI_ICHECK(rhs.dtype().is_int() || rhs.dtype().is_uint())
       << "Expected integer argument as RHS of " << op << ", but received " << rhs << " of type "
       << rhs.dtype();
 }
 
 void type_check_int_or_bool_args(const PrimExpr& lhs, const PrimExpr& rhs, const char* op) {
-  ICHECK(lhs.dtype().is_int() || lhs.dtype().is_uint() || lhs.dtype().is_bool())
+  TVM_FFI_ICHECK(lhs.dtype().is_int() || lhs.dtype().is_uint() || lhs.dtype().is_bool())
       << "Expected integer argument as LHS of " << op << ", but received " << lhs << " of type "
       << lhs.dtype();
-  ICHECK(rhs.dtype().is_int() || rhs.dtype().is_uint() || rhs.dtype().is_bool())
+  TVM_FFI_ICHECK(rhs.dtype().is_int() || rhs.dtype().is_uint() || rhs.dtype().is_bool())
       << "Expected integer argument as RHS of " << op << ", but received " << rhs << " of type "
       << rhs.dtype();
 }
@@ -760,7 +763,7 @@ PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span) {
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
     if (pb)
-      ICHECK(pb->value >= 0 && pb->value < rtype.bits())
+      TVM_FFI_ICHECK(pb->value >= 0 && pb->value < rtype.bits())
           << "Shift amount must be non-negative and less than " << rtype.bits() << " for type "
           << rtype;
     if (pa && pb) {
@@ -782,7 +785,7 @@ PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span) {
   TVM_INDEX_CONST_PROPAGATION({
     const DataType& rtype = a.dtype();
     if (pb)
-      ICHECK(pb->value >= 0 && pb->value < rtype.bits())
+      TVM_FFI_ICHECK(pb->value >= 0 && pb->value < rtype.bits())
           << "Shift amount must be non-negative and less than " << rtype.bits() << " for type "
           << rtype;
     if (pa && pb) return IntImm(rtype, (pa->value << pb->value), span);
@@ -846,7 +849,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // pow
 PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
-  ICHECK(x.dtype().is_float()) << "power only applies to float";
+  TVM_FFI_ICHECK(x.dtype().is_float()) << "power only applies to float";
 
   // If we detect pow(x, 3), suggest using x * x * x
   if (y.dtype().is_int()) {
@@ -899,8 +902,8 @@ PrimExpr abs(PrimExpr x, Span span) {
   } else if (x.dtype().is_uint()) {
     return x;
   } else {
-    LOG(FATAL) << "Data type " << x.dtype()
-               << " not supported for absolute op. Skipping absolute op...";
+    TVM_FFI_THROW(InternalError) << "Data type " << x.dtype()
+                                 << " not supported for absolute op. Skipping absolute op...";
     return x;
   }
 }
@@ -925,7 +928,8 @@ PrimExpr isnan(PrimExpr x, Span span) {
       return tir::Call(t, op, {x}, span);
     }
   } else {
-    LOG(FATAL) << "Data type " << x.dtype() << " not supported for isnan op. Skipping isnan op...";
+    TVM_FFI_THROW(InternalError) << "Data type " << x.dtype()
+                                 << " not supported for isnan op. Skipping isnan op...";
   }
 }
 
@@ -938,7 +942,8 @@ PrimExpr isinf(PrimExpr x, Span span) {
     PrimExpr infX = infinity(x.dtype(), span);
     return abs(x, span) == infX && !isnan(x, span);
   } else {
-    LOG(FATAL) << "Data type " << x.dtype() << " not supported for finiteness ops. Skipping it...";
+    TVM_FFI_THROW(InternalError) << "Data type " << x.dtype()
+                                 << " not supported for finiteness ops. Skipping it...";
   }
 }
 
@@ -998,7 +1003,7 @@ PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> in
 // fmod
 PrimExpr fmod(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
-  ICHECK(x.dtype().is_float()) << "fmod only applies to float";
+  TVM_FFI_ICHECK(x.dtype().is_float()) << "fmod only applies to float";
   static auto op = Op::Get("tir.fmod");
   return tir::Call(x.dtype(), op, {x, y}, span);
 }
@@ -1159,9 +1164,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     } else if (auto opt = args[0].try_cast<double>()) {
                       *ret = tir::make_const(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
                     } else {
-                      LOG(FATAL) << "First argument to tvm.tir.const must be int, float, or bool, "
-                                 << "but instead received argument with type code "
-                                 << args[0].GetTypeKey();
+                      TVM_FFI_THROW(InternalError)
+                          << "First argument to tvm.tir.const must be int, float, or bool, "
+                          << "but instead received argument with type code "
+                          << args[0].GetTypeKey();
                     }
                   })
       .def("node.LargeUIntImm", LargeUIntImm)

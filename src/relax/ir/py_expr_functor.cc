@@ -576,7 +576,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else if (const auto* ptr = binding.as<MatchCastNode>()) {
                visitor->ExprVisitor::VisitBinding_(ptr);
              } else {
-               LOG(FATAL) << "unreachable";
+               TVM_FFI_THROW(InternalError) << "unreachable";
              }
            })
       .def("relax.ExprVisitorVisitBindingBlock",
@@ -586,7 +586,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else if (const auto* ptr = block.as<BindingBlockNode>()) {
                visitor->ExprVisitor::VisitBindingBlock_(ptr);
              } else {
-               LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+               TVM_FFI_THROW(TypeError) << "Invalid type: " << block->GetTypeKey();
              }
            })
       .def("relax.ExprVisitorVisitVarDef",
@@ -596,7 +596,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else if (const auto* node = var.as<VarNode>()) {
                visitor->ExprVisitor::VisitVarDef_(node);
              } else {
-               LOG(FATAL) << "TypeError: Invalid type: " << var->GetTypeKey();
+               TVM_FFI_THROW(TypeError) << "Invalid type: " << var->GetTypeKey();
              }
            })
       .def("relax.ExprVisitorVisitSpan",
@@ -623,7 +623,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else if (const auto* ptr = binding.as<MatchCastNode>()) {
                return mutator->ExprMutator::VisitBinding_(ptr);
              } else {
-               LOG(FATAL) << "unreachable";
+               TVM_FFI_THROW(InternalError) << "unreachable";
              }
            })
       .def("relax.ExprMutatorVisitBindingBlock",
@@ -633,7 +633,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else if (const auto* node = block.as<BindingBlockNode>()) {
                return mutator->ExprMutator::VisitBindingBlock_(node);
              } else {
-               LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+               TVM_FFI_THROW(TypeError) << "Invalid type: " << block->GetTypeKey();
              }
            })
       .def("relax.ExprMutatorVisitVarDef",
@@ -643,7 +643,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else if (const auto* node = var.as<VarNode>()) {
                return mutator->ExprMutator::VisitVarDef_(node);
              } else {
-               LOG(FATAL) << "TypeError: Invalid type: " << var->GetTypeKey();
+               TVM_FFI_THROW(TypeError) << "Invalid type: " << var->GetTypeKey();
              }
            })
       .def(

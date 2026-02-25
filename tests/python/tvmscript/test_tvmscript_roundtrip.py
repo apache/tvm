@@ -14,74 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401, F841
 
 import sys
+
+import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import tir as T, ir as I, relax as R
-
-import numpy as np
-
-
-def opt_gemm_normalize():
-    @tvm.script.ir_module(check_well_formed=False)
-    class Module:
-        # packedB is treated as undefined
-        @T.prim_func
-        def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
-            # function attr dict
-            T.func_attr({"tir.noalias": True})
-            # buffer definition
-            C_global = T.Buffer([1024, 1024], elem_offset=0, align=64, offset_factor=1)
-            packedB = T.Buffer([32, 1024, 32], elem_offset=0, align=64, offset_factor=1)
-            A_1 = T.match_buffer(A, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
-            B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
-            C_1 = T.match_buffer(C, [1024, 1024], elem_offset=0, align=64, offset_factor=1)
-            # body
-            T.realize(packedB[0:32, 0:1024, 0:32], "")
-            for x in T.parallel(0, 32):
-                for y in T.serial(0, 1024):
-                    for z in T.vectorized(0, 32):
-                        packedB[x, y, z] = B_1[y, ((x * 32) + z)]
-            T.realize(C_1[0:1024, 0:1024], "")
-            for x_outer in T.parallel(0, 32):
-                for y_outer in T.serial(0, 32):
-                    T.realize(
-                        C_global[
-                            (x_outer * 32) : ((x_outer * 32) + 32),
-                            (y_outer * 32) : ((y_outer * 32) + 32),
-                        ],
-                        "global",
-                    )
-                    for x_c_init in T.serial(0, 32):
-                        for y_c_init in T.vectorized(0, 32):
-                            C_global[
-                                (x_c_init + (x_outer * 32)), (y_c_init + (y_outer * 32))
-                            ] = T.float32(0)
-                    for k_outer in T.serial(0, 256):
-                        for x_c in T.serial(0, 32):
-                            for k_inner in T.unroll(0, 4):
-                                for y_c in T.vectorized(0, 32):
-                                    C_global[
-                                        (x_c + (x_outer * 32)), (y_c + (y_outer * 32))
-                                    ] = C_global[(x_c + (x_outer * 32)), (y_c + (y_outer * 32))] + (
-                                        A_1[(x_c + (x_outer * 32)), (k_inner + (k_outer * 4))]
-                                        * packedB[
-                                            T.floordiv((y_c + (y_outer * 32)), 32),
-                                            (k_inner + (k_outer * 4)),
-                                            T.floormod((y_c + (y_outer * 32)), 32),
-                                        ]
-                                    )
-                    for x_inner in T.serial(0, 32):
-                        for y_inner in T.serial(0, 32):
-                            C_1[(x_inner + (x_outer * 32)), (y_inner + (y_outer * 32))] = C_global[
-                                (x_inner + (x_outer * 32)), (y_inner + (y_outer * 32))
-                            ]
-
-    return Module
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def opt_gemm_lower():
@@ -248,99 +193,99 @@ def opt_gemm_mod_host():
             assert (((arg2_code == 3) or (arg2_code == 13)) or (arg2_code == 7)) or (
                 arg2_code == 4
             ), "mmult: Expect arg[2] to be pointer"
-            assert 2 == T.tvm_struct_get(
-                arg0, 0, 4, dtype="int32"
-            ), "arg0.ndim is expected to equal 2"
-            assert 2 == T.tvm_struct_get(
-                arg0, 0, 4, dtype="int32"
-            ), "arg0.ndim is expected to equal 2"
+            assert 2 == T.tvm_struct_get(arg0, 0, 4, dtype="int32"), (
+                "arg0.ndim is expected to equal 2"
+            )
+            assert 2 == T.tvm_struct_get(arg0, 0, 4, dtype="int32"), (
+                "arg0.ndim is expected to equal 2"
+            )
             assert (
                 (T.tvm_struct_get(arg0, 0, 5, dtype="uint8") == T.uint8(2))
                 and (T.tvm_struct_get(arg0, 0, 6, dtype="uint8") == T.uint8(32))
-            ) and (
-                T.tvm_struct_get(arg0, 0, 7, dtype="uint16") == T.uint16(1)
-            ), "arg0.dtype is expected to be float32"
-            assert 1024 == T.cast(
-                buf0_shape[0], "int32"
-            ), "Argument arg0.shape[0] has an unsatisfied constraint"
-            assert 1024 == T.cast(
-                buf0_shape[1], "int32"
-            ), "Argument arg0.shape[1] has an unsatisfied constraint"
+            ) and (T.tvm_struct_get(arg0, 0, 7, dtype="uint16") == T.uint16(1)), (
+                "arg0.dtype is expected to be float32"
+            )
+            assert 1024 == T.cast(buf0_shape[0], "int32"), (
+                "Argument arg0.shape[0] has an unsatisfied constraint"
+            )
+            assert 1024 == T.cast(buf0_shape[1], "int32"), (
+                "Argument arg0.shape[1] has an unsatisfied constraint"
+            )
             if not (T.isnullptr(buf0_strides.data, dtype="bool")):
                 assert (1 == T.cast(buf0_strides[1], "int32")) and (
                     1024 == T.cast(buf0_strides[0], "int32")
                 ), "arg0.strides: expected to be compact array"
                 T.evaluate(0)
-            assert T.uint64(0) == T.tvm_struct_get(
-                arg0, 0, 8, dtype="uint64"
-            ), "Argument arg0.byte_offset has an unsatisfied constraint"
-            assert 1 == T.tvm_struct_get(
-                arg0, 0, 10, dtype="int32"
-            ), "Argument arg0.device_type has an unsatisfied constraint"
-            assert 2 == T.tvm_struct_get(
-                arg1, 0, 4, dtype="int32"
-            ), "arg1.ndim is expected to equal 2"
-            assert 2 == T.tvm_struct_get(
-                arg1, 0, 4, dtype="int32"
-            ), "arg1.ndim is expected to equal 2"
+            assert T.uint64(0) == T.tvm_struct_get(arg0, 0, 8, dtype="uint64"), (
+                "Argument arg0.byte_offset has an unsatisfied constraint"
+            )
+            assert 1 == T.tvm_struct_get(arg0, 0, 10, dtype="int32"), (
+                "Argument arg0.device_type has an unsatisfied constraint"
+            )
+            assert 2 == T.tvm_struct_get(arg1, 0, 4, dtype="int32"), (
+                "arg1.ndim is expected to equal 2"
+            )
+            assert 2 == T.tvm_struct_get(arg1, 0, 4, dtype="int32"), (
+                "arg1.ndim is expected to equal 2"
+            )
             assert (
                 (T.tvm_struct_get(arg1, 0, 5, dtype="uint8") == T.uint8(2))
                 and (T.tvm_struct_get(arg1, 0, 6, dtype="uint8") == T.uint8(32))
-            ) and (
-                T.tvm_struct_get(arg1, 0, 7, dtype="uint16") == T.uint16(1)
-            ), "arg1.dtype is expected to be float32"
-            assert 1024 == T.cast(
-                buf1_shape[0], "int32"
-            ), "Argument arg1.shape[0] has an unsatisfied constraint"
-            assert 1024 == T.cast(
-                buf1_shape[1], "int32"
-            ), "Argument arg1.shape[1] has an unsatisfied constraint"
+            ) and (T.tvm_struct_get(arg1, 0, 7, dtype="uint16") == T.uint16(1)), (
+                "arg1.dtype is expected to be float32"
+            )
+            assert 1024 == T.cast(buf1_shape[0], "int32"), (
+                "Argument arg1.shape[0] has an unsatisfied constraint"
+            )
+            assert 1024 == T.cast(buf1_shape[1], "int32"), (
+                "Argument arg1.shape[1] has an unsatisfied constraint"
+            )
             if not (T.isnullptr(buf1_strides.data, dtype="bool")):
                 assert (1 == T.cast(buf1_strides[1], "int32")) and (
                     1024 == T.cast(buf1_strides[0], "int32")
                 ), "arg1.strides: expected to be compact array"
                 T.evaluate(0)
-            assert T.uint64(0) == T.tvm_struct_get(
-                arg1, 0, 8, dtype="uint64"
-            ), "Argument arg1.byte_offset has an unsatisfied constraint"
-            assert 1 == T.tvm_struct_get(
-                arg1, 0, 10, dtype="int32"
-            ), "Argument arg1.device_type has an unsatisfied constraint"
-            assert dev_id == T.tvm_struct_get(
-                arg1, 0, 9, dtype="int32"
-            ), "Argument arg1.device_id has an unsatisfied constraint"
-            assert 2 == T.tvm_struct_get(
-                arg2, 0, 4, dtype="int32"
-            ), "arg2.ndim is expected to equal 2"
-            assert 2 == T.tvm_struct_get(
-                arg2, 0, 4, dtype="int32"
-            ), "arg2.ndim is expected to equal 2"
+            assert T.uint64(0) == T.tvm_struct_get(arg1, 0, 8, dtype="uint64"), (
+                "Argument arg1.byte_offset has an unsatisfied constraint"
+            )
+            assert 1 == T.tvm_struct_get(arg1, 0, 10, dtype="int32"), (
+                "Argument arg1.device_type has an unsatisfied constraint"
+            )
+            assert dev_id == T.tvm_struct_get(arg1, 0, 9, dtype="int32"), (
+                "Argument arg1.device_id has an unsatisfied constraint"
+            )
+            assert 2 == T.tvm_struct_get(arg2, 0, 4, dtype="int32"), (
+                "arg2.ndim is expected to equal 2"
+            )
+            assert 2 == T.tvm_struct_get(arg2, 0, 4, dtype="int32"), (
+                "arg2.ndim is expected to equal 2"
+            )
             assert (
                 (T.tvm_struct_get(arg2, 0, 5, dtype="uint8") == T.uint8(2))
                 and (T.tvm_struct_get(arg2, 0, 6, dtype="uint8") == T.uint8(32))
-            ) and (
-                T.tvm_struct_get(arg2, 0, 7, dtype="uint16") == T.uint16(1)
-            ), "arg2.dtype is expected to be float32"
-            assert 1024 == T.cast(
-                buf2_shape[0], "int32"
-            ), "Argument arg2.shape[0] has an unsatisfied constraint"
-            assert 1024 == T.cast(
-                buf2_shape[1], "int32"
-            ), "Argument arg2.shape[1] has an unsatisfied constraint"
+            ) and (T.tvm_struct_get(arg2, 0, 7, dtype="uint16") == T.uint16(1)), (
+                "arg2.dtype is expected to be float32"
+            )
+            assert 1024 == T.cast(buf2_shape[0], "int32"), (
+                "Argument arg2.shape[0] has an unsatisfied constraint"
+            )
+            assert 1024 == T.cast(buf2_shape[1], "int32"), (
+                "Argument arg2.shape[1] has an unsatisfied constraint"
+            )
             if not (T.isnullptr(buf2_strides.data, dtype="bool")):
                 assert (1 == T.cast(buf2_strides[1], "int32")) and (
                     1024 == T.cast(buf2_strides[0], "int32")
                 ), "arg2.strides: expected to be compact array"
                 T.evaluate(0)
-            assert T.uint64(0) == T.tvm_struct_get(
-                arg2, 0, 8, dtype="uint64"
-            ), "Argument arg2.byte_offset has an unsatisfied constraint"
-            assert 1 == T.tvm_struct_get(
-                arg2, 0, 10, dtype="int32"
-            ), "Argument arg2.device_type has an unsatisfied constraint"
-            assert dev_id == T.tvm_struct_get(
-                arg2, 0, 9, dtype="int32"
-            ), "Argument arg2.device_id has an unsatisfied constraint"
+            assert T.uint64(0) == T.tvm_struct_get(arg2, 0, 8, dtype="uint64"), (
+                "Argument arg2.byte_offset has an unsatisfied constraint"
+            )
+            assert 1 == T.tvm_struct_get(arg2, 0, 10, dtype="int32"), (
+                "Argument arg2.device_type has an unsatisfied constraint"
+            )
+            assert dev_id == T.tvm_struct_get(arg2, 0, 9, dtype="int32"), (
+                "Argument arg2.device_id has an unsatisfied constraint"
+            )
             T.attr(0, "compute_scope", "mmult_compute_")
             T.attr(packedB.data, "storage_scope", "global")
             T.attr(packedB.data, "storage_alignment", 128)
@@ -475,461 +420,6 @@ def opt_gemm_mod_host():
     return Module
 
 
-def opt_conv_tensorcore_normalize():
-    @T.prim_func(check_well_formed=False)
-    def func(A: T.handle, W: T.handle, Conv: T.handle) -> None:
-        # function attr dict
-        T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
-        # var definition
-        bx = T.env_thread("blockIdx.x")
-        by = T.env_thread("blockIdx.y")
-        bz = T.env_thread("blockIdx.z")
-        tx = T.env_thread("threadIdx.x")
-        ty = T.env_thread("threadIdx.y")
-        tz = T.env_thread("threadIdx.z")
-        # buffer definition
-        Apad_shared = T.Buffer(
-            [16, 16, 16, 16, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
-        )
-        Apad_shared_wmma_matrix_a = T.Buffer(
-            [16, 16, 16, 16, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
-        )
-        BA = T.Buffer([16, 16], dtype="float16", scope="wmma.matrix_a", align=32, offset_factor=256)
-        BB = T.Buffer([16, 16], dtype="float16", scope="wmma.matrix_b", align=32, offset_factor=256)
-        BC = T.Buffer([16, 16], scope="wmma.accumulator", align=32, offset_factor=256)
-        Conv_wmma_accumulator = T.Buffer(
-            [16, 14, 14, 32, 16, 16], elem_offset=0, align=64, offset_factor=1
-        )
-        W_shared = T.Buffer(
-            [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
-        )
-        W_shared_wmma_matrix_b = T.Buffer(
-            [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
-        )
-        buffer = T.Buffer([16, 16], dtype="float16", scope="shared", align=32, offset_factor=256)
-        buffer_1 = T.Buffer(
-            [16, 16], dtype="float16", scope="wmma.matrix_a", align=32, offset_factor=256
-        )
-        buffer_2 = T.Buffer([16, 16], dtype="float16", scope="shared", align=32, offset_factor=256)
-        buffer_3 = T.Buffer(
-            [16, 16], dtype="float16", scope="wmma.matrix_b", align=32, offset_factor=256
-        )
-        buffer_4 = T.Buffer([16, 16], scope="wmma.accumulator", align=32, offset_factor=256)
-        buffer_5 = T.Buffer([16, 16], align=32, offset_factor=256)
-        A_1 = T.match_buffer(
-            A, [16, 14, 14, 16, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
-        )
-        W_1 = T.match_buffer(
-            W, [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=64, offset_factor=1
-        )
-        Conv_1 = T.match_buffer(
-            Conv, [16, 14, 14, 32, 16, 16], elem_offset=0, align=64, offset_factor=1
-        )
-        # body
-        T.realize(Conv_1[0:16, 0:14, 0:14, 0:32, 0:16, 0:16], "")
-        T.launch_thread(bz, 196)
-        T.launch_thread(bx, 2)
-        T.launch_thread(by, 4)
-        T.launch_thread(ty, 4)
-        T.launch_thread(tz, 2)
-        T.realize(
-            Conv_wmma_accumulator[
-                ((bx * 8) + (ty * 2)) : (((bx * 8) + (ty * 2)) + 2),
-                T.floordiv(bz, 14) : (T.floordiv(bz, 14) + 1),
-                T.floormod(bz, 14) : (T.floormod(bz, 14) + 1),
-                ((by * 8) + (tz * 4)) : (((by * 8) + (tz * 4)) + 4),
-                0:16,
-                0:16,
-            ],
-            "wmma.accumulator",
-        )
-        for n_c_init in T.serial(0, 2):
-            for o_c_init in T.serial(0, 4):
-                T.attr(
-                    [BC, Conv_wmma_accumulator],
-                    "buffer_bind_scope",
-                    T.tvm_tuple(
-                        (n_c_init + ((bx * 8) + (ty * 2))),
-                        1,
-                        T.floordiv(bz, 14),
-                        1,
-                        T.floormod(bz, 14),
-                        1,
-                        (o_c_init + ((by * 8) + (tz * 4))),
-                        1,
-                        0,
-                        16,
-                        0,
-                        16,
-                        dtype="handle",
-                    ),
-                )
-                T.evaluate(
-                    T.tvm_fill_fragment(
-                        BC.data,
-                        16,
-                        16,
-                        16,
-                        T.floordiv(BC.elem_offset, 256),
-                        T.float32(0),
-                        dtype="handle",
-                    )
-                )
-
-        for ic_outer in T.serial(0, 8):
-            for kh in T.serial(0, 3):
-                T.realize(
-                    Apad_shared[
-                        (bx * 8) : ((bx * 8) + 8),
-                        (T.floordiv(bz, 14) + kh) : ((T.floordiv(bz, 14) + kh) + 1),
-                        T.floormod(bz, 14) : (T.floormod(bz, 14) + 3),
-                        (ic_outer * 2) : ((ic_outer * 2) + 2),
-                        0:16,
-                        0:16,
-                    ],
-                    "shared",
-                )
-                for ax2 in T.serial(0, 3):
-                    for ax3 in T.serial(0, 2):
-                        for ax4_ax5_fused_outer in T.serial(0, 8):
-                            T.launch_thread(tx, 32)
-                            Apad_shared[
-                                ((tz + (ty * 2)) + (bx * 8)),
-                                (T.floordiv(bz, 14) + kh),
-                                (ax2 + T.floormod(bz, 14)),
-                                (ax3 + (ic_outer * 2)),
-                                T.floordiv((tx + (ax4_ax5_fused_outer * 32)), 16),
-                                T.floormod((tx + (ax4_ax5_fused_outer * 32)), 16),
-                            ] = T.if_then_else(
-                                (
-                                    (
-                                        (
-                                            ((T.floordiv(bz, 14) + kh) >= 1)
-                                            and (((T.floordiv(bz, 14) + kh) - 1) < 14)
-                                        )
-                                        and ((ax2 + T.floormod(bz, 14)) >= 1)
-                                    )
-                                    and (((ax2 + T.floormod(bz, 14)) - 1) < 14)
-                                ),
-                                A_1[
-                                    ((tz + (ty * 2)) + (bx * 8)),
-                                    ((T.floordiv(bz, 14) + kh) - 1),
-                                    ((ax2 + T.floormod(bz, 14)) - 1),
-                                    (ax3 + (ic_outer * 2)),
-                                    T.floordiv((tx + (ax4_ax5_fused_outer * 32)), 16),
-                                    T.floormod((tx + (ax4_ax5_fused_outer * 32)), 16),
-                                ],
-                                T.float16(0),
-                                dtype="float16",
-                            )
-                T.realize(
-                    W_shared[
-                        kh : (kh + 1),
-                        0:3,
-                        (ic_outer * 2) : ((ic_outer * 2) + 2),
-                        (by * 8) : ((by * 8) + 8),
-                        0:16,
-                        0:16,
-                    ],
-                    "shared",
-                )
-                for ax1 in T.serial(0, 3):
-                    for ax2_1 in T.serial(0, 2):
-                        T.launch_thread(tx, 32)
-                        for ax4_ax5_fused_inner in T.vectorized(0, 8):
-                            W_shared[
-                                kh,
-                                ax1,
-                                (ax2_1 + (ic_outer * 2)),
-                                ((tz + (ty * 2)) + (by * 8)),
-                                T.floordiv((ax4_ax5_fused_inner + (tx * 8)), 16),
-                                T.floormod((ax4_ax5_fused_inner + (tx * 8)), 16),
-                            ] = W_1[
-                                kh,
-                                ax1,
-                                (ax2_1 + (ic_outer * 2)),
-                                ((tz + (ty * 2)) + (by * 8)),
-                                T.floordiv((ax4_ax5_fused_inner + (tx * 8)), 16),
-                                T.floormod((ax4_ax5_fused_inner + (tx * 8)), 16),
-                            ]
-                for ic_inner in T.serial(0, 2):
-                    for kw in T.serial(0, 3):
-                        T.realize(
-                            Apad_shared_wmma_matrix_a[
-                                ((bx * 8) + (ty * 2)) : (((bx * 8) + (ty * 2)) + 2),
-                                (T.floordiv(bz, 14) + kh) : ((T.floordiv(bz, 14) + kh) + 1),
-                                (kw + T.floormod(bz, 14)) : ((kw + T.floormod(bz, 14)) + 1),
-                                ((ic_outer * 2) + ic_inner) : (((ic_outer * 2) + ic_inner) + 1),
-                                0:16,
-                                0:16,
-                            ],
-                            "wmma.matrix_a",
-                        )
-                        for ax0 in T.serial(0, 2):
-                            T.attr(
-                                [buffer, Apad_shared],
-                                "buffer_bind_scope",
-                                T.tvm_tuple(
-                                    (ax0 + ((bx * 8) + (ty * 2))),
-                                    1,
-                                    (T.floordiv(bz, 14) + kh),
-                                    1,
-                                    (kw + T.floormod(bz, 14)),
-                                    1,
-                                    ((ic_outer * 2) + ic_inner),
-                                    1,
-                                    0,
-                                    16,
-                                    0,
-                                    16,
-                                    dtype="handle",
-                                ),
-                            )
-                            T.attr(
-                                [buffer_1, Apad_shared_wmma_matrix_a],
-                                "buffer_bind_scope",
-                                T.tvm_tuple(
-                                    (ax0 + ((bx * 8) + (ty * 2))),
-                                    1,
-                                    (T.floordiv(bz, 14) + kh),
-                                    1,
-                                    (kw + T.floormod(bz, 14)),
-                                    1,
-                                    ((ic_outer * 2) + ic_inner),
-                                    1,
-                                    0,
-                                    16,
-                                    0,
-                                    16,
-                                    dtype="handle",
-                                ),
-                            )
-                            T.evaluate(
-                                T.tvm_load_matrix_sync(
-                                    buffer_1.data,
-                                    16,
-                                    16,
-                                    16,
-                                    T.floordiv(buffer_1.elem_offset, 256),
-                                    T.tvm_access_ptr(
-                                        T.type_annotation(dtype="float16"),
-                                        buffer.data,
-                                        buffer.elem_offset,
-                                        256,
-                                        1,
-                                        dtype="handle",
-                                    ),
-                                    16,
-                                    "row_major",
-                                    dtype="handle",
-                                )
-                            )
-                        T.realize(
-                            W_shared_wmma_matrix_b[
-                                kh : (kh + 1),
-                                kw : (kw + 1),
-                                ((ic_outer * 2) + ic_inner) : (((ic_outer * 2) + ic_inner) + 1),
-                                ((by * 8) + (tz * 4)) : (((by * 8) + (tz * 4)) + 4),
-                                0:16,
-                                0:16,
-                            ],
-                            "wmma.matrix_b",
-                        )
-                        for ax3_1 in T.serial(0, 4):
-                            T.attr(
-                                [buffer_2, W_shared],
-                                "buffer_bind_scope",
-                                T.tvm_tuple(
-                                    kh,
-                                    1,
-                                    kw,
-                                    1,
-                                    ((ic_outer * 2) + ic_inner),
-                                    1,
-                                    (ax3_1 + ((by * 8) + (tz * 4))),
-                                    1,
-                                    0,
-                                    16,
-                                    0,
-                                    16,
-                                    dtype="handle",
-                                ),
-                            )
-                            T.attr(
-                                [buffer_3, W_shared_wmma_matrix_b],
-                                "buffer_bind_scope",
-                                T.tvm_tuple(
-                                    kh,
-                                    1,
-                                    kw,
-                                    1,
-                                    ((ic_outer * 2) + ic_inner),
-                                    1,
-                                    (ax3_1 + ((by * 8) + (tz * 4))),
-                                    1,
-                                    0,
-                                    16,
-                                    0,
-                                    16,
-                                    dtype="handle",
-                                ),
-                            )
-                            T.evaluate(
-                                T.tvm_load_matrix_sync(
-                                    buffer_3.data,
-                                    16,
-                                    16,
-                                    16,
-                                    T.floordiv(buffer_3.elem_offset, 256),
-                                    T.tvm_access_ptr(
-                                        T.type_annotation(dtype="float16"),
-                                        buffer_2.data,
-                                        buffer_2.elem_offset,
-                                        256,
-                                        1,
-                                        dtype="handle",
-                                    ),
-                                    16,
-                                    "row_major",
-                                    dtype="handle",
-                                )
-                            )
-                        for n_c in T.serial(0, 2):
-                            for o_c in T.serial(0, 4):
-                                T.attr(
-                                    [BA, Apad_shared_wmma_matrix_a],
-                                    "buffer_bind_scope",
-                                    T.tvm_tuple(
-                                        (n_c + ((bx * 8) + (ty * 2))),
-                                        1,
-                                        (T.floordiv(bz, 14) + kh),
-                                        1,
-                                        (T.floormod(bz, 14) + kw),
-                                        1,
-                                        ((ic_outer * 2) + ic_inner),
-                                        1,
-                                        0,
-                                        16,
-                                        0,
-                                        16,
-                                        dtype="handle",
-                                    ),
-                                )
-                                T.attr(
-                                    [BB, W_shared_wmma_matrix_b],
-                                    "buffer_bind_scope",
-                                    T.tvm_tuple(
-                                        kh,
-                                        1,
-                                        kw,
-                                        1,
-                                        ((ic_outer * 2) + ic_inner),
-                                        1,
-                                        (o_c + ((by * 8) + (tz * 4))),
-                                        1,
-                                        0,
-                                        16,
-                                        0,
-                                        16,
-                                        dtype="handle",
-                                    ),
-                                )
-                                T.attr(
-                                    [BC, Conv_wmma_accumulator],
-                                    "buffer_bind_scope",
-                                    T.tvm_tuple(
-                                        (n_c + ((bx * 8) + (ty * 2))),
-                                        1,
-                                        T.floordiv(bz, 14),
-                                        1,
-                                        T.floormod(bz, 14),
-                                        1,
-                                        (o_c + ((by * 8) + (tz * 4))),
-                                        1,
-                                        0,
-                                        16,
-                                        0,
-                                        16,
-                                        dtype="handle",
-                                    ),
-                                )
-                                T.evaluate(
-                                    T.tvm_mma_sync(
-                                        BC.data,
-                                        T.floordiv(BC.elem_offset, 256),
-                                        BA.data,
-                                        T.floordiv(BA.elem_offset, 256),
-                                        BB.data,
-                                        T.floordiv(BB.elem_offset, 256),
-                                        BC.data,
-                                        T.floordiv(BC.elem_offset, 256),
-                                        dtype="handle",
-                                    )
-                                )
-        for n_inner in T.serial(0, 2):
-            for o_inner in T.serial(0, 4):
-                T.attr(
-                    [buffer_4, Conv_wmma_accumulator],
-                    "buffer_bind_scope",
-                    T.tvm_tuple(
-                        ((((bx * 4) + ty) * 2) + n_inner),
-                        1,
-                        T.floordiv(bz, 14),
-                        1,
-                        T.floormod(bz, 14),
-                        1,
-                        ((((by * 2) + tz) * 4) + o_inner),
-                        1,
-                        0,
-                        16,
-                        0,
-                        16,
-                        dtype="handle",
-                    ),
-                )
-                T.attr(
-                    [buffer_5, Conv_1],
-                    "buffer_bind_scope",
-                    T.tvm_tuple(
-                        ((((bx * 4) + ty) * 2) + n_inner),
-                        1,
-                        T.floordiv(bz, 14),
-                        1,
-                        T.floormod(bz, 14),
-                        1,
-                        ((((by * 2) + tz) * 4) + o_inner),
-                        1,
-                        0,
-                        16,
-                        0,
-                        16,
-                        dtype="handle",
-                    ),
-                )
-                T.evaluate(
-                    T.tvm_store_matrix_sync(
-                        buffer_4.data,
-                        16,
-                        16,
-                        16,
-                        T.floordiv(buffer_4.elem_offset, 256),
-                        T.tvm_access_ptr(
-                            T.type_annotation(dtype="float32"),
-                            buffer_5.data,
-                            buffer_5.elem_offset,
-                            256,
-                            2,
-                            dtype="handle",
-                        ),
-                        16,
-                        "row_major",
-                        dtype="handle",
-                    )
-                )
-
-    return func
-
-
 def opt_conv_tensorcore_lower():
     @T.prim_func
     def func(
@@ -1016,660 +506,660 @@ def opt_conv_tensorcore_lower():
             for kh in T.serial(0, 3):
                 for ax2 in T.serial(0, 3):
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            ((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61440
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61440
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 32)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 32)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61408
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61408
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 64)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 64)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61376
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61376
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 96)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 96)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61344
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61344
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 128)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 128)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61312
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61312
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 160)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 160)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61280
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61280
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 192)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 192)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61248
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61248
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 224)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 224)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61216
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61216
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 256)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 256)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61184
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61184
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 288)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 288)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61152
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61152
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 320)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 320)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61120
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61120
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 352)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 352)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61088
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61088
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 384)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 384)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61056
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61056
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 416)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 416)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            (1 <= (T.floordiv(bz, 14) + kh))
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 61024
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 61024
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     with T.launch_thread(tx, 32):
-                        Apad_shared[
-                            (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 448)
-                        ] = T.if_then_else(
-                            (
+                        Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 448)] = (
+                            T.if_then_else(
                                 (
                                     (
-                                        1 <= (T.floordiv(bz, 14) + kh)
-                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                        (
+                                            1 <= (T.floordiv(bz, 14) + kh)
+                                            and ((T.floordiv(bz, 14) + kh) < 15)
+                                        )
+                                        and (1 <= (ax2 + T.floormod(bz, 14)))
                                     )
-                                    and (1 <= (ax2 + T.floormod(bz, 14)))
-                                )
-                                and ((ax2 + T.floormod(bz, 14)) < 15)
-                            ),
-                            A_1[
-                                (
+                                    and ((ax2 + T.floormod(bz, 14)) < 15)
+                                ),
+                                A_1[
                                     (
                                         (
                                             (
                                                 (
                                                     (
                                                         (
-                                                            ((bx * 6422528) + (ty * 1605632))
-                                                            + (tz * 802816)
+                                                            (
+                                                                ((bx * 6422528) + (ty * 1605632))
+                                                                + (tz * 802816)
+                                                            )
+                                                            + (kh * 57344)
                                                         )
-                                                        + (kh * 57344)
+                                                        + (bz * 4096)
                                                     )
-                                                    + (bz * 4096)
+                                                    + (ax2 * 4096)
                                                 )
-                                                + (ax2 * 4096)
+                                                + (ic_outer * 512)
                                             )
-                                            + (ic_outer * 512)
+                                            + tx
                                         )
-                                        + tx
-                                    )
-                                    - 60992
-                                ),
-                            ],
-                            T.float16(0),
-                            dtype="float16",
+                                        - 60992
+                                    ),
+                                ],
+                                T.float16(0),
+                                dtype="float16",
+                            )
                         )
                     T.launch_thread(tx, 32)
-                    Apad_shared[
-                        (((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 480)
-                    ] = T.if_then_else(
-                        (
+                    Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 480)] = (
+                        T.if_then_else(
                             (
                                 (
-                                    (1 <= (T.floordiv(bz, 14) + kh))
-                                    and ((T.floordiv(bz, 14) + kh) < 15)
+                                    (
+                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        and ((T.floordiv(bz, 14) + kh) < 15)
+                                    )
+                                    and (1 <= (ax2 + T.floormod(bz, 14)))
                                 )
-                                and (1 <= (ax2 + T.floormod(bz, 14)))
-                            )
-                            and ((ax2 + T.floormod(bz, 14)) < 15)
-                        ),
-                        A_1[
-                            (
+                                and ((ax2 + T.floormod(bz, 14)) < 15)
+                            ),
+                            A_1[
                                 (
                                     (
                                         (
                                             (
                                                 (
                                                     (
-                                                        ((bx * 6422528) + (ty * 1605632))
-                                                        + (tz * 802816)
+                                                        (
+                                                            ((bx * 6422528) + (ty * 1605632))
+                                                            + (tz * 802816)
+                                                        )
+                                                        + (kh * 57344)
                                                     )
-                                                    + (kh * 57344)
+                                                    + (bz * 4096)
                                                 )
-                                                + (bz * 4096)
+                                                + (ax2 * 4096)
                                             )
-                                            + (ax2 * 4096)
+                                            + (ic_outer * 512)
                                         )
-                                        + (ic_outer * 512)
+                                        + tx
                                     )
-                                    + tx
-                                )
-                                - 60960
-                            ),
-                        ],
-                        T.float16(0),
-                        dtype="float16",
+                                    - 60960
+                                ),
+                            ],
+                            T.float16(0),
+                            dtype="float16",
+                        )
                     )
                 with T.launch_thread(tx, 32):
                     W_shared[T.ramp((((ty * 512) + (tz * 256)) + (tx * 8)), 1, 8)] = W_1[
@@ -2277,41 +1767,41 @@ def opt_conv_tensorcore_mod_host():
         arg2_strides_data: T.handle("int64") = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
         arg2_strides = T.Buffer([6], "int64", data=arg2_strides_data)
 
-        assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (
-            arg0_code == 4
-        ), "default_function: Expect arg[0] to be pointer"
-        assert (((arg1_code == 3) or (arg1_code == 13)) or (arg1_code == 7)) or (
-            arg1_code == 4
-        ), "default_function: Expect arg[1] to be pointer"
-        assert (((arg2_code == 3) or (arg2_code == 13)) or (arg2_code == 7)) or (
-            arg2_code == 4
-        ), "default_function: Expect arg[2] to be pointer"
+        assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (arg0_code == 4), (
+            "default_function: Expect arg[0] to be pointer"
+        )
+        assert (((arg1_code == 3) or (arg1_code == 13)) or (arg1_code == 7)) or (arg1_code == 4), (
+            "default_function: Expect arg[1] to be pointer"
+        )
+        assert (((arg2_code == 3) or (arg2_code == 13)) or (arg2_code == 7)) or (arg2_code == 4), (
+            "default_function: Expect arg[2] to be pointer"
+        )
         assert 6 == T.tvm_struct_get(arg0, 0, 4, dtype="int32"), "arg0.ndim is expected to equal 6"
         assert 6 == T.tvm_struct_get(arg0, 0, 4, dtype="int32"), "arg0.ndim is expected to equal 6"
         assert (
             (T.tvm_struct_get(arg0, 0, 5, dtype="uint8") == T.uint8(2))
             and (T.tvm_struct_get(arg0, 0, 6, dtype="uint8") == T.uint8(16))
-        ) and (
-            T.tvm_struct_get(arg0, 0, 7, dtype="uint16") == T.uint16(1)
-        ), "arg0.dtype is expected to be float16"
-        assert 16 == T.cast(
-            arg0_shape[0], "int32"
-        ), "Argument arg0.shape[0] has an unsatisfied constraint"
-        assert 14 == T.cast(
-            arg0_shape[1], "int32"
-        ), "Argument arg0.shape[1] has an unsatisfied constraint"
-        assert 14 == T.cast(
-            arg0_shape[2], "int32"
-        ), "Argument arg0.shape[2] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg0_shape[3], "int32"
-        ), "Argument arg0.shape[3] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg0_shape[4], "int32"
-        ), "Argument arg0.shape[4] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg0_shape[5], "int32"
-        ), "Argument arg0.shape[5] has an unsatisfied constraint"
+        ) and (T.tvm_struct_get(arg0, 0, 7, dtype="uint16") == T.uint16(1)), (
+            "arg0.dtype is expected to be float16"
+        )
+        assert 16 == T.cast(arg0_shape[0], "int32"), (
+            "Argument arg0.shape[0] has an unsatisfied constraint"
+        )
+        assert 14 == T.cast(arg0_shape[1], "int32"), (
+            "Argument arg0.shape[1] has an unsatisfied constraint"
+        )
+        assert 14 == T.cast(arg0_shape[2], "int32"), (
+            "Argument arg0.shape[2] has an unsatisfied constraint"
+        )
+        assert 16 == T.cast(arg0_shape[3], "int32"), (
+            "Argument arg0.shape[3] has an unsatisfied constraint"
+        )
+        assert 16 == T.cast(arg0_shape[4], "int32"), (
+            "Argument arg0.shape[4] has an unsatisfied constraint"
+        )
+        assert 16 == T.cast(arg0_shape[5], "int32"), (
+            "Argument arg0.shape[5] has an unsatisfied constraint"
+        )
         if not (T.isnullptr(arg0_strides.data, dtype="bool")):
             assert (
                 (
@@ -2325,42 +1815,42 @@ def opt_conv_tensorcore_mod_host():
                     and (4096 == T.cast(arg0_strides[2], "int32"))
                 )
                 and (57344 == T.cast(arg0_strides[1], "int32"))
-            ) and (
-                802816 == T.cast(arg0_strides[0], "int32")
-            ), "arg0.strides: expected to be compact array"
+            ) and (802816 == T.cast(arg0_strides[0], "int32")), (
+                "arg0.strides: expected to be compact array"
+            )
             T.evaluate(0)
-        assert T.uint64(0) == T.tvm_struct_get(
-            arg0, 0, 8, dtype="uint64"
-        ), "Argument arg0.byte_offset has an unsatisfied constraint"
-        assert 2 == T.tvm_struct_get(
-            arg0, 0, 10, dtype="int32"
-        ), "Argument arg0.device_type has an unsatisfied constraint"
+        assert T.uint64(0) == T.tvm_struct_get(arg0, 0, 8, dtype="uint64"), (
+            "Argument arg0.byte_offset has an unsatisfied constraint"
+        )
+        assert 2 == T.tvm_struct_get(arg0, 0, 10, dtype="int32"), (
+            "Argument arg0.device_type has an unsatisfied constraint"
+        )
         assert 6 == T.tvm_struct_get(arg1, 0, 4, dtype="int32"), "arg1.ndim is expected to equal 6"
         assert 6 == T.tvm_struct_get(arg1, 0, 4, dtype="int32"), "arg1.ndim is expected to equal 6"
         assert (
             (T.tvm_struct_get(arg1, 0, 5, dtype="uint8") == T.uint8(2))
             and (T.tvm_struct_get(arg1, 0, 6, dtype="uint8") == T.uint8(16))
-        ) and (
-            T.tvm_struct_get(arg1, 0, 7, dtype="uint16") == T.uint16(1)
-        ), "arg1.dtype is expected to be float16"
-        assert 3 == T.cast(
-            arg1_shape[0], "int32"
-        ), "Argument arg1.shape[0] has an unsatisfied constraint"
-        assert 3 == T.cast(
-            arg1_shape[1], "int32"
-        ), "Argument arg1.shape[1] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg1_shape[2], "int32"
-        ), "Argument arg1.shape[2] has an unsatisfied constraint"
-        assert 32 == T.cast(
-            arg1_shape[3], "int32"
-        ), "Argument arg1.shape[3] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg1_shape[4], "int32"
-        ), "Argument arg1.shape[4] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg1_shape[5], "int32"
-        ), "Argument arg1.shape[5] has an unsatisfied constraint"
+        ) and (T.tvm_struct_get(arg1, 0, 7, dtype="uint16") == T.uint16(1)), (
+            "arg1.dtype is expected to be float16"
+        )
+        assert 3 == T.cast(arg1_shape[0], "int32"), (
+            "Argument arg1.shape[0] has an unsatisfied constraint"
+        )
+        assert 3 == T.cast(arg1_shape[1], "int32"), (
+            "Argument arg1.shape[1] has an unsatisfied constraint"
+        )
+        assert 16 == T.cast(arg1_shape[2], "int32"), (
+            "Argument arg1.shape[2] has an unsatisfied constraint"
+        )
+        assert 32 == T.cast(arg1_shape[3], "int32"), (
+            "Argument arg1.shape[3] has an unsatisfied constraint"
+        )
+        assert 16 == T.cast(arg1_shape[4], "int32"), (
+            "Argument arg1.shape[4] has an unsatisfied constraint"
+        )
+        assert 16 == T.cast(arg1_shape[5], "int32"), (
+            "Argument arg1.shape[5] has an unsatisfied constraint"
+        )
         if not (T.isnullptr(arg1_strides.data, dtype="bool")):
             assert (
                 (
@@ -2374,45 +1864,45 @@ def opt_conv_tensorcore_mod_host():
                     and (8192 == T.cast(arg1_strides[2], "int32"))
                 )
                 and (131072 == T.cast(arg1_strides[1], "int32"))
-            ) and (
-                393216 == T.cast(arg1_strides[0], "int32")
-            ), "arg1.strides: expected to be compact array"
+            ) and (393216 == T.cast(arg1_strides[0], "int32")), (
+                "arg1.strides: expected to be compact array"
+            )
             T.evaluate(0)
-        assert T.uint64(0) == T.tvm_struct_get(
-            arg1, 0, 8, dtype="uint64"
-        ), "Argument arg1.byte_offset has an unsatisfied constraint"
-        assert 2 == T.tvm_struct_get(
-            arg1, 0, 10, dtype="int32"
-        ), "Argument arg1.device_type has an unsatisfied constraint"
-        assert dev_id == T.tvm_struct_get(
-            arg1, 0, 9, dtype="int32"
-        ), "Argument arg1.device_id has an unsatisfied constraint"
+        assert T.uint64(0) == T.tvm_struct_get(arg1, 0, 8, dtype="uint64"), (
+            "Argument arg1.byte_offset has an unsatisfied constraint"
+        )
+        assert 2 == T.tvm_struct_get(arg1, 0, 10, dtype="int32"), (
+            "Argument arg1.device_type has an unsatisfied constraint"
+        )
+        assert dev_id == T.tvm_struct_get(arg1, 0, 9, dtype="int32"), (
+            "Argument arg1.device_id has an unsatisfied constraint"
+        )
         assert 6 == T.tvm_struct_get(arg2, 0, 4, dtype="int32"), "arg2.ndim is expected to equal 6"
         assert 6 == T.tvm_struct_get(arg2, 0, 4, dtype="int32"), "arg2.ndim is expected to equal 6"
         assert (
             (T.tvm_struct_get(arg2, 0, 5, dtype="uint8") == T.uint8(2))
             and (T.tvm_struct_get(arg2, 0, 6, dtype="uint8") == T.uint8(32))
-        ) and (
-            T.tvm_struct_get(arg2, 0, 7, dtype="uint16") == T.uint16(1)
-        ), "arg2.dtype is expected to be float32"
-        assert 16 == T.cast(
-            arg2_shape[0], "int32"
-        ), "Argument arg2.shape[0] has an unsatisfied constraint"
-        assert 14 == T.cast(
-            arg2_shape[1], "int32"
-        ), "Argument arg2.shape[1] has an unsatisfied constraint"
-        assert 14 == T.cast(
-            arg2_shape[2], "int32"
-        ), "Argument arg2.shape[2] has an unsatisfied constraint"
-        assert 32 == T.cast(
-            arg2_shape[3], "int32"
-        ), "Argument arg2.shape[3] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg2_shape[4], "int32"
-        ), "Argument arg2.shape[4] has an unsatisfied constraint"
-        assert 16 == T.cast(
-            arg2_shape[5], "int32"
-        ), "Argument arg2.shape[5] has an unsatisfied constraint"
+        ) and (T.tvm_struct_get(arg2, 0, 7, dtype="uint16") == T.uint16(1)), (
+            "arg2.dtype is expected to be float32"
+        )
+        assert 16 == T.cast(arg2_shape[0], "int32"), (
+            "Argument arg2.shape[0] has an unsatisfied constraint"
+        )
+        assert 14 == T.cast(arg2_shape[1], "int32"), (
+            "Argument arg2.shape[1] has an unsatisfied constraint"
+        )
+        assert 14 == T.cast(arg2_shape[2], "int32"), (
+            "Argument arg2.shape[2] has an unsatisfied constraint"
+        )
+        assert 32 == T.cast(arg2_shape[3], "int32"), (
+            "Argument arg2.shape[3] has an unsatisfied constraint"
+        )
+        assert 16 == T.cast(arg2_shape[4], "int32"), (
+            "Argument arg2.shape[4] has an unsatisfied constraint"
+        )
+        assert 16 == T.cast(arg2_shape[5], "int32"), (
+            "Argument arg2.shape[5] has an unsatisfied constraint"
+        )
         if not (T.isnullptr(arg2_strides.data, dtype="bool")):
             assert (
                 (
@@ -2426,19 +1916,19 @@ def opt_conv_tensorcore_mod_host():
                     and (8192 == T.cast(arg2_strides[2], "int32"))
                 )
                 and (114688 == T.cast(arg2_strides[1], "int32"))
-            ) and (
-                1605632 == T.cast(arg2_strides[0], "int32")
-            ), "arg2.strides: expected to be compact array"
+            ) and (1605632 == T.cast(arg2_strides[0], "int32")), (
+                "arg2.strides: expected to be compact array"
+            )
             T.evaluate(0)
-        assert T.uint64(0) == T.tvm_struct_get(
-            arg2, 0, 8, dtype="uint64"
-        ), "Argument arg2.byte_offset has an unsatisfied constraint"
-        assert 2 == T.tvm_struct_get(
-            arg2, 0, 10, dtype="int32"
-        ), "Argument arg2.device_type has an unsatisfied constraint"
-        assert dev_id == T.tvm_struct_get(
-            arg2, 0, 9, dtype="int32"
-        ), "Argument arg2.device_id has an unsatisfied constraint"
+        assert T.uint64(0) == T.tvm_struct_get(arg2, 0, 8, dtype="uint64"), (
+            "Argument arg2.byte_offset has an unsatisfied constraint"
+        )
+        assert 2 == T.tvm_struct_get(arg2, 0, 10, dtype="int32"), (
+            "Argument arg2.device_type has an unsatisfied constraint"
+        )
+        assert dev_id == T.tvm_struct_get(arg2, 0, 9, dtype="int32"), (
+            "Argument arg2.device_id has an unsatisfied constraint"
+        )
         T.evaluate(T.tvm_struct_set(stack_value, 0, 12, T.cast(2, "int64"), dtype="int32"))
         stack_tcode[0] = 0
         T.evaluate(T.tvm_struct_set(stack_value, 1, 12, T.cast(dev_id, "int64"), dtype="int32"))
@@ -2769,73 +2259,6 @@ def test_opaque_block():
     assert len(root_block.body.body[1].block.iter_vars) == 0
 
 
-def module_const():
-    @tvm.script.ir_module
-    class Module4:
-        # There is an ongoing (python)dict->(c++)Map->(python)dict issue which potentially
-        # changes order of the items in dict after roundtrip due to map not support order
-        # of insertion while dict does. Hence func 'def A(a: T.handle, c: T.handle) -> None'
-        # is commented
-        #
-        #  test:
-        #  d = {"B": 1, "A": 2}
-        #  m = tvm.runtime.convert(d)
-        #  assert d.keys() == m.keys(), f"Order changed from {list(d.keys())} to {list(m.keys())}"
-
-        """
-        @T.prim_func
-        def A(a: T.handle, c: T.handle) -> None:
-            A = T.match_buffer(a, (10), "int32")
-            C = T.match_buffer(c, (10), "int32")
-            B = T.alloc_buffer((10), "int32")
-
-            K1 = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-            for x in T.serial(0, 10):
-                B[x] = A[x] + T.load("int32", K1, x)
-
-            for x in T.serial(0, 10):
-                C[x] = B[x]
-        """
-
-        @T.prim_func
-        def B(a: T.handle, c: T.handle) -> None:
-            A = T.match_buffer(a, (10), "int32")
-            C = T.match_buffer(c, (10), "int32")
-            B = T.alloc_buffer((10), "int32")
-
-            K1_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-            K1 = T.Buffer(shape=[10], dtype="int32", data=K1_data)
-            for x in T.serial(0, 10):
-                B[x] = A[x] + K1[x]
-
-            K2_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-            K2 = T.Buffer(shape=[10], dtype="int32", data=K2_data)
-            for x in T.serial(0, 10):
-                B[x] = B[x] + K2[x]
-
-            for x in T.serial(0, 10):
-                C[x] = B[x]
-
-    return Module4
-
-
-def constant():
-    @T.prim_func
-    def constant(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (10), "int32")
-        C = T.match_buffer(c, (10), "int32")
-        B = T.alloc_buffer((10), "int32")
-        K_data = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
-        K = T.Buffer(shape=[10], dtype="int32", data=K_data)
-        for x in T.serial(0, 10):
-            B[x] = A[x] + K[x]
-
-        for x in T.serial(0, 10):
-            C[x] = B[x]
-
-    return constant
-
-
 def rank0():
     @T.prim_func
     def rank0(a: T.handle) -> None:
@@ -2985,8 +2408,6 @@ def primfunc_with_allocate_annotations():
 
     return primfunc_with_allocate_annotations
 # fmt: on
-
-
 
 
 # fmt: off
@@ -3598,7 +3019,7 @@ def multi_env_threads():
         for i in T.thread_binding(128, thread="threadIdx.x"):
             C[i] = B[i] + 2.0
 
-    mod = tvm.tir.transform.LowerOpaqueBlock()(
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(
         tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     )
     return mod["main"]
@@ -4172,16 +3593,12 @@ def relax_float_symbolic_var():
 
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
-    opt_gemm_normalize,
     opt_gemm_lower,
     opt_gemm_mod_host,
-    opt_conv_tensorcore_normalize,
     opt_conv_tensorcore_lower,
     opt_conv_tensorcore_mod_host,
     vthread_func,
     matmul,
-    module_const,
-    constant,
     rank0,
     rank0_block,
     select,

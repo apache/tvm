@@ -118,7 +118,7 @@ inline std::ostream& operator<<(std::ostream& os, const AccessStep& step) {
       return os;
     }
     default: {
-      LOG(FATAL) << "Unknown access step kind: " << static_cast<int>(step->kind);
+      TVM_FFI_THROW(InternalError) << "Unknown access step kind: " << static_cast<int>(step->kind);
     }
   }
   return os;

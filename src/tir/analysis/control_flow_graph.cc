@@ -66,7 +66,7 @@ bool HasBufferLoad(PrimExpr expr) {
 ffi::Optional<PrimExpr> SubstituteParamValues(const ffi::Array<Var>& param_vars,
                                               const ffi::Array<PrimExpr>& param_values,
                                               const PrimExpr& expr) {
-  ICHECK_EQ(param_vars.size(), param_values.size())
+  TVM_FFI_ICHECK_EQ(param_vars.size(), param_values.size())
       << "Expression was defined as having " << param_vars.size() << " parameters, but received "
       << param_values.size() << " arguments.";
 
@@ -170,7 +170,7 @@ class BufferConstraintApply : public IRMutatorWithAnalyzer {
         if (index.dtype().lanes() == 1) {
           return index;
         } else {
-          ICHECK(!lane_var) << "Multiple indices found with non-scalar values";
+          TVM_FFI_ICHECK(!lane_var) << "Multiple indices found with non-scalar values";
           lane_var = Var("lane", index.dtype().element_of());
           num_lanes = IntImm(index.dtype().element_of(), index.dtype().lanes());
           return UnwrapVectorExpr(index, lane_var.value());
@@ -265,8 +265,9 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
       } else if (side_effect == tir::CallEffectKind::kReadState) {
         buffer_exprs.push_back(expr);
       } else {
-        LOG(FATAL) << "Assumption must be pure or read-only, but contained expression " << expr
-                   << " with side-effect \'" << side_effect << "\'";
+        TVM_FFI_THROW(InternalError)
+            << "Assumption must be pure or read-only, but contained expression " << expr
+            << " with side-effect \'" << side_effect << "\'";
       }
     }
 
@@ -275,10 +276,11 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
       return;
     }
 
-    CHECK_EQ(buffer_exprs.size(), 1) << "T.assume must contain only a single buffer expression";
+    TVM_FFI_ICHECK_EQ(buffer_exprs.size(), 1)
+        << "T.assume must contain only a single buffer expression";
 
     auto* as_equal_node = buffer_exprs[0].as<tir::EQNode>();
-    CHECK(as_equal_node || !from_assume_statement)
+    TVM_FFI_ICHECK(as_equal_node || !from_assume_statement)
         << "T.assume buffer constraint must be of the form 'buffer[indices] == "
            "value', but received "
         << assumption;
@@ -300,11 +302,12 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
     } else if (!from_assume_statement) {
       return;
     } else {
-      LOG(FATAL) << "T.assume buffer constraint must be of the form 'buffer[indices] == value'";
+      TVM_FFI_THROW(InternalError)
+          << "T.assume buffer constraint must be of the form 'buffer[indices] == value'";
     }
 
     auto has_side_effect = tir::SideEffect(value) > tir::CallEffectKind::kPure;
-    CHECK(!has_side_effect || !from_assume_statement)
+    TVM_FFI_ICHECK(!has_side_effect || !from_assume_statement)
         << "Buffer value in constraint must be pure expression, but was " << value;
     if (has_side_effect) {
       return;
@@ -518,8 +521,8 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
    */
   std::pair<ControlFlowGraph::ControlFlowEdge&, ControlFlowGraph::ControlFlowEdge&> MarkControlFlow(
       size_t from_block, size_t to_block) {
-    ICHECK_LE(from_block, out_->control_flow_.size());
-    ICHECK_LE(to_block, out_->control_flow_.size());
+    TVM_FFI_ICHECK_LE(from_block, out_->control_flow_.size());
+    TVM_FFI_ICHECK_LE(to_block, out_->control_flow_.size());
 
     auto& forward = out_->control_flow_[from_block].successors.emplace_back(
         ControlFlowGraph::ControlFlowEdge{to_block, {}, std::nullopt});
@@ -544,7 +547,7 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
       new_num_constraints = self->conditions_.size();
     }
     ~InternalConstraintContext() {
-      ICHECK_EQ(self->conditions_.size(), new_num_constraints)
+      TVM_FFI_ICHECK_EQ(self->conditions_.size(), new_num_constraints)
           << "Internal error: Each condition should only be popped once.";
       self->conditions_.erase(self->conditions_.begin() + old_num_constraints,
                               self->conditions_.end());
@@ -649,7 +652,7 @@ std::pair<BufferTouch, ffi::Map<Var, Range>> ControlFlowGraph::ControlFlowBlock:
     if (index.dtype().lanes() == 1) {
       return index;
     } else {
-      ICHECK(!lane_var) << "Multiple indices found with non-scalar values";
+      TVM_FFI_ICHECK(!lane_var) << "Multiple indices found with non-scalar values";
       lane_var = Var("lane", index.dtype().element_of());
       num_lanes = IntImm(index.dtype().element_of(), index.dtype().lanes());
       return UnwrapVectorExpr(index, lane_var.value());
@@ -673,7 +676,7 @@ std::pair<BufferTouch, ffi::Map<Var, Range>> ControlFlowGraph::ControlFlowBlock:
   }
 
   IntConstraintsTransform transform = [&]() {
-    ICHECK_EQ(index_variables.size(), index_expressions.size());
+    TVM_FFI_ICHECK_EQ(index_variables.size(), index_expressions.size());
 
     ffi::Array<PrimExpr> relations;
 
@@ -782,7 +785,7 @@ std::pair<BufferTouch, ffi::Map<Var, Range>> ControlFlowGraph::ControlFlowBlock:
   std::vector<std::pair<Var, PrimExpr>> loop_var_expressions;
   for (const auto& entry : current_block.active_loop_iterators) {
     auto expr_it = loop_var_to_axis_var.find(entry.loop_var);
-    ICHECK(expr_it != loop_var_to_axis_var.end());
+    TVM_FFI_ICHECK(expr_it != loop_var_to_axis_var.end());
     loop_var_expressions.push_back({entry.loop_var, (*expr_it).second});
   }
 
@@ -811,7 +814,7 @@ BufferTouch ControlFlowGraph::ControlFlowBlock::MakeBufferTouch(ControlFlowGraph
                                                                 const ffi::Array<PrimExpr>& indices,
                                                                 BufferTouch::AccessType touch_type,
                                                                 PrimExpr known_value_expr) const {
-  ICHECK(graph);
+  TVM_FFI_ICHECK(graph);
   auto [buffer_touch, free_params] = MakeBufferTouch(buf, graph->GetIndexVariables(buf, indices),
                                                      indices, touch_type, known_value_expr);
   for (const auto& pair : free_params) {
@@ -831,7 +834,7 @@ ControlFlowGraph::ControlFlowGraph(const tir::Stmt& stmt, int64_t max_simplifica
 void ControlFlowGraph::RemoveStore(const tir::BufferStore& store) {
   size_t context_index = [&]() {
     auto it = control_flow_lookup_.find(store.get());
-    ICHECK(it != control_flow_lookup_.end())
+    TVM_FFI_ICHECK(it != control_flow_lookup_.end())
         << "BufferStore did not occur in the Stmt provided to BufferTouchPattern's constructor";
     return it->second;
   }();
@@ -1405,8 +1408,8 @@ void ControlFlowGraph::ForwardPropagateKnownValues(std::optional<size_t> flow_fr
       // Validate internal constraint.  This should be true by
       // construction, as ControlFlowGraphBuilder only builds graphs
       // that have two or fewer predecessors.
-      ICHECK_LE(block.predecessors.size(), 2)
-          << "InternalError: Each block should have at most two predecessors.  "
+      TVM_FFI_CHECK_LE(block.predecessors.size(), 2, InternalError)
+          << "Each block should have at most two predecessors.  "
           << "Graph constructed in ControlFlowGraphBuilder did not satisfy this constraint.";
 
       std::vector<BufferState> states;
@@ -1535,7 +1538,7 @@ void ControlFlowGraph::BackwardPropagateUnusedValues(std::optional<size_t> flow_
       if (num_previous_visits >= max_revisits_) {
         return BufferState();
       }
-      ICHECK_LE(block.successors.size(), 2)
+      TVM_FFI_ICHECK_LE(block.successors.size(), 2)
           << "Each block should have at most two successors, but block " << visiting
           << " breaks this requirement";
 
@@ -1627,8 +1630,9 @@ bool ControlFlowGraph::IsOverwrittenWithoutEffect(const tir::BufferStore& store,
   }
 
   auto it = control_flow_lookup_.find(context.get());
-  ICHECK(it != control_flow_lookup_.end()) << "Context did not occur within analyzed statement:\n"
-                                           << context;
+  TVM_FFI_ICHECK(it != control_flow_lookup_.end())
+      << "Context did not occur within analyzed statement:\n"
+      << context;
   const auto& context_block = control_flow_[it->second];
 
   auto [store_touch, free_params] = context_block.MakeBufferTouch(
@@ -1663,7 +1667,7 @@ PrimExpr ControlFlowGraph::SimplifyInContext(PrimExpr expr, const tir::Stmt& con
                                              Analyzer* analyzer) const {
   size_t context_index = [&]() {
     auto it = control_flow_lookup_.find(context.get());
-    ICHECK(it != control_flow_lookup_.end())
+    TVM_FFI_ICHECK(it != control_flow_lookup_.end())
         << "Context did not occur in the Stmt provided to BufferTouchPattern's constructor";
     return it->second;
   }();

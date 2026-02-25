@@ -16,14 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name
 
-""" Android testing infrastructure """
+"""Android testing infrastructure"""
 
 import os
+
 import tvm
-from tvm.meta_schedule.runner import RPCRunner, RPCConfig, EvaluatorConfig
+from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig, RPCRunner
 
 
-def get_rpc_runner() -> tvm.meta_schedule.runner.RPCRunner:
+def get_rpc_runner() -> tvm.s_tir.meta_schedule.runner.RPCRunner:
     if (
         "TVM_TRACKER_HOST" in os.environ
         and "TVM_TRACKER_PORT" in os.environ
@@ -53,5 +54,5 @@ def get_rpc_runner() -> tvm.meta_schedule.runner.RPCRunner:
 def get_android_gpu_target() -> tvm.target.Target:
     """Creates a Android GPU target"""
     target_c = "opencl"
-    target_h = "llvm -mtriple=arm64-linux-android"
+    target_h = {"kind": "llvm", "mtriple": "arm64-linux-android"}
     return tvm.target.Target(target_c, host=target_h)

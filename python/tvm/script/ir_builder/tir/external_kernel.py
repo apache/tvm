@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E722
 """External kernel integration fro TIR"""
+
 import json
 import logging
 import os
@@ -142,7 +144,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
         try:
             source_path = Path(source_code)
             if source_path.is_file():
-                with open(source_path, "r") as f:
+                with open(source_path) as f:
                     source_code = f.read()
         except:  # pylint: disable=bare-except
             pass
@@ -165,7 +167,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             )
 
             if target_format == "ptx":
-                with open(output_path, "r") as f:
+                with open(output_path) as f:
                     binary_data = f.read()
             else:
                 with open(output_path, "rb") as f:
@@ -216,7 +218,7 @@ def call_kernel(
     elif kernel_type == "builtins.str":
         kernel = SourceKernel(kernel)
     else:
-        raise ValueError("Unsupported kernel type {}".format(kernel_type))
+        raise ValueError(f"Unsupported kernel type {kernel_type}")
 
     kernel_name, kernel_module, runtime_args = kernel.compile_to_device_module(
         launch_args, *args, **kwargs

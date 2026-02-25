@@ -18,7 +18,8 @@
 
 import tvm
 import tvm.testing
-from tvm.script import ir as I, tir as T
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_rewrite_to_shuffle_0():

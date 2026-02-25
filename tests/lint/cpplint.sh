@@ -18,16 +18,6 @@
 
 set -e
 
-echo "Running 2 cpplints..."
-python3 3rdparty/dmlc-core/scripts/lint.py --quiet tvm cpp \
-	include src \
-	examples/extension/src examples/graph_executor/src \
-	tests/cpp tests/crt \
-	--exclude_path  "src/runtime/hexagon/rpc/hexagon_rpc.h" \
-			"src/runtime/hexagon/rpc/hexagon_rpc_skel.c" \
-			"src/runtime/hexagon/rpc/hexagon_rpc_stub.c" \
-
-
 if find src -name "*.cc" -exec grep -Hn '^#include <regex>$' {} +; then
     echo "The <regex> header file may not be used in TVM," 1>&2
     echo "because it causes ABI incompatibility with most pytorch installations." 1>&2

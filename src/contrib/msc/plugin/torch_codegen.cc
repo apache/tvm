@@ -147,7 +147,7 @@ void TorchPluginCodeGen::CodeGenOpDefine(const Plugin& plugin) {
       .inplace_end()
       .for_end();
   // malloc outputs and buffers
-  ICHECK(plugin->externs.count("infer_output")) << "Can not find extern shape";
+  TVM_FFI_ICHECK(plugin->externs.count("infer_output")) << "Can not find extern shape";
   CodeGenMalloc(plugin, plugin->outputs, "output");
   if (plugin->externs.count("infer_buffer")) {
     CodeGenMalloc(plugin, plugin->buffers, "buffer");

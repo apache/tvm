@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Creation operators."""
+
 from typing import Optional, Tuple, Union
 
 from tvm import DataType, DataTypeCode
 from tvm.ir.expr import PrimExpr
 
-from . import _ffi_api
 from ..expr import Expr, PrimValue, ShapeExpr
+from . import _ffi_api
 
 PrimExprLike = Union[int, PrimExpr]
 
@@ -268,9 +269,7 @@ def arange(
             return True
         if isinstance(expr, PrimValue):
             expr = expr.value
-        return (
-            isinstance(expr, PrimExpr) and DataType(expr.dtype).type_code == DataTypeCode.INT
-        )  # type: ignore
+        return isinstance(expr, PrimExpr) and DataType(expr.dtype).type_code == DataTypeCode.INT  # type: ignore
 
     if dtype is None:
         args = (start, end, step)

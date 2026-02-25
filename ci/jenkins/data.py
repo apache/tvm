@@ -17,7 +17,6 @@
 # under the License.
 import sys
 
-
 files_to_stash = {
     # Executables and build files needed to run c++ tests
     "cpptest": ["build/cpptest", "build/build.ninja", "build/CMakeFiles/rules.ninja"],
@@ -51,31 +50,23 @@ aws_ecr_url = "dkr.ecr." + aws_default_region + ".amazonaws.com"
 # Docker Images
 docker_images = {
     "ci_arm": {
-        "tag": "tlcpack/ci-arm:20221013-060115-61c9742ea",
+        "tag": "tlcpack/ci-arm:20251130-061900-c429a2b1",
         "platform": "ARM",
     },
     "ci_cpu": {
-        "tag": "tlcpack/ci-cpu:20221013-060115-61c9742ea",
+        "tag": "tlcpack/ci-cpu:20251130-061900-c429a2b1",
         "platform": "CPU",
     },
     "ci_gpu": {
-        "tag": "tlcpack/ci-gpu:20221019-060125-0b4836739",
+        "tag": "tlcpack/ci-gpu:20251130-061900-c429a2b1",
         "platform": "GPU",
     },
-    "ci_hexagon": {
-        "tag": "tlcpack/ci-hexagon:20221013-060115-61c9742ea",
-        "platform": "CPU",
-    },
-    "ci_i386": {
-        "tag": "tlcpack/ci-i386:20221013-060115-61c9742ea",
-        "platform": "CPU",
-    },
     "ci_lint": {
-        "tag": "tlcpack/ci-lint:20221013-060115-61c9742ea",
+        "tag": "tlcpack/ci-lint:20251130-061900-c429a2b1",
         "platform": "CPU",
     },
     "ci_wasm": {
-        "tag": "tlcpack/ci-wasm:20221013-060115-61c9742ea",
+        "tag": "tlcpack/ci-wasm:20251130-061900-c429a2b1",
         "platform": "CPU",
     },
 }

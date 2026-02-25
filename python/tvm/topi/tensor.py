@@ -18,7 +18,6 @@
 """Elementwise operators"""
 
 import math as _math
-
 from typing import Optional
 
 from tvm import te

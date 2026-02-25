@@ -153,11 +153,9 @@ def test_run_unit_tests(hexagon_session: Session, gtest_args, unit_test_name):
         func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
     except:
         print(
-            (
-                "This test requires TVM Runtime to be built with a Hexagon gtest"
-                "version using Hexagon API cmake flag"
-                "-DUSE_HEXAGON_GTEST=/path/to/hexagon/sdk/utils/googletest/gtest"
-            )
+            "This test requires TVM Runtime to be built with a Hexagon gtest"
+            "version using Hexagon API cmake flag"
+            "-DUSE_HEXAGON_GTEST=/path/to/hexagon/sdk/utils/googletest/gtest"
         )
         raise
 

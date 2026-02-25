@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401, RUF005
 
 import os
 import tempfile
@@ -23,7 +24,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import relax, tir
+from tvm import relax, s_tir, tir
 from tvm.contrib import utils
 from tvm.relax.dpl import is_op, wildcard
 from tvm.relax.testing import transform
@@ -74,7 +75,7 @@ def gen_ground_truth(mod, target, dev, inputs):
     # Since there is no default schedule for GPU in MS yet, this is necessary
     with target:
         seq = tvm.transform.Sequential(
-            [relax.transform.LegalizeOps(), tir.transform.DefaultGPUSchedule()]
+            [relax.transform.LegalizeOps(), s_tir.transform.DefaultGPUSchedule()]
         )
         new_mod = seq(mod)
     assert relax.analysis.well_formed(new_mod)
@@ -86,9 +87,9 @@ def gen_ground_truth(mod, target, dev, inputs):
 @tvm.script.ir_module
 class InputModule:
     @R.function
-    def main(
-        x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")
-    ) -> R.Tensor((16, 16), "float32"):
+    def main(x: R.Tensor((16, 16), "float32"), y: R.Tensor((16, 16), "float32")) -> R.Tensor(
+        (16, 16), "float32"
+    ):
         with R.dataflow():
             z1 = R.multiply(x, y)
             z2 = R.add(z1, x)

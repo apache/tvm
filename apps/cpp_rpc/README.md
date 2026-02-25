@@ -19,18 +19,18 @@
 This folder contains a simple recipe to make RPC server in c++.
 
 ## Usage (Non-Windows)
-- Configure the tvm cmake build with `config.cmake` ensuring that `USE_CPP_RPC` is set to `ON` in the config.
-- If cross compiling for Android, add the following options to the cmake config or specify them when invoking cmake:
+- Configure the tvm CMake build with `config.cmake` ensuring that `USE_CPP_RPC` is set to `ON` in the config.
+- If cross compiling for Android, add the following options to the CMake config or specify them when invoking CMake:
 ```
   # Whether to build the C++ RPC server binary
   set(USE_CPP_RPC ON)
-  # Path to the Android NDK cmake toolchain
+  # Path to the Android NDK CMake toolchain
   set(CMAKE_TOOLCHAIN_FILE $ENV{ANDROID_NDK}/build/cmake/android.toolchain.cmake)
   # The Android ABI and platform to target
   set(ANDROID_ABI "arm64-v8a")
   set(ANDROID_PLATFORM android-28)
   ```
-- Similarly, if cross compiling for embedded Linux add the following options to cmake config:
+- Similarly, if cross compiling for embedded Linux add the following options to CMake config:
 ```
   # Needed to ensure pthread is linked
   set(OS Linux)
@@ -58,7 +58,7 @@ This folder contains a simple recipe to make RPC server in c++.
 - Use `./tvm_rpc server` to start the RPC server
 
 ## Usage (Windows)
-- Configure the tvm cmake build with `config.cmake` ensuring that `USE_CPP_RPC` is set to `ON` in the config.
+- Configure the tvm CMake build with `config.cmake` ensuring that `USE_CPP_RPC` is set to `ON` in the config.
 - Install [LLVM pre-build binaries](https://releases.llvm.org/download.html), making sure to select the option to add it to the PATH.
 - Verify Python 3.6 or newer is installed and in the PATH.
 - Use `<tvm_output_dir>\tvm_rpc.exe` to start the RPC server

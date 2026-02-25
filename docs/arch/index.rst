@@ -95,8 +95,10 @@ tir transformations contain a collection of passes that apply to tir functions. 
   target-specific representation. For example, there are passes to flatten multi-dimensional access to one-dimensional pointer access, to expand the intrinsics into target-specific ones,
   and to decorate the function entry to meet the runtime calling convention.
 
-Many low-level optimizations can be handled in the target phase by the LLVM, CUDA C, and other target compilers. As a result, we leave low-level optimizations such as register allocation
- to the downstream compilers and only focus on optimizations that are not covered by them.
+Many low-level optimizations can be handled in the target phase by the LLVM,
+CUDA C, and other target compilers. As a result, we leave low-level
+optimizations such as register allocation to the downstream compilers and only
+focus on optimizations that are not covered by them.
 
 cross-level transformations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -332,8 +334,8 @@ and then integrate it into the IRModule.
 While possible to construct operators directly via TIR or tensor expressions (TE) for each use case, it is tedious to do so.
 `topi` (Tensor operator inventory) provides a set of pre-defined operators defined by numpy and found in common deep learning workloads.
 
-tvm/meta_schedule
------------------
+tvm/s_tir/meta_schedule
+-----------------------
 
 MetaSchedule is a system for automated search-based program optimization. It is designed to be a drop-in replacement for AutoTVM and AutoScheduler,
 and can be used to optimize TensorIR schedules. Note that MetaSchedule only works with static-shape workloads.

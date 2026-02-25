@@ -14,16 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-import tvm.testing
-from tvm import te, tir
-from tvm import topi
-from tvm.contrib import utils, clang
-from tvm.script import tir as T
-import numpy as np
+# ruff: noqa: E712, F401, F821
 import ctypes
 import math
+
+import numpy as np
 import scipy
+
+import tvm
+import tvm.testing
+from tvm import te, tir, topi
+from tvm.contrib import clang, utils
+from tvm.script import tir as T
 
 
 def test_nearbyint():
@@ -55,7 +57,7 @@ def test_nearbyint():
 
 
 def test_round_intrinsics_on_int():
-    i = tvm.te.var("i", "int32")
+    i = tvm.tir.Var("i", "int32")
     for op in [tvm.tir.round, tvm.tir.trunc, tvm.tir.ceil, tvm.tir.floor, tvm.tir.nearbyint]:
         assert op(tvm.tir.const(10, "int32")).value == 10
         assert op(tvm.tir.const(True, "bool")).value == True
@@ -103,7 +105,7 @@ def test_unary_intrin():
         func(a, b)
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=atol, rtol=rtol)
 
-        # Out‐of‐bounds test for asin/acos
+        # Out-of-bounds test for asin/acos
         name = tvm_intrin.__name__
         if name in ("asin", "acos"):
             # generate some values outside [-1, 1]
@@ -249,7 +251,7 @@ def test_ldexp():
 dtype = tvm.testing.parameter("int32", "int64")
 
 
-@tvm.testing.parametrize_targets("llvm", "vulkan -from_device=0")
+@tvm.testing.parametrize_targets("llvm", {"kind": "vulkan", "from_device": 0})
 def test_clz(target, dev, dtype):
     target = tvm.target.Target(target)
     if (

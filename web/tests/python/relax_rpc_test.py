@@ -16,10 +16,11 @@
 # under the License.
 """Test relax vm through rpc."""
 
-import tvm
 import numpy as np
-from tvm import rpc, relax
-from tvm.contrib import utils, tvmjs
+
+import tvm
+from tvm import relax, rpc
+from tvm.contrib import tvmjs, utils
 from tvm.script import relax as R
 
 proxy_host = "127.0.0.1"
@@ -54,7 +55,9 @@ def test_rpc():
     dtype = "float32"
     temp = utils.tempdir()
     wasm_path = temp.relpath("relax.wasm")
-    target = tvm.target.Target("webgpu", host="llvm -mtriple=wasm32-unknown-unknown-wasm")
+    target = tvm.target.Target(
+        "webgpu", host={"kind": "llvm", "mtriple": "wasm32-unknown-unknown-wasm"}
+    )
 
     mod = get_model()
     ex = relax.build(mod, target)

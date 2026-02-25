@@ -36,8 +36,8 @@ using namespace tvm::contrib::msc;
 
 std::tuple<ffi::Map<Var, Expr>, ffi::Map<tir::Var, PrimExpr>> NormalizeNamedBindings(
     const Function& func, const ffi::Map<ObjectRef, ObjectRef>& untyped_params) {
-  ICHECK(func.defined());
-  ICHECK(untyped_params.defined());
+  TVM_FFI_ICHECK(func.defined());
+  TVM_FFI_ICHECK(untyped_params.defined());
 
   // Map from string to the variable(s) with that name.
   std::unordered_map<std::string, ffi::Array<relax::Var>> string_lookup;
@@ -53,28 +53,28 @@ std::tuple<ffi::Map<Var, Expr>, ffi::Map<tir::Var, PrimExpr>> NormalizeNamedBind
     if (auto opt_str = obj.as<ffi::String>()) {
       std::string str = opt_str.value();
       auto it = string_lookup.find(str);
-      CHECK(it != string_lookup.end())
+      TVM_FFI_ICHECK(it != string_lookup.end())
           << "Function does not have parameter with name \"" << str << "\".  "
           << "Function parameters are named "
           << func->params.Map([](const auto& param) { return param->name_hint(); });
-      CHECK_EQ(it->second.size(), 1)
+      TVM_FFI_ICHECK_EQ(it->second.size(), 1)
           << "Function contains multiple parameters with name \"" << str << "\".  "
           << "The Relax variables " << it->second << " are all named \"" << str << "\"";
       auto var = it->second[0];
-      CHECK(!relax_var_remap.count(var))
+      TVM_FFI_ICHECK(!relax_var_remap.count(var))
           << "Remap of variable " << var << " was defined multiple times";
 
       return var;
     } else if (auto opt_var = obj.as<relax::Var>()) {
       auto var = opt_var.value();
-      CHECK(!relax_var_remap.count(var))
+      TVM_FFI_ICHECK(!relax_var_remap.count(var))
           << "Remap of variable " << var << " was defined multiple times";
-      CHECK(var_set.count(var.get()))
+      TVM_FFI_ICHECK(var_set.count(var.get()))
           << "Function does not use Relax variable " << var << " as a parameter.  "
           << "Function parameters are " << func->params;
       return var;
     } else {
-      LOG(FATAL)
+      TVM_FFI_THROW(InternalError)
           << "Expected bound parameter to be a relax::Var, "
           << " or a string that uniquely identifies a relax::Var param within the function.  "
           << "However, received object " << obj << " of type " << obj.GetTypeKey();
@@ -87,7 +87,8 @@ std::tuple<ffi::Map<Var, Expr>, ffi::Map<tir::Var, PrimExpr>> NormalizeNamedBind
       const auto& span = SpanUtils::CreateWithAttr(msc_attr::kName, key->name_hint());
       return Constant(opt.value(), StructInfo(), span);
     } else {
-      LOG(FATAL) << "Cannot coerce object of type " << obj.GetTypeKey() << " into relax expression";
+      TVM_FFI_THROW(InternalError)
+          << "Cannot coerce object of type " << obj.GetTypeKey() << " into relax expression";
     }
   };
 

@@ -85,7 +85,8 @@ class BufferTouchedDomain final : public IRVisitorWithAnalyzer {
     } else if (consider_stores) {
       bounds = std::get<StoreAccess>(kv->second).set;
     } else {
-      CHECK(false) << "Must consider at least on of either loads and stores, but both are false";
+      TVM_FFI_ICHECK(false)
+          << "Must consider at least on of either loads and stores, but both are false";
     }
     for (size_t i = 0; i < bounds.size(); ++i) {
       ret.push_back(arith::Union(bounds[i]).CoverRange(none));

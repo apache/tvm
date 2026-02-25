@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/* eslint-disable no-unused-vars */
 /**
  * JS config used by --pre-js in emcc.
  * Wrap module as a LibraryProvider.

@@ -111,7 +111,7 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
 
   auto arg_updater = [parameter_mask, old_relax_params = func->params,
                       free_tir_vars](ffi::Array<Expr> old_args) -> ffi::Array<Expr> {
-    ICHECK_EQ(old_args.size(), parameter_mask.size())
+    TVM_FFI_ICHECK_EQ(old_args.size(), parameter_mask.size())
         << "Call provides " << old_args.size() << ", but the callee accepts "
         << parameter_mask.size() << " parameters";
 
@@ -201,9 +201,9 @@ Pass RemoveUnusedParameters() {
 
             callsite_updaters[gvar] = [old_gvar = gvar, new_gvar,
                                        arg_updater = callee_res->arg_updater](Call call) -> Call {
-              ICHECK(call->op.same_as(old_gvar)) << "InternalError: "
-                                                 << "Updater should be applied to " << old_gvar
-                                                 << ", but was applied to " << call->op;
+              TVM_FFI_CHECK(call->op.same_as(old_gvar), InternalError)
+                  << "Updater should be applied to " << old_gvar << ", but was applied to "
+                  << call->op;
               auto write_ptr = call.CopyOnWrite();
               write_ptr->op = new_gvar;
               write_ptr->args = arg_updater(call->args);

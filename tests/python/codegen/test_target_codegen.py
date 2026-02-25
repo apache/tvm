@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 
-import pytest
 import numpy as np
+import pytest
+
 import tvm
 from tvm.script import tir as T
 
@@ -34,7 +36,9 @@ def test_buffer_store_predicate_not_supported(target):
             tvm.compile(func)
 
 
-@tvm.testing.parametrize_targets("cuda", "opencl", "metal", "rocm", "vulkan -from_device=0")
+@tvm.testing.parametrize_targets(
+    "cuda", "opencl", "metal", "rocm", {"kind": "vulkan", "from_device": 0}
+)
 def test_buffer_store_predicate_not_supported_gpu(target):
     @T.prim_func
     def func(a: T.handle, b: T.handle):
@@ -70,7 +74,9 @@ def test_buffer_load_predicate_not_supported(target):
             tvm.compile(func)
 
 
-@tvm.testing.parametrize_targets("cuda", "opencl", "metal", "rocm", "vulkan -from_device=0")
+@tvm.testing.parametrize_targets(
+    "cuda", "opencl", "metal", "rocm", {"kind": "vulkan", "from_device": 0}
+)
 def test_buffer_load_predicate_not_supported_gpu(target):
     @T.prim_func
     def func(a: T.handle, b: T.handle):
@@ -99,7 +105,7 @@ def test_codegen_loop_step(target):
         for i in T.serial(3, 1024, step=96):
             C[i] = A[i] + B[i]
 
-    with tvm.transform.PassContext(disabled_pass=["tir.CanonicalizeLoop"]):
+    with tvm.transform.PassContext(disabled_pass=["s_tir.CanonicalizeLoop"]):
         lib = tvm.compile(test_loop_step, target=target)
 
     src = lib.mod.inspect_source()

@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, E731, F841
 import tvm
+import tvm.testing
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T, ir as I
-import tvm.testing
-
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 ##################### Manipulation #####################
 
@@ -1389,6 +1391,7 @@ def test_scatter_elements():
                 var_rxplaceholder_2, (T.int64(2), T.int64(2)), offset_factor=1
             )
             with T.sblock("scatter_elements_generic"):
+                T.attr(0, "pragma_scope", "seq")
                 for i in T.parallel(T.int64(16)):
                     out_buf[i // T.int64(4), i % T.int64(4)] = rxplaceholder[
                         i // T.int64(4), i % T.int64(4)
@@ -1484,6 +1487,7 @@ def test_scatter_elements_symbolic():
             rxplaceholder_2 = T.match_buffer(var_rxplaceholder_2, (m, n), offset_factor=1)
             out_buf = T.match_buffer(var_scatter_elements_generic, (a, b))
             with T.sblock("scatter_elements_generic"):
+                T.attr(0, "pragma_scope", "seq")
                 for i in T.parallel(a * b):
                     out_buf[i // b, i % b] = rxplaceholder[i // b, i % b]
                 for fused in T.parallel(m):
@@ -1550,6 +1554,7 @@ def test_scatter_elements_symbolic():
 def test_layout_transform():
     transformation = lambda a, b, c: (a, c, b // 3, b % 3)
     pad_value = 2
+
     # fmt: off
     @I.ir_module
     class LayoutTransform:
@@ -1587,6 +1592,7 @@ def test_layout_transform():
 def test_layout_transform_with_pad():
     transformation = lambda a, b, c: (a, c, b // 3, b % 3)
     pad_value = 2
+
     # fmt: off
     @I.ir_module
     class LayoutTransform:
@@ -1624,6 +1630,7 @@ def test_layout_transform_with_pad():
 def test_layout_transform_symbolic():
     transformation = lambda a, b, c: (a, c, b // 3, b % 3)
     pad_value = 2
+
     # fmt: off
     @I.ir_module
     class LayoutTransform:
@@ -1668,6 +1675,7 @@ def test_layout_transform_with_pad_axis_sep():
     transformation = lambda a, b, c: (a, c, b // 3, b % 3)
     pad_value = 2
     axis_separator = [3]
+
     # fmt: off
     @I.ir_module
     class LayoutTransform:
@@ -1819,6 +1827,7 @@ def test_scatter_nd():
                 with T.sblock("scatter_nd_generic"):
                     T.reads()
                     T.writes()
+                    T.attr(0, "pragma_scope", "seq")
                     for i in range(T.int64(8)):
                         out_buf[i] = data[i]
                     for j in range(T.int64(4)):

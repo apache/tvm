@@ -57,7 +57,7 @@ class FunctionInliner : public ExprMutator {
       auto gvar = opt.value();
       if (auto opt = GetFunction(gvar)) {
         auto callee = opt.value();
-        CHECK_EQ(callee->params.size(), node->args.size())
+        TVM_FFI_ICHECK_EQ(callee->params.size(), node->args.size())
             << "Attempted to inline call to " << gvar << ", which accepts " << callee->params.size()
             << " parameters.  "
             << "However, it was called with " << node->args.size() << " arguments in expression "
@@ -65,7 +65,7 @@ class FunctionInliner : public ExprMutator {
 
         Expr inlined = InlinedCall(callee, node->args);
 
-        CHECK(!inline_stack_.count(gvar))
+        TVM_FFI_ICHECK(!inline_stack_.count(gvar))
             << "Relax function inlining does not support recursive functions.  "
             << "However, recursive function " << gvar << " was requested to be inlined.";
 
@@ -154,8 +154,7 @@ Function FunctionInlineFunctions(
     Function func, const ffi::Map<ffi::Variant<ffi::String, GlobalVar>, Function>& replacements) {
   for (const auto& [key, func] : replacements) {
     if (auto ptr = key.as<GlobalVarNode>()) {
-      CHECK(!replacements.count(ptr->name_hint))
-          << "ValueError: "
+      TVM_FFI_CHECK(!replacements.count(ptr->name_hint), ValueError)
           << "Map of functions to inline must be unambiguous.  "
           << "However, the map provided contains both the GlobalVar " << key << " and the string \'"
           << ptr->name_hint << "'";

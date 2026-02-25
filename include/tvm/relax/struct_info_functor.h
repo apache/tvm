@@ -37,8 +37,10 @@ template <typename FStructInfo>
 class StructInfoFunctor;
 
 // functions to be overriden.
-#define STRUCT_INFO_FUNCTOR_DEFAULT \
-  { return VisitStructInfoDefault_(op, std::forward<Args>(args)...); }
+#define STRUCT_INFO_FUNCTOR_DEFAULT                                  \
+  {                                                                  \
+    return VisitStructInfoDefault_(op, std::forward<Args>(args)...); \
+  }
 
 #define TVM_STRUCT_INFO_FUNCTOR_DISPATCH(OP)                                                     \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, Args... args) {           \
@@ -72,7 +74,7 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
    * \return The result of the call
    */
   virtual R VisitStructInfo(const StructInfo& n, Args... args) {
-    ICHECK(n.defined());
+    TVM_FFI_ICHECK(n.defined());
     static FStructInfo vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -92,7 +94,7 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
   virtual R VisitStructInfo_(const FuncStructInfoNode* op,
                              Args... args) STRUCT_INFO_FUNCTOR_DEFAULT;
   virtual R VisitStructInfoDefault_(const Object* op, Args...) {
-    LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Do not have a default for " << op->GetTypeKey();
     throw;  // unreachable, written to stop compiler warning
   }
 

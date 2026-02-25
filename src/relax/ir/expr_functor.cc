@@ -37,34 +37,34 @@
         self->VisitBinding_(binding, static_cast<const OP*>(n.get()));     \
       });
 
-#define RELAX_VAR_BINDING_DISPATCH_IMPL(Type)                                        \
-  Type::VisitBindingVTable Type::InitVisitBindingVTable() {                          \
-    VisitBindingVTable vtable;                                                       \
-    RELAX_VISIT_BINDING_DISPATCH(ConstantNode);                                      \
-    RELAX_VISIT_BINDING_DISPATCH(TupleNode);                                         \
-    RELAX_VISIT_BINDING_DISPATCH(VarNode);                                           \
-    RELAX_VISIT_BINDING_DISPATCH(DataflowVarNode);                                   \
-    RELAX_VISIT_BINDING_DISPATCH(ShapeExprNode);                                     \
-    RELAX_VISIT_BINDING_DISPATCH(ExternFuncNode);                                    \
-    RELAX_VISIT_BINDING_DISPATCH(GlobalVarNode);                                     \
-    RELAX_VISIT_BINDING_DISPATCH(FunctionNode);                                      \
-    RELAX_VISIT_BINDING_DISPATCH(CallNode);                                          \
-    RELAX_VISIT_BINDING_DISPATCH(SeqExprNode);                                       \
-    RELAX_VISIT_BINDING_DISPATCH(IfNode);                                            \
-    RELAX_VISIT_BINDING_DISPATCH(OpNode);                                            \
-    RELAX_VISIT_BINDING_DISPATCH(TupleGetItemNode);                                  \
-    RELAX_VISIT_BINDING_DISPATCH(PrimValueNode);                                     \
-    RELAX_VISIT_BINDING_DISPATCH(StringImmNode);                                     \
-    RELAX_VISIT_BINDING_DISPATCH(DataTypeImmNode);                                   \
-    return vtable;                                                                   \
-  }                                                                                  \
-  void Type::VisitBinding_(const VarBindingNode* binding) {                          \
-    static VisitBindingVTable vtable = InitVisitBindingVTable();                     \
-    const Expr& value = binding->value;                                              \
-    ICHECK(value.defined()) << "Found null pointer node while traversing AST.";      \
-    ICHECK(vtable.can_dispatch(value))                                               \
-        << "VisitVarBinding do not allow binding value type" << value->GetTypeKey(); \
-    vtable(value, this, binding);                                                    \
+#define RELAX_VAR_BINDING_DISPATCH_IMPL(Type)                                           \
+  Type::VisitBindingVTable Type::InitVisitBindingVTable() {                             \
+    VisitBindingVTable vtable;                                                          \
+    RELAX_VISIT_BINDING_DISPATCH(ConstantNode);                                         \
+    RELAX_VISIT_BINDING_DISPATCH(TupleNode);                                            \
+    RELAX_VISIT_BINDING_DISPATCH(VarNode);                                              \
+    RELAX_VISIT_BINDING_DISPATCH(DataflowVarNode);                                      \
+    RELAX_VISIT_BINDING_DISPATCH(ShapeExprNode);                                        \
+    RELAX_VISIT_BINDING_DISPATCH(ExternFuncNode);                                       \
+    RELAX_VISIT_BINDING_DISPATCH(GlobalVarNode);                                        \
+    RELAX_VISIT_BINDING_DISPATCH(FunctionNode);                                         \
+    RELAX_VISIT_BINDING_DISPATCH(CallNode);                                             \
+    RELAX_VISIT_BINDING_DISPATCH(SeqExprNode);                                          \
+    RELAX_VISIT_BINDING_DISPATCH(IfNode);                                               \
+    RELAX_VISIT_BINDING_DISPATCH(OpNode);                                               \
+    RELAX_VISIT_BINDING_DISPATCH(TupleGetItemNode);                                     \
+    RELAX_VISIT_BINDING_DISPATCH(PrimValueNode);                                        \
+    RELAX_VISIT_BINDING_DISPATCH(StringImmNode);                                        \
+    RELAX_VISIT_BINDING_DISPATCH(DataTypeImmNode);                                      \
+    return vtable;                                                                      \
+  }                                                                                     \
+  void Type::VisitBinding_(const VarBindingNode* binding) {                             \
+    static VisitBindingVTable vtable = InitVisitBindingVTable();                        \
+    const Expr& value = binding->value;                                                 \
+    TVM_FFI_ICHECK(value.defined()) << "Found null pointer node while traversing AST."; \
+    TVM_FFI_ICHECK(vtable.can_dispatch(value))                                          \
+        << "VisitVarBinding do not allow binding value type" << value->GetTypeKey();    \
+    vtable(value, this, binding);                                                       \
   }
 
 // functions to be overriden.
@@ -286,7 +286,7 @@ void ExprVisitor::VisitBinding(const Binding& binding) {
   } else if (const auto* node = binding.as<MatchCastNode>()) {
     VisitBinding_(node);
   } else {
-    LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Invalid type: " << binding->GetTypeKey();
   }
 }
 
@@ -296,7 +296,7 @@ void ExprVisitor::VisitBindingBlock(const BindingBlock& block) {
   } else if (const auto* node = block.as<BindingBlockNode>()) {
     VisitBindingBlock_(node);
   } else {
-    LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Invalid type: " << block->GetTypeKey();
   }
 }
 
@@ -306,7 +306,7 @@ void ExprVisitor::VisitVarDef(const Var& var) {
   } else if (const auto* node = var.as<VarNode>()) {
     VisitVarDef_(node);
   } else {
-    LOG(FATAL) << "TypeError: Invalid type: " << var->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Invalid type: " << var->GetTypeKey();
   }
 }
 
@@ -531,11 +531,11 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
         Expr new_value = this->VisitExpr(match_cast->value);
         bindings.push_back(MatchCast(match_cast->var, new_value, match_cast->struct_info));
       } else {
-        LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+        TVM_FFI_THROW(TypeError) << "Invalid type: " << binding->GetTypeKey();
       }
     }
   } else {
-    LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Invalid type: " << block->GetTypeKey();
   }
 
   if (block.as<DataflowBlockNode>()) {
@@ -677,8 +677,7 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
 
   auto new_sinfo = new_value->struct_info_.as<StructInfo>();
 
-  ICHECK(new_sinfo)
-      << "InternalError: "
+  TVM_FFI_CHECK(new_sinfo, InternalError)
       << "In binding of variable " << binding->var << ", the value " << new_value
       << " does not have StructInfo.  "
       << "This typically occurs when ReEmitBinding is called without first calling Normalize.";
@@ -766,7 +765,7 @@ void ExprMutator::VisitBinding(const Binding& binding) {
   } else if (const auto* node = binding.as<MatchCastNode>()) {
     VisitBinding_(node);
   } else {
-    LOG(FATAL) << "TypeError: Invalid type: " << binding->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Invalid type: " << binding->GetTypeKey();
   }
 }
 
@@ -777,7 +776,7 @@ BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
   } else if (const auto* node = block.as<BindingBlockNode>()) {
     ret = VisitBindingBlock_(node);
   } else {
-    LOG(FATAL) << "TypeError: Invalid type: " << block->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Invalid type: " << block->GetTypeKey();
   }
   return ret;
 }
@@ -789,13 +788,13 @@ Var ExprMutator::VisitVarDef(const Var& var) {
   } else if (const auto* node = var.as<VarNode>()) {
     ret = VisitVarDef_(node);
   } else {
-    LOG(FATAL) << "TypeError: Invalid type: " << var->GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Invalid type: " << var->GetTypeKey();
   }
   return ret;
 }
 
 Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params) {
-  ICHECK(expr->IsInstance<SeqExprNode>())
+  TVM_FFI_ICHECK(expr->IsInstance<SeqExprNode>())
       << "Normal form requires all new scope is stored as SeqExpr";
 
   PrimExpr constraint = Bool(true);
@@ -829,7 +828,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<V
 }
 
 Expr ExprMutator::VisitWithInnerScope(const Expr& expr) {
-  ICHECK(expr->IsInstance<SeqExprNode>())
+  TVM_FFI_ICHECK(expr->IsInstance<SeqExprNode>())
       << "Normal form requires all new scope is stored as SeqExpr";
 
   builder_->BeginInnerScope();
@@ -843,7 +842,7 @@ ffi::Optional<Expr> ExprMutator::LookupBinding(const Var& var) {
 }
 
 Var ExprMutator::WithStructInfo(Var var, StructInfo struct_info) {
-  ICHECK(struct_info.defined());
+  TVM_FFI_ICHECK(struct_info.defined());
 
   // TODO(relax-team) add StructInfoEqual check
   if (var->struct_info_.defined()) {

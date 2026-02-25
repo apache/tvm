@@ -23,16 +23,16 @@ import torch
 from torch.nn import Module
 
 import tvm.testing
-from tvm.contrib.msc.framework.torch.frontend import translate
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
+from tvm.contrib.msc.framework.torch.frontend import translate
 
 
 def verify_model(torch_model, input_info, expected):
     graph, _ = translate.from_torch(torch_model, input_info)
     inspect = graph.inspect()
-    assert msc_utils.dict_equal(inspect, expected), "Inspect {} mismatch with expected {}".format(
-        inspect, expected
+    assert msc_utils.dict_equal(inspect, expected), (
+        f"Inspect {inspect} mismatch with expected {expected}"
     )
 
 

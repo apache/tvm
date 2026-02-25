@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI for TOPI utility functions"""
+
 import tvm_ffi
 
 tvm_ffi.init_ffi_api("topi.utils", "tvm.topi.cpp.utils")

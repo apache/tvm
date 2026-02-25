@@ -51,7 +51,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.contrib.dnnl.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
     auto A = args[0].cast<DLTensor*>();
-    ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
+    TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
     CallGemm(args, ret, DNNLSgemmOp());
   });
 }

@@ -49,7 +49,7 @@ if(USE_CLML_GRAPH_EXECUTOR)
 
     file(GLOB CLML_CONTRIB_SRC src/runtime/contrib/clml/*)
 
-    # Cmake needs to find clml library, include and support directories
+    # CMake needs to find clml library, include and support directories
     # in the path specified by CLML_PATH.
     set(CLML_INCLUDE_DIRS ${CLML_PATH}/include ${CLML_PATH})
     include_directories(${CLML_INCLUDE_DIRS})

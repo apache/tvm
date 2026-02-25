@@ -54,27 +54,28 @@ class HexagonTransportChannel : public RPCChannel {
     set_remote_stack_size(remote_stack_size_bytes);
 
     AEEResult rc = hexagon_rpc_open(uri.c_str(), &_handle);
-    ICHECK(rc == AEE_SUCCESS) << "hexagon_rpc_open failed. URI: " << uri.c_str();
+    TVM_FFI_ICHECK(rc == AEE_SUCCESS) << "hexagon_rpc_open failed. URI: " << uri.c_str();
 
     rc = hexagon_rpc_init(_handle, receive_buf_size_bytes);
-    ICHECK(rc == AEE_SUCCESS) << "hexagon_rpc_set_receive_buf_size failed. receive_buf_size_bytes: "
-                              << receive_buf_size_bytes;
+    TVM_FFI_ICHECK(rc == AEE_SUCCESS)
+        << "hexagon_rpc_set_receive_buf_size failed. receive_buf_size_bytes: "
+        << receive_buf_size_bytes;
   }
 
   size_t Send(const void* data, size_t size) override {
-    ICHECK(_handle != AEE_EUNKNOWN) << "RPC handle is not initialized.";
+    TVM_FFI_ICHECK(_handle != AEE_EUNKNOWN) << "RPC handle is not initialized.";
     AEEResult rc =
         hexagon_rpc_send(_handle, static_cast<const unsigned char*>(data), static_cast<int>(size));
-    ICHECK(rc == AEE_SUCCESS) << "hexagon_rpc_send failed: " << rc;
+    TVM_FFI_ICHECK(rc == AEE_SUCCESS) << "hexagon_rpc_send failed: " << rc;
     return size;
   }
 
   size_t Recv(void* data, size_t size) override {
-    ICHECK(_handle != AEE_EUNKNOWN) << "RPC handle is not initialized.";
+    TVM_FFI_ICHECK(_handle != AEE_EUNKNOWN) << "RPC handle is not initialized.";
     int64_t written_size = 0;
     AEEResult rc = hexagon_rpc_receive(_handle, static_cast<unsigned char*>(data),
                                        static_cast<int>(size), &written_size);
-    ICHECK(rc == AEE_SUCCESS) << "hexagon_rpc_receive failed: " << rc;
+    TVM_FFI_ICHECK(rc == AEE_SUCCESS) << "hexagon_rpc_receive failed: " << rc;
     return static_cast<size_t>(written_size);
   }
 
@@ -114,7 +115,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.hexagon.create_hexagon_session", [](ffi::PackedArgs args, ffi::Any* rv) {
-        ICHECK(args.size() >= 4) << args.size() << " is less than 4";
+        TVM_FFI_ICHECK(args.size() >= 4) << args.size() << " is less than 4";
 
         auto session_name = args[0].cast<std::string>();
         int remote_stack_size_bytes = args[1].cast<int>();

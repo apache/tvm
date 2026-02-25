@@ -48,35 +48,36 @@ TEST_F(HexagonVtcmPoolTest, basic) {
   void* ptr;
   void* ptr2;
 
-  CHECK(device_bytes >= max_bytes) << "VTCM device size " << device_bytes
-                                   << " not greater than or equal to allocated size " << max_bytes;
+  TVM_FFI_ICHECK(device_bytes >= max_bytes)
+      << "VTCM device size " << device_bytes << " not greater than or equal to allocated size "
+      << max_bytes;
 
   ptr = vtcm_pool->Allocate(max_bytes);
-  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
+  TVM_FFI_ICHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
       << "Must be multiple of 2k " << ptr << " " << max_bytes;
   vtcm_pool->Free(ptr, max_bytes);
 
   ptr = vtcm_pool->Allocate(two_k_block);
-  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
+  TVM_FFI_ICHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
       << "Must be multiple of 2k " << ptr << " " << two_k_block;
   vtcm_pool->Free(ptr, two_k_block);
 
   ptr = vtcm_pool->Allocate(one_k_block);
-  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+  TVM_FFI_ICHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
       << "Must be multiple of 128 " << ptr << " " << one_k_block;
   vtcm_pool->Free(ptr, one_k_block);
 
   ptr = vtcm_pool->Allocate(min_bytes);
-  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+  TVM_FFI_ICHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
       << "Must be multiple of 128 " << ptr << " " << min_bytes;
 
   ptr2 = vtcm_pool->Allocate(one_k_block);
-  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+  TVM_FFI_ICHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
       << "Must be multiple of 128 " << ptr2 << " " << one_k_block;
   vtcm_pool->Free(ptr, min_bytes);
   vtcm_pool->Free(ptr2, one_k_block);
 
-  EXPECT_THROW(ptr = vtcm_pool->Allocate(1), InternalError);
+  EXPECT_THROW(ptr = vtcm_pool->Allocate(1), tvm::ffi::Error);
 }
 
 TEST_F(HexagonVtcmPoolTest, small_allocations) {
@@ -95,7 +96,7 @@ TEST_F(HexagonVtcmPoolTest, small_allocations) {
   ptr3 = vtcm_pool->Allocate(max_bytes - min_bytes - two_k_block);
 
   // Should be no more memory left
-  EXPECT_THROW(ptr4 = vtcm_pool->Allocate(min_bytes), InternalError);
+  EXPECT_THROW(ptr4 = vtcm_pool->Allocate(min_bytes), tvm::ffi::Error);
 
   vtcm_pool->Free(ptr1, min_bytes);
   vtcm_pool->Free(ptr2, two_k_block);
@@ -108,19 +109,19 @@ TEST_F(HexagonVtcmPoolTest, small_allocations) {
 
 TEST_F(HexagonVtcmPoolTest, no_free_vtcm) {
   void* ptr = vtcm_pool->Allocate(max_bytes);
-  EXPECT_THROW(vtcm_pool->Allocate(min_bytes), InternalError);
+  EXPECT_THROW(vtcm_pool->Allocate(min_bytes), tvm::ffi::Error);
   vtcm_pool->Free(ptr, max_bytes);
 }
 
 TEST_F(HexagonVtcmPoolTest, not_enough_free_vtcm) {
   void* ptr = vtcm_pool->Allocate(max_bytes - two_k_block);
-  EXPECT_THROW(vtcm_pool->Allocate(two_k_block * 2), InternalError);
+  EXPECT_THROW(vtcm_pool->Allocate(two_k_block * 2), tvm::ffi::Error);
   vtcm_pool->Free(ptr, max_bytes - two_k_block);
 }
 
 TEST_F(HexagonVtcmPoolTest, free_with_wrong_size) {
   void* ptr = vtcm_pool->Allocate(two_k_block * 2);
-  EXPECT_THROW(vtcm_pool->Free(ptr, two_k_block), InternalError);
+  EXPECT_THROW(vtcm_pool->Free(ptr, two_k_block), tvm::ffi::Error);
   vtcm_pool->Free(ptr, two_k_block * 2);
 }
 
@@ -137,22 +138,22 @@ TEST_F(HexagonVtcmPoolTest, free_alloc_combinations) {
   ptr4 = vtcm_pool->Allocate(max_less_3_blocks);
 
   // Make sure pointers are 2k apart from each other
-  CHECK(static_cast<char*>(ptr1) + two_k_block == static_cast<char*>(ptr2));
-  CHECK(static_cast<char*>(ptr2) + two_k_block == static_cast<char*>(ptr3));
-  CHECK(static_cast<char*>(ptr3) + two_k_block == static_cast<char*>(ptr4));
+  TVM_FFI_ICHECK(static_cast<char*>(ptr1) + two_k_block == static_cast<char*>(ptr2));
+  TVM_FFI_ICHECK(static_cast<char*>(ptr2) + two_k_block == static_cast<char*>(ptr3));
+  TVM_FFI_ICHECK(static_cast<char*>(ptr3) + two_k_block == static_cast<char*>(ptr4));
 
   // Free 2, realloc it, make sure it is the same as before
   vtcm_pool->Free(ptr2, two_k_block);
   new_ptr = vtcm_pool->Allocate(two_k_block);
-  CHECK(new_ptr == ptr2);
+  TVM_FFI_ICHECK(new_ptr == ptr2);
 
   // Free 1 and 2, re-alloc and make sure they are the same
   vtcm_pool->Free(ptr1, two_k_block);
   vtcm_pool->Free(ptr2, two_k_block);
   new_ptr = vtcm_pool->Allocate(two_k_block);
-  CHECK(new_ptr == ptr1);
+  TVM_FFI_ICHECK(new_ptr == ptr1);
   new_ptr = vtcm_pool->Allocate(two_k_block);
-  CHECK(new_ptr == ptr2);
+  TVM_FFI_ICHECK(new_ptr == ptr2);
 
   // Exercise different deletion scenarios
   vtcm_pool->Free(ptr2, two_k_block);
@@ -214,10 +215,10 @@ TEST_F(HexagonVtcmPoolTest, find_smallest_allocation_combinations) {
 
   // Reallocate memory allocations and ensure that the smallest free allocations are used.
   new_ptr = vtcm_pool->Allocate(two_k_block);
-  CHECK(new_ptr == ptr2);
+  TVM_FFI_ICHECK(new_ptr == ptr2);
 
   new_ptr = vtcm_pool->Allocate(two_k_block);
-  CHECK(new_ptr == ptr3);
+  TVM_FFI_ICHECK(new_ptr == ptr3);
 
   vtcm_pool->Free(ptr1, two_k_block);
   vtcm_pool->Free(ptr2, two_k_block);
@@ -236,10 +237,10 @@ TEST_F(HexagonVtcmPoolTest, find_smallest_allocation_combinations) {
 
   // Reallocate memory allocations and ensure that the smallest free allocations are used.
   new_ptr = vtcm_pool->Allocate(min_bytes);
-  CHECK(new_ptr == ptr2);
+  TVM_FFI_ICHECK(new_ptr == ptr2);
 
   new_ptr = vtcm_pool->Allocate(one_k_block);
-  CHECK(new_ptr == ptr3);
+  TVM_FFI_ICHECK(new_ptr == ptr3);
 
   vtcm_pool->Free(ptr1, min_bytes);
   vtcm_pool->Free(ptr2, min_bytes);
@@ -264,22 +265,28 @@ TEST_F(HexagonVtcmPoolTest, vtcm_alignment) {
 
   // Valid alignments, sizes need to be adjusted
   ptr = test_hexbuffs->AllocateHexagonBuffer(1, 128, ffi::String("global"));
-  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0) << "Must be multiple of 128 " << ptr;
+  TVM_FFI_ICHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr;
 
   ptr = test_hexbuffs->AllocateHexagonBuffer(127, 128, ffi::String("global"));
-  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0) << "Must be multiple of 128 " << ptr;
+  TVM_FFI_ICHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr;
 
   ptr = test_hexbuffs->AllocateHexagonBuffer(129, 128, ffi::String("global"));
-  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0) << "Must be multiple of 128 " << ptr;
+  TVM_FFI_ICHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7F) == 0)
+      << "Must be multiple of 128 " << ptr;
 
   ptr = test_hexbuffs->AllocateHexagonBuffer(1, 2048, ffi::String("global"));
-  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0) << "Must be multiple of 2k " << ptr;
+  TVM_FFI_ICHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
+      << "Must be multiple of 2k " << ptr;
 
   ptr = test_hexbuffs->AllocateHexagonBuffer(2047, 2048, ffi::String("global"));
-  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0) << "Must be multiple of 2k " << ptr;
+  TVM_FFI_ICHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
+      << "Must be multiple of 2k " << ptr;
 
   ptr = test_hexbuffs->AllocateHexagonBuffer(2049, 2048, ffi::String("global"));
-  CHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0) << "Must be multiple of 2k " << ptr;
+  TVM_FFI_ICHECK((reinterpret_cast<uintptr_t>(ptr) & 0x7FF) == 0)
+      << "Must be multiple of 2k " << ptr;
 
   test_hexbuffs.reset();
 

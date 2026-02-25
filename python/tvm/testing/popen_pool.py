@@ -15,8 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, missing-function-docstring
+# ruff: noqa: F821
 """Common functions for popen_pool test cases"""
+
 import tvm_ffi
+
 from . import _ffi_api
 
 TEST_GLOBAL_STATE_1 = 0

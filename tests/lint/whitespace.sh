@@ -16,24 +16,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euo pipefail
-
-status=0
-
-if git --no-pager grep -Il '' -- . | ./tests/lint/trailing_newlines.py; then
-    echo "The above files are missing a trailing newline or have too many trailing newlines"
-    status=1
-fi
-
-if git --no-pager grep -In '[[:blank:]]$' -- .; then
-    echo "The above files have trailing spaces"
-    status=1
-fi
-
-if [ $status == "1" ]; then
-    echo "Found whitespace lint failures, 'pre-commit run --all-files' can auto-correct them"
-    exit 1
-else
-    echo "Found no whitespace lint failures"
-    exit 0
-fi
+# Deprecated: functionality moved to pre-commit hooks. Kept as no-op for backward compatibility.
+exit 0

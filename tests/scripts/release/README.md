@@ -36,7 +36,7 @@ Once done, you can download the csv file assuming with name `out_pr_gathered_cor
 # Export monthly report on forum:
 python make_notes.py --notes out_pr_gathered_corrected.csv --is-pr-with-link true > monthly_report.md
 
-# Export release report on Github:
+# Export release report on GitHub:
 python make_notes.py --notes out_pr_gathered_corrected.csv --is-pr-with-link true > release_report.md
 
 # If release report exported but forget set `--is-pr-with-link true`,
@@ -57,7 +57,7 @@ Finally, combine `rfc.md` and `out.md` along with some prose to create the final
 
 # Test release packages
 
-After uploading release (candidate) packages to apache.org or github release page, you can validate packages step-by-step from downloading, verification and compiling use script below, but don't forget edit the `version` and `rc` number in script.
+After uploading release (candidate) packages to apache.org or GitHub release page, you can validate packages step-by-step from downloading, verification and compiling use script below, but don't forget edit the `version` and `rc` number in script.
 
 ```bash
 test_release_package.sh

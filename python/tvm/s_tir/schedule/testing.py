@@ -16,12 +16,13 @@
 # under the License.
 # pylint: disable=dangerous-default-value
 """Testing utilities for the TensorIR schedule API"""
+
 from typing import Any, Sequence, Union
 
 import tvm
 from tvm.ir import IRModule, assert_structural_equal
-from tvm.tir import PrimFunc
 from tvm.s_tir.schedule import Schedule, Trace
+from tvm.tir import PrimFunc
 
 
 def assert_structural_equal_ignore_global_symbol(

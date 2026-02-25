@@ -818,7 +818,8 @@ void TensorRTPluginCodeGen::CodegenBufferInfer(const Plugin& plugin) {
 }
 
 void TensorRTPluginCodeGen::CodegenEnqueue(const Plugin& plugin, bool dynamic) {
-  ICHECK(plugin->externs.count("cuda_compute")) << "cuda_compute is needed fo TensorRT plugin";
+  TVM_FFI_ICHECK(plugin->externs.count("cuda_compute"))
+      << "cuda_compute is needed fo TensorRT plugin";
   auto prepare_tensor = [this, &dynamic](const PluginTensor& tensor,
                                          const ffi::Map<ffi::String, ffi::String>& dtypes,
                                          size_t idx, const ffi::String& collect) {

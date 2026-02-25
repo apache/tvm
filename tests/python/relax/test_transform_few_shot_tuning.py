@@ -15,19 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,,missing-function-docstring
+# ruff: noqa: E501, F403
 from typing import List, Tuple
+
 import numpy as np
+import pytest
 
 import tvm
-from tvm.script import tir as T
+import tvm.testing
+from tvm.relax.transform import FewShotTuning
+from tvm.s_tir.meta_schedule.arg_info import ArgInfo
+from tvm.s_tir.meta_schedule.testing.tune_utils import generate_input_data
 from tvm.s_tir.tensor_intrin.cuda import *  # pylint: disable=wildcard-import,unused-wildcard-import
 from tvm.s_tir.tensor_intrin.x86 import *  # pylint: disable=wildcard-import,unused-wildcard-import
-from tvm.meta_schedule.testing.tune_utils import generate_input_data
-from tvm.meta_schedule.arg_info import ArgInfo
-from tvm.relax.transform import FewShotTuning
-import tvm.testing
+from tvm.script import tir as T
 
-import pytest
 
 # pylint: disable=no-self-argument,missing-class-docstring,line-too-long
 # fmt: off
@@ -313,7 +315,7 @@ class Module:
 
 
 def _target() -> tvm.target.Target:
-    return tvm.target.Target("llvm -num-cores=4")
+    return tvm.target.Target({"kind": "llvm", "num-cores": 4})
     # for local testing only
     # return tvm.target.Target("nvidia/geforce-rtx-3070")
 

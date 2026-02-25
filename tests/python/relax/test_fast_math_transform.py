@@ -14,14 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Tests to validate relax fast math tranform pass."""
 
 import pytest
+
 import tvm.testing
 from tvm import relax, topi
 from tvm.ir.base import assert_structural_equal
 from tvm.relax.transform import FastMathTransform
-from tvm.script import ir as I, relax as R
+from tvm.script import ir as I
+from tvm.script import relax as R
 
 
 def _run_pass_compare_output(Before, Expected):

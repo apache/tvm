@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F811
 import numpy as np
+import pytest
+
 import tvm
 from tvm import relax as rx
 from tvm import tir
 from tvm.script import relax as R
-import pytest
 
 
 def _check_equal(x, y, map_free_vars=False):

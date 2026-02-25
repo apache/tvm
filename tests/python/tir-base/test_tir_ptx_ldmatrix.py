@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm.script import tir as T
 import numpy as np
+
+import tvm
 import tvm.testing
+from tvm.script import tir as T
 
 
 @T.prim_func

@@ -134,8 +134,7 @@ ffi::Array<Binding> TopologicalSort(const ffi::Array<Binding>& bindings) {
   // All bindings should be emitted by this point.  If any remain,
   // then there exists a circular dependency somewhere in the
   // remaining bindings.
-  CHECK(delayed_bindings.empty()) << "ValueError: "
-                                  << "Bindings contain circular dependency";
+  TVM_FFI_CHECK(delayed_bindings.empty(), ValueError) << "Bindings contain circular dependency";
 
   if (required_sorting) {
     return sorted_bindings;
@@ -165,7 +164,7 @@ void RewriteSpec::Append(RewriteSpec other) {
       // The two rewrites provide the same GlobalVar.
       // (e.g. Multiple rewrites of the same pattern.)  Ensure that
       // they are referring to the same underlying BaseFunc.
-      CHECK(func.same_as((*it).second));
+      TVM_FFI_ICHECK(func.same_as((*it).second));
     } else if (auto new_name = gvar_name_supply->FreshName(gvar->name_hint);
                new_name != gvar->name_hint) {
       // The two rewrites provide distinct GlobalVar subroutines,
@@ -210,7 +209,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              } else if (auto mod = obj.as<IRModule>()) {
                return rewriter(mod.value());
              } else {
-               LOG(FATAL) << "Unreachable: object does not contain either variant type";
+               TVM_FFI_THROW(InternalError)
+                   << "Unreachable: object does not contain either variant type";
              }
            });
 }
@@ -326,9 +326,10 @@ OrRewriter::OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs)
 }
 
 RewriteSpec TupleRewriterNode::RewriteBindings(const ffi::Array<Binding>& bindings) const {
-  CHECK_LE(patterns.size(), 3) << "For performance reasons, "
-                               << "matching of implicit tuple patterns is currently limited"
-                               << " to tuples with 3 elements or fewer.";
+  TVM_FFI_ICHECK_LE(patterns.size(), 3)
+      << "For performance reasons, "
+      << "matching of implicit tuple patterns is currently limited"
+      << " to tuples with 3 elements or fewer.";
   ffi::Map<Var, Expr> variable_rewrites = GenerateVariableRewrites(bindings);
 
   if (variable_rewrites.size()) {
@@ -404,7 +405,7 @@ ffi::Map<Var, Expr> TupleRewriterNode::GenerateVariableRewrites(
   };
 
   auto decrement_indices = [&](std::vector<size_t>& indices) -> bool {
-    ICHECK_EQ(indices.size(), patterns.size());
+    TVM_FFI_ICHECK_EQ(indices.size(), patterns.size());
 
     // Step 1, find the first index that can be decremented, while
     // still generating a valid set of indices.
@@ -500,13 +501,13 @@ ffi::Map<Var, Expr> TupleRewriterNode::GenerateVariableRewrites(
 
     if (new_match) {
       const auto& [indices, exprs] = new_match.value();
-      ICHECK_EQ(indices.size(), exprs.size());
+      TVM_FFI_ICHECK_EQ(indices.size(), exprs.size());
       for (size_t i = 0; i < indices.size(); i++) {
-        ICHECK_LT(indices[i], info_vec.size());
+        TVM_FFI_ICHECK_LT(indices[i], info_vec.size());
         auto& info = info_vec[indices[i]];
 
-        ICHECK(!info.used) << "InternalError: "
-                           << "Produced multiple replacements for variable " << info.var;
+        TVM_FFI_CHECK(!info.used, InternalError)
+            << "Produced multiple replacements for variable " << info.var;
 
         rewrites.Set(info.var, exprs[i]);
         binding_lookup.erase(info.var);
@@ -528,9 +529,9 @@ ffi::Map<Var, Expr> TupleRewriterNode::GenerateVariableRewrites(
 
 std::optional<std::vector<Expr>> TupleRewriterNode::TryMatchByBindingIndex(
     const std::vector<VarInfo>& info_vec, const std::vector<size_t>& indices) const {
-  ICHECK_GE(indices.size(), 1);
+  TVM_FFI_ICHECK_GE(indices.size(), 1);
 
-  ICHECK_EQ(indices.size(), patterns.size());
+  TVM_FFI_ICHECK_EQ(indices.size(), patterns.size());
   for (size_t i = 0; i < indices.size(); i++) {
     const auto& info = info_vec[indices[i]];
     if (info.used || !info.matches[i]) {
@@ -596,7 +597,7 @@ std::optional<std::vector<Expr>> TupleRewriterNode::TryMatchByBindingIndex(
   std::vector<Expr> rewrites;
   if (auto inline_tuple = rewritten.as<TupleNode>()) {
     const auto& fields = inline_tuple->fields;
-    CHECK_EQ(fields.size(), indices.size())
+    TVM_FFI_ICHECK_EQ(fields.size(), indices.size())
         << "Expected to receive " << indices.size() << " values to replace TuplePattern with "
         << indices.size() << " fields, but received " << fields.size() << " values";
     rewrites = {fields.begin(), fields.end()};
@@ -658,28 +659,24 @@ PatternMatchingRewriter PatternMatchingRewriter::FromPattern(
 
 PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
   Function func_pattern = [&]() {
-    CHECK(mod->ContainGlobalVar("pattern"))
-        << "KeyError: "
+    TVM_FFI_CHECK(mod->ContainGlobalVar("pattern"), KeyError)
         << "Expected module to contain 'pattern', "
         << "a Relax function defining the pattern to be matched, "
         << "but the module did not contain a 'pattern' function.";
     auto base_func = mod->Lookup("pattern");
-    CHECK(base_func->IsInstance<FunctionNode>())
-        << "TypeError: "
+    TVM_FFI_CHECK(base_func->IsInstance<FunctionNode>(), TypeError)
         << "Expected module to contain 'pattern', "
         << "a Relax function defining the pattern to be matched, "
         << "but the 'pattern' function was of type " << base_func->GetTypeKey() << ".";
     return Downcast<Function>(base_func);
   }();
   Function func_replacement = [&]() {
-    CHECK(mod->ContainGlobalVar("replacement"))
-        << "KeyError: "
+    TVM_FFI_CHECK(mod->ContainGlobalVar("replacement"), KeyError)
         << "Expected module to contain 'replacement', "
         << "a Relax function defining the replacement to be matched, "
         << "but the module did not contain a 'replacement' function.";
     auto base_func = mod->Lookup("replacement");
-    CHECK(base_func->IsInstance<FunctionNode>())
-        << "TypeError: "
+    TVM_FFI_CHECK(base_func->IsInstance<FunctionNode>(), TypeError)
         << "Expected module to contain 'replacement', "
         << "a Relax function defining the replacement to be made on a successful match, "
         << "but the 'replacement' function was of type " << base_func->GetTypeKey() << ".";
@@ -690,19 +687,18 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
   for (const auto& [gvar, func] : mod->functions) {
     if (gvar->name_hint != "pattern" && gvar->name_hint != "replacement") {
       bool is_public = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
-      CHECK(!is_public) << "ValueError: "
-                        << "Expected module to have no publicly-exposed functions "
-                        << "other than 'pattern' and 'replacement'.  "
-                        << "However, function '" << gvar->name_hint << "' of type "
-                        << func->GetTypeKey() << " is publicly exposed.";
+      TVM_FFI_CHECK(!is_public, ValueError)
+          << "Expected module to have no publicly-exposed functions "
+          << "other than 'pattern' and 'replacement'.  "
+          << "However, function '" << gvar->name_hint << "' of type " << func->GetTypeKey()
+          << " is publicly exposed.";
       new_subroutines.Set(gvar, func);
     }
   }
 
   auto sinfo_pattern = GetStructInfo(func_pattern);
   auto sinfo_replacement = GetStructInfo(func_replacement);
-  CHECK(StructuralEqual()(sinfo_pattern, sinfo_replacement))
-      << "ValueError: "
+  TVM_FFI_CHECK(StructuralEqual()(sinfo_pattern, sinfo_replacement), ValueError)
       << "The pattern and replacement must have the same signature, "
       << "but the pattern has struct info " << sinfo_pattern
       << ", while the replacement has struct info " << sinfo_replacement;
@@ -742,9 +738,8 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
       return StructInfoPattern(WildcardPattern(), PrimStructInfo(prim->value));
 
     } else {
-      LOG(FATAL) << "TypeError: "
-                 << "Cannot convert Relax expression of type " << expr->GetTypeKey()
-                 << " into pattern-matching rule.";
+      TVM_FFI_THROW(TypeError) << "Cannot convert Relax expression of type " << expr->GetTypeKey()
+                               << " into pattern-matching rule.";
     }
   };
 
@@ -769,7 +764,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
     ffi::Array<BindingBlock> new_blocks;
 
     ffi::Array<Binding> wildcard_bindings;
-    ICHECK_EQ(param_wildcards.size(), func_replacement->params.size());
+    TVM_FFI_ICHECK_EQ(param_wildcards.size(), func_replacement->params.size());
     for (size_t i = 0; i < param_wildcards.size(); i++) {
       Expr matched_expr = matches[param_wildcards[i]];
 
@@ -1002,7 +997,7 @@ class PatternMatchingMutator : public ExprMutator {
         } else if (auto match_cast = binding.as<MatchCastNode>()) {
           builder_->EmitNormalized(MatchCast(binding->var, value, match_cast->struct_info));
         } else {
-          LOG(FATAL) << "Binding must be either VarBinding or MatchCast";
+          TVM_FFI_THROW(InternalError) << "Binding must be either VarBinding or MatchCast";
         }
       }
       return builder_->EndBlock();
@@ -1021,7 +1016,7 @@ class PatternMatchingMutator : public ExprMutator {
 
         auto last_binding = last_block->bindings.back();
         last_block.CopyOnWrite()->bindings.pop_back();
-        ICHECK(last_binding->var.same_as(dummy_output_var));
+        TVM_FFI_ICHECK(last_binding->var.same_as(dummy_output_var));
 
         if (last_block->bindings.size()) {
           new_blocks.push_back(last_block);
@@ -1045,10 +1040,11 @@ Expr PatternMatchingRewriter::operator()(Expr expr) {
   PatternMatchingMutator mutator(get());
   auto new_expr = mutator(expr);
   auto new_subroutines = mutator.GetNewSubroutines();
-  CHECK_EQ(new_subroutines.size(), 0) << "If PatternMatchingRewriter provides subroutines, "
-                                      << "then it must be applied to an entire IRModule.  "
-                                      << "However, PatternMatchingRewriter produced subroutines "
-                                      << [&]() -> ffi::Array<GlobalVar> {
+  TVM_FFI_ICHECK_EQ(new_subroutines.size(), 0)
+      << "If PatternMatchingRewriter provides subroutines, "
+      << "then it must be applied to an entire IRModule.  "
+      << "However, PatternMatchingRewriter produced subroutines "
+      << [&]() -> ffi::Array<GlobalVar> {
     std::vector<GlobalVar> vec;
     for (const auto& [gvar, func] : new_subroutines) {
       vec.push_back(gvar);

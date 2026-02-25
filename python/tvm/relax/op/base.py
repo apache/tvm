@@ -14,29 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
+# ruff: noqa: F821
 """The base Relax operators."""
 
-from typing import Dict, Union, List, Tuple, Optional, Callable
-
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import tvm
 import tvm.runtime
-from tvm.runtime.object import Object
 from tvm.runtime import ObjectConvertible
+from tvm.runtime.object import Object
 
-from . import _ffi_api
-from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc, GlobalVar, Var
-from ..struct_info import StructInfo, TensorStructInfo
 from ...ir import PrimExpr
+from ..expr import Call, Expr, ExternFunc, GlobalVar, ShapeExpr, StringImm, Var
+from ..struct_info import StructInfo, TensorStructInfo
 from ..utils import args_converter
-
+from . import _ffi_api
 
 py_print = print  # pylint: disable=invalid-name
 
 
 def register_gradient(
     op_name: str,
-    fgradient: Callable[[Var, Call, Var, "BlockBuilder"], List[Expr]] = None,
+    fgradient: Optional[Callable[[Var, Call, Var, "BlockBuilder"], List[Expr]]] = None,
     level: int = 10,
 ):
     """Register operator gradient function for a relax operator.
@@ -138,7 +137,7 @@ def call_tir_with_grad(
     args: Expr,
     out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
     te_grad_name: str,
-    te_grad_kwargs: Dict[str, Object] = None,
+    te_grad_kwargs: Optional[Dict[str, Object]] = None,
     tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
 ) -> Call:
     """

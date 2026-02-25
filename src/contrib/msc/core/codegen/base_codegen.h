@@ -24,7 +24,7 @@
 #ifndef TVM_CONTRIB_MSC_CORE_CODEGEN_BASE_CODEGEN_H_
 #define TVM_CONTRIB_MSC_CORE_CODEGEN_BASE_CODEGEN_H_
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/script/printer/doc.h>
 
 #include <memory>
@@ -151,9 +151,8 @@ class BaseCodeGen {
     graph_ = graph;
     config_.reset(new ConfigType());
     if (config.size() > 0) {
-      std::istringstream is(config);
-      dmlc::JSONReader reader(&is);
-      reader.Read(config_.get());
+      namespace json = ::tvm::ffi::json;
+      config_->Load(json::Parse(config).cast<json::Object>());
     }
     while (!scopes_.empty()) {
       scopes_.pop();
@@ -189,24 +188,24 @@ class BaseCodeGen {
       return 1;
     }
     if (node->scope.size() == scopes_.top().size()) {
-      ICHECK(ArrayUtils::CompareArrays(node->scope, scopes_.top()))
+      TVM_FFI_ICHECK(ArrayUtils::CompareArrays(node->scope, scopes_.top()))
           << "Scope mismatch, node " << node->scope << " compare to current " << scopes_.top();
       return 0;
     } else if (node->scope.size() == scopes_.top().size() + 1) {
-      ICHECK(ArrayUtils::CompareArrays(node->scope, scopes_.top(), scopes_.top().size()))
+      TVM_FFI_ICHECK(ArrayUtils::CompareArrays(node->scope, scopes_.top(), scopes_.top().size()))
           << "Scope increase mismatch, node " << node->scope << " compare to current "
           << scopes_.top();
       scopes_.push(node->scope);
       return 1;
     } else if (node->scope.size() == scopes_.top().size() - 1) {
-      ICHECK(ArrayUtils::CompareArrays(node->scope, scopes_.top(), node->scope.size()))
+      TVM_FFI_ICHECK(ArrayUtils::CompareArrays(node->scope, scopes_.top(), node->scope.size()))
           << "Scope decrease mismatch, node " << node->scope << " compare to current "
           << scopes_.top();
       scopes_.pop();
       return -1;
     } else {
-      LOG(FATAL) << "Unexpected node scope " << node->scope << " with current scope "
-                 << scopes_.top();
+      TVM_FFI_THROW(InternalError)
+          << "Unexpected node scope " << node->scope << " with current scope " << scopes_.top();
     }
   }
 

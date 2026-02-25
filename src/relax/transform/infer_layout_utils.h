@@ -38,7 +38,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/tir/data_layout.h>
+#include <tvm/s_tir/data_layout.h>
 
 #include <array>
 #include <string>

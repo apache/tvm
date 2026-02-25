@@ -19,8 +19,7 @@
 import os
 from typing import Any
 
-from tvm import relax
-from tvm import tir
+from tvm import relax, tir
 from tvm.contrib.msc.core import utils as msc_utils
 
 

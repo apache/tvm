@@ -18,6 +18,7 @@
 
 import io
 import struct
+
 import numpy as np
 
 
@@ -43,7 +44,7 @@ def enum_dtype(array: np.ndarray) -> int:
         return 2
     if array.dtype == np.int32:
         return 3
-    raise Exception("Unexpected dtype {}, no matching tensorrt dtype".format(array.dtype))
+    raise Exception(f"Unexpected dtype {array.dtype}, no matching tensorrt dtype")
 
 
 def float_to_hex(value: float) -> str:
@@ -93,6 +94,4 @@ def write_weight(name: str, weight: np.ndarray, f_handler: io.TextIOWrapper):
         The file handler
     """
 
-    f_handler.write(
-        "{} {} {} {}\n".format(name, enum_dtype(weight), weight.size, array_to_hex(weight))
-    )
+    f_handler.write(f"{name} {enum_dtype(weight)} {weight.size} {array_to_hex(weight)}\n")

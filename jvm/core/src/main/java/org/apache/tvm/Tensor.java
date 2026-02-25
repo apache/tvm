@@ -362,8 +362,7 @@ public class Tensor extends TensorBase {
   public static Tensor empty(long[] shape, TVMType dtype, Device dev) {
     Base.RefLong refHandle = new Base.RefLong();
     Base.checkCall(Base._LIB.tvmTensorEmpty(
-        shape, dtype.typeCode, dtype.bits,
-        dtype.lanes, dev.deviceType, dev.deviceId, refHandle));
+        shape, dtype.typeCode, dtype.bits, dtype.lanes, dev.deviceType, dev.deviceId, refHandle));
     return new Tensor(refHandle.value, false, dtype, dev);
   }
 

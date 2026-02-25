@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 """
 Constants used in various CI tests
 """
-import subprocess
+
 import pathlib
-from typing import List, Any
+import subprocess
+from typing import Any, List
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 GITHUB_SCRIPT_ROOT = REPO_ROOT / "ci" / "scripts" / "github"

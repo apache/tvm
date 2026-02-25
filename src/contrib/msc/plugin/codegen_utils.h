@@ -24,6 +24,8 @@
 #ifndef TVM_CONTRIB_MSC_PLUGIN_CODEGEN_UTILS_H_
 #define TVM_CONTRIB_MSC_PLUGIN_CODEGEN_UTILS_H_
 
+#include <tvm/ffi/extra/json.h>
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -44,29 +46,62 @@ namespace msc {
   std::unordered_map<std::string, std::string> flags; \
   std::unordered_map<std::string, std::string> ops_info;
 
-#define PLUGIN_CODEGEN_CONFIG_PARSE             \
-  if (key == "need_convert") {                  \
-    reader->Read(&need_convert);                \
-  } else if (key == "with_runtime") {           \
-    reader->Read(&with_runtime);                \
-  } else if (key == "cmake_version") {          \
-    reader->Read(&cmake_version);               \
-  } else if (key == "project_name") {           \
-    reader->Read(&project_name);                \
-  } else if (key == "install_dir") {            \
-    reader->Read(&install_dir);                 \
-  } else if (key == "version") {                \
-    reader->Read(&version);                     \
-  } else if (key == "includes") {               \
-    reader->Read(&includes);                    \
-  } else if (key == "libs") {                   \
-    reader->Read(&libs);                        \
-  } else if (key == "flags") {                  \
-    reader->Read(&flags);                       \
-  } else if (key == "ops_info") {               \
-    reader->Read(&ops_info);                    \
-  } else {                                      \
-    LOG(FATAL) << "Do not support key " << key; \
+#define PLUGIN_CODEGEN_CONFIG_PARSE                                        \
+  namespace json = ::tvm::ffi::json;                                       \
+  if (auto it = obj.find(ffi::String("need_convert")); it != obj.end()) {  \
+    need_convert = (*it).second.cast<bool>();                              \
+  }                                                                        \
+  if (auto it = obj.find(ffi::String("with_runtime")); it != obj.end()) {  \
+    with_runtime = (*it).second.cast<bool>();                              \
+  }                                                                        \
+  if (auto it = obj.find(ffi::String("cmake_version")); it != obj.end()) { \
+    cmake_version = std::string((*it).second.cast<ffi::String>());         \
+  }                                                                        \
+  if (auto it = obj.find(ffi::String("project_name")); it != obj.end()) {  \
+    project_name = std::string((*it).second.cast<ffi::String>());          \
+  }                                                                        \
+  if (auto it = obj.find(ffi::String("install_dir")); it != obj.end()) {   \
+    install_dir = std::string((*it).second.cast<ffi::String>());           \
+  }                                                                        \
+  if (auto it = obj.find(ffi::String("version")); it != obj.end()) {       \
+    auto arr = (*it).second.cast<json::Array>();                           \
+    version.clear();                                                       \
+    version.reserve(arr.size());                                           \
+    for (const auto& elem : arr) {                                         \
+      version.push_back(static_cast<size_t>(elem.cast<int64_t>()));        \
+    }                                                                      \
+  }                                                                        \
+  if (auto it = obj.find(ffi::String("includes")); it != obj.end()) {      \
+    auto arr = (*it).second.cast<json::Array>();                           \
+    includes.clear();                                                      \
+    includes.reserve(arr.size());                                          \
+    for (const auto& elem : arr) {                                         \
+      includes.push_back(std::string(elem.cast<ffi::String>()));           \
+    }                                                                      \
+  }                                                                        \
+  if (auto it = obj.find(ffi::String("libs")); it != obj.end()) {          \
+    auto arr = (*it).second.cast<json::Array>();                           \
+    libs.clear();                                                          \
+    libs.reserve(arr.size());                                              \
+    for (const auto& elem : arr) {                                         \
+      libs.push_back(std::string(elem.cast<ffi::String>()));               \
+    }                                                                      \
+  }                                                                        \
+  if (auto it = obj.find(ffi::String("flags")); it != obj.end()) {         \
+    auto inner = (*it).second.cast<json::Object>();                        \
+    flags.clear();                                                         \
+    for (const auto& kv : inner) {                                         \
+      flags[std::string(kv.first.cast<ffi::String>())] =                   \
+          std::string(kv.second.cast<ffi::String>());                      \
+    }                                                                      \
+  }                                                                        \
+  if (auto it = obj.find(ffi::String("ops_info")); it != obj.end()) {      \
+    auto inner = (*it).second.cast<json::Object>();                        \
+    ops_info.clear();                                                      \
+    for (const auto& kv : inner) {                                         \
+      ops_info[std::string(kv.first.cast<ffi::String>())] =                \
+          std::string(kv.second.cast<ffi::String>());                      \
+    }                                                                      \
   }
 
 }  // namespace msc

@@ -14,15 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F821, F841
 import sys
 from typing import Optional, Union
 
 import pytest
+
 import tvm
 import tvm.script
 import tvm.testing
 from tvm import IRModule, relax, tir, topi
-from tvm.ir import VDevice, DummyGlobalInfo
+from tvm.ir import DummyGlobalInfo, VDevice
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tir as T
@@ -124,7 +126,7 @@ def test_unexpected_tir_args():
         class TestWellCallTIR:
             @T.prim_func
             def tir_addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
-                T.func_attr(({"global_symbol": "tir_addone"}))
+                T.func_attr({"global_symbol": "tir_addone"})
                 for i, j in T.grid(16, 16):
                     with T.sblock("tir_addone"):
                         vi, vj = T.axis.remap("SS", [i, j])
@@ -314,7 +316,7 @@ def test_global_info_vdevice():
     vdevices = [
         VDevice("llvm"),
         VDevice("cuda", 0),
-        VDevice("cuda -arch=sm_80", 0),
+        VDevice({"kind": "cuda", "arch": "sm_80"}, 0),
         VDevice("metal", 0, "global"),
     ]
 
@@ -326,7 +328,7 @@ def test_global_info_vdevice():
                 "vdevice": [
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                     I.vdevice("metal", 0, "global"),
                 ]
             }
@@ -774,7 +776,7 @@ def test_tensor_with_vdevice():
         VDevice("llvm"),
         VDevice("cuda", 0),
         VDevice("metal", 0, "global"),
-        VDevice("cuda -arch=sm_80", 0),
+        VDevice({"kind": "cuda", "arch": "sm_80"}, 0),
     ]
 
     @I.ir_module
@@ -786,17 +788,17 @@ def test_tensor_with_vdevice():
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
                     I.vdevice("metal", 0, "global"),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
 
         @R.function
         def foo(
-            a: R.Tensor((128, 128), "float32", "cuda:1"),  # noqa: F722
+            a: R.Tensor((128, 128), "float32", "cuda:1"),
             b: R.Tensor((128, 128), "float32", "llvm"),
-            c: R.Tensor((128, 128), "float32", "vdevice:3"),  # noqa: F722
-        ) -> R.Tensor((128, 128), "float32", "cuda:1"):  # noqa: F722
+            c: R.Tensor((128, 128), "float32", "vdevice:3"),
+        ) -> R.Tensor((128, 128), "float32", "cuda:1"):
             s = R.add(a, c)
             return s
 
@@ -1035,9 +1037,7 @@ def test_call_tir_inplace():
                     out1[ax0, ax1] = B[ax0, ax1]
 
         @R.function
-        def main(
-            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
-        ) -> R.Tuple(
+        def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")) -> R.Tuple(
             R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")
         ):
             res = R.call_tir_inplace(
@@ -1088,12 +1088,12 @@ def test_call_tir_inplace_with_tuple_var_raises_error():
 
 def test_local_function():
     @R.function
-    def main(
-        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
-    ) -> R.Tensor((2, 3), "float32"):
+    def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")) -> R.Tensor(
+        (2, 3), "float32"
+    ):
         @R.function
         def outer_func(
-            c1: R.Tensor((2, 3), "float32")
+            c1: R.Tensor((2, 3), "float32"),
         ) -> R.Callable((R.Tensor(None, "float32", ndim=2),), R.Tensor(None, "float32", ndim=2)):
             @R.function
             def inner_func(x1: R.Tensor((2, 3), "float32")):
@@ -1515,9 +1515,9 @@ def test_erase_to_well_defined_infers_from_prim_value():
     class Module:
         # The subroutine's symbolic variables are only in-scope for the subroutine.
         @R.function
-        def subroutine(
-            x: R.Tensor, _m: R.Prim(value="m"), _n: R.Prim(value="n")
-        ) -> R.Tensor(["m", "n"]):
+        def subroutine(x: R.Tensor, _m: R.Prim(value="m"), _n: R.Prim(value="n")) -> R.Tensor(
+            ["m", "n"]
+        ):
             q = x
             m, n = T.int64(), T.int64()
             z = R.match_cast(q, R.Tensor((m, n)))
@@ -1575,9 +1575,9 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
     """Second param may use symbolic variable defined in first param"""
 
     @R.function
-    def bar(
-        x: R.Tensor(("m",), "float32"), y: R.Tensor(("T.max(m, 20)",), "float32")
-    ) -> R.Tensor(("T.max(m, 20) + 1",), "float32"):
+    def bar(x: R.Tensor(("m",), "float32"), y: R.Tensor(("T.max(m, 20)",), "float32")) -> R.Tensor(
+        ("T.max(m, 20) + 1",), "float32"
+    ):
         m = T.int64()
         z = R.call_dps_packed("test_intrin", (x, y), R.Tensor((T.max(m, 20) + 1,), dtype="float32"))
         return z
@@ -2041,9 +2041,9 @@ def test_function_with_void_return_type_in_if_else():
     @I.ir_module
     class Unsugared:
         @R.function(pure=False)
-        def conditional(
-            x: R.Tensor((), "int32"), condition: R.Tensor((), "bool")
-        ) -> R.Tensor((), "int32"):
+        def conditional(x: R.Tensor((), "int32"), condition: R.Tensor((), "bool")) -> R.Tensor(
+            (), "int32"
+        ):
             if condition:
                 y = R.print(x, format="True condition: {}")
             else:
@@ -2053,9 +2053,9 @@ def test_function_with_void_return_type_in_if_else():
     @I.ir_module
     class Sugared:
         @R.function(pure=False)
-        def conditional(
-            x: R.Tensor((), "int32"), condition: R.Tensor((), "bool")
-        ) -> R.Tensor((), "int32"):
+        def conditional(x: R.Tensor((), "int32"), condition: R.Tensor((), "bool")) -> R.Tensor(
+            (), "int32"
+        ):
             if condition:
                 R.print(x, format="True condition: {}")
             else:

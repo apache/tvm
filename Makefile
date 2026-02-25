@@ -36,7 +36,6 @@ TVM_BUILD_PATH := $(abspath $(TVM_BUILD_PATH))
 
 # Allow environment variables for 3rd-party libraries, default to
 # packaged version.
-DMLC_CORE_PATH ?= $(ROOTDIR)/3rdparty/dmlc-core
 DLPACK_PATH ?= $(ROOTDIR)/3rdparty/tvm-ffi/3rdparty/dlpack
 
 all: $(addsuffix /all,$(TVM_BUILD_PATH))
@@ -61,7 +60,7 @@ endif
 
 
 # Cannot use .PHONY with a pattern rule, using FORCE instead.  For
-# now, force cmake to be re-run with each compile to mimic previous
+# now, force CMake to be re-run with each compile to mimic previous
 # behavior.  This may be relaxed in the future with the
 # CONFIGURE_DEPENDS option for GLOB (requires cmake >= 3.12).
 FORCE:
@@ -70,7 +69,7 @@ FORCE:
 
 
 # Since the pattern stem is already being used for the directory name,
-# cannot also have it refer to the command passed to cmake.
+# cannot also have it refer to the command passed to CMake.
 # Therefore, explicitly listing out the delegated.
 CMAKE_TARGETS = all runtime cpptest crttest clean
 
@@ -86,23 +85,15 @@ $(foreach CMAKE_TARGET,$(CMAKE_TARGETS),$(eval $(GEN_CMAKE_RULE)))
 # scripts that are executed in the CI should be in tests/lint. This
 # allows docker/lint.sh to behave similarly to the CI.
 format:
-	./tests/lint/git-clang-format.sh -i --rev origin/main
-	black .
+	pre-commit run ruff-format --all-files
+	pre-commit run clang-format --all-files
 	cd rust && which cargo && cargo fmt --all
 
-lint: cpplint pylint jnilint
+lint:
+	pre-commit run --all-files
 
 cpplint:
 	tests/lint/cpplint.sh
-
-pylint:
-	tests/lint/pylint.sh
-
-jnilint:
-	python3 3rdparty/dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
-
-mypy:
-	tests/scripts/task_mypy.sh
 
 cppdoc:
 	doxygen docs/Doxyfile
@@ -116,7 +107,7 @@ webclean:
 
 
 # JVM build rules
-INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include
+INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include
 PKG_CFLAGS = -Wall -O3 $(INCLUDE_FLAGS) -fPIC
 PKG_LDFLAGS =
 

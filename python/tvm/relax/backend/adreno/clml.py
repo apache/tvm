@@ -16,19 +16,21 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, pointless-exception-statement
 """Pattern table for CLML backend"""
+
 import tvm
-from tvm import relax, IRModule
+from tvm import IRModule, relax
 from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import transform
-from tvm.relax.expr_functor import PyExprMutator, mutator
-from tvm.relax.expr import TupleGetItem, VarBinding
 from tvm.relax.dpl.pattern import (
     is_const,
     is_op,
     is_tuple_get_item,
     wildcard,
 )
+from tvm.relax.expr import TupleGetItem, VarBinding
+from tvm.relax.expr_functor import PyExprMutator, mutator
 from tvm.relax.transform import PatternCheckContext
+
 from ..pattern_registry import register_patterns
 
 

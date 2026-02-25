@@ -21,7 +21,6 @@
  * \file rocm_device_api.cc
  * \brief GPU specific API
  */
-#include <dmlc/thread_local.h>
 #include <hip/hip_runtime_api.h>
 #include <hsa/hsa.h>
 #include <tvm/ffi/extra/c_env_api.h>
@@ -148,7 +147,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
     *rv = value;
   }
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
-    ICHECK_EQ(256 % alignment, 0U) << "ROCM space is aligned at 256 bytes";
+    TVM_FFI_ICHECK_EQ(256 % alignment, 0U) << "ROCM space is aligned at 256 bytes";
     void* ret;
     if (dev.device_type == kDLROCMHost) {
       VLOG(1) << "allocating " << nbytes << "bytes on host";
@@ -206,7 +205,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
       ROCM_CALL(hipSetDevice(dev_to.device_id));
       GPUCopy(from, to, size, hipMemcpyHostToDevice, hip_stream);
     } else {
-      LOG(FATAL) << "expect copy from/to GPU or between GPU";
+      TVM_FFI_THROW(InternalError) << "expect copy from/to GPU or between GPU";
     }
   }
 
@@ -239,11 +238,12 @@ class ROCMDeviceAPI final : public DeviceAPI {
   }
 };
 
-typedef dmlc::ThreadLocalStore<ROCMThreadEntry> ROCMThreadStore;
-
 ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {}
 
-ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() { return ROCMThreadStore::Get(); }
+ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() {
+  static thread_local ROCMThreadEntry inst;
+  return &inst;
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

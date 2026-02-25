@@ -17,18 +17,16 @@
 
 """Test translate from relax."""
 
+import numpy as np
 import torch
 from torch.nn import Module
 
-import numpy as np
-
 import tvm.testing
-from tvm.contrib.msc.framework.torch.frontend import translate as torch_translate
-
-from tvm.contrib.msc.framework.tvm import codegen as tvm_codegen
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.frontend import translate as core_translate
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.framework.torch.frontend import translate as torch_translate
+from tvm.contrib.msc.framework.tvm import codegen as tvm_codegen
 
 
 def verify_model(torch_model, input_info, opt_config=None):

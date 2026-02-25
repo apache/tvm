@@ -42,12 +42,12 @@ inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
   // extreme caution.
   using namespace tir;
   const CallNode* call = e.as<CallNode>();
-  ICHECK(call != nullptr);
+  TVM_FFI_ICHECK(call != nullptr);
 
   const OpNode* op = call->op.as<OpNode>();
-  ICHECK(op != nullptr);
+  TVM_FFI_ICHECK(op != nullptr);
   std::string name = op->name;
-  ICHECK_EQ(name.substr(0, 4), "tir.");
+  TVM_FFI_ICHECK_EQ(name.substr(0, 4), "tir.");
 
   std::ostringstream intrinsic_name;
   intrinsic_name << "__ocml_" << name.substr(4) << "_f" << call->dtype.bits();
@@ -63,10 +63,10 @@ inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
 inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   using namespace tir;
   const CallNode* call = e.as<CallNode>();
-  ICHECK(call != nullptr);
-  ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
+  TVM_FFI_ICHECK(call != nullptr);
+  TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   PrimExpr var = call->args[1];
-  ICHECK_EQ(var.dtype().bits(), 32);
+  TVM_FFI_ICHECK_EQ(var.dtype().bits(), 32);
 
   // get own lane in self (__lane_id)
   PrimExpr minus_one = tir::make_const(DataType::Int(32), -1);
@@ -87,7 +87,7 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
     index = self - delta;
     index = Select(index < (self & ~(width - 1)), self, index);
   } else {
-    ICHECK(call->op.same_as(builtin::tvm_warp_shuffle_down()));
+    TVM_FFI_ICHECK(call->op.same_as(builtin::tvm_warp_shuffle_down()));
     PrimExpr delta = call->args[2];
     index = self + delta;
     index = Select((self & (width - 1)) + delta >= width, self, index);

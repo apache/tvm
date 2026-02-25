@@ -20,8 +20,10 @@
 import logging
 import os
 from typing import Dict, List, Set, Tuple
-import tvm
+
 import tvm_ffi
+
+import tvm
 from tvm.ir.module import IRModule
 from tvm.relax.expr import Call, DataflowBlock, Var
 from tvm.runtime.object import Object
@@ -40,9 +42,7 @@ def dataflow_liveness_analysis(block: DataflowBlock) -> Dict[Var, Tuple[int, int
     if "PYTEST_CURRENT_TEST" not in os.environ:
         logging.warning("The function dataflow_liveness_analysis is exposed for testing only.")
 
-    live_ranges = tvm.get_global_func("relax.testing.transform.DataflowLivenessAnalysis")(
-        block
-    )  # type: ignore
+    live_ranges = tvm.get_global_func("relax.testing.transform.DataflowLivenessAnalysis")(block)  # type: ignore
     ret = {}
     for var, live_range in live_ranges.items():
         ret[var] = tuple(live_range)

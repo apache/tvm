@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+# ruff: noqa: F401
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import tir

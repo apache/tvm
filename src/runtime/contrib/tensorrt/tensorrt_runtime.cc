@@ -22,7 +22,7 @@
  * \brief JSON runtime implementation for TensorRT.
  */
 
-#include <dmlc/parameter.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
@@ -33,6 +33,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../../../support/env.h"
 #include "../../file_utils.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
@@ -75,19 +76,19 @@ class TensorRTRuntime : public JSONRuntimeBase {
         max_batch_size_(-1),
         multi_engine_mode_(false),
         use_fp16_(false) {
-    const bool use_int8 = dmlc::GetEnv("TVM_TENSORRT_USE_INT8", false);
-    multi_engine_mode_ = dmlc::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
-    num_calibration_batches_remaining_ = dmlc::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
+    const bool use_int8 = support::GetEnv("TVM_TENSORRT_USE_INT8", false);
+    multi_engine_mode_ = support::GetEnv("TVM_TENSORRT_MULTI_ENGINE", false);
+    num_calibration_batches_remaining_ = support::GetEnv("TENSORRT_NUM_CALI_INT8", 0);
     if (use_int8) {
-      ICHECK(num_calibration_batches_remaining_ != 0)
+      TVM_FFI_ICHECK(num_calibration_batches_remaining_ != 0)
           << "When using INT8 mode, "
           << "environment variable TENSORRT_NUM_CALI_INT8"
           << "must also be set to specify the number of "
           << "calibration times";
       LOG(INFO) << "settiing up " << num_calibration_batches_remaining_
                 << " sample data to calibrate data ... ";
-      ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
-                                          << "multi-engine is not allowed";
+      TVM_FFI_ICHECK(multi_engine_mode_ == false) << "When using int8 mode, "
+                                                  << "multi-engine is not allowed";
     }
   }
 
@@ -110,7 +111,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * \param consts The constant params from compiled model.
    */
   void Init(const ffi::Array<Tensor>& consts) override {
-    ICHECK_EQ(consts.size(), const_idx_.size())
+    TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
     LoadGlobalAttributes();
     SetupConstants(consts);
@@ -122,20 +123,19 @@ class TensorRTRuntime : public JSONRuntimeBase {
     // op nodes. Read from first one.
     for (size_t i = 0; i < nodes_.size(); ++i) {
       if (nodes_[i].HasAttr("use_implicit_batch") && nodes_[i].HasAttr("max_workspace_size")) {
-        use_implicit_batch_ =
-            std::stoi(nodes_[i].GetAttr<std::vector<std::string>>("use_implicit_batch")[0]);
+        use_implicit_batch_ = static_cast<int>(nodes_[i].GetAttr<int64_t>("use_implicit_batch"));
         // Allow max_workspace_size to be overridden at runtime.
         size_t runtime_max_workspace_size =
-            dmlc::GetEnv("TVM_TENSORRT_MAX_WORKSPACE_SIZE", size_t(0));
+            support::GetEnv("TVM_TENSORRT_MAX_WORKSPACE_SIZE", size_t(0));
         if (runtime_max_workspace_size != 0) {
           max_workspace_size_ = runtime_max_workspace_size;
         } else {
           max_workspace_size_ =
-              std::stoul(nodes_[i].GetAttr<std::vector<std::string>>("max_workspace_size")[0]);
+              static_cast<size_t>(nodes_[i].GetAttr<int64_t>("max_workspace_size"));
         }
       }
       if (nodes_[i].HasAttr("use_fp16")) {
-        use_fp16_ = std::stoi(nodes_[i].GetAttr<std::vector<std::string>>("use_fp16")[0]);
+        use_fp16_ = static_cast<int>(nodes_[i].GetAttr<int64_t>("use_fp16"));
       }
     }
   }
@@ -178,13 +178,13 @@ class TensorRTRuntime : public JSONRuntimeBase {
           uint32_t eid = EntryID(nid, j);
           const std::string name = nodes_[nid].GetOpName() + "_" + std::to_string(j);
           int binding_index = engine->getBindingIndex(name.c_str());
-          ICHECK_NE(binding_index, -1);
+          TVM_FFI_ICHECK_NE(binding_index, -1);
 #if TRT_VERSION_GE(6, 0, 1)
           if (!use_implicit_batch_) {
             std::vector<int64_t> shape(data_entry_[eid]->shape,
                                        data_entry_[eid]->shape + data_entry_[eid]->ndim);
             auto dims = VectorToTrtDims(shape);
-            ICHECK(context->setBindingDimensions(binding_index, dims));
+            TVM_FFI_ICHECK(context->setBindingDimensions(binding_index, dims));
           }
 #endif
           if (data_entry_[eid]->device.device_type == kDLCUDA) {
@@ -219,7 +219,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       uint32_t eid = EntryID(outputs_[i]);
       const std::string& name = engine_and_context.outputs[i];
       int binding_index = engine->getBindingIndex(name.c_str());
-      ICHECK_NE(binding_index, -1);
+      TVM_FFI_ICHECK_NE(binding_index, -1);
       if (data_entry_[eid]->device.device_type == kDLCUDA) {
         bindings[binding_index] = data_entry_[eid]->data;
       } else {
@@ -230,12 +230,12 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
 #if TRT_VERSION_GE(6, 0, 1)
     if (use_implicit_batch_) {
-      ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
+      TVM_FFI_ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
     } else {
-      ICHECK(context->executeV2(bindings.data())) << "Running TensorRT failed.";
+      TVM_FFI_ICHECK(context->executeV2(bindings.data())) << "Running TensorRT failed.";
     }
 #else
-    ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
+    TVM_FFI_ICHECK(context->execute(batch_size, bindings.data())) << "Running TensorRT failed.";
 #endif
 
     // Copy outputs from GPU buffers if needed.
@@ -243,7 +243,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       uint32_t eid = EntryID(outputs_[i]);
       const std::string& name = engine_and_context.outputs[i];
       int binding_index = engine->getBindingIndex(name.c_str());
-      ICHECK_NE(binding_index, -1);
+      TVM_FFI_ICHECK_NE(binding_index, -1);
       if (data_entry_[eid]->device.device_type != kDLCUDA) {
         auto device_buffer = GetOrAllocateDeviceBuffer(eid, binding_index);
         device_buffer.CopyTo(const_cast<DLTensor*>(data_entry_[eid]));
@@ -284,7 +284,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
     int batch_size = GetBatchSize();
     int compatible_engine_batch_size = -1;
     bool find_engine_flag = FindCompatibleEngine(batch_size, &compatible_engine_batch_size);
-    const bool use_int8 = (dmlc::GetEnv("TVM_TENSORRT_USE_INT8", 0) != 0);
+    const bool use_int8 = (support::GetEnv("TVM_TENSORRT_USE_INT8", 0) != 0);
     const bool int8_calibration_not_used_or_not_complete =
         (calibrator_ != nullptr && num_calibration_batches_remaining_ != 0);
     if (find_engine_flag &&
@@ -323,7 +323,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
   }
 
   void BuildEngineFromJson(int batch_size) {
-    const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false) || use_fp16_;
+    const bool use_fp16 = support::GetEnv("TVM_TENSORRT_USE_FP16", false) || use_fp16_;
     TensorRTBuilder builder(&logger_, data_entry_, max_workspace_size_, use_implicit_batch_,
                             use_fp16, batch_size, calibrator_.get());
     for (size_t i = 0; i < input_nodes_.size(); ++i) {
@@ -333,7 +333,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
       if (node.GetOpType() == "input") {
         builder.AddInput(nid, EntryID(nid, 0), node);
       } else {
-        ICHECK_EQ(node.GetOpType(), "const");
+        TVM_FFI_ICHECK_EQ(node.GetOpType(), "const");
         uint32_t eid = EntryID(nid, 0);
         builder.AddConstant(nid, data_entry_[eid]);
       }
@@ -360,7 +360,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
    * have to be built at first inference.
    */
   bool GetCachedEnginesFromDisk() {
-    std::string cache_dir = dmlc::GetEnv("TVM_TENSORRT_CACHE_DIR", std::string(""));
+    std::string cache_dir = support::GetEnv("TVM_TENSORRT_CACHE_DIR", std::string(""));
     if (cache_dir.empty()) return false;
     std::string key = GetSubgraphKey();
     std::string path = cache_dir + "/" + key + ".plan";
@@ -378,17 +378,30 @@ class TensorRTRuntime : public JSONRuntimeBase {
         runtime->deserializeCudaEngine(&serialized_engine[0], serialized_engine.size(), nullptr);
     engine_and_context.context = engine_and_context.engine->createExecutionContext();
     // Load metadata
+    namespace json = ::tvm::ffi::json;
     std::string meta_path = cache_dir + "/" + key + ".meta";
     std::string serialized_meta;
     LoadBinaryFromFile(meta_path, &serialized_meta);
-    std::istringstream is(serialized_meta);
-    dmlc::JSONReader reader(&is);
-    dmlc::JSONObjectReadHelper helper;
+    auto meta_obj = json::Parse(serialized_meta).cast<json::Object>();
     int batch_size;
-    helper.DeclareField("inputs", &engine_and_context.inputs);
-    helper.DeclareField("outputs", &engine_and_context.outputs);
-    helper.DeclareField("batch_size", &batch_size);
-    helper.ReadAllFields(&reader);
+    // Read inputs
+    {
+      auto arr = meta_obj.at(ffi::String("inputs")).cast<json::Array>();
+      engine_and_context.inputs.clear();
+      for (const auto& v : arr) {
+        engine_and_context.inputs.push_back(std::string(v.cast<ffi::String>()));
+      }
+    }
+    // Read outputs
+    {
+      auto arr = meta_obj.at(ffi::String("outputs")).cast<json::Array>();
+      engine_and_context.outputs.clear();
+      for (const auto& v : arr) {
+        engine_and_context.outputs.push_back(std::string(v.cast<ffi::String>()));
+      }
+    }
+    // Read batch_size
+    batch_size = static_cast<int>(meta_obj.at(ffi::String("batch_size")).cast<int64_t>());
     trt_engine_cache_[std::make_pair(symbol_name_, batch_size)] = engine_and_context;
     max_batch_size_ = batch_size;
     LOG(INFO) << "finished loading engine and context ... ";
@@ -400,7 +413,7 @@ class TensorRTRuntime : public JSONRuntimeBase {
    */
   void CacheEngineToDisk() {
     int batch_size = GetBatchSize();
-    std::string cache_dir = dmlc::GetEnv("TVM_TENSORRT_CACHE_DIR", std::string(""));
+    std::string cache_dir = support::GetEnv("TVM_TENSORRT_CACHE_DIR", std::string(""));
     if (cache_dir.empty()) return;
     std::string key = GetSubgraphKey();
     std::string path = cache_dir + "/" + key + ".plan";
@@ -412,24 +425,32 @@ class TensorRTRuntime : public JSONRuntimeBase {
                                        serialized_engine->size()));
     serialized_engine->destroy();
     // Serialize metadata
-    std::ostringstream os;
-    dmlc::JSONWriter writer(&os);
-    writer.BeginObject();
-    writer.WriteObjectKeyValue("inputs",
-                               trt_engine_cache_[std::make_pair(symbol_name_, batch_size)].inputs);
-    writer.WriteObjectKeyValue("outputs",
-                               trt_engine_cache_[std::make_pair(symbol_name_, batch_size)].outputs);
-    writer.WriteObjectKeyValue("batch_size", batch_size);
-    writer.EndObject();
+    namespace json = ::tvm::ffi::json;
+    json::Object meta_obj;
+    {
+      json::Array inputs_arr;
+      for (const auto& s : trt_engine_cache_[std::make_pair(symbol_name_, batch_size)].inputs) {
+        inputs_arr.push_back(ffi::String(s));
+      }
+      meta_obj.Set(ffi::String("inputs"), std::move(inputs_arr));
+    }
+    {
+      json::Array outputs_arr;
+      for (const auto& s : trt_engine_cache_[std::make_pair(symbol_name_, batch_size)].outputs) {
+        outputs_arr.push_back(ffi::String(s));
+      }
+      meta_obj.Set(ffi::String("outputs"), std::move(outputs_arr));
+    }
+    meta_obj.Set(ffi::String("batch_size"), static_cast<int64_t>(batch_size));
     std::string meta_path = cache_dir + "/" + key + ".meta";
-    SaveBinaryToFile(meta_path, os.str());
+    SaveBinaryToFile(meta_path, std::string(json::Stringify(meta_obj)));
   }
 
   std::string GetSubgraphKey() {
     // Using this key will only allow a single model per TVM_TENSORRT_CACHE_DIR directory. We could
     // instead use a hash of graph_json and all weights to allow many models in the same directory,
     // but the cost of computing the hash is high.
-    return symbol_name_ + (dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false) ? "_fp16" : "_fp32");
+    return symbol_name_ + (support::GetEnv("TVM_TENSORRT_USE_FP16", false) ? "_fp16" : "_fp32");
   }
 
   /*! \brief Retreive a GPU buffer for input or output or allocate if needed. */
@@ -483,8 +504,8 @@ class TensorRTRuntime : public JSONRuntimeBase {
 
 #else   // TVM_GRAPH_EXECUTOR_TENSORRT
   void Run() override {
-    LOG(FATAL) << "TensorRT runtime is not enabled. "
-               << "Please build with USE_TENSORRT_RUNTIME.";
+    TVM_FFI_THROW(InternalError) << "TensorRT runtime is not enabled. "
+                                 << "Please build with USE_TENSORRT_RUNTIME.";
   }
 
   void BuildEngine() {

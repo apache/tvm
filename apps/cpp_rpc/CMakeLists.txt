@@ -1,4 +1,4 @@
-cmake_policy(SET CMP0069 NEW) # suppress cmake warning about IPO
+cmake_policy(SET CMP0069 NEW) # suppress CMake warning about IPO
 
 set(TVM_RPC_SOURCES
   main.cc
@@ -45,7 +45,6 @@ endif()
 target_include_directories(
   tvm_rpc
   PUBLIC "../../include"
-  PUBLIC DMLC_PATH
 )
 
 target_link_libraries(tvm_rpc PUBLIC tvm_ffi_header)

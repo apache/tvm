@@ -93,13 +93,13 @@ class PagedPrefillFunc : public AttnBackendFunc {
                    Tensor k_rope_pos_offset, bool causal, RoPEMode rope_mode, double rotary_scale,
                    double rotary_theta, double sm_scale, Tensor attn_output, Tensor attn_lse,
                    TVMStreamHandle compute_stream) {
-    LOG(FATAL) << "MHA computation is not supported by the current backend";
+    TVM_FFI_THROW(InternalError) << "MHA computation is not supported by the current backend";
   }
 
   virtual void MLA(int depth, Tensor q, Tensor qo_indptr, Tensor pages, Tensor page_indptr,
                    Tensor page_indices, Tensor length_info, bool causal, double sm_scale,
                    Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) {
-    LOG(FATAL) << "MLA computation is not supported by the current backend";
+    TVM_FFI_THROW(InternalError) << "MLA computation is not supported by the current backend";
   }
 
   virtual void BeginForward(int depth, Tensor float_workspace_buffer, Tensor int_workspace_buffer,
@@ -158,11 +158,11 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
     double rope_rcp_scale = 1 / rotary_scale;
     double rope_rcp_theta = 1 / rotary_theta;
 
-    ICHECK_EQ(pages.ndim(), 5);
+    TVM_FFI_ICHECK_EQ(pages.ndim(), 5);
     int H = pages->shape[2];
     int N = pages->shape[3];
     int D = pages->shape[4];
-    CHECK(pages.IsContiguous());
+    TVM_FFI_ICHECK(pages.IsContiguous());
     std::vector<int64_t> pages_k_v_shape = {pages->shape[0], H, N, D};
     std::vector<int64_t> pages_k_v_strides = {2 * H * N * D, N * D, D, 1};
     Tensor pages_k =
@@ -188,15 +188,15 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
     Device device = q->device;
     TVMStreamHandle original_stream = DeviceAPI::Get(device)->GetCurrentStream(device);
     DeviceAPI::Get(device)->SetStream(device, compute_stream);
-    ICHECK_NE(qk_head_dim_, -1);
-    ICHECK_NE(v_head_dim_, -1);
+    TVM_FFI_ICHECK_NE(qk_head_dim_, -1);
+    TVM_FFI_ICHECK_NE(v_head_dim_, -1);
     int64_t H = q->shape[1];
     int64_t page_size = pages->shape[1];
     int64_t rope_head_dim = qk_head_dim_ - v_head_dim_;
     int64_t nope_head_dim = q->shape[2] - rope_head_dim;
 
     // Split q into q_nope and q_pe
-    CHECK(q.IsContiguous());
+    TVM_FFI_ICHECK(q.IsContiguous());
     std::vector<int64_t> q_nope_shape = {q->shape[0], H, nope_head_dim};
     std::vector<int64_t> q_pe_shape = {q->shape[0], H, rope_head_dim};
     std::vector<int64_t> q_strides = {H * q->shape[2], q->shape[2], 1};
@@ -206,7 +206,7 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
                                       q->device, q_strides.data(),
                                       q->byte_offset + nope_head_dim * q.DataType().bytes());
     // Split pages into kv_nope and kv_pe
-    CHECK(pages.IsContiguous());
+    TVM_FFI_ICHECK(pages.IsContiguous());
     std::vector<int64_t> kv_nope_shape = {pages->shape[0], page_size, nope_head_dim};
     std::vector<int64_t> kv_pe_shape = {pages->shape[0], page_size, rope_head_dim};
     std::vector<int64_t> kv_strides = {page_size * pages->shape[2], pages->shape[2], 1};
@@ -289,7 +289,7 @@ class RaggedPrefillFunc : public AttnBackendFunc {
                    Tensor q_rope_position, Tensor k_rope_pos_offset, bool causal,
                    RoPEMode rope_mode, double rotary_scale, double rotary_theta, double sm_scale,
                    Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) {
-    LOG(FATAL) << "MHA computation is not supported by the current backend";
+    TVM_FFI_THROW(InternalError) << "MHA computation is not supported by the current backend";
   }
 
   virtual void BeginForward(Tensor float_workspace_buffer, Tensor int_workspace_buffer,
@@ -403,13 +403,13 @@ class PagedDecodeFunc : public AttnBackendFunc {
                    Tensor length_info, Tensor k_rope_pos_offset, Tensor q_rope_position,
                    RoPEMode rope_mode, double rotary_scale, double rotary_theta, double sm_scale,
                    Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) {
-    LOG(FATAL) << "MHA computation is not supported by the current backend";
+    TVM_FFI_THROW(InternalError) << "MHA computation is not supported by the current backend";
   }
 
   virtual void MLA(int depth, Tensor q, Tensor pages, Tensor page_indptr, Tensor page_indices,
                    Tensor length_info, double sm_scale, Tensor attn_output, Tensor attn_lse,
                    TVMStreamHandle compute_stream) {
-    LOG(FATAL) << "MLA computation is not supported by the current backend";
+    TVM_FFI_THROW(InternalError) << "MLA computation is not supported by the current backend";
   }
 
   virtual void BeginForward(int depth, Tensor float_workspace_buffer, Tensor int_workspace_buffer,
@@ -465,11 +465,11 @@ class FlashInferPagedDecodeFunc : public PagedDecodeFunc {
     double rope_rcp_scale = 1 / rotary_scale;
     double rope_rcp_theta = 1 / rotary_theta;
 
-    ICHECK_EQ(pages.ndim(), 5);
+    TVM_FFI_ICHECK_EQ(pages.ndim(), 5);
     int H = pages->shape[2];
     int N = pages->shape[3];
     int D = pages->shape[4];
-    CHECK(pages.IsContiguous());
+    TVM_FFI_ICHECK(pages.IsContiguous());
     std::vector<int64_t> pages_k_v_shape = {pages->shape[0], H, N, D};
     std::vector<int64_t> pages_k_v_strides = {2 * H * N * D, N * D, D, 1};
     Tensor pages_k =
@@ -531,14 +531,14 @@ class PagedPrefillTreeMaskFunc : public AttnBackendFunc {
                    Tensor q_rope_position, Tensor tree_attn_mn_indptr, Tensor tree_attn_mask,
                    RoPEMode rope_mode, double rotary_scale, double rotary_theta, double sm_scale,
                    Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) {
-    LOG(FATAL) << "MHA computation is not supported by the current backend";
+    TVM_FFI_THROW(InternalError) << "MHA computation is not supported by the current backend";
   }
 
   virtual void MLA(Tensor q, Tensor qo_indptr, Tensor pages, Tensor page_indptr,
                    Tensor page_indices, Tensor length_info, Tensor tree_attn_mn_indptr,
                    Tensor tree_attn_mask, double sm_scale, Tensor attn_output, Tensor attn_lse,
                    TVMStreamHandle compute_stream) {
-    LOG(FATAL) << "MLA computation is not supported by the current backend";
+    TVM_FFI_THROW(InternalError) << "MLA computation is not supported by the current backend";
   }
 
   virtual void BeginForward(Tensor temp_float_attn_workspace, Tensor temp_int_attn_workspace,
@@ -579,13 +579,13 @@ class RaggedPrefillTreeMaskFunc : public AttnBackendFunc {
                    Tensor q_rope_position, Tensor tree_attn_mn_indptr, Tensor tree_attn_mask,
                    RoPEMode rope_mode, double rotary_scale, double rotary_theta, double sm_scale,
                    Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) {
-    LOG(FATAL) << "MHA computation is not supported by the current backend";
+    TVM_FFI_THROW(InternalError) << "MHA computation is not supported by the current backend";
   }
 
   virtual void MLA(Tensor q, Tensor compressed_kv, Tensor k_pe, Tensor qo_indptr, Tensor kv_indptr,
                    Tensor tree_attn_mn_indptr, Tensor tree_attn_mask, double sm_scale,
                    Tensor attn_output, Tensor attn_lse, TVMStreamHandle compute_stream) {
-    LOG(FATAL) << "MLA computation is not supported by the current backend";
+    TVM_FFI_THROW(InternalError) << "MLA computation is not supported by the current backend";
   }
 
   virtual void BeginForward(Tensor temp_float_attn_workspace, Tensor temp_int_attn_workspace,

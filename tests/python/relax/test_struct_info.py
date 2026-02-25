@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-import tvm.testing
 import pytest
 
-from tvm import relax as rx, TVMError, tir
+import tvm
+import tvm.testing
+from tvm import TVMError, tir
+from tvm import relax as rx
 
 
 def _check_equal(x, y, map_free_vars=False):

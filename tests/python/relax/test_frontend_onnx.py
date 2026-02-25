@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
+# ruff: noqa: E501, F841
 """
 ONNX testcases
 ================
@@ -33,9 +34,9 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
+from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.script import ir as I
 
 bg = np.random.MT19937(0)
 rg = np.random.Generator(bg)
@@ -921,6 +922,14 @@ def test_unsqueeze_v1():
 
 def test_gelu():
     verify_unary("Gelu", [32, 32], domain="com.microsoft")
+
+
+def test_gelu_approximate():
+    """Test Gelu with approximate attribute from ONNX Opset 20."""
+    # Test Gelu with approximate="tanh"
+    verify_unary("Gelu", [32, 32], attrs={"approximate": "tanh"}, opset=20)
+    # Test Gelu with approximate="none" (default, same as standard Gelu)
+    verify_unary("Gelu", [32, 32], attrs={"approximate": "none"}, opset=20)
 
 
 def test_bias_gelu():
@@ -2107,9 +2116,9 @@ def test_expand_incompatible_broadcasting():
             from_onnx(model, keep_params_in_input=True)
 
         error_msg = str(exc_info.value)
-        assert (
-            "broadcast" in error_msg.lower() or "incompatible" in error_msg.lower()
-        ), f"Expected broadcasting error, but got: {error_msg}"
+        assert "broadcast" in error_msg.lower() or "incompatible" in error_msg.lower(), (
+            f"Expected broadcasting error, but got: {error_msg}"
+        )
 
     # Test case 1: Reproduce the exact error from the issue-17769
     # Input shape: (25,), target shape: (1, 1, 1, 56)
@@ -3235,9 +3244,9 @@ def test_symbolic_shape_deduction():
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
     @R.function
-    def expected(
-        data: R.Tensor(("batch", "seq"), dtype="float32")
-    ) -> R.Tensor(dtype="float32", ndim=1):
+    def expected(data: R.Tensor(("batch", "seq"), dtype="float32")) -> R.Tensor(
+        dtype="float32", ndim=1
+    ):
         batch = T.int64()
         seq = T.int64()
         R.func_attr({"num_input": 1})
@@ -3536,6 +3545,7 @@ def test_nms():
     )
 
     model = helper.make_model(graph, producer_name="nms_test")
+    model.ir_version = 8
     model.opset_import[0].version = 11
 
     # Use deterministic random inputs for consistent testing
@@ -3700,6 +3710,7 @@ def test_nms_iou_suppression():
     )
 
     model = helper.make_model(graph, producer_name="nms_test_iou_suppression")
+    model.ir_version = 8
     model.opset_import[0].version = 11
 
     inputs = {
@@ -3794,6 +3805,7 @@ def test_nms_max_boxes_limit():
     )
 
     model = helper.make_model(graph, producer_name="nms_test_max_boxes_limit")
+    model.ir_version = 8
     model.opset_import[0].version = 11
 
     inputs = {
@@ -3885,6 +3897,7 @@ def test_nms_score_threshold():
     )
 
     model = helper.make_model(graph, producer_name="nms_test_score_threshold")
+    model.ir_version = 8
     model.opset_import[0].version = 11
 
     inputs = {

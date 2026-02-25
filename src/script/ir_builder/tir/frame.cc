@@ -37,9 +37,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   AssertFrameNode::RegisterReflection();
   LetFrameNode::RegisterReflection();
   LaunchThreadFrameNode::RegisterReflection();
-  RealizeFrameNode::RegisterReflection();
   AllocateFrameNode::RegisterReflection();
-  AllocateConstFrameNode::RegisterReflection();
   AttrFrameNode::RegisterReflection();
   WhileFrameNode::RegisterReflection();
   IfFrameNode::RegisterReflection();
@@ -65,11 +63,12 @@ void PrimFuncFrameNode::ExitWithScope() {
   func = tvm::tir::ScriptComplete(func, root_alloc_buffers);
   IRBuilder builder = IRBuilder::Current();
   if (builder->frames.empty()) {
-    ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
+    TVM_FFI_CHECK(!builder->result.defined(), ValueError) << "Builder.result has already been set";
     builder->result = func;
   } else if (ffi::Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
-    CHECK(name.has_value()) << "ValueError: The function name must be defined before exiting the "
-                               "function scope, if it's defined in a Module";
+    TVM_FFI_CHECK(name.has_value(), ValueError)
+        << "The function name must be defined before exiting the "
+           "function scope, if it's defined in a Module";
     const ir::IRModuleFrame& frame = opt_frame.value();
     const ffi::String& func_name = name.value_or("");
     if (!frame->global_var_map.count(func_name)) {
@@ -80,7 +79,7 @@ void PrimFuncFrameNode::ExitWithScope() {
     // Note we do checks to disallow redefinition of functions inside the `DefFunction`.
     ir::DefFunction(func_name, func);
   } else {
-    LOG(FATAL) << "ValueError: Cannot find where to insert PrimFunc";
+    TVM_FFI_THROW(ValueError) << "Cannot find where to insert PrimFunc";
   }
 }
 
@@ -98,9 +97,10 @@ void SBlockFrameNode::ExitWithScope() {
                          writes.value_or(ffi::Array<tvm::tir::BufferRegion>()), name, AsStmt(stmts),
                          init, tir_alloc_buffers, match_buffers, attrs);
   if (no_realize) {
-    CHECK(iter_values.empty())
-        << "ValueError: Block bindings are not allowed when `no_realize=True`";
-    CHECK(!predicate.defined()) << "ValueError: `T.where` is not allowed when `no_realize=True`";
+    TVM_FFI_CHECK(iter_values.empty(), ValueError)
+        << "Block bindings are not allowed when `no_realize=True`";
+    TVM_FFI_CHECK(!predicate.defined(), ValueError)
+        << "`T.where` is not allowed when `no_realize=True`";
     AddToParent(block);
   } else {
     AddToParent(tvm::tir::SBlockRealize(iter_values, predicate.value_or(Bool(true)), block));
@@ -110,7 +110,7 @@ void SBlockFrameNode::ExitWithScope() {
 void BlockInitFrameNode::EnterWithScope() {
   SBlockFrame frame = FindSBlockFrame("T.init");
   if (frame->init.defined()) {
-    LOG(FATAL) << "ValueError: Duplicate block init declaration";
+    TVM_FFI_THROW(ValueError) << "Duplicate block init declaration";
   }
   TIRFrameNode::EnterWithScope();
 }
@@ -136,14 +136,6 @@ void LetFrameNode::ExitWithScope() {
   AddToParent(tvm::tir::LetStmt(var, value, AsStmt(stmts)));
 }
 
-void RealizeFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tir::AttrStmt(buffer_slice->buffer, "realize_scope",
-                                 tvm::tir::StringImm(storage_scope),
-                                 tvm::tir::BufferRealize(buffer_slice->buffer, buffer_slice->region,
-                                                         condition, AsStmt(stmts))));
-}
-
 void LaunchThreadFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   AddToParent(tvm::tir::AttrStmt(iter_var, attr_key, extent, AsStmt(stmts)));
@@ -155,11 +147,6 @@ void AllocateFrameNode::ExitWithScope() {
       tvm::tir::Allocate(buffer_var, dtype, extents, condition, AsStmt(stmts), annotations));
 }
 
-void AllocateConstFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  AddToParent(
-      tvm::tir::AllocateConst(buffer_var, dtype, extents, data, AsStmt(stmts), annotations));
-}
 void AttrFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   AddToParent(tvm::tir::AttrStmt(node, attr_key, value, AsStmt(stmts)));
@@ -173,10 +160,11 @@ void WhileFrameNode::ExitWithScope() {
 void IfFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   if (!stmts.empty()) {
-    LOG(FATAL) << "stmt within IfThenElse frame should be either in ThenFrame or ElseFrame";
+    TVM_FFI_THROW(InternalError)
+        << "stmt within IfThenElse frame should be either in ThenFrame or ElseFrame";
   }
   if (!then_stmts.defined()) {
-    LOG(FATAL) << "IfThenElse frame should have at least one then branch";
+    TVM_FFI_THROW(InternalError) << "IfThenElse frame should have at least one then branch";
   }
   AddToParent(tvm::tir::IfThenElse(
       condition, AsStmt(then_stmts.value()),
@@ -186,8 +174,8 @@ void IfFrameNode::ExitWithScope() {
 void ThenFrameNode::EnterWithScope() {
   IfFrame frame = FindIfFrame("T.then_");
   if (frame->then_stmts.defined()) {
-    LOG(FATAL) << "ValueError: Duplicate then branch declaration, previous one is "
-               << frame->then_stmts.value();
+    TVM_FFI_THROW(ValueError) << "Duplicate then branch declaration, previous one is "
+                              << frame->then_stmts.value();
   }
   TIRFrameNode::EnterWithScope();
 }
@@ -200,11 +188,11 @@ void ThenFrameNode::ExitWithScope() {
 void ElseFrameNode::EnterWithScope() {
   IfFrame frame = FindIfFrame("T.else_");
   if (!frame->then_stmts.defined()) {
-    LOG(FATAL) << "The else branch should follow then branch";
+    TVM_FFI_THROW(InternalError) << "The else branch should follow then branch";
   }
   if (frame->else_stmts.defined()) {
-    LOG(FATAL) << "ValueError: Duplicate else branch declaration, previous one is "
-               << frame->else_stmts.value();
+    TVM_FFI_THROW(ValueError) << "Duplicate else branch declaration, previous one is "
+                              << frame->else_stmts.value();
   }
   TIRFrameNode::EnterWithScope();
 }

@@ -14,14 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E731
 
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """Base class for PyTorch FX Graph importer."""
+
 import abc
-from functools import reduce
 import math
-from typing import Callable, Dict, Optional, Tuple, Union, List
+from functools import reduce
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm import relax, tir
@@ -40,9 +42,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self.env: Dict[fx.Node, relax.Expr] = {}
         self.params: Dict[torch.Tensor, relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
-        self.convert_map: Dict[
-            Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]
-        ] = self.create_convert_map()
+        self.convert_map: Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]] = (
+            self.create_convert_map()
+        )
 
     ########## Utilities ##########
 
@@ -97,7 +99,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         elif input_type in ["bool", "torch.bool", torch.bool]:
             return "bool"
         else:
-            raise NotImplementedError("input_type {} is not handled yet".format(input_type))
+            raise NotImplementedError(f"input_type {input_type} is not handled yet")
 
     @staticmethod
     def _convert_torch_tensor_to_relax(tensor: torch.Tensor) -> relax.Var:
@@ -116,7 +118,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return tensor.struct_info.shape
         elif isinstance(tensor, torch.Tensor):
             return tensor.shape
-        raise ValueError("Unsupported type: {}".format(type(tensor)))
+        raise ValueError(f"Unsupported type: {type(tensor)}")
 
     @staticmethod
     def _promote_common_dtype(lhs_dtype: Optional[str], rhs_dtype: Optional[str]) -> Optional[str]:
@@ -333,7 +335,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             if not isinstance(alpha, relax.Var):
                 alpha = self.block_builder.emit(relax.const(-alpha, dtype))
 
-        # alpha * ReLU(1 − exp(x)) + ReLU(x)
+        # alpha * ReLU(1 - exp(x)) + ReLU(x)
         return self.block_builder.emit(
             relax.op.add(
                 relax.op.multiply(
@@ -351,7 +353,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         elif approximate == "tanh":
             return self.block_builder.emit(relax.op.nn.gelu_tanh(self.env[node.args[0]]))
         else:
-            raise KeyError("Unregonized approximate algorithm for gelu: {}.".format(approximate))
+            raise KeyError(f"Unregonized approximate algorithm for gelu: {approximate}.")
 
     def _hardsigmoid(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -505,9 +507,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             lhs, rhs = self.retrieve_args(node)
             if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
                 return call_binary_op(relax_op, lhs, rhs)
-            elif isinstance(lhs, relax.expr.Constant):
+            elif isinstance(lhs, relax.expr.Constant) and not isinstance(rhs, relax.expr.Constant):
                 return call_binary_op(relax_op, lhs, relax.const(rhs, dtype=lhs.struct_info.dtype))
-            elif isinstance(rhs, relax.expr.Constant):
+            elif isinstance(rhs, relax.expr.Constant) and not isinstance(lhs, relax.expr.Constant):
                 return call_binary_op(relax_op, relax.const(lhs, dtype=rhs.struct_info.dtype), rhs)
             return intrinsic_op(lhs, rhs)
 
@@ -1482,9 +1484,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _pixel_shuffle(self, node: fx.Node) -> relax.Var:
         data = self.env[node.args[0]]
         upscale_factor = node.args[1]
-        assert isinstance(
-            upscale_factor, int
-        ), "PixelShuffle only accepts an integer upscale_factor."
+        assert isinstance(upscale_factor, int), (
+            "PixelShuffle only accepts an integer upscale_factor."
+        )
 
         return self.block_builder.emit(relax.op.nn.pixel_shuffle(data, upscale_factor))
 
@@ -1812,7 +1814,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             raise ValueError("'indices and values' arguments are required for index_put operation")
 
         if not isinstance(accumulate, bool):
-            raise TypeError("'accumulate' must be a boolean value, got {}".format(type(accumulate)))
+            raise TypeError(f"'accumulate' must be a boolean value, got {type(accumulate)}")
 
         if isinstance(indices, (list, tuple)):
             # In PyTorch index_put, None means "select all elements" for that dimension

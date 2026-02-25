@@ -15,16 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+# ruff: noqa: F401, F841
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import te, tir
-from tvm.script import tir as T
-from tvm.tir.expr import IntImm
 from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import tir as T
+from tvm.tir.expr import IntImm
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -82,7 +84,7 @@ def elementwise_symbolic_split(a: T.handle, b: T.handle, n: T.int32) -> None:
     B = T.match_buffer(b, (128, 128, n))
     for i, j, k0, k1 in T.grid(128, 128, 10, T.floordiv((n + 9), 10)):
         with T.sblock("B"):
-            T.where((((k0 * T.floordiv((n + 9), 10)) + k1) < n))
+            T.where(((k0 * T.floordiv((n + 9), 10)) + k1) < n)
             vi, vj = T.axis.remap("SS", [i, j])
             vk = T.axis.S(n, k0 * T.floordiv(n + 9, 10) + k1)
             T.reads([A[vi, vj, vk]])
@@ -697,7 +699,7 @@ def test_sve_scalable_split_predicated(num_elements):
     compile-time, we don't know if vscale is a multiple of the extent of the
     loop to be split.
     """
-    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
         outer_extent = tvm.arith.Analyzer().simplify(T.ceildiv(num_elements, 4 * T.vscale()))
 
         @T.prim_func
@@ -733,7 +735,7 @@ def test_sve_scalable_split_assume_exact_multiple():
     a predicate is not created. This can be used to ensure predication is not
     inserted.
     """
-    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
         outer_extent = tvm.arith.Analyzer().simplify(T.ceildiv(128, 4 * T.vscale()))
 
         @T.prim_func
@@ -785,7 +787,7 @@ def test_sve_split_over_scalable_loop():
                 T.where(i_0 * (T.vscale() * 2) + i_1 < T.vscale() * 4)
                 A[v_i] = 1.0
 
-    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+    with tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}):
         sch = tvm.s_tir.Schedule(before)
         (a,) = sch.get_loops("A")
         sch.split(

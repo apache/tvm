@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Instance normalization operator."""
+
 from .. import cpp
 
 

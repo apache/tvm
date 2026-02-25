@@ -22,7 +22,7 @@
  * \brief Pass for transform the function to tensorrt.
  */
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/sorting.h>
 #include <tvm/relax/expr.h>
@@ -43,16 +43,17 @@ struct TensorRTTransConfig {
   bool linear_to_conv{true};
   std::vector<size_t> version{0, 0, 0};
 
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "linear_to_conv") {
-        reader->Read(&linear_to_conv);
-      } else if (key == "version") {
-        reader->Read(&version);
-      } else {
-        LOG(FATAL) << "Do not support key " << key;
+  void Load(ffi::json::Object obj) {
+    namespace json = ::tvm::ffi::json;
+    if (auto it = obj.find(ffi::String("linear_to_conv")); it != obj.end()) {
+      linear_to_conv = (*it).second.cast<bool>();
+    }
+    if (auto it = obj.find(ffi::String("version")); it != obj.end()) {
+      auto arr = (*it).second.cast<json::Array>();
+      version.clear();
+      version.reserve(arr.size());
+      for (const auto& elem : arr) {
+        version.push_back(static_cast<size_t>(elem.cast<int64_t>()));
       }
     }
   }
@@ -61,9 +62,8 @@ struct TensorRTTransConfig {
 const TensorRTTransConfig ParseConfig(const ffi::String& config_str) {
   TensorRTTransConfig config;
   if (config_str.size() > 0) {
-    std::istringstream is(config_str);
-    dmlc::JSONReader reader(&is);
-    reader.Read(&config);
+    namespace json = ::tvm::ffi::json;
+    config.Load(json::Parse(std::string(config_str)).cast<json::Object>());
   }
   return config;
 }
@@ -89,7 +89,7 @@ const ffi::Array<PrimExpr> BroadcastShape(const ffi::Array<PrimExpr>& src_shape,
   if (ArrayUtils::Broadcastable(tailing_shape, out_shape)) {
     return tailing_shape;
   }
-  ICHECK(ArrayUtils::Broadcastable(leading_shape, out_shape))
+  TVM_FFI_ICHECK(ArrayUtils::Broadcastable(leading_shape, out_shape))
       << "Only support elemwise ops with leading or tailing expand";
   return leading_shape;
 }
@@ -159,7 +159,7 @@ Expr RewriteArgmaxmin(BlockBuilder builder, const Var& var, const Call& src_call
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& out_dtype = ExprUtils::GetDataType(var);
   const auto* src_attrs = src_call->attrs.as<ArgmaxArgminAttrs>();
-  ICHECK(out_dtype == DataType::Int(32) || out_dtype == DataType::Int(64))
+  TVM_FFI_ICHECK(out_dtype == DataType::Int(32) || out_dtype == DataType::Int(64))
       << "Unexpected out dtype " << out_dtype;
   static const Op& topk_op = Op::Get("relax.topk");
   auto topk_attrs = ffi::make_object<TopKAttrs>();
@@ -429,10 +429,9 @@ Expr RewriteConv1d(BlockBuilder builder, const Var& var, const Call& src_call,
     // change to conv2d
     static const Op& conv2d_op = Op::Get("relax.nn.conv2d");
     auto conv_attrs = ffi::make_object<Conv2DAttrs>();
-    conv_attrs->strides = ffi::Array<IntImm>{src_attrs->strides[0], Integer(1)};
-    conv_attrs->padding =
-        ffi::Array<IntImm>{Integer(0), src_attrs->padding[0], Integer(0), src_attrs->padding[1]};
-    conv_attrs->dilation = ffi::Array<IntImm>{src_attrs->dilation[0], Integer(1)};
+    conv_attrs->strides = ffi::Array<int64_t>{src_attrs->strides[0], 1};
+    conv_attrs->padding = ffi::Array<int64_t>{0, src_attrs->padding[0], 0, src_attrs->padding[1]};
+    conv_attrs->dilation = ffi::Array<int64_t>{src_attrs->dilation[0], 1};
     conv_attrs->groups = src_attrs->groups;
     conv_attrs->data_layout = "NCHW";
     conv_attrs->kernel_layout = "OIHW";
@@ -706,9 +705,9 @@ Expr RewriteMatmul(BlockBuilder builder, const Var& var, const Call& src_call,
     // to conv2d
     static const Op& conv2d_op = Op::Get("relax.nn.conv2d");
     auto conv_attrs = ffi::make_object<Conv2DAttrs>();
-    conv_attrs->strides = ffi::Array<IntImm>{Integer(1), Integer(1)};
-    conv_attrs->padding = ffi::Array<IntImm>{Integer(0), Integer(0), Integer(0), Integer(0)};
-    conv_attrs->dilation = ffi::Array<IntImm>{Integer(1), Integer(1)};
+    conv_attrs->strides = ffi::Array<int64_t>{1, 1};
+    conv_attrs->padding = ffi::Array<int64_t>{0, 0, 0, 0};
+    conv_attrs->dilation = ffi::Array<int64_t>{1, 1};
     conv_attrs->groups = 1;
     conv_attrs->data_layout = "NCHW";
     conv_attrs->kernel_layout = "OIHW";

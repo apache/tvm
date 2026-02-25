@@ -16,7 +16,6 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
 
 
 def test_prim_func_pass():
@@ -30,8 +29,8 @@ def test_prim_func_pass():
         def transform_function(self, func, mod, ctx):
             return self.new_func
 
-    x = te.var("x")
-    y = te.var("y")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
     b = tvm.tir.decl_buffer((x,), "float32")
     stmt = tvm.tir.LetStmt(x, 10, tvm.tir.Evaluate(x + 1))
 
@@ -51,7 +50,7 @@ def test_cow_pass():
         return f
 
     pidentity = tvm.tir.transform.Apply(fapply)
-    x = te.var("x")
+    x = tvm.tir.Var("x", "int32")
     func = tvm.tir.PrimFunc([x], tvm.tir.Evaluate(x)).with_attr("target_bits", 32)
     func_hash = func.__hash__()
     mod = tvm.IRModule({"main": func})

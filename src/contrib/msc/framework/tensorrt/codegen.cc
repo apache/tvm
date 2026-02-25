@@ -545,7 +545,8 @@ const ffi::String TensorRTCodeGen::ToDims(const ffi::Array<Integer>& dims, bool 
 const ffi::Array<Doc> TensorRTCodeGen::GetOpCodes(const MSCJoint& node) {
   const auto& ops_map = GetTensorRTOpCodes();
   auto it = ops_map->find(GetOpType(node));
-  ICHECK(it != ops_map->end()) << "Unsupported tensorrt op(" << node->optype << "): " << node;
+  TVM_FFI_ICHECK(it != ops_map->end())
+      << "Unsupported tensorrt op(" << node->optype << "): " << node;
   it->second->Config(node, config(), prims());
   try {
     return it->second->GetDocs();
@@ -607,10 +608,10 @@ ffi::Array<ffi::Module> MSCTensorRTCompiler(ffi::Array<Function> functions,
   for (const auto& func : functions) {
     VLOG(1) << "MSC.TensorRT partition:" << std::endl << func;
     const auto& name_opt = func->GetAttr<ffi::String>(msc_attr::kUnique);
-    ICHECK(name_opt.has_value()) << "Can not find " << msc_attr::kUnique << " from attrs";
+    TVM_FFI_ICHECK(name_opt.has_value()) << "Can not find " << msc_attr::kUnique << " from attrs";
     const auto& name = name_opt.value();
     std::string func_name = GetExtSymbol(func);
-    ICHECK(target_option.count(name)) << "Can not find target option for " << name;
+    TVM_FFI_ICHECK(target_option.count(name)) << "Can not find target option for " << name;
     const auto& options = Downcast<ffi::String>(target_option[name]);
     MSCJSONSerializer serializer(constant_names, options);
     serializer.serialize(func);

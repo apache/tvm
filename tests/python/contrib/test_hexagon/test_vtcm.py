@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """VTCM Tests"""
 
 import pytest
+
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
+
 from .infrastructure import get_hexagon_target
 
 
@@ -68,14 +71,14 @@ def test_vtcm_limit(vtcm_capacity, limited):
 
     target = get_hexagon_target("v68", vtcm_capacity=vtcm_capacity)
 
-    assert (
-        _raises_exception(lambda: tvm.compile(sch.mod, target=target)) == limited
-    ), "Case 1 - arg. VTCM memory allocation limiter does not work correctly "
+    assert _raises_exception(lambda: tvm.compile(sch.mod, target=target)) == limited, (
+        "Case 1 - arg. VTCM memory allocation limiter does not work correctly "
+    )
 
     with target:
-        assert (
-            _raises_exception(lambda: tvm.compile(sch.mod)) == limited
-        ), "Case 2 - with.VTCM memory allocation limiter does not work correctly "
+        assert _raises_exception(lambda: tvm.compile(sch.mod)) == limited, (
+            "Case 2 - with.VTCM memory allocation limiter does not work correctly "
+        )
 
     with tvm.transform.PassContext(config={"tir.vtcm_capacity": vtcm_capacity}):
         assert (

@@ -51,7 +51,7 @@ Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
   } else if (const auto* _array = shape.as<ffi::ArrayObj>()) {
     shape_in_expr = ShapeExpr(ffi::GetRef<ffi::Array<PrimExpr>>(_array));
   } else {
-    LOG(FATAL)
+    TVM_FFI_THROW(InternalError)
         << "Full only expects the input shape to be either an Expr or an Array of PrimExpr. ";
   }
 
@@ -173,7 +173,7 @@ StructInfo InferStructInfoOnesLikeZerosLike(const Call& call, const BlockBuilder
 
 /* relax.ones & relax.ones_like */
 Expr ones(Expr shape, DataType dtype) {
-  CHECK(!dtype.is_void()) << "Ones op expects the input dtype not to be void";
+  TVM_FFI_ICHECK(!dtype.is_void()) << "Ones op expects the input dtype not to be void";
   ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
 
@@ -210,7 +210,7 @@ TVM_REGISTER_OP("relax.ones_like")
 
 /* relax.zeros & relax.zeros_like */
 Expr zeros(Expr shape, DataType dtype) {
-  CHECK(!dtype.is_void()) << "Zeros op expects the input dtype not to be void";
+  TVM_FFI_ICHECK(!dtype.is_void()) << "Zeros op expects the input dtype not to be void";
   ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
 

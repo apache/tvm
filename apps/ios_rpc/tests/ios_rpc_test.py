@@ -21,11 +21,9 @@ And configure the proxy host field as commented.
 """
 
 import argparse
-import os
-import re
-import sys
 
 import numpy as np
+
 import tvm
 from tvm import rpc, te
 from tvm.contrib import utils, xcode
@@ -33,7 +31,7 @@ from tvm.contrib import utils, xcode
 # Change target configuration, this is setting for iphone6s
 arch = "arm64"
 sdk = "iphoneos"
-target = "llvm -mtriple=%s-apple-darwin" % arch
+target = {"kind": "llvm", "mtriple": f"{arch}-apple-darwin"}
 
 MODES = {"proxy": rpc.connect, "tracker": rpc.connect_tracker, "standalone": rpc.connect}
 
@@ -76,7 +74,7 @@ def test_rpc_module(host, port, key, mode):
     b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
     time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
-    print("Metal: %g secs/op" % cost)
+    print(f"Metal: {cost:g} secs/op")
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 

@@ -28,10 +28,9 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../spirv/spirv_shader.h"
 
 namespace tvm {
@@ -45,8 +44,7 @@ namespace runtime {
  * \param source Generated OpenCL kernels.
  */
 ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
-                               std::unordered_map<std::string, FunctionInfo> fmap,
-                               std::string source);
+                               ffi::Map<ffi::String, FunctionInfo> fmap, std::string source);
 
 /*!
  * \brief Create a opencl module from SPIRV.
@@ -57,7 +55,7 @@ ffi::Module OpenCLModuleCreate(std::string data, std::string fmt,
  */
 ffi::Module OpenCLModuleCreate(const std::unordered_map<std::string, spirv::SPIRVShader>& shaders,
                                const std::string& spirv_text,
-                               std::unordered_map<std::string, FunctionInfo> fmap);
+                               ffi::Map<ffi::String, FunctionInfo> fmap);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OPENCL_OPENCL_MODULE_H_

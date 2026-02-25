@@ -36,12 +36,12 @@ namespace tir {
 inline void AddToParent(tvm::tir::Stmt stmt) {
   IRBuilder builder = IRBuilder::Current();
   if (builder->frames.empty()) {
-    ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
+    TVM_FFI_CHECK(!builder->result.defined(), ValueError) << "Builder.result has already been set";
     builder->result = stmt;
   } else if (const auto* tir_frame = builder->frames.back().as<TIRFrameNode>()) {
     ffi::GetRef<TIRFrame>(tir_frame)->stmts.push_back(stmt);
   } else {
-    LOG(FATAL) << "TypeError: Unsupported frame type: " << builder->frames.back();
+    TVM_FFI_THROW(TypeError) << "Unsupported frame type: " << builder->frames.back();
   }
 }
 
@@ -64,13 +64,14 @@ inline PrimFuncFrame FindPrimFuncFrame(const ffi::String& method) {
     return frame.value();
   } else if (ffi::Optional<PrimFuncFrame> frame =
                  IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a PrimFunc.  "
-               << "While " << method << " did occur within the PrimFunc \"" << frame.value()->name
-               << "\", other frames (e.g. block/if/else/let) had been introduced since the "
-               << "PrimFunc's frame";
+    TVM_FFI_THROW(ValueError)
+        << method << " must be called at the top of a PrimFunc.  "
+        << "While " << method << " did occur within the PrimFunc \"" << frame.value()->name
+        << "\", other frames (e.g. block/if/else/let) had been introduced since the "
+        << "PrimFunc's frame";
   } else {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a PrimFunc, "
-               << "but " << method << " occurred outside of any T.prim_func() frame";
+    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a PrimFunc, "
+                              << "but " << method << " occurred outside of any T.prim_func() frame";
   }
   throw;
 }
@@ -84,13 +85,14 @@ inline SBlockFrame FindSBlockFrame(const ffi::String& method) {
   if (ffi::Optional<SBlockFrame> frame = IRBuilder::Current()->FindFrame<SBlockFrame>()) {
     return frame.value();
   } else if (ffi::Optional<SBlockFrame> frame = IRBuilder::Current()->FindFrame<SBlockFrame>()) {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.sblock().  "
-               << "While " << method << " did occur within the block \"" << frame.value()->name
-               << "\", other frames (e.g. if/else/let) had been introduced since the T.sblock(\""
-               << frame.value()->name << "\") frame";
+    TVM_FFI_THROW(ValueError)
+        << method << " must be called at the top of a T.sblock().  "
+        << "While " << method << " did occur within the block \"" << frame.value()->name
+        << "\", other frames (e.g. if/else/let) had been introduced since the T.sblock(\""
+        << frame.value()->name << "\") frame";
   } else {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.sblock(), "
-               << "but " << method << " occurred outside of any T.sblock() frame";
+    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a T.sblock(), "
+                              << "but " << method << " occurred outside of any T.sblock() frame";
   }
   throw;
 }
@@ -104,14 +106,15 @@ inline IfFrame FindIfFrame(const ffi::String& method) {
   if (ffi::Optional<IfFrame> frame = IRBuilder::Current()->GetLastFrame<IfFrame>()) {
     return frame.value();
   } else if (ffi::Optional<IfFrame> frame = IRBuilder::Current()->FindFrame<IfFrame>()) {
-    LOG(FATAL) << "ValueError: " << method << " must be called at the top of a T.if_().  "
-               << "While " << method << " did occur within the conditional based on ("
-               << frame.value()->condition
-               << "), other frames (e.g. if/else/let) had been introduced since the "
-               << "IfThenElse frame";
+    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a T.if_().  "
+                              << "While " << method
+                              << " did occur within the conditional based on ("
+                              << frame.value()->condition
+                              << "), other frames (e.g. if/else/let) had been introduced since the "
+                              << "IfThenElse frame";
   } else {
-    LOG(FATAL) << "ValueError: IfThenElse frame not find. Please ensure '" << method
-               << "' is called under T.if_()";
+    TVM_FFI_THROW(ValueError) << "IfThenElse frame not find. Please ensure '" << method
+                              << "' is called under T.if_()";
   }
   throw;
 }

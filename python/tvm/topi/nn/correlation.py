@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E731
 """Correlation operators"""
+
 from tvm import te
 
-from .pad import pad
 from ..utils import get_const_tuple
+from .pad import pad
 
 
 def correlation_nchw(

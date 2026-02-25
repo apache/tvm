@@ -166,7 +166,9 @@ class PresburgerSet : public IntSet {
    * \param constraint The constraint to construct the set.
    * \return The created set.
    */
-  TVM_DLL PresburgerSet(const PrimExpr& constraint) { LOG(FATAL) << "MLIR is not enabled!"; }
+  TVM_DLL PresburgerSet(const PrimExpr& constraint) {
+    TVM_FFI_THROW(InternalError) << "MLIR is not enabled!";
+  }
 };
 #endif  // TVM_MLIR_VERSION
 /*!

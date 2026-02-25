@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 
 import pytest
 
 import tvm
 import tvm.testing
-from tvm.script import ir as I, tir as T
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def test_pass_simple():
@@ -310,37 +312,6 @@ def test_block_match_buffer_defines_symbolic_variables():
                     )
 
                     B[i, j] = elem_offset
-
-    tvm.tir.analysis.verify_well_formed(mod)
-
-
-def test_buffer_realize_on_external_buffer_is_annotation():
-    """A T.realize statement on an existing buffer annotates the region used"""
-
-    @I.ir_module
-    class mod:
-        @T.prim_func
-        def func(A: T.Buffer(256, "int32")):
-            T.realize(A[0:16], "global")
-
-            for i in range(16):
-                A[i] = 1
-
-    tvm.tir.analysis.verify_well_formed(mod)
-
-
-def test_buffer_realize_is_allocation():
-    """A T.realize statement on an fresh buffer allocates the buffer"""
-
-    @I.ir_module
-    class mod:
-        @T.prim_func
-        def func():
-            A = T.Buffer(256, "int32")
-            T.realize(A[0:16], "global")
-
-            for i in range(16):
-                A[i] = 1
 
     tvm.tir.analysis.verify_well_formed(mod)
 

@@ -34,8 +34,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       };
       if (d->cfg->syntax_sugar) {
         for (const tir::ForNode* l = loop.get(); l != nullptr; l = l->body.as<tir::ForNode>()) {
-          ICHECK(l->loop_var->dtype == l->min->dtype);
-          ICHECK(l->loop_var->dtype == l->extent->dtype);
+          TVM_FFI_ICHECK(l->loop_var->dtype == l->min->dtype);
+          TVM_FFI_ICHECK(l->loop_var->dtype == l->extent->dtype);
           if (l->kind != tir::ForKind::kSerial ||  //
               !tir::is_zero(l->min) ||             //
               !l->annotations.empty() ||           //
@@ -98,7 +98,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         thread = LiteralDoc::Str(loop->thread_binding.value()->thread_tag,
                                  loop_p->Attr("thread_binding"));
       } else {
-        LOG(FATAL) << "ValueError: Unknown ForKind: " << tir::ForKind2String(loop->kind);
+        TVM_FFI_THROW(ValueError) << "Unknown ForKind: " << tir::ForKind2String(loop->kind);
       }
       ffi::Array<ExprDoc> args;
       ffi::Array<ffi::String> kwargs_keys;

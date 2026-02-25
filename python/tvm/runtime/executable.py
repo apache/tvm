@@ -17,12 +17,13 @@
 # pylint: disable=invalid-name, no-member
 
 """Executable object for TVM Runtime"""
+
 from typing import Any, Callable, Dict, List, Optional
 
 import tvm
-
 from tvm.contrib import utils as _utils
-from . import PackedFunc, Module
+
+from . import Module, PackedFunc
 
 
 class Executable:
@@ -52,7 +53,7 @@ class Executable:
         """Just-in-time compile and link the modules.
 
         The Executable returned by tvm.compile may not be directly
-        runnable as they may contain cuda source files and objects that
+        runnable as they may contain CUDA source files and objects that
         are yet to be compiled and linked.
         This function helps to create a runtime.Module for these cases.
 

@@ -15,8 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """integer constraints data structures and solvers"""
+
 import tvm_ffi
+
 from tvm.runtime import Object
+
 from . import _ffi_api
 
 

@@ -86,7 +86,7 @@ std::unordered_map<Var, std::pair<int, int>> AnalyzeLiveness(const DataflowBlock
     } else {
       // this means the var is used later but we encountered its definition now
       auto last_range = ret[defined_var];
-      CHECK_EQ(last_range.first, -1);
+      TVM_FFI_ICHECK_EQ(last_range.first, -1);
       std::pair<int, int> new_range = {i, last_range.second};
       ret[defined_var] = new_range;
     }
@@ -711,13 +711,6 @@ tir::Stmt RemapBuffers(const tir::Stmt& stmt,
 
     tir::Stmt VisitStmt_(const tir::BufferStoreNode* op) final {
       auto node = Downcast<tir::BufferStore>(tir::StmtExprMutator::VisitStmt_(op));
-      auto* node_cow = node.CopyOnWrite();
-      node_cow->buffer = AttemptRemap(node->buffer);
-      return node;
-    }
-
-    tir::Stmt VisitStmt_(const tir::BufferRealizeNode* op) final {
-      auto node = Downcast<tir::BufferRealize>(tir::StmtExprMutator::VisitStmt_(op));
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;

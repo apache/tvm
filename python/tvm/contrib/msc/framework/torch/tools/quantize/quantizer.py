@@ -16,13 +16,13 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.tools.quantize.quantizer"""
 
-from tvm.contrib.msc.core.tools.tool import ToolType
-from tvm.contrib.msc.core.tools.quantize import BaseQuantizer
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.quantize import BaseQuantizer
+from tvm.contrib.msc.core.tools.tool import ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
-class TorchQuantizerFactory(object):
+class TorchQuantizerFactory:
     """Quantizer factory for torch"""
 
     def create(self, base_cls: BaseQuantizer) -> BaseQuantizer:

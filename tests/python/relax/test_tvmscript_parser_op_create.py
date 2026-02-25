@@ -52,9 +52,9 @@ def test_full():
 
 def test_full_like():
     @R.function
-    def foo(
-        x: R.Tensor((2, 3), "float16"), v: R.Tensor((), "float32")
-    ) -> R.Tensor((2, 3), "float16"):
+    def foo(x: R.Tensor((2, 3), "float16"), v: R.Tensor((), "float32")) -> R.Tensor(
+        (2, 3), "float16"
+    ):
         gv: R.Tensor((2, 3), "float16") = R.full_like(x, v)
         return gv
 

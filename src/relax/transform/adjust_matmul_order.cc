@@ -143,15 +143,15 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     if (matches.count(pat_permuted_matmul_on_lhs)) {
       expr_a = permute_dims(expr_a, std::nullopt);
       expr_b = permute_dims(expr_b, std::nullopt);
-      CHECK_EQ(shape_a.size(), 2);
-      CHECK_EQ(shape_b.size(), 2);
+      TVM_FFI_ICHECK_EQ(shape_a.size(), 2);
+      TVM_FFI_ICHECK_EQ(shape_b.size(), 2);
       shape_a = {shape_a[1], shape_a[0]};
       shape_b = {shape_b[1], shape_b[0]};
     } else if (matches.count(pat_permuted_matmul_on_rhs)) {
       expr_b = permute_dims(expr_b, std::nullopt);
       expr_c = permute_dims(expr_c, std::nullopt);
-      CHECK_EQ(shape_b.size(), 2);
-      CHECK_EQ(shape_c.size(), 2);
+      TVM_FFI_ICHECK_EQ(shape_b.size(), 2);
+      TVM_FFI_ICHECK_EQ(shape_c.size(), 2);
       shape_b = {shape_b[1], shape_b[0]};
       shape_c = {shape_c[1], shape_c[0]};
     }
@@ -182,9 +182,9 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       } else if (matches.count(pat_matmul_on_rhs)) {
         shape_b = {IntImm(shape_b[0].dtype(), 1), shape_b[0]};
       } else {
-        LOG(FATAL) << "InternalError: "
-                   << "OrPattern " << pat << " matched, but neither " << pat_matmul_on_lhs
-                   << " nor " << pat_matmul_on_rhs << " matched";
+        TVM_FFI_THROW(InternalError)
+            << "OrPattern " << pat << " matched, but neither " << pat_matmul_on_lhs << " nor "
+            << pat_matmul_on_rhs << " matched";
       }
     }
     if (shape_c.size() == 1) {

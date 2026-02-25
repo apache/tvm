@@ -18,11 +18,13 @@
 """Default legalization function for quantize/dequantize operators."""
 
 from typing import Union
+
 import tvm
 from tvm import te, tir
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
-from .common import register_legalize, _try_convert_to_scalar_const
+from .common import _try_convert_to_scalar_const, register_legalize
 
 
 def clip_cast(val, dtype):

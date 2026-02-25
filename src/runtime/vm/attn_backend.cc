@@ -32,18 +32,18 @@ std::unique_ptr<PagedPrefillFunc> ConvertPagedPrefillFunc(ffi::Array<ffi::Any> a
   }
   ffi::String backend_name = args[0].cast<ffi::String>();
   if (backend_name == "tir") {
-    CHECK_EQ(args.size(), 2);
+    TVM_FFI_ICHECK_EQ(args.size(), 2);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     return std::make_unique<TIRPagedPrefillFunc>(std::move(attn_func), attn_kind);
   }
   if (backend_name == "flashinfer") {
-    CHECK_EQ(args.size(), 3);
+    TVM_FFI_ICHECK_EQ(args.size(), 3);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     ffi::Function plan_func = args[2].cast<ffi::Function>();
     return std::make_unique<FlashInferPagedPrefillFunc>(std::move(attn_func), std::move(plan_func),
                                                         attn_kind);
   }
-  LOG(FATAL) << "Cannot reach here";
+  TVM_FFI_THROW(InternalError) << "Cannot reach here";
   throw;
 }
 
@@ -54,12 +54,12 @@ std::unique_ptr<RaggedPrefillFunc> ConvertRaggedPrefillFunc(ffi::Array<ffi::Any>
   }
   ffi::String backend_name = args[0].cast<ffi::String>();
   if (backend_name == "tir") {
-    CHECK_EQ(args.size(), 2);
+    TVM_FFI_ICHECK_EQ(args.size(), 2);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     return std::make_unique<TIRRaggedPrefillFunc>(std::move(attn_func), attn_kind);
   }
   if (backend_name == "flashinfer") {
-    CHECK(args.size() == 3 || args.size() == 5);
+    TVM_FFI_ICHECK(args.size() == 3 || args.size() == 5);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     ffi::Function plan_func = args[2].cast<ffi::Function>();
     int64_t qk_head_dim_override = -1;
@@ -72,7 +72,7 @@ std::unique_ptr<RaggedPrefillFunc> ConvertRaggedPrefillFunc(ffi::Array<ffi::Any>
                                                          attn_kind, qk_head_dim_override,
                                                          v_head_dim_override);
   }
-  LOG(FATAL) << "Cannot reach here";
+  TVM_FFI_THROW(InternalError) << "Cannot reach here";
   throw;
 }
 
@@ -83,18 +83,18 @@ std::unique_ptr<PagedDecodeFunc> ConvertPagedDecodeFunc(ffi::Array<ffi::Any> arg
   }
   ffi::String backend_name = args[0].cast<ffi::String>();
   if (backend_name == "tir") {
-    CHECK_EQ(args.size(), 2);
+    TVM_FFI_ICHECK_EQ(args.size(), 2);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     return std::make_unique<TIRPagedDecodeFunc>(std::move(attn_func), attn_kind);
   }
   if (backend_name == "flashinfer") {
-    CHECK_EQ(args.size(), 3);
+    TVM_FFI_ICHECK_EQ(args.size(), 3);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     ffi::Function plan_func = args[2].cast<ffi::Function>();
     return std::make_unique<FlashInferPagedDecodeFunc>(std::move(attn_func), std::move(plan_func),
                                                        attn_kind);
   }
-  LOG(FATAL) << "Cannot reach here";
+  TVM_FFI_THROW(InternalError) << "Cannot reach here";
   throw;
 }
 
@@ -105,11 +105,11 @@ std::unique_ptr<PagedPrefillTreeMaskFunc> ConvertPagedPrefillTreeMaskFunc(ffi::A
   }
   ffi::String backend_name = args[0].cast<ffi::String>();
   if (backend_name == "tir") {
-    CHECK_EQ(args.size(), 2);
+    TVM_FFI_ICHECK_EQ(args.size(), 2);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     return std::make_unique<TIRPagedPrefillTreeMaskFunc>(std::move(attn_func), attn_kind);
   }
-  LOG(FATAL) << "Cannot reach here";
+  TVM_FFI_THROW(InternalError) << "Cannot reach here";
   throw;
 }
 
@@ -120,11 +120,11 @@ std::unique_ptr<RaggedPrefillTreeMaskFunc> ConvertRaggedPrefillTreeMaskFunc(
   }
   ffi::String backend_name = args[0].cast<ffi::String>();
   if (backend_name == "tir") {
-    CHECK_EQ(args.size(), 2);
+    TVM_FFI_ICHECK_EQ(args.size(), 2);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     return std::make_unique<TIRRaggedPrefillTreeMaskFunc>(std::move(attn_func), attn_kind);
   }
-  LOG(FATAL) << "Cannot reach here";
+  TVM_FFI_THROW(InternalError) << "Cannot reach here";
   throw;
 }
 

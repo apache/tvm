@@ -19,7 +19,7 @@
 #include <cuda.h>
 #include <nvshmem.h>
 #include <nvshmemx.h>
-#include <picojson.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/disco_worker.h>
@@ -48,9 +48,9 @@ void InitNVSHMEM(ffi::Shape uid_64, int num_workers, int worker_id_start) {
   } else {
     worker_id = worker_id_start + worker->worker_id;
   }
-  CHECK_EQ(uid_64.size(), UNIQUEID_PADDING + 1)
-      << "ValueError: The length of unique_id must be " << UNIQUEID_PADDING << ", but got "
-      << uid_64.size() << ".";
+  TVM_FFI_CHECK_EQ(uid_64.size(), UNIQUEID_PADDING + 1, ValueError)
+      << "The length of unique_id must be " << UNIQUEID_PADDING << ", but got " << uid_64.size()
+      << ".";
 
   nvshmemx_init_attr_t attr = NVSHMEMX_INIT_ATTR_INITIALIZER;
 
@@ -69,8 +69,8 @@ void InitNVSHMEM(ffi::Shape uid_64, int num_workers, int worker_id_start) {
     if (worker->default_device.device_type == DLDeviceType::kDLCPU) {
       worker->default_device = Device{DLDeviceType::kDLCUDA, mype_node};
     } else {
-      ICHECK(worker->default_device.device_type == DLDeviceType::kDLCUDA &&
-             worker->default_device.device_id == mype_node)
+      TVM_FFI_ICHECK(worker->default_device.device_type == DLDeviceType::kDLCUDA &&
+                     worker->default_device.device_id == mype_node)
           << "The default device of the worker is inconsistent with the device used for NVSHMEM. "
           << "The default device is " << worker->default_device
           << ", but the device used for NVSHMEM is " << Device{DLDeviceType::kDLCUDA, mype_node}
@@ -82,28 +82,27 @@ void InitNVSHMEM(ffi::Shape uid_64, int num_workers, int worker_id_start) {
 }
 
 void InitNVSHMEMWrapper(ffi::String args) {
-  picojson::value v;
-  std::string err = picojson::parse(v, args);
+  namespace json = tvm::ffi::json;
+  ffi::String err;
+  json::Value v = json::Parse(args, &err);
   if (!err.empty()) {
-    LOG(FATAL) << "JSON parse error: " << err;
+    TVM_FFI_THROW(InternalError) << "JSON parse error: " << err;
   }
 
-  if (!v.is<picojson::object>()) {
-    LOG(FATAL) << "JSON is not an object";
-  }
+  TVM_FFI_ICHECK(v.as<json::Object>()) << "JSON is not an object";
+  json::Object obj = v.cast<json::Object>();
 
-  picojson::object& obj = v.get<picojson::object>();
-
-  picojson::array uid_array = obj["uid"].get<picojson::array>();
+  json::Array uid_array = obj["uid"].cast<json::Array>();
   std::vector<int64_t> uid_vector;
-  for (const auto& elem : uid_array) {
-    uid_vector.push_back(elem.get<int64_t>());
+  uid_vector.reserve(uid_array.size());
+  for (const ffi::Any& elem : uid_array) {
+    uid_vector.push_back(elem.cast<int64_t>());
   }
 
   ffi::Shape uid_64(uid_vector);
 
-  int num_workers = static_cast<int>(obj["npes"].get<int64_t>());
-  int worker_id_start = static_cast<int>(obj["pe_start"].get<int64_t>());
+  int num_workers = static_cast<int>(obj["npes"].cast<int64_t>());
+  int worker_id_start = static_cast<int>(obj["pe_start"].cast<int64_t>());
 
   InitNVSHMEM(uid_64, num_workers, worker_id_start);
 }

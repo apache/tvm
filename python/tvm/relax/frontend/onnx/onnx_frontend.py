@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, E731, E741, F841, RUF005
 """ONNX: Open Neural Network Exchange importer for Relax.
 
 This module implements the required functionality to read ONNX models
@@ -34,11 +35,12 @@ If this fails, there may still be dynamic operations in the model.
 Not all TVM kernels currently support dynamic shapes, please file an issue on
 github.com/apache/tvm/issues if you hit an error with dynamic kernels.
 """
+
+import functools
 import math
 import operator
 import re
 import warnings
-import functools
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as _np
@@ -66,7 +68,7 @@ def get_type(elem_type: Union[str, int]) -> str:
             tensor_dtype_to_np_dtype,
         )
     except ImportError as exception:
-        raise ImportError("Unable to import onnx which is required {}".format(exception))
+        raise ImportError(f"Unable to import onnx which is required {exception}")
 
     return str(tensor_dtype_to_np_dtype(elem_type))
 
@@ -228,7 +230,7 @@ def get_numpy(tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> _np.ndarray:
     try:
         from onnx.numpy_helper import to_array  # pylint: disable=import-outside-toplevel
     except ImportError as exception:
-        raise ImportError("Unable to import onnx which is required {}".format(exception))
+        raise ImportError(f"Unable to import onnx which is required {exception}")
     return to_array(tensor_proto)
 
 
@@ -250,14 +252,14 @@ def get_prim_expr_list(
     if isinstance(inputs, relax.Constant):
         np_value = inputs.data.numpy()
         if np_value.ndim != 1:
-            raise ValueError("Cannot cast {} to list of PrimExpr".format(type(inputs)))
+            raise ValueError(f"Cannot cast {type(inputs)} to list of PrimExpr")
         return np_value.tolist()
     elif isinstance(inputs, relax.ShapeExpr):
         return inputs.values
     elif isinstance(inputs, relax.PrimValue):
         return [inputs.value.value]
     else:
-        raise ValueError("Cannot cast {} to list of PrimExpr".format(type(inputs)))
+        raise ValueError(f"Cannot cast {type(inputs)} to list of PrimExpr")
 
 
 class onnx_input(list):  # pylint: disable=invalid-name
@@ -273,11 +275,11 @@ class onnx_input(list):  # pylint: disable=invalid-name
             return [self[i] for i in indices]
         if isinstance(item, int):
             return list(self)[item] if item < len(self) else None
-        raise TypeError("list indices must be integers or slices, not %s" % type(item).__name__)
+        raise TypeError(f"list indices must be integers or slices, not {type(item).__name__}")
 
 
 # pylint: disable=invalid-name, len-as-condition, unused-argument, too-many-lines, redefined-builtin
-class OnnxOpConverter(object):
+class OnnxOpConverter:
     """A helper class for holding the common logic for ONNX op converters.
     Each converter maps to a single ONNX op and defines the equivalent
     functionality using Relax expressions. The converter can define multiple versions
@@ -301,11 +303,9 @@ class OnnxOpConverter(object):
         versions = [int(d.replace("_impl_v", "")) for d in dir(cls) if "_impl_v" in d]
         versions = sorted(versions + [opset])
         version = versions[max([i for i, v in enumerate(versions) if v == opset]) - 1]
-        if hasattr(cls, "_impl_v{}".format(version)):
-            return getattr(cls, "_impl_v{}".format(version))
-        raise NotImplementedError(
-            "opset version {} of {} not implemented".format(version, cls.__name__)
-        )
+        if hasattr(cls, f"_impl_v{version}"):
+            return getattr(cls, f"_impl_v{version}")
+        raise NotImplementedError(f"opset version {version} of {cls.__name__} not implemented")
 
 
 class MatMul(OnnxOpConverter):
@@ -747,7 +747,7 @@ class Concat(OnnxOpConverter):
                 elif isinstance(inp, relax.Constant):
                     const_inputs.extend(inp.data.numpy().tolist())
                 else:
-                    raise NotImplementedError("Unsupported input type: {}".format(type(inp)))
+                    raise NotImplementedError(f"Unsupported input type: {type(inp)}")
             return relax.ShapeExpr(const_inputs)
 
         # If all inputs are constant, perform computation directly.
@@ -798,9 +798,9 @@ class Gather(OnnxOpConverter):
 
         # If input is a shape expression, take a value from that shape and return it as a constant.
         if isinstance(data, relax.ShapeExpr):
-            assert isinstance(
-                indices, relax.Constant
-            ), "Only constant indices supported for shape gather."
+            assert isinstance(indices, relax.Constant), (
+                "Only constant indices supported for shape gather."
+            )
             np_index = indices.data.numpy()
             if len(np_index.shape) == 1:
                 np_index = np_index[0]
@@ -860,9 +860,9 @@ class ScatterND(OnnxOpConverter):
         reduction = reduction or b"update"
         reduction = reduction.decode("utf-8")
         reduction = "update" if reduction == "none" else reduction
-        assert (
-            reduction in valid_reductions
-        ), f"Only {valid_reductions} reductions are supported, but {reduction} is gotten"
+        assert reduction in valid_reductions, (
+            f"Only {valid_reductions} reductions are supported, but {reduction} is gotten"
+        )
 
         return reduction
 
@@ -1181,14 +1181,28 @@ class LeakyRelu(OnnxOpConverter):
 
 
 class Gelu(OnnxOpConverter):
-    """Operator converter for Gelu from Microsoft onnxruntime contrib opset.
+    """Operator converter for Gelu.
+
+    Supports both Microsoft onnxruntime contrib opset and ONNX Opset 20+.
 
     gelu(x) = 0.5x(1 + erf(x/sqrt(2)))
+
+    When approximate="tanh" (ONNX Opset 20):
+    gelu(x) = 0.5x(1 + tanh(sqrt(2/pi)(x + 0.044715x^3)))
     """
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
         return relax.op.nn.gelu(inputs[0])
+
+    @classmethod
+    def _impl_v20(cls, bb, inputs, attr, params):
+        approximate = attr.get("approximate", b"none").decode("utf-8")
+        if approximate == "tanh":
+            return relax.op.nn.gelu_tanh(inputs[0])
+        if approximate == "none":
+            return relax.op.nn.gelu(inputs[0])
+        raise ValueError(f"Unsupported approximate mode for Gelu: {approximate}")
 
 
 class FastGelu(OnnxOpConverter):
@@ -1305,8 +1319,7 @@ class Conv(OnnxOpConverter):
                 pass
             else:
                 msg = (
-                    f'Value {attr["auto_pad"]} in attribute "auto_pad" of operator Conv '
-                    f"is invalid."
+                    f'Value {attr["auto_pad"]} in attribute "auto_pad" of operator Conv is invalid.'
                 )
                 raise tvm.error.OpAttributeInvalid(msg)
             attr.pop("auto_pad")
@@ -1743,9 +1756,7 @@ class Exp(OnnxOpConverter):
 
     @classmethod
     def _check_type(cls, dtype, valid_types):
-        assert dtype in valid_types, "Types {} are supported only, but {} is given".format(
-            valid_types, dtype
-        )
+        assert dtype in valid_types, f"Types {valid_types} are supported only, but {dtype} is given"
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
@@ -1915,7 +1926,7 @@ class Pad(OnnxOpConverter):
             raise ValueError("Dynamic pads are not supported yet.")
 
         pad_mode = attr.get("mode", b"constant").decode("utf-8")
-        if not pad_mode in ["constant", "edge", "reflect"]:
+        if pad_mode not in ["constant", "edge", "reflect"]:
             raise tvm.error.OpAttributeInvalid(
                 "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
             )
@@ -1945,7 +1956,7 @@ class Pad(OnnxOpConverter):
             raise ValueError("Dynamic pads are not supported yet.")
 
         pad_mode = attr.get("mode", b"constant").decode("utf-8")
-        if not pad_mode in ["constant", "edge", "reflect"]:
+        if pad_mode not in ["constant", "edge", "reflect"]:
             raise tvm.error.OpAttributeInvalid(
                 "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
             )
@@ -2073,7 +2084,7 @@ class Expand(OnnxOpConverter):
             return relax.op.broadcast_to(data, relax.ShapeExpr(new_shape))
 
         # Otherwise handle dynamic shapes.
-        shape_ndim = [dim.value for dim in shape.struct_info.shape.values][0]
+        shape_ndim = next(dim.value for dim in shape.struct_info.shape.values)
         shape_dataflow_var = bb.emit(
             relax.Call(
                 relax.ExternFunc("vm.builtin.tensor_to_shape"),
@@ -2084,7 +2095,7 @@ class Expand(OnnxOpConverter):
 
         shape_vars = []
         for i in range(shape_ndim):
-            shape_vars.append(tvm.tir.Var("x_%d" % i, "int64"))
+            shape_vars.append(tvm.tir.Var(f"x_{i}", "int64"))
         bb.match_cast(shape_dataflow_var, relax.ShapeStructInfo(shape_vars))
 
         # Applying broadcasting rules for dynamic shapes
@@ -2108,9 +2119,9 @@ class Attention(OnnxOpConverter):
         num_heads = attr["num_heads"]
 
         assert "do_rotary" not in attr, "rotary position embedding is not currently supported"
-        assert (
-            "past_present_share_buffer" not in attr
-        ), "past state for key and value is not currently supported"
+        assert "past_present_share_buffer" not in attr, (
+            "past state for key and value is not currently supported"
+        )
         assert "scale" not in attr, "custom scale is not currently supported"
         assert "unidirectional" not in attr, "unidirectional attention is not currently supported"
 
@@ -2155,21 +2166,21 @@ class Attention(OnnxOpConverter):
         ]
         weight_shape = [val.value for val in weight.struct_info.shape.values]
 
-        assert (
-            weight_shape[0] == input_hidden_size
-        ), "input and weight should share the same input hiden size"
+        assert weight_shape[0] == input_hidden_size, (
+            "input and weight should share the same input hiden size"
+        )
 
         if "qkv_hidden_sizes" in attr:
-            assert (
-                attr["qkv_hidden_sizes"][0] == attr["qkv_hidden_sizes"][1]
-            ), "Q and K should share the same hidden sizes"
+            assert attr["qkv_hidden_sizes"][0] == attr["qkv_hidden_sizes"][1], (
+                "Q and K should share the same hidden sizes"
+            )
             hidden_size, _, hidden_size_v = attr["qkv_hidden_sizes"]
         else:
             hidden_size = hidden_size_v = weight_shape[1] // 3
 
-        assert (
-            hidden_size % num_heads == 0
-        ), "hidden size should be divisible by number of attention heads"
+        assert hidden_size % num_heads == 0, (
+            "hidden size should be divisible by number of attention heads"
+        )
         head_size = hidden_size // num_heads
         head_size_v = hidden_size_v // num_heads
 
@@ -2211,9 +2222,9 @@ class Attention(OnnxOpConverter):
 
         if bias:
             bias_shape = [val.value for val in bias.struct_info.shape.values]
-            assert (
-                bias_shape[0] == weight_shape[1]
-            ), "bias and weight should share the same hidden size sum"
+            assert bias_shape[0] == weight_shape[1], (
+                "bias and weight should share the same hidden size sum"
+            )
             QKV = relax.op.add(QKV, bias)
 
         QKV = relax.op.split(QKV, [hidden_size, hidden_size * 2], 2)
@@ -2267,9 +2278,9 @@ class Resize(OnnxOpConverter):
         ndims = len(x.struct_info.shape)
         assert ndims in (3, 4, 5), "Only resize1d/resize2d/resize3d are supported."
 
-        assert (
-            scales is None or sizes is None
-        ), "Only one of scales and sizes can be provided in Resize."
+        assert scales is None or sizes is None, (
+            "Only one of scales and sizes can be provided in Resize."
+        )
 
         # Define relax implementation.
         if roi is not None:
@@ -2567,7 +2578,7 @@ class Pool(OnnxOpConverter):
             pads = []
             if cls.name == "avg_pool":
                 for axis in range(len(input_shape) - 2):
-                    axis_shape = input_shape[2 + axis]
+                    axis_shape = int(input_shape[2 + axis])
                     stride = strides[axis]
                     kernel = kernel_shape[axis]
                     pad = cls.get_pad_pair(axis_shape, kernel, stride, auto_pad)
@@ -3242,9 +3253,9 @@ class SkipLayerNormalization(OnnxOpConverter):
         beta = inputs[3]
         bias = inputs[4]
 
-        assert (
-            beta is not None and bias is not None
-        ), "SkipLayerNormalization import currently only supports required beta and bias"
+        assert beta is not None and bias is not None, (
+            "SkipLayerNormalization import currently only supports required beta and bias"
+        )
 
         epsilon = attr.get("epsilon", 1e-12)
 
@@ -3483,15 +3494,11 @@ class DepthToSpace(OnnxOpConverter):
         mode = attr.get("mode", b"DCR").decode("utf-8")
         b, c, h, w = inputs[0].struct_info.shape
         if mode == "DCR":
-            x = relax.op.reshape(
-                inputs[0], (b, block_size, block_size, c // (block_size**2), h, w)
-            )
+            x = relax.op.reshape(inputs[0], (b, block_size, block_size, c // (block_size**2), h, w))
             x = relax.op.permute_dims(x, [0, 3, 4, 1, 5, 2])
             return relax.op.reshape(x, (b, c // (block_size**2), h * block_size, w * block_size))
         elif mode == "CRD":
-            x = relax.op.reshape(
-                inputs[0], (b, c // (block_size**2), block_size, block_size, h, w)
-            )
+            x = relax.op.reshape(inputs[0], (b, c // (block_size**2), block_size, block_size, h, w))
             x = relax.op.permute_dims(x, [0, 1, 4, 2, 5, 3])
             return relax.op.reshape(x, (b, c // (block_size**2), h * block_size, w * block_size))
         else:
@@ -3661,9 +3668,9 @@ class SequenceAt(OnnxOpConverter):
     def _impl_v11(cls, bb, inputs, attr, params):
         input_sequence = inputs[0]
         position = inputs[1]
-        assert isinstance(
-            position, relax.Constant
-        ), "Only constant position supported for SequenceAt"
+        assert isinstance(position, relax.Constant), (
+            "Only constant position supported for SequenceAt"
+        )
         position = int(position.data.numpy())
         return input_sequence[position]
 
@@ -4143,7 +4150,7 @@ class ONNXGraphImporter:
             new_name = str(self._name_supply.fresh_name(new_name))
 
         if new_name != name:
-            warnings.warn(("Renaming name %s to %s" % (name, new_name)))
+            warnings.warn(f"Renaming name {name} to {new_name}")
         return new_name
 
     def _new_var(self, var_name: str, shape: List, dtype: str = "float32"):
@@ -4167,9 +4174,8 @@ class ONNXGraphImporter:
                 else:
                     if "?" in str(i_shape):
                         warning_msg = (
-                            "Input %s has unknown dimension shapes: %s. "
+                            f"Input {i_name} has unknown dimension shapes: {i_shape_name!s}. "
                             "Specifying static values may improve performance"
-                            % (i_name, str(i_shape_name))
                         )
                         warnings.warn(warning_msg)
                 if isinstance(self._dtype, dict):
@@ -4186,8 +4192,7 @@ class ONNXGraphImporter:
         for node in graph.node:
             op_name = node.op_type
             if (
-                op_name not in convert_map
-                and op_name != "Constant"
+                op_name not in convert_map and op_name != "Constant"
                 # and op_name not in _identity_list
             ):
                 unsupported_ops.add(op_name)
@@ -4270,10 +4275,8 @@ class ONNXGraphImporter:
                     outputs_num = 1
             else:
                 outputs_num = len(op)
-            assert (
-                len(outputs) <= outputs_num
-            ), "Missing outputs during conversion. Expected {} but Got {} in {}.".format(
-                len(outputs), outputs_num, op_name
+            assert len(outputs) <= outputs_num, (
+                f"Missing outputs during conversion. Expected {len(outputs)} but Got {outputs_num} in {op_name}."
             )
             if outputs_num == 1:
                 self._nodes[outputs[0]] = op
@@ -4313,9 +4316,9 @@ class ONNXGraphImporter:
                     attrs[a.name] = tuple(getattr(a, f))
             for f in ["graphs"]:
                 if list(getattr(a, f)):
-                    raise NotImplementedError("Field {} is not supported in relax.".format(f))
+                    raise NotImplementedError(f"Field {f} is not supported in relax.")
             if a.name not in attrs:
-                raise ValueError("Cannot parse attribute: \n{}\n.".format(a))
+                raise ValueError(f"Cannot parse attribute: \n{a}\n.")
         return attrs
 
     def _convert_operator(
@@ -4350,7 +4353,7 @@ class ONNXGraphImporter:
             op_function = convert_class.get_converter(opset)
             sym = op_function(self.bb, inputs, attrs, [self._nodes, self._params])
         else:
-            raise NotImplementedError("Operator {} not implemented.".format(op_name))
+            raise NotImplementedError(f"Operator {op_name} not implemented.")
         return sym
 
 
@@ -4358,7 +4361,7 @@ def from_onnx(
     model: onnx.onnx_ml_pb2.GraphProto,
     shape_dict: Optional[Dict[str, List]] = None,
     dtype_dict: Optional[Union[str, Dict[str, str]]] = "float32",
-    opset: int = None,
+    opset: Optional[int] = None,
     keep_params_in_input: bool = False,
     sanitize_input_names: bool = True,
 ) -> IRModule:
@@ -4392,9 +4395,7 @@ def from_onnx(
     # Error if the model version is below 1.1.0
     if model.ir_version < 3:
         raise ValueError(
-            "Model IR version {} not supported. Must be at least after 1.1.0.".format(
-                model.ir_version
-            )
+            f"Model IR version {model.ir_version} not supported. Must be at least after 1.1.0."
         )
 
     try:
@@ -4408,7 +4409,7 @@ def from_onnx(
                 # the checker is a bit violent about errors, so simply print warnings here
                 warnings.warn(str(exception))
     except ImportError as error:
-        raise ImportError("Unable to import onnx which is required {}".format(error))
+        raise ImportError(f"Unable to import onnx which is required {error}")
 
     g = ONNXGraphImporter(
         shape_dict,

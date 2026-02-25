@@ -38,18 +38,18 @@ from . import utils
 def compile_cuda(
     code, target_format=None, arch=None, options=None, path_target=None, compiler="nvcc"
 ):
-    """Compile cuda code with NVCC or NVRTC.
+    """Compile CUDA code with NVCC or NVRTC.
 
     Parameters
     ----------
     code : str
-        The cuda code.
+        The CUDA code.
 
     target_format : str
         The target format of the compiler ("ptx", "cubin", or "fatbin").
 
     arch : str
-        The cuda architecture.
+        The CUDA architecture.
 
     options : str or list of str
         The additional options.
@@ -78,7 +78,7 @@ def compile_cuda(
     elif compiler == "nvrtc":
         result = _compile_cuda_nvrtc(code, target_format, arch, options, path_target, use_nvshmem)
     else:
-        raise ValueError(f"cuda compiler must be 'nvcc' or 'nvrtc', got: {compiler}")
+        raise ValueError(f"CUDA compiler must be 'nvcc' or 'nvrtc', got: {compiler}")
 
     return result
 
@@ -623,12 +623,12 @@ def _link_nvshmem_nvrtc(binary_buf, nvshmem_lib_path):
 
 
 def find_cuda_path():
-    """Utility function to find cuda path
+    """Utility function to find CUDA path
 
     Returns
     -------
     path : str
-        Path to cuda root.
+        Path to CUDA root.
     """
     if "CUDA_PATH" in os.environ:
         return os.environ["CUDA_PATH"]
@@ -641,23 +641,23 @@ def find_cuda_path():
     cuda_path = "/usr/local/cuda"
     if os.path.exists(os.path.join(cuda_path, "bin/nvcc")):
         return cuda_path
-    raise RuntimeError("Cannot find cuda path")
+    raise RuntimeError("Cannot find CUDA path")
 
 
 def get_cuda_version(cuda_path=None):
-    """Utility function to get cuda version
+    """Utility function to get CUDA version
 
     Parameters
     ----------
     cuda_path : Optional[str]
 
-        Path to cuda root.  If None is passed, will use
+        Path to CUDA root.  If None is passed, will use
         `find_cuda_path()` as default.
 
     Returns
     -------
     version : float
-        The cuda version
+        The CUDA version
 
     """
     if cuda_path is None:
@@ -679,11 +679,11 @@ def get_cuda_version(cuda_path=None):
     (out, _) = proc.communicate()
     out = py_str(out)
     if proc.returncode == 0:
-        release_line = [line for line in out.split("\n") if "release" in line][0]
+        release_line = next(line for line in out.split("\n") if "release" in line)
         release_fields = [s.strip() for s in release_line.split(",")]
-        version_str = [f[1:] for f in release_fields if f.startswith("V")][0]
+        version_str = next(f[1:] for f in release_fields if f.startswith("V"))
         return tuple(int(field) for field in version_str.split("."))
-    raise RuntimeError("Cannot read cuda version file")
+    raise RuntimeError("Cannot read CUDA version file")
 
 
 def find_nvshmem_paths() -> Tuple[str, str]:
@@ -894,10 +894,11 @@ def get_target_compute_version(target=None):
     # 1. input target object
     # 2. Target.current()
     target = target or Target.current()
-    if target and target.arch:
-        arch = target.arch.split("_")[1]
+    target_arch = str(target.attrs.get("arch", "")) if target else ""
+    if target_arch:
+        arch = target_arch.split("_")[1]
         if len(arch) < 2:
-            raise ValueError(f"The arch is not expected {target.arch}")
+            raise ValueError(f"The arch is not expected {target_arch}")
         if arch[-1].isalpha():
             # This is for arch like "sm_90a"
             suffix = arch[-1]

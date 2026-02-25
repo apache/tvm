@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Load Lib for C++ TOPI ops and schedules"""
+
 import tvm_ffi
 
 tvm_ffi.init_ffi_api("topi", "tvm.topi.cpp")

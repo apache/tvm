@@ -17,10 +17,10 @@
 # Prepare test library for standalone wasm runtime test.
 
 import os
+
 import tvm
-from tvm import te
+from tvm import relax, te
 from tvm.contrib import tvmjs
-from tvm import relax
 from tvm.script import relax as R
 
 
@@ -34,7 +34,7 @@ def prepare_relax_lib(base_path):
             lv0 = R.add(x, y)
             return lv0
 
-    target = tvm.target.Target("llvm -mtriple=wasm32-unknown-unknown-wasm")
+    target = tvm.target.Target({"kind": "llvm", "mtriple": "wasm32-unknown-unknown-wasm"})
 
     mod = pipeline(Mod)
     ex = relax.build(mod, target)
@@ -43,9 +43,9 @@ def prepare_relax_lib(base_path):
 
 
 def prepare_tir_lib(base_path):
-    target = "llvm -mtriple=wasm32-unknown-unknown-wasm"
-    if not tvm.runtime.enabled(target):
-        raise RuntimeError("Target %s is not enbaled" % target)
+    target = {"kind": "llvm", "mtriple": "wasm32-unknown-unknown-wasm"}
+    if not tvm.runtime.enabled("llvm"):
+        raise RuntimeError(f"Target {target} is not enbaled")
     n = te.var("n")
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")

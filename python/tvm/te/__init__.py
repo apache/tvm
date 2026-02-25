@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,8 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-import, redefined-builtin, wildcard-import
-"""Namespace for Tensor Expression Language
-"""
+"""Namespace for Tensor Expression Language"""
+
 # expose all operators in tvm tir.op
 from tvm.tir import any, all, min_value, max_value, trace
 from tvm.tir import exp, erf, tanh, sigmoid, log, tan, cos, sin, sqrt, rsqrt, floor, ceil

@@ -16,16 +16,17 @@
 # under the License.
 """APIs for pattern-based rewriting."""
 
-from typing import Dict, Callable, Union
+from typing import Callable, Dict, Union
+
+from tvm_ffi import register_object
 
 from tvm.ir import IRModule
 from tvm.runtime import Object
-from tvm_ffi import register_object
 
-from .pattern import DFPattern
-from .context import PatternContext
 from ..expr import Expr, Function, Var
 from . import _ffi as ffi
+from .context import PatternContext
+from .pattern import DFPattern
 
 
 @register_object("relax.dpl.PatternMatchingRewriter")

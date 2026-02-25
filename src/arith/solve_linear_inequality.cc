@@ -220,7 +220,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
   ffi::Map<Var, IntGroupBounds> res_bounds;
   for (const Var& v : system_to_solve->variables) {
-    ICHECK(!res_bounds.count(v))
+    TVM_FFI_ICHECK(!res_bounds.count(v))
         << "Variable " << v
         << " appears more than one time in the `variables` which might be a bug";
 
@@ -388,7 +388,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
     analyzer.Bind(vranges);
 
     const Var& var = *it;
-    ICHECK(solved_bounds.count(var));
+    TVM_FFI_ICHECK(solved_bounds.count(var));
     auto bnd = solved_bounds[var];
     if (is_one(bnd->coef) && !bnd->equal.empty()) {
       // There is an equation of the form `v == expr`, so this variable can be completely removed.
@@ -539,25 +539,25 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed(
-          "arith.SolveInequalitiesAsCondition",
-          [](ffi::PackedArgs args, ffi::Any* ret) {
-            IntConstraints problem;
-            PartialSolvedInequalities ret_ineq;
-            if (args.size() == 1) {
-              problem = args[0].cast<IntConstraints>();
-              ret_ineq = SolveLinearInequalities(problem);
-            } else if (args.size() == 3) {
-              problem = IntConstraints(args[0].cast<ffi::Array<Var>>(),
-                                       args[1].cast<ffi::Map<Var, Range>>(),
-                                       args[2].cast<ffi::Array<PrimExpr>>());
-              ret_ineq = SolveLinearInequalities(problem);
-            } else {
-              LOG(FATAL) << "arith.SolveInequalitiesAsCondition expects 1 or 3 arguments, gets "
-                         << args.size();
-            }
-            *ret = AsConditions(problem->variables, ret_ineq.first, ret_ineq.second);
-          })
+      .def_packed("arith.SolveInequalitiesAsCondition",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    IntConstraints problem;
+                    PartialSolvedInequalities ret_ineq;
+                    if (args.size() == 1) {
+                      problem = args[0].cast<IntConstraints>();
+                      ret_ineq = SolveLinearInequalities(problem);
+                    } else if (args.size() == 3) {
+                      problem = IntConstraints(args[0].cast<ffi::Array<Var>>(),
+                                               args[1].cast<ffi::Map<Var, Range>>(),
+                                               args[2].cast<ffi::Array<PrimExpr>>());
+                      ret_ineq = SolveLinearInequalities(problem);
+                    } else {
+                      TVM_FFI_THROW(InternalError)
+                          << "arith.SolveInequalitiesAsCondition expects 1 or 3 arguments, gets "
+                          << args.size();
+                    }
+                    *ret = AsConditions(problem->variables, ret_ineq.first, ret_ineq.second);
+                  })
       .def_packed("arith.SolveInequalitiesToRange",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
                     if (args.size() == 1) {
@@ -568,8 +568,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                              args[2].cast<ffi::Array<PrimExpr>>());
                       *ret = SolveInequalitiesToRange(problem);
                     } else {
-                      LOG(FATAL) << "arith.SolveInequalitiesToRange expects 1 or 3 arguments, gets "
-                                 << args.size();
+                      TVM_FFI_THROW(InternalError)
+                          << "arith.SolveInequalitiesToRange expects 1 or 3 arguments, gets "
+                          << args.size();
                     }
                   })
       .def_packed("arith.SolveInequalitiesDeskewRange", [](ffi::PackedArgs args, ffi::Any* ret) {
@@ -581,8 +582,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                  args[2].cast<ffi::Array<PrimExpr>>());
           *ret = SolveInequalitiesDeskewRange(problem);
         } else {
-          LOG(FATAL) << "arith.SolveInequalitiesDeskewRange expects 1 or 3 arguments, gets "
-                     << args.size();
+          TVM_FFI_THROW(InternalError)
+              << "arith.SolveInequalitiesDeskewRange expects 1 or 3 arguments, gets "
+              << args.size();
         }
       });
 }

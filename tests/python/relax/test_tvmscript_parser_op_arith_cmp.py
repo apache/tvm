@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional, Union, Callable
+from typing import Callable, Optional, Union
 
 import tvm
 import tvm.script
@@ -114,9 +114,9 @@ def test_unary_check(unary_check_op: Callable):
 
 def test_binary_arith(binary_arith_op: Callable):
     @R.function
-    def foo(
-        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")
-    ) -> R.Tensor((2, 3), "float32"):
+    def foo(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")) -> R.Tensor(
+        (2, 3), "float32"
+    ):
         gv: R.Tensor((2, 3), "float32") = binary_arith_op(x, y)
         return gv
 
@@ -142,9 +142,9 @@ def test_binary_arith(binary_arith_op: Callable):
 
 def test_binary_cmp(binary_cmp_op: Callable):
     @R.function
-    def foo(
-        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")
-    ) -> R.Tensor((2, 3), "bool"):
+    def foo(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 1), "float32")) -> R.Tensor(
+        (2, 3), "bool"
+    ):
         gv: R.Tensor((2, 3), "bool") = binary_cmp_op(x, y)
         return gv
 

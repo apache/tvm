@@ -14,16 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """PyTorch ExportedProgram of Relax."""
+
 from collections import ChainMap, OrderedDict
 from functools import partial
 from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 from torch import fx
+
 import tvm
 from tvm import relax
 

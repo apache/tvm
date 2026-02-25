@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, E722, F401, F841, RUF005
 
 """Test for FlashInfer GroupedGemm TVM integration"""
 
@@ -274,9 +275,9 @@ def generate_test_data(
     device: tvm.runtime.Device,
 ):
     """Generate test data for grouped GEMM operations"""
-    assert batch_size == len(
-        m_sizes
-    ), f"batch_size ({batch_size}) must equal len(m_sizes) ({len(m_sizes)})"
+    assert batch_size == len(m_sizes), (
+        f"batch_size ({batch_size}) must equal len(m_sizes) ({len(m_sizes)})"
+    )
 
     # print(f"Device object: {device}")
     torch_device = torch.device(f"cuda:{device.index}")
@@ -463,9 +464,9 @@ def test_grouped_gemm_correctness(
         rtol, atol = 1e-4, 1e-4
 
     # Check shapes match
-    assert (
-        output_torch.shape == reference.shape
-    ), f"Shape mismatch: got {output_torch.shape}, expected {reference.shape}"
+    assert output_torch.shape == reference.shape, (
+        f"Shape mismatch: got {output_torch.shape}, expected {reference.shape}"
+    )
 
     diff = calc_diff(output_torch.cpu().double().numpy(), reference.cpu().double().numpy())
     assert diff < 1e-3, f"diff too large {diff}"

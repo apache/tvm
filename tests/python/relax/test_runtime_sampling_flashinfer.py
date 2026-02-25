@@ -14,16 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 
 import random
+from typing import List
+
 import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-import pytest
 from tvm import relax
 from tvm.contrib import utils
-from typing import List
 
 
 @pytest.mark.skip(reason="Requires FlashInfer enabled and proper setup")

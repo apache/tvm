@@ -344,7 +344,7 @@ inline TDoc IRDocsifierNode::AsDoc(const Any& value, const AccessPath& path) con
         AddDocDecoration<TDoc>(d, obj, path, cfg);
         return Downcast<TDoc>(d);
       } else {
-        LOG(FATAL) << "TypeError: Cannot handle Any type: `" << value.GetTypeKey() << "`";
+        TVM_FFI_THROW(TypeError) << "Cannot handle Any type: `" << value.GetTypeKey() << "`";
         TVM_FFI_UNREACHABLE();
       }
     }

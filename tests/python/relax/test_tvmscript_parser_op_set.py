@@ -37,9 +37,7 @@ def _check(
 
 def test_unique():
     @R.function
-    def foo(
-        x: R.Tensor((2, 3, 4), dtype="float32")
-    ) -> R.Tuple(
+    def foo(x: R.Tensor((2, 3, 4), dtype="float32")) -> R.Tuple(
         R.Tensor(dtype="float32", ndim=3),
         R.Tensor(dtype="int64", ndim=1),
         R.Tensor(dtype="int64", ndim=1),

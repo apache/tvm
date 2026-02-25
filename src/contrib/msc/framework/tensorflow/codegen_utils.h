@@ -43,13 +43,7 @@ class TFV1CodeGenHelper : public BaseCodeGenHelper {};
  */
 struct TensorflowCodeGenConfig {
   CODEGEN_CONFIG_MEMBERS
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      CODEGEN_CONFIG_PARSE
-    }
-  }
+  void Load(ffi::json::Object obj) { CODEGEN_CONFIG_PARSE }
 };
 
 }  // namespace msc

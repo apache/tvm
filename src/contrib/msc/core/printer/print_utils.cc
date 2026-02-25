@@ -95,7 +95,7 @@ const ffi::Array<StmtDoc> DocUtils::ToStmts(const ffi::Array<Doc>& docs) {
     } else if (d->IsInstance<ExprDocNode>()) {
       stmts.push_back(ExprStmtDoc(Downcast<ExprDoc>(d)));
     } else {
-      LOG(FATAL) << "Unecpected doc type " << d->GetTypeKey();
+      TVM_FFI_THROW(InternalError) << "Unecpected doc type " << d->GetTypeKey();
     }
   }
   return stmts;

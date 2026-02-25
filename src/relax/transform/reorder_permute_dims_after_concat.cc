@@ -71,7 +71,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
   }
 
   auto make_pattern_with_num_concat = [&](size_t num_concat) -> DFPattern {
-    ICHECK_LT(num_concat, pat_permute_dims.size());
+    TVM_FFI_ICHECK_LT(num_concat, pat_permute_dims.size());
     auto concat_tuple = TuplePattern(
         ffi::Array<DFPattern>(pat_permute_dims.begin(), pat_permute_dims.begin() + num_concat));
     return IsOp("relax.concat")(concat_tuple);
@@ -84,9 +84,9 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
 
   auto get_permute_dims_optional_axes = [](const Expr& expr) -> ffi::Optional<ffi::Array<Integer>> {
     auto call = expr.as<CallNode>();
-    ICHECK(call);
+    TVM_FFI_ICHECK(call);
     auto attrs = call->attrs.as<PermuteDimsAttrs>();
-    ICHECK(attrs);
+    TVM_FFI_ICHECK(attrs);
 
     return attrs->axes;
   };
@@ -99,10 +99,10 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       auto call = Downcast<Call>(expr);
       ffi::Array<Integer> permutation;
       auto arg_sinfo = call->args[0]->struct_info_.as<TensorStructInfoNode>();
-      CHECK(arg_sinfo) << "Expected permute_dims to have a single tensor argument, "
-                       << "but argument " << call->args[0] << " has struct info "
-                       << call->args[0]->struct_info_;
-      CHECK_GE(arg_sinfo->ndim, 0);
+      TVM_FFI_ICHECK(arg_sinfo) << "Expected permute_dims to have a single tensor argument, "
+                                << "but argument " << call->args[0] << " has struct info "
+                                << call->args[0]->struct_info_;
+      TVM_FFI_ICHECK_GE(arg_sinfo->ndim, 0);
       size_t ndim = arg_sinfo->ndim;
       for (size_t i = 0; i < ndim; i++) {
         permutation.push_back(Integer(ndim - i - 1));
@@ -137,8 +137,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       }
     }
 
-    ICHECK_GE(all_permute_dims.size(), min_concat)
-        << "InternalError: "
+    TVM_FFI_CHECK_GE(all_permute_dims.size(), min_concat, InternalError)
         << "Pattern match should return at least " << min_concat << " items, but only found "
         << all_permute_dims.size() << ": " << all_permute_dims;
 
@@ -150,7 +149,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
 
     Call concat_call = Downcast<Call>(matches[pat_concat]);
     auto concat_attrs = concat_call->attrs.as<ConcatAttrs>();
-    ICHECK(concat_attrs);
+    TVM_FFI_ICHECK(concat_attrs);
 
     auto old_concat_axis = [&]() -> size_t { return concat_attrs->axis.value_or(0); }();
     Integer new_concat_axis = get_permute_dims_axes(all_permute_dims[0])[old_concat_axis];

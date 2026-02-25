@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-wildcard-import, wildcard-import
+# ruff: noqa: E501, F403, F405
 """Generator for CUTLASS Conv2D kernels."""
+
 from .library import *
 
 
@@ -59,7 +61,7 @@ class Conv2dOperation:
         intermediate_type = ""
 
         if self.tile_description.math_instruction.opcode_class == OpcodeClass.TensorOp:
-            inst_shape = "%d%d%d" % tuple(self.tile_description.math_instruction.instruction_shape)
+            inst_shape = "{}{}{}".format(*self.tile_description.math_instruction.instruction_shape)
             if (
                 self.tile_description.math_instruction.element_a != self.A.element
                 and self.tile_description.math_instruction.element_a != self.accumulator_type()
@@ -68,13 +70,7 @@ class Conv2dOperation:
         else:
             inst_shape = ""
 
-        return "%s%s%s%s_%s" % (
-            ShortDataTypeNames[self.accumulator_type()],
-            inst_shape,
-            intermediate_type,
-            ConvKindNames[self.conv_kind],
-            IteratorAlgorithmNames[self.iterator_algorithm],
-        )
+        return f"{ShortDataTypeNames[self.accumulator_type()]}{inst_shape}{intermediate_type}{ConvKindNames[self.conv_kind]}_{IteratorAlgorithmNames[self.iterator_algorithm]}"
 
     def extended_name(self):
         """Append data types if they differ from compute type."""
@@ -111,12 +107,7 @@ class Conv2dOperation:
         """
         opcode_class_name = OpcodeClassNames[self.tile_description.math_instruction.opcode_class]
 
-        threadblock = "%dx%d_%dx%d" % (
-            self.tile_description.threadblock_shape[0],
-            self.tile_description.threadblock_shape[1],
-            self.tile_description.threadblock_shape[2],
-            self.tile_description.stages,
-        )
+        threadblock = f"{self.tile_description.threadblock_shape[0]}x{self.tile_description.threadblock_shape[1]}_{self.tile_description.threadblock_shape[2]}x{self.tile_description.stages}"
 
         if self.stride_support == StrideSupport.Unity:
             configuration_name = (
@@ -530,9 +521,9 @@ def instantiate_conv2d_template(attrs):
         if has_residual_block:
             res_shape = list(attrs.pop("residual_shape"))
             shape_str = f"cutlass::make_Coord({res_shape[0]}, {res_shape[1]}, {res_shape[2]}, K)"
-            aux_map[
-                "residual_shape_decl"
-            ] = f"auto residual_shape = TensorNHWC::packed({shape_str});"
+            aux_map["residual_shape_decl"] = (
+                f"auto residual_shape = TensorNHWC::packed({shape_str});"
+            )
             aux_map["C_shape"] = "residual_shape"
 
             if res_shape == [int(attrs[c]) for c in ["N", "H", "W", "K"]]:

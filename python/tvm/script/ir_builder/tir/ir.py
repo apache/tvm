@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 """IRBuilder for TIR"""
 
 import contextlib
@@ -29,19 +30,16 @@ from typing_extensions import Literal
 
 # isort: on
 
-import numpy as np  # type: ignore
-
 from tvm import ir, tir
 from tvm.ir import Type
 from tvm.ir.base import deprecated
-from tvm.runtime import String, convert, tensor
+from tvm.runtime import String, convert
 from tvm.target import Target
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tir import Buffer, BufferRegion, IndexMap, PrimExpr
+from tvm.tir import Buffer, BufferRegion, IndexMap, PrimExpr, type_annotation
 from tvm.tir import op as _tir_op
-from tvm.tir import type_annotation
 
 # import tir.expr for direct ir construction to pass structural_equal comparison
 from tvm.tir.expr import (
@@ -122,13 +120,13 @@ def buffer(
     shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
     dtype: str = "float32",
     data: Var = None,
-    strides: List[PrimExpr] = None,
+    strides: Optional[List[PrimExpr]] = None,
     elem_offset: PrimExpr = None,
     scope: str = "global",
     align: int = 0,
     offset_factor: int = 0,
     buffer_type: str = "",
-    axis_separators: List[int] = None,
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer:
     """The buffer declaration function.
 
@@ -274,13 +272,13 @@ def match_buffer(
     shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral] = None,
     dtype: str = "float32",
     data: Var = None,
-    strides: List[PrimExpr] = None,
+    strides: Optional[List[PrimExpr]] = None,
     elem_offset: PrimExpr = None,
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
-    axis_separators: List[int] = None,
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer:
     """The buffer match function.
 
@@ -473,13 +471,13 @@ def alloc_buffer(
     shape: Union[List[PrimExpr], Tuple[PrimExpr], PrimExpr, Integral],
     dtype: str = "float32",
     data: Var = None,
-    strides: List[PrimExpr] = None,
+    strides: Optional[List[PrimExpr]] = None,
     elem_offset: PrimExpr = None,
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
     buffer_type: str = "default",
-    axis_separators: List[int] = None,
+    axis_separators: Optional[List[int]] = None,
 ) -> Buffer:
     """The buffer alllocation function.
 
@@ -714,7 +712,7 @@ def serial(
     start: PrimExpr,
     stop: PrimExpr = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
     step: Optional[PrimExpr] = None,
 ) -> frame.ForFrame:
     """The serial For statement.
@@ -751,7 +749,7 @@ def parallel(
     start: PrimExpr,
     stop: PrimExpr = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
     step: Optional[PrimExpr] = None,
 ) -> frame.ForFrame:
     """The parallel For statement.
@@ -788,7 +786,7 @@ def vectorized(
     start: PrimExpr,
     stop: PrimExpr = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
     step: Optional[PrimExpr] = None,
 ) -> frame.ForFrame:
     """The vectorized For statement.
@@ -825,7 +823,7 @@ def unroll(
     start: PrimExpr,
     stop: PrimExpr = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
     step: Optional[PrimExpr] = None,
 ) -> frame.ForFrame:
     """The unrolled For statement.
@@ -861,9 +859,9 @@ def unroll(
 def thread_binding(
     start: PrimExpr,
     stop: PrimExpr = None,
-    thread: str = None,
+    thread: Optional[str] = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
 ) -> frame.ForFrame:
     """The thread-binding For statement.
 
@@ -980,7 +978,7 @@ def Let(  # pylint: disable=invalid-name
 ) -> PrimExpr:
     """Create a Let expression binding"""
     assert len(where) == 1, "T.Let only allows `where` to have exactly one element"
-    var, value = list(where.items())[0]  # pylint: disable=redefined-outer-name
+    var, value = next(iter(where.items()))  # pylint: disable=redefined-outer-name
     return tir.Let(var, value, expr)
 
 
@@ -1022,34 +1020,6 @@ def let(
         return let_expr(v, value, body)
 
 
-def realize(
-    buffer_slice: BufferRegion,
-    storage_scope: str,
-    condition: PrimExpr = True,
-) -> frame.RealizeFrame:
-    """Create a realization.
-
-    Parameters
-    ----------
-    buffer_slice : BufferRegion
-        The region of buffer access.
-
-    storage_scope : str
-        The storage scope associated with this realization.
-
-    condition: PrimExpr
-        The condition expression, the default is True.
-
-    Returns
-    -------
-    res : frame.RealizeFrame
-        The result RealizeFrame.
-    """
-    return _ffi_api.Realize(  # type: ignore[attr-defined] # pylint: disable=no-member
-        buffer_slice, storage_scope, condition
-    )
-
-
 def allocate(
     extents: List[PrimExpr],
     dtype: str,
@@ -1080,43 +1050,6 @@ def allocate(
         condition = IntImm("bool", condition)
     return _ffi_api.Allocate(  # type: ignore[attr-defined] # pylint: disable=no-member
         extents, dtype, scope, condition, annotations
-    )
-
-
-def allocate_const(
-    data: List[PrimExpr],
-    dtype: str,
-    extents: List[PrimExpr],
-    annotations=None,
-) -> frame.AllocateConstFrame:
-    """Allocate constant node.
-
-    Parameters
-    ----------
-    data : List[PrimExpr]
-        The data associated with the constant.
-
-    dtype : str
-        The data type of the buffer.
-
-    extents : List[PrimExpr]
-        The extents of the allocate.
-
-    annotations : Optional[Map]
-        Additional annotations about the allocation.
-    """
-    np_data = np.asarray(data, dtype=dtype)
-    prod_extent = 1
-    for extent in extents:
-        prod_extent *= extent
-    prod_shape = 1
-    for shape in np_data.shape:
-        prod_shape *= shape
-    if prod_extent == prod_shape:
-        np_data = np_data.reshape(extents)
-
-    return _ffi_api.AllocateConst(  # type: ignore[attr-defined] # pylint: disable=no-member
-        tensor(np_data), dtype, extents, annotations
     )
 
 
@@ -1421,170 +1354,170 @@ def func_gen(name: str):
 
 
 # pylint: disable=invalid-name
-int8 = func_gen(("Int8"))
-int16 = func_gen(("Int16"))
-int32 = func_gen(("Int32"))
-int64 = func_gen(("Int64"))
-int8x4 = func_gen(("Int8x4"))
-int16x4 = func_gen(("Int16x4"))
-int32x4 = func_gen(("Int32x4"))
-int64x4 = func_gen(("Int64x4"))
-int8x8 = func_gen(("Int8x8"))
-int16x8 = func_gen(("Int16x8"))
-int32x8 = func_gen(("Int32x8"))
-int64x8 = func_gen(("Int64x8"))
-int8x16 = func_gen(("Int8x16"))
-int16x16 = func_gen(("Int16x16"))
-int32x16 = func_gen(("Int32x16"))
-int64x16 = func_gen(("Int64x16"))
-int8x32 = func_gen(("Int8x32"))
-int16x32 = func_gen(("Int16x32"))
-int32x32 = func_gen(("Int32x32"))
-int64x32 = func_gen(("Int64x32"))
-int8x64 = func_gen(("Int8x64"))
-int16x64 = func_gen(("Int16x64"))
-int32x64 = func_gen(("Int32x64"))
-int64x64 = func_gen(("Int64x64"))
+int8 = func_gen("Int8")
+int16 = func_gen("Int16")
+int32 = func_gen("Int32")
+int64 = func_gen("Int64")
+int8x4 = func_gen("Int8x4")
+int16x4 = func_gen("Int16x4")
+int32x4 = func_gen("Int32x4")
+int64x4 = func_gen("Int64x4")
+int8x8 = func_gen("Int8x8")
+int16x8 = func_gen("Int16x8")
+int32x8 = func_gen("Int32x8")
+int64x8 = func_gen("Int64x8")
+int8x16 = func_gen("Int8x16")
+int16x16 = func_gen("Int16x16")
+int32x16 = func_gen("Int32x16")
+int64x16 = func_gen("Int64x16")
+int8x32 = func_gen("Int8x32")
+int16x32 = func_gen("Int16x32")
+int32x32 = func_gen("Int32x32")
+int64x32 = func_gen("Int64x32")
+int8x64 = func_gen("Int8x64")
+int16x64 = func_gen("Int16x64")
+int32x64 = func_gen("Int32x64")
+int64x64 = func_gen("Int64x64")
 
-uint8 = func_gen(("UInt8"))
-uint16 = func_gen(("UInt16"))
-uint32 = func_gen(("UInt32"))
-uint64 = func_gen(("UInt64"))
-uint8x4 = func_gen(("UInt8x4"))
-uint16x4 = func_gen(("UInt16x4"))
-uint32x4 = func_gen(("UInt32x4"))
-uint64x4 = func_gen(("UInt64x4"))
-uint8x8 = func_gen(("UInt8x8"))
-uint16x8 = func_gen(("UInt16x8"))
-uint32x8 = func_gen(("UInt32x8"))
-uint64x8 = func_gen(("UInt64x8"))
-uint8x16 = func_gen(("UInt8x16"))
-uint16x16 = func_gen(("UInt16x16"))
-uint32x16 = func_gen(("UInt32x16"))
-uint64x16 = func_gen(("UInt64x16"))
-uint8x32 = func_gen(("UInt8x32"))
-uint16x32 = func_gen(("UInt16x32"))
-uint32x32 = func_gen(("UInt32x32"))
-uint64x32 = func_gen(("UInt64x32"))
-uint8x64 = func_gen(("UInt8x64"))
-uint16x64 = func_gen(("UInt16x64"))
-uint32x64 = func_gen(("UInt32x64"))
-uint64x64 = func_gen(("UInt64x64"))
+uint8 = func_gen("UInt8")
+uint16 = func_gen("UInt16")
+uint32 = func_gen("UInt32")
+uint64 = func_gen("UInt64")
+uint8x4 = func_gen("UInt8x4")
+uint16x4 = func_gen("UInt16x4")
+uint32x4 = func_gen("UInt32x4")
+uint64x4 = func_gen("UInt64x4")
+uint8x8 = func_gen("UInt8x8")
+uint16x8 = func_gen("UInt16x8")
+uint32x8 = func_gen("UInt32x8")
+uint64x8 = func_gen("UInt64x8")
+uint8x16 = func_gen("UInt8x16")
+uint16x16 = func_gen("UInt16x16")
+uint32x16 = func_gen("UInt32x16")
+uint64x16 = func_gen("UInt64x16")
+uint8x32 = func_gen("UInt8x32")
+uint16x32 = func_gen("UInt16x32")
+uint32x32 = func_gen("UInt32x32")
+uint64x32 = func_gen("UInt64x32")
+uint8x64 = func_gen("UInt8x64")
+uint16x64 = func_gen("UInt16x64")
+uint32x64 = func_gen("UInt32x64")
+uint64x64 = func_gen("UInt64x64")
 
-float16 = func_gen(("Float16"))
-float32 = func_gen(("Float32"))
-float64 = func_gen(("Float64"))
-float16x2 = func_gen(("Float16x2"))
-float32x2 = func_gen(("Float32x2"))
-float64x2 = func_gen(("Float64x2"))
-float16x4 = func_gen(("Float16x4"))
-float32x4 = func_gen(("Float32x4"))
-float64x4 = func_gen(("Float64x4"))
-float16x8 = func_gen(("Float16x8"))
-float32x8 = func_gen(("Float32x8"))
-float64x8 = func_gen(("Float64x8"))
-float16x16 = func_gen(("Float16x16"))
-float32x16 = func_gen(("Float32x16"))
-float64x16 = func_gen(("Float64x16"))
-float16x32 = func_gen(("Float16x32"))
-float32x32 = func_gen(("Float32x32"))
-float64x32 = func_gen(("Float64x32"))
-float16x64 = func_gen(("Float16x64"))
-float32x64 = func_gen(("Float32x64"))
-float64x64 = func_gen(("Float64x64"))
+float16 = func_gen("Float16")
+float32 = func_gen("Float32")
+float64 = func_gen("Float64")
+float16x2 = func_gen("Float16x2")
+float32x2 = func_gen("Float32x2")
+float64x2 = func_gen("Float64x2")
+float16x4 = func_gen("Float16x4")
+float32x4 = func_gen("Float32x4")
+float64x4 = func_gen("Float64x4")
+float16x8 = func_gen("Float16x8")
+float32x8 = func_gen("Float32x8")
+float64x8 = func_gen("Float64x8")
+float16x16 = func_gen("Float16x16")
+float32x16 = func_gen("Float32x16")
+float64x16 = func_gen("Float64x16")
+float16x32 = func_gen("Float16x32")
+float32x32 = func_gen("Float32x32")
+float64x32 = func_gen("Float64x32")
+float16x64 = func_gen("Float16x64")
+float32x64 = func_gen("Float32x64")
+float64x64 = func_gen("Float64x64")
 
 # Float8 variants
-float8_e3m4 = func_gen(("Float8E3M4"))
-float8_e3m4x2 = func_gen(("Float8E3M4x2"))
-float8_e3m4x4 = func_gen(("Float8E3M4x4"))
-float8_e3m4x8 = func_gen(("Float8E3M4x8"))
-float8_e3m4x16 = func_gen(("Float8E3M4x16"))
-float8_e3m4x32 = func_gen(("Float8E3M4x32"))
-float8_e3m4x64 = func_gen(("Float8E3M4x64"))
+float8_e3m4 = func_gen("Float8E3M4")
+float8_e3m4x2 = func_gen("Float8E3M4x2")
+float8_e3m4x4 = func_gen("Float8E3M4x4")
+float8_e3m4x8 = func_gen("Float8E3M4x8")
+float8_e3m4x16 = func_gen("Float8E3M4x16")
+float8_e3m4x32 = func_gen("Float8E3M4x32")
+float8_e3m4x64 = func_gen("Float8E3M4x64")
 
-float8_e4m3 = func_gen(("Float8E4M3"))
-float8_e4m3x2 = func_gen(("Float8E4M3x2"))
-float8_e4m3x4 = func_gen(("Float8E4M3x4"))
-float8_e4m3x8 = func_gen(("Float8E4M3x8"))
-float8_e4m3x16 = func_gen(("Float8E4M3x16"))
-float8_e4m3x32 = func_gen(("Float8E4M3x32"))
-float8_e4m3x64 = func_gen(("Float8E4M3x64"))
+float8_e4m3 = func_gen("Float8E4M3")
+float8_e4m3x2 = func_gen("Float8E4M3x2")
+float8_e4m3x4 = func_gen("Float8E4M3x4")
+float8_e4m3x8 = func_gen("Float8E4M3x8")
+float8_e4m3x16 = func_gen("Float8E4M3x16")
+float8_e4m3x32 = func_gen("Float8E4M3x32")
+float8_e4m3x64 = func_gen("Float8E4M3x64")
 
-float8_e4m3b11fnuz = func_gen(("Float8E4M3B11FNUZ"))
-float8_e4m3b11fnuzx2 = func_gen(("Float8E4M3B11FNUZx2"))
-float8_e4m3b11fnuzx4 = func_gen(("Float8E4M3B11FNUZx4"))
-float8_e4m3b11fnuzx8 = func_gen(("Float8E4M3B11FNUZx8"))
-float8_e4m3b11fnuzx16 = func_gen(("Float8E4M3B11FNUZx16"))
-float8_e4m3b11fnuzx32 = func_gen(("Float8E4M3B11FNUZx32"))
-float8_e4m3b11fnuzx64 = func_gen(("Float8E4M3B11FNUZx64"))
+float8_e4m3b11fnuz = func_gen("Float8E4M3B11FNUZ")
+float8_e4m3b11fnuzx2 = func_gen("Float8E4M3B11FNUZx2")
+float8_e4m3b11fnuzx4 = func_gen("Float8E4M3B11FNUZx4")
+float8_e4m3b11fnuzx8 = func_gen("Float8E4M3B11FNUZx8")
+float8_e4m3b11fnuzx16 = func_gen("Float8E4M3B11FNUZx16")
+float8_e4m3b11fnuzx32 = func_gen("Float8E4M3B11FNUZx32")
+float8_e4m3b11fnuzx64 = func_gen("Float8E4M3B11FNUZx64")
 
-float8_e4m3fn = func_gen(("Float8E4M3FN"))
-float8_e4m3fnx2 = func_gen(("Float8E4M3FNx2"))
-float8_e4m3fnx4 = func_gen(("Float8E4M3FNx4"))
-float8_e4m3fnx8 = func_gen(("Float8E4M3FNx8"))
-float8_e4m3fnx16 = func_gen(("Float8E4M3FNx16"))
-float8_e4m3fnx32 = func_gen(("Float8E4M3FNx32"))
-float8_e4m3fnx64 = func_gen(("Float8E4M3FNx64"))
+float8_e4m3fn = func_gen("Float8E4M3FN")
+float8_e4m3fnx2 = func_gen("Float8E4M3FNx2")
+float8_e4m3fnx4 = func_gen("Float8E4M3FNx4")
+float8_e4m3fnx8 = func_gen("Float8E4M3FNx8")
+float8_e4m3fnx16 = func_gen("Float8E4M3FNx16")
+float8_e4m3fnx32 = func_gen("Float8E4M3FNx32")
+float8_e4m3fnx64 = func_gen("Float8E4M3FNx64")
 
-float8_e4m3fnuz = func_gen(("Float8E4M3FNUZ"))
-float8_e4m3fnuzx2 = func_gen(("Float8E4M3FNUZx2"))
-float8_e4m3fnuzx4 = func_gen(("Float8E4M3FNUZx4"))
-float8_e4m3fnuzx8 = func_gen(("Float8E4M3FNUZx8"))
-float8_e4m3fnuzx16 = func_gen(("Float8E4M3FNUZx16"))
-float8_e4m3fnuzx32 = func_gen(("Float8E4M3FNUZx32"))
-float8_e4m3fnuzx64 = func_gen(("Float8E4M3FNUZx64"))
+float8_e4m3fnuz = func_gen("Float8E4M3FNUZ")
+float8_e4m3fnuzx2 = func_gen("Float8E4M3FNUZx2")
+float8_e4m3fnuzx4 = func_gen("Float8E4M3FNUZx4")
+float8_e4m3fnuzx8 = func_gen("Float8E4M3FNUZx8")
+float8_e4m3fnuzx16 = func_gen("Float8E4M3FNUZx16")
+float8_e4m3fnuzx32 = func_gen("Float8E4M3FNUZx32")
+float8_e4m3fnuzx64 = func_gen("Float8E4M3FNUZx64")
 
-float8_e5m2 = func_gen(("Float8E5M2"))
-float8_e5m2x2 = func_gen(("Float8E5M2x2"))
-float8_e5m2x4 = func_gen(("Float8E5M2x4"))
-float8_e5m2x8 = func_gen(("Float8E5M2x8"))
-float8_e5m2x16 = func_gen(("Float8E5M2x16"))
-float8_e5m2x32 = func_gen(("Float8E5M2x32"))
-float8_e5m2x64 = func_gen(("Float8E5M2x64"))
+float8_e5m2 = func_gen("Float8E5M2")
+float8_e5m2x2 = func_gen("Float8E5M2x2")
+float8_e5m2x4 = func_gen("Float8E5M2x4")
+float8_e5m2x8 = func_gen("Float8E5M2x8")
+float8_e5m2x16 = func_gen("Float8E5M2x16")
+float8_e5m2x32 = func_gen("Float8E5M2x32")
+float8_e5m2x64 = func_gen("Float8E5M2x64")
 
-float8_e5m2fnuz = func_gen(("Float8E5M2FNUZ"))
-float8_e5m2fnuzx2 = func_gen(("Float8E5M2FNUZx2"))
-float8_e5m2fnuzx4 = func_gen(("Float8E5M2FNUZx4"))
-float8_e5m2fnuzx8 = func_gen(("Float8E5M2FNUZx8"))
-float8_e5m2fnuzx16 = func_gen(("Float8E5M2FNUZx16"))
-float8_e5m2fnuzx32 = func_gen(("Float8E5M2FNUZx32"))
-float8_e5m2fnuzx64 = func_gen(("Float8E5M2FNUZx64"))
+float8_e5m2fnuz = func_gen("Float8E5M2FNUZ")
+float8_e5m2fnuzx2 = func_gen("Float8E5M2FNUZx2")
+float8_e5m2fnuzx4 = func_gen("Float8E5M2FNUZx4")
+float8_e5m2fnuzx8 = func_gen("Float8E5M2FNUZx8")
+float8_e5m2fnuzx16 = func_gen("Float8E5M2FNUZx16")
+float8_e5m2fnuzx32 = func_gen("Float8E5M2FNUZx32")
+float8_e5m2fnuzx64 = func_gen("Float8E5M2FNUZx64")
 
-float8_e8m0fnu = func_gen(("Float8E8M0FNU"))
-float8_e8m0fnux2 = func_gen(("Float8E8M0FNUx2"))
-float8_e8m0fnux4 = func_gen(("Float8E8M0FNUx4"))
-float8_e8m0fnux8 = func_gen(("Float8E8M0FNUx8"))
-float8_e8m0fnux16 = func_gen(("Float8E8M0FNUx16"))
-float8_e8m0fnux32 = func_gen(("Float8E8M0FNUx32"))
-float8_e8m0fnux64 = func_gen(("Float8E8M0FNUx64"))
+float8_e8m0fnu = func_gen("Float8E8M0FNU")
+float8_e8m0fnux2 = func_gen("Float8E8M0FNUx2")
+float8_e8m0fnux4 = func_gen("Float8E8M0FNUx4")
+float8_e8m0fnux8 = func_gen("Float8E8M0FNUx8")
+float8_e8m0fnux16 = func_gen("Float8E8M0FNUx16")
+float8_e8m0fnux32 = func_gen("Float8E8M0FNUx32")
+float8_e8m0fnux64 = func_gen("Float8E8M0FNUx64")
 
 # Float6 variants
-float6_e2m3fn = func_gen(("Float6E2M3FN"))
-float6_e2m3fnx2 = func_gen(("Float6E2M3FNx2"))
-float6_e2m3fnx4 = func_gen(("Float6E2M3FNx4"))
-float6_e2m3fnx8 = func_gen(("Float6E2M3FNx8"))
-float6_e2m3fnx16 = func_gen(("Float6E2M3FNx16"))
-float6_e2m3fnx32 = func_gen(("Float6E2M3FNx32"))
-float6_e2m3fnx64 = func_gen(("Float6E2M3FNx64"))
+float6_e2m3fn = func_gen("Float6E2M3FN")
+float6_e2m3fnx2 = func_gen("Float6E2M3FNx2")
+float6_e2m3fnx4 = func_gen("Float6E2M3FNx4")
+float6_e2m3fnx8 = func_gen("Float6E2M3FNx8")
+float6_e2m3fnx16 = func_gen("Float6E2M3FNx16")
+float6_e2m3fnx32 = func_gen("Float6E2M3FNx32")
+float6_e2m3fnx64 = func_gen("Float6E2M3FNx64")
 
-float6_e3m2fn = func_gen(("Float6E3M2FN"))
-float6_e3m2fnx2 = func_gen(("Float6E3M2FNx2"))
-float6_e3m2fnx4 = func_gen(("Float6E3M2FNx4"))
-float6_e3m2fnx8 = func_gen(("Float6E3M2FNx8"))
-float6_e3m2fnx16 = func_gen(("Float6E3M2FNx16"))
-float6_e3m2fnx32 = func_gen(("Float6E3M2FNx32"))
-float6_e3m2fnx64 = func_gen(("Float6E3M2FNx64"))
+float6_e3m2fn = func_gen("Float6E3M2FN")
+float6_e3m2fnx2 = func_gen("Float6E3M2FNx2")
+float6_e3m2fnx4 = func_gen("Float6E3M2FNx4")
+float6_e3m2fnx8 = func_gen("Float6E3M2FNx8")
+float6_e3m2fnx16 = func_gen("Float6E3M2FNx16")
+float6_e3m2fnx32 = func_gen("Float6E3M2FNx32")
+float6_e3m2fnx64 = func_gen("Float6E3M2FNx64")
 
 # Float4 variants
-float4_e2m1fn = func_gen(("Float4E2M1FN"))
-float4_e2m1fnx2 = func_gen(("Float4E2M1FNx2"))
-float4_e2m1fnx4 = func_gen(("Float4E2M1FNx4"))
-float4_e2m1fnx8 = func_gen(("Float4E2M1FNx8"))
-float4_e2m1fnx16 = func_gen(("Float4E2M1FNx16"))
-float4_e2m1fnx32 = func_gen(("Float4E2M1FNx32"))
-float4_e2m1fnx64 = func_gen(("Float4E2M1FNx64"))
+float4_e2m1fn = func_gen("Float4E2M1FN")
+float4_e2m1fnx2 = func_gen("Float4E2M1FNx2")
+float4_e2m1fnx4 = func_gen("Float4E2M1FNx4")
+float4_e2m1fnx8 = func_gen("Float4E2M1FNx8")
+float4_e2m1fnx16 = func_gen("Float4E2M1FNx16")
+float4_e2m1fnx32 = func_gen("Float4E2M1FNx32")
+float4_e2m1fnx64 = func_gen("Float4E2M1FNx64")
 
-bfloat16 = func_gen(("BFloat16"))
+bfloat16 = func_gen("BFloat16")
 # pylint: enable=invalid-name
 
 
@@ -2184,9 +2117,7 @@ __all__ = float_types + [
     "thread_binding",
     "grid",
     "Assert",
-    "realize",
     "allocate",
-    "allocate_const",
     "attr",
     "While",
     "If",

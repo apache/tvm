@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E722
 
 """Test MSC basic Pass."""
 
 import tvm.testing
-from tvm.relax.frontend.torch import from_fx
-from tvm.relax import PyExprVisitor
-
 from tvm.contrib.msc.core import transform as msc_transform
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.relax import PyExprVisitor
+from tvm.relax.frontend.torch import from_fx
 
 
 def test_relax_layout():
@@ -46,9 +46,7 @@ def test_relax_layout():
                 self.visit_expr(expr)
             elif isinstance(expr, tvm.relax.BindingBlock):
                 self.visit_binding_block(expr)
-            assert len(self._missing_exprs) == 0, "Missing {} layouts".format(
-                len(self._missing_exprs)
-            )
+            assert len(self._missing_exprs) == 0, f"Missing {len(self._missing_exprs)} layouts"
 
         def visit_var_binding_(self, binding) -> None:
             super().visit_var_binding_(binding)
@@ -90,9 +88,7 @@ def test_relax():
                 self.visit_expr(expr)
             elif isinstance(expr, tvm.relax.BindingBlock):
                 self.visit_binding_block(expr)
-            assert len(self._missing_exprs) == 0, "Missing {} names".format(
-                len(self._missing_exprs)
-            )
+            assert len(self._missing_exprs) == 0, f"Missing {len(self._missing_exprs)} names"
 
         def visit_var_binding_(self, binding) -> None:
             super().visit_var_binding_(binding)

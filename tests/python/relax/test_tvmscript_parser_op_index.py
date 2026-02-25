@@ -37,9 +37,9 @@ def _check(
 
 def test_take():
     @R.function
-    def foo(
-        x: R.Tensor((2, 3, 4), "float32"), indices: R.Tensor((3,), "int64")
-    ) -> R.Tensor((2, 3, 3), "float32"):
+    def foo(x: R.Tensor((2, 3, 4), "float32"), indices: R.Tensor((3,), "int64")) -> R.Tensor(
+        (2, 3, 3), "float32"
+    ):
         gv: R.Tensor((2, 3, 3), "float32") = R.take(x, indices, axis=2)
         return gv
 

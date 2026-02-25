@@ -17,14 +17,13 @@
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name, unsupported-binary-operation
 
-
 import enum
-from typing import Callable, Optional
+from typing import Callable
 
+from ... import ffi as _ffi
+from ... import ir as _ir
 from . import _ffi_api
 from . import function_pass as _fpass
-from ... import ir as _ir
-from ... import ffi as _ffi
 
 
 def Apply(ftransform):
@@ -50,22 +49,6 @@ def Apply(ftransform):
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")  # type: ignore
 
 
-@_ffi.register_object("tir.transform.LoopPartitionConfig")
-class LoopPartitionConfig(_ir.Attrs):
-    """Config for loop partition pass"""
-
-
-def LoopPartition():
-    """Inject virtual thread loops.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LoopPartition()  # type: ignore
-
-
 def VectorizeLoop(enable_vectorize: bool = True):
     """Lower vectorization loops.
 
@@ -81,44 +64,6 @@ def VectorizeLoop(enable_vectorize: bool = True):
         The result pass
     """
     return _ffi_api.VectorizeLoop(enable_vectorize)  # type: ignore
-
-
-def InjectVirtualThread():
-    """Inject virtual thread loops.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectVirtualThread()  # type: ignore
-
-
-@_ffi.register_object("tir.transform.InjectDoubleBufferConfig")
-class InjectDoubleBufferConfig(_ir.Attrs):
-    """Config for inject double buffer pass"""
-
-
-def InjectDoubleBuffer():
-    """Inject double buffer statements.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectDoubleBuffer()  # type: ignore
-
-
-def InjectRollingBuffer():
-    """Inject rolling buffer statements.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectRollingBuffer()  # type: ignore
 
 
 def StorageRewrite():
@@ -179,22 +124,6 @@ def UnrollLoop():
     return _ffi_api.UnrollLoop()  # type: ignore
 
 
-@_ffi.register_object("tir.transform.ReduceBranchingThroughOvercomputeConfig")
-class ReduceBranchingThroughOvercomputeConfig(_ir.Attrs):
-    """Config for reduce branching through overcompute pass"""
-
-
-def ReduceBranchingThroughOvercompute():
-    """Reduce branching by introducing overcompute
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.ReduceBranchingThroughOvercompute()  # type: ignore
-
-
 @_ffi.register_object("tir.transform.RemoveNoOpConfig")
 class RemoveNoOpConfig(_ir.Attrs):
     """Config for remove no op pass"""
@@ -220,17 +149,6 @@ def RemoveAssume():
         The result pass
     """
     return _ffi_api.RemoveAssume()  # type: ignore
-
-
-def RemoveStoreUndef():
-    """Remove stores of undefined values from the Stmt.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.RemoveStoreUndef()  # type: ignore
 
 
 def BF16ComputeLegalize():
@@ -293,17 +211,6 @@ def CommonSubexprElimTIR(enable_cse_tir: bool = True, identify_equiv_terms: bool
     return _ffi_api.CommonSubexprElimTIR(enable_cse_tir, identify_equiv_terms)  # type: ignore
 
 
-def RewriteUnsafeSelect():
-    """Detect and rewrite unsafe select that contains memory access.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.RewriteUnsafeSelect()  # type: ignore
-
-
 @_ffi.register_object("tir.transform.SimplifyConfig")
 class SimplifyConfig(_ir.Attrs):
     """Config for simplify pass"""
@@ -336,17 +243,6 @@ def ConvertSSA():
 
     """
     return _ffi_api.ConvertSSA()  # type: ignore
-
-
-def InstrumentBoundCheckers():
-    """Instruments bound checkers.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InstrumentBoundCheckers()  # type: ignore
 
 
 def LowerCustomDatatypes():
@@ -393,27 +289,6 @@ def MakePackedAPI():
     return _ffi_api.MakePackedAPI()  # type: ignore
 
 
-def MakeUnpackedAPI():
-    """Transform the PrimFuncs in the module to a C API compatible with internal calls.
-
-    Prior to this pass, the PrimFunc may have Buffer arguments defined in
-    the `PrimFuncNode::buffer_map`.  This pass consumes the `buffer_map`,
-    using it to generate `T*` arguments (e.g. `float32*`) that can be
-    directly called by a C API.
-
-    For static shapes, no runtime validation is performed to confirm that
-    the argument buffer's shape matches the expected shape.  For dynamic
-    shapes, `MakeUnpackedAPI` requires that the dynamic parameters be
-    passed as separate `tir.Var` parameters.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.MakeUnpackedAPI()  # type: ignore
-
-
 def AnnotateDeviceRegions():
     """Annotate locations that should be run on the device
 
@@ -428,19 +303,6 @@ def AnnotateDeviceRegions():
         The result pass
     """
     return _ffi_api.AnnotateDeviceRegions()  # type: ignore
-
-
-def AnnotateIrregularLoop():
-    """Annotate irregular loop mark. Loop transformations like
-    peeling, partition, unroll, etc is not allowed on irregular
-    loop with internal loop continuation and breaks.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.AnnotateIrregularLoop()  # type: ignore
 
 
 def SplitHostDevice():
@@ -476,17 +338,6 @@ def LowerDeviceKernelLaunch():
     return _ffi_api.LowerDeviceKernelLaunch()  # type: ignore
 
 
-def DecorateDeviceScope():
-    """Decorate all the function's body as device function.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.DecorateDeviceScope()  # type: ignore
-
-
 def SkipAssert():
     """Skip assert stmt.
 
@@ -496,44 +347,6 @@ def SkipAssert():
         The result pass
     """
     return _ffi_api.SkipAssert()  # type: ignore
-
-
-def ThreadSync(storage_scope: str):
-    """Insert sync between parallel read/write of shared buffers.
-
-    Parameters
-    ----------
-    storage_scope: str
-        The target storage scope.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.ThreadSync(storage_scope)  # type: ignore
-
-
-def LowerThreadAllreduce():
-    """Lower cross thread alleduce.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerThreadAllreduce()  # type: ignore
-
-
-def InferFragment():
-    """Infer the TensorCore fragment infomation using tensor intrinsics.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InferFragment()  # type: ignore
 
 
 def LowerWarpMemory():
@@ -567,32 +380,6 @@ def LowerIntrin():
         The result pass
     """
     return _ffi_api.LowerIntrin()  # type: ignore
-
-
-def LowerDeviceStorageAccessInfo():
-    """Lower attached storage access information on device.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-
-    Note
-    ----
-    Run this pass after all storage access analysis finish.
-    """
-    return _ffi_api.LowerDeviceStorageAccessInfo()  # type: ignore
-
-
-def CombineContextCall():
-    """Combine context calls in the host function.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.CombineContextCall()  # type: ignore
 
 
 def NarrowDataType(target_bits: int):
@@ -641,50 +428,9 @@ def VerifyMemory():
     return _ffi_api.VerifyMemory()  # type: ignore
 
 
-def VerifyVTCMLimit(limit=None):
-    """Verify if the size of the allocated vtcm memory satisfies the limit.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.VerifyVTCMLimit(limit)  # type: ignore
-
-
-@_ffi.register_object("tir.transform.HoistIfThenElseConfig")
+@_ffi.register_object("s_tir.transform.HoistIfThenElseConfig")
 class HoistIfThenElseConfig(_ir.Attrs):
     """Config for hoist if then else pass"""
-
-
-# pylint: disable=no-else-return,inconsistent-return-statements
-def HoistIfThenElse(variant: Optional[str] = None):
-    """Hoist loop-invariant IfThenElse nodes to outside the eligible loops.
-
-    Parameters
-    ----------
-    variant : Optional[String]
-        The variant of the pass.
-        variant can have any one of following values ["basic", None(Default)].
-
-        The basic variant supports basic hoisting scenarios where it expects
-        the For & If Nodes are in place consecutively and does not involve
-        global scope variables or more advanced scenarios.
-
-        Default variant supports all hoisting scenarios,i.e., {"Basic" + "Advanced"}
-        supported with control with PassContext configs like below:
-
-            config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    if variant == "basic":
-        return _ffi_api.HoistIfThenElseBasic()  # type: ignore
-    elif variant is None:
-        return _ffi_api.HoistIfThenElse()  # type: ignore
 
 
 class HoistedConditionals(enum.Flag):
@@ -727,170 +473,18 @@ class HoistedLetBindings(enum.Flag):
     """ Bindings that are used by a hoisted conditional """
 
     LetStmt = 2
-    """ Bindings occuring in LetStmt """
+    """ Bindings occurring in LetStmt """
 
     LetExpr = 4
-    """ Bindings occuring in Let expressions """
+    """ Bindings occurring in Let expressions """
 
     All = RequiredByConditional | LetStmt | LetExpr
     """ Enable all hoisting of let bindings """
 
 
-@_ffi.register_object("tir.transform.HoistExpressionConfig")
+@_ffi.register_object("s_tir.transform.HoistExpressionConfig")
 class HoistExpressionConfig(_ir.Attrs):
     """Config for hoist expression pass"""
-
-
-def HoistExpression():
-    """Generalized verison of HoistIfThenElse.
-
-    Hoist loop-invariant expressions to outside the eligible loops.
-    Searches for expressions in:
-
-    * LetStmt bindings
-    * IfThenElse conditions
-    * Boolean operators
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-
-    """
-    return _ffi_api.HoistExpression()  # type: ignore
-
-
-def LowerCrossThreadReduction():
-    """Lower cross-thread reduction from thread bindings to
-    intrinsic function calls.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerCrossThreadReduction()  # type: ignore
-
-
-def LowerInitBlock():
-    """Lower block init stmt into IfThenElse statements.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerInitBlock()  # type: ignore
-
-
-def PlanAndUpdateBufferAllocationLocation():
-    """Locate the buffer allocation to the exact position (usually is
-    the lca of buffer access). This pass will inject opaque block
-    with alloc_buffers at the allocation site.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.PlanAndUpdateBufferAllocationLocation()  # type: ignore
-
-
-def ConvertBlocksToOpaque():
-    """Substitute all the block vars with the PrimExprs they are bound to, indicated by
-    the corresponding iter_values in BlockRealize, and then convert the blocks into
-    opaque ones by removing all the iter_values in BlockRealize and iter_vars in Block.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.ConvertBlocksToOpaque()  # type: ignore
-
-
-def LiftThreadBinding():
-    """Lift the same thread bindings to their LCA loops.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LiftThreadBinding()  # type: ignore
-
-
-def CompactBufferAllocation(is_strict: bool = True):
-    """Compact the buffer access region. by removing the buffer regions
-    that are not accessed, i.e. narrowing the buffer shape and adjust
-    the access region if necessary.
-
-    Example
-    -------
-
-    Before narrowing, ``B`` is a ``[16, 16]`` buffer, but only a
-    skinny vector ``B[i, 0:16]`` is accessed.
-
-    .. code-block:: python
-
-        for i in range(0, 16):
-            with T.sblock():
-                B = T.alloc_buffer(16, 16)
-                for j in range(0, 16):
-                    B[i, j] = A[i, j] + 1
-                for j in range(0, 16):
-                    C[i, j] = B[i, j] + 1
-
-    This pass narrows the buffer shape and adjust its accessed region
-    accordingly.  In this particular case, because only a ``1 * 16``
-    vector of ``B`` is accessed, the pass narrows ``B`` to shape ``[1,
-    16]``, and changes the access to ``B[i, j]`` to ``B[0, j]``.
-
-    .. code-block:: python
-
-        for i in range(0, 16):
-            with T.sblock():
-                B = T.alloc_buffer(1, 16)
-                for j in range(0, 16):
-                    B[0, j] = A[i, j] + 1
-                for j in range(0, 16):
-                    C[i, j] = B[0, j] + 1
-
-    Parameters
-    ----------
-    is_strict : bool
-        Ensure the compacted shape to be always smaller than the original shape.
-        Otherwise it allows to grow the shape to match actual accessed buffer regions.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-
-    """
-    return _ffi_api.CompactBufferAllocation(is_strict)  # type: ignore
-
-
-def LowerMatchBuffer():
-    """Remove match buffers inside the block. Also, it will validate the binding.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerMatchBuffer()  # type: ignore
-
-
-def LowerOpaqueBlock():
-    """Remove the block to ensure that the TIR can not be scheduled again.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerOpaqueBlock()  # type: ignore
 
 
 def FlattenBuffer():
@@ -903,117 +497,6 @@ def FlattenBuffer():
         The result pass
     """
     return _ffi_api.FlattenBuffer()  # type: ignore
-
-
-def TransformMmaBufferLayout():
-    """Transform mma buffer layout
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.TransformMmaBufferLayout()  # type: ignore
-
-
-def InjectPermutedLayout():
-    """Inject permuted layout in mma
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectPermutedLayout()  # type: ignore
-
-
-def UnifyThreadBinding():
-    """Unify all the thread bindings for "blockIdx.x/y/z",
-    "threadIdx.x/y/z", and "vthread.x/y/z". Before the unification,
-    two vars that are bound to a thread axis (e.g., "threadIdx.x")
-    use different IterVars and variables in their AttrStmts. After
-    the unification, we use a consolidated IterVar and a variable
-    for them.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-
-    Note
-    ----
-    `vthread` is a legacy behavior that will be deprecated, though
-    thread bindings of `vthread` are still also unified in this
-    pass. Please use `vthread.x`, `vthread.y` and `vthread.z` instead.
-    """
-    return _ffi_api.UnifyThreadBinding()  # type: ignore
-
-
-def MergeSharedMemoryAllocations():
-    """This pass merges multiple TIR-level shared memory allocations
-    into one allocation.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.MergeSharedMemoryAllocations()  # type: ignore
-
-
-def ConvertForLoopsToSerial():
-    """Convert Parallel For Loops to Serial For Loops.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.ConvertForLoopsToSerial()  # type: ignore
-
-
-def InjectSoftwarePipeline():
-    """Transform annotated loops into pipelined one that parallelize producers and consumers
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectSoftwarePipeline()  # type: ignore
-
-
-def ExtractPrimFuncConstants():
-    """Collects and unificates tir non-scalar constants to module's attr 'Constants' array.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.ExtractPrimFuncConstants()  # type: ignore
-
-
-def LowerAutoCopy():
-    """Automatically do memory optimizations for auto copy blocks
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerAutoCopy()  # type: ignore
-
-
-def RenormalizeSplitPattern():
-    """Renormalize the split pattern from floordiv(floormod()) to floormod(floordiv())
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.RenormalizeSplitPattern()  # type: ignore
 
 
 def BindTarget(target):
@@ -1052,133 +535,3 @@ def Filter(fcond: Callable):
         The result pass
     """
     return _ffi_api.Filter(fcond)  # type: ignore
-
-
-def InjectPTXAsyncCopy():
-    """Rewrite global to shared memory copy on CUDA with asyncronous copy.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectPTXAsyncCopy()  # type: ignore
-
-
-def RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite=False):
-    """Remove weight layout rewrite block before benchmarking during tuning stage.
-
-    Parameters
-    ----------
-    skip_tensor_rewrite : bool
-        If True, exact rewrite of Tensor, according to the given index map, will be skipped.
-        Only the shape of the Tensor is transformed correctly, and the content of the destination
-        array will be filled with random values.
-
-        When this pass is called many times during MetaSchedule tuning, the raw data of Tensor,
-        before and after rewrite, does not matter. Since Tensor layout rewrite, using IndexMap's
-        MapTensor, is currently slow, skipping the exact rewrite is sometimes necessary.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.RemoveWeightLayoutRewriteBlock(skip_tensor_rewrite)  # type: ignore
-
-
-def ManifestSharedMemoryLocalStage():
-    """Add the explicit local stage for the shared memory access on GPU.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.ManifestSharedMemoryLocalStage()  # type: ignore
-
-
-def InstrumentProfileIntrinsics():
-    """Insert intrinsic calls to instrument function and loop level profiling.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InstrumentProfileIntrinsics()  # type: ignore
-
-
-def DefaultGPUSchedule():
-    """The pass sets default thread bindings for PrimFuncs, including symbolic shape functions,
-    allowing their build and execution on GPU devices. It examines all the blocks within the
-    PrimFunc and conducts loop fusion, splitting, and reordering operation based on the loop
-    extent and target information, such as the maximum thread block number and maximum thread
-    per block.
-
-    The primary objective of this pass is not to optimize performance, but rather to generate
-    a valid GPU kernel for unscheduled or symbolic shape PrimFuncs. The pass is currently only
-    working for CUDA targets.
-
-    Returns
-    -------
-    ret: tvm.transform.Pass
-    """
-    return _ffi_api.DefaultGPUSchedule()  # type: ignore
-
-
-def UseAssumeToReduceBranches():
-    """This pass attempts to eliminates layout specific pad branch by overcomputing the values
-    for padded region. Eliminating the branch will help to vectorize code,
-    and improve element wise ops performance.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.UseAssumeToReduceBranches()  # type: ignore
-
-
-def LowerAsyncDMA():
-    """Lower async DMA to DMA.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerAsyncDMA()  # type: ignore
-
-
-def InjectPTXLDG32(enable_inject_ptx_intrin: bool = True):
-    """Inject ptx.ldg.32 intrinsics.
-
-    Parameters
-    ----------
-    enable_inject_ptx_intrin : bool
-        If True, inject ptx.ldg.32 intrinsics.
-    """
-    return _ffi_api.InjectPTXLDG32(enable_inject_ptx_intrin)  # type: ignore
-
-
-def LowerVtcmAlloc():
-    """Lower vtcm allocation.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerVtcmAlloc()  # type: ignore
-
-
-def CanonicalizeLoop():
-    """Canonicalize the loop to start from zero and use trivial step
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.CanonicalizeLoop()  # type: ignore

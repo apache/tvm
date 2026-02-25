@@ -14,21 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import tempfile
 
 import tvm
+import tvm.s_tir.meta_schedule as ms
 import tvm.testing
-import tvm.meta_schedule as ms
 from tvm import relax
 from tvm.ir import transform
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
-
 from tvm.script import relax as R
 from tvm.script import tir as T
 
-target = tvm.target.Target("llvm --num-cores=16")
+target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
 
 @tvm.script.ir_module
@@ -221,7 +221,7 @@ def test_ms_database_apply_fallback():
                 work_dir=work_dir, max_trials_global=0
             )
             out_mod = tuning_pass(mod)
-            default_pass = tvm.tir.transform.DefaultGPUSchedule()
+            default_pass = tvm.s_tir.transform.DefaultGPUSchedule()
             out_mod = default_pass(mod)
             tvm.ir.assert_structural_equal(out_mod, DefaultScheduledModule)
 

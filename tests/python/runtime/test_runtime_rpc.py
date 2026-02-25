@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E712, F841
 
 import multiprocessing
 import os
@@ -22,19 +23,17 @@ import sys
 import tempfile
 import time
 
-import pytest
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
-
-from tvm import te
-from tvm import rpc
-from tvm.contrib import utils, cc
-from tvm.rpc.tracker import Tracker
+from tvm import rpc, te
+from tvm.contrib import cc, utils
 from tvm.rpc.proxy import Proxy
-from tvm.script import ir as I, tir as T
-
+from tvm.rpc.tracker import Tracker
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 if __name__ == "__main__":
     # NOTE: must live here to avoid registering PackedFunc with libtvm.so twice.
@@ -88,7 +87,7 @@ def test_bigendian_rpc():
 
     print("Test RPC connection to PowerPC...")
     remote = rpc.connect(host, port)
-    target = "llvm -mtriple=powerpc-linux-gnu"
+    target = {"kind": "llvm", "mtriple": "powerpc-linux-gnu"}
     for dtype in ["float32", "float64", "int32", "int8"]:
         verify_rpc(remote, target, (10,), dtype)
 
@@ -255,7 +254,7 @@ def test_rpc_remote_module():
         b = tvm.runtime.tensor(np.zeros(102, dtype=A.dtype), dev)
         time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
         cost = time_f(a, b).mean
-        print("%g secs/op" % cost)
+        print(f"{cost:g} secs/op")
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
         # Download the file from the remote
@@ -320,7 +319,7 @@ def test_rpc_remote_module():
         xo, xi = s.split(x, factors=[None, 32])
         s.bind(xo, "blockIdx.x")
         s.bind(xi, "threadIdx.x")
-        f = tvm.compile(s.mod, "opencl --host=llvm")
+        f = tvm.compile(s.mod, tvm.target.Target("opencl", host="llvm"))
         path_tar = temp.relpath("myadd.tar")
         f.export_library(path_tar)
         remote.upload(path_tar)
@@ -495,7 +494,7 @@ def test_rpc_tracker_register(device_key):
     def exist_address(summary, key, host, port):
         server_info = summary["server_info"]
         for device in server_info:
-            if device["key"] == "server:%s" % key:
+            if device["key"] == f"server:{key}":
                 addr = device["addr"]
                 if (host is None or host == addr[0]) and port == addr[1]:
                     return True

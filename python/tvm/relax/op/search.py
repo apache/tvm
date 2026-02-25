@@ -16,10 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name
 """Search operators."""
+
 from typing import Optional
 
-from . import _ffi_api
 from ..expr import Expr
+from . import _ffi_api
 
 
 def where(condition: Expr, x1: Expr, x2: Expr) -> Expr:

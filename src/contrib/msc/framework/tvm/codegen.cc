@@ -202,7 +202,7 @@ const ffi::String RelaxCodeGen::DescribePrim(const MSCPrim& prim) {
 const ffi::Array<Doc> RelaxCodeGen::GetOpCodes(const MSCJoint& node) {
   const auto& ops_map = GetRelaxOpCodes();
   auto it = ops_map->find(GetOpType(node));
-  ICHECK(it != ops_map->end()) << "Unsupported relax op(" << node->optype << "): " << node;
+  TVM_FFI_ICHECK(it != ops_map->end()) << "Unsupported relax op(" << node->optype << "): " << node;
   it->second->Config(node, config(), prims());
   try {
     return it->second->GetDocs();

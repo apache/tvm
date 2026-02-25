@@ -14,14 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
-from tvm.contrib import cc, utils, popen_pool
-import sys
-import numpy as np
 import subprocess
-import tvm.testing
+import sys
+
+import numpy as np
 import pytest
+
+import tvm
+import tvm.testing
+from tvm import te
+from tvm.contrib import cc, popen_pool, utils
 
 runtime_py = """
 import os
@@ -42,7 +44,7 @@ print("Finish runtime checking...")
 
 
 @tvm.testing.requires_llvm
-@pytest.mark.parametrize("target", ["llvm", "llvm -jit=mcjit"])
+@pytest.mark.parametrize("target", ["llvm", {"kind": "llvm", "jit": "mcjit"}])
 def test_dso_module_load(target):
     dtype = "int64"
     temp = utils.tempdir()
@@ -111,7 +113,7 @@ def test_device_module_dump():
     def check_device(device):
         dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+            print(f"Skip because {device} is not enabled")
             return
         temp = utils.tempdir()
         f = tvm.compile(sch.mod, target=device)
@@ -137,7 +139,7 @@ def test_device_module_dump():
     def check_c(device):
         dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
-            print("Skip because %s is not enabled" % device)
+            print(f"Skip because {device} is not enabled")
             return
         f = tvm.compile(sch.mod, target=tvm.target.Target(device, host="c"))
         a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
@@ -200,8 +202,9 @@ def test_combine_module_llvm():
         cc.create_shared(path_dso, [path1, path2])
 
         def popen_check():
-            import tvm.runtime
             import ctypes
+
+            import tvm.runtime
 
             # Load dll, will trigger system library registration
             ctypes.CDLL(path_dso)

@@ -136,17 +136,17 @@ StructInfo InferStructInfoPRelu(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutPRelu(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* attrs = call->attrs.as<PReluAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
   // TODO(Siva): We could handle if the axis is not the sub indexed one.
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
     const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+    TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
     int ndim = tensor_sinfo->ndim;
     layout = LayoutDecision(InitialLayout(ndim));
   }
@@ -201,17 +201,17 @@ StructInfo InferStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutSoftmax(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   const auto* attrs = call->attrs.as<SoftmaxAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
   // TODO(Siva): We could handle if the axis is not the sub indexed one.
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
     const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+    TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
     int ndim = tensor_sinfo->ndim;
     layout = LayoutDecision(InitialLayout(ndim));
   }
@@ -270,7 +270,7 @@ StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<PadAttrs>();
   int ndim = input_sinfo[0]->ndim;
   ffi::Array<Integer> pad_width = attrs->pad_width;
-  ICHECK(static_cast<int>(pad_width.size()) == 2 * ndim) << "Illegal pad_width";
+  TVM_FFI_ICHECK(static_cast<int>(pad_width.size()) == 2 * ndim) << "Illegal pad_width";
 
   ffi::Array<PrimExpr> out_shape;
   if (input_sinfo[0]->shape.defined()) {
@@ -314,11 +314,11 @@ StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<PixelShuffleAttrs>();
   int r = attrs->upscale_factor;
-  ICHECK_GT(r, 0) << "Upscale factor must be positive";
+  TVM_FFI_ICHECK_GT(r, 0) << "Upscale factor must be positive";
 
   const TensorStructInfo& input = input_sinfo[0];
   int ndim = input->ndim;
-  ICHECK_GE(ndim, 3) << "PixelShuffle requires at least 3D input tensor";
+  TVM_FFI_ICHECK_GE(ndim, 3) << "PixelShuffle requires at least 3D input tensor";
 
   if (!input->shape.defined()) {
     return TensorStructInfo(input->dtype, ndim);
@@ -341,7 +341,7 @@ StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx
   const auto* c_in_imm = c_in.as<IntImmNode>();
   const auto* r2_imm = r_squared.as<IntImmNode>();
 
-  ICHECK_EQ(c_in_imm->value % r2_imm->value, 0)
+  TVM_FFI_ICHECK_EQ(c_in_imm->value % r2_imm->value, 0)
       << "Number of input channels must be divisible by the square of the upscale factor";
 
   // Output shape:
@@ -482,16 +482,16 @@ StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutBatchNorm(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 5; ++i) {
     const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
-    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
   }
   const auto* attrs = call->attrs.as<BatchNormAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
   // While dealing with sub layouts, its adviced to deal with batchnorm
@@ -555,16 +555,16 @@ StructInfo InferStructInfoLayerNorm(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutLayerNorm(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 3; ++i) {
     const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
-    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
   }
   const auto* attrs = call->attrs.as<LayerNormAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<LayerNormAttrs> new_attrs = ffi::make_object<LayerNormAttrs>(*attrs);
@@ -670,16 +670,16 @@ StructInfo InferStructInfoGroupNorm(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutGroupNorm(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 3; ++i) {
     const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
-    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
   }
   const auto* attrs = call->attrs.as<GroupNormAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<GroupNormAttrs> new_attrs = ffi::make_object<GroupNormAttrs>(*attrs);
@@ -728,7 +728,7 @@ StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx
   Op op = Downcast<Op>(call->op);
   ffi::Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<InstanceNormAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
   TensorStructInfo data_sinfo = input_sinfo[0];
 
   int channel_axis = -1;
@@ -773,16 +773,16 @@ StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx
 InferLayoutOutput InferLayoutInstanceNorm(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 3; ++i) {
     const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
-    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
   }
   const auto* attrs = call->attrs.as<InstanceNormAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<InstanceNormAttrs> new_attrs = ffi::make_object<InstanceNormAttrs>(*attrs);
@@ -836,16 +836,16 @@ StructInfo InferStructInfoRMSNorm(const Call& call, const BlockBuilder& ctx) {
 InferLayoutOutput InferLayoutRMSNorm(
     const Call& call, const ffi::Map<ffi::String, ffi::Array<ffi::String>>& desired_layouts,
     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
+  TVM_FFI_ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 2; ++i) {
     const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
-    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
-    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    TVM_FFI_ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    TVM_FFI_ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
     initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
   }
   const auto* attrs = call->attrs.as<RMSNormAttrs>();
-  ICHECK(attrs) << "Invalid Call";
+  TVM_FFI_ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<RMSNormAttrs> new_attrs = ffi::make_object<RMSNormAttrs>(*attrs);
@@ -966,7 +966,7 @@ Expr nll_loss(Expr predictions, Expr targets, ffi::Optional<Expr> weights, ffi::
               int ignore_index) {
   ObjectPtr<NLLLossAttrs> attrs = ffi::make_object<NLLLossAttrs>();
 
-  ICHECK(reduction == "none" || reduction == "sum" || reduction == "mean")
+  TVM_FFI_ICHECK(reduction == "none" || reduction == "sum" || reduction == "mean")
       << "The argument reduction of NLLLoss should be one of the following "
          "values: none, mean, sum. However, the given value is "
       << reduction;
@@ -1078,12 +1078,12 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   if (pred_shape_value.defined()) {
     if (pred_shape_value.value().size() == 1) {
       // (C,)
-      ICHECK(pred_sinfo->ndim == 1);
+      TVM_FFI_ICHECK(pred_sinfo->ndim == 1);
       C = pred_shape_value.value()[0];
     } else {
       // (N, C, d1, d2, ..., dk)
-      ICHECK(pred_shape_value.value().size() >= 2);
-      ICHECK(pred_sinfo->ndim == static_cast<int>(pred_shape_value.value().size()));
+      TVM_FFI_ICHECK(pred_shape_value.value().size() >= 2);
+      TVM_FFI_ICHECK(pred_sinfo->ndim == static_cast<int>(pred_shape_value.value().size()));
       N = pred_shape_value.value()[0];
       C = pred_shape_value.value()[1];
       output_shape = ffi::Array<PrimExpr>();
@@ -1101,7 +1101,7 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   if (tgt_shape_value.defined()) {
     if (tgt_shape_value.value().empty()) {
       // ()
-      ICHECK(tgt_sinfo->ndim == 0);
+      TVM_FFI_ICHECK(tgt_sinfo->ndim == 0);
       if (N.defined()) {
         ctx->ReportFatal(Diagnostic::Error(call)
                          << "Shape mismatch for NLLLoss. Predictions shape is "
@@ -1126,12 +1126,12 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
 
       if (tgt_shape_value.value().size() == 1) {
         // (N,)
-        ICHECK(tgt_sinfo->IsUnknownNdim() || tgt_sinfo->ndim == 1);
+        TVM_FFI_ICHECK(tgt_sinfo->IsUnknownNdim() || tgt_sinfo->ndim == 1);
       } else {
         // (N, d1, d2, ..., dk)
-        ICHECK(tgt_shape_value.value().size() >= 2);
-        ICHECK(tgt_sinfo->IsUnknownNdim() ||
-               tgt_sinfo->ndim == static_cast<int>(tgt_shape_value.value().size()));
+        TVM_FFI_ICHECK(tgt_shape_value.value().size() >= 2);
+        TVM_FFI_ICHECK(tgt_sinfo->IsUnknownNdim() ||
+                       tgt_sinfo->ndim == static_cast<int>(tgt_shape_value.value().size()));
 
         if (pred_shape_value.defined()) {
           // check (d1, d2, ..., dk)
@@ -1154,8 +1154,8 @@ StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
       wgt_shape_value = GetStructInfoAs<ShapeStructInfoNode>(wgt_sinfo->shape.value())->values;
     }
     if (wgt_shape_value.defined()) {
-      ICHECK(wgt_shape_value.value().size() == 1);
-      ICHECK(wgt_sinfo->IsUnknownNdim() || wgt_sinfo->ndim == 1);
+      TVM_FFI_ICHECK(wgt_shape_value.value().size() == 1);
+      TVM_FFI_ICHECK(wgt_sinfo->IsUnknownNdim() || wgt_sinfo->ndim == 1);
       const PrimExpr& C_wgt = wgt_shape_value.value()[0];
       if (C.defined() && analyzer->CanProve(C.value() != C_wgt)) {
         ctx->ReportFatal(Diagnostic::Error(call)

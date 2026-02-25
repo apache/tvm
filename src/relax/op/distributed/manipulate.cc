@@ -105,7 +105,7 @@ StructInfo InferDistStructInfoReshape(const Call& call, const BlockBuilder& ctx)
   ffi::Optional<ffi::Array<PrimExpr>> old_shape_values;
   if (data_sinfo->shape.defined()) {
     const auto* old_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value());
-    ICHECK_NOTNULL(old_shape_sinfo);
+    TVM_FFI_ICHECK_NOTNULL(old_shape_sinfo);
     old_shape_values = old_shape_sinfo->values;
   }
 

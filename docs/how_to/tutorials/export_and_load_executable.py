@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
 """
 .. _deploy_export_and_load_executable:
@@ -274,11 +275,13 @@ if RUN_EXAMPLE:
 # To run on GPU instead of CPU, make the following changes:
 #
 # 1. **Compile for GPU** (earlier in the tutorial, around line 112):
+#
 #    .. code-block:: python
 #
 #       TARGET = tvm.target.Target("cuda")  # Change from "llvm" to "cuda"
 #
 # 2. **Use GPU device in the script**:
+#
 #    .. code-block:: python
 #
 #       device = tvm.cuda(0)  # Use CUDA device instead of CPU
@@ -334,7 +337,7 @@ if RUN_EXAMPLE:
 #    from tvm import relax
 #
 #    # Step 1: Cross-compile for ARM target (on local machine)
-#    TARGET = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
+#    TARGET = tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
 #    executable = tvm.compile(built_mod, target=TARGET)
 #    executable.export_library("mlp_arm.so")
 #

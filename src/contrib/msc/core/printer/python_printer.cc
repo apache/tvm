@@ -66,7 +66,7 @@ void PythonPrinter::PrintTypedDoc(const CallDoc& doc) {
   PrintDoc(doc->callee, false);
   output_ << "(";
   PrintJoinedDocs(doc->args);
-  ICHECK_EQ(doc->kwargs_keys.size(), doc->kwargs_values.size())
+  TVM_FFI_ICHECK_EQ(doc->kwargs_keys.size(), doc->kwargs_values.size())
       << "CallDoc should have equal number of elements in kwargs_keys and kwargs_values.";
   if (doc->args.size() > 0 && doc->kwargs_keys.size() > 0) {
     output_ << ", ";
@@ -124,7 +124,7 @@ void PythonPrinter::PrintTypedDoc(const ForDoc& doc) {
   MaybePrintComment(doc, true);
   if (doc->rhs->IsInstance<TupleDocNode>()) {
     const auto& tuple = Downcast<TupleDoc>(doc->rhs);
-    ICHECK_EQ(tuple->elements.size(), 2) << "For with tuple should has 2 elements";
+    TVM_FFI_ICHECK_EQ(tuple->elements.size(), 2) << "For with tuple should has 2 elements";
     output_ << "for ";
     PrintDoc(doc->lhs, false);
     output_ << " in range(";
@@ -157,7 +157,8 @@ void PythonPrinter::PrintTypedDoc(const ScopeDoc& doc) {
 
 void PythonPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
+    TVM_FFI_ICHECK(!arg_doc->comment.has_value())
+        << "Function arg cannot have comment attached to them.";
   }
 
   PrintDecorators(doc->decorators);
@@ -212,7 +213,7 @@ void PythonPrinter::PrintTypedDoc(const StrictListDoc& doc) {
 
 void PythonPrinter::PrintTypedDoc(const SwitchDoc& doc) {
   MaybePrintComment(doc, true);
-  ICHECK_EQ(doc->predicates.size(), doc->branchs.size())
+  TVM_FFI_ICHECK_EQ(doc->predicates.size(), doc->branchs.size())
       << "predicates " << doc->predicates.size() << " mismatch with branchs "
       << doc->branchs.size();
   for (size_t i = 0; i < doc->predicates.size(); i++) {

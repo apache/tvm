@@ -1,3 +1,0 @@
-pip
-poetry
-setuptools

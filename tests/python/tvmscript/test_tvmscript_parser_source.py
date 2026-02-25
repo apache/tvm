@@ -14,13 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """Unittests for tvm.script.parser.core"""
-import pytest
+
 import inspect
+
+import pytest
+
 import tvm.testing
-from tvm.script.parser.core.diagnostics import Source
-from tvm.script.parser.core import doc_core as doc
 from tvm.script import tir as T
+from tvm.script.parser.core import doc_core as doc
+from tvm.script.parser.core.diagnostics import Source
 
 
 def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:

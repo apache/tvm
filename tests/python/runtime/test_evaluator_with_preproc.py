@@ -53,7 +53,7 @@ def test_time_evalutor_with_preproc(f_preproc: str):
     b = tvm.runtime.tensor(np.random.rand(128, 128).astype("float32"), device=dev)
     c = tvm.runtime.tensor(np.zeros((128, 128)).astype("float32"), device=dev)
     args = [a, b, c]
-    print("Evaluator (f_preproc={}):\t{:.5f}ms".format(f_preproc, evaluator(*args).mean * 1000))
+    print(f"Evaluator (f_preproc={f_preproc}):\t{evaluator(*args).mean * 1000:.5f}ms")
 
 
 if __name__ == "__main__":

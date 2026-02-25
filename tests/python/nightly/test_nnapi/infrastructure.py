@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 
 import numpy as np
 
 import tvm
 import tvm.script.relax as R
-
 from tvm.contrib import ndk, utils
 from tvm.relax.backend.contrib.nnapi import partition_for_nnapi
 
@@ -62,9 +62,7 @@ def decompose_clip(mod: tvm.IRModule) -> tvm.IRModule:
     max_pattern = wildcard()
     pattern = is_op("relax.clip")(input_pattern, min_pattern, max_pattern)
 
-    def _rewriter(
-        expr: Expr, matches: Dict[DFPattern, Expr]
-    ) -> Expr:  # pylint: disable=unused-argument
+    def _rewriter(expr: Expr, matches: Dict[DFPattern, Expr]) -> Expr:  # pylint: disable=unused-argument
         dtype = matches[input_pattern].struct_info.dtype
         return R.minimum(
             R.maximum(
@@ -89,7 +87,7 @@ def _build(mod, enable_nnapi):
         mod = partition_for_nnapi(mod)
 
         mod = tvm.relax.transform.RunCodegen()(mod)
-    ex = tvm.compile(mod, target="llvm -mtriple=aarch64-linux-android")
+    ex = tvm.compile(mod, target={"kind": "llvm", "mtriple": "aarch64-linux-android"})
 
     return ex
 

@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401
 """Namespace to store utilities for building web runtime."""
+
 import hashlib
 import json
 import math
@@ -254,12 +256,12 @@ def dump_tensor_cache(
 
     f32_to_bf16_triggered = False
 
-    print("Start storing to cache %s" % cache_dir)
+    print(f"Start storing to cache {cache_dir}")
     shard_cap_nbytes = shard_cap_mb * (1 << 20)
 
     nd_cache_json = os.path.join(cache_dir, "tensor-cache.json")
     if update_if_exists and os.path.exists(nd_cache_json):
-        with open(nd_cache_json, "r") as infile:
+        with open(nd_cache_json) as infile:
             old_data = json.load(infile)
             if meta_data is None:
                 meta_data = old_data["metadata"]
@@ -304,7 +306,7 @@ def dump_tensor_cache(
 
         counter += 1
         if show_progress:
-            last_cmd = "[%04d] saving %s" % (counter, k)
+            last_cmd = f"[{counter:04d}] saving {k}"
             flush = "\r" + (" " * max_out_length) + "\r"
             max_out_length = max(len(last_cmd), max_out_length)
             sys.stdout.write(flush + last_cmd)
@@ -315,8 +317,7 @@ def dump_tensor_cache(
     with open(nd_cache_json, "w") as outfile:
         json.dump({"metadata": meta_data, "records": records}, outfile, indent=4)
     print(
-        "\nAll finished, %d total shards committed, record saved to %s"
-        % (shard_manager.counter, nd_cache_json)
+        f"\nAll finished, {shard_manager.counter} total shards committed, record saved to {nd_cache_json}"
     )
 
     if f32_to_bf16_triggered:
@@ -329,7 +330,7 @@ def dump_tensor_cache(
         # also dump a file that contains bf16
         with open(b16_nd_cache_json, "w") as outfile:
             json.dump({"metadata": meta_data, "records": records}, outfile, indent=4)
-        print("Also saved a bf16 record to %s" % b16_nd_cache_json)
+        print(f"Also saved a bf16 record to {b16_nd_cache_json}")
 
 
 def load_tensor_cache(cachepath: str, device: tvm.runtime.Device):
@@ -348,7 +349,7 @@ def load_tensor_cache(cachepath: str, device: tvm.runtime.Device):
         cachepath = os.path.join(cachepath, "tensor-cache.json")
 
     cachedir = os.path.dirname(cachepath)
-    json_info = json.loads(open(cachepath, "r").read())
+    json_info = json.loads(open(cachepath).read())
     result_dict = {}
 
     for shard_rec in json_info["records"]:

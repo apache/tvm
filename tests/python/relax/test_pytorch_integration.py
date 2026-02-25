@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 """
 Test PyTorch integration with TVM Relax.
 
@@ -25,14 +26,17 @@ This test verifies:
 5. Error handling and edge cases
 """
 
+import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
+
 import tvm
 from tvm import relax, tir
-from tvm.script import ir as I, relax as R, tir as T
 from tvm.relax import BasePyModule
-import numpy as np
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 @I.ir_module

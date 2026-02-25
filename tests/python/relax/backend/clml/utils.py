@@ -14,22 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F811, F841
 """Run utils for CLML integration operator tests"""
-import pytest
-import numpy as np
+
+import copy
 import json
+import os
+
+import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-import copy
-
 from tvm import relax, rpc
-from tvm.relax import transform
-from tvm import dlight as dl
-from tvm.contrib import utils, ndk
-from tvm.relax.backend.adreno.clml import OpenCLMLOffLoad
-
-import os
 from tvm import rpc as _rpc
+from tvm.contrib import ndk, utils
+from tvm.relax import transform
+from tvm.relax.backend.adreno.clml import OpenCLMLOffLoad
+from tvm.s_tir import dlight as dl
 
 
 def get_rpc():
@@ -39,7 +41,7 @@ def get_rpc():
         host = os.getenv("TVM_TRACKER_HOST", "localhost")
         port = int(os.getenv("TVM_TRACKER_PORT", 9090))
         target = "opencl"
-        target_host = "llvm -mtriple=aarch64-linux-gnu"
+        target_host = {"kind": "llvm", "mtriple": "aarch64-linux-gnu"}
         device_key = os.getenv("RPC_DEVICE_KEY", "android")
         cross_compile = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
         tracker = _rpc.connect_tracker(host, port)
@@ -55,7 +57,7 @@ def build_and_run(
     rpc=None,
     load_path="vm_library.so",
 ):
-    tgt = tvm.target.Target(target, host="llvm -mtriple=aarch64-linux-gnu")
+    tgt = tvm.target.Target(target, host={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
     relax_pipeline = relax.pipeline.get_default_pipeline(tgt)
     tir_pipeline = tvm.tir.get_default_tir_pipeline(tgt)
 
@@ -92,7 +94,7 @@ def run_compare(mod, inputs, params_np):
     ref = build_and_run(
         mod,
         inputs,
-        tvm.target.adreno(),
+        tvm.target.Target("qcom/adreno-opencl"),
         rpc=rpc,
         load_path="vm_library_opencl.so",
     )
@@ -101,7 +103,7 @@ def run_compare(mod, inputs, params_np):
     out = build_and_run(
         clml_mod,
         inputs,
-        tvm.target.adreno(cfg="clml"),
+        tvm.target.Target("qcom/adreno-opencl-clml"),
         rpc=rpc,
         load_path="vm_library_clml.so",
     )

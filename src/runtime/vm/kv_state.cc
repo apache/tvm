@@ -40,7 +40,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("vm.builtin.kv_state_popn", &KVStateObj::PopN)
       .def_packed("vm.builtin.kv_state_begin_forward",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    CHECK(args.size() == 3 || args.size() == 4)
+                    TVM_FFI_ICHECK(args.size() == 3 || args.size() == 4)
                         << "KVState BeginForward only accepts 3 or 4 arguments";
                     KVState kv_state = args[0].cast<KVState>();
                     ffi::Shape seq_ids = args[1].cast<ffi::Shape>();

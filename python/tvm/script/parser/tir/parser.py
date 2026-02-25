@@ -173,7 +173,7 @@ def range_sugar(
     stop: PrimExpr = None,
     step: Optional[PrimExpr] = None,
     *,
-    annotations: Dict[str, Any] = None,
+    annotations: Optional[Dict[str, Any]] = None,
 ) -> T.frame.ForFrame:
     """The sugar for python range builtin."""
 
@@ -401,7 +401,6 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     privacy = find_decorator_annotation(node, "private", default=False)
     self.function_annotations = None
     with self.var_table.with_frame():
-
         self.var_table.add("range", range_sugar)
         with T.prim_func(is_private=privacy):
             T.func_name(node.name)

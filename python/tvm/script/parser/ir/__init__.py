@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """The ir module parser"""
+
 from tvm.ir import Range
 from ...ir_builder.ir import *  # pylint: disable=redefined-builtin
 from . import parser as _parser
@@ -22,12 +24,12 @@ from .entry import ir_module, pyfunc
 
 
 __all__ = [
+    "Range",
+    "dummy_global_info",
     "ir_module",
+    "lookup_vdevice",
     "module_attrs",
     "module_global_infos",
-    "dummy_global_info",
-    "Range",
-    "lookup_vdevice",
     "pyfunc",
     "vdevice",
 ]

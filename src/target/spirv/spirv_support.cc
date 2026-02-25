@@ -33,7 +33,7 @@ namespace codegen {
 
 SPIRVSupport::SPIRVSupport(tvm::Target target) {
   auto device_type = target->GetTargetDeviceType();
-  ICHECK(device_type == kDLVulkan || device_type == kDLOpenCL || device_type == kDLWebGPU)
+  TVM_FFI_ICHECK(device_type == kDLVulkan || device_type == kDLOpenCL || device_type == kDLWebGPU)
       << "Unsupported device type for SPIRV codegen:" << device_type;
 
   if (target->GetAttr<Integer>("vulkan_api_version")) {

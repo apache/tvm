@@ -21,10 +21,10 @@ import torch
 from torch.nn import Module
 
 import tvm.testing
-from tvm.contrib.msc.framework.torch.frontend import translate
-from tvm.contrib.msc.framework.torch import codegen
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
+from tvm.contrib.msc.framework.torch import codegen
+from tvm.contrib.msc.framework.torch.frontend import translate
 
 
 def verify_model(torch_model, input_info):
@@ -44,9 +44,7 @@ def verify_model(torch_model, input_info):
         golden = [golden]
     if not isinstance(result, (list, tuple)):
         result = [result]
-    assert len(golden) == len(result), "golden {} mismatch with result {}".format(
-        len(golden), len(result)
-    )
+    assert len(golden) == len(result), f"golden {len(golden)} mismatch with result {len(result)}"
     for gol_r, new_r in zip(golden, result):
         if isinstance(gol_r, torch.Tensor):
             tvm.testing.assert_allclose(

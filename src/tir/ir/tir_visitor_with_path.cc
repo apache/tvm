@@ -194,7 +194,7 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
     // symbolic shapes used within `buffer_view that are not already
     // defined.
     ffi::Array<ObjectRef> arr = Downcast<ffi::Array<ObjectRef>>(op->node);
-    ICHECK_EQ(arr.size(), 2U);
+    TVM_FFI_ICHECK_EQ(arr.size(), 2U);
     Buffer buffer_view = Downcast<Buffer>(arr[0]);
     Buffer orig_buffer = Downcast<Buffer>(arr[1]);
     Visit(orig_buffer, path->Attr("node")->ArrayItem(1));
@@ -232,12 +232,6 @@ void TIRVisitorWithPath::VisitStmt_(const AllocateNode* op, AccessPath path) {
   Visit(op->body, path->Attr("body"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const AllocateConstNode* op, AccessPath path) {
-  Visit(op->extents, path->Attr("extents"));
-  auto context = WithDef(op->buffer_var, path->Attr("buffer_var"));
-  Visit(op->body, path->Attr("body"));
-}
-
 void TIRVisitorWithPath::VisitStmt_(const DeclBufferNode* op, AccessPath path) {
   auto context = WithDef(op->buffer, path->Attr("buffer"));
   Visit(op->body, path->Attr("body"));
@@ -247,14 +241,6 @@ void TIRVisitorWithPath::VisitStmt_(const BufferStoreNode* op, AccessPath path) 
   Visit(op->value, path->Attr("value"));
   Visit(op->buffer, path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));
-}
-
-void TIRVisitorWithPath::VisitStmt_(const BufferRealizeNode* op, AccessPath path) {
-  Visit(op->condition, path->Attr("condition"));
-  Visit(op->bounds, path->Attr("bounds"));
-  auto context = WithDefIfUndefined(op->buffer->data, path->Attr("buffer")->Attr("data"));
-  Visit(op->buffer, path->Attr("buffer"));
-  Visit(op->body, path->Attr("body"));
 }
 
 void TIRVisitorWithPath::VisitStmt_(const IfThenElseNode* op, AccessPath path) {

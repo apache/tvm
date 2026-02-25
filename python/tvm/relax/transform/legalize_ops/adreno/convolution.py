@@ -17,8 +17,7 @@
 # pylint: disable=missing-docstring, invalid-name
 """A Convolution impl for Adreno GPU."""
 
-from tvm import relax
-from tvm import topi
+from tvm import relax, topi
 
 
 def conv2d_NCHWc_OIHWo(bb: relax.BlockBuilder, call: relax.Call) -> relax.Expr:

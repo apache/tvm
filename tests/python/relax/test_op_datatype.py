@@ -15,13 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np  # type: ignore
-
-
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import TVMError, relax, tir
 from tvm.ir import Op
 from tvm.script import relax as R
 

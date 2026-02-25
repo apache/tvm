@@ -45,7 +45,7 @@ void CppPrinter::PrintTypedDoc(const LiteralDoc& doc) {
 }
 
 void CppPrinter::PrintTypedDoc(const IndexDoc& doc) {
-  ICHECK(doc->indices.size() == 1) << "CppPrinter only support 1 size indices";
+  TVM_FFI_ICHECK(doc->indices.size() == 1) << "CppPrinter only support 1 size indices";
   PrintDoc(doc->value, false);
   output_ << "[";
   PrintDoc(doc->indices[0], false);
@@ -75,7 +75,7 @@ void CppPrinter::PrintTypedDoc(const CallDoc& doc) {
   PrintDoc(doc->callee, false);
   output_ << "(";
   PrintJoinedDocs(doc->args);
-  ICHECK_EQ(doc->kwargs_keys.size(), doc->kwargs_values.size())
+  TVM_FFI_ICHECK_EQ(doc->kwargs_keys.size(), doc->kwargs_values.size())
       << "CallDoc should have equal number of elements in kwargs_keys and kwargs_values.";
   if (doc->args.size() > 0 && doc->kwargs_keys.size() > 0) {
     output_ << ", ";
@@ -87,7 +87,7 @@ void CppPrinter::PrintTypedDoc(const CallDoc& doc) {
 }
 
 void CppPrinter::PrintTypedDoc(const AssignDoc& doc) {
-  ICHECK(doc->lhs.defined()) << "lhs should be given for assign";
+  TVM_FFI_ICHECK(doc->lhs.defined()) << "lhs should be given for assign";
   if (doc->annotation.defined()) {
     if (!IsEmptyDoc(doc->annotation.value())) {
       PrintDoc(doc->annotation.value(), false);
@@ -133,7 +133,7 @@ void CppPrinter::PrintTypedDoc(const ForDoc& doc) {
   MaybePrintComment(doc, true);
   if (doc->rhs->IsInstance<TupleDocNode>()) {
     const auto& tuple = Downcast<TupleDoc>(doc->rhs);
-    ICHECK_EQ(tuple->elements.size(), 2) << "For with tuple should has 2 elements";
+    TVM_FFI_ICHECK_EQ(tuple->elements.size(), 2) << "For with tuple should has 2 elements";
     output_ << "for (size_t ";
     PrintDoc(doc->lhs, false);
     output_ << " = ";
@@ -159,7 +159,7 @@ void CppPrinter::PrintTypedDoc(const ForDoc& doc) {
 
 void CppPrinter::PrintTypedDoc(const ScopeDoc& doc) {
   MaybePrintComment(doc, true);
-  ICHECK(doc->rhs.defined()) << "rhs should be given for scope";
+  TVM_FFI_ICHECK(doc->rhs.defined()) << "rhs should be given for scope";
   PrintDoc(doc->rhs, false);
   PrintIndentedBlock(doc->body);
 }
@@ -167,7 +167,8 @@ void CppPrinter::PrintTypedDoc(const ScopeDoc& doc) {
 void CppPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   MaybePrintComment(doc, true);
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
+    TVM_FFI_ICHECK(!arg_doc->comment.has_value())
+        << "Function arg cannot have comment attached to them.";
   }
   if (doc->return_type.defined()) {
     if (!IsEmptyDoc(doc->return_type.value())) {
@@ -273,7 +274,7 @@ void CppPrinter::PrintTypedDoc(const StructDoc& doc) {
 void CppPrinter::PrintTypedDoc(const ConstructorDoc& doc) {
   MaybePrintComment(doc, true);
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(!arg_doc->comment.has_value())
+    TVM_FFI_ICHECK(!arg_doc->comment.has_value())
         << "Constructor arg cannot have comment attached to them.";
   }
   PrintDoc(doc->name, false);
@@ -294,7 +295,8 @@ void CppPrinter::PrintTypedDoc(const ConstructorDoc& doc) {
 void CppPrinter::PrintTypedDoc(const LambdaDoc& doc) {
   MaybePrintComment(doc, true);
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
+    TVM_FFI_ICHECK(!arg_doc->comment.has_value())
+        << "Function arg cannot have comment attached to them.";
   }
   output_ << "auto ";
   PrintDoc(doc->name, false);
@@ -317,7 +319,7 @@ void CppPrinter::PrintTypedDoc(const LambdaDoc& doc) {
 
 void CppPrinter::PrintTypedDoc(const SwitchDoc& doc) {
   MaybePrintComment(doc, true);
-  ICHECK_EQ(doc->predicates.size(), doc->branchs.size())
+  TVM_FFI_ICHECK_EQ(doc->predicates.size(), doc->branchs.size())
       << "predicates " << doc->predicates.size() << " mismatch with branchs "
       << doc->branchs.size();
   for (size_t i = 0; i < doc->predicates.size(); i++) {

@@ -15,10 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E741
 """ScatterND operator"""
+
 from tvm import te, tir  # hide redefinition of min and max
-from tvm.tir import expr
 from tvm.arith.analyzer import Analyzer
+from tvm.script.ir_builder import IRBuilder
+from tvm.script.ir_builder import tir as T
+from tvm.tir import expr
 
 
 def _verify_scatter_nd_inputs(data, indices, updates):
@@ -33,7 +37,7 @@ def _verify_scatter_nd_inputs(data, indices, updates):
             continue
 
         assert analyzer.can_prove_equal(indices.shape[i + 1], updates.shape[i]), (
-            f"Dimension of indices[{i+1}] ({indices.shape[i+1]}) must equal dimension of "
+            f"Dimension of indices[{i + 1}] ({indices.shape[i + 1]}) must equal dimension of "
             f"updates[{i}] ({updates.shape[i]})."
         )
     for i in range(mdim, len(data.shape)):
@@ -45,9 +49,9 @@ def _verify_scatter_nd_inputs(data, indices, updates):
             f"of out_shape[{i}] ({data.shape[i]})."
         )
 
-    assert (
-        "int" in indices.dtype
-    ), f"Indices must be a tensor of integers, but its elements are {indices.dtype}."
+    assert "int" in indices.dtype, (
+        f"Indices must be a tensor of integers, but its elements are {indices.dtype}."
+    )
 
 
 def scatter_nd(data, indices, updates, mode):
@@ -93,12 +97,10 @@ def scatter_nd(data, indices, updates, mode):
 
     def gen_ir(data_ptr, indices_ptr, updates_ptr, out_ptr):
         # pylint: disable=invalid-name
-        ib = tir.ir_builder.create()
-
-        data = ib.buffer_ptr(data_ptr)
-        indices = ib.buffer_ptr(indices_ptr)
-        updates = ib.buffer_ptr(updates_ptr)
-        out = ib.buffer_ptr(out_ptr)
+        data = T.buffer_proxy(data_ptr)
+        indices = T.buffer_proxy(indices_ptr)
+        updates = T.buffer_proxy(updates_ptr)
+        out = T.buffer_proxy(out_ptr)
 
         # We combine all the indices dimensions but the first one into a single
         # dimension so we can iterate it in single loop instead of an arbitrary
@@ -115,35 +117,41 @@ def scatter_nd(data, indices, updates, mode):
         for i in data_ptr.shape:
             fused_shape *= i
 
-        with ib.for_range(0, fused_shape) as i:
-            out[i] = data[i]
+        with IRBuilder() as ib:
+            with T.seq_scope():
+                with T.serial(0, fused_shape) as i:
+                    out[i] = data[i]
 
-        with ib.for_range(0, fused_indices_dimension) as i:
-            with ib.for_range(0, fused_updates_dimension, kind="parallel") as j:
-                offset = fused_updates_dimension
-                index = j  # This is x_M, .. x_{N-1} part of the index into out.
-                # Build up the indices[0, y_0, .. y_{K-1}], .. indices[M-1, y_0, .. y_{K-1}] part
-                # of the index into out.
-                for l in reversed(range(indices_ptr.shape[0].value)):
-                    # indices[i * l * fused_indices_dimension] = indices[l, y_0, ... y_{k-1}]
-                    index += offset * indices[i + l * fused_indices_dimension]
-                    offset *= data_ptr.shape[l]
-                if mode == "update":
-                    out[index] = updates[i * fused_updates_dimension + j]
-                elif mode == "add":
-                    out[index] += updates[i * fused_updates_dimension + j]
-                elif mode == "mul":
-                    out[index] *= updates[i * fused_updates_dimension + j]
-                elif mode == "min":
-                    out[index] = tir.min(out[index], updates[i * fused_updates_dimension + j])
-                elif mode == "max":
-                    out[index] = tir.max(out[index], updates[i * fused_updates_dimension + j])
-                else:
-                    raise NotImplementedError(
-                        "scatter_nd mode not in [update, add, mul, min, max]:", mode
-                    )
+                with T.serial(0, fused_indices_dimension) as i:
+                    with T.parallel(0, fused_updates_dimension) as j:
+                        offset = fused_updates_dimension
+                        index = j  # This is x_M, .. x_{N-1} part of the index into out.
+                        # Build up the indices[0, y_0, ..], .. indices[M-1, y_0, ..] part
+                        # of the index into out.
+                        for l in reversed(range(indices_ptr.shape[0].value)):
+                            # indices[l, y_0, ... y_{k-1}]
+                            index += offset * indices[i + l * fused_indices_dimension]
+                            offset *= data_ptr.shape[l]
+                        if mode == "update":
+                            out[index] = updates[i * fused_updates_dimension + j]
+                        elif mode == "add":
+                            out[index] += updates[i * fused_updates_dimension + j]
+                        elif mode == "mul":
+                            out[index] *= updates[i * fused_updates_dimension + j]
+                        elif mode == "min":
+                            out[index] = tir.min(
+                                out[index], updates[i * fused_updates_dimension + j]
+                            )
+                        elif mode == "max":
+                            out[index] = tir.max(
+                                out[index], updates[i * fused_updates_dimension + j]
+                            )
+                        else:
+                            raise NotImplementedError(
+                                "scatter_nd mode not in [update, add, mul, min, max]:", mode
+                            )
 
-        return ib.get()
+            return ib.get()
 
     out_buf = tir.decl_buffer(data.shape, data.dtype, "out_buf")
     return te.extern(

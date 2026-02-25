@@ -15,10 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, arguments-differ
+# ruff: noqa: RUF012
 """The expression functor of Relax."""
+
 from typing import Callable, Optional
 
 import tvm_ffi
+
 from tvm.ir import Op
 from tvm.runtime import Object
 from tvm.runtime.support import derived_object
@@ -166,7 +169,7 @@ class ExprFunctor:
         elif isinstance(expr, DataTypeImm):
             ret = self.visit_data_type_imm_(expr)
         else:
-            raise TypeError("Invalid type: {0}".format(type(expr)))
+            raise TypeError(f"Invalid type: {type(expr)}")
 
         return ret
 
@@ -242,7 +245,7 @@ class ExprFunctor:
         elif isinstance(binding, VarBinding):
             self.visit_var_binding_(binding)
         else:
-            raise TypeError("Invalid type: {0}".format(type(binding)))
+            raise TypeError(f"Invalid type: {type(binding)}")
 
     def visit_binding_block(self, block: BindingBlock):
         if isinstance(block, DataflowBlock):
@@ -250,7 +253,7 @@ class ExprFunctor:
         elif isinstance(block, BindingBlock):
             self.visit_binding_block_(block)
         else:
-            raise TypeError("Invalid type: {0}".format(type(block)))
+            raise TypeError(f"Invalid type: {type(block)}")
 
     def visit_var_def(self, var: Var):
         if isinstance(var, DataflowVar):
@@ -258,7 +261,7 @@ class ExprFunctor:
         elif isinstance(var, Var):
             self.visit_var_def_(var)
         else:
-            raise TypeError("Invalid type: {0}".format(type(var)))
+            raise TypeError(f"Invalid type: {type(var)}")
 
 
 @tvm_ffi.register_object("expr_functor.PyExprVisitor")
@@ -274,33 +277,33 @@ class _PyExprVisitor(tvm_ffi.core.Object):
 
     def __init__(
         self,
-        f_visit_expr: Callable = None,
-        f_visit_constant_: Callable = None,
-        f_visit_tuple_: Callable = None,
-        f_visit_var_: Callable = None,
-        f_visit_dataflow_var_: Callable = None,
-        f_visit_shape_expr_: Callable = None,
-        f_visit_extern_func_: Callable = None,
-        f_visit_global_var_: Callable = None,
-        f_visit_function_: Callable = None,
-        f_visit_call_: Callable = None,
-        f_visit_seq_expr_: Callable = None,
-        f_visit_if_: Callable = None,
-        f_visit_op_: Callable = None,
-        f_visit_tuple_getitem_: Callable = None,
-        f_visit_prim_value_: Callable = None,
-        f_visit_string_imm_: Callable = None,
-        f_visit_data_type_imm_: Callable = None,
-        f_visit_binding: Callable = None,
-        f_visit_var_binding_: Callable = None,
-        f_visit_match_cast_: Callable = None,
-        f_visit_binding_block: Callable = None,
-        f_visit_binding_block_: Callable = None,
-        f_visit_dataflow_block_: Callable = None,
-        f_visit_var_def: Callable = None,
-        f_visit_var_def_: Callable = None,
-        f_visit_dataflow_var_def_: Callable = None,
-        f_visit_span: Callable = None,
+        f_visit_expr: Optional[Callable] = None,
+        f_visit_constant_: Optional[Callable] = None,
+        f_visit_tuple_: Optional[Callable] = None,
+        f_visit_var_: Optional[Callable] = None,
+        f_visit_dataflow_var_: Optional[Callable] = None,
+        f_visit_shape_expr_: Optional[Callable] = None,
+        f_visit_extern_func_: Optional[Callable] = None,
+        f_visit_global_var_: Optional[Callable] = None,
+        f_visit_function_: Optional[Callable] = None,
+        f_visit_call_: Optional[Callable] = None,
+        f_visit_seq_expr_: Optional[Callable] = None,
+        f_visit_if_: Optional[Callable] = None,
+        f_visit_op_: Optional[Callable] = None,
+        f_visit_tuple_getitem_: Optional[Callable] = None,
+        f_visit_prim_value_: Optional[Callable] = None,
+        f_visit_string_imm_: Optional[Callable] = None,
+        f_visit_data_type_imm_: Optional[Callable] = None,
+        f_visit_binding: Optional[Callable] = None,
+        f_visit_var_binding_: Optional[Callable] = None,
+        f_visit_match_cast_: Optional[Callable] = None,
+        f_visit_binding_block: Optional[Callable] = None,
+        f_visit_binding_block_: Optional[Callable] = None,
+        f_visit_dataflow_block_: Optional[Callable] = None,
+        f_visit_var_def: Optional[Callable] = None,
+        f_visit_var_def_: Optional[Callable] = None,
+        f_visit_dataflow_var_def_: Optional[Callable] = None,
+        f_visit_span: Optional[Callable] = None,
     ) -> None:
         """Constructor."""
 
@@ -795,33 +798,33 @@ class _PyExprMutator(Object):
     def __init__(
         self,
         builder: BlockBuilder = None,
-        f_visit_expr: Callable = None,
-        f_visit_constant_: Callable = None,
-        f_visit_tuple_: Callable = None,
-        f_visit_var_: Callable = None,
-        f_visit_dataflow_var_: Callable = None,
-        f_visit_shape_expr_: Callable = None,
-        f_visit_extern_func_: Callable = None,
-        f_visit_global_var_: Callable = None,
-        f_visit_function_: Callable = None,
-        f_visit_call_: Callable = None,
-        f_visit_seq_expr_: Callable = None,
-        f_visit_if_: Callable = None,
-        f_visit_op_: Callable = None,
-        f_visit_tuple_getitem_: Callable = None,
-        f_visit_prim_value_: Callable = None,
-        f_visit_string_imm_: Callable = None,
-        f_visit_data_type_imm_: Callable = None,
-        f_visit_binding: Callable = None,
-        f_visit_var_binding_: Callable = None,
-        f_visit_match_cast_: Callable = None,
-        f_visit_binding_block: Callable = None,
-        f_visit_binding_block_: Callable = None,
-        f_visit_dataflow_block_: Callable = None,
-        f_visit_var_def: Callable = None,
-        f_visit_var_def_: Callable = None,
-        f_visit_dataflow_var_def_: Callable = None,
-        f_visit_span: Callable = None,
+        f_visit_expr: Optional[Callable] = None,
+        f_visit_constant_: Optional[Callable] = None,
+        f_visit_tuple_: Optional[Callable] = None,
+        f_visit_var_: Optional[Callable] = None,
+        f_visit_dataflow_var_: Optional[Callable] = None,
+        f_visit_shape_expr_: Optional[Callable] = None,
+        f_visit_extern_func_: Optional[Callable] = None,
+        f_visit_global_var_: Optional[Callable] = None,
+        f_visit_function_: Optional[Callable] = None,
+        f_visit_call_: Optional[Callable] = None,
+        f_visit_seq_expr_: Optional[Callable] = None,
+        f_visit_if_: Optional[Callable] = None,
+        f_visit_op_: Optional[Callable] = None,
+        f_visit_tuple_getitem_: Optional[Callable] = None,
+        f_visit_prim_value_: Optional[Callable] = None,
+        f_visit_string_imm_: Optional[Callable] = None,
+        f_visit_data_type_imm_: Optional[Callable] = None,
+        f_visit_binding: Optional[Callable] = None,
+        f_visit_var_binding_: Optional[Callable] = None,
+        f_visit_match_cast_: Optional[Callable] = None,
+        f_visit_binding_block: Optional[Callable] = None,
+        f_visit_binding_block_: Optional[Callable] = None,
+        f_visit_dataflow_block_: Optional[Callable] = None,
+        f_visit_var_def: Optional[Callable] = None,
+        f_visit_var_def_: Optional[Callable] = None,
+        f_visit_dataflow_var_def_: Optional[Callable] = None,
+        f_visit_span: Optional[Callable] = None,
     ) -> None:
         """Constructor."""
 

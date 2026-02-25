@@ -19,10 +19,11 @@
 
 #include "vulkan_module.h"
 
-#include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/support/io.h>
 
+#include "../../support/bytes_io.h"
 #include "../file_utils.h"
 #include "vulkan_wrapped_func.h"
 
@@ -31,8 +32,7 @@ namespace runtime {
 namespace vulkan {
 
 ffi::Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShader> smap,
-                               std::unordered_map<std::string, FunctionInfo> fmap,
-                               std::string source) {
+                               ffi::Map<ffi::String, FunctionInfo> fmap, std::string source) {
   auto n = ffi::make_object<VulkanModuleNode>(smap, fmap, source);
   return ffi::Module(n);
 }
@@ -40,30 +40,28 @@ ffi::Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShader> smap
 ffi::Module VulkanModuleLoadFile(const std::string& file_name, const ffi::String& format) {
   std::string data;
   std::unordered_map<std::string, SPIRVShader> smap;
-  std::unordered_map<std::string, FunctionInfo> fmap;
+  ffi::Map<ffi::String, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
   LoadMetaDataFromFile(meta_file, &fmap);
-  dmlc::MemoryStringStream fs(&data);
-  dmlc::Stream* stream = &fs;
+  support::BytesInStream stream(data);
   uint32_t magic;
-  stream->Read(&magic);
-  ICHECK_EQ(magic, kVulkanModuleMagic) << "VulkanModule Magic mismatch";
-  stream->Read(&smap);
+  stream.Read(&magic);
+  TVM_FFI_ICHECK_EQ(magic, kVulkanModuleMagic) << "VulkanModule Magic mismatch";
+  stream.Read(&smap);
   return VulkanModuleCreate(smap, fmap, "");
 }
 
 ffi::Module VulkanModuleLoadFromBytes(const ffi::Bytes& bytes) {
-  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
-  dmlc::Stream* stream = &ms;
+  support::BytesInStream stream(bytes);
   std::unordered_map<std::string, SPIRVShader> smap;
-  std::unordered_map<std::string, FunctionInfo> fmap;
 
   std::string fmt;
-  stream->Read(&fmt);
-  stream->Read(&fmap);
-  stream->Read(&smap);
+  stream.Read(&fmt);
+  ffi::Map<ffi::String, FunctionInfo> fmap;
+  TVM_FFI_ICHECK(stream.Read(&fmap));
+  stream.Read(&smap);
   return VulkanModuleCreate(smap, fmap, "");
 }
 

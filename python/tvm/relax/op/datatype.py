@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Datatype operators."""
+
 from typing import Union
 
 from tvm import DataType
 
-from . import _ffi_api
 from ..expr import Expr
+from . import _ffi_api
 
 
 def astype(x: Expr, dtype: Union[str, DataType]) -> Expr:

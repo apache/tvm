@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E712, F401
 
 import pickle
 import random
@@ -21,8 +22,8 @@ import random
 import numpy as np
 
 import tvm
-import tvm.testing
 import tvm.runtime
+import tvm.testing
 from tvm.runtime import container as _container
 
 

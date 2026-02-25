@@ -336,31 +336,5 @@ def test_complete_alloc_buffer():
     )
 
 
-def test_access_region_for_decl_buffer():
-    @T.prim_func(private=True)
-    def automatic_access_regions(A: T.Buffer(4, "int32"), C: T.Buffer(4, "int32")):
-        B_data = T.allocate_const([1, 2, 3, 4], "int32", extents=[4])
-        B = T.decl_buffer(4, "int32", data=B_data)
-
-        for i in range(4):
-            with T.sblock("compute"):
-                vi = T.axis.remap("S", [i])
-                C[vi] = A[vi] + B[vi]
-
-    @T.prim_func(private=True)
-    def explicit_access_regions(A: T.Buffer(4, "int32"), C: T.Buffer(4, "int32")):
-        B_data = T.allocate_const([1, 2, 3, 4], "int32", extents=[4])
-        B = T.decl_buffer(4, "int32", data=B_data)
-
-        for i in range(4):
-            with T.sblock("compute"):
-                vi = T.axis.remap("S", [i])
-                T.reads(A[vi], B[vi])
-                T.writes(C[vi])
-                C[vi] = A[vi] + B[vi]
-
-    tvm.ir.assert_structural_equal(explicit_access_regions, automatic_access_regions)
-
-
 if __name__ == "__main__":
     tvm.testing.main()

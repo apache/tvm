@@ -55,7 +55,7 @@ inline std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_
   std::vector<int64_t> stride_vec(strides.size(), 1);
   if (slice_mode == "end") {
     for (size_t i = 0; i < strides.size(); ++i) {
-      ICHECK(strides[i].defined());
+      TVM_FFI_ICHECK(strides[i].defined());
       stride_vec[i] = GetConstInt(strides[i]);
     }
   }
@@ -121,7 +121,7 @@ inline ffi::Array<PrimExpr> StridedSliceOutputShape(
     const std::vector<int64_t>& end, const std::vector<int64_t>& strides,
     const ffi::Array<Integer>& axes, std::string slice_mode,
     const ffi::Array<PrimExpr>& begin_canonicalized, bool use_any = false) {
-  ICHECK(!use_any) << "StridedSliceOutputShape does not legacy use_any";
+  TVM_FFI_ICHECK(!use_any) << "StridedSliceOutputShape does not legacy use_any";
   const size_t src_tensor_dim = ishape.size();
   ffi::Array<PrimExpr> out_shape;
   for (size_t i = 0; i < src_tensor_dim; ++i) {
@@ -131,13 +131,13 @@ inline ffi::Array<PrimExpr> StridedSliceOutputShape(
   for (size_t i = 0; i < axes.size(); ++i) {
     if (ishape[axes[i].IntValue()]->IsInstance<tvm::IntImmNode>()) {
       const int64_t dim_i = GetConstInt(ishape[axes[i].IntValue()]);
-      ICHECK(begin_canonicalized[i]->IsInstance<tvm::IntImmNode>());
+      TVM_FFI_ICHECK(begin_canonicalized[i]->IsInstance<tvm::IntImmNode>());
       int64_t begin_i = GetConstInt(begin_canonicalized[i]);
       int64_t end_i = CanonicalizeIndex(end[i], dim_i, strides[i]);
       int interval = std::abs(end_i - begin_i);
       int slice_size =
           static_cast<int>((interval + std::abs(strides[i]) - 1) / std::abs(strides[i]));
-      ICHECK(strides[i] < 0 ? (end_i <= begin_i) : (begin_i <= end_i))
+      TVM_FFI_ICHECK(strides[i] < 0 ? (end_i <= begin_i) : (begin_i <= end_i))
           << ": Input [Begin=" << begin[i] << ", End=" << end[i] << "] is invalid for axis=" << i;
       out_shape.Set(axes[i].IntValue(), cast(out_shape[i].dtype(), PrimExpr(slice_size)));
     } else {

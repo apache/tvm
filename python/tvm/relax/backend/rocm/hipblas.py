@@ -16,6 +16,7 @@
 # under the License.
 
 """Pattern table for hipblas backend"""
+
 import operator
 from functools import reduce
 

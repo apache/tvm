@@ -221,7 +221,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IRModule>(                                             //
         "tir", [](tvm::IRModule mod, AccessPath n_p, IRDocsifier d) -> Doc {  //
           ffi::Optional<ExprDoc> doc = d->GetVarDoc(mod);
-          ICHECK(doc) << "Unable to print IRModule before definition in TIR.";
+          TVM_FFI_ICHECK(doc) << "Unable to print IRModule before definition in TIR.";
           return doc.value();
         });
 

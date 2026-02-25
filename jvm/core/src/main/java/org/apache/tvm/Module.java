@@ -24,8 +24,8 @@ import java.util.Map;
  * Container of compiled functions of TVM.
  */
 public class Module extends TVMObject {
-  private static ThreadLocal<Map<String, Function>> apiFuncs
-      = new ThreadLocal<Map<String, Function>>() {
+  private static ThreadLocal<Map<String, Function>> apiFuncs =
+      new ThreadLocal<Map<String, Function>>() {
         @Override
         protected Map<String, Function> initialValue() {
           return new HashMap<String, Function>();
@@ -48,12 +48,12 @@ public class Module extends TVMObject {
   private Function entry = null;
   private final String entryName = "main";
 
-
   /**
    * Easy for user to get the instance from returned TVMValue.
    * @return this
    */
-  @Override public Module asModule() {
+  @Override
+  public Module asModule() {
     return this;
   }
 
@@ -76,7 +76,10 @@ public class Module extends TVMObject {
    */
   public Function getFunction(String name, boolean queryImports) {
     TVMValue ret = getApi("ffi.ModuleGetFunction")
-        .pushArg(this).pushArg(name).pushArg(queryImports ? 1 : 0).invoke();
+                       .pushArg(this)
+                       .pushArg(name)
+                       .pushArg(queryImports ? 1 : 0)
+                       .invoke();
     return ret.asFunction();
   }
 
@@ -89,8 +92,7 @@ public class Module extends TVMObject {
    * @param module The other module.
    */
   public void importModule(Module module) {
-    getApi("ffi.ModuleImportModule")
-        .pushArg(this).pushArg(module).invoke();
+    getApi("ffi.ModuleImportModule").pushArg(this).pushArg(module).invoke();
   }
 
   /**

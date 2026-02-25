@@ -18,12 +18,11 @@
 
 import math
 
-import pytest
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
-from tvm import te
 
 dtype = tvm.testing.parameter("uint8", "int8", "uint16", "int16", "uint32", "int32", "float32")
 

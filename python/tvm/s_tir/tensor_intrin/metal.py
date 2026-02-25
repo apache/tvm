@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring,unused-variable
 """Intrinsics for tensorization on Apple GPU."""
+
 from typing import Dict, Literal, Tuple
 
 from tvm.script import tir as T

@@ -17,15 +17,14 @@
 
 package org.apache.tvm;
 
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import static org.junit.Assert.*;
 
 import java.io.File;
 import java.util.Random;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ModuleTest {
   private final Logger logger = LoggerFactory.getLogger(ModuleTest.class);
@@ -41,19 +40,19 @@ public class ModuleTest {
     Module fadd = Module.load(loadingDir + File.separator + "add_cpu.so");
 
     Device dev = new Device("cpu", 0);
-    long[] shape = new long[]{2};
+    long[] shape = new long[] {2};
     Tensor arr = Tensor.empty(shape, dev);
 
-    arr.copyFrom(new float[]{3f, 4f});
+    arr.copyFrom(new float[] {3f, 4f});
 
     Tensor res = Tensor.empty(shape, dev);
 
     fadd.entryFunc().pushArg(arr).pushArg(arr).pushArg(res).invoke();
-    assertArrayEquals(new float[]{6f, 8f}, res.asFloatArray(), 1e-3f);
+    assertArrayEquals(new float[] {6f, 8f}, res.asFloatArray(), 1e-3f);
 
     // test call() api
     fadd.entryFunc().call(arr, arr, res);
-    assertArrayEquals(new float[]{6f, 8f}, res.asFloatArray(), 1e-3f);
+    assertArrayEquals(new float[] {6f, 8f}, res.asFloatArray(), 1e-3f);
 
     arr.release();
     res.release();
@@ -73,7 +72,7 @@ public class ModuleTest {
     Module fadd = Module.load(loadingDir + File.separator + "add_cuda.so");
 
     final int dim = 100;
-    long[] shape = new long[]{dim};
+    long[] shape = new long[] {dim};
     Tensor arr = Tensor.empty(shape, dev);
 
     float[] data = new float[dim];

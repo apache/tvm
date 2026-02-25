@@ -352,7 +352,7 @@ export class CachedCallStack implements Disposable {
   /**
    * Allocate space by number of bytes
    * @param nbytes Number of bytes.
-   * @note This function always allocate space that aligns to 64bit.
+    * Note: This function always allocate space that aligns to 64bit.
    */
   allocRawBytes(nbytes: number): PtrOffset {
     // always aligns to 64bit

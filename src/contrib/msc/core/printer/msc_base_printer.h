@@ -24,7 +24,7 @@
 #ifndef TVM_CONTRIB_MSC_CORE_PRINTER_MSC_BASE_PRINTER_H_
 #define TVM_CONTRIB_MSC_CORE_PRINTER_MSC_BASE_PRINTER_H_
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/script/printer/doc.h>
 
 #include <string>
@@ -47,21 +47,18 @@ struct MSCPrinterConfig {
   size_t float_precision{6};
   std::string indent_space{"  "};
   std::string separator{", "};
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "indent") {
-        reader->Read(&indent);
-      } else if (key == "float_precision") {
-        reader->Read(&float_precision);
-      } else if (key == "indent_space") {
-        reader->Read(&indent_space);
-      } else if (key == "separator") {
-        reader->Read(&separator);
-      } else {
-        LOG(FATAL) << "Do not support config " << key << " in printer";
-      }
+  void Load(ffi::json::Object obj) {
+    if (auto it = obj.find(ffi::String("indent")); it != obj.end()) {
+      indent = static_cast<size_t>((*it).second.cast<int64_t>());
+    }
+    if (auto it = obj.find(ffi::String("float_precision")); it != obj.end()) {
+      float_precision = static_cast<size_t>((*it).second.cast<int64_t>());
+    }
+    if (auto it = obj.find(ffi::String("indent_space")); it != obj.end()) {
+      indent_space = std::string((*it).second.cast<ffi::String>());
+    }
+    if (auto it = obj.find(ffi::String("separator")); it != obj.end()) {
+      separator = std::string((*it).second.cast<ffi::String>());
     }
   }
 };
@@ -78,9 +75,8 @@ class MSCBasePrinter {
    */
   explicit MSCBasePrinter(const std::string& options = "") {
     if (options.size() > 0) {
-      std::istringstream is(options);
-      dmlc::JSONReader reader(&is);
-      reader.Read(&config_);
+      namespace json = ::tvm::ffi::json;
+      config_.Load(json::Parse(options).cast<json::Object>());
     }
     indent_ = config_.indent;
   }
@@ -125,77 +121,109 @@ class MSCBasePrinter {
   virtual void PrintTypedDoc(const ExprStmtDoc& doc);
 
   /*! \brief Virtual method to print an IndexDoc*/
-  virtual void PrintTypedDoc(const IndexDoc& doc) { LOG(FATAL) << "Index is not implemented"; }
+  virtual void PrintTypedDoc(const IndexDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "Index is not implemented";
+  }
 
   /*! \brief Virtual method to print a CallDoc*/
-  virtual void PrintTypedDoc(const CallDoc& doc) { LOG(FATAL) << "Call is not implemented"; }
+  virtual void PrintTypedDoc(const CallDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "Call is not implemented";
+  }
 
   /*! \brief Virtual method to print an AttrAccessDoc*/
   virtual void PrintTypedDoc(const AttrAccessDoc& doc) {
-    LOG(FATAL) << "AttrAccess is not implemented";
+    TVM_FFI_THROW(InternalError) << "AttrAccess is not implemented";
   }
 
   /*! \brief Virtual method to print a DictDoc*/
-  virtual void PrintTypedDoc(const DictDoc& doc) { LOG(FATAL) << "Dict is not implemented"; }
+  virtual void PrintTypedDoc(const DictDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "Dict is not implemented";
+  }
 
   /*! \brief Virtual method to print a SliceDoc*/
-  virtual void PrintTypedDoc(const SliceDoc& doc) { LOG(FATAL) << "Slice is not implemented"; }
+  virtual void PrintTypedDoc(const SliceDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "Slice is not implemented";
+  }
 
   /*! \brief Virtual method to print an AssignDoc*/
-  virtual void PrintTypedDoc(const AssignDoc& doc) { LOG(FATAL) << "Assign is not implemented"; }
+  virtual void PrintTypedDoc(const AssignDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "Assign is not implemented";
+  }
 
   /*! \brief Virtual method to print an IfDoc*/
-  virtual void PrintTypedDoc(const IfDoc& doc) { LOG(FATAL) << "If is not implemented"; }
+  virtual void PrintTypedDoc(const IfDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "If is not implemented";
+  }
 
   /*! \brief Virtual method to print a WhileDoc*/
-  virtual void PrintTypedDoc(const WhileDoc& doc) { LOG(FATAL) << "While is not implemented"; }
+  virtual void PrintTypedDoc(const WhileDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "While is not implemented";
+  }
 
   /*! \brief Virtual method to print a ForDoc*/
-  virtual void PrintTypedDoc(const ForDoc& doc) { LOG(FATAL) << "For is not implemented"; }
+  virtual void PrintTypedDoc(const ForDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "For is not implemented";
+  }
 
   /*! \brief Virtual method to print a ScopeDoc*/
-  virtual void PrintTypedDoc(const ScopeDoc& doc) { LOG(FATAL) << "Scope is not implemented"; }
+  virtual void PrintTypedDoc(const ScopeDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "Scope is not implemented";
+  }
 
   /*! \brief Virtual method to print an AssertDoc*/
-  virtual void PrintTypedDoc(const AssertDoc& doc) { LOG(FATAL) << "Assert is not implemented"; }
+  virtual void PrintTypedDoc(const AssertDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "Assert is not implemented";
+  }
 
   /*! \brief Virtual method to print a FunctionDoc*/
   virtual void PrintTypedDoc(const FunctionDoc& doc) {
-    LOG(FATAL) << "Function is not implemented";
+    TVM_FFI_THROW(InternalError) << "Function is not implemented";
   }
 
   /*! \brief Virtual method to print a ClassDoc*/
-  virtual void PrintTypedDoc(const ClassDoc& doc) { LOG(FATAL) << "Class is not implemented"; }
+  virtual void PrintTypedDoc(const ClassDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "Class is not implemented";
+  }
 
   /*! \brief Virtual method to print a CommentDoc*/
-  virtual void PrintTypedDoc(const CommentDoc& doc) { LOG(FATAL) << "Comment is not implemented"; }
+  virtual void PrintTypedDoc(const CommentDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "Comment is not implemented";
+  }
 
   /*! \brief Virtual method to print a DeclareDoc*/
-  virtual void PrintTypedDoc(const DeclareDoc& doc) { LOG(FATAL) << "Declare is not implemented"; }
+  virtual void PrintTypedDoc(const DeclareDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "Declare is not implemented";
+  }
 
   /*! \brief Virtual method to print a StrictListDoc*/
   virtual void PrintTypedDoc(const StrictListDoc& doc) {
-    LOG(FATAL) << "StrictList is not implemented";
+    TVM_FFI_THROW(InternalError) << "StrictList is not implemented";
   }
 
   /*! \brief Virtual method to print a PointerDoc*/
   virtual void PrintTypedDoc(const PointerDoc& doc) {
-    LOG(FATAL) << "PointerDoc is not implemented";
+    TVM_FFI_THROW(InternalError) << "PointerDoc is not implemented";
   }
 
   /*! \brief Virtual method to print a StructDoc*/
-  virtual void PrintTypedDoc(const StructDoc& doc) { LOG(FATAL) << "StructDoc is not implemented"; }
+  virtual void PrintTypedDoc(const StructDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "StructDoc is not implemented";
+  }
 
   /*! \brief Virtual method to print a ConstructorDoc*/
   virtual void PrintTypedDoc(const ConstructorDoc& doc) {
-    LOG(FATAL) << "ConstructorDoc is not implemented";
+    TVM_FFI_THROW(InternalError) << "ConstructorDoc is not implemented";
   }
 
   /*! \brief Virtual method to print a SwitchDoc*/
-  virtual void PrintTypedDoc(const SwitchDoc& doc) { LOG(FATAL) << "SwitchDoc is not implemented"; }
+  virtual void PrintTypedDoc(const SwitchDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "SwitchDoc is not implemented";
+  }
 
   /*! \brief Virtual method to print a LambdaDoc*/
-  virtual void PrintTypedDoc(const LambdaDoc& doc) { LOG(FATAL) << "LambdaDoc is not implemented"; }
+  virtual void PrintTypedDoc(const LambdaDoc& doc) {
+    TVM_FFI_THROW(InternalError) << "LambdaDoc is not implemented";
+  }
 
   /*! \brief Print docs to joined doc */
   template <typename DocType>

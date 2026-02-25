@@ -56,14 +56,14 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
   const auto& data_type = data->dtype;
   const auto& gamma_type = gamma.defined() ? gamma->dtype : data_type;
   const auto& beta_type = beta.defined() ? beta->dtype : data_type;
-  ICHECK(data_type == gamma_type && data_type == beta_type)
+  TVM_FFI_ICHECK(data_type == gamma_type && data_type == beta_type)
       << "instance_norm: data, gamma and beta must have the same type";
-  ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
+  TVM_FFI_ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
       << "instance_norm: only support float32 and float16 for now";
   bool is_float16 = data_type == DataType::Float(16);
   // sum x and x^2
   auto ndim = data->shape.size();
-  ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
+  TVM_FFI_ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto reduce_axes = MakeReduceAxes(real_axis, data);
   auto target_shape =

@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name, too-many-arguments
 """Operators used in TIR expression."""
+
 from typing import Any, Optional, Union
 
 import tvm_ffi
+
 import tvm
 from tvm import tir
 from tvm.ir import Array, Op, PrimExpr
@@ -50,7 +52,7 @@ def call_packed_lowered(*args, span=None):
     The argument to packed function can be Expr or Buffer.
     The argument is the corresponding POD type when Expr is presented.
     When the argument is Buffer, the corresponding PackedFunc
-    will recieve an TVMArrayHandle whose content is valid during the callback period.
+    will receive an TVMArrayHandle whose content is valid during the callback period.
     If the PackedFunc is a python callback, then the corresponding argument is Tensor.
 
     Parameters
@@ -571,7 +573,6 @@ def address_of(obj: Union[Buffer, BufferLoad], span: Optional[Span] = None) -> P
         The call expression.
     """
     if isinstance(obj, Buffer):
-
         n_dim = len(obj.shape)
         buffer_load = BufferLoad(obj, [0] * n_dim)
         return call_intrin("handle", "tir.address_of", buffer_load, span=span)

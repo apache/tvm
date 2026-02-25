@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Util to invoke emscripten compilers in the system."""
+
 # pylint: disable=invalid-name
 import os
 import subprocess

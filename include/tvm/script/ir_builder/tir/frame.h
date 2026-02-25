@@ -426,52 +426,6 @@ class LaunchThreadFrame : public TIRFrame {
 };
 
 /*!
- * \brief A frame that represents realization.
- *
- * \sa RealizeFrame
- */
-class RealizeFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The region of buffer access. */
-  tvm::tir::BufferRegion buffer_slice;
-  /*! \brief The storage scope associated with this realization. */
-  ffi::String storage_scope;
-  /*! \brief The condition expression. */
-  PrimExpr condition;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RealizeFrameNode>()
-        .def_ro("buffer_slice", &RealizeFrameNode::buffer_slice)
-        .def_ro("storage_scope", &RealizeFrameNode::storage_scope)
-        .def_ro("condition", &RealizeFrameNode::condition);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.RealizeFrame", RealizeFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to RealizeFrameNode.
- *
- * \sa RealizeFrameNode
- */
-class RealizeFrame : public TIRFrame {
- public:
-  explicit RealizeFrame(ObjectPtr<RealizeFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RealizeFrame, TIRFrame, RealizeFrameNode);
-};
-
-/*!
  * \brief A frame represents the allocate.
  *
  * \sa AllocateFrame
@@ -526,59 +480,6 @@ class AllocateFrame : public TIRFrame {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocateFrame, TIRFrame, AllocateFrameNode);
 };
 
-/*!
- * \brief A frame represents the allocate constant.
- *
- * \sa AllocateConstFrame
- */
-class AllocateConstFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The data type of the buffer. */
-  DataType dtype;
-  /*! \brief The extents of the allocate. */
-  ffi::Array<PrimExpr> extents;
-  /*! \brief The data associated with the constant. */
-  tvm::runtime::Tensor data;
-  /*! \brief The buffer var */
-  tvm::tir::Var buffer_var;
-  /*! \brief Additional annotations about the allocation. */
-  ffi::Map<ffi::String, Any> annotations;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocateConstFrameNode>()
-        .def_ro("dtype", &AllocateConstFrameNode::dtype)
-        .def_ro("extents", &AllocateConstFrameNode::extents)
-        .def_ro("data", &AllocateConstFrameNode::data)
-        .def_ro("buffer_var", &AllocateConstFrameNode::buffer_var)
-        .def_ro("annotations", &AllocateConstFrameNode::annotations);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AllocateConstFrame",
-                                    AllocateConstFrameNode, TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to AllocateConstFrameNode.
- *
- * \sa AllocateConstFrameNode
- */
-class AllocateConstFrame : public TIRFrame {
- public:
-  explicit AllocateConstFrame(ObjectPtr<AllocateConstFrameNode> data)
-      : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AllocateConstFrame, TIRFrame,
-                                                AllocateConstFrameNode);
-};
 /*!
  * \brief A frame that represents attribute node.
  *

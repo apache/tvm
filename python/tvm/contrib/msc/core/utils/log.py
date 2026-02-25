@@ -16,26 +16,26 @@
 # under the License.
 """tvm.contrib.msc.core.utils.log"""
 
-import os
 import logging
-from typing import Union
+import os
+from typing import Optional, Union
 
 from .file import get_workspace
-from .namespace import MSCMap, MSCKey
+from .namespace import MSCKey, MSCMap
 
 
-class IOLogger(object):
+class IOLogger:
     """IO Logger for MSC"""
 
     def __init__(self):
         self._printers = {
-            "red": (lambda m: print("\033[91m {}\033[00m".format(m))),
-            "green": (lambda m: print("\033[92m {}\033[00m".format(m))),
-            "yellow": (lambda m: print("\033[93m {}\033[00m".format(m))),
-            "purple": (lambda m: print("\033[95m {}\033[00m".format(m))),
-            "cyan": (lambda m: print("\033[96m {}\033[00m".format(m))),
-            "gray": (lambda m: print("\033[97m {}\033[00m".format(m))),
-            "black": (lambda m: print("\033[98m {}\033[00m".format(m))),
+            "red": (lambda m: print(f"\033[91m {m}\033[00m")),
+            "green": (lambda m: print(f"\033[92m {m}\033[00m")),
+            "yellow": (lambda m: print(f"\033[93m {m}\033[00m")),
+            "purple": (lambda m: print(f"\033[95m {m}\033[00m")),
+            "cyan": (lambda m: print(f"\033[96m {m}\033[00m")),
+            "gray": (lambda m: print(f"\033[97m {m}\033[00m")),
+            "black": (lambda m: print(f"\033[98m {m}\033[00m")),
         }
 
     def info(self, msg):
@@ -52,7 +52,9 @@ class IOLogger(object):
         raise Exception(msg)
 
 
-def create_file_logger(level: Union[str, int] = logging.INFO, path: str = None) -> logging.Logger:
+def create_file_logger(
+    level: Union[str, int] = logging.INFO, path: Optional[str] = None
+) -> logging.Logger:
     """Create file logger
 
     Parameters
@@ -102,7 +104,9 @@ def create_file_logger(level: Union[str, int] = logging.INFO, path: str = None) 
     return logger
 
 
-def set_global_logger(level: Union[str, int] = logging.INFO, path: str = None) -> logging.Logger:
+def set_global_logger(
+    level: Union[str, int] = logging.INFO, path: Optional[str] = None
+) -> logging.Logger:
     """Create file logger and set to global
 
     Parameters
@@ -183,4 +187,4 @@ def split_line(msg: str, symbol: str = "#", width: int = 100) -> str:
         The split line with message.
     """
 
-    return "\n{0}{1}{0}".format(20 * symbol, msg.center(width - 40))
+    return f"\n{20 * symbol}{msg.center(width - 40)}{20 * symbol}"

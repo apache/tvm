@@ -20,7 +20,6 @@
 /*!
  * \file cpu_device_api.cc
  */
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -143,12 +142,17 @@ struct CPUWorkspacePool : public WorkspacePool {
   CPUWorkspacePool() : WorkspacePool(kDLCPU, CPUDeviceAPI::Global()) {}
 };
 
+static CPUWorkspacePool* CPUWorkspacePoolThreadLocal() {
+  static thread_local CPUWorkspacePool inst;
+  return &inst;
+}
+
 void* CPUDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
-  return dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()->AllocWorkspace(dev, size);
+  return CPUWorkspacePoolThreadLocal()->AllocWorkspace(dev, size);
 }
 
 void CPUDeviceAPI::FreeWorkspace(Device dev, void* data) {
-  dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()->FreeWorkspace(dev, data);
+  CPUWorkspacePoolThreadLocal()->FreeWorkspace(dev, data);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F401, F841
 
 import sys
 import tempfile
@@ -25,7 +26,9 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.base import TVMError
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 exec_mode = tvm.testing.parameter("bytecode", "compiled")
 
@@ -54,7 +57,7 @@ def run_cpu(mod, func_name, *args, exec_mode):
 
 
 def test_unique(exec_mode):
-    # TODO(prakalp): also add test for compiling and running on cuda device.
+    # TODO(prakalp): also add test for compiling and running on CUDA device.
     data_numpy = np.random.randint(0, 16, (16, 16))
     data = tvm.runtime.tensor(data_numpy)
     result, result_sorted = run_cpu(InputModule, "foo", data, exec_mode=exec_mode)

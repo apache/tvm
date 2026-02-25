@@ -35,12 +35,9 @@ echo set\(USE_SORT ON\) >> config.cmake
 echo set\(USE_BLAS openblas\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(USE_TENSORRT_CODEGEN ON\) >> config.cmake
-echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
-echo set\(BACKTRACE_ON_SEGFAULT ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
-echo set\(USE_PIPELINE_EXECUTOR ON\) >> config.cmake
 echo set\(USE_CUTLASS ON\) >> config.cmake
 echo set\(USE_MSC ON\) >> config.cmake
 echo set\(CMAKE_CUDA_ARCHITECTURES 75\) >> config.cmake

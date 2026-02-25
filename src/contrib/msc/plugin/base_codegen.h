@@ -24,7 +24,7 @@
 #ifndef TVM_CONTRIB_MSC_PLUGIN_BASE_CODEGEN_H_
 #define TVM_CONTRIB_MSC_PLUGIN_BASE_CODEGEN_H_
 
-#include <dmlc/json.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/script/printer/doc.h>
 
 #include <memory>
@@ -57,9 +57,8 @@ class BasePluginCodeGen {
   explicit BasePluginCodeGen(const std::string& config = "") {
     config_.reset(new ConfigType());
     if (config.size() > 0) {
-      std::istringstream is(config);
-      dmlc::JSONReader reader(&is);
-      reader.Read(config_.get());
+      namespace json = ::tvm::ffi::json;
+      config_->Load(json::Parse(config).cast<json::Object>());
     }
   }
 
@@ -248,13 +247,13 @@ class BasePluginCodeGen {
   /*! \brief Codegen plugin runtime*/
   virtual void CodeGenOpRuntime(const Plugin& plugin) {}
 
-  /*! \brief Codegen cmake file*/
+  /*! \brief Codegen CMake file*/
   virtual void CodeGenCmake(const std::set<ffi::String>& devices) {
     CodeGenPreCmake(devices);
     CodeGenPostCmake(devices);
   }
 
-  /*! \brief Codegen cmake start*/
+  /*! \brief Codegen CMake start*/
   void CodeGenPreCmake(const std::set<ffi::String>& devices,
                        const ffi::Map<ffi::String, ffi::String>& extra_flags =
                            ffi::Map<ffi::String, ffi::String>()) {
@@ -282,7 +281,7 @@ class BasePluginCodeGen {
     stack_.line();
   }
 
-  /*! \brief Codegen cmake end*/
+  /*! \brief Codegen CMake end*/
   void CodeGenPostCmake(const std::set<ffi::String>& devices,
                         const ffi::Array<ffi::String>& extra_includes = ffi::Array<ffi::String>(),
                         const ffi::Array<ffi::String>& extra_libs = ffi::Array<ffi::String>()) {
@@ -481,7 +480,7 @@ class BasePluginCodeGen {
         .func_start()
         .assign("info", "{}");
     for (const auto& name : ListPluginNames()) {
-      ICHECK(this->config()->ops_info.count(name)) << "Can not find op info for " << name;
+      TVM_FFI_ICHECK(this->config()->ops_info.count(name)) << "Can not find op info for " << name;
       const auto& info = this->config()->ops_info[name];
       this->stack_.assign(DocUtils::ToIndex("info", DocUtils::ToStr(name)), info);
     }

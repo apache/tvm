@@ -15,8 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals, too-many-branches
+# ruff: noqa: F841
 """Convolution 3D transpose in python"""
+
 import numpy as np
+
 import tvm.topi.testing
 from tvm.topi.nn.utils import get_pad_tuple3d
 

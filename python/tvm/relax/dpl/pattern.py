@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821
 
 """Pattern types in Relax Dataflow Pattern Language"""
 # pylint: disable=no-member
@@ -413,7 +414,10 @@ class CallPattern(DFPattern):
         add_constraint=True,
     ):
         self.__init_handle_by_constructor__(
-            ffi.CallPattern, op, args, varg_default_wildcard  # type: ignore
+            ffi.CallPattern,
+            op,
+            args,
+            varg_default_wildcard,  # type: ignore
         )
 
         if add_constraint:
@@ -504,7 +508,9 @@ class TupleGetItemPattern(DFPattern):
     def __init__(self, tuple_value: "DFPattern", index: Optional[int] = None):
         match_index = index if index is not None else -1
         self.__init_handle_by_constructor__(
-            ffi.TupleGetItemPattern, tuple_value, match_index  # type: ignore
+            ffi.TupleGetItemPattern,
+            tuple_value,
+            match_index,  # type: ignore
         )
 
 
@@ -656,8 +662,8 @@ class PrimArrPattern(DFPattern):
 
 @register_df_node
 class AttrPattern(DFPattern):
-    """Get match an expression with a certain attributes.
-    Currently only supports Op Attributes, not call Attributes.
+    """Match an expression with certain attributes.
+    Supports Op attributes, Call attributes, and Function attributes.
 
     Parameters
     ----------
@@ -935,7 +941,7 @@ def is_call_dps_packed(
 
 
 def is_call_packed(
-    func_name: str, args: Union[List[DFPattern], Tuple[DFPattern]] = None
+    func_name: str, args: Optional[Union[List[DFPattern], Tuple[DFPattern]]] = None
 ) -> CallPattern:
     """
     Syntax sugar for creating a CallPattern for call_packed

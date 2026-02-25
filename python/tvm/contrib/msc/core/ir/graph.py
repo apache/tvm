@@ -16,14 +16,15 @@
 # under the License.
 """tvm.contrib.msc.core.ir.graph"""
 
-from typing import Dict, Tuple, List, Optional, Union, Iterable, Any
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+
 import numpy as np
 import tvm_ffi
 
 import tvm
-from tvm.runtime import Object
 from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.runtime import Object
 
 
 @tvm_ffi.register_object("msc.core.MSCTensor")
@@ -53,7 +54,7 @@ class MSCTensor(Object):
         layout: str,
         shape: List[int],
         alias: Optional[str] = None,
-        prims: List[str] = None,
+        prims: Optional[List[str]] = None,
     ):
         if not isinstance(dtype, tvm.DataType):
             dtype = tvm.DataType(dtype)
@@ -762,8 +763,7 @@ class MSCGraph(BaseGraph):
         """
 
         for node in self.get_nodes():
-            for weight in node.get_weights().values():
-                yield weight
+            yield from node.get_weights().values()
 
     def input_at(self, idx: int) -> MSCTensor:
         """Get input at idx.
@@ -829,12 +829,9 @@ class MSCGraph(BaseGraph):
         """
 
         for node in self.get_nodes():
-            for t_input in node.get_inputs():
-                yield t_input
-            for weight in node.get_weights().values():
-                yield weight
-        for t_output in self.get_outputs():
-            yield t_output
+            yield from node.get_inputs()
+            yield from node.get_weights().values()
+        yield from self.get_outputs()
 
     def to_json(self) -> str:
         """Dump the graph to json.

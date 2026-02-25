@@ -53,135 +53,88 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
 
   void SetPermuteDimsAttribute(const CallNode* call_node) {
     const auto* permute_dims_attr = call_node->attrs.as<PermuteDimsAttrs>();
-    ICHECK(permute_dims_attr);
+    TVM_FFI_ICHECK(permute_dims_attr);
     if (permute_dims_attr->axes) {
-      std::vector<std::string> axes;
+      ffi::Array<int64_t> axes;
       for (auto axis : permute_dims_attr->axes.value()) {
-        axes.push_back(std::to_string(axis.IntValue()));
+        axes.push_back(axis.IntValue());
       }
-
-      std::vector<dmlc::any> axes_attr;
-      axes_attr.emplace_back(axes);
-      node_->SetAttr("axes", axes_attr);
+      node_->SetAttr("axes", std::move(axes));
     }
   }
 
   void SetAstypeAttribute(const CallNode* call_node) {
     const auto* astype_attrs = call_node->attrs.as<AstypeAttrs>();
-    ICHECK(astype_attrs);
-
-    std::vector<dmlc::any> dtype_attr;
-    auto dtype_str = runtime::DLDataTypeToString(astype_attrs->dtype);
-    dtype_attr.emplace_back(std::vector<std::string>{dtype_str});
-    node_->SetAttr("astype_dtype", dtype_attr);
+    TVM_FFI_ICHECK(astype_attrs);
+    node_->SetAttr("astype_dtype", ffi::String(runtime::DLDataTypeToString(astype_attrs->dtype)));
   }
 
   void SetMeanAttribute(const CallNode* call_node) {
     const auto* mean_attrs = call_node->attrs.as<StatisticalAttrs>();
-    ICHECK(mean_attrs);
-    ICHECK(mean_attrs->axis.defined());
+    TVM_FFI_ICHECK(mean_attrs);
+    TVM_FFI_ICHECK(mean_attrs->axis.defined());
 
     {
-      std::vector<std::string> axis;
+      ffi::Array<int64_t> axis;
       for (auto dim : mean_attrs->axis.value()) {
-        axis.push_back(std::to_string(dim->value));
+        axis.push_back(dim->value);
       }
-
-      std::vector<dmlc::any> axis_attr;
-      axis_attr.emplace_back(axis);
-      node_->SetAttr("axis", axis_attr);
+      node_->SetAttr("axis", std::move(axis));
     }
-
-    {
-      const std::vector<std::string> keepdims{mean_attrs->keepdims ? "1" : "0"};
-      std::vector<dmlc::any> keepdims_attr;
-      keepdims_attr.emplace_back(keepdims);
-      node_->SetAttr("keepdims", keepdims_attr);
-    }
+    node_->SetAttr("keepdims", static_cast<int64_t>(mean_attrs->keepdims ? 1 : 0));
   }
 
   void SetConv2dAttribute(const CallNode* call_node) {
     const auto* conv2d_attr = call_node->attrs.as<Conv2DAttrs>();
-    ICHECK(conv2d_attr) << "didn't catch attributes";
+    TVM_FFI_ICHECK(conv2d_attr) << "didn't catch attributes";
 
-    std::vector<std::string> strides;
+    ffi::Array<int64_t> strides;
     if (!conv2d_attr->strides.empty()) {
       for (auto stride : conv2d_attr->strides) {
-        const auto* stride_val = stride.as<IntImmNode>();
-        ICHECK(stride_val) << "convertion failed";
-
-        strides.push_back(std::to_string(stride_val->value));
+        strides.push_back(static_cast<int64_t>(stride));
       }
     } else {
-      strides = {"1", "1"};
+      strides.push_back(1);
+      strides.push_back(1);
     }
 
-    std::vector<std::string> padding;
+    ffi::Array<int64_t> padding;
     for (auto pad : conv2d_attr->padding) {
-      const auto* padding_val = pad.as<IntImmNode>();
-
-      padding.push_back(std::to_string(padding_val->value));
+      padding.push_back(static_cast<int64_t>(pad));
     }
 
-    std::vector<std::string> groups;
-    const int group_val = conv2d_attr->groups;
-    groups.push_back(std::to_string(group_val));
-
-    std::vector<dmlc::any> strides_attr;
-    strides_attr.emplace_back(strides);
-    node_->SetAttr("strides", strides_attr);
-
-    std::vector<dmlc::any> padding_attr;
-    padding_attr.emplace_back(padding);
-    node_->SetAttr("padding", padding_attr);
-
-    std::vector<dmlc::any> group_attr;
-    group_attr.emplace_back(groups);
-    node_->SetAttr("group", group_attr);
+    node_->SetAttr("strides", std::move(strides));
+    node_->SetAttr("padding", std::move(padding));
+    node_->SetAttr("group", static_cast<int64_t>(conv2d_attr->groups));
   }
 
   void SetMaxPool2dAttribute(const CallNode* call_node) {
     const auto* max_pool_2d_attr = call_node->attrs.as<Pool2DAttrs>();
-    ICHECK(max_pool_2d_attr) << "didn't catch attributes";
+    TVM_FFI_ICHECK(max_pool_2d_attr) << "didn't catch attributes";
 
-    std::vector<std::string> strides;
+    ffi::Array<int64_t> strides;
     if (!max_pool_2d_attr->strides.empty()) {
       for (auto stride : max_pool_2d_attr->strides) {
-        const auto* stride_val = stride.as<IntImmNode>();
-        ICHECK(stride_val) << "convertion failed";
-
-        strides.push_back(std::to_string(stride_val->value));
+        strides.push_back(static_cast<int64_t>(stride));
       }
     } else {
-      strides.push_back("1");
-      strides.push_back("1");
+      strides.push_back(1);
+      strides.push_back(1);
     }
 
-    std::vector<std::string> padding;
+    ffi::Array<int64_t> padding;
     for (auto pad : max_pool_2d_attr->padding) {
-      const auto* padding_val = pad.as<IntImmNode>();
-
-      padding.push_back(std::to_string(padding_val->value));
+      padding.push_back(static_cast<int64_t>(pad));
     }
 
-    std::vector<std::string> pool_size;
+    ffi::Array<int64_t> pool_size;
     for (auto size : max_pool_2d_attr->pool_size) {
-      const auto* pooling_val = size.as<IntImmNode>();
-
-      pool_size.push_back(std::to_string(pooling_val->value));
+      pool_size.push_back(static_cast<int64_t>(size));
     }
 
-    std::vector<dmlc::any> strides_attr;
-    strides_attr.emplace_back(strides);
-    node_->SetAttr("strides", strides_attr);
-
-    std::vector<dmlc::any> padding_attr;
-    padding_attr.emplace_back(padding);
-    node_->SetAttr("padding", padding_attr);
-
-    std::vector<dmlc::any> pooling_attr;
-    pooling_attr.emplace_back(pool_size);
-    node_->SetAttr("pool_size", pooling_attr);
+    node_->SetAttr("strides", std::move(strides));
+    node_->SetAttr("padding", std::move(padding));
+    node_->SetAttr("pool_size", std::move(pool_size));
   }
 
   NNAPIJSONSerializer* serializer_;
@@ -197,12 +150,12 @@ class NNAPIJSONSerializer : public JSONSerializer {
 
   std::vector<JSONGraphNodeEntry> VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
+    TVM_FFI_ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
-    ICHECK(fn.defined()) << "Expects the callee to be a function.";
+    TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
-    ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
+    TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
 
@@ -231,7 +184,7 @@ class NNAPIJSONSerializer : public JSONSerializer {
 
 void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
   const auto* op_node = call_node->op.as<OpNode>();
-  ICHECK(op_node != nullptr);
+  TVM_FFI_ICHECK(op_node != nullptr);
   std::string name = op_node->name;
   if (name == "relax.permute_dims") {
     SetPermuteDimsAttribute(call_node);

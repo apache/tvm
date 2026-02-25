@@ -16,7 +16,6 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
 from tvm.script import ir as I
 from tvm.script import tir as T
 
@@ -58,7 +57,7 @@ def test_split_host_device():
     class Before:
         @T.prim_func
         def main(n: T.int32):
-            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.attr(T.target("cuda"), "target", 0)
             T.evaluate(n)
 
@@ -66,7 +65,7 @@ def test_split_host_device():
     class Expected:
         @T.prim_func
         def main(n: T.int32):
-            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             Expected.main_kernel(n)
 
         @T.prim_func(private=True)
@@ -91,7 +90,7 @@ def test_split_host_device_on_cpu():
     class Before:
         @T.prim_func
         def main(n: T.int32):
-            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.attr(T.target("llvm"), "target", 0)
             T.evaluate(n)
 
@@ -99,7 +98,7 @@ def test_split_host_device_on_cpu():
     class Expected:
         @T.prim_func
         def main(n: T.int32):
-            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             err = Expected.main_kernel(n)
             assert err == 0, "Error executing compute kernel"
 
@@ -187,7 +186,7 @@ def test_split_host_device_name_collision():
     class Before:
         @T.prim_func
         def main(n: T.int32):
-            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             T.attr(T.target("cuda"), "target", 0)
             T.evaluate(n)
 
@@ -200,7 +199,7 @@ def test_split_host_device_name_collision():
     class Expected:
         @T.prim_func
         def main(n: T.int32):
-            T.func_attr({"target": T.target("cuda", host="llvm -opt-level=0")})
+            T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
             Expected.main_kernel_1(n)
 
         @T.prim_func(private=True)

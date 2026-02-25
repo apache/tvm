@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E711, F401, F821
 """Test type nodes in the IR"""
+
 import tvm
 from tvm.script import tir as T
 

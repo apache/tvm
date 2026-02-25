@@ -42,7 +42,7 @@ class AppendLossMutator : private ExprMutator {
   static IRModule Transform(IRModule mod, ffi::String func_name, Function loss_function,
                             int num_backbone_outputs, ffi::Optional<ffi::String> new_func_name) {
     auto* old_func = mod->Lookup(func_name).as<FunctionNode>();
-    CHECK(old_func) << func_name << "is not a Relax Function";
+    TVM_FFI_ICHECK(old_func) << func_name << "is not a Relax Function";
 
     // functions should be copied to satisfy the well-formed check
     Function new_func = CopyWithNewVars(ffi::GetRef<Function>(old_func));
@@ -82,7 +82,8 @@ class AppendLossMutator : private ExprMutator {
   }
 
   Expr VisitExpr_(const SeqExprNode* seq_expr) final {
-    CHECK(seq_expr->blocks.size() == 1 && seq_expr->blocks[0]->IsInstance<DataflowBlockNode>())
+    TVM_FFI_ICHECK(seq_expr->blocks.size() == 1 &&
+                   seq_expr->blocks[0]->IsInstance<DataflowBlockNode>())
         << "Backbone should have only one DataflowBlock";
 
     auto new_blocks = ffi::Array<BindingBlock>({this->VisitBindingBlock(seq_expr->blocks[0])});
@@ -115,10 +116,11 @@ class AppendLossMutator : private ExprMutator {
 
   /*! \brief Checks the loss function have only one DataflowBlock, and returns a scalar Var. */
   void CheckLossBody() {
-    CHECK(loss_body_->blocks.size() == 1 && loss_body_->blocks[0]->IsInstance<DataflowBlockNode>())
+    TVM_FFI_ICHECK(loss_body_->blocks.size() == 1 &&
+                   loss_body_->blocks[0]->IsInstance<DataflowBlockNode>())
         << "The loss function should have only one DataflowBlock";
     auto var_node = loss_body_->body.as<VarNode>();
-    CHECK(var_node && IsScalarTensor(ffi::GetRef<Var>(var_node)))
+    TVM_FFI_ICHECK(var_node && IsScalarTensor(ffi::GetRef<Var>(var_node)))
         << "The loss function must return a scalar(0-dim Tensor) Var";
   }
 
@@ -132,11 +134,13 @@ class AppendLossMutator : private ExprMutator {
     } else if (auto* tuple = backbone_return.as<TupleNode>()) {
       for (auto i : tuple->fields) {
         auto var = i.as<VarNode>();
-        CHECK(var) << "The return value of the backbone should be either a Var or a Tuple of Vars";
+        TVM_FFI_ICHECK(var)
+            << "The return value of the backbone should be either a Var or a Tuple of Vars";
         backbone_return_arr_.push_back(ffi::GetRef<Var>(var));
       }
     } else {
-      LOG(FATAL) << "The return value of the backbone should be either a Var or a Tuple of Vars";
+      TVM_FFI_THROW(InternalError)
+          << "The return value of the backbone should be either a Var or a Tuple of Vars";
     }
   }
 
@@ -147,7 +151,7 @@ class AppendLossMutator : private ExprMutator {
    */
   void CheckAndRemapLossParams(const ffi::Array<Var>& loss_func_params) {
     static StructuralEqual checker;
-    CHECK(static_cast<int>(loss_func_params.size()) >= num_backbone_outputs_)
+    TVM_FFI_ICHECK(static_cast<int>(loss_func_params.size()) >= num_backbone_outputs_)
         << "The number of parameters of the loss function is " << loss_func_params.size()
         << ", which is less than the given num_backbone_outputs " << num_backbone_outputs_;
     for (int i = 0; i < num_backbone_outputs_; ++i) {
@@ -156,7 +160,7 @@ class AppendLossMutator : private ExprMutator {
       auto loss_param_sinfo = GetStructInfo(loss_param);
       auto backbone_ret_sinfo = GetStructInfo(backbone_ret);
 
-      CHECK(checker(backbone_ret_sinfo, loss_param_sinfo))
+      TVM_FFI_ICHECK(checker(backbone_ret_sinfo, loss_param_sinfo))
           << "The struct info of the " << i
           << "-th return value of backbone function is: " << backbone_ret_sinfo
           << " while the corresponding struct info of parameter of loss function is "
@@ -177,7 +181,7 @@ class AppendLossMutator : private ExprMutator {
    * Because such Vars are no longer the outputs of the new function.
    */
   void CheckAndRemapBackboneReturn() {
-    CHECK(static_cast<int>(backbone_return_arr_.size()) >= num_backbone_outputs_)
+    TVM_FFI_ICHECK(static_cast<int>(backbone_return_arr_.size()) >= num_backbone_outputs_)
         << "The number of return values of the backbone function is " << backbone_return_arr_.size()
         << ", which is less than the given num_backbone_outputs " << num_backbone_outputs_;
     std::unordered_set<Var, ObjectPtrHash> other_outputs_var(

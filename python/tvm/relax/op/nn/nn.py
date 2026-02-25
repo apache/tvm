@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relax Neural Network (NN) operators"""
+
 from typing import List, Optional, Tuple, Union
 
 from tvm import DataType, relax
@@ -556,7 +557,7 @@ def pixel_shuffle(data: Expr, upscale_factor: int):
     This operator performs the pixel shuffle operation on the input tensor,
     which is often used for efficient sub-pixel convolution in image
     super-resolution tasks. It rearranges elements in a tensor of shape
-    (N, C × r^2, H, W) to a tensor of shape (N, C, H × r, W × r), where `r`
+    (N, C x r^2, H, W) to a tensor of shape (N, C, H x r, W x r), where `r`
     is the upscale factor.
 
     Parameters
@@ -2034,9 +2035,7 @@ def attention(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(
-        query, key, value, bias, scale, causal_mask, window_size
-    )  # type: ignore
+    return _ffi_api.attention(query, key, value, bias, scale, causal_mask, window_size)  # type: ignore
 
 
 def attention_bias(
@@ -2131,9 +2130,7 @@ def attention_bias(
         The computed result. The layout of the output should be
         (batch_size, seq_len, num_head, head_dim_v).
     """
-    return _ffi_api.attention(
-        query, key, value, bias, scale, causal_mask, window_size
-    )  # type: ignore
+    return _ffi_api.attention(query, key, value, bias, scale, causal_mask, window_size)  # type: ignore
 
 
 def attention_var_len(

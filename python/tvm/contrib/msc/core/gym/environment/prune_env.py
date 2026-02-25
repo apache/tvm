@@ -14,11 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF005
 """tvm.contrib.msc.core.gym.prune_env"""
 
 from typing import List, Union
-from tvm.contrib.msc.core.tools import BaseTool, ToolType
+
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools import BaseTool, ToolType
+
 from .base_env import BaseEnv
 
 

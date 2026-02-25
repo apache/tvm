@@ -60,7 +60,7 @@ class SocketSessionObj : public BcastSessionObj {
       : num_nodes_(num_nodes), num_workers_per_node_(num_workers_per_node) {
     const auto f_create_local_session =
         tvm::ffi::Function::GetGlobal("runtime.disco.create_socket_session_local_workers");
-    ICHECK(f_create_local_session.has_value())
+    TVM_FFI_ICHECK(f_create_local_session.has_value())
         << "Cannot find function runtime.disco.create_socket_session_local_workers";
     local_session_ = ((*f_create_local_session)(num_workers_per_node)).cast<BcastSession>();
     DRef f_init_workers =
@@ -107,8 +107,9 @@ class SocketSessionObj : public BcastSessionObj {
                             static_cast<int>(DiscoAction::kDebugGetFromRemote), reg_id, worker_id);
       remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args, 5));
       ffi::PackedArgs args = this->RecvReplyPacked(worker_id);
-      ICHECK_EQ(args.size(), 2);
-      ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugGetFromRemote);
+      TVM_FFI_ICHECK_EQ(args.size(), 2);
+      TVM_FFI_ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) ==
+                     DiscoAction::kDebugGetFromRemote);
       ffi::Any result;
       result = args[1];
       return result;
@@ -134,8 +135,9 @@ class SocketSessionObj : public BcastSessionObj {
       }
       ffi::Any result;
       ffi::PackedArgs args = this->RecvReplyPacked(worker_id);
-      ICHECK_EQ(args.size(), 1);
-      ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugSetRegister);
+      TVM_FFI_ICHECK_EQ(args.size(), 1);
+      TVM_FFI_ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) ==
+                     DiscoAction::kDebugSetRegister);
     }
   }
 
@@ -215,17 +217,17 @@ class RemoteSocketSession {
     SockAddr server_addr{server_host.c_str(), server_port};
     Socket::Startup();
     if (!socket_.Connect(server_addr)) {
-      LOG(FATAL) << "Failed to connect to server " << server_addr.AsString()
-                 << ", errno = " << Socket::GetLastErrorCode();
+      TVM_FFI_THROW(InternalError) << "Failed to connect to server " << server_addr.AsString()
+                                   << ", errno = " << Socket::GetLastErrorCode();
     }
     channel_ = std::make_unique<DiscoSocketChannel>(socket_);
     ffi::PackedArgs metadata = channel_->Recv();
-    ICHECK_EQ(metadata.size(), 4);
+    TVM_FFI_ICHECK_EQ(metadata.size(), 4);
     num_nodes_ = metadata[0].cast<int>();
     num_workers_per_node_ = metadata[1].cast<int>();
     num_groups_ = metadata[2].cast<int>();
     node_id_ = metadata[3].cast<int>();
-    CHECK_GE(num_local_workers, num_workers_per_node_);
+    TVM_FFI_ICHECK_GE(num_local_workers, num_workers_per_node_);
     InitLocalSession();
   }
 
@@ -256,7 +258,7 @@ class RemoteSocketSession {
           return;
         }
         default:
-          LOG(FATAL) << "Invalid action " << static_cast<int>(action);
+          TVM_FFI_THROW(InternalError) << "Invalid action " << static_cast<int>(action);
       }
     }
   }

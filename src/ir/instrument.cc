@@ -21,13 +21,13 @@
  * \file src/ir/instrument.cc
  * \brief Infrastructure for instrumentation.
  */
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>
 
+#include <chrono>
 #include <stack>
 
 namespace tvm {
@@ -235,24 +235,27 @@ struct PassProfileThreadLocalEntry {
 };
 
 /*! \brief Thread local store to hold the pass profiling data. */
-typedef dmlc::ThreadLocalStore<PassProfileThreadLocalEntry> PassProfileThreadLocalStore;
+static PassProfileThreadLocalEntry* PassProfileThreadLocalStoreGet() {
+  static thread_local PassProfileThreadLocalEntry inst;
+  return &inst;
+}
 
 void PassProfile::EnterPass(ffi::String name) {
   PassProfile* cur = PassProfile::Current();
   cur->children.emplace_back(name);
-  PassProfileThreadLocalStore::Get()->profile_stack.push(&cur->children.back());
+  PassProfileThreadLocalStoreGet()->profile_stack.push(&cur->children.back());
 }
 
 void PassProfile::ExitPass() {
   PassProfile* cur = PassProfile::Current();
-  ICHECK_NE(cur->name, "root") << "mismatched enter/exit for pass profiling";
+  TVM_FFI_ICHECK_NE(cur->name, "root") << "mismatched enter/exit for pass profiling";
   cur->end = PassProfile::Clock::now();
   cur->duration = std::chrono::duration_cast<PassProfile::Duration>(cur->end - cur->start);
-  PassProfileThreadLocalStore::Get()->profile_stack.pop();
+  PassProfileThreadLocalStoreGet()->profile_stack.pop();
 }
 
 PassProfile* PassProfile::Current() {
-  PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStore::Get();
+  PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStoreGet();
   if (!entry->profile_stack.empty()) {
     return entry->profile_stack.top();
   } else {
@@ -261,8 +264,9 @@ PassProfile* PassProfile::Current() {
 }
 
 ffi::String RenderPassProfiles() {
-  PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStore::Get();
-  CHECK(entry->profile_stack.empty()) << "cannot print pass profile while still in a pass!";
+  PassProfileThreadLocalEntry* entry = PassProfileThreadLocalStoreGet();
+  TVM_FFI_ICHECK(entry->profile_stack.empty())
+      << "cannot print pass profile while still in a pass!";
 
   if (entry->root.children.empty()) {
     LOG(WARNING) << "no passes have been profiled, did you enable pass profiling?";
@@ -326,7 +330,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           PassProfile::ExitPass();
         };
 
-        auto exit_pass_ctx = []() { PassProfileThreadLocalStore::Get()->root.children.clear(); };
+        auto exit_pass_ctx = []() { PassProfileThreadLocalStoreGet()->root.children.clear(); };
 
         return BasePassInstrument("PassTimingInstrument",
                                   /* enter_pass_ctx */ nullptr, exit_pass_ctx,

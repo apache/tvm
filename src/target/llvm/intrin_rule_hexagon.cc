@@ -50,12 +50,12 @@ template <std::string& tvm_wrapper, unsigned id, int num_sign>
 inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
   using namespace tir;
   const CallNode* call = e.as<CallNode>();
-  ICHECK(call != nullptr);
+  TVM_FFI_ICHECK(call != nullptr);
   ffi::Array<PrimExpr> new_args;
 #if ENABLE_QHL
   // Check target for qfloat enablement
   const auto f = tvm::ffi::Function::GetGlobal("target.TargetCurrent");
-  ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
+  TVM_FFI_ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
   const auto ret = (*f)(true);
   bool useqhl = true;
   if (auto opt_target = ret.as<Target>()) {
@@ -99,13 +99,13 @@ TVM_REGISTER_OP("tir.ctpop")
 TVM_REGISTER_OP("tir.tanh")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
 
 #if ENABLE_QHL
       // Check target for qfloat enablement
       const auto f = tvm::ffi::Function::GetGlobal("target.TargetCurrent");
-      ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
+      TVM_FFI_ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
       const auto ret = (*f)(true);
       bool useqhl = true;
       if (auto opt_target = ret.as<Target>()) {
@@ -135,12 +135,12 @@ TVM_REGISTER_OP("tir.tanh")
 TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>(
     "hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
 #if ENABLE_QHL
       // Check target for qfloat enablement
       const auto f = tvm::ffi::Function::GetGlobal("target.TargetCurrent");
-      ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
+      TVM_FFI_ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
       const auto ret = (*f)(true);
       bool useqhl = true;
       if (auto opt_target = ret.as<Target>()) {
@@ -165,12 +165,12 @@ TVM_REGISTER_OP("tir.nearbyint")
 TVM_REGISTER_OP("tir.sigmoid")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
       const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
+      TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
 #if ENABLE_QHL
       // Check target for qfloat enablement
       const auto f = tvm::ffi::Function::GetGlobal("target.TargetCurrent");
-      ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
+      TVM_FFI_ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
       const auto ret = (*f)(true);
       bool useqhl = true;
       if (auto opt_target = ret.as<Target>()) {

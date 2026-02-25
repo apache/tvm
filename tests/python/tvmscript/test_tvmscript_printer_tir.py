@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+# ruff: noqa: E501, F401, F841
 
 import re
 
@@ -429,22 +430,6 @@ T.evaluate(0)
     )
 
 
-def test_buffer_realize():
-    with IRBuilder() as ib:
-        a = tir.decl_buffer((128, 128), "float32", name="A")
-        with T.realize(a[0:128, 0:128], "test_storage_scope", True):
-            T.evaluate(0)
-    obj = ib.get()
-    _assert_print(
-        obj,
-        """
-A = T.Buffer((128, 128))
-with T.realize(A[0:128, 0:128], "test_storage_scope"):
-    T.evaluate(0)
-""",
-    )
-
-
 def test_var():
     a = tir.Var("a", "float32")
     _assert_print(
@@ -518,19 +503,15 @@ def test_binary_arith():
     ]:
         obj = op(a, b)
         if sign.isalpha():
-            expected = """
+            expected = f"""
 a = T.int32()
 b = T.int32()
-T.{}(a, b)""".format(
-                sign
-            )
+T.{sign}(a, b)"""
         else:
-            expected = """
+            expected = f"""
 a = T.int32()
 b = T.int32()
-a {} b""".format(
-                sign
-            )
+a {sign} b"""
         _assert_print(obj, expected)
 
 
@@ -553,10 +534,8 @@ def test_binary_arith_const():
         (tir.GE, "GE"),
     ]:
         obj = op(a, b)
-        expected = """
-T.{}({}, {})""".format(
-            name, str(a), str(b)
-        )
+        expected = f"""
+T.{name}({a!s}, {b!s})"""
         _assert_print(obj, expected)
 
 
@@ -618,12 +597,10 @@ def test_ramp(lanes, scripted_lanes):
     obj = tir.Ramp(a, 1, lanes)
     _assert_print(
         obj,
-        """
+        f"""
 a = T.int32()
-T.Ramp(a, 1, {})
-""".format(
-            scripted_lanes
-        ),
+T.Ramp(a, 1, {scripted_lanes})
+""",
     )
 
 
@@ -634,11 +611,9 @@ def test_broadcast(lanes, scripted_lanes):
     obj = tir.Broadcast(0, lanes)
     _assert_print(
         obj,
-        """
-T.Broadcast(0, {})
-""".format(
-            scripted_lanes
-        ),
+        f"""
+T.Broadcast(0, {scripted_lanes})
+""",
     )
 
 

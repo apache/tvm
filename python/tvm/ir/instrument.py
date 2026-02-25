@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Common pass instrumentation across IR variants."""
+
 import functools
 import inspect
 import re

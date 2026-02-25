@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <dmlc/io.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/object.h>
+#include <tvm/support/io.h>
 
 #include <condition_variable>
 #include <cstdint>
@@ -38,7 +38,7 @@
 namespace tvm {
 namespace runtime {
 
-class DiscoThreadedMessageQueue : private dmlc::Stream,
+class DiscoThreadedMessageQueue : private support::Stream,
                                   private DiscoProtocol<DiscoThreadedMessageQueue> {
  public:
   void Send(const ffi::PackedArgs& args) {
@@ -93,7 +93,7 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
   size_t Read(void* data, size_t size) final {
     std::memcpy(data, read_buffer_.data() + read_offset_, size);
     read_offset_ += size;
-    ICHECK_LE(read_offset_, read_buffer_.size());
+    TVM_FFI_ICHECK_LE(read_offset_, read_buffer_.size());
     return size;
   }
 
@@ -104,10 +104,10 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
     return size;
   }
 
-  using dmlc::Stream::Read;
-  using dmlc::Stream::ReadArray;
-  using dmlc::Stream::Write;
-  using dmlc::Stream::WriteArray;
+  using support::Stream::Read;
+  using support::Stream::ReadArray;
+  using support::Stream::Write;
+  using support::Stream::WriteArray;
   friend struct RPCReference;
   friend struct DiscoProtocol<DiscoThreadedMessageQueue>;
 
@@ -188,7 +188,7 @@ class ThreadedSessionObj final : public BcastSessionObj {
 };
 
 Session Session::ThreadedSession(int num_workers, int num_group) {
-  CHECK_EQ(num_workers % num_group, 0)
+  TVM_FFI_ICHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";
   ObjectPtr<ThreadedSessionObj> n = ffi::make_object<ThreadedSessionObj>(num_workers, num_group);
   return Session(std::move(n));

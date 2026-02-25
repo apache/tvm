@@ -39,18 +39,14 @@ struct RelaxCodeGenConfig {
   bool explicit_name{true};
   bool from_relay{false};
   CODEGEN_CONFIG_MEMBERS
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "explicit_name") {
-        reader->Read(&explicit_name);
-      } else if (key == "from_relay") {
-        reader->Read(&from_relay);
-      } else {
-        CODEGEN_CONFIG_PARSE
-      }
+  void Load(ffi::json::Object obj) {
+    if (auto it = obj.find(ffi::String("explicit_name")); it != obj.end()) {
+      explicit_name = (*it).second.cast<bool>();
     }
+    if (auto it = obj.find(ffi::String("from_relay")); it != obj.end()) {
+      from_relay = (*it).second.cast<bool>();
+    }
+    CODEGEN_CONFIG_PARSE
   }
 };
 

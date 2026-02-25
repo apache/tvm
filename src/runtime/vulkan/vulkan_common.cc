@@ -38,7 +38,7 @@ std::vector<const char*> FindEnabledExtensions(
 
   std::vector<const char*> enabled_extensions;
   for (const auto& ext : required_extensions) {
-    ICHECK(available_extensions.count(ext))
+    TVM_FFI_ICHECK(available_extensions.count(ext))
         << "Required vulkan extension \"" << ext << "\" not supported by driver";
     enabled_extensions.push_back(ext);
   }

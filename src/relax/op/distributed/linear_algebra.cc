@@ -74,7 +74,7 @@ StructInfo InferDistStructInfoMatmul(const Call& call, const BlockBuilder& ctx) 
                                        x2_shape->values.end() - 2 + x2_appended};
   ffi::Optional<ffi::Array<PrimExpr>> output_shape_prefix =
       InferBinaryBroadcastShape(call, ctx, x1_shape_prefix, x2_shape_prefix);
-  ICHECK(output_shape_prefix.defined()) << "Failed to infer output shape of Matmul";
+  TVM_FFI_ICHECK(output_shape_prefix.defined()) << "Failed to infer output shape of Matmul";
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   PrimExpr x1_reduction_length = x1_shape->values[x1_sinfo->ndim - 1];
   PrimExpr x2_reduction_length = x2_shape->values[x2_ndim - 2];
@@ -92,7 +92,7 @@ StructInfo InferDistStructInfoMatmul(const Call& call, const BlockBuilder& ctx) 
   if (!x2_appended) {
     output_shape.push_back(x2_shape->values[x2_ndim - 1]);
   }
-  ICHECK_EQ(static_cast<int>(output_shape.size()), output_ndim);
+  TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.size()), output_ndim);
   TensorStructInfo output_tensor_sinfo(ShapeExpr(output_shape), out_dtype);
   return InferShardingSpec(call, ctx, output_tensor_sinfo, distributed::BuildAxisGraphMatmul);
 }

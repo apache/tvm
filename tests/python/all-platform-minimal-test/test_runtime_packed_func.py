@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F821
 """Test packed function FFI."""
+
 import gc
 
 import numpy as np
 
 import tvm
-from tvm import te
 import tvm.testing
 from tvm.script import tir as T
 

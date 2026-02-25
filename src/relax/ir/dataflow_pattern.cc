@@ -483,7 +483,7 @@ ffi::Optional<PatternContext> PatternContext::Current() {
 PatternContext::PatternContext(bool incremental) {
   auto n = ffi::make_object<PatternContextNode>();
   if (incremental) {
-    ICHECK(!pattern_ctx_stack().empty())
+    TVM_FFI_ICHECK(!pattern_ctx_stack().empty())
         << "Incremental context needs to be built inside a existing context.";
     n->allow_extern_use = pattern_ctx_stack().top()->allow_extern_use;
     n->edge_constraints = pattern_ctx_stack().top()->edge_constraints;
@@ -496,7 +496,7 @@ PatternContext::PatternContext(bool incremental) {
 void PatternContext::EnterWithScope() const { pattern_ctx_stack().push(*this); }
 
 void PatternContext::ExitWithScope() const {
-  ICHECK(pattern_ctx_stack().top().same_as(*this));
+  TVM_FFI_ICHECK(pattern_ctx_stack().top().same_as(*this));
   pattern_ctx_stack().pop();
 }
 
@@ -513,7 +513,7 @@ PatternSeq::PatternSeq(DFPattern init_pattern) {
   data_ = std::move(n);
 }
 PatternSeq::PatternSeq(tvm::ffi::Array<DFPattern> patterns, bool only_used_by) {
-  ICHECK_GE(patterns.size(), 1) << "PatternSeq must have at least one pattern";
+  TVM_FFI_ICHECK_GE(patterns.size(), 1) << "PatternSeq must have at least one pattern";
   const auto cons = PairCons(only_used_by ? PairCons::kOnlyUsedBy : PairCons::kUsedBy);
 
   ObjectPtr<PatternSeqNode> n = ffi::make_object<PatternSeqNode>();

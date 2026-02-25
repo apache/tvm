@@ -15,22 +15,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402, F401
 
 import argparse
+import csv
 import os
 import pickle
-from pathlib import Path
-import csv
 import sys
-from typing import Callable, Dict, List, Any
+from pathlib import Path
+from typing import Any, Callable, Dict, List
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "github"))
 
-from git_utils import git, GitHubRepo
+from git_utils import GitHubRepo, git
 from github_tag_teams import tags_from_title
-
 
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 
@@ -176,7 +176,7 @@ def write_csv(
                     category,
                     "n/a",
                     item["committedDate"],
-                    f'https://github.com/apache/tvm/pull/{pr["number"]}',
+                    f"https://github.com/apache/tvm/pull/{pr['number']}",
                     author,
                     "/".join(tags),
                     pr["title"].replace(",", " "),

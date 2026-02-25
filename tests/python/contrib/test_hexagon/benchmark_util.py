@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 
-""" Utility functions used for benchmarks """
+"""Utility functions used for benchmarks"""
 
 import csv
 import os

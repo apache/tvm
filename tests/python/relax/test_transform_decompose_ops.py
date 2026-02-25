@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F841
 
 from typing import Union
 
@@ -22,7 +23,9 @@ import tvm.script
 import tvm.testing
 from tvm import IRModule, relax
 from tvm.relax import Function
-from tvm.script import relax as R, tir as T, ir as I
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_batch_norm_inference():

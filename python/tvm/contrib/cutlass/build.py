@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, dangerous-default-value, arguments-differ
+# ruff: noqa: F821
 """Driver for partitioning and building a Relax module for CUTLASS offload."""
+
 import itertools
 import logging
 import multiprocessing
@@ -23,6 +25,7 @@ import operator
 import os
 from functools import reduce
 from typing import Optional, Sequence
+
 from tvm_ffi import register_global_func
 
 import tvm
@@ -378,10 +381,10 @@ def _extract_relax_function_signature(f):
     for i, arg in enumerate(f.params):
         sinfo = arg.struct_info
         if isinstance(sinfo, relax.TensorStructInfo):
-            signature["arg%d_shape" % i] = get_const_tuple(sinfo.shape)
-            signature["arg%d_dtype" % i] = sinfo.dtype
+            signature[f"arg{i}_shape"] = get_const_tuple(sinfo.shape)
+            signature[f"arg{i}_dtype"] = sinfo.dtype
         elif isinstance(sinfo, relax.ShapeStructInfo):
-            signature["arg%d_shape" % i] = get_const_tuple(sinfo.values)
+            signature[f"arg{i}_shape"] = get_const_tuple(sinfo.values)
         else:
             raise NotImplementedError()
 
@@ -815,7 +818,7 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         elif "layer_norm" in op_type or "rms_norm" in op_type:
             return self.handle_norm(f, op_type)
 
-        raise ValueError("Unsupported composite {}".format(op_type))
+        raise ValueError(f"Unsupported composite {op_type}")
 
     def visit_span(self, span):
         return span

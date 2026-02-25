@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target dependent intrinsic registration."""
+
 from tvm.ir import register_intrin_lowering
 from tvm.tir import call_pure_extern
 
@@ -44,7 +45,7 @@ def _rule_float_suffix(op):
     prefix = name[4:]
 
     if op.dtype == "float32":
-        return call_pure_extern(op.dtype, "%sf" % prefix, *op.args)
+        return call_pure_extern(op.dtype, f"{prefix}f", *op.args)
     if op.dtype == "float64":
         return call_pure_extern(op.dtype, prefix, *op.args)
     return op

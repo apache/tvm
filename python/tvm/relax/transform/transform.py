@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E731, E741, F401, F811
 """Relax transformation passes."""
+
 import functools
 import inspect
 import types
@@ -24,16 +26,17 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Uni
 
 import numpy as np  # type: ignore
 import tvm_ffi
+
 import tvm.ir
 from tvm.ir.container import Array
-from tvm.relax import Expr, Var, StructInfo
+from tvm.relax import Expr, StructInfo, Var
 from tvm.relax.dpl import DFPattern
-from tvm.runtime import Tensor, Object
+from tvm.runtime import Object, Tensor
 from tvm.tir import IndexMap, PrimFunc
 
+from ..expr import Var
 from . import _ffi_api
 from .legalize_ops.common import LegalizeFunc
-from ..expr import Var
 
 
 @tvm_ffi.register_object("relax.FunctionPass")
@@ -1214,6 +1217,7 @@ def MetaScheduleTuneTIR(
     max_trials_global: int,
 ) -> tvm.ir.transform.Pass:
     """Tune TIR with MetaSchedule.
+
     Parameters
     ----------
     work_dir: str
@@ -1369,7 +1373,7 @@ def AlterOpImpl(
 
 def ConvertLayout(
     desired_layouts: Dict[str, List[str]],
-    layout_cb: Callable = None,
+    layout_cb: Optional[Callable] = None,
 ) -> tvm.ir.transform.Pass:
     """Automatic layout conversion pass.
 
@@ -1618,13 +1622,13 @@ def AllocateWorkspace() -> tvm.ir.transform.Pass:
 
 def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
     """This pass updates the var_buffer mapping of PrimFunctions from the call_tir info.
-    Primarily used to update the VDevice information if any changes occured from the caller.
+    Primarily used to update the VDevice information if any changes occurred from the caller.
     This pass recreates the buffers and updates the map.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
-        The registered pass for allocating workspace.
+        The registered pass for specializing PrimFuncs based on call site.
     """
     return _ffi_api.SpecializePrimFuncBasedOnCallSite()  # type: ignore
 
@@ -1644,7 +1648,9 @@ def _wrap_class_function_pass(pass_cls, pass_info):
                 return inst.transform_function(func, mod, ctx)
 
             self.__init_handle_by_constructor__(
-                _ffi_api.MakeFunctionPass, _pass_func, pass_info  # type: ignore
+                _ffi_api.MakeFunctionPass,
+                _pass_func,
+                pass_info,  # type: ignore
             )
             self._inst = inst
 
@@ -1790,7 +1796,9 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
                 return inst.transform_dataflowblock(func, mod, ctx)
 
             self.__init_handle_by_constructor__(
-                _ffi_api.MakeDataflowBlockPass, _pass_func, pass_info  # type: ignore
+                _ffi_api.MakeDataflowBlockPass,
+                _pass_func,
+                pass_info,  # type: ignore
             )
             self._inst = inst
 

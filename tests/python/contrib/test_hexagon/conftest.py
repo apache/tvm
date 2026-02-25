@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Hexagon testing fixtures used to deduce testing argument
-    values from testing parameters """
+"""Hexagon testing fixtures used to deduce testing argument
+values from testing parameters"""
 
 # Disabling invalid-name check as the name is expected to be exactly this by pytest
 # pylint: disable=invalid-name

@@ -228,7 +228,7 @@ AndOfOrs::Key AndOfOrs::GetKey(const PrimExpr& expr) {
 
 PrimExpr AndOfOrs::GetExpr(AndOfOrs::Key key) const {
   auto it = key_to_expr_.find(key);
-  ICHECK(it != key_to_expr_.end());
+  TVM_FFI_ICHECK(it != key_to_expr_.end());
   return it->second;
 }
 

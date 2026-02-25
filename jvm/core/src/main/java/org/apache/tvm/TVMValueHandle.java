@@ -27,7 +27,8 @@ public class TVMValueHandle extends TVMValue {
     this.value = value;
   }
 
-  @Override public long asHandle() {
+  @Override
+  public long asHandle() {
     return value;
   }
 }

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../../../tir/transforms/ir_utils.h"  // For `GetPtrStorageScope`
+#include "../../../tir/transform/ir_utils.h"  // For `GetPtrStorageScope`
 #include "./utils.h"
 
 namespace tvm {
@@ -44,11 +44,11 @@ bool AllowConciseScoping(const IRDocsifier& d, const ObjectRef& obj) {
       return false;
     }
   }
-  ICHECK(!d->frames.empty());
+  TVM_FFI_ICHECK(!d->frames.empty());
   if (const auto* f = d->frames.back().as<TIRFrameNode>()) {
     return f->allow_concise_scoping;
   }
-  LOG(FATAL) << "NotImplementedError: fragment printing";
+  TVM_FFI_THROW(NotImplementedError) << "fragment printing";
 }
 
 bool IsAncestorOfAllVarUse(const tir::Stmt& node, const ObjectRef& var, const IRDocsifier& d) {
@@ -251,116 +251,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
         });
 
-template <typename T>
-ExprDoc PrintTensor(::tvm::runtime::Tensor arr) {
-  // FIXME(@junrushao): this is a hack and can be wrong in most of the cases
-  constexpr int NUM_PRINT = 200;
-  int ndim = arr->ndim;
-  int tot_dim = 1;
-  for (int i = 0; i < ndim; i++) {
-    tot_dim *= arr->shape[i];
-  }
-  ffi::Array<ExprDoc> result;
-  T* data_ptr = reinterpret_cast<T*>(arr->data);
-  runtime::DataType dtype = arr.DataType();
-  for (int i = 0; i < tot_dim; i++) {
-    if (dtype.is_float()) {
-      result.push_back(LiteralDoc::Float(data_ptr[i], std::nullopt));
-    } else {
-      result.push_back(LiteralDoc::Int(data_ptr[i], std::nullopt));
-    }
-    if (i == NUM_PRINT) {
-      break;
-    }
-  }
-  return ListDoc(result);
-}
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::AllocateConst>(
-        "", [](tir::AllocateConst stmt, AccessPath stmt_p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d, stmt);
-          ffi::String storage_scope = tir::GetPtrStorageScope(stmt->buffer_var);
-          ffi::Array<ExprDoc> args;
-          ffi::Array<ffi::String> kwargs_keys;
-          ffi::Array<ExprDoc> kwargs_values;
-          ExprDoc data_doc{ffi::UnsafeInit()};
-          if (stmt->dtype.is_int()) {
-            if (stmt->dtype.bits() == 8) {
-              data_doc = PrintTensor<int8_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 16) {
-              data_doc = PrintTensor<int16_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintTensor<int32_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintTensor<int64_t>(stmt->data.value());
-            } else {
-              LOG(FATAL) << "DataType not supported";
-            }
-          } else if (stmt->dtype.is_uint()) {
-            if (stmt->dtype.bits() == 8) {
-              data_doc = PrintTensor<uint8_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 16) {
-              data_doc = PrintTensor<uint16_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintTensor<uint32_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintTensor<uint64_t>(stmt->data.value());
-            } else {
-              LOG(FATAL) << "DataType not supported";
-            }
-          } else if (stmt->dtype.is_float()) {
-            if (stmt->dtype.bits() == 16) {
-              data_doc = PrintTensor<int16_t>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 32) {
-              data_doc = PrintTensor<float>(stmt->data.value());
-            } else if (stmt->dtype.bits() == 64) {
-              data_doc = PrintTensor<double>(stmt->data.value());
-            } else {
-              LOG(FATAL) << "DataType not supported";
-            }
-          } else {
-            LOG(FATAL) << "DataType not supported";
-          }
-          args.push_back(data_doc);
-          args.push_back(LiteralDoc::DataType(stmt->dtype, stmt_p->Attr("dtype")));
-          args.push_back(d->AsDoc<ExprDoc>(stmt->extents, stmt_p->Attr("extents")));
-          ExprDoc rhs = TIR(d, "allocate_const")->Call(args, kwargs_keys, kwargs_values);
-          With<TIRFrame> f(d, stmt);
-          ExprDoc lhs = DefineVar(stmt->buffer_var, *f, d);
-          AsDocBody(stmt->body, stmt_p->Attr("body"), f->get(), d);
-          return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
-        });
-
-ExprDoc DocsifyBufferRealize(const tir::BufferRealizeNode* stmt, ffi::Optional<ExprDoc> value,  //
-                             AccessPath p, IRDocsifier d) {
-  ExprDoc buffer = d->AsDoc<ExprDoc>(stmt->buffer, p->Attr("buffer"));
-  {
-    ffi::Array<Doc> bounds;
-    bounds.reserve(stmt->bounds.size());
-    for (int i = 0, n = stmt->bounds.size(); i < n; ++i) {
-      Range range = stmt->bounds[i];
-      AccessPath range_p = p->Attr("bounds")->ArrayItem(i);
-      bounds.push_back(
-          SliceDoc(d->AsDoc<ExprDoc>(range->min, range_p->Attr("min")),
-                   d->AsDoc<ExprDoc>(range->min + range->extent, range_p->Attr("extent")),  //
-                   std::nullopt));
-    }
-    buffer = buffer[bounds];
-  }
-  ffi::Array<ExprDoc> args{buffer};
-  ffi::Array<ffi::String> kwargs_keys;
-  ffi::Array<ExprDoc> kwargs_values;
-  if (value.defined()) {
-    args.push_back(value.value());
-  }
-  if (!tir::is_one(stmt->condition)) {
-    kwargs_keys.push_back("condition");
-    kwargs_values.push_back(d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition")));
-  }
-  return TIR(d, "realize")->Call(args, kwargs_keys, kwargs_values);
-}
-
 void InsertEnvThread(const tir::IterVar& iter_var, const AccessPath& iter_var_p,
                      const IRDocsifier& d) {
   Frame f = FindLowestVarDef(iter_var->var, d).value();
@@ -395,16 +285,6 @@ ExprDoc DocsifyLaunchThread(const tir::AttrStmt& attr_stmt, const AccessPath& at
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::BufferRealize>(  //
-        "", [](tir::BufferRealize stmt, AccessPath p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d, stmt);
-          ExprDoc rhs = DocsifyBufferRealize(stmt.get(), std::nullopt, p, d);
-          With<TIRFrame> f(d, stmt);
-          AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-          return DoConciseScoping(std::nullopt, rhs, &(*f)->stmts, concise);
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AttrStmt>(  //
         "", [](tir::AttrStmt stmt, AccessPath stmt_p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d, stmt);
@@ -413,19 +293,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ffi::Optional<tir::Var> define_var = std::nullopt;
           tir::Stmt body = stmt->body;
           AccessPath body_p = stmt_p->Attr("body");
-          if (stmt->attr_key == "realize_scope") {
-            if (const auto* realize = stmt->body.as<tir::BufferRealizeNode>()) {
-              // TODO(tqchen): add any.same_as(ObjectRef)
-              if (realize->buffer.same_as(stmt->node.cast<ObjectRef>())) {
-                rhs = DocsifyBufferRealize(
-                    realize,
-                    /*value=*/d->AsDoc<ExprDoc>(stmt->value, stmt_p->Attr("value")),
-                    /*p=*/stmt_p->Attr("body"), d);
-                body = realize->body;
-                body_p = stmt_p->Attr("body")->Attr("body");
-              }
-            }
-          }
           if (stmt->attr_key == "thread_extent" || stmt->attr_key == "virtual_thread") {
             if (stmt->node.as<tir::IterVarNode>()) {
               rhs = DocsifyLaunchThread(stmt, stmt_p, &define_var, d);
@@ -451,13 +318,10 @@ TVM_SCRIPT_REPR(tir::AttrStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AssertStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::WhileNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AllocateNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::AllocateConstNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::DeclBufferNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::SeqStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::IfThenElseNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::EvaluateNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::BufferRealizeNode, ReprPrintTIR);
-
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

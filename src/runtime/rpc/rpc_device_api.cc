@@ -82,7 +82,7 @@ class RPCDeviceAPI final : public DeviceAPI {
     DLDevice dev_from = from->device;
     DLDevice dev_to = to->device;
     if (IsRPCSessionDevice(dev_from) && IsRPCSessionDevice(dev_to)) {
-      ICHECK(dev_from.device_type == dev_to.device_type)
+      TVM_FFI_ICHECK(dev_from.device_type == dev_to.device_type)
           << "Cannot copy across two different remote session";
       DLTensor from_tensor = *from;
       from_tensor.device = RemoveRPCSessionMask(dev_from);
@@ -108,7 +108,7 @@ class RPCDeviceAPI final : public DeviceAPI {
       size_t nbytes = GetDataSize(*from);
       GetSess(dev_to)->CopyToRemote(from_bytes, &to_tensor, nbytes);
     } else {
-      LOG(FATAL) << "expect copy from/to remote or between remote";
+      TVM_FFI_THROW(InternalError) << "expect copy from/to remote or between remote";
     }
   }
 
@@ -141,7 +141,7 @@ class RPCDeviceAPI final : public DeviceAPI {
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
                       size_t num_bytes, Device dev_from, Device dev_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
-    LOG(FATAL) << "Not implemented.";
+    TVM_FFI_THROW(InternalError) << "Not implemented.";
   }
 
  private:

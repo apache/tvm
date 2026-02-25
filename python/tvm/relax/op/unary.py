@@ -16,9 +16,10 @@
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
 """Relax unary arithmetic operators."""
-from . import _ffi_api
+
 from ..expr import Expr
 from ..utils import args_converter
+from . import _ffi_api
 
 ###################### Arithmetic operators ######################
 

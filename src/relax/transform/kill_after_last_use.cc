@@ -165,12 +165,12 @@ class CollectLastUsage : public ExprVisitor {
       storage_objects_.insert(binding->var.get());
     } else if (val->op.same_as(mem_kill_tensor) || val->op.same_as(mem_kill_storage) ||
                val->op.same_as(vm_kill_object)) {
-      CHECK_EQ(val->args.size(), 1)
+      TVM_FFI_ICHECK_EQ(val->args.size(), 1)
           << "Operator " << val->op << " should have one argument, "
           << "but instead found " << val->args.size() << " arguments: " << val->args;
       auto killed_object = val->args[0].as<VarNode>();
-      ICHECK(killed_object) << "Internal error: non-normalized expression "
-                            << ffi::GetRef<Call>(val);
+      TVM_FFI_ICHECK(killed_object)
+          << "Internal error: non-normalized expression " << ffi::GetRef<Call>(val);
       killed_objects_.insert(killed_object);
     } else {
       // Only recursively visit if it isn't one of the special cases.

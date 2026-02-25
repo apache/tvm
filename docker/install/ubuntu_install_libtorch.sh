@@ -20,8 +20,17 @@ set -e
 set -u
 set -o pipefail
 
-pushd /usr/local/
-wget -q https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.0.0%2Bcpu.zip
-unzip libtorch-cxx11-abi-shared-with-deps-2.0.0+cpu.zip
-# now it is in /usr/local/libtorch
-popd
+LIBTORCH_VERSION="2.0.0"
+LIBTORCH_ARCHIVE="libtorch-cxx11-abi-shared-with-deps-${LIBTORCH_VERSION}+cpu.zip"
+LIBTORCH_URL="https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-${LIBTORCH_VERSION}%2Bcpu.zip"
+LIBTORCH_SHA256="2d67cff381186f2a01140348d2da7ab35d2e526c5703f4a8312c9428bef6df88"
+
+TMP_DIR="$(mktemp -d)"
+cleanup() {
+	rm -rf "${TMP_DIR}"
+}
+trap cleanup 0
+
+download-and-verify "${LIBTORCH_URL}" "${TMP_DIR}/${LIBTORCH_ARCHIVE}" sha256 "${LIBTORCH_SHA256}"
+
+unzip -d /usr/local "${TMP_DIR}/${LIBTORCH_ARCHIVE}"

@@ -17,16 +17,17 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.tools.track.method"""
 
-from typing import List, Dict
+from typing import Dict, List
+
 import numpy as np
 
-from tvm.contrib.msc.core.tools.tool import ToolType, BaseTool
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.tool import BaseTool, ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
 @msc_utils.register_tool_method
-class TrackMethod(object):
+class TrackMethod:
     """Default track method"""
 
     @classmethod

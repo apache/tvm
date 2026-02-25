@@ -16,7 +16,7 @@
 # under the License.
 
 #--------------------------------------------------------------------
-#  Template custom cmake configuration for compiling
+#  Template custom CMake configuration for compiling
 #
 #  This file is used to override the build options in build.
 #  If you want to change the configuration, please use the following
@@ -43,13 +43,13 @@
 # Whether enable CUDA during compile,
 #
 # Possible values:
-# - ON: enable CUDA with cmake's auto search
+# - ON: enable CUDA with CMake's auto search
 # - OFF: disable CUDA
-# - /path/to/cuda: use specific path to cuda toolkit
+# - /path/to/cuda: use specific path to CUDA toolkit
 set(USE_CUDA OFF)
 
 # Whether to enable NCCL support:
-# - ON: enable NCCL with cmake's auto search
+# - ON: enable NCCL with CMake's auto search
 # - OFF: disable NCCL
 # - /path/to/nccl: use specific path to nccl
 set(USE_NCCL OFF)
@@ -60,20 +60,20 @@ set(USE_NCCL OFF)
 set(USE_MSCCL OFF)
 
 # Whether to enable NVTX support (must have USE_CUDA enabled):
-# - ON: enable NCCL with cmake's auto search
+# - ON: enable NCCL with CMake's auto search
 # - OFF: disable NCCL
 set(USE_NVTX OFF)
 
 # Whether enable ROCM runtime
 #
 # Possible values:
-# - ON: enable ROCM with cmake's auto search
+# - ON: enable ROCM with CMake's auto search
 # - OFF: disable ROCM
 # - /path/to/rocm: use specific path to rocm
 set(USE_ROCM OFF)
 
 # Whether to enable RCCL support:
-# - ON: enable RCCL with cmake's auto search
+# - ON: enable RCCL with CMake's auto search
 # - OFF: disable RCCL
 # - /path/to/rccl: use specific path to rccl
 set(USE_RCCL OFF)
@@ -98,12 +98,12 @@ set(USE_METAL OFF)
 # Whether enable Vulkan runtime
 #
 # Possible values:
-# - ON: enable Vulkan with cmake's auto search
+# - ON: enable Vulkan with CMake's auto search
 # - OFF: disable vulkan
 # - /path/to/vulkan-sdk: use specific path to vulkan-sdk
 set(USE_VULKAN OFF)
 
-# Whether to use spirv-tools.and SPIRV-Headers from Khronos github or gitlab.
+# Whether to use spirv-tools and SPIRV-Headers from Khronos GitHub or GitLab.
 #
 # Possible values:
 # - OFF: not to use
@@ -126,20 +126,11 @@ set(USE_CPP_RTVM OFF)
 # Whether to build the iOS RPC server application
 set(USE_IOS_RPC OFF)
 
-# Whether embed stackvm into the runtime
-set(USE_STACKVM_RUNTIME OFF)
-
-# Whether enable pipeline executor.
-set(USE_PIPELINE_EXECUTOR OFF)
-
-# Whether to enable the profiler for the graph executor and vm
-set(USE_PROFILER ON)
-
 # Whether build with LLVM support
 # Requires LLVM version >= 4.0
 #
 # Possible values:
-# - ON: enable llvm with cmake's find search
+# - ON: enable llvm with CMake's find search
 # - OFF: disable llvm, note this will disable CPU codegen
 #        which is needed for most cases
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
@@ -198,25 +189,7 @@ set(USE_OPENMP none)
 set(USE_RANDOM ON)
 
 # Possible values:
-# - ON: enable tflite with cmake's find search
-# - OFF: disable tflite
-# - /path/to/libtensorflow-lite.a: use specific path to tensorflow lite library
-set(USE_TFLITE OFF)
-
-# /path/to/tensorflow: tensorflow root path when use tflite library
-set(USE_TENSORFLOW_PATH none)
-
-# Required for full builds with TFLite. Not needed for runtime with TFLite.
-# /path/to/flatbuffers: flatbuffers root path when using tflite library
-set(USE_FLATBUFFERS_PATH none)
-
-# Possible values:
-# - OFF: disable tflite support for edgetpu
-# - /path/to/edgetpu: use specific path to edgetpu library
-set(USE_EDGETPU OFF)
-
-# Possible values:
-# - ON: enable cuDNN with cmake's auto search in CUDA directory
+# - ON: enable cuDNN with CMake's auto search in CUDA directory
 # - OFF: disable cuDNN
 # - /path/to/cudnn: use specific path to cuDNN path
 set(USE_CUDNN OFF)
@@ -231,31 +204,8 @@ set(USE_CUDNN_FRONTEND OFF)
 # Whether use cuBLAS
 set(USE_CUBLAS OFF)
 
-# Whether use MIOpen
-set(USE_MIOPEN OFF)
-
-# Whether use MPS
-set(USE_MPS OFF)
-
-# Whether use rocBlas
-set(USE_ROCBLAS OFF)
-
 # Whether use contrib sort
 set(USE_SORT ON)
-
-# Whether to use Arm Compute Library (ACL) codegen
-# We provide 2 separate flags since we cannot build the ACL runtime on x86.
-# This is useful for cases where you want to cross-compile a graph
-# on x86 then run on AArch.
-#
-# An example of how to use this can be found here: docs/deploy/arm_compute_lib.rst.
-#
-# USE_ARM_COMPUTE_LIB - Support for compiling a graph offloading supported
-#                       operators to Arm Compute Library. OFF/ON
-# USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR - Run Arm Compute Library annotated functions via the ACL
-#                                     runtime. OFF/ON/"path/to/ACL"
-set(USE_ARM_COMPUTE_LIB OFF)
-set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
 
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
@@ -277,22 +227,13 @@ set(USE_CLML_GRAPH_EXECUTOR OFF)
 
 # Whether use Thrust
 # Possible values:
-# - ON: enable Thrust with cmake's auto search
+# - ON: enable Thrust with CMake's auto search
 # - OFF: disable Thrust
 # - /path/to/cccl: use specific path to CCCL
 set(USE_THRUST OFF)
 
 # Whether use cuRAND
 set(USE_CURAND OFF)
-
-# Whether to build the TensorFlow TVMDSOOp module
-set(USE_TF_TVMDSOOP OFF)
-
-# Whether to build the PyTorch custom class module
-set(USE_PT_TVMDSOOP OFF)
-
-# Whether to use STL's std::unordered_map or TVM's POD compatible Map
-set(USE_FALLBACK_STL_MAP OFF)
 
 # Whether to enable Hexagon support
 set(USE_HEXAGON OFF)
@@ -308,14 +249,8 @@ set(USE_HEXAGON_RPC OFF)
 # Valid values are v65, v66, v68, v69, v73, v75.
 set(USE_HEXAGON_ARCH "v68")
 
-# Whether use MRVL codegen
-set(USE_MRVL OFF)
-
 # Whether to use QHL library
 set(USE_HEXAGON_QHL OFF)
-
-# Whether enable BNNS runtime
-set(USE_BNNS OFF)
 
 # Whether to build static libtvm_runtime.a, the default is to build the dynamic
 # version: libtvm_runtime.so.
@@ -351,23 +286,15 @@ set(TVM_FFI_USE_LIBBACKTRACE ON)
 # Need to have TVM_FFI_USE_LIBBACKTRACE enabled.
 set(TVM_FFI_BACKTRACE_ON_SEGFAULT ON)
 
-# Whether to enable PAPI support in profiling. PAPI provides access to hardware
-# counters while profiling.
-# Possible values:
-# - ON: enable PAPI support. Will search PKG_CONFIG_PATH for a papi.pc
-# - OFF: disable PAPI support.
-# - /path/to/folder/containing/: Path to folder containing papi.pc.
-set(USE_PAPI OFF)
-
 # Whether to use GoogleTest for C++ unit tests. When enabled, the generated
 # build file (e.g. Makefile) will have a target "cpptest".
 # Possible values:
-# - ON: enable GoogleTest. The package `GTest` will be required for cmake
+# - ON: enable GoogleTest. The package `GTest` will be required for CMake
 #   to succeed.
 # - OFF: disable GoogleTest.
-# - AUTO: cmake will attempt to find the GTest package, if found GTest will
+# - AUTO: CMake will attempt to find the GTest package, if found GTest will
 #   be enabled, otherwise it will be disabled.
-# Note that cmake will use `find_package` to find GTest. Please use cmake's
+# Note that CMake will use `find_package` to find GTest. Please use CMake's
 # predefined variables to specify the path to the GTest package if needed.
 set(USE_GTEST AUTO)
 
@@ -390,14 +317,6 @@ set(FLASHINFER_GEN_CASUALS "false" "true")
 
 # Enable to show a summary of TVM options
 set(SUMMARIZE OFF)
-
-# Whether to use LibTorch as backend
-# To enable pass the path to the root libtorch (or PyTorch) directory
-# OFF or /path/to/torch/
-set(USE_LIBTORCH OFF)
-
-# Whether to use the Universal Modular Accelerator Interface
-set(USE_UMA OFF)
 
 # Set custom Alloc Alignment for device allocated memory ndarray points to
 set(USE_KALLOC_ALIGNMENT 64)

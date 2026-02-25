@@ -45,7 +45,7 @@ const std::pair<ffi::String, ffi::Array<ffi::String>> TFV1OpCode::GetPadding(
     kernel_size.push_back(weight->DimAt("H")->value);
     kernel_size.push_back(weight->DimAt("W")->value);
   } else if (node()->optype == "nn.avg_pool2d" || node()->optype == "nn.max_pool2d") {
-    ICHECK(node()->GetAttr(kernel_key, &kernel_size));
+    TVM_FFI_ICHECK(node()->GetAttr(kernel_key, &kernel_size));
   } else {
     LOG_FATAL << "Unexpected padding node" << node();
   }
@@ -328,14 +328,15 @@ class TFV1PadCodeGen : public TFV1OpCode {
     }
     ffi::Array<ffi::String> pad_width;
     const auto& attr_pad_width = node()->GetTypeArrayAttr<int>("pad_width");
-    ICHECK(attr_pad_width.size() % 2 == 0) << "pad_width should be multiple of 2, get " << node();
+    TVM_FFI_ICHECK(attr_pad_width.size() % 2 == 0)
+        << "pad_width should be multiple of 2, get " << node();
     for (size_t i = 0; i < attr_pad_width.size(); i += 2) {
       const ffi::String& cur_pad = "[" + std::to_string(attr_pad_width[i]) + ", " +
                                    std::to_string(attr_pad_width[i + 1]) + "]";
       pad_width.push_back(cur_pad);
     }
     const auto& val_producer = node()->ProducerOf(1);
-    ICHECK(val_producer->optype == "constant" && val_producer->HasAttr("scalar"));
+    TVM_FFI_ICHECK(val_producer->optype == "constant" && val_producer->HasAttr("scalar"));
     stack_.op_call()
         .op_input_arg()
         .call_arg(DocUtils::ToList(pad_width), "paddings")

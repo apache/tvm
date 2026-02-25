@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import tvm
 import tvm.testing
 from tvm.ir import VDevice
 from tvm.relax.transform import UpdateVDevice
-from tvm.script.parser import ir as I, relax as R, tir as T
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def verify(input, new_vdevice, vdevice_index, expected):
@@ -31,7 +34,7 @@ def test_update():
         VDevice("llvm"),
         VDevice("cuda", 0),
         VDevice("metal", 0, "global"),
-        VDevice("cuda -arch=sm_80", 0),
+        VDevice({"kind": "cuda", "arch": "sm_80"}, 0),
         VDevice("metal", 1, "global"),
         VDevice("llvm", 1),
     ]
@@ -45,15 +48,15 @@ def test_update():
                     I.vdevice("llvm"),
                     I.vdevice("cuda", 0),
                     I.vdevice("metal", 0, "global"),
-                    I.vdevice("cuda -arch=sm_80", 0),
+                    I.vdevice({"kind": "cuda", "arch": "sm_80"}, 0),
                 ]
             }
         )
 
         @R.function
         def main(
-            a: R.Tensor((128, 128), "float32", "cuda:1"),  # noqa: F722
-            c: R.Tensor((128, 128), "float32", "vdevice:3"),  # noqa: F722
+            a: R.Tensor((128, 128), "float32", "cuda:1"),
+            c: R.Tensor((128, 128), "float32", "vdevice:3"),
         ) -> R.Tensor((128, 128), "float32"):
             s = R.add(a, c)
             return s
@@ -74,10 +77,10 @@ def test_update():
 
         @R.function
         def main(
-            a: R.Tensor((128, 128), dtype="float32", vdevice="metal:1"),  # noqa: F722
-            c: R.Tensor((128, 128), dtype="float32", vdevice="metal:1"),  # noqa: F722
-        ) -> R.Tensor((128, 128), dtype="float32", vdevice="metal:1"):  # noqa: F722
-            s: R.Tensor((128, 128), dtype="float32", vdevice="metal:1") = R.add(a, c)  # noqa: F722
+            a: R.Tensor((128, 128), dtype="float32", vdevice="metal:1"),
+            c: R.Tensor((128, 128), dtype="float32", vdevice="metal:1"),
+        ) -> R.Tensor((128, 128), dtype="float32", vdevice="metal:1"):
+            s: R.Tensor((128, 128), dtype="float32", vdevice="metal:1") = R.add(a, c)
             return s
 
     @I.ir_module
@@ -94,8 +97,8 @@ def test_update():
 
         @R.function
         def main(
-            a: R.Tensor((128, 128), "float32", "cuda:0"),  # noqa: F722
-            c: R.Tensor((128, 128), "float32", "cuda:0"),  # noqa: F722
+            a: R.Tensor((128, 128), "float32", "cuda:0"),
+            c: R.Tensor((128, 128), "float32", "cuda:0"),
         ) -> R.Tensor((128, 128), "float32"):
             s = R.add(a, c)
             return s
@@ -114,10 +117,10 @@ def test_update():
 
         @R.function
         def main(
-            a: R.Tensor((128, 128), "float32", "llvm:1"),  # noqa: F722
-            c: R.Tensor((128, 128), "float32", "llvm:1"),  # noqa: F722
-        ) -> R.Tensor((128, 128), "float32", "llvm:1"):  # noqa: F722
-            s: R.Tensor((128, 128), "float32", "llvm:1") = R.add(a, c)  # noqa: F722
+            a: R.Tensor((128, 128), "float32", "llvm:1"),
+            c: R.Tensor((128, 128), "float32", "llvm:1"),
+        ) -> R.Tensor((128, 128), "float32", "llvm:1"):
+            s: R.Tensor((128, 128), "float32", "llvm:1") = R.add(a, c)
             return s
 
     verify(Input1, vdevices[4], 3, Expect1)

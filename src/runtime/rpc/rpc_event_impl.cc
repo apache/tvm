@@ -34,8 +34,9 @@ namespace runtime {
 
 ffi::Function CreateEventDrivenServer(ffi::Function fsend, std::string name,
                                       std::string remote_key) {
-  static ffi::Function frecv(
-      [](ffi::PackedArgs args, ffi::Any* rv) { LOG(FATAL) << "Do not allow explicit receive"; });
+  static ffi::Function frecv([](ffi::PackedArgs args, ffi::Any* rv) {
+    TVM_FFI_THROW(InternalError) << "Do not allow explicit receive";
+  });
 
   auto ch = std::make_unique<CallbackChannel>(fsend, frecv);
   std::shared_ptr<RPCEndpoint> sess = RPCEndpoint::Create(std::move(ch), name, remote_key);

@@ -18,17 +18,16 @@
 """Test translate for TensorrRT."""
 
 import pytest
-
 import torch
 from torch import fx
 from torch.nn import Module
 
 import tvm.testing
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.framework.tensorrt import codegen
+from tvm.contrib.msc.framework.tensorrt.frontend import translate
 from tvm.relax import PyExprVisitor
 from tvm.relax.frontend.torch import from_fx
-from tvm.contrib.msc.framework.tensorrt.frontend import translate
-from tvm.contrib.msc.framework.tensorrt import codegen
-from tvm.contrib.msc.core import utils as msc_utils
 
 requires_tensorrt = pytest.mark.skipif(
     tvm.get_global_func("relax.ext.tensorrt", True) is None,
@@ -42,7 +41,7 @@ def build_and_run(mod, inputs):
     target = tvm.target.Target("cuda")
     mod = tvm.relax.transform.LegalizeOps()(mod)
     with target:
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
     with tvm.transform.PassContext(opt_level=3):
         rt_mod = tvm.compile(mod, target)
         runnable = tvm.relax.VirtualMachine(rt_mod, tvm.cuda())
@@ -70,7 +69,7 @@ def check_names(mod):
             if "Composite" in op.attrs:
                 assert "Unique" in op.attrs, "Can not find unique_name for func " + str(op)
                 name = str(op.attrs["Unique"])
-                assert name not in self._recorded_names, "Name {} is already in use".format(name)
+                assert name not in self._recorded_names, f"Name {name} is already in use"
                 self._recorded_names.add(name)
             super().visit_function_(op)
 

@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E731, F821, F841
 import numpy as np
+
 import tvm
-from tvm import te
 import tvm.testing
 
 

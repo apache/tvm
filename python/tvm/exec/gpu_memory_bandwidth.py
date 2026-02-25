@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F821
 """A script to measure GPU memory bandwidth"""
+
 import argparse
 import itertools
 
@@ -22,7 +24,7 @@ import numpy as np
 
 import tvm
 from tvm import te
-from tvm.meta_schedule.runner import EvaluatorConfig, RPCConfig
+from tvm.s_tir.meta_schedule.runner import EvaluatorConfig, RPCConfig
 from tvm.testing import local_run, rpc_run
 
 
@@ -40,7 +42,7 @@ def _parse_args() -> argparse.Namespace:
         --vec "1,2,4" \
 
     Example for Android GPU: \
-    python -m tvm.exec.gpu_memory_bandwidth "opencl" --target_host "llvm -mtriple=arm64-linux-android" \
+    python -m tvm.exec.gpu_memory_bandwidth "opencl" --target_host '{"kind": "llvm", "mtriple": "arm64-linux-android"}' \
         --rpc_host "127.0.0.1" \
         --rpc_port 9190 \
         --rpc_key "android" \

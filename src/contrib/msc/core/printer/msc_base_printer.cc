@@ -93,7 +93,7 @@ void MSCBasePrinter::PrintDoc(const Doc& doc, bool new_line) {
   } else if (auto doc_node = doc.as<LambdaDoc>()) {
     PrintTypedDoc(doc_node.value());
   } else {
-    LOG(FATAL) << "Do not know how to print " << doc->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "Do not know how to print " << doc->GetTypeKey();
     throw;
   }
 }
@@ -116,7 +116,7 @@ void MSCBasePrinter::PrintTypedDoc(const LiteralDoc& doc) {
   } else if (auto opt_str = value.as<ffi::String>()) {
     output_ << "\"" << tvm::support::StrEscape((*opt_str).data(), (*opt_str).size()) << "\"";
   } else {
-    LOG(FATAL) << "TypeError: Unsupported literal value type: " << value.GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Unsupported literal value type: " << value.GetTypeKey();
   }
 }
 

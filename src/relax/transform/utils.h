@@ -74,7 +74,7 @@ class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const
    * \return The result of the call
    */
   virtual OutputType VisitExpr(const Expr& n) {
-    ICHECK(n.defined());
+    TVM_FFI_ICHECK(n.defined());
     auto it = memo_.find(n);
     if (it != memo_.end()) {
       return it->second;
@@ -85,12 +85,12 @@ class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const
   }
 
   virtual OutputType VisitExpr_(const VarNode* vn) {
-    ICHECK(memo_.count(ffi::GetRef<Expr>(vn)));
+    TVM_FFI_ICHECK(memo_.count(ffi::GetRef<Expr>(vn)));
     return memo_[ffi::GetRef<Expr>(vn)];
   }
 
   virtual OutputType VisitBinding_(const VarBindingNode* binding) {
-    ICHECK_EQ(memo_.count(binding->var), 0);
+    TVM_FFI_ICHECK_EQ(memo_.count(binding->var), 0);
     auto v = VisitExpr(binding->value);
     memo_[binding->var] = v;
     return v;
@@ -126,7 +126,7 @@ TVM_DLL IRModule DeadCodeElimination(const IRModule& mod, ffi::Array<ffi::String
  */
 inline std::string GetExtSymbol(const Function& func) {
   const auto name_node = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-  ICHECK(name_node.has_value()) << "Fail to retrieve external symbol.";
+  TVM_FFI_ICHECK(name_node.has_value()) << "Fail to retrieve external symbol.";
   return std::string(name_node.value());
 }
 
@@ -356,7 +356,7 @@ inline Constant MakeConstantScalar(T value, DataType dtype) {
     *static_cast<uint16_t*>(arr->data) =
         __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(value));
   } else {
-    LOG(FATAL) << "Unsupported dtype " << dtype;
+    TVM_FFI_THROW(InternalError) << "Unsupported dtype " << dtype;
   }
   return Constant(arr);
 }
@@ -369,8 +369,9 @@ inline ffi::Array<Integer> GetOrderedPositiveAxes(const ffi::Array<Integer>& axe
     if (axis_val < 0) {
       axis_val += ndim;
     }
-    ICHECK(axis_val >= 0 && axis_val < ndim) << "axis " << axis << " is out of bounds for array of "
-                                             << "dimension " << ndim;
+    TVM_FFI_ICHECK(axis_val >= 0 && axis_val < ndim)
+        << "axis " << axis << " is out of bounds for array of "
+        << "dimension " << ndim;
     ret.push_back(axis_val);
   }
   std::sort(ret.begin(), ret.end());
@@ -379,8 +380,9 @@ inline ffi::Array<Integer> GetOrderedPositiveAxes(const ffi::Array<Integer>& axe
 
 inline ffi::String GetCodegenName(const std::string& composite_name) {
   auto delim_pos = composite_name.find(".");
-  ICHECK(delim_pos != std::string::npos) << "The pattern name for a composite function should "
-                                            "start with a compiler name followed by period.";
+  TVM_FFI_ICHECK(delim_pos != std::string::npos)
+      << "The pattern name for a composite function should "
+         "start with a compiler name followed by period.";
   return composite_name.substr(0, delim_pos);
 }
 
@@ -404,7 +406,7 @@ inline int GetDeviceIndex(const IRModule& mod, const VDevice& vdevice) {
       return i;
     }
   }
-  LOG(FATAL) << "The vdevice is not in the ir_module.";
+  TVM_FFI_THROW(InternalError) << "The vdevice is not in the ir_module.";
   return -1;
 }
 

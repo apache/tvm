@@ -205,7 +205,8 @@ class TokenAllocatorMixed {
    */
   ffi::Optional<StorageToken> RequestReuse(StorageToken prototype) {
     // Step 0. Sanity check: the prototype token is supposed not to be allocated with actual storage
-    ICHECK_EQ(prototype->storage_id, -1) << "The token is expected not to be allocated before.";
+    TVM_FFI_ICHECK_EQ(prototype->storage_id, -1)
+        << "The token is expected not to be allocated before.";
     // If the prototype has no reference at all, feel free to allocate new storage.
     // The unused binding can be removed by cleaning passes.
     if (prototype->ref_counter == 0) {
@@ -224,7 +225,7 @@ class TokenAllocatorMixed {
       for (; begin != end; ++begin) {
         StorageToken available_token = begin->second;
         if (analyzer_->CanProveEqual(prototype->bytes, available_token->bytes)) {
-          ICHECK_EQ(available_token->ref_counter, 0)
+          TVM_FFI_ICHECK_EQ(available_token->ref_counter, 0)
               << "Available tokens are expected to have 0 reference.";
           available_token->ref_counter = prototype->ref_counter;
           pool.erase(begin);
@@ -240,9 +241,9 @@ class TokenAllocatorMixed {
     // Step 3. Search for memory block that equals or is larger than the requested size.
     if (mid != end) {
       StorageToken available_token = mid->second;
-      ICHECK_EQ(available_token->ref_counter, 0)
+      TVM_FFI_ICHECK_EQ(available_token->ref_counter, 0)
           << "Available tokens are expected to have 0 reference.";
-      ICHECK_LE(size, available_token->const_bytes());
+      TVM_FFI_ICHECK_LE(size, available_token->const_bytes());
       available_token->ref_counter = prototype->ref_counter;
       pool.erase(mid);
       return available_token;
@@ -252,10 +253,10 @@ class TokenAllocatorMixed {
       --mid;
       StorageToken available_token = mid->second;
       int64_t available_size = available_token->const_bytes();
-      ICHECK_EQ(available_token->ref_counter, 0)
+      TVM_FFI_ICHECK_EQ(available_token->ref_counter, 0)
           << "Available tokens are expected to have 0 reference.";
-      ICHECK_GE(available_size, 0);
-      ICHECK_GE(size, available_size);
+      TVM_FFI_ICHECK_GE(available_size, 0);
+      TVM_FFI_ICHECK_GE(size, available_size);
       // Enlarge the token size.
       available_token->bytes = tir::make_const(DataType::Int(64), size);
       available_token->ref_counter = prototype->ref_counter;
@@ -274,7 +275,8 @@ class TokenAllocatorMixed {
    */
   StorageToken Alloc(StorageToken prototype, int storage_id) {
     // Sanity check: the prototype token is supposed not to be allocated with actual storage yet
-    ICHECK_EQ(prototype->storage_id, -1) << "The token is expected not to be allocated before.";
+    TVM_FFI_ICHECK_EQ(prototype->storage_id, -1)
+        << "The token is expected not to be allocated before.";
     prototype->storage_id = storage_id;
     full_pool_.push_back(prototype);
     return prototype;
@@ -286,9 +288,10 @@ class TokenAllocatorMixed {
    */
   void Release(StorageToken token) {
     // Sanity check: the token has been allocated with actual storage, and should have 0 reference.
-    ICHECK_GE(token->storage_id, 0)
+    TVM_FFI_ICHECK_GE(token->storage_id, 0)
         << "The token to be released is expected to be allocated before";
-    ICHECK_EQ(token->ref_counter, 0) << "The token to be released is expected to have 0 reference.";
+    TVM_FFI_ICHECK_EQ(token->ref_counter, 0)
+        << "The token to be released is expected to have 0 reference.";
     available_pool_[{token->storage_scope, token->dtype}].insert({token->const_bytes(), token});
   }
 
@@ -338,8 +341,8 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
     // We maintain a block stack for token allocation-site and use-site check.
     block_stack_.push_back(block);
     ExprVisitor::VisitBindingBlock_(block);
-    ICHECK(!block_stack_.empty());
-    ICHECK(block_stack_.back() == block);
+    TVM_FFI_ICHECK(!block_stack_.empty());
+    TVM_FFI_ICHECK(block_stack_.back() == block);
     block_stack_.pop_back();
   }
 
@@ -353,8 +356,8 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
     // We maintain a block stack for token allocation-site and use-site check.
     block_stack_.push_back(block);
     ExprVisitor::VisitBindingBlock_(block);
-    ICHECK(!block_stack_.empty());
-    ICHECK(block_stack_.back() == block);
+    TVM_FFI_ICHECK(!block_stack_.empty());
+    TVM_FFI_ICHECK(block_stack_.back() == block);
     block_stack_.pop_back();
   }
 
@@ -375,10 +378,10 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
       token_map_[tuple_item] = Tokens();
       return;
     }
-    ICHECK(tokens.IsNested());
+    TVM_FFI_ICHECK(tokens.IsNested());
     ffi::Array<Tokens> field_tokens = tokens.NestedArray();
-    ICHECK_GT(static_cast<int>(field_tokens.size()), tuple_item->index);
-    ICHECK_GE(tuple_item->index, 0);
+    TVM_FFI_ICHECK_GT(static_cast<int>(field_tokens.size()), tuple_item->index);
+    TVM_FFI_ICHECK_GE(tuple_item->index, 0);
     SetTokens(tuple_item, field_tokens[tuple_item->index]);
   }
 
@@ -565,7 +568,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
         call->op == call_tir_dyn_op) {
       ffi::Array<Expr> args =
           call->op == call_tir_dyn_op ? Downcast<Tuple>(call->args[1])->fields : call->args;
-      ICHECK(!block_stack_.empty());
+      TVM_FFI_ICHECK(!block_stack_.empty());
       for (const Expr& arg : call->args) {
         Tokens tokens = GetTokensWithAllocSiteCheck(arg, block_stack_.back());
         ForEachLeaf(tokens, [](StorageToken token) { token->ref_counter += 1; });
@@ -628,12 +631,12 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     // - the tensor has known dtype;
     // - no storage token was created for this call before.
     const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
-    ICHECK_NOTNULL(sinfo);
+    TVM_FFI_ICHECK_NOTNULL(sinfo);
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
-    ICHECK_NOTNULL(shape);
-    ICHECK(!sinfo->IsUnknownDtype());
-    ICHECK(sinfo->dtype == Downcast<DataTypeImm>(call->args[1])->value);
-    ICHECK(!token_map_.count(call));
+    TVM_FFI_ICHECK_NOTNULL(shape);
+    TVM_FFI_ICHECK(!sinfo->IsUnknownDtype());
+    TVM_FFI_ICHECK(sinfo->dtype == Downcast<DataTypeImm>(call->args[1])->value);
+    TVM_FFI_ICHECK(!token_map_.count(call));
 
     // Use the upper bounds of TIR vars as their values. The upper bound shape can still be dynamic
     // if the upper bounds of some variables are not provided.
@@ -653,7 +656,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
     Tokens tokens(token);
     SetTokens(call, tokens);
-    ICHECK(!block_stack_.empty());
+    TVM_FFI_ICHECK(!block_stack_.empty());
     token2block_[token.get()] = block_stack_.back();
     return tokens;
   }
@@ -685,7 +688,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     Tokens tokens = GetTokens(expr);
     ForEachLeaf(tokens, [this, cur_block](StorageToken token) {
       auto it = this->token2block_.find(token.get());
-      ICHECK(it != this->token2block_.end());
+      TVM_FFI_ICHECK(it != this->token2block_.end());
       if (it->second != cur_block) {
         this->DiscardToken(token);
       }
@@ -780,7 +783,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
     // Sanity check: each token allocated inside the block should not be
     // referenced by anyone at the end of the block.
     for (const StorageTokenNode* token : block2tokens[block]) {
-      ICHECK_EQ(token->ref_counter, 0);
+      TVM_FFI_ICHECK_EQ(token->ref_counter, 0);
     }
   }
 
@@ -788,14 +791,14 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     if (call->op == alloc_tensor_op) {
       auto it = token_map_.find(call);
-      ICHECK(it != token_map_.end());
+      TVM_FFI_ICHECK(it != token_map_.end());
 
       if (it->second.IsNull()) {
         // IsNull being true means the token was discarded, and this alloc_tensor
         // is not considered by the planning.
         return;
       }
-      ICHECK(it->second.IsLeaf());
+      TVM_FFI_ICHECK(it->second.IsLeaf());
       StorageToken new_token = this->RequestReuseOrAlloc(it->second.LeafValue());
 
       // Record that this alloc_tensor is using the token.
@@ -803,7 +806,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
       token2cur_tensor_[new_token.get()].push_back(binding->var);
       SetTokens(call, Tokens(new_token));
       // Record that the token is allocated in the current block.
-      ICHECK(!block_stack_.empty());
+      TVM_FFI_ICHECK(!block_stack_.empty());
       std::vector<const StorageTokenNode*>& block_tokens = block2tokens[block_stack_.back()];
       if (std::find(block_tokens.begin(), block_tokens.end(), new_token.get()) ==
           block_tokens.end()) {
@@ -812,13 +815,13 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
       return;
     } else if (IsInplaceMemoryOp(call->op)) {
       Tokens tokens = GetTokens(call->args[0]);
-      ICHECK(!tokens.IsNested());
+      TVM_FFI_ICHECK(!tokens.IsNested());
       if (tokens.IsLeaf()) {
         // If the input is using a token, record that the reshape uses the token as well.
         token2cur_tensor_[tokens.LeafValue().get()].push_back(binding->var);
         SetTokens(call, tokens);
       } else {
-        ICHECK(token_map_[call].IsNull());
+        TVM_FFI_ICHECK(token_map_[call].IsNull());
       }
       return;
     }
@@ -829,7 +832,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
     for (const Expr& arg : call->args) {
       Tokens tokens = GetTokens(arg);
       ForEachLeaf(tokens, [this](StorageToken token) {
-        ICHECK_GT(token->ref_counter, 0);
+        TVM_FFI_ICHECK_GT(token->ref_counter, 0);
         token->ref_counter -= 1;
         this->CheckForRelease(token);
       });
@@ -852,13 +855,13 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
    */
   void CheckForRelease(StorageToken token) {
     // Sanity check: the token was allocated before and has non-negative reference.
-    ICHECK_GE(token->storage_id, 0);
-    ICHECK_GE(token->ref_counter, 0);
+    TVM_FFI_ICHECK_GE(token->storage_id, 0);
+    TVM_FFI_ICHECK_GE(token->ref_counter, 0);
 
     if (token->ref_counter == 0) {
       allocator_.Release(token);
       auto it = token2cur_tensor_.find(token.get());
-      ICHECK(it != token2cur_tensor_.end());
+      TVM_FFI_ICHECK(it != token2cur_tensor_.end());
       token2cur_tensor_.erase(it);
     }
   }
@@ -920,10 +923,10 @@ class StorageAllocationRewriter : public ExprMutator {
     auto it = alloc_tensor2token_.find(call);
     if (it != alloc_tensor2token_.end()) {
       // Case 1. This `alloc_tensor` is planned for memory reuse.
-      ICHECK_EQ(call->op, alloc_tensor_op);
+      TVM_FFI_ICHECK_EQ(call->op, alloc_tensor_op);
       const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
-      ICHECK_NOTNULL(sinfo);
-      ICHECK_NOTNULL(sinfo->shape.as<ShapeExprNode>());
+      TVM_FFI_ICHECK_NOTNULL(sinfo);
+      TVM_FFI_ICHECK_NOTNULL(sinfo->shape.as<ShapeExprNode>());
       PrimValue runtime_device_index = Downcast<PrimValue>(call->args[2]);
 
       // If the token is visited for the first time, create a storage variable using
@@ -959,13 +962,13 @@ class StorageAllocationRewriter : public ExprMutator {
       // allocate a tensor out from it with the actual symbolic shape.
 
       const auto* sinfo = call->struct_info_.as<TensorStructInfoNode>();
-      ICHECK_NOTNULL(sinfo);
+      TVM_FFI_ICHECK_NOTNULL(sinfo);
       const auto* shape = sinfo->shape.as<ShapeExprNode>();
-      ICHECK_NOTNULL(shape);
+      TVM_FFI_ICHECK_NOTNULL(shape);
       ffi::Array<PrimExpr> upper_bounded_shape = GetUpperBoundShape(shape->values, &ana_, dom_map_);
       if (!IsStaticShape(shape->values)) {
-        ICHECK(!sinfo->IsUnknownDtype());
-        ICHECK_EQ(sinfo->dtype, Downcast<DataTypeImm>(call->args[1])->value);
+        TVM_FFI_ICHECK(!sinfo->IsUnknownDtype());
+        TVM_FFI_ICHECK_EQ(sinfo->dtype, Downcast<DataTypeImm>(call->args[1])->value);
         PrimExpr bytes = upper_bounded_shape[0];
         for (int i = 1; i < static_cast<int>(upper_bounded_shape.size()); ++i) {
           bytes *= upper_bounded_shape[i];
@@ -1044,7 +1047,7 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType d
   struct Shape {
     const ffi::Array<PrimExpr>& shape;
     int64_t operator[](size_t i) const {
-      ICHECK(tir::as_const_int(shape[i])) << "Dymamic shapes not suported over texture now";
+      TVM_FFI_ICHECK(tir::as_const_int(shape[i])) << "Dymamic shapes not suported over texture now";
       return *tir::as_const_int(shape[i]);
     }
     int size() { return this->shape.size(); }

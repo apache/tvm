@@ -20,18 +20,16 @@ package org.apache.tvm.tvmrpc;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import android.widget.CompoundButton;
 import android.widget.EditText;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
-import android.content.Intent;
-
+import androidx.appcompat.widget.Toolbar;
 
 public class MainActivity extends AppCompatActivity {
   // wait time before automatic restart of RPC Activity
@@ -42,12 +40,11 @@ public class MainActivity extends AppCompatActivity {
     builder.setTitle(title);
     builder.setMessage(msg);
     builder.setCancelable(true);
-    builder.setNeutralButton(android.R.string.ok,
-        new DialogInterface.OnClickListener() {
-          public void onClick(DialogInterface dialog, int id) {
-            dialog.cancel();
-          }
-        });
+    builder.setNeutralButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+      public void onClick(DialogInterface dialog, int id) {
+        dialog.cancel();
+      }
+    });
     builder.create().show();
   }
 
@@ -56,14 +53,15 @@ public class MainActivity extends AppCompatActivity {
     EditText edProxyAddress = findViewById(R.id.input_address);
     EditText edProxyPort = findViewById(R.id.input_port);
     EditText edAppKey = findViewById(R.id.input_key);
-    SwitchCompat inputSwitch =  findViewById(R.id.switch_persistent);
+    SwitchCompat inputSwitch = findViewById(R.id.switch_persistent);
 
     final String proxyHost = edProxyAddress.getText().toString();
     final int proxyPort = Integer.parseInt(edProxyPort.getText().toString());
     final String key = edAppKey.getText().toString();
     final boolean isChecked = inputSwitch.isChecked();
 
-    SharedPreferences pref = getApplicationContext().getSharedPreferences("RPCProxyPreference", Context.MODE_PRIVATE);
+    SharedPreferences pref =
+        getApplicationContext().getSharedPreferences("RPCProxyPreference", Context.MODE_PRIVATE);
     SharedPreferences.Editor editor = pref.edit();
     editor.putString("input_address", proxyHost);
     editor.putString("input_port", edProxyPort.getText().toString());
@@ -82,13 +80,13 @@ public class MainActivity extends AppCompatActivity {
     final Context context = this;
     final SwitchCompat switchPersistent = findViewById(R.id.switch_persistent);
     final Runnable rPCStarter = new Runnable() {
-        public void run() {
-            if (switchPersistent.isChecked()) {
-              System.err.println("relaunching RPC activity...");
-              Intent intent = ((MainActivity) context).updateRPCPrefs();
-              startActivity(intent);
-            }
+      public void run() {
+        if (switchPersistent.isChecked()) {
+          System.err.println("relaunching RPC activity...");
+          Intent intent = ((MainActivity) context).updateRPCPrefs();
+          startActivity(intent);
         }
+      }
     };
 
     Handler handler = new Handler(Looper.getMainLooper());
@@ -144,18 +142,19 @@ public class MainActivity extends AppCompatActivity {
     edAppKey.setEnabled(enable);
 
     if (enable) {
-    SharedPreferences pref = getApplicationContext().getSharedPreferences("RPCProxyPreference", Context.MODE_PRIVATE);
-    String inputAddress = pref.getString("input_address", null);
-    if (null != inputAddress)
+      SharedPreferences pref =
+          getApplicationContext().getSharedPreferences("RPCProxyPreference", Context.MODE_PRIVATE);
+      String inputAddress = pref.getString("input_address", null);
+      if (null != inputAddress)
         edProxyAddress.setText(inputAddress);
-    String inputPort = pref.getString("input_port", null);
-    if (null != inputPort)
+      String inputPort = pref.getString("input_port", null);
+      if (null != inputPort)
         edProxyPort.setText(inputPort);
-    String inputKey = pref.getString("input_key", null);
-    if (null != inputKey)
+      String inputKey = pref.getString("input_key", null);
+      if (null != inputKey)
         edAppKey.setText(inputKey);
-    boolean isChecked = pref.getBoolean("input_switch", false);
-    input_switch.setChecked(isChecked);
+      boolean isChecked = pref.getBoolean("input_switch", false);
+      input_switch.setChecked(isChecked);
     }
   }
 }

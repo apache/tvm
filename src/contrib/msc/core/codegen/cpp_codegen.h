@@ -24,7 +24,6 @@
 #ifndef TVM_CONTRIB_MSC_CORE_CODEGEN_CPP_CODEGEN_H_
 #define TVM_CONTRIB_MSC_CORE_CODEGEN_CPP_CODEGEN_H_
 
-#include <dmlc/json.h>
 #include <tvm/script/printer/doc.h>
 
 #include <set>
@@ -164,7 +163,7 @@ class CppCodeGen : public BaseCodeGen<ConfigType, HelperType> {
           break;
         }
       }
-      ICHECK(tensor_ctx.count("tensor"))
+      TVM_FFI_ICHECK(tensor_ctx.count("tensor"))
           << "Can not find weight " << tensor << " from " << producer;
     } else {
       const auto& pair = this->graph()->FindProducerAndIdx(tensor);

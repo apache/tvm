@@ -103,7 +103,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   }
 
   void EmitStmt(tir::Stmt stmt) {
-    ICHECK(!stmt_stack_.empty());
+    TVM_FFI_ICHECK(!stmt_stack_.empty());
     stmt_stack_.back().emplace_back(stmt);
   }
 
@@ -130,7 +130,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   void EmitCallCPacked(const tir::PrimFunc& prim_func, const ffi::Array<PrimExpr>& args,
                        int64_t dst_anylist_slot = -1) {
     ffi::Optional<ffi::String> gsymbol = prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    ICHECK(gsymbol.has_value()) << "All functions must have global symbol at this phase";
+    TVM_FFI_ICHECK(gsymbol.has_value()) << "All functions must have global symbol at this phase";
     ffi::Array<PrimExpr> all_args;
     // negative index indicate return value can be discarded, emit call_packed
     if (dst_anylist_slot >= 0) {
@@ -151,8 +151,9 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
 
   tir::PrimFunc Codegen(const Function& func) {
     ffi::Optional<ffi::String> gsymbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
-    ICHECK(gsymbol.has_value()) << "there should be no local functions in Relax VM codegen phase. "
-                                   "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
+    TVM_FFI_ICHECK(gsymbol.has_value())
+        << "there should be no local functions in Relax VM codegen phase. "
+           "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
     // initialize the state
     stmt_stack_ = {};
     registers_num_ = 0;
@@ -171,7 +172,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
 
     for (size_t i = 0; i < func->params.size(); ++i) {
       int64_t r = NewRegister();
-      ICHECK_EQ(static_cast<size_t>(r), i);
+      TVM_FFI_ICHECK_EQ(static_cast<size_t>(r), i);
       this->var_map_.insert({func->params[i], RegListGet(r)});
     }
     size_t ret_reg = NewRegister();
@@ -243,7 +244,8 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
         // ops are handled in a pass when lowering them to TIR.
-        LOG(FATAL) << "CodeGenVMTIR cannot handle this intrinsic now:\n" << call_node->op;
+        TVM_FFI_THROW(InternalError) << "CodeGenVMTIR cannot handle this intrinsic now:\n"
+                                     << call_node->op;
       }
     } else {
       EmitNormalCall(call, dst_reg);
@@ -278,7 +280,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   ffi::Optional<PrimExpr> VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto it = this->var_map_.find(var);
-    ICHECK(it != this->var_map_.end()) << "Var " << var << " is not defined";
+    TVM_FFI_ICHECK(it != this->var_map_.end()) << "Var " << var << " is not defined";
     return it->second;
   }
 
@@ -292,7 +294,8 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
       if (auto* int_value = e.as<IntImmNode>()) {
         shape.push_back(int_value->value);
       } else {
-        LOG(FATAL) << "Should only use constant shape after shape lowering: " << op->values;
+        TVM_FFI_THROW(InternalError)
+            << "Should only use constant shape after shape lowering: " << op->values;
       }
     }
     return ConstListGet(builder_->ConvertConstant(ffi::Shape(shape)).value());
@@ -382,7 +385,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   ffi::Optional<PrimExpr> VisitExpr_(const GlobalVarNode* op) final {
     VMFuncInfo::FuncKind kind;
     auto symbol = LookupFunction(ffi::GetRef<Expr>(op), &kind);
-    ICHECK(symbol.has_value());
+    TVM_FFI_ICHECK(symbol.has_value());
     builder_->DeclareFunction(symbol.value(), kind);
     return FuncListGet(builder_->GetFunction(symbol.value()).value());
   }
@@ -403,7 +406,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   }
 
   void EmitAllocTensor(const Call& call_node, int64_t dst_reg) {
-    ICHECK_EQ(call_node->args.size(), 5);
+    TVM_FFI_ICHECK_EQ(call_node->args.size(), 5);
     ffi::Array<PrimExpr> args;
     for (int i = 0; i < 4; ++i) {
       args.push_back(this->VisitExpr(call_node->args[i]).value());
@@ -422,18 +425,18 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   }
 
   int64_t EmitKillObject(const Call& call_node) {
-    ICHECK_EQ(call_node->args.size(), 1);
+    TVM_FFI_ICHECK_EQ(call_node->args.size(), 1);
     PrimExpr arg = this->VisitExpr(call_node->args[0]).value();
 
     // Check the arg is a register.
     const auto* tir_call = arg.as<tir::CallNode>();
-    ICHECK(tir_call != nullptr);
-    ICHECK(tir_call->op == tir::builtin::anylist_getitem());
-    ICHECK(tir_call->args.size() == 2);
-    ICHECK(tir_call->args[0].same_as(reg_anylist_handle_));
+    TVM_FFI_ICHECK(tir_call != nullptr);
+    TVM_FFI_ICHECK(tir_call->op == tir::builtin::anylist_getitem());
+    TVM_FFI_ICHECK(tir_call->args.size() == 2);
+    TVM_FFI_ICHECK(tir_call->args[0].same_as(reg_anylist_handle_));
     const auto* p_dst_reg = tir_call->args[1].as<tir::IntImmNode>();
-    ICHECK(p_dst_reg != nullptr);
-    ICHECK(p_dst_reg->dtype == DataType::Int(32));
+    TVM_FFI_ICHECK(p_dst_reg != nullptr);
+    TVM_FFI_ICHECK(p_dst_reg->dtype == DataType::Int(32));
 
     int64_t dst_reg = p_dst_reg->value;
     this->EmitCallPacked("vm.builtin.null_value", {}, dst_reg);
@@ -445,7 +448,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     // if context is required, pass as first argument.
     args.push_back(ctx_ptr_);
     auto* func = call_node->args[0].as<ExternFuncNode>();
-    ICHECK(func) << "CallBuiltin comes with extern func";
+    TVM_FFI_ICHECK(func) << "CallBuiltin comes with extern func";
 
     auto tuple_arg = Downcast<Tuple>(call_node->args[1]);
 

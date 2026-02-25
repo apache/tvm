@@ -18,16 +18,15 @@
  */
 
 /*!
- *  Optional module when build cuda is switched to off
+ *  Optional module when build CUDA is switched to off
  */
 #include "../../runtime/cuda/cuda_module.h"
 namespace tvm {
 namespace runtime {
 
 ffi::Module CUDAModuleCreate(std::string data, std::string fmt,
-                             std::unordered_map<std::string, FunctionInfo> fmap,
-                             std::string cuda_source) {
-  LOG(FATAL) << "CUDA is not enabled";
+                             ffi::Map<ffi::String, FunctionInfo> fmap, std::string cuda_source) {
+  TVM_FFI_THROW(InternalError) << "CUDA is not enabled";
   TVM_FFI_UNREACHABLE();
 }
 }  // namespace runtime

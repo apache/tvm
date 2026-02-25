@@ -20,7 +20,9 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, topi
-from tvm.script import ir as I, relax as R, tir as T
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def _check(mod_before, mod_expected):
@@ -1083,7 +1085,7 @@ def test_same_buffer_multiple_read():
 
         @R.function
         def fused_concatenate_transpose2(
-            inp_0: R.Tensor((1, 4, 64, 64), dtype="float32")
+            inp_0: R.Tensor((1, 4, 64, 64), dtype="float32"),
         ) -> R.Tensor((2, 64, 64, 4), dtype="float32"):
             R.func_attr({"Primitive": True})
             cls = Module
@@ -1100,9 +1102,9 @@ def test_same_buffer_multiple_read():
             return gv
 
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 4, 64, 64), dtype="float32")
-        ) -> R.Tensor((2, 64, 64, 4), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 4, 64, 64), dtype="float32")) -> R.Tensor(
+            (2, 64, 64, 4), dtype="float32"
+        ):
             R.func_attr({"num_input": 3})
             cls = Module
             with R.dataflow():
@@ -1138,14 +1140,14 @@ def test_same_buffer_multiple_read():
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(T_concat_handle_intermediate[v_ax0, v_ax3, v_ax1, v_ax2])
                     T.writes(T_transpose_handle_intermediate[v_ax0, v_ax1, v_ax2, v_ax3])
-                    T_transpose_handle_intermediate[
-                        v_ax0, v_ax1, v_ax2, v_ax3
-                    ] = T_concat_handle_intermediate[v_ax0, v_ax3, v_ax1, v_ax2]
+                    T_transpose_handle_intermediate[v_ax0, v_ax1, v_ax2, v_ax3] = (
+                        T_concat_handle_intermediate[v_ax0, v_ax3, v_ax1, v_ax2]
+                    )
 
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 4, 64, 64), dtype="float32")
-        ) -> R.Tensor((2, 64, 64, 4), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 4, 64, 64), dtype="float32")) -> R.Tensor(
+            (2, 64, 64, 4), dtype="float32"
+        ):
             R.func_attr({"num_input": 3})
             cls = Expected
             with R.dataflow():
@@ -1276,7 +1278,7 @@ def test_tuple_input_unused_field():
         def fused_reshape(
             lv: R.Tuple(
                 R.Tensor((4, 8, 2048), dtype="float32"), R.Tensor((4, 8, 2048), dtype="float32")
-            )
+            ),
         ) -> R.Tensor((4, 8, 32, 64), dtype="float32"):
             R.func_attr({"Primitive": True})
             cls = Module
@@ -1292,7 +1294,7 @@ def test_tuple_input_unused_field():
         def main(
             tup: R.Tuple(
                 R.Tensor((4, 8, 2048), dtype="float32"), R.Tensor((4, 8, 2048), dtype="float32")
-            )
+            ),
         ) -> R.Tensor((4, 8, 32, 64), dtype="float32"):
             cls = Module
             with R.dataflow():
@@ -1341,7 +1343,7 @@ def test_tuple_input_unused_field():
         def main(
             tup: R.Tuple(
                 R.Tensor((4, 8, 2048), dtype="float32"), R.Tensor((4, 8, 2048), dtype="float32")
-            )
+            ),
         ) -> R.Tensor((4, 8, 32, 64), dtype="float32"):
             cls = Expected
             with R.dataflow():
@@ -1425,9 +1427,9 @@ def test_unique_duplicated_buffer_allocation():
                     Out_intermediate_1[vi, vj] = Out_intermediate[vi, vj] + T.float16(2)
 
         @R.function
-        def main(
-            input_embeds: R.Tensor((4096, 4096), dtype="float16")
-        ) -> R.Tensor((4096, 4096), dtype="float16"):
+        def main(input_embeds: R.Tensor((4096, 4096), dtype="float16")) -> R.Tensor(
+            (4096, 4096), dtype="float16"
+        ):
             cls = Expected
             with R.dataflow():
                 gv = R.call_tir(

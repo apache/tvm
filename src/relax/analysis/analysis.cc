@@ -187,7 +187,7 @@ ffi::Optional<Expr> FindImpureCall(const Expr& expr, const ffi::Optional<Expr>& 
   };
 
   if (own_name) {
-    ICHECK(own_name.value().as<VarNode>() || own_name.value().as<GlobalVarNode>())
+    TVM_FFI_ICHECK(own_name.value().as<VarNode>() || own_name.value().as<GlobalVarNode>())
         << "Must pass a Var or GlobalVar for own_name";
   }
 

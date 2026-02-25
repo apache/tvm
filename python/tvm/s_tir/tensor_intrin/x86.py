@@ -16,9 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring
 """Intrinsics for x86 tensorization."""
-from tvm.script import tir as T
-from .. import TensorIntrin
 
+from tvm.script import tir as T
+
+from .. import TensorIntrin
 
 # Tensorized intrinsic description and VNNI-specific implementation.
 # Equivalent to the ones in topi/x86/tensor_intrin.py

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" benchmark_elemwise_add """
+"""benchmark_elemwise_add"""
 
 import os
 import os.path
@@ -84,7 +84,7 @@ _HOST_OUTPUT_DIR = tempfile.mkdtemp()
 _PRIMFUNC_NAME = "elemwise_add"
 
 print("-" * 80)
-print("OUTPUT DIRECTORY: {}".format(_HOST_OUTPUT_DIR))
+print(f"OUTPUT DIRECTORY: {_HOST_OUTPUT_DIR}")
 print("-" * 80)
 print()
 

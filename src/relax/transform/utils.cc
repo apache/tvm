@@ -69,8 +69,7 @@ Function ComposeFunctions(Function func_a, Function func_b) {
     auto param = func_b->params[0];
     bindings.push_back(MatchCast(param, func_a_output, GetStructInfo(param)));
   } else {
-    CHECK_EQ(func_a_outputs.size(), func_b->params.size())
-        << "ValueError: "
+    TVM_FFI_CHECK_EQ(func_a_outputs.size(), func_b->params.size(), ValueError)
         << "Cannot compose functions together.  "
         << "First function produces " << func_a_outputs.size() << " values, "
         << "but second function expects " << func_b->params.size() << " parameters as input";

@@ -15,15 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, redefined-builtin, no-else-return, consider-using-dict-items
+# ruff: noqa: RUF005
 """The Relax virtual machine."""
+
 from enum import IntEnum
+from numbers import Integral, Number
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-from numbers import Number, Integral
 
 import numpy as np  # type: ignore
+from tvm_ffi import register_global_func
 
 import tvm
-from tvm_ffi import register_global_func
 from tvm.runtime import Device, Object, PackedFunc
 from tvm.runtime.profiling import Report
 
@@ -36,7 +38,7 @@ class VMInstrumentReturnKind(IntEnum):
     SKIP_RUN = 1
 
 
-class VirtualMachine(object):
+class VirtualMachine:
     """Relax VM runtime."""
 
     NAIVE_ALLOCATOR = 1
@@ -113,7 +115,7 @@ class VirtualMachine(object):
         elif not isinstance(memory_cfg, dict):
             raise TypeError(
                 "memory_cfg is expected be string or dictionary, "
-                + "but received {}".format(type(memory_cfg))
+                + f"but received {type(memory_cfg)}"
             )
         init_args = []
         for device in devs:
@@ -222,7 +224,7 @@ class VirtualMachine(object):
         elif isinstance(arg, str):
             cargs.append(arg)
         else:
-            raise TypeError("Unsupported type: %s" % (type(arg)))
+            raise TypeError(f"Unsupported type: {type(arg)}")
 
     def _convert_func_named_args(self, func_name: str, args: Any, **kwargs: Any) -> Any:
         """

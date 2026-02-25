@@ -16,13 +16,13 @@
 # under the License.
 """tvm.contrib.msc.framework.tensorflow.tools.track.tracker"""
 
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools.tool import ToolType
 from tvm.contrib.msc.core.tools.track import BaseTracker
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
 
 
-class TensorflowTrackerFactory(object):
+class TensorflowTrackerFactory:
     """Tracker factory for tensorflow"""
 
     def create(self, base_cls: BaseTracker) -> BaseTracker:

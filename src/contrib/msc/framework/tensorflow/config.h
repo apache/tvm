@@ -38,16 +38,11 @@ namespace msc {
 struct TensorflowCodeGenConfig {
   bool is_training{false};
   CODEGEN_CONFIG_MEMBERS
-  void Load(dmlc::JSONReader* reader) {
-    std::string key;
-    reader->BeginObject();
-    while (reader->NextObjectItem(&key)) {
-      if (key == "is_training") {
-        reader->Read(&is_training);
-      } else {
-        CODEGEN_CONFIG_PARSE
-      }
+  void Load(ffi::json::Object obj) {
+    if (auto it = obj.find(ffi::String("is_training")); it != obj.end()) {
+      is_training = (*it).second.cast<bool>();
     }
+    CODEGEN_CONFIG_PARSE
   }
 };
 

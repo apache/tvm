@@ -39,7 +39,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../tir/transforms/ir_utils.h"
+#include "../../tir/transform/ir_utils.h"
 #include "codegen_source_base.h"
 
 namespace tvm {
@@ -197,7 +197,6 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const AllocateConstNode* op) override;
   void VisitStmt_(const DeclBufferNode* op) override;
 
   /*!

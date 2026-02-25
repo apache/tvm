@@ -48,7 +48,7 @@ bool SinfoCompatibleWithRelax(ffi::Array<StructInfo> sinfos) {
 bool IsDistIRFunc(Function func) {
   ffi::Array<StructInfo> param_sinfos;
   for (const auto& param : func->params) {
-    ICHECK(param->struct_info_);
+    TVM_FFI_ICHECK(param->struct_info_);
     param_sinfos.push_back(Downcast<StructInfo>(param->struct_info_.value()));
   }
   bool compatible_with_dist_ir = SinfoCompatibleWithDistIR(param_sinfos);
@@ -58,7 +58,7 @@ bool IsDistIRFunc(Function func) {
   } else if (compatible_with_dist_ir && !compatible_with_relax) {
     return true;
   } else {
-    LOG(FATAL) << "mixed use of DTensor and Tensor in: " << func;
+    TVM_FFI_THROW(InternalError) << "mixed use of DTensor and Tensor in: " << func;
   }
 }
 

@@ -61,7 +61,7 @@ class TupleFuser : public ExprMutator {
       }
     }
     // update main
-    ICHECK(main_var.defined()) << "Can not find entry func " << entry_name_;
+    TVM_FFI_ICHECK(main_var.defined()) << "Can not find entry func " << entry_name_;
     const auto& new_func = Downcast<Function>(VisitExpr(mod_->Lookup(entry_name_)));
     builder_->UpdateFunction(main_var, new_func);
     return builder_->GetContextIRModule();
@@ -85,7 +85,7 @@ class TupleFuser : public ExprMutator {
           }
           const auto& func_call = AddFunc(arg, tuple_name);
           const auto& tuple_out = builder_->Emit(func_call);
-          ICHECK(target_funcs_.count(func_call->op))
+          TVM_FFI_ICHECK(target_funcs_.count(func_call->op))
               << "Can not find target func " << func_call->op;
           target_funcs_.Set(tuple_out, target_funcs_[func_call->op]);
           has_tuple_arg = true;
@@ -162,7 +162,7 @@ class TupleFuser : public ExprMutator {
     ffi::String func_name;
     Span expr_span = expr->span;
     if (!expr_span.defined()) {
-      ICHECK(tuple_name.size() > 0) << "Missing tuple for " << expr;
+      TVM_FFI_ICHECK(tuple_name.size() > 0) << "Missing tuple for " << expr;
       expr_span = SpanUtils::CreateWithAttr(msc_attr::kName, tuple_name);
     }
     if (expr->IsInstance<TupleNode>()) {
@@ -209,7 +209,8 @@ class TupleFuser : public ExprMutator {
   void ReEmitFunc(const VarBindingNode* binding, const Expr& expr) {
     const auto& func_call = AddFunc(expr);
     ReEmitBinding(binding, builder_->Normalize(func_call));
-    ICHECK(target_funcs_.count(func_call->op)) << "Can not find target func " << func_call->op;
+    TVM_FFI_ICHECK(target_funcs_.count(func_call->op))
+        << "Can not find target func " << func_call->op;
     target_funcs_.Set(binding->var, target_funcs_[func_call->op]);
   }
 

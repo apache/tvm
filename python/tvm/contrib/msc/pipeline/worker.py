@@ -15,23 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=import-outside-toplevel, unused-argument
+# ruff: noqa: E501
 """tvm.contrib.msc.pipeline.worker"""
 
+import logging
 import os
 import time
-import logging
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import tvm
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.runtime import BaseRunner
 from tvm.contrib.msc.core.tools import ToolType
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core.utils.message import MSCStage
-from tvm.contrib.msc.core import utils as msc_utils
-from .utils import support_tool, get_tool_stage, map_tools
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
+
+from .utils import get_tool_stage, map_tools, support_tool
 
 
-class BasePipeWorker(object):
+class BasePipeWorker:
     """Base Worker of MSC pipeline
 
     Parameters
@@ -59,13 +61,13 @@ class BasePipeWorker(object):
         model: Any,
         config: dict,
         workspace: msc_utils.MSCDirectory,
-        plugins: dict = None,
-        logger: logging.Logger = None,
+        plugins: Optional[dict] = None,
+        logger: Optional[logging.Logger] = None,
         name: str = "main",
     ):
         # check/set default stage
         for key in ["inputs", "outputs", "dataset"]:
-            assert key in config, "Missing {} in config".format(key)
+            assert key in config, f"Missing {key} in config"
 
         self._config = msc_utils.copy_dict(config)
         self._workspace = workspace
@@ -127,7 +129,7 @@ class BasePipeWorker(object):
             {"inputs": self._config["inputs"], "outputs": self._config["outputs"]}
         )
 
-        def _set_debug_level(stage: str, sub_config: dict, default: int = None) -> dict:
+        def _set_debug_level(stage: str, sub_config: dict, default: Optional[int] = None) -> dict:
             if "debug_level" in sub_config:
                 debug_levels[stage] = sub_config["debug_level"]
             elif default is not None:
@@ -218,7 +220,7 @@ class BasePipeWorker(object):
             loader, source_type = msc_utils.IODataLoader(golden_folder), "cache"
             self._sample_inputs = loader[0][0]
             datas_info = loader.info
-            msg = "Load {} golden from {}".format(len(loader), golden_folder)
+            msg = f"Load {len(loader)} golden from {golden_folder}"
             self._logger.debug(self.worker_mark(msg))
         elif run_func:
             source_type = "native"
@@ -238,12 +240,12 @@ class BasePipeWorker(object):
                         )
                     except Exception as exc:  # pylint: disable=broad-exception-caught
                         if cnt == 0:
-                            msg = "Failed to test native: {}".format(exc)
+                            msg = f"Failed to test native: {exc}"
                             self._logger.warning(self.worker_mark(msg))
                         outputs = None
                     cnt = saver.save_batch(inputs, outputs)
                 datas_info = saver.info
-            msg = "Save {} golden to {}".format(cnt, golden_folder)
+            msg = f"Save {cnt} golden to {golden_folder}"
             self._logger.debug(self.worker_mark(msg))
         else:
             raise Exception("golden_folder or runner should given to save golden")
@@ -260,7 +262,7 @@ class BasePipeWorker(object):
             }
 
         info = {
-            "golden_folder({})".format(source_type): golden_folder,
+            f"golden_folder({source_type})": golden_folder,
             "datas_info": _to_abstract(datas_info),
             "smaple_inputs": self._sample_inputs,
         }
@@ -278,11 +280,11 @@ class BasePipeWorker(object):
                     self._config["outputs"],
                     **benchmark,
                 )
-                latency = "{:.2f} ms @ {}".format(avg_time, self._device)
+                latency = f"{avg_time:.2f} ms @ {self._device}"
                 info["latency"] = latency + " (X{})".format(benchmark["repeat"])
                 report["profile"] = latency
             except Exception as exc:  # pylint: disable=broad-exception-caught
-                msg = "Failed to profile native: {}".format(exc)
+                msg = f"Failed to profile native: {exc}"
                 self._logger.warning(self.worker_mark(msg))
                 report["profile"] = "failed run native"
         return info, report
@@ -307,7 +309,7 @@ class BasePipeWorker(object):
             cache_path = None
         info = {}
         if cache_path and os.path.isfile(cache_path):
-            with open(cache_path, "r") as f:
+            with open(cache_path) as f:
                 self._relax_mod = tvm.ir.load_json(f.read())
             info["cache"] = cache_path
         else:
@@ -328,7 +330,7 @@ class BasePipeWorker(object):
                 transformed.add(run_type)
                 runner_cls = self._get_runner_cls(run_type)
                 if hasattr(runner_cls, "target_transform"):
-                    msg = "Transform for {}({})".format(run_type, stage)
+                    msg = f"Transform for {run_type}({stage})"
                     self._logger.info(self.worker_mark(msg))
                     self._relax_mod = runner_cls.target_transform(self._relax_mod)
             if cache_path:
@@ -375,7 +377,7 @@ class BasePipeWorker(object):
         return os.path.isfile(config["plan_file"])
 
     def apply_tool(
-        self, tool_type: str, knowledge: dict = None, data_loader: Any = None
+        self, tool_type: str, knowledge: Optional[dict] = None, data_loader: Any = None
     ) -> Tuple[dict, dict]:
         """Apply tool with runner
 
@@ -414,9 +416,9 @@ class BasePipeWorker(object):
     def create_runner(
         self,
         stage: str,
-        tools: List[str] = None,
-        run_type: str = None,
-        run_config: dict = None,
+        tools: Optional[List[str]] = None,
+        run_type: Optional[str] = None,
+        run_config: Optional[dict] = None,
         visualize: bool = True,
         profile: bool = True,
         use_cache: bool = True,
@@ -484,7 +486,7 @@ class BasePipeWorker(object):
             runner.visualize(msc_utils.get_visual_dir().create_dir(main_stage))
         if use_cache:
             runner.save_cache(cache_dir)
-        info, report = {}, {"runtime": "{} @ {}".format(runner.framework, runner.device)}
+        info, report = {}, {"runtime": f"{runner.framework} @ {runner.device}"}
         if profile and "profile" in self._config[main_stage]:
             profile_config = self._config[main_stage]["profile"]
             info["profile"], report["profile"] = self._profile_runner(runner, profile_config)
@@ -538,21 +540,19 @@ class BasePipeWorker(object):
                 passed += iter_info["passed"]
                 acc_info["iter_" + str(idx)] = iter_info["info"]
             pass_rate = float(passed) / total
-            accuracy = "{}/{}({:.2f}%)".format(passed, total, pass_rate * 100)
-            acc_info["passed"] = "{} {}".format(accuracy, check_config)
+            accuracy = f"{passed}/{total}({pass_rate * 100:.2f}%)"
+            acc_info["passed"] = f"{accuracy} {check_config}"
             info["accuracy"] = acc_info if runner.debug_level >= 1 else accuracy
             report = "pass " + accuracy
             if runner.get_tool(ToolType.PRUNER) or runner.get_tool(ToolType.QUANTIZER):
-                disable_msg = "Disable accuracy check({}) by tools".format(stage)
+                disable_msg = f"Disable accuracy check({stage}) by tools"
                 self._logger.debug(self.worker_mark(disable_msg))
             else:
                 required_err, err_rate = check_config.get("err_rate", 0), (1 - pass_rate)
                 if err_rate > required_err >= 0:
                     self._logger.error(msc_utils.msg_block(self.worker_mark("ACCURACY"), acc_info))
                     raise Exception(
-                        "Failed to profile the runner({}), err_rate {} > required {}".format(
-                            stage, err_rate, required_err
-                        )
+                        f"Failed to profile the runner({stage}), err_rate {err_rate} > required {required_err}"
                     )
 
         # benchmark model
@@ -565,8 +565,8 @@ class BasePipeWorker(object):
             for _ in range(repeat):
                 runner.run(self._sample_inputs)
             avg_time = (time.time() - start) * 1000 / repeat
-            latency = "{:.2f} ms @ {}".format(avg_time, runner.device)
-            info["latency"] = latency + " (X{})".format(repeat)
+            latency = f"{avg_time:.2f} ms @ {runner.device}"
+            info["latency"] = latency + f" (X{repeat})"
             report += (", " if report else "") + latency
         return info, report
 
@@ -671,7 +671,7 @@ class BasePipeWorker(object):
             return self._runner.model
         raise TypeError("Unexpect return type " + str(ret_type))
 
-    def _get_repeat(self, benchmark: dict, device: str = None) -> int:
+    def _get_repeat(self, benchmark: dict, device: Optional[str] = None) -> int:
         """Get the repeat number for benchmark
 
         Parameters
@@ -729,7 +729,7 @@ class BasePipeWorker(object):
             The message with mark.
         """
 
-        return "WORKER[{}] {}".format(self._name, msg)
+        return f"WORKER[{self._name}] {msg}"
 
     @property
     def runner(self):

@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Hexagon pytest utility functions """
+"""Hexagon pytest utility functions"""
 
-from typing import List, Optional, Union
 import collections
+from typing import List, Optional, Union
+
 import numpy as np
 
 
-def get_test_id(*test_params, test_param_descs: List[Optional[str]] = None) -> str:
+def get_test_id(*test_params, test_param_descs: Optional[List[Optional[str]]] = None) -> str:
     """
     An opinionated alternative to pytest's default algorithm for generating a
     test's ID string.  Intended to make it easier for human readers to

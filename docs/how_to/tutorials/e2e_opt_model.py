@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E402
 
 """
 .. _optimize_model:
@@ -32,6 +33,7 @@ Please note that default end-to-end optimization may not suit complex models.
 # PyTorch.
 
 import os
+
 import numpy as np
 import torch
 from torch.export import export

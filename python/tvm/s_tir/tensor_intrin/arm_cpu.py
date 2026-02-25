@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring,unused-import
+# ruff: noqa: E501, F401
 """Intrinsics for ARM tensorization."""
 
 from tvm import tir
@@ -30,7 +31,6 @@ from .dot_product_common import (
     DP4A_U8S8S32_INTRIN,
     DP4A_U8U8U32_INTRIN,
 )
-
 
 # TODO(masahi): Parametrize the TVMScript description of dot product by
 # shape and dtype, and share the common description with x86.
@@ -202,7 +202,7 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
     limit = (
         base
         - T.int32(horizontal_offset)
-        - T.int32((tensor.offset_of([0, 0])[0] % stride))
+        - T.int32(tensor.offset_of([0, 0])[0] % stride)
         + T.int32(stride)
     )
     limit = T.Min(limit, T.Cast("int32", vertical_limit) * stride)

@@ -15,15 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import subprocess
-import os
 import logging
-import sys
+import os
 import re
-import tempfile
+import subprocess
+import sys
 from pathlib import Path
 from typing import List
-
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 assert (REPO_ROOT / "Jenkinsfile").exists

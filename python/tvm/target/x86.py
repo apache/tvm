@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common x86 related utilities"""
+
 from tvm_ffi import register_global_func
+
 from .codegen import target_has_features
 
 

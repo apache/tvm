@@ -14,15 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
-from tvm.runtime import Device
-from tvm.runtime import ShapeTuple
+from tvm.runtime import Device, ShapeTuple
 from tvm.runtime import disco as di
-
 
 page_size = 4
 num_layers = 4

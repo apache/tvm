@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """Commons for Relax frontend."""
+
 from typing import Dict, List, Tuple
+
 import numpy as _np
 
 import tvm

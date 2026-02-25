@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 """
 .. _tutorial-cross-compilation-and-rpc:
 
@@ -93,12 +94,10 @@ and the Firefly-RK3399 for an OpenCL example.
 #
 # Here we will declare a simple kernel on the local machine:
 
-
 import numpy as np
 
 import tvm
-from tvm import te
-from tvm import rpc
+from tvm import rpc, te
 from tvm.contrib import utils
 
 n = tvm.runtime.convert(1024)
@@ -108,7 +107,7 @@ mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbo
 
 ######################################################################
 # Then we cross compile the kernel.
-# The target should be 'llvm -mtriple=armv7l-linux-gnueabihf' for
+# The target should be {"kind": "llvm", "mtriple": "armv7l-linux-gnueabihf"} for
 # Raspberry Pi 3B, but we use 'llvm' here to make this tutorial runnable
 # on our webpage building server. See the detailed note in the following block.
 
@@ -117,7 +116,7 @@ local_demo = True
 if local_demo:
     target = "llvm"
 else:
-    target = "llvm -mtriple=armv7l-linux-gnueabihf"
+    target = {"kind": "llvm", "mtriple": "armv7l-linux-gnueabihf"}
 
 func = tvm.compile(mod, target=target)
 # save the lib at a local temp folder
@@ -132,8 +131,8 @@ func.export_library(path)
 #   to False and replace :code:`target` in :code:`build` with the appropriate
 #   target triple for your device. The target triple which might be
 #   different for different devices. For example, it is
-#   :code:`'llvm -mtriple=armv7l-linux-gnueabihf'` for Raspberry Pi 3B and
-#   :code:`'llvm -mtriple=aarch64-linux-gnu'` for RK3399.
+#   :code:`{"kind": "llvm", "mtriple": "armv7l-linux-gnueabihf"}` for Raspberry Pi 3B and
+#   :code:`{"kind": "llvm", "mtriple": "aarch64-linux-gnu"}` for RK3399.
 #
 #   Usually, you can query the target by running :code:`gcc -v` on your
 #   device, and looking for the line starting with :code:`Target:`
@@ -197,7 +196,7 @@ np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 time_f = func.time_evaluator(func.entry_name, dev, number=10)
 cost = time_f(a, b).mean
-print("%g secs/op" % cost)
+print(f"{cost:g} secs/op")
 
 #########################################################################
 # Run OpenCL Kernel Remotely by RPC
@@ -228,7 +227,7 @@ def run_opencl():
     # them according to your environment.
     opencl_device_host = "10.77.1.145"
     opencl_device_port = 9090
-    target = tvm.target.Target("opencl", host="llvm -mtriple=aarch64-linux-gnu")
+    target = tvm.target.Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
 
     # create schedule for the above "add one" compute declaration
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
@@ -356,23 +355,23 @@ def run_pytorch_model_via_rpc():
         # Choose the appropriate target for your device:
         #
         # ARM devices:
-        #   - Raspberry Pi 3/4 (32-bit): "llvm -mtriple=armv7l-linux-gnueabihf"
-        #   - Raspberry Pi 4 (64-bit) / Jetson: "llvm -mtriple=aarch64-linux-gnu"
-        #   - Android: "llvm -mtriple=aarch64-linux-android"
+        #   - Raspberry Pi 3/4 (32-bit): {"kind": "llvm", "mtriple": "armv7l-linux-gnueabihf"}
+        #   - Raspberry Pi 4 (64-bit) / Jetson: {"kind": "llvm", "mtriple": "aarch64-linux-gnu"}
+        #   - Android: {"kind": "llvm", "mtriple": "aarch64-linux-android"}
         #
         # x86 servers:
-        #   - Linux x86_64: "llvm -mtriple=x86_64-linux-gnu"
-        #   - With AVX-512: "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512"
+        #   - Linux x86_64: {"kind": "llvm", "mtriple": "x86_64-linux-gnu"}
+        #   - With AVX-512: {"kind": "llvm", "mtriple": "x86_64-linux-gnu", "mcpu": "skylake-avx512"}
         #
         # RISC-V:
-        #   - RV64: "llvm -mtriple=riscv64-unknown-linux-gnu"
+        #   - RV64: {"kind": "llvm", "mtriple": "riscv64-unknown-linux-gnu"}
         #
         # GPU targets:
-        #   - CUDA: tvm.target.Target("cuda", host="llvm -mtriple=x86_64-linux-gnu")
-        #   - OpenCL: tvm.target.Target("opencl", host="llvm -mtriple=aarch64-linux-gnu")
+        #   - CUDA: tvm.target.Target("cuda", host={"kind": "llvm", "mtriple": "x86_64-linux-gnu"})
+        #   - OpenCL: tvm.target.Target("opencl", host={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
         #
         # For this example, we use ARM 64-bit
-        target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu")
+        target = tvm.target.Target({"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
         print(f"Cross-compiling for target: {target}")
 
     # Apply optimization pipeline
@@ -479,7 +478,7 @@ def run_pytorch_model_via_rpc():
 
     # Retrieve result from remote device to local
     result_np = result.numpy()
-    print(f"Inference completed on remote device")
+    print("Inference completed on remote device")
     print(f"  Output shape: {result_np.shape}")
     print(f"  Predicted class: {np.argmax(result_np)}")
 
@@ -513,7 +512,7 @@ def run_pytorch_model_via_rpc():
     #
     #    .. code-block:: python
     #
-    #       from tvm import dlight as dl
+    #       from tvm.s_tir import dlight as dl
     #       with target:
     #           mod = dl.ApplyDefaultSchedule()(mod)
     #
@@ -527,12 +526,12 @@ def run_pytorch_model_via_rpc():
     #
     #       # Example: ARM with NEON
     #       target = tvm.target.Target(
-    #           "llvm -mtriple=aarch64-linux-gnu -mattr=+neon"
+    #           {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": "+neon"}
     #       )
     #
     #       # Example: x86 with AVX-512
     #       target = tvm.target.Target(
-    #           "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512"
+    #           {"kind": "llvm", "mtriple": "x86_64-linux-gnu", "mcpu": "skylake-avx512"}
     #       )
     #
     # See :doc:`e2e_opt_model </how_to/tutorials/e2e_opt_model>` for detailed

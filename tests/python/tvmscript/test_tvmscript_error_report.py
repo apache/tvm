@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741, F401, F821, F841, RUF005
 import inspect
 import re
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import tir
@@ -51,18 +53,18 @@ def check_error(func, rel_lineno):
     if rel_lineno is None:
         return
     error = errors[0]
-    assert (
-        error.span.line - 1 == rel_lineno or error.span.line == rel_lineno
-    ), f"Expected error to be on line {rel_lineno}, but it was on {error.span.line - 1}"
+    assert error.span.line - 1 == rel_lineno or error.span.line == rel_lineno, (
+        f"Expected error to be on line {rel_lineno}, but it was on {error.span.line - 1}"
+    )
 
     error_line = source_code.split("\n")[rel_lineno]
     m = check_error_re.match(error_line)
     if m:
         expected_error_text = m.group(1)
         error = error.message
-        assert (
-            expected_error_text == error
-        ), f'check_error expects "{expected_error_text} in str(errors): {error}'
+        assert expected_error_text == error, (
+            f'check_error expects "{expected_error_text} in str(errors): {error}'
+        )
 
 
 def test_buffer_bind():
@@ -76,26 +78,22 @@ def test_undefined_buffer():
     def undefined_buffer(a: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
 
-        T.attr(A, "realize_scope", "")
-        T.realize(C[0:16, 0:16], "")  # error
         for i in T.serial(16):
             for j in T.serial(0, 16):
-                A[i, j] = 0.0
+                C[i, j] = 0.0  # error
 
-    check_error(undefined_buffer, 5)
+    check_error(undefined_buffer, 6)
 
 
 def test_unsupported_function_call():
     def unsupported_function_call(a: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
 
-        T.attr(A, "realize_scope", "")
-        T.realize(A[0:16, 0:16], "")
         for i in T.const_range(16):  # error
             for j in T.serial(0, 16):
                 A[i, j] = 0.0
 
-    check_error(unsupported_function_call, 6)
+    check_error(unsupported_function_call, 4)
 
 
 def test_missing_type_annotation():
@@ -504,9 +502,7 @@ def test_report_error_root_block():
     with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.compute_inline(root)
     expected_sub_error_message = (
-        "        # tir.SBlock#0\n"
-        '        with T.sblock("root"):\n'
-        "        ^^^^^^^^^^^^^^^^^^^^^^\n"
+        '        # tir.SBlock#0\n        with T.sblock("root"):\n        ^^^^^^^^^^^^^^^^^^^^^^\n'
     )
     assert expected_sub_error_message in str(execinfo.value)
 

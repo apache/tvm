@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+# ruff: noqa: F401
 import pytest
 
 import tvm
 import tvm.testing
-from tvm import tir, s_tir
+from tvm import s_tir, tir
 from tvm.script import tir as T
 
 # pylint: disable=no-member,invalid-name,unused-variable

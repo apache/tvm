@@ -15,14 +15,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E722
 
 import argparse
-import pickle
-from pathlib import Path
 import csv
-import sys
+import pickle
 import re
+import sys
 from collections import defaultdict
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "tests" / "scripts"))
@@ -63,7 +64,6 @@ TAG_DICT = {
     "onnx": "Frontend",
     "roofline": "Misc",
     "rpc": "Misc",
-    "transform": "Misc",
     "tophub": "Misc",
     "ux": "Misc",
     "APP": "Misc",
@@ -87,7 +87,7 @@ TAG_DICT = {
     "unity": "Relax",
     "transform": "Relax",
     "kvcache": "Relax",
-    "dlight": "Dlight",
+    "s_tir": "S-TIR",
     "disco": "Disco",
     "tvmscript": "TVMScript",
     "tvmscripts": "TVMScript",
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     repo = "tvm"
 
     if args.convert_with_link:
-        with open(args.notes, "r") as f:
+        with open(args.notes) as f:
             lines = f.readlines()
         formated = []
         for line in lines:

@@ -119,25 +119,25 @@ class CppPrinter : public MSCBasePrinter {
 
   /*! \brief Exit a endline scope*/
   void ExitEndlineScope() {
-    ICHECK(endlines_.size() > 1) << "No endline scope found";
+    TVM_FFI_ICHECK(endlines_.size() > 1) << "No endline scope found";
     endlines_.pop_back();
   }
 
   /*! \brief enable enbline*/
   void EnableEndline() {
-    ICHECK(endlines_.size() > 0) << "No endline scope found";
+    TVM_FFI_ICHECK(endlines_.size() > 0) << "No endline scope found";
     endlines_[endlines_.size() - 1] = true;
   }
 
   /*! \brief disable enbline*/
   void DisableEndline() {
-    ICHECK(endlines_.size() > 0) << "No endline scope found";
+    TVM_FFI_ICHECK(endlines_.size() > 0) << "No endline scope found";
     endlines_[endlines_.size() - 1] = false;
   }
 
   /*! \brief Print endline*/
   void Endline() {
-    ICHECK(endlines_.size() > 0) << "No endline scope found";
+    TVM_FFI_ICHECK(endlines_.size() > 0) << "No endline scope found";
     if (endlines_[endlines_.size() - 1]) {
       output_ << ";";
     }

@@ -129,7 +129,7 @@ class ConstIntBoundAnalyzer::Impl
     if (!allow_override) {
       auto it = var_map_.find(var);
       if (it != var_map_.end()) {
-        ICHECK(it->second == info)
+        TVM_FFI_ICHECK(it->second == info)
             << "Trying to update var \'" << var << "\'"
             << " with a different const bound: "
             << "original=" << ConstIntBound(it->second.min_value, it->second.max_value)
@@ -175,7 +175,7 @@ class ConstIntBoundAnalyzer::Impl
       auto val = bound_->find(expr);
       if (val != bound_->end()) {
         auto everything = Everything(expr->dtype);
-        ICHECK(
+        TVM_FFI_ICHECK(
             (val->second->min_value == res.min_value && val->second->max_value == res.max_value) ||
             (val->second->min_value == everything.min_value &&
              val->second->max_value == everything.max_value))
@@ -226,7 +226,7 @@ class ConstIntBoundAnalyzer::Impl
    * \return The processed entry
    */
   Entry AssumeNoZeroDivisor(Entry divisor) {
-    ICHECK(!divisor.is_const(0)) << "Find divide by zero";
+    TVM_FFI_ICHECK(!divisor.is_const(0)) << "Find divide by zero";
     // NOTE: here we make the assumption that
     // divide by zero won't happen in a valid program
     // this is important for us to get a lot of symbolic shape bound right
@@ -234,7 +234,7 @@ class ConstIntBoundAnalyzer::Impl
     // when mod or divide of n occur, the intention is actually n > 0
     if (divisor.min_value == 0) {
       divisor.min_value = 1;
-      ICHECK_GE(divisor.max_value, 1);
+      TVM_FFI_ICHECK_GE(divisor.max_value, 1);
     }
     return divisor;
   }
@@ -316,7 +316,7 @@ class ConstIntBoundAnalyzer::Impl
                          std::min(std::max(a.max_value, (int64_t)0), b_max_cap));
       }
     } else {
-      ICHECK(!b.is_const(0)) << "mod by zero";
+      TVM_FFI_ICHECK(!b.is_const(0)) << "mod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
       return Everything(op->dtype);
@@ -387,7 +387,7 @@ class ConstIntBoundAnalyzer::Impl
         return MakeBound(0, b_max_cap);
       }
     } else {
-      ICHECK(!b.is_const(0)) << "floormod by zero";
+      TVM_FFI_ICHECK(!b.is_const(0)) << "floormod by zero";
       int64_t b_min_cap = InfAwareAdd(b.min_value, 1);
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
       return Intersect(MakeBound(std::min(static_cast<int64_t>(0), b_min_cap),
@@ -590,11 +590,11 @@ class ConstIntBoundAnalyzer::Impl
    */
   static int64_t InfAwareAdd(int64_t x, int64_t y) {
     if (x == kPosInf) {
-      ICHECK(y != kNegInf);
+      TVM_FFI_ICHECK(y != kNegInf);
       return kPosInf;
     }
     if (x == kNegInf) {
-      ICHECK(y != kPosInf);
+      TVM_FFI_ICHECK(y != kPosInf);
       return kNegInf;
     }
     if (y == kPosInf || y == kNegInf) return y;
@@ -622,7 +622,7 @@ class ConstIntBoundAnalyzer::Impl
    * \return the result.
    */
   static int64_t InfAwareDiv(int64_t x, int64_t y) {
-    ICHECK_NE(y, 0);
+    TVM_FFI_ICHECK_NE(y, 0);
     if (x == kPosInf || x == kNegInf) {
       if (y > 0) return x;
       return -x;
@@ -636,7 +636,7 @@ class ConstIntBoundAnalyzer::Impl
    * \return the result.
    */
   static int64_t InfAwareFloorDiv(int64_t x, int64_t y) {
-    ICHECK_NE(y, 0);
+    TVM_FFI_ICHECK_NE(y, 0);
     if (x == kPosInf || x == kNegInf) {
       if (y > 0) return x;
       return -x;

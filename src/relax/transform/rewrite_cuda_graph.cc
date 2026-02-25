@@ -273,7 +273,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       auto* plan = arena_->make<LiftedFunctionRewritePlan>();
       plan->is_alloc = true;
       plan->func = region->Build();
-      ICHECK(region->size());
+      TVM_FFI_ICHECK(region->size());
       plan->launch_point = region->bindings_.front()->var.get();
       plan->is_alloc = is_alloc;
       plan->lifted_bindings = std::move(region->bindings_);
@@ -471,7 +471,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* tuple_get_item) final {
     const VarNode* tuple = tuple_get_item->tuple.as<VarNode>();
-    ICHECK(tuple);
+    TVM_FFI_ICHECK(tuple);
     if (IsStatic(tuple_get_item->tuple)) {
       AddStaticBinding(binding, false);
       MarkAsFuncInput({tuple});
@@ -666,17 +666,17 @@ Function MergeAllocationPlans(const std::vector<LiftedFunctionRewritePlan*>& all
   // for each original function.
   for (int plan_id = 0; plan_id < static_cast<int>(alloc_plans.size()); ++plan_id) {
     LiftedFunctionRewritePlan* plan = alloc_plans[plan_id];
-    ICHECK(plan->is_alloc);
+    TVM_FFI_ICHECK(plan->is_alloc);
     for (const VarBindingNode* binding : plan->lifted_bindings) {
       // Extract the stroage record from the Call expr.
       Call alloc_storage = Downcast<Call>(binding->value);
-      ICHECK(alloc_storage->op.same_as(mem_alloc_storage_op));
+      TVM_FFI_ICHECK(alloc_storage->op.same_as(mem_alloc_storage_op));
       auto storage_shape = Downcast<ShapeExpr>(alloc_storage->args[0]);
-      ICHECK_EQ(storage_shape->values.size(), 1);
+      TVM_FFI_ICHECK_EQ(storage_shape->values.size(), 1);
       int64_t size = Downcast<IntImm>(storage_shape->values[0])->value;
       int64_t virtual_device_id =
           Downcast<IntImm>(Downcast<PrimValue>(alloc_storage->args[1])->value)->value;
-      ICHECK_EQ(virtual_device_id, 0);
+      TVM_FFI_ICHECK_EQ(virtual_device_id, 0);
       ffi::String storage_scope = Downcast<StringImm>(alloc_storage->args[2])->value;
       auto [it, _] = storage_records.try_emplace(storage_scope, alloc_plans.size());
       it->second[plan_id].emplace_back(StorageRecord{size, binding, plan});
@@ -780,8 +780,8 @@ class CUDAGraphRewriter : public ExprMutator {
     Expr launch_subgraph;
     if (plan->is_alloc) {
       // Storage allocation should be fully static and shouldn't depend on any symbolic variables.
-      ICHECK(!plan->propogated_tir_vars.defined());
-      ICHECK(plan->inputs.empty());
+      TVM_FFI_ICHECK(!plan->propogated_tir_vars.defined());
+      TVM_FFI_ICHECK(plan->inputs.empty());
       auto gv_alloc = gv_global_alloc_.value();
       auto ret_struct_info = Downcast<FuncStructInfo>(gv_alloc->struct_info_.value())->ret;
       launch_subgraph = Call(
@@ -806,7 +806,7 @@ class CUDAGraphRewriter : public ExprMutator {
         auto symbolic_params =
             Downcast<ShapeStructInfo>(shape_expr->struct_info_.value())->values.value();
         ffi::Map<tir::Var, PrimExpr> tir_var_remap;
-        ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
+        TVM_FFI_ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
         for (int i = 0; i < static_cast<int>(symbolic_params.size()); ++i) {
           tir_var_remap.Set(Downcast<tir::Var>(symbolic_params[i]), propogated_tir_vars->values[i]);
         }

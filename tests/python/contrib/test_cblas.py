@@ -15,15 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configure pytest"""
-import pytest
+
 import numpy as np
+import pytest
+
 import tvm
-from tvm import te
-from tvm.contrib import cblas
-from tvm.contrib import mkl
-from tvm.contrib import dnnl
 import tvm.testing
 import tvm.topi.testing
+from tvm import te
+from tvm.contrib import cblas, dnnl, mkl
 
 
 def verify_matmul_add(
@@ -56,7 +56,7 @@ def verify_matmul_add(
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func(lib.__name__ + ".matmul", True):
             print("skip because extern function is not available")
@@ -146,7 +146,7 @@ def verify_quantized_matmul_add(matrix_m, matrix_l, matrix_n, transa=False, tran
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func("tvm.contrib.mkl.matmul_u8s8s32", True):
             print("skip because extern function is not available")
@@ -231,7 +231,7 @@ def verify_batch_matmul(
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
-            print("skip because %s is not enabled..." % target)
+            print(f"skip because {target} is not enabled...")
             return
         if not tvm.get_global_func(lib.__name__ + ".matmul", True):
             print("skip because extern function is not available")

@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """MatrixSetDiag in Python"""
+
 import numpy as np
 
 

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Library information."""
+
 import os
 import sys
 
@@ -67,7 +68,7 @@ def get_dll_directories():
     # Pip lib directory
     dll_path.append(ffi_dir)
     dll_path.append(os.path.join(ffi_dir, "lib"))
-    # Default cmake build directory
+    # Default CMake build directory
     dll_path.append(os.path.join(source_dir, "build"))
     dll_path.append(os.path.join(source_dir, "build", "Release"))
     # Default make build directory
@@ -175,7 +176,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
         return None
 
     if use_runtime:
-        sys.stderr.write("Loading runtime library %s... exec only\n" % lib_found[0])
+        sys.stderr.write(f"Loading runtime library {lib_found[0]}... exec only\n")
         sys.stderr.flush()
     return lib_found
 
@@ -229,7 +230,6 @@ def find_include_path(name=None, search_path=None, optional=False):
         else:
             tvm_include_path = [os.path.join(p, name) for p in header_path]
         dlpack_include_path = []
-        dmlc_include_path = []
     else:
         tvm_include_path = [os.path.join(p, "include") for p in header_path]
         tvm_ffi_include_path = [
@@ -239,15 +239,11 @@ def find_include_path(name=None, search_path=None, optional=False):
             os.path.join(p, "3rdparty", "tvm-ffi", "3rdparty", "dlpack", "include")
             for p in header_path
         ]
-        dmlc_include_path = [
-            os.path.join(p, "3rdparty", "dmlc-core", "include") for p in header_path
-        ]
 
         # try to find include path
         include_found = [p for p in tvm_include_path if os.path.exists(p) and os.path.isdir(p)]
         include_found += [p for p in tvm_ffi_include_path if os.path.exists(p) and os.path.isdir(p)]
         include_found += [p for p in dlpack_include_path if os.path.exists(p) and os.path.isdir(p)]
-        include_found += [p for p in dmlc_include_path if os.path.exists(p) and os.path.isdir(p)]
 
     if not include_found:
         message = (

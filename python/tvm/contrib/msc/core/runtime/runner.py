@@ -17,25 +17,27 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.runtime.runner"""
 
-import os
 import json
 import logging
-from typing import Dict, Optional, Any, List, Tuple, Union, Iterable
+import os
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+
 import numpy as np
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.frontend import from_relax
-from tvm.contrib.msc.core.codegen import to_relax
-from tvm.contrib.msc.core.tools import BaseTool, ToolType, ToolScope, create_tool, remove_tools
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core.utils.message import MSCStage
-from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core import _ffi_api
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.codegen import to_relax
+from tvm.contrib.msc.core.frontend import from_relax
+from tvm.contrib.msc.core.ir import MSCGraph
+from tvm.contrib.msc.core.tools import BaseTool, ToolScope, ToolType, create_tool, remove_tools
+from tvm.contrib.msc.core.utils.message import MSCStage
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
+
 from .hook import load_runner_hook
 
 
-class BaseRunner(object):
+class BaseRunner:
     """Basic runner of MSC
 
     Parameters
@@ -81,7 +83,7 @@ class BaseRunner(object):
         plugin: Any = None,
         name: str = "main",
         debug_level: int = 0,
-        logger: logging.Logger = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self._mod = mod
         if tools_config:
@@ -172,7 +174,7 @@ class BaseRunner(object):
         self,
         cache_dir: msc_utils.MSCDirectory = None,
         force_build: bool = False,
-        disable_tools: List[str] = None,
+        disable_tools: Optional[List[str]] = None,
     ) -> Any:
         """Build the runnable object
 
@@ -219,7 +221,7 @@ class BaseRunner(object):
         if not self._graphs:
             self._graphs, self._weights = self.translate()
             build_msg += "Translate "
-        build_msg += "{} graphs {} weights -> ".format(len(self._graphs), len(self._weights))
+        build_msg += f"{len(self._graphs)} graphs {len(self._weights)} weights -> "
 
         # Load model from cache
         if not self._model and cache_info.get("model"):
@@ -388,9 +390,9 @@ class BaseRunner(object):
 
     def reset_tools(
         self,
-        graphs: List[MSCGraph] = None,
-        weights: List[Dict[str, tvm.runtime.Tensor]] = None,
-        tools: List[BaseTool] = None,
+        graphs: Optional[List[MSCGraph]] = None,
+        weights: Optional[List[Dict[str, tvm.runtime.Tensor]]] = None,
+        tools: Optional[List[BaseTool]] = None,
         cache_dir: msc_utils.MSCDirectory = None,
     ):
         """Reset the tools
@@ -645,7 +647,9 @@ class BaseRunner(object):
         """
 
         def _finalize_tool(
-            checker: callable, post_batch: callable = None, post_iter: callable = None
+            checker: callable,
+            post_batch: Optional[callable] = None,
+            post_iter: Optional[callable] = None,
         ):
             tool = self.get_tool(tool_type)
             while not checker(tool):
@@ -768,7 +772,7 @@ class BaseRunner(object):
         return self._model_info["outputs"]
 
     def get_weights(
-        self, framework: str = None, device: str = None
+        self, framework: Optional[str] = None, device: Optional[str] = None
     ) -> Iterable[tvm.runtime.Tensor]:
         """Get the weights from graphs
 
@@ -979,7 +983,7 @@ class BaseRunner(object):
             The message with mark.
         """
 
-        return "RUNNER[{}]({} @ {}) {}".format(self._name, self.framework, self._stage, msg)
+        return f"RUNNER[{self._name}]({self.framework} @ {self._stage}) {msg}"
 
     @property
     def stage(self):
@@ -1079,7 +1083,7 @@ class BaseRunner(object):
 
     @classmethod
     def dump_nativate(
-        cls, model: Any, folder: msc_utils.MSCDirectory, dump_config: dict = None
+        cls, model: Any, folder: msc_utils.MSCDirectory, dump_config: Optional[dict] = None
     ) -> str:
         """Dump the nativate model
 
@@ -1378,7 +1382,7 @@ class BYOCRunner(BaseRunner):
         assert "sub_graphs" in cache_info, "sub_graphs should be given in cache_info, get " + str(
             cache_info
         )
-        with open(cache_dir.relpath(cache_info["byoc_mod"]), "r") as f:
+        with open(cache_dir.relpath(cache_info["byoc_mod"])) as f:
             self._byoc_mod = tvm.ir.load_json(f.read())
         graphs = [MSCGraph.from_json(cache_dir.relpath(g)) for g in cache_info["sub_graphs"]]
         self._byoc_graph = MSCGraph.from_json(cache_dir.relpath(cache_info["byoc_graph"]))
@@ -1468,7 +1472,7 @@ class BYOCRunner(BaseRunner):
         elif self._device.startswith("cuda"):
             target = tvm.target.Target("cuda")
             with target:
-                model = tvm.tir.transform.DefaultGPUSchedule()(model)
+                model = tvm.s_tir.transform.DefaultGPUSchedule()(model)
             with tvm.transform.PassContext(opt_level=3):
                 self._executable = tvm.compile(model, target)
                 runnable = tvm.relax.VirtualMachine(self._executable, tvm.cuda())
@@ -1513,7 +1517,7 @@ class BYOCRunner(BaseRunner):
 
         if self._debug_level >= 2:
             sub_graphs = {g.name: g.inspect for g in self._graphs}
-            title = self.runner_mark("SUBGRAPHS({})".format(len(sub_graphs)))
+            title = self.runner_mark(f"SUBGRAPHS({len(sub_graphs)})")
             self._logger.debug(msc_utils.msg_block(title, sub_graphs))
         return self._byoc_graph.inspect()
 

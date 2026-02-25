@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741
 from typing import Dict, List, Tuple, Union
 
 import pytest
@@ -21,7 +22,6 @@ import torch
 
 import tvm
 import tvm.testing
-from tvm import dlight as dl
 from tvm import relax
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
@@ -34,6 +34,7 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     llama_rope_with_position_map,
 )
 from tvm.runtime import ShapeTuple
+from tvm.s_tir import dlight as dl
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048

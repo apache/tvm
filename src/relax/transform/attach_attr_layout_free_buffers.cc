@@ -24,6 +24,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/s_tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
@@ -49,7 +50,8 @@ class AttrAttacher : public ExprMutator {
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const FunctionNode* op) final {
     if (auto opt_num_input = op->attrs.GetAttr<Integer>(attr::kNumInput)) {
-      ICHECK(layout_free_exprs_.empty()) << "meet a non-global function with num_input attr";
+      TVM_FFI_ICHECK(layout_free_exprs_.empty())
+          << "meet a non-global function with num_input attr";
       size_t num_input = opt_num_input.value()->value;
       for (size_t i = num_input; i < op->params.size(); i++) {
         layout_free_exprs_.insert(op->params[i].get());
@@ -82,7 +84,7 @@ class AttrAttacher : public ExprMutator {
     tir::PrimFunc func = WithAttr(Downcast<tir::PrimFunc>(mod_->Lookup(gv)), "layout_free_buffers",
                                   layout_free_buffers);
     // Renew defs
-    func = tir::RenewDefs(func);
+    func = s_tir::RenewDefs(func);
     // Add the updated tir::PrimFunc in the IRModule
     // Note the blockbuilder would automatically combine the same tir function
     // So we don't need to worry about the duplicate insertion

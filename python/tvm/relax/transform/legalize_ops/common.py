@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common functionality for legalization."""
+
 from typing import Callable, Optional, Union
 
 import tvm
 from tvm import te
 from tvm.tir import FloatImm, IntImm
-from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, Constant
 
+from ...block_builder import BlockBuilder
+from ...expr import Call, Constant, Expr
 
 ##################### Types #####################
 

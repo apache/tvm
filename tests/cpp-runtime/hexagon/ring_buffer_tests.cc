@@ -46,7 +46,7 @@ class RingBufferTest : public ::testing::Test {
 };
 
 TEST_F(RingBufferTest, zero_size_ring_buffer) {
-  ASSERT_THROW(RingBuffer<int>(0, in_flight), InternalError);
+  ASSERT_THROW(RingBuffer<int>(0, in_flight), tvm::ffi::Error);
 }
 
 TEST_F(RingBufferTest, in_flight) { ASSERT_EQ(ring_buff->InFlight(), 0); }
@@ -201,10 +201,10 @@ class QueuedRingBufferTest : public RingBufferTest {
 };
 
 TEST_F(QueuedRingBufferTest, invalid_queue) {
-  ASSERT_THROW(queued_ring_buff->Next(MAX_QUEUES), InternalError);
-  ASSERT_THROW(queued_ring_buff->InFlight(MAX_QUEUES), InternalError);
-  ASSERT_THROW(queued_ring_buff->StartGroup(MAX_QUEUES), InternalError);
-  ASSERT_THROW(queued_ring_buff->EndGroup(MAX_QUEUES), InternalError);
+  ASSERT_THROW(queued_ring_buff->Next(MAX_QUEUES), tvm::ffi::Error);
+  ASSERT_THROW(queued_ring_buff->InFlight(MAX_QUEUES), tvm::ffi::Error);
+  ASSERT_THROW(queued_ring_buff->StartGroup(MAX_QUEUES), tvm::ffi::Error);
+  ASSERT_THROW(queued_ring_buff->EndGroup(MAX_QUEUES), tvm::ffi::Error);
 }
 
 TEST_F(QueuedRingBufferTest, two_queues) {
@@ -228,22 +228,22 @@ TEST_F(QueuedRingBufferTest, two_queues) {
 }
 
 TEST_F(QueuedRingBufferTest, group_end_before_group_start) {
-  ASSERT_THROW(queued_ring_buff->EndGroup(0), InternalError);
+  ASSERT_THROW(queued_ring_buff->EndGroup(0), tvm::ffi::Error);
 }
 
 TEST_F(QueuedRingBufferTest, group_restart) {
   queued_ring_buff->StartGroup(0);
-  ASSERT_THROW(queued_ring_buff->StartGroup(0), InternalError);
+  ASSERT_THROW(queued_ring_buff->StartGroup(0), tvm::ffi::Error);
 }
 
 TEST_F(QueuedRingBufferTest, zero_size_group) {
   queued_ring_buff->StartGroup(0);
-  ASSERT_THROW(queued_ring_buff->EndGroup(0), InternalError);
+  ASSERT_THROW(queued_ring_buff->EndGroup(0), tvm::ffi::Error);
 }
 
 TEST_F(QueuedRingBufferTest, in_flight_before_group_end) {
   queued_ring_buff->StartGroup(0);
-  ASSERT_THROW(queued_ring_buff->InFlight(0), InternalError);
+  ASSERT_THROW(queued_ring_buff->InFlight(0), tvm::ffi::Error);
 }
 
 TEST_F(QueuedRingBufferTest, group_of_one) {

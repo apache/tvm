@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI API for Relax."""
+
 import tvm_ffi
 
 tvm_ffi.init_ffi_api("relax", __name__)

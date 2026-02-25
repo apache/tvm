@@ -18,8 +18,8 @@
 
 import json
 import logging
+from typing import Any, Dict, Optional
 from urllib import request
-from typing import Dict, Any, Optional
 
 
 def get(url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:

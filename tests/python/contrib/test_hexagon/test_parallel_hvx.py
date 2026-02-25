@@ -18,6 +18,7 @@
 """
 Test parallelizing HVX workloads and compare them to single thread examples.
 """
+
 import numpy as np
 
 import tvm

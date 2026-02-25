@@ -55,12 +55,6 @@ tvm.contrib.emcc
     :members:
 
 
-tvm.contrib.miopen
-~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.miopen
-    :members:
-
-
 tvm.contrib.ndk
 ~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.ndk
@@ -88,12 +82,6 @@ tvm.contrib.pickle_memoize
 tvm.contrib.random
 ~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.random
-    :members:
-
-
-tvm.contrib.rocblas
-~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.rocblas
     :members:
 
 

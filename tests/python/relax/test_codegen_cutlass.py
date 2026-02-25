@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F841, RUF005
 import numpy as np
 import pytest
 
@@ -108,9 +109,9 @@ def build_cutlass(mod, assert_all_bindings_fused=True, num_final_bindings=1):
     mod = partition_for_cutlass(mod)
 
     if assert_all_bindings_fused:
-        assert (
-            len(mod["main"].body.blocks[0].bindings) == num_final_bindings
-        ), "Not all bindings are fused. " + str(mod["main"])
+        assert len(mod["main"].body.blocks[0].bindings) == num_final_bindings, (
+            "Not all bindings are fused. " + str(mod["main"])
+        )
 
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
     mod = codegen_pass(mod)
@@ -1717,7 +1718,7 @@ def test_rms_norm():
     # i.e., it does remove the global symbol of PrimFunc, which would be no longer used,
     # and thus, the following DCE cannot remove this. Revisit when resolved.
     with tvm.target.Target("cuda"):
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
     mod = relax.transform.RunCodegen(
         {"cutlass": {"rms_eps": 1e-6}},
@@ -1782,7 +1783,7 @@ def test_conv2d_cuda_graph():
     mod = relax.pipeline.get_pipeline()(mod)  # pylint: disable=no-value-for-parameter
 
     with tvm.target.Target("cuda"):
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
     out = build_and_run(mod, inputs, "cuda", cuda_graph=True)
     ref = build_and_run(Conv2d, inputs, "llvm", legalize=True)
@@ -2167,7 +2168,7 @@ def _test_batched_var_len_attention(
 
     with tvm.target.Target("cuda"):
         mod = relax.transform.LegalizeOps()(mod)
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+        mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
 
     out = build_and_run(
         mod,

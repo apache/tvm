@@ -14,15 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import tvm
 import tvm.testing
-from tvm import tir
-from tvm import meta_schedule as ms
-from tvm import relax
-from tvm.script import ir as I, tir as T
+from tvm import relax, tir
+from tvm.s_tir import meta_schedule as ms
+from tvm.script import ir as I
+from tvm.script import tir as T
 
-target = tvm.target.Target("llvm --num-cores=16")
+target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 
 
 def test_apply_to_func_with_different_block_name():

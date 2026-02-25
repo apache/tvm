@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,6 +15,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package to enable testing of Github scripts"""
+"""Package to enable testing of GitHub scripts"""
 
 from . import github_skipped_tests_comment, github_pr_comment, github_tag_teams, github_docs_comment

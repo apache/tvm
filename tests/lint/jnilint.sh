@@ -16,6 +16,5 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-
-python3 3rdparty/dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
+# Deprecated: functionality moved to pre-commit hooks. Kept as no-op for backward compatibility.
+exit 0

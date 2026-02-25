@@ -114,7 +114,7 @@ access to physical device ``0``, accessed through the CUDA API.)
     ``CopyDataFromTo`` completes.
 
 
-* Execution stream management - Utilities for handling
+* Execution stream management - utilities for handling
   ``TVMStreamHandle``, which represents parallel streams of execution
   used to execute commands.
 
@@ -190,11 +190,11 @@ In `target_kind.cc`_, add a new declaration of
 ``TVM_REGISTER_TARGET_KIND``, passing a string name of the new target,
 and the ``TVMDeviceExtType`` or ``DLDeviceType`` enum value for the
 device on which that target should run.  Typically, the target name
-and the device name will match.  (e.g. The ``"cuda"`` target runs on
-the ``kDLCUDA`` device.)  There are exceptions, such as when multiple
-different code generation targets can run on the same physical device.
-(e.g. The ``"llvm"`` and ``"c"`` targets both run on the ``kDLCPU``
-device type.)
+and the device name will match (e.g., the ``"cuda"`` target runs on
+the ``kDLCUDA`` device). There are exceptions, such as when multiple
+different code generation targets can run on the same physical device
+(e.g., the ``"llvm"`` and ``"c"`` targets both run on the ``kDLCPU``
+device type).
 
 All options for a specific target kind are added with the
 ``add_attr_option`` function, with optional default values.  A `Target`

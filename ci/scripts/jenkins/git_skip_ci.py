@@ -16,13 +16,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-import logging
 import argparse
+import logging
+import os
 
-from git_utils import git, GitHubRepo, parse_remote
-from cmd_utils import tags_from_title, init_log
-
+from cmd_utils import init_log, tags_from_title
+from git_utils import GitHubRepo, git, parse_remote
 
 if __name__ == "__main__":
     help = "Exits with 0 if CI should be skipped, 1 otherwise"

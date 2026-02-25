@@ -16,14 +16,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
 import argparse
+import os
 import textwrap
-from typing import Tuple, List, Optional
+from typing import List, Optional, Tuple
 
-
-from git_utils import GitHubRepo, parse_remote, git
-
+from git_utils import GitHubRepo, git, parse_remote
 
 SLOW_TEST_TRIGGERS = [
     "@tvm-bot run slow tests",

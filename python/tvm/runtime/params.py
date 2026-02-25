@@ -16,7 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """Helper utility to save and load parameter dicts."""
-from . import _ffi_api, tensor, Tensor
+
+from . import Tensor, _ffi_api, tensor
 
 
 def _to_tensor(params):

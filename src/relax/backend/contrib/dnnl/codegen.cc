@@ -47,12 +47,12 @@ class DNNLJSONSerializer : public JSONSerializer {
 
   NodeEntries VisitExpr_(const CallNode* call_node) final {
     const auto* fn_var = call_node->op.as<VarNode>();
-    ICHECK(fn_var);
+    TVM_FFI_ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
-    ICHECK(fn.defined()) << "Expects the callee to be a function.";
+    TVM_FFI_ICHECK(fn.defined()) << "Expects the callee to be a function.";
 
     auto composite_opt = fn->GetAttr<ffi::String>(attr::kComposite);
-    ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
+    TVM_FFI_ICHECK(composite_opt.has_value()) << "Only composite functions are supported.";
 
     std::string composite_name = composite_opt.value();
 
@@ -69,7 +69,7 @@ class DNNLJSONSerializer : public JSONSerializer {
     if (composite_name.find("conv2d") != std::string::npos) {
       root_call = backend::GetOpInFunction(fn, "relax.nn.conv2d");
     } else {
-      LOG(FATAL) << "Unimplemented pattern: " << composite_name;
+      TVM_FFI_THROW(InternalError) << "Unimplemented pattern: " << composite_name;
     }
 
     SetCallNodeAttribute(node, root_call);

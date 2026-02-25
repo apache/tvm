@@ -16,10 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Utility functions for bitserial operators"""
+
 import numpy as np
+
 import tvm
 from tvm import te
 from tvm.topi.transform import concatenate
+
 from ..utils import get_const_int
 
 

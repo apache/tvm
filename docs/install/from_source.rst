@@ -61,9 +61,9 @@ one may simply use:
     conda activate tvm-build-venv
 
 
-Step 2. Get Source from Github
+Step 2. Get Source from GitHub
 ------------------------------
-You can also choose to clone the source repo from github.
+You can also choose to clone the source repo from GitHub.
 
 .. code:: bash
 
@@ -145,7 +145,7 @@ Leaving the build environment ``tvm-build-venv``, there are two ways to install 
 .. code-block:: bash
 
     export TVM_HOME=/path-to-tvm
-    export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/ffi/python:$PYTHONPATH
+    export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
 
 - Install via pip local project
 
@@ -232,6 +232,18 @@ The following commands can be used to install the extra Python dependencies:
     pip3 install tornado psutil 'xgboost>=1.1.0' cloudpickle
 
 
+.. _windows-build-notes:
+
+Windows-Specific Build Notes
+----------------------------
+
+If you're building TVM on Windows, note these platform-specific considerations:
+
+Path Conventions
+................
+- Use forward slashes (``/``) in Python/CMake paths, not Windows backslashes
+- Example: ``python cmake/config.cmake`` not ``python cmake\\config.cmake``
+
 Advanced Build Configuration
 ----------------------------
 
@@ -255,7 +267,7 @@ There are several ways to enable CCache in TVM builds:
 
 Building on Windows
 ~~~~~~~~~~~~~~~~~~~
-TVM support build via MSVC using cmake. You will need to obtain a visual studio compiler.
+TVM support build via MSVC using CMake. You will need to obtain a visual studio compiler.
 The minimum required VS version is **Visual Studio Enterprise 2019** (NOTE: we test
 against GitHub Actions' `Windows 2019 Runner <https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md>`_, so see that page for full details.
 We recommend following :ref:`install-dependencies` to obtain necessary dependencies and
@@ -274,6 +286,21 @@ You can then run the following command to build
 .. code:: bash
 
     cmake --build build --config Release -- /m
+
+CUDA Configuration
+..................
+For CUDA support on Windows:
+
+.. code-block:: batch
+
+   set CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8
+   set PATH=%CUDA_PATH%\bin;%PATH%
+   cmake .. -DUSE_CUDA=ON
+
+CMake & Compiler Setup
+......................
+- Specify generator: ``cmake -G "Visual Studio 16 2019" -A x64 ..``
+- Ensure Python is in PATH or specify: ``-DPython_EXECUTABLE=C:\Python39\python.exe``
 
 
 Building ROCm support

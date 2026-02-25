@@ -18,9 +18,8 @@
 
 from typing import Dict, List, Optional
 
-from tvm.ir import BaseFunc, GlobalVar, GlobalInfo, VDevice, DummyGlobalInfo
+from tvm.ir import BaseFunc, DummyGlobalInfo, GlobalInfo, GlobalVar, VDevice
 from tvm.runtime import Object as tvm_Object
-
 
 from . import _ffi_api
 from .frame import IRModuleFrame
@@ -181,7 +180,7 @@ def vdevice(target=None, vdevice_id: int = 0, memory_scope: str = "global") -> V
     return VDevice(target, vdevice_id, memory_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def lookup_vdevice(target_kind: str = None, device_index: int = -1) -> VDevice:
+def lookup_vdevice(target_kind: Optional[str] = None, device_index: int = -1) -> VDevice:
     """Retrieve a virtual device from the globalinfo vdevice list.
     Parameters
     ----------

@@ -72,17 +72,17 @@ const TensorStructInfoNode* GetTensorStructInfo(Expr tensor) {
   if (dtensor_sinfo) {
     return dtensor_sinfo->tensor_sinfo.get();
   }
-  LOG(FATAL) << tensor << " must be either Tensor or DTesor";
+  TVM_FFI_THROW(InternalError) << tensor << " must be either Tensor or DTesor";
   throw;
 }
 
 void UnaryOpHelper(ffi::Array<Expr> tensor_list, distributed::AxisGroupGraph* axis_group_graph) {
   int n_dim = GetTensorStructInfo(tensor_list[0])->ndim;
   for (const auto& tensor : tensor_list) {
-    ICHECK(GetTensorStructInfo(tensor)->ndim == n_dim);
+    TVM_FFI_ICHECK(GetTensorStructInfo(tensor)->ndim == n_dim);
   }
   for (int i = 0; i < n_dim; i++) {
-    ICHECK(tensor_list.size() <= 2);
+    TVM_FFI_ICHECK(tensor_list.size() <= 2);
     for (int j = 0; j < static_cast<int>(tensor_list.size()) - 1; j++) {
       axis_group_graph->JoinAxis({tensor_list[j].get(), i}, {tensor_list[j + 1].get(), i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
@@ -122,7 +122,7 @@ void BuildAxisGraphBinary(const Var& output_var, const Call& call,
   int x2_ndim = x2_sinfo->ndim;
   const auto* x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
   const auto* x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
-  ICHECK(x1_shape && x2_shape);
+  TVM_FFI_ICHECK(x1_shape && x2_shape);
   arith::Analyzer analyzer;
   for (int i = 1; i <= std::min(x1_ndim, x2_ndim); ++i) {
     const PrimExpr& dim0 = x1_shape->values[x1_ndim - i];
@@ -144,7 +144,7 @@ void BuildAxisGraphBinary(const Var& output_var, const Call& call,
                                  {tensor_list[2].get(), std::max(x1_ndim, x2_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
     } else {
-      LOG(FATAL) << "Invalid broadcast, dim0: " << dim0 << ", dim1: " << dim1;
+      TVM_FFI_THROW(InternalError) << "Invalid broadcast, dim0: " << dim0 << ", dim1: " << dim1;
     }
   }
   if (x1_ndim > x2_ndim) {
@@ -174,7 +174,7 @@ void BuildAxisGraphReduce(const Var& output_var, const Call& call,
     axes = {attrs->axis};
     keepdims = true;
   } else {
-    LOG(FATAL) << "Unsupported reduce op: " << call->op;
+    TVM_FFI_THROW(InternalError) << "Unsupported reduce op: " << call->op;
   }
 
   int ndim = GetTensorStructInfo(input_tensor)->ndim;
@@ -182,7 +182,7 @@ void BuildAxisGraphReduce(const Var& output_var, const Call& call,
   std::unordered_set<int> normalized_axes;
   for (const Integer& i : axes) {
     int val = i->value;
-    ICHECK(val < ndim && val >= -ndim);
+    TVM_FFI_ICHECK(val < ndim && val >= -ndim);
     if (val < 0) {
       val = ndim + val;
     }
@@ -215,7 +215,7 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
   const auto* x2_sinfo = GetTensorStructInfo(x2);
   int x1_ndim = x1_sinfo->ndim;
   int x2_ndim = x2_sinfo->ndim;
-  ICHECK(x1_ndim > 0 && x2_ndim > 0);
+  TVM_FFI_ICHECK(x1_ndim > 0 && x2_ndim > 0);
   int x1_prepended = 0;
   int x2_appended = 0;
   if (x1_ndim == 1) {
@@ -228,7 +228,7 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
   }
   const auto* x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
   const auto* x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
-  ICHECK(x1_shape && x2_shape);
+  TVM_FFI_ICHECK(x1_shape && x2_shape);
   ffi::Array<PrimExpr> x1_shape_prefix{x1_shape->values.begin(),
                                        x1_shape->values.end() - 2 + x1_prepended};
   ffi::Array<PrimExpr> x2_shape_prefix{x2_shape->values.begin(),
@@ -257,7 +257,7 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
                                  {x3.get(), std::max(x1_prefix_ndim, x2_prefix_ndim) - i},
                                  distributed::AxisGroupGraph::EdgeType::kDescend);
     } else {
-      LOG(FATAL) << "Cannot broadcast " << dim0 << " and " << dim1;
+      TVM_FFI_THROW(InternalError) << "Cannot broadcast " << dim0 << " and " << dim1;
     }
   }
   // join reduction dim
@@ -284,13 +284,13 @@ void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
                                distributed::AxisGroupGraph* axis_group_graph) {
   Expr input_tensor = call->args[0];
   const auto* attrs = call->attrs.as<PermuteDimsAttrs>();
-  ICHECK(attrs);
+  TVM_FFI_ICHECK(attrs);
   int ndim = GetTensorStructInfo(input_tensor)->ndim;
   std::vector<int> normalized_axes;
   if (attrs->axes.defined()) {
     for (const Integer& i : attrs->axes.value()) {
       int val = i->value;
-      ICHECK(val < ndim && val >= -ndim);
+      TVM_FFI_ICHECK(val < ndim && val >= -ndim);
       if (val < 0) {
         val = ndim + val;
       }
@@ -311,7 +311,7 @@ void BuildAxisGraphReshape(const Var& output_var, const Call& call,
   const auto* tensor_sinfo = GetTensorStructInfo(input_tensor);
   const auto* new_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(call->args[1]);
   const auto* old_shape_sinfo = GetStructInfoAs<ShapeStructInfoNode>(tensor_sinfo->shape.value());
-  ICHECK_NOTNULL(old_shape_sinfo);
+  TVM_FFI_ICHECK_NOTNULL(old_shape_sinfo);
   ffi::Array<PrimExpr> old_shape_values = old_shape_sinfo->values.value();
   ffi::Array<PrimExpr> new_shape_values = new_shape_sinfo->values.value();
   int i = old_shape_values.size();

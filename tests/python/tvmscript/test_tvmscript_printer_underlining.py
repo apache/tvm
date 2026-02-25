@@ -19,6 +19,9 @@ from typing import Optional
 
 import pytest
 from tvm_ffi.access_path import AccessPath
+
+from tvm.script import ir as I
+from tvm.script import tir as T
 from tvm.script.printer.doc import (
     ExprStmtDoc,
     IdDoc,
@@ -27,7 +30,6 @@ from tvm.script.printer.doc import (
     StmtBlockDoc,
 )
 from tvm.script.printer.doc_printer import to_python_script
-from tvm.script import ir as I, tir as T
 
 
 def make_path(name: str) -> AccessPath:

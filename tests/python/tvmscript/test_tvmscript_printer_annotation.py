@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 from typing import Optional
 
 import pytest
 from tvm_ffi.access_path import AccessPath
+
 from tvm.script import tir as T
 
 

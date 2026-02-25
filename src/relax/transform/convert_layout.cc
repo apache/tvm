@@ -114,11 +114,11 @@ class LayoutConvertMutator : public ExprMutator {
       NLayout from = layouts[0], to = layouts[1];
       if (NLayoutEqual()(from, to) || layouts[0].LeafValue()->layout.name() == "") return expr;
       // If not both from and to are unknown, then none of them can be unknown.
-      ICHECK(!NLayoutEqual()(from, LayoutDecision::InitUnknownDim()) &&
-             !NLayoutEqual()(to, LayoutDecision::InitUnknownDim()))
+      TVM_FFI_ICHECK(!NLayoutEqual()(from, LayoutDecision::InitUnknownDim()) &&
+                     !NLayoutEqual()(to, LayoutDecision::InitUnknownDim()))
           << "Cannot convert when exactly one of the layouts is unknown";
       const auto* tensor = GetStructInfoAs<TensorStructInfoNode>(expr);
-      ICHECK(tensor != nullptr) << "Expect a tensor, but got: " << expr;
+      TVM_FFI_ICHECK(tensor != nullptr) << "Expect a tensor, but got: " << expr;
 
       if (from.LeafValue()->layout.ndim() == to.LeafValue()->layout.ndim()) {
         Layout axes = TransposeLike(InitialLayoutDecision(tensor->ndim)->layout,
@@ -149,7 +149,7 @@ class LayoutConvertMutator : public ExprMutator {
     // contains tensor arguments.  The number of tensor arguments in
     // `args` should match the full extent of `to`.
 
-    ICHECK_LE(to.size(), args.size());
+    TVM_FFI_ICHECK_LE(to.size(), args.size());
 
     std::vector<Expr> new_args;
     for (size_t i = 0; i < args.size(); ++i) {
@@ -258,7 +258,7 @@ class LayoutConvertMutator : public ExprMutator {
         var_layout_map_[binding->var] = res.value()->output_layouts[0];
       } else {
         // Global var (tensor), we rewrite it to initial layout
-        ICHECK(IsNestedTensor(binding->var));
+        TVM_FFI_ICHECK(IsNestedTensor(binding->var));
         if (!NLayoutEqual()(res.value()->output_layouts[0], InitialNLayout(binding->var))) {
           Var new_var = builder_->Emit(cur_call);
           var_layout_map_[new_var] = res.value()->output_layouts[0];
@@ -310,15 +310,15 @@ class LayoutConvertMutator : public ExprMutator {
       NLayout from = layouts[0], to = layouts[1];
       if (NLayoutEqual()(from, to)) return sinfo;
       // If not both from and to are unknown, then none of them can be unknown.
-      ICHECK(!NLayoutEqual()(from, LayoutDecision::InitUnknownDim()) &&
-             !NLayoutEqual()(to, LayoutDecision::InitUnknownDim()))
+      TVM_FFI_ICHECK(!NLayoutEqual()(from, LayoutDecision::InitUnknownDim()) &&
+                     !NLayoutEqual()(to, LayoutDecision::InitUnknownDim()))
           << "Cannot convert when exactly one of the layouts is unknown";
       const TensorStructInfoNode* tsinfo = sinfo.as<TensorStructInfoNode>();
-      ICHECK(tsinfo != nullptr) << "We can not set layout for non-tensor struct";
+      TVM_FFI_ICHECK(tsinfo != nullptr) << "We can not set layout for non-tensor struct";
       if (!tsinfo->shape.defined()) return sinfo;
       const ShapeExprNode* shape = tsinfo->shape.value().as<ShapeExprNode>();
       if (shape == nullptr) return sinfo;
-      ICHECK_EQ(shape->values.size(), to.LeafValue()->layout.ndim());
+      TVM_FFI_ICHECK_EQ(shape->values.size(), to.LeafValue()->layout.ndim());
       std::vector<PrimExpr> new_shape;
       for (size_t i = 0; i < shape->values.size(); ++i) {
         new_shape.push_back(

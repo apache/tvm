@@ -71,7 +71,7 @@
 #include <vector>
 
 #include "../file_utils.h"
-#include "../meta_data.h"
+#include "../metadata.h"
 #include "../pack_args.h"
 #include "../texture.h"
 #include "../thread_storage_scope.h"
@@ -206,15 +206,18 @@ inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
   } else if (dtype == DataType::UInt(32)) {
     return CL_UNSIGNED_INT32;
   }
-  LOG(FATAL) << "data type is not supported in OpenCL runtime yet: " << dtype;
+  TVM_FFI_THROW(InternalError) << "data type is not supported in OpenCL runtime yet: " << dtype;
 }
 
 /*!
  * \brief Protected OpenCL call
  * \param func Expression to call.
  */
-#define OPENCL_CHECK_ERROR(e) \
-  { ICHECK(e == CL_SUCCESS) << "OpenCL Error, code=" << e << ": " << cl::CLGetErrorString(e); }
+#define OPENCL_CHECK_ERROR(e)                                             \
+  {                                                                       \
+    TVM_FFI_ICHECK(e == CL_SUCCESS)                                       \
+        << "OpenCL Error, code=" << e << ": " << cl::CLGetErrorString(e); \
+  }
 
 #define OPENCL_CALL(func)  \
   {                        \
@@ -281,17 +284,17 @@ class OpenCLWorkspace : public DeviceAPI {
   virtual bool IsOpenCLDevice(Device dev) { return dev.device_type == kDLOpenCL; }
   // get the queue of the device
   cl_command_queue GetQueue(Device dev) {
-    ICHECK(IsOpenCLDevice(dev));
+    TVM_FFI_ICHECK(IsOpenCLDevice(dev));
     this->Init();
-    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+    TVM_FFI_ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
     return queues[dev.device_id];
   }
   // get the event queue of the context
   std::vector<cl_event>& GetEventQueue(Device dev) {
-    ICHECK(IsOpenCLDevice(dev));
+    TVM_FFI_ICHECK(IsOpenCLDevice(dev));
     this->Init();
-    ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
+    TVM_FFI_ICHECK(dev.device_id >= 0 && static_cast<size_t>(dev.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << dev.device_id << ". " << GetError();
     return events[dev.device_id];
   }
@@ -466,7 +469,7 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
     size_t kernel_id;
     size_t version;
   };
-  explicit OpenCLModuleNodeBase(std::unordered_map<std::string, FunctionInfo> fmap) : fmap_(fmap) {}
+  explicit OpenCLModuleNodeBase(ffi::Map<ffi::String, FunctionInfo> fmap) : fmap_(fmap) {}
   // destructor
   ~OpenCLModuleNodeBase();
 
@@ -495,7 +498,7 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
   // In case of static destruction order problem.
   cl::OpenCLWorkspace* workspace_;
   // function information table.
-  std::unordered_map<std::string, FunctionInfo> fmap_;
+  ffi::Map<ffi::String, FunctionInfo> fmap_;
   // Module local mutex
   std::mutex build_lock_;
   // Mapping from primitive name to cl program for each device.
@@ -509,7 +512,7 @@ class OpenCLModuleNodeBase : public ffi::ModuleObj {
 class OpenCLModuleNode : public OpenCLModuleNodeBase {
  public:
   explicit OpenCLModuleNode(std::string data, std::string fmt,
-                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
+                            ffi::Map<ffi::String, FunctionInfo> fmap, std::string source)
       : OpenCLModuleNodeBase(fmap), data_(data), fmt_(fmt), source_(source) {}
 
   ffi::Optional<ffi::Function> GetFunction(const ffi::String& name) final;

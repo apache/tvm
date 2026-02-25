@@ -28,7 +28,6 @@
 #ifndef TVM_IR_ATTRS_H_
 #define TVM_IR_ATTRS_H_
 
-#include <dmlc/common.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/accessor.h>
@@ -385,7 +384,8 @@ template <typename DerivedType>
 class AttrsNodeReflAdapter : public BaseAttrsNode {
  public:
   void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final {
-    LOG(FATAL) << "`" << DerivedType::_type_key << "` uses new reflection mechanism for init";
+    TVM_FFI_THROW(InternalError) << "`" << DerivedType::_type_key
+                                 << "` uses new reflection mechanism for init";
   }
 
  private:

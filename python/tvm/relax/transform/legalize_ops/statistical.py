@@ -16,11 +16,14 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for statistical operators."""
-from typing import List, Union, Tuple
-from tvm import topi, tir, te
+
+from typing import List, Tuple, Union
+
+from tvm import te, tir, topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
-from .common import TEFunc, LegalizeFunc, register_legalize
+from .common import LegalizeFunc, TEFunc, register_legalize
 
 
 def _statistical(te_func: TEFunc) -> LegalizeFunc:

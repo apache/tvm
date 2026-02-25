@@ -30,7 +30,7 @@ TEST(TensorTest, IsContiguous_ContiguousStride) {
   int64_t strides[] = {10, 1};
   managed_tensor->dl_tensor.strides = strides;
 
-  ICHECK(runtime::IsContiguous(managed_tensor->dl_tensor));
+  TVM_FFI_ICHECK(runtime::IsContiguous(managed_tensor->dl_tensor));
 
   managed_tensor->deleter(managed_tensor);
 }
@@ -41,7 +41,7 @@ TEST(TensorTest, IsContiguous_NullStride) {
 
   managed_tensor->dl_tensor.strides = nullptr;
 
-  ICHECK(runtime::IsContiguous(managed_tensor->dl_tensor));
+  TVM_FFI_ICHECK(runtime::IsContiguous(managed_tensor->dl_tensor));
 
   managed_tensor->deleter(managed_tensor);
 }
@@ -53,7 +53,7 @@ TEST(TensorTest, IsContiguous_AnyStrideForSingular) {
   int64_t strides[] = {10, 1, 1};  // strides[1] is normalized to 1 because shape[1] == 1.
   managed_tensor->dl_tensor.strides = strides;
 
-  ICHECK(runtime::IsContiguous(managed_tensor->dl_tensor));
+  TVM_FFI_ICHECK(runtime::IsContiguous(managed_tensor->dl_tensor));
 
   managed_tensor->dl_tensor.strides = nullptr;
   managed_tensor->deleter(managed_tensor);
@@ -66,7 +66,7 @@ TEST(TensorTest, IsContiguous_UncontiguousStride) {
   int64_t strides[] = {1, 1, 1};
   managed_tensor->dl_tensor.strides = strides;
 
-  ICHECK(!runtime::IsContiguous(managed_tensor->dl_tensor));
+  TVM_FFI_ICHECK(!runtime::IsContiguous(managed_tensor->dl_tensor));
 
   managed_tensor->dl_tensor.strides = nullptr;
   managed_tensor->deleter(managed_tensor);

@@ -43,9 +43,9 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   const auto& data_type = data->dtype;
   const auto& gamma_type = gamma.defined() ? gamma->dtype : data_type;
   const auto& beta_type = beta.defined() ? beta->dtype : data_type;
-  ICHECK(data_type == gamma_type && data_type == beta_type)
+  TVM_FFI_ICHECK(data_type == gamma_type && data_type == beta_type)
       << "group_norm: data, gamma and beta must have the same type";
-  ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
+  TVM_FFI_ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
       << "group_norm: only support float32 and float16 for now";
   bool is_float16 = data_type == DataType::Float(16);
   // reshape data C -> G, C/G
@@ -88,7 +88,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     } else if (new_axis > channel_axis) {
       new_axes.push_back(new_axis + 1);
     } else {
-      ICHECK(false) << "axes can not contain channel axis";
+      TVM_FFI_ICHECK(false) << "axes can not contain channel axis";
     }
   }
   std::sort(new_axes.begin(), new_axes.end());

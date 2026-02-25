@@ -14,17 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import os
-import tvm
+
 import numpy as np
-from tvm import relax
-from tvm.contrib import utils, ndk
-from tvm.script.parser import ir as I, relax as R, tir as T
-from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
-from tvm.contrib import dlpack as dl
+
+import tvm
 import tvm.testing
+from tvm import relax
+from tvm.contrib import dlpack as dl
+from tvm.contrib import ndk, utils
+from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.rpc import connect_tracker
+from tvm.script.parser import ir as I
+from tvm.script.parser import relax as R
+from tvm.script.parser import tir as T
 
 
 def get_target(backend, is_adreno=False):
@@ -36,10 +41,13 @@ def get_target(backend, is_adreno=False):
     tvm.target.Target
         The target for the Adreno GPU.
     """
-    target = tvm.target.adreno(backend=backend)
-    if is_adreno:
-        target = tvm.target.adreno(cfg="texture", backend=backend)
-    return target
+    _TAG_MAP = {
+        ("opencl", False): "qcom/adreno-opencl",
+        ("opencl", True): "qcom/adreno-opencl-texture",
+        ("vulkan", False): "qcom/adreno-vulkan",
+        ("vulkan", True): "qcom/adreno-vulkan-texture",
+    }
+    return tvm.target.Target(_TAG_MAP[(backend, is_adreno)])
 
 
 def get_rpc():
@@ -114,7 +122,7 @@ def build_run(mod, inputs, backend, is_adreno=False):
     if remote is None:
         tgt = tvm.target.Target(target, host="llvm")
     else:
-        tgt = tvm.target.Target(target, host="llvm -mtriple=aarch64-linux-gnu")
+        tgt = tvm.target.Target(target, host={"kind": "llvm", "mtriple": "aarch64-linux-gnu"})
     relax_pipeline = relax.pipeline.get_default_pipeline(tgt)
     tir_pipeline = tvm.tir.get_default_tir_pipeline(tgt)
     mod = relax_pipeline(mod)
@@ -176,7 +184,6 @@ def build_run(mod, inputs, backend, is_adreno=False):
 
 
 def verify(mod, backend):
-
     if backend not in ["opencl", "vulkan"]:
         raise ValueError(f"Unsupported API: {backend}. Must be 'opencl' or 'vulkan'.")
 

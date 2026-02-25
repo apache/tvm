@@ -67,16 +67,16 @@ StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
       NormalizeAxis(call, ctx, data_sinfo->ndim, axis_int->value);
     }
   }
-  ICHECK(call->args[2]->IsInstance<PrimValueNode>());
-  ICHECK(call->args[3]->IsInstance<PrimValueNode>());
-  ICHECK(call->args[4]->IsInstance<PrimValueNode>());
+  TVM_FFI_ICHECK(call->args[2]->IsInstance<PrimValueNode>());
+  TVM_FFI_ICHECK(call->args[3]->IsInstance<PrimValueNode>());
+  TVM_FFI_ICHECK(call->args[4]->IsInstance<PrimValueNode>());
 
   return_index = Downcast<PrimValue>(call->args[2]);
   return_inverse = Downcast<PrimValue>(call->args[3]);
   return_counts = Downcast<PrimValue>(call->args[4]);
 
   auto f_convert_to_int64 = [](const PrimExpr& value) {
-    CHECK(value->IsInstance<IntImmNode>())
+    TVM_FFI_ICHECK(value->IsInstance<IntImmNode>())
         << value << " expects to be IntImm, but gets " << value->GetTypeKey();
     const auto* val_node = value.as<IntImmNode>();
     auto val_imm = ffi::GetRef<IntImm>(val_node);

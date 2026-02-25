@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 
 import tvm
-from tvm.relax.transform import LegalizeOps
-from tvm.script import ir as I, relax as R, tir as T
 import tvm.testing
-
+from tvm.relax.transform import LegalizeOps
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 ##################### Binary arithmetic #####################
 

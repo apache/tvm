@@ -214,7 +214,7 @@ class SourceMap : public ObjectRef {
   void Add(const Source& source);
 
   SourceMapObj* operator->() {
-    ICHECK(get() != nullptr);
+    TVM_FFI_ICHECK(get() != nullptr);
     return static_cast<SourceMapObj*>(get_mutable());
   }
 

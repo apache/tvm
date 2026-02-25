@@ -1,3 +1,4 @@
+# isort: skip_file
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,11 +17,11 @@
 # under the License.
 # pylint: disable=unused-import, redefined-builtin
 """Namespace for Tensor-level IR"""
+
 from tvm.ir import PrimExpr
 from tvm.runtime import const
 
 from .buffer import Buffer, decl_buffer, DataProducer
-from .data_layout import Layout, BijectiveLayout, bijective_layout, layout
 from .expr import convert
 from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
@@ -31,9 +32,7 @@ from .expr import Call, CallEffectKind, Let, IterVar, CommReducer
 from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
 from .stmt import (
     BufferStore,
-    BufferRealize,
     Allocate,
-    AllocateConst,
     AttrStmt,
     DeclBuffer,
 )
@@ -115,7 +114,6 @@ from .op import dp4a
 from .op import ignore_loop_partition
 from .generic import add, subtract, multiply
 
-from . import ir_builder
 from . import transform
 from . import analysis
 from . import backend

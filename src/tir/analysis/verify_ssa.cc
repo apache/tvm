@@ -151,7 +151,8 @@ Pass VerifySSA() {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
       if (auto func = kv.second.as<PrimFunc>()) {
-        ICHECK(VerifySSA(func.value())) << "RuntimeError: IR is not in SSA form" << func.value();
+        TVM_FFI_CHECK(VerifySSA(func.value()), RuntimeError)
+            << "IR is not in SSA form" << func.value();
       }
     }
     return mod;

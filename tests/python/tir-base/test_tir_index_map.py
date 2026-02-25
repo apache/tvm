@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E741, F401
 import numpy as np
 import pytest
 
@@ -21,8 +22,8 @@ import tvm
 import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.runtime import const
-from tvm.tir import IndexMap, IntImm, floordiv, floormod
 from tvm.script import tir as T
+from tvm.tir import IndexMap, IntImm, floordiv, floormod
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:

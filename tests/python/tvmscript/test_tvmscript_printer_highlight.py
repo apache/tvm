@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tir as T
-from tvm.script.highlight import cprint, _format
+from tvm.script.highlight import _format, cprint
 
 
 def test_highlight_script():

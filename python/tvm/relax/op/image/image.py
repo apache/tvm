@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Image operators."""
+
 from typing import Optional, Tuple, Union
 
 from tvm import DataType
 from tvm.ir.expr import PrimExpr
 
-from . import _ffi_api
 from ...expr import Expr, ShapeExpr
-
+from . import _ffi_api
 
 PrimExprLike = Union[int, PrimExpr]
 

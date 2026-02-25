@@ -31,7 +31,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../meta_data.h"
+#include "../metadata.h"
 
 namespace tvm {
 namespace runtime {
@@ -47,7 +47,7 @@ static constexpr const int kMetalMaxNumDevice = 32;
  * \param source Optional, source file, concatenaed for debug dump
  */
 ffi::Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
-                              std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
+                              ffi::Map<ffi::String, FunctionInfo> fmap, std::string fmt,
                               std::string source);
 }  // namespace runtime
 }  // namespace tvm

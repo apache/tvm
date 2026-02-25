@@ -49,7 +49,7 @@ struct Allocation {
 struct DDRAllocation : public Allocation {
   DDRAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
     int ret = posix_memalign(&data_, alignment, nbytes);
-    CHECK_EQ(ret, 0);
+    TVM_FFI_ICHECK_EQ(ret, 0);
 
     // The heap used by malloc on Hexagon is always mapped as cacheable. The heap manager may not
     // perform cache invalidation on a prior memory free. So, a subsequent memory allocation request
@@ -68,7 +68,7 @@ struct VTCMAllocation : public Allocation {
   VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
     // For simplicity, the current VTCM dynamic pool supports the following alignments: less than
     // or equal to 128 (0x80), and 2k (0x800)
-    CHECK((alignment <= 0x80) || (alignment == 0x800))
+    TVM_FFI_ICHECK((alignment <= 0x80) || (alignment == 0x800))
         << "VTCMAllocation called for invalid alignment " << alignment;
 
     if (alignment == 0x800) {
@@ -119,7 +119,7 @@ HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, ffi::Optional<ffi:
   } else if (GetStorageScope() == StorageScope::kVTCM) {
     alloca = Allocator<StorageScope::kVTCM>(nbytes, alignment);
   }
-  CHECK(alloca != nullptr);
+  TVM_FFI_ICHECK(alloca != nullptr);
   allocations_.push_back(alloca->data_);
   managed_allocations_.push_back(std::move(alloca));
 }
@@ -138,7 +138,7 @@ HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
   } else if (GetStorageScope() == StorageScope::kVTCM) {
     alloca = Allocator<StorageScope::kVTCM>(nbytes_monolithic, alignment);
   }
-  CHECK(alloca) << "could not create allocation";
+  TVM_FFI_ICHECK(alloca) << "could not create allocation";
 
   for (size_t i = 0; i < nallocs; ++i) {
     void* alloc_offset = static_cast<unsigned char*>(alloca->data_) + i * nbytes_aligned;
@@ -151,16 +151,17 @@ HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
 HexagonBuffer::~HexagonBuffer() { managed_allocations_.clear(); }
 
 void* HexagonBuffer::GetPointer() {
-  ICHECK(allocations_.size())
+  TVM_FFI_ICHECK(allocations_.size())
       << "Internal failure, allocations_ should be set in HexagonBuffer constructor";
 
   if (ndim_ == 1) {
-    ICHECK_EQ(allocations_.size(), 1);
+    TVM_FFI_ICHECK_EQ(allocations_.size(), 1);
     return allocations_[0];
   } else if (ndim_ == 2) {
     return allocations_.data();
   } else {
-    LOG(FATAL) << "HexagonBuffer should be either 1-d or 2-d, not " << ndim_ << "-d";
+    TVM_FFI_THROW(InternalError) << "HexagonBuffer should be either 1-d or 2-d, not " << ndim_
+                                 << "-d";
   }
 }
 
@@ -176,14 +177,14 @@ void HexagonBuffer::SetStorageScope(ffi::Optional<ffi::String> scope) {
   } else if (s == "global.vtcm") {
     storage_scope_ = StorageScope::kVTCM;
   } else {
-    CHECK(false) << "Encountered unknown HexagonBuffer storage scope: " << std::string(s);
+    TVM_FFI_ICHECK(false) << "Encountered unknown HexagonBuffer storage scope: " << std::string(s);
   }
 }
 
 std::vector<MemoryCopy> BufferSet::MemoryCopies(const BufferSet& dest, const BufferSet& src,
                                                 size_t bytes_to_copy) {
-  CHECK_LE(bytes_to_copy, src.TotalBytes());
-  CHECK_LE(bytes_to_copy, dest.TotalBytes());
+  TVM_FFI_ICHECK_LE(bytes_to_copy, src.TotalBytes());
+  TVM_FFI_ICHECK_LE(bytes_to_copy, dest.TotalBytes());
 
   auto pointer_to = [](const BufferSet& buf, size_t region_i, size_t byte_i) -> void* {
     void* region = buf.buffers[region_i];

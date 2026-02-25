@@ -14,9 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 
 import ctypes
-from typing import Tuple, Callable
+from typing import Callable, Tuple
 
 import numpy as np
 import pytest
@@ -25,11 +26,13 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax, rpc, te, tir, topi
-from tvm.contrib import utils, cc, popen_pool
+from tvm.contrib import cc, popen_pool, utils
 from tvm.relax.testing import nn
-from tvm.script import relax as R, tir as T, ir as I
 from tvm.relax.testing.vm import check_saved_func
 from tvm.runtime import ShapeTuple
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 EXEC_MODE = ["bytecode", "compiled"]
 
@@ -298,9 +301,9 @@ def test_call_tir_inplace_e2e_rw(exec_mode):
                     A[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
 
         @R.function
-        def main(
-            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
-        ) -> R.Tensor((2, 3), "int32"):
+        def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")) -> R.Tensor(
+            (2, 3), "int32"
+        ):
             res = R.call_tir_inplace(
                 TestCallTIRInplaceE2ERW.inplace_add, (x, y), [0], R.Tensor((2, 3), "int32")
             )
@@ -964,9 +967,7 @@ class TestVMSetInput:
 
     # nested tuple too
     @R.function
-    def test_vm_nested_tuple(
-        x: R.Tensor((), "int32")
-    ) -> R.Tuple(
+    def test_vm_nested_tuple(x: R.Tensor((), "int32")) -> R.Tuple(
         R.Tuple(
             R.Tensor((), "int32"),
             R.Tuple(
@@ -1279,7 +1280,7 @@ def test_relax_module_with_multiple_targets(exec_mode):
     seq = tvm.ir.transform.Sequential(
         [
             tvm.relax.transform.LegalizeOps(),
-            tvm.dlight.ApplyDefaultSchedule(tvm.dlight.gpu.Fallback()),
+            tvm.s_tir.dlight.ApplyDefaultSchedule(tvm.s_tir.dlight.gpu.Fallback()),
         ],
         name="LegalizeAndSchedule",
     )

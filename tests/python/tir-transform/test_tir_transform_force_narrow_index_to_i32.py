@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F811, F841
 import pytest
+
 import tvm
+import tvm.testing
 from tvm import TVMError
 from tvm.script import tir as T
-import tvm.testing
 
 
 def test_thread_axis1():

@@ -52,7 +52,7 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const ffi::Arra
                        std::string tag = kInjective) {
   const auto& data_type = data->dtype;
   const auto& weight_type = weight.defined() ? weight->dtype : data_type;
-  ICHECK(data_type == weight_type) << "rms_norm: data and weight must have the same type";
+  TVM_FFI_ICHECK(data_type == weight_type) << "rms_norm: data and weight must have the same type";
 
   const auto& data_fp32 = cast(data, DataType::Float(32));
   const auto& weight_fp32 = cast(weight, DataType::Float(32));
@@ -61,7 +61,7 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const ffi::Arra
   auto square_sum = sum(square, axis, /*keepdims=*/false, /*atleast1d=*/true);
 
   auto ndim = data_fp32->shape.size();
-  ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
+  TVM_FFI_ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto reduce_extent = make_const(data_fp32->dtype, 1);
   for (int i : real_axis) {

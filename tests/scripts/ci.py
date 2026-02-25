@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,25 +16,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, RUF005
 
-import sys
+import argparse
+import getpass
+import grp
+import inspect
+import json
 import multiprocessing
 import os
-import getpass
-import inspect
-import argparse
-import json
-import shutil
-import grp
-import string
-import random
-import subprocess
 import platform
+import random
+import shutil
+import string
+import subprocess
+import sys
 import textwrap
 import typing
-
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple, Callable, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_DIR = REPO_ROOT / ".ci-py-scripts"
@@ -171,10 +170,8 @@ def docker(
         "ci_gpu",
         "ci_cpu",
         # "ci_wasm",
-        # "ci_i386",
         "ci_cortexm",
         "ci_arm",
-        "ci_hexagon",
         "ci_riscv",
         "ci_adreno",
     }
@@ -350,7 +347,7 @@ def lint(interactive: bool = False, fix: bool = False, docker_image: Optional[st
         env["INPLACE_FORMAT"] = "true"
 
     docker(
-        name=gen_name(f"ci-lint"),
+        name=gen_name("ci-lint"),
         image="ci_lint" if docker_image is None else docker_image,
         scripts=["./tests/scripts/task_lint.sh"],
         env=env,
@@ -627,20 +624,6 @@ generated = [
                 "run unit tests",
                 [
                     "./tests/scripts/task_python_unittest.sh",
-                ],
-            ),
-        },
-    ),
-    generate_command(
-        name="i386",
-        help="Run i386 build and test(s)",
-        options={
-            "cpp": CPP_UNITTEST,
-            "integration": (
-                "run integration tests",
-                [
-                    "./tests/scripts/task_python_unittest.sh",
-                    "./tests/scripts/task_python_integration_i386only.sh",
                 ],
             ),
         },

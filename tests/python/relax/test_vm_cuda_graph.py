@@ -14,16 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import tvm
-import tvm.testing
-
-from tvm import relax
-from tvm.script import tir as T, relax as R, ir as I
+# ruff: noqa: E501
 
 import numpy as np
 import pytest
 
+import tvm
+import tvm.testing
+from tvm import relax
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 # fmt: off
 
@@ -155,7 +156,7 @@ def test_capture_error_is_recoverable():
         Module = tvm.ir.transform.Sequential(
             [
                 tvm.relax.transform.LegalizeOps(),
-                tvm.tir.transform.DefaultGPUSchedule(),
+                tvm.s_tir.transform.DefaultGPUSchedule(),
                 tvm.relax.transform.RemovePurityChecking(),
                 tvm.relax.transform.CallTIRRewrite(),
                 tvm.relax.transform.StaticPlanBlockMemory(),

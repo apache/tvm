@@ -16,19 +16,18 @@
 # under the License.
 # pylint: disable=missing-docstring, invalid-name
 import inspect
-from typing import Any
+from typing import Any, Dict, List, Optional, Set, TypeVar, Union
 from typing import Callable as _Callable
-from typing import Dict, List, Optional, Set, TypeVar, Union
 
 import tvm
 from tvm.relax import (
     Expr,
-    SeqExpr,
-    ShapeExpr,
     FuncStructInfo,
     Function,
     ObjectStructInfo,
     PrimStructInfo,
+    SeqExpr,
+    ShapeExpr,
     ShapeStructInfo,
     StructInfo,
     TensorStructInfo,
@@ -38,11 +37,11 @@ from tvm.relax.expr import Var
 from tvm.runtime import ObjectConvertible
 from tvm.tir import PrimExpr
 
+from ...ir_builder import relax as R
 from .._core import doc, parse, utils
 from ..core.entry import scan_macro
 from ..core.parser import Parser, ScriptMacro
 from ..ir import lookup_vdevice
-from ...ir_builder import relax as R
 
 FType = TypeVar("FType", bound=_Callable)
 
@@ -468,7 +467,7 @@ class PrimProxy(StructInfoProxy):
     ) -> None:
         if dtype is None and value is None:
             raise TypeError(
-                "R.Prim missing required argument.  " "Must provide either 'dtype' or 'value'"
+                "R.Prim missing required argument.  Must provide either 'dtype' or 'value'"
             )
 
         self.dtype = dtype

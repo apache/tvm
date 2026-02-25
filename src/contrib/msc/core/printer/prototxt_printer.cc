@@ -88,10 +88,10 @@ void PrototxtPrinter::AppendPair(const ffi::String& key, const ffi::Any& value) 
 }
 
 void PrototxtPrinter::PrintTypedDoc(const DictDoc& doc) {
-  ICHECK_EQ(doc->keys.size(), doc->values.size())
+  TVM_FFI_ICHECK_EQ(doc->keys.size(), doc->values.size())
       << "DictDoc should have equal number of elements in keys and values.";
   for (size_t i = 0; i < doc->keys.size(); i++) {
-    ICHECK(doc->keys[i].as<IdDocNode>())
+    TVM_FFI_ICHECK(doc->keys[i].as<IdDocNode>())
         << "Prototxt key should be IdDoc, get " << doc->keys[i]->GetTypeKey();
     PrintDoc(doc->keys[i]);
     if (doc->values[i].as<DictDocNode>()) {

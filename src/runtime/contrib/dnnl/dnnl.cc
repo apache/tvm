@@ -65,7 +65,7 @@ inline dnnl::memory::desc GenDNNLMemDescByShape(const dnnl::memory::dims& shape,
       data_md = dnnl::memory::desc({shape, dtype, tag::abcde});
       break;
     default:
-      LOG(FATAL) << "Unsupported data shape dimension: " << shape.size();
+      TVM_FFI_THROW(InternalError) << "Unsupported data shape dimension: " << shape.size();
       break;
   }
   return data_md;
@@ -332,7 +332,7 @@ extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_
       algo = algorithm::binary_mul;
       break;
     default:
-      LOG(FATAL) << "Unsupported dnnl algorithm: " << algo_type;
+      TVM_FFI_THROW(InternalError) << "Unsupported dnnl algorithm: " << algo_type;
       break;
   }
 

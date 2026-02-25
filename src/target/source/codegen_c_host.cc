@@ -75,7 +75,7 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
   emit_fwd_func_decl_ = emit_fwd_func_decl;
   CodeGenC::AddFunction(gvar, func);
   if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc) && !has_tvm_ffi_main_func_) {
-    ICHECK(global_symbol.has_value())
+    TVM_FFI_ICHECK(global_symbol.has_value())
         << "CodeGenCHost: The entry func must have the global_symbol attribute, "
         << "but function " << gvar << " only has attributes " << func->attrs;
 
@@ -123,7 +123,7 @@ void CodeGenCHost::PrintFuncPrefix(std::ostream& os) {  // NOLINT(*)
 void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
-    ICHECK_EQ(lanes, 1) << "does not support vector types";
+    TVM_FFI_ICHECK_EQ(lanes, 1) << "does not support vector types";
     os << "void*";
     return;
   }
@@ -186,7 +186,7 @@ void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       return;
     }
   }
-  LOG(FATAL) << "Cannot convert type " << t << " to C type";
+  TVM_FFI_THROW(InternalError) << "Cannot convert type " << t << " to C type";
 }
 
 void CodeGenCHost::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
@@ -223,12 +223,12 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
 
 void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   const StringImmNode* func_name = op->args[0].as<StringImmNode>();
-  ICHECK(func_name != nullptr)
+  TVM_FFI_ICHECK(func_name != nullptr)
       << "tvm_call_[c]packed_lowered expects first argument as function name";
   int64_t begin = op->args[2].as<IntImmNode>()->value;
   int64_t end = op->args[3].as<IntImmNode>()->value;
   int64_t num_args = end - begin;
-  ICHECK_GE(num_args, 0);
+  TVM_FFI_ICHECK_GE(num_args, 0);
 
   std::string packed_func_name;
   if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
@@ -236,7 +236,7 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
     this->PrintGetFuncFromBackend(func_name->value, packed_func_name);
   } else {
     // directly use the original symbol
-    ICHECK(op->op.same_as(builtin::tvm_call_cpacked_lowered()));
+    TVM_FFI_ICHECK(op->op.same_as(builtin::tvm_call_cpacked_lowered()));
     packed_func_name = ffi::symbol::tvm_ffi_symbol_prefix + func_name->value;
   }
 
@@ -269,7 +269,7 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
 
 std::string CodeGenCHost::GetPackedName(const CallNode* op) {
   const StringImmNode* s = op->args[0].as<StringImmNode>();
-  ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
+  TVM_FFI_ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
   std::string func_name = s->value;
   std::string packed_func_name = func_name + "_packed";
   std::string unique_name;
@@ -289,7 +289,7 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     std::string stack_name = name_supply_->FreshName("stack");
     const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
-    ICHECK(num != nullptr);
+    TVM_FFI_ICHECK(num != nullptr);
     static_assert(alignof(TVMFFIAny) % alignof(DLTensor) == 0, "invariant");
     size_t unit = sizeof(TVMFFIAny);
     size_t size = 0;
@@ -300,7 +300,7 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     } else if (type == "array") {
       size = (num->value * sizeof(DLTensor) + unit - 1) / unit;
     } else {
-      LOG(FATAL) << "Unknown stack alloca type " << type;
+      TVM_FFI_THROW(InternalError) << "Unknown stack alloca type " << type;
     }
     this->PrintIndent();
     this->stream << "TVMFFIAny " << stack_name << "[" << size << "];\n";
@@ -381,7 +381,7 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
 
   std::vector<std::pair<GlobalVar, PrimFunc>> funcs;
   for (auto [gvar, base_func] : mod->functions) {
-    ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
+    TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
     funcs.push_back({gvar, prim_func});
   }

@@ -27,7 +27,7 @@
 ) %}
   sh (
     script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
-    label: 'Create CPU cmake config',
+    label: 'Create CPU CMake config',
   )
   cmake_build(ci_cpu, 'build')
   make_cpp_tests(ci_cpu, 'build')

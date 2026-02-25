@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=too-many-arguments,invalid-name,protected-access,unused-argument
+# ruff: noqa: RUF005
 """Builtin Modules."""
+
 from typing import List, Optional, Sequence, Union
 
 from tvm import relax as rx
@@ -692,8 +694,7 @@ class KVCache(Effect):
         """
         if new_element.dtype != self.dtype:
             raise TypeError(
-                f'KVCache has been set to use dtype "{self.dtype}", '
-                f'but got "{new_element.dtype}"'
+                f'KVCache has been set to use dtype "{self.dtype}", but got "{new_element.dtype}"'
             )
         self.cache = rx.BlockBuilder.current().emit(
             rx.op.call_inplace_packed(
@@ -757,7 +758,7 @@ class TimestepEmbedding(Module):
         in_channels: int,
         time_embed_dim: int,
         act_fn: str = "silu",
-        out_dim: int = None,
+        out_dim: Optional[int] = None,
         post_act_fn: Optional[str] = None,
         cond_proj_dim: Optional[int] = None,
     ):

@@ -28,10 +28,9 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
-#include "../meta_data.h"
+#include "../metadata.h"
 
 namespace tvm {
 namespace runtime {
@@ -48,8 +47,8 @@ static constexpr const int kMaxNumGPUs = 32;
  * \param rocm_source Optional, rocm source file
  */
 ffi::Module ROCMModuleCreate(std::string data, std::string fmt,
-                             std::unordered_map<std::string, FunctionInfo> fmap,
-                             std::string rocm_source, std::string assembly);
+                             ffi::Map<ffi::String, FunctionInfo> fmap, std::string rocm_source,
+                             std::string assembly);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_ROCM_ROCM_MODULE_H_

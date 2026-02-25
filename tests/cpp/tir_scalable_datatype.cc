@@ -112,13 +112,13 @@ TEST(ScalableDataType, TestGetScalableVectorBytes) {
       {
         try {
           tvm::runtime::GetVectorBytes(scalable_type);
-        } catch (const tvm::InternalError& e) {
+        } catch (const tvm::ffi::Error& e) {
           EXPECT_THAT(e.what(),
                       HasSubstr("Can't fetch the lanes of a scalable vector at a compile time"));
           throw;
         }
       },
-      tvm::InternalError);
+      tvm::ffi::Error);
 }
 
 TEST(ScalableDataType, TestScalableDataTypeInvalidLanesError) {
@@ -126,12 +126,12 @@ TEST(ScalableDataType, TestScalableDataTypeInvalidLanesError) {
       {
         try {
           tvm::DataType(kDLFloat, 62, 1, true);
-        } catch (const tvm::InternalError& e) {
+        } catch (const tvm::ffi::Error& e) {
           EXPECT_THAT(e.what(), HasSubstr("Invalid value for vscale factor"));
           throw;
         }
       },
-      tvm::InternalError);
+      tvm::ffi::Error);
 }
 
 TEST(ScalableDataType, TestScalableDataTypeInvalidVscaleFactorAccess) {
@@ -142,12 +142,12 @@ TEST(ScalableDataType, TestScalableDataTypeInvalidVscaleFactorAccess) {
       {
         try {
           fixed_length_type.vscale_factor();
-        } catch (const tvm::InternalError& e) {
+        } catch (const tvm::ffi::Error& e) {
           EXPECT_THAT(e.what(), HasSubstr("A fixed length vector doesn't have a vscale factor"));
           throw;
         }
       },
-      tvm::InternalError);
+      tvm::ffi::Error);
 }
 
 TEST(ScalableDataType, TestScalableDataTypeInvalidLanesAccess) {
@@ -156,13 +156,13 @@ TEST(ScalableDataType, TestScalableDataTypeInvalidLanesAccess) {
       {
         try {
           scalable_type.lanes();
-        } catch (const tvm::InternalError& e) {
+        } catch (const tvm::ffi::Error& e) {
           EXPECT_THAT(e.what(),
                       HasSubstr("Can't fetch the lanes of a scalable vector at a compile time"));
           throw;
         }
       },
-      tvm::InternalError);
+      tvm::ffi::Error);
 }
 
 TEST(ScalableDataType, TestScalableBool) {

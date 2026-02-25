@@ -155,7 +155,7 @@ StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
   } else if (ret_type == "indices") {
     return output_sinfos[1];
   }
-  LOG(FATAL) << "Unsupported ret type: " << ret_type;
+  TVM_FFI_THROW(InternalError) << "Unsupported ret type: " << ret_type;
   TVM_FFI_UNREACHABLE();
 }
 

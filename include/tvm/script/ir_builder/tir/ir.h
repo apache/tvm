@@ -28,7 +28,6 @@ namespace script {
 namespace ir_builder {
 namespace tir {
 
-using tvm::runtime::Tensor;
 using tvm::tir::Buffer;
 using tvm::tir::Var;
 
@@ -305,16 +304,6 @@ LetFrame LetStmt(PrimExpr value, ffi::Optional<Type> type_annotation = std::null
                  ffi::Optional<Var> var = std::nullopt);
 
 /*!
- * \brief The realization.
- * \param buffer_slice The region of buffer access.
- * \param storage_scope The storage scope associated with this realization.
- * \param condition The condition expression.
- * \return The result RealizeFrame.
- */
-RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, ffi::String storage_scope,
-                     PrimExpr condition);
-
-/*!
  * \brief The allocate node.
  * \param extents The extents of the allocate.
  * \param dtype The data type of the buffer.
@@ -326,18 +315,6 @@ RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, ffi::String storage_sc
 AllocateFrame Allocate(ffi::Array<PrimExpr> extents, DataType dtype, ffi::String storage_scope = "",
                        ffi::Optional<PrimExpr> condition = std::nullopt,
                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
-
-/*!
- * \brief The allocate constant node.
- * \param data The data associated with the constant.
- * \param dtype The data type of the buffer.
- * \param extents The extents of the allocate.
- * \param annotations Additional annotation hints.
- * \return The created AllocateConstFrame.
- */
-AllocateConstFrame AllocateConst(
-    Tensor data, DataType dtype, ffi::Array<PrimExpr> extents,
-    ffi::Optional<ffi::Map<ffi::String, Any>> annotations = std::nullopt);
 
 /*!
  * \brief Create an attribute.

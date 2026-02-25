@@ -26,7 +26,7 @@ Doc PrintBlock(IRDocsifier d, tir::SBlock block, AccessPath block_p,  //
                ffi::Optional<tir::SBlockRealize> opt_realize,
                ffi::Optional<AccessPath> opt_realize_p) {
   With<TIRFrame> frame(d, block);
-  ICHECK_EQ(opt_realize.defined(), opt_realize_p.defined());
+  TVM_FFI_ICHECK_EQ(opt_realize.defined(), opt_realize_p.defined());
   const tir::SBlockRealizeNode* realize =
       opt_realize.defined() ? opt_realize.value().get() : nullptr;
   AccessPath realize_p = *opt_realize_p;
@@ -80,8 +80,8 @@ Doc PrintBlock(IRDocsifier d, tir::SBlock block, AccessPath block_p,  //
     } else if (iter_var->iter_type == tir::IterVarType::kOpaque) {
       rhs = rhs->Attr("opaque");
     } else {
-      LOG(FATAL) << "ValueError: Unknown IterVarType in block signature: "
-                 << tir::IterVarType2String(iter_var->iter_type);
+      TVM_FFI_THROW(ValueError) << "Unknown IterVarType in block signature: "
+                                << tir::IterVarType2String(iter_var->iter_type);
     }
     ExprDoc dom{ffi::UnsafeInit()};
     if (tir::is_zero(iter_var->dom->min)) {
@@ -151,7 +151,7 @@ Doc PrintBlock(IRDocsifier d, tir::SBlock block, AccessPath block_p,  //
 
   // Step 2. Handle block predicate
   if (realize) {
-    ICHECK(realize->predicate.defined() && realize->predicate->dtype.is_bool());
+    TVM_FFI_ICHECK(realize->predicate.defined() && realize->predicate->dtype.is_bool());
     if (!tir::is_one(realize->predicate)) {
       (*frame)->stmts.push_back(ExprStmtDoc(
           TIR(d, "where")

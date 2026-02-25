@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI for TVM diagnostics."""
-import tvm_ffi
 
+import tvm_ffi
 
 tvm_ffi.init_ffi_api("diagnostics", __name__)

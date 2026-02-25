@@ -41,7 +41,7 @@ class AttrPrinter {
       }
     } else {
       const TVMFFITypeInfo* attrs_tinfo = TVMFFIGetTypeInfo(attrs->type_index());
-      ICHECK(attrs_tinfo->metadata != nullptr)
+      TVM_FFI_ICHECK(attrs_tinfo->metadata != nullptr)
           << "Object `" << attrs->GetTypeKey()
           << "` misses reflection registration and do not support serialization";
       // new printing mechanism using the new reflection
@@ -81,8 +81,8 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
       !n->op.same_as(call_tir_inplace_op)) {
     return std::nullopt;
   }
-  ICHECK(n->args.size() == 2 || n->args.size() == 3);
-  ICHECK(n->sinfo_args.size() == 1);
+  TVM_FFI_ICHECK(n->args.size() == 2 || n->args.size() == 3);
+  TVM_FFI_ICHECK(n->sinfo_args.size() == 1);
   ffi::Array<ExprDoc> args;
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;
@@ -166,7 +166,7 @@ ffi::Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const AccessPath& n_p
   if (!n->op.same_as(assert_op)) {
     return std::nullopt;
   }
-  ICHECK(n->args.size() >= 2);
+  TVM_FFI_ICHECK(n->args.size() >= 2);
   // special handling: it is important to indicate that the format string (second argument)
   // is the _format_ string, or else roundtripping will fail
   // (the format string will be interpreted as an argument and there will be a new default format
@@ -191,7 +191,7 @@ ffi::Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const AccessPath&
   args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;
-  ICHECK(n->attrs.defined());
+  TVM_FFI_ICHECK(n->attrs.defined());
   if (n->attrs.as<relax::HintOnDeviceAttrs>()) {
     AttrPrinter(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values)(n->attrs);
     ExprDoc scope_val = kwargs_values.back();
@@ -214,7 +214,7 @@ ffi::Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const AccessPath& n_
   args.push_back(PrintCallee(n->args[0], n_p->Attr("args")->ArrayItem(0), d));
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;
-  ICHECK(n->attrs.defined());
+  TVM_FFI_ICHECK(n->attrs.defined());
   if (const auto* attrs = n->attrs.as<relax::ToVDeviceAttrs>()) {
     VDevice vdev = attrs->dst_vdevice;
     std::string dev_kind = vdev->target->kind->name;
@@ -233,7 +233,7 @@ ffi::Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const AccessPath& n
   if (!n->op.same_as(print_op)) {
     return std::nullopt;
   }
-  ICHECK(n->args.size() >= 1);
+  TVM_FFI_ICHECK(n->args.size() >= 1);
   // special handling: it is important to indicate that the format string (first argument)
   // is the _format_ string, or else roundtripping will fail
   // (the format string will be interpreted as an argument and there will be a new default format
@@ -289,7 +289,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                      n->op->IsInstance<tvm::GlobalVarNode>()) {
             prefix = d->AsDoc<ExprDoc>(n->op, n_p->Attr("op"));
           } else {
-            LOG(FATAL) << "TypeError: Unsupported op: " << n->op->GetTypeKey();
+            TVM_FFI_THROW(TypeError) << "Unsupported op: " << n->op->GetTypeKey();
           }
           // Step 2. Print args
           if (!n->args.empty()) {

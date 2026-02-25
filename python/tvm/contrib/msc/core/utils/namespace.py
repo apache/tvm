@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 """tvm.contrib.msc.core.utils.namespace"""
 
-from typing import Any, Optional
 import copy
+from typing import Any, Optional
 
 
 class MSCMap:

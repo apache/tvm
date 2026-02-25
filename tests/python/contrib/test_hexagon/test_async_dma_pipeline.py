@@ -14,11 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 
 """Test different strategies for loading data into vtcm before running HVX workloads."""
 
 import numpy as np
 import pytest
+
 import tvm
 from tvm.script import tir as T
 
@@ -269,7 +271,7 @@ def evaluate(
     use_async_copy=0,
 ):
     """Evaluate function."""
-    target_hexagon = tvm.target.hexagon("v68", link_params=True)
+    target_hexagon = tvm.target.Target("qcom/hexagon-v68")
     with tvm.transform.PassContext(
         config={
             "tir.use_async_copy": use_async_copy,
@@ -345,7 +347,7 @@ def get_multi_input_fake_conv_vtcm_schedule(size_a, size_w, blocks=2):
 def print_results(test_key, runtimes):
     print(test_key)
     for runtime in runtimes.items():
-        print("-{} took {} ms".format(runtime[0], runtime[1]))
+        print(f"-{runtime[0]} took {runtime[1]} ms")
     print()
 
 

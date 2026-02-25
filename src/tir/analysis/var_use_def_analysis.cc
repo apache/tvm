@@ -37,7 +37,7 @@ VarUseDefAnalyzer::VarUseDefAnalyzer(const ffi::Array<Var>& defined_vars, bool v
 void VarUseDefAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
-    ICHECK_NE(iv->thread_tag.length(), 0U);
+    TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
     // thread_extent can appear multiple times
     // use the first appearance as def.
     if (!use_count_.count(iv->var.get())) {
@@ -74,11 +74,6 @@ void VarUseDefAnalyzer::VisitStmt_(const AllocateNode* op) {
   StmtExprVisitor::VisitStmt_(op);
 }
 
-void VarUseDefAnalyzer::VisitStmt_(const AllocateConstNode* op) {
-  this->HandleDef(op->buffer_var);
-  StmtExprVisitor::VisitStmt_(op);
-}
-
 void VarUseDefAnalyzer::VisitStmt_(const BufferStoreNode* op) {
   HandleUse(op->buffer);
   StmtExprVisitor::VisitStmt_(op);
@@ -94,7 +89,7 @@ void VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
   auto it = let_binding_.find(op->var.get());
   this->VisitExpr(op->value);
   if (it != let_binding_.end()) {
-    ICHECK(deep_equal_(it->second->value, op->value))
+    TVM_FFI_ICHECK(deep_equal_(it->second->value, op->value))
         << "Let cannot bind the same var to two different values";
   } else {
     this->HandleDef(op->var);
@@ -135,10 +130,10 @@ void VarUseDefAnalyzer::VisitBuffer(const Buffer& buffer) {
 
 void VarUseDefAnalyzer::HandleDef(const Var& var) {
   auto v = var.get();
-  ICHECK(!def_count_.count(v)) << "variable " << v->name_hint
-                               << " has already been defined, the Stmt is not SSA";
-  ICHECK(!use_count_.count(v)) << "variable " << v->name_hint
-                               << " has been used before definition!";
+  TVM_FFI_ICHECK(!def_count_.count(v))
+      << "variable " << v->name_hint << " has already been defined, the Stmt is not SSA";
+  TVM_FFI_ICHECK(!use_count_.count(v))
+      << "variable " << v->name_hint << " has been used before definition!";
   use_count_[v] = 0;
   def_count_[v] = 1;
 }
@@ -158,9 +153,9 @@ void VarUseDefAnalyzer::HandleUse(const Var& var) {
 
 void VarUseDefAnalyzer::HandleDef(const Buffer& buf) {
   auto ptr = buf.get();
-  ICHECK(!buffer_def_count_.count(ptr))
+  TVM_FFI_ICHECK(!buffer_def_count_.count(ptr))
       << "buffer " << ptr->name << " has already been defined, the Stmt is not SSA";
-  ICHECK(!buffer_use_count_.count(ptr))
+  TVM_FFI_ICHECK(!buffer_use_count_.count(ptr))
       << "buffer " << ptr->name << " has been used before definition!";
   buffer_use_count_[ptr] = 0;
   buffer_def_count_[ptr] = 1;
@@ -210,7 +205,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         } else if (auto opt_expr = args[0].as<PrimExpr>()) {
           *rv = UndefinedVars(opt_expr.value(), args[1].cast<ffi::Array<Var>>());
         } else {
-          LOG(FATAL) << "either UndefinedVars(stmt, args) or UndefinedVars(expr, args) is expected";
+          TVM_FFI_THROW(InternalError)
+              << "either UndefinedVars(stmt, args) or UndefinedVars(expr, args) is expected";
         }
       });
 }

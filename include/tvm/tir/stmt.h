@@ -228,57 +228,6 @@ class BufferStore : public Stmt {
 };
 
 /*!
- * \brief Annotate the region where the buffer need to
- *  be read and write in the body.
- *  We only need to allocate the space for the corresponding region.
- *
- * \note There should be at most one BufferRealize for each buffer.
- *       BufferRealize is not necessary for external buffers,
- *       since they are assumed to be fully allocated.
- *
- * \sa BufferLoad, BufferStore
- */
-class BufferRealizeNode : public StmtNode {
- public:
-  /*! \brief The buffer variable. */
-  Buffer buffer;
-  /*! \brief Bounds to be realized */
-  ffi::Array<Range> bounds;
-  /*! \brief Only realize if condition holds. */
-  PrimExpr condition;
-  /*! \brief The body of realization. */
-  Stmt body;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BufferRealizeNode>()
-        .def_ro("buffer", &BufferRealizeNode::buffer)
-        .def_ro("bounds", &BufferRealizeNode::bounds)
-        .def_ro("condition", &BufferRealizeNode::condition)
-        .def_ro("body", &BufferRealizeNode::body);
-  }
-
-  BufferRealizeNode() = default;
-  BufferRealizeNode(Buffer buffer, ffi::Array<Range> bounds, PrimExpr condition, Stmt body,
-                    Span span = Span())
-      : StmtNode(span), buffer(buffer), bounds(bounds), condition(condition), body(body) {}
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.BufferRealize", BufferRealizeNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to BufferRealizeNode.
- * \sa BufferRealizeNode
- */
-class BufferRealize : public Stmt {
- public:
-  TVM_DLL explicit BufferRealize(Buffer buffer, ffi::Array<Range> bounds, PrimExpr condition,
-                                 Stmt body, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferRealize, Stmt, BufferRealizeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRealizeNode);
-};
-
-/*!
  * \brief Allocate a buffer that can be used in body.
  */
 class AllocateNode : public StmtNode {
@@ -341,81 +290,6 @@ class Allocate : public Stmt {
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Allocate, Stmt, AllocateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateNode);
-};
-
-/*!
- * \brief Allocate a buffer that can be used in body.
- */
-class AllocateConstNode : public StmtNode {
- public:
-  /*! \brief The buffer variable. */
-  Var buffer_var;
-  /*! \brief The optional data associated to the constant.
-   */
-  ffi::Optional<runtime::Tensor> data;
-  /*!
-   * \brief If the PrimFunc containing the Stmt is added to IRModule, this is an optional index
-   * to indicate the index within "constants" attribute, that is a ffi::Array<Tensor> of IRModule.
-   */
-  ffi::Optional<Integer> irmod_storage_idx;
-  /*! \brief The type of the buffer. */
-  DataType dtype;
-  /*! \brief The extents of the buffer. */
-  ffi::Array<PrimExpr> extents;
-  /*! \brief The body to be executed. */
-  Stmt body;
-  /*!
-   * \brief Additional annotations about the allocation.
-   *
-   *  These annotations can be used as auxiliary hint
-   *  to future transformations.
-   */
-  ffi::Map<ffi::String, ffi::Any> annotations;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocateConstNode>()
-        .def_ro("buffer_var", &AllocateConstNode::buffer_var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("data", &AllocateConstNode::data)
-        .def_ro("irmod_storage_idx", &AllocateConstNode::irmod_storage_idx)
-        .def_ro("dtype", &AllocateConstNode::dtype)
-        .def_ro("extents", &AllocateConstNode::extents)
-        .def_ro("body", &AllocateConstNode::body)
-        .def_ro("annotations", &AllocateConstNode::annotations);
-  }
-
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \return The result.
-   */
-  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
-  /*!
-   * \brief If the buffer size is constant, return the size.
-   *        Otherwise return 0.
-   * \param extents The extents of the buffer.
-   * \return The result.
-   */
-  TVM_DLL static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents);
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AllocateConst", AllocateConstNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to AllocateConstNode.
- * \sa AllocateConstNode
- */
-class AllocateConst : public Stmt {
- public:
-  /* The constructor to create a IRNode with constant data
-   * depending on the type of ObjectRef, it will either
-   * create AllocateConstNode with irmod_storage_idx or data
-   */
-  TVM_DLL AllocateConst(
-      Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents, ObjectRef data_or_idx,
-      Stmt body, ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
-      Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AllocateConst, Stmt, AllocateConstNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateConstNode);
 };
 
 /*! \brief Declare a buffer that can be used in the body */
@@ -1064,8 +938,6 @@ constexpr const char* extern_scope = "extern_scope";
 constexpr const char* compute_scope = "compute_scope";
 /*! \brief Mark storage alignment requirement of buffers */
 constexpr const char* storage_alignment = "storage_alignment";
-/*! \brief Mark storage scope of realization */
-constexpr const char* realize_scope = "realize_scope";
 /*! \brief The allocation device for global malloc in host. */
 constexpr const char* device_id = "device_id";
 /*! \brief The device type. */
@@ -1109,8 +981,6 @@ constexpr const char* double_buffer_scope = "double_buffer_scope";
  * \brief Marks region used by double buffer write
  */
 constexpr const char* double_buffer_write = "double_buffer_write";
-/*! \brief Mark realization for rolling buffer optimization */
-constexpr const char* rolling_buffer_scope = "rolling_buffer_scope";
 /*! \brief Mark of scan update scope */
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */
@@ -1357,7 +1227,7 @@ inline const char* ForKind2String(ForKind t) {
     case ForKind::kThreadBinding:
       return "thread_binding";
   }
-  LOG(FATAL) << "Unknown ForKind" << t;
+  TVM_FFI_THROW(InternalError) << "Unknown ForKind" << t;
 }
 
 }  // namespace tir

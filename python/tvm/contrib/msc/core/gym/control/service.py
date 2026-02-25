@@ -14,19 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501
 """tvm.contrib.msc.core.gym.control.service"""
 
-import json
-import time
 import copy
-from typing import Dict, Any, List, Tuple
-from multiprocessing import Manager
-from functools import partial, reduce
+import json
 import queue
+import time
+from functools import partial, reduce
+from multiprocessing import Manager
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 
-from tvm.contrib.msc.core.gym.namespace import GYMObject, GYMAction
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.gym.namespace import GYMAction, GYMObject
+
 from .worker import BaseGymWorker, WorkerFactory
 
 
@@ -51,7 +54,7 @@ def _send_message(msg_queue: queue.Queue, header: str, body: dict, header_type: 
 def _wait_message(
     msg_queue: queue.Queue,
     header: str,
-    checker: callable = None,
+    checker: Optional[callable] = None,
     wait_time: int = 2,
     max_retry: int = -1,
     header_type: str = "message",
@@ -79,7 +82,7 @@ def _wait_message(
         The message body
     """
 
-    def _check_message(message: dict, checker: callable = None) -> bool:
+    def _check_message(message: dict, checker: Optional[callable] = None) -> bool:
         """Check the message
 
         Parameters
@@ -121,7 +124,7 @@ wait_request = partial(_wait_message, header_type="request_header")
 wait_response = partial(_wait_message, header_type="response_header")
 
 
-class GatherMode(object):
+class GatherMode:
     """Enum all gather mode"""
 
     PARALLEL = "parallel"
@@ -130,7 +133,7 @@ class GatherMode(object):
     FIRST = "first"
 
 
-class BaseService(object):
+class BaseService:
     """Basic service for gym
 
     Parameters
@@ -158,13 +161,13 @@ class BaseService(object):
         workspace: msc_utils.MSCDirectory,
         env: Dict[str, Any],
         agent: Dict[str, Any],
-        tasks: List[str] = None,
-        dist_manager: Manager = None,
+        tasks: Optional[List[str]] = None,
+        dist_manager: Optional[Manager] = None,
         world_size: int = 1,
         max_iter: int = 1,
         record_step: int = 5,
         debug_level: int = 0,
-        verbose: str = None,
+        verbose: Optional[str] = None,
     ):
         self._workspace = workspace
         tasks = tasks or [GYMObject.ENV + ":0", GYMObject.AGENT + ":0"]
@@ -320,7 +323,7 @@ class BaseService(object):
     def _wait_request(
         self,
         msg_key: str,
-        checker: callable = None,
+        checker: Optional[callable] = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:
@@ -343,7 +346,7 @@ class BaseService(object):
     def _wait_response(
         self,
         msg_key: str,
-        checker: callable = None,
+        checker: Optional[callable] = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:
@@ -381,11 +384,9 @@ class BaseService(object):
         workers = {w.worker_id: w for w in self._get_workers(obj_type)}
         requests = self._wait_request(msg_key)
         if act_type in (GYMAction.INIT, GYMAction.RESET):
-            mark = "Iter[{}/{}] {}.{}".format(self._iter_id, self._max_iter, obj_type, act_type)
+            mark = f"Iter[{self._iter_id}/{self._max_iter}] {obj_type}.{act_type}"
         else:
-            mark = "Iter[{}/{}] Task[{}/{}] {}.{}".format(
-                self._iter_id, self._max_iter, self._task_id, self._max_task, obj_type, act_type
-            )
+            mark = f"Iter[{self._iter_id}/{self._max_iter}] Task[{self._task_id}/{self._max_task}] {obj_type}.{act_type}"
         requests = {int(k): v for k, v in requests.items()}
         responses = {}
         for w_id, worker in workers.items():
@@ -438,7 +439,7 @@ class BaseService(object):
             The message key.
         """
 
-        return "{}-s-{}".format(obj_type, act_type)
+        return f"{obj_type}-s-{act_type}"
 
     def _from_msg_key(self, msg_key: str) -> Tuple[str, str]:
         """Get obj_type and act_type from message key
@@ -527,7 +528,7 @@ class BaseService(object):
             The message with mark.
         """
 
-        return "SERIVCE({}) {}".format(self.service_type, msg)
+        return f"SERIVCE({self.service_type}) {msg}"
 
     @property
     def done(self):
@@ -597,7 +598,7 @@ class MainService(BaseService):
         self,
         msg_key: str,
         requests: List[dict],
-        checker: callable = None,
+        checker: Optional[callable] = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:

@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI APIs for tvm.tir"""
+"""FFI APIs for tvm.s_tir"""
+
 import tvm_ffi
 
-
-tvm_ffi.init_ffi_api("tir", __name__)
+tvm_ffi.init_ffi_api("s_tir", __name__)

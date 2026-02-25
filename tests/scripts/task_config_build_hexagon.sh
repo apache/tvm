@@ -40,6 +40,5 @@ fi
 echo set\(USE_HEXAGON "ON"\) >> config.cmake
 echo set\(USE_HEXAGON_SDK "${HEXAGON_SDK_ROOT}"\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(BACKTRACE_ON_SEGFAULT ON\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
 echo set\(USE_HEXAGON_QHL ON\) >> config.cmake

@@ -15,5 +15,3 @@
 # specific language governing permissions and limitations
 # under the License.
 """The TIR Adreno backend passes"""
-
-from . import transform

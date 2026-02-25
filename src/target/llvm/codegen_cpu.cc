@@ -236,7 +236,7 @@ void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
   }
   // create a wrapper function with tvm_ffi_main name and redirects to the entry function
   llvm::Function* target_func = module_->getFunction(entry_func_name);
-  ICHECK(target_func) << "Function " << entry_func_name << " does not exist in module";
+  TVM_FFI_ICHECK(target_func) << "Function " << entry_func_name << " does not exist in module";
 
   // Create wrapper function
   llvm::Function* wrapper_func =
@@ -286,7 +286,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
     if (buf->getType() == t_void_p_) {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_array_, 0));
     } else {
-      ICHECK_EQ(buf->getType(), llvmGetPointerTo(t_tvm_array_, 0));
+      TVM_FFI_ICHECK_EQ(buf->getType(), llvmGetPointerTo(t_tvm_array_, 0));
     }
   }
   switch (kind) {
@@ -364,7 +364,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
       return TypedPointer(t_int32_, buf);
     }
     case builtin::kTVMFFIAnyUnionValue: {
-      ICHECK_EQ(t.lanes(), 1);
+      TVM_FFI_ICHECK_EQ(t.lanes(), 1);
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
       // field 2 is the union value
       buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(2)});
@@ -386,7 +386,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
       }
     }
     default:
-      LOG(FATAL) << "unknown field code";
+      TVM_FFI_THROW(InternalError) << "unknown field code";
   }
 }
 
@@ -444,7 +444,7 @@ llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string
 }
 
 llvm::Value* CodeGenCPU::GetContextPtr(llvm::GlobalVariable* gv) {
-  ICHECK(gv != nullptr);
+  TVM_FFI_ICHECK(gv != nullptr);
 #if TVM_LLVM_VERSION >= 110
   llvm::LoadInst* faddr =
       builder_->CreateAlignedLoad(gv->getValueType(), gv, llvm::Align(gv->getAlignment()));
@@ -548,7 +548,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // to call them correctly on MIPS platform (CALL16 issue)
   // Linkage ld Error: CALL16 reloc at 0x290 not against global symbol
   const StringImmNode* value = op->value.as<StringImmNode>();
-  ICHECK(value != nullptr);
+  TVM_FFI_ICHECK(value != nullptr);
   llvm::Function* fcompute = llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
                                                     MakeStringRef(value->value), module_.get());
   SetTargetAttributes(fcompute);
@@ -611,7 +611,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const ffi::Array<Var>& vfi
   std::vector<llvm::Type*> fields;
   for (Var v : vfields) {
     auto it = var_map_.find(v.get());
-    ICHECK(it != var_map_.end());
+    TVM_FFI_ICHECK(it != var_map_.end());
     fields.push_back(it->second->getType());
   }
   llvm::StructType* ctype = struct_name.size() ? llvm::StructType::create(fields, struct_name)
@@ -692,7 +692,8 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   std::swap(analyzer_, new_analyzer);
   std::swap(parallel_env_, par_env);
   std::swap(function_, f);
-  ICHECK_NE(par_env.parallel_loop_count, 0) << "Cannot find parallel loop within parallel launch";
+  TVM_FFI_ICHECK_NE(par_env.parallel_loop_count, 0)
+      << "Cannot find parallel loop within parallel launch";
   builder_->SetInsertPoint(par_launch_end);
 }
 
@@ -735,7 +736,7 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
   // setup new variable map, swap it with current var context.
   std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
   UnpackClosureData(cdata, vfields, &new_vmap);
-  ICHECK(parallel_env_.penv == nullptr);
+  TVM_FFI_ICHECK(parallel_env_.penv == nullptr);
   auto new_analyzer = std::make_unique<arith::Analyzer>();
   std::swap(function_, f);
   std::swap(analyzer_, new_analyzer);
@@ -839,14 +840,14 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimEx
                                                          bool use_env_lookup) {
   std::string func_name = [&]() {
     auto ptr = args[0].as<StringImmNode>();
-    ICHECK(ptr) << "Expected first argument of tir::Call to be "
-                << "a string containing the callee's name, "
-                << "but instead contained " << args[0];
+    TVM_FFI_ICHECK(ptr) << "Expected first argument of tir::Call to be "
+                        << "a string containing the callee's name, "
+                        << "but instead contained " << args[0];
     return ptr->value;
   }();
   // call the function
   int64_t nargs = end - begin;
-  ICHECK_GE(nargs, 0);
+  TVM_FFI_ICHECK_GE(nargs, 0);
   llvm::Value* stack_args = MakeValue(args[1]);
   llvm::Value* packed_args = builder_->CreateInBoundsGEP(
       t_tvm_ffi_any_, builder_->CreatePointerCast(stack_args, llvmGetPointerTo(t_tvm_ffi_any_, 0)),
@@ -922,7 +923,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimEx
 }
 
 llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op) {
-  ICHECK_EQ(op->args.size(), 4U);
+  TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
   bool use_string_lookup = op->op.same_as(builtin::tvm_call_packed_lowered());
   PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[2].as<IntImmNode>()->value,
                                         op->args[3].as<IntImmNode>()->value, use_string_lookup);
@@ -930,7 +931,7 @@ llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op) {
 }
 
 llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
-  ICHECK_EQ(op->args.size(), 5U);
+  TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
   PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[2].as<IntImmNode>()->value,
                                         op->args[3].as<IntImmNode>()->value, true);
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
@@ -1015,7 +1016,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     builder_->SetInsertPoint(new_bb);
     return ConstInt32(-1);
   } else if (op->op.same_as(builtin::tvm_struct_get())) {
-    ICHECK_EQ(op->args.size(), 3U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
     int kind = op->args[2].as<IntImm>().value()->value;
     TypedPointer ref =
         CreateStructRefPtr(op->dtype, MakeValue(op->args[0]), MakeValue(op->args[1]), kind);
@@ -1031,12 +1032,12 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
 
     return struct_value;
   } else if (op->op.same_as(builtin::tvm_struct_set())) {
-    ICHECK_EQ(op->args.size(), 4U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
     int kind = op->args[2].as<IntImm>().value()->value;
     llvm::Value* value = MakeValue(op->args[3]);
     TypedPointer ref = CreateStructRefPtr(op->args[3].dtype(), MakeValue(op->args[0]),
                                           MakeValue(op->args[1]), kind);
-    ICHECK(kind != builtin::kArrAddr);
+    TVM_FFI_ICHECK(kind != builtin::kArrAddr);
     if (value->getType()->isPointerTy()) {
       value = builder_->CreatePointerCast(value, ref.type);
     }
@@ -1053,11 +1054,11 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     builder_->CreateStore(value, ref.addr);
     return ConstInt32(0);
   } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
-    ICHECK_EQ(op->args.size(), 2U);
+    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
     std::string type = op->args[0].as<StringImm>().value()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {
       const int64_t* pval = as_const_int(op->args[1]);
-      ICHECK(pval) << "require stack alloca to contain constant value";
+      TVM_FFI_ICHECK(pval) << "require stack alloca to contain constant value";
       llvm::Value* num = ConstInt32(pval[0]);
       if (type == "shape") {
         return builder_->CreateAlloca(t_tvm_shape_index_, num);
@@ -1070,7 +1071,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
         alloca->setAlignment(llvm::Align(64));
         return alloca;
       } else {
-        LOG(FATAL) << "Unknown stack alloca type " << type;
+        TVM_FFI_THROW(InternalError) << "Unknown stack alloca type " << type;
       }
     });
   } else {
@@ -1111,21 +1112,22 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
   EmitDebugLocation(op);
   if (op->attr_key == tir::attr::coproc_uop_scope) {
     const StringImmNode* value = op->value.as<StringImmNode>();
-    ICHECK(value != nullptr);
+    TVM_FFI_ICHECK(value != nullptr);
     this->CreateStaticInit(value->value, op->body);
   } else if (op->attr_key == tir::attr::compute_scope) {
     this->CreateComputeScope(op);
   } else if (tir::attr::IsPragmaKey(op->attr_key)) {
     if (op->attr_key == "pragma_parallel_stride_pattern") {
-      ICHECK(parallel_env_.penv != nullptr)
+      TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
           << "Pragma parallel_stride_pattern only valid in parallel launch";
       parallel_env_.stride_pattern = true;
       this->VisitStmt(op->body);
     } else if (op->attr_key == "pragma_parallel_launch_point") {
       CreateParallelLaunch(op->body, 0, "pragma_parallel");
     } else if (op->attr_key == "pragma_parallel_barrier_when_finish") {
-      ICHECK(parallel_env_.penv != nullptr) << "Cannot run barrier without parallel environment";
-      ICHECK(!parallel_env_.in_parallel_loop)
+      TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
+          << "Cannot run barrier without parallel environment";
+      TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
           << "Cannot not place within parallel loop as the workload may differ, "
           << " place it between parallel and parallel_launch_point";
       this->VisitStmt(op->body);
@@ -1138,7 +1140,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
       builder_->CreateCall(bar_callee, {MakeValue(parallel_env_.task_id), parallel_env_.penv});
     } else if (op->attr_key == tir::attr::pragma_import_llvm) {
       const StringImmNode* value = op->value.as<StringImmNode>();
-      ICHECK(value != nullptr);
+      TVM_FFI_ICHECK(value != nullptr);
       this->HandleImport(value->value);
       this->VisitStmt(op->body);
     } else {
@@ -1155,21 +1157,23 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
   if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::VisitStmt_(op);
   } else if (op->kind == ForKind::kParallel) {
-    ICHECK(is_zero(op->min)) << "Parallel launch require canonical loop with zero start index";
-    ICHECK(op->HasTrivialStep()) << "Parallel launch require canonical loop with trivial loop step";
+    TVM_FFI_ICHECK(is_zero(op->min))
+        << "Parallel launch require canonical loop with zero start index";
+    TVM_FFI_ICHECK(op->HasTrivialStep())
+        << "Parallel launch require canonical loop with trivial loop step";
     if (parallel_env_.penv == nullptr) {
       auto copy_node = For(ffi::make_object<ForNode>(*op));
       CreateParallelLaunch(copy_node, 0,
                            std::string("loop_parallel_") + op->loop_var->name_hint.c_str());
     } else {
       // already in parallel env.
-      ICHECK(parallel_env_.task_id.defined());
-      ICHECK(parallel_env_.num_task.defined());
-      ICHECK(parallel_env_.penv != nullptr);
+      TVM_FFI_ICHECK(parallel_env_.task_id.defined());
+      TVM_FFI_ICHECK(parallel_env_.num_task.defined());
+      TVM_FFI_ICHECK(parallel_env_.penv != nullptr);
       DataType t = op->extent.dtype();
       PrimExpr num_task = cast(t, parallel_env_.num_task);
       PrimExpr task_id = cast(t, parallel_env_.task_id);
-      ICHECK(!parallel_env_.in_parallel_loop)
+      TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;
       PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
@@ -1187,7 +1191,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
       ++parallel_env_.parallel_loop_count;
     }
   } else {
-    LOG(FATAL) << "cannot handle for type " << op->kind;
+    TVM_FFI_THROW(InternalError) << "cannot handle for type " << op->kind;
   }
 }
 

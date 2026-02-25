@@ -16,11 +16,13 @@
 # under the License.
 # pylint: disable=redefined-builtin
 """Statistical operators."""
+
 from typing import List, Optional, Union
 
 from tvm import DataType
-from . import _ffi_api
+
 from ..expr import Expr
+from . import _ffi_api
 
 
 def max(x: Expr, axis: Optional[Union[int, List[int]]] = None, keepdims: bool = False) -> Expr:

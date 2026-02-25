@@ -80,23 +80,23 @@ inline void CallGemm(ffi::PackedArgs args, ffi::Any* ret, TGemmOp op) {
   bool transa = args[3].cast<bool>();
   bool transb = args[4].cast<bool>();
   int bit_depth = sizeof(typename TGemmOp::TDatatype) * 8;
-  ICHECK_EQ(A->ndim, 2);
-  ICHECK_EQ(B->ndim, 2);
-  ICHECK_EQ(C->ndim, 2);
+  TVM_FFI_ICHECK_EQ(A->ndim, 2);
+  TVM_FFI_ICHECK_EQ(B->ndim, 2);
+  TVM_FFI_ICHECK_EQ(C->ndim, 2);
 
-  ICHECK_EQ(ElementStride(A), 1);
-  ICHECK_EQ(ElementStride(B), 1);
-  ICHECK_EQ(ElementStride(C), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(A), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(B), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(C), 1);
 
   // C can never be transposed.
-  ICHECK(!IsInPlaceTransposed(C));
+  TVM_FFI_ICHECK(!IsInPlaceTransposed(C));
 
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
-  ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
+  TVM_FFI_ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
+  TVM_FFI_ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
   double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
   double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
@@ -127,24 +127,24 @@ inline void CallU8S8S32Gemm(ffi::PackedArgs args, ffi::Any* ret, TGemmOp op) {
   int offset_c[1];
   offset_c[0] = 0;
 
-  ICHECK_EQ(A->ndim, 2);
-  ICHECK_EQ(B->ndim, 2);
-  ICHECK_EQ(C->ndim, 2);
+  TVM_FFI_ICHECK_EQ(A->ndim, 2);
+  TVM_FFI_ICHECK_EQ(B->ndim, 2);
+  TVM_FFI_ICHECK_EQ(C->ndim, 2);
 
-  ICHECK_EQ(ElementStride(A), 1);
-  ICHECK_EQ(ElementStride(B), 1);
-  ICHECK_EQ(ElementStride(C), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(A), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(B), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(C), 1);
 
   // C can never be transposed.
-  ICHECK(!IsInPlaceTransposed(C));
+  TVM_FFI_ICHECK(!IsInPlaceTransposed(C));
 
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  ICHECK(TypeMatch(A->dtype, kDLUInt, 8));
-  ICHECK(TypeMatch(B->dtype, kDLInt, 8));
-  ICHECK(TypeMatch(C->dtype, kDLInt, 32));
+  TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLUInt, 8));
+  TVM_FFI_ICHECK(TypeMatch(B->dtype, kDLInt, 8));
+  TVM_FFI_ICHECK(TypeMatch(C->dtype, kDLInt, 32));
   double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
   double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
@@ -191,23 +191,23 @@ inline void CallBatchGemm(ffi::PackedArgs args, ffi::Any* ret, TBatchGemmOp op) 
 
   int bit_depth = sizeof(DType) * 8;
 
-  ICHECK_EQ(A->ndim, 3);
-  ICHECK_EQ(B->ndim, 3);
-  ICHECK_EQ(C->ndim, 3);
+  TVM_FFI_ICHECK_EQ(A->ndim, 3);
+  TVM_FFI_ICHECK_EQ(B->ndim, 3);
+  TVM_FFI_ICHECK_EQ(C->ndim, 3);
 
   int batch_size = BatchCount3D(C);
-  ICHECK_EQ(ElementStride(A), 1);
-  ICHECK_EQ(ElementStride(B), 1);
-  ICHECK_EQ(ElementStride(C), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(A), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(B), 1);
+  TVM_FFI_ICHECK_EQ(ElementStride(C), 1);
 
   // C can never be transposed.
-  ICHECK(!IsInPlaceTransposed3D(C));
+  TVM_FFI_ICHECK(!IsInPlaceTransposed3D(C));
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed3D(A) ? !transa : transa;
   transb = IsInPlaceTransposed3D(B) ? !transb : transb;
 
-  ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
-  ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
+  TVM_FFI_ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
+  TVM_FFI_ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
 
   double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
   double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
@@ -226,8 +226,8 @@ inline void CallBatchGemm(ffi::PackedArgs args, ffi::Any* ret, TBatchGemmOp op) 
       B_stride = 0;
     }
   } else {
-    ICHECK_EQ(batch_size_a, batch_size);
-    ICHECK_EQ(batch_size_b, batch_size);
+    TVM_FFI_ICHECK_EQ(batch_size_a, batch_size);
+    TVM_FFI_ICHECK_EQ(batch_size_b, batch_size);
   }
 
   DType* A_data = reinterpret_cast<typename TBatchGemmOp::TDatatype*>(static_cast<char*>(A->data) +

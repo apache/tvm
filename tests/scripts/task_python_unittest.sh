@@ -49,10 +49,13 @@ TEST_FILES=(
   "testing"
   "s_tir/base"
   "s_tir/schedule"
+  "s_tir/dlight"
+  "s_tir/analysis"
   "tir-analysis"
   "tir-base"
   "tir-transform"
   "tvmscript"
+  "relax"
 )
 
 for TEST_FILE in ${TEST_FILES[@]}; do

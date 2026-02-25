@@ -15,11 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """Binary Neural Network (BNN) Operators"""
+
 from __future__ import absolute_import as _abs
+
 import tvm
 from tvm import te
+
 from .. import tag
-from ..utils import simplify, get_const_int
+from ..utils import get_const_int, simplify
 
 
 def binarize_pack(data, axis=None, name="PackedInput"):
@@ -80,9 +83,9 @@ def binary_dense(data, weight):
     output : tvm.te.Tensor
         2-D with shape [batch, out_dim], dtype is float32.
     """
-    assert (
-        data.dtype == "uint32" and weight.dtype == "uint32"
-    ), "dtype of data and weight should be uint32"
+    assert data.dtype == "uint32" and weight.dtype == "uint32", (
+        "dtype of data and weight should be uint32"
+    )
     assert len(data.shape) == 2 and len(weight.shape) == 2, "only support 2-dim binary dense"
     batch, in_dim = data.shape
     out_dim, _ = weight.shape

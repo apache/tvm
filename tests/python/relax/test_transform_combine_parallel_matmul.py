@@ -14,11 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E731, F401, F841
 import tvm.testing
-
 from tvm import relax, tir
-from tvm.script import relax as R, tir as T
 from tvm.relax.transform import CombineParallelMatmul
+from tvm.script import relax as R
+from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 

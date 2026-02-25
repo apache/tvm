@@ -14,18 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: RUF012
 """
 Python wrapper for running a RPC Server through iOS RPC
 on the iOS simulator using the simctl command line tool.
 """
+
 # pylint: disable=invalid-name
-import os
 import json
-import time
-import threading
+import os
 import subprocess
+import threading
+import time
 from enum import Enum
-from typing import Dict, List, AnyStr
+from typing import AnyStr, Dict, List
 
 
 class OSName(Enum):

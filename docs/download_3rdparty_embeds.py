@@ -159,7 +159,7 @@ def detect_urls(files: List[str], verbose: bool = False) -> List[str]:
             f_detect = detect_css_external_urls
         else:
             continue
-        with open(file, "r", encoding="utf-8") as f:
+        with open(file, encoding="utf-8") as f:
             content = f.read()
             urls = f_detect(content)
         if verbose:
@@ -267,7 +267,7 @@ def replace_urls_in_files(remap_urls: Dict[str, str], verbose: bool = False):
                 os.path.join(HTML_DIR, "_static/downloads"), os.path.dirname(file_path)
             )
 
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             new_content = content

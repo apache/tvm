@@ -74,7 +74,7 @@ class ByocNameSetter : public ExprMutator {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) final {
     ExprMutator::VisitBinding_(binding, val);
     if (val->op->IsInstance<relax::VarNode>()) {
-      ICHECK(local_funcs_.count(val->op)) << "Can not find local func " << val->op;
+      TVM_FFI_ICHECK(local_funcs_.count(val->op)) << "Can not find local func " << val->op;
       const auto& name_opt = local_funcs_[val->op]->GetAttr<ffi::String>(msc_attr::kUnique);
       if (name_opt.has_value()) {
         val->span = SpanUtils::SetAttr(val->span, "name", name_opt.value());

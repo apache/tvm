@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, invalid-name
+# ruff: noqa: RUF012
 """Loss functions library for relax."""
 
 from typing import Optional, Union
@@ -25,9 +26,8 @@ from typing_extensions import Literal
 # isort: on
 
 from ..block_builder import BlockBuilder
-from ..expr import Expr, Var, Function, StructInfo
-
-from ..op import abs, sum, mean, subtract, multiply, reshape, argmax
+from ..expr import Expr, Function, StructInfo, Var
+from ..op import abs, argmax, mean, multiply, reshape, subtract, sum
 from ..op.nn import log_softmax, nll_loss
 
 
@@ -345,7 +345,7 @@ class CategoricalCrossEntropyLoss(Loss):
         The relax function of CategoricalCrossEntropyLoss with the loss name as its global symbol.
         """
 
-        if not "int" in targets.dtype:
+        if "int" not in targets.dtype:
             raise TypeError(
                 f"Dtype of targets expected to be int/uint. \
                   However, the dtype of targets is {targets.dtype}"

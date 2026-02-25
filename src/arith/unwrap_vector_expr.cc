@@ -62,7 +62,7 @@ class Scalarizer : public ExprMutator {
     }
 
     auto it = let_var_remap_.find(op->var.get());
-    ICHECK(it == let_var_remap_.end()) << "Duplicate binding of variable " << op->var;
+    TVM_FFI_ICHECK(it == let_var_remap_.end()) << "Duplicate binding of variable " << op->var;
 
     Var new_var(op->var->name_hint + "_scalar", op->var.dtype().element_of());
     let_var_remap_[op->var.get()] = new_var;

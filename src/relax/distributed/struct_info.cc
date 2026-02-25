@@ -90,20 +90,20 @@ Placement Placement::FromText(ffi::String text_repr) {
     } else if (indicator == 'S') {
       char lbracket;
       ss >> lbracket;
-      CHECK_EQ(lbracket, '[');
+      TVM_FFI_ICHECK_EQ(lbracket, '[');
       std::string substr;
       getline(ss, substr, ']');
       std::stringstream ss2(substr);
       int dim;
       ss2 >> dim;
       dim_specs.push_back(PlacementSpec::Sharding(dim));
-      CHECK(ss2.eof()) << "Invalid placement text repr";
+      TVM_FFI_ICHECK(ss2.eof()) << "Invalid placement text repr";
     } else if (indicator == ',') {
       continue;
     } else if (indicator == ' ') {
       continue;
     } else {
-      LOG(FATAL) << "Invalid placement text repr";
+      TVM_FFI_THROW(InternalError) << "Invalid placement text repr";
     }
   }
   return Placement(dim_specs);
@@ -120,12 +120,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // DTensor
 DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh device_mesh,
                                      Placement placement, Span span) {
-  CHECK_EQ(device_mesh->shape.size(), placement->dim_specs.size())
-      << "ValueError: The device mesh and placement must have the same dimension size";
+  TVM_FFI_CHECK_EQ(device_mesh->shape.size(), placement->dim_specs.size(), ValueError)
+      << "The device mesh and placement must have the same dimension size";
   for (auto spec : placement->dim_specs) {
     if (spec->kind == PlacementSpecKind::kReplica) continue;
-    CHECK_LT(spec->axis, tensor_sinfo->ndim)
-        << "ValueError: Sharding dimension should be smaller than tensor ndim";
+    TVM_FFI_CHECK_LT(spec->axis, tensor_sinfo->ndim, ValueError)
+        << "Sharding dimension should be smaller than tensor ndim";
   }
   ObjectPtr<DTensorStructInfoNode> n = ffi::make_object<DTensorStructInfoNode>();
   n->device_mesh = std::move(device_mesh);

@@ -40,7 +40,7 @@ size_t CommonUtils::GetIndex(int index, size_t max_size) {
   } else {
     v_index = index;
   }
-  ICHECK_LT(v_index, max_size) << "Index " << index << " out of range " << max_size;
+  TVM_FFI_ICHECK_LT(v_index, max_size) << "Index " << index << " out of range " << max_size;
   return v_index;
 }
 
@@ -57,8 +57,9 @@ int CommonUtils::CompareVersion(const std::vector<size_t>& given_version,
   if (given_version.size() == 0 || target_version.size() == 0) {
     return 0;
   }
-  ICHECK_EQ(given_version.size(), 3) << "Version should be in format major,minor,patch";
-  ICHECK_EQ(target_version.size(), 3) << "Target version should be in format major,minor,patch";
+  TVM_FFI_ICHECK_EQ(given_version.size(), 3) << "Version should be in format major,minor,patch";
+  TVM_FFI_ICHECK_EQ(target_version.size(), 3)
+      << "Target version should be in format major,minor,patch";
   for (size_t i = 0; i < 3; i++) {
     if (given_version[i] > target_version[i]) {
       return 1;
@@ -275,11 +276,13 @@ const ffi::String StringUtils::ToString(const ffi::Any& obj) {
     obj_string = *opt_str;
   } else if (const auto* n = obj.as<IntImmNode>()) {
     obj_string = std::to_string(n->value);
+  } else if (obj.type_index() == kTVMFFIInt) {
+    obj_string = std::to_string(obj.cast<int64_t>());
   } else if (const auto* n = obj.as<FloatImmNode>()) {
     obj_string = std::to_string(n->value);
   } else if (const auto* n = obj.as<ffi::ArrayObj>()) {
     for (size_t i = 0; i < n->size(); i++) {
-      obj_string = obj_string + ToString((*n)[i].cast<ObjectRef>());
+      obj_string = obj_string + ToString((*n)[i]);
       if (n->size() == 1 || i < n->size() - 1) {
         obj_string = obj_string + ",";
       }
@@ -308,7 +311,7 @@ bool ArrayUtils::CompareArrays(const ffi::Array<ffi::String>& left,
     return false;
   }
   size = left.size();
-  ICHECK_GT(size, 0) << "Positive size should be given, get " << size;
+  TVM_FFI_ICHECK_GT(size, 0) << "Positive size should be given, get " << size;
   if (size > static_cast<int>(left.size()) || size > static_cast<int>(right.size())) {
     return false;
   }
@@ -490,7 +493,7 @@ const ffi::Array<ffi::String> ExprUtils::GetInputTypes(const ffi::String& optype
       input_types.push_back("input");
     }
   }
-  ICHECK_EQ(input_types.size(), inputs_num)
+  TVM_FFI_ICHECK_EQ(input_types.size(), inputs_num)
       << "Optype " << optype << " get input types " << input_types << " and inputs_num "
       << inputs_num << " mismatch";
   return input_types;

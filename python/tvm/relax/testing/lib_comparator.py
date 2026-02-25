@@ -16,7 +16,8 @@
 # under the License.
 # pylint: disable=unused-argument
 """Tools to compare libraries."""
-from typing import List, Tuple, Iterable, Union
+
+from typing import Iterable, List, Tuple, Union
 
 import tvm
 import tvm.testing

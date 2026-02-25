@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E501, F841
 
 import pytest
 
@@ -571,7 +572,7 @@ def test_capture_fixed_inputs():
                 R.Tensor((16, 3, 3, 16), dtype="float16"),
                 R.Tensor((16,), dtype="float16"),
                 R.Tensor((16,), dtype="float16"),
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 3, 3, 16), dtype="float16"),
             R.Tensor((16, 3, 3, 16), dtype="float16"),
@@ -1141,9 +1142,9 @@ def test_static_input_with_symbolic_shape():
             return R.tuple()
 
         @R.function
-        def main(
-            x: R.Tensor((8,), dtype="float16"), w: R.Tensor(("m",))
-        ) -> R.Tuple(R.Tensor((8,), dtype="float16")):
+        def main(x: R.Tensor((8,), dtype="float16"), w: R.Tensor(("m",))) -> R.Tuple(
+            R.Tensor((8,), dtype="float16")
+        ):
             m = T.int64()
             R.func_attr({"num_input": 1, "relax.force_pure": True})
             cls = Expected

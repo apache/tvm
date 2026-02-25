@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: E731
 
 from typing import Any, Callable, List, Optional, Union
 
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -56,8 +58,8 @@ def _test_list_expr(arg: List[Expr], *args: List[Expr], **kwargs: List[Expr]) ->
 def _test_optional_list_expr(
     arg: Optional[List[Expr]], *args: Optional[List[Expr]], **kwargs: Optional[List[Expr]]
 ) -> None:
-    f_checker = lambda x: x is None or (
-        isinstance(x, list) and all([isinstance(arg, Expr) for arg in x])
+    f_checker = lambda x: (
+        x is None or (isinstance(x, list) and all([isinstance(arg, Expr) for arg in x]))
     )
     _test_base(f_checker, arg, *args, **kwargs)
 

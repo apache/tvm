@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401
 
 """
 .. _opt_llm:
@@ -54,7 +55,6 @@ TinyLlama model from Hugging Face and deploy it on various devices.
 # model architecture by ourselves. Apache TVM prepares a PyTorch-liked API to construct the model
 # architecture. We can use the API to construct the model architecture.
 
-
 import dataclasses
 import enum
 import os
@@ -63,12 +63,13 @@ from pprint import pprint
 from typing import List, Optional
 
 import tvm
-from tvm import dlight, relax, te, tir
+from tvm import relax, te, tir
 from tvm.relax import register_pipeline
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.relax.frontend.nn.llm.kv_cache import PagedKVCache, TIRPagedKVCache
 from tvm.runtime import ShapeTuple
+from tvm.s_tir import dlight
 
 ######################################################################
 # First, we need to define the model configuration. The configuration includes the key parameters
@@ -377,7 +378,7 @@ pprint(named_params[:5])  # Only show the first 5 parameters for demonstration
 
 @register_pipeline("opt_llm")
 def _pipeline(  # pylint: disable=too-many-arguments
-    ext_mods: List[nn.ExternModule] = None,
+    ext_mods: Optional[List[nn.ExternModule]] = None,
 ):
     ext_mods = ext_mods or []
 

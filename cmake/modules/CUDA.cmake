@@ -19,8 +19,8 @@
 find_cuda(${USE_CUDA} ${USE_CUDNN})
 
 if(CUDA_FOUND)
-  # always set the includedir when cuda is available
-  # avoid global retrigger of cmake
+  # always set the includedir when CUDA is available
+  # avoid global retrigger of CMake
   include_directories(SYSTEM ${CUDA_INCLUDE_DIRS})
 endif(CUDA_FOUND)
 
@@ -34,7 +34,7 @@ if(USE_CUDA)
   # Ensure that include directives to NVCC are in the
   # `compile_commands.json`, as required by clangd.
   #
-  # As of cmake 3.29.5 [0], if the NVCC version is 11 or higher, cmake
+  # As of CMake 3.29.5 [0], if the NVCC version is 11 or higher, CMake
   # will generate a "options-file.rsp" containing the -I flags for
   # include directories, rather than providing them on the
   # command-line.  This setting exists to work around the short
@@ -59,7 +59,7 @@ if(USE_CUDA)
 
   if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     if(CMAKE_VERSION VERSION_LESS "3.24")
-      message(FATAL_ERROR "CMAKE_CUDA_ARCHITECTURES not set. Please upgrade cmake to 3.24 to use native, or set CMAKE_CUDA_ARCHITECTURES manually")
+      message(FATAL_ERROR "CMAKE_CUDA_ARCHITECTURES not set. Please upgrade CMake to 3.24 to use native, or set CMAKE_CUDA_ARCHITECTURES manually")
     endif()
     message(STATUS "CMAKE_CUDA_ARCHITECTURES not set, using native")
     set(CMAKE_CUDA_ARCHITECTURES native)
@@ -109,7 +109,6 @@ if(USE_CUDA)
     add_library(tvm_thrust_objs OBJECT ${CONTRIB_THRUST_SRC})
     target_link_libraries(tvm_thrust_objs PRIVATE tvm_ffi_header)
     target_compile_options(tvm_thrust_objs PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>)
-    target_compile_definitions(tvm_thrust_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
     if (NOT USE_THRUST MATCHES ${IS_TRUE_PATTERN})
       find_package(CCCL REQUIRED COMPONENTS Thrust)
       target_link_libraries(tvm_thrust_objs PRIVATE CCCL::Thrust)

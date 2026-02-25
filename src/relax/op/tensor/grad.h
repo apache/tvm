@@ -46,16 +46,16 @@ Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets,
 
 /*! \brief Backward operator of relax.max_pool2d. All parameters except output_grad is the same as
  * relax.max_pool2d. Returns the gradient w.r.t. data. */
-Expr max_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_size,
-                         ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-                         ffi::Array<IntImm> dilation, bool ceil_mode, bool count_include_pad,
+Expr max_pool2d_backward(Expr output_grad, Expr data, ffi::Array<int64_t> pool_size,
+                         ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+                         ffi::Array<int64_t> dilation, bool ceil_mode, bool count_include_pad,
                          ffi::String layout, ffi::Optional<ffi::String> out_layout);
 
 /*! \brief Backward operator of relax.avg_pool2d. All parameters except output_grad is the same as
  * relax.avg_pool2d. Returns the gradient w.r.t. data. */
-Expr avg_pool2d_backward(Expr output_grad, Expr data, ffi::Array<IntImm> pool_size,
-                         ffi::Array<IntImm> strides, ffi::Array<IntImm> padding,
-                         ffi::Array<IntImm> dilation, bool ceil_mode, bool count_include_pad,
+Expr avg_pool2d_backward(Expr output_grad, Expr data, ffi::Array<int64_t> pool_size,
+                         ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
+                         ffi::Array<int64_t> dilation, bool ceil_mode, bool count_include_pad,
                          ffi::String layout, ffi::Optional<ffi::String> out_layout);
 
 /*! \brief Backward operator of relax.take. All parameters except output_grad is the same as

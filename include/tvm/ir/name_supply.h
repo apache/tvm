@@ -151,7 +151,8 @@ class NameSupply : public ObjectRef {
       // name = {O = others}{D = consecutive digits}
       // let O -> prefix;
       std::string prefix = name.substr(0, idx_last_first_num);
-      ICHECK(prefix.size() > 0 && std::isalpha(prefix[0])) << "Invalid variable name: " << name;
+      TVM_FFI_ICHECK(prefix.size() > 0 && std::isalpha(prefix[0]))
+          << "Invalid variable name: " << name;
       if (0 == name_map.count(prefix)) name_map[prefix] = 0;
       if (idx_last_first_num < name.size()) {  // has some digits.
                                                // let D's nearest natural number -> idx;

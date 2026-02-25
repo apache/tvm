@@ -15,18 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=unused-argument
+# ruff: noqa: RUF005
 """tvm.contrib.msc.framework.tvm.tools.quantize.quantizer"""
 
 from typing import List, Union
 
 import tvm
-from tvm.contrib.msc.core.tools.tool import ToolType, ToolStrategy
-from tvm.contrib.msc.core.tools.quantize import BaseQuantizer
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.quantize import BaseQuantizer
+from tvm.contrib.msc.core.tools.tool import ToolStrategy, ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
-class TVMQuantizerFactory(object):
+class TVMQuantizerFactory:
     """Quantizer factory for tvm"""
 
     def create(self, base_cls: BaseQuantizer) -> BaseQuantizer:

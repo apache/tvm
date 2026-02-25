@@ -43,7 +43,7 @@
 #define CHECKED_CALL(func, ...)                                               \
   do {                                                                        \
     HEXAPI_Status s = sim_->func(__VA_ARGS__);                                \
-    ICHECK_EQ(s, HEX_STAT_SUCCESS)                                            \
+    TVM_FFI_ICHECK_EQ(s, HEX_STAT_SUCCESS)                                    \
         << self_name_ << ": " #func " failed with code " << Status_{s}.str(); \
   } while (false)
 
@@ -65,7 +65,7 @@ class StringSwitch {
     if (f != map.end()) {
       return f->second;
     }
-    ICHECK(static_cast<bool>(def_val)) << "default value not set";
+    TVM_FFI_ICHECK(static_cast<bool>(def_val)) << "default value not set";
     return *def_val;
   }
   StringSwitch& Case(const std::string& key, T val) {
@@ -73,7 +73,7 @@ class StringSwitch {
     return *this;
   }
   StringSwitch& Default(T val) {
-    ICHECK(!static_cast<bool>(def_val)) << "default value already set";
+    TVM_FFI_ICHECK(!static_cast<bool>(def_val)) << "default value already set";
     def_val = val;
     return *this;
   }
@@ -468,7 +468,7 @@ std::string SimulatorRPCChannel::Cpu_::str() const {
   return default_cpu_;
 }
 
-// LOG(FATAL) always throws an exception or terminates the
+// TVM_FFI_THROW(InternalError) always throws an exception or terminates the
 // process, but the compiler doesn't know that.
 #if (__GNUC__)
 #pragma GCC diagnostic push
@@ -497,7 +497,7 @@ std::string SimulatorRPCChannel::Message_::str() const {
     case Message::kSendEnd:
       return "kSendEnd";
     default:
-      LOG(FATAL) << "Internal error: Unrecognized code value: " << msg.code;
+      TVM_FFI_THROW(InternalError) << "Internal error: Unrecognized code value: " << msg.code;
       break;
   }
 }
@@ -525,7 +525,8 @@ SimulatorRPCChannel::SDKInfo_::SDKInfo_(const std::string& sdk_root, const std::
   std::vector<std::string> dir_names;
 
   DIR* dir = opendir((root + "/libs/run_main_on_hexagon/ship").c_str());
-  ICHECK(dir != nullptr) << "Cannot read directory " << root + "/libs/run_main_on_hexagon/ship";
+  TVM_FFI_ICHECK(dir != nullptr) << "Cannot read directory "
+                                 << root + "/libs/run_main_on_hexagon/ship";
   while (dirent* d = readdir(dir)) {
     if (d->d_type != DT_DIR) continue;
 
@@ -537,7 +538,7 @@ SimulatorRPCChannel::SDKInfo_::SDKInfo_(const std::string& sdk_root, const std::
     }
   }
   closedir(dir);
-  ICHECK(!dir_names.empty());
+  TVM_FFI_ICHECK(!dir_names.empty());
 
   auto max_it = std::max_element(dir_names.begin(), dir_names.end());
   runmain = root + "/libs/run_main_on_hexagon/ship/" + *max_it + "/run_main_on_hexagon_sim";
@@ -553,8 +554,8 @@ HEX_8u_t SimulatorRPCChannel::PassVirtAddrCallback(void* handle, int threadno, H
   LOG(INFO) << "dispatch:" << reinterpret_cast<void*>(rpc->dispatch_v_)
             << ", message buffer:" << reinterpret_cast<void*>(rpc->message_buffer_v_);
   HEXAPI_Status s = rpc->sim_->SetBreakpoint(rpc->dispatch_v_);
-  ICHECK_EQ(s, HEX_STAT_SUCCESS) << self_name_ << ": SetBreakpoint failed with code "
-                                 << Status_{s}.str();
+  TVM_FFI_ICHECK_EQ(s, HEX_STAT_SUCCESS)
+      << self_name_ << ": SetBreakpoint failed with code " << Status_{s}.str();
   return RssV;
 }
 
@@ -587,9 +588,9 @@ std::optional<HEXAPI_Cpu> SimulatorRPCChannel::GetCPU(const detail::MaybeString&
 
 SimulatorRPCChannel::SimulatorRPCChannel(int stack_size, std::string args) {
   const char* sdk_root_env = std::getenv("HEXAGON_SDK_ROOT");
-  ICHECK(sdk_root_env != nullptr) << "Please set HEXAGON_SDK_ROOT";
+  TVM_FFI_ICHECK(sdk_root_env != nullptr) << "Please set HEXAGON_SDK_ROOT";
   const char* toolchain_env = std::getenv("HEXAGON_TOOLCHAIN");
-  ICHECK(toolchain_env != nullptr) << "Please set HEXAGON_TOOLCHAIN";
+  TVM_FFI_ICHECK(toolchain_env != nullptr) << "Please set HEXAGON_TOOLCHAIN";
 
   std::string sdk_root(sdk_root_env);
   std::string toolchain(toolchain_env);
@@ -605,7 +606,7 @@ SimulatorRPCChannel::SimulatorRPCChannel(int stack_size, std::string args) {
       LOG(INFO) << "CPU not given, defaulting to " << default_cpu_;
       maybe_cpu = GetCPU(std::string(default_cpu_));
     } else {
-      LOG(FATAL) << "Invalid CPU name " << *target_str;
+      TVM_FFI_THROW(InternalError) << "Invalid CPU name " << *target_str;
     }
   }
   cpu_ = Cpu_{*maybe_cpu}.str();
@@ -614,18 +615,18 @@ SimulatorRPCChannel::SimulatorRPCChannel(int stack_size, std::string args) {
 
   // Prepare the osam.cfg file.
   int fd_osam = mkstemps(osam_file_, suffix_len_);
-  ICHECK_GE(fd_osam, 0);
+  TVM_FFI_ICHECK_GE(fd_osam, 0);
   std::string osam_str = sdk.qurt_root + "/debugger/lnx64/qurt_model.so";
-  ICHECK_EQ(write(fd_osam, osam_str.c_str(), osam_str.size()), osam_str.size());
+  TVM_FFI_ICHECK_EQ(write(fd_osam, osam_str.c_str(), osam_str.size()), osam_str.size());
   close(fd_osam);
   // Prepare the q6ss.cfg file.
   int fd_cosim = mkstemps(cosim_file_, suffix_len_);
-  ICHECK_GE(fd_cosim, 0);
+  TVM_FFI_ICHECK_GE(fd_cosim, 0);
   std::string cosim_str =
       toolchain +
       "/lib/iss/qtimer.so --csr_base=0xFC900000 --irq_p=1 --freq=19200000 --cnttid=1\n" +
       toolchain + "/lib/iss/l2vic.so 32 0xFC910000";
-  ICHECK_EQ(write(fd_cosim, cosim_str.c_str(), cosim_str.size()), cosim_str.size());
+  TVM_FFI_ICHECK_EQ(write(fd_cosim, cosim_str.c_str(), cosim_str.size()), cosim_str.size());
   close(fd_cosim);
 
   CHECKED_CALL(ConfigureL2tcmBase, 0xD800);
@@ -650,7 +651,8 @@ SimulatorRPCChannel::SimulatorRPCChannel(int stack_size, std::string args) {
   HEX_4u_t result;
   HEXAPI_CoreState core = sim_->Run(&result);
   if (core != HEX_CORE_BREAKPOINT) {
-    LOG(FATAL) << self_name_ << ": Run not stopped on breakpoint, code=" << Core_{core}.str();
+    TVM_FFI_THROW(InternalError) << self_name_
+                                 << ": Run not stopped on breakpoint, code=" << Core_{core}.str();
   }
 
   // At this point the simulator has executed the executable's initialization
@@ -669,40 +671,40 @@ SimulatorRPCChannel::~SimulatorRPCChannel() {
 
   HEX_4u_t result;
   HEXAPI_CoreState core = sim_->Run(&result);
-  ICHECK_EQ(core, HEX_CORE_FINISHED);
+  TVM_FFI_ICHECK_EQ(core, HEX_CORE_FINISHED);
 
   unlink(osam_file_);
   unlink(cosim_file_);
 }
 
 size_t SimulatorRPCChannel::Send(const void* data, size_t size) {
-  ICHECK(size <= std::numeric_limits<uint32_t>::max());
+  TVM_FFI_ICHECK(size <= std::numeric_limits<uint32_t>::max());
 
   Message reply_start =
       SendMsg(Message::kReceiveStart, static_cast<uint32_t>(size), Message::null_va);
-  ICHECK_EQ(reply_start.code, Message::kAck);
-  ICHECK_GE(reply_start.len, size);
-  ICHECK_NE(reply_start.va, Message::null_va);
+  TVM_FFI_ICHECK_EQ(reply_start.code, Message::kAck);
+  TVM_FFI_ICHECK_GE(reply_start.len, size);
+  TVM_FFI_ICHECK_NE(reply_start.va, Message::null_va);
 
   WriteToProcess(reply_start.va, data, size);
 
   Message reply_end = SendMsg(Message::kReceiveEnd, static_cast<uint32_t>(size), reply_start.va);
-  ICHECK_EQ(reply_end.code, Message::kAck);
+  TVM_FFI_ICHECK_EQ(reply_end.code, Message::kAck);
   return size;
 }
 
 size_t SimulatorRPCChannel::Recv(void* data, size_t size) {
-  ICHECK(size <= std::numeric_limits<uint32_t>::max());
+  TVM_FFI_ICHECK(size <= std::numeric_limits<uint32_t>::max());
 
   Message reply_start = SendMsg(Message::kSendStart, static_cast<uint32_t>(size), Message::null_va);
-  ICHECK_EQ(reply_start.code, Message::kAck);
-  ICHECK_GE(reply_start.len, size);
-  ICHECK_NE(reply_start.va, Message::null_va);
+  TVM_FFI_ICHECK_EQ(reply_start.code, Message::kAck);
+  TVM_FFI_ICHECK_GE(reply_start.len, size);
+  TVM_FFI_ICHECK_NE(reply_start.va, Message::null_va);
 
   ReadFromProcess(data, reply_start.va, size);
 
   Message reply_end = SendMsg(Message::kSendEnd, static_cast<uint32_t>(size), reply_start.va);
-  ICHECK_EQ(reply_end.code, Message::kAck);
+  TVM_FFI_ICHECK_EQ(reply_end.code, Message::kAck);
   return size;
 }
 
@@ -713,7 +715,7 @@ Message SimulatorRPCChannel::SendMsg(Message msg) {
 
     core = sim_->Run(&result);
     Core_ core_ = {core};
-    ICHECK_EQ(core, HEX_CORE_BREAKPOINT)
+    TVM_FFI_ICHECK_EQ(core, HEX_CORE_BREAKPOINT)
         << "Expecting HEX_CORE_BREAKPOINT, received: " << core_.str();
   };
 
@@ -782,17 +784,17 @@ bool SimulatorRPCChannel::Configure(string_list& opts) {
     std::string key = *detail::pop_front(opts);
     auto f = opt_map_.find(key);
     if (f == opt_map_.end()) {
-      LOG(FATAL) << "Unrecognized simulator option: " << key;
+      TVM_FFI_THROW(InternalError) << "Unrecognized simulator option: " << key;
       // unreachable
     }
-    ICHECK((this->*f->second)(opts)) << "error handling option: " << key;
+    TVM_FFI_ICHECK((this->*f->second)(opts)) << "error handling option: " << key;
   }
 
   // Check AHB.
   if (ahb_.first.has_value() && ahb_.second.has_value()) {
     CHECKED_CALL(ConfigureAHB, *ahb_.first, *ahb_.second);
   } else {
-    ICHECK(!ahb_.first.has_value() && !ahb_.second.has_value())
+    TVM_FFI_ICHECK(!ahb_.first.has_value() && !ahb_.second.has_value())
         << self_name_ << ": please specify both low and high addresses for AHB";
   }
 
@@ -800,7 +802,7 @@ bool SimulatorRPCChannel::Configure(string_list& opts) {
   if (axi2_.first.has_value() && axi2_.second.has_value()) {
     CHECKED_CALL(ConfigureAXI2, *axi2_.first, *axi2_.second);
   } else {
-    ICHECK(!axi2_.first.has_value() && !axi2_.second.has_value())
+    TVM_FFI_ICHECK(!axi2_.first.has_value() && !axi2_.second.has_value())
         << self_name_ << ": please specify both low and high addresses for AXI2";
   }
 
@@ -826,7 +828,7 @@ bool SimulatorRPCChannel::HandleAHBBusRatio(string_list& rest) {
 
 bool SimulatorRPCChannel::HandleAHBHighAddr(string_list& rest) {
   auto addr = detail::to_uint(detail::pop_front(rest));
-  ICHECK(addr) << self_name_ << ": invalid value for AHB high adddress";
+  TVM_FFI_ICHECK(addr) << self_name_ << ": invalid value for AHB high adddress";
   if (addr) {
     ahb_.second = *addr;
   }
@@ -835,7 +837,7 @@ bool SimulatorRPCChannel::HandleAHBHighAddr(string_list& rest) {
 
 bool SimulatorRPCChannel::HandleAHBLowAddr(string_list& rest) {
   auto addr = detail::to_uint(detail::pop_front(rest));
-  ICHECK(addr) << self_name_ << ": invalid value for AHB low adddress";
+  TVM_FFI_ICHECK(addr) << self_name_ << ": invalid value for AHB low adddress";
   if (addr) {
     ahb_.first = *addr;
   }
@@ -861,7 +863,7 @@ bool SimulatorRPCChannel::HandleAXI2BusRatio(string_list& rest) {
 
 bool SimulatorRPCChannel::HandleAXI2HighAddr(string_list& rest) {
   auto addr = detail::to_uint(detail::pop_front(rest));
-  ICHECK(addr) << self_name_ << ": invalid value for AXI2 high adddress";
+  TVM_FFI_ICHECK(addr) << self_name_ << ": invalid value for AXI2 high adddress";
   if (addr) {
     axi2_.second = *addr;
   }
@@ -870,7 +872,7 @@ bool SimulatorRPCChannel::HandleAXI2HighAddr(string_list& rest) {
 
 bool SimulatorRPCChannel::HandleAXI2LowAddr(string_list& rest) {
   auto addr = detail::to_uint(detail::pop_front(rest));
-  ICHECK(addr) << self_name_ << ": invalid value for AXI2 low adddress";
+  TVM_FFI_ICHECK(addr) << self_name_ << ": invalid value for AXI2 low adddress";
   if (addr) {
     axi2_.first = *addr;
   }
@@ -1120,8 +1122,8 @@ bool SimulatorRPCChannel::HandleQuiet(string_list& rest) {
 
 bool SimulatorRPCChannel::HandleReconnect(string_list& rest) {
   if (!debug_port_) {
-    LOG(FATAL) << "Reconnect error: --reconnect must be specified "
-                  "AFTER --gdbserv <port_num>";
+    TVM_FFI_THROW(InternalError) << "Reconnect error: --reconnect must be specified "
+                                    "AFTER --gdbserv <port_num>";
   }
   CHECKED_CALL(ConfigureRemoteDebug, *debug_port_, true);
   return true;
@@ -1374,7 +1376,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.hexagon.create_hexagon_session", [](ffi::PackedArgs args, ffi::Any* rv) {
-        ICHECK(args.size() >= 4) << args.size() << " is less than 4";
+        TVM_FFI_ICHECK(args.size() >= 4) << args.size() << " is less than 4";
 
         auto session_name = args[0].cast<std::string>();
         int stack_size = args[1].cast<int>();

@@ -17,8 +17,9 @@
 """tvm.contrib.msc.core.tools.track.tracker"""
 
 from typing import Any, List
-from tvm.contrib.msc.core.tools.tool import ToolType, BaseTool, ToolStrategy
+
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.tool import BaseTool, ToolStrategy, ToolType
 
 
 class BaseTracker(BaseTool):
@@ -81,7 +82,7 @@ class BaseTracker(BaseTool):
                     passed[stage]["total"] += 1
                     if p_info["pass"]:
                         passed[stage]["passed"] += 1
-            msg = "Track({})[{}] {} datas".format(self._stage, self._forward_cnt, len(self._plan))
+            msg = f"Track({self._stage})[{self._forward_cnt}] {len(self._plan)} datas"
             if passed:
                 msg += ", passed -> "
                 msg += "; ".join(

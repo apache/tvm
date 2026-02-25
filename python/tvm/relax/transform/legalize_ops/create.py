@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# ruff: noqa: E731
 """Default legalization function for creation operators."""
+
 from typing import Optional
 
 import numpy as np

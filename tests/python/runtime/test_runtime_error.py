@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F841
 """Test runtime error handling"""
 
 import functools
@@ -90,7 +91,7 @@ def test_deep_callback():
     assert local_frames == ["test_deep_callback", "flevel3", "flevel2", "error_callback"]
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def _has_debug_symbols():
     lib = tvm.base._LIB
     headers = subprocess.check_output(["objdump", "--section-headers", lib._name], encoding="utf-8")

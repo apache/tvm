@@ -18,10 +18,9 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.framework.torch.frontend.translate"""
 
-from typing import Dict, Optional, Tuple, List, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import tvm
-
 from tvm.contrib.msc.core.ir.graph import MSCGraph
 from tvm.contrib.msc.framework.tensorflow import tf_v1
 

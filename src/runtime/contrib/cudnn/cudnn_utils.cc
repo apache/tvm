@@ -23,7 +23,6 @@
 
 #include "cudnn_utils.h"
 
-#include <dmlc/thread_local.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -46,10 +45,10 @@ cudnnDataType_t CuDNNDataType::DLTypeToCuDNNType(const DLDataType& dtype) {
       else if (dtype.bits == 8 && dtype.lanes == 4)
         return CUDNN_DATA_INT8x4;
       else
-        LOG(FATAL) << "Unsupported type";
+        TVM_FFI_THROW(InternalError) << "Unsupported type";
       break;
     case kDLUInt:
-      LOG(FATAL) << "Unsupported type";
+      TVM_FFI_THROW(InternalError) << "Unsupported type";
       break;
     case kDLFloat:
       if (dtype.bits == 32 && dtype.lanes == 1)
@@ -59,7 +58,7 @@ cudnnDataType_t CuDNNDataType::DLTypeToCuDNNType(const DLDataType& dtype) {
       else if (dtype.bits == 16 && dtype.lanes == 1)
         return CUDNN_DATA_HALF;
       else
-        LOG(FATAL) << "Unsupported type";
+        TVM_FFI_THROW(InternalError) << "Unsupported type";
       break;
   }
   return CUDNN_DATA_FLOAT;
@@ -121,12 +120,11 @@ CuDNNThreadEntry::CuDNNThreadEntry() {
 
 CuDNNThreadEntry::~CuDNNThreadEntry() {}
 
-typedef dmlc::ThreadLocalStore<CuDNNThreadEntry> CuDNNThreadStore;
-
 CuDNNThreadEntry* CuDNNThreadEntry::ThreadLocal(Device curr_device, bool check_exists) {
-  auto* res = CuDNNThreadStore::Get();
+  static thread_local CuDNNThreadEntry inst;
+  auto* res = &inst;
   if (check_exists) {
-    ICHECK(res->exists()) << "CUDNN_STATUS_NOT_INITIALIZED";
+    TVM_FFI_ICHECK(res->exists()) << "CUDNN_STATUS_NOT_INITIALIZED";
   }
 
   cudaStream_t stream =
@@ -227,7 +225,8 @@ void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int g
         static_cast<int>(y_dim[ni]), static_cast<int>(y_dim[ci]), static_cast<int>(y_dim[hi]),
         static_cast<int>(y_dim[wi])));
   } else {
-    ICHECK_EQ(format, 0) << "Use of layout CUDNN_TENSOR_NHWC is supported only for 4-D tensors.";
+    TVM_FFI_ICHECK_EQ(format, 0)
+        << "Use of layout CUDNN_TENSOR_NHWC is supported only for 4-D tensors.";
 
     CUDNN_CALL(cudnnSetConvolutionNdDescriptor(entry_ptr->conv_entry.conv_desc, dims, pad, stride,
                                                dilation, entry_ptr->conv_entry.mode,

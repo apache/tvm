@@ -34,11 +34,7 @@
  * We will keep the impact minimum by puting it as a private
  * runtime builtin provide as in this file.
  */
-#define PICOJSON_USE_INT64
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS
-#endif
-#include <picojson.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/tensor.h>
@@ -54,89 +50,78 @@ namespace tvm {
 namespace runtime {
 namespace vm {
 
-template <typename ExpectedType>
-inline ExpectedType AsType(const picojson::value& json) {
-  ICHECK(json.is<ExpectedType>());
-  return json.get<ExpectedType>();
-}
+namespace json = tvm::ffi::json;
 
-template <typename ValueType>
-inline ValueType GetValue(const picojson::object& json, const std::string& key) {
-  return AsType<ValueType>(json.at(key));
-}
-
-TensorCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::object& json) {
+TensorCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const json::Object& json) {
   std::vector<ffi::Shape::index_type> shape;
   {
-    picojson::array shape_json = GetValue<picojson::array>(json, "shape");
+    json::Array shape_json = json["shape"].cast<json::Array>();
     shape.reserve(shape_json.size());
-    for (const picojson::value& d : shape_json) {
-      shape.push_back(AsType<int64_t>(d));
+    for (const ffi::Any& d : shape_json) {
+      shape.push_back(d.cast<int64_t>());
     }
   }
   TensorCacheMetadata::FileRecord::ParamRecord result;
-  std::string dtype = GetValue<std::string>(json, "dtype");
-  result.name = GetValue<std::string>(json, "name");
+  std::string dtype = json["dtype"].cast<ffi::String>();
+  result.name = json["name"].cast<ffi::String>();
   result.dtype = DataType(ffi::StringToDLDataType(dtype));
-  result.format = GetValue<std::string>(json, "format");
-  result.nbytes = GetValue<int64_t>(json, "nbytes");
-  result.byte_offset = GetValue<int64_t>(json, "byteOffset");
+  result.format = json["format"].cast<ffi::String>();
+  result.nbytes = json["nbytes"].cast<int64_t>();
+  result.byte_offset = json["byteOffset"].cast<int64_t>();
   result.shape = ffi::Shape(std::move(shape));
   return result;
 }
 
-TensorCacheMetadata::FileRecord JSONAsFileRecord(const picojson::object& json) {
-  picojson::array records = GetValue<picojson::array>(json, "records");
+TensorCacheMetadata::FileRecord JSONAsFileRecord(const json::Object& json) {
+  json::Array records = json["records"].cast<json::Array>();
   TensorCacheMetadata::FileRecord result;
-  result.data_path = GetValue<std::string>(json, "dataPath");
-  result.format = GetValue<std::string>(json, "format");
-  result.nbytes = GetValue<int64_t>(json, "nbytes");
+  result.data_path = json["dataPath"].cast<ffi::String>();
+  result.format = json["format"].cast<ffi::String>();
+  result.nbytes = json["nbytes"].cast<int64_t>();
   result.records.reserve(records.size());
-  for (const picojson::value& item : records) {
-    result.records.push_back(JSONAsParamRecord(AsType<picojson::object>(item)));
+  for (const ffi::Any& item : records) {
+    result.records.push_back(JSONAsParamRecord(item.cast<json::Object>()));
   }
   return result;
 }
 
-TensorCacheMetadata JSONAsTensorCacheMetadata(const picojson::object& json) {
-  picojson::array records = GetValue<picojson::array>(json, "records");
+TensorCacheMetadata JSONAsTensorCacheMetadata(const json::Object& json) {
+  json::Array records = json["records"].cast<json::Array>();
   TensorCacheMetadata result;
   result.records.reserve(records.size());
-  for (const picojson::value& item : records) {
-    result.records.push_back(JSONAsFileRecord(AsType<picojson::object>(item)));
+  for (const ffi::Any& item : records) {
+    result.records.push_back(JSONAsFileRecord(item.cast<json::Object>()));
   }
   return result;
 }
 
 TensorCacheMetadata TensorCacheMetadata::LoadFromStr(const std::string& json_str,
                                                      const std::string& path) {
-  picojson::value json_info;
-  {
-    std::string err = picojson::parse(json_info, json_str);
-    if (!err.empty()) {
-      LOG(FATAL) << "Failed to parse JSON: err. The JSON string is:" << json_str;
-    }
-    CHECK(json_info.is<picojson::object>())
-        << "ValueError: The given string is not a JSON object: " << json_str;
+  ffi::String err;
+  json::Value json_info = json::Parse(json_str, &err);
+  if (!err.empty()) {
+    TVM_FFI_THROW(InternalError) << "Failed to parse JSON: " << err
+                                 << ". The JSON string is:" << json_str;
   }
-  TensorCacheMetadata result = JSONAsTensorCacheMetadata(AsType<picojson::object>(json_info));
+  TVM_FFI_CHECK(json_info.as<json::Object>(), ValueError)
+      << "The given string is not a JSON object: " << json_str;
+  TensorCacheMetadata result = JSONAsTensorCacheMetadata(json_info.cast<json::Object>());
   result.path = path;
   return result;
 }
 
 TVM_DLL TensorCacheMetadata TensorCacheMetadata::Load(const std::string& path) {
-  picojson::value json_info;
-  {
-    std::string json_str;
-    LoadBinaryFromFile(path + "/tensor-cache.json", &json_str);
-    std::string err = picojson::parse(json_info, json_str);
-    if (!err.empty()) {
-      LOG(FATAL) << "Failed to parse JSON: err. The JSON string is:" << json_str;
-    }
-    CHECK(json_info.is<picojson::object>())
-        << "ValueError: The given string is not a JSON object: " << json_str;
+  std::string json_str;
+  LoadBinaryFromFile(path + "/tensor-cache.json", &json_str);
+  ffi::String err;
+  json::Value json_info = json::Parse(json_str, &err);
+  if (!err.empty()) {
+    TVM_FFI_THROW(InternalError) << "Failed to parse JSON: " << err
+                                 << ". The JSON string is:" << json_str;
   }
-  TensorCacheMetadata result = JSONAsTensorCacheMetadata(AsType<picojson::object>(json_info));
+  TVM_FFI_CHECK(json_info.as<json::Object>(), ValueError)
+      << "The given string is not a JSON object: " << json_str;
+  TensorCacheMetadata result = JSONAsTensorCacheMetadata(json_info.cast<json::Object>());
   result.path = path;
   return result;
 }
@@ -190,9 +175,9 @@ TVM_DLL ffi::Array<Tensor> TensorCacheMetadata::FileRecord::Load(
     std::string* raw_data_buffer,    //
     ffi::Optional<Tensor>* staging_buffer) const {
   LoadBinaryFromFile(path_prefix + "/" + this->data_path, raw_data_buffer);
-  CHECK_EQ(this->format, "raw-shard") << "ValueError: Only `raw-shard` format is supported";
-  CHECK_EQ(this->nbytes, raw_data_buffer->length())
-      << "ValueError: Encountered an corrupted parameter shard. It means it is not downloaded "
+  TVM_FFI_CHECK_EQ(this->format, "raw-shard", ValueError) << "Only `raw-shard` format is supported";
+  TVM_FFI_CHECK_EQ(this->nbytes, raw_data_buffer->length(), ValueError)
+      << "Encountered an corrupted parameter shard. It means it is not downloaded "
          "completely or downloading is interrupted. Please try to download again.";
   ffi::Array<Tensor> result;
   result.reserve(this->records.size());
@@ -215,7 +200,8 @@ class TensorCache {
   static void Update(ffi::String name, Tensor arr, bool override) {
     TensorCache* pool = Global();
     if (!override) {
-      ICHECK_EQ(pool->pool_.count(name), 0) << "Name " << name << " already exists in the cache";
+      TVM_FFI_ICHECK_EQ(pool->pool_.count(name), 0)
+          << "Name " << name << " already exists in the cache";
     }
     pool->pool_.Set(name, arr);
   }
@@ -252,9 +238,9 @@ class TensorCache {
     for (const TensorCacheMetadata::FileRecord& shard_rec : metadata.records) {
       try {
         params = shard_rec.Load(device, cache_path, &raw_data, &staging_buffer);
-      } catch (const dmlc::Error& e) {
-        LOG(FATAL) << "ValueError: Error when loading parameters from " << shard_rec.data_path
-                   << ": " << e.what();
+      } catch (const std::runtime_error& e) {
+        TVM_FFI_THROW(ValueError) << "Error when loading parameters from " << shard_rec.data_path
+                                  << ": " << e.what();
       }
       int num_params = params.size();
       for (int i = 0; i < num_params; ++i) {
@@ -273,7 +259,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("vm.builtin.tensor_cache.get", TensorCache::Get)
       .def_packed("vm.builtin.tensor_cache.update",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    CHECK(args.size() == 2 || args.size() == 3);
+                    TVM_FFI_ICHECK(args.size() == 2 || args.size() == 3);
                     ffi::String name = args[0].cast<ffi::String>();
                     bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
 
@@ -324,7 +310,7 @@ class ParamModuleNode : public ffi::ModuleObj {
         params.push_back(opt.value());
       } else {
         if (num_params == -1) return params;
-        LOG(FATAL) << "Cannot find " << name << " in cache";
+        TVM_FFI_THROW(InternalError) << "Cannot find " << name << " in cache";
       }
     }
     return params;
@@ -337,7 +323,7 @@ class ParamModuleNode : public ffi::ModuleObj {
       if (ffi::Optional<Tensor> opt = TensorCache::Get(name)) {
         result.push_back(opt.value());
       } else {
-        LOG(FATAL) << "ValueError: Cannot find parameter in cache: " << name;
+        TVM_FFI_THROW(ValueError) << "Cannot find parameter in cache: " << name;
       }
     }
     return result;
@@ -372,8 +358,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     names.reserve(args.size());
                     for (int i = 0; i < args.size(); ++i) {
                       if (!args[i].try_cast<ffi::String>()) {
-                        LOG(FATAL) << "ValueError: Expect string as input, but get "
-                                   << args[i].GetTypeKey() << " at " << i;
+                        TVM_FFI_THROW(ValueError) << "Expect string as input, but get "
+                                                  << args[i].GetTypeKey() << " at " << i;
                       }
                       names.push_back(args[i].cast<ffi::String>());
                     }

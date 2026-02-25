@@ -61,7 +61,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   const char* kind() const override { return "dnnl_json"; }
 
   void Init(const ffi::Array<Tensor>& consts) override {
-    ICHECK_EQ(consts.size(), const_idx_.size())
+    TVM_FFI_ICHECK_EQ(consts.size(), const_idx_.size())
         << "The number of input constants must match the number of required.";
 
     // Setup constants entries for weights.
@@ -70,7 +70,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   /* Unused stub implementation */
-  void Run() override { LOG(FATAL) << "Unreachable code"; }
+  void Run() override { TVM_FFI_THROW(InternalError) << "Unreachable code"; }
 
   /* Thread safe implementation of Run. Keep runtime instance immutable */
   void Run(const ffi::PackedArgs& args) const {
@@ -104,9 +104,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     if (this->symbol_name_ == name) {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
-        ICHECK(this->initialized_) << "The module has not been initialized";
+        TVM_FFI_ICHECK(this->initialized_) << "The module has not been initialized";
 
-        ICHECK_EQ(args.size(), input_var_eid_.size() + outputs_.size())
+        TVM_FFI_ICHECK_EQ(args.size(), input_var_eid_.size() + outputs_.size())
             << "Found mismatch in the number of provided data entries and required.";
 
         Run(args);
@@ -152,7 +152,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto sum_scl_tr = GetInputByName(nid, "sum_scl_idx");
 
     if (o_scl_tr) {
-      ICHECK(o_scl_tr.IsConstant());
+      TVM_FFI_ICHECK(o_scl_tr.IsConstant());
       auto data = o_scl_tr.GetConstDataLikeVec<float>();
       attr.set_output_scales(data.size() == 1 ? 0 : (1 << 1), data);
     }
@@ -260,7 +260,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     for (size_t nid = 0; nid < nodes_.size(); ++nid) {
       const auto& node = nodes_[nid];
       if (node.GetOpType() == "kernel") {
-        ICHECK_EQ(node.GetOpType(), "kernel");
+        TVM_FFI_ICHECK_EQ(node.GetOpType(), "kernel");
         auto op_name = node.GetOpName();
         if (tvm::runtime::regex_match(op_name, deconv_pat) ||
             tvm::runtime::regex_match(op_name, conv_transpose_pat)) {
@@ -288,7 +288,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         } else if ("nn.batch_matmul" == op_name) {
           BatchMatMul(nid);
         } else {
-          LOG(FATAL) << "Unsupported op: " << op_name;
+          TVM_FFI_THROW(InternalError) << "Unsupported op: " << op_name;
         }
       }
     }
@@ -566,7 +566,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto center = GetNodeAttr<bool>(node, "center");
     auto scale = GetNodeAttr<bool>(node, "scale");
 
-    ICHECK(axis == 1 && center && scale) << "Unimplemented BatchNorm case";
+    TVM_FFI_ICHECK(axis == 1 && center && scale) << "Unimplemented BatchNorm case";
 
     auto bn_desc = dnnl::batch_normalization_forward::desc(
         dnnl::prop_kind::forward_inference, src_tr.desc(), epsilon,
@@ -576,8 +576,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Concatenate scale and shift tensors
     auto scale_shift_tr = TensorRequisite::AsIs(bn_prim_desc.weights_desc(), GenUniqueEid());
     auto sc_sh_dims = scale_shift_tr.dims();
-    ICHECK(sc_sh_dims.size() == 2);
-    ICHECK(sc_sh_dims[0] == 2);
+    TVM_FFI_ICHECK(sc_sh_dims.size() == 2);
+    TVM_FFI_ICHECK(sc_sh_dims[0] == 2);
     sc_sh_dims[0] /= 2;
     auto scale_tr = scale_shift_tr.Crop(sc_sh_dims, {0, 0}).Squeeze();
     auto shift_tr = scale_shift_tr.Crop(sc_sh_dims, {1, 0}).Squeeze();
@@ -610,7 +610,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto center = GetNodeAttr<bool>(node, "center");
     auto scale = GetNodeAttr<bool>(node, "scale");
 
-    ICHECK(axis == -1 && center && scale) << "Unimplemented LayerNorm case";
+    TVM_FFI_ICHECK(axis == -1 && center && scale) << "Unimplemented LayerNorm case";
 
     // LN description.
     auto lnorm_desc = dnnl::layer_normalization_forward::desc(
@@ -623,8 +623,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto scale_shift_tr = TensorRequisite::AsIs(lnorm_prim_desc.weights_desc(), GenUniqueEid());
     auto sc_sh_dims = scale_shift_tr.dims();
 
-    ICHECK(sc_sh_dims.size() == 2);
-    ICHECK(sc_sh_dims[0] == 2);
+    TVM_FFI_ICHECK(sc_sh_dims.size() == 2);
+    TVM_FFI_ICHECK(sc_sh_dims[0] == 2);
     sc_sh_dims[0] /= 2;
     auto scale_tr = scale_shift_tr.Crop(sc_sh_dims, {0, 0}).Squeeze();
     auto shift_tr = scale_shift_tr.Crop(sc_sh_dims, {1, 0}).Squeeze();
@@ -661,7 +661,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     src_tr = src_tr.TreatAs(src_layout);
     dst_tr = dst_tr.TreatAs(dst_layout);
 
-    ICHECK(src_tr.dims().size() > 2);
+    TVM_FFI_ICHECK(src_tr.dims().size() > 2);
 
     std::vector<int64_t> feature_size;
     for (size_t i = 2; i < src_tr.dims().size(); i++) {
@@ -723,7 +723,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto elt_desc = dnnl::eltwise_forward::desc(dnnl::prop_kind::forward_inference, algo,
                                                 src_tr.desc(), alpha, beta);
     auto elt_prim_desc = dnnl::eltwise_forward::primitive_desc(elt_desc, engine_);
-    ICHECK(src_tr.desc() == elt_prim_desc.dst_desc());
+    TVM_FFI_ICHECK(src_tr.desc() == elt_prim_desc.dst_desc());
 
     Submit(dnnl::eltwise_forward(elt_prim_desc), {{DNNL_ARG_SRC, src_tr}, {DNNL_ARG_DST, dst_tr}});
   }
@@ -742,7 +742,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto softmax_desc =
         dnnl::softmax_forward::desc(dnnl::prop_kind::forward_inference, src_tr.desc(), axis);
     auto softmax_prim_desc = dnnl::softmax_forward::primitive_desc(softmax_desc, engine_);
-    ICHECK(dst_tr.desc() == softmax_prim_desc.dst_desc());
+    TVM_FFI_ICHECK(dst_tr.desc() == softmax_prim_desc.dst_desc());
 
     Submit(dnnl::softmax_forward(softmax_prim_desc),
            {{DNNL_ARG_SRC, src_tr}, {DNNL_ARG_DST, dst_tr}});
@@ -750,7 +750,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   void Binary(const size_t& nid, dnnl::algorithm algo) {
     auto node = nodes_[nid];
-    ICHECK_EQ(node.GetInputs().size(), 2U);
+    TVM_FFI_ICHECK_EQ(node.GetInputs().size(), 2U);
 
     // Memory and compute description.
     auto lhs_tr = GetInput(nid, 0);
@@ -767,40 +767,31 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
            {{DNNL_ARG_SRC_0, lhs_tr}, {DNNL_ARG_SRC_1, rhs_tr}, {DNNL_ARG_DST, dst_tr}});
   }
 
-  template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
-  T AttrConvert(std::vector<std::string> val) {
-    ICHECK_EQ(val.size(), 1);
-    return std::stol(val[0]);
-  }
-
-  template <typename T, std::enable_if_t<std::is_floating_point<T>::value, int> = 0>
-  T AttrConvert(std::vector<std::string> val) {
-    ICHECK_EQ(val.size(), 1);
-    return std::stof(val[0]);
-  }
-
-  template <typename T, std::enable_if_t<std::is_same<T, std::string>::value, int> = 0>
-  T AttrConvert(std::vector<std::string> val) {
-    ICHECK_EQ(val.size(), 1);
-    return val[0];
-  }
-
-  template <typename T,
-            std::enable_if_t<std::is_same<T, std::vector<typename T::value_type>>::value, int> = 0>
-  T AttrConvert(std::vector<std::string> val) {
-    T res;
-    for (const auto& el : val) res.push_back(AttrConvert<typename T::value_type>({el}));
-    return res;
-  }
-
   /*!
    * \brief Helper to extract node attribute with ability to specify default value and result type.
    */
   template <typename T>
-  const T GetNodeAttr(const json::JSONGraphNode& node, std::string name,
-                      std::vector<std::string> def = {}) {
-    auto attr = node.HasAttr(name) ? node.GetAttr<std::vector<std::string>>(name) : def;
-    return AttrConvert<T>(attr);
+  const T GetNodeAttr(const json::JSONGraphNode& node, const std::string& name, T def = {}) {
+    if (!node.HasAttr(name)) return def;
+    if constexpr (std::is_same_v<T, bool>) {
+      return static_cast<bool>(node.GetAttr<int64_t>(name));
+    } else if constexpr (std::is_integral_v<T>) {
+      return static_cast<T>(node.GetAttr<int64_t>(name));
+    } else if constexpr (std::is_floating_point_v<T>) {
+      return static_cast<T>(node.GetAttr<double>(name));
+    } else if constexpr (std::is_same_v<T, std::string>) {
+      return std::string(node.GetAttr<ffi::String>(name));
+    } else if constexpr (std::is_same_v<T, std::vector<int64_t>>) {
+      auto arr = node.GetAttr<ffi::Array<int64_t>>(name);
+      std::vector<int64_t> res;
+      for (size_t i = 0; i < arr.size(); ++i) res.push_back(arr[i]);
+      return res;
+    } else if constexpr (std::is_same_v<T, std::vector<std::string>>) {
+      auto arr = node.GetAttr<ffi::Array<ffi::String>>(name);
+      std::vector<std::string> res;
+      for (size_t i = 0; i < arr.size(); ++i) res.push_back(std::string(arr[i]));
+      return res;
+    }
   }
 
   TensorRequisite GetInput(const size_t& nid, const int idx) {
@@ -808,20 +799,21 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     const JSONGraphNode& node = nodes_[nid];
 
-    ICHECK_LT(idx, node.GetInputs().size());
+    TVM_FFI_ICHECK_LT(idx, node.GetInputs().size());
     auto data_entry = node.GetInputs()[idx];
 
-    auto shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
+    auto shape_arr = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
     auto dtype = nodes_[data_entry.id_].GetOpDataType()[data_entry.index_];
     auto eid = node_row_ptr_[data_entry.id_] + data_entry.index_;
     auto const_dl_tensor = data_entry_[eid];
 
+    std::vector<int64_t> shape(shape_arr.begin(), shape_arr.end());
     auto desc = MakePlainDesc(shape, dtype);
 
     TensorRequisite res;
     if (const_dl_tensor) {
-      ICHECK(const_dl_tensor->data);
-      ICHECK(ffi::IsContiguous(*const_dl_tensor));
+      TVM_FFI_ICHECK(const_dl_tensor->data);
+      TVM_FFI_ICHECK(ffi::IsContiguous(*const_dl_tensor));
       auto mem = dnnl::memory(desc, engine_, const_dl_tensor->data);
       res = TensorRequisite::AsIs(mem, eid);
     } else {
@@ -831,7 +823,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   TensorRequisite GetInputByName(const size_t& nid, const std::string& name) {
-    auto idx = GetNodeAttr<int>(nodes_[nid], name, {"-1"});
+    auto idx = GetNodeAttr<int>(nodes_[nid], name, -1);
     return GetInput(nid, idx);
   }
 
@@ -839,13 +831,14 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     if (idx == -1) return {};  // -1 reserved value for empty input.
     const JSONGraphNode& node = nodes_[nid];
 
-    ICHECK_LT(idx, node.GetNumOutput());
-    auto shape = node.GetOpShape()[idx];
+    TVM_FFI_ICHECK_LT(idx, node.GetNumOutput());
+    auto shape_arr = node.GetOpShape()[idx];
     auto dtype = node.GetOpDataType()[idx];
     auto eid = node_row_ptr_[nid] + static_cast<uint32_t>(idx);
 
-    ICHECK(data_entry_[eid] == nullptr);
+    TVM_FFI_ICHECK(data_entry_[eid] == nullptr);
 
+    std::vector<int64_t> shape(shape_arr.begin(), shape_arr.end());
     auto desc = MakePlainDesc(shape, dtype);
 
     return TensorRequisite::AsIs(desc, eid).Backward();

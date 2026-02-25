@@ -16,7 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Default legalization function for unary operators."""
-from tvm import topi, te
+
+from tvm import te, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr

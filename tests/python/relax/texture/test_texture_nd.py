@@ -14,24 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F401, F821, F841
 
 import os
+import tempfile
+
+import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
-import pytest
-import tempfile
-import numpy as np
-
 from tvm import (
-    relax,
+    DataType,
     IRModule,
+    relax,
+    tir,
 )
-from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
-from tvm.script import ir as I, tir as T
-from tvm.target import Target
 from tvm.contrib import ndk
-from tvm import tir, DataType
+from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.rpc import connect_tracker
+from tvm.script import ir as I
+from tvm.script import tir as T
+from tvm.target import Target
 
 
 def get_rpc():
@@ -146,9 +150,12 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
     mod = TextureCopy
 
     if remote is None:
-        target = Target(backend + " -device=adreno")
+        target = Target({"kind": backend, "device": "adreno"})
     else:
-        target = Target(backend + " -device=adreno", "llvm -mtriple=aarch64-linux-android")
+        target = Target(
+            {"kind": backend, "device": "adreno"},
+            {"kind": "llvm", "mtriple": "aarch64-linux-android"},
+        )
 
     with target:
         mod = preprocess_pipeline(mod)

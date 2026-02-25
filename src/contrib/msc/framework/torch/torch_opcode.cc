@@ -52,10 +52,11 @@ void TorchOpCode::CodeGenForward() { stack_.op_call().op_inputs_arg(false); }
 
 const StrictListDoc TorchOpCode::GetPadding(const ffi::String& key) {
   std::vector<int> padding, src_padding;
-  ICHECK(node()->GetAttr(key, &src_padding));
+  TVM_FFI_ICHECK(node()->GetAttr(key, &src_padding));
   if (node()->optype == "nn.conv1d" || node()->optype == "msc.conv1d_bias") {
     if (src_padding.size() == 2) {
-      ICHECK(src_padding[0] == src_padding[1]) << "Only accept symmetric padding, get " << node();
+      TVM_FFI_ICHECK(src_padding[0] == src_padding[1])
+          << "Only accept symmetric padding, get " << node();
       padding.push_back(src_padding[0]);
     } else {
       LOG_FATAL << "nn.conv1d with unexpected padding " << node();
@@ -63,7 +64,7 @@ const StrictListDoc TorchOpCode::GetPadding(const ffi::String& key) {
   } else if (node()->optype == "nn.conv2d" || node()->optype == "msc.conv2d_bias" ||
              node()->optype == "nn.avg_pool2d" || node()->optype == "nn.max_pool2d") {
     if (src_padding.size() == 4) {
-      ICHECK(src_padding[0] == src_padding[2] && src_padding[1] == src_padding[3])
+      TVM_FFI_ICHECK(src_padding[0] == src_padding[2] && src_padding[1] == src_padding[3])
           << "Only accept symmetric padding, get " << node();
       padding.push_back(src_padding[0]);
       padding.push_back(src_padding[1]);
@@ -161,7 +162,7 @@ class TorchBatchNormCodeGen : public TorchOpCode {
 
  protected:
   void CodeGenInit() final {
-    ICHECK(node()->GetTypeAttr<bool>("center") && node()->GetTypeAttr<bool>("scale"))
+    TVM_FFI_ICHECK(node()->GetTypeAttr<bool>("center") && node()->GetTypeAttr<bool>("scale"))
         << "Only support center and scale batchnorm, get " << node();
     const auto& gamma = node()->WeightAt("gamma");
     stack_.op_call().call_arg(gamma->DimAt(0), "num_features").op_arg<float>("epsilon", "eps");
@@ -381,7 +382,7 @@ class TorchGroupNormCodeGen : public TorchOpCode {
 
  protected:
   void CodeGenInit() final {
-    ICHECK(node()->GetTypeAttr<bool>("center") && node()->GetTypeAttr<bool>("scale"))
+    TVM_FFI_ICHECK(node()->GetTypeAttr<bool>("center") && node()->GetTypeAttr<bool>("scale"))
         << "Only support center and scale batchnorm, get " << node();
     int channel_axis = node()->GetTypeAttr<int>("channel_axis");
     stack_.op_call()
@@ -396,7 +397,7 @@ class TorchLayerNormCodeGen : public TorchOpCode {
 
  protected:
   void CodeGenInit() final {
-    ICHECK(node()->GetTypeAttr<bool>("center") && node()->GetTypeAttr<bool>("scale"))
+    TVM_FFI_ICHECK(node()->GetTypeAttr<bool>("center") && node()->GetTypeAttr<bool>("scale"))
         << "Only support center and scale batchnorm, get " << node();
     const auto& axes =
         CommonUtils::GetIndices(node()->GetTypeArrayAttr<int>("axes"), node()->InputAt(0)->Ndim());
@@ -568,7 +569,7 @@ class TorchResize2dCodeGen : public TorchOpCode {
     if (method == "nearest_neighbor") {
       v_method = "nearest";
     } else {
-      LOG(FATAL) << "Unexpected resize2d method " << method;
+      TVM_FFI_THROW(InternalError) << "Unexpected resize2d method " << method;
     }
     stack_.op_call().op_input_arg().op_list_arg<int>("size").call_arg(DocUtils::ToStr(v_method),
                                                                       "mode");

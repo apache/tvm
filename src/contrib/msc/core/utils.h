@@ -361,7 +361,7 @@ class ExprUtils {
         return T(reinterpret_cast<double*>(array->data)[i]);
       }
     }
-    LOG(FATAL) << "Failed to get scalar from array " << array;
+    TVM_FFI_THROW(InternalError) << "Failed to get scalar from array " << array;
   }
 
   /*!

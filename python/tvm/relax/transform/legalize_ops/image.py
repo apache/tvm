@@ -16,7 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for image operators."""
+
 from tvm import topi
+
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
 from .common import register_legalize

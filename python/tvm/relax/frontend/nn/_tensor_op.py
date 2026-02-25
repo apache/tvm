@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# ruff: noqa: F821
 """Adding member operators to nn.Tensor."""
+
 from typing import Optional
 
 from tvm import tir

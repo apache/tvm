@@ -15,18 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 
 
 def test_equal_expr():
-    x = te.var("x")
-    y = te.var("y")
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
 
     def func1():
         return x + y + 1
 
     def func2():
-        return te.exp(tvm.tir.truncdiv((x + y + 1) * y, 4))
+        return tvm.tir.exp(tvm.tir.truncdiv((x + y + 1) * y, 4))
 
     assert tvm.tir.analysis.expr_deep_equal(func1(), func1())
     assert tvm.tir.analysis.expr_deep_equal(func2(), func2())
