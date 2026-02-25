@@ -432,11 +432,11 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
  * When supports_subgroups is true, set thread_warp_size to 32 so that
  * TIR lowering uses warp-level shuffle reductions instead of shared memory.
  */
-TargetJSON UpdateWebGPUAttrs(TargetJSON target) {
+ffi::Map<ffi::String, ffi::Any> UpdateWebGPUAttrs(ffi::Map<ffi::String, ffi::Any> target) {
   if (target.count("supports_subgroups")) {
     bool subgroups = Downcast<Bool>(target.at("supports_subgroups"));
     if (subgroups) {
-      target.Set("thread_warp_size", refl::DefaultValue(32));
+      target.Set("thread_warp_size", Integer(32));
     }
   }
   return target;
@@ -447,7 +447,7 @@ TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
     .add_attr_option<bool>("supports_subgroups", refl::DefaultValue(false))
     // thread_warp_size=1: is_subwarp_reduction and is_multiwarp_reduction returns false, so no subgroup ops are emitted.
     .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(1))
-    .set_target_parser(UpdateWebGPUAttrs)
+    .set_target_canonicalizer(UpdateWebGPUAttrs)
     .set_default_keys({"webgpu", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
