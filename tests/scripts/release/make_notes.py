@@ -218,7 +218,7 @@ if __name__ == "__main__":
         try:
             title = pr_dict[int(number)]["title"]
             title = strip_header(title, heading)
-        except:
+        except Exception:
             sprint("The out.pkl file is not match with csv file.")
             exit(1)
         return title

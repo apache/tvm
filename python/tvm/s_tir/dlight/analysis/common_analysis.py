@@ -377,7 +377,7 @@ def get_max_shared_memory_per_block(target: Target) -> int:
 def get_root_block(sch: Schedule, func_name: str = "main") -> SBlockRV:
     try:
         block = sch.mod[func_name].body.block
-    except:
+    except Exception:
         raise ValueError(
             f"The function body is expected to be the root block, but got:\n"
             f"{sch.mod[func_name].body}"

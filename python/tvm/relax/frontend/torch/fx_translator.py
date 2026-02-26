@@ -1232,7 +1232,7 @@ def from_fx(
         # Use the dynamo.export() to export the PyTorch model to FX.
         try:
             graph_module = dynamo.export(torch_model, *input_tensors)
-        except:
+        except Exception:
             raise RuntimeError("Failed to export the PyTorch model to FX.")
 
         # Use the importer to import the PyTorch model to Relax.
