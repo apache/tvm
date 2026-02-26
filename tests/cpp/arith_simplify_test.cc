@@ -56,7 +56,7 @@ TEST(Simplify, Mod) {
 }
 
 TEST(ConstantFold, Broadcast) {
-  ffi::StructuralEqual checker;
+  tvm::ffi::StructuralEqual checker;
   auto i32x4 = tvm::tir::Broadcast(tvm::IntImm(tvm::DataType::Int(32), 10), 4);
   auto i64x4 = tvm::cast(i32x4->dtype.with_bits(64), i32x4);
   auto i64x4_expected = tvm::tir::Broadcast(tvm::IntImm(tvm::DataType::Int(64), 10), 4);
@@ -64,7 +64,7 @@ TEST(ConstantFold, Broadcast) {
 }
 
 TEST(ConstantFold, Ramp) {
-  ffi::StructuralEqual checker;
+  tvm::ffi::StructuralEqual checker;
   auto i32x4 = tvm::tir::Ramp(tvm::IntImm(tvm::DataType::Int(32), 10),
                               tvm::IntImm(tvm::DataType::Int(32), 1), 4);
   auto i64x4 = tvm::cast(i32x4->dtype.with_bits(64), i32x4);
