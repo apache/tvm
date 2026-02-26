@@ -34,9 +34,26 @@
 namespace tvm {
 
 /*!
- * \brief Equality definition of base value class.
+ * \brief Content-aware structural equality comparator for objects.
+ *
+ *  The structural equality is recursively defined in the DAG of IR nodes via SEqual.
+ *  There are two kinds of nodes:
+ *
+ *  - Graph node: a graph node in lhs can only be mapped as equal to
+ *    one and only one graph node in rhs.
+ *  - Normal node: equality is recursively defined without the restriction
+ *    of graph nodes.
+ *
+ *  Vars(tir::Var, relax::Var) nodes are graph nodes.
+ *
+ *  A var-type node(e.g. tir::Var) can be mapped as equal to another var
+ *  with the same type if one of the following condition holds:
+ *
+ *  - They appear in a same definition point(e.g. function argument).
+ *  - They points to the same VarNode via the same_as relation.
+ *  - They appear in a same usage point, and map_free_vars is set to be True.
  */
-class BaseValueEqual {
+class StructuralEqual {
  public:
   bool operator()(const double& lhs, const double& rhs) const {
     if (std::isnan(lhs) && std::isnan(rhs)) {
@@ -72,34 +89,8 @@ class BaseValueEqual {
   bool operator()(const ENum& lhs, const ENum& rhs) const {
     return lhs == rhs;
   }
-};
-
-/*!
- * \brief Content-aware structural equality comparator for objects.
- *
- *  The structural equality is recursively defined in the DAG of IR nodes via SEqual.
- *  There are two kinds of nodes:
- *
- *  - Graph node: a graph node in lhs can only be mapped as equal to
- *    one and only one graph node in rhs.
- *  - Normal node: equality is recursively defined without the restriction
- *    of graph nodes.
- *
- *  Vars(tir::Var, relax::Var) nodes are graph nodes.
- *
- *  A var-type node(e.g. tir::Var) can be mapped as equal to another var
- *  with the same type if one of the following condition holds:
- *
- *  - They appear in a same definition point(e.g. function argument).
- *  - They points to the same VarNode via the same_as relation.
- *  - They appear in a same usage point, and map_free_vars is set to be True.
- */
-class StructuralEqual : public BaseValueEqual {
- public:
-  // inheritate operator()
-  using BaseValueEqual::operator();
   /*!
-   * \brief Compare objects via strutural equal.
+   * \brief Compare objects via structural equal.
    * \param lhs The left operand.
    * \param rhs The right operand.
    * \param map_free_params Whether or not to map free variables.

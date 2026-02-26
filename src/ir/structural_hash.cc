@@ -25,9 +25,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/functor.h>
-
 #include <tvm/ir/structural_hash.h>
+#include <tvm/node/functor.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/support/io.h>
 #include <tvm/target/codegen.h>
