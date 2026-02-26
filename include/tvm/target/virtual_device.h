@@ -365,7 +365,7 @@ class VirtualDeviceCache {
 
  private:
   /*! \brief Already constructed VirtualDevices. */
-  std::unordered_set<VirtualDevice, StructuralHash, StructuralEqual> cache_;
+  std::unordered_set<VirtualDevice, ffi::StructuralHash, ffi::StructuralEqual> cache_;
 };
 
 /*! brief The attribute key for the virtual device. This key will be promoted to first class on

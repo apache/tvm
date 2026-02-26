@@ -63,7 +63,7 @@ static inline void AssertReduceEqual(const tir::ReduceNode* a, const tir::Reduce
       "each reduction must be structurally identical, "
       "except for the ReduceNode::value_index.  ";
 
-  StructuralEqual eq;
+  ffi::StructuralEqual eq;
 
   TVM_FFI_ICHECK(a->combiner.same_as(b->combiner))
       << shared_text << "However, the reduction operation " << a->combiner << " does not match "

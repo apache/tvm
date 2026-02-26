@@ -251,7 +251,7 @@ using AxisShardingSpec = std::pair<DeviceMesh, int>;
 class AxisShardingSpecEqual {
  public:
   bool operator()(const AxisShardingSpec& lhs, const AxisShardingSpec& rhs) const {
-    return StructuralEqual()(lhs.first, rhs.first) && lhs.second == rhs.second;
+    return ffi::StructuralEqual()(lhs.first, rhs.first) && lhs.second == rhs.second;
   }
 };
 
@@ -259,7 +259,7 @@ class AxisShardingSpecHash {
  public:
   size_t operator()(const AxisShardingSpec& sharding_spec) const {
     size_t seed = 0;
-    seed ^= StructuralHash()(sharding_spec.first);
+    seed ^= ffi::StructuralHash()(sharding_spec.first);
     seed ^= std::hash<int>()(sharding_spec.second) << 1;
     return seed;
   }

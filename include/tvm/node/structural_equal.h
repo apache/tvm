@@ -18,12 +18,12 @@
  */
 /*!
  * \file tvm/node/structural_equal.h
- * \brief Forwarding header. Use tvm/ir/structural_equal.h instead.
+ * \brief Forwarding header. Use tvm/ffi/extra/structural_equal.h instead.
  */
 #ifndef TVM_NODE_STRUCTURAL_EQUAL_H_
 #define TVM_NODE_STRUCTURAL_EQUAL_H_
 
-// This header has moved to tvm/ir/structural_equal.h
-#include <tvm/ir/structural_equal.h>
+// This header has moved to tvm/ffi/extra/structural_equal.h
+#include <tvm/ffi/extra/structural_equal.h>
 
 #endif  // TVM_NODE_STRUCTURAL_EQUAL_H_

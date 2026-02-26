@@ -251,10 +251,10 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
         }
 
         auto n = this->CopyOnWrite(op);
-        if (StructuralEqual()(then_clause_in_then_context, else_clause_in_then_context)) {
+        if (ffi::StructuralEqual()(then_clause_in_then_context, else_clause_in_then_context)) {
           n->value = analyzer_->Simplify(else_clause);
           return Stmt(n);
-        } else if (StructuralEqual()(then_clause_in_else_context, else_clause_in_else_context)) {
+        } else if (ffi::StructuralEqual()(then_clause_in_else_context, else_clause_in_else_context)) {
           n->value = analyzer_->Simplify(then_clause);
           return Stmt(n);
         } else {

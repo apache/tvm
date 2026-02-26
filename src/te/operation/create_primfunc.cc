@@ -250,7 +250,7 @@ ffi::Array<Buffer> GenerateOutputBuffers(const te::ComputeOp& compute_op, Create
   ffi::Array<te::Tensor> tensors;
   if (compute_op->body[0]->IsInstance<ReduceNode>()) {
     auto f_reducer_equal = [](const ReduceNode* a, const ReduceNode* b) -> bool {
-      StructuralEqual eq;
+      ffi::StructuralEqual eq;
       return eq(a->combiner, b->combiner) &&    //
              eq(a->source, b->source) &&        //
              eq(a->axis, b->axis) &&            //

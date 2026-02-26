@@ -744,7 +744,7 @@ class ReverseComputeInliner : public BaseInliner {
     if (const auto* if_ = producer_block->body.as<IfThenElseNode>()) {
       if (!if_->else_case.defined()) {
         PrimExpr if_predicate = analyzer_.Simplify(if_->condition);
-        if (!StructuralEqual()(predicate, if_predicate)) {
+        if (!ffi::StructuralEqual()(predicate, if_predicate)) {
           predicate = analyzer_.Simplify(predicate && if_->condition);
           producer_block.CopyOnWrite()->body = if_->then_case;
         }

@@ -21,8 +21,8 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ir/module.h>
-#include <tvm/ir/structural_equal.h>
-#include <tvm/ir/structural_hash.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/tir/analysis.h>
 
 #include <memory>
@@ -33,8 +33,8 @@ namespace meta_schedule {
 
 class ModuleEqualityStructural : public ModuleEquality {
  public:
-  size_t Hash(IRModule mod) const { return tvm::StructuralHash()(mod); }
-  bool Equal(IRModule lhs, IRModule rhs) const { return tvm::StructuralEqual()(lhs, rhs); }
+  size_t Hash(IRModule mod) const { return ffi::StructuralHash()(mod); }
+  bool Equal(IRModule lhs, IRModule rhs) const { return ffi::StructuralEqual()(lhs, rhs); }
   ffi::String GetName() const { return "structural"; }
 };
 

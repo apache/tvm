@@ -52,7 +52,7 @@ class UnusedTrivialBindingRemover : public ExprMutator {
       }
       void VisitBinding_(const MatchCastNode* binding) override {
         if (binding->value.as<VarNode>() &&
-            StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(binding->value))) {
+            ffi::StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(binding->value))) {
           has_trivial_binding.insert(binding->var.get());
         }
         ExprVisitor::VisitBinding_(binding);

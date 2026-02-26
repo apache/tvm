@@ -22,6 +22,7 @@
  * \brief Transform annotated loops into pipelined one that parallelize producers and consumers
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
@@ -784,7 +785,7 @@ class PipelineRewriter : public StmtExprMutator {
         auto stage_id = commit_group_indices[i];
         auto predicate = new_blocks[i].predicate;
         for (; i < commit_group_indices.size() && commit_group_indices[i] == stage_id; ++i) {
-          TVM_FFI_ICHECK(tvm::StructuralEqual()(predicate, new_blocks[i].predicate))
+          TVM_FFI_ICHECK(ffi::StructuralEqual()(predicate, new_blocks[i].predicate))
               << "Predicates in the same stage are expected to be identical";
           group_bodies.push_back(new_blocks[i].block->body);
         }

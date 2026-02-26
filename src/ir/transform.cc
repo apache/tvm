@@ -24,7 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
-#include <tvm/ir/structural_hash.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/relax/expr.h>
@@ -312,10 +312,10 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
 
 IRModule Pass::AssertImmutableModule(const IRModule& mod, const PassNode* node,
                                      const PassContext& pass_ctx) {
-  size_t before_pass_hash = tvm::StructuralHash()(mod);
+  size_t before_pass_hash = ffi::StructuralHash()(mod);
   IRModule copy_mod = mod;
   IRModule ret = node->operator()(mod, pass_ctx);
-  size_t after_pass_hash = tvm::StructuralHash()(copy_mod);
+  size_t after_pass_hash = ffi::StructuralHash()(copy_mod);
   if (before_pass_hash != after_pass_hash) {
     // The chance of getting a hash conflict between a module and the same module but mutated
     // must be very low.

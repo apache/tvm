@@ -18,12 +18,12 @@
  */
 /*!
  * \file tvm/node/structural_hash.h
- * \brief Forwarding header. Use tvm/ir/structural_hash.h instead.
+ * \brief Forwarding header. Use tvm/ffi/extra/structural_hash.h instead.
  */
 #ifndef TVM_NODE_STRUCTURAL_HASH_H_
 #define TVM_NODE_STRUCTURAL_HASH_H_
 
-// This header has moved to tvm/ir/structural_hash.h
-#include <tvm/ir/structural_hash.h>
+// This header has moved to tvm/ffi/extra/structural_hash.h
+#include <tvm/ffi/extra/structural_hash.h>
 
 #endif  // TVM_NODE_STRUCTURAL_HASH_H_

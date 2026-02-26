@@ -797,7 +797,7 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // normalized. This normalized table will keep the count for each set of equivalent terms
   // (i.e. each equivalence class), together with a term that did appear in this equivalence class
   // (in practice, the first term of the equivalence class that was encoutered).
-  support::OrderedMap<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual>
+  support::OrderedMap<PrimExpr, std::pair<PrimExpr, size_t>, ffi::StructuralHash, ExprDeepEqual>
       norm_table;
 
   // In order to avoid frequent rehashing if the norm_table becomes big, we immediately ask for

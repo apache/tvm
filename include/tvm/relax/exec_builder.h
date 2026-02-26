@@ -26,8 +26,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/structural_equal.h>
-#include <tvm/ir/structural_hash.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/vm/bytecode.h>
@@ -180,7 +180,7 @@ class ExecBuilderNode : public Object {
   /*! \brief The mutable internal executable. */
   ObjectPtr<vm::VMExecutable> exec_;  // mutable
   /*! \brief internal dedup map when creating index for a new constant */
-  std::unordered_map<ffi::Any, vm::Index, StructuralHash, StructuralEqual> const_dedup_map_;
+  std::unordered_map<ffi::Any, vm::Index, ffi::StructuralHash, ffi::StructuralEqual> const_dedup_map_;
 };
 
 class ExecBuilder : public ObjectRef {

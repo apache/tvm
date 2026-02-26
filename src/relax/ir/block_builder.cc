@@ -445,7 +445,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
    */
   std::unique_ptr<
       std::unordered_map<BaseFunc, std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>,
-                         StructuralHashIgnoreNDarray, StructuralEqual>>
+                         StructuralHashIgnoreNDarray, ffi::StructuralEqual>>
       ctx_func_dedup_map_ = nullptr;
 
   /*!
@@ -455,7 +455,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     if (ctx_func_dedup_map_ != nullptr) return;
     ctx_func_dedup_map_ = std::make_unique<
         std::unordered_map<BaseFunc, std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>,
-                           StructuralHashIgnoreNDarray, StructuralEqual>>();
+                           StructuralHashIgnoreNDarray, ffi::StructuralEqual>>();
     for (const auto& kv : context_mod_->functions) {
       const GlobalVar gv = kv.first;
       const BaseFunc func = kv.second;

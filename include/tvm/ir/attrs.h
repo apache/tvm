@@ -33,8 +33,8 @@
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/ir/structural_equal.h>
-#include <tvm/ir/structural_hash.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_hash.h>
 
 #include <functional>
 #include <string>

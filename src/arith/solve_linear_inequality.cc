@@ -103,7 +103,7 @@ void AddInequality(std::vector<PrimExpr>* inequality_set, const PrimExpr& new_in
                    Analyzer* analyzer) {
   if (analyzer->CanProve(new_ineq) ||
       std::find_if(inequality_set->begin(), inequality_set->end(), [&](const PrimExpr& e) {
-        return StructuralEqual()(e, new_ineq);
+        return ffi::StructuralEqual()(e, new_ineq);
       }) != inequality_set->end()) {
     // redundant: follows from the vranges
     // or has already been added
@@ -175,7 +175,7 @@ void MoveEquality(std::vector<PrimExpr>* upper_bounds, std::vector<PrimExpr>* lo
   // those exist in both upper & lower bounds will be moved to equalities
   for (auto ub = upper_bounds->begin(); ub != upper_bounds->end();) {
     auto lb = std::find_if(lower_bounds->begin(), lower_bounds->end(),
-                           [&](const PrimExpr& e) { return StructuralEqual()(e, *ub); });
+                           [&](const PrimExpr& e) { return ffi::StructuralEqual()(e, *ub); });
     if (lb != lower_bounds->end()) {
       equalities->push_back(*lb);
       lower_bounds->erase(lb);

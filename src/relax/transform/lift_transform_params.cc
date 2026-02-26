@@ -525,7 +525,7 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
           int index_i = j + num_inputs_i;
           int index_0 = j + num_inputs_0;
           mapper.VisitExpr(functions[i]->params[index_i], functions[0]->params[index_0]);
-          StructuralEqual eq;
+          ffi::StructuralEqual eq;
           eq(functions[i]->params[index_i]->struct_info_,
              functions[0]->params[index_0]->struct_info_);
         }
@@ -642,7 +642,7 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
   // The mapping between the unified bindings and the original bindings in different functions.
   // The unified binding is the binding with all variables replaced by the unified variables as
   // defined in var_remap_.
-  std::unordered_map<Expr, std::vector<Binding>, StructuralHash, StructuralEqual>
+  std::unordered_map<Expr, std::vector<Binding>, ffi::StructuralHash, ffi::StructuralEqual>
       original_bindings_;
 };  // namespace
 

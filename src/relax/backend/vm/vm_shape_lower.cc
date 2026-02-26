@@ -69,7 +69,7 @@ struct MatchShapeTodoItem {
 
 /*! \brief Slot map used for shape lowering. */
 using PrimExprSlotMap =
-    std::unordered_map<PrimExpr, PrimExprSlot*, StructuralHash, tir::ExprDeepEqual>;
+    std::unordered_map<PrimExpr, PrimExprSlot*, ffi::StructuralHash, tir::ExprDeepEqual>;
 
 // Collector to collect PrimExprSlotMap
 class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {

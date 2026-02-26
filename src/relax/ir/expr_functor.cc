@@ -848,7 +848,7 @@ Var ExprMutator::WithStructInfo(Var var, StructInfo struct_info) {
   if (var->struct_info_.defined()) {
     // use same-as as a quick path
     if (var->struct_info_.same_as(struct_info) ||
-        StructuralEqual()(var->struct_info_, struct_info)) {
+        ffi::StructuralEqual()(var->struct_info_, struct_info)) {
       return var;
     } else {
       Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, struct_info, var->span)

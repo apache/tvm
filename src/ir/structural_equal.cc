@@ -24,7 +24,7 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/ir/structural_equal.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/script_printer.h>

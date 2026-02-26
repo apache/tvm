@@ -150,7 +150,7 @@ class AppendLossMutator : private ExprMutator {
    * sets up var_remap_ from loss parameter Vars to backbone returned Vars.
    */
   void CheckAndRemapLossParams(const ffi::Array<Var>& loss_func_params) {
-    static StructuralEqual checker;
+    static ffi::StructuralEqual checker;
     TVM_FFI_ICHECK(static_cast<int>(loss_func_params.size()) >= num_backbone_outputs_)
         << "The number of parameters of the loss function is " << loss_func_params.size()
         << ", which is less than the given num_backbone_outputs " << num_backbone_outputs_;

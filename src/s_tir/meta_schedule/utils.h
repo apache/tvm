@@ -229,7 +229,7 @@ inline ffi::String SHash2Hex(const ObjectRef& obj) {
   std::ostringstream os;
   size_t hash_code = 0;
   if (obj.defined()) {
-    hash_code = StructuralHash()(obj);
+    hash_code = ffi::StructuralHash()(obj);
   }
   os << "0x" << std::setw(16) << std::setfill('0') << std::hex << hash_code;
   return os.str();
