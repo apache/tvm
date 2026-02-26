@@ -93,12 +93,12 @@ class WellFormedChecker : public relax::ExprVisitor,
         WellFormedChecker(obj.as<IRModule>(), check_struct_info);
 
     if (const auto* mod = obj.as<IRModuleNode>()) {
-      for (const auto& it : mod->functions) {
+      for (const auto& [gvar, base_func] : mod->functions) {
+        well_formed_checker.CheckGlobalVarAndGsymbolConsistency(gvar, base_func);
         // visit relax.Function
-        if (auto* n = it.second.as<FunctionNode>()) {
-          Function func = ffi::GetRef<Function>(n);
-          well_formed_checker.func_name_map_[n] = it.first->name_hint;
-          well_formed_checker.CheckGlobalVarAndGsymbolConsistency(it.first, func);
+        if (auto opt = base_func.as<Function>()) {
+          Function func = opt.value();
+          well_formed_checker.func_name_map_[func.get()] = gvar->name_hint;
           well_formed_checker.VisitExpr(func);
         }
       }
@@ -146,7 +146,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     return "(anonymous function)";
   }
 
-  void CheckGlobalVarAndGsymbolConsistency(GlobalVar var, Function func) {
+  void CheckGlobalVarAndGsymbolConsistency(GlobalVar var, BaseFunc func) {
     // the uniqueness of all global vars are ensured by IRModule->global_var_map_, so do not need
     // to check again
 

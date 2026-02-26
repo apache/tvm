@@ -307,7 +307,7 @@ class Module:
     @T.prim_func
     def test_tir_fma(A: T.handle, B: T.handle, C: T.handle, d: T.handle) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "test_fma", "tir.noalias": True})
+        T.func_attr({"tir.noalias": True})
         n = T.int32()
         stride = T.int32()
         stride_1 = T.int32()

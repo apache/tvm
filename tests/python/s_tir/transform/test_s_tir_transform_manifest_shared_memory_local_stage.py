@@ -29,7 +29,7 @@ class MatmulBefore:
     @T.prim_func
     def main(A: T.Buffer((1024, 1024), "float32"), B: T.Buffer((1024, 1024), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
+        T.func_attr({"tir.noalias": True})
         # body
         # with T.sblock("root")
         for blockIdx_y in T.thread_binding(32, thread="blockIdx.y"):
@@ -70,7 +70,7 @@ class MatmulAfter:
     @T.prim_func
     def main(A: T.Buffer((1024, 1024), "float32"), B: T.Buffer((1024, 1024), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
+        T.func_attr({"tir.noalias": True})
         # body
         # with T.sblock("root")
         for blockIdx_y in T.thread_binding(32, thread="blockIdx.y"):
