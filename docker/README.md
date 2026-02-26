@@ -110,13 +110,13 @@ tasks.
 - lint the python codes
 
   ```bash
-  ./docker/build.sh ci_lint make pylint
+  ./docker/build.sh ci_lint pre-commit run --all-files
   ```
 
 - build codes with CUDA support
 
   ```bash
-  ./docker/build.sh ci_gpu make -j$(nproc)
+  ./docker/build.sh ci_gpu bash -c "cd build && cmake -GNinja .. && ninja -j$(nproc)"
   ```
 
 - do the python unittest
@@ -128,5 +128,5 @@ tasks.
 - build the documents. The results will be available at `docs/_build/html`
 
   ```bash
-  ./docker/ci_build.sh ci_gpu make -C docs html
+  ./docker/ci_build.sh ci_gpu bash -c "cd docs && make html"
   ```

@@ -23,7 +23,7 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-make cppdoc 2>/tmp/$$.log.txt
+doxygen docs/Doxyfile 2>/tmp/$$.log.txt
 
 grep -v -E "ENABLE_PREPROCESSING|unsupported tag|Inheritance graph|use_default_type_traits_v" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
 echo "---------Error Log----------"

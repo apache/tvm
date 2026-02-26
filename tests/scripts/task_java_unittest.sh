@@ -35,7 +35,7 @@ cleanup()
 }
 trap cleanup 0
 
-make jvmpkg
+bash "$(dirname "$0")/task_jvm_build.sh"
 
 # Skip the Java Tests for now
 exit 0
@@ -43,5 +43,5 @@ exit 0
 # expose tvm runtime lib to system env
 export LD_LIBRARY_PATH=$CURR_DIR/../../build/:$LD_LIBRARY_PATH
 python "$SCRIPT_DIR"/prepare_test_libs.py "$TEMP_DIR"
-make jvmpkg JVM_TEST_ARGS="-DskipTests=false\
-   -Dtest.tempdir=$TEMP_DIR"
+JVM_TEST_ARGS="-DskipTests=false -Dtest.tempdir=$TEMP_DIR" \
+    bash "$(dirname "$0")/task_jvm_build.sh"

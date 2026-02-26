@@ -52,8 +52,7 @@ This folder contains a simple recipe to make RPC server in c++.
 
 - From within the configured tvm build directory, compile `tvm_runtime` and the `tvm_rpc` server:
 ```
-  cd $TVM_ROOT/build
-  make -jN tvm_runtime tvm_rpc
+  cmake --build $TVM_ROOT/build --target tvm_runtime tvm_rpc -j$(nproc)
 ```
 - Use `./tvm_rpc server` to start the RPC server
 

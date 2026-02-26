@@ -50,7 +50,7 @@ First please refer to [Installation Guide](https://tvm.apache.org/docs/install/)
 Then you can compile tvm4j by
 
 ```bash
-make jvmpkg
+bash tests/scripts/task_jvm_build.sh
 ```
 
 (Optional) run unit test by
@@ -62,7 +62,7 @@ sh tests/scripts/task_java_unittest.sh
 After it is compiled and packaged, you can install tvm4j in your local maven repository,
 
 ```bash
-make jvminstall
+cd jvm && mvn install -Plinux-x86_64 -DskipTests -Dcheckstyle.skip=true
 ```
 
 ## Convert and Register Java Function as TVM Function
