@@ -44,23 +44,29 @@ def get_inx(x, image_width, target_width, coordinate_transformation_mode):
 def get_index(x, image_width, target_width, coordinate_transformation_mode, rounding_method=""):
     """get and round the nearest index for nearest_neighbor"""
     in_x = get_inx(x, image_width, target_width, coordinate_transformation_mode)
-    if rounding_method == "" or rounding_method == "floor":
+
+    effective_rounding_method = rounding_method
+    if not effective_rounding_method:
         if coordinate_transformation_mode == "align_corners":
-            out = math.floor(in_x + 0.5)
+            effective_rounding_method = "round"
         else:
-            out = math.floor(in_x)
-    elif rounding_method == "round":
-        out = math.floor(in_x + 0.5)
-    elif rounding_method == "round_prefer_floor":
+            effective_rounding_method = "floor"
+
+    if effective_rounding_method == "floor":
+        out = math.floor(in_x)
+    elif effective_rounding_method == "round":
+        out = round(in_x)
+    elif effective_rounding_method == "round_prefer_floor":
         out = math.ceil(in_x - 0.5)
-    elif rounding_method == "round_prefer_ceil":
+    elif effective_rounding_method == "round_prefer_ceil":
         out = math.floor(in_x + 0.5)
-    elif rounding_method == "ceil":
+    elif effective_rounding_method == "ceil":
         out = math.ceil(in_x)
     else:
-        out = math.floor(in_x)
+        raise ValueError(f"Unknown rounding method: {rounding_method!r}")
+
     out = max(min(out, image_width - 1), 0)
-    return out
+    return int(out)
 
 
 def resize3d_nearest(arr, scale, coordinate_transformation_mode, rounding_method=""):
