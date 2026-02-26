@@ -26,7 +26,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/node.h>
+#include <tvm/runtime/object.h>
 
 #include <string>
 #include <utility>

@@ -25,7 +25,6 @@
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/node/node.h>
 
 namespace tvm {
 

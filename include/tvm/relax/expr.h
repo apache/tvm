@@ -25,7 +25,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/source_map.h>
-#include <tvm/node/node.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/expr.h>

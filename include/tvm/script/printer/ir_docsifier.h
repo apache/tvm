@@ -22,7 +22,7 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/node/node.h>
+#include <tvm/node/cast.h>
 #include <tvm/script/printer/doc.h>
 #include <tvm/script/printer/ir_docsifier_functor.h>
 

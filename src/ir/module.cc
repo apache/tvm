@@ -26,8 +26,8 @@
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/structural_equal.h>
 #include <tvm/ir/type_functor.h>
-#include <tvm/node/structural_equal.h>
 
 #include <algorithm>
 #include <fstream>

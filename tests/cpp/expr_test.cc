@@ -18,7 +18,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/node/structural_equal.h>
+#include <tvm/ir/structural_equal.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
 

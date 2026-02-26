@@ -18,7 +18,8 @@
  */
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/node/node.h>
+#include <tvm/node/cast.h>
+#include <tvm/runtime/object.h>
 
 #include <optional>
 #include <variant>

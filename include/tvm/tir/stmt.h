@@ -25,6 +25,7 @@
 #define TVM_TIR_STMT_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/node/script_printer.h>
 #include <tvm/tir/expr.h>
 
 #include <string>

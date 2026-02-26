@@ -16,26 +16,36 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/*!
- * \file tvm/node/reflection.h
- * \brief Reflection utilities for IR/AST nodes.
- */
-#ifndef TVM_NODE_REFLECTION_H_
-#define TVM_NODE_REFLECTION_H_
 
-#include <tvm/ffi/container/map.h>
-#include <tvm/ffi/container/string.h>
+/*!
+ * Utility functions for serialization.
+ * \file tvm/ir/serialization.h
+ */
+#ifndef TVM_IR_SERIALIZATION_H_
+#define TVM_IR_SERIALIZATION_H_
+
+#include <tvm/runtime/base.h>
+#include <tvm/runtime/object.h>
+
+#include <string>
 
 namespace tvm {
+/*!
+ * \brief save the node as well as all the node it depends on as json.
+ *  This can be used to serialize any TVM object
+ *
+ * \return the string representation of the node.
+ */
+TVM_DLL std::string SaveJSON(ffi::Any node);
 
 /*!
- * \brief Create an object from a type key and a map of fields.
- * \param type_key The type key of the object.
- * \param fields The fields of the object.
- * \return The created object.
+ * \brief Internal implementation of LoadJSON
+ * Load tvm Node object from json and return a shared_ptr of Node.
+ * \param json_str The json string to load from.
+ *
+ * \return The shared_ptr of the Node.
  */
-TVM_DLL ffi::Any CreateObject(const ffi::String& type_key,
-                              const ffi::Map<ffi::String, ffi::Any>& fields);
+TVM_DLL ffi::Any LoadJSON(std::string json_str);
 
 }  // namespace tvm
-#endif  // TVM_NODE_REFLECTION_H_
+#endif  // TVM_IR_SERIALIZATION_H_

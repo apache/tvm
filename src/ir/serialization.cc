@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file node/serialization.cc
+ * \file src/ir/serialization.cc
  * \brief Utilities to serialize TVM AST/IR objects.
  */
 #include <tvm/ffi/extra/json.h>

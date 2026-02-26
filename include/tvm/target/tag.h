@@ -26,7 +26,6 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/attr_registry_map.h>
-#include <tvm/node/node.h>
 #include <tvm/target/target.h>
 
 #include <utility>

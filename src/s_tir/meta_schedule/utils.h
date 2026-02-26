@@ -21,8 +21,9 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/node/node.h>
-#include <tvm/node/serialization.h>
+#include <tvm/ir/serialization.h>
+#include <tvm/node/cast.h>
+#include <tvm/runtime/object.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/meta_schedule/builder.h>
 #include <tvm/s_tir/meta_schedule/cost_model.h>

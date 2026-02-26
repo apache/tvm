@@ -22,7 +22,6 @@
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/function.h>

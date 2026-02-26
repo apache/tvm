@@ -25,7 +25,6 @@
 #define TVM_TIR_VAR_H_
 
 #include <tvm/ir/expr.h>
-#include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
 
 #include <functional>

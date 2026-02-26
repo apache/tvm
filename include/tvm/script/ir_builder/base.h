@@ -22,7 +22,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
-#include <tvm/node/node.h>
+#include <tvm/node/cast.h>
 
 #include <vector>
 

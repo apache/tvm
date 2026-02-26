@@ -22,7 +22,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/serialization.h>
+#include <tvm/ir/serialization.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
