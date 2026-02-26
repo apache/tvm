@@ -233,7 +233,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
   }
 
   if (const auto& v = Downcast<ffi::Optional<ffi::Array<ffi::String>>>(target.Get("cl-opt"))) {
-    llvm::StringMap<llvm::cl::Option*>& options = llvm::cl::getRegisteredOptions();
+    auto& options = llvm::cl::getRegisteredOptions();
     bool parse_error = false;
     for (const ffi::String& s : v.value()) {
       Option opt = ParseOptionString(s);
@@ -241,7 +241,11 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
         parse_error = true;
         continue;
       }
+#if TVM_LLVM_VERSION >= 220
+      if (options.find(opt.name) != options.end()) {
+#else
       if (options.count(opt.name)) {
+#endif
         llvm_options_.push_back(opt);
       } else {
         // Flag an error, but don't abort. LLVM flags may change, and this would
@@ -318,7 +322,9 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
   // In clang, these are fed from LangOpts which describe language specific features
   // TODO(AndrewZhaoLuo): figure out how these relate to fast math flags
   target_options_.AllowFPOpFusion = llvm::FPOpFusion::Fast;
+#if TVM_LLVM_VERSION < 220
   target_options_.UnsafeFPMath = false;
+#endif
   target_options_.NoInfsFPMath = false;
   target_options_.NoNaNsFPMath = true;
   target_options_.FloatABIType = float_abi;
@@ -414,9 +420,16 @@ LLVMTargetInfo::~LLVMTargetInfo() = default;
 static const llvm::Target* CreateLLVMTargetInstance(const std::string triple,
                                                     const bool allow_missing = true) {
   std::string error;
+#if TVM_LLVM_VERSION >= 220
+  llvm::Triple triple_obj(triple);
+#endif
   // create LLVM instance
   // required mimimum: llvm::InitializeAllTargets()
+#if TVM_LLVM_VERSION >= 220
+  const llvm::Target* llvm_instance = llvm::TargetRegistry::lookupTarget(triple_obj, error);
+#else
   const llvm::Target* llvm_instance = llvm::TargetRegistry::lookupTarget(triple, error);
+#endif
   if (!allow_missing && !llvm_instance) {
     TVM_FFI_ICHECK(llvm_instance) << "LLVM instance error: `" << error << "`";
   }
@@ -434,8 +447,14 @@ static std::unique_ptr<llvm::TargetMachine> CreateLLVMTargetMachine(
 #else
     const llvm::CodeGenOptLevel& opt_level = llvm::CodeGenOptLevel(0)) {
 #endif
+#if TVM_LLVM_VERSION >= 220
+  llvm::Triple triple_obj(triple);
+  llvm::TargetMachine* tm = llvm_instance->createTargetMachine(
+      triple_obj, cpu, features, target_options, reloc_model, code_model, opt_level);
+#else
   llvm::TargetMachine* tm = llvm_instance->createTargetMachine(
       triple, cpu, features, target_options, reloc_model, code_model, opt_level);
+#endif
   TVM_FFI_ICHECK(tm != nullptr);
 
   return std::unique_ptr<llvm::TargetMachine>(tm);
@@ -822,8 +841,22 @@ bool LLVMTargetInfo::MatchesGlobalState() const {
 }
 
 void LLVMTargetInfo::GetOptionValue(LLVMTargetInfo::Option* opt) const {
-  llvm::StringMap<llvm::cl::Option*>& options = llvm::cl::getRegisteredOptions();
-  llvm::cl::Option* base_op = options[opt->name];
+  auto& options = llvm::cl::getRegisteredOptions();
+  llvm::cl::Option* base_op = nullptr;
+#if TVM_LLVM_VERSION >= 220
+  auto it = options.find(opt->name);
+  if (it != options.end()) {
+    base_op = it->second;
+  }
+#else
+  if (options.count(opt->name)) {
+    base_op = options[opt->name];
+  }
+#endif
+  if (base_op == nullptr) {
+    opt->type = Option::OptType::Invalid;
+    return;
+  }
 
   if (opt->type == Option::OptType::Bool) {
     auto* bool_op = static_cast<llvm::cl::opt<bool>*>(base_op);
@@ -1004,7 +1037,7 @@ void LLVMTarget::SetTargetMetadata(llvm::Module* module) const {
 }
 
 bool LLVMTarget::ApplyLLVMOptions(bool apply_otherwise_revert, bool dry_run) {
-  llvm::StringMap<llvm::cl::Option*>& options = llvm::cl::getRegisteredOptions();
+  auto& options = llvm::cl::getRegisteredOptions();
   bool changed = false;
 
 #define HANDLE_OPTION_VALUE(option, new_val, saved_val)                  \
@@ -1024,7 +1057,20 @@ bool LLVMTarget::ApplyLLVMOptions(bool apply_otherwise_revert, bool dry_run) {
     const Option& new_opt = new_options[i];
     const Option& saved_opt = saved_llvm_options_[i];
 
-    llvm::cl::Option* base_op = options[new_opt.name];
+    llvm::cl::Option* base_op = nullptr;
+#if TVM_LLVM_VERSION >= 220
+    auto it = options.find(new_opt.name);
+    if (it != options.end()) {
+      base_op = it->second;
+    }
+#else
+    if (options.count(new_opt.name)) {
+      base_op = options[new_opt.name];
+    }
+#endif
+    if (base_op == nullptr) {
+      TVM_FFI_THROW(InternalError) << "LLVM option not found: " << new_opt.name;
+    }
 
     if (new_opt.type == Option::OptType::Bool) {
       auto* bool_op = static_cast<llvm::cl::opt<bool>*>(base_op);
