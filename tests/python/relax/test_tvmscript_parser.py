@@ -2330,18 +2330,23 @@ def test_function_symbolic_variables_are_annotated():
     Because Relax struct inference is performed while the function is
     being built, all constraints on symbolic variables that are used
     for simplifications must be provided to the analyzer.
+
+    With assume_inbound=True, strided_slice trusts that indices are
+    valid and directly produces the simplified shape.
     """
 
     @R.function(private=True)
     def inferred_sinfo(A: R.Tensor(["extent"])):
         extent = T.int64()
-        output = R.strided_slice(A, [0], [0], [extent - 1])
+        output = R.strided_slice(A, [0], [0], [extent - 1], assume_inbound=True)
         return output
 
     @R.function(private=True)
     def expected(A: R.Tensor(["extent"])) -> R.Tensor(["extent-1"]):
         extent = T.int64()
-        output: R.Tensor([extent - 1]) = R.strided_slice(A, [0], [0], [extent - 1])
+        output: R.Tensor([extent - 1]) = R.strided_slice(
+            A, [0], [0], [extent - 1], assume_inbound=True
+        )
         return output
 
     tvm.ir.assert_structural_equal(inferred_sinfo, expected)
