@@ -111,7 +111,7 @@ class Tensor(tvm_ffi.core.Tensor):
         if not isinstance(source_array, np.ndarray):
             try:
                 source_array = np.array(source_array, dtype=self.dtype)
-            except:
+            except Exception:
                 raise TypeError(
                     f"array must be an array_like data, type {type(source_array)} is not supported"
                 )
