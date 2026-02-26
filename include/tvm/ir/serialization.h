@@ -18,29 +18,33 @@
  */
 
 /*!
- * Utility functions for serialization.
  * \file tvm/ir/serialization.h
+ * \brief Utility functions for serialization.
+ *
+ * This is a thin forwarding header to ffi/extra/serialization.h.
+ * Prefer using ffi::ToJSONGraph / ffi::FromJSONGraph directly.
  */
 #ifndef TVM_IR_SERIALIZATION_H_
 #define TVM_IR_SERIALIZATION_H_
 
+#include <tvm/ffi/extra/json.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/object.h>
 
 #include <string>
 
 namespace tvm {
+
 /*!
- * \brief save the node as well as all the node it depends on as json.
- *  This can be used to serialize any TVM object
+ * \brief Save the node as well as all the node it depends on as json.
+ *  This can be used to serialize any TVM object.
  *
  * \return the string representation of the node.
  */
 TVM_DLL std::string SaveJSON(ffi::Any node);
 
 /*!
- * \brief Internal implementation of LoadJSON
- * Load tvm Node object from json and return a shared_ptr of Node.
+ * \brief Load tvm Node object from json and return a shared_ptr of Node.
  * \param json_str The json string to load from.
  *
  * \return The shared_ptr of the Node.

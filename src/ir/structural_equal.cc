@@ -81,8 +81,4 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("node.GetFirstStructuralMismatch", ffi::StructuralEqual::GetFirstMismatch);
 }
 
-bool StructuralEqual::operator()(const ffi::Any& lhs, const ffi::Any& rhs,
-                                 bool map_free_params) const {
-  return ffi::StructuralEqual::Equal(lhs, rhs, map_free_params);
-}
 }  // namespace tvm

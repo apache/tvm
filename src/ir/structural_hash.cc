@@ -80,10 +80,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-uint64_t StructuralHash::operator()(const ffi::Any& object) const {
-  return ffi::StructuralHash::Hash(object, false);
-}
-
 struct RefToObjectPtr : public ObjectRef {
   static ObjectPtr<Object> Get(const ObjectRef& ref) {
     return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(ref);

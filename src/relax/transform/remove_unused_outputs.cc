@@ -24,6 +24,7 @@
 #include <tvm/relax/utils.h>
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <tuple>
 

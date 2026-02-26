@@ -204,7 +204,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
       PrimExpr current_predicate_and_context = CurrentScopePredicate();
       PrimExpr buffer_predicate_and_context =
           buffer_assumption.buffer_context && buffer_assumption.buffer_predicate;
-      bool current_context_and_buffer_constraint_is_same = StructuralEqual()(
+      bool current_context_and_buffer_constraint_is_same = ffi::StructuralEqual::Equal(
           current_predicate_and_context, buffer_predicate_and_context, /*map_free_vars=*/true);
 
       if (current_context_and_buffer_constraint_is_same) {

@@ -23,6 +23,7 @@
 
 #include "msc_base_printer.h"
 
+#include <cmath>
 #include <utility>
 
 #include "../utils.h"
