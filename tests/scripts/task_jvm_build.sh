@@ -17,12 +17,19 @@
 # under the License.
 
 # Build the TVM JVM package (tvm4j) using Maven with platform detection.
-# Usage: task_jvm_build.sh [mvn-extra-args...]
+# Usage: task_jvm_build.sh [goal] [mvn-extra-args...]
 #
-# Extra arguments are passed through to mvn, e.g.:
-#   task_jvm_build.sh -DskipTests=false -Dtest.tempdir=/tmp/foo
+# The first positional argument sets the Maven goal (default: "clean package").
+# Extra arguments after the goal are passed through to mvn, e.g.:
+#   task_jvm_build.sh install
+#   task_jvm_build.sh "clean package" -DskipTests=false -Dtest.tempdir=/tmp/foo
 
 set -euxo pipefail
+
+GOAL="${1:-clean package}"
+if [ "$#" -gt 0 ]; then
+  shift
+fi
 
 ROOTDIR="$(cd "$(dirname "$0")/../.." && pwd)"
 TVM_BUILD_PATH="${TVM_BUILD_PATH:-${ROOTDIR}/build}"
@@ -49,7 +56,7 @@ JVM_TEST_ARGS="${JVM_TEST_ARGS:--DskipTests -Dcheckstyle.skip=true}"
 
 cd "${ROOTDIR}/jvm"
 # shellcheck disable=SC2086
-mvn clean package \
+mvn ${GOAL} \
     "-P${JVM_PKG_PROFILE}" \
     "-Dcxx=${CXX:-g++}" \
     "-Dcflags=${PKG_CFLAGS}" \

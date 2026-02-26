@@ -62,7 +62,7 @@ sh tests/scripts/task_java_unittest.sh
 After it is compiled and packaged, you can install tvm4j in your local maven repository,
 
 ```bash
-cd jvm && mvn install -Plinux-x86_64 -DskipTests -Dcheckstyle.skip=true
+bash tests/scripts/task_jvm_build.sh install
 ```
 
 ## Convert and Register Java Function as TVM Function
