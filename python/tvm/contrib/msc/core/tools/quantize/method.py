@@ -18,7 +18,7 @@
 # ruff: noqa: RUF005
 """tvm.contrib.msc.core.tools.quantize.method"""
 
-from typing import Any, Union
+from typing import Any
 
 import numpy as np
 
@@ -85,7 +85,7 @@ class QuantizeMethod:
         axis: int = -1,
         epsilon: float = 1.0 / (1 << 24),
         expand_dims: bool = True,
-    ) -> Union[float, np.ndarray]:
+    ) -> float | np.ndarray:
         """Get the scale tensor
 
         Parameters

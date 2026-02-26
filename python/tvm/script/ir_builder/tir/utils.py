@@ -17,7 +17,6 @@
 """Utility helpers for TIR IRBuilder."""
 
 import contextlib
-from typing import List
 
 from tvm import tir
 from tvm.tir import Buffer
@@ -59,7 +58,7 @@ class _FrameScope:
     """
 
     def __init__(self, frames):
-        self.frames = frames if isinstance(frames, (list, tuple)) else [frames]
+        self.frames = frames if isinstance(frames, list | tuple) else [frames]
         self._stack = None
 
     def __enter__(self):
@@ -72,7 +71,7 @@ class _FrameScope:
         return self._stack.__exit__(*args)
 
 
-def frame_scope(frames: List[frame.TIRFrame]) -> _FrameScope:
+def frame_scope(frames: list[frame.TIRFrame]) -> _FrameScope:
     """Enter multiple IRBuilder frames without deep nesting.
 
     This function provides a way to enter multiple frames in a single `with`

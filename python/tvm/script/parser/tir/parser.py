@@ -18,7 +18,7 @@
 
 import contextlib
 from functools import partial
-from typing import Any, Dict, Optional
+from typing import Any
 
 import tvm
 from tvm.ir import GlobalVar, PrimType
@@ -55,11 +55,11 @@ def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> 
     res : Any
         The bound value.
     """
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         for i, v in enumerate(value):
             bind_with_value(self, node, f"{var_name}_{i}", v)
         return value
-    elif isinstance(value, (Buffer, Var)):
+    elif isinstance(value, Buffer | Var):
         IRBuilder.name(var_name, value)
         return value
     else:
@@ -91,7 +91,7 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
     res : Any
         The bound value.
     """
-    if isinstance(value, (list, tuple, tvm.ir.Array)):
+    if isinstance(value, list | tuple | tvm.ir.Array):
         for i, v in enumerate(value):
             bind_for_value(self, node, f"{var_name}_{i}", v)
         return value
@@ -129,7 +129,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
     """
     if isinstance(value, T.meta_var):
         return value.value
-    elif isinstance(value, (list, tuple)):
+    elif isinstance(value, list | tuple):
         for i, v in enumerate(value):
             bind_assign_value(self, node, f"{var_name}_{i}", v)
         return value
@@ -138,7 +138,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         res = value.__enter__()
         IRBuilder.name(var_name, res)
         return res
-    elif isinstance(value, (Buffer, IterVar)) or (
+    elif isinstance(value, Buffer | IterVar) or (
         isinstance(value, Var) and not self.var_table.exist(value)
     ):
         IRBuilder.name(var_name, value)
@@ -171,9 +171,9 @@ def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: b
 def range_sugar(
     start: PrimExpr,
     stop: PrimExpr = None,
-    step: Optional[PrimExpr] = None,
+    step: PrimExpr | None = None,
     *,
-    annotations: Optional[Dict[str, Any]] = None,
+    annotations: dict[str, Any] | None = None,
 ) -> T.frame.ForFrame:
     """The sugar for python range builtin."""
 
@@ -473,7 +473,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         res.__enter__()
     elif isinstance(res, PrimExpr):
         T.evaluate(res)
-    elif isinstance(res, (int, bool)):
+    elif isinstance(res, int | bool):
         T.evaluate(tvm.tir.const(res))
     elif isinstance(res, tvm.relax.Call) and not res.args:
         # Using GlobalVar.__call__ with no arguments is ambiguous, as
@@ -503,7 +503,7 @@ def visit_if(self: Parser, node: doc.If) -> None:
     """
     with self.var_table.with_frame():
         predicate = self.eval_expr(node.test)
-        if isinstance(predicate, (PrimExpr, tvm.tir.expr.ExprOp)):
+        if isinstance(predicate, PrimExpr | tvm.tir.expr.ExprOp):
             with T.If(self.eval_expr(node.test)):
                 with T.Then():
                     with self.var_table.with_frame():

@@ -16,14 +16,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Any, Dict
+from typing import Any
 
 
 def build_docs_url(base_url_docs, pr_number, build_number):
     return f"{base_url_docs}/PR-{pr_number!s}/{build_number!s}/docs/index.html"
 
 
-def find_target_url(pr_head: Dict[str, Any]):
+def find_target_url(pr_head: dict[str, Any]):
     for status in pr_head["statusCheckRollup"]["contexts"]["nodes"]:
         if status.get("context", "") == "tvm-ci/pr-head":
             return status["targetUrl"]
@@ -39,7 +39,7 @@ def get_pr_and_build_numbers(target_url):
     return {"pr_number": pr_number, "build_number": build_number}
 
 
-def get_doc_url(pr: Dict[str, Any], base_docs_url: str = "https://pr-docs.tlcpack.ai") -> str:
+def get_doc_url(pr: dict[str, Any], base_docs_url: str = "https://pr-docs.tlcpack.ai") -> str:
     pr_head = pr["commits"]["nodes"][0]["commit"]
     target_url = find_target_url(pr_head)
     pr_and_build = get_pr_and_build_numbers(target_url)

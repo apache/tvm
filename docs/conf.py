@@ -38,7 +38,6 @@ from hashlib import md5
 from importlib import import_module
 from pathlib import Path
 from textwrap import dedent, indent
-from typing import List
 from unittest.mock import patch
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -613,7 +612,7 @@ tvm_class_name_rewrite_map = {
 }
 
 
-def distinguish_class_name(name: str, lines: List[str]):
+def distinguish_class_name(name: str, lines: list[str]):
     """Distinguish the docstring of type annotations.
 
     In the whole TVM, there are many classes with the same name but in different modules,

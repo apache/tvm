@@ -17,15 +17,13 @@
 # pylint: disable=invalid-name
 """Adreno Relax transformation passes."""
 
-from typing import Optional
-
 import tvm.ir
 from tvm.target import Target
 
 from . import _ffi_api
 
 
-def AnnotateCustomMemoryScope(target: Optional[Target] = None) -> tvm.ir.transform.Pass:
+def AnnotateCustomMemoryScope(target: Target | None = None) -> tvm.ir.transform.Pass:
     """Allocate the memory scope information. This is Adreno specific pass to annotate
     The memory scope information and realize the same with RealizeVDevice pass followed by
     updating the Prim Function var_buffer mapping using SpecializePrimFuncBasedOnCallSite.

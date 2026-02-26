@@ -17,8 +17,6 @@
 # pylint: disable=redefined-builtin
 """Operators for distributed Relax."""
 
-from typing import List, Optional, Tuple, Union
-
 from tvm.ir import PrimExpr
 from tvm.relax.distributed import DTensorStructInfo
 from tvm.relax.distributed.struct_info import DeviceMesh, Placement
@@ -72,8 +70,8 @@ def redistribute(input: Expr, device_mesh: DeviceMesh, placement: Placement) -> 
 def call_tir_local_view(
     gvar: GlobalVar,
     args: Expr,
-    out_sinfo: Union[DTensorStructInfo, List[DTensorStructInfo]],
-    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+    out_sinfo: DTensorStructInfo | list[DTensorStructInfo],
+    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """
     Call a tir.prim_func and return the output. The prim_func should be a worker-local function
@@ -107,7 +105,7 @@ def call_tir_local_view(
     if not isinstance(out_sinfo, list):
         out_sinfo = [out_sinfo]
 
-    if isinstance(tir_vars, (list, tuple)):
+    if isinstance(tir_vars, list | tuple):
         tir_vars = ShapeExpr(tir_vars)
 
     return _ffi_api.call_tir_local_view(gvar, args, out_sinfo, tir_vars)  # type: ignore

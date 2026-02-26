@@ -17,7 +17,8 @@
 """PyTorch integration with nn.Module"""
 
 import inspect
-from typing import Any, Callable, List
+from collections.abc import Callable
+from typing import Any
 
 import torch
 
@@ -35,14 +36,14 @@ class TorchModule:  # pylint: disable=too-few-public-methods
 
     spec: _spec.ModuleSpec
     vm: VirtualMachine  # pylint: disable=invalid-name
-    params: List[Tensor]
-    effects: List[Any]
+    params: list[Tensor]
+    effects: list[Any]
 
     def __init__(  # pylint: disable=invalid-name
         self,
         spec: _spec.ModuleSpec,
         vm: VirtualMachine,
-        params: List[Tensor],
+        params: list[Tensor],
     ):
         try:
             self.effects = vm["_initialize_effect"]()
@@ -86,7 +87,7 @@ class TorchModule:  # pylint: disable=too-few-public-methods
 
 
 def _tvm_to_torch(arg):
-    if isinstance(arg, (list, tuple, Array)):
+    if isinstance(arg, list | tuple | Array):
         return [_tvm_to_torch(i) for i in arg]
     if isinstance(arg, _tensor.Tensor):
         return torch.utils.dlpack.from_dlpack(arg)
@@ -117,7 +118,7 @@ def _torch_to_tvm(arg_name, arg_spec, arg_torch):
 
 
 def _method_spec_from_torch(
-    args_torch: List[Any],
+    args_torch: list[Any],
     method: Callable,
 ):
     def _as_spec(arg_torch):

@@ -19,7 +19,6 @@
 # pylint: disable=c-extension-no-member
 
 import functools
-from typing import List, Tuple, Union
 
 import numpy as np
 import pytest
@@ -34,8 +33,8 @@ from tvm.script import tir as T
 
 
 def generate_np_inputs(
-    input_shapes: Union[Tuple, List[Tuple]], dtype: str = "float32"
-) -> Union[np.ndarray, List[np.ndarray]]:
+    input_shapes: tuple | list[tuple], dtype: str = "float32"
+) -> np.ndarray | list[np.ndarray]:
     """Generate numpy data as the inputs of model
 
     Parameters
@@ -50,7 +49,7 @@ def generate_np_inputs(
     out: List[np.ndarray]
         numpy input data
     """
-    if not isinstance(input_shapes[0], (list, tuple)):
+    if not isinstance(input_shapes[0], list | tuple):
         return [np.random.uniform(size=input_shapes).astype(dtype)]
     out = []
     for input_shape in input_shapes:
@@ -58,7 +57,7 @@ def generate_np_inputs(
     return out
 
 
-def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]):
+def np2jnp(inputs_np: np.ndarray | list[np.ndarray]):
     """Convert data from numpy to jax.numpy
 
     Parameters
@@ -75,7 +74,7 @@ def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]):
 
     # Use jnp.asarray to avoid unnecessary memory copies
     inputs_jnp = []
-    if isinstance(inputs_np, (tuple, list)):
+    if isinstance(inputs_np, tuple | list):
         for input_np in inputs_np:
             inputs_jnp.append(jnp.asarray(input_np))
         return inputs_jnp
@@ -84,7 +83,7 @@ def np2jnp(inputs_np: Union[np.ndarray, List[np.ndarray]]):
 
 def check_correctness(
     jax_jit_mod,
-    input_shapes: Union[Tuple, List[Tuple]],
+    input_shapes: tuple | list[tuple],
     dtype: str = "float32",
 ) -> None:
     """Run a jax model and the translated TVM IRModule,
@@ -139,8 +138,8 @@ def check_correctness(
 
 
 def get_vm_res(
-    ir_mod: tvm.IRModule, weights: Union[np.ndarray, List[np.ndarray]]
-) -> Union[tvm.runtime.Tensor, List[tvm.runtime.Tensor]]:
+    ir_mod: tvm.IRModule, weights: np.ndarray | list[np.ndarray]
+) -> tvm.runtime.Tensor | list[tvm.runtime.Tensor]:
     """Compile and run an ir_module on Relax VM
 
     Parameters

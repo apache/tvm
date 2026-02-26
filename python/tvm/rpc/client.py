@@ -270,7 +270,7 @@ class LocalSession(RPCSession):
 def _popen_session(binary):
     temp = utils.tempdir()
 
-    if isinstance(binary, (bytes, bytearray)):
+    if isinstance(binary, bytes | bytearray):
         path_exec = temp.relpath("server.minrpc")
         with open(path_exec, "wb") as outfile:
             outfile.write(binary)
@@ -542,7 +542,7 @@ def connect(
         if session_timeout:
             key += f" -timeout={session_timeout}"
         session_constructor_args = session_constructor_args if session_constructor_args else []
-        if not isinstance(session_constructor_args, (list, tuple)):
+        if not isinstance(session_constructor_args, list | tuple):
             raise TypeError("Expect the session constructor to be a list or tuple")
         sess = _ffi_api.Connect(url, port, key, enable_logging, *session_constructor_args)
     except NameError:

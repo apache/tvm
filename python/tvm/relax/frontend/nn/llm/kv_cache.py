@@ -21,7 +21,7 @@
 # pylint: disable=too-many-statements,too-many-lines,too-many-arguments,invalid-name
 import enum
 import math
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Literal
 
 import tvm
 from tvm import relax as rx
@@ -105,7 +105,7 @@ class RopeMode(enum.IntEnum):
 class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
     """The Paged KV Cache used in LLM batching for efficient attention computation."""
 
-    extern_mods: List[tvm.runtime.Module] = []
+    extern_mods: list[tvm.runtime.Module] = []
 
     def attention_with_fused_qkv(
         self,
@@ -151,7 +151,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         k: Tensor,
         v: Tensor,
         sm_scale: float,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor]:
         """Fine-grained API that computes ragged self attention with Q/K/V data."""
         # pylint: disable=protected-access
         b, s, h_qo, d_qk = q._expr.struct_info.shape
@@ -189,7 +189,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         q: Tensor,
         v_head_dim: int,
         sm_scale: float,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor]:
         """Fine-grained API that computes paged cross attention with Q and in-cache KV data."""
         # pylint: disable=protected-access
         b, s, h_qo, d_qk = q._expr.struct_info.shape
@@ -238,7 +238,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         lse_self_attn: Tensor,
         o_cross_attn: Tensor,
         lse_cross_attn: Tensor,
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor]:
         """Fine-grained API that merges the attention output from two sources.
         The first two tensors will be inplace updated.
         """
@@ -299,9 +299,9 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
 
 
 def _prepare_yarn_rope_scaling(
-    rope_scaling: Optional[Dict[str, Any]],
-    rope_theta: Optional[float],
-) -> Optional[Dict[str, Any]]:
+    rope_scaling: dict[str, Any] | None,
+    rope_theta: float | None,
+) -> dict[str, Any] | None:
     """Ensure Yarn-specific scaling configs include the theta metadata."""
     if rope_scaling is None:
         return None
@@ -320,7 +320,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
 
     def __init__(  # pylint: disable=too-many-locals
         self,
-        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]],
+        attn_kind: Literal["mha", "mla"] | list[Literal["mha", "mla", "mha_sliding"]],
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,
@@ -337,7 +337,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         rope_mode: RopeMode,
         rope_scale: int,
         rope_theta: int,
-        rope_scaling: Dict[str, Any],
+        rope_scaling: dict[str, Any],
         rope_ext_factors: rx.Expr,
         rotary_dim: int,
         enable_disaggregation: bool,
@@ -392,7 +392,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         assert rope_mode != RopeMode.INLINE, "FlashInfer RoPE does not support inline mode."
         rope_scaling = _prepare_yarn_rope_scaling(rope_scaling, rope_theta)
 
-        attn_kind_single = attn_kind[0] if isinstance(attn_kind, List) else attn_kind
+        attn_kind_single = attn_kind[0] if isinstance(attn_kind, list) else attn_kind
         if attn_kind_single == "mha_sliding":
             attn_kind_single = "mha"
         flashinfer_prefill_mods = rx.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
@@ -454,7 +454,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         if attn_kind_single == "mla":
             attn_merge_functions.append(bb.add_func(_merge_state_inplace(num_attention_heads, mla_original_v_head_dim, dtype, target, "tir_attention_merge_state_mla"), "tir_attention_merge_state_mla"))
 
-        if isinstance(attn_kind, List):
+        if isinstance(attn_kind, list):
             attn_kind = [int(getattr(AttnKind, layer_kind.upper())) for layer_kind in attn_kind]
         else:
             attn_kind = [int(getattr(AttnKind, attn_kind.upper())) for _ in range(num_hidden_layers)]
@@ -508,7 +508,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
 
     def __init__(  # pylint: disable=too-many-locals
         self,
-        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]],
+        attn_kind: Literal["mha", "mla"] | list[Literal["mha", "mla", "mha_sliding"]],
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,
@@ -525,7 +525,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         rope_mode: RopeMode,
         rope_scale: int,
         rope_theta: int,
-        rope_scaling: Dict[str, Any],
+        rope_scaling: dict[str, Any],
         rope_ext_factors: rx.Expr,
         rotary_dim: int,
         enable_disaggregation: bool,
@@ -580,10 +580,10 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             The target to build the model to.
         """
         rope_scaling = _prepare_yarn_rope_scaling(rope_scaling, rope_theta)
-        attn_kind_single = attn_kind[0] if isinstance(attn_kind, List) else attn_kind
+        attn_kind_single = attn_kind[0] if isinstance(attn_kind, list) else attn_kind
         if attn_kind_single == "mha_sliding":
             attn_kind_single = "mha"
-        if isinstance(attn_kind, List):
+        if isinstance(attn_kind, list):
             attn_kind = [int(getattr(AttnKind, layer_kind.upper())) for layer_kind in attn_kind]
         else:
             attn_kind = [
@@ -858,9 +858,9 @@ def _rope(
     rotary_dim: int,
     theta: tir.Var,
     scale: tir.Var,
-    indices: Tuple[tir.Var, ...],
+    indices: tuple[tir.Var, ...],
     qkv_dtype: str,
-    rope_scaling: Dict[str, Any],
+    rope_scaling: dict[str, Any],
 ):
     d = indices[-1]
     cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(
@@ -922,7 +922,7 @@ def _get_seq_offset(pos, seq_id, length_info, sliding_window):
 
 
 def _attention_prefill_cpu(
-    h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: Dict[str, Any], page_size: int = 16
+    h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: dict[str, Any], page_size: int = 16
 ):
     global_symbol = "batch_prefill_paged_kv_cpu"
     if sliding_window:
@@ -1227,7 +1227,7 @@ def _attention_prefill(
     d,
     dtype,
     sliding_window: bool,
-    rope_scaling: Dict[str, Any],
+    rope_scaling: dict[str, Any],
     target: Target,
     page_size: int = 16,
 ):
@@ -1529,7 +1529,7 @@ def _attention_decode_cpu(
     head_dim,
     qkv_dtype,
     sliding_window: bool,
-    rope_scaling: Dict[str, Any],
+    rope_scaling: dict[str, Any],
     page_size: int = 16,
 ):
     H_qo = num_qo_heads
@@ -1685,7 +1685,7 @@ def _attention_decode(
     head_dim,
     qkv_dtype,
     sliding_window: bool,
-    rope_scaling: Dict[str, Any],
+    rope_scaling: dict[str, Any],
     target: Target,
     page_size: int = 16,
 ):
@@ -1977,7 +1977,7 @@ def _merge_state_inplace_cpu(v_dtype):
 
 
 def _merge_state_inplace(
-    num_heads, head_dim, v_dtype, target: Target, global_symbol: Optional[str] = None
+    num_heads, head_dim, v_dtype, target: Target, global_symbol: str | None = None
 ):
     v_dtype_bytes = 2
     VEC_SIZE = min(max(8 // v_dtype_bytes, head_dim // 32), 4)
@@ -2305,7 +2305,7 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
     return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
-def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dict[str, Any]):
+def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any]):
     group_size = h_q // h_kv
 
     # fmt: off
@@ -2437,7 +2437,7 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dic
 
 
 def _attention_prefill_ragged(
-    h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dict[str, Any], target: Target
+    h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[str, Any], target: Target
 ):
     # pylint: disable=line-too-long
     (

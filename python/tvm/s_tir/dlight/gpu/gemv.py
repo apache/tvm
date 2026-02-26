@@ -18,7 +18,6 @@
 """A rule for GEMV and DecodeGEMV."""
 
 from functools import reduce
-from typing import List, Optional, Union
 
 from tvm import s_tir, tir
 from tvm.target import Target
@@ -42,7 +41,7 @@ class GEMV(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
@@ -90,8 +89,8 @@ class GEMV(GPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[SBlockInfo],
+        vector_input_buffers: list[tir.Buffer],
+        epilogue_info: SBlockInfo | None,
     ):
         """Schedule the inner reduction block."""
 
@@ -430,8 +429,8 @@ class GEMV(GPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[SBlockInfo],
+        vector_input_buffers: list[tir.Buffer],
+        epilogue_info: SBlockInfo | None,
     ):
         """Schedule the outer reduction block."""
 
@@ -635,8 +634,8 @@ class GEMV(GPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: List[tir.Buffer],
-        epilogue_info: Optional[SBlockInfo],
+        vector_input_buffers: list[tir.Buffer],
+        epilogue_info: SBlockInfo | None,
     ):
         """Schedule the outer reduction block."""
         # NOTE: Only Android is supported so far

@@ -18,7 +18,6 @@
 """Test Meta Schedule SearchStrategy"""
 
 # pylint: disable=missing-function-docstring
-from typing import List
 
 import pytest
 
@@ -101,11 +100,11 @@ def test_meta_schedule_replay_func(
     (correct_sch,) = ms.space_generator.ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(
         Matmul
     )
-    num_trials_each_iter: List[int] = []
+    num_trials_each_iter: list[int] = []
     candidates = strategy.generate_measure_candidates()
     while candidates is not None:
         num_trials_each_iter.append(len(candidates))
-        runner_results: List[ms.runner.RunnerResult] = []
+        runner_results: list[ms.runner.RunnerResult] = []
         for candidate in candidates:
             _is_trace_equal(
                 candidate.sch,
@@ -167,11 +166,11 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
         database=ms.database.MemoryDatabase(),
         cost_model=ms.cost_model.RandomModel(),
     )
-    num_trials_each_iter: List[int] = []
+    num_trials_each_iter: list[int] = []
     candidates = strategy.generate_measure_candidates()
     while candidates is not None:
         num_trials_each_iter.append(len(candidates))
-        runner_results: List[ms.runner.RunnerResult] = []
+        runner_results: list[ms.runner.RunnerResult] = []
         for candidate in candidates:
             _is_trace_equal(
                 candidate.sch,
@@ -232,11 +231,11 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
         database=ms.database.MemoryDatabase(),
         cost_model=ms.cost_model.RandomModel(),
     )
-    num_trials_each_iter: List[int] = []
+    num_trials_each_iter: list[int] = []
     candidates = strategy.generate_measure_candidates()
     while candidates is not None:
         num_trials_each_iter.append(len(candidates))
-        runner_results: List[ms.runner.RunnerResult] = []
+        runner_results: list[ms.runner.RunnerResult] = []
         for candidate in candidates:
             _is_trace_equal(
                 candidate.sch,

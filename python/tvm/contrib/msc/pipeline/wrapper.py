@@ -17,7 +17,7 @@
 """tvm.contrib.msc.pipeline.wrapper"""
 
 import shutil
-from typing import Any, List, Optional, Union
+from typing import Any
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.utils.message import MSCStage
@@ -46,7 +46,7 @@ class BaseWrapper:
         model: Any,
         config: dict,
         workspace: str = "msc_workspace",
-        plugins: Optional[dict] = None,
+        plugins: dict | None = None,
     ):
         self._meta_model = model
         self._optimized_model, self._compiled_model = None, None
@@ -143,7 +143,7 @@ class BaseWrapper:
 
     def export(
         self, path: str = "msc_export", dump: bool = True, keep_workspace: bool = False
-    ) -> Union[str, dict]:
+    ) -> str | dict:
         """Export compile pipeline
 
         Parameters
@@ -207,11 +207,11 @@ class BaseWrapper:
     @classmethod
     def create_config(
         cls,
-        inputs: List[dict],
-        outputs: List[str],
-        baseline_type: Optional[str] = None,
-        optimize_type: Optional[str] = None,
-        compile_type: Optional[str] = None,
+        inputs: list[dict],
+        outputs: list[str],
+        baseline_type: str | None = None,
+        optimize_type: str | None = None,
+        compile_type: str | None = None,
         **kwargs,
     ) -> dict:
         """Create config for msc pipeline
@@ -254,7 +254,7 @@ class TorchWrapper(BaseWrapper):
         outputs = self._get_model()(*inputs)
         if framework == MSCFramework.TORCH:
             return outputs
-        if isinstance(outputs, (tuple, list)):
+        if isinstance(outputs, tuple | list):
             return [msc_utils.cast_array(o, MSCFramework.TORCH, self.device) for o in outputs]
         return msc_utils.cast_array(outputs, MSCFramework.TORCH, self.device)
 

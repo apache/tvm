@@ -19,13 +19,13 @@
 """Tools/compilers/linkers for Hexagon"""
 
 import io
+import itertools
 import os
 import pathlib
 import re
 import subprocess
 import sys
 import tarfile
-from typing import List, Union
 
 import numpy
 from tvm_ffi import register_global_func
@@ -76,7 +76,7 @@ def hexagon_clang_plus() -> str:
     return str(HEXAGON_CLANG_PLUS)
 
 
-def toolchain_version(toolchain=None) -> List[int]:
+def toolchain_version(toolchain=None) -> list[int]:
     """Return the version of the Hexagon toolchain.
 
     Parameters
@@ -249,7 +249,7 @@ else:  # Linux and Win32
     register_global_func("tvm.contrib.hexagon.link_shared", f=link_shared, override=True)
 
 
-def create_aot_shared(so_name: Union[str, pathlib.Path], files, hexagon_arch: str, options=None):
+def create_aot_shared(so_name: str | pathlib.Path, files, hexagon_arch: str, options=None):
     """Export Hexagon AOT module."""
     options = options or []
     if not os.access(str(HEXAGON_CLANG_PLUS), os.X_OK):
@@ -427,8 +427,7 @@ def allocate_hexagon_array(
 
     boundaries = [0, *axis_separators, len(tensor_shape)]
     physical_shape = [
-        numpy.prod(tensor_shape[dim_i:dim_f])
-        for dim_i, dim_f in zip(boundaries[:-1], boundaries[1:])
+        numpy.prod(tensor_shape[dim_i:dim_f]) for dim_i, dim_f in itertools.pairwise(boundaries)
     ]
 
     arr = tvm.runtime.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)

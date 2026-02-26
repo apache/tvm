@@ -20,7 +20,6 @@ import inspect
 
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
-from typing import List, Optional, Union
 
 import tvm.arith._ffi_api
 import tvm.tir
@@ -129,7 +128,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
     dim_var = [tvm.tir.IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
     body = fcompute(*[v.var for v in dim_var])
 
-    if not isinstance(body, (list, tuple)):
+    if not isinstance(body, list | tuple):
         body = [body]
     body = convert(body)
     op_node = _ffi_api.ComputeOp(name, tag, attrs, dim_var, body)
@@ -284,8 +283,8 @@ def extern(
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
-    shape = (shape,) if isinstance(shape, (tvm.tir.PrimExpr, _Integral)) else shape
-    if shape == () or isinstance(shape[0], (tvm.tir.PrimExpr, _Integral)):
+    shape = (shape,) if isinstance(shape, tvm.tir.PrimExpr | _Integral) else shape
+    if shape == () or isinstance(shape[0], tvm.tir.PrimExpr | _Integral):
         shape = [shape]
     if in_buffers is not None:
         in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
@@ -340,7 +339,7 @@ def extern(
     return res[0] if len(res) == 1 else res
 
 
-def extern_primfunc(input_tensors: List[_tensor.Tensor], primfunc: tvm.tir.PrimFunc, **kwargs):
+def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tir.PrimFunc, **kwargs):
     """Compute tensors via a schedulable TIR PrimFunc
 
     Parameters
@@ -547,7 +546,7 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
 
 
 def create_prim_func(
-    ops: List[Union[_tensor.Tensor, tvm.tir.Var]], index_dtype_override: Optional[str] = None
+    ops: list[_tensor.Tensor | tvm.tir.Var], index_dtype_override: str | None = None
 ) -> tvm.tir.PrimFunc:
     """Create a TensorIR PrimFunc from tensor expression
 
@@ -598,7 +597,7 @@ def create_prim_func(
     func : tir.PrimFunc
         The created function.
     """
-    if not isinstance(ops, (list, tuple, Array)):
+    if not isinstance(ops, list | tuple | Array):
         ops = [ops]
     return _ffi_api.CreatePrimFunc(ops, index_dtype_override)
 

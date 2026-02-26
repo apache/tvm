@@ -17,8 +17,6 @@
 # pylint: disable=invalid-name
 """Search operators."""
 
-from typing import Optional
-
 from ..expr import Expr
 from . import _ffi_api
 
@@ -53,7 +51,7 @@ def where(condition: Expr, x1: Expr, x2: Expr) -> Expr:
     return _ffi_api.where(condition, x1, x2)  # type: ignore
 
 
-def argmax(x: Expr, axis: Optional[int] = None, keepdims: bool = False) -> Expr:
+def argmax(x: Expr, axis: int | None = None, keepdims: bool = False) -> Expr:
     """Computes the argmax of tensor elements over given axis.
 
     Parameters
@@ -79,7 +77,7 @@ def argmax(x: Expr, axis: Optional[int] = None, keepdims: bool = False) -> Expr:
     return _ffi_api.argmax(x, axis, keepdims)  # type: ignore
 
 
-def argmin(x: Expr, axis: Optional[int] = None, keepdims: bool = False) -> Expr:
+def argmin(x: Expr, axis: int | None = None, keepdims: bool = False) -> Expr:
     """Computes the argmin of tensor elements over given axis.
 
     Parameters

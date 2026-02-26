@@ -18,7 +18,7 @@
 
 import os
 import subprocess
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import numpy as np
 
@@ -35,9 +35,9 @@ from .utils import write_weight
 
 def to_sub_tensorrt(
     graph: MSCGraph,
-    weights: Dict[str, tvm.runtime.Tensor],
-    codegen_config: Optional[Dict[str, str]] = None,
-    print_config: Optional[Dict[str, str]] = None,
+    weights: dict[str, tvm.runtime.Tensor],
+    codegen_config: dict[str, str] | None = None,
+    print_config: dict[str, str] | None = None,
     build_folder: msc_utils.MSCDirectory = None,
     output_folder: msc_utils.MSCDirectory = None,
     plugin: Any = None,
@@ -144,15 +144,15 @@ def to_sub_tensorrt(
 
 def to_tensorrt(
     mod: tvm.IRModule,
-    graphs: List[MSCGraph],
-    weights: Dict[str, tvm.runtime.Tensor],
-    codegen_configs: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
-    print_configs: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
-    extra_options: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
+    graphs: list[MSCGraph],
+    weights: dict[str, tvm.runtime.Tensor],
+    codegen_configs: dict[str, str] | list[dict[str, str]] | None = None,
+    print_configs: dict[str, str] | list[dict[str, str]] | None = None,
+    extra_options: dict[str, str] | list[dict[str, str]] | None = None,
     build_folder: msc_utils.MSCDirectory = None,
     output_folder: msc_utils.MSCDirectory = None,
     plugin: Any = None,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Change all MSCGraphs to TensorRT engine files.
 
     Parameters
@@ -183,11 +183,11 @@ def to_tensorrt(
     """
 
     target_options = {}
-    if not isinstance(codegen_configs, (list, tuple)):
+    if not isinstance(codegen_configs, list | tuple):
         codegen_configs = [codegen_configs] * len(graphs)
-    if not isinstance(print_configs, (list, tuple)):
+    if not isinstance(print_configs, list | tuple):
         print_configs = [print_configs] * len(graphs)
-    if not isinstance(extra_options, (list, tuple)):
+    if not isinstance(extra_options, list | tuple):
         extra_options = [extra_options] * len(graphs)
     for idx, graph in enumerate(graphs):
         options = to_sub_tensorrt(

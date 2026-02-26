@@ -16,7 +16,7 @@
 # under the License.
 """APIs for pattern-based rewriting."""
 
-from typing import Callable, Dict, Union
+from collections.abc import Callable
 
 from tvm_ffi import register_object
 
@@ -36,7 +36,7 @@ class PatternMatchingRewriter(Object):
     @staticmethod
     def from_pattern(
         pattern: DFPattern,
-        func: Callable[[Expr, Dict[DFPattern, Expr]], Expr],
+        func: Callable[[Expr, dict[DFPattern, Expr]], Expr],
     ) -> "PatternMatchingRewriter":
         """Construct from a pattern and rewriter-function
 
@@ -131,7 +131,7 @@ class PatternMatchingRewriter(Object):
         """
         return ffi.PatternMatchingRewriterFromModule(mod)  # type: ignore
 
-    def __call__(self, obj: Union[Expr, IRModule]) -> Union[Expr, IRModule]:
+    def __call__(self, obj: Expr | IRModule) -> Expr | IRModule:
         """Apply the rewriter
 
         Parameters
@@ -204,7 +204,7 @@ class TupleRewriter(PatternMatchingRewriter):
 
 def rewrite_call(
     pattern: DFPattern,
-    rewriter: Callable[[Expr, Dict[DFPattern, Expr]], Expr],
+    rewriter: Callable[[Expr, dict[DFPattern, Expr]], Expr],
     func: Function,
 ) -> Function:
     """
@@ -242,7 +242,7 @@ def rewrite_call(
 
 def rewrite_bindings(
     ctx: PatternContext,
-    rewriter: Callable[[Dict[DFPattern, Var], Dict[Var, Expr]], Dict[Var, Expr]],
+    rewriter: Callable[[dict[DFPattern, Var], dict[Var, Expr]], dict[Var, Expr]],
     func: Function,
 ) -> Function:
     """

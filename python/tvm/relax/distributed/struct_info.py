@@ -18,7 +18,6 @@
 """Struct Info for distributed tensor."""
 
 import enum
-from typing import List
 
 import tvm_ffi
 
@@ -93,7 +92,7 @@ class Placement(Object):
         The placement spec for each dimension of the device mesh.
     """
 
-    def __init__(self, dim_specs: List[PlacementSpec]):
+    def __init__(self, dim_specs: list[PlacementSpec]):
         self.__init_handle_by_constructor__(_ffi_api.Placement, dim_specs)  # type: ignore
 
     @staticmethod

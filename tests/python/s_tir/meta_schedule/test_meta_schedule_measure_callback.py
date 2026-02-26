@@ -17,7 +17,6 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import re
 import tempfile
-from typing import List
 
 import pytest
 
@@ -55,9 +54,9 @@ def test_meta_schedule_measure_callback():
             self,
             task_scheduler: ms.task_scheduler.TaskScheduler,
             task_id: int,
-            measure_candidates: List[ms.MeasureCandidate],
-            builder_results: List[ms.builder.BuilderResult],
-            runner_results: List[ms.runner.RunnerResult],
+            measure_candidates: list[ms.MeasureCandidate],
+            builder_results: list[ms.builder.BuilderResult],
+            runner_results: list[ms.runner.RunnerResult],
         ) -> None:
             assert len(measure_candidates) == 1
             tvm.ir.assert_structural_equal(measure_candidates[0].sch.mod, Matmul)
@@ -89,9 +88,9 @@ def test_meta_schedule_measure_callback_fail():
             self,
             task_scheduler: ms.task_scheduler.TaskScheduler,
             task_id: int,
-            measure_candidates: List[ms.MeasureCandidate],
-            builder_results: List[ms.builder.BuilderResult],
-            runner_results: List[ms.runner.RunnerResult],
+            measure_candidates: list[ms.MeasureCandidate],
+            builder_results: list[ms.builder.BuilderResult],
+            runner_results: list[ms.runner.RunnerResult],
         ) -> None:
             raise ValueError("test")
 
@@ -113,9 +112,9 @@ def test_meta_schedule_measure_callback_as_string():
             self,
             task_scheduler: ms.task_scheduler.TaskScheduler,
             task_id: int,
-            measure_candidates: List[ms.MeasureCandidate],
-            builder_results: List[ms.builder.BuilderResult],
-            runner_results: List[ms.runner.RunnerResult],
+            measure_candidates: list[ms.MeasureCandidate],
+            builder_results: list[ms.builder.BuilderResult],
+            runner_results: list[ms.runner.RunnerResult],
         ) -> None:
             pass
 
@@ -135,7 +134,7 @@ def test_meta_schedule_measure_callback_update_cost_model_with_zero():
 
     @ms.derived_object
     class AllZeroRunner(ms.runner.PyRunner):
-        def run(self, runner_inputs: List[ms.runner.RunnerInput]) -> List[ms.runner.RunnerResult]:
+        def run(self, runner_inputs: list[ms.runner.RunnerInput]) -> list[ms.runner.RunnerResult]:
             return [AllZeroRunnerFuture() for _ in runner_inputs]
 
     with tempfile.TemporaryDirectory() as work_dir:
@@ -160,7 +159,7 @@ def test_meta_schedule_measure_callback_update_cost_model_with_runtime_error():
 
     @ms.derived_object
     class EmptyRunner(ms.runner.PyRunner):
-        def run(self, runner_inputs: List[ms.runner.RunnerInput]) -> List[ms.runner.RunnerResult]:
+        def run(self, runner_inputs: list[ms.runner.RunnerInput]) -> list[ms.runner.RunnerResult]:
             return [EmptyRunnerFuture() for _ in runner_inputs]
 
     with tempfile.TemporaryDirectory() as work_dir:

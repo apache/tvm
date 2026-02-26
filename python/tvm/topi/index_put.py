@@ -49,7 +49,7 @@ def index_put(data, indices, values, accumulate=False):
     -------
     ret : tvm.te.Tensor
     """
-    if not isinstance(indices, (list, tuple)):
+    if not isinstance(indices, list | tuple):
         indices = [indices]
 
     # Check indices match data dimensions

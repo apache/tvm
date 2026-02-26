@@ -86,7 +86,7 @@ class Tensor(tvm_ffi.core.Tensor):
         if isinstance(value, Tensor):
             if not value.same_as(self):
                 value.copyto(self)
-        elif isinstance(value, (np.ndarray, np.generic)):
+        elif isinstance(value, np.ndarray | np.generic):
             self.copyfrom(value)
         else:
             raise TypeError(f"type {type(value)} not supported")
@@ -249,7 +249,7 @@ class Tensor(tvm_ffi.core.Tensor):
         _ffi_api.TVMTensorCopyFromTo(self, target_nd)
         return target_nd
 
-    def _create_view(self, shape, dtype: Optional[str] = None, relative_byte_offset: int = 0):
+    def _create_view(self, shape, dtype: str | None = None, relative_byte_offset: int = 0):
         """Create a view into an existing array.
 
         The view shares the same allocation and datatype as the
@@ -348,7 +348,7 @@ def tensor(arr, device=None, mem_scope=None):
     """
     device = device or cpu()
 
-    if not isinstance(arr, (np.ndarray, Tensor)):
+    if not isinstance(arr, np.ndarray | Tensor):
         arr = np.array(arr)
     return empty(arr.shape, arr.dtype, device, mem_scope).copyfrom(arr)
 

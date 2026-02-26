@@ -156,7 +156,7 @@ def group_conv3d_transpose_ncdhw(data, kernel, strides, padding, out_dtype, outp
     Output : tvm.te.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
-    if not isinstance(strides, (tuple, list)):
+    if not isinstance(strides, tuple | list):
         strides = (strides, strides, strides)
 
     if groups == 1:

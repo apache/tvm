@@ -16,8 +16,6 @@
 # under the License.
 """Detect target."""
 
-from typing import Union
-
 from tvm_ffi import get_global_func
 
 from ..runtime import Device, device
@@ -108,7 +106,7 @@ def _detect_cpu(dev: Device) -> Target:  # pylint: disable=unused-argument
     )
 
 
-def detect_target_from_device(dev: Union[str, Device]) -> Target:
+def detect_target_from_device(dev: str | Device) -> Target:
     """Detects Target associated with the given device. If the device does not exist,
     there will be an Error.
 

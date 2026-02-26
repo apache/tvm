@@ -16,8 +16,6 @@
 # under the License.
 """Elementwise operators"""
 
-from __future__ import absolute_import as _abs
-
 import tvm
 from tvm import te
 

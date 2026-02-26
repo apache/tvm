@@ -17,8 +17,6 @@
 # ruff: noqa: E741
 """tvm.contrib.msc.core.frontend.translate"""
 
-from typing import Dict, List, Optional, Tuple
-
 import tvm
 from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import transform as msc_transform
@@ -29,7 +27,7 @@ from tvm.relax.backend.pattern_registry import get_patterns_with_prefix
 from tvm.relax.transform import BindParams
 
 
-def normalize_inputs(inputs: List[tuple]) -> List[tuple]:
+def normalize_inputs(inputs: list[tuple]) -> list[tuple]:
     """Normalize the inputs info
 
     Parameters
@@ -47,7 +45,7 @@ def normalize_inputs(inputs: List[tuple]) -> List[tuple]:
 
     def _normalize_input(inp):
         def _normalize(info):
-            if not isinstance(info, (tuple, list)):
+            if not isinstance(info, tuple | list):
                 return info
             dims = []
             for dim in info:
@@ -68,8 +66,8 @@ def normalize_inputs(inputs: List[tuple]) -> List[tuple]:
 
 
 def normalize_weights(
-    t_weights: Dict[MSCTensor, tvm.runtime.Tensor], graph: MSCGraph
-) -> Dict[str, tvm.runtime.Tensor]:
+    t_weights: dict[MSCTensor, tvm.runtime.Tensor], graph: MSCGraph
+) -> dict[str, tvm.runtime.Tensor]:
     """Normalize the weghts.
 
     Parameters
@@ -112,11 +110,11 @@ def normalize_weights(
 
 def from_relax(
     mod: tvm.IRModule,
-    params: Optional[Dict[str, tvm.runtime.Tensor]] = None,
-    trans_config: Optional[Dict[str, str]] = None,
-    build_config: Optional[Dict[str, str]] = None,
-    opt_config: Optional[Dict[str, str]] = None,
-) -> Tuple[MSCGraph, Dict[str, tvm.runtime.Tensor]]:
+    params: dict[str, tvm.runtime.Tensor] | None = None,
+    trans_config: dict[str, str] | None = None,
+    build_config: dict[str, str] | None = None,
+    opt_config: dict[str, str] | None = None,
+) -> tuple[MSCGraph, dict[str, tvm.runtime.Tensor]]:
     """Change IRModule to MSCGraph.
 
     Parameters
@@ -196,10 +194,10 @@ class BYOCChecker(PyExprVisitor):
 def byoc_partition(
     target: str,
     mod: tvm.IRModule,
-    params: Optional[Dict[str, tvm.runtime.Tensor]] = None,
-    trans_config: Optional[Dict[str, str]] = None,
-    build_config: Optional[Dict[str, str]] = None,
-) -> Tuple[tvm.IRModule, List[Tuple[MSCGraph, Dict[str, tvm.runtime.Tensor]]]]:
+    params: dict[str, tvm.runtime.Tensor] | None = None,
+    trans_config: dict[str, str] | None = None,
+    build_config: dict[str, str] | None = None,
+) -> tuple[tvm.IRModule, list[tuple[MSCGraph, dict[str, tvm.runtime.Tensor]]]]:
     """Partition module to target sub functions.
 
     Parameters

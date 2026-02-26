@@ -19,8 +19,8 @@
 # pylint: disable=import-outside-toplevel
 """PyTorch FX frontend of Relax."""
 
+from collections.abc import Callable
 from functools import partial, reduce
-from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm import relax
@@ -38,7 +38,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         import torch  # type: ignore
 
         super().__init__()
-        self.named_modules: Dict[str, torch.Module] = None
+        self.named_modules: dict[str, torch.Module] = None
         self.default_image_layout = default_image_layout
 
     ########## Utilities ##########
@@ -758,7 +758,7 @@ class TorchFXImporter(BaseFXGraphImporter):
                 return self.shape_of(self.env[node.args[0]])
         return getattr(self.env[node.args[0]], node.args[1])
 
-    def create_input_vars(self, input_info: List[Tuple[Tuple[int], str]]) -> List[relax.Var]:
+    def create_input_vars(self, input_info: list[tuple[tuple[int], str]]) -> list[relax.Var]:
         inputs = list()
         for idx, (shape, dtype) in enumerate(input_info):
             inputs.append(
@@ -770,7 +770,7 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     def create_convert_map(
         self,
-    ) -> Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]]:
+    ) -> dict[torch.nn.Module | str, Callable[[fx.Node], relax.Var]]:
         import operator
 
         from torch import nn
@@ -1041,11 +1041,11 @@ class TorchFXImporter(BaseFXGraphImporter):
     def from_fx(
         self,
         model,
-        input_info: List[Tuple[Tuple[int], str]],
+        input_info: list[tuple[tuple[int], str]],
         keep_params_as_input: bool,
         unwrap_unit_return_tuple: bool,
         no_bind_return_tuple: bool,
-        custom_convert_map: Optional[dict] = None,
+        custom_convert_map: dict | None = None,
     ) -> tvm.IRModule:
         """Convert a PyTorch FX GraphModule to a Relax program."""
         from torch import fx
@@ -1106,7 +1106,7 @@ class TorchFXImporter(BaseFXGraphImporter):
                         assert len(args) == 1
 
                         # return tuple
-                        if isinstance(args[0], (tuple, list, relax.Tuple)):
+                        if isinstance(args[0], tuple | list | relax.Tuple):
                             # unit tuple
                             if unwrap_unit_return_tuple and len(args[0]) == 1:
                                 output = self.block_builder.emit_output(args[0][0])
@@ -1150,12 +1150,12 @@ class TorchFXImporter(BaseFXGraphImporter):
 
 def from_fx(
     model,
-    input_info: List[Tuple[Tuple[int], str]],
+    input_info: list[tuple[tuple[int], str]],
     *,
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
     no_bind_return_tuple: bool = False,
-    custom_convert_map: Optional[dict] = None,
+    custom_convert_map: dict | None = None,
     default_image_layout: str = "NCHW",
 ) -> tvm.IRModule:
     """Convert a PyTorch FX GraphModule to a Relax program

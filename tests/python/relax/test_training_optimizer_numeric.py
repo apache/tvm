@@ -16,7 +16,7 @@
 # under the License.
 """Numeric tests for relax optimizer APIs."""
 
-from typing import Callable, List
+from collections.abc import Callable
 
 import numpy as np
 
@@ -36,20 +36,20 @@ def _legalize_and_build(mod: IRModule, target, dev):
 
 
 def _numpy_to_tvm(data):
-    if isinstance(data, (list, tuple)):
+    if isinstance(data, list | tuple):
         return [_numpy_to_tvm(_data) for _data in data]
     return tvm.runtime.tensor(data)
 
 
 def _tvm_to_numpy(data):
-    if isinstance(data, (list, tuple, tvm.ir.Array)):
+    if isinstance(data, list | tuple | tvm.ir.Array):
         return [_tvm_to_numpy(_data) for _data in data]
     return data.numpy()
 
 
 def _assert_allclose_nested(data1, data2):
-    if isinstance(data1, (list, tuple)):
-        assert isinstance(data2, (list, tuple))
+    if isinstance(data1, list | tuple):
+        assert isinstance(data2, list | tuple)
         assert len(data1) == len(data2)
         for x, y in zip(data1, data2):
             _assert_allclose_nested(x, y)
@@ -57,7 +57,7 @@ def _assert_allclose_nested(data1, data2):
         assert_allclose(data1, data2)
 
 
-def _assert_run_result_same(tvm_func: Callable, np_func: Callable, np_inputs: List):
+def _assert_run_result_same(tvm_func: Callable, np_func: Callable, np_inputs: list):
     result = _tvm_to_numpy(tvm_func(*[_numpy_to_tvm(i) for i in np_inputs]))
     expected = np_func(*np_inputs)
     _assert_allclose_nested(result, expected)

@@ -17,12 +17,7 @@
 
 """Pattern table for NNAPI backend"""
 
-from typing import (
-    List,
-    Mapping,
-    Optional,
-    Tuple,
-)
+from collections.abc import Mapping
 
 from tvm.ir import IRModule
 from tvm.relax.dpl.pattern import (
@@ -35,7 +30,7 @@ from tvm.relax.transform import FuseOpsByPattern, MergeCompositeFunctions
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 
 
-def elementwise_binary_patterns() -> List[Tuple[str, DFPattern, Mapping[str, DFPattern]]]:
+def elementwise_binary_patterns() -> list[tuple[str, DFPattern, Mapping[str, DFPattern]]]:
     """
     Returns a list of tuples representing elementwise binary operation patterns mapped
     between NNAPI and Relax frameworks.
@@ -44,7 +39,7 @@ def elementwise_binary_patterns() -> List[Tuple[str, DFPattern, Mapping[str, DFP
     def _elementwise_binary_pattern(
         pattern_name: str,
         op_name: str,
-    ) -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
+    ) -> tuple[str, DFPattern, Mapping[str, DFPattern]]:
         input0 = wildcard()
         input1 = wildcard()
 
@@ -69,7 +64,7 @@ def elementwise_binary_patterns() -> List[Tuple[str, DFPattern, Mapping[str, DFP
     ]
 
 
-def unary_patterns() -> List[Tuple[str, DFPattern, Mapping[str, DFPattern]]]:
+def unary_patterns() -> list[tuple[str, DFPattern, Mapping[str, DFPattern]]]:
     """
     Returns a list of tuples representing unary operation patterns mapped
     between NNAPI and Relax frameworks.
@@ -77,7 +72,7 @@ def unary_patterns() -> List[Tuple[str, DFPattern, Mapping[str, DFPattern]]]:
 
     def _unary_pattern(
         pattern_name: str, op_name: str
-    ) -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
+    ) -> tuple[str, DFPattern, Mapping[str, DFPattern]]:
         input0 = wildcard()
         pattern = is_op(op_name)(input0)
         return (pattern_name, pattern, {})
@@ -98,7 +93,7 @@ def unary_patterns() -> List[Tuple[str, DFPattern, Mapping[str, DFPattern]]]:
     ]
 
 
-def matmul_pattern() -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
+def matmul_pattern() -> tuple[str, DFPattern, Mapping[str, DFPattern]]:
     """
     Returns a tuple representing matmul operation patterns mapped
     between NNAPI and Relax frameworks.
@@ -109,7 +104,7 @@ def matmul_pattern() -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
     return ("nnapi.batch_matmul", pattern, {})
 
 
-def permute_dims_pattern() -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
+def permute_dims_pattern() -> tuple[str, DFPattern, Mapping[str, DFPattern]]:
     """
     Returns a tuple representing permute operation patterns mapped
     between NNAPI and Relax frameworks.
@@ -119,7 +114,7 @@ def permute_dims_pattern() -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
     return ("nnapi.transpose", pattern, {})
 
 
-def astype_pattern() -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
+def astype_pattern() -> tuple[str, DFPattern, Mapping[str, DFPattern]]:
     """
     Returns a tuple representing astype operation patterns mapped
     between NNAPI and Relax frameworks.
@@ -132,7 +127,7 @@ def astype_pattern() -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
     return ("nnapi.cast", pattern, {})
 
 
-def mean_pattern() -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
+def mean_pattern() -> tuple[str, DFPattern, Mapping[str, DFPattern]]:
     """
     Returns a tuple representing mean operation patterns mapped
     between NNAPI and Relax frameworks.
@@ -143,7 +138,7 @@ def mean_pattern() -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
     return ("nnapi.mean", pattern, {})
 
 
-def conv2d_pattern() -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
+def conv2d_pattern() -> tuple[str, DFPattern, Mapping[str, DFPattern]]:
     """
     Returns a tuple representing conv2d operation patterns mapped
     between NNAPI and Relax frameworks.
@@ -156,7 +151,7 @@ def conv2d_pattern() -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
     return ("nnapi.conv2d", pattern, {})
 
 
-def max_pool2d_pattern() -> Tuple[str, DFPattern, Mapping[str, DFPattern]]:
+def max_pool2d_pattern() -> tuple[str, DFPattern, Mapping[str, DFPattern]]:
     """
     Returns a tuple representing max_pool2d operation patterns mapped
     between NNAPI and Relax frameworks.
@@ -303,7 +298,7 @@ def min_feature_level(pattern_name: str) -> int:
     return levels[pattern_name]
 
 
-def partition_for_nnapi(mod: IRModule, feature_level: Optional[int] = None) -> IRModule:
+def partition_for_nnapi(mod: IRModule, feature_level: int | None = None) -> IRModule:
     """Partition the graph greedily offloading supported operators to NNAPI.
 
     Parameters

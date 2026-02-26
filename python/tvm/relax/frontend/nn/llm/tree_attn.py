@@ -20,7 +20,7 @@
 """Operators for tree attention."""
 
 import math
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from tvm import s_tir, tir
 from tvm.runtime import DataType
@@ -43,9 +43,9 @@ def _rope(
     rotary_dim: int,
     theta: tir.Var,
     scale: tir.Var,
-    indices: Tuple[tir.Var, ...],
+    indices: tuple[tir.Var, ...],
     qkv_dtype: str,
-    rope_scaling: Dict[str, Any],
+    rope_scaling: dict[str, Any],
 ):
     d = indices[-1]
     cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(
@@ -91,7 +91,7 @@ def _declare_length_info(var_length_info, batch_size, sliding_window, elem_offse
     )
 
 
-def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any]):
+def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
     """Generate tree attention kernel for batched tree attention.
 
     Parameters
@@ -289,7 +289,7 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any]):
     return batch_tree_attn
 
 
-def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target):  # pylint: disable=unused-argument
+def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target):  # pylint: disable=unused-argument
     """Generate tree attention kernel for batched tree attention.
 
     Parameters
@@ -651,7 +651,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target)
     return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
-def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any]):
+def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
     """Generate tree attention kernel for batched tree attention with paged key-value cache.
 
     Parameters
@@ -847,7 +847,7 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[st
 
 
 def tree_attn_with_paged_kv_cache(
-    h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target
+    h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target
 ):
     """Generate tree attention kernel for batched tree attention with paged key-value cache.
 

@@ -19,7 +19,6 @@
 
 from collections import namedtuple
 from enum import IntEnum
-from typing import Dict, Optional, Union
 
 from tvm_ffi import register_object
 
@@ -52,7 +51,7 @@ class ScheduleDebugMask(IntEnum):
     VERIFY_CACHED_FLAGS = 2
 
 
-def _parse_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
+def _parse_mod(mod: PrimFunc | IRModule) -> IRModule:
     if isinstance(mod, PrimFunc):
         mod = IRModule({"main": mod})
     if not isinstance(mod, IRModule):
@@ -60,7 +59,7 @@ def _parse_mod(mod: Union[PrimFunc, IRModule]) -> IRModule:
     return mod
 
 
-def _parse_debug_mask(debug_mask: Union[str, int]) -> int:
+def _parse_debug_mask(debug_mask: str | int) -> int:
     if isinstance(debug_mask, str):
         if debug_mask == "all":
             debug_mask = ScheduleDebugMask.VERIFY_SREF_TREE | ScheduleDebugMask.VERIFY_CACHED_FLAGS
@@ -109,9 +108,9 @@ class ScheduleState(Object):
 
     def __init__(
         self,
-        mod: Union[PrimFunc, IRModule],
+        mod: PrimFunc | IRModule,
         *,
-        debug_mask: Union[str, int] = "none",
+        debug_mask: str | int = "none",
         enable_check: bool = True,
     ) -> None:
         """Construct a schedule state from an IRModule or a PrimFunc
@@ -135,7 +134,7 @@ class ScheduleState(Object):
             _parse_enable_checks(enable_check),
         )
 
-    def get_sref(self, stmt: Union[SBlock, For]) -> Optional[StmtSRef]:
+    def get_sref(self, stmt: SBlock | For) -> StmtSRef | None:
         """Return the corresponding sref that points to the stmt
 
         Parameters
@@ -200,8 +199,8 @@ class ScheduleState(Object):
     def replace(
         self,
         src_sref: StmtSRef,
-        tgt_stmt: Union[SBlock, For, SBlockRealize],
-        block_sref_reuse: Optional[Dict[SBlock, SBlock]] = None,
+        tgt_stmt: SBlock | For | SBlockRealize,
+        block_sref_reuse: dict[SBlock, SBlock] | None = None,
     ) -> None:
         """
         Replace the part of the AST, as being pointed to by `src_sref`,

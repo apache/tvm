@@ -18,7 +18,7 @@
 
 import functools
 import numbers
-from typing import Any, Dict, Optional
+from typing import Any
 
 from tvm import relax, tir
 from tvm.ir import GlobalVar, structural_equal
@@ -43,7 +43,7 @@ def bind_assign_value(
     node: doc.expr,
     var_name: str,
     value: Any,
-    anno_sinfo: Optional[StructInfo] = None,
+    anno_sinfo: StructInfo | None = None,
 ) -> Any:
     var_table = self.var_table.get()
 
@@ -125,11 +125,11 @@ def is_called(node: Any, func_name: str) -> bool:
         # Recursive call was found
         if isinstance(node.func, doc.Name) and node.func.id == func_name:
             return True
-    elif isinstance(node, (list, tuple)):
+    elif isinstance(node, list | tuple):
         for stmt in node:
             if is_called(stmt, func_name):
                 return True
-    elif isinstance(node, (doc.AnnAssign, doc.Assign, doc.Return, doc.Expr)):
+    elif isinstance(node, doc.AnnAssign | doc.Assign | doc.Return | doc.Expr):
         return is_called(node.value, func_name)
     elif isinstance(node, doc.With):
         return is_called(node.body, func_name)
@@ -152,8 +152,8 @@ def is_recursive(node: doc.FunctionDef) -> bool:
 
 
 def collect_symbolic_var_from_prelude(
-    self: Parser, node: doc.FunctionDef, symbolic_vars: Dict[str, tir.Var]
-) -> Dict[str, tir.Var]:
+    self: Parser, node: doc.FunctionDef, symbolic_vars: dict[str, tir.Var]
+) -> dict[str, tir.Var]:
     prelude_vars = {}
     for stmt in node.body:
         if isinstance(stmt, doc.Assign) and all(
@@ -415,7 +415,7 @@ def visit_if(self: Parser, node: doc.If) -> None:
 
 
 @dispatch.register(token="relax", type_name="enter_token")
-def enter_token(self: Parser) -> Dict[str, Any]:
+def enter_token(self: Parser) -> dict[str, Any]:
     def relax_call(self, *args) -> Expr:
         args = [convert_to_expr(arg) if isinstance(arg, tuple) else arg for arg in args]
 
@@ -430,6 +430,6 @@ def enter_token(self: Parser) -> Dict[str, Any]:
 
 
 @dispatch.register(token="relax", type_name="exit_token")
-def exit_token(self: Parser, context: Dict[str, Any]) -> None:
+def exit_token(self: Parser, context: dict[str, Any]) -> None:
     assert "GlobalVar.__call__" in context
     GlobalVar.__call__ = context.get("GlobalVar.__call__")

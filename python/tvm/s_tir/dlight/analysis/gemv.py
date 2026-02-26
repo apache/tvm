@@ -16,8 +16,6 @@
 # under the License.
 """Analysis for GEMV."""
 
-from typing import List, Optional
-
 from tvm import arith, ir, s_tir, tir
 
 from .common_analysis import (
@@ -28,7 +26,7 @@ from .common_analysis import (
 )
 
 
-def get_reduction_expr(block: tir.SBlock) -> Optional[tir.PrimExpr]:
+def get_reduction_expr(block: tir.SBlock) -> tir.PrimExpr | None:
     """Extracts the reduction expression from a TIR block.
 
     This function checks whether the given TIR block follows a reduction pattern
@@ -59,7 +57,7 @@ def get_reduction_expr(block: tir.SBlock) -> Optional[tir.PrimExpr]:
     return buffer_store.value.b
 
 
-def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> Optional[List[tir.Buffer]]:
+def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tir.Buffer] | None:
     """Check if the block is a GEMV.
 
     Parameters
@@ -104,7 +102,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> Optional[List[tir.Bu
 def normalize(
     sch: s_tir.Schedule,
     block_info: SBlockInfo,
-) -> Optional[bool]:
+) -> bool | None:
     """Normalize the main block."""
     block_stmt: tir.SBlock = sch.get(block_info.block_rv)
     access = arith.normalize_to_iter_sum(

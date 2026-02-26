@@ -17,8 +17,6 @@
 # pylint: disable=invalid-name,consider-using-enumerate,redefined-outer-name
 """Injective transformation operators"""
 
-from __future__ import absolute_import as _abs
-
 from math import pi
 
 import numpy as np
@@ -931,7 +929,7 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
               [7, 5, 7, 7],
               [7, 7, 6, 7]]]
     """
-    if isinstance(k, (tuple, list)):
+    if isinstance(k, tuple | list):
         k_one = k[0]
         if len(k) >= 2:
             k_two = k[1]

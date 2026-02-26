@@ -18,7 +18,6 @@
 """Backend kernels for cumsum operator."""
 
 import math
-from typing import Optional
 
 from tvm.script import tir as T
 from tvm.tir import PrimFunc
@@ -34,7 +33,7 @@ def gpu_2d_continuous_cumsum(
     tx_len: int = 32,
     thread_elem: int = 4,
     in_dtype: str = "int32",
-    out_dtype: Optional[str] = None,
+    out_dtype: str | None = None,
 ) -> PrimFunc:
     """Generate GPU kernel for 2D continuous cumsum, i.e. The cumsum axis is -1
 

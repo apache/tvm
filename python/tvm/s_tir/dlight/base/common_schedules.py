@@ -17,7 +17,7 @@
 # ruff: noqa: E722
 """Common schedule strategies for TIR."""
 
-from typing import Callable, List
+from collections.abc import Callable
 
 from tvm import s_tir
 
@@ -26,8 +26,8 @@ from ..analysis import SBlockInfo
 
 def try_inline(
     sch: s_tir.Schedule,
-    blocks: List[SBlockInfo],
-) -> List[SBlockInfo]:
+    blocks: list[SBlockInfo],
+) -> list[SBlockInfo]:
     """Try to inline as many blocks as possible, and return the remaining blocks.
 
     Parameters
@@ -64,8 +64,8 @@ def try_inline(
 
 def try_inline_contiguous_spatial(
     sch: s_tir.Schedule,
-    block_infos: List[SBlockInfo],
-) -> List[SBlockInfo]:
+    block_infos: list[SBlockInfo],
+) -> list[SBlockInfo]:
     """Try to inline contiguous spatial blocks in a schedule
 
     Parameters

@@ -19,11 +19,11 @@
 import os
 import tempfile
 from collections import OrderedDict
+from collections.abc import Callable
 from itertools import chain as itertools_chain
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Optional
 
 import numpy as np  # type: ignore
-from typing_extensions import Literal
 
 from ....contrib.tar import tar, untar
 from ....runtime import Tensor
@@ -79,8 +79,8 @@ class PackSum:
 
     def __init__(
         self,
-        xs: List[np.ndarray],  # pylint: disable=invalid-name
-        ys: Optional[np.ndarray],  # pylint: disable=invalid-name
+        xs: list[np.ndarray],  # pylint: disable=invalid-name
+        ys: np.ndarray | None,  # pylint: disable=invalid-name
     ):
         """Create PackSum format given a batch of samples
 
@@ -118,7 +118,7 @@ class PackSum:
         """
         return np.bincount(self.ids, weights=pred)
 
-    def obj_square_error(self, ys_pred: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def obj_square_error(self, ys_pred: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Implement square error loss on pack-sum format as
         a custom objective function for xgboost.
 
@@ -144,7 +144,7 @@ class PackSum:
         hessian = np.ones_like(gradient)
         return gradient * ys, hessian * ys
 
-    def rmse(self, ys_pred: np.ndarray) -> Tuple[str, float]:
+    def rmse(self, ys_pred: np.ndarray) -> tuple[str, float]:
         """Evaluate RMSE (rooted mean square error) in the pack-sum format
 
         Parameters
@@ -173,7 +173,7 @@ class PackSum:
         self,
         ys_pred: np.ndarray,
         n: int,
-    ) -> Tuple[str, float]:
+    ) -> tuple[str, float]:
         """Evaluate average-peak-score@N in the pack-sum format
 
         Parameters
@@ -230,7 +230,7 @@ class XGBConfig(NamedTuple):
     min_child_weight: float = 0
     eta: float = 0.2
     seed: int = 43
-    nthread: Optional[int] = None
+    nthread: int | None = None
     tree_method: Literal["auto", "exact", "approx", "hist", "gpu_hist"] = "auto"
 
     def to_dict(self):
@@ -263,14 +263,14 @@ class FeatureGroup:
     """
 
     group_hash: str
-    features: List[np.ndarray]
+    features: list[np.ndarray]
     costs: np.ndarray
     min_cost: float
 
     def __init__(
         self,
         group_hash: str,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         costs: np.ndarray,
     ) -> None:
         self.group_hash = group_hash
@@ -280,7 +280,7 @@ class FeatureGroup:
 
     def append(
         self,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         costs: np.ndarray,
     ) -> None:
         self.features.extend(features)
@@ -322,7 +322,7 @@ class XGBModel(PyCostModel):
     verbose_eval: int
     average_peak_n: int
     # states
-    data: Dict[str, FeatureGroup]
+    data: dict[str, FeatureGroup]
     data_size: int
     booster: Optional["xgb.Booster"]
     # adaptive training
@@ -343,8 +343,8 @@ class XGBModel(PyCostModel):
         verbose_eval: int = 25,
         average_peak_n: int = 32,
         adaptive_training: bool = True,
-        num_tuning_cores: Optional[int] = None,
-        tree_method: Optional[Literal["auto", "exact", "approx", "hist", "gpu_hist"]] = None,
+        num_tuning_cores: int | None = None,
+        tree_method: Literal["auto", "exact", "approx", "hist", "gpu_hist"] | None = None,
     ):
         super().__init__()
         if not isinstance(extractor, FeatureExtractor):
@@ -461,8 +461,8 @@ class XGBModel(PyCostModel):
     def update(
         self,
         context: "TuneContext",
-        candidates: List[MeasureCandidate],
-        results: List[RunnerResult],
+        candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the cost model given running results.
 
@@ -552,7 +552,7 @@ class XGBModel(PyCostModel):
     def predict(
         self,
         context: "TuneContext",
-        candidates: List[MeasureCandidate],
+        candidates: list[MeasureCandidate],
     ) -> np.ndarray:
         """Predict the normalized score using the cost model.
 
@@ -588,7 +588,7 @@ class XGBModel(PyCostModel):
 
     def _train(  # type: ignore # pylint: disable=invalid-name
         self,
-        xs: List[np.ndarray],
+        xs: list[np.ndarray],
         ys: np.ndarray,
     ) -> None:
         import xgboost as xgb  # type: ignore # pylint: disable=import-outside-toplevel
@@ -624,7 +624,7 @@ class XGBModel(PyCostModel):
 
     def _predict(  # type: ignore # pylint: disable=invalid-name
         self,
-        xs: List[np.ndarray],
+        xs: list[np.ndarray],
     ) -> np.ndarray:
         d_test = PackSum(xs=xs, ys=None)
         pred = self.booster.predict(d_test.dmatrix)
@@ -633,9 +633,9 @@ class XGBModel(PyCostModel):
 
     def _validate(  # type: ignore # pylint: disable=invalid-name
         self,
-        xs: List[np.ndarray],
+        xs: list[np.ndarray],
         ys: np.ndarray,
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """Evaluate the score of inputs.
 
         Parameters
@@ -658,7 +658,7 @@ class XGBModel(PyCostModel):
             return d_valid.average_peak_score(ys_pred, n=self.average_peak_n)
 
         ys_pred = self.booster.predict(d_valid.dmatrix)
-        eval_result: List[Tuple[str, float]] = [
+        eval_result: list[tuple[str, float]] = [
             feval(ys_pred)
             for feval in (
                 average_peak_score,
@@ -672,10 +672,10 @@ class XGBModel(PyCostModel):
 def _get_custom_call_back(
     early_stopping_rounds: int,
     verbose_eval: int,
-    fevals: List[Callable],
-    evals: List[Tuple["xgb.DMatrix", str]],
+    fevals: list[Callable],
+    evals: list[tuple["xgb.DMatrix", str]],
     focused_metric: str = "tr-p-rmse",
-    cvfolds: Optional[List["xgb.training.CVPack"]] = None,
+    cvfolds: list["xgb.training.CVPack"] | None = None,
 ) -> "TrainingCallback":
     """Get a customized callback function for XGBoost. Work around xgboost import."""
 
@@ -703,16 +703,16 @@ def _get_custom_call_back(
             self,
             early_stopping_rounds: int,
             verbose_eval: int,
-            fevals: List[Callable],
-            evals: List[Tuple["xgb.DMatrix", str]],
+            fevals: list[Callable],
+            evals: list[tuple["xgb.DMatrix", str]],
             focused_metric: str = "tr-p-rmse",
-            cvfolds: Optional[List["xgb.training.CVPack"]] = None,
+            cvfolds: list["xgb.training.CVPack"] | None = None,
         ):
             self.early_stopping_rounds = early_stopping_rounds
             self.verbose_eval = verbose_eval
             self.fevals = fevals
             self.evals = evals
-            self.state: Dict[str, Any] = {}
+            self.state: dict[str, Any] = {}
             self.focused_metric = focused_metric
             self.sort_key = make_metric_sorter(focused_metric=focused_metric)
             self.cvfolds = cvfolds
@@ -739,7 +739,7 @@ def _get_custom_call_back(
                 booster.set_attr(best_iteration=str(self.state["best_iteration"]))
                 booster.set_attr(best_score=str(self.state["best_score"]))
 
-        def after_iteration(self, model: "xgb.Booster", epoch: int, evals_log: Dict):  # pylint: disable = unused-argument
+        def after_iteration(self, model: "xgb.Booster", epoch: int, evals_log: dict):  # pylint: disable = unused-argument
             """Internal function for after_iteration"""
             # pylint:disable = import-outside-toplevel
             try:
@@ -774,10 +774,10 @@ def _get_custom_call_back(
                 self.init(model)
             booster: xgb.Booster = model
             iteration: int = epoch
-            cvfolds: List[xgb.training.CVPack] = self.cvfolds
+            cvfolds: list[xgb.training.CVPack] = self.cvfolds
             ##### Evaluation #####
             # `eval_result` is a list of (key, score)
-            eval_result: List[Tuple[str, float]] = []
+            eval_result: list[tuple[str, float]] = []
             if cvfolds is None:
                 eval_result = list(
                     itertools_chain.from_iterable(

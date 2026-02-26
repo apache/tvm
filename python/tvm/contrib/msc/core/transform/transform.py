@@ -17,8 +17,6 @@
 # pylint: disable=invalid-name
 """tvm.contrib.msc.core.transform.transform"""
 
-from typing import Dict, Optional
-
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.relax.transform import _ffi_api
@@ -27,7 +25,7 @@ from tvm.relax.transform import _ffi_api
 def SetExprName(
     entry_name: str = "main",
     target: str = "",
-    var_names: Optional[Dict[str, str]] = None,
+    var_names: dict[str, str] | None = None,
 ) -> tvm.ir.transform.Pass:
     """Set name for the call and constant in IRModule.
 
@@ -122,7 +120,7 @@ def SetBYOCAttrs(target, entry_name: str = "main") -> tvm.ir.transform.Pass:
 
 def BindNamedParams(
     func_name: str,
-    params: Dict[str, tvm.runtime.Tensor],
+    params: dict[str, tvm.runtime.Tensor],
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors with span names.
 

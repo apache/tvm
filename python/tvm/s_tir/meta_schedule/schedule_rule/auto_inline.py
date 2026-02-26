@@ -16,8 +16,6 @@
 # under the License.
 """Auto-Inline. Rule that inlines spatial blocks if it satisfies some conditions"""
 
-from typing import List, Optional
-
 from tvm_ffi import register_object
 
 from .. import _ffi_api
@@ -54,7 +52,7 @@ class AutoInline(ScheduleRule):
         disallow_if_then_else: bool,
         require_injective: bool,
         require_ordered: bool,
-        disallow_op: Optional[List[str]] = None,
+        disallow_op: list[str] | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ScheduleRuleAutoInline,  # type: ignore # pylint: disable=no-member

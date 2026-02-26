@@ -17,7 +17,6 @@
 """The default database that uses a JSON File to store tuning records"""
 
 import os.path as osp
-from typing import Optional
 
 from tvm_ffi import register_object
 
@@ -52,10 +51,10 @@ class JSONDatabase(Database):
 
     def __init__(
         self,
-        path_workload: Optional[str] = None,
-        path_tuning_record: Optional[str] = None,
+        path_workload: str | None = None,
+        path_tuning_record: str | None = None,
         *,
-        work_dir: Optional[str] = None,
+        work_dir: str | None = None,
         allow_missing: bool = True,
         module_equality: str = "structural",
     ) -> None:

@@ -24,8 +24,9 @@ import subprocess
 import sys
 import tempfile
 import threading
+from collections.abc import Callable
 from multiprocessing import Process
-from typing import Any, Callable, List
+from typing import Any
 
 import numpy as np
 import pytest

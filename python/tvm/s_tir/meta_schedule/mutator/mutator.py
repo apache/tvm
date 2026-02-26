@@ -17,10 +17,11 @@
 # ruff: noqa: RUF012
 """Meta Schedule Mutator."""
 
-from typing import TYPE_CHECKING, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -51,7 +52,7 @@ class Mutator(Object):
             self, context
         )
 
-    def apply(self, trace: Trace) -> Optional[Trace]:
+    def apply(self, trace: Trace) -> Trace | None:
         """Apply the mutator function to the given trace.
 
         Parameters
@@ -84,7 +85,7 @@ class Mutator(Object):
             "cuda-tensorcore",
             "hexagon",
         ],
-    ) -> Dict["Mutator", float]:
+    ) -> dict["Mutator", float]:
         """Create a list of default mutators.
 
         Parameters
@@ -125,10 +126,10 @@ class _PyMutator(Mutator):
 
     def __init__(
         self,
-        f_initialize_with_tune_context: Optional[Callable] = None,
-        f_apply: Optional[Callable] = None,
-        f_clone: Optional[Callable] = None,
-        f_as_string: Optional[Callable] = None,
+        f_initialize_with_tune_context: Callable | None = None,
+        f_apply: Callable | None = None,
+        f_clone: Callable | None = None,
+        f_as_string: Callable | None = None,
     ):
         """Constructor."""
 
@@ -164,7 +165,7 @@ class PyMutator:
         """
         raise NotImplementedError
 
-    def apply(self, trace: Trace, _) -> Optional[Trace]:
+    def apply(self, trace: Trace, _) -> Trace | None:
         """Apply the mutator function to the given trace.
 
         Parameters

@@ -22,7 +22,7 @@ It is not a pretty-printer and, in fact, is more of an ugly-printer,
 but it can be useful for tutorials and debugging.
 """
 
-from typing import Iterable
+from collections.abc import Iterable
 
 import tvm
 from tvm import relax

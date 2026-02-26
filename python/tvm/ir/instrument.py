@@ -22,7 +22,6 @@ import inspect
 import re
 import shutil
 from pathlib import Path
-from typing import Union
 
 import tvm_ffi
 
@@ -300,7 +299,7 @@ class PrintBeforeAll:
 class DumpIR:
     """Dump the IR after the pass runs."""
 
-    def __init__(self, dump_dir: Union[Path, str], refresh: bool = False):
+    def __init__(self, dump_dir: Path | str, refresh: bool = False):
         if isinstance(dump_dir, Path):
             self.dump_dir = dump_dir
         else:

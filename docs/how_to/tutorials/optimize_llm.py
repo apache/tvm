@@ -60,7 +60,6 @@ import enum
 import os
 from pathlib import Path
 from pprint import pprint
-from typing import List, Optional
 
 import tvm
 from tvm import relax, te, tir
@@ -251,7 +250,7 @@ class LlamaForCasualLM(nn.Module):
         self.rope_theta = config.rope_theta
         self.dtype = "float32"
 
-    def to(self, dtype: Optional[str] = None):
+    def to(self, dtype: str | None = None):
         super().to(dtype=dtype)
         if dtype is not None:
             self.dtype = dtype
@@ -378,7 +377,7 @@ pprint(named_params[:5])  # Only show the first 5 parameters for demonstration
 
 @register_pipeline("opt_llm")
 def _pipeline(  # pylint: disable=too-many-arguments
-    ext_mods: Optional[List[nn.ExternModule]] = None,
+    ext_mods: list[nn.ExternModule] | None = None,
 ):
     ext_mods = ext_mods or []
 

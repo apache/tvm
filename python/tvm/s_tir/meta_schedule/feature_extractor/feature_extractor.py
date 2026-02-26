@@ -17,10 +17,11 @@
 # ruff: noqa: RUF012
 """Meta Schedule FeatureExtractor."""
 
-from typing import Callable, List, Optional, Union
+from collections.abc import Callable
+from typing import Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -42,8 +43,8 @@ class FeatureExtractor(Object):
     FeatureExtractorType = Union[Literal["per-store-feature"], "FeatureExtractor"]
 
     def extract_from(
-        self, context: TuneContext, candidates: List[MeasureCandidate]
-    ) -> List[Tensor]:
+        self, context: TuneContext, candidates: list[MeasureCandidate]
+    ) -> list[Tensor]:
         """Extract features from the given measure candidate.
 
         Parameters
@@ -86,7 +87,7 @@ class _PyFeatureExtractor(FeatureExtractor):
     See also: PyFeatureExtractor
     """
 
-    def __init__(self, f_extract_from: Callable, f_as_string: Optional[Callable] = None):
+    def __init__(self, f_extract_from: Callable, f_as_string: Callable | None = None):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
@@ -110,8 +111,8 @@ class PyFeatureExtractor:
     }
 
     def extract_from(
-        self, context: TuneContext, candidates: List[MeasureCandidate]
-    ) -> List[Tensor]:
+        self, context: TuneContext, candidates: list[MeasureCandidate]
+    ) -> list[Tensor]:
         """Extract features from the given measure candidate.
 
         Parameters

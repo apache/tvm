@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name,missing-function-docstring,unused-variable
 """Intrinsics for tensorization on Apple GPU."""
 
-from typing import Dict, Literal, Tuple
+from typing import Literal
 
 from tvm.script import tir as T
 from tvm.tir import Buffer, PrimExpr, PrimFunc, TensorIntrin
@@ -39,7 +39,7 @@ def get_simdgroup_index(buffer: Buffer, stride: PrimExpr, col: int, row: int):
 
 def get_make_filled_simdgroup_matrix_intrin(
     dtype: str, col: int = 8, row: int = 8
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     @T.prim_func
     def desc(a: T.handle) -> None:
         A = T.match_buffer(a, (col, row), dtype, scope="metal.simdgroup", offset_factor=1)
@@ -77,7 +77,7 @@ def get_simdgroup_load_intrin(
     col: int = 8,
     row: int = 8,
     transpose_matrix: bool = False,
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     align = col * row
 
     @T.prim_func
@@ -141,7 +141,7 @@ def get_simdgroup_store_intrin(
     col: int = 8,
     row: int = 8,
     transpose_matrix: bool = False,
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     align = col * row
 
     @T.prim_func
@@ -194,7 +194,7 @@ def get_simdgroup_store_intrin(
 
 def get_simdgroup_multiply_accumulate_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str
-) -> Tuple[PrimFunc, PrimFunc]:
+) -> tuple[PrimFunc, PrimFunc]:
     @T.prim_func
     def desc(a: T.handle, b: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (m_dim, k_dim), dtype, scope="metal.simdgroup", offset_factor=1)
@@ -297,7 +297,7 @@ def get_simdgroup_intrin_group(
     dtype: str,
     trans_a: bool = False,
     trans_b: bool = False,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Get a group of intrinsics for tensorization on Apple GPU.
 
     Parameters

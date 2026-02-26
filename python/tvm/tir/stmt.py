@@ -27,8 +27,8 @@ Each statement node have subfields that can be visited from python side.
     assert(st.buffer == buffer)
 """
 
+from collections.abc import Mapping
 from enum import IntEnum
-from typing import List, Mapping, Optional, Union
 
 import tvm_ffi
 
@@ -66,9 +66,9 @@ class LetStmt(Stmt):
     var: Var
     value: PrimExpr
     body: Stmt
-    span: Optional[Span]
+    span: Span | None
 
-    def __init__(self, var: Var, value: PrimExpr, body: Stmt, span: Optional[Span] = None) -> None:
+    def __init__(self, var: Var, value: PrimExpr, body: Stmt, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.LetStmt,
             var,
@@ -90,15 +90,15 @@ class AssertStmt(Stmt):
     message : PrimExpr
         The error message.
 
-    span : Optional[Span]
+    span : Span | None
         The location of the stmt in the source code.
     """
 
     condition: PrimExpr
     message: PrimExpr
-    span: Optional[Span]
+    span: Span | None
 
-    def __init__(self, condition: PrimExpr, message: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, condition: PrimExpr, message: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.AssertStmt,
             condition,
@@ -164,10 +164,10 @@ class For(Stmt):
     extent: PrimExpr
     kind: ForKind
     body: Stmt
-    thread_binding: Optional[IterVar]
+    thread_binding: IterVar | None
     annotations: Mapping[str, Object]
-    step: Optional[PrimExpr]
-    span: Optional[Span]
+    step: PrimExpr | None
+    span: Span | None
 
     def __init__(
         self,
@@ -176,10 +176,10 @@ class For(Stmt):
         extent: PrimExpr,
         kind: ForKind,
         body: Stmt,
-        thread_binding: Optional[IterVar] = None,
-        annotations: Optional[Mapping[str, Object]] = None,
-        step: Optional[PrimExpr] = None,
-        span: Optional[Span] = None,
+        thread_binding: IterVar | None = None,
+        annotations: Mapping[str, Object] | None = None,
+        step: PrimExpr | None = None,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.For,  # type: ignore
@@ -213,9 +213,9 @@ class While(Stmt):
 
     condition: PrimExpr
     body: Stmt
-    span: Optional[Span]
+    span: Span | None
 
-    def __init__(self, condition: PrimExpr, body: Stmt, span: Optional[Span] = None) -> None:
+    def __init__(self, condition: PrimExpr, body: Stmt, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.While, condition, body, span)  # type: ignore
 
 
@@ -245,17 +245,17 @@ class BufferStore(Stmt):
 
     buffer: Buffer
     value: PrimExpr
-    indices: List[PrimExpr]
-    predicate: Optional[PrimExpr]
-    span: Optional[Span]
+    indices: list[PrimExpr]
+    predicate: PrimExpr | None
+    span: Span | None
 
     def __init__(
         self,
         buffer: Buffer,
         value: PrimExpr,
-        indices: List[PrimExpr],
-        predicate: Optional[PrimExpr] = None,
-        span: Optional[Span] = None,
+        indices: list[PrimExpr],
+        predicate: PrimExpr | None = None,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.BufferStore,
@@ -297,21 +297,21 @@ class Allocate(Stmt):
 
     buffer_var: Var
     dtype: str
-    extents: List[PrimExpr]
+    extents: list[PrimExpr]
     condition: PrimExpr
     body: Stmt
     annotations: Mapping[str, Object]
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
         self,
         buffer_var: Var,
         dtype: str,
-        extents: List[PrimExpr],
+        extents: list[PrimExpr],
         condition: PrimExpr,
         body: Stmt,
-        annotations: Optional[Mapping[str, Object]] = None,
-        span: Optional[Span] = None,
+        annotations: Mapping[str, Object] | None = None,
+        span: Span | None = None,
     ) -> None:
         if annotations is None:
             annotations = dict()
@@ -345,9 +345,9 @@ class DeclBuffer(Stmt):
 
     buffer: Buffer
     body: Stmt
-    span: Optional[Span]
+    span: Span | None
 
-    def __init__(self, buffer: Buffer, body: Stmt, span: Optional[Span] = None) -> None:
+    def __init__(self, buffer: Buffer, body: Stmt, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, body, span)
 
 
@@ -377,10 +377,10 @@ class AttrStmt(Stmt):
     attr_key: str
     value: PrimExpr
     body: Stmt
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
-        self, node: Object, attr_key: str, value: PrimExpr, body: Stmt, span: Optional[Span] = None
+        self, node: Object, attr_key: str, value: PrimExpr, body: Stmt, span: Span | None = None
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.AttrStmt,
@@ -405,10 +405,10 @@ class SeqStmt(Stmt):
         The location of the stmt in the source code.
     """
 
-    seq: List[Stmt]
-    span: Optional[Span]
+    seq: list[Stmt]
+    span: Span | None
 
-    def __init__(self, seq: List[Stmt], span: Optional[Span] = None) -> None:
+    def __init__(self, seq: list[Stmt], span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.SeqStmt, seq, span)  # type: ignore
 
     def __getitem__(self, i: int):
@@ -439,14 +439,14 @@ class IfThenElse(Stmt):
 
     condition: PrimExpr
     then_case: Stmt
-    else_case: Optional[Stmt]
+    else_case: Stmt | None
 
     def __init__(
         self,
         condition: PrimExpr,
         then_case: Stmt,
-        else_case: Optional[Stmt],
-        span: Optional[Span] = None,
+        else_case: Stmt | None,
+        span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.IfThenElse,
@@ -471,9 +471,9 @@ class Evaluate(Stmt):
     """
 
     value: PrimExpr
-    span: Optional[Span]
+    span: Span | None
 
-    def __init__(self, value: PrimExpr, span: Optional[Span] = None) -> None:
+    def __init__(self, value: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, span)  # type: ignore
 
 
@@ -491,9 +491,9 @@ class BufferRegion(Object, Scriptable):
     """
 
     buffer: Buffer
-    region: List[Range]
+    region: list[Range]
 
-    def __init__(self, buffer: Buffer, region: List[Range]) -> None:
+    def __init__(self, buffer: Buffer, region: list[Range]) -> None:
         self.__init_handle_by_constructor__(_ffi_api.BufferRegion, buffer, region)  # type: ignore
 
 
@@ -558,29 +558,29 @@ class SBlock(Stmt):
         The location of this block in the source code.
     """
 
-    iter_vars: List[IterVar]
-    reads: List[BufferRegion]
-    writes: List[BufferRegion]
+    iter_vars: list[IterVar]
+    reads: list[BufferRegion]
+    writes: list[BufferRegion]
     name_hint: str
     body: Stmt
-    init: Optional[Stmt]
-    alloc_buffers: List[Buffer]
-    match_buffers: List[MatchBufferRegion]
+    init: Stmt | None
+    alloc_buffers: list[Buffer]
+    match_buffers: list[MatchBufferRegion]
     annotations: Mapping[str, Object]
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
         self,
-        iter_vars: List[IterVar],
-        reads: List[BufferRegion],
-        writes: List[BufferRegion],
+        iter_vars: list[IterVar],
+        reads: list[BufferRegion],
+        writes: list[BufferRegion],
         name_hint: str,
         body: Stmt,
-        init: Optional[Stmt] = None,
-        alloc_buffers: Optional[List[Buffer]] = None,
-        match_buffers: Optional[List[MatchBufferRegion]] = None,
-        annotations: Optional[Mapping[str, Object]] = None,
-        span: Optional[Span] = None,
+        init: Stmt | None = None,
+        alloc_buffers: list[Buffer] | None = None,
+        match_buffers: list[MatchBufferRegion] | None = None,
+        annotations: Mapping[str, Object] | None = None,
+        span: Span | None = None,
     ) -> None:
         if alloc_buffers is None:
             alloc_buffers = []
@@ -622,17 +622,17 @@ class SBlockRealize(Stmt):
         The location of this block_realize in the source code.
     """
 
-    iter_values: List[PrimExpr]
+    iter_values: list[PrimExpr]
     predicate: PrimExpr
     block: SBlock
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
         self,
-        iter_values: List[PrimExpr],
-        predicate: Union[PrimExpr, bool],
+        iter_values: list[PrimExpr],
+        predicate: PrimExpr | bool,
         block: SBlock,
-        span: Optional[Span] = None,
+        span: Span | None = None,
     ) -> None:
         if isinstance(predicate, bool):
             predicate = const(predicate, "bool")
@@ -645,7 +645,7 @@ class SBlockRealize(Stmt):
         )  # type: ignore
 
 
-def stmt_seq(*args: Union[PrimExpr, Stmt]) -> SeqStmt:
+def stmt_seq(*args: PrimExpr | Stmt) -> SeqStmt:
     """Make sequence of statements
 
     Parameters
@@ -668,7 +668,7 @@ def stmt_seq(*args: Union[PrimExpr, Stmt]) -> SeqStmt:
     return SeqStmt(ret)
 
 
-def stmt_list(stmt: Stmt) -> List[Stmt]:
+def stmt_list(stmt: Stmt) -> list[Stmt]:
     """Make list of stmt from blocks.
 
     Parameters

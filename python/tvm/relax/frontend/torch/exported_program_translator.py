@@ -21,8 +21,8 @@
 """PyTorch ExportedProgram of Relax."""
 
 from collections import ChainMap, OrderedDict
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 from torch import fx
@@ -298,7 +298,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if size is None:
             shape = self.shape_of(x)
             assert isinstance(shape, relax.ShapeExpr)
-            if isinstance(scale_factor, (tuple, list)):
+            if isinstance(scale_factor, tuple | list):
                 assert len(scale_factor) == len(shape) - 2
                 size = tuple(
                     int(shape[i].value * scale_factor[i - 2]) for i in range(2, len(shape))
@@ -995,7 +995,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         import numpy as np
 
         args = self.retrieve_args(node)
-        size = args[0] if isinstance(args[0], (list, tuple)) else (args[0],)
+        size = args[0] if isinstance(args[0], list | tuple) else (args[0],)
         dtype = self._convert_data_type(
             node.kwargs.get("dtype", torch.get_default_dtype()), self.env
         )
@@ -1014,7 +1014,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def _zeros(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
-        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
+        size = relax.ShapeExpr(args[0] if isinstance(args[0], list | tuple) else (args[0],))
         dtype = self._convert_data_type(
             node.kwargs.get("dtype", torch.get_default_dtype()), self.env
         )
@@ -1166,8 +1166,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         assert storage_offset == 0, "as_strided with non-zero storage_offset is not supported yet"
 
         # Only handle view-like cases where the provided strides align with a contiguous layout.
-        can_check = all(isinstance(dim, (int, tvm.tir.IntImm)) for dim in size) and all(
-            isinstance(st, (int, tvm.tir.IntImm)) for st in stride
+        can_check = all(isinstance(dim, int | tvm.tir.IntImm) for dim in size) and all(
+            isinstance(st, int | tvm.tir.IntImm) for st in stride
         )
         if can_check:
             expected_stride = []
@@ -1196,7 +1196,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def create_convert_map(
         self,
-    ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
+    ) -> dict[str, Callable[[fx.Node], relax.Var]]:
         import operator
 
         return {
@@ -1531,15 +1531,15 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         }
 
     def _process_derived_symbol(
-        self, symbol, torch_symbol_to_relax_var: Dict[str, tvm.tir.Var]
-    ) -> Tuple[str, Optional[tvm.tir.PrimExpr]]:
+        self, symbol, torch_symbol_to_relax_var: dict[str, tvm.tir.Var]
+    ) -> tuple[str, tvm.tir.PrimExpr | None]:
         """Process a sympy symbol to generate a descriptive name and TIR expression."""
         import sympy
 
         if isinstance(symbol, sympy.Symbol):
             return str(symbol), None
 
-        if not isinstance(symbol, (sympy.Add, sympy.Mul)):
+        if not isinstance(symbol, sympy.Add | sympy.Mul):
             return str(symbol), None
 
         tir_expr = None
@@ -1577,11 +1577,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[str, Tuple[int, Optional[int]]]]:
+    ) -> tuple[dict[str, relax.Var], dict[str, relax.Var], dict[str, tuple[int, int | None]]]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
-        torch_symbol_to_relax_var: Dict[str, tvm.tir.Var] = {}
+        torch_symbol_to_relax_var: dict[str, tvm.tir.Var] = {}
         range_constraints = {}
 
         if hasattr(exported_program, "range_constraints"):
@@ -1655,9 +1655,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         keep_params_as_input: bool,
         unwrap_unit_return_tuple: bool,
         no_bind_return_tuple: bool,
-        custom_convert_map: Optional[
-            Dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]]
-        ],
+        custom_convert_map: dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]] | None,
     ) -> tvm.IRModule:
         """Convert a PyTorch ExportedProgram to a Relax program."""
 
@@ -1695,7 +1693,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             if upper_bounds:
                 func_attrs["tir_var_upper_bound"] = upper_bounds
 
-        nodes: List[fx.Node] = exported_program.graph.nodes
+        nodes: list[fx.Node] = exported_program.graph.nodes
 
         # Find all the missing function types
         self._check_unsupported_func_type(nodes)
@@ -1716,7 +1714,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     elif node.op == "output":
                         args = self.retrieve_args(node)
                         assert len(args) == 1
-                        assert isinstance(args[0], (tuple, relax.Tuple))
+                        assert isinstance(args[0], tuple | relax.Tuple)
 
                         if unwrap_unit_return_tuple and len(args[0]) == 1:
                             output = self.block_builder.emit_output(args[0][0])
@@ -1774,9 +1772,9 @@ def from_exported_program(
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
     no_bind_return_tuple: bool = False,
-    custom_convert_map: Optional[
-        Dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]]
-    ] = None,
+    custom_convert_map: (
+        dict[str, Callable[[fx.Node, BaseFXGraphImporter], relax.Var]] | None
+    ) = None,
     run_ep_decomposition: bool = True,
 ) -> tvm.IRModule:
     """Convert a PyTorch ExportedProgram to a Relax program

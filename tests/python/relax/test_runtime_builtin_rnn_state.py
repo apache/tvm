@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring,
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import numpy as np
 import pytest
@@ -218,7 +218,7 @@ def rnn_state_get(
 
 
 def rnn_state_set(
-    shape: Sequence[Union[int, tir.Var]],
+    shape: Sequence[int | tir.Var],
     dtype: str,
 ):
     # fmt: off

@@ -19,7 +19,7 @@
 Note: "external modules" here refers to `relax.frontend.nn.ExternModule`.
 """
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext, module_pass
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 class AttachExternModules:  # pylint: disable=too-few-public-methods
     """Attach variable bounds to each Relax function, which primarily helps with memory planning."""
 
-    def __init__(self, extern_modules: List["ExternModule"]):
+    def __init__(self, extern_modules: list["ExternModule"]):
         self.extern_modules = extern_modules
 
     def transform_module(self, mod: IRModule, _ctx: PassContext) -> IRModule:

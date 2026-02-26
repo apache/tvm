@@ -17,8 +17,6 @@
 # ruff: noqa: RUF005
 """tvm.contrib.msc.core.gym.prune_env"""
 
-from typing import List, Union
-
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools import BaseTool, ToolType
 
@@ -53,7 +51,7 @@ class PruneEnv(BaseEnv):
         task_strategy = self._get_strategy(action, task_id)
         self._apply_strategys(self._meta_strategys + [task_strategy])
 
-    def _summary(self, actions: List[dict], rewards: List[dict]) -> Union[dict, str]:
+    def _summary(self, actions: list[dict], rewards: list[dict]) -> dict | str:
         """Summary the final plan
 
         Parameters
@@ -74,7 +72,7 @@ class PruneEnv(BaseEnv):
         ]
         return self._apply_strategys(strategys)
 
-    def _apply_strategys(self, strategys: List[dict]) -> str:
+    def _apply_strategys(self, strategys: list[dict]) -> str:
         """Apply the strategys
 
         Parameters

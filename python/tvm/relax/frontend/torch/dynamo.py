@@ -21,7 +21,6 @@
 """PyTorch Dynamo backend of Relax."""
 
 import functools
-from typing import Optional
 
 import tvm
 from tvm.relax import build as relax_build
@@ -36,7 +35,7 @@ def device_from_inputs(example_inputs):
     return None
 
 
-def relax_dynamo(pipeline: Optional[tvm.transform.Pass] = None):
+def relax_dynamo(pipeline: tvm.transform.Pass | None = None):
     """A helper function to create a relax backend.
 
     Parameters

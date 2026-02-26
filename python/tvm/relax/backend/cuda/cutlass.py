@@ -19,8 +19,8 @@
 """Pattern table for CUTLASS backend"""
 
 import operator
+from collections.abc import Mapping, Sequence
 from functools import reduce
-from typing import Mapping, Sequence
 
 import tvm
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
@@ -551,7 +551,7 @@ class WorkspaceAnnotator(PyExprMutator):
             out_size_1d = _shape_1d(f.ret_struct_info.shape)
             # This needs to be in sync with the actual value that the kernel expects.
             workspace_size_bytes = out_size_1d * {"float16": 2, "float32": 4}[out_dtype]
-            if not isinstance(workspace_size_bytes, (int, tvm.tir.expr.IntImm)):
+            if not isinstance(workspace_size_bytes, int | tvm.tir.expr.IntImm):
                 # Tempororay workaround for dynamic shape workload. Will be removed when
                 # workspace for dynamic shape workload is implemented.
                 workspace_size_bytes = 8

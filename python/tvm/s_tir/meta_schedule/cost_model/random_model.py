@@ -18,8 +18,6 @@
 Random cost model
 """
 
-from typing import List, Optional, Tuple, Union
-
 from ..cost_model import PyCostModel
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
@@ -47,15 +45,15 @@ class RandomModel(PyCostModel):
 
     import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
 
-    random_state: Union[Tuple[str, np.ndarray, int, int, float], dict]
-    path: Optional[str]
+    random_state: tuple[str, np.ndarray, int, int, float] | dict
+    path: str | None
 
     def __init__(
         self,
         *,
-        seed: Optional[int] = None,
-        path: Optional[str] = None,
-        max_range: Optional[int] = 100,
+        seed: int | None = None,
+        path: str | None = None,
+        max_range: int | None = 100,
     ):
         import numpy as np  # type: ignore # pylint: disable=import-outside-toplevel
 
@@ -94,8 +92,8 @@ class RandomModel(PyCostModel):
     def update(
         self,
         context: TuneContext,
-        candidates: List[MeasureCandidate],
-        results: List[RunnerResult],
+        candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the cost model given running results.
 
@@ -109,7 +107,7 @@ class RandomModel(PyCostModel):
             The running results of the measure candidates.
         """
 
-    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:  # type: ignore # pylint: disable=used-before-assignment
+    def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:  # type: ignore # pylint: disable=used-before-assignment
         """Update the cost model given running results.
 
         Parameters

@@ -20,10 +20,11 @@ Meta Schedule schedule rules are used for modification of
 blocks in a schedule. See also PostOrderApply.
 """
 
-from typing import TYPE_CHECKING, Callable, List, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -55,7 +56,7 @@ class ScheduleRule(Object):
             self, context
         )
 
-    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
         """Apply a schedule rule to the specific block in the given schedule.
 
         Parameters
@@ -85,7 +86,7 @@ class ScheduleRule(Object):
         return _ffi_api.ScheduleRuleClone(self)  # type: ignore # pylint: disable=no-member
 
     @staticmethod
-    def create(kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"]) -> List["ScheduleRule"]:
+    def create(kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"]) -> list["ScheduleRule"]:
         """Create a list of schedule rules for the given kind.
 
         Parameters
@@ -126,10 +127,10 @@ class _PyScheduleRule(ScheduleRule):
 
     def __init__(
         self,
-        f_initialize_with_tune_context: Optional[Callable] = None,
-        f_apply: Optional[Callable] = None,
-        f_clone: Optional[Callable] = None,
-        f_as_string: Optional[Callable] = None,
+        f_initialize_with_tune_context: Callable | None = None,
+        f_apply: Callable | None = None,
+        f_clone: Callable | None = None,
+        f_as_string: Callable | None = None,
     ):
         """Constructor."""
 
@@ -165,7 +166,7 @@ class PyScheduleRule:
         """
         raise NotImplementedError
 
-    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
         """Apply a schedule rule to the specific block in the given schedule.
 
         Parameters

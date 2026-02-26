@@ -17,7 +17,7 @@
 # pylint: disable=redefined-builtin, invalid-name, too-many-arguments
 """Operators used in TIR expression."""
 
-from typing import Any, Optional, Union
+from typing import Any
 
 import tvm_ffi
 
@@ -556,7 +556,7 @@ def tvm_struct_set(arr, index, field, value):
     return call_intrin("int32", "tir.tvm_struct_set", arr, index, field, value)
 
 
-def address_of(obj: Union[Buffer, BufferLoad], span: Optional[Span] = None) -> PrimExpr:
+def address_of(obj: Buffer | BufferLoad, span: Span | None = None) -> PrimExpr:
     """Returns the address of an element in the buffer
 
     Parameters
@@ -2043,7 +2043,7 @@ def min_value(dtype, span=None):
     return _ffi_api.min_value(dtype, span)  # type: ignore
 
 
-def max_value(dtype: str, span: Optional[Span] = None) -> Any:
+def max_value(dtype: str, span: Span | None = None) -> Any:
     """maximum value of dtype
 
     Parameters
@@ -2062,7 +2062,7 @@ def max_value(dtype: str, span: Optional[Span] = None) -> Any:
     return _ffi_api.max_value(dtype, span)  # type: ignore
 
 
-def infinity(dtype: str, span: Optional[Span] = None) -> Any:
+def infinity(dtype: str, span: Span | None = None) -> Any:
     """infinity value of dtype
 
     Parameters
@@ -2081,7 +2081,7 @@ def infinity(dtype: str, span: Optional[Span] = None) -> Any:
     return _ffi_api.infinity(dtype, span)  # type: ignore
 
 
-def reinterpret(dtype, value, span: Optional[Span] = None) -> Any:
+def reinterpret(dtype, value, span: Span | None = None) -> Any:
     """infinity value of dtype
 
     Parameters
@@ -3449,7 +3449,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             if init is not None:
                 init = [init]
         combiner = CommReducer(lhs, rhs, result, id_elem)
-        if not isinstance(axis, (list, tuple, tvm.ir.Array)):
+        if not isinstance(axis, list | tuple | tvm.ir.Array):
             axis = [axis]
         if where is None:
             where = tir.convert(True)
@@ -3463,7 +3463,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
     # pylint: disable=keyword-arg-before-vararg
     def reducer(expr, axis, where=None, init=None, *args):
-        if isinstance(axis, (tvm.tir.IterVar, list, tuple)):
+        if isinstance(axis, tvm.tir.IterVar | list | tuple):
             assert not args
             return _make_reduce(expr, axis, where, init)
 
@@ -3671,7 +3671,7 @@ def get_active_lane_mask(dtype, base, limit):
     return call_intrin(dtype, "tir.get_active_lane_mask", base, limit)
 
 
-def get_vscale_expr(dtype: Union[str, tvm_ffi.dtype], min_size: int = 128) -> PrimExpr:
+def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> PrimExpr:
     """
     Create a datatype dependent scalable expression.
 

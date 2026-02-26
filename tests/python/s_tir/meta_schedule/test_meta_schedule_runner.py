@@ -20,7 +20,7 @@
 import itertools
 import sys
 import time
-from typing import Any, List
+from typing import Any
 
 import numpy as np
 import pytest
@@ -384,7 +384,7 @@ def test_meta_schedule_py_runner():
 
     @derived_object
     class TestRunner(PyRunner):
-        def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
+        def run(self, runner_inputs: list[RunnerInput]) -> list[RunnerFuture]:
             raise ValueError("TestRunner")
 
     runner = TestRunner()
@@ -596,8 +596,8 @@ def test_meta_schedule_runner_matmul_test():
     """Test meta schedule runner with add module"""
 
     def _check_correct_matmul(
-        args_before: List[np.ndarray],
-        args_after: List[np.ndarray],
+        args_before: list[np.ndarray],
+        args_after: list[np.ndarray],
     ) -> None:
         a_before, b_before, c_before = args_before
         a_after, b_after, c_after = args_after
@@ -611,7 +611,7 @@ def test_meta_schedule_runner_matmul_test():
         device: Device,
         args_info: Any,
         alloc_repeat: int,
-    ) -> List[Any]:
+    ) -> list[Any]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_before = []  # type: ignore
         repeated_args = rpc_default_alloc_argument(session, device, args_info, alloc_repeat)
@@ -624,8 +624,8 @@ def test_meta_schedule_runner_matmul_test():
         rt_mod: Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
-        repeated_args: List[Any],
-    ) -> List[float]:
+        repeated_args: list[Any],
+    ) -> list[float]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_after = []
         evaluator = rt_mod.time_evaluator(
@@ -638,7 +638,7 @@ def test_meta_schedule_runner_matmul_test():
                 "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
             ),
         )
-        repeated_costs: List[List[float]] = []
+        repeated_costs: list[list[float]] = []
         for args in repeated_args:
             device.sync()
             profile_result = evaluator(*args)
@@ -705,7 +705,7 @@ def test_meta_schedule_runner_matmul_test():
 def test_meta_schedule_runner_add_test():
     """Test meta schedule runner with add module"""
 
-    def _check_correct_add(args_before: List[np.ndarray], args_after: List[np.ndarray]) -> None:
+    def _check_correct_add(args_before: list[np.ndarray], args_after: list[np.ndarray]) -> None:
         a_before, b_before, c_before = args_before
         a_after, b_after, c_after = args_after
         c_before = a_before + b_before
@@ -718,7 +718,7 @@ def test_meta_schedule_runner_add_test():
         device: Device,
         args_info: Any,
         alloc_repeat: int,
-    ) -> List[Any]:
+    ) -> list[Any]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_before = []  # type: ignore
         repeated_args = rpc_default_alloc_argument(
@@ -736,8 +736,8 @@ def test_meta_schedule_runner_add_test():
         rt_mod: Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
-        repeated_args: List[Any],
-    ) -> List[float]:
+        repeated_args: list[Any],
+    ) -> list[float]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_after = []
         evaluator = rt_mod.time_evaluator(
@@ -750,7 +750,7 @@ def test_meta_schedule_runner_add_test():
                 "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
             ),
         )
-        repeated_costs: List[List[float]] = []
+        repeated_costs: list[list[float]] = []
         for args in repeated_args:
             device.sync()
             profile_result = evaluator(*args)
@@ -817,7 +817,7 @@ def test_meta_schedule_runner_add_test():
 def test_meta_schedule_local_runner_add_test():
     """Test meta schedule local runner with add module"""
 
-    def _check_correct_add(args_before: List[np.array], args_after: List[np.array]) -> None:
+    def _check_correct_add(args_before: list[np.array], args_after: list[np.array]) -> None:
         a_before, b_before, c_before = args_before
         a_after, b_after, c_after = args_after
         c_before = a_before + b_before
@@ -829,7 +829,7 @@ def test_meta_schedule_local_runner_add_test():
         device: Device,
         args_info: T_ARG_INFO_JSON_OBJ_LIST,  # pylint: disable=unused-argument
         alloc_repeat: int,
-    ) -> List[T_ARGUMENT_LIST]:
+    ) -> list[T_ARGUMENT_LIST]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_before = []
         repeated_args = local_default_alloc_argument(device, args_info, alloc_repeat)
@@ -841,8 +841,8 @@ def test_meta_schedule_local_runner_add_test():
         rt_mod: Module,
         device: Device,
         evaluator_config: EvaluatorConfig,
-        repeated_args: List[Any],
-    ) -> List[float]:
+        repeated_args: list[Any],
+    ) -> list[float]:
         global repeated_args_before  # pylint: disable=global-variable-undefined, invalid-name
         repeated_args_after = []
         evaluator = rt_mod.time_evaluator(
@@ -855,7 +855,7 @@ def test_meta_schedule_local_runner_add_test():
                 "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
             ),
         )
-        repeated_costs: List[List[float]] = []
+        repeated_costs: list[list[float]] = []
         for args in repeated_args:
             device.sync()
             profile_result = evaluator(*args)

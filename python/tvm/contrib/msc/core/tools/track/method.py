@@ -17,8 +17,6 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.tools.track.method"""
 
-from typing import Dict, List
-
 import numpy as np
 
 from tvm.contrib.msc.core import utils as msc_utils
@@ -37,7 +35,7 @@ class TrackMethod:
         data: np.ndarray,
         name: str,
         consumer: str,
-        compare_to: Dict[str, List[str]],
+        compare_to: dict[str, list[str]],
     ) -> np.ndarray:
         """Compare and save the data
 

@@ -17,7 +17,6 @@
 # ruff: noqa: F811, F841
 import re
 from functools import partial
-from typing import Dict
 
 import numpy as np
 
@@ -59,7 +58,7 @@ def normalize(func: rx.Function) -> rx.Function:
     return mod["main"]
 
 
-def assert_fields(nodename: str, fields: Dict[str, str], target: str) -> None:
+def assert_fields(nodename: str, fields: dict[str, str], target: str) -> None:
     """
     Given a target string, ensure that the string defines the specified node
     and that the given mappings of fields to values are present in the string.

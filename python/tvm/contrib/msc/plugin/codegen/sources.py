@@ -17,8 +17,6 @@
 # ruff: noqa: E501
 """tvm.contrib.msc.plugin.codegen.sources"""
 
-from typing import Dict
-
 
 def get_plugin_base_h_code() -> str:
     """Create plugin base header file codes
@@ -1154,7 +1152,7 @@ namespace plugin {
     return code
 
 
-def get_plugin_sources() -> Dict[str, str]:
+def get_plugin_sources() -> dict[str, str]:
     """Create base sources for plugin codegen
 
     Returns

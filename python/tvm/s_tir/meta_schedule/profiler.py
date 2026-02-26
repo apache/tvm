@@ -18,7 +18,7 @@
 """A context manager that profiles tuning time cost for different parts."""
 
 from contextlib import contextmanager
-from typing import Dict, Optional
+from typing import Optional
 
 from tvm_ffi import register_object
 
@@ -36,7 +36,7 @@ class Profiler(Object):
             _ffi_api.Profiler,  # type: ignore # pylint: disable=no-member
         )
 
-    def get(self) -> Dict[str, float]:
+    def get(self) -> dict[str, float]:
         """Get the profiling results in seconds"""
         return _ffi_api.ProfilerGet(self)  # type: ignore # pylint: disable=no-member
 

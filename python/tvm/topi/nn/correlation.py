@@ -65,7 +65,7 @@ def correlation_nchw(
     data_shape = get_const_tuple(data1.shape)
     assert get_const_tuple(data2.shape) == data_shape, "data1 and data2 should have the same shape"
     assert kernel_size > 0 and kernel_size % 2, "kernel_size should be non-negative odd number"
-    if isinstance(padding, (tuple, list)):
+    if isinstance(padding, tuple | list):
         if len(padding) == 2:
             pad_before_h = pad_after_h = padding[0]
             pad_before_w = pad_after_w = padding[1]

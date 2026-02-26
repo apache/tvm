@@ -18,8 +18,6 @@
 # ruff: noqa: RUF005
 """Default legalization function for manipulate operators."""
 
-from typing import Optional
-
 import tvm
 from tvm import relax, s_tir, te, tir, topi
 from tvm.relax.op.base import call_tir
@@ -62,11 +60,11 @@ def _concat(bb: BlockBuilder, call: Call) -> Expr:
     n_field = len(t.struct_info.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
-        if not isinstance(binding, (Tuple, Var)):
+        if not isinstance(binding, Tuple | Var):
             break
         t = binding
 
-    assert isinstance(t, (Tuple, Var))
+    assert isinstance(t, Tuple | Var)
     fields = (
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
@@ -130,11 +128,11 @@ def _stack(bb: BlockBuilder, call: Call) -> Expr:
     # Follow bindings to find the actual tuple
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
-        if not isinstance(binding, (Tuple, Var)):
+        if not isinstance(binding, Tuple | Var):
             break
         t = binding
 
-    assert isinstance(t, (Tuple, Var))
+    assert isinstance(t, Tuple | Var)
 
     # Extract fields from either Tuple or bound Var
     fields = (
@@ -146,7 +144,7 @@ def _stack(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.repeat")
 def _repeat(bb: BlockBuilder, call: Call) -> Expr:
-    def te_repeat(data: te.Tensor, repeats: IntImm, axis: Optional[IntImm]):
+    def te_repeat(data: te.Tensor, repeats: IntImm, axis: IntImm | None):
         if axis is None:
             # flatten data
             out_shape = data.shape[0]
@@ -224,11 +222,11 @@ def _meshgrid(bb: BlockBuilder, call: Call) -> Expr:
     n_field = len(t.struct_info.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
-        if not isinstance(binding, (Tuple, Var)):
+        if not isinstance(binding, Tuple | Var):
             break
         t = binding
 
-    assert isinstance(t, (Tuple, Var))
+    assert isinstance(t, Tuple | Var)
     fields = (
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )

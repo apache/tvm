@@ -18,8 +18,6 @@
 # pylint: disable=invalid-name
 """The TIR backend compilation pipeline."""
 
-from typing import Optional
-
 import tvm
 from tvm import tir
 
@@ -49,7 +47,7 @@ def finalize_device_passes():  # pylint: disable=unused-argument
 PIPELINE_MAP = {}
 
 
-def get_tir_pipeline(name: Optional[str] = None, **kwargs) -> tvm.transform.Pass:
+def get_tir_pipeline(name: str | None = None, **kwargs) -> tvm.transform.Pass:
     """Get pre-build pipeline by name
 
     Parameters

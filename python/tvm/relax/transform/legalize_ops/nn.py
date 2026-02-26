@@ -19,7 +19,6 @@
 
 import logging
 import math
-from typing import Optional
 
 from tvm import s_tir, te, tir, topi
 
@@ -671,7 +670,7 @@ def _te_attention(
     v: te.Tensor,
     bias: te.Tensor,
     scale: tir.FloatImm,
-    causal_mask: Optional[str],
+    causal_mask: str | None,
 ) -> te.Tensor:
     batch_size, seq_len, num_head, head_dim = q.shape
     _, seq_len_kv, _, head_dim_v = v.shape

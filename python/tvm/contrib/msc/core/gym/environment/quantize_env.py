@@ -16,8 +16,6 @@
 # under the License.
 """tvm.contrib.msc.core.gym.quantize_env"""
 
-from typing import List, Union
-
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools import BaseTool, ToolType
 
@@ -47,7 +45,7 @@ class QuantizeEnv(BaseEnv):
 
         self._tool.change_strategys([self._get_strategy(action, task_id)])
 
-    def _summary(self, actions: List[dict], rewards: List[dict]) -> Union[dict, str]:
+    def _summary(self, actions: list[dict], rewards: list[dict]) -> dict | str:
         """Summary the final plan
 
         Parameters

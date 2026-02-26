@@ -17,10 +17,11 @@
 # ruff: noqa: RUF012
 """Auto-tuning Task Scheduler"""
 
-from typing import Callable, List, Optional, Union
+from collections.abc import Callable
+from typing import Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -51,19 +52,19 @@ class TaskRecord(Object):
     is_terminated: bool
     build_error_count: int
     run_error_count: int
-    measure_candidates: List[MeasureCandidate]
-    builder_results: List[BuilderResult]
-    runner_results: List[RunnerResult]
+    measure_candidates: list[MeasureCandidate]
+    builder_results: list[BuilderResult]
+    runner_results: list[RunnerResult]
 
 
 @register_object("s_tir.meta_schedule.TaskScheduler")
 class TaskScheduler(Object):
     """The abstract task scheduler interface."""
 
-    tasks_: List[TaskRecord]
-    measure_callbacks_: List[MeasureCallback]
-    database_: Optional[Database]
-    cost_model_: Optional[CostModel]
+    tasks_: list[TaskRecord]
+    measure_callbacks_: list[MeasureCallback]
+    database_: Database | None
+    cost_model_: CostModel | None
     remaining_tasks_: int
 
     TaskSchedulerType = Union["TaskScheduler", Literal["gradient", "round-robin"]]
@@ -78,7 +79,7 @@ class TaskScheduler(Object):
         """
         return _ffi_api.TaskSchedulerNextTaskId(self)  # type: ignore # pylint: disable=no-member
 
-    def join_running_task(self, task_id: int) -> List[RunnerResult]:
+    def join_running_task(self, task_id: int) -> list[RunnerResult]:
         """Wait until the task is finished.
 
         Parameters
@@ -95,16 +96,16 @@ class TaskScheduler(Object):
 
     def tune(
         self,
-        tasks: List[TuneContext],
-        task_weights: List[float],
+        tasks: list[TuneContext],
+        task_weights: list[float],
         max_trials_global: int,
         max_trials_per_task: int,
         num_trials_per_iter: int,
         builder: Builder,
         runner: Runner,
-        measure_callbacks: List[MeasureCallback],
-        database: Optional[Database],
-        cost_model: Optional[CostModel],
+        measure_callbacks: list[MeasureCallback],
+        database: Database | None,
+        cost_model: CostModel | None,
     ) -> None:
         """Auto-tuning.
 
@@ -236,15 +237,15 @@ class PyTaskScheduler:
 
     def tune(
         self,
-        tasks: List[TuneContext],
-        task_weights: List[float],
+        tasks: list[TuneContext],
+        task_weights: list[float],
         max_trials_global: int,
         max_trials_per_task: int,
         builder: Builder,
         runner: Runner,
-        measure_callbacks: List[MeasureCallback],
-        database: Optional[Database],
-        cost_model: Optional[CostModel],
+        measure_callbacks: list[MeasureCallback],
+        database: Database | None,
+        cost_model: CostModel | None,
     ) -> None:
         """Auto-tuning."""
         # Using self._outer to replace the self pointer
@@ -271,7 +272,7 @@ class PyTaskScheduler:
         """
         raise NotImplementedError
 
-    def join_running_task(self, task_id: int) -> List[RunnerResult]:
+    def join_running_task(self, task_id: int) -> list[RunnerResult]:
         """Wait until the task is finished.
 
         Parameters

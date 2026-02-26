@@ -19,8 +19,9 @@
 import abc
 import inspect
 from collections import defaultdict
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, List, Optional, Set, Union
+from typing import Any
 
 import numpy as np
 
@@ -95,7 +96,7 @@ class ScriptMacro(abc.ABC):
     def __init__(
         self,
         source: Source,
-        closure_vars: Dict[str, Any],
+        closure_vars: dict[str, Any],
         func: Callable,
         hygienic: bool,
     ) -> None:
@@ -180,7 +181,7 @@ class VarTableFrame:
         The set of variable names in the variable table frame.
     """
 
-    vars: Set[str]
+    vars: set[str]
 
     def __init__(self):
         self.vars = set()
@@ -223,8 +224,8 @@ class VarTable:
         The dictionary for variable table name-based query.
     """
 
-    frames: List[VarTableFrame]
-    name2value: Dict[str, List[Any]]
+    frames: list[VarTableFrame]
+    name2value: dict[str, list[Any]]
 
     def __init__(self):
         self.frames = []
@@ -273,7 +274,7 @@ class VarTable:
             self.frames[-1].add(var)
             self.name2value[var].append(value)
 
-    def get(self) -> Dict[str, Any]:
+    def get(self) -> dict[str, Any]:
         """Get a variable dictionary of latest variables.
 
         Returns
@@ -339,17 +340,17 @@ class Parser(doc.NodeVisitor):
     """
 
     diag: Diagnostics
-    dispatch_tokens: List[str]
-    function_annotations: Optional[Dict[str, Dict[str, Any]]]
+    dispatch_tokens: list[str]
+    function_annotations: dict[str, dict[str, Any]] | None
     var_table: VarTable
     inside_function: bool  # whether we are within a function
-    current_class: Optional[str] = None  # current class being parsed
+    current_class: str | None = None  # current class being parsed
     base_py_module_context: bool = False  # whether current class inherits from BasePyModule
 
     def __init__(
         self,
         source: Source,
-        function_annotations: Dict[str, Dict[str, Any]],
+        function_annotations: dict[str, dict[str, Any]],
     ) -> None:
         self.diag = Diagnostics(source)
         self.dispatch_tokens = ["default"]
@@ -357,7 +358,7 @@ class Parser(doc.NodeVisitor):
         self.var_table = VarTable()
         self.inside_function = False
 
-    def parse(self, extra_vars: Optional[Dict[str, Any]] = None) -> Any:
+    def parse(self, extra_vars: dict[str, Any] | None = None) -> Any:
         """The main parse method for parser.
 
         Parameters
@@ -429,7 +430,7 @@ class Parser(doc.NodeVisitor):
         self.current_class = class_name
         self.base_py_module_context = is_base_py_module
 
-    def _get_current_class_context(self) -> Optional[str]:
+    def _get_current_class_context(self) -> str | None:
         """Get the current class context.
 
         Returns
@@ -473,8 +474,8 @@ class Parser(doc.NodeVisitor):
 
     def eval_expr(
         self,
-        node: Union[doc.Expression, doc.expr],
-        extra_vars: Optional[Dict[str, Any]] = None,
+        node: doc.Expression | doc.expr,
+        extra_vars: dict[str, Any] | None = None,
     ) -> Any:
         """Expression evaluation when parsing.
 
@@ -498,7 +499,7 @@ class Parser(doc.NodeVisitor):
         var_values[ScriptMacro.parser_object_name] = self
         return eval_expr(self, node, var_values)
 
-    def _duplicate_lhs_check(self, target: doc.expr) -> Union[bool, Set[str]]:
+    def _duplicate_lhs_check(self, target: doc.expr) -> bool | set[str]:
         """Check whether duplicate lhs exists in assignment.
 
         Parameters
@@ -512,8 +513,8 @@ class Parser(doc.NodeVisitor):
             The result of true if duplicate lhs exists,
             or the set of lhs names if no duplicate lhs exists.
         """
-        if isinstance(target, (doc.Tuple, doc.List)):
-            vars: Set[str] = set()  # pylint: disable=redefined-builtin
+        if isinstance(target, doc.Tuple | doc.List):
+            vars: set[str] = set()  # pylint: disable=redefined-builtin
             for i in target.elts:
                 res = self._duplicate_lhs_check(i)
                 if isinstance(res, bool) and res:
@@ -537,7 +538,7 @@ class Parser(doc.NodeVisitor):
         source: Any,
         bind_value: Callable[["Parser", doc.expr, str, Any], Any],
         allow_shadowing: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Expression assignment evaluation when parsing.
 
         Parameters
@@ -567,7 +568,7 @@ class Parser(doc.NodeVisitor):
             self.var_table.add(k, var, allow_shadowing)
         return var_values
 
-    def report_error(self, node: doc.AST, err: Union[Exception, str]) -> None:  # pylint: disable=no-self-use
+    def report_error(self, node: doc.AST, err: Exception | str) -> None:  # pylint: disable=no-self-use
         """The error reporting when parsing.
 
         Parameters
@@ -617,7 +618,7 @@ class Parser(doc.NodeVisitor):
         res : Any
             The visiting result.
         """
-        if isinstance(node, (list, tuple)):
+        if isinstance(node, list | tuple):
             for item in node:
                 self.visit(item)
             return
@@ -635,7 +636,7 @@ class Parser(doc.NodeVisitor):
         except Exception as err:  # pylint: disable=broad-except
             self.report_error(node, err)
 
-    def visit_body(self, node: List[doc.stmt]) -> Any:
+    def visit_body(self, node: list[doc.stmt]) -> Any:
         """The general body visiting method.
 
         Parameters

@@ -18,8 +18,6 @@
 # ruff: noqa: E731
 """Default legalization function for creation operators."""
 
-from typing import Optional
-
 import numpy as np
 
 from tvm import tir, topi
@@ -29,7 +27,7 @@ from ...expr import Call, Expr, PrimValue, const
 from .common import LegalizeFunc, _try_convert_to_scalar_const, register_legalize
 
 
-def _full(is_like: bool, fill_value: Optional[float], primfunc_name: str) -> LegalizeFunc:
+def _full(is_like: bool, fill_value: float | None, primfunc_name: str) -> LegalizeFunc:
     def full_call_te(bb: BlockBuilder, call: Call) -> Expr:
         _fill_value = (
             _try_convert_to_scalar_const(call.args[1], python_native=True)
@@ -110,7 +108,7 @@ def _arange(bb: BlockBuilder, call: Call) -> Expr:
     dtype = call.attrs.dtype
 
     def is_const_scalar(x: PrimValue):
-        return isinstance(x.value, (tir.IntImm, tir.FloatImm))
+        return isinstance(x.value, tir.IntImm | tir.FloatImm)
 
     if all([is_const_scalar(x) for x in call.args]):
         return const(np.arange(start.value, end.value, step.value, dtype=dtype), dtype=dtype)

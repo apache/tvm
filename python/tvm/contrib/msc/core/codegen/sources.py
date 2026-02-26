@@ -16,8 +16,6 @@
 # under the License.
 """tvm.contrib.msc.core.codegen.sources"""
 
-from typing import Dict
-
 
 def get_base_h_code() -> str:
     """Create base header file codes
@@ -207,7 +205,7 @@ const std::string DatasetReader::GetSaveName(const std::string& name) {
 """
 
 
-def get_base_sources() -> Dict[str, str]:
+def get_base_sources() -> dict[str, str]:
     """Create base sources for cpp codegen
 
     Returns

@@ -20,8 +20,9 @@ import logging
 import logging.config
 import os
 import os.path as osp
+from collections.abc import Callable
 from logging import Logger
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 
 def get_logger(name: str) -> Logger:
@@ -40,7 +41,7 @@ def get_logger(name: str) -> Logger:
     return logging.getLogger(name)
 
 
-def get_logging_func(logger: Logger) -> Optional[Callable[[int, str, int, str], None]]:
+def get_logging_func(logger: Logger) -> Callable[[int, str, int, str], None] | None:
     """Get the logging function.
 
     Parameters
@@ -78,8 +79,8 @@ def get_logging_func(logger: Logger) -> Optional[Callable[[int, str, int, str], 
 
 def create_loggers(
     log_dir: str,
-    params: List[Dict[str, Any]],
-    logger_config: Optional[Dict[str, Any]] = None,
+    params: list[dict[str, Any]],
+    logger_config: dict[str, Any] | None = None,
     disable_existing_loggers: bool = False,
 ):
     """Create loggers from configuration"""
@@ -176,9 +177,9 @@ def create_loggers(
 
 
 def _batch_parameterize_config(
-    config: Dict[str, Any],
-    params: List[Dict[str, str]],
-) -> Dict[str, Any]:
+    config: dict[str, Any],
+    params: list[dict[str, str]],
+) -> dict[str, Any]:
     """Parameterize the given configuration with multiple parameters sets.
 
     Parameters
@@ -204,9 +205,9 @@ def _batch_parameterize_config(
 
 
 def _parameterize_config(
-    config: Dict[str, Any],
-    params: Dict[str, str],
-) -> Dict[str, Any]:
+    config: dict[str, Any],
+    params: dict[str, str],
+) -> dict[str, Any]:
     """Parameterize the given configuration.
 
     Parameters
@@ -237,8 +238,8 @@ def _parameterize_config(
 
 def get_loggers_from_work_dir(
     work_dir: str,
-    task_names: List[str],
-) -> List[Logger]:
+    task_names: list[str],
+) -> list[Logger]:
     """Create loggers from work directory
 
     Parameters

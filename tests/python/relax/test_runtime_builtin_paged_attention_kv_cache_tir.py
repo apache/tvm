@@ -16,7 +16,6 @@
 # under the License.
 # ruff: noqa: E501, E741
 import itertools
-from typing import Dict, List, Optional, Tuple, Union
 
 import pytest
 import torch
@@ -250,7 +249,7 @@ def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
         )
 
 
-def f_apply_rotary(x, offset, scale, theta, offset_list: Optional[List[int]] = None):
+def f_apply_rotary(x, offset, scale, theta, offset_list: list[int] | None = None):
     # x: (N, H, D)
     assert len(x.shape) == 3
     nfeat = x.shape[-1]
@@ -280,13 +279,13 @@ def f_apply_rotary(x, offset, scale, theta, offset_list: Optional[List[int]] = N
 def apply_attention(
     kv_cache,
     rope_mode: RopeMode,
-    batch: List[Tuple[Union[int, Tuple[int, int, int]], int]],
-    cached_k: Dict[int, torch.Tensor],
-    cached_v: Dict[int, torch.Tensor],
-    sliding_window_sizes: Optional[List[int]] = None,
-    attn_sink_sizes: Optional[List[int]] = None,
-    token_tree_parent_ptr_list: Optional[List[List[int]]] = None,
-    accepted_leaf_indices: Optional[List[int]] = None,
+    batch: list[tuple[int | tuple[int, int, int], int]],
+    cached_k: dict[int, torch.Tensor],
+    cached_v: dict[int, torch.Tensor],
+    sliding_window_sizes: list[int] | None = None,
+    attn_sink_sizes: list[int] | None = None,
+    token_tree_parent_ptr_list: list[list[int]] | None = None,
+    accepted_leaf_indices: list[int] | None = None,
 ) -> None:
     seq_ids = []
     append_lengths = []
@@ -318,7 +317,7 @@ def apply_attention(
             )
 
     flattened_token_tree_parent_ptr = None
-    token_tree_node_depths_list: List[Optional[List[int]]] = [None for _ in batch]
+    token_tree_node_depths_list: list[list[int] | None] = [None for _ in batch]
     if token_tree_parent_ptr_list:
         assert len(token_tree_node_depths_list) == len(seq_ids)
         if accepted_leaf_indices is not None:

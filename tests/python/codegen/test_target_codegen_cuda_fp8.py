@@ -17,7 +17,6 @@
 # ruff: noqa: F401, F821, F841
 
 from itertools import product
-from typing import List, Tuple
 
 import numpy as np
 import pytest
@@ -418,7 +417,7 @@ class BaseFP8E4M3QuantScaleOnly:
     @classmethod
     def quantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
         cls,
-        weight_shape: List[tir.PrimExpr],
+        weight_shape: list[tir.PrimExpr],
         model_dtype,
         quantize_dtype,
         storage_dtype,
@@ -427,7 +426,7 @@ class BaseFP8E4M3QuantScaleOnly:
         max_int_value,
         axis: int = -1,
         output_transpose: bool = False,
-    ) -> Tuple[te.Tensor, te.Tensor]:
+    ) -> tuple[te.Tensor, te.Tensor]:
         """Group quantization for weight tensor, defined in tensor expression."""
         max_int = tir.const(max_int_value, model_dtype)
         shape = weight_shape  # pylint: disable=invalid-name
@@ -505,7 +504,7 @@ class BaseFP8E4M3QuantScaleOnly:
     @classmethod
     def dequantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
         cls,
-        packed_weight_shape: List[tir.PrimExpr],
+        packed_weight_shape: list[tir.PrimExpr],
         scale_shape,
         dequant_shape,
         model_dtype,
@@ -514,7 +513,7 @@ class BaseFP8E4M3QuantScaleOnly:
         group_size,
         num_elem_per_storage,
         axis: int = -1,
-    ) -> Tuple[te.Tensor, te.Tensor]:
+    ) -> tuple[te.Tensor, te.Tensor]:
         """Group quantization for weight tensor, defined in tensor expression."""
         axis = axis if axis >= 0 else len(shape) + axis
 

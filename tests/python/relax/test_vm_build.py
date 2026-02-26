@@ -17,7 +17,7 @@
 # ruff: noqa: F841
 
 import ctypes
-from typing import Callable, Tuple
+from collections.abc import Callable
 
 import numpy as np
 import pytest
@@ -1109,7 +1109,7 @@ def set_input_attempt_get(vm: relax.VirtualMachine, device: tvm.runtime.Device) 
     _ = vm.get_outputs("main")
 
 
-def make_vm(mod, exec_mode, temp) -> Tuple[relax.VirtualMachine, tvm.runtime.Device]:
+def make_vm(mod, exec_mode, temp) -> tuple[relax.VirtualMachine, tvm.runtime.Device]:
     """Returns a local VM for the given mod and the device"""
     target = tvm.target.Target("llvm", host="llvm")
     exec = relax.build(mod, target, exec_mode=exec_mode)

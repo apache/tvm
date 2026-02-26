@@ -16,7 +16,7 @@
 # under the License.
 """Schedule instructions each corresponds to a schedule primitive"""
 
-from typing import TYPE_CHECKING, Any, List, Union
+from typing import TYPE_CHECKING, Any
 
 from tvm_ffi import register_object as _register_object
 
@@ -27,8 +27,8 @@ from . import _ffi_api
 if TYPE_CHECKING:
     from .schedule import RAND_VAR_TYPE
 
-    INPUT_RV_TYPE = Union[RAND_VAR_TYPE, float, int, str, None]  # pylint: disable=invalid-name
-    OUTPUT_RV_TYPE = Union[RAND_VAR_TYPE]  # pylint: disable=invalid-name
+    INPUT_RV_TYPE = RAND_VAR_TYPE | float | int | str | None  # pylint: disable=invalid-name
+    OUTPUT_RV_TYPE = RAND_VAR_TYPE  # pylint: disable=invalid-name
     ATTR_TYPE = Any
 else:
     INPUT_RV_TYPE = OUTPUT_RV_TYPE = ATTR_TYPE = Any
@@ -121,16 +121,16 @@ class Instruction(Object):
     """
 
     kind: InstructionKind
-    inputs: List[INPUT_RV_TYPE]
-    attrs: List[ATTR_TYPE]
-    outputs: List[OUTPUT_RV_TYPE]
+    inputs: list[INPUT_RV_TYPE]
+    attrs: list[ATTR_TYPE]
+    outputs: list[OUTPUT_RV_TYPE]
 
     def __init__(
         self,
         kind: InstructionKind,
-        inputs: List[INPUT_RV_TYPE],
-        attrs: List[ATTR_TYPE],
-        outputs: List[OUTPUT_RV_TYPE],
+        inputs: list[INPUT_RV_TYPE],
+        attrs: list[ATTR_TYPE],
+        outputs: list[OUTPUT_RV_TYPE],
     ) -> None:
         """Constructor
 

@@ -23,8 +23,8 @@ import logging
 import multiprocessing
 import operator
 import os
+from collections.abc import Sequence
 from functools import reduce
-from typing import Optional, Sequence
 
 from tvm_ffi import register_global_func
 
@@ -363,7 +363,7 @@ def tune_cutlass_kernels(
     return mod, num_cutlass_partition
 
 
-def _get_call_node(expr: relax.Expr, op_name: str) -> Optional[relax.Call]:
+def _get_call_node(expr: relax.Expr, op_name: str) -> relax.Call | None:
     node = None
 
     def fvisit(e):
@@ -417,7 +417,7 @@ def is_shape_valid_for_cutlass_matmul(
     as well as ND x 2D and 2D x ND. For example, it cannot handle matmul with shape
     (2, 1, 4, 8) x (2, 3, 8, 16), because the batch stride of lhs is not constant.
     """
-    if not isinstance(lhs_shape[-1], (tvm.tir.expr.IntImm, int)):
+    if not isinstance(lhs_shape[-1], tvm.tir.expr.IntImm | int):
         # Reduction axis must be constant
         return False
 

@@ -17,7 +17,8 @@
 """An execution trace of a scheduling program"""
 
 import os
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from tvm_ffi import register_object as _register_object
 
@@ -40,7 +41,7 @@ JSON_TYPE = Any
 def _json_from_tvm(obj):
     if obj is None:
         return None
-    elif isinstance(obj, (bool, int, float, str)):
+    elif isinstance(obj, bool | int | float | str):
         return obj
     elif isinstance(obj, Array):
         return [_json_from_tvm(i) for i in obj]
@@ -48,7 +49,7 @@ def _json_from_tvm(obj):
         return {_json_from_tvm(k): _json_from_tvm(v) for k, v in obj.items()}
     elif isinstance(obj, str):
         return str(obj)
-    elif isinstance(obj, (IntImm, FloatImm)):
+    elif isinstance(obj, IntImm | FloatImm):
         return obj
     elif isinstance(obj, IndexMap):
         return save_json(obj)
@@ -80,13 +81,13 @@ class Trace(Object):
         The random decisions made upon those instructions
     """
 
-    insts: List[Instruction]
-    decisions: Dict[Instruction, DECISION_TYPE]
+    insts: list[Instruction]
+    decisions: dict[Instruction, DECISION_TYPE]
 
     def __init__(
         self,
-        insts: List[Instruction],
-        decisions: Dict[Instruction, DECISION_TYPE],
+        insts: list[Instruction],
+        decisions: dict[Instruction, DECISION_TYPE],
     ) -> None:
         """Constructor
 
@@ -103,7 +104,7 @@ class Trace(Object):
             decisions,
         )
 
-    def get_decision(self, inst: Instruction) -> Optional[DECISION_TYPE]:
+    def get_decision(self, inst: Instruction) -> DECISION_TYPE | None:
         """Retrieve the decision made on a specific instruction
 
         Parameters
@@ -121,7 +122,7 @@ class Trace(Object):
     def append(
         self,
         inst: Instruction,
-        decision: Optional[DECISION_TYPE] = None,
+        decision: DECISION_TYPE | None = None,
     ) -> None:
         """Append a new instruction to the trace
 
@@ -134,7 +135,7 @@ class Trace(Object):
         """
         _ffi_api.TraceAppend(self, inst, decision)  # type: ignore # pylint: disable=no-member
 
-    def pop(self) -> Optional[Instruction]:
+    def pop(self) -> Instruction | None:
         """Remove the last instruction, along with the decision made on that instruction, if any
 
         Returns
@@ -148,11 +149,12 @@ class Trace(Object):
         self,
         sch: "Schedule",
         remove_postproc: bool,
-        decision_provider: Optional[
+        decision_provider: (
             Callable[
-                [Instruction, List[INPUT_RV_TYPE], List[ATTR_TYPE], DECISION_TYPE], DECISION_TYPE
+                [Instruction, list[INPUT_RV_TYPE], list[ATTR_TYPE], DECISION_TYPE], DECISION_TYPE
             ]
-        ] = None,
+            | None
+        ) = None,
     ) -> None:
         """Apply the trace to a TensorIR schedule
 
@@ -194,7 +196,7 @@ class Trace(Object):
         obj = _ffi_api.TraceAsJSON(self, remove_postproc)  # type: ignore # pylint: disable=no-member
         return _json_from_tvm(obj)
 
-    def as_python(self, remove_postproc: bool = False) -> List[str]:
+    def as_python(self, remove_postproc: bool = False) -> list[str]:
         """Serialize the trace as a sequence of python statements
 
         Parameters
@@ -267,7 +269,7 @@ class Trace(Object):
         """
         _ffi_api.TraceApplyJSONToSchedule(json_obj, sch)  # type: ignore # pylint: disable=no-member
 
-    def show(self, style: Optional[str] = None, black_format: bool = False) -> None:
+    def show(self, style: str | None = None, black_format: bool = False) -> None:
         """A sugar for print highlighted TVM script.
 
         Parameters

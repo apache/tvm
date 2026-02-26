@@ -17,7 +17,7 @@
 """The entry point of TVM parser for tir."""
 
 import inspect
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 
 from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
@@ -28,8 +28,8 @@ from ..core.parser import Parser, ScriptMacro
 
 
 def prim_func(
-    func: Optional[Callable] = None, private: bool = False, check_well_formed=True
-) -> Union[PrimFunc, Callable]:
+    func: Callable | None = None, private: bool = False, check_well_formed=True
+) -> PrimFunc | Callable:
     """The parsing method for tir prim func, by using `@prim_func` as decorator.
 
     Parameters

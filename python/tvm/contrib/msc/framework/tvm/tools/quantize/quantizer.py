@@ -18,8 +18,6 @@
 # ruff: noqa: RUF005
 """tvm.contrib.msc.framework.tvm.tools.quantize.quantizer"""
 
-from typing import List, Union
-
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools.quantize import BaseQuantizer
@@ -62,8 +60,8 @@ class TVMQuantizerFactory:
                 super()._execute_before_build(block_builder)
 
             def _execute_after_build(
-                self, output: Union[tvm.relax.Var, List[tvm.relax.DataflowVar]]
-            ) -> List[tvm.relax.Var]:
+                self, output: tvm.relax.Var | list[tvm.relax.DataflowVar]
+            ) -> list[tvm.relax.Var]:
                 """Execute after model build
 
                 Parameters
@@ -86,8 +84,8 @@ class TVMQuantizerFactory:
                 return super()._execute_after_build(output + gather_tensors)
 
             def _execute_after_forward(
-                self, outputs: List[tvm.runtime.Tensor]
-            ) -> Union[tvm.runtime.Tensor, List[tvm.runtime.Tensor]]:
+                self, outputs: list[tvm.runtime.Tensor]
+            ) -> tvm.runtime.Tensor | list[tvm.runtime.Tensor]:
                 """Execute after model forward
 
                 Parameters
@@ -119,7 +117,7 @@ class TVMQuantizerFactory:
                 name: str,
                 consumer: str,
                 scope: str,
-                strategys: List[ToolStrategy],
+                strategys: list[ToolStrategy],
             ) -> tvm.relax.DataflowVar:
                 """Process tensor
 

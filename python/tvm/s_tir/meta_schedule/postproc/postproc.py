@@ -17,10 +17,11 @@
 # ruff: noqa: RUF012
 """Meta Schedule Postproc."""
 
-from typing import TYPE_CHECKING, Callable, List, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -78,7 +79,7 @@ class Postproc(Object):
         return _ffi_api.PostprocClone(self)  # type: ignore # pylint: disable=no-member
 
     @staticmethod
-    def create(kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"]) -> List["Postproc"]:
+    def create(kind: Literal["llvm", "cuda", "cuda-tensorcore", "hexagon"]) -> list["Postproc"]:
         """Create a list of default postprocessors.
 
         Parameters
@@ -119,10 +120,10 @@ class _PyPostproc(Postproc):
 
     def __init__(
         self,
-        f_initialize_with_tune_context: Optional[Callable] = None,
-        f_apply: Optional[Callable] = None,
-        f_clone: Optional[Callable] = None,
-        f_as_string: Optional[Callable] = None,
+        f_initialize_with_tune_context: Callable | None = None,
+        f_apply: Callable | None = None,
+        f_clone: Callable | None = None,
+        f_as_string: Callable | None = None,
     ):
         """Constructor."""
 

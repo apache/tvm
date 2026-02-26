@@ -90,7 +90,7 @@ def load_param_dict(param_bytes):
     params : dict of str to Tensor
         The parameter dictionary.
     """
-    if isinstance(param_bytes, (bytes, str)):
+    if isinstance(param_bytes, bytes | str):
         param_bytes = bytearray(param_bytes)
     return _ffi_api.LoadParams(param_bytes)
 

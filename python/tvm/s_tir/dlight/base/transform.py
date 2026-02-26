@@ -19,8 +19,6 @@ Apply ScheduleRules onto an IRModule to generate default schedules without tunin
 or a space for MetaSchedule tuning
 """
 
-from typing import List, Optional
-
 from tvm import s_tir, tir
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext, module_pass
@@ -83,9 +81,9 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
 def _apply_rules(
     func: tir.PrimFunc,
     target: Target,
-    rules: List[ScheduleRule],
+    rules: list[ScheduleRule],
     tunable: bool,
-) -> Optional[List[s_tir.Schedule]]:
+) -> list[s_tir.Schedule] | None:
     for rule in rules:
         space = rule.apply(func, target, tunable)
         if space is None:

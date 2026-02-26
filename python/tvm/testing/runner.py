@@ -17,9 +17,8 @@
 # pylint: disable=invalid-name, missing-function-docstring
 """A utility method to run a TVM module on a remote device."""
 
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple, Union
-
-from typing_extensions import Literal
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Literal, Optional, Union
 
 if TYPE_CHECKING:
     import numpy as np
@@ -37,9 +36,9 @@ def _args_to_device(args, device):
 
     uploaded_args = []
     for arg in args:
-        if isinstance(arg, (np.ndarray, Tensor)):
+        if isinstance(arg, np.ndarray | Tensor):
             uploaded_args.append(empty(arg.shape, dtype=arg.dtype, device=device).copyfrom(arg))
-        elif isinstance(arg, (int, float)):
+        elif isinstance(arg, int | float):
             uploaded_args.append(arg)
         else:
             raise ValueError(f"Unsupported input type: {type(arg)}")
@@ -58,7 +57,7 @@ def _args_to_numpy(args):
     return downloaded_args
 
 
-def _normalize_export_func(export_func, output_format) -> Tuple[Callable, str]:
+def _normalize_export_func(export_func, output_format) -> tuple[Callable, str]:
     from tvm.contrib import ndk, tar
 
     def export_with(func):
@@ -81,10 +80,10 @@ def _normalize_export_func(export_func, output_format) -> Tuple[Callable, str]:
 def local_run(  # pylint: disable=too-many-arguments,too-many-locals
     mod: "Module",
     device_type: str,
-    args: List[Union["np.ndarray", "Tensor", int, float]],
+    args: list[Union["np.ndarray", "Tensor", int, float]],
     evaluator_config: Optional["EvaluatorConfig"] = None,
-    export_func: Union[Callable[["Module", str], None], Literal["tar", "ndk"]] = "tar",
-    output_format: Optional[str] = None,
+    export_func: Callable[["Module", str], None] | Literal["tar", "ndk"] = "tar",
+    output_format: str | None = None,
 ):
     """Run a TVM module on a local device.
 
@@ -153,11 +152,11 @@ def local_run(  # pylint: disable=too-many-arguments,too-many-locals
 def rpc_run(  # pylint: disable=too-many-arguments,too-many-locals
     mod: "Module",
     device_type: str,
-    args: List[Union["np.ndarray", "Tensor", int, float]],
+    args: list[Union["np.ndarray", "Tensor", int, float]],
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
-    export_func: Union[Callable[["Module", str], None], Literal["tar", "ndk"]] = "tar",
-    output_format: Optional[str] = None,
+    export_func: Callable[["Module", str], None] | Literal["tar", "ndk"] = "tar",
+    output_format: str | None = None,
 ):
     """Run a TVM module on a remote device.
 

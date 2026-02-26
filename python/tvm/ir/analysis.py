@@ -19,8 +19,6 @@
 
 """Common analysis across all IR variants."""
 
-from typing import Dict, List
-
 import tvm
 
 from . import _ffi_analysis_api as _ffi
@@ -28,7 +26,7 @@ from . import _ffi_analysis_api as _ffi
 
 def collect_call_map(
     module: "tvm.ir.IRModule",
-) -> Dict["tvm.ir.GlobalVar", List["tvm.ir.GlobalVar"]]:
+) -> dict["tvm.ir.GlobalVar", list["tvm.ir.GlobalVar"]]:
     """Collect the call map of a module
 
     Parameters

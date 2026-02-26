@@ -37,7 +37,7 @@ def to_expr(value: Any) -> relax.Expr:
         The relax Expr.
     """
 
-    if isinstance(value, (bool, int)):
+    if isinstance(value, bool | int):
         value = tir.IntImm("int64", value)
         expr = relax.PrimValue(value)
     elif isinstance(value, float):
@@ -45,7 +45,7 @@ def to_expr(value: Any) -> relax.Expr:
         expr = relax.PrimValue(value)
     elif isinstance(value, str):
         expr = relax.StringImm(value)
-    elif isinstance(value, (list, tuple)):
+    elif isinstance(value, list | tuple):
         expr = relax.Tuple([to_expr(v) for v in value])
     else:
         raise TypeError(f"Unsupported input type: {type(value)}")

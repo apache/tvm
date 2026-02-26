@@ -18,7 +18,6 @@
 """Elementwise operators"""
 
 import math as _math
-from typing import Optional
 
 from tvm import te
 
@@ -59,9 +58,7 @@ def full(shape, dtype, fill_value):
         The result.
     """
 
-    if isinstance(fill_value, (int, float)) and (
-        _math.isinf(fill_value) or _math.isnan(fill_value)
-    ):
+    if isinstance(fill_value, int | float) and (_math.isinf(fill_value) or _math.isnan(fill_value)):
         if not ("float" in dtype or "bfloat16" in dtype):
             raise ValueError("Infinite and NaN require a floating-point dtype.")
 
@@ -87,7 +84,7 @@ def full_like(x, fill_value):
     return cpp.full_like(x, fill_value)
 
 
-def eye(n: int, m: Optional[int] = None, k: int = 0, dtype: str = "float32") -> te.Tensor:
+def eye(n: int, m: int | None = None, k: int = 0, dtype: str = "float32") -> te.Tensor:
     """Generate an identity matrix or a matrix with ones on the k-th diagonal.
 
     Parameters

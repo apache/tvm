@@ -20,7 +20,8 @@
 import builtins
 import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from collections.abc import Callable
+from typing import Any
 
 import tvm
 from tvm import DataType, relax
@@ -227,7 +228,7 @@ py_str = str  # pylint: disable=used-before-assignment
 ################################ Device ################################
 
 
-def to_vdevice(data: Expr, dst_vdevice: Union[py_str, VDevice]) -> Expr:
+def to_vdevice(data: Expr, dst_vdevice: py_str | VDevice) -> Expr:
     """Copy data to the destination device.
 
     Parameters
@@ -304,7 +305,7 @@ def func_name(name: py_str) -> None:
     return _ffi_api.FuncName(name)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def func_attr(attrs: Dict[py_str, tvm_Object]) -> None:
+def func_attr(attrs: dict[py_str, tvm_Object]) -> None:
     """Specify the attrs of the last function frame.
     Parameters
     ----------
@@ -334,7 +335,7 @@ def func_ret_value(value: Expr) -> None:
     return _ffi_api.FuncRetValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def rewriter(rewriter_mod: Union[IRModule, Type]) -> PatternMatchingRewriter:
+def rewriter(rewriter_mod: IRModule | type) -> PatternMatchingRewriter:
     """Define a pattern-rewrite rule
 
     The IRModule must have two publicly-exposed functions, `pattern`
@@ -389,7 +390,7 @@ def dataflow() -> frame.BindingBlockFrame:
     return _ffi_api.Dataflow()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def output(*vars: Tuple[Var]) -> None:
+def output(*vars: tuple[Var]) -> None:
     """Expose the dataflow block output variables as global ones.
     Parameters
     ----------
@@ -406,7 +407,7 @@ def output(*vars: Tuple[Var]) -> None:
 def call_packed(
     func: py_str,
     *args: Expr,
-    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
+    sinfo_args: StructInfo | list[StructInfo] | None = None,
     **kwargs: Any,
 ) -> Call:
     """Create a relax Call, which calls a packed function.
@@ -463,7 +464,7 @@ def call_packed(
 def call_py_func(
     py_func_name: py_str,
     *args: Expr,
-    out_sinfo: Union[StructInfo, List[StructInfo]],
+    out_sinfo: StructInfo | list[StructInfo],
 ) -> Call:
     """Create a relax Call, which calls a Python function.
 
@@ -514,7 +515,7 @@ def _sinfo_arg_wrapper(func):
     """A wrapper to convert StructInfoProxies to StructInfo for builtin operators with sinfo_args"""
 
     def _convert_tensor_type(args):
-        if isinstance(args, (list, py_tuple)):  # type: ignore
+        if isinstance(args, list | py_tuple):  # type: ignore
             new_args = [_convert_tensor_type(x) for x in args]
             return type(args)(new_args)
         if isinstance(args, dict):
@@ -540,7 +541,7 @@ call_builtin_with_ctx = _sinfo_arg_wrapper(call_builtin_with_ctx)  # pylint: dis
 ############################### Emits ###############################
 
 
-def emit(value: Expr, annotate_struct_info: Optional[StructInfo] = None) -> Var:
+def emit(value: Expr, annotate_struct_info: StructInfo | None = None) -> Var:
     """Emit a binding to the last binding block frame.
     Parameters
     ----------
@@ -627,7 +628,7 @@ def emit_var_binding(value: VarBinding) -> Var:
 def emit_with_sinfo(
     op: str,
     args: Expr,
-    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
+    sinfo_args: StructInfo | list[StructInfo] | None = None,
 ) -> Call:
     """Create a relax Call with sinfo_args.
     Parameters
@@ -664,7 +665,7 @@ def SeqExpr() -> frame.SeqExprFrame:  # pylint: disable=invalid-name
 ############################# If Then Else #############################
 
 
-def If(condition: Union[Expr, PrimExpr]) -> frame.IfFrame:  # pylint: disable=invalid-name
+def If(condition: Expr | PrimExpr) -> frame.IfFrame:  # pylint: disable=invalid-name
     """Create an if frame.
 
     Parameters
@@ -729,7 +730,7 @@ def tuple(*fields: Expr) -> Expr:
 ############################### R.shape ################################
 
 
-def shape(value: List[PrimExpr]) -> Expr:
+def shape(value: list[PrimExpr]) -> Expr:
     """Create a ShapeExpr.
     Parameters
     ----------
@@ -774,7 +775,7 @@ def str(value: py_str) -> Expr:
     return relax.StringImm(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def dtype(value: Union[py_str, DataType]) -> Expr:
+def dtype(value: py_str | DataType) -> Expr:
     """Create a dtype imm expression.
     Parameters
     ----------

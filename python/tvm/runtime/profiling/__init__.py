@@ -17,7 +17,8 @@
 # under the License.
 """Registration of profiling objects in python."""
 
-from typing import Dict, Sequence, Optional
+from typing import Optional
+from collections.abc import Sequence
 from ... import ffi as _ffi
 from . import _ffi_api
 from .. import Object, Device
@@ -38,9 +39,9 @@ class Report(Object):
 
     def __init__(
         self,
-        calls: Sequence[Dict[str, Object]],
-        device_metrics: Dict[str, Dict[str, Object]],
-        configuration: Dict[str, Object],
+        calls: Sequence[dict[str, Object]],
+        device_metrics: dict[str, dict[str, Object]],
+        configuration: dict[str, Object],
     ):
         """Construct a profiling report from a list of metrics and per-device metrics.
 

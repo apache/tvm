@@ -18,8 +18,8 @@
 # ruff: noqa: RUF005
 """PyTorch-like nn.Module API for constructing workloads."""
 
-import typing
-from typing import Any, Callable, List, Union
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np  # type: ignore
 
@@ -38,7 +38,7 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> relax.Var:
 
 def checkpoint(
     func: Callable, *args: Any, **kwargs: Any
-) -> Union[relax.Var, List[relax.Var], List[Any]]:
+) -> relax.Var | list[relax.Var] | list[Any]:
     """Mark function(*args, **kwargs) should be computed in a checkpointed manner during backward.
 
     To be specific, args and kwargs will be checkpointed, and func(*args, **kwargs) will be
@@ -47,7 +47,7 @@ def checkpoint(
     args = [start_checkpoint(v) if isinstance(v, relax.Expr) else v for v in args]
     kwargs = {k: start_checkpoint(v) if isinstance(v, relax.Expr) else v for k, v in kwargs.items()}
     result = func(*args, **kwargs)
-    if isinstance(result, (list, tuple)):
+    if isinstance(result, list | tuple):
         result = [end_checkpoint(v) if isinstance(v, relax.Expr) else v for v in result]
     else:
         assert isinstance(result, relax.Expr)
@@ -57,7 +57,7 @@ def checkpoint(
 
 def emit_checkpoint(
     func: Callable, *args: Any, **kwargs: Any
-) -> Union[relax.Var, List[relax.Var], List[Any]]:
+) -> relax.Var | list[relax.Var] | list[Any]:
     """Mark function(*args, **kwargs) should be computed in a checkpointed manner during backward.
 
     To be specific, args and kwargs will be checkpointed, and func(*args, **kwargs) will be
@@ -77,7 +77,7 @@ def emit_checkpoint(
         for k, v in kwargs.items()
     }
     result = func(*args, **kwargs)
-    if isinstance(result, (list, tuple)):
+    if isinstance(result, list | tuple):
         result = list(result)
         for i, v in enumerate(result):
             if isinstance(v, relax.Expr):
@@ -93,11 +93,11 @@ def emit_checkpoint(
 
 
 def emit_checkpoint_sequential(
-    functions: List[Callable],
-    segments: Union[int, List[int]],
+    functions: list[Callable],
+    segments: int | list[int],
     input: relax.Var,
     checkpoint_last: bool = False,
-) -> Union[relax.Var, List[relax.Var], List[Any]]:
+) -> relax.Var | list[relax.Var] | list[Any]:
     """A helper function for checkpointing sequential models. This interface has similar purpose
     as torch.utils.checkpoint.checkpoint_sequential.
 
@@ -193,10 +193,8 @@ def _try_unique_name(name: str):
 class Placeholder(relax.Var):
     """A placeholder variable that can represent model input."""
 
-    def __init__(
-        self, shape: Union[List[Any], typing.Tuple[Any, ...]], dtype="float32", name="data"
-    ):
-        if not isinstance(shape, (list, tuple)):
+    def __init__(self, shape: list[Any] | tuple[Any, ...], dtype="float32", name="data"):
+        if not isinstance(shape, list | tuple):
             raise TypeError("the shape of Placeholder is expected to be a list or a tuple")
         super().__init__(_try_unique_name(name), relax.TensorStructInfo(shape, dtype))
 
@@ -204,10 +202,8 @@ class Placeholder(relax.Var):
 class Parameter(relax.Var):
     """A special kind of relax Var that represents model parameter(weight)."""
 
-    def __init__(
-        self, shape: Union[List[Any], typing.Tuple[Any, ...]], dtype="float32", name="param"
-    ):
-        if not isinstance(shape, (list, tuple)):
+    def __init__(self, shape: list[Any] | tuple[Any, ...], dtype="float32", name="param"):
+        if not isinstance(shape, list | tuple):
             raise TypeError("the shape of Parameter is expected to be a list or a tuple")
 
         super().__init__(_try_unique_name(name), relax.TensorStructInfo(shape, dtype))
@@ -251,7 +247,7 @@ class Module(tvm.relax.frontend.nn.SubroutineMixin):
 
     define_subroutine: bool = False
 
-    def parameters(self) -> List[Parameter]:
+    def parameters(self) -> list[Parameter]:
         """Return the list of parameters in the module."""
         return _unpack_params(self.__dict__)
 
@@ -263,7 +259,7 @@ class Module(tvm.relax.frontend.nn.SubroutineMixin):
         return self.forward(*args, **kwargs)
 
 
-def _unpack_params(value: object) -> List[relax.Var]:
+def _unpack_params(value: object) -> list[relax.Var]:
     if isinstance(value, Parameter):
         return [value]
     if isinstance(value, Module):
@@ -273,7 +269,7 @@ def _unpack_params(value: object) -> List[relax.Var]:
         for v in value.values():
             params += _unpack_params(v)
         return params
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         params = []
         for v in value:
             params += _unpack_params(v)
@@ -281,7 +277,7 @@ def _unpack_params(value: object) -> List[relax.Var]:
     return []
 
 
-def init_params(mod: tvm.IRModule) -> List[tvm.runtime.Tensor]:
+def init_params(mod: tvm.IRModule) -> list[tvm.runtime.Tensor]:
     """Utility function to initialize model's parameters."""
     shape_dict = {v.name_hint: v.struct_info.shape for v in mod["main"].params}
     params = []

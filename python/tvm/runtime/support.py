@@ -199,6 +199,6 @@ def derived_object(cls: type[T]) -> type[T]:
     TVMDerivedObject.__doc__ = cls.__doc__
     TVMDerivedObject.__module__ = cls.__module__
     for key, value in cls.__dict__.items():
-        if isinstance(value, (classmethod, staticmethod)):
+        if isinstance(value, classmethod | staticmethod):
             setattr(TVMDerivedObject, key, value)
     return TVMDerivedObject

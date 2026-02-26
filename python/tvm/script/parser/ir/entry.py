@@ -18,7 +18,7 @@
 """The entry point of TVM parser for ir module."""
 
 import inspect
-from typing import Callable, Optional, Type
+from collections.abc import Callable
 
 from tvm import cpu, ir
 from tvm.ir import GlobalVar, IRModule
@@ -29,7 +29,7 @@ from .._core import parse, utils
 # this formulation allows us to support having @I.ir_module
 # appear as a decorator by itself or to have optional arguments
 # like @I.ir_module(check_well_formed=False)
-def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRModule:
+def ir_module(mod: type | None = None, check_well_formed: bool = True) -> IRModule:
     """The parsing method for ir module, by using `@ir_module` as decorator.
 
     Parameters

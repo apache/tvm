@@ -18,7 +18,6 @@
 
 import json
 import os
-from typing import Dict
 
 import numpy as np  # type: ignore
 
@@ -82,7 +81,7 @@ def get_time(log: str) -> list:
     return best_time
 
 
-def read_cfg_file(path_tuning_file: str, path_workload_file: str) -> Dict[int, list]:
+def read_cfg_file(path_tuning_file: str, path_workload_file: str) -> dict[int, list]:
     """Colect the info from meta logfile
 
     Parameters
@@ -100,7 +99,7 @@ def read_cfg_file(path_tuning_file: str, path_workload_file: str) -> Dict[int, l
         for line in log_file.readlines():
             workload_list.append(json.loads(line))
 
-    cfg: Dict[int, list] = dict()
+    cfg: dict[int, list] = dict()
     with open(path_tuning_file, encoding="utf-8") as log_file:
         for line in log_file.readlines():
             data = json.loads(line)

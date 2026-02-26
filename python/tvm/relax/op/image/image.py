@@ -16,21 +16,19 @@
 # under the License.
 """Image operators."""
 
-from typing import Optional, Tuple, Union
-
 from tvm import DataType
 from tvm.ir.expr import PrimExpr
 
 from ...expr import Expr, ShapeExpr
 from . import _ffi_api
 
-PrimExprLike = Union[int, PrimExpr]
+PrimExprLike = int | PrimExpr
 
 
 def resize2d(
     data: Expr,
-    size: Union[Expr, PrimExprLike, Tuple[PrimExprLike]],
-    roi: Optional[Union[float, Tuple[float]]] = None,
+    size: Expr | PrimExprLike | tuple[PrimExprLike],
+    roi: float | tuple[float] | None = None,
     layout: str = "NCHW",
     method: str = "linear",
     coordinate_transformation_mode: str = "half_pixel",
@@ -38,7 +36,7 @@ def resize2d(
     cubic_alpha: float = -0.75,
     cubic_exclude: int = 0,
     extrapolation_value: float = 0.0,
-    out_dtype: Optional[Union[str, DataType]] = None,
+    out_dtype: str | DataType | None = None,
 ) -> Expr:
     """Image resize2d operator.
 
@@ -91,7 +89,7 @@ def resize2d(
     extrapolation_value: float
         Fill value to use when roi is outside of the image
 
-    out_dtype : Optional[Union[str, DataType]]
+    out_dtype : Optional[str | DataType]
         The dtype of the output tensor.
         It it is not specified, the output will have the same dtype as input if not specified.
 
@@ -104,14 +102,14 @@ def resize2d(
         roi = (0.0, 0.0, 0.0, 0.0)  # type: ignore
     elif isinstance(roi, float):
         roi = (roi, roi, roi, roi)  # type: ignore
-    elif isinstance(roi, (tuple, list)):
+    elif isinstance(roi, tuple | list):
         roi = tuple(val if isinstance(val, float) else float(val) for val in roi)
     else:
         raise NotImplementedError(f"Unsupported roi type {type(roi)}")
 
-    if isinstance(size, (int, PrimExpr)):
+    if isinstance(size, int | PrimExpr):
         size = (size, size)
-    if isinstance(size, (tuple, list)):
+    if isinstance(size, tuple | list):
         if len(size) == 1:
             size = ShapeExpr([size[0], size[0]])
         else:

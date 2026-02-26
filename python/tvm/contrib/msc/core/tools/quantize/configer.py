@@ -16,8 +16,6 @@
 # under the License.
 """tvm.contrib.msc.core.tools.quantize.configer"""
 
-from typing import Union
-
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools.configer import ToolConfiger
 from tvm.contrib.msc.core.tools.tool import ToolType
@@ -28,7 +26,7 @@ from .quantizer import QuantizeStage
 class QuantizeConfiger(ToolConfiger):
     """Configer for quantize"""
 
-    def config_gym(self, gym_config: Union[dict, str]) -> dict:
+    def config_gym(self, gym_config: dict | str) -> dict:
         """Config the gym
 
         Parameters

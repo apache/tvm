@@ -23,7 +23,7 @@ import json
 import logging
 import urllib.error
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from cmd_utils import REPO_ROOT, init_log
 from http_utils import get
@@ -35,7 +35,7 @@ IMAGE_TAGS_FILE = REPO_ROOT / "ci" / "jenkins" / "docker-images.ini"
 TVM_CI_ECR = "477529581014.dkr.ecr.us-west-2.amazonaws.com"
 
 
-def docker_api(url: str, use_pagination: bool = False) -> Dict[str, Any]:
+def docker_api(url: str, use_pagination: bool = False) -> dict[str, Any]:
     """
     Run a paginated fetch from the public Docker Hub API
     """

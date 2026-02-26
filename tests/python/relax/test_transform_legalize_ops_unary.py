@@ -16,7 +16,7 @@
 # under the License.
 # ruff: noqa: F401
 
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
 

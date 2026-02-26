@@ -17,7 +17,7 @@
 # ruff: noqa: E722
 """tvm.contrib.msc.core.utils.info"""
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np
 from packaging.version import parse
@@ -45,8 +45,8 @@ class MSCArray:
     def __str__(self):
         return f"<{self._framework} @{self._device}>{self.abstract()}"
 
-    def _analysis(self, data: Any) -> Tuple[str, str, np.ndarray]:
-        if isinstance(data, (list, tuple)) and all(isinstance(d, (int, float)) for d in data):
+    def _analysis(self, data: Any) -> tuple[str, str, np.ndarray]:
+        if isinstance(data, list | tuple) and all(isinstance(d, int | float) for d in data):
             return MSCFramework.MSC, "list", "cpu"
         if isinstance(data, np.ndarray):
             return MSCFramework.MSC, "tensor", "cpu"
@@ -155,7 +155,7 @@ class MSCArray:
             return tvm.runtime.tensor(data, device=self.get_device(device, framework))
         return data
 
-    def get_device(self, device: str, framework: Optional[str] = None) -> Any:
+    def get_device(self, device: str, framework: str | None = None) -> Any:
         """Change device from name to device obj
 
         Parameters
@@ -203,7 +203,7 @@ class MSCArray:
         normal_types = (np.ndarray, tvm.runtime.Tensor, tvm.relax.Var)
         if isinstance(data, normal_types):
             return True
-        if isinstance(data, (list, tuple)) and all(isinstance(d, (int, float)) for d in data):
+        if isinstance(data, list | tuple) and all(isinstance(d, int | float) for d in data):
             return True
         try:
             import torch  # pylint: disable=import-outside-toplevel
@@ -267,7 +267,7 @@ def cast_array(data: Any, framework: str = MSCFramework.MSC, device: str = "cpu"
     return MSCArray(data).cast(framework, device)
 
 
-def inspect_array(data: Any, as_str: bool = True) -> Union[Dict[str, Any], str]:
+def inspect_array(data: Any, as_str: bool = True) -> dict[str, Any] | str:
     """Inspect the array
 
     Parameters
@@ -298,8 +298,8 @@ def inspect_array(data: Any, as_str: bool = True) -> Union[Dict[str, Any], str]:
 
 
 def compare_arrays(
-    golden: Dict[str, Any],
-    datas: Dict[str, Any],
+    golden: dict[str, Any],
+    datas: dict[str, Any],
     atol: float = 1e-2,
     rtol: float = 1e-2,
     report_detail: bool = False,
@@ -374,7 +374,7 @@ def compare_arrays(
     return report
 
 
-def get_version(framework: str) -> List[int]:
+def get_version(framework: str) -> list[int]:
     """Get the version list of framework.
 
     Parameters
@@ -411,7 +411,7 @@ def get_version(framework: str) -> List[int]:
     return [version.major, version.minor, version.micro]
 
 
-def compare_version(given_version: List[int], target_version: List[int]) -> int:
+def compare_version(given_version: list[int], target_version: list[int]) -> int:
     """Compare version
 
     Parameters

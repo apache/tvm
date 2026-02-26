@@ -16,7 +16,7 @@
 # under the License.
 """Testing utility functions in meta schedule"""
 
-from typing import Callable, Dict, List, Optional
+from collections.abc import Callable
 
 import numpy as np  # type: ignore
 
@@ -25,11 +25,11 @@ from tvm.runtime import Tensor
 
 
 def generate_input_data(
-    input_shape: List[int],
+    input_shape: list[int],
     input_dtype: str,
     *,
-    low: Optional[int] = None,
-    high: Optional[int] = None,
+    low: int | None = None,
+    high: int | None = None,
 ) -> np.ndarray:
     """Generate input date with given shape and data type.
 
@@ -83,8 +83,8 @@ def create_calculator(backend: str) -> Callable:
     def f_calculator(
         rt_mod: tvm.runtime.Module,
         dev: tvm.runtime.Device,  # pylint: disable=unused-argument
-        input_data: Dict[str, Tensor],
-    ) -> List[Tensor]:
+        input_data: dict[str, Tensor],
+    ) -> list[Tensor]:
         """Fetch the result of running the given runtime module.
 
         Parameters

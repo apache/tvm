@@ -16,8 +16,6 @@
 # under the License.
 """Random Feature Extractor."""
 
-from typing import List, Tuple, Union
-
 import numpy as np  # type: ignore
 
 import tvm.runtime
@@ -44,7 +42,7 @@ class RandomFeatureExtractor(PyFeatureExtractor):
 
     feature_size: int
     max_block_num: int
-    random_state: Union[Tuple[str, np.ndarray, int, int, float], dict]
+    random_state: tuple[str, np.ndarray, int, int, float] | dict
 
     def __init__(self, *, feature_size: int = 30, max_block_num: int = 5, seed=0):
         super().__init__()
@@ -55,8 +53,8 @@ class RandomFeatureExtractor(PyFeatureExtractor):
         self.random_state = np.random.get_state()
 
     def extract_from(
-        self, context: TuneContext, candidates: List[MeasureCandidate]
-    ) -> List[tvm.runtime.Tensor]:
+        self, context: TuneContext, candidates: list[MeasureCandidate]
+    ) -> list[tvm.runtime.Tensor]:
         np.random.set_state(self.random_state)
         result = [
             np.random.rand(np.random.randint(1, self.max_block_num + 1), self.feature_size)

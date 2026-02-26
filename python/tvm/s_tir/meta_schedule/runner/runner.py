@@ -17,10 +17,11 @@
 # ruff: noqa: RUF012
 """Runners"""
 
-from typing import Callable, List, Optional, Union
+from collections.abc import Callable
+from typing import Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -48,13 +49,13 @@ class RunnerInput(Object):
 
     artifact_path: str
     device_type: str
-    args_info: List[ArgInfo]
+    args_info: list[ArgInfo]
 
     def __init__(
         self,
         artifact_path: str,
         device_type: str,
-        args_info: List[ArgInfo],
+        args_info: list[ArgInfo],
     ) -> None:
         """Constructor
 
@@ -87,13 +88,13 @@ class RunnerResult(Object):
         The error message, if any.
     """
 
-    run_secs: Optional[List[float]]
-    error_msg: Optional[str]
+    run_secs: list[float] | None
+    error_msg: str | None
 
     def __init__(
         self,
-        run_secs: Optional[List[float]],
-        error_msg: Optional[str],
+        run_secs: list[float] | None,
+        error_msg: str | None,
     ) -> None:
         """Constructor
 
@@ -121,7 +122,7 @@ class RunnerFuture(Object):
     See also: PyRunnerFuture
     """
 
-    def __init__(self, f_done: Callable, f_result: Optional[Callable] = None) -> None:
+    def __init__(self, f_done: Callable, f_result: Callable | None = None) -> None:
         """Constructor"""
 
         self.__init_handle_by_constructor__(
@@ -172,7 +173,7 @@ class Runner(Object):
 
     RunnerType = Union["Runner", Literal["local", "rpc"]]
 
-    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
+    def run(self, runner_inputs: list[RunnerInput]) -> list[RunnerFuture]:
         """Run the built artifact and get runner futures.
 
         Parameters
@@ -217,7 +218,7 @@ class _PyRunner(Runner):
     See also: PyRunner
     """
 
-    def __init__(self, f_run: Optional[Callable] = None) -> None:
+    def __init__(self, f_run: Callable | None = None) -> None:
         """Constructor"""
 
         self.__init_handle_by_constructor__(
@@ -239,7 +240,7 @@ class PyRunner:
         "methods": ["run"],
     }
 
-    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
+    def run(self, runner_inputs: list[RunnerInput]) -> list[RunnerFuture]:
         """Run the built artifact and get runner futures.
 
         Parameters

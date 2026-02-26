@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 """Relax memory primitives."""
 
-from typing import Union
-
 from ...expr import Call, DataTypeImm, Expr, PrimValue, StringImm
 from ...utils import args_converter
 from . import _ffi_api
@@ -25,9 +23,9 @@ from . import _ffi_api
 @args_converter.auto
 def alloc_storage(
     size: Expr,
-    virtual_device_index: Union[int, Expr],
-    storage_scope: Union[str, Expr],
-    dtype: Union[str, Expr],
+    virtual_device_index: int | Expr,
+    storage_scope: str | Expr,
+    dtype: str | Expr,
 ) -> Call:
     """Construct a Call to allocate a storage with specific size, virtual_device_index,
     storage_scope and dtype.
@@ -64,10 +62,10 @@ def alloc_storage(
 @args_converter.auto
 def alloc_tensor(
     storage: Expr,
-    offset: Union[int, Expr],
+    offset: int | Expr,
     shape: Expr,
-    dtype: Union[str, Expr],
-    runtime_device_ind: Union[int, Expr] = PrimValue(0),
+    dtype: str | Expr,
+    runtime_device_ind: int | Expr = PrimValue(0),
 ) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 

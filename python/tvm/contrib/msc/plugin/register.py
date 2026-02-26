@@ -17,7 +17,6 @@
 """tvm.contrib.msc.plugin.register"""
 
 import os
-from typing import Dict
 
 import tvm
 from tvm.contrib.msc.core import _ffi_api
@@ -26,7 +25,7 @@ from tvm.contrib.msc.core import utils as msc_utils
 
 def register_plugin(
     name: str, plugin: dict, externs_dir: msc_utils.MSCDirectory = None
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Register a plugin
 
     Parameters

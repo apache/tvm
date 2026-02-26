@@ -291,7 +291,7 @@ def _sort_tests(items):
 
 
 def _target_to_requirement(target):
-    if isinstance(target, (str, dict)):
+    if isinstance(target, str | dict):
         target = tvm.target.Target(target)
 
     # mapping from target to decorator

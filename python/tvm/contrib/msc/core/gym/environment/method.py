@@ -17,7 +17,7 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.gym.agent.method"""
 
-from typing import Any, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -32,7 +32,7 @@ class EnvMethod:
     """Default prune method"""
 
     @classmethod
-    def tasks_tool_extract(cls, env: Any, tool: BaseTool, **kwargs) -> List[dict]:
+    def tasks_tool_extract(cls, env: Any, tool: BaseTool, **kwargs) -> list[dict]:
         """Extract tasks from tool
 
         Parameters
@@ -60,7 +60,7 @@ class EnvMethod:
         data_loader: callable,
         task_id: int,
         loss_type: str = "lp_norm",
-        loss_config: Optional[dict] = None,
+        loss_config: dict | None = None,
     ) -> dict:
         """Reward runner with baseline
 
@@ -112,7 +112,7 @@ class EnvMethod:
     @classmethod
     def action_linear_space(
         cls, env: Any, task_id: int, start: float = 0.1, end: float = 0.9, step: float = 0.1
-    ) -> List[float]:
+    ) -> list[float]:
         """Get linear action space
 
         Parameters
@@ -142,7 +142,7 @@ class EnvMethod:
     @classmethod
     def action_prune_density(
         cls, env: Any, task_id: int, start: float = 0.1, end: float = 0.9, step: float = 0.1
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Get linear density
 
         Parameters
@@ -169,7 +169,7 @@ class EnvMethod:
     @classmethod
     def action_quantize_scale(
         cls, env: Any, task_id: int, start: float = 0.1, end: float = 0.9, step: float = 0.1
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Get linear density
 
         Parameters

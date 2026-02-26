@@ -19,7 +19,6 @@
 
 import argparse
 import fnmatch
-from typing import Optional
 
 from git_utils import git
 
@@ -36,7 +35,7 @@ globs = [
 ]
 
 
-def match_any(f: str) -> Optional[str]:
+def match_any(f: str) -> str | None:
     for glob in globs:
         if fnmatch.fnmatch(f, glob):
             return glob

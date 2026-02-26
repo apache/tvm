@@ -141,12 +141,12 @@ def dump_dict(dict_obj: dict, flavor: str = "dmlc") -> str:
             for k, v in value.items():
                 if v is None:
                     continue
-                if isinstance(v, (dict, tuple, list)) and not v:
+                if isinstance(v, dict | tuple | list) and not v:
                     continue
                 if isinstance(v, dict) and len(str(k) + str(v)) > max_size:
                     lines.append("{}{}:".format(indent * " ", k))
                     lines.extend(_get_lines(v, indent + 2))
-                elif isinstance(v, (tuple, list)) and len(str(k) + str(v)) > max_size:
+                elif isinstance(v, tuple | list) and len(str(k) + str(v)) > max_size:
                     if MSCArray.is_array(v):
                         lines.append("{}{}: {}".format(indent * " ", k, MSCArray(v).abstract()))
                     else:
@@ -223,7 +223,7 @@ def copy_dict(dict_obj: dict) -> dict:
     except:  # pylint: disable=bare-except
         new_dict = {}
         for k, v in dict_obj.items():
-            if isinstance(v, (list, tuple)):
+            if isinstance(v, list | tuple):
                 new_dict[k] = [copy_dict(e) for e in v]
             elif isinstance(v, dict):
                 new_dict[k] = copy_dict(v)
@@ -252,7 +252,7 @@ def map_dict(dict_obj: dict, mapper: callable) -> dict:
         return {}
     new_dict = {}
     for k, v in dict_obj.items():
-        if isinstance(v, (tuple, list)):
+        if isinstance(v, tuple | list):
             new_dict[k] = [
                 map_dict(mapper(e), mapper) if isinstance(e, dict) else mapper(e) for e in v
             ]
