@@ -351,7 +351,8 @@ class CanonicalizePlanner : public ExprVisitor {
       if (binding.as<VarBindingNode>()) {
         return true;
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
-        return ffi::StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(match_cast->value));
+        return ffi::StructuralEqual()(GetStructInfo(binding->var),
+                                      GetStructInfo(match_cast->value));
       } else {
         TVM_FFI_THROW(InternalError) << "Invalid binding type: " << binding->GetTypeKey();
       }

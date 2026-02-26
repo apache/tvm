@@ -58,7 +58,7 @@ def has_cutlass():
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
         major, minor = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
         return major >= 9  # SM90+
-    except:
+    except Exception:
         return False
 
 

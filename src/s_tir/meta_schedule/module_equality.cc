@@ -21,8 +21,6 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ir/module.h>
-#include <tvm/ffi/extra/structural_equal.h>
-#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/tir/analysis.h>
 
 #include <memory>

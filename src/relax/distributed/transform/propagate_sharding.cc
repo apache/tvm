@@ -607,7 +607,8 @@ class DistributedIRBuilder : public ExprMutator {
   }
 
   ffi::Map<Var, Var> input_tensor_remap_;
-  std::unordered_map<TupleGetItem, Var, ffi::StructuralHash, ffi::StructuralEqual> tuple_getitem_remap_;
+  std::unordered_map<TupleGetItem, Var, ffi::StructuralHash, ffi::StructuralEqual>
+      tuple_getitem_remap_;
   AxisGroupGraph axis_group_graph_;
 };
 namespace transform {

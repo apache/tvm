@@ -21,8 +21,8 @@
  * \file inject_software_pipeline.cc
  * \brief Transform annotated loops into pipelined one that parallelize producers and consumers
  */
-#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
