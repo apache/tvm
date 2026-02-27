@@ -19,7 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_UTILS_H_
 #define TVM_SCRIPT_PRINTER_UTILS_H_
 
-#include <tvm/node/serialization.h>
+#include <tvm/ir/serialization.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
 #include <string>

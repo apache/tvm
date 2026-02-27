@@ -23,7 +23,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/node/node.h>
 #include <tvm/script/ir_builder/base.h>
 
 #include <vector>

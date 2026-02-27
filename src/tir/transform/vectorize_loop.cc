@@ -22,6 +22,7 @@
  */
 // Loop vectorizer as in Halide pipeline.
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
@@ -168,7 +169,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     Ramp ramp = Downcast<Ramp>(node->indices[0]);
 
     // The vectorized access pattern must match the base of the predicate
-    if (!tvm::StructuralEqual()(ramp->base, base_)) {
+    if (!ffi::StructuralEqual()(ramp->base, base_)) {
       return node;
     }
 
