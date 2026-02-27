@@ -177,7 +177,7 @@ void TIRVisitorWithPath::VisitStmt_(const LetStmtNode* op, AccessPath path) {
 void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 
-  std::vector<std::variant<DefContext<IterVar>, DefContext<Var>>> context;
+  std::vector<std::variant<DefContext<IterVar>, DefContext<Var>, DefContext<Buffer>>> context;
   if (auto iter_var = op->node.as<IterVar>();
       iter_var && (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread)) {
     // Some attributes serve as a source of definition for the
@@ -202,6 +202,7 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
     for (auto& var : WithMatchBufferDefs(buffer_view, path->Attr("node")->ArrayItem(0))) {
       context.push_back(std::move(var));
     }
+    context.push_back(WithDef(buffer_view, path->Attr("node")->ArrayItem(0)));
 
   } else if (auto expr = op->node.as<PrimExpr>()) {
     Visit(expr.value(), path->Attr("node"));
@@ -296,6 +297,7 @@ void TIRVisitorWithPath::VisitStmt_(const SBlockNode* op, AccessPath path) {
       for (auto& def : WithMatchBufferDefs(buf, buffer_path)) {
         context.push_back(std::move(def));
       }
+      context.push_back(WithDef(buf, buffer_path));
     }
   }
 
