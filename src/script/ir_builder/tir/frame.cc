@@ -128,7 +128,16 @@ void ForFrameNode::ExitWithScope() {
 
 void AssertFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tir::AssertStmt(condition, message, AsStmt(stmts)));
+  if (stmts.empty()) {
+    AddToParent(tvm::tir::AssertStmt(condition, message));
+  } else {
+    ffi::Array<tvm::tir::Stmt> seq;
+    seq.push_back(tvm::tir::AssertStmt(condition, message));
+    for (const auto& stmt : stmts) {
+      seq.push_back(stmt);
+    }
+    AddToParent(tvm::tir::SeqStmt(seq));
+  }
 }
 
 void LetFrameNode::ExitWithScope() {

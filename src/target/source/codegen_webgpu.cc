@@ -698,8 +698,7 @@ void CodeGenWebGPU::VisitStmt_(const ForNode* op) {
 }
 
 void CodeGenWebGPU::VisitStmt_(const AssertStmtNode* op) {
-  // skip assert
-  PrintStmt(op->body);
+  // skip assert — AssertStmt is a leaf, nothing to emit.
 }
 
 void CodeGenWebGPU::VisitStmt_(const WhileNode* op) {

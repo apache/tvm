@@ -886,8 +886,7 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const AssertStmtNode* op) {
-  With<arith::ConstraintContext> cctx(analyzer_.get(), op->condition);
-  this->VisitStmt(op->body);
+  // AssertStmt is a leaf — no body to visit.
 }
 
 void CodeGenSPIRV::VisitStmt_(const LetStmtNode* op) {

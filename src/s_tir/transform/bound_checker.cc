@@ -96,9 +96,8 @@ class BoundChecker : public StmtExprMutator {
     if (store_scope_bound_collector_.size()) {
       PrimExpr condition = MakeCondition();
       if (!condition.as<StringImmNode>()) {
-        Stmt nop = Evaluate(1);
         Stmt then_case = ffi::GetRef<Stmt>(op);
-        Stmt else_case = AssertStmt(condition, StringImm(error_message_), nop);
+        Stmt else_case = AssertStmt(condition, StringImm(error_message_));
         Stmt body = IfThenElse(condition, then_case, else_case);
         return body;
       }

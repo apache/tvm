@@ -289,8 +289,8 @@ def test_assert_stmt():
     _assert_print(
         obj,
         """
-with T.Assert(T.bool(True), "assertion"):
-    T.evaluate(0)
+assert T.bool(True), "assertion"
+T.evaluate(0)
 """,
     )
 

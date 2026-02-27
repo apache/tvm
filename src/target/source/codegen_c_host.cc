@@ -332,7 +332,6 @@ void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
     PrintIndent();
     stream << "}\n";
   }
-  this->PrintStmt(op->body);
 }
 
 void CodeGenCHost::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT(*)

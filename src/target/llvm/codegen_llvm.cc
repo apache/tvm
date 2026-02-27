@@ -2165,9 +2165,8 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenLLVM::VisitStmt_(const AssertStmtNode* op) {
   EmitDebugLocation(op);
-  // auto a_cu =
-  With<arith::ConstraintContext> cctx(analyzer_.get(), op->condition);
-  this->VisitStmt(op->body);
+  // AssertStmt is a leaf — no body to visit.
+  // Constraint scoping is handled by ScopeStack in analysis passes.
 }
 
 void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {

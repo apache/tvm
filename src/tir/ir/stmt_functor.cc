@@ -81,7 +81,6 @@ void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
 void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
   this->VisitExpr(op->message);
-  this->VisitStmt(op->body);
 }
 
 void StmtVisitor::VisitStmt_(const SeqStmtNode* op) {
@@ -398,15 +397,13 @@ Stmt StmtMutator::VisitSeqStmt_(const SeqStmtNode* op, bool flatten_before_visit
 Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   PrimExpr message = this->VisitExpr(op->message);
-  Stmt body = this->VisitStmt(op->body);
 
-  if (condition.same_as(op->condition) && message.same_as(op->message) && body.same_as(op->body)) {
+  if (condition.same_as(op->condition) && message.same_as(op->message)) {
     return ffi::GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
     n->message = std::move(message);
-    n->body = std::move(body);
     return Stmt(n);
   }
 }

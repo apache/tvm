@@ -67,11 +67,8 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       TVM_FFI_ICHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
       n->seq.Set(n->size() - 1, body);
       body = Stmt(n);
-    } else if (const auto* assert_ = s.as<AssertStmtNode>()) {
-      auto n = ffi::make_object<AssertStmtNode>(*assert_);
-      TVM_FFI_ICHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
+    } else if (s.as<AssertStmtNode>()) {
+      body = SeqStmt({s, body});
     } else if (const auto* alloc = s.as<AllocateNode>()) {
       auto n = ffi::make_object<AllocateNode>(*alloc);
       TVM_FFI_ICHECK(is_no_op(n->body));

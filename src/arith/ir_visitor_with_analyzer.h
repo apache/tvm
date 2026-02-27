@@ -26,6 +26,8 @@
 #define TVM_ARITH_IR_VISITOR_WITH_ANALYZER_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/scope_stack.h>
+#include <tvm/support/with.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -45,6 +47,7 @@ class IRVisitorWithAnalyzer : public tir::StmtExprVisitor {
   void VisitStmt_(const tir::IfThenElseNode* op);
   void VisitStmt_(const tir::AttrStmtNode* op);
   void VisitStmt_(const tir::AssertStmtNode* op);
+  void VisitStmt_(const tir::SeqStmtNode* op);
   void VisitExpr_(const tir::CallNode* op);
   void VisitExpr_(const tir::LetNode* op);
   void VisitExpr_(const tir::ReduceNode* op);
@@ -56,6 +59,9 @@ class IRVisitorWithAnalyzer : public tir::StmtExprVisitor {
  protected:
   /*! \brief internal analyzer field. */
   arith::Analyzer analyzer_;
+
+  /*! \brief Scope stack for accumulated assert constraints. */
+  ScopeStack<WithGroup<ConstraintContext>> constraint_scope_;
 
   /*! \brief Extract a constraint from a conditional statement
    *
