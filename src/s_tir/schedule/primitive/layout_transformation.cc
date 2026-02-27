@@ -861,7 +861,14 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
     auto fmutate = [this, &infered_access_regions](const BufferRegion& buffer_region) {
       if (buffer_region->buffer.same_as(old_buffer_)) {
         TVM_FFI_ICHECK(infered_access_regions.size() == 1);
-        return infered_access_regions[0];
+        BufferRegion result = infered_access_regions[0];
+        // The inferred region may reference old_buffer_ (e.g. when resolved
+        // through match_buffer source).  Ensure we use new_buffer_ instead.
+        if (result->buffer.same_as(old_buffer_)) {
+          auto* n = result.CopyOnWrite();
+          n->buffer = new_buffer_;
+        }
+        return result;
       }
       return buffer_region;
     };
@@ -887,6 +894,18 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
     auto* n = block.CopyOnWrite();
     RewriteAccessRegion(&n->reads, infered_access_regions[0]);
     RewriteAccessRegion(&n->writes, infered_access_regions[1]);
+    // Update match_buffers whose source references old_buffer_
+    n->match_buffers.MutateByApply([this](const MatchBufferRegion& match_buf) {
+      if (match_buf->source->buffer.same_as(old_buffer_)) {
+        auto new_source = match_buf->source;
+        auto* source_n = new_source.CopyOnWrite();
+        source_n->buffer = new_buffer_;
+        auto new_match = match_buf;
+        new_match.CopyOnWrite()->source = new_source;
+        return new_match;
+      }
+      return match_buf;
+    });
     n->alloc_buffers.MutateByApply([this](const Buffer& buffer) {
       if (buffer.same_as(old_buffer_)) {
         return new_buffer_;

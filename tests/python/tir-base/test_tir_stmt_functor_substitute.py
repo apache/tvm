@@ -76,7 +76,7 @@ def test_substitute_buffer_load():
         @T.prim_func
         def main(n: T.int32):
             A_data = T.allocate([n], "float32")
-            A = T.Buffer(n, "float32", data=A_data)
+            A = T.decl_buffer(n, "float32", data=A_data)
             for i in range(n):
                 T.evaluate(A[i])
 
@@ -85,7 +85,7 @@ def test_substitute_buffer_load():
         @T.prim_func
         def main():
             A_data = T.allocate([16], "float32")
-            A = T.Buffer(16, "float32", data=A_data)
+            A = T.decl_buffer(16, "float32", data=A_data)
             for i in range(16):
                 T.evaluate(A[i])
 

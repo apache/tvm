@@ -27,31 +27,31 @@ def test_rewrite_Select():
         @T.prim_func
         def main(i: T.int32):
             A_data = T.allocate([100], "float32", "global")
-            A = T.Buffer(100, "float32", data=A_data)
+            A = T.decl_buffer(100, "float32", data=A_data)
             T.evaluate(T.Select(i > 1, A[i - 1], T.float32(1.0)))
 
-    yy = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleY)["main"].body.body.value
+    yy = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleY)["main"].body.body.body.value
 
     @I.ir_module
     class ModuleZ:
         @T.prim_func
         def main(i: T.int32):
             A_data = T.allocate([100], "float32", "global")
-            A = T.Buffer(100, "float32", data=A_data)
+            A = T.decl_buffer(100, "float32", data=A_data)
             T.evaluate(
                 T.Select(
                     T.Select(i > 1, A[i - 1], T.float32(1.0)) > T.float32(0.0), A[i], T.float32(0.1)
                 )
             )
 
-    zz = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleZ)["main"].body.body.value
+    zz = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleZ)["main"].body.body.body.value
 
     @I.ir_module
     class ModuleA:
         @T.prim_func
         def main(i: T.int32):
             A_data = T.allocate([100], "float32", "global")
-            A = T.Buffer(100, "float32", data=A_data)
+            A = T.decl_buffer(100, "float32", data=A_data)
             # Inline y and z to avoid Let bindings - outer Select condition is safe (no buffer access)
             T.evaluate(
                 T.Select(
@@ -65,7 +65,7 @@ def test_rewrite_Select():
                 )
             )
 
-    aa = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleA)["main"].body.body.value
+    aa = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleA)["main"].body.body.body.value
     builtin_if_then_else = tvm.ir.Op.get("tir.if_then_else")
 
     assert yy.op.same_as(builtin_if_then_else)

@@ -123,7 +123,7 @@ def test_unroll_local_access():
             for bx in T.thread_binding(4, thread="blockIdx.x"):
                 for tx in T.thread_binding(4, thread="threadIdx.x"):
                     A_local_data = T.allocate([4], dtype="float32", scope="local")
-                    A_local = T.Buffer([4], dtype="float32", data=A_local_data)
+                    A_local = T.decl_buffer([4], dtype="float32", data=A_local_data)
                     for i in T.serial(4):
                         A_local[i] = T.float32(i)
 
@@ -134,7 +134,7 @@ def test_unroll_local_access():
             for bx in T.thread_binding(4, thread="blockIdx.x"):
                 for tx in T.thread_binding(4, thread="threadIdx.x"):
                     A_local_data = T.allocate([4], dtype="float32", scope="local")
-                    A_local = T.Buffer([4], dtype="float32", data=A_local_data)
+                    A_local = T.decl_buffer([4], dtype="float32", data=A_local_data)
                     A_local[0] = T.float32(0)
                     A_local[1] = T.float32(1)
                     A_local[2] = T.float32(2)

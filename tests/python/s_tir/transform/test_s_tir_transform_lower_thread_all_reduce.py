@@ -31,13 +31,13 @@ def test_basic():
         @T.prim_func(private=True)
         def main(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            A_flat = T.Buffer(4096, data=A.data)
+            A_flat = T.decl_buffer(4096, data=A.data)
 
             for i in range(128):
                 threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
                 reduce_data = T.allocate([1], "float32", "local")
-                reduce = T.Buffer(1, data=reduce_data, scope="local")
+                reduce = T.decl_buffer(1, data=reduce_data, scope="local")
 
                 with T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
@@ -59,13 +59,13 @@ def test_basic():
         @T.prim_func(private=True)
         def main(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            A_flat = T.Buffer(4096, data=A.data)
+            A_flat = T.decl_buffer(4096, data=A.data)
 
             for i in range(128):
                 threadIdx_x = T.launch_thread("threadIdx.x", 32)
 
                 reduce_data = T.allocate([1], "float32", "local")
-                reduce = T.Buffer(1, data=reduce_data, scope="local")
+                reduce = T.decl_buffer(1, data=reduce_data, scope="local")
 
                 with T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
@@ -274,13 +274,13 @@ def test_multi_group_reduction():
             threadIdx_y = T.launch_thread("threadIdx.y", 32)
             cross_thread_B = T.allocate([1], "float32", "local")
             threadIdx_x = T.launch_thread("threadIdx.x", 32)
-            cross_thread_B_1 = T.Buffer((1,), data=cross_thread_B, scope="local")
+            cross_thread_B_1 = T.decl_buffer((1,), data=cross_thread_B, scope="local")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
                 T.reinterpret("handle", T.uint64(0)),
             ):
-                A_1 = T.Buffer((1024,), data=A.data)
+                A_1 = T.decl_buffer((1024,), data=A.data)
                 T.tvm_thread_allreduce(
                     T.uint32(1),
                     A_1[threadIdx_y * 32 + threadIdx_x],
@@ -289,7 +289,7 @@ def test_multi_group_reduction():
                     threadIdx_x,
                 )
             if threadIdx_x == 0:
-                B_1 = T.Buffer((32,), data=B.data)
+                B_1 = T.decl_buffer((32,), data=B.data)
                 B_1[threadIdx_y] = cross_thread_B_1[0]
 
     @I.ir_module
@@ -300,15 +300,15 @@ def test_multi_group_reduction():
             threadIdx_y = T.launch_thread("threadIdx.y", 32)
             red_buf0 = T.allocate([1], "float32", "local")
             threadIdx_x = T.launch_thread("threadIdx.x", 32)
-            red_buf0_1 = T.Buffer((1,), data=red_buf0, scope="local")
+            red_buf0_1 = T.decl_buffer((1,), data=red_buf0, scope="local")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
                 T.reinterpret("handle", T.uint64(0)),
             ):
+                A_1 = T.decl_buffer((1024,), data=A.data)
                 mask = T.decl_buffer([1], "uint32", scope="local")
                 t0 = T.decl_buffer([1], "float32", scope="local")
-                A_1 = T.Buffer((1024,), data=A.data)
                 red_buf0_1[0] = A_1[threadIdx_y * 32 + threadIdx_x]
 
                 mask[0] = T.tvm_warp_activemask()
@@ -325,7 +325,7 @@ def test_multi_group_reduction():
                 red_buf0_1[0] = red_buf0_1[0] + t0[0]
                 red_buf0_1[0] = T.tvm_warp_shuffle(mask[0], red_buf0_1[0], 32 * threadIdx_y, 32, 32)
             if threadIdx_x == 0:
-                B_1 = T.Buffer((32,), data=B.data)
+                B_1 = T.decl_buffer((32,), data=B.data)
                 B_1[threadIdx_y] = red_buf0_1[0]
 
     After = transform(Before)
@@ -343,13 +343,13 @@ def test_multi_group_mask1():
             threadIdx_y = T.launch_thread("threadIdx.y", 32)
             cross_thread_B = T.allocate([1], "float32", "local")
             threadIdx_x = T.launch_thread("threadIdx.x", 8)
-            cross_thread_B_1 = T.Buffer((1,), data=cross_thread_B, scope="local")
+            cross_thread_B_1 = T.decl_buffer((1,), data=cross_thread_B, scope="local")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
                 T.reinterpret("handle", T.uint64(0)),
             ):
-                A_1 = T.Buffer((256,), data=A.data)
+                A_1 = T.decl_buffer((256,), data=A.data)
                 T.tvm_thread_allreduce(
                     T.uint32(1),
                     A_1[threadIdx_y * 8 + threadIdx_x],
@@ -358,7 +358,7 @@ def test_multi_group_mask1():
                     threadIdx_x,
                 )
             if threadIdx_x == 0:
-                B_1 = T.Buffer((32,), data=B.data)
+                B_1 = T.decl_buffer((32,), data=B.data)
                 B_1[threadIdx_y] = cross_thread_B_1[0]
 
     @I.ir_module
@@ -369,15 +369,15 @@ def test_multi_group_mask1():
             threadIdx_y = T.launch_thread("threadIdx.y", 32)
             red_buf0 = T.allocate([1], "float32", "local")
             threadIdx_x = T.launch_thread("threadIdx.x", 8)
-            red_buf0_1 = T.Buffer((1,), data=red_buf0, scope="local")
+            red_buf0_1 = T.decl_buffer((1,), data=red_buf0, scope="local")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
                 T.reinterpret("handle", T.uint64(0)),
             ):
+                A_1 = T.decl_buffer((256,), data=A.data)
                 mask = T.decl_buffer([1], "uint32", scope="local")
                 t0 = T.decl_buffer([1], "float32", scope="local")
-                A_1 = T.Buffer((256,), data=A.data)
                 red_buf0_1[0] = A_1[threadIdx_y * 8 + threadIdx_x]
                 mask[0] = T.tvm_warp_activemask()
                 t0[0] = T.tvm_warp_shuffle_down(mask[0], red_buf0_1[0], 4, 32, 32)
@@ -388,7 +388,7 @@ def test_multi_group_mask1():
                 red_buf0_1[0] = red_buf0_1[0] + t0[0]
                 red_buf0_1[0] = T.tvm_warp_shuffle(mask[0], red_buf0_1[0], 8 * threadIdx_y, 32, 32)
             if threadIdx_x == 0:
-                B_1 = T.Buffer((32,), data=B.data)
+                B_1 = T.decl_buffer((32,), data=B.data)
                 B_1[threadIdx_y] = red_buf0_1[0]
 
     After = transform(Before)
@@ -406,13 +406,13 @@ def test_multi_warp_reduce1():
             for i in range(128):
                 threadIdx_x = T.launch_thread("threadIdx.x", 128)
                 cross_thread_B = T.allocate([1], "float32", "local")
-                cross_thread_B_1 = T.Buffer((1,), data=cross_thread_B, scope="local")
+                cross_thread_B_1 = T.decl_buffer((1,), data=cross_thread_B, scope="local")
                 with T.attr(
                     T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                     "reduce_scope",
                     T.reinterpret("handle", T.uint64(0)),
                 ):
-                    A_1 = T.Buffer((16384,), data=A.data)
+                    A_1 = T.decl_buffer((16384,), data=A.data)
                     T.tvm_thread_allreduce(
                         T.uint32(1),
                         A_1[i * 128 + threadIdx_x],
@@ -421,7 +421,7 @@ def test_multi_warp_reduce1():
                         threadIdx_x,
                     )
                 if threadIdx_x == 0:
-                    B_1 = T.Buffer((128,), data=B.data)
+                    B_1 = T.decl_buffer((128,), data=B.data)
                     B_1[i] = cross_thread_B_1[0]
 
     @I.ir_module
@@ -433,12 +433,13 @@ def test_multi_warp_reduce1():
                 threadIdx_x = T.launch_thread("threadIdx.x", 128)
                 red_result = T.allocate([1], "float32", "shared")
                 T.attr(red_result, "volatile_scope", 1)
-                red_result_1 = T.Buffer((1,), data=red_result, scope="shared")
+                red_result_1 = T.decl_buffer((1,), data=red_result, scope="shared")
                 with T.attr(
                     T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                     "reduce_scope",
                     T.reinterpret("handle", T.uint64(0)),
                 ):
+                    A_1 = T.decl_buffer((16384,), data=A.data)
                     red_buf0 = T.decl_buffer([1], "float32", scope="local")
                     mask = T.decl_buffer([1], "uint32", scope="local")
                     t0 = T.decl_buffer([1], "float32", scope="local")
@@ -446,7 +447,6 @@ def test_multi_warp_reduce1():
                     mask_1 = T.decl_buffer([1], "uint32", scope="local")
                     t0_1 = T.decl_buffer([1], "float32", scope="local")
                     red_buf_staging = T.decl_buffer([4], "float32", scope="shared")
-                    A_1 = T.Buffer((16384,), data=A.data)
                     red_buf0_1[0] = A_1[i * 128 + threadIdx_x]
                     mask_1[0] = T.tvm_warp_activemask()
                     t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
@@ -473,7 +473,7 @@ def test_multi_warp_reduce1():
                         red_result_1[0] = red_buf0[0]
                     T.tvm_storage_sync("shared")
                 if threadIdx_x == 0:
-                    B_1 = T.Buffer((128,), data=B.data)
+                    B_1 = T.decl_buffer((128,), data=B.data)
                     B_1[i] = red_result_1[0]
 
     After = transform(Before)
@@ -490,18 +490,18 @@ def test_multi_warp_reduce2():
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_x = T.launch_thread("threadIdx.x", 1024)
             cross_thread_B = T.allocate([1], "float32", "local")
-            cross_thread_B_1 = T.Buffer((1,), data=cross_thread_B, scope="local")
+            cross_thread_B_1 = T.decl_buffer((1,), data=cross_thread_B, scope="local")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
                 T.reinterpret("handle", T.uint64(0)),
             ):
-                A_1 = T.Buffer((1024,), data=A.data)
+                A_1 = T.decl_buffer((1024,), data=A.data)
                 T.tvm_thread_allreduce(
                     T.uint32(1), A_1[threadIdx_x], T.bool(True), cross_thread_B_1[0], threadIdx_x
                 )
             if threadIdx_x == 0:
-                B_1 = T.Buffer((1,), data=B.data)
+                B_1 = T.decl_buffer((1,), data=B.data)
                 B_1[0] = cross_thread_B_1[0]
 
     @I.ir_module
@@ -512,12 +512,13 @@ def test_multi_warp_reduce2():
             threadIdx_x = T.launch_thread("threadIdx.x", 1024)
             red_result = T.allocate([1], "float32", "shared")
             T.attr(red_result, "volatile_scope", 1)
-            red_result_1 = T.Buffer((1,), data=red_result, scope="shared")
+            red_result_1 = T.decl_buffer((1,), data=red_result, scope="shared")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
                 T.reinterpret("handle", T.uint64(0)),
             ):
+                A_1 = T.decl_buffer((1024,), data=A.data)
                 red_buf0 = T.decl_buffer([1], "float32", scope="local")
                 mask = T.decl_buffer([1], "uint32", scope="local")
                 t0 = T.decl_buffer([1], "float32", scope="local")
@@ -525,7 +526,6 @@ def test_multi_warp_reduce2():
                 mask_1 = T.decl_buffer([1], "uint32", scope="local")
                 t0_1 = T.decl_buffer([1], "float32", scope="local")
                 red_buf_staging = T.decl_buffer([32], "float32", scope="shared")
-                A_1 = T.Buffer((1024,), data=A.data)
                 red_buf0_1[0] = A_1[threadIdx_x]
                 mask_1[0] = T.tvm_warp_activemask()
                 t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
@@ -558,7 +558,7 @@ def test_multi_warp_reduce2():
                     red_result_1[0] = red_buf0[0]
                 T.tvm_storage_sync("shared")
             if threadIdx_x == 0:
-                B_1 = T.Buffer((1,), data=B.data)
+                B_1 = T.decl_buffer((1,), data=B.data)
                 B_1[0] = red_result_1[0]
 
     After = transform(Before)
@@ -576,13 +576,13 @@ def test_multi_group_multi_warp_reduction():
             threadIdx_y = T.launch_thread("threadIdx.y", 4)
             cross_thread_B = T.allocate([1], "float32", "local")
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            cross_thread_B_1 = T.Buffer((1,), data=cross_thread_B, scope="local")
+            cross_thread_B_1 = T.decl_buffer((1,), data=cross_thread_B, scope="local")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
                 T.reinterpret("handle", T.uint64(0)),
             ):
-                A_1 = T.Buffer((512,), data=A.data)
+                A_1 = T.decl_buffer((512,), data=A.data)
                 T.tvm_thread_allreduce(
                     T.uint32(1),
                     A_1[threadIdx_y * 128 + threadIdx_x],
@@ -591,7 +591,7 @@ def test_multi_group_multi_warp_reduction():
                     threadIdx_x,
                 )
             if threadIdx_x == 0:
-                B_1 = T.Buffer((4,), data=B.data)
+                B_1 = T.decl_buffer((4,), data=B.data)
                 B_1[threadIdx_y] = cross_thread_B_1[0]
 
     @I.ir_module
@@ -603,12 +603,13 @@ def test_multi_group_multi_warp_reduction():
             red_result = T.allocate([4], "float32", "shared")
             T.attr(red_result, "volatile_scope", 1)
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            red_result_1 = T.Buffer((4,), data=red_result, scope="shared")
+            red_result_1 = T.decl_buffer((4,), data=red_result, scope="shared")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
                 T.reinterpret("handle", T.uint64(0)),
             ):
+                A_1 = T.decl_buffer((512,), data=A.data)
                 red_buf0 = T.decl_buffer([1], "float32", scope="local")
                 mask = T.decl_buffer([1], "uint32", scope="local")
                 t0 = T.decl_buffer([1], "float32", scope="local")
@@ -616,7 +617,6 @@ def test_multi_group_multi_warp_reduction():
                 mask_1 = T.decl_buffer([1], "uint32", scope="local")
                 t0_1 = T.decl_buffer([1], "float32", scope="local")
                 red_buf_staging = T.decl_buffer([16], "float32", scope="shared")
-                A_1 = T.Buffer((512,), data=A.data)
                 red_buf0_1[0] = A_1[threadIdx_y * 128 + threadIdx_x]
                 mask_1[0] = T.tvm_warp_activemask()
                 t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
@@ -643,7 +643,7 @@ def test_multi_group_multi_warp_reduction():
                     red_result_1[threadIdx_y] = red_buf0[0]
                 T.tvm_storage_sync("shared")
             if threadIdx_x == 0:
-                B_1 = T.Buffer((4,), data=B.data)
+                B_1 = T.decl_buffer((4,), data=B.data)
                 B_1[threadIdx_y] = red_result_1[threadIdx_y]
 
     After = transform(Before)
@@ -662,12 +662,12 @@ def test_multi_group_multi_warp_predicated_reduction():
             in_thread_B = T.allocate([1], "float32", "local")
             cross_thread_B = T.allocate([1], "float32", "local")
             threadIdx_x = T.launch_thread("threadIdx.x", 512)
-            in_thread_B_1 = T.Buffer((1,), data=in_thread_B, scope="local")
+            in_thread_B_1 = T.decl_buffer((1,), data=in_thread_B, scope="local")
             in_thread_B_1[0] = T.float32(0)
             if threadIdx_x < 70:
-                A_1 = T.Buffer((140,), data=A.data)
+                A_1 = T.decl_buffer((140,), data=A.data)
                 in_thread_B_1[0] = in_thread_B_1[0] + A_1[threadIdx_y * 70 + threadIdx_x]
-            cross_thread_B_1 = T.Buffer((1,), data=cross_thread_B, scope="local")
+            cross_thread_B_1 = T.decl_buffer((1,), data=cross_thread_B, scope="local")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
@@ -677,7 +677,7 @@ def test_multi_group_multi_warp_predicated_reduction():
                     T.uint32(1), in_thread_B_1[0], T.bool(True), cross_thread_B_1[0], threadIdx_x
                 )
             if threadIdx_x == 0:
-                B_1 = T.Buffer((2,), data=B.data)
+                B_1 = T.decl_buffer((2,), data=B.data)
                 B_1[threadIdx_y] = cross_thread_B_1[0]
 
     @I.ir_module
@@ -690,12 +690,12 @@ def test_multi_group_multi_warp_predicated_reduction():
             red_result = T.allocate([2], "float32", "shared")
             T.attr(red_result, "volatile_scope", 1)
             threadIdx_x = T.launch_thread("threadIdx.x", 512)
-            in_thread_B_1 = T.Buffer((1,), data=in_thread_B, scope="local")
+            in_thread_B_1 = T.decl_buffer((1,), data=in_thread_B, scope="local")
             in_thread_B_1[0] = T.float32(0)
             if threadIdx_x < 70:
-                A_1 = T.Buffer((140,), data=A.data)
+                A_1 = T.decl_buffer((140,), data=A.data)
                 in_thread_B_1[0] = in_thread_B_1[0] + A_1[threadIdx_y * 70 + threadIdx_x]
-            red_result_1 = T.Buffer((2,), data=red_result, scope="shared")
+            red_result_1 = T.decl_buffer((2,), data=red_result, scope="shared")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
@@ -738,7 +738,7 @@ def test_multi_group_multi_warp_predicated_reduction():
                     red_result_1[threadIdx_y] = red_buf0[0]
                 T.tvm_storage_sync("shared")
             if threadIdx_x == 0:
-                B_1 = T.Buffer((2,), data=B.data)
+                B_1 = T.decl_buffer((2,), data=B.data)
                 B_1[threadIdx_y] = red_result_1[threadIdx_y]
 
     After = transform(Before)
@@ -769,13 +769,13 @@ def test_metal_no_mask():
             threadIdx_z = T.launch_thread("threadIdx.z", 1)
             threadIdx_y = T.launch_thread("threadIdx.y", 2)
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            cross_thread_B_1 = T.Buffer((1,), data=cross_thread_B, scope="local")
+            cross_thread_B_1 = T.decl_buffer((1,), data=cross_thread_B, scope="local")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
                 T.reinterpret("handle", T.uint64(0)),
             ):
-                A_1 = T.Buffer((256,), data=A.data)
+                A_1 = T.decl_buffer((256,), data=A.data)
                 T.tvm_thread_allreduce(
                     T.uint32(1),
                     A_1[threadIdx_y * 128 + threadIdx_x],
@@ -784,7 +784,7 @@ def test_metal_no_mask():
                     threadIdx_x,
                 )
             if threadIdx_x == 0:
-                B_1 = T.Buffer((2,), data=B.data)
+                B_1 = T.decl_buffer((2,), data=B.data)
                 B_1[threadIdx_y] = cross_thread_B_1[0]
 
     @I.ir_module
@@ -809,18 +809,18 @@ def test_metal_no_mask():
             threadIdx_z = T.launch_thread("threadIdx.z", 1)
             threadIdx_y = T.launch_thread("threadIdx.y", 2)
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            red_result_1 = T.Buffer((2,), data=red_result, scope="shared")
+            red_result_1 = T.decl_buffer((2,), data=red_result, scope="shared")
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
                 T.reinterpret("handle", T.uint64(0)),
             ):
+                A_1 = T.decl_buffer((256,), data=A.data)
                 red_buf0 = T.decl_buffer([1], "float32", scope="local")
                 t0 = T.decl_buffer([1], "float32", scope="local")
                 red_buf0_1 = T.decl_buffer([1], "float32", scope="local")
                 t0_1 = T.decl_buffer([1], "float32", scope="local")
                 red_buf_staging = T.decl_buffer([8], "float32", scope="shared")
-                A_1 = T.Buffer((256,), data=A.data)
                 red_buf0_1[0] = A_1[threadIdx_y * 128 + threadIdx_x]
                 t0_1[0] = T.tvm_warp_shuffle_down(0, red_buf0_1[0], 16, 32, 32)
                 red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
@@ -845,7 +845,7 @@ def test_metal_no_mask():
                     red_result_1[threadIdx_y] = red_buf0[0]
                 T.tvm_storage_sync("shared")
             if threadIdx_x == 0:
-                B_1 = T.Buffer((2,), data=B.data)
+                B_1 = T.decl_buffer((2,), data=B.data)
                 B_1[threadIdx_y] = red_result_1[threadIdx_y]
 
     After = transform(Before)

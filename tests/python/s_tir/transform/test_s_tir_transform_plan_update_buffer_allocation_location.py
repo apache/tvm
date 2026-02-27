@@ -365,7 +365,7 @@ def test_buffer_conditional_lowering():
     def before(A: T.handle("float32")):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i in range(1):
-            A_1 = T.Buffer((1,), data=A)
+            A_1 = T.decl_buffer((1,), data=A)
             A_1[i] = 0
 
     after = before

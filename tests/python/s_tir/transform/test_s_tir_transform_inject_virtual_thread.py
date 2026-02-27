@@ -37,7 +37,7 @@ def test_vthread():
                 vt_x = T.launch_thread("vthread", nthread)
                 vt_y = T.launch_thread("vthread", nthread)
                 B_data = T.allocate([m], "float32", scope="shared")
-                B = T.Buffer([m], "float32", data=B_data, scope="shared")
+                B = T.decl_buffer([m], "float32", data=B_data, scope="shared")
                 B[i] = A_buf[i * nthread + vt_x]
                 T.evaluate(
                     T.call_extern(
@@ -81,11 +81,11 @@ def test_vthread_extern():
                 vt_x = T.launch_thread("vthread", nthread)
                 vt_y = T.launch_thread("vthread", nthread)
                 A_data = T.allocate([m], "float32", scope="shared")
-                A = T.Buffer([m], "float32", data=A_data, scope="shared")
+                A = T.decl_buffer([m], "float32", data=A_data, scope="shared")
                 B_data = T.allocate([m], "float32", scope="shared")
-                B = T.Buffer([m], "float32", data=B_data, scope="shared")
+                B = T.decl_buffer([m], "float32", data=B_data, scope="shared")
                 C_data = T.allocate([m], "float32", scope="shared")
-                C = T.Buffer([m], "float32", data=C_data, scope="shared")
+                C = T.decl_buffer([m], "float32", data=C_data, scope="shared")
                 A[vt_x] = T.Cast("float32", vt_x) + T.float32(1)
                 B[vt_y] = T.Cast("float32", vt_y) + T.float32(1)
                 T.evaluate(
@@ -133,7 +133,7 @@ def test_vthread_if_then_else():
             for i in range(100):
                 vt = T.launch_thread("vthread", nthread)
                 B_data = T.allocate([128], "float32", scope="shared")
-                B = T.Buffer([128], "float32", data=B_data, scope="shared")
+                B = T.decl_buffer([128], "float32", data=B_data, scope="shared")
                 if i == 0:
                     B[i] = A_buf[i * nthread + vt]
                 else:
@@ -170,19 +170,20 @@ def test_vthread_simplified():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B_data = T.allocate([4], "int32", scope="shared")
-        B = T.Buffer([4], "int32", data=B_data, scope="shared")
+        B = T.decl_buffer([4], "int32", data=B_data, scope="shared")
         B[0:4] = T.broadcast(vthread, 4)
 
-    @T.prim_func
+    @T.prim_func(check_well_formed=False)
     def expected_func():
         B_data = T.allocate([16], "int32", scope="shared")
-        B = T.Buffer([16], "int32", data=B_data, scope="shared")
+        B = T.decl_buffer([4], "int32", data=B_data, scope="shared")
+        B_1 = T.Buffer([16], "int32", data=B_data, scope="shared")
         # The indices for B should each be a single Ramp node, and
         # should not be the sum of a Ramp and Broadcast node.
-        B[T.Mul(0, 4) : T.Mul(0, 4) + 4] = T.broadcast(0, 4)
-        B[T.Mul(1, 4) : T.Mul(1, 4) + 4] = T.broadcast(1, 4)
-        B[T.Mul(2, 4) : T.Mul(2, 4) + 4] = T.broadcast(2, 4)
-        B[T.Mul(3, 4) : T.Mul(3, 4) + 4] = T.broadcast(3, 4)
+        B_1[T.Mul(0, 4) : T.Mul(0, 4) + 4] = T.broadcast(0, 4)
+        B_1[T.Mul(1, 4) : T.Mul(1, 4) + 4] = T.broadcast(1, 4)
+        B_1[T.Mul(2, 4) : T.Mul(2, 4) + 4] = T.broadcast(2, 4)
+        B_1[T.Mul(3, 4) : T.Mul(3, 4) + 4] = T.broadcast(3, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     after_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)
@@ -199,17 +200,18 @@ def test_vthread_vectorized():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B_data = T.allocate([4], "int32", "shared")
-        B = T.Buffer([4], "int32", data=B_data, scope="shared")
+        B = T.decl_buffer([4], "int32", data=B_data, scope="shared")
         B[0:4] = T.broadcast(vthread, 4)
 
-    @T.prim_func
+    @T.prim_func(check_well_formed=False)
     def expected_func():
         B_data = T.allocate([4], "int32x4", "shared")
-        B = T.Buffer([4], "int32x4", data=B_data, scope="shared")
-        B[T.Div(T.Mul(0, 4), 4)] = T.broadcast(0, 4)
-        B[T.Div(T.Mul(1, 4), 4)] = T.broadcast(1, 4)
-        B[T.Div(T.Mul(2, 4), 4)] = T.broadcast(2, 4)
-        B[T.Div(T.Mul(3, 4), 4)] = T.broadcast(3, 4)
+        B = T.decl_buffer([4], "int32", data=B_data, scope="shared")
+        B_1 = T.Buffer([4], "int32x4", data=B_data, scope="shared")
+        B_1[T.Div(T.Mul(0, 4), 4)] = T.broadcast(0, 4)
+        B_1[T.Div(T.Mul(1, 4), 4)] = T.broadcast(1, 4)
+        B_1[T.Div(T.Mul(2, 4), 4)] = T.broadcast(2, 4)
+        B_1[T.Div(T.Mul(3, 4), 4)] = T.broadcast(3, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
     intermediate_mod = tvm.s_tir.transform.InjectVirtualThread()(before_mod)

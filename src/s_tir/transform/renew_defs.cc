@@ -103,6 +103,19 @@ class RenewDefMutator : public StmtExprMutator {
   STMT_REGENERATE_VAR_DEF(AllocateNode, buffer_var);
   STMT_REGENERATE_VAR_DEF(ForNode, loop_var);
 
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    Buffer new_buffer = VisitBuffer(op->buffer, /*define=*/true);
+    Stmt body = this->VisitStmt(op->body);
+    if (new_buffer.same_as(op->buffer) && body.same_as(op->body)) {
+      return ffi::GetRef<Stmt>(op);
+    } else {
+      auto n = ffi::make_object<DeclBufferNode>(*op);
+      n->buffer = std::move(new_buffer);
+      n->body = std::move(body);
+      return Stmt(n);
+    }
+  }
+
   Stmt VisitStmt_(const SBlockNode* op) final {
     // Step 0. Re-define Itervars
     ffi::Array<IterVar> iter_vars =

@@ -37,7 +37,7 @@ def run_passes(func: tvm.tir.PrimFunc):
 
 @tvm.testing.requires_cuda
 def test_sync_read_thread_id_independent_location():
-    @T.prim_func
+    @T.prim_func(check_well_formed=False)
     def func(p0_arg: T.Buffer((1, 2, 1, 1), "float32"), p1: T.Buffer(2, "float32")) -> None:
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
@@ -66,14 +66,14 @@ def test_sync_shared_dyn():
         C = T.allocate([1], "float32", "local")
         D = T.allocate([16], "float32", "shared.dyn")
         threadIdx_x = T.launch_thread("threadIdx.x", 16)
-        B_1 = T.Buffer((24,), data=B, scope="shared.dyn")
-        A_1 = T.Buffer((16,), data=A.data)
+        B_1 = T.decl_buffer((24,), data=B, scope="shared.dyn")
+        A_1 = T.decl_buffer((16,), data=A.data)
         B_1[threadIdx_x // 4 * 6 + threadIdx_x % 4] = A_1[threadIdx_x]
-        C_1 = T.Buffer((1,), data=C, scope="local")
+        C_1 = T.decl_buffer((1,), data=C, scope="local")
         C_1[0] = B_1[threadIdx_x // 4 * 6 + threadIdx_x % 4]
-        D_1 = T.Buffer((16,), data=D, scope="shared.dyn")
+        D_1 = T.decl_buffer((16,), data=D, scope="shared.dyn")
         D_1[threadIdx_x] = C_1[0]
-        E_1 = T.Buffer((16,), data=E.data)
+        E_1 = T.decl_buffer((16,), data=E.data)
         E_1[threadIdx_x] = D_1[threadIdx_x]
 
     @T.prim_func(private=True)
@@ -83,15 +83,15 @@ def test_sync_shared_dyn():
         C_1 = T.allocate([1], "float32", "local")
         D_1 = T.allocate([16], "float32", "shared.dyn")
         threadIdx_x = T.launch_thread("threadIdx.x", 16)
-        B_1_1 = T.Buffer((24,), data=B_1, scope="shared.dyn")
-        A_1 = T.Buffer((16,), data=A.data)
+        B_1_1 = T.decl_buffer((24,), data=B_1, scope="shared.dyn")
+        A_1 = T.decl_buffer((16,), data=A.data)
         B_1_1[threadIdx_x // 4 * 6 + threadIdx_x % 4] = A_1[threadIdx_x]
-        C_1_1 = T.Buffer((1,), data=C_1, scope="local")
+        C_1_1 = T.decl_buffer((1,), data=C_1, scope="local")
         C_1_1[0] = B_1_1[threadIdx_x // 4 * 6 + threadIdx_x % 4]
+        D_1_1 = T.decl_buffer((16,), data=D_1, scope="shared.dyn")
         T.tvm_storage_sync("shared.dyn")
-        D_1_1 = T.Buffer((16,), data=D_1, scope="shared.dyn")
         D_1_1[threadIdx_x] = C_1_1[0]
-        E_1 = T.Buffer((16,), data=E.data)
+        E_1 = T.decl_buffer((16,), data=E.data)
         E_1[threadIdx_x] = D_1_1[threadIdx_x]
 
     mod = tvm.IRModule({"main": func})
@@ -108,10 +108,10 @@ def test_sync_let_stmt():
         in_thread_A_temp = T.allocate([1], "float32", "local")
         cross_thread_A_temp = T.allocate([1], "float32", "local")
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        A_shared_1 = T.Buffer((512,), data=A_shared, scope="shared")
+        A_shared_1 = T.decl_buffer((512,), data=A_shared, scope="shared")
         for ax0 in range(512):
             A_shared_1[ax0] = A[blockIdx_x * 512 + ax0]
-        in_thread_A_temp_1 = T.Buffer((1,), data=in_thread_A_temp, scope="local")
+        in_thread_A_temp_1 = T.decl_buffer((1,), data=in_thread_A_temp, scope="local")
         in_thread_A_temp_1[0] = T.float32(0)
         with T.LetStmt(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x]) as A_temp:
             in_thread_A_temp_1[0] = A_temp
@@ -121,7 +121,7 @@ def test_sync_let_stmt():
             in_thread_A_temp_1[0] = A_temp
         with T.LetStmt(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 384]) as A_temp:
             in_thread_A_temp_1[0] = A_temp
-        cross_thread_A_temp_1 = T.Buffer((1,), data=cross_thread_A_temp, scope="local")
+        cross_thread_A_temp_1 = T.decl_buffer((1,), data=cross_thread_A_temp, scope="local")
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
@@ -142,10 +142,10 @@ def test_sync_let_stmt():
         in_thread_A_temp_1 = T.allocate([1], "float32", "local")
         cross_thread_A_temp_1 = T.allocate([1], "float32", "local")
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
-        A_shared_1_1 = T.Buffer((512,), data=A_shared_1, scope="shared")
+        A_shared_1_1 = T.decl_buffer((512,), data=A_shared_1, scope="shared")
         for ax0 in range(512):
             A_shared_1_1[ax0] = A[blockIdx_x * 512 + ax0]
-        in_thread_A_temp_1_1 = T.Buffer((1,), data=in_thread_A_temp_1, scope="local")
+        in_thread_A_temp_1_1 = T.decl_buffer((1,), data=in_thread_A_temp_1, scope="local")
         in_thread_A_temp_1_1[0] = T.float32(0)
         T.tvm_storage_sync("shared")
         with T.LetStmt(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x]) as A_temp:
@@ -156,12 +156,12 @@ def test_sync_let_stmt():
             in_thread_A_temp_1_1[0] = A_temp
         with T.LetStmt(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 384]) as A_temp:
             in_thread_A_temp_1_1[0] = A_temp
+        cross_thread_A_temp_1_1 = T.decl_buffer((1,), data=cross_thread_A_temp_1, scope="local")
         T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
             T.reinterpret("handle", T.uint64(0)),
         )
-        cross_thread_A_temp_1_1 = T.Buffer((1,), data=cross_thread_A_temp_1, scope="local")
         T.tvm_thread_allreduce(
             T.uint32(1),
             in_thread_A_temp_1_1[0],

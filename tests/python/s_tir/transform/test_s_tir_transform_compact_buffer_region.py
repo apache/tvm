@@ -1270,7 +1270,7 @@ class TestNonBoolCondition(BaseCompactTest):
     @T.prim_func
     def before():
         data = T.allocate([12], "int32")
-        A = T.Buffer([12], "int32", data)
+        A = T.decl_buffer([12], "int32", data)
         for i in range(10):
             if i:
                 A[i] = A[i] + 1
@@ -1278,7 +1278,7 @@ class TestNonBoolCondition(BaseCompactTest):
     @T.prim_func
     def expected():
         data = T.allocate([9], "int32")
-        A = T.Buffer([9], "int32", data)
+        A = T.decl_buffer([9], "int32", data)
         for i in range(10):
             if i:
                 A[i - 1] = A[i - 1] + 1

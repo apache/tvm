@@ -307,6 +307,73 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
   std::unordered_set<Var> redefine_allowed_within_function_;
 };
 
+/*! \brief Verify that buffers with a declaration are not used outside their declared scope.
+ *
+ * When a buffer is declared via one of the following sites:
+ *   - PrimFunc buffer_map (function parameter buffers)
+ *   - DeclBuffer statement
+ *   - SBlock::alloc_buffers
+ *   - SBlock::match_buffers
+ *   - AttrStmt with key "buffer_bind_scope"
+ *
+ * it must not appear in a BufferLoad, BufferStore, or BufferRegion outside that declaration's
+ * scope.
+ *
+ * All buffers that appear in BufferLoad or BufferStore must have a prior declaration.
+ */
+class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier> {
+ public:
+  using Verifier::Verifier;
+
+ private:
+  using Verifier::Visit;
+
+  void Visit(const PrimFunc& prim_func, AccessPath path) override {
+    Verifier::Visit(prim_func, path);
+    // Clear per-function state (buffers should not cross function boundaries).
+    currently_defined_.clear();
+    previously_defined_.clear();
+  }
+
+  void EnterDef(const Buffer& buffer, AccessPath path) override {
+    // Call the base class to visit buffer's internal vars (shape, strides, etc.)
+    Verifier::EnterDef(buffer, path);
+    currently_defined_.insert({buffer, path});
+  }
+
+  void ExitDef(const Buffer& buffer, AccessPath path) override {
+    auto active_def = currently_defined_.find(buffer);
+    if (active_def != currently_defined_.end()) {
+      currently_defined_.erase(active_def);
+    }
+    previously_defined_.insert({buffer, path});
+  }
+
+  void Visit(const Buffer& buffer, AccessPath path) override {
+    bool is_declared = currently_defined_.count(buffer);
+    bool was_declared = previously_defined_.count(buffer);
+
+    if (was_declared && !is_declared) {
+      // Buffer was previously declared but is now out of scope — always an error.
+      auto prev_def = previously_defined_.find(buffer);
+      Verify(false) << "TIR is ill-formed: buffer " << buffer->name << " is used at " << path
+                    << " but its declaration is no longer in-scope. "
+                    << "It was declared at " << prev_def->second << ".";
+    } else if (!is_declared && !was_declared) {
+      // Buffer was never declared — error.
+      Verify(false) << "TIR is ill-formed: buffer " << buffer->name << " is used at " << path
+                    << " without a prior DeclBuffer or other declaration.";
+    }
+    // Still visit the buffer's internal vars so variable usage is tracked.
+    Verifier::Visit(buffer, path);
+  }
+
+  // Buffers defined in the currently-visited scope.
+  std::unordered_map<Buffer, AccessPath, ObjectPtrHash, ObjectPtrEqual> currently_defined_;
+  // Buffers that were previously defined and are now out of scope.
+  std::unordered_map<Buffer, AccessPath, ObjectPtrHash, ObjectPtrEqual> previously_defined_;
+};
+
 /* \brief Verify unique tir::Var for each environment thread
  *
  * Environment threads, such as CUDA's `threadIdx.x`, are defined in
@@ -354,6 +421,8 @@ bool VerifyWellFormed(const PrimFunc& func, bool assert_mode) {
 
   if (!UndefinedVarVerifier::Verify(func, assert_mode)) return false;
 
+  if (!UndefinedBufferVerifier::Verify(func, assert_mode)) return false;
+
   // TODO(Siyuan): add more checks here.
   return true;
 }
@@ -369,6 +438,8 @@ bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
   }
 
   if (!UndefinedVarVerifier::Verify(mod, assert_mode)) return false;
+
+  if (!UndefinedBufferVerifier::Verify(mod, assert_mode)) return false;
 
   return true;
 }
