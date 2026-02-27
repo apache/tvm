@@ -21,6 +21,7 @@ import collections
 import collections.abc
 import functools
 import inspect
+import types
 import typing
 from collections.abc import Callable
 from typing import Any, TypeVar, Union
@@ -96,12 +97,22 @@ if hasattr(typing, "_GenericAlias"):
                 subtypes = _get_subtypes(type_)
                 if len(subtypes) == 2 and _is_none_type(subtypes[1]):
                     return [subtypes[0]]
+            # PEP 604: X | None
+            if isinstance(type_, types.UnionType):
+                subtypes = type_.__args__
+                if len(subtypes) == 2 and _is_none_type(subtypes[1]):
+                    return [subtypes[0]]
             return None
 
         @staticmethod
         def union(type_: Any) -> list[type] | None:  # pylint: disable=missing-function-docstring
             if _Subtype._origin(type_) is Union:
                 subtypes = _get_subtypes(type_)
+                if len(subtypes) != 2 or not _is_none_type(subtypes[1]):
+                    return list(subtypes)
+            # PEP 604: X | Y
+            if isinstance(type_, types.UnionType):
+                subtypes = type_.__args__
                 if len(subtypes) != 2 or not _is_none_type(subtypes[1]):
                     return list(subtypes)
             return None
@@ -300,7 +311,7 @@ def _type_check_vtable() -> dict[str, Callable]:
             error_msg = _type_check(v, name, type_)
             if error_msg is None:
                 return None
-        return _type_check_err(v, name, types)
+        return _type_check_err(v, name, Union[types])  # noqa: UP007 (runtime use)
 
     return {
         "none": _type_check_none,
