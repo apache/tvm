@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.contrib.msc.core.tools.quantize"""
+# isort: skip_file
 
-from .quantizer import *
-from .method import *
 from .configer import *
+from .method import *
+from .quantizer import *

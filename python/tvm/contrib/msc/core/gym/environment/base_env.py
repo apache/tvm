@@ -18,14 +18,15 @@
 
 import copy
 import logging
-from typing import Dict, Any, List, Tuple, Union
+from typing import Any, Union
+
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.gym.namespace import GYMObject
 from tvm.contrib.msc.core.runtime import BaseRunner
 from tvm.contrib.msc.core.tools import BaseTool
-from tvm.contrib.msc.core import utils as msc_utils
 
 
-class BaseEnv(object):
+class BaseEnv:
     """Basic Environment of MSC.Gym
 
     Parameters
@@ -73,7 +74,7 @@ class BaseEnv(object):
         self._logger = logger or msc_utils.get_global_logger()
         self._logger.info(msc_utils.msg_block(self.env_mark("SETUP"), self.setup()))
 
-    def _parse_executors(self, executors_dict: dict) -> Dict[str, Tuple[callable, dict]]:
+    def _parse_executors(self, executors_dict: dict) -> dict[str, tuple[callable, dict]]:
         """Parse the executors
 
         Parameters
@@ -93,9 +94,7 @@ class BaseEnv(object):
                 raw_config.pop("method_type") if "method_type" in raw_config else "default"
             )
             method_cls = msc_utils.get_registered_gym_method(GYMObject.ENV, method_type)
-            assert method_cls, "Can not find method cls for {}:{}".format(
-                GYMObject.ENV, method_type
-            )
+            assert method_cls, f"Can not find method cls for {GYMObject.ENV}:{method_type}"
             assert "method" in raw_config, "method should be given to find enviironment method"
             method_name, method = raw_config.pop("method"), None
             if hasattr(method_cls, method_name):
@@ -123,13 +122,13 @@ class BaseEnv(object):
             "runner": self._runner,
             "data_loader": self._data_loader,
             "workspace": self._workspace,
-            "executors": {k: "{}({})".format(v[0], v[2]) for k, v in self._executors.items()},
+            "executors": {k: f"{v[0]}({v[2]})" for k, v in self._executors.items()},
             "options": self._options,
             "max_tasks": self._max_tasks,
             "debug_level": self._debug_level,
         }
 
-    def init(self) -> Tuple[int, Dict[str, Any]]:
+    def init(self) -> tuple[int, dict[str, Any]]:
         """Init the agent
 
         Returns
@@ -162,7 +161,7 @@ class BaseEnv(object):
 
         raise NotImplementedError("_init_tool is not implemented in BaseEnv")
 
-    def reset(self) -> Tuple[List[float], List[dict]]:
+    def reset(self) -> tuple[list[float], list[dict]]:
         """Reset the environment
 
         Returns
@@ -175,7 +174,7 @@ class BaseEnv(object):
 
         return None
 
-    def get_state(self, task_id: int) -> Tuple[List[float], List[dict]]:
+    def get_state(self, task_id: int) -> tuple[list[float], list[dict]]:
         """Get the state
 
         Parameters
@@ -201,7 +200,7 @@ class BaseEnv(object):
             action_space = list(range(5))
         return observation, action_space
 
-    def step(self, actions: List[dict], task_id: int) -> Tuple[List[float], List[dict], List[dict]]:
+    def step(self, actions: list[dict], task_id: int) -> tuple[list[float], list[dict], list[dict]]:
         """Step and get rewards
 
         Parameters
@@ -250,7 +249,7 @@ class BaseEnv(object):
 
         raise NotImplementedError("_update_tool is not implemented in BaseEnv")
 
-    def summary(self, actions: List[dict], rewards: List[dict]) -> dict:
+    def summary(self, actions: list[dict], rewards: list[dict]) -> dict:
         """Summary the final plan
 
         Parameters
@@ -269,7 +268,7 @@ class BaseEnv(object):
         self._logger.info("Env Summary with %d actions, %d rewards", len(actions), len(rewards))
         return self._summary(actions, rewards)
 
-    def _summary(self, actions: List[dict], rewards: List[dict]) -> Union[dict, str]:
+    def _summary(self, actions: list[dict], rewards: list[dict]) -> Union[dict, str]:
         """Summary the final plan
 
         Parameters
@@ -393,8 +392,8 @@ class BaseEnv(object):
             The execute result.
         """
 
-        assert name in self._executors, "Can not find {} in executors: {}".format(
-            name, self._executors.keys()
+        assert name in self._executors, (
+            f"Can not find {name} in executors: {self._executors.keys()}"
         )
         _, method, config = self._executors[name]
         kwargs.update({k: v for k, v in config.items() if k not in kwargs})
@@ -414,7 +413,7 @@ class BaseEnv(object):
             The message with mark.
         """
 
-        return "ENV({}) {}".format(self.role_type(), msg)
+        return f"ENV({self.role_type()}) {msg}"
 
     @property
     def tool(self):

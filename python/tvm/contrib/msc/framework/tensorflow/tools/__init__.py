@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.contrib.msc.framework.tensorflow.tools"""
+# isort: skip_file
 
+from .distill import *
 from .prune import *
 from .quantize import *
-from .distill import *
 from .track import *

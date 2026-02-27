@@ -16,15 +16,17 @@
 # under the License.
 """tvm.contrib.msc.core.tools.prune.pruner"""
 
-from typing import List, Dict, Tuple, Any
+from typing import Any
+
 import numpy as np
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph, WeightJoint, MSCTensor
-from tvm.contrib.msc.core.tools.tool import ToolType, WeightTool, ToolStrategy
-from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.ir import MSCGraph, MSCTensor, WeightJoint
+from tvm.contrib.msc.core.tools.tool import ToolStrategy, ToolType, WeightTool
+from tvm.contrib.msc.core.utils.message import MSCStage
+
 from .method import PruneMethod
 
 
@@ -44,7 +46,7 @@ class BasePruner(WeightTool):
             self.change_stage(MSCStage.PRUNE)
         return super().setup()
 
-    def _get_wtypes(self) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
+    def _get_wtypes(self) -> tuple[dict[str, list[str]], dict[str, str]]:
         """Get the weight types from options
 
         Returns
@@ -79,7 +81,7 @@ class BasePruner(WeightTool):
             }
         return main_wtypes, relation_wtypes
 
-    def _parse_strategys(self, strategy_list: List[dict]) -> Dict[str, ToolStrategy]:
+    def _parse_strategys(self, strategy_list: list[dict]) -> dict[str, ToolStrategy]:
         """Parse the strategy to get valid strategy
 
         Parameters
@@ -104,8 +106,8 @@ class BasePruner(WeightTool):
         return super()._parse_strategys([_update_stages(s) for s in strategy_list])
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
+    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
@@ -187,7 +189,7 @@ class BasePruner(WeightTool):
         return True
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Process tensor
 
@@ -230,7 +232,7 @@ class BasePruner(WeightTool):
             }
         return tensor
 
-    def _prune_tensor(self, name: str, consumer: str, strategys: List[ToolStrategy]) -> Any:
+    def _prune_tensor(self, name: str, consumer: str, strategys: list[ToolStrategy]) -> Any:
         """Prune tensor
 
         Parameters
@@ -248,7 +250,7 @@ class BasePruner(WeightTool):
         assert len(strategys) == 1, "pruner should only has 1 strategy, get " + str(strategys)
         strategy = strategys[0]
 
-        def _get_in_indices(w_node: WeightJoint) -> List[int]:
+        def _get_in_indices(w_node: WeightJoint) -> list[int]:
             """Get input indices for weight node"""
             if not w_node.parents:
                 return []
@@ -315,8 +317,8 @@ class BasePruner(WeightTool):
             self._plan[w_node.name]["out_indices"] = []
 
     def prune_graphs(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
+    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
@@ -334,7 +336,7 @@ class BasePruner(WeightTool):
             The weights.
         """
 
-        def _prune_by_shape(tensor: MSCTensor, shape: List[int]):
+        def _prune_by_shape(tensor: MSCTensor, shape: list[int]):
             return MSCTensor(tensor.name, tensor.dtype, tensor.layout.name, shape, tensor.alias)
 
         def _prune_by_channel(tensor: MSCTensor, dim, channel_axis: int = None):
@@ -363,8 +365,9 @@ class BasePruner(WeightTool):
                         pruned_shape = [int(i) for i in w_node.get_attr("pruned_shape").split(",")]
                         assert pruned_shape == list(
                             pruned_weights[w_name].shape
-                        ), "pruned_shape {} mismatch with data shape {}".format(
-                            pruned_shape, pruned_weights[w_name].shape
+                        ), (
+                            f"pruned_shape {pruned_shape} mismatch with"
+                            f" data shape {pruned_weights[w_name].shape}"
                         )
                     else:
                         data = msc_utils.cast_array(weights[w_name])
@@ -447,11 +450,13 @@ class BasePruner(WeightTool):
         # log compress rate
         if pruned_cnt > 0:
             new_size = _flatten_size(pruned_weights)
-            msg = "Prune {} weights, compress to {:.2f}% ({:.4f} M->{:.4f} M)".format(
-                pruned_cnt, new_size * 100 / raw_size, raw_size, new_size
+            msg = (
+                f"Prune {pruned_cnt} weights, compress to"
+                f" {new_size * 100 / raw_size:.2f}%"
+                f" ({raw_size:.4f} M->{new_size:.4f} M)"
             )
         else:
-            msg = "No weights pruned, size {:.4f} M".format(raw_size)
+            msg = f"No weights pruned, size {raw_size:.4f} M"
         self._logger.info(self.tool_mark(msg))
         return pruned_graphs, pruned_weights
 
@@ -472,10 +477,10 @@ class BasePruner(WeightTool):
         if name in self._meta_weights:
             return msc_utils.cast_array(self._meta_weights[name])
         raise Exception(
-            "Can not find data {} from {} weights".format(name, len(self._meta_weights))
+            f"Can not find data {name} from {len(self._meta_weights)} weights"
         )
 
-    def create_tasks(self, **kwargs) -> List[dict]:
+    def create_tasks(self, **kwargs) -> list[dict]:
         """Create tasks for gym
 
         Parameters
@@ -500,7 +505,7 @@ class BasePruner(WeightTool):
             )
         return tasks
 
-    def change_strategys(self, strategy_list: List[dict]):
+    def change_strategys(self, strategy_list: list[dict]):
         """Change the strategys
 
         Parameters

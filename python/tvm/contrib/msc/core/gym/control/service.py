@@ -16,17 +16,19 @@
 # under the License.
 """tvm.contrib.msc.core.gym.control.service"""
 
-import json
-import time
 import copy
-from typing import Dict, Any, List, Tuple
-from multiprocessing import Manager
-from functools import partial, reduce
+import json
 import queue
+import time
+from functools import partial, reduce
+from multiprocessing import Manager
+from typing import Any
+
 import numpy as np
 
-from tvm.contrib.msc.core.gym.namespace import GYMObject, GYMAction
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.gym.namespace import GYMAction, GYMObject
+
 from .worker import BaseGymWorker, WorkerFactory
 
 
@@ -121,7 +123,7 @@ wait_request = partial(_wait_message, header_type="request_header")
 wait_response = partial(_wait_message, header_type="response_header")
 
 
-class GatherMode(object):
+class GatherMode:
     """Enum all gather mode"""
 
     PARALLEL = "parallel"
@@ -130,7 +132,7 @@ class GatherMode(object):
     FIRST = "first"
 
 
-class BaseService(object):
+class BaseService:
     """Basic service for gym
 
     Parameters
@@ -156,9 +158,9 @@ class BaseService(object):
     def __init__(
         self,
         workspace: msc_utils.MSCDirectory,
-        env: Dict[str, Any],
-        agent: Dict[str, Any],
-        tasks: List[str] = None,
+        env: dict[str, Any],
+        agent: dict[str, Any],
+        tasks: list[str] = None,
         dist_manager: Manager = None,
         world_size: int = 1,
         max_iter: int = 1,
@@ -172,7 +174,7 @@ class BaseService(object):
         debug_level = int(verbose.split(":")[1]) if verbose.startswith("debug:") else 0
         self._logger = msc_utils.create_file_logger(verbose, self._workspace.relpath("SERVICE_LOG"))
 
-        def _create_workers(config: dict, obj_type: str) -> List[BaseGymWorker]:
+        def _create_workers(config: dict, obj_type: str) -> list[BaseGymWorker]:
             if "debug_level" not in config:
                 config["debug_level"] = debug_level
             if "logger" not in config:
@@ -381,10 +383,12 @@ class BaseService(object):
         workers = {w.worker_id: w for w in self._get_workers(obj_type)}
         requests = self._wait_request(msg_key)
         if act_type in (GYMAction.INIT, GYMAction.RESET):
-            mark = "Iter[{}/{}] {}.{}".format(self._iter_id, self._max_iter, obj_type, act_type)
+            mark = f"Iter[{self._iter_id}/{self._max_iter}] {obj_type}.{act_type}"
         else:
-            mark = "Iter[{}/{}] Task[{}/{}] {}.{}".format(
-                self._iter_id, self._max_iter, self._task_id, self._max_task, obj_type, act_type
+            mark = (
+                f"Iter[{self._iter_id}/{self._max_iter}]"
+                f" Task[{self._task_id}/{self._max_task}]"
+                f" {obj_type}.{act_type}"
             )
         requests = {int(k): v for k, v in requests.items()}
         responses = {}
@@ -438,9 +442,9 @@ class BaseService(object):
             The message key.
         """
 
-        return "{}-s-{}".format(obj_type, act_type)
+        return f"{obj_type}-s-{act_type}"
 
-    def _from_msg_key(self, msg_key: str) -> Tuple[str, str]:
+    def _from_msg_key(self, msg_key: str) -> tuple[str, str]:
         """Get obj_type and act_type from message key
 
         Parameters
@@ -458,7 +462,7 @@ class BaseService(object):
 
         return msg_key.split("-s-")
 
-    def _get_workers(self, obj_type: str) -> List[BaseGymWorker]:
+    def _get_workers(self, obj_type: str) -> list[BaseGymWorker]:
         """Get workers according to obj_type
 
         Parameters
@@ -478,7 +482,7 @@ class BaseService(object):
             return self._agent_workers
         return []
 
-    def _get_worker_ids(self, obj_type: str) -> List[int]:
+    def _get_worker_ids(self, obj_type: str) -> list[int]:
         """Get worker ids according to obj_type
 
         Parameters
@@ -494,7 +498,7 @@ class BaseService(object):
 
         return [w.worker_id for w in self._get_workers(obj_type)]
 
-    def _get_world_ids(self, obj_type: str) -> List[int]:
+    def _get_world_ids(self, obj_type: str) -> list[int]:
         """Get world ids according to obj_type
 
         Parameters
@@ -527,7 +531,7 @@ class BaseService(object):
             The message with mark.
         """
 
-        return "SERIVCE({}) {}".format(self.service_type, msg)
+        return f"SERIVCE({self.service_type}) {msg}"
 
     @property
     def done(self):
@@ -596,7 +600,7 @@ class MainService(BaseService):
     def _synchronize_request(
         self,
         msg_key: str,
-        requests: List[dict],
+        requests: list[dict],
         checker: callable = None,
         wait_time: int = 2,
         max_retry: int = -1,
@@ -697,7 +701,7 @@ class MainService(BaseService):
             config["task_id"] = self._task_id
         return config
 
-    def _map_values(self, values: List[Any], obj_type: str, worker_id: int) -> List[Any]:
+    def _map_values(self, values: list[Any], obj_type: str, worker_id: int) -> list[Any]:
         """Map the values for worker
 
         Parameters
@@ -724,7 +728,7 @@ class MainService(BaseService):
         end = min((worker_idx + 1) * tile_size, len(values))
         return values[start:end]
 
-    def _gather_values(self, values: List[Any], gather_mode: str) -> Any:
+    def _gather_values(self, values: list[Any], gather_mode: str) -> Any:
         """Gather the values
 
         Parameters

@@ -17,19 +17,21 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.utils.dataset"""
 
+import json
 import os
 import shutil
-import json
-from typing import List, Union, Dict, Any, Tuple
+from typing import Any, Union
+
 import numpy as np
 
 import tvm
+
 from .arguments import load_dict
 from .info import cast_array, is_array
 from .namespace import MSCFramework
 
 
-def format_datas(datas: Union[List[Any], Dict[str, Any]], names: List[str], style="dict") -> Any:
+def format_datas(datas: Union[list[Any], dict[str, Any]], names: list[str], style="dict") -> Any:
     """Format datas to style format
 
     Parameters
@@ -48,9 +50,7 @@ def format_datas(datas: Union[List[Any], Dict[str, Any]], names: List[str], styl
     """
 
     if isinstance(datas, (list, tuple, tvm.ir.container.Array)):
-        assert len(datas) == len(names), "datas({}) mismatch with names {}".format(
-            len(datas), names
-        )
+        assert len(datas) == len(names), f"datas({len(datas)}) mismatch with names {names}"
         datas = dict(zip(names, datas))
     if not isinstance(datas, dict):
         assert len(names) == 1, "Expect 1 names, get " + str(names)
@@ -66,7 +66,7 @@ def format_datas(datas: Union[List[Any], Dict[str, Any]], names: List[str], styl
 
 
 def random_data(
-    info: Union[List, Tuple, dict],
+    info: Union[list, tuple, dict],
     framework: str = MSCFramework.MSC,
     device: str = "cpu",
     max_val: int = None,
@@ -110,7 +110,7 @@ def random_data(
     return cast_array(data, framework, device=device)
 
 
-class BaseDataLoader(object):
+class BaseDataLoader:
     """Basic dataset loader for MSC
 
     Parameters
@@ -127,7 +127,7 @@ class BaseDataLoader(object):
         self._folder = folder
         self._start = start
         self._current = 0
-        assert os.path.isdir(folder), "Dataset {} is not folder".format(folder)
+        assert os.path.isdir(folder), f"Dataset {folder} is not folder"
         self._info = load_dict(os.path.join(folder, "datas_info.json"))
         if end == -1:
             self._end = self._info["num_datas"]
@@ -135,7 +135,7 @@ class BaseDataLoader(object):
             self._end = min(end, self._info["num_datas"])
 
     def __str__(self):
-        return "<{}> @ {}".format(self.__class__.__name__, self._folder)
+        return f"<{self.__class__.__name__}> @ {self._folder}"
 
     def __getitem__(self, idx):
         if idx + self._start >= self._end:
@@ -175,7 +175,7 @@ class BaseDataLoader(object):
         if not info:
             return False
         save_name = info.get("save_name", name)
-        f_path = os.path.join(self._folder, save_name, "batch_{}.bin".format(self._start + index))
+        f_path = os.path.join(self._folder, save_name, f"batch_{self._start + index}.bin")
         return os.path.isfile(f_path)
 
     def load_data(self, name: str, index: int) -> np.ndarray:
@@ -215,7 +215,7 @@ class BaseDataLoader(object):
         """
 
         save_name = info.get("save_name", name)
-        f_path = os.path.join(self._folder, save_name, "batch_{}.bin".format(self._start + index))
+        f_path = os.path.join(self._folder, save_name, f"batch_{self._start + index}.bin")
         assert os.path.isfile(f_path), "Can not find data file " + str(f_path)
         return np.fromfile(f_path, dtype=info["dtype"]).reshape(info["shape"])
 
@@ -347,7 +347,7 @@ class IODataLoader(BaseDataLoader):
         return self._info["outputs"].get(name)
 
 
-class BaseDataSaver(object):
+class BaseDataSaver:
     """Dataset Saver for MSC
 
     Parameters
@@ -376,14 +376,14 @@ class BaseDataSaver(object):
         self._start = start
         self._max_size = max_size
         self._current = 0
-        assert os.path.isdir(folder), "Dataset {} is not folder".format(folder)
+        assert os.path.isdir(folder), f"Dataset {folder} is not folder"
         self._info = self.setup(options)
 
     def setup(self, options: dict):
         return {"num_datas": 0}
 
     def __str__(self):
-        return "<{}> @ {}".format(self.__class__.__name__, self._folder)
+        return f"<{self.__class__.__name__}> @ {self._folder}"
 
     def __enter__(self):
         return self
@@ -437,7 +437,7 @@ class BaseDataSaver(object):
         sub_folder = f_path = os.path.join(self._folder, save_name)
         if not os.path.isdir(sub_folder):
             os.mkdir(sub_folder)
-        f_path = os.path.join(sub_folder, "batch_{}.bin".format(self._start + index))
+        f_path = os.path.join(sub_folder, f"batch_{self._start + index}.bin")
         ref_info = self._info[collect]
         # TODO(mengtong): support dynamic datas shape
         if name in ref_info:
@@ -480,7 +480,7 @@ class BaseDataSaver(object):
 class SimpleDataSaver(BaseDataSaver):
     """Dataset Saver for simple datas"""
 
-    def save_datas(self, datas: Dict[str, np.ndarray], index: int = -1) -> Dict[str, str]:
+    def save_datas(self, datas: dict[str, np.ndarray], index: int = -1) -> dict[str, str]:
         """Save 1 simple datas.
 
         Parameters
@@ -556,8 +556,8 @@ class IODataSaver(BaseDataSaver):
 
     def save_batch(
         self,
-        inputs: Union[Dict[str, np.ndarray], List[np.ndarray]],
-        outputs: Union[Dict[str, np.ndarray], List[np.ndarray]] = None,
+        inputs: Union[dict[str, np.ndarray], list[np.ndarray]],
+        outputs: Union[dict[str, np.ndarray], list[np.ndarray]] = None,
     ) -> int:
         """Save 1 batch inputs and outputs.
 

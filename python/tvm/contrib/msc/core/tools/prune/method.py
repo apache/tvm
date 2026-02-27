@@ -17,20 +17,19 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.tools.prune.method"""
 
-from typing import List
 import numpy as np
 
-from tvm.contrib.msc.core.tools.tool import ToolType, BaseTool
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.tool import BaseTool, ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
 @msc_utils.register_tool_method
-class PruneMethod(object):
+class PruneMethod:
     """Default prune method"""
 
     @classmethod
-    def prune_axis(cls, data: np.ndarray, axis: int, indices: List[int]) -> np.ndarray:
+    def prune_axis(cls, data: np.ndarray, axis: int, indices: list[int]) -> np.ndarray:
         """Delete indices on axis
 
         Parameters
@@ -62,7 +61,7 @@ class PruneMethod(object):
         consumer: str,
         in_axis: int,
         out_axis: int,
-        in_indices: List[int],
+        in_indices: list[int],
         density: float,
         stride: int = 8,
     ) -> np.ndarray:

@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.contrib.msc.core.tools.prune"""
+# isort: skip_file
 
-from .pruner import *
-from .method import *
 from .configer import *
+from .method import *
+from .pruner import *

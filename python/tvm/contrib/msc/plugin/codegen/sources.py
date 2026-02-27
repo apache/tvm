@@ -16,7 +16,6 @@
 # under the License.
 """tvm.contrib.msc.plugin.codegen.sources"""
 
-from typing import Dict
 
 
 def get_plugin_base_h_code() -> str:
@@ -504,7 +503,8 @@ class TVMUtils {
   static void AttrFromArg(const ffi::AnyView& arg, double& target) { target = arg; }
 
   template <typename T>
-  static void AttrFromArgs(const ffi::PackedArgs& args, size_t start, size_t num, std::vector<T>& target) {
+  static void AttrFromArgs(const ffi::PackedArgs& args, size_t start,
+                           size_t num, std::vector<T>& target) {
     for (size_t i = 0; i < num; i++) {
       AttrFromArg(args[start + i], target[i]);
     }
@@ -1153,7 +1153,7 @@ namespace plugin {
     return code
 
 
-def get_plugin_sources() -> Dict[str, str]:
+def get_plugin_sources() -> dict[str, str]:
     """Create base sources for plugin codegen
 
     Returns

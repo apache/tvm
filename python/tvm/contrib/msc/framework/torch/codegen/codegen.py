@@ -16,21 +16,22 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.codegen.codegen"""
 
-from typing import Dict, Optional, Any
+from typing import Any, Optional
+
 import torch
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.codegen import CodeGen
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.codegen import CodeGen
+from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.framework.torch import _ffi_api
 
 
 def to_torch(
     graph: MSCGraph,
-    weights: Optional[Dict[str, tvm.runtime.Tensor]] = None,
-    codegen_config: Optional[Dict[str, str]] = None,
-    print_config: Optional[Dict[str, str]] = None,
+    weights: Optional[dict[str, tvm.runtime.Tensor]] = None,
+    codegen_config: Optional[dict[str, str]] = None,
+    print_config: Optional[dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
     plugin: Any = None,
 ) -> torch.nn.Module:

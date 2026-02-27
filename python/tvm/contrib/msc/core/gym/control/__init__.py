@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.contrib.msc.core.gym.control"""
+# isort: skip_file
 
-from .controller import *
 from .configer import *
+from .controller import *

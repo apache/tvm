@@ -18,15 +18,16 @@
 """tvm.contrib.msc.core.runtime.jit_model"""
 
 import logging
-from typing import Any, List, Tuple, Union, Dict
+from typing import Any, Union
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools import ToolType
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
+
 from .runner import BaseRunner
 
 
-class BaseJIT(object):
+class BaseJIT:
     """Base Just-In-Time compile for msc
 
     Parameters
@@ -50,8 +51,8 @@ class BaseJIT(object):
     def __init__(
         self,
         model: Any,
-        inputs: List[str],
-        outputs: List[str],
+        inputs: list[str],
+        outputs: list[str],
         device: str = "cpu",
         training: bool = False,
         hooks: dict = None,
@@ -86,8 +87,8 @@ class BaseJIT(object):
         }
 
     def run(
-        self, inputs: Union[List[Any], Dict[str, Any]], ret_type="native"
-    ) -> Union[List[Any], Dict[str, Any]]:
+        self, inputs: Union[list[Any], dict[str, Any]], ret_type="native"
+    ) -> Union[list[Any], dict[str, Any]]:
         """Run the jit to get outputs
 
         Parameters
@@ -109,7 +110,7 @@ class BaseJIT(object):
             return outputs
         return msc_utils.format_datas(outputs, self._outputs, style=ret_type)
 
-    def _call_jit(self, inputs: Dict[str, Any]) -> Any:
+    def _call_jit(self, inputs: dict[str, Any]) -> Any:
         """Run the jit model
 
         Parameters
@@ -203,7 +204,7 @@ class BaseJIT(object):
             plans = _finalize_tool(lambda t: t.tracked)
         else:
             plans = {n: t.finalize() for n, t in tools.items()}
-        plans_info = ", ".join(["{}({})".format(n, len(p)) for n, p in plans.items()])
+        plans_info = ", ".join([f"{n}({len(p)})" for n, p in plans.items()])
         self._logger.debug("Made %s plans for %s", plans_info, tool_type)
 
     def _redirect_run(self, *args, runner_name: str = "worker", **kwargs) -> Any:
@@ -233,7 +234,7 @@ class BaseJIT(object):
             outputs = hook(runner_name, outputs)
         return self._from_msc_outputs(runner_name, outputs)
 
-    def _to_msc_inputs(self, runner_name: str, *args, **kwargs) -> List[Tuple[str, Any]]:
+    def _to_msc_inputs(self, runner_name: str, *args, **kwargs) -> list[tuple[str, Any]]:
         """Change inputs to msc format
 
         Parameters
@@ -253,7 +254,7 @@ class BaseJIT(object):
 
         raise NotImplementedError("_to_msc_inputs is not implemented in " + str(self.__class__))
 
-    def _from_msc_outputs(self, runner_name: str, outputs: List[Tuple[str, Any]]) -> Any:
+    def _from_msc_outputs(self, runner_name: str, outputs: list[tuple[str, Any]]) -> Any:
         """Change inputs from msc format
 
         Parameters
@@ -271,7 +272,7 @@ class BaseJIT(object):
 
         raise NotImplementedError("_from_msc_outputs is not implemented in " + str(self.__class__))
 
-    def _run_ctx(self, runner_ctx: dict, inputs: List[Tuple[str, Any]]) -> List[Tuple[str, Any]]:
+    def _run_ctx(self, runner_ctx: dict, inputs: list[tuple[str, Any]]) -> list[tuple[str, Any]]:
         """Forward by runner context
 
         Parameters
@@ -338,7 +339,7 @@ class BaseJIT(object):
             The message with mark.
         """
 
-        return "JIT({}) {}".format(self.framework, msg)
+        return f"JIT({self.framework}) {msg}"
 
     @property
     def trained(self):

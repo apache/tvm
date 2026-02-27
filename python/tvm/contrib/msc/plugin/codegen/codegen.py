@@ -18,16 +18,17 @@
 
 import os
 import subprocess
-from typing import Dict, List, Optional
+from typing import Optional
 
 import tvm
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.plugin import _ffi_api
-from tvm.contrib.msc.core import utils as msc_utils
+
 from .sources import get_plugin_sources
 
 
-class BasePluginCodeGen(object):
+class BasePluginCodeGen:
     """Manager class to generate codes and build plugin
 
     Parameters
@@ -51,11 +52,11 @@ class BasePluginCodeGen(object):
     def __init__(
         self,
         workspace: msc_utils.MSCDirectory,
-        codegen_config: Optional[Dict[str, str]] = None,
-        cpp_print_config: Optional[Dict[str, str]] = None,
-        py_print_config: Optional[Dict[str, str]] = None,
-        extern_sources: Dict[str, str] = None,
-        extern_libs: Dict[str, str] = None,
+        codegen_config: Optional[dict[str, str]] = None,
+        cpp_print_config: Optional[dict[str, str]] = None,
+        py_print_config: Optional[dict[str, str]] = None,
+        extern_sources: dict[str, str] = None,
+        extern_libs: dict[str, str] = None,
         on_debug: bool = False,
     ):
         self._codegen_config = msc_utils.copy_dict(codegen_config)
@@ -76,7 +77,7 @@ class BasePluginCodeGen(object):
         self._manager_folder = self._output_folder
         self._libs = [os.path.basename(l) for l in self._extern_libs.values()]
         self._libs.extend([os.path.basename(l) for l in self._lib_folder.listdir()])
-        self._project_name = "msc_{}_plugin".format(self.framework)
+        self._project_name = f"msc_{self.framework}_plugin"
         self._codegen_config.update(
             {
                 "install_dir": self._output_folder.path,
@@ -96,7 +97,7 @@ class BasePluginCodeGen(object):
 
         return any(self._project_name in f for f in self._lib_folder.listdir())
 
-    def build_libs(self) -> List[str]:
+    def build_libs(self) -> list[str]:
         """Generate source and build the lib
 
         Returns
@@ -126,9 +127,7 @@ class BasePluginCodeGen(object):
                 process.wait()
                 assert (
                     process.returncode == 0
-                ), "Failed to build plugin under {}, check codegen.log for detail".format(
-                    os.getcwd()
-                )
+                ), f"Failed to build plugin under {os.getcwd()}, check codegen.log for detail"
             self._libs.extend([os.path.basename(l) for l in self._lib_folder.listdir()])
         return self._lib_folder.listdir(as_abs=True)
 
@@ -143,7 +142,7 @@ class BasePluginCodeGen(object):
 
         return os.path.isfile(self._manager_folder.relpath("manager.py"))
 
-    def build_manager(self, ops_info: dict) -> List[str]:
+    def build_manager(self, ops_info: dict) -> list[str]:
         """Generate manager source for plugin
 
         Parameters
@@ -268,11 +267,11 @@ class TensorRTPluginCodegen(BasePluginCodeGen):
 def get_codegen(
     framework: str,
     workspace: msc_utils.MSCDirectory,
-    codegen_config: Optional[Dict[str, str]] = None,
-    cpp_print_config: Optional[Dict[str, str]] = None,
-    py_print_config: Optional[Dict[str, str]] = None,
-    extern_sources: Dict[str, str] = None,
-    extern_libs: Dict[str, str] = None,
+    codegen_config: Optional[dict[str, str]] = None,
+    cpp_print_config: Optional[dict[str, str]] = None,
+    py_print_config: Optional[dict[str, str]] = None,
+    extern_sources: dict[str, str] = None,
+    extern_libs: dict[str, str] = None,
     on_debug: bool = False,
 ):
     """Create codegen for framework
@@ -306,7 +305,7 @@ def get_codegen(
         codegen_cls = TensorRTPluginCodegen
     else:
         raise NotImplementedError(
-            "framework {} is not support for plugin codegen".format(framework)
+            f"framework {framework} is not support for plugin codegen"
         )
     return codegen_cls(
         workspace,

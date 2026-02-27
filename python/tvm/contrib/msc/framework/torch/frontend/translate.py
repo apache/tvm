@@ -16,13 +16,14 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.frontend.translate"""
 
-from typing import Dict, Optional, Tuple, List, Union
+from typing import Optional, Union
 
 import torch
+
 import tvm
-from tvm.relax.frontend.torch import from_fx
-from tvm.contrib.msc.core.ir.graph import MSCGraph
 from tvm.contrib.msc.core.frontend import from_relax, normalize_inputs
+from tvm.contrib.msc.core.ir.graph import MSCGraph
+from tvm.relax.frontend.torch import from_fx
 
 
 def set_weight_alias(graph: MSCGraph) -> MSCGraph:
@@ -61,12 +62,12 @@ def set_weight_alias(graph: MSCGraph) -> MSCGraph:
 
 def from_torch(
     model: torch.nn.Module,
-    input_info: List[Tuple[Tuple[int], str]],
-    trans_config: Optional[Dict[str, str]] = None,
-    build_config: Optional[Dict[str, str]] = None,
+    input_info: list[tuple[tuple[int], str]],
+    trans_config: Optional[dict[str, str]] = None,
+    build_config: Optional[dict[str, str]] = None,
     as_msc: bool = True,
     custom_convert_map: dict = None,
-) -> Tuple[Union[MSCGraph, tvm.IRModule], Dict[str, tvm.runtime.Tensor]]:
+) -> tuple[Union[MSCGraph, tvm.IRModule], dict[str, tvm.runtime.Tensor]]:
     """Change torch nn.Module to MSCGraph.
 
     Parameters

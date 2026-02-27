@@ -17,11 +17,10 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.framework.tensorrt.tools.quantize.method"""
 
-from typing import Dict
 
-from tvm.contrib.msc.core.tools.quantize import QuantizeMethod, BaseQuantizer
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.quantize import BaseQuantizer, QuantizeMethod
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
 @msc_utils.register_tool_method
@@ -32,7 +31,7 @@ class TensorRTQuantizeMethod(QuantizeMethod):
     def quantize_normal(
         cls,
         quantizer: BaseQuantizer,
-        tensor_ctx: Dict[str, str],
+        tensor_ctx: dict[str, str],
         name: str,
         consumer: str,
         scale: float,
@@ -41,7 +40,7 @@ class TensorRTQuantizeMethod(QuantizeMethod):
         sign: bool = True,
         rounding: str = "round",
         epsilon: float = 1.0 / (1 << 24),
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Calibrate the data by kl_divergence
 
         Parameters
@@ -84,7 +83,7 @@ class TensorRTQuantizeMethod(QuantizeMethod):
         elif dtype == "float32":
             precision += "FLOAT"
         else:
-            raise TypeError("nbits {} is not supported".format(nbits))
+            raise TypeError(f"nbits {nbits} is not supported")
         tensor_ctx["processed"].extend(
             [
                 "{}->setPrecision({})".format(tensor_ctx["producer"], precision),
@@ -97,7 +96,7 @@ class TensorRTQuantizeMethod(QuantizeMethod):
     def dequantize_normal(
         cls,
         quantizer: BaseQuantizer,
-        tensor_ctx: Dict[str, str],
+        tensor_ctx: dict[str, str],
         name: str,
         consumer: str,
         scale: float,
@@ -106,7 +105,7 @@ class TensorRTQuantizeMethod(QuantizeMethod):
         sign: bool = True,
         rounding: str = "round",
         epsilon: float = 1.0 / (1 << 24),
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Calibrate the data by kl_divergence
 
         Parameters

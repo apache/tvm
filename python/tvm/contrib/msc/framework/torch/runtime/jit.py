@@ -17,23 +17,24 @@
 # pylint: disable=unused-import
 """tvm.contrib.msc.framework.torch.runtime.jit_model"""
 
-from typing import Any, List, Tuple, Dict
 from functools import partial
+from typing import Any
 
 import torch
-from torch import fx
 from torch import _dynamo as dynamo
+from torch import fx
 
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.runtime import BaseJIT
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
+
 from .runner import TorchRunner
 
 
 class TorchJIT(BaseJIT):
     """JIT of Torch"""
 
-    def _call_jit(self, inputs: Dict[str, Any]) -> Any:
+    def _call_jit(self, inputs: dict[str, Any]) -> Any:
         """Run the jit model
 
         Parameters
@@ -71,7 +72,7 @@ class TorchJIT(BaseJIT):
         dynamo.reset()
         return torch.compile(self._model, backend=_compile)
 
-    def _to_msc_inputs(self, runner_name: str, *args, **kwargs) -> List[Tuple[str, Any]]:
+    def _to_msc_inputs(self, runner_name: str, *args, **kwargs) -> list[tuple[str, Any]]:
         """Change inputs to msc format
 
         Parameters
@@ -92,7 +93,7 @@ class TorchJIT(BaseJIT):
         assert not kwargs, "TorchJIT do not support kwargs"
         return [("input_" + str(i), d) for i, d in enumerate(args)]
 
-    def _from_msc_outputs(self, runner_name: str, outputs: List[Tuple[str, Any]]) -> Any:
+    def _from_msc_outputs(self, runner_name: str, outputs: list[tuple[str, Any]]) -> Any:
         """Change inputs from msc format
 
         Parameters
@@ -114,7 +115,7 @@ class TorchJIT(BaseJIT):
             return torch_outputs
         return torch_outputs[0] if len(torch_outputs) == 1 else torch_outputs
 
-    def _run_ctx(self, runner_ctx: dict, inputs: List[Tuple[str, Any]]) -> List[Tuple[str, Any]]:
+    def _run_ctx(self, runner_ctx: dict, inputs: list[tuple[str, Any]]) -> list[tuple[str, Any]]:
         """Forward by runner context
 
         Parameters
@@ -153,7 +154,7 @@ class TorchJIT(BaseJIT):
         return MSCFramework.TORCH
 
     @classmethod
-    def load_native(cls, model: Any, config: dict) -> Tuple[torch.nn.Module, str, bool]:
+    def load_native(cls, model: Any, config: dict) -> tuple[torch.nn.Module, str, bool]:
         """Load the native model
 
         Parameters

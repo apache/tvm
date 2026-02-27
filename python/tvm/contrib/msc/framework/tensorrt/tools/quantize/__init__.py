@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.contrib.msc.framework.tensorrt.tools.quantize"""
+# isort: skip_file
 
-from .quantizer import *
 from .method import *
+from .quantizer import *

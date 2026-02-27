@@ -16,19 +16,19 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.frontend.translate"""
 
-from typing import Dict, Optional, Tuple, List
+from typing import Optional
 
 import tvm
 from tvm import relax
 from tvm.contrib.msc.core import transform as msc_transform
-from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.frontend import byoc_partition
+from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.framework.tensorrt import transform as trt_transform
 
 
 def transform_for_tensorrt(
     mod: tvm.IRModule,
-    trans_config: Optional[Dict[str, str]] = None,
+    trans_config: Optional[dict[str, str]] = None,
 ) -> tvm.IRModule:
     """Transform module to tensorrt.
 
@@ -60,10 +60,10 @@ def transform_for_tensorrt(
 
 def partition_for_tensorrt(
     mod: tvm.IRModule,
-    params: Optional[Dict[str, tvm.runtime.Tensor]] = None,
-    trans_config: Optional[Dict[str, str]] = None,
-    build_config: Optional[Dict[str, str]] = None,
-) -> Tuple[tvm.IRModule, List[Tuple[MSCGraph, Dict[str, tvm.runtime.Tensor]]]]:
+    params: Optional[dict[str, tvm.runtime.Tensor]] = None,
+    trans_config: Optional[dict[str, str]] = None,
+    build_config: Optional[dict[str, str]] = None,
+) -> tuple[tvm.IRModule, list[tuple[MSCGraph, dict[str, tvm.runtime.Tensor]]]]:
     """Partition module to tensorrt sub functions.
 
     Parameters

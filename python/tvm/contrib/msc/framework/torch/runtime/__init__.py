@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.contrib.msc.framework.torch.runtime"""
+# isort: skip_file
 
-from .runner import *
 from .jit import *
+from .runner import *

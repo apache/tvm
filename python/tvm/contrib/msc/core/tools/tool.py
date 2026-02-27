@@ -17,21 +17,23 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.tools.base_tool"""
 
-import os
 import copy
 import logging
+import os
+from collections.abc import Iterable
 from itertools import product
-from typing import List, Iterable, Any, Tuple, Dict, Union
+from typing import Any, Union
+
 import numpy as np
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph, WeightGraph, MSCJoint, WeightJoint, MSCTensor
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core import _ffi_api
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.ir import MSCGraph, MSCJoint, MSCTensor, WeightGraph, WeightJoint
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
-class ToolType(object):
+class ToolType:
     """Enum all msc tool types"""
 
     BASE = "base"
@@ -43,18 +45,18 @@ class ToolType(object):
     ALL = [PRUNER, QUANTIZER, DISTILLER, TRACKER]
 
     @classmethod
-    def all_types(cls) -> List[str]:
+    def all_types(cls) -> list[str]:
         return cls.ALL
 
 
-class ToolScope(object):
+class ToolScope:
     """Enum all msc tool scope"""
 
     TEACHER = "teacher"
     STUDENT = "student"
 
 
-class ToolExecutor(object):
+class ToolExecutor:
     """Executor for process the tensor
 
     Parameters
@@ -73,7 +75,7 @@ class ToolExecutor(object):
         self._config = config or {}
 
     def __str__(self):
-        return "{}({})".format(self._name, self._config)
+        return f"{self._name}({self._config})"
 
     def execute(self, *args, **kwargs) -> Any:
         """execute the method
@@ -129,7 +131,7 @@ class ToolExecutor(object):
         return self._config
 
 
-class ToolStrategy(object):
+class ToolStrategy:
     """Strategy for process tensor
 
     Parameters
@@ -151,8 +153,8 @@ class ToolStrategy(object):
         self._executors = {}
 
     def __str__(self):
-        return "{}({} @ {}) ".format(self._name, self._tensor_type, self._stage) + "; ".join(
-            ["{}:{}".format(k, v) for k, v in self._executors.items()]
+        return f"{self._name}({self._tensor_type} @ {self._stage}) " + "; ".join(
+            [f"{k}:{v}" for k, v in self._executors.items()]
         )
 
     def inspect(self) -> dict:
@@ -207,7 +209,7 @@ class ToolStrategy(object):
         if not self._stage:
             self._stage = stage
 
-    def get_executor(self, stage: str = None) -> Tuple[callable, dict]:
+    def get_executor(self, stage: str = None) -> tuple[callable, dict]:
         """Get executor of current stage
 
         Parameters
@@ -252,7 +254,7 @@ class ToolStrategy(object):
         name: str = None,
         tensor_type: str = None,
         stage: str = None,
-        configs: Dict[str, dict] = None,
+        configs: dict[str, dict] = None,
     ):
         """Copy a strategy
 
@@ -283,7 +285,7 @@ class ToolStrategy(object):
         return strategy
 
 
-class BaseTool(object):
+class BaseTool:
     """Basic tool of MSC
 
     Parameters
@@ -315,7 +317,7 @@ class BaseTool(object):
         tag: str,
         stage: str,
         plan_file: str,
-        strategys: List[dict],
+        strategys: list[dict],
         training: bool = False,
         cache_processed: bool = True,
         options: dict = None,
@@ -341,8 +343,9 @@ class BaseTool(object):
         self._logger.info(msc_utils.msg_block(title, self.setup()))
 
     def __str__(self):
-        msg = "forward[{}] {} graphs, {} weights".format(
-            self._forward_cnt, len(self._graphs), len(self._weights)
+        msg = (
+            f"forward[{self._forward_cnt}]"
+            f" {len(self._graphs)} graphs, {len(self._weights)} weights"
         )
         return self.tool_mark(msg)
 
@@ -365,16 +368,16 @@ class BaseTool(object):
             "style": self.tool_style(),
             "cache_processed": self._cache_processed,
             "options": self._options,
-            "debug_step({})".format(self._debug_level): self._verbose_step,
-            "plan({})".format(len(self._plan)): plan_info,
+            f"debug_step({self._debug_level})": self._verbose_step,
+            f"plan({len(self._plan)})": plan_info,
         }
 
     def reset(
         self,
-        graphs: List[MSCGraph],
-        weights: Dict[str, tvm.runtime.Tensor],
+        graphs: list[MSCGraph],
+        weights: dict[str, tvm.runtime.Tensor],
         cache_dir: msc_utils.MSCDirectory = None,
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Reset the tool with graphs and weights
 
         Parameters
@@ -405,14 +408,14 @@ class BaseTool(object):
         self._graphs, self._weights = self._reset(graphs, weights)
         self._strategys = self._parse_strategys(self._meta_strategys)
         if self._strategys:
-            title = self.tool_mark("STRATEGYS({})".format(len(self._strategys)))
+            title = self.tool_mark(f"STRATEGYS({len(self._strategys)})")
             strategys_info = {k: v.inspect() for k, v in self._strategys.items()}
             self._logger.info(msc_utils.msg_block(title, strategys_info, width=0))
         return self._graphs, self._weights
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
+    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
@@ -432,7 +435,7 @@ class BaseTool(object):
 
         return graphs, weights
 
-    def _parse_strategys(self, strategy_list: List[dict]) -> Dict[str, ToolStrategy]:
+    def _parse_strategys(self, strategy_list: list[dict]) -> dict[str, ToolStrategy]:
         """Parse the strategy to get valid strategy
 
         Parameters
@@ -506,10 +509,10 @@ class BaseTool(object):
                     marks = [t for t in strategy["tensor_ids"] if t in all_tensor_ids]
                 elif "op_types" in strategy:
                     op_types = [t for t in strategy["op_types"] if t in all_op_types]
-                    marks = ["{}.{}".format(t, t_type) for t in op_types]
+                    marks = [f"{t}.{t_type}" for t in op_types]
                 elif "op_names" in strategy:
                     op_names = [t for t in strategy["op_names"] if t in all_op_names]
-                    marks = ["{}.{}".format(t, t_type) for t in op_names]
+                    marks = [f"{t}.{t_type}" for t in op_names]
                 else:
                     marks = ["default." + str(t_type)]
                 for mark, stage in product(marks, strategy.get("stages", ["default"])):
@@ -520,7 +523,7 @@ class BaseTool(object):
                     )
         return strategys
 
-    def change_strategys(self, strategy_list: List[dict]):
+    def change_strategys(self, strategy_list: list[dict]):
         """Change the strategys
 
         Parameters
@@ -713,7 +716,7 @@ class BaseTool(object):
         if self._enabled:
             output = self._execute_after_forward(output)
             if self.on_debug(3):
-                msg = "End Forward, process {} tensors".format(len(self._processed_tensor))
+                msg = f"End Forward, process {len(self._processed_tensor)} tensors"
                 self._logger.debug(self.msg_mark(msg))
             self._forward_cnt += 1
         return output
@@ -869,7 +872,7 @@ class BaseTool(object):
         return len(strategys) > 0
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Process tensor
 
@@ -894,7 +897,7 @@ class BaseTool(object):
 
         return tensor
 
-    def create_tasks(self, **kwargs) -> List[dict]:
+    def create_tasks(self, **kwargs) -> list[dict]:
         """Create tasks for gym
 
         Parameters
@@ -910,7 +913,7 @@ class BaseTool(object):
 
         return []
 
-    def config_generate(self, generate_config: Dict[str, Any]) -> Dict[str, Any]:
+    def config_generate(self, generate_config: dict[str, Any]) -> dict[str, Any]:
         """Update the generate configs
 
         Parameters
@@ -978,9 +981,9 @@ class BaseTool(object):
            The unique name of edge.
         """
 
-        return "{}-c-{}".format(name, consumer)
+        return f"{name}-c-{consumer}"
 
-    def from_tensor_id(self, tensor_id: str) -> Tuple[str]:
+    def from_tensor_id(self, tensor_id: str) -> tuple[str]:
         """Split name from unique id
 
         Parameters
@@ -1048,9 +1051,7 @@ class BaseTool(object):
             The message with mark.
         """
 
-        return "{}[{}]({} @ {}) {}".format(
-            self.tool_type().upper(), self._tag, self.framework(), self._stage, msg
-        )
+        return f"{self.tool_type().upper()}[{self._tag}]({self.framework()} @ {self._stage}) {msg}"
 
     def msg_mark(self, msg: Any, in_forward: bool = True) -> str:
         """Mark the message with debug info
@@ -1068,15 +1069,13 @@ class BaseTool(object):
             The message with mark.
         """
 
-        mark = "{}({} @ {}) G[{}]".format(
-            self.tool_type().upper(), self._tag, self._stage, self._graph_id
-        )
+        mark = f"{self.tool_type().upper()}({self._tag} @ {self._stage}) G[{self._graph_id}]"
         if in_forward:
-            mark += ".F[{}]".format(self._forward_cnt)
+            mark += f".F[{self._forward_cnt}]"
         return mark + " " + str(msg)
 
     def debug_tensors(
-        self, name: str, consumer: str, t_mark: str, tensors: Dict[str, Any], debug_level: int = 3
+        self, name: str, consumer: str, t_mark: str, tensors: dict[str, Any], debug_level: int = 3
     ) -> str:
         """Get the debug tensor info
 
@@ -1105,8 +1104,8 @@ class BaseTool(object):
                     )
                 return str(tensor)
 
-            msg = "{}-{}({})".format(name, consumer, t_mark)
-            tensor_des = "\n  ".join(["{:6s}:{}".format(k, _t_info(v)) for k, v in tensors.items()])
+            msg = f"{name}-{consumer}({t_mark})"
+            tensor_des = "\n  ".join([f"{k:6s}:{_t_info(v)}" for k, v in tensors.items()])
             self._logger.debug("%s\n  %s", self.msg_mark(msg), tensor_des)
 
     def _infer_graph_id(self, kwargs: dict) -> int:
@@ -1137,8 +1136,7 @@ class BaseTool(object):
         """
 
         for g in self._graphs:
-            for n in g.get_nodes():
-                yield n
+            yield from g.get_nodes()
 
     def find_node(self, name: str) -> MSCJoint:
         """Find node by name.
@@ -1157,7 +1155,7 @@ class BaseTool(object):
         for g in self._graphs:
             if g.has_node(name):
                 return g.find_node(name)
-        raise Exception("Can not find node {} from {} graphs".format(name, len(self._graphs)))
+        raise Exception(f"Can not find node {name} from {len(self._graphs)} graphs")
 
     def get_tensors(self) -> Iterable[MSCTensor]:
         """Get all the tensors in the graphs.
@@ -1169,8 +1167,7 @@ class BaseTool(object):
         """
 
         for graph in self._graphs:
-            for tensor in graph.get_tensors():
-                yield tensor
+            yield from graph.get_tensors()
 
     def get_tensor_ids(self) -> Iterable[MSCTensor]:
         """Get all the tensor ids in the graphs.
@@ -1206,7 +1203,7 @@ class BaseTool(object):
         for g in self._graphs:
             if g.has_tensor(t_name):
                 return g.find_tensor(t_name)
-        raise Exception("Can not find tensor {} from {} graphs".format(t_name, len(self._graphs)))
+        raise Exception(f"Can not find tensor {t_name} from {len(self._graphs)} graphs")
 
     def find_producer(self, t_ref: Union[str, MSCTensor]) -> MSCJoint:
         """Find producer by tensor ref.
@@ -1227,10 +1224,10 @@ class BaseTool(object):
             if g.has_tensor(t_name):
                 return g.find_producer(t_name)
         raise Exception(
-            "Can not find producer of {} from {} graphs".format(t_name, len(self._graphs))
+            f"Can not find producer of {t_name} from {len(self._graphs)} graphs"
         )
 
-    def find_consumers(self, t_ref: Union[str, MSCTensor]) -> List[MSCJoint]:
+    def find_consumers(self, t_ref: Union[str, MSCTensor]) -> list[MSCJoint]:
         """Find consumers by tensor ref.
 
         Parameters
@@ -1249,7 +1246,7 @@ class BaseTool(object):
             if g.has_tensor(t_name):
                 return g.find_consumers(t_name)
         raise Exception(
-            "Can not find consumers of {} from {} graphs".format(t_name, len(self._graphs))
+            f"Can not find consumers of {t_name} from {len(self._graphs)} graphs"
         )
 
     def get_data(self, name: str) -> np.ndarray:
@@ -1268,7 +1265,7 @@ class BaseTool(object):
 
         if name in self._weights:
             return msc_utils.cast_array(self._weights[name])
-        raise Exception("Can not find data {} from {} weights".format(name, len(self._weights)))
+        raise Exception(f"Can not find data {name} from {len(self._weights)} weights")
 
     def _save_tensor_cache(self, name: str, consumer: str, key: str, value: Any) -> Any:
         """Save the data to tensor cache
@@ -1319,7 +1316,7 @@ class BaseTool(object):
             return None
         return self._tensor_cache[tensor_id].get(key)
 
-    def _get_tensor_strategys(self, name: str, consumer: str) -> List[ToolStrategy]:
+    def _get_tensor_strategys(self, name: str, consumer: str) -> list[ToolStrategy]:
         """Get the strategys by name and consumer
 
         Parameters
@@ -1336,7 +1333,7 @@ class BaseTool(object):
         """
 
         tensor_id = self.to_tensor_id(name, consumer)
-        mark = "strategy.{}".format(self._stage)
+        mark = f"strategy.{self._stage}"
         if mark not in self._tensor_cache.get(tensor_id, {}):
             strategys = []
 
@@ -1391,9 +1388,7 @@ class BaseTool(object):
         strategys = self._get_tensor_strategys(name, consumer)
         if not strategys:
             return None
-        assert len(strategys) == 1, "{} should only has 1 strategy, get {}".format(
-            self._stage, strategys
-        )
+        assert len(strategys) == 1, f"{self._stage} should only has 1 strategy, get {strategys}"
         return strategys[0]
 
     def get_graph(self):
@@ -1440,8 +1435,8 @@ class WeightTool(BaseTool):
         return super().setup()
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
+    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
@@ -1465,23 +1460,21 @@ class WeightTool(BaseTool):
         if self._weight_graphs:
             assert len(graphs) == len(
                 self._weight_graphs
-            ), "Graphs {} mismatch with weight graphs {}".format(
-                len(graphs), len(self._weight_graphs)
-            )
+            ), f"Graphs {len(graphs)} mismatch with weight graphs {len(self._weight_graphs)}"
         else:
             self._weight_graphs = [
                 _ffi_api.WeightGraph(graph, self._main_wtypes, self._relation_wtypes)
                 for graph in graphs
             ]
-            msg = "build {} weight graphs".format(len(self._weight_graphs))
+            msg = f"build {len(self._weight_graphs)} weight graphs"
             self._logger.debug(self.tool_mark(msg))
         if self.on_debug(2, in_forward=False):
             weight_graphs = {g.name: g.inspect() for g in self._weight_graphs}
-            title = self.tool_mark("WEIGHT_GRAPHS({})".format(len(weight_graphs)))
+            title = self.tool_mark(f"WEIGHT_GRAPHS({len(weight_graphs)})")
             self._logger.debug(msc_utils.msg_block(title, weight_graphs))
         return graphs, weights
 
-    def _get_wtypes(self) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
+    def _get_wtypes(self) -> tuple[dict[str, list[str]], dict[str, str]]:
         """Get the weight types from options
 
         Returns
@@ -1511,7 +1504,7 @@ class WeightTool(BaseTool):
         self._weight_graphs = [
             WeightGraph.from_json(cache_dir.relpath(f)) for f in cache_info["weight_graphs"]
         ]
-        msg = "load {} weight graphs from {}".format(len(self._weight_graphs), cache_dir)
+        msg = f"load {len(self._weight_graphs)} weight graphs from {cache_dir}"
         self._logger.debug(self.tool_mark(msg))
 
     def save_cache(self, cache_dir: msc_utils.MSCDirectory) -> dict:
@@ -1558,8 +1551,7 @@ class WeightTool(BaseTool):
         """
 
         for g in self._weight_graphs:
-            for n in g.get_nodes():
-                yield n
+            yield from g.get_nodes()
 
     def has_w_node(self, name: str) -> bool:
         """Check if name in weight_graphs.
@@ -1597,9 +1589,9 @@ class WeightTool(BaseTool):
         for g in self._weight_graphs:
             if g.has_node(name):
                 return g.find_node(name)
-        raise Exception("Can not find node {} from graphs".format(name))
+        raise Exception(f"Can not find node {name} from graphs")
 
-    def _get_io_axes(self, w_node: WeightJoint) -> Tuple[int, int]:
+    def _get_io_axes(self, w_node: WeightJoint) -> tuple[int, int]:
         """Get the input output axes
 
         Parameters

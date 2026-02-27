@@ -17,12 +17,12 @@
 """tvm.contrib.msc.core.tools.distill.distiller"""
 
 import os
-from typing import List, Any, Dict, Tuple
+from typing import Any
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.tools.tool import ToolType, BaseTool, ToolStrategy
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.ir import MSCGraph
+from tvm.contrib.msc.core.tools.tool import BaseTool, ToolStrategy, ToolType
 
 
 class BaseDistiller(BaseTool):
@@ -43,13 +43,13 @@ class BaseDistiller(BaseTool):
             self._weights_folder = msc_utils.msc_dir(self._options["weights_folder"])
         else:
             self._weights_folder = msc_utils.get_weights_dir().create_dir("Distill")
-        self._weights_path = self._weights_folder.relpath("distill_{}.bin".format(self._max_iter))
+        self._weights_path = self._weights_folder.relpath(f"distill_{self._max_iter}.bin")
         self._distilled = os.path.isfile(self._weights_path)
         return super().setup()
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
-    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
+    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
@@ -72,7 +72,7 @@ class BaseDistiller(BaseTool):
             with open(self._weights_path, "rb") as f:
                 distilled_weights = tvm.runtime.load_param_dict(f.read())
             weights.update({k: v for k, v in distilled_weights.items() if k in weights})
-            msg = "Update {} distilled weights".format(len(distilled_weights))
+            msg = f"Update {len(distilled_weights)} distilled weights"
             self._logger.info(self.tool_mark(msg))
         return super()._reset(graphs, weights)
 
@@ -104,7 +104,7 @@ class BaseDistiller(BaseTool):
         """
 
         if self.on_debug(3, in_forward=False):
-            msg = "Start learn[{}]".format(self._current_iter)
+            msg = f"Start learn[{self._current_iter}]"
             self._logger.debug(self.tool_mark(msg))
         self._total_loss += float(self._learn(loss))
 
@@ -119,7 +119,7 @@ class BaseDistiller(BaseTool):
 
         raise NotImplementedError("_learn is not implemented in BaseDistiller")
 
-    def distill(self) -> Dict[str, Any]:
+    def distill(self) -> dict[str, Any]:
         """Distill the knowledge
 
         Returns
@@ -136,15 +136,13 @@ class BaseDistiller(BaseTool):
         if self._current_iter >= self._max_iter:
             self._distilled = True
             self._plan = {n: msc_utils.inspect_array(d, False) for n, d in weights.items()}
-        msg = "Distill[{}] loss({} batch) {}".format(
-            self._current_iter, self._forward_cnt, self._total_loss
-        )
+        msg = f"Distill[{self._current_iter}] loss({self._forward_cnt} batch) {self._total_loss}"
         self._logger.info(self.tool_mark(msg))
         self._current_iter += 1
         self._total_loss, self._forward_cnt = 0, 0
         return weights
 
-    def _distill(self) -> Dict[str, Any]:
+    def _distill(self) -> dict[str, Any]:
         """Distill the knowledge
 
         Returns
@@ -155,7 +153,7 @@ class BaseDistiller(BaseTool):
 
         raise NotImplementedError("_distill is not implemented in BaseDistiller")
 
-    def _save_weights(self, weights: Dict[str, Any]):
+    def _save_weights(self, weights: dict[str, Any]):
         """Save the distilled weights
 
         Parameters
@@ -165,11 +163,11 @@ class BaseDistiller(BaseTool):
         """
 
         weights = {n: tvm.runtime.tensor(msc_utils.cast_array(d)) for n, d in weights.items()}
-        weights_path = self._weights_folder.relpath("distill_{}.bin".format(self._current_iter))
+        weights_path = self._weights_folder.relpath(f"distill_{self._current_iter}.bin")
         with open(weights_path, "wb") as f_params:
             f_params.write(tvm.runtime.save_param_dict(weights))
         if self._debug_level >= 2:
-            msg = "Save weights[{}] to {}".format(self._current_iter, weights_path)
+            msg = f"Save weights[{self._current_iter}] to {weights_path}"
             self._logger.debug(self.tool_mark(msg))
 
     def _support_scope(self, scope: str) -> bool:
@@ -189,7 +187,7 @@ class BaseDistiller(BaseTool):
         return True
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Process tensor
 
@@ -217,7 +215,7 @@ class BaseDistiller(BaseTool):
         return self._distill_tensor(tensor, name, consumer, scope, strategys)
 
     def _distill_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Process tensor
 

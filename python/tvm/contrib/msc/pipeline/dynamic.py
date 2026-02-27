@@ -17,11 +17,12 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.pipeline.dynamic"""
 
-from typing import Tuple, Any, List
+from typing import Any
 
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.runtime import BaseJIT
 from tvm.contrib.msc.core.utils.message import MSCStage
-from tvm.contrib.msc.core import utils as msc_utils
+
 from .pipeline import BasePipeline
 from .worker import MSCPipeWorker
 
@@ -61,7 +62,7 @@ class MSCDynamic(BasePipeline):
         self._jit_caches = {}
         return super().change_stage(stage, log_stage)
 
-    def _prepare(self, data_loader: Any) -> Tuple[dict, dict]:
+    def _prepare(self, data_loader: Any) -> tuple[dict, dict]:
         """Prepare datas for the pipeline.
 
         Parameters
@@ -140,7 +141,7 @@ class MSCDynamic(BasePipeline):
                 info[name], report[name] = self._worker_ctxs[name]["worker"].prepare()
         return info, report
 
-    def _parse(self) -> Tuple[dict, dict]:
+    def _parse(self) -> tuple[dict, dict]:
         """Parse relax module for the pipeline.
 
         Returns
@@ -175,7 +176,7 @@ class MSCDynamic(BasePipeline):
 
     def _apply_tool(
         self, tool_type: str, knowledge: dict = None, data_loader: Any = None
-    ) -> Tuple[dict, dict]:
+    ) -> tuple[dict, dict]:
         """Apply tool with runner
 
         Parameters
@@ -208,13 +209,13 @@ class MSCDynamic(BasePipeline):
     def _create_runtime(
         self,
         stage: str,
-        tools: List[str] = None,
+        tools: list[str] = None,
         run_type: str = None,
         run_config: dict = None,
         visualize: bool = True,
         profile: bool = True,
         use_cache: bool = True,
-    ) -> Tuple[dict, dict]:
+    ) -> tuple[dict, dict]:
         """Create runtime.
 
         Parameters
@@ -354,7 +355,7 @@ class MSCDynamic(BasePipeline):
             return self._jit.jit_model
         raise TypeError("Unexpect return type " + str(ret_type))
 
-    def pre_forward(self, runner_name: str, inputs: List[Tuple[str, Any]]) -> Any:
+    def pre_forward(self, runner_name: str, inputs: list[tuple[str, Any]]) -> Any:
         """pre forward hook for jit model
 
         Parameters
@@ -370,7 +371,7 @@ class MSCDynamic(BasePipeline):
             cache["inputs"] = inputs
         self._pre_forward(runner_name, inputs)
 
-    def _pre_forward(self, runner_name: str, inputs: List[Tuple[str, Any]]) -> Any:
+    def _pre_forward(self, runner_name: str, inputs: list[tuple[str, Any]]) -> Any:
         """pre forward hook for jit model
 
         Parameters
@@ -384,8 +385,8 @@ class MSCDynamic(BasePipeline):
         return None
 
     def post_forward(
-        self, runner_name: str, outputs: List[Tuple[str, Any]]
-    ) -> List[Tuple[str, Any]]:
+        self, runner_name: str, outputs: list[tuple[str, Any]]
+    ) -> list[tuple[str, Any]]:
         """pre forward hook for jit model
 
         Parameters
@@ -417,8 +418,8 @@ class MSCDynamic(BasePipeline):
         return self._post_forward(runner_name, outputs)
 
     def _post_forward(
-        self, runner_name: str, outputs: List[Tuple[str, Any]]
-    ) -> List[Tuple[str, Any]]:
+        self, runner_name: str, outputs: list[tuple[str, Any]]
+    ) -> list[tuple[str, Any]]:
         """pre forward hook for jit model
 
         Parameters

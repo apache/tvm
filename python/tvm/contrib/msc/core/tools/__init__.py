@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.contrib.msc.core.tools"""
+# isort: skip_file
 
-from .tool import *
+from .distill import *
 from .execute import *
 from .prune import *
 from .quantize import *
-from .distill import *
+from .tool import *
 from .track import *

@@ -18,24 +18,26 @@
 
 import os
 import subprocess
-from typing import Dict, Optional, List, Union, Any
+from typing import Any, Optional, Union
+
 import numpy as np
 
 import tvm
-from tvm.contrib.msc.core.ir import MSCGraph
-from tvm.contrib.msc.core.codegen import CodeGen
-from tvm.contrib.msc.core.utils import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.codegen import CodeGen
+from tvm.contrib.msc.core.ir import MSCGraph
+from tvm.contrib.msc.core.utils import MSCFramework
 from tvm.contrib.msc.framework.tensorrt import _ffi_api
+
 from .sources import get_trt_sources
 from .utils import write_weight
 
 
 def to_sub_tensorrt(
     graph: MSCGraph,
-    weights: Dict[str, tvm.runtime.Tensor],
-    codegen_config: Optional[Dict[str, str]] = None,
-    print_config: Optional[Dict[str, str]] = None,
+    weights: dict[str, tvm.runtime.Tensor],
+    codegen_config: Optional[dict[str, str]] = None,
+    print_config: Optional[dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
     output_folder: msc_utils.MSCDirectory = None,
     plugin: Any = None,
@@ -90,7 +92,7 @@ def to_sub_tensorrt(
                     engine_wts[node.name + ".bias"] = bias
             # write weights file
             with open(folder.relpath(graph.name + ".wts"), "w") as f:
-                f.write("{}\n".format(len(engine_wts)))
+                f.write(f"{len(engine_wts)}\n")
                 for name, data in engine_wts.items():
                     write_weight(name, msc_utils.cast_array(data), f)
         # copy plugin
@@ -112,9 +114,7 @@ def to_sub_tensorrt(
         process.wait()
         assert (
             process.returncode == 0
-        ), "Failed to test engine {} under {}, check engine.log for detail".format(
-            engine_name, os.getcwd()
-        )
+        ), f"Failed to test engine {engine_name} under {os.getcwd()}, check engine.log for detail"
         for path, info in depends.items():
             if info.get("copy_back", False) and os.path.exists(path):
                 folder.copy(path, info["src"])
@@ -144,15 +144,15 @@ def to_sub_tensorrt(
 
 def to_tensorrt(
     mod: tvm.IRModule,
-    graphs: List[MSCGraph],
-    weights: Dict[str, tvm.runtime.Tensor],
-    codegen_configs: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
-    print_configs: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
-    extra_options: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,
+    graphs: list[MSCGraph],
+    weights: dict[str, tvm.runtime.Tensor],
+    codegen_configs: Optional[Union[dict[str, str], list[dict[str, str]]]] = None,
+    print_configs: Optional[Union[dict[str, str], list[dict[str, str]]]] = None,
+    extra_options: Optional[Union[dict[str, str], list[dict[str, str]]]] = None,
     build_folder: msc_utils.MSCDirectory = None,
     output_folder: msc_utils.MSCDirectory = None,
     plugin: Any = None,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Change all MSCGraphs to TensorRT engine files.
 
     Parameters

@@ -16,10 +16,10 @@
 # under the License.
 """tvm.contrib.msc.core.tools.track.configer"""
 
-from tvm.contrib.msc.core.tools.tool import ToolType
-from tvm.contrib.msc.core.tools.configer import ToolConfiger
-from tvm.contrib.msc.core.utils import MSCStage
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.configer import ToolConfiger
+from tvm.contrib.msc.core.tools.tool import ToolType
+from tvm.contrib.msc.core.utils import MSCStage
 
 
 class TrackConfiger(ToolConfiger):

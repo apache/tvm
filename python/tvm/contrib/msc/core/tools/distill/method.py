@@ -17,24 +17,23 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.tools.distill.method"""
 
-from typing import List
 import numpy as np
 
-from tvm.contrib.msc.core.tools.tool import ToolType, BaseTool
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.tool import BaseTool, ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
 @msc_utils.register_tool_method
-class DistillMethod(object):
+class DistillMethod:
     """Default distill method"""
 
     @classmethod
     def loss_lp_norm(
         cls,
         distiller: BaseTool,
-        t_outputs: List[np.ndarray],
-        s_outputs: List[np.ndarray],
+        t_outputs: list[np.ndarray],
+        s_outputs: list[np.ndarray],
         power: int = 2,
     ):
         """Calculate loss with mse

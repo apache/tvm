@@ -16,11 +16,11 @@
 # under the License.
 """tvm.contrib.msc.core.tools.quantize.quantizer"""
 
-from typing import List, Dict, Any
+from typing import Any
 
-from tvm.contrib.msc.core.tools.tool import ToolType, BaseTool, ToolStrategy
-from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.tool import BaseTool, ToolStrategy, ToolType
+from tvm.contrib.msc.core.utils.message import MSCStage
 
 
 class QuantizeStage:
@@ -76,12 +76,12 @@ class BaseQuantizer(BaseTool):
                 self._plan[name] = {k: v for k, v in plan.items() if k not in ("calibrated")}
             self.change_stage(MSCStage.QUANTIZE)
         calib_type = "calibrate" if self._calibrated else "gather"
-        msg = "{} {} plan after {} batch".format(calib_type, len(new_plan), self._forward_cnt)
+        msg = f"{calib_type} {len(new_plan)} plan after {self._forward_cnt} batch"
         self._logger.info(self.tool_mark(msg))
         self._forward_cnt = 0
         return new_plan
 
-    def _parse_strategys(self, strategy_list: List[dict]) -> Dict[str, ToolStrategy]:
+    def _parse_strategys(self, strategy_list: list[dict]) -> dict[str, ToolStrategy]:
         """Parse the strategy to get valid strategy
 
         Parameters
@@ -128,7 +128,7 @@ class BaseQuantizer(BaseTool):
         return True
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Process tensor
 
@@ -156,7 +156,7 @@ class BaseQuantizer(BaseTool):
         return self._quantize_tensor(tensor, name, consumer, strategys)
 
     def _gather_tensor(
-        self, tensor: Any, name: str, consumer: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Gather tensor datas
 
@@ -186,7 +186,7 @@ class BaseQuantizer(BaseTool):
         return tensor
 
     def _quantize_tensor(
-        self, tensor: Any, name: str, consumer: str, strategys: List[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, strategys: list[ToolStrategy]
     ) -> Any:
         """Quantize tensor
 
@@ -212,7 +212,7 @@ class BaseQuantizer(BaseTool):
             tensor = strategy(self, tensor, name, consumer, **self._plan[tensor_id])
         return tensor
 
-    def create_tasks(self, **kwargs) -> List[dict]:
+    def create_tasks(self, **kwargs) -> list[dict]:
         """Create tasks for gym
 
         Parameters

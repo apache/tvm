@@ -18,17 +18,17 @@
 
 import os
 import subprocess
-from typing import Dict, List, Optional, Any, Callable
+from typing import Any, Callable, Optional
 
 import tvm
 from tvm import relax
-from tvm.relax import PyExprVisitor
 from tvm.contrib.msc.core import transform as msc_transform
-from tvm.contrib.msc.core.ir import MSCGraph, MSCTensor
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.ir import MSCGraph, MSCTensor
+from tvm.relax import PyExprVisitor
 
 
-class CodeGen(object):
+class CodeGen:
     """Manager class to generate codes and load model
 
     Parameters
@@ -51,8 +51,8 @@ class CodeGen(object):
         self,
         graph: MSCGraph,
         source_getter: Callable[[MSCGraph, str, str], str],
-        codegen_config: Optional[Dict[str, str]] = None,
-        print_config: Optional[Dict[str, str]] = None,
+        codegen_config: Optional[dict[str, str]] = None,
+        print_config: Optional[dict[str, str]] = None,
         build_folder: msc_utils.MSCDirectory = None,
         code_format: str = "python",
     ):
@@ -65,7 +65,7 @@ class CodeGen(object):
 
     def load(
         self,
-        inputs: Optional[List[Any]] = None,
+        inputs: Optional[list[Any]] = None,
         pre_load: Optional[Callable[[msc_utils.MSCDirectory], Any]] = None,
         post_load: Optional[Callable[[Any, msc_utils.MSCDirectory], Any]] = None,
         build_model: bool = True,
@@ -100,24 +100,25 @@ class CodeGen(object):
             if build_model:
                 if self._code_format == "cpp":
                     with folder.create_dir("build"):
-                        command = "cmake ../ && make && mv {} ../".format(self._graph.name)
+                        command = f"cmake ../ && make && mv {self._graph.name} ../"
                         with open("codegen.log", "w") as log_f:
                             process = subprocess.Popen(
                                 command, stdout=log_f, stderr=log_f, shell=True
                             )
                         process.wait()
-                        assert (
-                            process.returncode == 0
-                        ), "Failed to build {} under {}, check codegen.log for detail".format(
-                            self._graph.name, os.getcwd()
+                        assert process.returncode == 0, (
+                            f"Failed to build {self._graph.name}"
+                            f" under {os.getcwd()}, check codegen.log for detail"
                         )
                     obj = self._graph.name
                 elif self._code_format == "python":
-                    builder = msc_utils.load_callable(self._graph.name + ".py:" + self._graph.name)
+                    builder = msc_utils.load_callable(
+                        self._graph.name + ".py:" + self._graph.name
+                    )
                     obj = builder(*inputs)
                 else:
                     raise NotImplementedError(
-                        "Code format {} is not supported".format(self._code_format)
+                        f"Code format {self._code_format} is not supported"
                     )
                 # post processing
                 if post_load:
@@ -129,9 +130,9 @@ class CodeGen(object):
 
 def to_relax(
     graph: MSCGraph,
-    weights: Optional[Dict[str, tvm.runtime.Tensor]] = None,
-    codegen_config: Optional[Dict[str, str]] = None,
-    print_config: Optional[Dict[str, str]] = None,
+    weights: Optional[dict[str, tvm.runtime.Tensor]] = None,
+    codegen_config: Optional[dict[str, str]] = None,
+    print_config: Optional[dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
     plugin: Any = None,
     use_alias: bool = True,

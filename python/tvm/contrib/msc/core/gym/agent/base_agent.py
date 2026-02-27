@@ -18,12 +18,13 @@
 
 import copy
 import logging
-from typing import Dict, Any, List, Tuple
-from tvm.contrib.msc.core.gym.namespace import GYMObject
+from typing import Any
+
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.gym.namespace import GYMObject
 
 
-class BaseAgent(object):
+class BaseAgent:
     """Basic Agent of MSC.Gym
 
     Parameters
@@ -59,7 +60,7 @@ class BaseAgent(object):
         self._logger = logger or msc_utils.get_global_logger()
         self._logger.info(msc_utils.msg_block(self.agent_mark("SETUP"), self.setup()))
 
-    def _parse_executors(self, executors_dict: dict) -> Dict[str, Tuple[callable, dict]]:
+    def _parse_executors(self, executors_dict: dict) -> dict[str, tuple[callable, dict]]:
         """Parse the executors
 
         Parameters
@@ -79,9 +80,7 @@ class BaseAgent(object):
                 raw_config.pop("method_type") if "method_type" in raw_config else "default"
             )
             method_cls = msc_utils.get_registered_gym_method(GYMObject.AGENT, method_type)
-            assert method_cls, "Can not find method cls for {}:{}".format(
-                GYMObject.AGENT, method_type
-            )
+            assert method_cls, f"Can not find method cls for {GYMObject.AGENT}:{method_type}"
             assert "method" in raw_config, "method should be given to find agent method"
             method_name, method = raw_config.pop("method"), None
             if hasattr(method_cls, method_name):
@@ -105,12 +104,12 @@ class BaseAgent(object):
         return {
             "name": self._name,
             "workspace": self._workspace,
-            "executors": {k: "{}({})".format(v[0], v[2]) for k, v in self._executors.items()},
+            "executors": {k: f"{v[0]}({v[2]})" for k, v in self._executors.items()},
             "options": self._options,
             "debug_level": self._debug_level,
         }
 
-    def init(self, max_task: int, baseline: Dict[str, Any]):
+    def init(self, max_task: int, baseline: dict[str, Any]):
         """Init the agent
 
         Parameters
@@ -129,7 +128,7 @@ class BaseAgent(object):
 
         self._knowledge = {"observations": [], "actions": [], "rewards": []}
 
-    def choose_action(self, task_id: int, observation: Any, action_space: List[dict]) -> List[dict]:
+    def choose_action(self, task_id: int, observation: Any, action_space: list[dict]) -> list[dict]:
         """Choose action based on observation
 
         Parameters
@@ -162,8 +161,8 @@ class BaseAgent(object):
         return actions
 
     def _choose_action(
-        self, task_id: int, observation: Any, action_space: List[dict]
-    ) -> List[dict]:
+        self, task_id: int, observation: Any, action_space: list[dict]
+    ) -> list[dict]:
         """Choose action based on observation
 
         Parameters
@@ -183,7 +182,7 @@ class BaseAgent(object):
 
         raise NotImplementedError("_choose_action is not implemented in BaseAgent")
 
-    def store(self, task_id: int, rewards: List[dict]) -> int:
+    def store(self, task_id: int, rewards: list[dict]) -> int:
         """Store rewards
 
         Parameters
@@ -277,8 +276,8 @@ class BaseAgent(object):
             The execute result.
         """
 
-        assert name in self._executors, "Can not find {} in executors: {}".format(
-            name, self._executors.keys()
+        assert name in self._executors, (
+            f"Can not find {name} in executors: {self._executors.keys()}"
         )
         _, method, config = self._executors[name]
         kwargs.update({k: v for k, v in config.items() if k not in kwargs})
@@ -314,7 +313,7 @@ class BaseAgent(object):
             The message with mark.
         """
 
-        return "AGENT({}) {}".format(self.role_type(), msg)
+        return f"AGENT({self.role_type()}) {msg}"
 
     @classmethod
     def role(cls):

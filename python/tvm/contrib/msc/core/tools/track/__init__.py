@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.contrib.msc.core.tools.track"""
+# isort: skip_file
 
-from .tracker import *
-from .method import *
 from .configer import *
+from .method import *
+from .tracker import *

@@ -17,25 +17,24 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.core.transform.pattern"""
 
-from typing import Mapping, Tuple, Dict, List
+from collections.abc import Mapping
 from functools import partial
 
 import tvm
-from tvm.relax.dpl import pattern as relax_pattern
-
-from tvm.relax.transform import PatternCheckContext
-from tvm.relax.backend.pattern_registry import register_patterns
-from tvm.contrib.msc.core.utils.namespace import MSCMap, MSCKey
-from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core import _ffi_api
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.utils.namespace import MSCKey, MSCMap
+from tvm.relax.backend.pattern_registry import register_patterns
+from tvm.relax.dpl import pattern as relax_pattern
+from tvm.relax.transform import PatternCheckContext
 
 
 def msc_attrs_getter(
-    annotated_expr: Dict[str, tvm.relax.Expr],
+    annotated_expr: dict[str, tvm.relax.Expr],
     anchor: str = "out",
     output: str = None,
-    inputs: List[str] = None,
-) -> Dict[str, str]:
+    inputs: list[str] = None,
+) -> dict[str, str]:
     """Get attributes for fused pattern
 
     Parameters
@@ -81,7 +80,7 @@ def msc_attrs_getter(
 
 def make_relax_conv_bias_pattern(
     op_name: str,
-) -> Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]:
+) -> tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]:
     """A simple utility to create patterns for an conv fused with bias.
 
     Parameters
@@ -134,7 +133,7 @@ def _check_relax_conv_bias(context: PatternCheckContext) -> bool:
 
 
 def make_relax_linear_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+    tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
 ):
     """A simple utility to create patterns for linear.
 
@@ -172,7 +171,7 @@ def _check_relax_linear(context: PatternCheckContext) -> bool:
 
 
 def make_relax_linear_bias_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+    tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
 ):
     """A simple utility to create patterns for linear with bias.
 
@@ -211,7 +210,7 @@ def _check_relax_linear_bias(context: PatternCheckContext) -> bool:
 
 
 def make_relax_embedding_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+    tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
 ):
     """A simple utility to create patterns for embedding.
 
@@ -253,7 +252,7 @@ def _check_relax_embedding(context: PatternCheckContext) -> bool:
 
 
 def make_relax_reshape_embedding_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+    tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
 ):
     """A simple utility to create patterns for reshaped embedding.
 
@@ -307,7 +306,7 @@ def _check_relax_reshape_embedding(context: PatternCheckContext) -> bool:
 
 
 def make_relax_attention_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+    tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
 ):
     """A simple utility to create patterns for attention.
 
@@ -356,7 +355,7 @@ def _check_relax_attention(context: PatternCheckContext) -> bool:
 
 
 def make_relax_mask_attention_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+    tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
 ):
     """A simple utility to create patterns for mask_attention.
 
@@ -408,7 +407,7 @@ def _check_relax_mask_attention(context: PatternCheckContext) -> bool:
 
 def make_opt_relax_conv_bias_pattern(
     op_name: str,
-) -> Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]:
+) -> tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]:
     """Create patterns for an conv2d fused with bias, for mod after optimize.
 
     Parameters
@@ -452,7 +451,7 @@ def _check_opt_relax_conv_bias(context: PatternCheckContext) -> bool:
 
 
 def make_opt_relax_linear_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+    tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
 ):
     """Create patterns for an linear, for mod after optimize.
 
@@ -488,7 +487,7 @@ def _check_opt_relax_linear(context: PatternCheckContext) -> bool:
 
 
 def make_opt_relax_linear_bias_pattern() -> (
-    Tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
+    tuple[relax_pattern.DFPattern, Mapping[str, relax_pattern.DFPattern]]
 ):
     """Create patterns for an linear_bias, for mod after optimize.
 

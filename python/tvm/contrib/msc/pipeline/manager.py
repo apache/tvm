@@ -16,11 +16,12 @@
 # under the License.
 """tvm.contrib.msc.pipeline.manager"""
 
-from typing import Any, List, Tuple
+from typing import Any
 
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.gym.control import create_controller
 from tvm.contrib.msc.core.utils.message import MSCStage
-from tvm.contrib.msc.core import utils as msc_utils
+
 from .pipeline import BasePipeline
 from .worker import MSCPipeWorker
 
@@ -41,7 +42,7 @@ class MSCManager(BasePipeline):
         self._config = self._worker._config
         return super().setup()
 
-    def _prepare(self, data_loader: Any) -> Tuple[dict, dict]:
+    def _prepare(self, data_loader: Any) -> tuple[dict, dict]:
         """Prepare datas for the pipeline.
 
         Parameters
@@ -59,7 +60,7 @@ class MSCManager(BasePipeline):
 
         return self._worker.prepare(data_loader)
 
-    def _parse(self) -> Tuple[dict, dict]:
+    def _parse(self) -> tuple[dict, dict]:
         """Parse relax module for the pipeline.
 
         Returns
@@ -90,7 +91,7 @@ class MSCManager(BasePipeline):
 
     def _apply_tool(
         self, tool_type: str, knowledge: dict = None, data_loader: Any = None
-    ) -> Tuple[dict, dict]:
+    ) -> tuple[dict, dict]:
         """Apply tool with runner
 
         Parameters
@@ -115,13 +116,13 @@ class MSCManager(BasePipeline):
     def _create_runtime(
         self,
         stage: str,
-        tools: List[str] = None,
+        tools: list[str] = None,
         run_type: str = None,
         run_config: dict = None,
         visualize: bool = True,
         profile: bool = True,
         use_cache: bool = True,
-    ) -> Tuple[dict, dict]:
+    ) -> tuple[dict, dict]:
         """Create runtime.
 
         Parameters

@@ -18,26 +18,26 @@
 """tvm.contrib.msc.framework.torch.runtime.runner"""
 
 import time
-from typing import Dict, List, Union, Tuple, Any
-import numpy as np
+from typing import Any, Union
 
+import numpy as np
 import torch
+
 import tvm
-from tvm.contrib.msc.core.runtime import ModelRunner
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.ir import MSCGraph
+from tvm.contrib.msc.core.runtime import ModelRunner
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
-from tvm.contrib.msc.framework.torch.frontend import from_torch
+from tvm.contrib.msc.framework.torch import tools as _tools  # noqa: F401  # registers tool classes
 from tvm.contrib.msc.framework.torch.codegen import to_torch
-from tvm.contrib.msc.framework.torch.frontend import set_weight_alias
-from tvm.contrib.msc.framework.torch import tools
+from tvm.contrib.msc.framework.torch.frontend import from_torch, set_weight_alias
 
 
 class TorchRunner(ModelRunner):
     """Runner of Torch"""
 
-    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
+    def _translate(self, mod: tvm.IRModule) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
         """Translate IRModule to MSCgraphs
 
         Parameters
@@ -82,8 +82,8 @@ class TorchRunner(ModelRunner):
         return model
 
     def _call_runnable(
-        self, runnable: torch.nn.Module, inputs: Dict[str, np.ndarray], device: str
-    ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
+        self, runnable: torch.nn.Module, inputs: dict[str, np.ndarray], device: str
+    ) -> Union[list[np.ndarray], dict[str, np.ndarray]]:
         """Call the runnable to get outputs
 
         Parameters
@@ -107,7 +107,7 @@ class TorchRunner(ModelRunner):
         ]
         return runnable(*torch_inputs)
 
-    def _get_runtime_params(self) -> Dict[str, tvm.runtime.Tensor]:
+    def _get_runtime_params(self) -> dict[str, tvm.runtime.Tensor]:
         """Get the runtime parameters
 
         Returns
@@ -121,9 +121,7 @@ class TorchRunner(ModelRunner):
         params = {}
         for graph in self._graphs:
             for weight in graph.get_weights():
-                assert weight.alias in state_dict, "Missing weight {} in state_dict".format(
-                    weight.alias
-                )
+                assert weight.alias in state_dict, f"Missing weight {weight.alias} in state_dict"
                 params[weight.name] = msc_utils.cast_array(
                     state_dict[weight.alias], MSCFramework.TVM, "cpu"
                 )
@@ -138,7 +136,7 @@ class TorchRunner(ModelRunner):
         return MSCFramework.TORCH
 
     @classmethod
-    def load_native(cls, model: Any, config: dict) -> Tuple[torch.nn.Module, str, bool]:
+    def load_native(cls, model: Any, config: dict) -> tuple[torch.nn.Module, str, bool]:
         """Load the native model
 
         Parameters
@@ -164,13 +162,13 @@ class TorchRunner(ModelRunner):
             native_model = model
         else:
             raise NotImplementedError(
-                "Load native model {} with type {} is not supported".format(model, type(model))
+                f"Load native model {model} with type {type(model)} is not supported"
             )
         parameters = list(model.parameters())
         if parameters:
             ref_device = parameters[0].device
             if ref_device.index:
-                device = "{}:{}".format(ref_device.type, ref_device.index)
+                device = f"{ref_device.type}:{ref_device.index}"
             else:
                 device = ref_device.type
         else:
@@ -181,12 +179,12 @@ class TorchRunner(ModelRunner):
     def run_native(
         cls,
         model: torch.nn.Module,
-        inputs: Dict[str, np.ndarray],
-        input_names: List[str],
-        output_names: List[str],
+        inputs: dict[str, np.ndarray],
+        input_names: list[str],
+        output_names: list[str],
         warm_up: int = 10,
         repeat: int = 0,
-    ) -> Tuple[Dict[str, np.ndarray], float]:
+    ) -> tuple[dict[str, np.ndarray], float]:
         """Run the datas and get outputs
 
         Parameters
@@ -216,7 +214,7 @@ class TorchRunner(ModelRunner):
         if parameters:
             ref_dev = parameters[0].device
             if ref_dev.index:
-                device = "{}:{}".format(ref_dev.type, ref_dev.index)
+                device = f"{ref_dev.type}:{ref_dev.index}"
             else:
                 device = ref_dev.type
         else:
@@ -241,8 +239,8 @@ class TorchRunner(ModelRunner):
         if isinstance(outputs, torch.Tensor):
             assert len(output_names) == 1, "Expect 1 outputs, get " + str(output_names)
             return {output_names[0]: msc_utils.cast_array(outputs)}, avg_time
-        assert len(output_names) == len(outputs), "Outputs mismatch, {} with {}".format(
-            output_names, len(outputs)
+        assert len(output_names) == len(outputs), (
+            f"Outputs mismatch, {output_names} with {len(outputs)}"
         )
         outputs = {
             o_name: msc_utils.cast_array(o_data) for o_name, o_data in zip(output_names, outputs)

@@ -17,15 +17,14 @@
 """tvm.contrib.msc.core.utils.expr"""
 
 import copy
-from typing import Dict, List
 
 import tvm
 from tvm import relax
-from tvm.relax import PyExprVisitor
 from tvm.contrib.msc.core import _ffi_api
+from tvm.relax import PyExprVisitor
 
 
-def legalize_expr_name(name: str, symbols: List[str] = None, dst: str = "_") -> str:
+def legalize_expr_name(name: str, symbols: list[str] = None, dst: str = "_") -> str:
     """Legalize expr name
 
     Parameters
@@ -69,7 +68,7 @@ def get_expr_name(expr: relax.Expr) -> str:
     return name
 
 
-def make_span(kwargs: Dict[str, str], span: relax.Span = None) -> relax.Span:
+def make_span(kwargs: dict[str, str], span: relax.Span = None) -> relax.Span:
     """Make a span from kwargs
 
     Parameters
@@ -215,7 +214,7 @@ def msc_script(mod: tvm.IRModule, script: str = "") -> str:
             if v_name in cur_attr:
                 line += (
                     " # "
-                    + ", ".join(["{}={}".format(k, v) for k, v in cur_attr[v_name].items()])
+                    + ", ".join([f"{k}={v}" for k, v in cur_attr[v_name].items()])
                     + " #"
                 )
         lines.append(line)

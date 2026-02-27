@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """tvm.contrib.msc.core.tools.distill"""
+# isort: skip_file
 
+from .configer import *
 from .distiller import *
 from .method import *
-from .configer import *

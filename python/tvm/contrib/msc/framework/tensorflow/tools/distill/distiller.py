@@ -16,13 +16,13 @@
 # under the License.
 """tvm.contrib.msc.framework.tensorflow.tools.distill.distiller"""
 
-from tvm.contrib.msc.core.tools.tool import ToolType
-from tvm.contrib.msc.core.tools.distill import BaseDistiller
-from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.tools.distill import BaseDistiller
+from tvm.contrib.msc.core.tools.tool import ToolType
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 
 
-class TensorflowDistillerFactory(object):
+class TensorflowDistillerFactory:
     """Distiller factory for tensorflow"""
 
     def create(self, base_cls: BaseDistiller) -> BaseDistiller:

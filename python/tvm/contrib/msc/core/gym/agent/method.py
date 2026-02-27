@@ -18,12 +18,13 @@
 """tvm.contrib.msc.core.gym.agent.method"""
 
 from typing import Any
-from tvm.contrib.msc.core.gym.namespace import GYMObject
+
 from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.core.gym.namespace import GYMObject
 
 
 @msc_utils.register_gym_method
-class AgentMethod(object):
+class AgentMethod:
     """Default prune method"""
 
     @classmethod

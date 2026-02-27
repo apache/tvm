@@ -16,13 +16,15 @@
 # under the License.
 """tvm.contrib.msc.core.tools.execute"""
 
+from collections.abc import Iterable
 from functools import wraps
-from typing import List, Iterable, Any, Dict
+from typing import Any
 
 import tvm
-from tvm.contrib.msc.core.utils.namespace import MSCMap, MSCKey
 from tvm.contrib.msc.core import utils as msc_utils
-from .tool import ToolType, BaseTool
+from tvm.contrib.msc.core.utils.namespace import MSCKey, MSCMap
+
+from .tool import BaseTool, ToolType
 
 
 def _get_tool_key(tool_type: str) -> str:
@@ -85,9 +87,7 @@ def get_tool_cls(framework: str, tool_type: str, config: dict) -> BaseTool:
 
     tool_style = config.pop("tool_style") if "tool_style" in config else "default"
     tool_cls = msc_utils.get_registered_tool(framework, tool_type, tool_style)
-    assert tool_cls, "Can not find tool class for {}:{} @ {}".format(
-        tool_type, tool_style, framework
-    )
+    assert tool_cls, f"Can not find tool class for {tool_type}:{tool_style} @ {framework}"
     return tool_cls
 
 
@@ -216,8 +216,8 @@ def process_tensor(tensor: Any, name: str, consumer: str, scope: str, tag: str =
 
 @tvm.register_global_func("msc_tool.codegen_tensor")
 def codegen_tensor(
-    tensor_ctx: Dict[str, str], name: str, consumer: str, scope: str, tag: str = "main"
-) -> List[str]:
+    tensor_ctx: dict[str, str], name: str, consumer: str, scope: str, tag: str = "main"
+) -> list[str]:
     """Codegen processed tensor describe with tools
 
     Parameters
@@ -303,7 +303,7 @@ def execute_step(step: str, *args, **kwargs):
     else:
         assert (
             len(args) == 1 and not kwargs
-        ), "after step only accept 1 argument, get args {}, kwargs {}".format(args, kwargs)
+        ), f"after step only accept 1 argument, get args {args}, kwargs {kwargs}"
         output = args[0]
     tag = kwargs.pop("tag") if "tag" in kwargs else "main"
     for tool in get_tools(tag):
@@ -321,8 +321,8 @@ def execute_step(step: str, *args, **kwargs):
 
 
 def _execute_step_with_context(
-    step_ctx: Dict[str, Any], step: str, graph_name: str, tag: str = "main"
-) -> Dict[str, Any]:
+    step_ctx: dict[str, Any], step: str, graph_name: str, tag: str = "main"
+) -> dict[str, Any]:
     """Execute step with contect
 
     Parameters
@@ -358,8 +358,8 @@ def _execute_step_with_context(
 
 @tvm.register_global_func("msc_tool.codegen_step")
 def codegen_step(
-    step_ctx: Dict[str, str], step: str, graph_name: str, tag: str = "main"
-) -> List[str]:
+    step_ctx: dict[str, str], step: str, graph_name: str, tag: str = "main"
+) -> list[str]:
     """Codegen step codes
 
     Parameters
@@ -385,7 +385,7 @@ def codegen_step(
 
 
 @tvm.register_global_func("msc_tool.callback_step")
-def callback_step(step_ctx: Dict[str, Any], step: str, graph_name: str = "main", tag: str = "main"):
+def callback_step(step_ctx: dict[str, Any], step: str, graph_name: str = "main", tag: str = "main"):
     """Execute tools for a step
 
     Parameters

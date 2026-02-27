@@ -16,8 +16,10 @@
 # under the License.
 """tvm.contrib.msc.core.gym.search_agent"""
 
-from typing import Any, List
+from typing import Any
+
 from tvm.contrib.msc.core import utils as msc_utils
+
 from .base_agent import BaseAgent
 
 
@@ -46,8 +48,8 @@ class GridSearchAgent(BaseSearchAgent):
     """GridSearch agent"""
 
     def _choose_action(
-        self, task_id: int, observation: Any, action_space: List[dict]
-    ) -> List[dict]:
+        self, task_id: int, observation: Any, action_space: list[dict]
+    ) -> list[dict]:
         """Choose action based on observation
 
         Parameters
@@ -108,8 +110,8 @@ class BinarySearchAgent(BaseSearchAgent):
         super().reset()
 
     def _choose_action(
-        self, task_id: int, observation: Any, action_space: List[dict]
-    ) -> List[dict]:
+        self, task_id: int, observation: Any, action_space: list[dict]
+    ) -> list[dict]:
         """Choose action based on observation
 
         Parameters

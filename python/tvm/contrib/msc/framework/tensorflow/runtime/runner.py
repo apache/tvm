@@ -17,23 +17,25 @@
 # pylint: disable=not-context-manager,unused-import
 """tvm.contrib.msc.framework.tensorflow.runtime.runner"""
 
-import time
-from typing import Dict, List, Union, Any, Tuple
-import numpy as np
+# isort: skip_file
 
+import time
+from typing import Any, Union
+
+import numpy as np
 from tensorflow.python.client import device_lib
 from tensorflow.python.ops import variables
 
 import tvm
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.runtime import ModelRunner
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
-from tvm.contrib.msc.core import utils as msc_utils
-from tvm.contrib.msc.framework.tensorflow.frontend import from_tensorflow
-from tvm.contrib.msc.framework.tensorflow.codegen import to_tensorflow
 from tvm.contrib.msc.framework.tensorflow import tf_v1
-from tvm.contrib.msc.framework.tensorflow import tools
+from tvm.contrib.msc.framework.tensorflow import tools as _tools  # noqa: F401  # registers tool classes
+from tvm.contrib.msc.framework.tensorflow.codegen import to_tensorflow
+from tvm.contrib.msc.framework.tensorflow.frontend import from_tensorflow
 
 
 class WrapSession(tf_v1.Session):
@@ -43,7 +45,7 @@ class WrapSession(tf_v1.Session):
         super().__init__(*args, **kwargs)
         self._inputs, self._outputs = None, None
 
-    def set_bindings(self, inputs: List[Dict[str, str]], outputs: List[Dict[str, str]]):
+    def set_bindings(self, inputs: list[dict[str, str]], outputs: list[dict[str, str]]):
         """Set inputs and outputs for session
 
         Parameters
@@ -88,7 +90,7 @@ class TensorflowRunner(ModelRunner):
         super().destory()
 
     def _generate_model(
-        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
     ) -> tf_v1.Graph:
         """Codegen the model according to framework
 
@@ -136,8 +138,8 @@ class TensorflowRunner(ModelRunner):
         return self._session
 
     def _call_runnable(
-        self, runnable: WrapSession, inputs: Dict[str, np.ndarray], device: str
-    ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
+        self, runnable: WrapSession, inputs: dict[str, np.ndarray], device: str
+    ) -> Union[list[np.ndarray], dict[str, np.ndarray]]:
         """Call the runnable to get outputs
 
         Parameters
@@ -168,7 +170,7 @@ class TensorflowRunner(ModelRunner):
         return MSCFramework.TENSORFLOW
 
     @classmethod
-    def load_native(cls, model: Any, config: dict) -> Tuple[tf_v1.GraphDef, str, bool]:
+    def load_native(cls, model: Any, config: dict) -> tuple[tf_v1.GraphDef, str, bool]:
         """Load the native model
 
         Parameters
@@ -192,7 +194,7 @@ class TensorflowRunner(ModelRunner):
             native_model = model
         else:
             raise NotImplementedError(
-                "Load native model {} with type {} is not supported".format(model, type(model))
+                f"Load native model {model} with type {type(model)} is not supported"
             )
         device_protos = device_lib.list_local_devices()
         if any(dev.dlpack_device_type() == "GPU" for dev in device_protos):
@@ -205,12 +207,12 @@ class TensorflowRunner(ModelRunner):
     def run_native(
         cls,
         model: tf_v1.GraphDef,
-        inputs: Dict[str, np.ndarray],
-        input_names: List[str],
-        output_names: List[str],
+        inputs: dict[str, np.ndarray],
+        input_names: list[str],
+        output_names: list[str],
         warm_up: int = 10,
         repeat: int = 0,
-    ) -> Tuple[Dict[str, np.ndarray], float]:
+    ) -> tuple[dict[str, np.ndarray], float]:
         """Run the datas and get outputs
 
         Parameters
