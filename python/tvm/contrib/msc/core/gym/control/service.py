@@ -21,6 +21,7 @@ import copy
 import json
 import queue
 import time
+from collections.abc import Callable
 from functools import partial, reduce
 from multiprocessing import Manager
 from typing import Any
@@ -54,7 +55,7 @@ def _send_message(msg_queue: queue.Queue, header: str, body: dict, header_type: 
 def _wait_message(
     msg_queue: queue.Queue,
     header: str,
-    checker: callable | None = None,
+    checker: Callable | None = None,
     wait_time: int = 2,
     max_retry: int = -1,
     header_type: str = "message",
@@ -82,7 +83,7 @@ def _wait_message(
         The message body
     """
 
-    def _check_message(message: dict, checker: callable | None = None) -> bool:
+    def _check_message(message: dict, checker: Callable | None = None) -> bool:
         """Check the message
 
         Parameters
@@ -323,7 +324,7 @@ class BaseService:
     def _wait_request(
         self,
         msg_key: str,
-        checker: callable | None = None,
+        checker: Callable | None = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:
@@ -346,7 +347,7 @@ class BaseService:
     def _wait_response(
         self,
         msg_key: str,
-        checker: callable | None = None,
+        checker: Callable | None = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:
@@ -598,7 +599,7 @@ class MainService(BaseService):
         self,
         msg_key: str,
         requests: list[dict],
-        checker: callable | None = None,
+        checker: Callable | None = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:

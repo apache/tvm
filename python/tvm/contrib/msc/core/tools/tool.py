@@ -21,7 +21,7 @@
 import copy
 import logging
 import os
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from itertools import product
 from typing import Any
 
@@ -100,7 +100,7 @@ class ToolExecutor:
     def copy(
         self,
         name: str | None = None,
-        method: callable | None = None,
+        method: Callable | None = None,
         config: dict | None = None,
     ):
         """Copy a executor

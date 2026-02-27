@@ -17,6 +17,7 @@
 # pylint: disable=unused-argument, arguments-differ
 """tvm.contrib.msc.core.runtime.hook"""
 
+from collections.abc import Callable
 from typing import Any
 
 import tvm
@@ -96,7 +97,7 @@ class CustomizedHook(RunnerHook):
         The config of the func.
     """
 
-    def __init__(self, func: str | callable, config: dict):
+    def __init__(self, func: str | Callable, config: dict):
         super().__init__(config)
         self._func = msc_utils.load_callable(func)
 

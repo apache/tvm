@@ -20,7 +20,7 @@
 import json
 import logging
 import os
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 import numpy as np
@@ -649,8 +649,8 @@ class BaseRunner:
 
         def _finalize_tool(
             checker: callable,
-            post_batch: callable | None = None,
-            post_iter: callable | None = None,
+            post_batch: Callable | None = None,
+            post_iter: Callable | None = None,
         ):
             tool = self.get_tool(tool_type)
             while not checker(tool):

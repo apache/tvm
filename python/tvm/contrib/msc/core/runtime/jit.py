@@ -18,6 +18,7 @@
 """tvm.contrib.msc.core.runtime.jit_model"""
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from tvm.contrib.msc.core import utils as msc_utils
@@ -175,8 +176,8 @@ class BaseJIT:
 
         def _finalize_tool(
             checker: callable,
-            post_batch: callable | None = None,
-            post_iter: callable | None = None,
+            post_batch: Callable | None = None,
+            post_iter: Callable | None = None,
         ):
             while any(not checker(t) for t in tools.values()):
                 assert data_loader, "data_loader should be given to make plan for " + tool_type
