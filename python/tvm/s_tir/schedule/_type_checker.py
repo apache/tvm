@@ -66,10 +66,13 @@ if hasattr(typing, "_GenericAlias"):
         def list_(type_: Any) -> Any:
             if _Subtype._origin(type_) is list:
                 if hasattr(typing, "get_args"):
-                    (subtype,) = typing.get_args(type_)  # type: ignore
+                    args = typing.get_args(type_)  # type: ignore
                 else:
-                    (subtype,) = type_.__args__
-                return [subtype]
+                    args = type_.__args__
+                if len(args) == 1:
+                    return [args[0]]
+                # Handle list[X | Y] where get_args may return individual types
+                return [Union[args]]  # noqa: UP007 (runtime use)
             return None
 
         @staticmethod
@@ -132,8 +135,11 @@ elif hasattr(typing, "_Union"):
         def list_(type_: Any) -> list[type] | None:
             if isinstance(type_, typing.GenericMeta):  # type: ignore # pylint: disable=no-member
                 if type_.__name__ == "List":
-                    (subtype,) = type_.__args__  # type: ignore # pylint: disable=no-member
-                    return [subtype]
+                    args = type_.__args__  # type: ignore # pylint: disable=no-member
+                    if len(args) == 1:
+                        return [args[0]]
+                    # Handle list[X | Y] where args may return individual types
+                    return [Union[args]]  # noqa: UP007 (runtime use)
             return None
 
         @staticmethod
