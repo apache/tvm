@@ -139,7 +139,7 @@ class TransitiveComparisonAnalyzer::Impl {
    * \see ExprToKey
    * \see ExprToPreviousKey
    */
-  std::unordered_map<PrimExpr, Key, StructuralHash, StructuralEqual> expr_to_key;
+  std::unordered_map<PrimExpr, Key, ffi::StructuralHash, ffi::StructuralEqual> expr_to_key;
 
   /*! \brief Internal representation of a comparison operator */
   struct Comparison {

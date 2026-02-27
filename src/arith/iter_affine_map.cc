@@ -458,10 +458,12 @@ class IterMapRewriter : public ExprMutator {
   // usage of an input iterator.  (e.g. (i-1) occurring in the
   // expressions [(i-1)%8, ((i-1)//8)%4, (i-1)//32] should be
   // left-padded by 31 for each occurrence.)
-  std::unordered_map<IterMark, IterPaddingInfo, StructuralHash, StructuralEqual> padded_iter_map_;
+  std::unordered_map<IterMark, IterPaddingInfo, ffi::StructuralHash, ffi::StructuralEqual>
+      padded_iter_map_;
 
   // Map from padded iter mark to it's origin mark
-  std::unordered_map<IterMark, IterMark, StructuralHash, StructuralEqual> padded_origin_map_;
+  std::unordered_map<IterMark, IterMark, ffi::StructuralHash, ffi::StructuralEqual>
+      padded_origin_map_;
 
   /* If update_iterator_padding_ is true, allow the extents of the IterMap to be
    * padded beyond the original iterators.

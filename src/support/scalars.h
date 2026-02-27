@@ -25,6 +25,7 @@
 #ifndef TVM_SUPPORT_SCALARS_H_
 #define TVM_SUPPORT_SCALARS_H_
 
+#include <cmath>
 #include <string>
 
 #include "tvm/ir/expr.h"
