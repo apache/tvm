@@ -127,7 +127,7 @@ set(USE_CPP_RTVM OFF)
 set(USE_IOS_RPC OFF)
 
 # Whether build with LLVM support
-# Requires LLVM version >= 4.0
+# Requires LLVM version >= 15
 #
 # Possible values:
 # - ON: enable llvm with CMake's find search
