@@ -17,7 +17,8 @@
 """TVM Script Parser utils"""
 
 import inspect
-from collections.abc import Callable
+from collections import ChainMap
+from collections.abc import Callable, Mapping
 from types import FrameType
 from typing import Any
 
@@ -87,6 +88,17 @@ def inspect_class_capture(cls: type) -> dict[str, Any]:
             func_vars = inspect_function_capture(v)
             result.update(**func_vars)
     return result
+
+
+def with_caller_frame_fallback(extra_vars: dict[str, Any], outer_stack: list) -> Mapping[str, Any]:
+    """Wrap extra_vars with lazy caller-frame fallback for PEP 563 compatibility.
+
+    With ``from __future__ import annotations``, variables used only in
+    annotations are not captured in ``__closure__``.  ChainMap defers
+    lookup to caller-frame locals only when a key is missing from the
+    primary dict (globals + closure).
+    """
+    return ChainMap(extra_vars, *[f.frame.f_locals for f in outer_stack[1:]])
 
 
 def is_defined_in_class(frames: list[FrameType], obj: Any) -> bool:

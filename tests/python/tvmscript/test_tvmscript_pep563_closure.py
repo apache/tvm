@@ -128,8 +128,8 @@ def test_ir_module_closure():
     def expected_32(A: T.Buffer((32,), "float32")):
         T.evaluate(0)
 
-    tvm.ir.assert_structural_equal(f(16)["main"], expected_16.with_attr("global_symbol", "main"))
-    tvm.ir.assert_structural_equal(f(32)["main"], expected_32.with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(_normalize(f(16)["main"]), _normalize(expected_16))
+    tvm.ir.assert_structural_equal(_normalize(f(32)["main"]), _normalize(expected_32))
 
 
 def test_mixed_closure_usage():
