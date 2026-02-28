@@ -399,5 +399,138 @@ def test_sequential_redefinition_with_location():
     assert "later re-defined at" in error_msg
 
 
+def test_buffer_in_buffer_map_is_well_formed():
+    """Buffers defined via function parameter buffer_map are in scope for the body."""
+
+    @T.prim_func
+    def func(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+        for i in T.grid(128):
+            B[i] = A[i] * 2.0
+
+    tvm.tir.analysis.verify_well_formed(func)
+
+
+def test_decl_buffer_is_well_formed():
+    """A DeclBuffer statement introduces a buffer into scope for its body."""
+
+    @T.prim_func
+    def func(A: T.Buffer((128,), "float32")):
+        B_data = T.allocate([128], "float32", "global")
+        B = T.decl_buffer([128], "float32", data=B_data)
+        for i in T.grid(128):
+            B[i] = A[i] * 2.0
+
+    tvm.tir.analysis.verify_well_formed(func)
+
+
+def test_alloc_buffer_in_block_is_well_formed():
+    """SBlock::alloc_buffers introduces a buffer into scope for the block body."""
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def func(A: T.Buffer((128,), "float32")):
+            with T.sblock("root"):
+                B = T.alloc_buffer([128], "float32")
+                for i in T.grid(128):
+                    with T.sblock("write_B"):
+                        vi = T.axis.remap("S", [i])
+                        B[vi] = A[vi] * 2.0
+
+    tvm.tir.analysis.verify_well_formed(mod)
+
+
+def test_match_buffer_in_block_is_well_formed():
+    """SBlock::match_buffers introduces a buffer into scope for the block body."""
+
+    @I.ir_module
+    class mod:
+        @T.prim_func
+        def func(A: T.Buffer((128, 128), "float32")):
+            for iters in T.grid(8, 8, 16, 16):
+                with T.sblock("compute"):
+                    ti, tj, i, j = T.axis.remap("SSSS", iters)
+                    A_tile = T.match_buffer(
+                        A[ti * 16 : (ti + 1) * 16, tj * 16 : (tj + 1) * 16],
+                        dtype="float32",
+                    )
+                    A_tile[i, j] = A_tile[i, j] * 2.0
+
+    tvm.tir.analysis.verify_well_formed(mod)
+
+
+def test_error_buffer_used_out_of_decl_scope():
+    """A buffer may not be used after its DeclBuffer scope ends.
+
+    This test manually constructs TIR where a buffer's DeclBuffer scope ends
+    before it is referenced, verifying that the out-of-scope use is detected.
+    """
+    # Manually build TIR:
+    #   DeclBuffer(B, body=Evaluate(B[0])),  # B is in scope here
+    #   BufferStore(A, B[0], [0]),            # B is OUT of scope here
+    n = 128
+    A = tvm.tir.decl_buffer([n], "float32", name="A")
+    B = tvm.tir.decl_buffer([n], "float32", name="B")
+
+    # B is used within the DeclBuffer body (valid).
+    b_use_inside = tvm.tir.Evaluate(tvm.tir.BufferLoad(B, [0]))
+    decl_b = tvm.tir.DeclBuffer(B, body=b_use_inside)
+
+    # B is referenced AFTER the DeclBuffer scope has ended (invalid).
+    b_use_outside = tvm.tir.BufferStore(A, tvm.tir.BufferLoad(B, [0]), [0])
+
+    body = tvm.tir.SeqStmt([decl_b, b_use_outside])
+
+    prim_func = tvm.tir.PrimFunc(
+        params=[A.data, B.data],
+        body=body,
+        buffer_map={A.data: A},
+    )
+
+    with pytest.raises(ValueError, match="buffer B.*declaration is no longer in-scope"):
+        tvm.tir.analysis.verify_well_formed(prim_func)
+
+
+def test_error_undeclared_buffer_in_schedulable_tir():
+    """In schedule-level TIR (with SBlock nodes), all buffers must be declared."""
+    # Manually construct a BufferStore that uses a buffer without any declaration
+    # inside a block context.
+    n = tvm.tir.SizeVar("n", "int32")
+    A = tvm.tir.decl_buffer([n], "float32", name="A")
+    i = tvm.tir.Var("i", "int32")
+
+    # Create an undeclared buffer using an explicit data pointer that is NOT
+    # in the buffer_map and NOT wrapped with DeclBuffer.
+    B_data = tvm.tir.Var("B_data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
+    B = tvm.tir.decl_buffer([n], "float32", name="B", data=B_data)
+
+    # Build a block that writes to B without any declaration of B.
+    bi = tvm.tir.SizeVar("bi", "int32")
+    block = tvm.tir.SBlock(
+        iter_vars=[tvm.tir.IterVar(tvm.ir.Range(0, n), bi, 0)],  # 0 = kDataPar
+        reads=[tvm.tir.BufferRegion(A, [tvm.ir.Range(bi, bi + 1)])],
+        writes=[tvm.tir.BufferRegion(B, [tvm.ir.Range(bi, bi + 1)])],
+        body=tvm.tir.BufferStore(B, tvm.tir.BufferLoad(A, [bi]), [bi]),
+        name_hint="write_B",
+    )
+    block_realize = tvm.tir.SBlockRealize(
+        iter_values=[i],
+        predicate=tvm.tir.const(True),
+        block=block,
+    )
+
+    prim_func = tvm.tir.PrimFunc(
+        params=[A.data, B_data],
+        body=tvm.tir.For(i, 0, n, tvm.tir.ForKind.SERIAL, block_realize),
+        buffer_map={A.data: A},
+        # Note: B is NOT in buffer_map, so its declaration scope is only
+        # within a DeclBuffer node (which we intentionally omit here).
+    )
+
+    # B is used in the block but was never declared — should fail.
+    with pytest.raises(ValueError, match="buffer B.*without a prior DeclBuffer"):
+        tvm.tir.analysis.verify_well_formed(prim_func)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

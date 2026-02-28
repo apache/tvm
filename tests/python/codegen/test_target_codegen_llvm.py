@@ -35,7 +35,7 @@ def test_llvm_intrin():
     class Module:
         @T.prim_func
         def main(A: T.handle("float32")):
-            A_buf = T.Buffer((4,), "float32", data=A)
+            A_buf = T.decl_buffer((4,), "float32", data=A)
             T.evaluate(T.Call("void", "tir.prefetch", [T.address_of(A_buf[0]), 0, 3, 1]))
 
     fcode = tvm.compile(Module)
@@ -89,7 +89,7 @@ def test_llvm_lookup_intrin():
     class Module:
         @T.prim_func
         def main(A: T.handle("uint8x8")):
-            A_buf = T.Buffer((1,), "uint8x8", data=A)
+            A_buf = T.decl_buffer((1,), "uint8x8", data=A)
             T.evaluate(T.call_llvm_pure_intrin("uint8x8", "llvm.ctpop.v8i8", T.uint32(1), A_buf[0]))
 
     fcode = tvm.compile(Module, None)
@@ -1044,11 +1044,11 @@ def test_llvm_assume():
         @T.prim_func
         def main(A: T.Buffer((4, 4), "int32"), B: T.Buffer((14,), "int32")):
             T.func_attr({"tir.noalias": True})
-            A_1 = T.Buffer((16,), "int32", data=A.data)
+            A_1 = T.decl_buffer((16,), "int32", data=A.data)
             for axis0, axis1 in T.grid(4, 4):
                 T.assume(axis0 < 3 or axis1 < 2 or A_1[axis0 * 4 + axis1] == 0)
             for i in range(14):
-                B_1 = T.Buffer((14,), "int32", data=B.data)
+                B_1 = T.decl_buffer((14,), "int32", data=B.data)
                 B_1[i] = A_1[i] * 2
 
     m = tvm.compile(Module, target="llvm")
@@ -1068,8 +1068,8 @@ def test_debug_symbol_for_float64():
         @T.prim_func
         def main(a: T.handle("float64"), b: T.handle("float64"), n: T.int64):
             T.func_attr({"calling_conv": 2})
-            A = T.Buffer(16, "float64", data=a)
-            B = T.Buffer(16, "float64", data=b)
+            A = T.decl_buffer(16, "float64", data=a)
+            B = T.decl_buffer(16, "float64", data=b)
             for i in range(n):
                 B[i] = A[i]
 
@@ -1174,7 +1174,7 @@ def test_invalid_volatile_masked_buffer_load():
             B = T.match_buffer(b, [4])
             a = T.allocate([4], "float32", scope="global")
             T.attr(a, "volatile_scope", 1)
-            A = T.Buffer([4], data=a)
+            A = T.decl_buffer([4], data=a)
             B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
 
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
@@ -1190,7 +1190,7 @@ def test_invalid_volatile_masked_buffer_store():
         def main():
             a = T.allocate([4], "float32", scope="global")
             T.attr(a, "volatile_scope", 1)
-            A = T.Buffer([4], data=a)
+            A = T.decl_buffer([4], data=a)
             A.vstore([T.Ramp(0, 1, 4)], T.Broadcast(0.0, 4), predicate=T.Broadcast(T.bool(True), 4))
 
     err_msg = "The masked store intrinsic does not support declaring store as volatile."

@@ -156,7 +156,7 @@ def test_reused_buffer_obj():
 
     @T.prim_func(private=True)
     def func(a: T.handle("float32")):
-        A = T.Buffer(shape=1, dtype="float32", data=a)
+        A = T.decl_buffer(shape=1, dtype="float32", data=a)
         T.evaluate(A[0])
 
     before = tvm.IRModule(
@@ -170,12 +170,12 @@ def test_reused_buffer_obj():
     class expected:
         @T.prim_func
         def func_a(a: T.handle("float32")):
-            A = T.Buffer(shape=1, dtype="float32", data=a)
+            A = T.decl_buffer(shape=1, dtype="float32", data=a)
             T.evaluate(A[0])
 
         @T.prim_func
         def func_b(a: T.handle("float32")):
-            A = T.Buffer(shape=1, dtype="float32", data=a)
+            A = T.decl_buffer(shape=1, dtype="float32", data=a)
             T.evaluate(A[0])
 
     after = tvm.tir.transform.ConvertSSA()(before)
