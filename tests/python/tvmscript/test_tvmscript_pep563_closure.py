@@ -22,8 +22,9 @@ test condition itself, because we need to test compatibility with it.
 from __future__ import annotations
 
 import tvm
-from tvm.script import tir as T, ir as I
 import tvm.testing
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 def _normalize(func):
