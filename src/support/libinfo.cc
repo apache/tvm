@@ -50,10 +50,6 @@
 #define TVM_INFO_USE_NCCL "NOT-FOUND"
 #endif
 
-#ifndef TVM_INFO_USE_MSCCLPP
-#define TVM_INFO_USE_MSCCLPP "NOT-FOUND"
-#endif
-
 #ifndef TVM_INFO_CUDA_VERSION
 #define TVM_INFO_CUDA_VERSION "NOT-FOUND"
 #endif
@@ -259,7 +255,6 @@ TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {
       {"USE_CUDA", TVM_INFO_USE_CUDA},
       {"USE_NVTX", TVM_INFO_USE_NVTX},
       {"USE_NCCL", TVM_INFO_USE_NCCL},
-      {"USE_MSCCL", TVM_INFO_USE_MSCCL},
       {"USE_CUDNN", TVM_INFO_USE_CUDNN},
       {"USE_CUSTOM_LOGGING", TVM_INFO_USE_CUSTOM_LOGGING},
       {"USE_CUTLASS", TVM_INFO_USE_CUTLASS},
