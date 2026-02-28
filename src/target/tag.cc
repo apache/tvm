@@ -28,7 +28,7 @@
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
 
-#include "../node/attr_registry.h"
+#include "../ir/attr_registry.h"
 
 namespace tvm {
 

@@ -32,7 +32,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../../../node/attr_registry.h"
+#include "../../../../ir/attr_registry.h"
 #include "../utils.h"
 
 namespace tvm {

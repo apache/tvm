@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/node/attr_registry.h
+ * \file tvm/ir/attr_registry.h
  * \brief Common global registry for objects that also have additional attrs.
  */
-#ifndef TVM_NODE_ATTR_REGISTRY_H_
-#define TVM_NODE_ATTR_REGISTRY_H_
+#ifndef TVM_IR_ATTR_REGISTRY_H_
+#define TVM_IR_ATTR_REGISTRY_H_
 
 #include <tvm/ffi/function.h>
 #include <tvm/node/attr_registry_map.h>
@@ -169,4 +169,4 @@ class AttrRegistry {
 };
 
 }  // namespace tvm
-#endif  // TVM_NODE_ATTR_REGISTRY_H_
+#endif  // TVM_IR_ATTR_REGISTRY_H_

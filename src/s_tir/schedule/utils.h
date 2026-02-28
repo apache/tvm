@@ -39,7 +39,7 @@
 #include <utility>
 
 #include "../../arith/pattern_match.h"
-#include "../../node/attr_registry.h"
+#include "../../ir/attr_registry.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/array.h"
 #include "../../support/nd_int_set.h"
