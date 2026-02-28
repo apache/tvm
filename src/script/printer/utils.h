@@ -73,10 +73,9 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
     if (d->cfg->show_meta) {
       os << "metadata = tvm.ir.load_json(\"\"\""
          << support::StrEscape(
-                ffi::json::Stringify(
-                    ffi::ToJSONGraph(
-                        ffi::Map<ffi::String, ffi::Any>(d->metadata.begin(), d->metadata.end())),
-                    2),
+                ffi::json::Stringify(ffi::ToJSONGraph(ffi::Map<ffi::String, ffi::Any>(
+                                         d->metadata.begin(), d->metadata.end())),
+                                     2),
                 false, false)
          << "\"\"\")\n";
     } else {
