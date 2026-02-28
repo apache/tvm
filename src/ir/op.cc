@@ -30,7 +30,7 @@
 
 #include <memory>
 
-#include "../node/attr_registry.h"
+#include "attr_registry.h"
 
 namespace tvm {
 
