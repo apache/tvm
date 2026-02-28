@@ -180,7 +180,7 @@ FMT_MAP = {
 }
 
 # Files and patterns to skip during header checking.
-# Mirrors the previous rat-excludes file plus 3rdparty.
+# Files and patterns to skip (3rdparty, generated files, etc.).
 SKIP_LIST: list[str] = [
     "3rdparty/*",
     "ffi/3rdparty/*",

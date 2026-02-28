@@ -31,20 +31,11 @@ function shard1 {
 
   echo "Running pre-commit hooks..."
   pre-commit run --all-files
-
-  echo "Checking C++ documentation..."
-  tests/lint/cppdocs.sh
-
-  echo "Linting the C++ code (regex header check)..."
-  tests/lint/cpplint.sh
-
-  echo "Docker check..."
-  tests/lint/docker-format.sh
 }
 
 function shard2 {
-  # shard2 is a no-op: the old lint checks have been replaced by pre-commit hooks in shard1.
-  echo "Lint shard2: no-op (checks moved to pre-commit in shard1)"
+  # shard2 is a no-op: all lint checks run via pre-commit in shard1.
+  echo "Lint shard2: no-op (all checks in pre-commit / shard1)"
 }
 
 
