@@ -20,7 +20,7 @@
 
 import os
 import time
-from typing import Any, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 
@@ -51,7 +51,7 @@ class WrapRunnable:
         self._runnable = runnable
         self._entry = entry
 
-    def __call__(self, *inputs) -> list[tvm.runtime.Tensor]:
+    def __call__(self, *inputs) -> List[tvm.runtime.Tensor]:
         execute_step("before_forward", *inputs)
         output = self._runnable[self._entry](*inputs)
         return execute_step("after_forward", output)
@@ -115,8 +115,8 @@ class TVMRunner(ModelRunner):
         return WrapRunnable(runnable)
 
     def _call_runnable(
-        self, runnable: WrapRunnable, inputs: dict[str, np.ndarray], device: str
-    ) -> list[np.ndarray] | dict[str, np.ndarray]:
+        self, runnable: WrapRunnable, inputs: Dict[str, np.ndarray], device: str
+    ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
         """Call the runnable to get outputs
 
         Parameters
@@ -172,7 +172,7 @@ class TVMRunner(ModelRunner):
         return MSCFramework.TVM
 
     @classmethod
-    def load_native(cls, model: Any, config: dict) -> tuple[tvm.IRModule, str, bool]:
+    def load_native(cls, model: Any, config: dict) -> Tuple[tvm.IRModule, str, bool]:
         """Load the native model
 
         Parameters
@@ -211,12 +211,12 @@ class TVMRunner(ModelRunner):
     def run_native(
         cls,
         model: tvm.IRModule,
-        inputs: dict[str, np.ndarray],
-        input_names: list[str],
-        output_names: list[str],
+        inputs: Dict[str, np.ndarray],
+        input_names: List[str],
+        output_names: List[str],
         warm_up: int = 10,
         repeat: int = 0,
-    ) -> tuple[dict[str, np.ndarray], float]:
+    ) -> Tuple[Dict[str, np.ndarray], float]:
         """Run the datas and get outputs
 
         Parameters

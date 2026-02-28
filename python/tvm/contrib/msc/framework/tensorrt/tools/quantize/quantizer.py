@@ -19,7 +19,7 @@
 
 import os
 import struct
-from typing import Any
+from typing import Any, Dict, List, Tuple
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -68,8 +68,8 @@ class TensorRTQuantizerFactory:
                 return super().setup()
 
             def _reset(
-                self, graphs: list[MSCGraph], weights: list[dict[str, tvm.runtime.Tensor]]
-            ) -> tuple[list[MSCGraph], list[dict[str, tvm.runtime.Tensor]]]:
+                self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.runtime.Tensor]]
+            ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.runtime.Tensor]]]:
                 """Reset the tool
 
                 Parameters
@@ -191,11 +191,11 @@ class TensorRTQuantizerFactory:
 
             def _quantize_tensor(
                 self,
-                tensor_ctx: dict[str, str],
+                tensor_ctx: Dict[str, str],
                 name: str,
                 consumer: str,
-                strategys: list[ToolStrategy],
-            ) -> dict[str, str]:
+                strategys: List[ToolStrategy],
+            ) -> Dict[str, str]:
                 """Quantize tensor
 
                 Parameters
@@ -235,7 +235,7 @@ class TensorRTQuantizerFactory:
                 self.change_stage("quantize")
                 return self._plan
 
-            def config_generate(self, generate_config: dict[str, Any]) -> dict[str, Any]:
+            def config_generate(self, generate_config: Dict[str, Any]) -> Dict[str, Any]:
                 """Update the generate configs
 
                 Parameters

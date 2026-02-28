@@ -23,7 +23,7 @@ import tempfile
 import types
 from functools import partial
 from importlib.machinery import SourceFileLoader
-from typing import Any
+from typing import Any, List, Optional, Union
 
 from .namespace import MSCFramework, MSCKey, MSCMap
 from .register import get_registered_func
@@ -85,7 +85,9 @@ def load_callable(name: str, framework: str = MSCFramework.MSC) -> callable:
 class MSCDirectory:
     """Create a directory manager for MSC"""
 
-    def __init__(self, path: str | None = None, keep_history: bool = True, cleanup: bool = False):
+    def __init__(
+        self, path: Optional[str] = None, keep_history: bool = True, cleanup: bool = False
+    ):
         self._path = os.path.abspath(path or tempfile.mkdtemp())
         self._cleanup = cleanup
         self._cwd = os.getcwd()
@@ -140,7 +142,7 @@ class MSCDirectory:
             f.write(contains)
         return file_path
 
-    def move(self, src_path: str, dst_path: str | None = None):
+    def move(self, src_path: str, dst_path: Optional[str] = None):
         """Move a file or folder to another folder
 
         Parameters
@@ -166,7 +168,7 @@ class MSCDirectory:
         os.rename(src_path, dst_path)
         return dst_path
 
-    def copy(self, src_path: str, dst_path: str | None = None) -> str:
+    def copy(self, src_path: str, dst_path: Optional[str] = None) -> str:
         """Copy a file to another folder
 
         Parameters
@@ -260,7 +262,7 @@ class MSCDirectory:
             shutil.rmtree(f_path)
         return f_path
 
-    def listdir(self, as_abs: bool = False) -> list[str]:
+    def listdir(self, as_abs: bool = False) -> List[str]:
         """List contents in the dir.
 
         Parameters
@@ -313,7 +315,7 @@ class MSCDirectory:
 
 
 def msc_dir(
-    path: str | None = None, keep_history: bool = True, cleanup: bool = False
+    path: Optional[str] = None, keep_history: bool = True, cleanup: bool = False
 ) -> MSCDirectory:
     """Create MSCDirectory
 
@@ -336,7 +338,7 @@ def msc_dir(
 
 
 def set_workspace(
-    path: str | MSCDirectory = None, keep_history: bool = True, cleanup: bool = False
+    path: Union[str, MSCDirectory] = None, keep_history: bool = True, cleanup: bool = False
 ) -> MSCDirectory:
     """Create MSCDirectory as worksapce and set to map
 
@@ -411,7 +413,7 @@ def change_workspace(new_workspace: MSCDirectory):
 
 
 def get_workspace_subdir(
-    name: str | None = None, keep_history: bool = True, cleanup: bool = False
+    name: Optional[str] = None, keep_history: bool = True, cleanup: bool = False
 ) -> MSCDirectory:
     """Create sub dir for workspace
 
@@ -457,7 +459,7 @@ def to_abs_path(path: str, root_dir: MSCDirectory = None, keep_history: bool = T
     return root_dir.relpath(path, keep_history)
 
 
-def pack_folder(path: str, dst: str | None = None, style="tar.gz"):
+def pack_folder(path: str, dst: Optional[str] = None, style="tar.gz"):
     """Pack the folder
 
     Parameters
@@ -490,7 +492,7 @@ def pack_folder(path: str, dst: str | None = None, style="tar.gz"):
     return dst
 
 
-def unpack_folder(path: str, dst: str | None = None, style="tar.gz"):
+def unpack_folder(path: str, dst: Optional[str] = None, style="tar.gz"):
     """UnPack the folder
 
     Parameters

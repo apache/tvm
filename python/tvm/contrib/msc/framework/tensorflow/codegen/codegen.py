@@ -17,7 +17,7 @@
 # ruff: noqa: RUF005
 """tvm.contrib.msc.framework.tensorflow.codegen.codegen"""
 
-from typing import Any
+from typing import Any, Dict, Optional
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -28,9 +28,9 @@ from tvm.contrib.msc.framework.tensorflow import _ffi_api, tf_v1
 
 def to_tensorflow(
     graph: MSCGraph,
-    weights: dict[str, tvm.runtime.Tensor] | None = None,
-    codegen_config: dict[str, str] | None = None,
-    print_config: dict[str, str] | None = None,
+    weights: Optional[Dict[str, tvm.runtime.Tensor]] = None,
+    codegen_config: Optional[Dict[str, str]] = None,
+    print_config: Optional[Dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
     plugin: Any = None,
 ) -> tf_v1.Graph:

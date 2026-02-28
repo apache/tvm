@@ -17,8 +17,7 @@
 # pylint: disable=unused-argument, arguments-differ
 """tvm.contrib.msc.core.runtime.hook"""
 
-from collections.abc import Callable
-from typing import Any
+from typing import Any, Dict, List, Tuple, Union
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -97,7 +96,7 @@ class CustomizedHook(RunnerHook):
         The config of the func.
     """
 
-    def __init__(self, func: str | Callable, config: dict):
+    def __init__(self, func: Union[str, callable], config: dict):
         super().__init__(config)
         self._func = msc_utils.load_callable(func)
 
@@ -136,10 +135,10 @@ class UpdateWeightsHook(RunnerHook):
     def _apply(
         self,
         runner: object,
-        graphs: list[MSCGraph],
-        weights: dict[str, tvm.runtime.Tensor],
+        graphs: List[MSCGraph],
+        weights: Dict[str, tvm.runtime.Tensor],
         weights_path: str,
-    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Apply the default funcion
 
         Parameters

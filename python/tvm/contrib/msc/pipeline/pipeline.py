@@ -20,7 +20,7 @@
 import json
 import os
 import traceback
-from typing import Any
+from typing import Any, List, Optional, Tuple, Union
 
 from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
@@ -56,10 +56,10 @@ class BasePipeline:
         self,
         model: Any,
         config: dict,
-        plugins: dict | None = None,
+        plugins: Optional[dict] = None,
         run_optimize: bool = True,
         run_compile: bool = True,
-        root: str | None = None,
+        root: Optional[str] = None,
     ):
         # change path to root path
         if root:
@@ -202,7 +202,7 @@ class BasePipeline:
         info, report = self._prepare(self._get_loader(MSCStage.PREPARE))
         self._record_stage(MSCStage.PREPARE, info, report)
 
-    def _prepare(self, data_loader: Any) -> tuple[dict, dict]:
+    def _prepare(self, data_loader: Any) -> Tuple[dict, dict]:
         """Prepare datas for the pipeline.
 
         Parameters
@@ -227,7 +227,7 @@ class BasePipeline:
         info, report = self._parse()
         self._record_stage(MSCStage.PARSE, info, report)
 
-    def _parse(self) -> tuple[dict, dict]:
+    def _parse(self) -> Tuple[dict, dict]:
         """Parse relax module for the pipeline.
 
         Returns
@@ -245,7 +245,7 @@ class BasePipeline:
 
         self._run_stage(MSCStage.BASELINE)
 
-    def optimize(self) -> tuple[dict, dict]:
+    def optimize(self) -> Tuple[dict, dict]:
         """Run the optimize.
 
         Returns
@@ -259,7 +259,7 @@ class BasePipeline:
         self._run_stage(MSCStage.OPTIMIZE)
         self._optimized = True
 
-    def compile(self) -> tuple[dict, dict]:
+    def compile(self) -> Tuple[dict, dict]:
         """Run the compile.
 
         Returns
@@ -273,7 +273,7 @@ class BasePipeline:
         self._run_stage(MSCStage.COMPILE)
         self._compiled = True
 
-    def _run_stage(self, stage: str) -> tuple[dict, dict]:
+    def _run_stage(self, stage: str) -> Tuple[dict, dict]:
         """Run the stage.
 
         Parameters
@@ -361,8 +361,8 @@ class BasePipeline:
         return False
 
     def _apply_tool(
-        self, tool_type: str, knowledge: dict | None = None, data_loader: Any = None
-    ) -> tuple[dict, dict]:
+        self, tool_type: str, knowledge: Optional[dict] = None, data_loader: Any = None
+    ) -> Tuple[dict, dict]:
         """Apply tool with runner
 
         Parameters
@@ -387,13 +387,13 @@ class BasePipeline:
     def _create_runtime(
         self,
         stage: str,
-        tools: list[str] | None = None,
-        run_type: str | None = None,
-        run_config: dict | None = None,
+        tools: Optional[List[str]] = None,
+        run_type: Optional[str] = None,
+        run_config: Optional[dict] = None,
         visualize: bool = True,
         profile: bool = True,
         use_cache: bool = True,
-    ) -> tuple[dict, dict]:
+    ) -> Tuple[dict, dict]:
         """Create runtime.
 
         Parameters
@@ -445,7 +445,7 @@ class BasePipeline:
 
         raise NotImplementedError("_run_gym is not implemented in " + str(self.__class__))
 
-    def summary(self, err_msg: str | None = None, err_info: str | None = None) -> dict:
+    def summary(self, err_msg: Optional[str] = None, err_info: Optional[str] = None) -> dict:
         """Summary the pipeline.
 
         Parameters
@@ -469,7 +469,7 @@ class BasePipeline:
         self._report["duration"] = msc_utils.get_duration()
         return self._report
 
-    def export(self, path: str | None = None, dump: bool = True) -> str | dict:
+    def export(self, path: Optional[str] = None, dump: bool = True) -> Union[str, dict]:
         """Export the pipeline
 
         Parameters
@@ -719,7 +719,7 @@ class BasePipeline:
         self._logger.debug(self.pipe_mark(msg))
         return loader
 
-    def _record_stage(self, stage: str, info: dict | None = None, report: dict | None = None):
+    def _record_stage(self, stage: str, info: Optional[dict] = None, report: Optional[dict] = None):
         """Record the stage
 
         Parameters
@@ -790,7 +790,7 @@ class BasePipeline:
 
         raise NotImplementedError("get_runtime is not implemented in " + str(self.__class__))
 
-    def create_worker(self, model: Any, name: str, config: dict | None = None):
+    def create_worker(self, model: Any, name: str, config: Optional[dict] = None):
         """Create pipe worker
 
         Parameters

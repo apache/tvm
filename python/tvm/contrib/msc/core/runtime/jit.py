@@ -18,8 +18,7 @@
 """tvm.contrib.msc.core.runtime.jit_model"""
 
 import logging
-from collections.abc import Callable
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools import ToolType
@@ -52,12 +51,12 @@ class BaseJIT:
     def __init__(
         self,
         model: Any,
-        inputs: list[str],
-        outputs: list[str],
+        inputs: List[str],
+        outputs: List[str],
         device: str = "cpu",
         training: bool = False,
-        hooks: dict | None = None,
-        logger: logging.Logger | None = None,
+        hooks: Optional[dict] = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self._model = model
         self._jit_model = model
@@ -88,8 +87,8 @@ class BaseJIT:
         }
 
     def run(
-        self, inputs: list[Any] | dict[str, Any], ret_type="native"
-    ) -> list[Any] | dict[str, Any]:
+        self, inputs: Union[List[Any], Dict[str, Any]], ret_type="native"
+    ) -> Union[List[Any], Dict[str, Any]]:
         """Run the jit to get outputs
 
         Parameters
@@ -111,7 +110,7 @@ class BaseJIT:
             return outputs
         return msc_utils.format_datas(outputs, self._outputs, style=ret_type)
 
-    def _call_jit(self, inputs: dict[str, Any]) -> Any:
+    def _call_jit(self, inputs: Dict[str, Any]) -> Any:
         """Run the jit model
 
         Parameters
@@ -176,8 +175,8 @@ class BaseJIT:
 
         def _finalize_tool(
             checker: callable,
-            post_batch: Callable | None = None,
-            post_iter: Callable | None = None,
+            post_batch: Optional[callable] = None,
+            post_iter: Optional[callable] = None,
         ):
             while any(not checker(t) for t in tools.values()):
                 assert data_loader, "data_loader should be given to make plan for " + tool_type
@@ -237,7 +236,7 @@ class BaseJIT:
             outputs = hook(runner_name, outputs)
         return self._from_msc_outputs(runner_name, outputs)
 
-    def _to_msc_inputs(self, runner_name: str, *args, **kwargs) -> list[tuple[str, Any]]:
+    def _to_msc_inputs(self, runner_name: str, *args, **kwargs) -> List[Tuple[str, Any]]:
         """Change inputs to msc format
 
         Parameters
@@ -257,7 +256,7 @@ class BaseJIT:
 
         raise NotImplementedError("_to_msc_inputs is not implemented in " + str(self.__class__))
 
-    def _from_msc_outputs(self, runner_name: str, outputs: list[tuple[str, Any]]) -> Any:
+    def _from_msc_outputs(self, runner_name: str, outputs: List[Tuple[str, Any]]) -> Any:
         """Change inputs from msc format
 
         Parameters
@@ -275,7 +274,7 @@ class BaseJIT:
 
         raise NotImplementedError("_from_msc_outputs is not implemented in " + str(self.__class__))
 
-    def _run_ctx(self, runner_ctx: dict, inputs: list[tuple[str, Any]]) -> list[tuple[str, Any]]:
+    def _run_ctx(self, runner_ctx: dict, inputs: List[Tuple[str, Any]]) -> List[Tuple[str, Any]]:
         """Forward by runner context
 
         Parameters

@@ -18,6 +18,8 @@
 # ruff: noqa: RUF005
 """tvm.contrib.msc.framework.tvm.tools.track.tracker"""
 
+from typing import List, Union
+
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools.tool import ToolStrategy, ToolType
@@ -60,8 +62,8 @@ class TVMTrackerFactory:
                 super()._execute_before_build(block_builder)
 
             def _execute_after_build(
-                self, output: tvm.relax.Var | list[tvm.relax.DataflowVar]
-            ) -> list[tvm.relax.Var]:
+                self, output: Union[tvm.relax.Var, List[tvm.relax.DataflowVar]]
+            ) -> List[tvm.relax.Var]:
                 """Execute after model build
 
                 Parameters
@@ -82,8 +84,8 @@ class TVMTrackerFactory:
                 return super()._execute_after_build(output + track_tensors)
 
             def _execute_after_forward(
-                self, outputs: list[tvm.runtime.Tensor]
-            ) -> tvm.runtime.Tensor | list[tvm.runtime.Tensor]:
+                self, outputs: List[tvm.runtime.Tensor]
+            ) -> Union[tvm.runtime.Tensor, List[tvm.runtime.Tensor]]:
                 """Execute after model forward
 
                 Parameters
@@ -115,7 +117,7 @@ class TVMTrackerFactory:
                 name: str,
                 consumer: str,
                 scope: str,
-                strategys: list[ToolStrategy],
+                strategys: List[ToolStrategy],
             ) -> tvm.relax.DataflowVar:
                 """Process tensor
 

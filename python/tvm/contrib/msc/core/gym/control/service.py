@@ -21,10 +21,9 @@ import copy
 import json
 import queue
 import time
-from collections.abc import Callable
 from functools import partial, reduce
 from multiprocessing import Manager
-from typing import Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -55,7 +54,7 @@ def _send_message(msg_queue: queue.Queue, header: str, body: dict, header_type: 
 def _wait_message(
     msg_queue: queue.Queue,
     header: str,
-    checker: Callable | None = None,
+    checker: Optional[callable] = None,
     wait_time: int = 2,
     max_retry: int = -1,
     header_type: str = "message",
@@ -83,7 +82,7 @@ def _wait_message(
         The message body
     """
 
-    def _check_message(message: dict, checker: Callable | None = None) -> bool:
+    def _check_message(message: dict, checker: Optional[callable] = None) -> bool:
         """Check the message
 
         Parameters
@@ -160,15 +159,15 @@ class BaseService:
     def __init__(
         self,
         workspace: msc_utils.MSCDirectory,
-        env: dict[str, Any],
-        agent: dict[str, Any],
-        tasks: list[str] | None = None,
-        dist_manager: Manager | None = None,
+        env: Dict[str, Any],
+        agent: Dict[str, Any],
+        tasks: Optional[List[str]] = None,
+        dist_manager: Optional[Manager] = None,
         world_size: int = 1,
         max_iter: int = 1,
         record_step: int = 5,
         debug_level: int = 0,
-        verbose: str | None = None,
+        verbose: Optional[str] = None,
     ):
         self._workspace = workspace
         tasks = tasks or [GYMObject.ENV + ":0", GYMObject.AGENT + ":0"]
@@ -176,7 +175,7 @@ class BaseService:
         debug_level = int(verbose.split(":")[1]) if verbose.startswith("debug:") else 0
         self._logger = msc_utils.create_file_logger(verbose, self._workspace.relpath("SERVICE_LOG"))
 
-        def _create_workers(config: dict, obj_type: str) -> list[BaseGymWorker]:
+        def _create_workers(config: dict, obj_type: str) -> List[BaseGymWorker]:
             if "debug_level" not in config:
                 config["debug_level"] = debug_level
             if "logger" not in config:
@@ -324,7 +323,7 @@ class BaseService:
     def _wait_request(
         self,
         msg_key: str,
-        checker: Callable | None = None,
+        checker: Optional[callable] = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:
@@ -347,7 +346,7 @@ class BaseService:
     def _wait_response(
         self,
         msg_key: str,
-        checker: Callable | None = None,
+        checker: Optional[callable] = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:
@@ -442,7 +441,7 @@ class BaseService:
 
         return f"{obj_type}-s-{act_type}"
 
-    def _from_msg_key(self, msg_key: str) -> tuple[str, str]:
+    def _from_msg_key(self, msg_key: str) -> Tuple[str, str]:
         """Get obj_type and act_type from message key
 
         Parameters
@@ -460,7 +459,7 @@ class BaseService:
 
         return msg_key.split("-s-")
 
-    def _get_workers(self, obj_type: str) -> list[BaseGymWorker]:
+    def _get_workers(self, obj_type: str) -> List[BaseGymWorker]:
         """Get workers according to obj_type
 
         Parameters
@@ -480,7 +479,7 @@ class BaseService:
             return self._agent_workers
         return []
 
-    def _get_worker_ids(self, obj_type: str) -> list[int]:
+    def _get_worker_ids(self, obj_type: str) -> List[int]:
         """Get worker ids according to obj_type
 
         Parameters
@@ -496,7 +495,7 @@ class BaseService:
 
         return [w.worker_id for w in self._get_workers(obj_type)]
 
-    def _get_world_ids(self, obj_type: str) -> list[int]:
+    def _get_world_ids(self, obj_type: str) -> List[int]:
         """Get world ids according to obj_type
 
         Parameters
@@ -598,8 +597,8 @@ class MainService(BaseService):
     def _synchronize_request(
         self,
         msg_key: str,
-        requests: list[dict],
-        checker: Callable | None = None,
+        requests: List[dict],
+        checker: Optional[callable] = None,
         wait_time: int = 2,
         max_retry: int = -1,
     ) -> dict:
@@ -699,7 +698,7 @@ class MainService(BaseService):
             config["task_id"] = self._task_id
         return config
 
-    def _map_values(self, values: list[Any], obj_type: str, worker_id: int) -> list[Any]:
+    def _map_values(self, values: List[Any], obj_type: str, worker_id: int) -> List[Any]:
         """Map the values for worker
 
         Parameters
@@ -726,7 +725,7 @@ class MainService(BaseService):
         end = min((worker_idx + 1) * tile_size, len(values))
         return values[start:end]
 
-    def _gather_values(self, values: list[Any], gather_mode: str) -> Any:
+    def _gather_values(self, values: List[Any], gather_mode: str) -> Any:
         """Gather the values
 
         Parameters

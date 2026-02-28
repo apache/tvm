@@ -16,7 +16,7 @@
 # under the License.
 """tvm.contrib.msc.framework.torch.codegen.codegen"""
 
-from typing import Any
+from typing import Any, Dict, Optional
 
 import torch
 
@@ -29,9 +29,9 @@ from tvm.contrib.msc.framework.torch import _ffi_api
 
 def to_torch(
     graph: MSCGraph,
-    weights: dict[str, tvm.runtime.Tensor] | None = None,
-    codegen_config: dict[str, str] | None = None,
-    print_config: dict[str, str] | None = None,
+    weights: Optional[Dict[str, tvm.runtime.Tensor]] = None,
+    codegen_config: Optional[Dict[str, str]] = None,
+    print_config: Optional[Dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
     plugin: Any = None,
 ) -> torch.nn.Module:

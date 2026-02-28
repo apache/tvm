@@ -20,8 +20,7 @@
 import json
 import logging
 import os
-from collections.abc import Callable, Iterable
-from typing import Any
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -74,17 +73,17 @@ class BaseRunner:
     def __init__(
         self,
         mod: tvm.IRModule,
-        tools_config: list[dict] | None = None,
-        translate_config: dict[str, str] | None = None,
-        generate_config: dict[str, str] | None = None,
-        build_config: dict[str, str] | None = None,
+        tools_config: Optional[List[dict]] = None,
+        translate_config: Optional[Dict[str, str]] = None,
+        generate_config: Optional[Dict[str, str]] = None,
+        build_config: Optional[Dict[str, str]] = None,
         device: str = "cpu",
         training: bool = False,
         stage: str = "default",
         plugin: Any = None,
         name: str = "main",
         debug_level: int = 0,
-        logger: logging.Logger | None = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self._mod = mod
         if tools_config:
@@ -134,7 +133,7 @@ class BaseRunner:
             "debug_level": self._debug_level,
         }
 
-    def setup_tools(self) -> dict[str, BaseTool]:
+    def setup_tools(self) -> Dict[str, BaseTool]:
         """Setup tools
 
         Returns
@@ -175,7 +174,7 @@ class BaseRunner:
         self,
         cache_dir: msc_utils.MSCDirectory = None,
         force_build: bool = False,
-        disable_tools: list[str] | None = None,
+        disable_tools: Optional[List[str]] = None,
     ) -> Any:
         """Build the runnable object
 
@@ -281,8 +280,8 @@ class BaseRunner:
         return self._runnable
 
     def run(
-        self, inputs: list[np.ndarray] | dict[str, np.ndarray], ret_type="dict"
-    ) -> list[np.ndarray] | dict[str, np.ndarray]:
+        self, inputs: Union[List[np.ndarray], Dict[str, np.ndarray]], ret_type="dict"
+    ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
         """Run the model to get outputs
 
         Parameters
@@ -345,7 +344,7 @@ class BaseRunner:
 
     def translate(
         self, apply_hooks: bool = True
-    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Translate IRModule to MSCgraphs
 
         Parameters
@@ -371,7 +370,7 @@ class BaseRunner:
                 graphs, weights = self._apply_hook("after translate", hook, graphs, weights)
         return graphs, weights
 
-    def _translate(self, mod: tvm.IRModule) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
+    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Translate IRModule to MSCgraphs
 
         Parameters
@@ -391,9 +390,9 @@ class BaseRunner:
 
     def reset_tools(
         self,
-        graphs: list[MSCGraph] | None = None,
-        weights: list[dict[str, tvm.runtime.Tensor]] | None = None,
-        tools: list[BaseTool] | None = None,
+        graphs: Optional[List[MSCGraph]] = None,
+        weights: Optional[List[Dict[str, tvm.runtime.Tensor]]] = None,
+        tools: Optional[List[BaseTool]] = None,
         cache_dir: msc_utils.MSCDirectory = None,
     ):
         """Reset the tools
@@ -450,7 +449,7 @@ class BaseRunner:
         return model
 
     def _generate_model(
-        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
     ) -> Any:
         """Codegen the model according to framework
 
@@ -649,8 +648,8 @@ class BaseRunner:
 
         def _finalize_tool(
             checker: callable,
-            post_batch: Callable | None = None,
-            post_iter: Callable | None = None,
+            post_batch: Optional[callable] = None,
+            post_iter: Optional[callable] = None,
         ):
             tool = self.get_tool(tool_type)
             while not checker(tool):
@@ -711,7 +710,7 @@ class BaseRunner:
         self._logger.info("Apply %s hook:\n  %s", desc, hook)
         return hook.apply(self, *args, **kwargs)
 
-    def _update_codegen(self, config: dict[str, Any]):
+    def _update_codegen(self, config: Dict[str, Any]):
         """Update the codegen in generate_config
 
         Parameters
@@ -725,7 +724,7 @@ class BaseRunner:
         codegen = self._generate_config["codegen"]
         if isinstance(codegen, dict):
             codegen.update(config)
-        elif isinstance(codegen, list | tuple):
+        elif isinstance(codegen, (list, tuple)):
             for c in codegen:
                 c.update(config)
         else:
@@ -750,7 +749,7 @@ class BaseRunner:
         for tool in self._tools.values():
             tool.visualize(visual_dir)
 
-    def get_inputs(self) -> list[dict[str, str]]:
+    def get_inputs(self) -> List[Dict[str, str]]:
         """Get the inputs of the model
 
         Returns
@@ -761,7 +760,7 @@ class BaseRunner:
 
         return self._model_info["inputs"]
 
-    def get_outputs(self) -> list[dict[str, str]]:
+    def get_outputs(self) -> List[Dict[str, str]]:
         """Get the outputs of the model
 
         Returns
@@ -773,7 +772,7 @@ class BaseRunner:
         return self._model_info["outputs"]
 
     def get_weights(
-        self, framework: str | None = None, device: str | None = None
+        self, framework: Optional[str] = None, device: Optional[str] = None
     ) -> Iterable[tvm.runtime.Tensor]:
         """Get the weights from graphs
 
@@ -798,7 +797,7 @@ class BaseRunner:
                     data = msc_utils.cast_array(data, framework, device)
                 yield data
 
-    def get_runtime_params(self) -> dict[str, tvm.runtime.Tensor]:
+    def get_runtime_params(self) -> Dict[str, tvm.runtime.Tensor]:
         """Get the runtime parameters
 
         Returns
@@ -809,7 +808,7 @@ class BaseRunner:
 
         return self._get_runtime_params()
 
-    def _get_runtime_params(self) -> dict[str, tvm.runtime.Tensor]:
+    def _get_runtime_params(self) -> Dict[str, tvm.runtime.Tensor]:
         """Get the runtime parameters
 
         Returns
@@ -833,7 +832,7 @@ class BaseRunner:
             tool.destory()
         remove_tools(self._name)
 
-    def _load_graphs(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> list[MSCGraph]:
+    def _load_graphs(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> List[MSCGraph]:
         """Load MSCGraphs from cache
 
         Parameters
@@ -949,8 +948,8 @@ class BaseRunner:
         raise NotImplementedError("_inspect_model is not implemented for " + str(self.__class__))
 
     def _call_runnable(
-        self, runnable: Any, inputs: dict[str, np.ndarray], device: str
-    ) -> list[np.ndarray] | dict[str, np.ndarray]:
+        self, runnable: Any, inputs: Dict[str, np.ndarray], device: str
+    ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
         """Call the runnable to get outputs
 
         Parameters
@@ -1023,7 +1022,7 @@ class BaseRunner:
         return MSCFramework.MSC
 
     @classmethod
-    def load_native(cls, model: Any, config: dict) -> tuple[Any, str, bool]:
+    def load_native(cls, model: Any, config: dict) -> Tuple[Any, str, bool]:
         """Load the native model
 
         Parameters
@@ -1049,12 +1048,12 @@ class BaseRunner:
     def run_native(
         cls,
         model: Any,
-        inputs: dict[str, np.ndarray],
-        input_names: list[str],
-        output_names: list[str],
+        inputs: Dict[str, np.ndarray],
+        input_names: List[str],
+        output_names: List[str],
         warm_up: int = 10,
         repeat: int = 0,
-    ) -> tuple[dict[str, np.ndarray], float]:
+    ) -> Tuple[Dict[str, np.ndarray], float]:
         """Run the datas and get outputs
 
         Parameters
@@ -1084,7 +1083,7 @@ class BaseRunner:
 
     @classmethod
     def dump_nativate(
-        cls, model: Any, folder: msc_utils.MSCDirectory, dump_config: dict | None = None
+        cls, model: Any, folder: msc_utils.MSCDirectory, dump_config: Optional[dict] = None
     ) -> str:
         """Dump the nativate model
 
@@ -1157,7 +1156,7 @@ class BaseRunner:
 class ModelRunner(BaseRunner):
     """Model runner of MSC"""
 
-    def _translate(self, mod: tvm.IRModule) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
+    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Translate IRModule to MSCgraphs
 
         Parameters
@@ -1181,7 +1180,7 @@ class ModelRunner(BaseRunner):
         )
         return [graph], weights
 
-    def _load_graphs(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> list[MSCGraph]:
+    def _load_graphs(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> List[MSCGraph]:
         """Load MSCGraphs from cache
 
         Parameters
@@ -1222,7 +1221,7 @@ class ModelRunner(BaseRunner):
         return {"main": main_info}
 
     def _generate_model(
-        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
     ) -> Any:
         """Codegen the model according to framework
 
@@ -1332,7 +1331,7 @@ class BYOCRunner(BaseRunner):
             with open(visual_dir.relpath(self._byoc_graph.name + "_graph.json"), "w") as f_graph:
                 f_graph.write(self._byoc_graph.to_json())
 
-    def _translate(self, mod: tvm.IRModule) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
+    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Translate IRModule to MSCgraphs
 
         Parameters
@@ -1358,7 +1357,7 @@ class BYOCRunner(BaseRunner):
         )
         return graphs, weights
 
-    def _load_graphs(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> list[MSCGraph]:
+    def _load_graphs(self, cache_dir: msc_utils.MSCDirectory, cache_info: dict) -> List[MSCGraph]:
         """Load MSCgraphs from cache
 
         Parameters
@@ -1419,7 +1418,7 @@ class BYOCRunner(BaseRunner):
         }
 
     def _generate_model(
-        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
     ) -> Any:
         """Codegen the model according to framework
 
@@ -1482,8 +1481,8 @@ class BYOCRunner(BaseRunner):
         return runnable
 
     def _call_runnable(
-        self, runnable: tvm.relax.VirtualMachine, inputs: dict[str, np.ndarray], device: str
-    ) -> list[np.ndarray] | dict[str, np.ndarray]:
+        self, runnable: tvm.relax.VirtualMachine, inputs: Dict[str, np.ndarray], device: str
+    ) -> Union[List[np.ndarray], Dict[str, np.ndarray]]:
         """Call the runnable to get outputs
 
         Parameters

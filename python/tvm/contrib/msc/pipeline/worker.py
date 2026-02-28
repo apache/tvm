@@ -21,7 +21,7 @@
 import logging
 import os
 import time
-from typing import Any
+from typing import Any, List, Optional, Tuple
 
 import tvm
 from tvm.contrib.msc.core import utils as msc_utils
@@ -61,8 +61,8 @@ class BasePipeWorker:
         model: Any,
         config: dict,
         workspace: msc_utils.MSCDirectory,
-        plugins: dict | None = None,
-        logger: logging.Logger | None = None,
+        plugins: Optional[dict] = None,
+        logger: Optional[logging.Logger] = None,
         name: str = "main",
     ):
         # check/set default stage
@@ -129,7 +129,7 @@ class BasePipeWorker:
             {"inputs": self._config["inputs"], "outputs": self._config["outputs"]}
         )
 
-        def _set_debug_level(stage: str, sub_config: dict, default: int | None = None) -> dict:
+        def _set_debug_level(stage: str, sub_config: dict, default: Optional[int] = None) -> dict:
             if "debug_level" in sub_config:
                 debug_levels[stage] = sub_config["debug_level"]
             elif default is not None:
@@ -166,7 +166,7 @@ class BasePipeWorker:
         self._config = {k: self._config[k] for k in ordered_keys if k in self._config}
         return debug_levels
 
-    def _update_tools_config(self, tools: list[dict]) -> list[dict]:
+    def _update_tools_config(self, tools: List[dict]) -> List[dict]:
         """Update tool in stage config.
 
         Parameters
@@ -189,7 +189,7 @@ class BasePipeWorker:
             )
         return tools
 
-    def prepare(self, data_loader: Any = None) -> tuple[dict, dict]:
+    def prepare(self, data_loader: Any = None) -> Tuple[dict, dict]:
         """Prepare datas for the pipeline.
 
         Parameters
@@ -289,7 +289,7 @@ class BasePipeWorker:
                 report["profile"] = "failed run native"
         return info, report
 
-    def parse(self) -> tuple[dict, dict]:
+    def parse(self) -> Tuple[dict, dict]:
         """Parse the model to IRModule.
 
         Returns
@@ -377,8 +377,8 @@ class BasePipeWorker:
         return os.path.isfile(config["plan_file"])
 
     def apply_tool(
-        self, tool_type: str, knowledge: dict | None = None, data_loader: Any = None
-    ) -> tuple[dict, dict]:
+        self, tool_type: str, knowledge: Optional[dict] = None, data_loader: Any = None
+    ) -> Tuple[dict, dict]:
         """Apply tool with runner
 
         Parameters
@@ -416,13 +416,13 @@ class BasePipeWorker:
     def create_runner(
         self,
         stage: str,
-        tools: list[str] | None = None,
-        run_type: str | None = None,
-        run_config: dict | None = None,
+        tools: Optional[List[str]] = None,
+        run_type: Optional[str] = None,
+        run_config: Optional[dict] = None,
         visualize: bool = True,
         profile: bool = True,
         use_cache: bool = True,
-    ) -> tuple[dict, dict]:
+    ) -> Tuple[dict, dict]:
         """Create runner.
 
         Parameters
@@ -493,7 +493,7 @@ class BasePipeWorker:
         self._runner = runner
         return info, report
 
-    def _profile_runner(self, runner: BaseRunner, profile_config: dict) -> tuple[dict, str]:
+    def _profile_runner(self, runner: BaseRunner, profile_config: dict) -> Tuple[dict, str]:
         """Profile the runner.
 
         Parameters
@@ -671,7 +671,7 @@ class BasePipeWorker:
             return self._runner.model
         raise TypeError("Unexpect return type " + str(ret_type))
 
-    def _get_repeat(self, benchmark: dict, device: str | None = None) -> int:
+    def _get_repeat(self, benchmark: dict, device: Optional[str] = None) -> int:
         """Get the repeat number for benchmark
 
         Parameters

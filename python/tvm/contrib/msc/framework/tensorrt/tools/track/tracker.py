@@ -17,6 +17,8 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.framework.tensorrt.tools.track.tracker"""
 
+from typing import Dict, List
+
 from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.tools.tool import ToolStrategy, ToolType
 from tvm.contrib.msc.core.tools.track import BaseTracker
@@ -107,12 +109,12 @@ class TensorRTTrackerFactory:
 
             def _process_tensor(
                 self,
-                tensor_ctx: dict[str, str],
+                tensor_ctx: Dict[str, str],
                 name: str,
                 consumer: str,
                 scope: str,
-                strategys: list[ToolStrategy],
-            ) -> dict[str, str]:
+                strategys: List[ToolStrategy],
+            ) -> Dict[str, str]:
                 """Process tensor
 
                 Parameters

@@ -21,9 +21,8 @@
 import copy
 import logging
 import os
-from collections.abc import Callable, Iterable
 from itertools import product
-from typing import Any
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -46,7 +45,7 @@ class ToolType:
     ALL = [PRUNER, QUANTIZER, DISTILLER, TRACKER]
 
     @classmethod
-    def all_types(cls) -> list[str]:
+    def all_types(cls) -> List[str]:
         return cls.ALL
 
 
@@ -70,7 +69,7 @@ class ToolExecutor:
         The config for execute
     """
 
-    def __init__(self, name: str, method: callable, config: dict | None = None):
+    def __init__(self, name: str, method: callable, config: Optional[dict] = None):
         self._name = name
         self._method = method
         self._config = config or {}
@@ -99,9 +98,9 @@ class ToolExecutor:
 
     def copy(
         self,
-        name: str | None = None,
-        method: Callable | None = None,
-        config: dict | None = None,
+        name: Optional[str] = None,
+        method: Optional[callable] = None,
+        config: Optional[dict] = None,
     ):
         """Copy a executor
 
@@ -215,7 +214,7 @@ class ToolStrategy:
         if not self._stage:
             self._stage = stage
 
-    def get_executor(self, stage: str | None = None) -> tuple[callable, dict]:
+    def get_executor(self, stage: Optional[str] = None) -> Tuple[callable, dict]:
         """Get executor of current stage
 
         Parameters
@@ -257,10 +256,10 @@ class ToolStrategy:
 
     def copy(
         self,
-        name: str | None = None,
-        tensor_type: str | None = None,
-        stage: str | None = None,
-        configs: dict[str, dict] | None = None,
+        name: Optional[str] = None,
+        tensor_type: Optional[str] = None,
+        stage: Optional[str] = None,
+        configs: Optional[Dict[str, dict]] = None,
     ):
         """Copy a strategy
 
@@ -323,13 +322,13 @@ class BaseTool:
         tag: str,
         stage: str,
         plan_file: str,
-        strategys: list[dict],
+        strategys: List[dict],
         training: bool = False,
         cache_processed: bool = True,
-        options: dict | None = None,
+        options: Optional[dict] = None,
         debug_level: int = 0,
         verbose_step: int = 50,
-        logger: logging.Logger | None = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self._tag = tag
         self._stage = stage
@@ -379,10 +378,10 @@ class BaseTool:
 
     def reset(
         self,
-        graphs: list[MSCGraph],
-        weights: dict[str, tvm.runtime.Tensor],
+        graphs: List[MSCGraph],
+        weights: Dict[str, tvm.runtime.Tensor],
         cache_dir: msc_utils.MSCDirectory = None,
-    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Reset the tool with graphs and weights
 
         Parameters
@@ -419,8 +418,8 @@ class BaseTool:
         return self._graphs, self._weights
 
     def _reset(
-        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
-    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
@@ -440,7 +439,7 @@ class BaseTool:
 
         return graphs, weights
 
-    def _parse_strategys(self, strategy_list: list[dict]) -> dict[str, ToolStrategy]:
+    def _parse_strategys(self, strategy_list: List[dict]) -> Dict[str, ToolStrategy]:
         """Parse the strategy to get valid strategy
 
         Parameters
@@ -528,7 +527,7 @@ class BaseTool:
                     )
         return strategys
 
-    def change_strategys(self, strategy_list: list[dict]):
+    def change_strategys(self, strategy_list: List[dict]):
         """Change the strategys
 
         Parameters
@@ -877,7 +876,7 @@ class BaseTool:
         return len(strategys) > 0
 
     def _process_tensor(
-        self, tensor: Any, name: str, consumer: str, scope: str, strategys: list[ToolStrategy]
+        self, tensor: Any, name: str, consumer: str, scope: str, strategys: List[ToolStrategy]
     ) -> Any:
         """Process tensor
 
@@ -902,7 +901,7 @@ class BaseTool:
 
         return tensor
 
-    def create_tasks(self, **kwargs) -> list[dict]:
+    def create_tasks(self, **kwargs) -> List[dict]:
         """Create tasks for gym
 
         Parameters
@@ -918,7 +917,7 @@ class BaseTool:
 
         return []
 
-    def config_generate(self, generate_config: dict[str, Any]) -> dict[str, Any]:
+    def config_generate(self, generate_config: Dict[str, Any]) -> Dict[str, Any]:
         """Update the generate configs
 
         Parameters
@@ -988,7 +987,7 @@ class BaseTool:
 
         return f"{name}-c-{consumer}"
 
-    def from_tensor_id(self, tensor_id: str) -> tuple[str]:
+    def from_tensor_id(self, tensor_id: str) -> Tuple[str]:
         """Split name from unique id
 
         Parameters
@@ -1080,7 +1079,7 @@ class BaseTool:
         return mark + " " + str(msg)
 
     def debug_tensors(
-        self, name: str, consumer: str, t_mark: str, tensors: dict[str, Any], debug_level: int = 3
+        self, name: str, consumer: str, t_mark: str, tensors: Dict[str, Any], debug_level: int = 3
     ) -> str:
         """Get the debug tensor info
 
@@ -1190,7 +1189,7 @@ class BaseTool:
                 for weight in node.get_weights().values():
                     yield self.to_tensor_id(weight.name, node.name)
 
-    def find_tensor(self, t_ref: str | MSCTensor) -> MSCTensor:
+    def find_tensor(self, t_ref: Union[str, MSCTensor]) -> MSCTensor:
         """Find tensor by tensor ref.
 
         Parameters
@@ -1210,7 +1209,7 @@ class BaseTool:
                 return g.find_tensor(t_name)
         raise Exception(f"Can not find tensor {t_name} from {len(self._graphs)} graphs")
 
-    def find_producer(self, t_ref: str | MSCTensor) -> MSCJoint:
+    def find_producer(self, t_ref: Union[str, MSCTensor]) -> MSCJoint:
         """Find producer by tensor ref.
 
         Parameters
@@ -1230,7 +1229,7 @@ class BaseTool:
                 return g.find_producer(t_name)
         raise Exception(f"Can not find producer of {t_name} from {len(self._graphs)} graphs")
 
-    def find_consumers(self, t_ref: str | MSCTensor) -> list[MSCJoint]:
+    def find_consumers(self, t_ref: Union[str, MSCTensor]) -> List[MSCJoint]:
         """Find consumers by tensor ref.
 
         Parameters
@@ -1317,7 +1316,7 @@ class BaseTool:
             return None
         return self._tensor_cache[tensor_id].get(key)
 
-    def _get_tensor_strategys(self, name: str, consumer: str) -> list[ToolStrategy]:
+    def _get_tensor_strategys(self, name: str, consumer: str) -> List[ToolStrategy]:
         """Get the strategys by name and consumer
 
         Parameters
@@ -1436,8 +1435,8 @@ class WeightTool(BaseTool):
         return super().setup()
 
     def _reset(
-        self, graphs: list[MSCGraph], weights: dict[str, tvm.runtime.Tensor]
-    ) -> tuple[list[MSCGraph], dict[str, tvm.runtime.Tensor]]:
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.runtime.Tensor]
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.runtime.Tensor]]:
         """Reset the tool
 
         Parameters
@@ -1475,7 +1474,7 @@ class WeightTool(BaseTool):
             self._logger.debug(msc_utils.msg_block(title, weight_graphs))
         return graphs, weights
 
-    def _get_wtypes(self) -> tuple[dict[str, list[str]], dict[str, str]]:
+    def _get_wtypes(self) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
         """Get the weight types from options
 
         Returns
@@ -1592,7 +1591,7 @@ class WeightTool(BaseTool):
                 return g.find_node(name)
         raise Exception(f"Can not find node {name} from graphs")
 
-    def _get_io_axes(self, w_node: WeightJoint) -> tuple[int, int]:
+    def _get_io_axes(self, w_node: WeightJoint) -> Tuple[int, int]:
         """Get the input output axes
 
         Parameters

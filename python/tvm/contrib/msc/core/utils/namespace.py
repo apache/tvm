@@ -18,7 +18,7 @@
 """tvm.contrib.msc.core.utils.namespace"""
 
 import copy
-from typing import Any
+from typing import Any, Optional
 
 
 class MSCMap:
@@ -31,11 +31,11 @@ class MSCMap:
         cls.MAP[key] = value
 
     @classmethod
-    def get(cls, key: str, default: Any | None = None):
+    def get(cls, key: str, default: Optional[Any] = None):
         return cls.MAP.get(key, default)
 
     @classmethod
-    def clone(cls, key: str, default: Any | None = None):
+    def clone(cls, key: str, default: Optional[Any] = None):
         return copy.deepcopy(cls.get(key, default))
 
     @classmethod

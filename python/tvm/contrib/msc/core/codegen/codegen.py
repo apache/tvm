@@ -19,8 +19,7 @@
 
 import os
 import subprocess
-from collections.abc import Callable
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional
 
 import tvm
 from tvm import relax
@@ -53,8 +52,8 @@ class CodeGen:
         self,
         graph: MSCGraph,
         source_getter: Callable[[MSCGraph, str, str], str],
-        codegen_config: dict[str, str] | None = None,
-        print_config: dict[str, str] | None = None,
+        codegen_config: Optional[Dict[str, str]] = None,
+        print_config: Optional[Dict[str, str]] = None,
         build_folder: msc_utils.MSCDirectory = None,
         code_format: str = "python",
     ):
@@ -67,9 +66,9 @@ class CodeGen:
 
     def load(
         self,
-        inputs: list[Any] | None = None,
-        pre_load: Callable[[msc_utils.MSCDirectory], Any] | None = None,
-        post_load: Callable[[Any, msc_utils.MSCDirectory], Any] | None = None,
+        inputs: Optional[List[Any]] = None,
+        pre_load: Optional[Callable[[msc_utils.MSCDirectory], Any]] = None,
+        post_load: Optional[Callable[[Any, msc_utils.MSCDirectory], Any]] = None,
         build_model: bool = True,
     ) -> Any:
         """Generate source and load the model
@@ -127,9 +126,9 @@ class CodeGen:
 
 def to_relax(
     graph: MSCGraph,
-    weights: dict[str, tvm.runtime.Tensor] | None = None,
-    codegen_config: dict[str, str] | None = None,
-    print_config: dict[str, str] | None = None,
+    weights: Optional[Dict[str, tvm.runtime.Tensor]] = None,
+    codegen_config: Optional[Dict[str, str]] = None,
+    print_config: Optional[Dict[str, str]] = None,
     build_folder: msc_utils.MSCDirectory = None,
     plugin: Any = None,
     use_alias: bool = True,

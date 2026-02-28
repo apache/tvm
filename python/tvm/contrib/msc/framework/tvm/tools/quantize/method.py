@@ -17,6 +17,8 @@
 # pylint: disable=unused-argument
 """tvm.contrib.msc.framework.tvm.tools.quantize.method"""
 
+from typing import Tuple
+
 import numpy as np
 
 import tvm
@@ -41,7 +43,7 @@ class TVMQuantizeMethod(QuantizeMethod):
         scale: float,
         axis: int = -1,
         epsilon: float = 1.0 / (1 << 24),
-    ) -> tuple[tvm.relax.Constant, tvm.relax.Constant]:
+    ) -> Tuple[tvm.relax.Constant, tvm.relax.Constant]:
         """Calibrate the data by kl_divergence
 
         Parameters
