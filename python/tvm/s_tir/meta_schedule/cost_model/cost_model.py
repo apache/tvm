@@ -18,10 +18,11 @@
 """Meta Schedule CostModel."""
 
 import ctypes
-from typing import Callable, List, Optional, Union
+from collections.abc import Callable
+from typing import Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -66,8 +67,8 @@ class CostModel(Object):
     def update(
         self,
         context: TuneContext,
-        candidates: List[MeasureCandidate],
-        results: List[RunnerResult],
+        candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the cost model given running results.
 
@@ -82,7 +83,7 @@ class CostModel(Object):
         """
         _ffi_api.CostModelUpdate(self, context, candidates, results)  # type: ignore # pylint: disable=no-member
 
-    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+    def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
         """Predict normalized score with the cost model.
 
         Parameters
@@ -164,15 +165,15 @@ class _PyCostModel(CostModel):
 
     def __init__(
         self,
-        f_load: Optional[Callable] = None,
-        f_save: Optional[Callable] = None,
-        f_update: Optional[Callable] = None,
-        predict_func: Optional[Callable] = None,
-        f_as_string: Optional[Callable] = None,
+        f_load: Callable | None = None,
+        f_save: Callable | None = None,
+        f_update: Callable | None = None,
+        predict_func: Callable | None = None,
+        f_as_string: Callable | None = None,
     ):
         """Constructor."""
 
-        def f_predict(context: TuneContext, candidates: List[MeasureCandidate], return_ptr) -> None:
+        def f_predict(context: TuneContext, candidates: list[MeasureCandidate], return_ptr) -> None:
             n = len(candidates)
             return_ptr = ctypes.cast(return_ptr, ctypes.POINTER(ctypes.c_double))
             array_wrapper = np.ctypeslib.as_array(return_ptr, shape=(n,))
@@ -228,8 +229,8 @@ class PyCostModel:
     def update(
         self,
         context: TuneContext,
-        candidates: List[MeasureCandidate],
-        results: List[RunnerResult],
+        candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the cost model given running results.
 
@@ -244,7 +245,7 @@ class PyCostModel:
         """
         raise NotImplementedError
 
-    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+    def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
         """Predict given the measure candidates.
 
         Parameters

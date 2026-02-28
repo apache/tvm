@@ -141,9 +141,8 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.AttrStmt)
     assert x.value.value == 1
 
-    x = tvm.tir.AssertStmt(tvm.tir.const(1, "bool"), tvm.runtime.convert("hellow"), nop)
+    x = tvm.tir.AssertStmt(tvm.tir.const(1, "bool"), tvm.runtime.convert("hellow"))
     assert isinstance(x, tvm.tir.AssertStmt)
-    assert x.body == nop
 
     x = tvm.tir.For(tvm.tir.Var("x", "int32"), 0, 10, tvm.tir.ForKind.SERIAL, nop)
     assert isinstance(x, tvm.tir.For)

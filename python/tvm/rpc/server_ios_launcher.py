@@ -27,7 +27,7 @@ import subprocess
 import threading
 import time
 from enum import Enum
-from typing import AnyStr, Dict, List
+from typing import AnyStr
 
 
 class OSName(Enum):
@@ -54,7 +54,7 @@ class RPCServerMode(Enum):
     tracker = "tracker"
 
 
-def get_list_of_available_simulators() -> Dict[AnyStr, List]:
+def get_list_of_available_simulators() -> dict[AnyStr, list]:
     """
     List of simulators available on the system. Simulators are presented as a dictionary.
     The dictionary key is the name of the operating system of the simulator.
@@ -75,10 +75,10 @@ def get_list_of_available_simulators() -> Dict[AnyStr, List]:
     return available_simulators
 
 
-def grep_by_system(available_devices: Dict[AnyStr, List], system_name: OSName) -> List[Dict]:
+def grep_by_system(available_devices: dict[AnyStr, list], system_name: OSName) -> list[dict]:
     """Search for simulators that use the target operating system."""
 
-    def find_index_of_substr(search_field: List[AnyStr], target: AnyStr) -> int:
+    def find_index_of_substr(search_field: list[AnyStr], target: AnyStr) -> int:
         for i, item in enumerate(search_field):
             if target in item:
                 return i
@@ -89,13 +89,13 @@ def grep_by_system(available_devices: Dict[AnyStr, List], system_name: OSName) -
     return available_devices[keys[find_index_of_substr(keys, system_name.value)]]
 
 
-def grep_by_device(available_devices: List[Dict], device_name: IOSDevice) -> List[Dict]:
+def grep_by_device(available_devices: list[dict], device_name: IOSDevice) -> list[dict]:
     """Search for simulators that emulate a given device."""
 
     return [item for item in available_devices if device_name.value in item["name"]]
 
 
-def get_device_uid(target_device: Dict) -> AnyStr:
+def get_device_uid(target_device: dict) -> AnyStr:
     """Get a unique device ID."""
 
     return target_device["udid"]
@@ -217,7 +217,7 @@ def is_turned_off(udid: AnyStr) -> bool:
     return device["state"] == "Shutdown"
 
 
-def check_booted_device(devices: List[Dict]) -> Dict:
+def check_booted_device(devices: list[dict]) -> dict:
     """Check if there is already a booted device. If so, return this device."""
 
     for device in devices:
@@ -226,7 +226,7 @@ def check_booted_device(devices: List[Dict]) -> Dict:
     return {}
 
 
-def find_device(udid: AnyStr) -> Dict:
+def find_device(udid: AnyStr) -> dict:
     """Find device by its unique ID."""
 
     return_value = {}

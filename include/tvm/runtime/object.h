@@ -139,7 +139,10 @@ static_assert(static_cast<int>(TypeIndex::kCustomStaticIndex) >=
 
 }  // namespace runtime
 
+using tvm::ffi::Object;
 using tvm::ffi::ObjectPtr;
+using tvm::ffi::ObjectPtrEqual;
+using tvm::ffi::ObjectPtrHash;
 using tvm::ffi::ObjectRef;
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OBJECT_H_

@@ -20,8 +20,7 @@
 # pylint: disable=no-member
 # pylint: disable=pointless-statement
 
-import typing
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Union
 
 import tvm_ffi
 
@@ -108,7 +107,7 @@ class DFPattern(Node):
         """
         return reject(self)
 
-    def has_attr(self, attrs: Dict[str, Object]) -> "AttrPattern":
+    def has_attr(self, attrs: dict[str, Object]) -> "AttrPattern":
         """
         Add an attribute constraint to this pattern
 
@@ -143,7 +142,7 @@ class DFPattern(Node):
         """
         return has_dtype(dtype, self)
 
-    def has_shape(self, shape: List[PrimExpr]) -> "ShapePattern":
+    def has_shape(self, shape: list[PrimExpr]) -> "ShapePattern":
         """
         Add a shape constraint to this pattern
 
@@ -162,11 +161,11 @@ class DFPattern(Node):
         has_shape assumes that the matched relax.Expr only has one
         output tensor. Use is_tuple for those with multiple outputs.
         """
-        if not isinstance(shape, (list, tuple, tvm.ir.PrimExpr)):
+        if not isinstance(shape, list | tuple | tvm.ir.PrimExpr):
             raise ValueError("has_shape takes a list or tuple as input.")
         return ShapePattern(pattern=self, shape=shape)
 
-    def match(self, expr, var2val: Optional[Dict[Var, Expr]] = None) -> bool:
+    def match(self, expr, var2val: dict[Var, Expr] | None = None) -> bool:
         """
         Match a relax.Expr syntactically
 
@@ -193,8 +192,8 @@ class DFPattern(Node):
         return ffi.match_expr(self, expr, var2val)  # type: ignore
 
     def extract_matched_expr(
-        self, expr, var2val: Optional[Dict[Var, Expr]] = None
-    ) -> Optional[Dict["DFPattern", Expr]]:
+        self, expr, var2val: dict[Var, Expr] | None = None
+    ) -> dict["DFPattern", Expr] | None:
         """
         Match a relax.Expr and return a map from matching patterns to matched expressions.
 
@@ -277,7 +276,7 @@ class DFPattern(Node):
         for v in args:
             self ^ v
 
-    def same_shape_as(self, *args: List["DFPattern"]) -> "SameShapeConstraint":
+    def same_shape_as(self, *args: list["DFPattern"]) -> "SameShapeConstraint":
         """
         The current pattern with the same shape as another pattern (sequence)
 
@@ -409,7 +408,7 @@ class CallPattern(DFPattern):
     def __init__(
         self,
         op: "DFPattern",
-        args: Union[List["DFPattern"], typing.Tuple["DFPattern", ...]],
+        args: list["DFPattern"] | tuple["DFPattern", ...],
         varg_default_wildcard: bool = False,
         add_constraint=True,
     ):
@@ -441,7 +440,7 @@ class FunctionPattern(DFPattern):
 
     def __init__(
         self,
-        params: List["DFPattern"],
+        params: list["DFPattern"],
         body: "DFPattern",
     ):
         self.__init_handle_by_constructor__(ffi.FunctionPattern, params, body)  # type: ignore
@@ -460,7 +459,7 @@ class TuplePattern(DFPattern):
     def __init__(self, fields: list):
         self.__init_handle_by_constructor__(ffi.TuplePattern, fields)  # type: ignore
 
-    def __getitem__(self, index: Optional[int]) -> "TupleGetItemPattern":
+    def __getitem__(self, index: int | None) -> "TupleGetItemPattern":
         if index is not None:
             # support negative index for being pythonic
             if index < 0:
@@ -505,7 +504,7 @@ class TupleGetItemPattern(DFPattern):
         The index to match; Default (None) to match a TupleGetItem with any index.
     """
 
-    def __init__(self, tuple_value: "DFPattern", index: Optional[int] = None):
+    def __init__(self, tuple_value: "DFPattern", index: int | None = None):
         match_index = index if index is not None else -1
         self.__init_handle_by_constructor__(
             ffi.TupleGetItemPattern,
@@ -619,7 +618,7 @@ class ShapePattern(DFPattern):
         The shape to match.
     """
 
-    def __init__(self, pattern: "DFPattern", shape: List[tvm.ir.PrimExpr]):
+    def __init__(self, pattern: "DFPattern", shape: list[tvm.ir.PrimExpr]):
         self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)  # type: ignore
 
 
@@ -633,7 +632,7 @@ class SameShapeConstraint(DFConstraint):
         A set of patterns which must all provide the same shape.
     """
 
-    def __init__(self, *args: List[DFPattern]):
+    def __init__(self, *args: list[DFPattern]):
         self.__init_handle_by_constructor__(ffi.SameShapeConstraint, args)  # type: ignore
 
 
@@ -648,7 +647,7 @@ class PrimArrPattern(DFPattern):
         The shape to match.
     """
 
-    def __init__(self, shape: List[tvm.ir.PrimExpr]):
+    def __init__(self, shape: list[tvm.ir.PrimExpr]):
         self.__init_handle_by_constructor__(ffi.PrimArrPattern, shape)  # type: ignore
 
     def __getitem__(self, index: int):
@@ -757,9 +756,7 @@ def is_op(op_name: str) -> ExprPattern:
     return ExprPattern(op)
 
 
-def is_tuple(
-    fields: Union[Array, List, Tuple], unordered=False
-) -> Union[TuplePattern, UnorderedTuplePattern]:
+def is_tuple(fields: Array | list | tuple, unordered=False) -> TuplePattern | UnorderedTuplePattern:
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -773,14 +770,14 @@ def is_tuple(
     result: tvm.relax.dpl.DFPattern
         The resulting pattern.
     """
-    if not isinstance(fields, (list, tuple, Array)):
+    if not isinstance(fields, list | tuple | Array):
         raise ValueError("fields must be a list, tuple, or Array")
     if unordered:
         return UnorderedTuplePattern(fields)
     return TuplePattern(fields)
 
 
-def is_tuple_get_item(tuple_value: DFPattern, index: Optional[int] = None) -> TupleGetItemPattern:
+def is_tuple_get_item(tuple_value: DFPattern, index: int | None = None) -> TupleGetItemPattern:
     """
     Syntatic sugar for creating an ExprPattern.
 
@@ -834,7 +831,7 @@ def has_dtype(dtype: str, pattern: DFPattern = None) -> DataTypePattern:
     return DataTypePattern(pattern, dtype)
 
 
-def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":
+def is_shape(shape: list[tvm.ir.PrimExpr]) -> "PrimArrPattern":
     """
     Directly matches a shape which is an array of PrimExpr
 
@@ -859,7 +856,7 @@ def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":
     puts assumptions on the shape of the tensor matched by pattern p. While
     is_shape directly matches the shape (an array of PrimExpr).
     """
-    if not isinstance(shape, (list, tuple, tvm.ir.Array)):
+    if not isinstance(shape, list | tuple | tvm.ir.Array):
         raise ValueError("is_shape takes a list or tuple as input.")
     return PrimArrPattern(shape)
 
@@ -867,12 +864,12 @@ def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":
 # Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
 def _is_call_tir(
     func_pattern: DFPattern,
-    args: Union[List, Tuple, TuplePattern] = None,
-    tir_vars: Optional[DFPattern] = None,
+    args: list | tuple | TuplePattern = None,
+    tir_vars: DFPattern | None = None,
 ) -> CallPattern:
     if args is None:
         args = wildcard()
-    elif isinstance(args, (list, tuple)):
+    elif isinstance(args, list | tuple):
         args = TuplePattern(args)
 
     if tir_vars is None:
@@ -883,8 +880,8 @@ def _is_call_tir(
 # Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
 def is_call_tir(
     func_name: str,
-    args: Union[List, Tuple, TuplePattern] = None,
-    tir_vars: Optional[DFPattern] = None,
+    args: list | tuple | TuplePattern = None,
+    tir_vars: DFPattern | None = None,
 ) -> CallPattern:
     """
     Syntax sugar for creating a CallPattern for call_tir that calls an function through global var.
@@ -908,11 +905,11 @@ def is_call_tir(
 
 def _is_call_dps_packed(
     func_pattern: DFPattern,
-    args: Union[List, Tuple, TuplePattern] = None,
+    args: list | tuple | TuplePattern = None,
 ) -> CallPattern:
     if args is None:
         args = wildcard()
-    elif isinstance(args, (list, tuple)):
+    elif isinstance(args, list | tuple):
         args = TuplePattern(args)
 
     return is_op("relax.call_dps_packed")(func_pattern, args, add_constraint=False)
@@ -920,7 +917,7 @@ def _is_call_dps_packed(
 
 def is_call_dps_packed(
     func_name: str,
-    args: Union[List, Tuple, TuplePattern] = None,
+    args: list | tuple | TuplePattern = None,
 ) -> CallPattern:
     """Syntax sugar for creating a CallPattern for call_dps_packed
 
@@ -941,7 +938,7 @@ def is_call_dps_packed(
 
 
 def is_call_packed(
-    func_name: str, args: Optional[Union[List[DFPattern], Tuple[DFPattern]]] = None
+    func_name: str, args: list[DFPattern] | tuple[DFPattern] | None = None
 ) -> CallPattern:
     """
     Syntax sugar for creating a CallPattern for call_packed
@@ -1006,7 +1003,7 @@ def has_attr(attrs, pattern=None) -> AttrPattern:
 class PatternSeq(Node):
     """A sequence of patterns with consecutive constraints"""
 
-    def __init__(self, patterns: List[DFPattern], only_use=False):
+    def __init__(self, patterns: list[DFPattern], only_use=False):
         """
         Initializer to PatternSeq
 
@@ -1105,8 +1102,8 @@ class PatternSeq(Node):
 
 
 def _used_by(
-    lhs: Union[DFPattern, PatternSeq],
-    rhs: Union[DFPattern, PatternSeq],
+    lhs: DFPattern | PatternSeq,
+    rhs: DFPattern | PatternSeq,
     index=-1,
 ) -> PatternSeq:
     if isinstance(lhs, DFPattern):
@@ -1116,9 +1113,7 @@ def _used_by(
     return ffi.used_by(lhs, rhs, index)  # type: ignore
 
 
-def _only_used_by(
-    lhs: Union[DFPattern, PatternSeq], rhs: Union[DFPattern, PatternSeq], index=-1
-) -> PatternSeq:
+def _only_used_by(lhs: DFPattern | PatternSeq, rhs: DFPattern | PatternSeq, index=-1) -> PatternSeq:
     if isinstance(lhs, DFPattern):
         lhs = PatternSeq([lhs])
     if isinstance(rhs, DFPattern):

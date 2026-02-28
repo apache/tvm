@@ -22,7 +22,7 @@ ONNX testcases
 This file is a test script to test Relax ONNX frontend coverage.
 """
 
-from typing import Dict, List, Literal, Optional
+from typing import Literal
 
 import numpy as np
 import onnx
@@ -43,8 +43,8 @@ rg = np.random.Generator(bg)
 
 
 def generate_random_inputs(
-    model: ModelProto, inputs: Optional[Dict[str, np.ndarray]] = None
-) -> Dict[str, np.ndarray]:
+    model: ModelProto, inputs: dict[str, np.ndarray] | None = None
+) -> dict[str, np.ndarray]:
     input_values = {}
     # Iterate through model inputs and extract their shape.
     for i in model.graph.input:
@@ -83,7 +83,7 @@ def generate_random_value(shape, elem_type) -> np.ndarray:
 
 def check_correctness(
     model: ModelProto,
-    inputs: Optional[Dict[str, np.ndarray]] = None,
+    inputs: dict[str, np.ndarray] | None = None,
     ir_version: int = 8,
     opset: int = 14,
     rtol: float = 1e-7,
@@ -169,7 +169,7 @@ def check_correctness(
             return "other"
 
     def _check_output(tvm_out, ort_out):
-        if isinstance(tvm_out, tuple) and isinstance(ort_out, (tvm.runtime.ShapeTuple, list)):
+        if isinstance(tvm_out, tuple) and isinstance(ort_out, tvm.runtime.ShapeTuple | list):
             assert len(tvm_out) == len(ort_out), "Unequal number of outputs"
             for tvm_out_i, ort_out_i in zip(tvm_out, ort_out):
                 _check_output(tvm_out_i, ort_out_i)
@@ -182,7 +182,7 @@ def check_correctness(
             if check_dtypes:
                 assert _get_numpy_subdtype(shape_out.numpy()) == _get_numpy_subdtype(ort_out)
             tvm.testing.assert_allclose(shape_out.numpy(), ort_out, rtol=rtol, atol=atol)
-        elif isinstance(tvm_out, (int, float, bool)) and isinstance(ort_out, np.ndarray):
+        elif isinstance(tvm_out, int | float | bool) and isinstance(ort_out, np.ndarray):
             if check_dtypes:
                 assert _get_numpy_subdtype(np.array(tvm_out)) == _get_numpy_subdtype(ort_out)
             tvm.testing.assert_allclose(np.array(tvm_out), ort_out, rtol=rtol, atol=atol)
@@ -567,7 +567,7 @@ def test_gather():
     def _verify_gather(data_shape, indices, out_shape, axis=0):
         gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=axis)
 
-        if isinstance(indices, (list, tuple)):
+        if isinstance(indices, list | tuple):
             indices_shape = np.asarray(indices).shape
         else:
             indices_shape = []
@@ -717,9 +717,9 @@ def test_scatter_nd(reduction):
 @pytest.mark.parametrize("condition_shape", [None, [8], [16]])
 @pytest.mark.parametrize("axis", [None, 0, 1])
 def test_compress(
-    tensor_shape: List[int],
-    condition_shape: Optional[List[int]],
-    axis: Optional[int],
+    tensor_shape: list[int],
+    condition_shape: list[int] | None,
+    axis: int | None,
 ):
     if condition_shape is None and axis is None:
         pytest.skip("Either condition_shape or axis must be specified")
@@ -2908,11 +2908,11 @@ def test_batch_norm():
 )
 def test_pool(
     pool_name: str,
-    shape: List[int],
+    shape: list[int],
     auto_pad: str,
-    kernel_shape: List[int],
-    strides: List[int],
-    pads: List[int],
+    kernel_shape: list[int],
+    strides: list[int],
+    pads: list[int],
 ):
     verify_unary(
         pool_name,
@@ -3015,7 +3015,7 @@ def test_onehot():
 @pytest.mark.parametrize("axis", [None, 0, 1, -1])
 @pytest.mark.parametrize("sorted", [0, 1])
 @pytest.mark.parametrize("num_outputs", [1, 2, 3, 4])
-def test_unique(axis: Optional[int], sorted: int, num_outputs: int):
+def test_unique(axis: int | None, sorted: int, num_outputs: int):
     input_shape = [8, 8]
     if axis is None:
         output_shape = [-1]
@@ -3085,7 +3085,7 @@ def test_space_to_depth():
     check_correctness(model)
 
 
-def construct_sequence(input_shape: List[int], num_tensors: int, name: str = "sequence"):
+def construct_sequence(input_shape: list[int], num_tensors: int, name: str = "sequence"):
     inputs = [f"data{i}" for i in range(num_tensors)]
     sequence_construct_node = helper.make_node("SequenceConstruct", inputs, [name])
     graph_inputs = [
@@ -3095,7 +3095,7 @@ def construct_sequence(input_shape: List[int], num_tensors: int, name: str = "se
     return sequence_construct_node, graph_inputs
 
 
-def make_constant_node(name: str, data_type: int, dims: List[int], vals: List[int]):
+def make_constant_node(name: str, data_type: int, dims: list[int], vals: list[int]):
     return helper.make_node(
         "Constant",
         inputs=[],
@@ -3581,7 +3581,7 @@ def test_nms():
     vm.invoke_stateful("main")
     tvm_output = vm.get_outputs("main")
 
-    if isinstance(tvm_output, (list, tuple)):
+    if isinstance(tvm_output, list | tuple):
         tvm_selected = tvm_output[0].numpy()
     else:
         tvm_selected = tvm_output.numpy()
@@ -3745,7 +3745,7 @@ def test_nms_iou_suppression():
     tvm_output = vm.get_outputs("main")
 
     # Custom NMS output comparison
-    if isinstance(tvm_output, (list, tuple)):
+    if isinstance(tvm_output, list | tuple):
         tvm_selected = tvm_output[0].numpy()
     else:
         tvm_selected = tvm_output.numpy()
@@ -3840,7 +3840,7 @@ def test_nms_max_boxes_limit():
     tvm_output = vm.get_outputs("main")
 
     # Custom NMS output comparison
-    if isinstance(tvm_output, (list, tuple)):
+    if isinstance(tvm_output, list | tuple):
         tvm_selected = tvm_output[0].numpy()
     else:
         tvm_selected = tvm_output.numpy()
@@ -3932,7 +3932,7 @@ def test_nms_score_threshold():
     tvm_output = vm.get_outputs("main")
 
     # Custom NMS output comparison
-    if isinstance(tvm_output, (list, tuple)):
+    if isinstance(tvm_output, list | tuple):
         tvm_selected = tvm_output[0].numpy()
     else:
         tvm_selected = tvm_output.numpy()

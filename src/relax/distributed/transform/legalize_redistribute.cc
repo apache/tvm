@@ -74,7 +74,7 @@ class RedistributeLegalizer : public ExprMutator {
       // and the device mesh must be 1d
       // todo: extend the ccl ops so that it can support 2d device mesh, and different sharding
       // dimension
-      TVM_FFI_ICHECK(StructuralEqual()(input_sinfo->device_mesh, attrs->device_mesh));
+      TVM_FFI_ICHECK(ffi::StructuralEqual()(input_sinfo->device_mesh, attrs->device_mesh));
       TVM_FFI_ICHECK(input_sinfo->device_mesh->shape.size() == 1);
       // only support "S[x]"-> "R" and "R" -> "S[x]"
       PlacementSpec input_spec = input_sinfo->placement->dim_specs[0];

@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/node/structural_equal.cc
+ * \file src/ir/structural_equal.cc
  */
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/function.h>
@@ -25,8 +25,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/functor.h>
-#include <tvm/node/node.h>
-#include <tvm/node/structural_equal.h>
+#include <tvm/node/repr_printer.h>
+#include <tvm/node/script_printer.h>
 
 #include <optional>
 #include <unordered_map>
@@ -80,8 +80,4 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("node.GetFirstStructuralMismatch", ffi::StructuralEqual::GetFirstMismatch);
 }
 
-bool StructuralEqual::operator()(const ffi::Any& lhs, const ffi::Any& rhs,
-                                 bool map_free_params) const {
-  return ffi::StructuralEqual::Equal(lhs, rhs, map_free_params);
-}
 }  // namespace tvm

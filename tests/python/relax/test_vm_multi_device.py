@@ -16,8 +16,6 @@
 # under the License.
 """Test eliminate common subexpr pass"""
 
-from typing import List
-
 import numpy as np
 
 import tvm
@@ -31,7 +29,7 @@ from tvm.script.parser import relax as R
 
 def compile(
     mod: IRModule,
-    device: List[Device] = [
+    device: list[Device] = [
         tvm.cpu(),
     ],
 ) -> relax.VirtualMachine:

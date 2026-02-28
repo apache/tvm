@@ -19,7 +19,8 @@
 import ctypes
 import os
 import shutil
-from typing import Any, Callable, List, Optional, Union
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np  # type: ignore
 import psutil  # type: ignore
@@ -158,7 +159,7 @@ def derived_object(cls: type) -> type:
     TVMDerivedObject.__doc__ = cls.__doc__
     TVMDerivedObject.__module__ = cls.__module__
     for key, value in cls.__dict__.items():
-        if isinstance(value, (classmethod, staticmethod)):
+        if isinstance(value, classmethod | staticmethod):
             setattr(TVMDerivedObject, key, value)
     return TVMDerivedObject
 
@@ -260,7 +261,7 @@ def print_interactive_table(data: str) -> None:
 
 
 def get_global_func_with_default_on_worker(
-    name: Union[None, str, Callable],
+    name: None | str | Callable,
     default: Callable,
 ) -> Callable:
     """Get the registered global function on the worker process.
@@ -299,7 +300,7 @@ def get_global_func_with_default_on_worker(
 def get_global_func_on_rpc_session(
     session: RPCSession,
     name: str,
-    extra_error_msg: Optional[str] = None,
+    extra_error_msg: str | None = None,
 ) -> PackedFunc:
     """Get a PackedFunc from the global registry from an RPCSession.
 
@@ -348,11 +349,11 @@ def _json_de_tvm(obj: Any) -> Any:
     """
     if obj is None:
         return None
-    if isinstance(obj, (int, float)):
+    if isinstance(obj, int | float):
         return obj
-    if isinstance(obj, (IntImm, FloatImm)):
+    if isinstance(obj, IntImm | FloatImm):
         return obj.value
-    if isinstance(obj, (str,)):
+    if isinstance(obj, str):
         return str(obj)
     if isinstance(obj, Array):
         return [_json_de_tvm(i) for i in obj]
@@ -401,7 +402,7 @@ def _to_hex_address(handle: ctypes.c_void_p) -> str:
     return hex(ctypes.cast(handle, ctypes.c_void_p).value)
 
 
-def fork_seed(seed: Optional[int], n: int) -> List[int]:
+def fork_seed(seed: int | None, n: int) -> list[int]:
     # fmt: off
     return np.random.RandomState(seed=seed).randint(1, 2 ** 30, size=n).tolist()
     # fmt: on

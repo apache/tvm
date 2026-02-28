@@ -236,7 +236,7 @@
  *
  */
 
-#include <tvm/node/serialization.h>
+#include <tvm/ir/serialization.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/backend/adreno/transform.h>
 #include <tvm/relax/dataflow_matcher.h>

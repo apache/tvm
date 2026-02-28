@@ -22,7 +22,6 @@ import shutil
 import tempfile
 import unittest
 from functools import partial
-from typing import List
 
 import numpy as np
 
@@ -84,12 +83,12 @@ def test_meta_schedule_cost_model():
         def update(
             self,
             context: TuneContext,
-            candidates: List[MeasureCandidate],
-            results: List[RunnerResult],
+            candidates: list[MeasureCandidate],
+            results: list[RunnerResult],
         ) -> None:
             pass
 
-        def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+        def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
             return np.random.rand(10)
 
     model = FancyCostModel()
@@ -114,12 +113,12 @@ def test_meta_schedule_cost_model_as_string():
         def update(
             self,
             context: TuneContext,
-            candidates: List[MeasureCandidate],
-            results: List[RunnerResult],
+            candidates: list[MeasureCandidate],
+            results: list[RunnerResult],
         ) -> None:
             pass
 
-        def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+        def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
             return np.random.rand(10)
 
     cost_model = NotSoFancyCostModel()

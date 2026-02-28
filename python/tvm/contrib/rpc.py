@@ -18,8 +18,6 @@
 """Deprecation RPC module"""
 
 # pylint: disable=unused-import
-from __future__ import absolute_import as _abs
-
 import warnings
 
 from ..rpc import LocalSession, RPCSession, Server, TrackerSession, connect, connect_tracker

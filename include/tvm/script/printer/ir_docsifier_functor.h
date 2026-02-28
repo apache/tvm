@@ -20,8 +20,8 @@
 #define TVM_SCRIPT_PRINTER_IR_DOCSIFIER_FUNCTOR_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/node/node.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/object.h>
 
 #include <optional>
 #include <string>

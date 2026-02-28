@@ -16,21 +16,19 @@
 # under the License.
 """Creation operators."""
 
-from typing import Optional, Tuple, Union
-
 from tvm import DataType, DataTypeCode
 from tvm.ir.expr import PrimExpr
 
 from ..expr import Expr, PrimValue, ShapeExpr
 from . import _ffi_api
 
-PrimExprLike = Union[int, PrimExpr]
+PrimExprLike = int | PrimExpr
 
 
 def full(
-    shape: Union[Tuple[PrimExprLike], Expr],
+    shape: tuple[PrimExprLike] | Expr,
     fill_value: Expr,
-    dtype: Optional[Union[str, DataType]] = None,
+    dtype: str | DataType | None = None,
 ) -> Expr:
     """Fill array with scalar value.
 
@@ -42,7 +40,7 @@ def full(
     fill_value : relax.Expr
         The value to fill. Must be a scalar tensor.
 
-    dtype : Optional[Union[str, DataType]]
+    dtype : Optional[str | DataType]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of fill_value.
 
@@ -54,7 +52,7 @@ def full(
     return _ffi_api.full(shape, fill_value, dtype)  # type: ignore
 
 
-def full_like(x: Expr, fill_value: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
+def full_like(x: Expr, fill_value: Expr, dtype: str | DataType | None = None) -> Expr:
     """Construct a tensor such that
     - its shape is the same as the input data tensor's shape,
     - its value is filled with the input scalar fill value.
@@ -68,7 +66,7 @@ def full_like(x: Expr, fill_value: Expr, dtype: Optional[Union[str, DataType]] =
     fill_value : relax.Expr
         The value to fill. Must be a scalar tensor.
 
-    dtype : Optional[Union[str, DataType]]
+    dtype : Optional[str | DataType]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -80,7 +78,7 @@ def full_like(x: Expr, fill_value: Expr, dtype: Optional[Union[str, DataType]] =
     return _ffi_api.full_like(x, fill_value, dtype)  # type: ignore
 
 
-def ones(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -> Expr:
+def ones(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
     """Construct a tensor of all ones, with the input shape and dtype.
 
     Parameters
@@ -88,7 +86,7 @@ def ones(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -
     shape : Union[Tuple[PrimExprLike], Expr]
         The shape of the created tensor.
 
-    dtype : Union[str, DataType]
+    dtype : str | DataType
         The data type of the created tensor.
 
     Returns
@@ -96,12 +94,12 @@ def ones(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -
     result : relax.Expr
         The result tensor.
     """
-    if isinstance(shape, (tuple, list)):
+    if isinstance(shape, tuple | list):
         shape = ShapeExpr(shape)
     return _ffi_api.ones(shape, dtype)  # type: ignore
 
 
-def ones_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
+def ones_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
     """Construct a tensor with all ones, with shape of the input tensor shape.
 
     Parameters
@@ -110,7 +108,7 @@ def ones_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
         The input tensor, which provides the shape, and dtype
         when the `dtype` field is not specified.
 
-    dtype : Optional[Union[str, DataType]]
+    dtype : Optional[str | DataType]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -122,7 +120,7 @@ def ones_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
     return _ffi_api.ones_like(x, dtype)  # type: ignore
 
 
-def zeros(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) -> Expr:
+def zeros(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
     """Construct a tensor of all zeros, with the input shape and dtype.
 
     Parameters
@@ -130,7 +128,7 @@ def zeros(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) 
     shape : Union[Tuple[PrimExprLike], Expr]
         The shape of the created tensor.
 
-    dtype : Union[str, DataType]
+    dtype : str | DataType
         The data type of the created tensor.
 
     Returns
@@ -138,12 +136,12 @@ def zeros(shape: Union[Tuple[PrimExprLike], Expr], dtype: Union[str, DataType]) 
     result : relax.Expr
         The result tensor.
     """
-    if isinstance(shape, (tuple, list)):
+    if isinstance(shape, tuple | list):
         shape = ShapeExpr(shape)
     return _ffi_api.zeros(shape, dtype)  # type: ignore
 
 
-def zeros_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
+def zeros_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
     """Construct a tensor with all zeros, with shape of the input tensor shape.
 
     Parameters
@@ -152,7 +150,7 @@ def zeros_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
         The input tensor, which provides the shape, and dtype
         when the `dtype` field is not specified.
 
-    dtype : Optional[Union[str, DataType]]
+    dtype : Optional[str | DataType]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -165,27 +163,27 @@ def zeros_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
 
 
 def eye(
-    n: Union[PrimExprLike, PrimValue],
-    m: Optional[Union[PrimExprLike, PrimValue]] = None,
-    k: Union[PrimExprLike, PrimValue] = 0,
-    dtype: Union[str, DataType] = "float32",
+    n: PrimExprLike | PrimValue,
+    m: PrimExprLike | PrimValue | None = None,
+    k: PrimExprLike | PrimValue = 0,
+    dtype: str | DataType = "float32",
 ) -> Expr:
     """Construct a 2-D tensor with ones on the diagonal and zeros elsewhere.
 
     Parameters
     ----------
-    n : Union[PrimExprLike, PrimValue]
+    n : PrimExprLike | PrimValue
         Number of rows in the output.
 
-    m : Optional[Union[PrimExprLike, PrimValue]]
+    m : Optional[PrimExprLike | PrimValue]
         Number of columns in the output. If None, defaults to n.
 
-    k : Union[PrimExprLike, PrimValue]
+    k : PrimExprLike | PrimValue
         Index of the diagonal: 0 (the default) refers to the main diagonal,
         a positive value refers to an upper diagonal, and a negative value
         to a lower diagonal.
 
-    dtype : Union[str, DataType]
+    dtype : str | DataType
         The data type of the created tensor.
 
     Returns
@@ -202,8 +200,8 @@ def eye(
 
 def eye_like(
     x: Expr,
-    k: Union[PrimExprLike, PrimValue] = 0,
-    dtype: Optional[Union[str, DataType]] = None,
+    k: PrimExprLike | PrimValue = 0,
+    dtype: str | DataType | None = None,
 ) -> Expr:
     """Return a 2-D tensor with ones on the diagonal and zeros elsewhere,
     with the same shape as the input tensor.
@@ -214,12 +212,12 @@ def eye_like(
         The input tensor, which provides the shape, and dtype
         when the `dtype` field is not specified.
 
-    k : Union[PrimExprLike, PrimValue]
+    k : PrimExprLike | PrimValue
         Index of the diagonal: 0 (the default) refers to the main diagonal,
         a positive value refers to an upper diagonal, and a negative value
         to a lower diagonal.
 
-    dtype : Optional[Union[str, DataType]]
+    dtype : Optional[str | DataType]
         The data type of the created tensor.
         If dtype is not given, it will by default use the dtype of the input tensor.
 
@@ -233,26 +231,26 @@ def eye_like(
 
 
 def arange(
-    start: Union[PrimExprLike, PrimValue],
-    end: Optional[Union[PrimExprLike, PrimValue]] = None,
-    step: Union[PrimExprLike, PrimValue] = 1,
-    dtype: Optional[Union[str, DataType]] = None,
+    start: PrimExprLike | PrimValue,
+    end: PrimExprLike | PrimValue | None = None,
+    step: PrimExprLike | PrimValue = 1,
+    dtype: str | DataType | None = None,
 ) -> Expr:
     """Construct a tensor with evenly spaced elements.
 
     Parameters
     ----------
-    start : Union[PrimExprLike,PrimValue]
+    start : PrimExprLike | PrimValue
         The start of the interval.
 
-    end : Optional[Union[PrimExprLike,PrimValue]]
+    end : Optional[PrimExprLike | PrimValue]
         The end of the interval. If not given, it will be set to start,
         and start will be set to 0.
 
-    step : Union[PrimExprLike,PrimValue]
+    step : PrimExprLike | PrimValue
         The step size.
 
-    dtype : Optional[Union[str, DataType]]
+    dtype : Optional[str | DataType]
         The data type of the created tensor.
 
     Returns
@@ -317,7 +315,7 @@ def hamming_window(window_size, periodic, alpha, beta, dtype):
     return _ffi_api.hamming_window(window_size, periodic, alpha, beta, dtype)
 
 
-def tril(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
+def tril(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
     """Return the lower triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -343,7 +341,7 @@ def tril(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
     return _ffi_api.tril(x, k)  # type: ignore
 
 
-def triu(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
+def triu(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
     """Return the upper triangular part of a matrix or a batch of matrices.
 
     Parameters

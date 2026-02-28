@@ -18,7 +18,6 @@
 """Function definitions."""
 
 from enum import IntEnum
-from typing import Dict, Union
 
 import tvm_ffi
 
@@ -76,7 +75,7 @@ class BaseFunc(RelaxExpr):
             res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value)
         )
 
-    def with_attrs(self, attr_map: Union[DictAttrs, Dict[str, Object]]) -> "BaseFunc":
+    def with_attrs(self, attr_map: DictAttrs | dict[str, Object]) -> "BaseFunc":
         """Copy the IRModule and add the given attribute map to it.
         Parameters
         ----------

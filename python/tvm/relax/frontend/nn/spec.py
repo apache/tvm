@@ -23,8 +23,8 @@ if typing.TYPE_CHECKING:
     from .core import Module as nn_module_class
 
 ArgSpecType = typing.Union["Int", "Tensor"]
-MethodSpecType = typing.Union["MethodSpec", typing.Dict[str, ArgSpecType]]
-ModuleSpecType = typing.Union["ModuleSpec", typing.Dict[str, MethodSpecType]]
+MethodSpecType = typing.Union["MethodSpec", dict[str, ArgSpecType]]
+ModuleSpecType = typing.Union["ModuleSpec", dict[str, MethodSpecType]]
 SpecAny = typing.Union["Object", "Int", "Tensor", "Tuple"]
 
 
@@ -41,10 +41,10 @@ class Int:  # pylint: disable=too-few-public-methods
 class Tensor:  # pylint: disable=too-few-public-methods
     """A tensor input with static ndim and dtype, but can have symbolic shapes."""
 
-    shape: typing.List[typing.Union[int, str]]
+    shape: list[int | str]
     dtype: str
 
-    def __init__(self, shape: typing.Sequence[typing.Union[int, str]], dtype: str) -> None:
+    def __init__(self, shape: typing.Sequence[int | str], dtype: str) -> None:
         self.shape = list(shape)
         self.dtype = dtype
 
@@ -56,9 +56,9 @@ class Tensor:  # pylint: disable=too-few-public-methods
 class Object:  # pylint: disable=too-few-public-methods
     """An non-tensor opaque frontend object."""
 
-    object_type: typing.Type
+    object_type: type
 
-    def __init__(self, object_type: typing.Type) -> None:
+    def __init__(self, object_type: type) -> None:
         self.object_type = object_type
 
     def __repr__(self) -> str:
@@ -69,14 +69,14 @@ class Tuple:  # pylint: disable=too-few-public-methods
     """A tuple input or a list input"""
 
     name: str
-    elements: typing.Union[typing.List[SpecAny], typing.Tuple[SpecAny, ...]]
+    elements: list[SpecAny] | tuple[SpecAny, ...]
 
     def __init__(
         self,
         name: str,
-        elements: typing.Union[typing.List[SpecAny], typing.Tuple[SpecAny, ...]],
+        elements: list[SpecAny] | tuple[SpecAny, ...],
     ) -> None:
-        assert isinstance(elements, (tuple, list)), f"Unsupported container type: {type(elements)}"
+        assert isinstance(elements, tuple | list), f"Unsupported container type: {type(elements)}"
         self.name = name
         self.elements = elements
 
@@ -88,16 +88,16 @@ class MethodSpec:
     """A spec for a compiled method"""
 
     method: typing.Callable
-    arg_names: typing.List[str]
-    arg_specs: typing.List[ArgSpecType]
+    arg_names: list[str]
+    arg_specs: list[ArgSpecType]
     param_mode: str  # "plain", "packed", "none"
     effect_mode: str  # "plain", "packed", "none"
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
         method: typing.Callable,
-        arg_names: typing.List[str],
-        arg_specs: typing.List[ArgSpecType],
+        arg_names: list[str],
+        arg_specs: list[ArgSpecType],
         param_mode: str,
         effect_mode: str,
     ):
@@ -142,7 +142,7 @@ class MethodSpec:
         """
         if isinstance(spec, MethodSpec):
             return spec
-        config: typing.Dict[str, typing.Any] = spec.pop("$", {})  # type: ignore[assignment]
+        config: dict[str, typing.Any] = spec.pop("$", {})  # type: ignore[assignment]
         param_mode = config.get("param_mode", "plain")
         effect_mode = config.get("effect_mode", "plain")
         method_signature = inspect.signature(method)
@@ -154,9 +154,9 @@ class MethodSpec:
                 return Int()
             if isinstance(arg_spec, str) and arg_spec == "int":
                 return Int()
-            if isinstance(arg_spec, (Int, Tensor, Object)):
+            if isinstance(arg_spec, Int | Tensor | Object):
                 return arg_spec
-            if isinstance(arg_spec, (tuple, list, Tuple)):
+            if isinstance(arg_spec, tuple | list | Tuple):
                 return Tuple(
                     arg_name,
                     elements=type(arg_spec)(
@@ -182,7 +182,7 @@ class MethodSpec:
         )
 
     @staticmethod
-    def from_torch(args: typing.List[typing.Any], method: typing.Callable) -> "MethodSpec":
+    def from_torch(args: list[typing.Any], method: typing.Callable) -> "MethodSpec":
         """Converts a list of torch tensors to MethodSpec."""
         from .torch import (  # pylint: disable=import-outside-toplevel
             _method_spec_from_torch,
@@ -195,14 +195,14 @@ class ModuleSpec:
     """A spec for a compiled nn.Module"""
 
     module: "nn_module_class"
-    method_names: typing.List[str]
-    method_specs: typing.List[MethodSpec]
+    method_names: list[str]
+    method_specs: list[MethodSpec]
 
     def __init__(
         self,
         module: "nn_module_class",
-        method_names: typing.List[str],
-        method_specs: typing.List[MethodSpec],
+        method_names: list[str],
+        method_specs: list[MethodSpec],
     ) -> None:
         self.module = module
         self.method_names = method_names
@@ -237,7 +237,7 @@ class ModuleSpec:
         if isinstance(spec, ModuleSpec):
             return spec
         method_names = list(spec.keys())
-        method_specs: typing.List[MethodSpec] = []
+        method_specs: list[MethodSpec] = []
         for method_name in method_names:
             method_spec = spec[method_name]
             if isinstance(method_spec, MethodSpec):

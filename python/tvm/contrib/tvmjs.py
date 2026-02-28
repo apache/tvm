@@ -25,8 +25,9 @@ import shutil
 
 # pylint: disable=unused-import
 import sys
+from collections.abc import Iterator, Mapping
 from types import GeneratorType
-from typing import Any, Iterator, Mapping, Optional, Set, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 
@@ -81,7 +82,7 @@ class TensorCacheShardingManager:
         cache_dir: str,
         prefix: str,
         shard_cap_nbytes: int,
-        initial_shard_records: Optional[Mapping[str, Any]] = None,
+        initial_shard_records: Mapping[str, Any] | None = None,
     ):
         self.cache_dir = cache_dir
         self.prefix = prefix
@@ -90,8 +91,8 @@ class TensorCacheShardingManager:
         self.shard_records = []
         self.shard_cap_nbytes = shard_cap_nbytes
         self.counter = 0
-        self.name_to_record: Mapping[str, Tuple[int, Mapping[str, Any]]] = {}
-        self.updated_shards: Set[int] = set()
+        self.name_to_record: Mapping[str, tuple[int, Mapping[str, Any]]] = {}
+        self.updated_shards: set[int] = set()
 
         if initial_shard_records is not None:
             self.shard_records = initial_shard_records
@@ -201,10 +202,8 @@ class TensorCacheShardingManager:
 
 
 def dump_tensor_cache(
-    params: Union[
-        Mapping[str, Union[np.ndarray, tvm.runtime.Tensor]],
-        Iterator[Tuple[str, Union[np.ndarray, tvm.runtime.Tensor]]],
-    ],
+    params: Mapping[str, np.ndarray | tvm.runtime.Tensor]
+    | Iterator[tuple[str, np.ndarray | tvm.runtime.Tensor]],
     cache_dir: str,
     encode_format="f32-to-bf16",
     meta_data=None,

@@ -17,7 +17,7 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 # ruff: noqa: E501, F401
 import sys
-from typing import Callable, List
+from collections.abc import Callable
 
 import pytest
 from numpy.testing import assert_allclose
@@ -93,7 +93,7 @@ def _make_candidate(f_sch: Callable[[], s_tir.Schedule]) -> ms.MeasureCandidate:
 def _feature_names(  # pylint: disable=invalid-name
     buffers_per_store: int = 5,
     arith_intensity_curve_num_samples: int = 10,
-) -> List[str]:
+) -> list[str]:
     result = [
         "float_mad",
         "float_addsub",

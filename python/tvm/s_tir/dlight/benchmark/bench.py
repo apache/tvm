@@ -16,7 +16,8 @@
 # under the License.
 """Extract self-contained benchmarking scripts for dynamic shape workloads"""
 
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Optional
 
 import tvm
 from tvm import relax
@@ -39,15 +40,15 @@ if TYPE_CHECKING:
 
 
 def benchmark(
-    mod_or_func: Union[PrimFunc, IRModule],
+    mod_or_func: PrimFunc | IRModule,
     *,
-    dym_var_sample: Dict[str, int],
-    args: Optional[List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]],
-    target: Optional[Union[str, tvm.target.Target]] = None,
-    func_name: Optional[str] = None,
+    dym_var_sample: dict[str, int],
+    args: list[relax.TensorStructInfo | tuple[tuple[int | str, ...], str]] | None,
+    target: str | tvm.target.Target | None = None,
+    func_name: str | None = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
-) -> Tuple[List[Tuple[Tuple[int, ...], str]], float, float]:
+) -> tuple[list[tuple[tuple[int, ...], str]], float, float]:
     """Benchmark a PrimFunc or IRModule with dynamic input shapes.
 
     Parameters
@@ -105,8 +106,8 @@ def benchmark(
     input_infos = populuate_input_shape(args, dym_var_sample)
     # generate input tensors, including scalars
     # scalars are appended to the end of the list due to parsing order
-    input_tensors: List[Union[tvm.runtime.Tensor, int]] = []
-    scalar_input_tensors: List[int] = []
+    input_tensors: list[tvm.runtime.Tensor | int] = []
+    scalar_input_tensors: list[int] = []
     for input_shape, input_dtype in input_infos:
         if input_dtype == "scalar":
             # special case like [n], generate int value
@@ -152,22 +153,20 @@ def benchmark(
 
 
 def benchmark_prim_func(
-    mod_or_func: Union[PrimFunc, IRModule],
+    mod_or_func: PrimFunc | IRModule,
     *,
-    dym_var_sample_func: Callable[[Dict[str, str]], Dict[str, int]] = default_dym_var_sample_func,
-    args: Optional[
-        List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]]
-    ] = None,
-    dym_var_dict: Optional[Dict[str, str]] = None,
+    dym_var_sample_func: Callable[[dict[str, str]], dict[str, int]] = default_dym_var_sample_func,
+    args: list[relax.TensorStructInfo | tuple[tuple[int | str, ...], str]] | None = None,
+    dym_var_dict: dict[str, str] | None = None,
     sample_number: int = 5,
-    target: Optional[Union[str, tvm.target.Target]] = None,
-    weight: Optional[int] = 1,
-    relax_func_name: Optional[str] = None,
-    prim_func_name: Optional[str] = None,
+    target: str | tvm.target.Target | None = None,
+    weight: int | None = 1,
+    relax_func_name: str | None = None,
+    prim_func_name: str | None = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
-    sort_by: Optional[str] = None,
-    desc: Optional[bool] = True,
+    sort_by: str | None = None,
+    desc: bool | None = True,
 ):
     """Benchmark a PrimFunc or IRModule with dynamic input shapes and show results.
 
@@ -235,13 +234,13 @@ def benchmark_prim_func(
 
 def benchmark_relax_func(
     mod: tvm.ir.IRModule,
-    relax_func: Union[tvm.ir.GlobalVar, str],
+    relax_func: tvm.ir.GlobalVar | str,
     sample_number: int = 2,
     dym_var_sample_func: Callable[
-        [Dict[str, str]],
-        Dict[str, int],
+        [dict[str, str]],
+        dict[str, int],
     ] = default_dym_var_sample_func,
-    target: Union[str, dict, tvm.target.Target] = None,
+    target: str | dict | tvm.target.Target = None,
     evaluator_config: Optional["EvaluatorConfig"] = None,
     rpc_config: Optional["RPCConfig"] = None,
 ) -> None:

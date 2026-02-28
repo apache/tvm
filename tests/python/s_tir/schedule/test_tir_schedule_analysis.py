@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=missing-docstring
 # ruff: noqa: F401, F841
-from typing import List
 
 import pytest
 
@@ -53,11 +52,11 @@ from tvm.tir.function import TensorIntrin
 from tvm.tir.stmt_functor import pre_order_visit
 
 
-def _make_vars(*args: str) -> List[Var]:
+def _make_vars(*args: str) -> list[Var]:
     return [Var(arg, dtype="int32") for arg in args]
 
 
-def _make_loops(loop_vars: List[Var], extents: List[int]) -> List[For]:
+def _make_loops(loop_vars: list[Var], extents: list[int]) -> list[For]:
     assert len(loop_vars) == len(extents)
     return [
         For(

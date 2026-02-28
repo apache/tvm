@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <algorithm>
 #include <map>
@@ -40,7 +41,7 @@ bool IsAnnotateWithParallel(const Instruction& inst) {
   }
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
   ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
-  return ann_key == tir::attr::meta_schedule_parallel;
+  return ann_key == s_tir::attr::meta_schedule_parallel;
 }
 
 /*!

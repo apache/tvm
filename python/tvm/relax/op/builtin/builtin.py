@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 """The builtin Relax operators."""
 
-from typing import Union
-
 from ...expr import Call, DataTypeImm, Expr, PrimValue, StringImm
 from ...utils import args_converter
 from . import _ffi_api
@@ -25,9 +23,9 @@ from . import _ffi_api
 @args_converter.auto
 def alloc_tensor(
     shape: Expr,
-    dtype: Union[str, Expr],
-    runtime_device_index: Union[int, Expr],
-    storage_scope: Union[str, Expr] = "global",
+    dtype: str | Expr,
+    runtime_device_index: int | Expr,
+    storage_scope: str | Expr = "global",
 ) -> Call:
     """Construct a Call to allocate a tensor with specific shape, dtype, runtime_device_index.
 

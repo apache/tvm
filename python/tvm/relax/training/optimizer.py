@@ -18,7 +18,7 @@
 """Provide abstraction for defining optimizers and a set of common optimizers."""
 
 from decimal import Decimal
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np  # type: ignore
 
@@ -101,7 +101,7 @@ class Optimizer:
 
     dtype: str
     name: str
-    param_list: List[Var]
+    param_list: list[Var]
     state: tvm.ir.Array
 
     def __init__(self, name: str) -> None:
@@ -110,7 +110,7 @@ class Optimizer:
         self.state = None
         self.dtype = None
 
-    def init(self, params: Union[Var, List[Var]]) -> "Optimizer":
+    def init(self, params: Var | list[Var]) -> "Optimizer":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -135,7 +135,7 @@ class Optimizer:
         self.state = None
         return self
 
-    def _set_params_and_dtype(self, params: List[Var]) -> None:
+    def _set_params_and_dtype(self, params: list[Var]) -> None:
         """Check params is legal and set the param_list and dtype of the optimizer."""
         params_set = set()
         dtype = None
@@ -227,7 +227,7 @@ class Optimizer:
 
 
 # TODO(chaofan, yixin): Support symbolic shapes
-def _get_shape_as_int_list(var: Var) -> List[int]:
+def _get_shape_as_int_list(var: Var) -> list[int]:
     return [int(val) for val in var.struct_info.shape]
 
 
@@ -268,7 +268,7 @@ class SGD(Optimizer):
         self.lr = float(lr)
         self.weight_decay = float(weight_decay)
 
-    def init(self, params: Union[Var, List[Var]]) -> "SGD":
+    def init(self, params: Var | list[Var]) -> "SGD":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -409,7 +409,7 @@ class MomentumSGD(Optimizer):
         self.dampening = float(dampening)
         self.nesterov = nesterov
 
-    def init(self, params: Union[Var, List[Var]]) -> "MomentumSGD":
+    def init(self, params: Var | list[Var]) -> "MomentumSGD":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 
@@ -561,7 +561,7 @@ class Adam(Optimizer):
     def __init__(
         self,
         lr: float,
-        betas: Tuple[float, float] = (0.9, 0.999),
+        betas: tuple[float, float] = (0.9, 0.999),
         eps: float = 1e-08,
         weight_decay: float = 0,
     ) -> None:
@@ -572,7 +572,7 @@ class Adam(Optimizer):
         self.eps = float(eps)
         self.weight_decay = float(weight_decay)
 
-    def init(self, params: Union[Var, List[Var]]) -> "Adam":
+    def init(self, params: Var | list[Var]) -> "Adam":
         """Set the parameters, determine the dtype, and construct the initial state for the
         optimizer.
 

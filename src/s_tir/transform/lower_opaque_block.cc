@@ -22,6 +22,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -69,7 +70,7 @@ class OpaqueBlockLower : public StmtExprMutator {
           tuple.Set<0>(-1);
           allocate_aligns.push_back(tuple);
         }
-        allocate_annotations.Set(tir::attr::buffer_dim_align, allocate_aligns);
+        allocate_annotations.Set(s_tir::attr::buffer_dim_align, allocate_aligns);
       }
 
       body = Allocate(buffer->data, buffer->dtype, allocation_shape, const_true(), std::move(body),
@@ -107,7 +108,7 @@ class OpaqueBlockLower : public StmtExprMutator {
       ffi::String thread_tag = op->thread_binding.value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
     } else if (is_one(extent) && op->annotations.empty() &&
-               !op->annotations.count(tir::attr::irregular_loop_mark)) {
+               !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
       // Case 2. Unit loop
       return body;
     } else {

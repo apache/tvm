@@ -19,7 +19,8 @@
 
 import os
 import tempfile
-from typing import Callable, Dict, List, Optional, Union
+from collections.abc import Callable
+from typing import Optional, Union
 
 from tvm_ffi import register_global_func
 
@@ -36,18 +37,18 @@ logger = get_logger(__name__)  # pylint: disable=invalid-name
 
 
 T_BUILD = Callable[  # pylint: disable=invalid-name
-    [IRModule, Target, Optional[Dict[str, Tensor]]], Module
+    [IRModule, Target, dict[str, Tensor] | None], Module
 ]
 T_EXPORT = Callable[[Module], str]  # pylint: disable=invalid-name
 
 
-def _serialize_params(params: Optional[Dict[str, Tensor]]) -> Optional[bytearray]:
+def _serialize_params(params: dict[str, Tensor] | None) -> bytearray | None:
     if params is None:
         return None
     return save_param_dict(params)
 
 
-def _deserialize_params(params: Optional[bytearray]) -> Optional[Dict[str, Tensor]]:
+def _deserialize_params(params: bytearray | None) -> dict[str, Tensor] | None:
     if params is None:
         return None
     return load_param_dict(params)
@@ -106,18 +107,18 @@ class LocalBuilder(PyBuilder):
 
     max_workers: int
     timeout_sec: float
-    initializer: Optional[Callable[[], None]]
-    f_build: Union[None, str, T_BUILD]
-    f_export: Union[None, str, T_EXPORT]
+    initializer: Callable[[], None] | None
+    f_build: None | str | T_BUILD
+    f_export: None | str | T_EXPORT
 
     def __init__(
         self,
         *,
-        max_workers: Optional[int] = None,
+        max_workers: int | None = None,
         timeout_sec: float = 30.0,
-        f_build: Union[None, str, T_BUILD] = None,
-        f_export: Union[None, str, T_EXPORT] = None,
-        initializer: Optional[Callable[[], None]] = None,
+        f_build: None | str | T_BUILD = None,
+        f_export: None | str | T_EXPORT = None,
+        initializer: Callable[[], None] | None = None,
     ) -> None:
         """Constructor.
 
@@ -150,8 +151,8 @@ class LocalBuilder(PyBuilder):
         self.f_export = f_export
         self._sanity_check()
 
-    def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
-        results: List[BuilderResult] = []
+    def build(self, build_inputs: list[BuilderInput]) -> list[BuilderResult]:
+        results: list[BuilderResult] = []
         map_result: MapResult
 
         # Here we restart the PopenPool everytime because of a known memory leak issue with the
@@ -215,11 +216,11 @@ class LocalBuilder(PyBuilder):
 
 
 def _worker_func(
-    _f_build: Union[None, str, T_BUILD],
-    _f_export: Union[None, str, T_EXPORT],
+    _f_build: None | str | T_BUILD,
+    _f_export: None | str | T_EXPORT,
     mod: IRModule,
     target: Target,
-    params: Optional[bytearray],
+    params: bytearray | None,
 ) -> str:
     # Step 0. Get the registered functions
     f_build: T_BUILD = get_global_func_with_default_on_worker(
@@ -238,7 +239,7 @@ def _worker_func(
 
 
 @register_global_func("s_tir.meta_schedule.builder.default_build")
-def default_build(mod: IRModule, target: Target, _params: Optional[Dict[str, Tensor]]) -> Module:
+def default_build(mod: IRModule, target: Target, _params: dict[str, Tensor] | None) -> Module:
     """Default build function.
 
     Parameters

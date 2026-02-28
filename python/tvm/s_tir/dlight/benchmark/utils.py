@@ -16,12 +16,12 @@
 # under the License.
 """Util functions for benchmarking dynamic shape workloads"""
 
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any
 
 import tvm
 from tvm import relax
 
-INPUT_SHAPE_TYPE = List[Tuple[Tuple[int, ...], str]]  # pylint: disable=invalid-name
+INPUT_SHAPE_TYPE = list[tuple[tuple[int, ...], str]]  # pylint: disable=invalid-name
 
 
 def get_func_name_from_gv(gv: tvm.ir.GlobalVar) -> str:  # pylint: disable=invalid-name
@@ -40,7 +40,7 @@ def get_func_name_from_gv(gv: tvm.ir.GlobalVar) -> str:  # pylint: disable=inval
     return gv.name_hint
 
 
-def dym_var_sample_str(sample: Dict[Union[str, tvm.relax.expr.Call], int]) -> str:
+def dym_var_sample_str(sample: dict[str | tvm.relax.expr.Call, int]) -> str:
     """Convert a variable value sample to a string.
 
     Parameters
@@ -57,8 +57,8 @@ def dym_var_sample_str(sample: Dict[Union[str, tvm.relax.expr.Call], int]) -> st
 
 
 def populuate_input_shape(
-    input_infos: List[Union[relax.TensorStructInfo, Tuple[Tuple[Union[int, str], ...], str]]],
-    dym_var_sample: Dict[str, int],
+    input_infos: list[relax.TensorStructInfo | tuple[tuple[int | str, ...], str]],
+    dym_var_sample: dict[str, int],
 ) -> INPUT_SHAPE_TYPE:
     """
     Populate input shapes with dynamic shape variable samples.
@@ -101,7 +101,7 @@ def populuate_input_shape(
     return results
 
 
-def default_dym_var_sample_func(dym_var_dict: Dict[str, str]) -> Dict[str, int]:
+def default_dym_var_sample_func(dym_var_dict: dict[str, str]) -> dict[str, int]:
     """
     Default dynamic shape variable sample function.
     Sample a random value for each dynamic shape variable.
@@ -128,7 +128,7 @@ def default_dym_var_sample_func(dym_var_dict: Dict[str, str]) -> Dict[str, int]:
 
 
 def print_results(
-    bench_results: List[Dict[str, Any]], sort_by: str = "WxTime(ms)", desc: bool = True
+    bench_results: list[dict[str, Any]], sort_by: str = "WxTime(ms)", desc: bool = True
 ):
     """Print benchmark results.
 

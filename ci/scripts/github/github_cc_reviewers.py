@@ -23,7 +23,6 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List
 from urllib import error
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
@@ -33,7 +32,7 @@ sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
 from git_utils import GitHubRepo, git, parse_remote
 
 
-def find_reviewers(body: str) -> List[str]:
+def find_reviewers(body: str) -> list[str]:
     print(f"Parsing body:\n{body}")
     matches = re.findall(r"(cc( @[-A-Za-z0-9]+)+)", body, flags=re.MULTILINE)
     matches = [full for full, last in matches]

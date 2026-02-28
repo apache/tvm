@@ -133,10 +133,10 @@ class AndOfOrs {
   std::vector<std::vector<Key>> chunks_;
 
   /*! \brief Mapping from internal Key to PrimExpr */
-  std::unordered_map<Key, PrimExpr, StructuralHash, StructuralEqual> key_to_expr_;
+  std::unordered_map<Key, PrimExpr, ffi::StructuralHash, ffi::StructuralEqual> key_to_expr_;
 
   /*! \brief Mapping from PrimExpr to internal Key */
-  std::unordered_map<PrimExpr, Key, StructuralHash, StructuralEqual> expr_to_key_;
+  std::unordered_map<PrimExpr, Key, ffi::StructuralHash, ffi::StructuralEqual> expr_to_key_;
 
   /*! \brief Cached key representing tir::Bool(true) */
   Key key_true_;

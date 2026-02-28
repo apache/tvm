@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-from typing import List
 
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
@@ -41,7 +40,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 # pylint: enable=invalid-name, no-member
 
 
-def _sch(decisions: List[List[int]]) -> Schedule:
+def _sch(decisions: list[list[int]]) -> Schedule:
     sch = Schedule(matmul, debug_mask="all")
     # pylint: disable=invalid-name
     d0, d1, d2 = decisions

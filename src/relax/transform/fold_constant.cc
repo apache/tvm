@@ -412,7 +412,8 @@ class ConstantFolder : public ExprMutator {
   }
 
   // cache for function build, via structural equality
-  std::unordered_map<tir::PrimFunc, ffi::Optional<ffi::Function>, StructuralHash, StructuralEqual>
+  std::unordered_map<tir::PrimFunc, ffi::Optional<ffi::Function>, ffi::StructuralHash,
+                     ffi::StructuralEqual>
       func_build_cache_;
 };
 

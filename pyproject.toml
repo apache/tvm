@@ -26,7 +26,7 @@ version = "0.24.dev0"
 description = "Apache TVM: An End-to-End Deep Learning Compiler Stack"
 readme = "README.md"
 license = { text = "Apache-2.0" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{ name = "Apache TVM Community", email = "dev@tvm.apache.org" }]
 keywords = ["machine learning", "compiler", "deep learning", "inference"]
 classifiers = [
@@ -197,7 +197,7 @@ include = [
 ]
 line-length = 100
 indent-width = 4
-target-version = "py39"
+target-version = "py310"
 exclude = [
   "3rdparty",
   "build",
@@ -217,11 +217,10 @@ select = [
   "RUF", # ruff, https://docs.astral.sh/ruff/rules/#ruff-specific-rules-ruf
 ]
 ignore = [
-  # pyupgrade (needs `from __future__ import annotations`)
-  "UP006", # non-pep585-annotation
-  "UP007", # non-pep604-annotation-union
-  "UP035", # deprecated-import
-  "UP045", # non-pep604-annotation-optional
+  # pyupgrade (style preference or low-value)
+  "UP028", # yield-in-for-loop — sometimes clearer to keep
+  "UP030", # format-literals — minor
+  "UP031", # printf-string-formatting — style preference
   # ruff (preview rules, not yet stable)
   "RUF043", # pytest-raises-ambiguous-pattern
   "RUF059", # unused-unpacked-variable
@@ -231,6 +230,7 @@ unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401", "F403", "F405"]
+"python/tvm/contrib/msc/**" = ["UP"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["tvm"]

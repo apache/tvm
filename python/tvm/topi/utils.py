@@ -18,8 +18,6 @@
 # ruff: noqa: RUF005
 """Common topi utilities"""
 
-from __future__ import absolute_import as _abs
-
 from numbers import Integral
 
 import numpy as np
@@ -193,7 +191,7 @@ def get_const_tuple(in_tuple):
     for elem in in_tuple:
         if isinstance(elem, tvm.tir.Var):
             ret.append(elem)
-        elif not isinstance(elem, (tvm.tir.IntImm, int)):
+        elif not isinstance(elem, tvm.tir.IntImm | int):
             ana = tvm.arith.Analyzer() if ana is None else ana
             elem = ana.simplify(elem)
             if not isinstance(elem, tvm.tir.IntImm):

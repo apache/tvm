@@ -20,4 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install tensorflow==2.19.0
+uv pip install tensorflow==2.19.0

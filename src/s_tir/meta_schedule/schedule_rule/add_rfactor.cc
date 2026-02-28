@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
 
@@ -114,7 +115,7 @@ ffi::Array<s_tir::Schedule> AddRFactorNode::Apply(const s_tir::Schedule& sch,
 
       // Annotate that the rfactor block, which is now the producer of the original block, needs to
       // be considered by the rule Random-Compute-Location.
-      sch_tmp->Annotate(block_rv, tir::attr::meta_schedule_random_compute_producer, Integer(1));
+      sch_tmp->Annotate(block_rv, s_tir::attr::meta_schedule_random_compute_producer, Integer(1));
       res.push_back(sch_tmp);
     } catch (const tvm::runtime::Error& e) {
     }

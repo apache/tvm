@@ -92,7 +92,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     // within each branch.
     auto new_sinfo = VisitExprDepStructInfoField(Downcast<StructInfo>(op->struct_info_));
 
-    StructuralEqual struct_equal;
+    ffi::StructuralEqual struct_equal;
     if (!struct_equal(new_sinfo, GetStructInfo(true_b))) {
       auto output_var = Var("then_branch_with_dyn", new_sinfo);
 
@@ -351,7 +351,8 @@ class CanonicalizePlanner : public ExprVisitor {
       if (binding.as<VarBindingNode>()) {
         return true;
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
-        return StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(match_cast->value));
+        return ffi::StructuralEqual()(GetStructInfo(binding->var),
+                                      GetStructInfo(match_cast->value));
       } else {
         TVM_FFI_THROW(InternalError) << "Invalid binding type: " << binding->GetTypeKey();
       }

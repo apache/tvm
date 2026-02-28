@@ -22,8 +22,8 @@
 
 import itertools
 import string
-from typing import Any, Callable, Dict, List, Optional
-from typing import Tuple as typing_Tuple
+from collections.abc import Callable
+from typing import Any, Optional
 
 import tvm_ffi
 
@@ -43,7 +43,7 @@ from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo
 from .type_converter import args_converter  # pylint: disable=unused-import
 
 
-def metadata_partitioner(rx_txt: str) -> List[str]:
+def metadata_partitioner(rx_txt: str) -> list[str]:
     """Extract Relax program and metadata section.
 
     Parameters
@@ -117,10 +117,10 @@ def convert_to_expr(value: Any) -> Expr:
     if isinstance(tvm_value, PrimExpr):
         return PrimValue(value)
     # Case 3
-    if isinstance(tvm_value, (str,)):
+    if isinstance(tvm_value, str):
         return StringImm(value)
     # Case 4
-    if isinstance(value, (tuple, list)):
+    if isinstance(value, tuple | list):
         # `convert_to_expr` ensures that all elements are `Expr` if no exception raises
         return rx_Tuple([convert_to_expr(v) for v in value])
     raise TypeError(f"Cannot convert {value} with type {type(value)} to `relax.Expr`")
@@ -148,7 +148,7 @@ def copy_with_new_vars(func: Function) -> Function:
 
 def gen_call_tir_inputs(
     func: Callable, *args: Any, **kwargs: Any
-) -> typing_Tuple[tir.PrimFunc, Expr, List[TensorStructInfo], Optional[ShapeExpr]]:
+) -> tuple[tir.PrimFunc, Expr, list[TensorStructInfo], ShapeExpr | None]:
     """Generate the inputs for call_tir according to the te function.
     This function converts arguments from relax expression to te tensor,
     The callback func should return a te tensor or a list of te tensors.
@@ -173,7 +173,7 @@ def gen_call_tir_inputs(
         out_sinfo, and tir_vars.
     """
 
-    tir_var_map: Dict[tir.Var, tir.PrimExpr] = {}
+    tir_var_map: dict[tir.Var, tir.PrimExpr] = {}
 
     call_tir_args = []
     create_primfunc_args = []
@@ -270,11 +270,11 @@ def gen_call_tir_inputs(
                     else:
                         return _convert_te_arg_helper(arg.struct_info.value)
 
-            elif isinstance(arg, (list, Array)):
+            elif isinstance(arg, list | Array):
                 return [_convert_te_arg_helper(x) for x in arg]
             elif isinstance(arg, tuple):
                 return tuple(_convert_te_arg_helper(x) for x in arg)
-            elif isinstance(arg, (dict, Map)):
+            elif isinstance(arg, dict | Map):
                 for key in arg:
                     assert isinstance(key, str), (
                         "emit_te only supports dict with string as the key currently"
@@ -285,7 +285,7 @@ def gen_call_tir_inputs(
                 new_arg = tir.stmt_functor.substitute(arg, tir_var_map)
                 extra_tir_args_list.append(new_arg)
                 return new_arg
-            elif isinstance(arg, (int, float, str, Type, Attrs)) or arg is None:
+            elif isinstance(arg, int | float | str | Type | Attrs) or arg is None:
                 return arg
             raise TypeError(f"not supported type in emit_te: {type(arg)}")
 
@@ -293,8 +293,8 @@ def gen_call_tir_inputs(
         return new_arg
 
     def _get_unbound_tir_vars(
-        args: List[te_Tensor], extra_tir_args: List[PrimExpr]
-    ) -> List[tir.Var]:
+        args: list[te_Tensor], extra_tir_args: list[PrimExpr]
+    ) -> list[tir.Var]:
         """get unbound TIR vars (i.e TIR vars used in the shape but is not
         itself a dimension of a shape)"""
 
@@ -324,18 +324,18 @@ def gen_call_tir_inputs(
         diff = used_vars - bound_vars
         return list(diff)
 
-    def _get_vdevice(arg: Any) -> Optional[VDevice]:
+    def _get_vdevice(arg: Any) -> VDevice | None:
         """get the virtual device from arguments."""
         vdevice = None
         if isinstance(arg, Expr):  # type: ignore
             if isinstance(arg.struct_info, TensorStructInfo):
                 vdevice = arg.struct_info.vdevice
-        elif isinstance(arg, (list, Array, tuple)):
+        elif isinstance(arg, list | Array | tuple):
             for x in arg:
                 vdevice = _get_vdevice(x)
                 if vdevice is not None:
                     return vdevice
-        elif isinstance(arg, (dict, Map)):
+        elif isinstance(arg, dict | Map):
             for k in arg:
                 vdevice = _get_vdevice(arg[k])
                 if vdevice is not None:
@@ -343,7 +343,7 @@ def gen_call_tir_inputs(
         return vdevice
 
     def _shape_with_old_tir_var(
-        shape_values: List[tir.PrimExpr], tir_var_inverse_map: Dict[tir.Var, tir.PrimExpr]
+        shape_values: list[tir.PrimExpr], tir_var_inverse_map: dict[tir.Var, tir.PrimExpr]
     ):
         return ShapeExpr(
             [tir.stmt_functor.substitute(value, tir_var_inverse_map) for value in shape_values]
@@ -357,7 +357,7 @@ def gen_call_tir_inputs(
 
     te_out = func(*te_args, **te_kwargs)
     assert isinstance(te_out, te_Tensor) or (
-        isinstance(te_out, (tuple, list, Array)) and all(isinstance(t, te_Tensor) for t in te_out)
+        isinstance(te_out, tuple | list | Array) and all(isinstance(t, te_Tensor) for t in te_out)
     ), "only support te.tensor or tuple/list/Array of te.tensor as function output"
 
     outs = [te_out] if isinstance(te_out, te_Tensor) else list(te_out)

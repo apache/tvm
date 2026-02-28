@@ -18,8 +18,6 @@
 # ruff: noqa: RUF005
 """Relax LazyTransformParams pass."""
 
-from typing import Optional
-
 import tvm
 from tvm import IRModule, relax
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
@@ -218,7 +216,7 @@ class LazyTransformParamsFuncCreator:
             # direct iterate over the struct info annotation
             for param in func.params[num_input:]:
                 for sinfo in unpack_sinfo(param.struct_info):
-                    if isinstance(sinfo, (relax.PrimStructInfo, relax.ShapeStructInfo)):
+                    if isinstance(sinfo, relax.PrimStructInfo | relax.ShapeStructInfo):
                         params.append(relax.Var("symbolic_var_holder", sinfo))
 
         return relax.Function(
@@ -232,7 +230,7 @@ class LazyTransformParamsFuncCreator:
 
 @mutator
 class LazyInputMutator(PyExprMutator):
-    def __init__(self, func_creator, mod: Optional[IRModule] = None) -> None:
+    def __init__(self, func_creator, mod: IRModule | None = None) -> None:
         self.func_creator = func_creator
         super().__init__(mod)
 
@@ -301,7 +299,7 @@ class LazyInputMutator(PyExprMutator):
 
 @mutator
 class LazyOutputMutator(PyExprMutator):
-    def __init__(self, func_creator, mod: Optional[IRModule] = None) -> None:
+    def __init__(self, func_creator, mod: IRModule | None = None) -> None:
         self.func_creator = func_creator
         self.killed_vars = set()
         super().__init__(mod)

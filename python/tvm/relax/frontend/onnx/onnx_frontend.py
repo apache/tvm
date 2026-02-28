@@ -41,7 +41,8 @@ import math
 import operator
 import re
 import warnings
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any
 
 import numpy as _np
 import onnx.onnx_ml_pb2
@@ -56,7 +57,7 @@ from tvm.topi.utils import get_const_tuple
 from ..common import autopad
 
 
-def get_type(elem_type: Union[str, int]) -> str:
+def get_type(elem_type: str | int) -> str:
     """Converts onnx integer datatype to numpy datatype"""
     # If a string was passed instead of a tensor type, it does not need
     # conversion and can be returned.
@@ -74,9 +75,9 @@ def get_type(elem_type: Union[str, int]) -> str:
 
 
 def get_constant(
-    var: Union[relax.Constant, relax.Var],
-    params: List[Dict[str, relax.Var]],
-) -> Union[relax.Constant, relax.Var]:
+    var: relax.Constant | relax.Var,
+    params: list[dict[str, relax.Var]],
+) -> relax.Constant | relax.Var:
     """Attempt to convert a variable to a constant if possible.
     This is the primary function meant to interact with params.
 
@@ -109,7 +110,7 @@ def get_constant(
         return var
 
 
-def get_value(token, value_dict: Dict[str, tvm.tir.SizeVar]) -> Union[int, tvm.tir.SizeVar]:
+def get_value(token, value_dict: dict[str, tvm.tir.SizeVar]) -> int | tvm.tir.SizeVar:
     """Converts to token to an integer value if it a constant, otherwise it generates a SizeVar
 
     Parameters
@@ -136,8 +137,8 @@ def get_value(token, value_dict: Dict[str, tvm.tir.SizeVar]) -> Union[int, tvm.t
 
 
 def parse_shape_name(
-    name: str, value_dict: Dict[str, tvm.tir.SizeVar]
-) -> Union[tir.PrimExpr, tvm.tir.SizeVar]:
+    name: str, value_dict: dict[str, tvm.tir.SizeVar]
+) -> tir.PrimExpr | tvm.tir.SizeVar:
     """Converts expressions in the shape dimension name to prim expressions.
 
     Parameters
@@ -187,8 +188,8 @@ def parse_shape_name(
 
 
 def get_info(
-    info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict: Dict[str, tvm.tir.SizeVar]
-) -> Tuple[str, List, str, List, Dict]:
+    info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict: dict[str, tvm.tir.SizeVar]
+) -> tuple[str, list, str, list, dict]:
     """Extract the shape from a ValueInfoProto.
 
     Parameters
@@ -235,8 +236,8 @@ def get_numpy(tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> _np.ndarray:
 
 
 def get_prim_expr_list(
-    inputs: Union[relax.Constant, relax.ShapeExpr],
-) -> List[Union[int, tir.PrimExpr]]:
+    inputs: relax.Constant | relax.ShapeExpr,
+) -> list[int | tir.PrimExpr]:
     """Attempt to convert a variable to list of PrimExpr if possible.
 
     Parameters
@@ -319,7 +320,7 @@ class MatMul(OnnxOpConverter):
 def _to_numpy(x):
     if isinstance(x, relax.PrimValue):
         x = x.value
-        if isinstance(x, (tir.IntImm, tir.FloatImm)):
+        if isinstance(x, tir.IntImm | tir.FloatImm):
             x = x.value
         return _np.array(x)
     else:
@@ -337,7 +338,7 @@ class BinaryBase(OnnxOpConverter):
         """Base implementation for binary operations."""
         if cls.numpy_op is None or cls.relax_op is None:
             raise ValueError("Numpy and Relax operators must be defined for BinaryBase.")
-        if all([not isinstance(inp, (relax.expr.Call, relax.Var)) for inp in inputs]):
+        if all([not isinstance(inp, relax.expr.Call | relax.Var) for inp in inputs]):
             x = _to_numpy(inputs[0])
             y = _to_numpy(inputs[1])
             output = cls.numpy_op(x, y)  # pylint: disable=not-callable
@@ -511,7 +512,7 @@ class Equal(OnnxOpConverter):
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
             output = inputs[0].data.numpy() == inputs[1].data.numpy()
             return relax.const(output, output.dtype)
-        elif all([isinstance(inp, (relax.Constant, relax.ShapeExpr)) for inp in inputs]):
+        elif all([isinstance(inp, relax.Constant | relax.ShapeExpr) for inp in inputs]):
             lhs = get_prim_expr_list(inputs[0])
             rhs = get_prim_expr_list(inputs[1])
             if len(lhs) != len(rhs):
@@ -855,7 +856,7 @@ class ScatterND(OnnxOpConverter):
     """Convert an onnx ScatterND node into an equivalent Relax expression."""
 
     @staticmethod
-    def _reduction_check(attr, valid_reductions: List[str]):
+    def _reduction_check(attr, valid_reductions: list[str]):
         reduction = attr.get("reduction", None)
         reduction = reduction or b"update"
         reduction = reduction.decode("utf-8")
@@ -994,7 +995,7 @@ class Where(OnnxOpConverter):
             np_inputs = [inp.data.numpy() for inp in inputs]
             output = _np.where(*np_inputs)
             return relax.const(output, output.dtype)
-        if all([isinstance(inp, (relax.Constant, relax.ShapeExpr)) for inp in inputs]):
+        if all([isinstance(inp, relax.Constant | relax.ShapeExpr) for inp in inputs]):
             condition, x, y = [get_prim_expr_list(inp) for inp in inputs]
             if len(condition) != len(x) or len(condition) != len(y):
                 raise ValueError("Cannot broadcast condition to x and y")
@@ -1431,7 +1432,7 @@ class Squeeze(OnnxOpConverter):
 
         # If data is constant, perform computation directly.
         if isinstance(data, relax.Constant):
-            if isinstance(axis, (tuple, type(None))):
+            if isinstance(axis, tuple | type(None)):
                 out_data = _np.squeeze(data.data.numpy(), axis)
             else:
                 raise NotImplementedError("Squeeze with symbolic axes not supported")
@@ -1857,7 +1858,7 @@ class Slice(OnnxOpConverter):
         if not all(
             [
                 (
-                    isinstance(param, (relax.Constant, relax.ShapeExpr, relax.PrimValue))
+                    isinstance(param, relax.Constant | relax.ShapeExpr | relax.PrimValue)
                     or param is None
                 )
                 for param in [starts, ends, axes, steps]
@@ -1886,7 +1887,7 @@ class Slice(OnnxOpConverter):
             assert all(len(i) == 1 for i in [starts, ends, steps])
             sliced_values = shape_data[starts[0] : ends[0] : steps[0]]
 
-            if all([isinstance(val, (tir.IntImm, int)) for val in sliced_values]):
+            if all([isinstance(val, tir.IntImm | int) for val in sliced_values]):
                 return relax.const([x.value for x in sliced_values], "int64")
             else:
                 return relax.ShapeExpr(sliced_values)
@@ -1894,7 +1895,7 @@ class Slice(OnnxOpConverter):
         # If all `starts`, `ends`, and `steps` are constant, use strict mode
         # Otherwise, we assume the slice is inbound.
         assume_inbound = not all(
-            [isinstance(param, (tir.IntImm, int)) for param in [*starts, *ends, *steps]]
+            [isinstance(param, tir.IntImm | int) for param in [*starts, *ends, *steps]]
         )
 
         # Converting PrimExpr to PrimValue since relax.op.strided_slice does not accept PrimExpr
@@ -2774,7 +2775,7 @@ class LayerNormalization(OnnxOpConverter):
             if gamma_shape != beta_shape:
                 raise ValueError("gamma and beta shapes do not match")
 
-        axis = list(axis) if isinstance(axis, (list, tuple)) else [axis]
+        axis = list(axis) if isinstance(axis, list | tuple) else [axis]
         if len(axis) < len(gamma_shape):
             axis.extend(range(axis[-1] + 1, axis[-1] + 1 + len(gamma_shape) - len(axis)))
 
@@ -4041,16 +4042,16 @@ class ONNXGraphImporter:
 
     def __init__(
         self,
-        shape_dict: Dict[str, List],
-        dtype_dict: Union[str, Dict[str, str]],
+        shape_dict: dict[str, list],
+        dtype_dict: str | dict[str, str],
         keep_params_in_input: bool = False,
         sanitize: bool = True,
     ):
-        self._nodes: Dict[str, relax.Expr] = {}
-        self._inputs: Dict[str, relax.Var] = {}
+        self._nodes: dict[str, relax.Expr] = {}
+        self._inputs: dict[str, relax.Var] = {}
         self._num_input: int = 0
         self._shape = shape_dict.copy() if shape_dict else {}
-        self._input_names: List[str] = []
+        self._input_names: list[str] = []
         self._dtype = dtype_dict
         self.opset: int = None
         self._name_supply = NameSupply()
@@ -4153,7 +4154,7 @@ class ONNXGraphImporter:
             warnings.warn(f"Renaming name {name} to {new_name}")
         return new_name
 
-    def _new_var(self, var_name: str, shape: List, dtype: str = "float32"):
+    def _new_var(self, var_name: str, shape: list, dtype: str = "float32"):
         """Creates a new Relax variable."""
         return relax.Var(
             name_hint=var_name, struct_info=relax.TensorStructInfo(shape=shape, dtype=dtype)
@@ -4296,7 +4297,7 @@ class ONNXGraphImporter:
         np_array = get_numpy(tensor_proto).reshape(tuple(tensor_proto.dims))
         return tvm.runtime.tensor(np_array)
 
-    def _parse_attr(self, attr_proto: onnx.onnx_ml_pb2.AttributeProto) -> Dict[str, Any]:
+    def _parse_attr(self, attr_proto: onnx.onnx_ml_pb2.AttributeProto) -> dict[str, Any]:
         """Convert a list of AttributeProto to a dict, with names as keys."""
         attrs = {}
         for a in attr_proto:
@@ -4324,8 +4325,8 @@ class ONNXGraphImporter:
     def _convert_operator(
         self,
         op_name: str,
-        inputs: List[relax.Expr],
-        attrs: Dict,
+        inputs: list[relax.Expr],
+        attrs: dict,
         opset: int,
     ) -> relax.Expr:
         """Convert ONNX operator into a Relax operator.
@@ -4359,9 +4360,9 @@ class ONNXGraphImporter:
 
 def from_onnx(
     model: onnx.onnx_ml_pb2.GraphProto,
-    shape_dict: Optional[Dict[str, List]] = None,
-    dtype_dict: Optional[Union[str, Dict[str, str]]] = "float32",
-    opset: Optional[int] = None,
+    shape_dict: dict[str, list] | None = None,
+    dtype_dict: str | dict[str, str] | None = "float32",
+    opset: int | None = None,
     keep_params_in_input: bool = False,
     sanitize_input_names: bool = True,
 ) -> IRModule:

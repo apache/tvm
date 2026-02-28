@@ -20,14 +20,14 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install \
-    autodocsumm \
-    commonmark \
-    docutils \
-    Image \
-    matplotlib \
-    sphinx \
-    sphinx_autodoc_annotation \
-    sphinx-gallery \
-    sphinx_rtd_theme \
-    https://github.com/tlc-pack/tlcpack-sphinx-addon/archive/refs/tags/v0.2.3.zip
+uv pip install \
+    autodocsumm==0.2.7 \
+    commonmark==0.9.1 \
+    docutils==0.16 \
+    image==1.5.33 \
+    matplotlib==3.3.4 \
+    sphinx==4.2.0 \
+    sphinx_autodoc_annotation~=1.0 \
+    git+https://github.com/sphinx-gallery/sphinx-gallery.git@6142f1791151849b5bec4bf3959f75697ba226cd \
+    sphinx_rtd_theme==1.0.0 \
+    git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@768ec1dce349fe4708f6ad68be1ebb3f3dabafa1

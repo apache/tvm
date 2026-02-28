@@ -19,7 +19,6 @@
 
 import math
 import sys
-from typing import List
 
 import pytest
 from tvm_ffi import register_global_func
@@ -162,7 +161,7 @@ class WowSoFancyScheduleRule(PyScheduleRule):
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
-    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -179,7 +178,7 @@ class DoubleScheduleRule(PyScheduleRule):
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
-    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -204,7 +203,7 @@ class TrinityDoubleRule(PyScheduleRule):
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
-    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -227,7 +226,7 @@ class ReorderScheduleRule(PyScheduleRule):
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
-    def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+    def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
         if _is_root(sch, block):
             return [sch]
         new_sch = sch.copy()
@@ -326,7 +325,7 @@ def test_meta_schedule_post_order_apply_remove_block():
         def _initialize_with_tune_context(self, context: "TuneContext") -> None:
             pass
 
-        def apply(self, sch: Schedule, block: SBlockRV) -> List[Schedule]:
+        def apply(self, sch: Schedule, block: SBlockRV) -> list[Schedule]:
             if _is_root(sch, block):
                 return [sch]
             sch = sch.copy()

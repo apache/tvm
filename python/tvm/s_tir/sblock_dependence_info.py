@@ -17,8 +17,6 @@
 """Define SBlockDependenceInfoNode that uses the SBlockScope and StmtSRef objects
 to store the block level dependences"""
 
-from typing import Optional, Union
-
 from tvm_ffi import register_object
 
 from tvm.ir.module import IRModule
@@ -47,7 +45,7 @@ class SBlockDependenceInfo(Object):
 
     mod: IRModule
 
-    def __init__(self, mod: Union[IRModule, PrimFunc]):
+    def __init__(self, mod: IRModule | PrimFunc):
         if isinstance(mod, PrimFunc):
             mod = IRModule({"main": mod})
         if not isinstance(mod, IRModule):
@@ -57,7 +55,7 @@ class SBlockDependenceInfo(Object):
             mod,
         )
 
-    def get_sref(self, block: SBlock) -> Optional[StmtSRef]:
+    def get_sref(self, block: SBlock) -> StmtSRef | None:
         """Return the corresponding sref that points to the block
 
         Parameters

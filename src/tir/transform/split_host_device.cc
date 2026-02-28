@@ -104,7 +104,7 @@ class HostDeviceSplitter : public StmtMutator {
       Var kernel_error_code("kernel_error_code", success->dtype);
       Call kernel_call(success->dtype, kernel_symbol_global, args);
       AssertStmt assert_success(kernel_error_code == success,
-                                StringImm("Error executing compute kernel"), Evaluate(0));
+                                StringImm("Error executing compute kernel"));
       LetStmt let_check(kernel_error_code, kernel_call, assert_success);
 
       return let_check;

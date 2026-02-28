@@ -22,7 +22,8 @@ import functools
 import inspect
 import types
 import warnings
-from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from collections.abc import Callable, Mapping, Sequence
+from typing import Optional, Union
 
 import numpy as np  # type: ignore
 import tvm_ffi
@@ -52,7 +53,7 @@ class DataflowBlockPass(tvm.ir.transform.Pass):
 
 
 def Gradient(
-    func_name: str, require_grads: Optional[Union[Var, List[Var]]] = None, target_index: int = 0
+    func_name: str, require_grads: Var | list[Var] | None = None, target_index: int = 0
 ) -> tvm.ir.transform.Pass:
     """Reverse-mode automatic differentiation.
 
@@ -222,7 +223,7 @@ def Gradient(
                 # return value: (orig_return_values, tuple(adjoints))
                 return ((lv1, lv2), (x_adjoint, y_adjoint))
     """
-    if require_grads is not None and not isinstance(require_grads, (list, tvm_ffi.Array)):
+    if require_grads is not None and not isinstance(require_grads, list | tvm_ffi.Array):
         require_grads = [require_grads]
 
     return _ffi_api.Gradient(func_name, require_grads, target_index)  # type: ignore
@@ -641,7 +642,7 @@ def AttachGlobalSymbol() -> tvm.ir.transform.Pass:
 
 def BindParams(
     func_name: str,
-    params: Dict[Union[str, Var], Union[tvm.runtime.Tensor, np.ndarray]],
+    params: dict[str | Var, tvm.runtime.Tensor | np.ndarray],
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
 
@@ -661,7 +662,7 @@ def BindParams(
     for k, v in params.items():
         if isinstance(v, np.ndarray):
             v = tvm.runtime.tensor(v)
-        assert isinstance(v, (tvm.runtime.Tensor, tvm.relax.Constant)), (
+        assert isinstance(v, tvm.runtime.Tensor | tvm.relax.Constant), (
             f"param values are expected to be TVM.Tensor,"
             f"numpy.ndarray or tvm.relax.Constant, but got {type(v)}"
         )
@@ -671,8 +672,8 @@ def BindParams(
 
 
 def BindSymbolicVars(
-    binding_map: Mapping[Union[str, tvm.tir.Var], tvm.tir.PrimExpr],
-    func_name: Optional[str] = None,
+    binding_map: Mapping[str | tvm.tir.Var, tvm.tir.PrimExpr],
+    func_name: str | None = None,
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
 
@@ -699,8 +700,8 @@ def BindSymbolicVars(
 
 
 def RunCodegen(
-    target_options: Optional[dict] = None,
-    entry_functions: Optional[List[str]] = None,
+    target_options: dict | None = None,
+    entry_functions: list[str] | None = None,
 ) -> tvm.ir.transform.Pass:
     """Produce the runtime::Module with an annotated codegen and global symbol.
 
@@ -884,15 +885,15 @@ class FusionPattern(Object):
     pattern: DFPattern
     annotation_patterns: Mapping[str, DFPattern]
     check: Callable[[PatternCheckContext], bool]
-    attrs_getter: Callable[[Dict[str, Expr]], Dict[str, str]]
+    attrs_getter: Callable[[dict[str, Expr]], dict[str, str]]
 
     def __init__(
         self,
         name: str,
         pattern: DFPattern,
-        annotation_patterns: Optional[Mapping[str, DFPattern]] = None,
-        check: Optional[Callable[[PatternCheckContext], bool]] = None,
-        attrs_getter: Optional[Callable[[Dict[str, Expr]], Dict[str, str]]] = None,
+        annotation_patterns: Mapping[str, DFPattern] | None = None,
+        check: Callable[[PatternCheckContext], bool] | None = None,
+        attrs_getter: Callable[[dict[str, Expr]], dict[str, str]] | None = None,
     ):
         if annotation_patterns is None:
             annotation_patterns = {}
@@ -902,10 +903,10 @@ class FusionPattern(Object):
 
 
 def FuseOpsByPattern(
-    patterns: List[Union[FusionPattern, Tuple]],
+    patterns: list[FusionPattern | tuple],
     bind_constants: bool = True,
     annotate_codegen: bool = False,
-    entry_functions: Optional[List[str]] = None,
+    entry_functions: list[str] | None = None,
 ) -> tvm.ir.transform.Pass:
     """Apply pattern matching to each function in the given module, and group matched expressions
     into a new function.
@@ -1003,7 +1004,7 @@ def SplitLayoutRewritePreproc() -> tvm.ir.transform.Pass:
     return _ffi_api.SplitLayoutRewritePreproc()  # type: ignore
 
 
-def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm.ir.transform.Pass:
+def LiftTransformParams(shared_transform: bool | list[str] = False) -> tvm.ir.transform.Pass:
     """Lift transformation of the parameters of a function.
 
     When some inputs of the function is marked as 'parameters' (the model weights), this pass
@@ -1041,7 +1042,7 @@ def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm
     return _ffi_api.LiftTransformParams(shared_transform)  # type: ignore
 
 
-def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transform.Pass:
+def BundleModelParams(param_tuple_name: str | None = None) -> tvm.ir.transform.Pass:
     """Bundle several model parameters into a single tuple paramters
 
     For each function, if the function has the attribute "num_input",
@@ -1065,8 +1066,8 @@ def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transfor
 
 
 def LegalizeOps(
-    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None,
-    skip_ops: Optional[List[str]] = None,
+    customize_legalize_map: dict[str, LegalizeFunc] | None = None,
+    skip_ops: list[str] | None = None,
     enable_warning: bool = False,
 ):
     """Legalize high-level operator calls in Relax functions to call_tir
@@ -1191,7 +1192,7 @@ def RealizeVDevice() -> tvm.ir.transform.Pass:
 
 
 def MetaScheduleApplyDatabase(
-    work_dir: Optional[str] = None, enable_warning: bool = False
+    work_dir: str | None = None, enable_warning: bool = False
 ) -> tvm.ir.transform.Pass:
     """Apply the best schedule from tuning database.
 
@@ -1232,11 +1233,11 @@ def MetaScheduleTuneTIR(
 
 
 def MetaScheduleTuneIRMod(
-    params: Dict[str, Tensor],
+    params: dict[str, Tensor],
     work_dir: str,
     max_trials_global: int,
-    max_trials_per_task: Optional[int] = None,
-    op_names: Optional[List[str]] = None,
+    max_trials_per_task: int | None = None,
+    op_names: list[str] | None = None,
 ) -> tvm.ir.transform.Pass:
     """Tune Relax IRModule with MetaSchedule.
 
@@ -1287,7 +1288,7 @@ def FewShotTuning(
     return _ffi_api.FewShotTuning(valid_count, benchmark)  # type: ignore
 
 
-def DecomposeOpsForInference(func_name: Optional[str] = None) -> tvm.ir.transform.Pass:
+def DecomposeOpsForInference(func_name: str | None = None) -> tvm.ir.transform.Pass:
     """Decompose composite operators that are composed by other operators during inference.
     For example, the result of batch norm (a triple) will be simplified. Attention, tensor_to_shape,
     etc. can be also decomposed into a number of simplified operators as well.
@@ -1306,7 +1307,7 @@ def DecomposeOpsForInference(func_name: Optional[str] = None) -> tvm.ir.transfor
     return _ffi_api.DecomposeOpsForInference(func_name)  # type: ignore
 
 
-def DecomposeOpsForTraining(func_name: Optional[str] = None) -> tvm.ir.transform.Pass:
+def DecomposeOpsForTraining(func_name: str | None = None) -> tvm.ir.transform.Pass:
     """Decompose composite operators that are composed by other operators during training.
     For example, the result of batch norm (a triple) will be simplified. Attention, tensor_to_shape,
     etc. can be also decomposed into a number of simplified operators as well.
@@ -1326,10 +1327,10 @@ def DecomposeOpsForTraining(func_name: Optional[str] = None) -> tvm.ir.transform
 
 
 def AlterOpImpl(
-    op_impl_map: Dict[str, PrimFunc],
-    op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]],
-    op_buffer_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]],
-    op_buffer_input_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]],
+    op_impl_map: dict[str, PrimFunc],
+    op_buffer_transforms: dict[str, list[IndexMap | Callable]],
+    op_buffer_axis_separators: dict[str, list[str | Callable]],  # str=IndexMap.AXIS_SEPARATOR
+    op_buffer_input_axis_separators: dict[str, list[str | Callable]],  # str=IndexMap.AXIS_SEPARATOR
 ):
     """Replace all PrimFunc's which have matching 'operator_name' attribute, with replacement
     PrimFunc that could possibly have different layouts on i/o buffers. The layout
@@ -1358,7 +1359,7 @@ def AlterOpImpl(
             # Extract the index_map
             if isinstance(transform, Callable):
                 transform = IndexMap.from_func_with_separators(transform)[0]
-            elif isinstance(transform, (Array, tuple)) and isinstance(transform[0], IndexMap):
+            elif isinstance(transform, Array | tuple) and isinstance(transform[0], IndexMap):
                 transform = transform[0]
             l.append(transform)
         op_buffer_transforms[operator_name] = l
@@ -1372,8 +1373,8 @@ def AlterOpImpl(
 
 
 def ConvertLayout(
-    desired_layouts: Dict[str, List[str]],
-    layout_cb: Optional[Callable] = None,
+    desired_layouts: dict[str, list[str]],
+    layout_cb: Callable | None = None,
 ) -> tvm.ir.transform.Pass:
     """Automatic layout conversion pass.
 
@@ -1396,7 +1397,7 @@ def ConvertLayout(
     return _ffi_api.ConvertLayout(desired_layouts, layout_cb)  # type: ignore
 
 
-def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.transform.Pass:
+def DeadCodeElimination(entry_functions: list[str] | None = None) -> tvm.ir.transform.Pass:
     """Remove dead code in the IRModule.
     Currently it removes:
 
@@ -1427,7 +1428,7 @@ def DeadCodeElimination(entry_functions: Optional[List[str]] = None) -> tvm.ir.t
 
 
 def ToMixedPrecision(
-    out_dtype="float32", fp16_input_names: Optional[List[str]] = None
+    out_dtype="float32", fp16_input_names: list[str] | None = None
 ) -> tvm.ir.transform.Pass:
     """Automatic mixed precision pass. Currently the pass assumes the input module to be fp32
     only, and will automatically cast fp32 to fp16 for certain ops.
@@ -1450,7 +1451,7 @@ def ToMixedPrecision(
     return _ffi_api.ToMixedPrecision(out_dtype, fp16_input_names)  # type: ignore
 
 
-def SplitCallTIRByPattern(patterns: List[PrimFunc], fcodegen: Callable) -> tvm.ir.transform.Pass:
+def SplitCallTIRByPattern(patterns: list[PrimFunc], fcodegen: Callable) -> tvm.ir.transform.Pass:
     """Split a PrimFunc into 2 parts: the first part is a TIR PrimFunc which is
        matched with some pattern, and the second part is the rest of the original
        PrimFunc. It will call fcodegen to generate the code for the matched pattern
@@ -1472,7 +1473,7 @@ def SplitCallTIRByPattern(patterns: List[PrimFunc], fcodegen: Callable) -> tvm.i
     return _ffi_api.SplitCallTIRByPattern(patterns, fcodegen)  # type: ignore
 
 
-def UpdateParamStructInfo(sinfo_func: Callable[[Var], Optional[StructInfo]]):
+def UpdateParamStructInfo(sinfo_func: Callable[[Var], StructInfo | None]):
     """Update struct info of parameters
 
     Update struct info of parameters.  Internal bindings and function
@@ -1671,7 +1672,7 @@ def function_pass(
     name=None,
     required=None,
     traceable=False,
-) -> Union[Callable, FunctionPass]:
+) -> Callable | FunctionPass:
     """Decorate a function pass.
 
     This function returns a callback when pass_func
@@ -1763,7 +1764,7 @@ def function_pass(
         raise ValueError("Please provide opt_level for the function pass.")
 
     required = required if required else []
-    if not isinstance(required, (list, tuple)):
+    if not isinstance(required, list | tuple):
         raise TypeError("Required is expected to be the type of " + "list/tuple.")
 
     def create_function_pass(pass_arg):
@@ -1772,7 +1773,7 @@ def function_pass(
         info = tvm.transform.PassInfo(opt_level, fname, required, traceable)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
-        if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
+        if not isinstance(pass_arg, types.FunctionType | types.LambdaType):
             raise TypeError("pass_func must be a callable for Function pass")
         return _ffi_api.MakeFunctionPass(pass_arg, info)  # type: ignore
 
@@ -1815,7 +1816,7 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
 
 def dataflowblock_pass(
     pass_func=None, opt_level=None, name=None, required=None, traceable=False
-) -> Union[Callable, DataflowBlockPass]:
+) -> Callable | DataflowBlockPass:
     """Decorate a dataflowblock pass.
 
     This function returns a callback when pass_func
@@ -1915,7 +1916,7 @@ def dataflowblock_pass(
         raise ValueError("Please provide opt_level for the dataflowblock pass.")
 
     required = required if required else []
-    if not isinstance(required, (list, tuple)):
+    if not isinstance(required, list | tuple):
         raise TypeError("Required is expected to be the type of " + "list/tuple.")
 
     def create_dataflowblock_pass(pass_arg):
@@ -1924,7 +1925,7 @@ def dataflowblock_pass(
         info = tvm.transform.PassInfo(opt_level, fname, required, traceable)
         if inspect.isclass(pass_arg):
             return _wrap_class_dataflowblock_pass(pass_arg, info)
-        if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
+        if not isinstance(pass_arg, types.FunctionType | types.LambdaType):
             raise TypeError("pass_func must be a callable for DataflowBlock pass")
         return _ffi_api.MakeDataflowBlockPass(pass_arg, info)  # type: ignore
 

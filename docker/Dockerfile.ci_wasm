@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 FROM ubuntu:22.04
+COPY --from=ghcr.io/astral-sh/uv:0.10.5 /uv /uvx /bin/
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 COPY utils/download-and-verify.sh /usr/local/bin/download-and-verify
@@ -33,11 +34,15 @@ RUN bash /install/ubuntu_install_cmake.sh
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh
 
+ENV UV_NO_CACHE=1
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
+ENV UV_MANAGED_PYTHON=1
+
 ENV TVM_VENV=/venv/apache-tvm-py3.10
-COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
 RUN bash /install/ubuntu_install_python.sh 3.10
 ENV PATH=${TVM_VENV}/bin:$PATH
+ENV VIRTUAL_ENV=${TVM_VENV}
 
 # Disable .local directory from affecting CI.
 ENV PYTHONNOUSERSITE=1

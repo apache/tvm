@@ -182,7 +182,7 @@ class WorkspaceAnnotator(PyExprMutator):
             out_size_1d = _shape_1d(f.ret_struct_info.shape)
             # This needs to be in sync with the actual value that the kernel expects.
             workspace_size_bytes = out_size_1d * {"float16": 2, "float32": 4}[out_dtype]
-            if not isinstance(workspace_size_bytes, (int, tvm.tir.expr.IntImm)):
+            if not isinstance(workspace_size_bytes, int | tvm.tir.expr.IntImm):
                 # Tempororay workaround for dynamic shape workload. Will be removed when
                 # workspace for dynamic shape workload is implemented.
                 workspace_size_bytes = 8

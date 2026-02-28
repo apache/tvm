@@ -24,7 +24,6 @@ import re
 import sys
 import textwrap
 from pathlib import Path
-from typing import List, Optional
 
 # Hackery to enable importing of utils from ci/scripts/jenkins
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -35,7 +34,7 @@ from git_utils import git, parse_remote
 GIT_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 
-def prs_query(user: str, repo: str, cursor: Optional[str] = None):
+def prs_query(user: str, repo: str, cursor: str | None = None):
     after = ""
     if cursor is not None:
         after = f', before:"{cursor}"'
@@ -86,7 +85,7 @@ def prs_query(user: str, repo: str, cursor: Optional[str] = None):
     """
 
 
-def find_reviewers(body: str) -> List[str]:
+def find_reviewers(body: str) -> list[str]:
     matches = re.findall(r"(cc( @[-A-Za-z0-9]+)+)", body, flags=re.MULTILINE)
     matches = [full for full, last in matches]
 

@@ -34,7 +34,7 @@ cmake --install .
 cd ..
 
 # Install flatbuffers python packages.
-pip3 install flatbuffers
+uv pip install flatbuffers==24.3.25
 
 # Build the TFLite static library, necessary for building with TFLite ON.
 # The library is built at:

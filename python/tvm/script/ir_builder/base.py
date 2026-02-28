@@ -16,7 +16,8 @@
 # under the License.
 """A generic IRBuilder across the TVM stack"""
 
-from typing import Any, Callable, List
+from collections.abc import Callable
+from typing import Any
 
 from tvm_ffi import register_object as _register_object
 
@@ -180,9 +181,9 @@ class IRBuilder(_Object):
 
     @staticmethod
     def name_many(  # pylint: disable=invalid-name
-        s: List[str],
-        vs: List[Any],
-    ) -> List[Any]:
+        s: list[str],
+        vs: list[Any],
+    ) -> list[Any]:
         """Set the name of a list of objects.
 
         Parameters

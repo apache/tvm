@@ -87,9 +87,9 @@ def conv1d_ncw_python(a_np, w_np, stride, padding, dilation):
     """
     batch, in_c, in_w = a_np.shape
     out_c, _, filter_w = w_np.shape
-    if isinstance(stride, (tuple, list)):
+    if isinstance(stride, tuple | list):
         stride = stride[0]
-    if isinstance(dilation, (tuple, list)):
+    if isinstance(dilation, tuple | list):
         dilation = dilation[0]
 
     dilated_filter_w = (filter_w - 1) * dilation + 1

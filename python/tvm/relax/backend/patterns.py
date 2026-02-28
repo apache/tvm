@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Common patterns used in BYOC"""
 
-from typing import Dict, Mapping, Optional, Tuple, Union
+from collections.abc import Mapping
 
 from tvm.relax.dpl.pattern import (
     DFPattern,
@@ -34,10 +34,10 @@ from tvm.script import tir as T
 
 def _with_bias_activation_pattern(
     out: DFPattern,
-    annotations: Dict[str, DFPattern],
+    annotations: dict[str, DFPattern],
     with_bias: bool = False,
-    activation: Optional[str] = None,
-) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
+    activation: str | None = None,
+) -> tuple[DFPattern, Mapping[str, DFPattern]]:
     if with_bias:
         annotations["bias"] = bias = wildcard()
         out = is_op("relax.add")(out, bias)
@@ -51,8 +51,8 @@ def _with_bias_activation_pattern(
 def make_fused_bias_activation_pattern(
     op_name: str,
     with_bias: bool = False,
-    activation: Optional[str] = None,
-) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
+    activation: str | None = None,
+) -> tuple[DFPattern, Mapping[str, DFPattern]]:
     """
     A simple utility to create patterns for an operation fused with bias addition and activation.
 
@@ -86,10 +86,10 @@ def make_fused_bias_activation_pattern(
 
 
 def make_residual_block_pattern(
-    node_output: Union[DFPattern, Tuple[DFPattern, Mapping[str, DFPattern]]],
+    node_output: DFPattern | tuple[DFPattern, Mapping[str, DFPattern]],
     binary_op="relax.add",
     activation=None,
-) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
+) -> tuple[DFPattern, Mapping[str, DFPattern]]:
     """
     Create pattern for residual block.
 
@@ -133,8 +133,8 @@ def make_residual_block_pattern(
 
 def make_conv2d_pattern(
     with_bias: bool = False,
-    activation: Optional[str] = None,
-) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
+    activation: str | None = None,
+) -> tuple[DFPattern, Mapping[str, DFPattern]]:
     """
     Create pattern for 2D convolution.
 
@@ -169,9 +169,9 @@ def make_conv2d_pattern(
 
 def make_matmul_pattern(
     with_bias: bool = False,
-    activation: Optional[str] = None,
+    activation: str | None = None,
     transposed_rhs: bool = False,
-) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
+) -> tuple[DFPattern, Mapping[str, DFPattern]]:
     """
     Create pattern for matrix multiplication.
 
@@ -358,7 +358,7 @@ def make_rms_norm_pattern():
 
 def make_matmul_dequantize_pattern(
     transposed_rhs: bool = False,
-) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
+) -> tuple[DFPattern, Mapping[str, DFPattern]]:
     """
     Create pattern for matrix multiplication and dequantize operation.
 
@@ -398,7 +398,7 @@ def make_matmul_dequantize_pattern(
 
 def make_matmul_multiply_pattern(
     transposed_rhs: bool = False,
-) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
+) -> tuple[DFPattern, Mapping[str, DFPattern]]:
     """
     Create pattern for matrix multiplication and multiply operation.
 

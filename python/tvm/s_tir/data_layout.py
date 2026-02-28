@@ -16,8 +16,6 @@
 # under the License.
 """Data layout."""
 
-from typing import Union
-
 import tvm_ffi
 
 from tvm.runtime import Object
@@ -191,9 +189,7 @@ def layout(layout_str: str, dtype: str = "int32") -> Layout:
     return _ffi_api.Layout(layout_str, dtype)  # type: ignore
 
 
-def bijective_layout(
-    src_layout: Union[str, Layout], dst_layout: Union[str, Layout]
-) -> BijectiveLayout:
+def bijective_layout(src_layout: str | Layout, dst_layout: str | Layout) -> BijectiveLayout:
     """Create a bijective layout mapping.
 
     Parameters

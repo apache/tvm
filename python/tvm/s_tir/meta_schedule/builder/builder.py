@@ -17,10 +17,11 @@
 # ruff: noqa: RUF012
 """Meta Schedule builders that translate IRModule to runtime.Module, and then export"""
 
-from typing import Callable, Dict, List, Optional, Union
+from collections.abc import Callable
+from typing import Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 from tvm_ffi import register_object
@@ -48,13 +49,13 @@ class BuilderInput(Object):
 
     mod: IRModule
     target: Target
-    params: Optional[Dict[str, Tensor]]
+    params: dict[str, Tensor] | None
 
     def __init__(
         self,
         mod: IRModule,
         target: Target,
-        params: Optional[Dict[str, Tensor]] = None,
+        params: dict[str, Tensor] | None = None,
     ) -> None:
         """Constructor.
 
@@ -87,13 +88,13 @@ class BuilderResult(Object):
         The error message.
     """
 
-    artifact_path: Optional[str]
-    error_msg: Optional[str]
+    artifact_path: str | None
+    error_msg: str | None
 
     def __init__(
         self,
-        artifact_path: Optional[str],
-        error_msg: Optional[str],
+        artifact_path: str | None,
+        error_msg: str | None,
     ) -> None:
         """Constructor.
 
@@ -117,7 +118,7 @@ class Builder(Object):
 
     BuilderType = Union["Builder", Literal["local"]]
 
-    def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
+    def build(self, build_inputs: list[BuilderInput]) -> list[BuilderResult]:
         """Build the given inputs.
 
         Parameters
@@ -168,7 +169,7 @@ class _PyBuilder(Builder):
     See also: PyBuilder
     """
 
-    def __init__(self, f_build: Optional[Callable] = None):
+    def __init__(self, f_build: Callable | None = None):
         """Constructor."""
 
         self.__init_handle_by_constructor__(
@@ -187,7 +188,7 @@ class PyBuilder:
 
     _tvm_metadata = {"cls": _PyBuilder, "methods": ["build"]}
 
-    def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
+    def build(self, build_inputs: list[BuilderInput]) -> list[BuilderResult]:
         """Build the given inputs.
 
         Parameters

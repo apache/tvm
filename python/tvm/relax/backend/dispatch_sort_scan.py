@@ -19,7 +19,6 @@
 
 from functools import reduce
 from operator import mul
-from typing import Dict
 
 from tvm import DataType, relax, topi
 from tvm.contrib.thrust import can_use_thrust
@@ -36,7 +35,7 @@ from .utils import BackendDispatcher
 class SortScanDispatcher(BackendDispatcher):
     """Dispatcher to dispatch sort and scan."""
 
-    calls_to_update: Dict[GlobalVar, Target]
+    calls_to_update: dict[GlobalVar, Target]
 
     def __init__(self, mod):
         super().__init__(mod)

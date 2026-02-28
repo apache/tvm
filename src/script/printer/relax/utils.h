@@ -125,7 +125,7 @@ inline ffi::Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessP
       inferred_sinfo = trivial_binding->struct_info_.as<relax::StructInfo>();
     }
 
-    if (inferred_sinfo && StructuralEqual()(inferred_sinfo, v->struct_info_)) {
+    if (inferred_sinfo && ffi::StructuralEqual()(inferred_sinfo, v->struct_info_)) {
       return std::nullopt;
     }
   }

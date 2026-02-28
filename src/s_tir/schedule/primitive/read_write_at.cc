@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/s_tir/stmt.h>
+
 #include <string>
 
 #include "../utils.h"
@@ -345,13 +347,13 @@ struct ReadWriteAtImpl {
 StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                 int read_buffer_index, const ffi::String& storage_scope) {
   return ReadWriteAtImpl::Main<true>(self, loop_sref, block_sref, read_buffer_index, storage_scope,
-                                     {{tir::attr::auto_copy, true}});
+                                     {{s_tir::attr::auto_copy, true}});
 }
 
 StmtSRef WriteAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                  int write_buffer_index, const ffi::String& storage_scope) {
   return ReadWriteAtImpl::Main<false>(self, loop_sref, block_sref, write_buffer_index,
-                                      storage_scope, {{tir::attr::auto_copy, true}});
+                                      storage_scope, {{s_tir::attr::auto_copy, true}});
 }
 
 /******** Instruction Registration ********/

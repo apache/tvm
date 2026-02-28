@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/node/structural_hash.cc
+ * \file src/ir/structural_hash.cc
  */
 #include <tvm/ffi/extra/base64.h>
 #include <tvm/ffi/extra/module.h>
@@ -26,8 +26,6 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/functor.h>
-#include <tvm/node/node.h>
-#include <tvm/node/structural_hash.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/support/io.h>
 #include <tvm/target/codegen.h>
@@ -79,10 +77,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         TVM_FFI_ICHECK(temp.Load(&b64strm));
         return temp;
       });
-}
-
-uint64_t StructuralHash::operator()(const ffi::Any& object) const {
-  return ffi::StructuralHash::Hash(object, false);
 }
 
 struct RefToObjectPtr : public ObjectRef {

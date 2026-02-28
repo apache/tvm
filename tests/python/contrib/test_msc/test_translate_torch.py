@@ -40,9 +40,9 @@ def verify_model(torch_model, input_info):
             result = model()
         else:
             result = model(*torch_datas)
-    if not isinstance(golden, (list, tuple)):
+    if not isinstance(golden, list | tuple):
         golden = [golden]
-    if not isinstance(result, (list, tuple)):
+    if not isinstance(result, list | tuple):
         result = [result]
     assert len(golden) == len(result), f"golden {len(golden)} mismatch with result {len(result)}"
     for gol_r, new_r in zip(golden, result):

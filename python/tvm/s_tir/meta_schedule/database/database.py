@@ -17,10 +17,11 @@
 # ruff: noqa: RUF012
 """TuningRecord database"""
 
-from typing import Any, Callable, List, Optional, Union
+from collections.abc import Callable
+from typing import Any, Optional, Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 
@@ -102,17 +103,17 @@ class TuningRecord(Object):
 
     trace: Trace
     workload: Workload
-    run_secs: Optional[List[float]]
-    target: Optional[Target]
-    args_info: Optional[List[ArgInfo]]
+    run_secs: list[float] | None
+    target: Target | None
+    args_info: list[ArgInfo] | None
 
     def __init__(  # type: ignore # pylint: disable=too-many-arguments
         self,
         trace: Trace,
         workload: Workload,
-        run_secs: Optional[List[float]] = None,
-        target: Optional[Target] = None,
-        args_info: Optional[List[ArgInfo]] = None,
+        run_secs: list[float] | None = None,
+        target: Target | None = None,
+        args_info: list[ArgInfo] | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.TuningRecord,  # type: ignore # pylint: disable=no-member
@@ -207,7 +208,7 @@ class Database(Object):
         """
         _ffi_api.DatabaseCommitTuningRecord(self, record)  # type: ignore # pylint: disable=no-member
 
-    def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
+    def get_top_k(self, workload: Workload, top_k: int) -> list[TuningRecord]:
         """Get the top K valid tuning records of given workload from the database.
 
         Parameters
@@ -224,7 +225,7 @@ class Database(Object):
         """
         return _ffi_api.DatabaseGetTopK(self, workload, top_k)  # type: ignore # pylint: disable=no-member
 
-    def get_all_tuning_records(self) -> List[TuningRecord]:
+    def get_all_tuning_records(self) -> list[TuningRecord]:
         """Get all the tuning records from the database.
 
         Returns
@@ -249,7 +250,7 @@ class Database(Object):
         mod: IRModule,
         target: Target,
         workload_name: str,
-    ) -> Optional[TuningRecord]:
+    ) -> TuningRecord | None:
         """Query the best record of the given workload from the database.
 
         Parameters
@@ -273,7 +274,7 @@ class Database(Object):
         mod: IRModule,
         target: Target,
         workload_name: str,
-    ) -> Optional[Schedule]:
+    ) -> Schedule | None:
         """Query the best schedule of the given workload from the database.
 
         Parameters
@@ -297,7 +298,7 @@ class Database(Object):
         mod: IRModule,
         target: Target,
         workload_name: str,
-    ) -> Optional[IRModule]:
+    ) -> IRModule | None:
         """Query the best IRModule of the given workload from the database.
 
         Parameters
@@ -334,12 +335,8 @@ class Database(Object):
         target: Target,
         *,
         workload_name: str = "main",
-        kind: Union[
-            Literal["schedule"],
-            Literal["record"],
-            Literal["ir_module"],
-        ] = "schedule",
-    ) -> Union[Schedule, IRModule, TuningRecord]:
+        kind: Literal["schedule"] | Literal["record"] | Literal["ir_module"] = "schedule",
+    ) -> Schedule | IRModule | TuningRecord:
         """Query the database to retrieve the best optimization outcome of the given workload.
 
         Parameters
@@ -380,15 +377,9 @@ class Database(Object):
 
     @staticmethod
     def create(  # pylint: disable=keyword-arg-before-vararg
-        kind: Union[
-            Literal[
-                "json",
-                "memory",
-                "union",
-                "ordered_union",
-            ],
-            Callable[[Schedule], bool],
-        ] = "json",
+        kind: (
+            Literal["json", "memory", "union", "ordered_union"] | Callable[[Schedule], bool]
+        ) = "json",
         *args,
         **kwargs,
     ) -> "Database":
@@ -441,15 +432,15 @@ class _PyDatabase(Database):
 
     def __init__(
         self,
-        f_has_workload: Optional[Callable] = None,
-        f_commit_workload: Optional[Callable] = None,
-        f_commit_tuning_record: Optional[Callable] = None,
-        f_get_top_k: Optional[Callable] = None,
-        f_get_all_tuning_records: Optional[Callable] = None,
-        f_query_tuning_record: Optional[Callable] = None,
-        f_query_schedule: Optional[Callable] = None,
-        f_query_ir_module: Optional[Callable] = None,
-        f_size: Optional[Callable] = None,
+        f_has_workload: Callable | None = None,
+        f_commit_workload: Callable | None = None,
+        f_commit_tuning_record: Callable | None = None,
+        f_get_top_k: Callable | None = None,
+        f_get_all_tuning_records: Callable | None = None,
+        f_query_tuning_record: Callable | None = None,
+        f_query_schedule: Callable | None = None,
+        f_query_ir_module: Callable | None = None,
+        f_size: Callable | None = None,
         module_equality: str = "structural",
     ):
         """Constructor."""
@@ -530,7 +521,7 @@ class PyDatabase:
         """
         raise NotImplementedError
 
-    def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
+    def get_top_k(self, workload: Workload, top_k: int) -> list[TuningRecord]:
         """Get the top K tuning records of given workload from the database.
 
         Parameters
@@ -547,7 +538,7 @@ class PyDatabase:
         """
         raise NotImplementedError
 
-    def get_all_tuning_records(self) -> List[TuningRecord]:
+    def get_all_tuning_records(self) -> list[TuningRecord]:
         """Get all the tuning records from the database.
 
         Returns
@@ -558,8 +549,8 @@ class PyDatabase:
         raise NotImplementedError
 
     def query_tuning_record(
-        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
-    ) -> Optional[TuningRecord]:
+        self, mod: IRModule, target: Target, workload_name: str | None = None
+    ) -> TuningRecord | None:
         """Query a tuning record from the database.
 
         Parameters
@@ -585,8 +576,8 @@ class PyDatabase:
         )
 
     def query_schedule(
-        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
-    ) -> Optional[Schedule]:
+        self, mod: IRModule, target: Target, workload_name: str | None = None
+    ) -> Schedule | None:
         """Query a schedule from the database.
 
         Parameters
@@ -612,8 +603,8 @@ class PyDatabase:
         )
 
     def query_ir_module(
-        self, mod: IRModule, target: Target, workload_name: Optional[str] = None
-    ) -> Optional[IRModule]:
+        self, mod: IRModule, target: Target, workload_name: str | None = None
+    ) -> IRModule | None:
         """Query an IRModule from the database.
 
         Parameters

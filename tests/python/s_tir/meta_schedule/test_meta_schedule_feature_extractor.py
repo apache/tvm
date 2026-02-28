@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import re
-from typing import List
 
 import numpy as np
 
@@ -33,8 +32,8 @@ def test_meta_schedule_feature_extractor():
         def extract_from(
             self,
             context: TuneContext,  # pylint: disable = unused-argument
-            candidates: List[MeasureCandidate],  # pylint: disable = unused-argument
-        ) -> List[np.ndarray]:
+            candidates: list[MeasureCandidate],  # pylint: disable = unused-argument
+        ) -> list[np.ndarray]:
             return [tvm.runtime.tensor(np.random.rand(4, 5))]
 
     extractor = FancyFeatureExtractor()
@@ -49,8 +48,8 @@ def test_meta_schedule_feature_extractor_as_string():
         def extract_from(
             self,
             context: TuneContext,  # pylint: disable = unused-argument
-            candidates: List[MeasureCandidate],  # pylint: disable = unused-argument
-        ) -> List[np.ndarray]:
+            candidates: list[MeasureCandidate],  # pylint: disable = unused-argument
+        ) -> list[np.ndarray]:
             return []
 
     feature_extractor = NotSoFancyFeatureExtractor()

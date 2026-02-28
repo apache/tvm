@@ -19,6 +19,7 @@
 # tag: v0.02
 
 FROM ubuntu:22.04
+COPY --from=ghcr.io/astral-sh/uv:0.10.5 /uv /uvx /bin/
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 COPY utils/download-and-verify.sh /usr/local/bin/download-and-verify
@@ -47,11 +48,15 @@ ENV PATH=/opt/sccache:$PATH
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
 
+ENV UV_NO_CACHE=1
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
+ENV UV_MANAGED_PYTHON=1
+
 ENV TVM_VENV=/venv/apache-tvm-py3.10
-COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
 RUN bash /install/ubuntu_install_python.sh 3.10
 ENV PATH=${TVM_VENV}/bin:$PATH
+ENV VIRTUAL_ENV=${TVM_VENV}
 ENV PYTHONNOUSERSITE=1
 
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
@@ -65,14 +70,10 @@ RUN bash /install/ubuntu_install_tensorflow_aarch64.sh
 COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
 RUN bash /install/ubuntu_install_tflite.sh
 
-# ONNX
+# ONNX and PyTorch
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
 
-# AutoTVM deps
-COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
-RUN bash /install/ubuntu_install_redis.sh
-
-# Arm(R) Compute Library
-COPY install/ubuntu_download_arm_compute_lib_binaries.sh /install/ubuntu_download_arm_compute_lib_binaries.sh
-RUN bash /install/ubuntu_download_arm_compute_lib_binaries.sh
+# MetaScheduler deps
+COPY install/ubuntu_install_xgboost.sh /install/ubuntu_install_xgboost.sh
+RUN bash /install/ubuntu_install_xgboost.sh

@@ -20,10 +20,11 @@ Meta Schedule search strategy that generates the measure
 candidates for measurement.
 """
 
-from typing import TYPE_CHECKING, Callable, List, Optional, Union
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Optional, Union
 
 # isort: off
-from typing_extensions import Literal
+from typing import Literal
 
 # isort: on
 from tvm_ffi import register_object
@@ -54,12 +55,12 @@ class MeasureCandidate(Object):
     """
 
     sch: Schedule
-    args_info: List[ArgInfo]
+    args_info: list[ArgInfo]
 
     def __init__(
         self,
         sch: Schedule,
-        args_info: List[ArgInfo],
+        args_info: list[ArgInfo],
     ) -> None:
         """Constructor.
 
@@ -121,7 +122,7 @@ class SearchStrategy(Object):
         self,
         max_trials: int,
         num_trials_per_iter: int,
-        design_spaces: List[Schedule],
+        design_spaces: list[Schedule],
         database: Optional["Database"] = None,
         cost_model: Optional["CostModel"] = None,
     ) -> None:
@@ -153,7 +154,7 @@ class SearchStrategy(Object):
         """Post-tuning for the search strategy."""
         _ffi_api.SearchStrategyPostTuning(self)  # type: ignore # pylint: disable=no-member
 
-    def generate_measure_candidates(self) -> Optional[List[MeasureCandidate]]:
+    def generate_measure_candidates(self) -> list[MeasureCandidate] | None:
         """Generate measure candidates from design spaces for measurement.
 
         Returns
@@ -165,8 +166,8 @@ class SearchStrategy(Object):
 
     def notify_runner_results(
         self,
-        measure_candidates: List[MeasureCandidate],
-        results: List[RunnerResult],
+        measure_candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the search strategy with profiling results.
 
@@ -233,12 +234,12 @@ class _PySearchStrategy(SearchStrategy):
 
     def __init__(
         self,
-        f_initialize_with_tune_context: Optional[Callable] = None,
-        f_pre_tuning: Optional[Callable] = None,
-        f_post_tuning: Optional[Callable] = None,
-        f_generate_measure_candidates: Optional[Callable] = None,
-        f_notify_runner_results: Optional[Callable] = None,
-        f_clone: Optional[Callable] = None,
+        f_initialize_with_tune_context: Callable | None = None,
+        f_pre_tuning: Callable | None = None,
+        f_post_tuning: Callable | None = None,
+        f_generate_measure_candidates: Callable | None = None,
+        f_notify_runner_results: Callable | None = None,
+        f_clone: Callable | None = None,
     ):
         """Constructor."""
 
@@ -287,7 +288,7 @@ class PySearchStrategy:
         self,
         max_trials: int,
         num_trials_per_iter: int,
-        design_spaces: List[Schedule],
+        design_spaces: list[Schedule],
         database: Optional["Database"] = None,
         cost_model: Optional["CostModel"] = None,
     ) -> None:
@@ -304,7 +305,7 @@ class PySearchStrategy:
         """Post-tuning for the search strategy."""
         raise NotImplementedError
 
-    def generate_measure_candidates(self) -> Optional[List[MeasureCandidate]]:
+    def generate_measure_candidates(self) -> list[MeasureCandidate] | None:
         """Generate measure candidates from design spaces for measurement.
 
         Returns
@@ -316,8 +317,8 @@ class PySearchStrategy:
 
     def notify_runner_results(
         self,
-        measure_candidates: List[MeasureCandidate],
-        results: List[RunnerResult],
+        measure_candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the search strategy with profiling results.
 

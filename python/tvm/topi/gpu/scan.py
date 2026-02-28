@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-statements
 "Scan related operators"
 
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 
 import tvm
 from tvm import te
@@ -610,11 +610,11 @@ def inclusive_scan(
 def scanop(
     data: tvm.te.Tensor,
     binop: Callable[["tvm.Expr", "tvm.Expr"], "tvm.Expr"],
-    identity_value: Union[float, int],
-    axis: Optional[int] = None,
-    dtype: Optional[str] = None,
-    exclusive: Optional[bool] = None,
-    workspace: Optional[tvm.te.Tensor] = None,
+    identity_value: float | int,
+    axis: int | None = None,
+    dtype: str | None = None,
+    exclusive: bool | None = None,
+    workspace: tvm.te.Tensor | None = None,
 ) -> tvm.te.Tensor:
     """Cumulative binary operator (scan) with similar axis behavior as np.cumsum and np.cumprod.
 
@@ -684,10 +684,10 @@ def scanop(
 
 def cumsum(
     data: tvm.te.Tensor,
-    axis: Optional[int] = None,
-    dtype: Optional[int] = None,
-    exclusive: Optional[bool] = None,
-    workspace: Optional[tvm.te.Tensor] = None,
+    axis: int | None = None,
+    dtype: int | None = None,
+    exclusive: bool | None = None,
+    workspace: tvm.te.Tensor | None = None,
 ) -> tvm.te.Tensor:
     """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
 
@@ -734,10 +734,10 @@ def cumsum(
 
 def cumprod(
     data: tvm.te.Tensor,
-    axis: Optional[int] = None,
-    dtype: Optional[int] = None,
-    exclusive: Optional[bool] = None,
-    workspace: Optional[tvm.te.Tensor] = None,
+    axis: int | None = None,
+    dtype: int | None = None,
+    exclusive: bool | None = None,
+    workspace: tvm.te.Tensor | None = None,
 ):
     """Numpy style cumprod op. Return the cumulative product of the elements along a given axis.
 

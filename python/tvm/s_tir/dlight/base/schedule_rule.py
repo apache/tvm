@@ -16,7 +16,7 @@
 # under the License.
 """A lightweight wrapper on an arbitrary function that can be used to schedule a TIR PrimFunc."""
 
-from typing import Callable, List, Union
+from collections.abc import Callable
 
 from tvm import s_tir, tir
 from tvm.target import Target
@@ -38,7 +38,7 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
         func: tir.PrimFunc,
         target: Target,
         tunable: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         """Apply the ScheduleRule to the given PrimFunc.
 
         Parameters
@@ -65,7 +65,7 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
         [
             Callable[
                 [tir.PrimFunc, Target, bool],
-                Union[None, s_tir.Schedule, List[s_tir.Schedule]],
+                None | s_tir.Schedule | list[s_tir.Schedule],
             ],
         ],
         "ScheduleRule",
@@ -97,7 +97,7 @@ class ScheduleRule:  # pylint: disable=too-few-public-methods
                     func: tir.PrimFunc,
                     target: Target,
                     tunable: bool,
-                ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+                ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
                     return f(func, target, tunable)
 
             _Rule.__name__ = name

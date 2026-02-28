@@ -28,6 +28,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -189,7 +190,7 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {
-    if (op->annotations.count(tir::attr::manifest_shared_memory_local_stage)) {
+    if (op->annotations.count(s_tir::attr::manifest_shared_memory_local_stage)) {
       // Rewrite the shared memory access to load from the intermediate buffer.
       // The annotated block must be a leaf block (will be checked during rewriting). No need to
       // visit its body recursively.
@@ -198,7 +199,7 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       auto [target_buffer, new_buffer, new_block, local_stage] = rewriter.Rewrite(op);
       buffer_remap_.Set(target_buffer, new_buffer);
 
-      new_block.CopyOnWrite()->annotations.erase(tir::attr::manifest_shared_memory_local_stage);
+      new_block.CopyOnWrite()->annotations.erase(s_tir::attr::manifest_shared_memory_local_stage);
       buffer_local_stage_.Set(target_buffer, local_stage);
       target_buffers_.push_back(target_buffer);
 

@@ -15,7 +15,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E722
 
 import argparse
 import csv
@@ -218,7 +217,7 @@ if __name__ == "__main__":
         try:
             title = pr_dict[int(number)]["title"]
             title = strip_header(title, heading)
-        except:
+        except Exception:
             sprint("The out.pkl file is not match with csv file.")
             exit(1)
         return title

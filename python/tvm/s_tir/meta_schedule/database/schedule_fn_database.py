@@ -16,7 +16,7 @@
 # under the License.
 """A database for injecting handcrafted schedule functions."""
 
-from typing import Callable
+from collections.abc import Callable
 
 from tvm_ffi import register_object
 

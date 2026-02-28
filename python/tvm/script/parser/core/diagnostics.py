@@ -19,7 +19,6 @@
 
 import inspect
 import sys
-from typing import Union
 
 from tvm.ir import IRModule, SourceName, Span, diagnostics
 
@@ -55,7 +54,7 @@ class Source:
     source: str
     full_source: str
 
-    def __init__(self, program: Union[str, doc.AST]):
+    def __init__(self, program: str | doc.AST):
         if isinstance(program, str):
             self.source_name = "<str>"
             self.start_line = 1

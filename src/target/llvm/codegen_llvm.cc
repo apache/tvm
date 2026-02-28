@@ -757,7 +757,7 @@ llvm::GlobalVariable* CodeGenLLVM::AllocateSharedMemory(DataType dtype, size_t s
       new llvm::GlobalVariable(*module_, type, false, linkage, llvm::UndefValue::get(type), "shmem",
                                nullptr, llvm::GlobalValue::NotThreadLocal, shared_address_space);
 #if TVM_LLVM_VERSION >= 100
-  global->setAlignment(llvm::Align(alignment));
+  global->setAlignment(llvm::MaybeAlign(alignment));
 #else
   global->setAlignment(alignment);
 #endif
@@ -2165,9 +2165,8 @@ void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenLLVM::VisitStmt_(const AssertStmtNode* op) {
   EmitDebugLocation(op);
-  // auto a_cu =
-  With<arith::ConstraintContext> cctx(analyzer_.get(), op->condition);
-  this->VisitStmt(op->body);
+  // AssertStmt is a leaf — no body to visit.
+  // Constraint scoping is handled by ScopeStack in analysis passes.
 }
 
 void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {

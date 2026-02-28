@@ -32,7 +32,7 @@ TEST(VirtualDevice, Join_Defined) {
     ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = VirtualDevice(kDLCUDA, 3, target_a, "global");
-    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+    EXPECT_TRUE(tvm::ffi::StructuralEqual()(actual.value(), expected));
   }
   {
     Target target_a = Target("cuda");
@@ -41,7 +41,7 @@ TEST(VirtualDevice, Join_Defined) {
     ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = VirtualDevice(kDLCUDA, 3, target_a, "global");
-    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+    EXPECT_TRUE(tvm::ffi::StructuralEqual()(actual.value(), expected));
   }
   {
     Target target_a = Target("cuda");
@@ -50,7 +50,7 @@ TEST(VirtualDevice, Join_Defined) {
     ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = VirtualDevice(kDLCUDA, 2, target_a);
-    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+    EXPECT_TRUE(tvm::ffi::StructuralEqual()(actual.value(), expected));
   }
   {
     Target target_a = Target("cuda");
@@ -59,7 +59,7 @@ TEST(VirtualDevice, Join_Defined) {
     ffi::Optional<VirtualDevice> actual = VirtualDevice::Join(lhs, rhs);
     EXPECT_TRUE(actual.operator bool());
     VirtualDevice expected = rhs;
-    EXPECT_TRUE(StructuralEqual()(actual.value(), expected));
+    EXPECT_TRUE(tvm::ffi::StructuralEqual()(actual.value(), expected));
   }
 }
 
@@ -96,7 +96,7 @@ TEST(VirtualDevice, Default) {
   VirtualDevice rhs = VirtualDevice(kDLCUDA, 3, target_a, "local");
   VirtualDevice actual = VirtualDevice::Default(lhs, rhs);
   VirtualDevice expected = VirtualDevice(kDLCUDA, 3, target_a, "global");
-  EXPECT_TRUE(StructuralEqual()(actual, expected));
+  EXPECT_TRUE(tvm::ffi::StructuralEqual()(actual, expected));
 }
 
 TEST(VirtualDevice, Constructor_Invalid) {

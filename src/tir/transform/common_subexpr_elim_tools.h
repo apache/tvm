@@ -26,6 +26,7 @@
 #ifndef TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_TOOLS_H_
 #define TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_TOOLS_H_
 
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/string.h>
 #include <tvm/tir/analysis.h>  // For the ExprDeepEqual analysis
 #include <tvm/tir/expr.h>
@@ -46,13 +47,12 @@ namespace tir {
 /*!
  * \brief A computation table is a hashtable which associates to each expression being computed
           a number (which is the number of time that it is computed)
-          It is important to note that the hash used is a StructuralHash (and not an ObjectPtrHash)
-          as we need to hash similarly deeply equal terms.
-          The comparison used is ExprDeepEqual, which is stricter than StructuralEqual (as it does
-          not do variables remapping), so it is compatible with StructuralHash (intended to be used
-          with StructuralEqual).
+          It is important to note that the hash used is a ffi::StructuralHash (and not an
+ ObjectPtrHash) as we need to hash similarly deeply equal terms. The comparison used is
+ ExprDeepEqual, which is stricter than ffi::StructuralEqual (as it does not do variables remapping),
+ so it is compatible with ffi::StructuralHash (intended to be used with ffi::StructuralEqual).
  */
-using ComputationTable = support::OrderedMap<PrimExpr, size_t, StructuralHash, ExprDeepEqual>;
+using ComputationTable = support::OrderedMap<PrimExpr, size_t, ffi::StructuralHash, ExprDeepEqual>;
 
 /*!
  * \brief A cache of computations is made of a pair of two hashtables, which respectively associate

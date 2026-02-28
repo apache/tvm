@@ -22,9 +22,9 @@
  * \brief A transform to match a Relax Expr and rewrite
  */
 
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
-#include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -543,7 +543,7 @@ std::optional<std::vector<Expr>> TupleRewriterNode::TryMatchByBindingIndex(
   for (size_t i = 1; i < indices.size(); i++) {
     for (const auto& [pat, expr] : info_vec[indices[i]].matches[i].value()) {
       if (auto it = merged_matches.find(pat); it != merged_matches.end()) {
-        if (!StructuralEqual()(expr, (*it).second)) {
+        if (!ffi::StructuralEqual()(expr, (*it).second)) {
           return std::nullopt;
         }
       } else {
@@ -698,7 +698,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
 
   auto sinfo_pattern = GetStructInfo(func_pattern);
   auto sinfo_replacement = GetStructInfo(func_replacement);
-  TVM_FFI_CHECK(StructuralEqual()(sinfo_pattern, sinfo_replacement), ValueError)
+  TVM_FFI_CHECK(ffi::StructuralEqual()(sinfo_pattern, sinfo_replacement), ValueError)
       << "The pattern and replacement must have the same signature, "
       << "but the pattern has struct info " << sinfo_pattern
       << ", while the replacement has struct info " << sinfo_replacement;
@@ -832,7 +832,7 @@ class PatternMatchingMutator : public ExprMutator {
   Expr VisitExpr_(const SeqExprNode* seq) override {
     SeqExpr prev = Downcast<SeqExpr>(ExprMutator::VisitExpr_(seq));
 
-    StructuralEqual struct_equal;
+    ffi::StructuralEqual struct_equal;
 
     while (auto opt = TryRewriteSeqExpr(prev)) {
       SeqExpr next = Downcast<SeqExpr>(builder_->Normalize(opt.value()));

@@ -26,6 +26,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -66,11 +67,8 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       TVM_FFI_ICHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
       n->seq.Set(n->size() - 1, body);
       body = Stmt(n);
-    } else if (const auto* assert_ = s.as<AssertStmtNode>()) {
-      auto n = ffi::make_object<AssertStmtNode>(*assert_);
-      TVM_FFI_ICHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
+    } else if (s.as<AssertStmtNode>()) {
+      body = SeqStmt({s, body});
     } else if (const auto* alloc = s.as<AllocateNode>()) {
       auto n = ffi::make_object<AllocateNode>(*alloc);
       TVM_FFI_ICHECK(is_no_op(n->body));
@@ -744,7 +742,7 @@ class StorageAlignCollector : public StmtVisitor {
 
   /*! \brief For s-stir, the alignment annotations reside in block annotations. */
   void VisitStmt_(const SBlockNode* op) final {
-    auto it = op->annotations.find(attr::buffer_dim_align);
+    auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != op->annotations.end()) {
       auto storage_align_annotation = Downcast<StorageAlignAnnotation>((*it).second);
       for (const auto& storage_align_tuple : storage_align_annotation) {
@@ -758,7 +756,7 @@ class StorageAlignCollector : public StmtVisitor {
 
   /*! \brief For lowered tir, the alignment annotations reside in allocate annotations. */
   void VisitStmt_(const AllocateNode* op) final {
-    auto it = op->annotations.find(attr::buffer_dim_align);
+    auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
     if (it != op->annotations.end()) {
       auto storage_align_annotation = Downcast<StorageAlignAnnotation>((*it).second);
       for (const auto& storage_align_tuple : storage_align_annotation) {

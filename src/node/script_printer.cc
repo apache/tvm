@@ -19,6 +19,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/node/cast.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/script_printer.h>
 

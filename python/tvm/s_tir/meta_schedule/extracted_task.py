@@ -16,8 +16,6 @@
 # under the License.
 """Extracted tasks from high-level IR."""
 
-from typing import List
-
 from tvm_ffi import register_object
 
 from tvm.ir import IRModule
@@ -47,7 +45,7 @@ class ExtractedTask(Object):
 
     task_name: str
     mod: IRModule
-    dispatched: List[IRModule]
+    dispatched: list[IRModule]
     weight: int
 
     def __init__(
@@ -55,7 +53,7 @@ class ExtractedTask(Object):
         task_name: str,
         mod: IRModule,
         target: Target,
-        dispatched: List[IRModule],
+        dispatched: list[IRModule],
         weight: int,
     ) -> None:
         self.__init_handle_by_constructor__(

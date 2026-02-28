@@ -26,6 +26,7 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
+#include <cmath>
 #include <sstream>
 #include <string>
 #include <unordered_map>

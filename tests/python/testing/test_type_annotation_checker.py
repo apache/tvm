@@ -18,7 +18,8 @@
 """Test type checker based on python's type annotations"""
 
 import sys
-from typing import Callable, Dict, List, Tuple, Union
+from collections.abc import Callable
+from typing import Union
 
 import _pytest
 import pytest
@@ -42,7 +43,7 @@ test_cases = [
         "negative_cases": ["5"],
     },
     {
-        "type_annotation": List[int],
+        "type_annotation": list[int],
         "positive_cases": [
             [5],
             [],
@@ -57,14 +58,14 @@ test_cases = [
         ],
     },
     {
-        "type_annotation": Dict[str, int],
+        "type_annotation": dict[str, int],
         "positive_cases": [
             {"key1": 0, "key2": 1, "key3": -1},
         ],
         "negative_cases": [None, [1], {1: "1"}],
     },
     {
-        "type_annotation": Tuple[int],
+        "type_annotation": tuple[int],
         "positive_cases": [
             (5,),
         ],
@@ -77,7 +78,7 @@ test_cases = [
         ],
     },
     {
-        "type_annotation": Tuple[str, int],
+        "type_annotation": tuple[str, int],
         "positive_cases": [
             ("x", 5),
         ],
@@ -90,7 +91,7 @@ test_cases = [
         ],
     },
     {
-        "type_annotation": Union[str, int],
+        "type_annotation": str | int,
         "positive_cases": [
             "x",
             5,
@@ -191,14 +192,14 @@ def test_not_matches(type_annotation, case):
 @pytest.mark.parametrize(
     ["type_annotation", "expected_key", "expected_subtypes"],
     [
-        pytest.param(Union[str, int], "union", [str, int], id="Union[str, int]"),
-        pytest.param(List[str], "list", [str], id="List[str]"),
-        pytest.param(Dict[str, int], "dict", [str, int], id="Dict[str, int]"),
-        pytest.param(Tuple[str, int], "tuple", (str, int), id="Tuple[str, int]"),
+        pytest.param(str | int, "union", [str, int], id="str | int"),
+        pytest.param(list[str], "list", [str], id="List[str]"),
+        pytest.param(dict[str, int], "dict", [str, int], id="Dict[str, int]"),
+        pytest.param(tuple[str, int], "tuple", (str, int), id="Tuple[str, int]"),
         pytest.param(
-            Union[List[str], Dict[str, int]],
+            list[str] | dict[str, int],
             "union",
-            [List[str], Dict[str, int]],
+            [list[str], dict[str, int]],
             id="Union[List[str], Dict[str, int]]",
         ),
     ],

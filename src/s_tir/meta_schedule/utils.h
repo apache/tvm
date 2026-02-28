@@ -21,8 +21,9 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/node/node.h>
-#include <tvm/node/serialization.h>
+#include <tvm/ir/serialization.h>
+#include <tvm/node/cast.h>
+#include <tvm/runtime/object.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/meta_schedule/builder.h>
 #include <tvm/s_tir/meta_schedule/cost_model.h>
@@ -228,7 +229,7 @@ inline ffi::String SHash2Hex(const ObjectRef& obj) {
   std::ostringstream os;
   size_t hash_code = 0;
   if (obj.defined()) {
-    hash_code = StructuralHash()(obj);
+    hash_code = ffi::StructuralHash()(obj);
   }
   os << "0x" << std::setw(16) << std::setfill('0') << std::hex << hash_code;
   return os.str();

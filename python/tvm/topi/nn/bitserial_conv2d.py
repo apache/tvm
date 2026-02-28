@@ -83,7 +83,7 @@ def bitserial_conv2d_nchw(
     batch, in_channel, activation_bits, in_height, in_width = Input_q.shape
     num_filter, _, kernel_h, kernel_w, weight_bits = Filter_q.shape
 
-    if isinstance(padding, int) or (isinstance(padding, (tuple, list)) and len(padding) == 2):
+    if isinstance(padding, int) or (isinstance(padding, tuple | list) and len(padding) == 2):
         TPAD, LPAD, DPAD, RPAD = get_pad_tuple(padding, kernel)
     else:
         TPAD, LPAD, DPAD, RPAD = padding
@@ -207,7 +207,7 @@ def bitserial_conv2d_nhwc(
         kernel_h, kernel_w, _, _, num_filter = get_const_tuple(Filter_q.shape)
     batch, in_height, in_width, in_channel_q, _ = get_const_tuple(Input_q.shape)
 
-    if isinstance(padding, int) or (isinstance(padding, (tuple, list)) and len(padding) == 2):
+    if isinstance(padding, int) or (isinstance(padding, tuple | list) and len(padding) == 2):
         TPAD, LPAD, DPAD, RPAD = get_pad_tuple(padding, kernel)
     else:
         TPAD, LPAD, DPAD, RPAD = padding

@@ -17,8 +17,6 @@
 # pylint: disable=invalid-name
 """Relax linear algebra operators"""
 
-from typing import Optional, Union
-
 from tvm import DataType
 
 from ..expr import Expr
@@ -27,7 +25,7 @@ from . import _ffi_api
 from .manipulate import permute_dims
 
 
-def matmul(x1: Expr, x2: Expr, out_dtype: Optional[Union[str, DataType]] = None) -> Expr:
+def matmul(x1: Expr, x2: Expr, out_dtype: str | DataType | None = None) -> Expr:
     """General matrix multiplication of two tensors, with broadcasting on batched dimensions.
 
     The semantics and output shape deduction rule is specified as
@@ -56,8 +54,8 @@ def matmul(x1: Expr, x2: Expr, out_dtype: Optional[Union[str, DataType]] = None)
 def linear(
     data: Expr,
     weight: Expr,
-    bias: Optional[Expr] = None,
-    out_dtype: Optional[Union[str, DataType]] = None,
+    bias: Expr | None = None,
+    out_dtype: str | DataType | None = None,
 ) -> Expr:
     """Applies a linear transformation to the incoming data: y = xA^T + b
 
@@ -108,7 +106,7 @@ def einsum(operands, subscripts):
     result : relax.Expr
         The output from the einsum op.
     """
-    if isinstance(operands, (list, tuple)):
+    if isinstance(operands, list | tuple):
         operands = RxTuple(operands)
 
     return _ffi_api.einsum(operands, subscripts)  # type: ignore

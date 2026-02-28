@@ -45,8 +45,8 @@ StructInfo InferShardingSpec(const Call& call, const BlockBuilder& ctx,
   ffi::Array<distributed::DTensorStructInfo> input_dtensor_sinfos =
       GetInputDTensorStructInfo(call, ctx);
   for (int i = 1; i < static_cast<int>(input_dtensor_sinfos.size()); i++) {
-    TVM_FFI_ICHECK(StructuralEqual()(input_dtensor_sinfos[0]->device_mesh,
-                                     input_dtensor_sinfos[i]->device_mesh));
+    TVM_FFI_ICHECK(ffi::StructuralEqual()(input_dtensor_sinfos[0]->device_mesh,
+                                          input_dtensor_sinfos[i]->device_mesh));
   }
   distributed::DeviceMesh device_mesh = input_dtensor_sinfos[0]->device_mesh;
   Var output_var("output", orig_output_sinfo);

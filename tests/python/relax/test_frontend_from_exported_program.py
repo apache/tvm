@@ -6796,6 +6796,36 @@ def test_zeros_like():
     verify_model(ZerosLike(), example_args, {}, Expected)
 
 
+def test_randn():
+    class Randn(Module):
+        def forward(self, input):
+            return input + torch.randn(5, 3)
+
+    example_args = (torch.rand(5, 3, dtype=torch.float32),)
+    exported_program = export(Randn(), args=example_args)
+    mod = from_exported_program(exported_program)
+    func = mod["main"]
+    ret_sinfo = func.ret_struct_info
+    assert ret_sinfo.fields[0].shape[0] == 5
+    assert ret_sinfo.fields[0].shape[1] == 3
+    assert ret_sinfo.fields[0].dtype == "float32"
+
+
+def test_randn_like():
+    class RandnLike(Module):
+        def forward(self, input):
+            return input + torch.randn_like(input)
+
+    example_args = (torch.rand(4, 6, dtype=torch.float32),)
+    exported_program = export(RandnLike(), args=example_args)
+    mod = from_exported_program(exported_program)
+    func = mod["main"]
+    ret_sinfo = func.ret_struct_info
+    assert ret_sinfo.fields[0].shape[0] == 4
+    assert ret_sinfo.fields[0].shape[1] == 6
+    assert ret_sinfo.fields[0].dtype == "float32"
+
+
 def test_type_as():
     class TypeAs(Module):
         def forward(self, input, other):

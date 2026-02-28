@@ -16,8 +16,6 @@
 # under the License.
 """Pad the data by constant value"""
 
-from __future__ import absolute_import as _abs
-
 import tvm
 from tvm import te
 from tvm.tir import if_then_else

@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 """Relax vm primitives."""
 
-from typing import Union
-
 from ...expr import Call, DataTypeImm, Expr, PrimValue, StringImm, Tuple
 from ...utils import args_converter
 from . import _ffi_api
@@ -25,9 +23,9 @@ from . import _ffi_api
 @args_converter.auto
 def alloc_storage(
     shape: Expr,
-    runtime_device_index: Union[int, Expr],
-    dtype: Union[str, Expr],
-    storage_scope: Union[str, StringImm] = "global",
+    runtime_device_index: int | Expr,
+    dtype: str | Expr,
+    storage_scope: str | StringImm = "global",
 ) -> Call:
     """Construct a Call to allocate a storage with specific size,
     runtime_device_index, and dtype.
@@ -64,10 +62,10 @@ def alloc_storage(
 @args_converter.auto
 def alloc_tensor(
     storage: Expr,
-    offset: Union[int, Expr],
+    offset: int | Expr,
     shape: Expr,
-    dtype: Union[str, Expr],
-    runtime_device_ind: Union[int, Expr] = PrimValue(0),
+    dtype: str | Expr,
+    runtime_device_ind: int | Expr = PrimValue(0),
 ) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
@@ -136,7 +134,7 @@ def call_tir_dyn(func: Expr, args: Tuple) -> Call:
     result : Call
         A relax Call to call_tir_dyn.
     """
-    if isinstance(args, (list, tuple)):
+    if isinstance(args, list | tuple):
         args = Tuple(args)
 
     return _ffi_api.call_tir_dyn(func, args)  # type: ignore

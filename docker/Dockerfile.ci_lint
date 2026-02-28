@@ -19,6 +19,7 @@
 # CI docker lint env
 # tag: v0.60
 FROM ubuntu:22.04
+COPY --from=ghcr.io/astral-sh/uv:0.10.5 /uv /uvx /bin/
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 COPY utils/download-and-verify.sh /usr/local/bin/download-and-verify
@@ -31,16 +32,20 @@ RUN bash /install/ubuntu_setup_tz.sh
 RUN apt-get update && \
     apt-install-and-clear -y wget git sudo make parallel doxygen graphviz curl shellcheck ca-certificates curl gnupg
 
+ENV UV_NO_CACHE=1
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
+ENV UV_MANAGED_PYTHON=1
+
 ENV TVM_VENV=/venv/apache-tvm-py3.10
-COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
 RUN bash /install/ubuntu_install_python.sh 3.10
 ENV PATH=${TVM_VENV}/bin:$PATH
+ENV VIRTUAL_ENV=${TVM_VENV}
 
 # Disable .local directory from affecting CI.
 ENV PYTHONNOUSERSITE=1
 
-RUN pip3 install cpplint==1.6.1 pylint==2.17.2 mypy==0.902 black==22.12.0 flake8==3.9.2 blocklint==0.2.3 jinja2==3.0.3
+RUN uv pip install cpplint==1.6.1 pylint==2.17.2 mypy==0.902 black==22.12.0 flake8==3.9.2 blocklint==0.2.3 jinja2==3.0.3
 
 # java deps for rat
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh

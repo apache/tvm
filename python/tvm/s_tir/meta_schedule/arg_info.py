@@ -16,7 +16,7 @@
 # under the License.
 """The argument information"""
 
-from typing import Any, List, Union
+from typing import Any
 
 from tvm_ffi import register_object
 
@@ -53,7 +53,7 @@ class ArgInfo(Object):
         return _ffi_api.ArgInfoFromJSON(json_obj)  # type: ignore # pylint: disable=no-member
 
     @staticmethod
-    def from_prim_func(func: PrimFunc) -> List["ArgInfo"]:
+    def from_prim_func(func: PrimFunc) -> list["ArgInfo"]:
         """Extract a list of the argument information from PrimFunc.
 
         Parameters
@@ -69,7 +69,7 @@ class ArgInfo(Object):
         return _ffi_api.ArgInfoFromPrimFunc(func)  # type: ignore # pylint: disable=no-member
 
     @staticmethod
-    def from_entry_func(mod: IRModule, remove_preproc: bool = True) -> List["ArgInfo"]:
+    def from_entry_func(mod: IRModule, remove_preproc: bool = True) -> list["ArgInfo"]:
         """Extract a list of the argument information from the entry func of an IRModule.
 
         Parameters
@@ -105,7 +105,7 @@ class TensorInfo(ArgInfo):
     def __init__(
         self,
         dtype: DataType,
-        shape: Union[ShapeTuple, List[int]],
+        shape: ShapeTuple | list[int],
     ) -> None:
         """Constructor
 

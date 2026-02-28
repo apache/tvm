@@ -18,8 +18,6 @@
 """Util to invoke tarball in the system."""
 
 # pylint: disable=invalid-name
-from __future__ import absolute_import as _abs
-
 import os
 import shutil
 import subprocess

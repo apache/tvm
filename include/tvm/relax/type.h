@@ -53,8 +53,7 @@ class ShapeTypeNode : public TypeNode {
 
 class ShapeType : public Type {
  public:
-  // TODO(relax-team): remove the default value later.
-  TVM_DLL ShapeType(int ndim = kUnknownNDim, Span span = Span());
+  TVM_DLL ShapeType(int ndim, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ShapeType, Type, ShapeTypeNode);
 };

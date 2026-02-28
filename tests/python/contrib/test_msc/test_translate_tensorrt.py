@@ -94,7 +94,7 @@ def verify_model(torch_model, input_info, **trans_config):
     with torch.no_grad():
         golden = torch_model(*torch_datas)
         mod = from_fx(graph_model, input_info)
-    if not isinstance(golden, (list, tuple)):
+    if not isinstance(golden, list | tuple):
         golden = [golden]
     golden = [g.detach().cpu().numpy() for g in golden]
     # partition module for tensorrt

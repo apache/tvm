@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name,,missing-function-docstring
 # ruff: noqa: E501, F403
-from typing import List, Tuple
 
 import numpy as np
 import pytest
@@ -330,7 +329,7 @@ def _get_single_prim_func(mod: tvm.ir.IRModule) -> tvm.tir.PrimFunc:
     return funcs[0]
 
 
-def _get_input_output_info(func: tvm.tir.PrimFunc) -> Tuple[List[np.ndarray], Tuple, str]:
+def _get_input_output_info(func: tvm.tir.PrimFunc) -> tuple[list[np.ndarray], tuple, str]:
     args = ArgInfo.from_prim_func(func)
     inputs = [generate_input_data(x.shape, x.dtype) for x in args[:-1]]
     output_shape = args[-1].shape
@@ -339,7 +338,7 @@ def _get_input_output_info(func: tvm.tir.PrimFunc) -> Tuple[List[np.ndarray], Tu
 
 
 def _expected_results(
-    mod: tvm.ir.IRModule, inputs: List[np.ndarray], output_shape: Tuple, output_dtype: str
+    mod: tvm.ir.IRModule, inputs: list[np.ndarray], output_shape: tuple, output_dtype: str
 ) -> np.ndarray:
     func = _get_single_prim_func(mod)
     func = func.with_attr("global_symbol", "main")
@@ -356,7 +355,7 @@ def _expected_results(
 
 
 def _actual_results(
-    actual: tvm.ir.IRModule, inputs: List[np.ndarray], output_shape: Tuple, output_dtype: str
+    actual: tvm.ir.IRModule, inputs: list[np.ndarray], output_shape: tuple, output_dtype: str
 ):
     target = _target()
     actual_rt_mod = tvm.compile(actual, target=target)

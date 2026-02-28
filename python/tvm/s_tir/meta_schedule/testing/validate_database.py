@@ -21,8 +21,9 @@ import argparse
 import itertools
 import logging
 import warnings
+from collections.abc import Callable
 from statistics import mean
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any
 
 import numpy as np  # type: ignore
 from tvm_ffi import get_global_func, register_global_func
@@ -182,7 +183,7 @@ def get_runtime_device(target: Target) -> tvm.runtime.Device:
         raise RuntimeError(f"Unsupported target kind for runtime device: {target.kind.name}")
 
 
-def check_and_run(func: Union[str, Callable], *args, **kwargs) -> Any:
+def check_and_run(func: str | Callable, *args, **kwargs) -> Any:
     """Check if the function is a string or a callable, and run it."""
     if isinstance(func, str):
         func = get_global_func(func)
@@ -207,7 +208,7 @@ def initializer() -> None:
 
     @register_global_func("tvm.s_tir.meta_schedule.testing.default_check_metric")
     def default_check_metric(  # pylint: disable=unused-variable,unreachable-code
-        lhs: List[tvm.runtime.Tensor], rhs: List[tvm.runtime.Tensor]
+        lhs: list[tvm.runtime.Tensor], rhs: list[tvm.runtime.Tensor]
     ) -> bool:
         """Check if the outputs are equal
 
@@ -234,7 +235,7 @@ def initializer() -> None:
 @register_global_func("tvm.s_tir.meta_schedule.testing.default_input_generator")
 def default_input_generator(  # pylint: disable=unused-variable
     mod: IRModule,
-) -> List[tvm.runtime.Tensor]:
+) -> list[tvm.runtime.Tensor]:
     """Default input generator function
 
     Parameters
@@ -258,7 +259,7 @@ def default_input_generator(  # pylint: disable=unused-variable
     return inputs
 
 
-def to_numpy(a: List[tvm.runtime.Tensor]) -> List[np.ndarray]:
+def to_numpy(a: list[tvm.runtime.Tensor]) -> list[np.ndarray]:
     """Convert a list of TVM Tensor to a list of numpy array
 
     Parameters
@@ -275,7 +276,7 @@ def to_numpy(a: List[tvm.runtime.Tensor]) -> List[np.ndarray]:
     return [x.numpy() for x in a]
 
 
-def to_tvm_tensor(a: List[np.ndarray]) -> List[tvm.runtime.Tensor]:
+def to_tvm_tensor(a: list[np.ndarray]) -> list[tvm.runtime.Tensor]:
     """Convert a list of numpy array to a list of TVM Tensor
 
     Parameters
@@ -328,13 +329,13 @@ def print_with_counter_func(counter: int, total: int) -> Callable:
         *,
         original_mod: IRModule = None,
         scheduled_mod: IRModule = None,
-        inputs: Optional[List[np.ndarray]] = None,
-        original_res: Optional[List[np.ndarray]] = None,
-        scheduled_res: Optional[List[np.ndarray]] = None,
-        original_run_secs: Optional[List[float]] = None,
-        scheduled_run_secs: Optional[List[float]] = None,
-        exception: Optional[Exception] = None,
-        trace: Optional[str] = None,
+        inputs: list[np.ndarray] | None = None,
+        original_res: list[np.ndarray] | None = None,
+        scheduled_res: list[np.ndarray] | None = None,
+        original_run_secs: list[float] | None = None,
+        scheduled_run_secs: list[float] | None = None,
+        exception: Exception | None = None,
+        trace: str | None = None,
     ) -> None:
         """Print the validation result."""
         status = f"Progress {counter: 6d} / {total: 6d} (estimated) checked, result: {result:>10}, "
@@ -381,14 +382,14 @@ def print_with_counter_func(counter: int, total: int) -> Callable:
 
 
 def make_alloc_arg_and_check(
-    inputs: List[np.ndarray],
+    inputs: list[np.ndarray],
     original_mod: IRModule,
     scheduled_mod: IRModule,
     trace: str,
-    original_res: List[np.ndarray],
-    original_run_secs: List[float],
+    original_res: list[np.ndarray],
+    original_run_secs: list[float],
     print_result: Callable,
-) -> Tuple[Callable, Callable]:
+) -> tuple[Callable, Callable]:
     """Make alloc_arg and check functions for the given inputs and collect results.
 
     Parameters
@@ -421,7 +422,7 @@ def make_alloc_arg_and_check(
         device: tvm.runtime.Device,
         args_info: ms.runner.rpc_runner.T_ARG_INFO_JSON_OBJ_LIST,  # pylint: disable=unused-argument
         alloc_repeat: int,
-    ) -> List[ms.runner.rpc_runner.T_ARGUMENT_LIST]:
+    ) -> list[ms.runner.rpc_runner.T_ARGUMENT_LIST]:
         """Allocate arguments using the given inputs.
 
         Parameters
@@ -448,8 +449,8 @@ def make_alloc_arg_and_check(
         rt_mod: tvm.runtime.Module,
         device: tvm.runtime.Device,
         evaluator_config: ms.runner.EvaluatorConfig,
-        repeated_args: List[ms.runner.rpc_runner.T_ARGUMENT_LIST],
-    ) -> List[float]:
+        repeated_args: list[ms.runner.rpc_runner.T_ARGUMENT_LIST],
+    ) -> list[float]:
         """With args function to run the evaluator
 
         Parameters
@@ -481,7 +482,7 @@ def make_alloc_arg_and_check(
             ),
         )
 
-        repeated_costs: List[List[float]] = []
+        repeated_costs: list[list[float]] = []
         for args in repeated_args:
             device.sync()
             profile_result = evaluator(*args)
@@ -516,7 +517,7 @@ def make_alloc_arg_and_check(
         device: tvm.runtime.Device,
         args_info: ms.runner.rpc_runner.T_ARG_INFO_JSON_OBJ_LIST,
         alloc_repeat: int,
-    ) -> List[ms.runner.rpc_runner.T_ARGUMENT_LIST]:
+    ) -> list[ms.runner.rpc_runner.T_ARGUMENT_LIST]:
         return f_with_args_alloc_argument_common(device, args_info, alloc_repeat)
 
     def f_with_args_run_evaluator_rpc(
@@ -524,8 +525,8 @@ def make_alloc_arg_and_check(
         rt_mod: tvm.runtime.Module,
         device: tvm.runtime.Device,
         evaluator_config: ms.runner.EvaluatorConfig,
-        repeated_args: List[ms.runner.rpc_runner.T_ARGUMENT_LIST],
-    ) -> List[float]:
+        repeated_args: list[ms.runner.rpc_runner.T_ARGUMENT_LIST],
+    ) -> list[float]:
         return f_with_args_run_evaluator_common(rt_mod, device, evaluator_config, repeated_args)
 
     if ARGS.rpc_config is None:
@@ -538,8 +539,8 @@ def local_build_and_run(
     mod: IRModule,
     target: Target,
     device: tvm.runtime.Device,
-    inputs: List[np.ndarray],
-) -> Tuple[List[np.ndarray], List[float]]:
+    inputs: list[np.ndarray],
+) -> tuple[list[np.ndarray], list[float]]:
     """Build and run the module locally.
 
     Parameters
@@ -604,8 +605,8 @@ def _apply_trace(mod: IRModule, trace: Trace) -> IRModule:
 
 
 def _build_all_mods(
-    mods: List[IRModule], builder: ms.builder.Builder, target: Target
-) -> List[ms.builder.BuilderResult]:
+    mods: list[IRModule], builder: ms.builder.Builder, target: Target
+) -> list[ms.builder.BuilderResult]:
     """Build all the modules.
 
     Parameters

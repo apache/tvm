@@ -30,7 +30,6 @@
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/functor.h>
-#include <tvm/node/node.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/tir/buffer.h>

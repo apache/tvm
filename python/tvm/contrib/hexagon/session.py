@@ -21,7 +21,6 @@
 import os
 import pathlib
 import tempfile
-from typing import Union
 
 import tvm
 import tvm.contrib.hexagon as hexagon
@@ -62,7 +61,7 @@ class Session:
 
     def __init__(
         self,
-        remote_workspace: Union[str, pathlib.Path],
+        remote_workspace: str | pathlib.Path,
         rpc_tracker: tuple,
         rpc_server_key: str,
         serial_number: str,
@@ -142,7 +141,7 @@ class Session:
     def get_function(self, name):
         return self._rpc.get_function(name)
 
-    def upload(self, local_path: Union[str, pathlib.Path], remote_filename: str) -> pathlib.Path:
+    def upload(self, local_path: str | pathlib.Path, remote_filename: str) -> pathlib.Path:
         """Upload a local file to the remote workspace.
 
         Parameters
@@ -164,7 +163,7 @@ class Session:
         upload_func(remote_path, data)
         return remote_path
 
-    def load_module(self, module: Union[str, pathlib.Path, tvm.runtime.Module]):
+    def load_module(self, module: str | pathlib.Path | tvm.runtime.Module):
         """Load TVM module.
 
         The session must be established (via __enter__) prior to
@@ -197,13 +196,13 @@ class Session:
         else:
             remote_file_path = module
 
-        assert isinstance(remote_file_path, (str, pathlib.Path)), "Invalid path type:" + str(
+        assert isinstance(remote_file_path, str | pathlib.Path), "Invalid path type:" + str(
             type(remote_file_path)
         )
         return self._rpc.get_function("tvm.hexagon.load_module")(str(remote_file_path))
 
     def get_executor_from_factory(
-        self, module: Union[runtime.executable, str], hexagon_arch: str = "v68"
+        self, module: runtime.executable | str, hexagon_arch: str = "v68"
     ):
         """Create a local GraphModule which consumes a remote libmod.
 
@@ -217,12 +216,12 @@ class Session:
         hexagon_arch : str
             The hexagon arch to be used
         """
-        if isinstance(module, (runtime.Executable, str)):
+        if isinstance(module, runtime.Executable | str):
             return self._vm_executable_executor(module, hexagon_arch=hexagon_arch)
 
         raise TypeError(f"Unsupported executor type: {type(module)}")
 
-    def _set_device_type(self, module: Union[str, pathlib.Path]):
+    def _set_device_type(self, module: str | pathlib.Path):
         """Set session device type(hexagon, cpu) based on target in module.
 
         Parameters
@@ -244,9 +243,7 @@ class Session:
             else:
                 self._requires_cpu_device = False
 
-    def _vm_executable_executor(
-        self, executable: Union[runtime.Executable, str], hexagon_arch: str
-    ):
+    def _vm_executable_executor(self, executable: runtime.Executable | str, hexagon_arch: str):
         """Create a local TVM module which consumes a remote vm executable.
 
         Parameters

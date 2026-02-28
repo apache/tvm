@@ -20,7 +20,6 @@
 import os
 import sys
 import time
-from typing import List
 
 import pytest
 from tvm_ffi import register_global_func
@@ -100,7 +99,7 @@ class BatchMatmulModule:
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 
 
-def _check_build_results(builder_results: List[BuilderResult]):
+def _check_build_results(builder_results: list[BuilderResult]):
     """Simple check whether the build is successful"""
     for result in builder_results:
         artifact_path = result.artifact_path
@@ -140,8 +139,8 @@ def test_meta_schedule_error_handle_test_builder():
     class TestBuilder(PyBuilder):
         def build(  # pylint: disable=no-self-use
             self,
-            build_inputs: List[BuilderInput],
-        ) -> List[BuilderResult]:
+            build_inputs: list[BuilderInput],
+        ) -> list[BuilderResult]:
             return [BuilderResult(None, "error") for w in build_inputs]
 
     builder = TestBuilder()

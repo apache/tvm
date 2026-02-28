@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, E722, F401, F841, RUF005
+# ruff: noqa: E501, F401, F841, RUF005
 
 """Test for FlashInfer GroupedGemm TVM integration"""
 
@@ -58,7 +58,7 @@ def has_cutlass():
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)
         major, minor = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
         return major >= 9  # SM90+
-    except:
+    except Exception:
         return False
 
 

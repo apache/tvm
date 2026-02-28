@@ -26,7 +26,7 @@ import random
 import tempfile
 from collections import OrderedDict
 from itertools import chain as itertools_chain
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
@@ -153,14 +153,14 @@ class FeatureGroup:
     """
 
     group_hash: str
-    features: List[np.ndarray]
+    features: list[np.ndarray]
     costs: np.ndarray
     min_cost: float
 
     def __init__(
         self,
         group_hash: str,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         costs: np.ndarray,
     ) -> None:
         self.group_hash = group_hash
@@ -170,7 +170,7 @@ class FeatureGroup:
 
     def append(  # pylint: disable=missing-function-docstring
         self,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         costs: np.ndarray,
     ) -> None:
         self.features.extend(features)
@@ -252,7 +252,7 @@ class SegmentDataLoader:
 def lambda_rank_loss(  # pylint: disable=too-many-locals
     preds: "torch.Tensor",
     labels: "torch.Tensor",
-    k: Optional[int] = None,
+    k: int | None = None,
     eps: float = 1e-10,
     sigma: float = 1.0,
 ) -> "torch.Tensor":
@@ -417,9 +417,9 @@ class SegmentSumMLP(torch.nn.Module):
 
 def extract_features(
     context: TuneContext,
-    candidates: List[MeasureCandidate],
-    results: Optional[List[RunnerResult]] = None,
-    extractor: Optional[FeatureExtractor] = None,
+    candidates: list[MeasureCandidate],
+    results: list[RunnerResult] | None = None,
+    extractor: FeatureExtractor | None = None,
 ):
     """Extract feature vectors and compute mean costs.
 
@@ -476,14 +476,14 @@ class State:
     """
 
     model: SegmentSumMLP
-    data: Dict[str, FeatureGroup]
+    data: dict[str, FeatureGroup]
     data_size: int
     untrained_size: int
 
     def __init__(
         self,
-        model_config: Optional[SegmentSumMLPConfig] = None,
-        extractor: Optional[FeatureExtractor] = None,
+        model_config: SegmentSumMLPConfig | None = None,
+        extractor: FeatureExtractor | None = None,
     ):
         model_config = model_config or SegmentSumMLPConfig()
         extractor = extractor or PerStoreFeature(extract_workload=True)
@@ -589,7 +589,7 @@ class State:
 
     def add_to_group(
         self,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         costs: np.ndarray,
         group_hash: str,
     ):
@@ -667,8 +667,8 @@ class SegmentSumMLPTrainer:
 
     def __init__(
         self,
-        train_config: Optional[TrainerConfig] = None,
-        state: Optional[State] = None,
+        train_config: TrainerConfig | None = None,
+        state: State | None = None,
     ):
         train_config = train_config or TrainerConfig()
         state = state or State()
@@ -682,9 +682,9 @@ class SegmentSumMLPTrainer:
 
     def train_step(
         self,
-        data: Tuple["torch.Tensor", "torch.Tensor", "torch.Tensor"],
+        data: tuple["torch.Tensor", "torch.Tensor", "torch.Tensor"],
         batch: int = 0,
-        train_loss: Optional[float] = None,
+        train_loss: float | None = None,
     ) -> float:
         """Helper function for training on a single batch.
 
@@ -729,7 +729,7 @@ class SegmentSumMLPTrainer:
 
     def predict_step(
         self,
-        data: Tuple["torch.Tensor", "torch.Tensor", "torch.Tensor"],
+        data: tuple["torch.Tensor", "torch.Tensor", "torch.Tensor"],
     ):
         """Helper function for predicting (validating) on a single batch.
 
@@ -840,7 +840,7 @@ class SegmentSumMLPTrainer:
 
     def train_incremental(
         self,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         results: np.ndarray,
     ):
         """Training on incremental data.
@@ -870,8 +870,8 @@ class SegmentSumMLPTrainer:
 
     def predict_incremental(
         self,
-        features: List[np.ndarray],
-        results: Optional[np.ndarray] = None,
+        features: list[np.ndarray],
+        results: np.ndarray | None = None,
     ) -> np.ndarray:
         """Predicting (validating) on incremental data.
 
@@ -912,7 +912,7 @@ class SegmentSumMLPTrainer:
 
     def update(
         self,
-        features: List[np.ndarray],
+        features: list[np.ndarray],
         costs: np.ndarray,
         group_hash: str,
     ):
@@ -951,7 +951,7 @@ class MLPModel(PyCostModel):
     def __init__(
         self,
         *,
-        trainer: Optional[SegmentSumMLPTrainer] = None,
+        trainer: SegmentSumMLPTrainer | None = None,
     ):
         super().__init__()
         self.trainer = trainer or SegmentSumMLPTrainer()
@@ -979,8 +979,8 @@ class MLPModel(PyCostModel):
     def update(
         self,
         context: TuneContext,
-        candidates: List[MeasureCandidate],
-        results: List[RunnerResult],
+        candidates: list[MeasureCandidate],
+        results: list[RunnerResult],
     ) -> None:
         """Update the dataset, re-train the cost model if not frozen.
 
@@ -998,7 +998,7 @@ class MLPModel(PyCostModel):
         )
         self.trainer.update(features, mean_costs, shash2hex(context.mod))
 
-    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+    def predict(self, context: TuneContext, candidates: list[MeasureCandidate]) -> np.ndarray:
         """Predict given the measure candidates.
 
         Parameters

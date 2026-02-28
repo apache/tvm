@@ -20,7 +20,6 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
 
 from tvm import s_tir, tir
 from tvm.ir import Range
@@ -143,11 +142,11 @@ def _is_one(x: PrimExpr) -> bool:
 
 
 def make_iter_fusion_index_map(
-    traits: List[IterTrait],
-    kind_order: List[IterKind],
+    traits: list[IterTrait],
+    kind_order: list[IterKind],
 ) -> tir.IndexMap:
-    fused_iters: Dict[IterKind, PrimExpr] = {}
-    input_iters: List[tir.Var] = []
+    fused_iters: dict[IterKind, PrimExpr] = {}
+    input_iters: list[tir.Var] = []
     for i, trait in enumerate(traits):
         v_i = tir.Var(f"i{i}", trait.extent.dtype)
         input_iters.append(v_i)
@@ -160,14 +159,14 @@ def make_iter_fusion_index_map(
         else:
             fused_iters[trait.kind] = v_i
 
-    final_indices: List[tir.PrimExpr] = [
+    final_indices: list[tir.PrimExpr] = [
         fused_iters.get(kind, tir.IntImm(traits[0].extent.dtype, 0)) for kind in kind_order
     ]
 
     return tir.IndexMap(input_iters, final_indices, None)
 
 
-def detect_iter_traits(block: tir.SBlock) -> Optional[Tuple[List[IterTrait]]]:
+def detect_iter_traits(block: tir.SBlock) -> tuple[list[IterTrait]] | None:
     """Detect iter traits based on the pattern C[S, I, J] += A[S, I, K] * B[S, J, K]
 
     Parameters
@@ -186,8 +185,8 @@ def detect_iter_traits(block: tir.SBlock) -> Optional[Tuple[List[IterTrait]]]:
     if len(block.reads) != 2 or len(block.writes) != 1:
         return None
 
-    def get_access_axes(region: List[Range]) -> Set[Var]:
-        axes: Set[Var] = set()
+    def get_access_axes(region: list[Range]) -> set[Var]:
+        axes: set[Var] = set()
         for r in region:
             if not _is_one(r.extent):
                 raise ValueError("Expect elemwise block access")
@@ -201,7 +200,7 @@ def detect_iter_traits(block: tir.SBlock) -> Optional[Tuple[List[IterTrait]]]:
     except ValueError:
         return None
 
-    traits: Dict[Var, IterTrait] = {}
+    traits: dict[Var, IterTrait] = {}
     for iter_var in block.iter_vars:
         var = iter_var.var
         kind: IterKind
@@ -237,7 +236,7 @@ def detect_iter_traits(block: tir.SBlock) -> Optional[Tuple[List[IterTrait]]]:
     return A_traits, B_traits, C_traits, block_traits
 
 
-def get_index_map(block: tir.SBlock) -> Optional[Tuple[tir.IndexMap, ...]]:
+def get_index_map(block: tir.SBlock) -> tuple[tir.IndexMap, ...] | None:
     """Get index maps for the block
 
     Parameters
@@ -327,7 +326,7 @@ def get_reduction_blocks(sch, blocks) -> bool:
     return reduction_blocks
 
 
-def get_in_out_dtypes(block: tir.SBlock) -> Tuple[str]:
+def get_in_out_dtypes(block: tir.SBlock) -> tuple[str]:
     """
     Detect In/Out data types for the given block based on the analysis if read/write buffers.
     """
@@ -352,7 +351,7 @@ class MetalMatmul(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Optional[s_tir.Schedule]:
+    ) -> s_tir.Schedule | None:
         from tvm.s_tir.tensor_intrin.metal import (  # pylint: disable=import-outside-toplevel
             get_simdgroup_intrin_group,
         )
@@ -493,7 +492,7 @@ class MatmulTensorization(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Optional[s_tir.Schedule]:
+    ) -> s_tir.Schedule | None:
         from tvm.s_tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
             get_wmma_intrin_group,
         )
@@ -714,7 +713,7 @@ class MatmulInt8Tensorization(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Optional[s_tir.Schedule]:
+    ) -> s_tir.Schedule | None:
         from tvm.s_tir.tensor_intrin.cuda import (  # pylint: disable=import-outside-toplevel
             get_wmma_intrin_group,
         )
@@ -968,7 +967,7 @@ class Matmul(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Optional[s_tir.Schedule]:
+    ) -> s_tir.Schedule | None:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
@@ -1130,8 +1129,8 @@ class Matmul(GPUScheduleRule):
         sch: s_tir.Schedule,
         config: Config,
         reduction_block: s_tir.schedule.SBlockRV,
-        blocks: List[s_tir.schedule.SBlockRV],
-    ) -> Optional[s_tir.Schedule]:
+        blocks: list[s_tir.schedule.SBlockRV],
+    ) -> s_tir.Schedule | None:
         """Get vectorization factor"""
 
         def get_max_factor(n, factors):

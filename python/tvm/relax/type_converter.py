@@ -29,7 +29,8 @@ during module imports.
 
 import functools
 import inspect
-from typing import Any, Callable, List, Optional, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 import tvm
 
@@ -40,7 +41,7 @@ class _ArgsConverter:
     """A helper class to convert the arguments to Expr."""
 
     @staticmethod
-    def convert(args_to_expr: List[str], args_to_list_expr: List[str]):
+    def convert(args_to_expr: list[str], args_to_list_expr: list[str]):
         """Convert the arguments to Expr.
 
         Parameters
@@ -154,7 +155,7 @@ class _ArgsConverter:
         """Decorator for automatically convert the arguments to Expr according to type annotation.
         Only two patterns are supported:
 
-        1. The argument is Expr or Optional[Expr].
+        1. The argument is Expr or Expr | None.
 
         2. The argument is List[Expr] or Optional[List[Expr]].
 
@@ -167,9 +168,9 @@ class _ArgsConverter:
 
         for param in sig.parameters.values():
             anno = param.annotation
-            if anno in (Expr, Optional[Expr]):
+            if anno in (Expr, Expr | None):
                 args_to_expr.append(param.name)
-            if anno in (List[Expr], Optional[List[Expr]]):
+            if anno in (list[Expr], list[Expr] | None):
                 args_to_list_expr.append(param.name)
 
         return _ArgsConverter.convert(args_to_expr, args_to_list_expr)(func)

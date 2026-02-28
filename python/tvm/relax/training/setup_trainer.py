@@ -17,8 +17,6 @@
 # pylint: disable=not-callable, unused-argument
 """Setup Trainer Pass."""
 
-from typing import List
-
 import tvm
 from tvm import TVMError
 from tvm.ir.module import IRModule
@@ -120,7 +118,7 @@ class SetupTrainer:
     STATE_NUM_ATTR_KEY: str = "state_num"
 
     def __init__(
-        self, loss: Loss, optimizer: Optimizer, loss_args: List[TensorStructInfo], legalize=True
+        self, loss: Loss, optimizer: Optimizer, loss_args: list[TensorStructInfo], legalize=True
     ):
         self._loss = loss
         self._optimizer = optimizer
@@ -140,14 +138,14 @@ class SetupTrainer:
 
         # Check function attrs
         if self.PARAM_NUM_ATTR_KEY not in mod.attrs or not isinstance(
-            mod.attrs[self.PARAM_NUM_ATTR_KEY], (IntImm, int)
+            mod.attrs[self.PARAM_NUM_ATTR_KEY], IntImm | int
         ):
             raise ValueError(
                 f"SetupTrainer: The backbone module should has an integer attribute named "
                 f"{self.PARAM_NUM_ATTR_KEY}"
             )
         if self.STATE_NUM_ATTR_KEY not in mod.attrs or not isinstance(
-            mod.attrs[self.STATE_NUM_ATTR_KEY], (IntImm, int)
+            mod.attrs[self.STATE_NUM_ATTR_KEY], IntImm | int
         ):
             raise ValueError(
                 f"SetupTrainer: The backbone module should has an integer attribute named "

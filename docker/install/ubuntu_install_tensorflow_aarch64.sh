@@ -22,6 +22,6 @@ set -euxo pipefail
 apt-install-and-clear -y --no-install-recommends libhdf5-dev
 
 # TensorFlow package versions are aligned with ubuntu_install_tensorflow.sh.
-pip3 install \
+uv pip install \
     numpy==1.26.* \
     tensorflow==2.19.0

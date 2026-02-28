@@ -17,7 +17,7 @@
 """Definition of two pillar data structure for TensorIR scheduling: StmtSRef, SBlockScope."""
 
 from enum import IntEnum
-from typing import List, Optional, Union
+from typing import Optional
 
 from tvm_ffi import register_object
 
@@ -45,7 +45,7 @@ class StmtSRef(Object):
     seq_index: int
 
     @property
-    def stmt(self) -> Optional[Union[SBlock, For]]:
+    def stmt(self) -> SBlock | For | None:
         """The block/for stmt the object refers to"""
         return _ffi_api.StmtSRefStmt(self)  # type: ignore # pylint: disable=no-member
 
@@ -126,7 +126,7 @@ class SBlockScope(Object):
     - Child SBlock: The scope leaf SBlocks under the scope root or a specific internal sref
     """
 
-    def get_deps_by_src(self, block: StmtSRef) -> List[Dependency]:
+    def get_deps_by_src(self, block: StmtSRef) -> list[Dependency]:
         """Get all dependencies whose `src` is the target`block`.
 
         Parameters
@@ -141,7 +141,7 @@ class SBlockScope(Object):
         """
         return _ffi_api.SBlockScopeGetDepsBySrc(self, block)  # type: ignore # pylint: disable=no-member
 
-    def get_deps_by_dst(self, block: StmtSRef) -> List[Dependency]:
+    def get_deps_by_dst(self, block: StmtSRef) -> list[Dependency]:
         """Get all dependencies whose `dst` is the target `block`.
 
         Parameters

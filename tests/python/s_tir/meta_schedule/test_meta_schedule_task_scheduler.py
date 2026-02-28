@@ -19,7 +19,6 @@
 
 import random
 import weakref
-from typing import Set
 
 import pytest
 
@@ -122,7 +121,7 @@ def _schedule_batch_matmul(sch: Schedule):
 
 @ms.derived_object
 class MyTaskScheduler(ms.task_scheduler.PyTaskScheduler):
-    done: Set = set()
+    done: set = set()
 
     def next_task_id(self) -> int:
         tasks = self._outer().tasks_

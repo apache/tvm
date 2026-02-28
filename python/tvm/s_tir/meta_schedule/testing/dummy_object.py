@@ -17,7 +17,6 @@
 """Dummy objects for testing."""
 
 import random
-from typing import List, Optional
 
 from tvm.s_tir.schedule import Trace
 
@@ -40,13 +39,13 @@ class DummyRunnerFuture(PyRunnerFuture):
 
 @derived_object
 class DummyBuilder(PyBuilder):
-    def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
+    def build(self, build_inputs: list[BuilderInput]) -> list[BuilderResult]:
         return [BuilderResult("test_path", None) for _ in build_inputs]
 
 
 @derived_object
 class DummyRunner(PyRunner):
-    def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
+    def run(self, runner_inputs: list[RunnerInput]) -> list[RunnerFuture]:
         return [DummyRunnerFuture() for _ in runner_inputs]  # type: ignore
 
 
@@ -57,7 +56,7 @@ class DummyMutator(PyMutator):
     def _initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
-    def apply(self, trace: Trace, _) -> Optional[Trace]:
+    def apply(self, trace: Trace, _) -> Trace | None:
         return Trace(trace.insts, {})
 
     def clone(self):

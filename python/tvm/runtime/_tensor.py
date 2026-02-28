@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-import, redefined-outer-name
-# ruff: noqa: E722, F401, RUF005
+# ruff: noqa: F401, RUF005
 """Runtime Tensor API"""
 
 import ctypes
@@ -86,7 +86,7 @@ class Tensor(tvm_ffi.core.Tensor):
         if isinstance(value, Tensor):
             if not value.same_as(self):
                 value.copyto(self)
-        elif isinstance(value, (np.ndarray, np.generic)):
+        elif isinstance(value, np.ndarray | np.generic):
             self.copyfrom(value)
         else:
             raise TypeError(f"type {type(value)} not supported")
@@ -111,7 +111,7 @@ class Tensor(tvm_ffi.core.Tensor):
         if not isinstance(source_array, np.ndarray):
             try:
                 source_array = np.array(source_array, dtype=self.dtype)
-            except:
+            except Exception:
                 raise TypeError(
                     f"array must be an array_like data, type {type(source_array)} is not supported"
                 )
@@ -249,7 +249,7 @@ class Tensor(tvm_ffi.core.Tensor):
         _ffi_api.TVMTensorCopyFromTo(self, target_nd)
         return target_nd
 
-    def _create_view(self, shape, dtype: Optional[str] = None, relative_byte_offset: int = 0):
+    def _create_view(self, shape, dtype: str | None = None, relative_byte_offset: int = 0):
         """Create a view into an existing array.
 
         The view shares the same allocation and datatype as the
@@ -348,7 +348,7 @@ def tensor(arr, device=None, mem_scope=None):
     """
     device = device or cpu()
 
-    if not isinstance(arr, (np.ndarray, Tensor)):
+    if not isinstance(arr, np.ndarray | Tensor):
         arr = np.array(arr)
     return empty(arr.shape, arr.dtype, device, mem_scope).copyfrom(arr)
 

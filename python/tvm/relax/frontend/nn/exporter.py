@@ -50,7 +50,7 @@ class Exporter:
 
     builder: BlockBuilder
     io_effect: core.Effect
-    extern_mods: typing.List[extern.ExternModule]
+    extern_mods: list[extern.ExternModule]
 
     def __init__(self, debug: bool) -> None:
         self.builder = BlockBuilder()
@@ -75,7 +75,7 @@ class Exporter:
     def add_external_module(self, mod: extern.ExternModule) -> None:
         """Add an external module to the exporter."""
         # pylint: disable=protected-access
-        all_symbols: typing.List[str] = []
+        all_symbols: list[str] = []
         for extern_mod in self.extern_mods:
             all_symbols.extend(extern_mod._symbols.keys())
         duplicated_symbols = list(set(mod._symbols.keys()) & set(all_symbols))
@@ -87,15 +87,15 @@ class Exporter:
     def build(  # pylint: disable=too-many-locals
         self,
         spec: _spec.ModuleSpec,
-    ) -> typing.Tuple[
+    ) -> tuple[
         IRModule,
-        typing.List[typing.Tuple[str, core.Parameter]],
-        typing.List[extern.ExternModule],
+        list[tuple[str, core.Parameter]],
+        list[extern.ExternModule],
     ]:
         """Build the ModuleSpec to TVM IRModule. Returns the IRModule and the parameters."""
 
         # pylint: disable=protected-access
-        def _params() -> typing.List[typing.Tuple[str, core.Parameter]]:
+        def _params() -> list[tuple[str, core.Parameter]]:
             params = []
             for name, param in core._attribute_finder(
                 spec.module, prefix="", condition_yield=lambda x: isinstance(x, core.Parameter)
@@ -103,7 +103,7 @@ class Exporter:
                 params.append((name, param))
             return params
 
-        def _effects() -> typing.List[typing.Tuple[str, core.Effect]]:
+        def _effects() -> list[tuple[str, core.Effect]]:
             result = []
             if self.io_effect is not None:
                 result.append(("", self.io_effect))
@@ -146,7 +146,7 @@ class Exporter:
 
 def _emit_effect_init(
     builder: BlockBuilder,
-    effects: typing.List[typing.Tuple[str, core.Effect]],
+    effects: list[tuple[str, core.Effect]],
 ):
     outputs = []
     for prefix, effect in effects:
@@ -160,15 +160,15 @@ def _emit_effect_init(
 def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     builder: BlockBuilder,
     spec: _spec.MethodSpec,
-    params: typing.List[typing.Tuple[str, core.Parameter]],
-    effects: typing.Optional[typing.List[typing.Tuple[str, core.Effect]]],
+    params: list[tuple[str, core.Parameter]],
+    effects: list[tuple[str, core.Effect]] | None,
 ):
     # pylint: disable=protected-access
     # symbolic shape's name mapping to its tir.Var for reuse
-    str2var_params: typing.Dict[str, tir.Var] = {}
+    str2var_params: dict[str, tir.Var] = {}
 
     def _unwrap_ret(expr: typing.Any) -> typing.Any:
-        if isinstance(expr, (core.Tensor, core.Object)):
+        if isinstance(expr, core.Tensor | core.Object):
             return expr._expr
         if isinstance(expr, tuple):
             return rx.Tuple([_unwrap_ret(x) for x in expr])
@@ -179,7 +179,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     def _convert_input(arg):
         if isinstance(arg, tir.Var):
             return rx.Var(arg.name, struct_info=ShapeStructInfo(values=[arg]))
-        if isinstance(arg, (core.Tensor, core.Object)):
+        if isinstance(arg, core.Tensor | core.Object):
             return arg._expr  # pylint: disable=protected-access
         if isinstance(arg, _spec.Tuple):
             return rx.Var(
@@ -190,8 +190,8 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
             )
         raise TypeError(f"Unsupported input type: {type(arg)}")
 
-    def _params(mode: str) -> typing.List[rx.Var]:
-        inputs: typing.List[rx.Var] = []
+    def _params(mode: str) -> list[rx.Var]:
+        inputs: list[rx.Var] = []
 
         def _get_var(shape_var: tir.Var) -> tir.Var:
             name = shape_var.name
@@ -222,13 +222,13 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
             return [input_var]
         raise ValueError(f"Invalid param_mode: {mode}")
 
-    def _effects(mode: str) -> typing.List[rx.Var]:
-        unflat_inputs: typing.List[typing.List[rx.Var]] = []
+    def _effects(mode: str) -> list[rx.Var]:
+        unflat_inputs: list[list[rx.Var]] = []
         for name, effect in effects:
             effect_input = effect.create(name)
             effect.set_state(effect_input)
             unflat_inputs.append(effect_input)
-        inputs: typing.List[rx.Var] = functools.reduce(operator.iadd, unflat_inputs, [])
+        inputs: list[rx.Var] = functools.reduce(operator.iadd, unflat_inputs, [])
         if mode == "none":
             return []
         if mode == "plain":
@@ -292,9 +292,9 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
 
 def _method_spec_to_inputs(
     spec: _spec.MethodSpec,
-) -> typing.List[typing.Union[tir.Var, core.Tensor]]:
+) -> list[tir.Var | core.Tensor]:
     """Convert the MethodSpec to a list of inputs to Module's method."""
-    str2var: typing.Dict[str, tir.Var] = {}
+    str2var: dict[str, tir.Var] = {}
 
     def _get_var(name: str) -> tir.Var:
         if name in str2var:

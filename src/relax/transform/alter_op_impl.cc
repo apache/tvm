@@ -26,7 +26,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/node/serialization.h>
+#include <tvm/ir/serialization.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/expr_functor.h>

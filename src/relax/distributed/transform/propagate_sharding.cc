@@ -283,7 +283,7 @@ class ShardingConflictHandler : public ExprVisitor {
       }
 
       if (device_mesh.defined()) {
-        TVM_FFI_ICHECK(StructuralEqual()(device_mesh.value(), sharding_spec.first))
+        TVM_FFI_ICHECK(ffi::StructuralEqual()(device_mesh.value(), sharding_spec.first))
             << "Sharding conflict detected for tensor " << var->name_hint()
             << ": Device Mesh mismatch"
             << ". Conflict Handling logic will be added in the future.";
@@ -561,7 +561,7 @@ class DistributedIRBuilder : public ExprMutator {
 
     if (const auto* inferred_dtensor_sinfo = new_call->struct_info_.as<DTensorStructInfoNode>()) {
       Expr new_value = RemoveAnnotateSharding(new_call);
-      if (!StructuralEqual()(
+      if (!ffi::StructuralEqual()(
               DTensorStructInfo(inferred_dtensor_sinfo->tensor_sinfo, device_mesh, placements[0]),
               new_call->struct_info_)) {
         new_value = InsertRedistribute(new_value, device_mesh, placements[0]);
@@ -577,7 +577,7 @@ class DistributedIRBuilder : public ExprMutator {
       Var new_var = builder_->Emit(new_call);
       var_remap_[binding->var->vid] = new_var;
       for (int i = 0; i < static_cast<int>(inferred_tuple_sinfo->fields.size()); i++) {
-        if (!StructuralEqual()(
+        if (!ffi::StructuralEqual()(
                 DTensorStructInfo(
                     Downcast<DTensorStructInfo>(inferred_tuple_sinfo->fields[i])->tensor_sinfo,
                     device_mesh, placements[i]),
@@ -607,7 +607,8 @@ class DistributedIRBuilder : public ExprMutator {
   }
 
   ffi::Map<Var, Var> input_tensor_remap_;
-  std::unordered_map<TupleGetItem, Var, StructuralHash, StructuralEqual> tuple_getitem_remap_;
+  std::unordered_map<TupleGetItem, Var, ffi::StructuralHash, ffi::StructuralEqual>
+      tuple_getitem_remap_;
   AxisGroupGraph axis_group_graph_;
 };
 namespace transform {

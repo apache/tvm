@@ -20,7 +20,7 @@
 """IRBuilder for distributed Relax dialect"""
 
 from numbers import Number
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as _np  # type: ignore
 
@@ -51,10 +51,10 @@ from . import _ffi_api
 
 @args_converter.auto
 def call_tir(
-    func: Union[str, Expr],
+    func: str | Expr,
     args: Expr,
-    out_sinfo: Union[DTensorStructInfo, List[DTensorStructInfo]],
-    tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
+    out_sinfo: DTensorStructInfo | list[DTensorStructInfo],
+    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
 ) -> Call:
     """Distributed version of call_tir
 
@@ -88,14 +88,14 @@ def call_tir(
     if not isinstance(out_sinfo, list):
         out_sinfo = [out_sinfo]
 
-    if isinstance(tir_vars, (list, tuple)):
+    if isinstance(tir_vars, list | tuple):
         tir_vars = ShapeExpr(tir_vars)
 
     return _ffi_api.call_tir_dist(func, args, out_sinfo, tir_vars)  # type: ignore
 
 
 def const(
-    value: Union[bool, int, float, _np.ndarray, tvm.runtime.Tensor],
+    value: bool | int | float | _np.ndarray | tvm.runtime.Tensor,
     struct_info: DTensorStructInfo,
 ) -> Constant:
     """Create a constant value.
@@ -121,10 +121,10 @@ def const(
     if not isinstance(struct_info, DTensorStructInfo):
         raise TypeError("struct_info needs to be an instance of DTensorStructInfo. ")
     dtype = str(struct_info.tensor_sinfo.dtype)
-    if isinstance(value, (Number, (bool, list))):
+    if isinstance(value, Number | (bool | list)):
         value = _np.array(value, dtype=dtype)
 
-    if isinstance(value, (_np.ndarray, _np.generic)):
+    if isinstance(value, _np.ndarray | _np.generic):
         if dtype is not None:
             value = value.astype(dtype)
         value = _tensor.tensor(value)
@@ -150,7 +150,7 @@ def _lookup_device_mesh(device_mesh_str: py_str) -> DeviceMesh:
 
 
 def annotate_sharding(
-    value: Expr, device_mesh: Union[py_str, DeviceMesh], placement: Union[py_str, Placement]
+    value: Expr, device_mesh: py_str | DeviceMesh, placement: py_str | Placement
 ) -> Expr:
     if isinstance(device_mesh, py_str):
         device_mesh = _lookup_device_mesh(device_mesh)
@@ -160,7 +160,7 @@ def annotate_sharding(
 
 
 def redistribute(
-    value: Expr, device_mesh: Union[py_str, DeviceMesh], placement: Union[py_str, Placement]
+    value: Expr, device_mesh: py_str | DeviceMesh, placement: py_str | Placement
 ) -> Expr:
     if isinstance(device_mesh, py_str):
         device_mesh = _lookup_device_mesh(device_mesh)

@@ -28,7 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/config_schema.h>
 #include <tvm/node/attr_registry_map.h>
-#include <tvm/node/node.h>
+#include <tvm/runtime/object.h>
 
 #include <memory>
 #include <unordered_map>

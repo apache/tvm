@@ -63,9 +63,9 @@ def _conv1d_transpose_ncw_preprocess(data, kernel, stride, padding, out_dtype, o
         out_dtype = data.dtype
 
     # dilate and pad
-    if isinstance(stride, (tuple, list)):
+    if isinstance(stride, tuple | list):
         stride = stride[0]
-    if isinstance(output_padding, (tuple, list)):
+    if isinstance(output_padding, tuple | list):
         output_padding = output_padding[0]
 
     _, channels_in, _ = data.shape

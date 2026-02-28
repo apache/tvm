@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <mutex>
 #include <unordered_map>
@@ -119,7 +120,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
     if (inst->kind.same_as(inst_annotate)) {
       TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
       TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
-      if (Downcast<ffi::String>(inst->attrs[0]) == tir::attr::meta_schedule_cooperative_fetch) {
+      if (Downcast<ffi::String>(inst->attrs[0]) == s_tir::attr::meta_schedule_cooperative_fetch) {
         const auto* ann_val = inst->inputs[1].as<s_tir::ExprRVNode>();
         TVM_FFI_ICHECK(ann_val);
         annotated.insert(ann_val);

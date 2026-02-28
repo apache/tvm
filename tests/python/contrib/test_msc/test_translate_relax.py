@@ -42,7 +42,7 @@ def verify_model(torch_model, input_info, opt_config=None):
             return obj.numpy()
         elif isinstance(obj, tvm.runtime.ShapeTuple):
             return np.array(obj, dtype="int64")
-        elif isinstance(obj, (list, tvm.ir.container.Array)):
+        elif isinstance(obj, list | tvm.ir.container.Array):
             return [_tvm_runtime_to_np(item) for item in obj]
         elif isinstance(obj, tuple):
             return tuple(_tvm_runtime_to_np(item) for item in obj)
@@ -63,9 +63,9 @@ def verify_model(torch_model, input_info, opt_config=None):
 
     orig_output = _run_relax(orig_mod)
     rt_output = _run_relax(rt_mod)
-    if not isinstance(orig_output, (list, tuple)):
+    if not isinstance(orig_output, list | tuple):
         orig_output = [orig_output]
-    if not isinstance(rt_output, (list, tuple)):
+    if not isinstance(rt_output, list | tuple):
         rt_output = [rt_output]
     for o_out, r_out in zip(orig_output, rt_output):
         tvm.testing.assert_allclose(o_out, r_out)

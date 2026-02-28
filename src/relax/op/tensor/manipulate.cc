@@ -163,7 +163,7 @@ ffi::Optional<ffi::Array<PrimExpr>> CheckConcatOutputShape(
     // For the specified axis, we compute the sum of shape value over each tensor.
 
     // Special case, if all concatenated values have the same shape
-    StructuralEqual structural_equal;
+    ffi::StructuralEqual structural_equal;
     PrimExpr first_concat_dim = shape_values[0][axis];
     bool all_same = std::all_of(shape_values.begin(), shape_values.end(), [&](const auto& a) {
       return structural_equal(a[axis], first_concat_dim);

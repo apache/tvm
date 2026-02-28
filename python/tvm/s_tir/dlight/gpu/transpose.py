@@ -16,8 +16,6 @@
 # under the License.
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
-from typing import List, Union
-
 from tvm import arith, s_tir, tir
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
@@ -47,7 +45,7 @@ class Transpose(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         # pylint: disable=invalid-name
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None

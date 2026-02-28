@@ -17,8 +17,6 @@
 # pylint: disable=no-else-return, invalid-name
 """Developer API of add/remove/replace bindings in Relax."""
 
-from typing import Optional
-
 import tvm_ffi
 
 import tvm
@@ -74,7 +72,7 @@ class DataflowBlockRewrite(Object):
     def add_binding(self, binding: Binding) -> None:
         return _ffi_api.dfb_rewrite_add_binding(self, binding)  # type: ignore
 
-    def add(self, expr: Expr, name: Optional[str] = None, is_dfvar: bool = False) -> None:
+    def add(self, expr: Expr, name: str | None = None, is_dfvar: bool = False) -> None:
         """
         Add a new statement to the DataflowBlock with an automatically generated variable name.
 

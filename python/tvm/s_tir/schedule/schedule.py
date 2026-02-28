@@ -17,7 +17,8 @@
 """The TensorIR schedule class"""
 
 import inspect
-from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Literal
 
 from tvm_ffi import register_object as _register_object
 
@@ -64,11 +65,11 @@ class SBlockRV(Object):
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
 # A random variable that evaluates to an integer
-ExprRV = Union[PrimExpr]  # pylint: disable=invalid-name
+ExprRV = PrimExpr  # pylint: disable=invalid-name
 
-RAND_VAR_TYPE = Union[ExprRV, SBlockRV, LoopRV]  # pylint: disable=invalid-name
+RAND_VAR_TYPE = ExprRV | SBlockRV | LoopRV  # pylint: disable=invalid-name
 
-_ERROR_RENDER_LEVEL: Dict[Literal["detail", "fast", "none"], int] = {
+_ERROR_RENDER_LEVEL: dict[Literal["detail", "fast", "none"], int] = {
     "detail": 0,
     "fast": 1,
     "none": 2,
@@ -90,7 +91,7 @@ def _parse_enable_checks(enable_checks: bool) -> bool:
     return enable_checks
 
 
-def _parse_seed(seed: Optional[int]) -> int:
+def _parse_seed(seed: int | None) -> int:
     if seed is None:
         return -1
     if not isinstance(seed, int):
@@ -127,10 +128,10 @@ class Schedule(Object):
     @type_checked
     def __init__(
         self,
-        mod: Union[PrimFunc, IRModule],
+        mod: PrimFunc | IRModule,
         *,
-        seed: Optional[int] = None,
-        debug_mask: Union[str, int] = "none",
+        seed: int | None = None,
+        debug_mask: str | int = "none",
         error_render_level: str = "detail",
         enable_check: bool = True,
     ) -> None:
@@ -138,13 +139,13 @@ class Schedule(Object):
 
         Parameters
         ----------
-        mod : Union[PrimFunc, IRModule]
+        mod : PrimFunc | IRModule
             The IRModule or PrimFunc to be scheduled
         seed: Optional[int]
             The seed value for schedule's random state
             Note that None and -1 means use device random, otherwise only integer between 1 and
             2147483647 is allowed.
-        debug_mask : Union[str, int]
+        debug_mask : str | int
             Do extra correctness checking after the class creation and each time
             after calling the Replace method.
             Possible choices of `debug_mask`:
@@ -184,10 +185,10 @@ class Schedule(Object):
 
     @staticmethod
     def _create_non_traced(
-        mod: Union[PrimFunc, IRModule],
+        mod: PrimFunc | IRModule,
         *,
-        seed: Optional[int] = None,
-        debug_mask: Union[str, int] = "none",
+        seed: int | None = None,
+        debug_mask: str | int = "none",
         error_render_level: str = "detail",
         enable_check: bool = True,
     ) -> "Schedule":
@@ -213,12 +214,12 @@ class Schedule(Object):
         return _ffi_api.ScheduleGetState(self)  # type: ignore # pylint: disable=no-member
 
     @property
-    def trace(self) -> Optional[Trace]:
+    def trace(self) -> Trace | None:
         """Returns the internally maintained trace of scheduling program execution"""
         return _ffi_api.ScheduleGetTrace(self)  # type: ignore # pylint: disable=no-member
 
     @property
-    def func_working_on(self) -> Optional[GlobalVar]:
+    def func_working_on(self) -> GlobalVar | None:
         """Returns the GlobalVar of the func that the schedule is currently working on"""
         return _ffi_api.ScheduleGetFuncWorkingOn(self)  # type: ignore # pylint: disable=no-member
 
@@ -297,9 +298,7 @@ class Schedule(Object):
     ########## Lookup ##########
 
     @type_checked
-    def get(
-        self, rand_var_or_sref: Union[RAND_VAR_TYPE, StmtSRef]
-    ) -> Optional[Union[int, SBlock, For]]:
+    def get(self, rand_var_or_sref: RAND_VAR_TYPE | StmtSRef) -> int | SBlock | For | None:
         """Returns:
         - the corresponding SBlock that a SBlockRV evaluates to;
         - the corresponding For that a LoopRV evaluates to;
@@ -309,12 +308,12 @@ class Schedule(Object):
 
         Parameters
         ----------
-        rand_var_or_sref : Union[ExprRV, SBlockRV, LoopRV, StmtSRef]
+        rand_var_or_sref : ExprRV | SBlockRV | LoopRV | StmtSRef
             The random variable / sref to be evaluated
 
         Returns
         -------
-        result : Optional[Union[int, SBlock, For]]
+        result : Optional[int | SBlock | For]
             The corresponding result
         """
         if isinstance(rand_var_or_sref, StmtSRef):
@@ -326,9 +325,7 @@ class Schedule(Object):
         return result
 
     @type_checked
-    def get_sref(
-        self, rand_var_or_stmt: Union[SBlockRV, LoopRV, SBlock, For]
-    ) -> Optional[StmtSRef]:
+    def get_sref(self, rand_var_or_stmt: SBlockRV | LoopRV | SBlock | For) -> StmtSRef | None:
         """Returns the corresponding sref to the given
         1) LoopRV
         2) SBlockRV
@@ -337,7 +334,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        rand_var_or_stmt : Union[SBlockRV, LoopRV, SBlock, For]
+        rand_var_or_stmt : SBlockRV | LoopRV | SBlock | For
             The random variable / sref to be evaluated
 
         Returns
@@ -355,7 +352,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        rand_var : Union[SBlockRV, LoopRV, ExprRV]
+        rand_var : SBlockRV | LoopRV | ExprRV
             The random variable to be removed
         """
         return _ffi_api.ScheduleRemoveRV(self, rand_var)  # type: ignore # pylint: disable=no-member
@@ -364,7 +361,7 @@ class Schedule(Object):
 
     @type_checked
     def sample_categorical(
-        self, candidates: List[int], probs: List[float], decision: Optional[int] = None
+        self, candidates: list[int], probs: list[float], decision: int | None = None
     ) -> ExprRV:
         """Sample an integer given the probability distribution
 
@@ -392,8 +389,8 @@ class Schedule(Object):
         loop: LoopRV,
         n: int,
         max_innermost_factor: int = 16,
-        decision: Optional[List[int]] = None,
-    ) -> List[ExprRV]:
+        decision: list[int] | None = None,
+    ) -> list[ExprRV]:
         """Sample the factors to perfect tile a specific loop
 
         Parameters
@@ -425,8 +422,8 @@ class Schedule(Object):
         n: int,
         partition_pos: int = 0,
         innerpart_factor: int = 1,
-        decision: Optional[List[int]] = None,
-    ) -> List[ExprRV]:
+        decision: list[int] | None = None,
+    ) -> list[ExprRV]:
         """Sample the factors to a partitioned tile for a specific loop
 
         Parameters
@@ -459,14 +456,12 @@ class Schedule(Object):
         )
 
     @type_checked
-    def sample_compute_location(
-        self, block: Union[SBlockRV, str], decision: Optional[int] = None
-    ) -> LoopRV:
+    def sample_compute_location(self, block: SBlockRV | str, decision: int | None = None) -> LoopRV:
         """Sample a compute-at location of the given block
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The block whose compute-at location is to be sampled
         decision : Optional[int]
             The sampling decision
@@ -484,7 +479,7 @@ class Schedule(Object):
 
     ########## Schedule: Get blocks & loops ##########
     @type_checked
-    def get_sblock(self, name: str, func_name: Optional[str] = None) -> SBlockRV:
+    def get_sblock(self, name: str, func_name: str | None = None) -> SBlockRV:
         """Retrieve a block in a specific function with its name
 
         By default, if `func_name` is not specified, the schedule will search for the block in the
@@ -509,12 +504,12 @@ class Schedule(Object):
         )
 
     @type_checked
-    def get_loops(self, block: Union[SBlockRV, str]) -> List[LoopRV]:
+    def get_loops(self, block: SBlockRV | str) -> list[LoopRV]:
         """Get the parent loops of the block in its scope, from outer to inner
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The query block
 
         Returns
@@ -527,12 +522,12 @@ class Schedule(Object):
         return list(_ffi_api.ScheduleGetLoops(self, block))  # type: ignore
 
     @type_checked
-    def get_child_blocks(self, block_or_loop: Union[SBlockRV, LoopRV]) -> List[SBlockRV]:
+    def get_child_blocks(self, block_or_loop: SBlockRV | LoopRV) -> list[SBlockRV]:
         """Get the leaf blocks of a specific block/loop
 
         Parameters
         ----------
-        block_or_loop : Union[SBlockRV, LoopRV]
+        block_or_loop : SBlockRV | LoopRV
             The query block/loop
 
         Returns
@@ -544,12 +539,12 @@ class Schedule(Object):
         return list(_ffi_api.ScheduleGetChildBlocks(self, block_or_loop))  # type: ignore
 
     @type_checked
-    def get_producers(self, block: Union[SBlockRV, str]) -> List[SBlockRV]:
+    def get_producers(self, block: SBlockRV | str) -> list[SBlockRV]:
         """Get the producers of a specific block
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The block in the query
 
         Returns
@@ -562,12 +557,12 @@ class Schedule(Object):
         return list(_ffi_api.ScheduleGetProducers(self, block))  # type: ignore
 
     @type_checked
-    def get_consumers(self, block: Union[SBlockRV, str]) -> List[SBlockRV]:
+    def get_consumers(self, block: SBlockRV | str) -> list[SBlockRV]:
         """Get the consumers of a specific block
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The block in the query
 
         Returns
@@ -580,14 +575,14 @@ class Schedule(Object):
         return list(_ffi_api.ScheduleGetConsumers(self, block))  # type: ignore
 
     @type_checked
-    def get_output_blocks(self, scope_block: Union[SBlockRV, str]) -> List[SBlockRV]:
+    def get_output_blocks(self, scope_block: SBlockRV | str) -> list[SBlockRV]:
         """Get the list of output blocks within the given scope
         An output block is a block which has atleast one buffer being written
         to, but is not allocated within the PrimFunc
 
         Parameters
         ----------
-        scope_block : Union[SBlockRV, str],
+        scope_block : SBlockRV | str,
             The scope block from which output blocks are collected
 
         Returns
@@ -602,7 +597,7 @@ class Schedule(Object):
 
     ########## Schedule: Transform loops ##########
     @type_checked
-    def merge(self, *loops: List[LoopRV]) -> LoopRV:
+    def merge(self, *loops: list[LoopRV]) -> LoopRV:
         """Merge a list of loops into one. The loops under their LCA requires:
         1) Under the same scope.
         2) Can't have annotations or thread bindings.
@@ -677,7 +672,7 @@ class Schedule(Object):
         return _ffi_api.ScheduleMerge(self, loops)  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def fuse(self, *loops: List[LoopRV], preserve_unit_iters: bool = True) -> LoopRV:
+    def fuse(self, *loops: list[LoopRV], preserve_unit_iters: bool = True) -> LoopRV:
         """Fuse a list of consecutive loops into one. It requires:
         1) The loops can't have annotations or thread bindings.
         2) The (i+1)-th loop must be the only child of the i-th loop.
@@ -742,10 +737,10 @@ class Schedule(Object):
     def split(
         self,
         loop: LoopRV,
-        factors: List[Union[int, ExprRV, None]],
+        factors: list[int | ExprRV | None],
         preserve_unit_iters: bool = True,
         disable_predication: bool = False,
-    ) -> List[LoopRV]:
+    ) -> list[LoopRV]:
         """Split a loop into a list of consecutive loops. It requires:
         1) The loop can't have annotation or thread binding.
         2) The loop must start with 0.
@@ -758,7 +753,7 @@ class Schedule(Object):
         loop : LoopRV
             The loop to be split
 
-        factors: List[Union[int, ExprRV, None]]
+        factors: List[int | ExprRV | None]
             The splitting factors
             Potential inputs are:
             - None
@@ -838,9 +833,9 @@ class Schedule(Object):
     def loop_partition(
         self,
         loop: LoopRV,
-        factors: List[Union[int, ExprRV, None]],
+        factors: list[int | ExprRV | None],
         preserve_unit_iters: bool = True,
-    ) -> List[LoopRV]:
+    ) -> list[LoopRV]:
         """Partition a loop into a list of consecutive loops. It requires:
         1) The loop can't have annotation or thread binding.
         Predicates may be added to ensure the total loop numbers keeps unchanged.
@@ -852,7 +847,7 @@ class Schedule(Object):
         loop : LoopRV
             The loop to be partition
 
-        factors: List[Union[int, ExprRV, None]]
+        factors: List[int | ExprRV | None]
             The partitioning factors
             Potential inputs are:
             - None
@@ -943,7 +938,7 @@ class Schedule(Object):
         )
 
     @type_checked
-    def reorder(self, *ordered_loops: List[LoopRV]) -> None:
+    def reorder(self, *ordered_loops: list[LoopRV]) -> None:
         """
         Reorder a list of loops. It doesn't require the loops to be consecutive.
         It requires:
@@ -1003,7 +998,7 @@ class Schedule(Object):
         _ffi_api.ScheduleReorder(self, ordered_loops)  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def reorder_block_iter_var(self, block: SBlockRV, new_order: List[int]) -> None:
+    def reorder_block_iter_var(self, block: SBlockRV, new_order: list[int]) -> None:
         """Reorder the itervars inside a given block.
 
         Parameters
@@ -1068,12 +1063,12 @@ class Schedule(Object):
         _ffi_api.ScheduleReorderBlockIterVar(self, block, new_order)  # type: ignore
 
     @type_checked
-    def add_unit_loop(self, block_or_loop: Union[LoopRV, SBlockRV]) -> LoopRV:
+    def add_unit_loop(self, block_or_loop: LoopRV | SBlockRV) -> LoopRV:
         """Create a new unit loop on top of the specific block or loop.
 
         Parameters
         ----------
-        block_or_loop : Union[LoopRV, SBlockRV]
+        block_or_loop : LoopRV | SBlockRV
             The block above which the new loop is created
 
         Returns
@@ -1355,10 +1350,10 @@ class Schedule(Object):
     @type_checked
     def cache_read(
         self,
-        block: Union[SBlockRV, str],
-        read_buffer_index: Union[int, str, Buffer],
+        block: SBlockRV | str,
+        read_buffer_index: int | str | Buffer,
         storage_scope: str,
-        consumer_blocks: Optional[List[Union[SBlockRV, str]]] = None,
+        consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
         """Create a block that reads a buffer region into a read cache. It requires:
 
@@ -1368,10 +1363,10 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The consumer block of the target buffer.
 
-        buffer: Union[int, str, Buffer]
+        buffer: int | str | Buffer
             The index of the buffer in block's read region, the unique
             name of a read buffer in the block, or a Buffer object
             that is within the blocks read region.
@@ -1379,7 +1374,7 @@ class Schedule(Object):
         storage_scope: str
             The target storage scope.
 
-        consumer_blocks: Optional[List[Union[SBlockRV, str]]]
+        consumer_blocks: Optional[List[SBlockRV | str]]
             An optional list of consumers that should read from the cache. If not specified,
             all consumers will use the cache.
 
@@ -1449,10 +1444,10 @@ class Schedule(Object):
     @type_checked
     def cache_write(
         self,
-        block: Union[SBlockRV, str],
-        write_buffer_index: Union[int, str, Buffer],
+        block: SBlockRV | str,
+        write_buffer_index: int | str | Buffer,
         storage_scope: str,
-        consumer_blocks: Optional[List[Union[SBlockRV, str]]] = None,
+        consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
         """Create a block that reads a buffer region into a write cache. It requires:
 
@@ -1462,7 +1457,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The producer block of the target buffer.
 
         write_buffer_index: int
@@ -1473,7 +1468,7 @@ class Schedule(Object):
         storage_scope: str
             The target storage scope.
 
-        consumer_blocks: Optional[List[Union[SBlockRV, str]]]
+        consumer_blocks: Optional[List[SBlockRV | str]]
             An optional list of consumers that should read directly from the cache.
             If not specified, all consumers will read from the original buffer.
 
@@ -1543,10 +1538,10 @@ class Schedule(Object):
     @type_checked
     def reindex_cache_read(
         self,
-        block: Union[SBlockRV, str],
+        block: SBlockRV | str,
         read_buffer_index: int,
         storage_scope: str,
-        index_map: Union[IndexMap, Callable],
+        index_map: IndexMap | Callable,
     ) -> SBlockRV:
         """Create a block that reads a buffer region into a read cache using customized
         indices specified by index map. The read region of the buffer must be a single point.
@@ -1567,7 +1562,7 @@ class Schedule(Object):
             The index of the buffer in block's read region.
         storage_scope: str
             The target storage scope.
-        index_map: Union[IndexMap, Callable]
+        index_map: IndexMap | Callable
             User defined indices to access allocated cache buffer, maps from block iter vars.
 
         Returns
@@ -1640,10 +1635,10 @@ class Schedule(Object):
     @type_checked
     def reindex_cache_write(
         self,
-        block: Union[SBlockRV, str],
+        block: SBlockRV | str,
         write_buffer_index: int,
         storage_scope: str,
-        index_map: Union[Callable, IndexMap],
+        index_map: Callable | IndexMap,
     ) -> SBlockRV:
         r"""Create a block that reads a buffer region into a write cache using customized
         indices specified by index map. The write region of the buffer must be a single point.
@@ -1658,15 +1653,15 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The consumer block of the target buffer.
         write_buffer_index: int
             The index of the buffer in block's write region.
         storage_scope: str
             The target storage scope.
-        index_map: Union[Callable, IndexMap]
+        index_map: Callable | IndexMap
             User defined indices to access allocated cache buffer, maps from block iter vars.
-        consumer_blocks: Optional[List[Union[SBlockRV, str]]]
+        consumer_blocks: Optional[List[SBlockRV | str]]
             An optional list of consumers that should read directly from the cache.
             If not specified, all consumers will read from the original buffer.
 
@@ -1740,17 +1735,17 @@ class Schedule(Object):
     @type_checked
     def cache_inplace(
         self,
-        block: Union[SBlockRV, str],
-        read_buffer_index: Union[int, str, Buffer],
+        block: SBlockRV | str,
+        read_buffer_index: int | str | Buffer,
         storage_scope: str,
-    ) -> List[SBlockRV]:
+    ) -> list[SBlockRV]:
         """Create blocks that reads & write a buffer region into a cache block.
         It requires the target block both read & write the target buffer.
         Mainly for inplace operation.
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The target block operates on the target buffer.
 
         read_buffer_index: int
@@ -1828,14 +1823,14 @@ class Schedule(Object):
 
     @type_checked
     def cache_index(
-        self, block: Union[SBlockRV, str], storage_scope: str, cse_thresh: int = 0
-    ) -> List[SBlockRV]:
+        self, block: SBlockRV | str, storage_scope: str, cse_thresh: int = 0
+    ) -> list[SBlockRV]:
         """Create a block to cache precomputed index for later use.
         if there is no index computation, keep unchanged.
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The target block operates on the target buffer.
 
         storage_scope: str
@@ -1913,9 +1908,7 @@ class Schedule(Object):
         )
 
     @type_checked
-    def reindex(
-        self, block: Union[SBlockRV, str], buffer: Union[Tuple[str, int], str, Buffer]
-    ) -> SBlockRV:
+    def reindex(self, block: SBlockRV | str, buffer: tuple[str, int] | str | Buffer) -> SBlockRV:
         """Create a block that read/write a buffer region into a read/write cache with reindexing.
         The layout of the cache will be the same as by the iterators of the block that reads/writes
         the buffer. It requires:
@@ -1924,7 +1917,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
 
             The block that accesses the target buffer.  If a string,
             this must uniquely identify a block.
@@ -2025,7 +2018,7 @@ class Schedule(Object):
     @type_checked
     def compute_at(
         self,
-        block: Union[SBlockRV, str],
+        block: SBlockRV | str,
         loop: LoopRV,
         preserve_unit_loops: bool = False,
         index: int = -1,
@@ -2049,7 +2042,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The block to be moved
 
         loop: LoopRV
@@ -2123,7 +2116,7 @@ class Schedule(Object):
     @type_checked
     def reverse_compute_at(
         self,
-        block: Union[SBlockRV, str],
+        block: SBlockRV | str,
         loop: LoopRV,
         preserve_unit_loops: bool = False,
         index: int = -1,
@@ -2144,7 +2137,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The block to be moved
 
         loop: LoopRV
@@ -2216,7 +2209,7 @@ class Schedule(Object):
         )
 
     @type_checked
-    def compute_inline(self, block: Union[SBlockRV, str]) -> None:
+    def compute_inline(self, block: SBlockRV | str) -> None:
         """Inline a block into its consumer(s). It requires:
 
         1) The block is a complete non-root block, which only produces one buffer
@@ -2231,7 +2224,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The block to be inlined to its consumer(s)
 
         Examples
@@ -2281,7 +2274,7 @@ class Schedule(Object):
         _ffi_api.ScheduleComputeInline(self, block)  # type: ignore # pylint: disable=no-member
 
     @type_checked
-    def reverse_compute_inline(self, block: Union[SBlockRV, str]) -> None:
+    def reverse_compute_inline(self, block: SBlockRV | str) -> None:
         """Inline a block into its only producer. It requires:
 
         1) The block is a complete non-root block, which only produces and consumes one buffer
@@ -2299,7 +2292,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The block to be inlined to its producer
 
         Examples
@@ -2352,8 +2345,8 @@ class Schedule(Object):
     @type_checked
     def fuse_reduction_epilogue(
         self,
-        reduction_block: Union[SBlockRV, str],
-        epilogue_block: Union[SBlockRV, str],
+        reduction_block: SBlockRV | str,
+        epilogue_block: SBlockRV | str,
     ) -> None:
         """Fuse an epilogue block into a reduction block.
 
@@ -2387,9 +2380,9 @@ class Schedule(Object):
 
         Parameters
         ----------
-        reduction_block : Union[SBlockRV, str]
+        reduction_block : SBlockRV | str
             The reduction block (e.g., matmul)
-        epilogue_block : Union[SBlockRV, str]
+        epilogue_block : SBlockRV | str
             The epilogue block to be fused (e.g., bias add, ReLU, clipping)
 
         Examples
@@ -2404,7 +2397,7 @@ class Schedule(Object):
     ########## Schedule: Reduction ##########
 
     @type_checked
-    def decompose_reduction(self, block: Union[SBlockRV, str], loop: LoopRV) -> SBlockRV:
+    def decompose_reduction(self, block: SBlockRV | str, loop: LoopRV) -> SBlockRV:
         """Decompose a reduction block into two separate blocks.
 
         a) The init block, which is translated from the init statement of the reduction block;
@@ -2423,7 +2416,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The reduction block to be decomposed
         loop : LoopRV
             The loop above which the init block is inserted before.
@@ -2636,7 +2629,7 @@ class Schedule(Object):
 
     @type_checked
     def storage_align(  # pylint: disable=too-many-arguments
-        self, block: Union[SBlockRV, str], buffer_index: int, axis: int, factor: int, offset: int
+        self, block: SBlockRV | str, buffer_index: int, axis: int, factor: int, offset: int
     ) -> None:
         """Set alignment requirement for specific dimension such that
         stride[axis] == k * factor + offset for some k. This is useful to set memory layout for more
@@ -2645,7 +2638,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The producer block of the buffer.
         buffer_index : int
             The index of the buffer in block's write region.
@@ -2717,14 +2710,14 @@ class Schedule(Object):
 
     @type_checked
     def set_scope(
-        self, block: Union[SBlockRV, str], buffer_index: Union[int, str, Buffer], storage_scope: str
+        self, block: SBlockRV | str, buffer_index: int | str | Buffer, storage_scope: str
     ) -> None:
         """Set the storage scope of a buffer, where the buffer is
         specified by the a block and a write-index.
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The producer block of the buffer
         buffer_index : int
             The index of the buffer in block's write region
@@ -2794,7 +2787,7 @@ class Schedule(Object):
         )
 
     @type_checked
-    def unsafe_set_dtype(self, block: Union[SBlockRV, str], buffer_index: int, dtype: str) -> None:
+    def unsafe_set_dtype(self, block: SBlockRV | str, buffer_index: int, dtype: str) -> None:
         """Set the data type of a buffer, where the buffer is
         specified by the a block and write-index.
 
@@ -2803,7 +2796,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The producer block of the buffer
         buffer_index : int
             The index of the buffer in block's write region
@@ -2873,7 +2866,7 @@ class Schedule(Object):
 
     @type_checked
     def blockize(
-        self, target: Union[LoopRV, List[SBlockRV]], preserve_unit_iters: bool = True
+        self, target: LoopRV | list[SBlockRV], preserve_unit_iters: bool = True
     ) -> SBlockRV:
         """Convert multiple blocks or the subtree rooted at a specific loop into a block.
 
@@ -2953,7 +2946,7 @@ class Schedule(Object):
     @type_checked
     def tensorize(
         self,
-        block_or_loop: Union[SBlockRV, LoopRV],
+        block_or_loop: SBlockRV | LoopRV,
         tensor_intrin: str,
         preserve_unit_iters: bool = True,
     ) -> None:
@@ -2961,7 +2954,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block_or_loop : Union[SBlockRV, LoopRV]
+        block_or_loop : SBlockRV | LoopRV
             The loop to be tensorized.
         tensor_intrin : str
             The tensor intrin or the name of the tensor intrin.
@@ -3105,22 +3098,22 @@ class Schedule(Object):
 
     ########## Schedule: Annotation ##########
 
-    PrimAnnotationValueT = Union[str, int, float, ExprRV]
-    AnnotationValueT = Union[
-        PrimAnnotationValueT,
-        List[PrimAnnotationValueT],
-        Dict[str, Union[PrimAnnotationValueT, List[PrimAnnotationValueT]]],
-    ]
+    PrimAnnotationValueT = str | int | float | ExprRV
+    AnnotationValueT = (
+        PrimAnnotationValueT
+        | list[PrimAnnotationValueT]
+        | dict[str, PrimAnnotationValueT | list[PrimAnnotationValueT]]
+    )
 
     @type_checked
     def annotate(
-        self, block_or_loop: Union[SBlockRV, LoopRV], ann_key: str, ann_val: AnnotationValueT
+        self, block_or_loop: SBlockRV | LoopRV, ann_key: str, ann_val: AnnotationValueT
     ) -> None:
         """Annotate a block/loop with a key value pair
 
         Parameters
         ----------
-        block_or_loop: Union[SBlockRV, LoopRV]
+        block_or_loop: SBlockRV | LoopRV
             The block/loop to be annotated
         ann_key : str
             The annotation key
@@ -3171,12 +3164,12 @@ class Schedule(Object):
         )
 
     @type_checked
-    def unannotate(self, block_or_loop: Union[SBlockRV, LoopRV], ann_key: str) -> None:
+    def unannotate(self, block_or_loop: SBlockRV | LoopRV, ann_key: str) -> None:
         """Unannotate a block/loop's annotation with key ann_key
 
         Parameters
         ----------
-        block_or_loop: Union[SBlockRV, LoopRV]
+        block_or_loop: SBlockRV | LoopRV
             The block/loop to be unannotated
         ann_key : str
             The annotation key
@@ -3226,7 +3219,7 @@ class Schedule(Object):
 
     ########## Schedule: Layout transformation ##########
 
-    def _normalize_block_arg(self, block: Union[SBlockRV, str]) -> SBlockRV:
+    def _normalize_block_arg(self, block: SBlockRV | str) -> SBlockRV:
         if isinstance(block, str):
             return self.get_sblock(block)
 
@@ -3235,9 +3228,9 @@ class Schedule(Object):
     def _normalize_buffer_arg(
         self,
         block: SBlockRV,
-        buffer: Union[Tuple[str, int], int, str, Buffer],
+        buffer: tuple[str, int] | int | str | Buffer,
         required_buffer_type=None,
-    ) -> Tuple[str, int, Buffer]:
+    ) -> tuple[str, int, Buffer]:
         block_obj: SBlock = self.get(block)
         block_name = block_obj.name_hint
 
@@ -3303,10 +3296,10 @@ class Schedule(Object):
     @type_checked
     def transform_layout(
         self,
-        block: Union[SBlockRV, str],
-        buffer: Union[Tuple[str, int], str, Buffer],
-        index_map: Union[IndexMap, Callable],
-        pad_value: Optional[Union[int, float, PrimExpr, IndexMap, Callable]] = None,
+        block: SBlockRV | str,
+        buffer: tuple[str, int] | str | Buffer,
+        index_map: IndexMap | Callable,
+        pad_value: int | float | PrimExpr | IndexMap | Callable | None = None,
         *,
         assume_injective_transform: bool = False,
     ) -> None:
@@ -3314,7 +3307,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
 
             The block that accesses the target buffer.  If a string,
             this must uniquely identify a block.
@@ -3336,7 +3329,7 @@ class Schedule(Object):
             If `buffer` is a Buffer object, it must exist within the
             reads/writes of the block.
 
-        index_map : Union[IndexMap, Callable]
+        index_map : IndexMap | Callable
 
             The transformation to apply.
 
@@ -3345,7 +3338,7 @@ class Schedule(Object):
             primitive will be called in addition to the
             TransformLayout primitive.
 
-        pad_value: Optional[Union[int, float, PrimExpr, IndexMap, Callable]]
+        pad_value: Optional[int | float | PrimExpr | IndexMap | Callable]
 
             The value to be used for any padding introduced by the
             transformation.  If the schedule contains a producer block
@@ -3482,17 +3475,15 @@ class Schedule(Object):
             )
 
     @type_checked
-    def transform_block_layout(
-        self, block: Union[SBlockRV, str], index_map: Union[IndexMap, Callable]
-    ) -> None:
+    def transform_block_layout(self, block: SBlockRV | str, index_map: IndexMap | Callable) -> None:
         """Apply a transformation represented by IndexMap to block
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The block to be transformed
 
-        index_map : Union[IndexMap, Callable]
+        index_map : IndexMap | Callable
             The transformation to apply.
 
         Examples
@@ -3546,16 +3537,16 @@ class Schedule(Object):
 
     def set_axis_separator(
         self,
-        block: Union[SBlockRV, str],
-        buffer: Union[Tuple[str, int], str, Buffer],
-        axis_separators: Optional[List[int]],
+        block: SBlockRV | str,
+        buffer: tuple[str, int] | str | Buffer,
+        axis_separators: list[int] | None,
     ) -> None:
         """Set the axis separator of a buffer, where the buffer is specified by a block and a read
         or write index.
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
 
             The block that accesses the target buffer.  If a string,
             this must uniquely identify a block.
@@ -3643,7 +3634,7 @@ class Schedule(Object):
 
     ########## Schedule: Padding decomposition #########
     @type_checked
-    def decompose_padding(self, block: Union[SBlockRV, str], loop: LoopRV) -> SBlockRV:
+    def decompose_padding(self, block: SBlockRV | str, loop: LoopRV) -> SBlockRV:
         """Decompose a block of padding computation pattern into two separate blocks.
 
         a) The block which fill const pad values into full write region;
@@ -3662,7 +3653,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The padding block to be decomposed.
         loop : LoopRV
             The loop above which the pad value filling block is inserted before.
@@ -3715,13 +3706,13 @@ class Schedule(Object):
         )
 
     @type_checked
-    def can_decompose_padding(self, block: Union[SBlockRV, str], loop: LoopRV) -> bool:
+    def can_decompose_padding(self, block: SBlockRV | str, loop: LoopRV) -> bool:
         """Check whether the block match padding pattern and can be decomposed."""
         # pylint: disable-next=no-member
         return _ffi_api.CanDecomposePadding(self, block, loop)  # type: ignore
 
     @type_checked
-    def pad_einsum(self, block: Union[SBlockRV, str], padding: List[int]) -> None:
+    def pad_einsum(self, block: SBlockRV | str, padding: list[int]) -> None:
         """Pad the computation of Einsum.
 
         On a block with trivial binding, this primitive pads the iteration domain of the block by
@@ -3734,7 +3725,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The block that matches the Einsum pattern.
 
         padding : List[int]
@@ -3819,7 +3810,7 @@ class Schedule(Object):
     ######## Schedule: Buffer transformation ########
 
     @type_checked
-    def rolling_buffer(self, block: Union[SBlockRV, str], write_buffer_index: int) -> None:
+    def rolling_buffer(self, block: SBlockRV | str, write_buffer_index: int) -> None:
         """Compute the target buffer via rolling buffering, select the outermost rollable
         axis with a positive bound overlap that appears in the block's ancestor loops
         as `rolling axis`, fold and circularize the buffer along the rolling dimension,
@@ -3837,7 +3828,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        block : Union[SBlockRV, str]
+        block : SBlockRV | str
             The producer block of the buffer.
         write_buffer_index : int
             The index of the buffer in block's write region.
@@ -3930,7 +3921,7 @@ class Schedule(Object):
 
     @type_checked
     def unsafe_hide_buffer_access(
-        self, block: SBlockRV, buf_type: str, buf_index_array: List[int]
+        self, block: SBlockRV, buf_type: str, buf_index_array: list[int]
     ) -> None:
         """Hide some buffer access in a given block. This is an unsafe schedule primitive.
 
@@ -4066,7 +4057,7 @@ class Schedule(Object):
 
         result = []
         for rng in new_ranges_spec:
-            if isinstance(rng, (tuple, list)):
+            if isinstance(rng, tuple | list):
                 if len(rng) != 2:
                     raise ValueError(
                         "Tuple must have exactly 2 elements to represent (begin, end)."

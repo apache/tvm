@@ -26,8 +26,6 @@ from tvm.relax.backend.contrib.nnapi import partition_for_nnapi
 
 # pylint: disable=import-outside-toplevel,missing-function-docstring
 def reshape_matmul(mod: tvm.IRModule):
-    from typing import Dict
-
     from tvm.relax import Expr
     from tvm.relax.dpl import DFPattern, rewrite_call
     from tvm.relax.dpl.pattern import is_op, wildcard
@@ -36,7 +34,7 @@ def reshape_matmul(mod: tvm.IRModule):
     input1 = wildcard()
     pattern = is_op("relax.matmul")(input0, input1)
 
-    def _rewriter(expr: Expr, matches: Dict[DFPattern, Expr]):
+    def _rewriter(expr: Expr, matches: dict[DFPattern, Expr]):
         i0 = matches[input0]
         i1 = matches[input1]
         if len(i0.struct_info.shape) == 2 and len(i1.struct_info.shape) == 2:
@@ -51,8 +49,6 @@ def reshape_matmul(mod: tvm.IRModule):
 
 
 def decompose_clip(mod: tvm.IRModule) -> tvm.IRModule:
-    from typing import Dict
-
     from tvm.relax import Expr
     from tvm.relax.dpl import DFPattern, rewrite_call
     from tvm.relax.dpl.pattern import is_op, wildcard
@@ -62,7 +58,7 @@ def decompose_clip(mod: tvm.IRModule) -> tvm.IRModule:
     max_pattern = wildcard()
     pattern = is_op("relax.clip")(input_pattern, min_pattern, max_pattern)
 
-    def _rewriter(expr: Expr, matches: Dict[DFPattern, Expr]) -> Expr:  # pylint: disable=unused-argument
+    def _rewriter(expr: Expr, matches: dict[DFPattern, Expr]) -> Expr:  # pylint: disable=unused-argument
         dtype = matches[input_pattern].struct_info.dtype
         return R.minimum(
             R.maximum(

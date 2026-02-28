@@ -22,7 +22,6 @@
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 

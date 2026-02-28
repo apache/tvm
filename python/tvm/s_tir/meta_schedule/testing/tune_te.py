@@ -18,7 +18,6 @@
 # ruff: noqa: F821
 import argparse
 import logging
-from typing import Optional
 
 import tvm
 from tvm.s_tir import meta_schedule as ms
@@ -114,7 +113,7 @@ def main():
     describe()
     print(f"Workload: {ARGS.workload}")
     with ms.Profiler() as profiler:
-        sch: Optional[s_tir.Schedule] = ms.tir_integration.tune_tir(
+        sch: s_tir.Schedule | None = ms.tir_integration.tune_tir(
             mod=create_te_workload(ARGS.workload, 0),
             target=ARGS.target,
             work_dir=ARGS.work_dir,

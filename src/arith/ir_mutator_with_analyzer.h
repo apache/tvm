@@ -25,6 +25,8 @@
 #define TVM_ARITH_IR_MUTATOR_WITH_ANALYZER_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/scope_stack.h>
+#include <tvm/support/with.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -56,6 +58,7 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
   tir::Stmt VisitStmt_(const tir::IfThenElseNode* op) override;
   tir::Stmt VisitStmt_(const tir::AttrStmtNode* op) override;
   tir::Stmt VisitStmt_(const tir::AssertStmtNode* op) override;
+  tir::Stmt VisitStmt_(const tir::SeqStmtNode* op) override;
   PrimExpr VisitExpr_(const tir::LetNode* op) override;
   PrimExpr VisitExpr_(const tir::SelectNode* op) override;
   PrimExpr VisitExpr_(const tir::CallNode* op) override;
@@ -79,6 +82,8 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
 
   /*! \brief internal analyzer field. */
   Analyzer* analyzer_;
+  /*! \brief Scope stack for accumulated assert constraints. */
+  ScopeStack<WithGroup<ConstraintContext>> constraint_scope_;
   // the following two fields are useful in case we want
   // note however that iter map analysis are usually more
   // expensive and we only encourage doing them during

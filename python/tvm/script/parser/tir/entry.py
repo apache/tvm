@@ -17,7 +17,7 @@
 """The entry point of TVM parser for tir."""
 
 import inspect
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 
 from tvm.ir.base import deprecated
 from tvm.tir import Buffer, PrimFunc
@@ -28,8 +28,8 @@ from ..core.parser import Parser, ScriptMacro
 
 
 def prim_func(
-    func: Optional[Callable] = None, private: bool = False, check_well_formed=True
-) -> Union[PrimFunc, Callable]:
+    func: Callable | None = None, private: bool = False, check_well_formed=True
+) -> PrimFunc | Callable:
     """The parsing method for tir prim func, by using `@prim_func` as decorator.
 
     Parameters
@@ -173,6 +173,14 @@ def macro(*args, hygienic: bool = True) -> Callable:
 class BufferProxy:
     """Buffer proxy class for constructing tir buffer."""
 
+    def __or__(self, other):
+        """Support ``T.Buffer | None`` union syntax in annotations."""
+        return self
+
+    def __ror__(self, other):
+        """Support ``None | T.Buffer`` union syntax in annotations."""
+        return self
+
     def __call__(
         self,
         shape,
@@ -210,6 +218,14 @@ class BufferProxy:
 
 class PtrProxy:
     """Ptr proxy class for constructing tir pointer."""
+
+    def __or__(self, other):
+        """Support union syntax in annotations."""
+        return self
+
+    def __ror__(self, other):
+        """Support union syntax in annotations."""
+        return self
 
     @deprecated("T.Ptr(...)", "T.handle(...)")
     def __call__(self, dtype, storage_scope="global"):

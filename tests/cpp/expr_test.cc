@@ -40,7 +40,7 @@ TEST(Expr, VarTypeAnnotation) {
   using namespace tvm::tir;
   Var x("x", DataType::Float(32));
   Var y("y", PrimType(DataType::Float(32)));
-  StructuralEqual checker;
+  tvm::ffi::StructuralEqual checker;
   TVM_FFI_ICHECK(checker(x->dtype, y->dtype));
   TVM_FFI_ICHECK(checker(x->type_annotation, y->type_annotation));
 }

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import itertools
-from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import pytest
@@ -227,8 +226,8 @@ def verify_cached_kv(kv_cache, seq_ids, expected_kv):
 
 def apply_attention(
     kv_cache,
-    batch: List[Tuple[Union[int, Tuple[int, int, int]], int]],
-    cached_kv: Dict[int, torch.Tensor],
+    batch: list[tuple[int | tuple[int, int, int], int]],
+    cached_kv: dict[int, torch.Tensor],
 ) -> None:
     seq_ids = []
     append_lengths = []

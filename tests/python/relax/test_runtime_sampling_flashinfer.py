@@ -18,7 +18,6 @@
 
 
 import random
-from typing import List
 
 import numpy as np
 import pytest
@@ -31,7 +30,7 @@ from tvm.contrib import utils
 
 @pytest.mark.skip(reason="Requires FlashInfer enabled and proper setup")
 def test_sampling():
-    def load_module(name: str, static_modules: List[tvm.runtime.Module]):
+    def load_module(name: str, static_modules: list[tvm.runtime.Module]):
         assert len(static_modules) > 0
         if len(static_modules) == 1:
             return static_modules[0]

@@ -57,7 +57,7 @@ def _get_struct_info(arg):
         return arg.struct_info_
     elif isinstance(arg, nn.Tensor):
         return arg._expr.struct_info_
-    elif isinstance(arg, (tuple, list, ir.Array)):
+    elif isinstance(arg, tuple | list | ir.Array):
         return relax.TupleStructInfo([_get_struct_info(field) for field in arg])
     else:
         raise TypeError(f"Cannot find struct info for {arg} of type {type(arg)}")

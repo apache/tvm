@@ -204,7 +204,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
       PrimExpr current_predicate_and_context = CurrentScopePredicate();
       PrimExpr buffer_predicate_and_context =
           buffer_assumption.buffer_context && buffer_assumption.buffer_predicate;
-      bool current_context_and_buffer_constraint_is_same = StructuralEqual()(
+      bool current_context_and_buffer_constraint_is_same = ffi::StructuralEqual::Equal(
           current_predicate_and_context, buffer_predicate_and_context, /*map_free_vars=*/true);
 
       if (current_context_and_buffer_constraint_is_same) {
@@ -251,10 +251,11 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
         }
 
         auto n = this->CopyOnWrite(op);
-        if (StructuralEqual()(then_clause_in_then_context, else_clause_in_then_context)) {
+        if (ffi::StructuralEqual()(then_clause_in_then_context, else_clause_in_then_context)) {
           n->value = analyzer_->Simplify(else_clause);
           return Stmt(n);
-        } else if (StructuralEqual()(then_clause_in_else_context, else_clause_in_else_context)) {
+        } else if (ffi::StructuralEqual()(then_clause_in_else_context,
+                                          else_clause_in_else_context)) {
           n->value = analyzer_->Simplify(then_clause);
           return Stmt(n);
         } else {

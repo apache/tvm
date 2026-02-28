@@ -149,11 +149,11 @@ if [ "$IS_LOCAL" == "1" ] && [ "$PYTHON_DOCS_ONLY" == "1" ]; then
 fi
 
 # C++ doc
-make cppdoc
+doxygen docs/Doxyfile
 rm -f docs/doxygen/html/*.map docs/doxygen/html/*.md5
 
 # Java doc
-make javadoc
+(cd jvm && mvn "javadoc:javadoc" -Dnotimestamp=true)
 
 # type doc
 cd web

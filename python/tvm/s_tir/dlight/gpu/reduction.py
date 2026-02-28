@@ -17,7 +17,7 @@
 """A rule for reduction."""
 
 # TODO: combine reduction rule and general reduction rule into one file.
-from typing import List, Mapping, Optional, Tuple, Union
+from collections.abc import Mapping
 
 from tvm import arith, ir, s_tir, tir
 from tvm.target import Target
@@ -32,7 +32,7 @@ from ..base import suggest_threads_per_block, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tir.SBlock) -> Optional[tir.PrimExpr]:
+def _get_reduction_expr(block: tir.SBlock) -> tir.PrimExpr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
     buffer_store = block.body
     if not isinstance(buffer_store, tir.BufferStore):
@@ -60,7 +60,7 @@ class Reduction(GPUScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
@@ -116,7 +116,7 @@ class Reduction(GPUScheduleRule):
         sch: s_tir.Schedule,
         block_info: SBlockInfo,
         access: arith.IterSumExpr,
-    ) -> Tuple[Optional[bool], Optional[int], Optional[Mapping[int, int]], Optional[int]]:
+    ) -> tuple[bool | None, int | None, Mapping[int, int] | None, int | None]:
         if access.base != 0:
             return None, None, None, None
         iter_to_info = {i.var: i for i in block_info.iters}
@@ -179,8 +179,8 @@ class Reduction(GPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        unroll_spatial_factor: Optional[int],
-        epilogue_info: Optional[SBlockInfo],
+        unroll_spatial_factor: int | None,
+        epilogue_info: SBlockInfo | None,
         loop_order,
         s_split_index,
     ):
@@ -238,8 +238,8 @@ class Reduction(GPUScheduleRule):
         _: Target,
         block: s_tir.schedule.SBlockRV,
         block_info: SBlockInfo,
-        unroll_spatial_factor: Optional[int],
-        epilogue_info: Optional[SBlockInfo],
+        unroll_spatial_factor: int | None,
+        epilogue_info: SBlockInfo | None,
         loop_order,
         s_split_index,
     ):

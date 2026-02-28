@@ -17,7 +17,8 @@
 # pylint: disable=dangerous-default-value
 """Testing utilities for the TensorIR schedule API"""
 
-from typing import Any, Sequence, Union
+from collections.abc import Sequence
+from typing import Any
 
 import tvm
 from tvm.ir import IRModule, assert_structural_equal
@@ -46,10 +47,10 @@ def assert_structural_equal_ignore_global_symbol(
 
 def verify_trace_roundtrip(
     sch: Schedule,
-    mod: Union[PrimFunc, IRModule],
+    mod: PrimFunc | IRModule,
     *,
-    debug_mask: Union[str, int] = "all",
-    text_format: Union[str, Sequence[str]] = ["python", "json"],
+    debug_mask: str | int = "all",
+    text_format: str | Sequence[str] = ["python", "json"],
 ) -> Schedule:
     """Serialize a traced schedule to JSON, then replay the JSON trace by applying to
     a fresh new schedule, verifying the reproducibility of scheduling.

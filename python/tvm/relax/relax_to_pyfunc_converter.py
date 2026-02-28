@@ -22,7 +22,7 @@ that can be executed directly in Python/PyTorch environment.
 """
 
 import traceback
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 import numpy  # pylint: disable=unused-import
 import torch
@@ -55,7 +55,7 @@ class RelaxToPyFuncConverter:
         self._op_cache = {}
 
     def _create_fallback_tensor(
-        self, shape_hint: Optional[List[int]] = None, dtype: str = "float32"
+        self, shape_hint: list[int] | None = None, dtype: str = "float32"
     ) -> torch.Tensor:
         """Create a fallback tensor with reasonable default shape."""
         if shape_hint:
@@ -65,7 +65,7 @@ class RelaxToPyFuncConverter:
             # Use a small default shape
             return torch.zeros(1, dtype=getattr(torch, dtype))
 
-    def convert(self, relax_function_names: Union[str, List[str]]) -> IRModule:
+    def convert(self, relax_function_names: str | list[str]) -> IRModule:
         """Convert specified Relax functions to Python functions.
 
         Args:
@@ -150,7 +150,7 @@ class RelaxToPyFuncConverter:
         return converted_function
 
     @staticmethod
-    def _get_op_map() -> Dict[str, str]:
+    def _get_op_map() -> dict[str, str]:
         """Get the mapping from Relax operators to PyTorch operators."""
         return {
             # Binary operations
@@ -362,9 +362,9 @@ class RelaxExpressionConverter:
 
     def __init__(
         self,
-        operator_map: Dict[str, str],
+        operator_map: dict[str, str],
         ir_module: IRModule = None,
-        op_cache: Optional[Dict[str, str]] = None,
+        op_cache: dict[str, str] | None = None,
     ):
         """Initialize the expression converter.
 
@@ -374,14 +374,14 @@ class RelaxExpressionConverter:
             op_cache: Shared cache for operator mappings to avoid repeated lookups
         """
         self.operator_map = operator_map
-        self.variable_map: Dict[str, Any] = {}
-        self.current_params: List[relax.Var] = []
+        self.variable_map: dict[str, Any] = {}
+        self.current_params: list[relax.Var] = []
         self.ir_module = ir_module
         # Use shared operator cache or create new one
         self._op_cache = op_cache if op_cache is not None else {}
 
     def _create_fallback_tensor(
-        self, shape_hint: Optional[List[int]] = None, dtype: str = "float32"
+        self, shape_hint: list[int] | None = None, dtype: str = "float32"
     ) -> torch.Tensor:
         """Create a fallback tensor with reasonable default shape."""
         if shape_hint:
@@ -389,7 +389,7 @@ class RelaxExpressionConverter:
         else:
             return torch.zeros(1, dtype=getattr(torch, dtype))
 
-    def convert_expr(self, expr: relax.Expr, args: List[Any]) -> Any:
+    def convert_expr(self, expr: relax.Expr, args: list[Any]) -> Any:
         """Convert a Relax expression to Python/PyTorch equivalent."""
         if isinstance(expr, relax.Var):
             return self._convert_var(expr, args)
@@ -411,7 +411,7 @@ class RelaxExpressionConverter:
             # Fallback for unknown expression types
             return f"<unknown_expr: {type(expr).__name__}>"
 
-    def _convert_var(self, var: relax.Var, args: List[Any]) -> Any:
+    def _convert_var(self, var: relax.Var, args: list[Any]) -> Any:
         """Convert a Relax variable to Python equivalent."""
         if hasattr(var, "name_hint"):
             var_name = var.name_hint
@@ -445,7 +445,7 @@ class RelaxExpressionConverter:
             return self._create_fallback_tensor()
         return self._create_fallback_tensor()
 
-    def _convert_call(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_call(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert a Relax call to Python/PyTorch equivalent."""
         op = call.op
 
@@ -462,7 +462,7 @@ class RelaxExpressionConverter:
         else:
             return self._create_fallback_tensor()
 
-    def _convert_function_call(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_function_call(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert a Relax function call."""
         func_name = call.op.name_hint
         call_args = [self.convert_expr(arg, args) for arg in call.args]
@@ -476,7 +476,7 @@ class RelaxExpressionConverter:
             # Regular function call - return first argument as fallback
             return call_args[0] if call_args else self._create_fallback_tensor()
 
-    def _convert_operator_call(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_operator_call(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert a Relax operator call to PyTorch equivalent."""
         op_name = call.op.name
         call_args = [self.convert_expr(arg, args) for arg in call.args]
@@ -556,7 +556,7 @@ class RelaxExpressionConverter:
             return f"<unknown_op: {op_name}({', '.join(map(str, call_args))})>"
 
     def _handle_functional_operation(
-        self, pytorch_op: str, call: relax.Call, call_args: List[Any]
+        self, pytorch_op: str, call: relax.Call, call_args: list[Any]
     ) -> Any:
         """Handle PyTorch functional operations with special parameter handling."""
         # Neural network function
@@ -571,7 +571,7 @@ class RelaxExpressionConverter:
                 axis = call.attrs.axis
                 if hasattr(axis, "value"):
                     axis = int(axis.value)
-                elif isinstance(axis, (int, float)):
+                elif isinstance(axis, int | float):
                     axis = int(axis)
 
             if axis is not None:
@@ -582,7 +582,7 @@ class RelaxExpressionConverter:
         else:
             return func(*call_args)
 
-    def _convert_extern_func_call(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_extern_func_call(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert an external function call."""
         func_name = call.op.global_symbol
         call_args = [self.convert_expr(arg, args) for arg in call.args]
@@ -594,7 +594,7 @@ class RelaxExpressionConverter:
         else:
             return call_args[0] if call_args else self._create_fallback_tensor()
 
-    def _convert_call_tir(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_call_tir(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert call_tir to Python equivalent with DLPack conversion."""
         # Extract TIR function name and arguments
         tir_func = call.args[0]
@@ -708,7 +708,7 @@ class RelaxExpressionConverter:
             else:
                 return converted_args[0] if converted_args else torch.tensor([])
 
-    def _convert_call_dps_packed(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_call_dps_packed(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert call_dps_packed to Python equivalent with DLPack conversion."""
         # Extract packed function name and arguments
         packed_func = call.args[0]
@@ -799,7 +799,7 @@ class RelaxExpressionConverter:
                 return data
         return self._create_fallback_tensor()
 
-    def _convert_seq_expr(self, seq: relax.SeqExpr, args: List[Any]) -> Any:
+    def _convert_seq_expr(self, seq: relax.SeqExpr, args: list[Any]) -> Any:
         """Convert a Relax sequence expression."""
         # Convert blocks
         for block in seq.blocks:
@@ -813,12 +813,12 @@ class RelaxExpressionConverter:
         # Convert body
         return self.convert_expr(seq.body, args)
 
-    def _convert_tuple(self, tuple_expr: relax.Tuple, args: List[Any]) -> Any:
+    def _convert_tuple(self, tuple_expr: relax.Tuple, args: list[Any]) -> Any:
         """Convert a Relax tuple to Python tuple."""
         elements = [self.convert_expr(elem, args) for elem in tuple_expr.fields]
         return tuple(elements)
 
-    def _convert_tuple_get_item(self, get_item: relax.TupleGetItem, args: List[Any]) -> Any:
+    def _convert_tuple_get_item(self, get_item: relax.TupleGetItem, args: list[Any]) -> Any:
         """Convert a Relax tuple get item to Python equivalent."""
         tuple_expr = self.convert_expr(get_item.tuple_value, args)
         index = get_item.index
@@ -827,7 +827,7 @@ class RelaxExpressionConverter:
         else:
             return self._create_fallback_tensor()
 
-    def _convert_if(self, if_expr: relax.If, args: List[Any]) -> Any:
+    def _convert_if(self, if_expr: relax.If, args: list[Any]) -> Any:
         """Convert a Relax if expression to Python equivalent."""
         condition = self.convert_expr(if_expr.cond, args)
         true_branch = self.convert_expr(if_expr.true_branch, args)
@@ -845,7 +845,7 @@ class RelaxExpressionConverter:
                 else self._create_fallback_tensor()
             )
 
-    def _convert_expand_dims(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_expand_dims(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert expand_dims to torch.unsqueeze with proper axis handling."""
         if len(call.args) < 1:
             return self._create_fallback_tensor()
@@ -866,7 +866,7 @@ class RelaxExpressionConverter:
             if hasattr(axis, "value"):
                 # It's a TVM IntImm or similar, get the value
                 axis = int(axis.value)
-            elif isinstance(axis, (int, float)):
+            elif isinstance(axis, int | float):
                 axis = int(axis)
 
         if axis is None:
@@ -875,7 +875,7 @@ class RelaxExpressionConverter:
         # Use torch.unsqueeze with the correct axis
         return torch.unsqueeze(tensor_arg, dim=axis)
 
-    def _convert_reduction_op(self, call: relax.Call, args: List[Any], op_name: str) -> Any:
+    def _convert_reduction_op(self, call: relax.Call, args: list[Any], op_name: str) -> Any:
         """Convert reduction operations with axis and keepdims parameters."""
         if len(call.args) < 1:
             return f"<{op_name}_error: insufficient arguments>"
@@ -899,7 +899,7 @@ class RelaxExpressionConverter:
                 elif hasattr(axis, "value"):
                     # It's a TVM IntImm, get the value
                     axis = int(axis.value)
-                elif isinstance(axis, (int, float)):
+                elif isinstance(axis, int | float):
                     axis = int(axis)
 
             if hasattr(call.attrs, "keepdims"):
@@ -926,7 +926,7 @@ class RelaxExpressionConverter:
         else:
             return func(tensor_arg)
 
-    def _convert_squeeze(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_squeeze(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert squeeze to torch.squeeze with proper axis handling."""
         if len(call.args) < 1:
             return "<squeeze_error: insufficient arguments>"
@@ -943,7 +943,7 @@ class RelaxExpressionConverter:
                 axis = [int(item.value) if hasattr(item, "value") else int(item) for item in axis]
             elif hasattr(axis, "value"):
                 axis = int(axis.value)
-            elif isinstance(axis, (int, float)):
+            elif isinstance(axis, int | float):
                 axis = int(axis)
 
         # Call torch.squeeze with appropriate parameters
@@ -952,7 +952,7 @@ class RelaxExpressionConverter:
         else:
             return torch.squeeze(tensor_arg)
 
-    def _convert_tensor_ops(self, call: relax.Call, args: List[Any], op_name: str) -> Any:
+    def _convert_tensor_ops(self, call: relax.Call, args: list[Any], op_name: str) -> Any:
         """Convert tensor operations like concat, split, stack."""
         if len(call.args) < 1:
             return f"<{op_name}_error: insufficient arguments>"
@@ -974,7 +974,7 @@ class RelaxExpressionConverter:
                 axis = call.attrs.axis
                 if hasattr(axis, "value"):
                     axis = int(axis.value)
-                elif isinstance(axis, (int, float)):
+                elif isinstance(axis, int | float):
                     axis = int(axis)
             return torch.cat(tensors, dim=axis)
 
@@ -987,7 +987,7 @@ class RelaxExpressionConverter:
                 axis = call.attrs.axis
                 if hasattr(axis, "value"):
                     axis = int(axis.value)
-                elif isinstance(axis, (int, float)):
+                elif isinstance(axis, int | float):
                     axis = int(axis)
 
             # Handle indices_or_sections parameter
@@ -995,7 +995,7 @@ class RelaxExpressionConverter:
                 indices_or_sections = call.attrs.indices_or_sections
                 if hasattr(indices_or_sections, "value"):
                     indices_or_sections = int(indices_or_sections.value)
-                elif isinstance(indices_or_sections, (int, float)):
+                elif isinstance(indices_or_sections, int | float):
                     indices_or_sections = int(indices_or_sections)
 
                 # If indices_or_sections is an integer, it means split into N equal parts
@@ -1022,14 +1022,14 @@ class RelaxExpressionConverter:
                 axis = call.attrs.axis
                 if hasattr(axis, "value"):
                     axis = int(axis.value)
-                elif isinstance(axis, (int, float)):
+                elif isinstance(axis, int | float):
                     axis = int(axis)
             return torch.stack(tensors, dim=axis)
 
         else:
             return f"<{op_name}_error: unsupported operation>"
 
-    def _convert_reshape(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_reshape(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert reshape operation."""
         if len(call.args) < 2:
             return "<reshape_error: insufficient arguments>"
@@ -1052,14 +1052,14 @@ class RelaxExpressionConverter:
         else:
             # Try to convert as expression
             converted_shape = self.convert_expr(shape_arg, args)
-            if isinstance(converted_shape, (list, tuple)):
+            if isinstance(converted_shape, list | tuple):
                 shape = tuple(int(v) for v in converted_shape)
             else:
                 shape = (int(converted_shape),)
 
         return torch.reshape(tensor_arg, shape)
 
-    def _convert_permute_dims(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_permute_dims(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert permute_dims operation."""
         if len(call.args) < 1:
             return "<permute_dims_error: insufficient arguments>"
@@ -1073,7 +1073,7 @@ class RelaxExpressionConverter:
             if hasattr(axes, "__iter__") and not isinstance(axes, str):
                 # Convert TVM Array or Python list/tuple to tuple of ints
                 axes = tuple(int(v.value) if hasattr(v, "value") else int(v) for v in axes)
-            elif isinstance(axes, (list, tuple)):
+            elif isinstance(axes, list | tuple):
                 axes = tuple(int(v) for v in axes)
             else:
                 axes = (int(axes),)
@@ -1082,7 +1082,7 @@ class RelaxExpressionConverter:
 
         return torch.permute(tensor_arg, axes)
 
-    def _convert_take(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_take(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert take operation."""
         if len(call.args) < 2:
             return "<take_error: insufficient arguments>"
@@ -1096,7 +1096,7 @@ class RelaxExpressionConverter:
             axis = call.attrs.axis
             if hasattr(axis, "value"):
                 axis = int(axis.value)
-            elif isinstance(axis, (int, float)):
+            elif isinstance(axis, int | float):
                 axis = int(axis)
 
         if axis is not None:
@@ -1110,7 +1110,7 @@ class RelaxExpressionConverter:
             # No axis specified, use torch.take (flattens the tensor)
             return torch.take(tensor_arg, indices_arg)
 
-    def _convert_flip(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_flip(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert flip operation."""
         if len(call.args) < 1:
             return "<flip_error: insufficient arguments>"
@@ -1123,7 +1123,7 @@ class RelaxExpressionConverter:
             axis = call.attrs.axis
             if hasattr(axis, "value"):
                 axis = int(axis.value)
-            elif isinstance(axis, (int, float)):
+            elif isinstance(axis, int | float):
                 axis = int(axis)
 
         if axis is not None:
@@ -1135,7 +1135,7 @@ class RelaxExpressionConverter:
 
         return torch.flip(tensor_arg, dims=dims)
 
-    def _convert_tile(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_tile(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert tile operation."""
         if len(call.args) < 1:
             return "<tile_error: insufficient arguments>"
@@ -1148,7 +1148,7 @@ class RelaxExpressionConverter:
             # Handle TVM Array type
             if hasattr(repeats, "__iter__") and not isinstance(repeats, str):
                 repeats = tuple(int(v.value) if hasattr(v, "value") else int(v) for v in repeats)
-            elif isinstance(repeats, (list, tuple)):
+            elif isinstance(repeats, list | tuple):
                 repeats = tuple(int(v) for v in repeats)
             else:
                 repeats = (int(repeats),)
@@ -1157,7 +1157,7 @@ class RelaxExpressionConverter:
 
         return torch.tile(tensor_arg, dims=repeats)
 
-    def _convert_repeat(self, call: relax.Call, args: List[Any]) -> Any:
+    def _convert_repeat(self, call: relax.Call, args: list[Any]) -> Any:
         """Convert repeat operation."""
         if len(call.args) < 1:
             return "<repeat_error: insufficient arguments>"
@@ -1172,14 +1172,14 @@ class RelaxExpressionConverter:
             repeats = call.attrs.repeats
             if hasattr(repeats, "value"):
                 repeats = int(repeats.value)
-            elif isinstance(repeats, (int, float)):
+            elif isinstance(repeats, int | float):
                 repeats = int(repeats)
 
         if call.attrs and hasattr(call.attrs, "axis"):
             axis = call.attrs.axis
             if hasattr(axis, "value"):
                 axis = int(axis.value)
-            elif isinstance(axis, (int, float)):
+            elif isinstance(axis, int | float):
                 axis = int(axis)
 
         if axis is not None:
@@ -1194,9 +1194,7 @@ class RelaxExpressionConverter:
         return f"<shape: {shape_expr}>"
 
 
-def convert_relax_to_pyfunc(
-    ir_module: IRModule, relax_function_names: Union[str, List[str]]
-) -> IRModule:
+def convert_relax_to_pyfunc(ir_module: IRModule, relax_function_names: str | list[str]) -> IRModule:
     """Convert Relax functions to Python functions.
 
     Args:

@@ -485,7 +485,7 @@ class StructInfoBaseChecker
   // analyzer
   arith::Analyzer* analyzer_;
   // struct equal checker
-  StructuralEqual struct_equal_;
+  ffi::StructuralEqual struct_equal_;
 
   // customizable functions.
   /*!
@@ -742,7 +742,7 @@ class StructInfoBasePreconditionCollector
       return Bool(false);
     }
 
-    StructuralEqual struct_equal;
+    ffi::StructuralEqual struct_equal;
     if (!struct_equal(lhs->device_mesh, rhs->device_mesh) ||
         !struct_equal(lhs->placement, rhs->placement)) {
       return Bool(false);
@@ -1154,7 +1154,7 @@ class StructInfoLCAFinder
   // analyzer
   arith::Analyzer* analyzer_;
   // struct equal checker
-  StructuralEqual struct_equal_;
+  ffi::StructuralEqual struct_equal_;
 
   // check arrays
   ffi::Optional<ffi::Array<StructInfo>> UnifyArray(const ffi::Array<StructInfo>& lhs,
@@ -1303,7 +1303,7 @@ class NonNegativeExpressionCollector : relax::StructInfoVisitor {
   }
 
   ffi::Array<PrimExpr> expressions_;
-  std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> dedup_lookup_;
+  std::unordered_set<PrimExpr, ffi::StructuralHash, ffi::StructuralEqual> dedup_lookup_;
 };
 
 ffi::Array<PrimExpr> CollectNonNegativeExpressions(const StructInfo& sinfo) {

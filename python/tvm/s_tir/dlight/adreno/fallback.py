@@ -33,8 +33,6 @@
 # under the License.
 """Dlight Adreno Fallback Schedules"""
 
-from typing import List, Union
-
 from tvm import s_tir, tir
 from tvm.target import Target
 
@@ -64,8 +62,8 @@ class Fallback(AdrenoScheduleRule):
 
     @staticmethod
     def schedule_inline_blocks(
-        sch: s_tir.Schedule, blocks: List[s_tir.schedule.SBlockRV]
-    ) -> List[s_tir.schedule.SBlockRV]:
+        sch: s_tir.Schedule, blocks: list[s_tir.schedule.SBlockRV]
+    ) -> list[s_tir.schedule.SBlockRV]:
         """
         Auto Inlines Injective and Element-wise Operations while trying to omit data pad blocks...
         """
@@ -173,7 +171,7 @@ class Fallback(AdrenoScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> Union[None, s_tir.Schedule, List[s_tir.Schedule]]:
+    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         # pylint: disable=invalid-name
 
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):

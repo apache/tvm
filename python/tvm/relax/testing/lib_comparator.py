@@ -17,7 +17,7 @@
 # pylint: disable=unused-argument
 """Tools to compare libraries."""
 
-from typing import Iterable, List, Tuple, Union
+from collections.abc import Iterable
 
 import tvm
 import tvm.testing
@@ -64,8 +64,8 @@ class LibCompareVMInstrument:
     def compare(
         self,
         name: str,
-        ref_args: Union[List[tvm.runtime.Tensor], Tuple[tvm.runtime.Tensor, ...]],
-        new_args: Union[List[tvm.runtime.Tensor], Tuple[tvm.runtime.Tensor, ...]],
+        ref_args: list[tvm.runtime.Tensor] | tuple[tvm.runtime.Tensor, ...],
+        new_args: list[tvm.runtime.Tensor] | tuple[tvm.runtime.Tensor, ...],
         ret_indices: Iterable[int],
     ):
         """Comparison function, can be overloaded.

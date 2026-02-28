@@ -16,8 +16,9 @@
 # under the License.
 """Doc types for TVMScript Unified Printer"""
 
+from collections.abc import Sequence
 from enum import IntEnum, unique
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Union
 
 from tvm_ffi import register_object
 from tvm_ffi.access_path import AccessPath
@@ -52,7 +53,7 @@ class ExprDoc(Doc):
         """
         return _ffi_api.ExprDocAttr(self, name)  # type: ignore # pylint: disable=no-member
 
-    def call(self, *args: Tuple["ExprDoc"], **kwargs: Dict[str, "ExprDoc"]) -> "CallDoc":
+    def call(self, *args: tuple["ExprDoc"], **kwargs: dict[str, "ExprDoc"]) -> "CallDoc":
         """
         Create a doc that represents function call, with self as callee.
 
@@ -73,7 +74,7 @@ class ExprDoc(Doc):
 
     _IndexType = Union["ExprDoc", "SliceDoc"]
 
-    def __getitem__(self, indices: Union[Tuple[_IndexType], _IndexType]) -> "IndexDoc":
+    def __getitem__(self, indices: tuple[_IndexType] | _IndexType) -> "IndexDoc":
         """
         Create a doc that represents index access on self.
 
@@ -118,7 +119,7 @@ class StmtBlockDoc(Doc):
 
     stmts: Sequence[StmtDoc]
 
-    def __init__(self, stmts: List[StmtDoc]):
+    def __init__(self, stmts: list[StmtDoc]):
         self.__init_handle_by_constructor__(_ffi_api.StmtBlockDoc, stmts)  # type: ignore # pylint: disable=no-member
 
 
@@ -126,12 +127,12 @@ class StmtBlockDoc(Doc):
 class LiteralDoc(ExprDoc):
     """Doc that represents literal value"""
 
-    value: Union[str, IntImm, FloatImm, None]
+    value: str | IntImm | FloatImm | None
 
     def __init__(
         self,
-        value: Union[str, float, bool, int, None],
-        path: Optional[AccessPath] = None,
+        value: str | float | bool | int | None,
+        path: AccessPath | None = None,
     ):
         if value is None:
             self.__init_handle_by_constructor__(_ffi_api.LiteralDocNone, path)  # type: ignore # pylint: disable=no-member
@@ -191,7 +192,7 @@ class IndexDoc(ExprDoc):
     value: ExprDoc
     indices: Sequence[Union[ExprDoc, "SliceDoc"]]
 
-    def __init__(self, value: ExprDoc, indices: List[Union[ExprDoc, "SliceDoc"]]):
+    def __init__(self, value: ExprDoc, indices: list[Union[ExprDoc, "SliceDoc"]]):
         self.__init_handle_by_constructor__(_ffi_api.IndexDoc, value, indices)  # type: ignore # pylint: disable=no-member
 
 
@@ -204,7 +205,7 @@ class CallDoc(ExprDoc):
     kwargs_keys: Sequence[str]
     kwargs_values: Sequence[ExprDoc]
 
-    def __init__(self, callee: ExprDoc, *args: Tuple[ExprDoc], **kwargs: Dict[str, ExprDoc]):
+    def __init__(self, callee: ExprDoc, *args: tuple[ExprDoc], **kwargs: dict[str, ExprDoc]):
         kwargs_keys = list(kwargs.keys())
         kwargs_values = list(kwargs.values())
         self.__init_handle_by_constructor__(
@@ -275,7 +276,7 @@ class OperationDoc(ExprDoc):
     kind: OperationKind
     operands: Sequence[ExprDoc]
 
-    def __init__(self, kind: OperationKind, operands: List[ExprDoc]):
+    def __init__(self, kind: OperationKind, operands: list[ExprDoc]):
         self.__init_handle_by_constructor__(_ffi_api.OperationDoc, kind, operands)  # type: ignore # pylint: disable=no-member
 
 
@@ -286,7 +287,7 @@ class LambdaDoc(ExprDoc):
     args: Sequence[IdDoc]
     body: ExprDoc
 
-    def __init__(self, args: List[IdDoc], body: ExprDoc):
+    def __init__(self, args: list[IdDoc], body: ExprDoc):
         self.__init_handle_by_constructor__(_ffi_api.LambdaDoc, args, body)  # type: ignore # pylint: disable=no-member
 
 
@@ -296,7 +297,7 @@ class TupleDoc(ExprDoc):
 
     elements: Sequence[ExprDoc]
 
-    def __init__(self, elements: List[ExprDoc]):
+    def __init__(self, elements: list[ExprDoc]):
         self.__init_handle_by_constructor__(_ffi_api.TupleDoc, elements)  # type: ignore # pylint: disable=no-member
 
 
@@ -306,7 +307,7 @@ class ListDoc(ExprDoc):
 
     elements: Sequence[ExprDoc]
 
-    def __init__(self, elements: List[ExprDoc]):
+    def __init__(self, elements: list[ExprDoc]):
         self.__init_handle_by_constructor__(_ffi_api.ListDoc, elements)  # type: ignore # pylint: disable=no-member
 
 
@@ -317,7 +318,7 @@ class DictDoc(ExprDoc):
     keys: Sequence[ExprDoc]
     values: Sequence[ExprDoc]
 
-    def __init__(self, content: Dict[ExprDoc, ExprDoc]):
+    def __init__(self, content: dict[ExprDoc, ExprDoc]):
         keys = list(content.keys())
         values = list(content.values())
         self.__init_handle_by_constructor__(_ffi_api.DictDoc, keys, values)  # type: ignore # pylint: disable=no-member
@@ -331,15 +332,15 @@ class SliceDoc(ExprDoc):
     This doc can only appear in `IndexDoc.indices`.
     """
 
-    start: Optional[ExprDoc]
-    stop: Optional[ExprDoc]
-    step: Optional[ExprDoc]
+    start: ExprDoc | None
+    stop: ExprDoc | None
+    step: ExprDoc | None
 
     def __init__(
         self,
-        start: Optional[ExprDoc] = None,
-        stop: Optional[ExprDoc] = None,
-        step: Optional[ExprDoc] = None,
+        start: ExprDoc | None = None,
+        stop: ExprDoc | None = None,
+        step: ExprDoc | None = None,
     ):
         self.__init_handle_by_constructor__(_ffi_api.SliceDoc, start, stop, step)  # type: ignore # pylint: disable=no-member
 
@@ -349,10 +350,10 @@ class AssignDoc(StmtDoc):
     """Doc that represents assign statement."""
 
     lhs: ExprDoc
-    rhs: Optional[ExprDoc]
-    annotation: Optional[ExprDoc]
+    rhs: ExprDoc | None
+    annotation: ExprDoc | None
 
-    def __init__(self, lhs: ExprDoc, rhs: Optional[ExprDoc], annotation: Optional[ExprDoc] = None):
+    def __init__(self, lhs: ExprDoc, rhs: ExprDoc | None, annotation: ExprDoc | None = None):
         self.__init_handle_by_constructor__(
             _ffi_api.AssignDoc,  # type: ignore # pylint: disable=no-member
             lhs,
@@ -369,7 +370,7 @@ class IfDoc(StmtDoc):
     then_branch: Sequence[StmtDoc]
     else_branch: Sequence[StmtDoc]
 
-    def __init__(self, predicate: ExprDoc, then_branch: List[StmtDoc], else_branch: List[StmtDoc]):
+    def __init__(self, predicate: ExprDoc, then_branch: list[StmtDoc], else_branch: list[StmtDoc]):
         self.__init_handle_by_constructor__(
             _ffi_api.IfDoc,  # type: ignore # pylint: disable=no-member
             predicate,
@@ -385,7 +386,7 @@ class WhileDoc(StmtDoc):
     predicate: ExprDoc
     body: Sequence[StmtDoc]
 
-    def __init__(self, predicate: ExprDoc, body: List[StmtDoc]):
+    def __init__(self, predicate: ExprDoc, body: list[StmtDoc]):
         self.__init_handle_by_constructor__(_ffi_api.WhileDoc, predicate, body)  # type: ignore # pylint: disable=no-member
 
 
@@ -397,7 +398,7 @@ class ForDoc(StmtDoc):
     rhs: ExprDoc
     body: Sequence[StmtDoc]
 
-    def __init__(self, lhs: ExprDoc, rhs: ExprDoc, body: List[StmtDoc]):
+    def __init__(self, lhs: ExprDoc, rhs: ExprDoc, body: list[StmtDoc]):
         self.__init_handle_by_constructor__(_ffi_api.ForDoc, lhs, rhs, body)  # type: ignore # pylint: disable=no-member
 
 
@@ -412,11 +413,11 @@ class ScopeDoc(StmtDoc):
         <body...>
     """
 
-    lhs: Optional[ExprDoc]
+    lhs: ExprDoc | None
     rhs: ExprDoc
     body: Sequence[StmtDoc]
 
-    def __init__(self, lhs: Optional[ExprDoc], rhs: ExprDoc, body: List[StmtDoc]):
+    def __init__(self, lhs: ExprDoc | None, rhs: ExprDoc, body: list[StmtDoc]):
         self.__init_handle_by_constructor__(_ffi_api.ScopeDoc, lhs, rhs, body)  # type: ignore # pylint: disable=no-member
 
 
@@ -435,9 +436,9 @@ class AssertDoc(StmtDoc):
     """Doc that represents assert statement."""
 
     test: ExprDoc
-    msg: Optional[ExprDoc]
+    msg: ExprDoc | None
 
-    def __init__(self, test: ExprDoc, msg: Optional[ExprDoc] = None):
+    def __init__(self, test: ExprDoc, msg: ExprDoc | None = None):
         self.__init_handle_by_constructor__(_ffi_api.AssertDoc, test, msg)  # type: ignore # pylint: disable=no-member
 
 
@@ -458,16 +459,16 @@ class FunctionDoc(StmtDoc):
     name: IdDoc
     args: Sequence[AssignDoc]
     decorators: Sequence[ExprDoc]
-    return_type: Optional[ExprDoc]
+    return_type: ExprDoc | None
     body: Sequence[StmtDoc]
 
     def __init__(
         self,
         name: IdDoc,
-        args: List[AssignDoc],
-        decorators: List[ExprDoc],
-        return_type: Optional[ExprDoc],
-        body: List[StmtDoc],
+        args: list[AssignDoc],
+        decorators: list[ExprDoc],
+        return_type: ExprDoc | None,
+        body: list[StmtDoc],
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.FunctionDoc,  # type: ignore # pylint: disable=no-member
@@ -487,7 +488,7 @@ class ClassDoc(StmtDoc):
     decorators: Sequence[ExprDoc]
     body: Sequence[StmtDoc]
 
-    def __init__(self, name: IdDoc, decorators: List[ExprDoc], body: List[StmtDoc]):
+    def __init__(self, name: IdDoc, decorators: list[ExprDoc], body: list[StmtDoc]):
         self.__init_handle_by_constructor__(
             _ffi_api.ClassDoc,  # type: ignore # pylint: disable=no-member
             name,

@@ -32,15 +32,19 @@ namespace arith {
 using namespace tir;
 
 void IRVisitorWithAnalyzer::VisitStmt_(const ForNode* op) {
-  analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-  StmtExprVisitor::VisitStmt_(op);
+  constraint_scope_.WithNewScope([&]() {
+    analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
+    StmtExprVisitor::VisitStmt_(op);
+  });
 }
 
 void IRVisitorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
-  for (const auto& iter_var : op->iter_vars) {
-    analyzer_.Bind(iter_var->var, iter_var->dom);
-  }
-  StmtExprVisitor::VisitStmt_(op);
+  constraint_scope_.WithNewScope([&]() {
+    for (const auto& iter_var : op->iter_vars) {
+      analyzer_.Bind(iter_var->var, iter_var->dom);
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  });
 }
 
 void IRVisitorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
@@ -50,34 +54,45 @@ void IRVisitorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
 }
 
 void IRVisitorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
-  this->VisitExpr(op->condition);
+  constraint_scope_.WithNewScope([&]() {
+    this->VisitExpr(op->condition);
 
-  PrimExpr real_condition = ExtractRealCondition(op->condition);
+    PrimExpr real_condition = ExtractRealCondition(op->condition);
 
-  {
-    With<ConstraintContext> constraint(&analyzer_, real_condition);
-    this->VisitStmt(op->then_case);
-  }
-  if (op->else_case) {
-    With<ConstraintContext> constraint(&analyzer_, analyzer_.rewrite_simplify(Not(real_condition)));
-    this->VisitStmt(op->else_case.value());
-  }
+    constraint_scope_.WithNewScope([&]() {
+      constraint_scope_.Current().Emplace(&analyzer_, real_condition);
+      this->VisitStmt(op->then_case);
+    });
+    if (op->else_case) {
+      constraint_scope_.WithNewScope([&]() {
+        constraint_scope_.Current().Emplace(&analyzer_,
+                                            analyzer_.rewrite_simplify(Not(real_condition)));
+        this->VisitStmt(op->else_case.value());
+      });
+    }
+  });
 }
 
 void IRVisitorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
-    IterVar iv = Downcast<IterVar>(op->node);
-    TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-    analyzer_.Bind(iv->var, Range::FromMinExtent(IntImm(op->value->dtype, 0), op->value));
-  }
-  StmtExprVisitor::VisitStmt_(op);
+  constraint_scope_.WithNewScope([&]() {
+    if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
+      IterVar iv = Downcast<IterVar>(op->node);
+      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
+      analyzer_.Bind(iv->var, Range::FromMinExtent(IntImm(op->value->dtype, 0), op->value));
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  });
 }
 
 void IRVisitorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
   this->VisitExpr(op->message);
-  With<ConstraintContext> constraint(&analyzer_, op->condition);
-  this->VisitStmt(op->body);
+  constraint_scope_.Current().Emplace(&analyzer_, op->condition);
+}
+
+void IRVisitorWithAnalyzer::VisitStmt_(const SeqStmtNode* op) {
+  // SeqStmt does NOT get WithNewScope — constraints accumulate across siblings.
+  StmtExprVisitor::VisitStmt_(op);
 }
 
 void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
@@ -86,14 +101,14 @@ void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(op_if_then_else)) {
     PrimExpr cond = op->args[0];
     this->VisitExpr(op->args[0]);
-    {
-      With<ConstraintContext> constraint(&analyzer_, cond);
+    constraint_scope_.WithNewScope([&]() {
+      constraint_scope_.Current().Emplace(&analyzer_, cond);
       this->VisitExpr(op->args[1]);
-    }
-    {
-      With<ConstraintContext> constraint(&analyzer_, analyzer_.rewrite_simplify(Not(cond)));
+    });
+    constraint_scope_.WithNewScope([&]() {
+      constraint_scope_.Current().Emplace(&analyzer_, analyzer_.rewrite_simplify(Not(cond)));
       this->VisitExpr(op->args[2]);
-    }
+    });
   } else {
     StmtExprVisitor::VisitExpr_(op);
   }

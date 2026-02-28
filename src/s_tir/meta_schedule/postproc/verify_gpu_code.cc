@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/transform.h>
 
@@ -72,13 +73,13 @@ class ThreadExtentChecker : private StmtVisitor {
 
   void VisitStmt_(const SBlockNode* block) {
     int old_thread_idx_x = thread_idx_x;
-    if (block->annotations.count(tir::attr::warp_execution)) {
+    if (block->annotations.count(s_tir::attr::warp_execution)) {
       thread_idx_x = thread_warp_size_;
     }
     if (ffi::Optional<Integer> low_inclusive =
-            GetAnn<Integer>(block, tir::attr::meta_schedule_thread_extent_low_inclusive)) {
+            GetAnn<Integer>(block, s_tir::attr::meta_schedule_thread_extent_low_inclusive)) {
       if (ffi::Optional<Integer> high_inclusive =
-              GetAnn<Integer>(block, tir::attr::meta_schedule_thread_extent_high_inclusive)) {
+              GetAnn<Integer>(block, s_tir::attr::meta_schedule_thread_extent_high_inclusive)) {
         int64_t low = low_inclusive.value()->value;
         int64_t high = high_inclusive.value()->value;
         int64_t thread_extent_product = thread_idx_x * thread_idx_y * thread_idx_z;

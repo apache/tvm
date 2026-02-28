@@ -17,8 +17,6 @@
 # pylint: disable=missing-docstring
 """A RMS norm schedule rule for GPU operators."""
 
-from __future__ import annotations
-
 import tvm
 from tvm import tir
 from tvm.target import Target
@@ -81,7 +79,7 @@ class RMSNorm(ScheduleRule):
         func: tir.PrimFunc,
         target: Target,
         _: bool,
-    ) -> tvm.s_tir.Schedule:
+    ) -> "tvm.s_tir.Schedule":
         if target.kind.name == "cuda":
             num_tx = 512
         elif target.kind.name == "opencl":

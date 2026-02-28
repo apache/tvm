@@ -19,6 +19,7 @@
 
 #include <tvm/relax/distributed/struct_info.h>
 
+#include <cmath>
 #include <limits>
 
 #include "./utils.h"

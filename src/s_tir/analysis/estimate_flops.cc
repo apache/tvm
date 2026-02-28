@@ -199,7 +199,6 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
     if (op->message.defined()) {
       result += VisitExpr(op->message);
     }
-    result += VisitStmt(op->body);
     return result;
   }
 

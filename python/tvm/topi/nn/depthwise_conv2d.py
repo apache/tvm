@@ -18,8 +18,6 @@
 # ruff: noqa: F841
 """Depthwise convolution operators"""
 
-from __future__ import absolute_import as _abs
-
 from collections import namedtuple
 
 import numpy as np
@@ -91,9 +89,9 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
 
     out_channel = filter_channel * channel_multiplier
     dilation_h, dilation_w = (
-        dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+        dilation if isinstance(dilation, tuple | list) else (dilation, dilation)
     )
-    if isinstance(stride, (tuple, list)):
+    if isinstance(stride, tuple | list):
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride

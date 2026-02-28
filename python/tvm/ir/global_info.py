@@ -61,7 +61,7 @@ class VDevice(GlobalInfo):
         vdevice_id: int = 0,
         memory_scope: str = "global",
     ) -> None:
-        if isinstance(target, (dict, str)):
+        if isinstance(target, dict | str):
             target = tvm.target.Target(tvm.runtime.convert(target))
         if isinstance(target, Device):
             target = tvm.target.Target.from_device(target)

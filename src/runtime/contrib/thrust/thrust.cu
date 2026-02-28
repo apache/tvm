@@ -53,7 +53,8 @@ class WorkspaceMemoryResource : public thrust::mr::memory_resource<void*> {
   explicit WorkspaceMemoryResource(DLTensor* workspace) {
     if (workspace != nullptr) {
       this->workspace = workspace->data;
-      CHECK(workspace->ndim == 1 && workspace->dtype.code == kDLUInt && workspace->dtype.bits == 8);
+      TVM_FFI_ICHECK(workspace->ndim == 1 && workspace->dtype.code == kDLUInt &&
+                     workspace->dtype.bits == 8);
       this->workspace_size = workspace->shape[0];
     } else {
       // Fallback to thrust TLS caching allocator if workspace is not provided.
@@ -66,8 +67,8 @@ class WorkspaceMemoryResource : public thrust::mr::memory_resource<void*> {
   void* do_allocate(size_t bytes, size_t alignment) override {
     if (workspace != nullptr) {
       void* result = std::align(alignment, bytes, workspace, workspace_size);
-      CHECK(result) << "Failed to allocate " << bytes << " bytes with alignment " << alignment
-                    << " bytes.";
+      TVM_FFI_ICHECK(result) << "Failed to allocate " << bytes << " bytes with alignment "
+                             << alignment << " bytes.";
       workspace = static_cast<char*>(workspace) + bytes;
       workspace_size -= bytes;
       return result;
@@ -241,7 +242,7 @@ void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.contrib.thrust.sort", [](ffi::PackedArgs args, ffi::Any* ret) {
-    ICHECK_GE(args.size(), 4);
+    TVM_FFI_ICHECK_GE(args.size(), 4);
     auto input = args[0].cast<DLTensor*>();
     auto values_out = args[1].cast<DLTensor*>();
     auto indices_out = args[2].cast<DLTensor*>();
@@ -291,7 +292,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.thrust.stable_sort_by_key", [](ffi::PackedArgs args, ffi::Any* ret) {
-        ICHECK_GE(args.size(), 5);
+        TVM_FFI_ICHECK_GE(args.size(), 5);
         auto keys_in = args[0].cast<DLTensor*>();
         auto values_in = args[1].cast<DLTensor*>();
         auto keys_out = args[2].cast<DLTensor*>();
@@ -409,7 +410,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
       "tvm.contrib.thrust.sum_scan", [](ffi::PackedArgs args, ffi::Any* ret) {
-        ICHECK(args.size() == 2 || args.size() == 3 || args.size() == 4);
+        TVM_FFI_ICHECK(args.size() == 2 || args.size() == 3 || args.size() == 4);
         auto data = args[0].cast<DLTensor*>();
         auto output = args[1].cast<DLTensor*>();
         bool exclusive = false;

@@ -21,8 +21,8 @@ import os
 import shutil
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
 
 from tvm import tir
 from tvm.contrib import cc as _cc
@@ -38,9 +38,9 @@ class ExternModule:
     incorporate user-provided handcrafted kernels into the exported TVM IRModule.
     """
 
-    _symbols: Dict[str, Callable]
+    _symbols: dict[str, Callable]
 
-    def __init__(self, symbols: Dict[str, Callable]) -> None:
+    def __init__(self, symbols: dict[str, Callable]) -> None:
         self._symbols = symbols
 
     def __getitem__(self, func_name: str) -> Callable:
@@ -60,7 +60,7 @@ class ExternModule:
                     return rx.StringImm(arg)
                 if isinstance(arg, tir.PrimExpr):
                     return rx.PrimValue(arg)
-                if isinstance(arg, (tuple, list)):
+                if isinstance(arg, tuple | list):
                     return rx.Tuple([_convert(e, f"{name}_{i}") for i, e in enumerate(arg)])
                 raise TypeError(f"Unsupported input type: {type(arg)}")
 
@@ -86,7 +86,7 @@ class ObjectModule(ExternModule):  # pylint: disable=too-few-public-methods
 
     def __init__(
         self,
-        symbols: Dict[str, Callable],
+        symbols: dict[str, Callable],
         filepath: Path,
     ) -> None:
         if not isinstance(filepath, Path):
@@ -168,11 +168,11 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        symbols: Dict[str, Callable],
-        source_code: Union[str, Path],
+        symbols: dict[str, Callable],
+        source_code: str | Path,
         source_format: str,  # "cpp", "cu"
-        compile_options: Optional[List[str]] = None,
-        compiler: Optional[str] = None,
+        compile_options: list[str] | None = None,
+        compiler: str | None = None,
         output_format: str = "obj",  # "obj", "wasm"
     ):
         """Constructs a `nn.SourceModule` from source code.
@@ -290,7 +290,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         return tvm_path.resolve()
 
     @staticmethod
-    def get_includes(tvm_pkg: Optional[List[str]] = None) -> List[Path]:
+    def get_includes(tvm_pkg: list[str] | None = None) -> list[Path]:
         """Returns the default include paths according to `tvm_home()`.
         By default, it includes TVM, DLPack. With `tvm_pkg` provided, it also
         includes the specified package under `tvm_home/3rdparty`.
@@ -323,8 +323,8 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
     @staticmethod
     def get_compile_options(
         source_format: str,
-        tvm_pkg: Optional[List[str]] = None,
-    ) -> List[str]:
+        tvm_pkg: list[str] | None = None,
+    ) -> list[str]:
         """Returns the default compile options depending on `source_format`, including the default
         inlcude paths w.r.t. `tvm_home()`, and by default,
         it uses "-O3" and "-std=c++17".

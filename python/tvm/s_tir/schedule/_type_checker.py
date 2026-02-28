@@ -21,8 +21,10 @@ import collections
 import collections.abc
 import functools
 import inspect
+import types
 import typing
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
+from collections.abc import Callable
+from typing import Any, TypeVar, Union
 
 
 def _is_none_type(type_: Any) -> bool:
@@ -64,10 +66,13 @@ if hasattr(typing, "_GenericAlias"):
         def list_(type_: Any) -> Any:
             if _Subtype._origin(type_) is list:
                 if hasattr(typing, "get_args"):
-                    (subtype,) = typing.get_args(type_)  # type: ignore
+                    args = typing.get_args(type_)  # type: ignore
                 else:
-                    (subtype,) = type_.__args__
-                return [subtype]
+                    args = type_.__args__
+                if len(args) == 1:
+                    return [args[0]]
+                # Handle list[X | Y] where get_args may return individual types
+                return [Union[args]]  # noqa: UP007 (runtime use)
             return None
 
         @staticmethod
@@ -81,7 +86,7 @@ if hasattr(typing, "_GenericAlias"):
             return None
 
         @staticmethod
-        def tuple_(type_: Any) -> Optional[List[type]]:
+        def tuple_(type_: Any) -> list[type] | None:
             if _Subtype._origin(type_) is tuple:
                 subtypes = _get_subtypes(type_)
                 return subtypes
@@ -90,23 +95,33 @@ if hasattr(typing, "_GenericAlias"):
         @staticmethod
         def optional(  # pylint: disable=missing-function-docstring
             type_: Any,
-        ) -> Optional[List[type]]:
+        ) -> list[type] | None:
             if _Subtype._origin(type_) is Union:
                 subtypes = _get_subtypes(type_)
+                if len(subtypes) == 2 and _is_none_type(subtypes[1]):
+                    return [subtypes[0]]
+            # PEP 604: X | None
+            if isinstance(type_, types.UnionType):
+                subtypes = type_.__args__
                 if len(subtypes) == 2 and _is_none_type(subtypes[1]):
                     return [subtypes[0]]
             return None
 
         @staticmethod
-        def union(type_: Any) -> Optional[List[type]]:  # pylint: disable=missing-function-docstring
+        def union(type_: Any) -> list[type] | None:  # pylint: disable=missing-function-docstring
             if _Subtype._origin(type_) is Union:
                 subtypes = _get_subtypes(type_)
+                if len(subtypes) != 2 or not _is_none_type(subtypes[1]):
+                    return list(subtypes)
+            # PEP 604: X | Y
+            if isinstance(type_, types.UnionType):
+                subtypes = type_.__args__
                 if len(subtypes) != 2 or not _is_none_type(subtypes[1]):
                     return list(subtypes)
             return None
 
         @staticmethod
-        def callable(type_: Any) -> Optional[List[type]]:
+        def callable(type_: Any) -> list[type] | None:
             if _Subtype._origin(type_) is collections.abc.Callable:
                 subtypes = _get_subtypes(type_)
                 return subtypes
@@ -117,15 +132,18 @@ elif hasattr(typing, "_Union"):
 
     class _Subtype:  # type: ignore
         @staticmethod
-        def list_(type_: Any) -> Optional[List[type]]:
+        def list_(type_: Any) -> list[type] | None:
             if isinstance(type_, typing.GenericMeta):  # type: ignore # pylint: disable=no-member
                 if type_.__name__ == "List":
-                    (subtype,) = type_.__args__  # type: ignore # pylint: disable=no-member
-                    return [subtype]
+                    args = type_.__args__  # type: ignore # pylint: disable=no-member
+                    if len(args) == 1:
+                        return [args[0]]
+                    # Handle list[X | Y] where args may return individual types
+                    return [Union[args]]  # noqa: UP007 (runtime use)
             return None
 
         @staticmethod
-        def dict_(type_: Any) -> Optional[List[type]]:
+        def dict_(type_: Any) -> list[type] | None:
             if isinstance(type_, typing.GenericMeta):  # type: ignore # pylint: disable=no-member
                 if type_.__name__ == "Dict":
                     (ktype, vtype) = type_.__args__  # type: ignore # pylint: disable=no-member
@@ -133,7 +151,7 @@ elif hasattr(typing, "_Union"):
             return None
 
         @staticmethod
-        def tuple_(type_: Any) -> Optional[List[type]]:
+        def tuple_(type_: Any) -> list[type] | None:
             if isinstance(type_, typing.GenericMeta):  # type: ignore # pylint: disable=no-member
                 if type_.__name__ == "Tuple":
                     subtypes = type_.__args__  # type: ignore # pylint: disable=no-member
@@ -141,7 +159,7 @@ elif hasattr(typing, "_Union"):
             return None
 
         @staticmethod
-        def optional(type_: Any) -> Optional[List[type]]:
+        def optional(type_: Any) -> list[type] | None:
             if isinstance(type_, typing._Union):  # type: ignore # pylint: disable=no-member,protected-access
                 subtypes = type_.__args__
                 if len(subtypes) == 2 and _is_none_type(subtypes[1]):
@@ -149,7 +167,7 @@ elif hasattr(typing, "_Union"):
             return None
 
         @staticmethod
-        def union(type_: Any) -> Optional[List[type]]:
+        def union(type_: Any) -> list[type] | None:
             if isinstance(type_, typing._Union):  # type: ignore # pylint: disable=no-member,protected-access
                 subtypes = type_.__args__
                 if len(subtypes) != 2 or not _is_none_type(subtypes[1]):
@@ -157,14 +175,14 @@ elif hasattr(typing, "_Union"):
             return None
 
         @staticmethod
-        def callable(type_: Any) -> Optional[List[type]]:
+        def callable(type_: Any) -> list[type] | None:
             if isinstance(type_, typing.CallableMeta):  # type: ignore # pylint: disable=no-member,protected-access
                 subtypes = type_.__args__
                 return subtypes
             return None
 
 
-def _dispatcher(type_: Any) -> Tuple[str, List[type]]:
+def _dispatcher(type_: Any) -> tuple[str, list[type]]:
     if _is_none_type(type_):
         return "none", []
 
@@ -205,7 +223,7 @@ def callable_str(*subtypes):
         return "Callable"
 
 
-_TYPE2STR: Dict[Any, Callable] = {
+_TYPE2STR: dict[Any, Callable] = {
     "none": lambda: "None",
     "atomic": lambda t: str(t.__name__),
     "callable": callable_str,
@@ -226,13 +244,13 @@ def _val2type(value: Any):
     if isinstance(value, list):
         types = set(_val2type(x) for x in value)
         if len(types) == 1:
-            return List[types.pop()]  # type: ignore
+            return list[types.pop()]  # type: ignore
 
-        return List[Union[tuple(types)]]  # type: ignore
+        return list[tuple(types)]  # type: ignore
 
     if isinstance(value, tuple):
         types = tuple(_val2type(x) for x in value)  # type: ignore
-        return Tuple[types]
+        return tuple[types]
 
     return type(value)
 
@@ -245,21 +263,21 @@ def _type_check_err(x: Any, name: str, expected: Any) -> str:
     )
 
 
-def _type_check_vtable() -> Dict[str, Callable]:
-    def _type_check_none(v: Any, name: str) -> Optional[str]:
+def _type_check_vtable() -> dict[str, Callable]:
+    def _type_check_none(v: Any, name: str) -> str | None:
         return None if v is None else _type_check_err(v, name, None)
 
-    def _type_check_atomic(v: Any, name: str, type_: Any) -> Optional[str]:
+    def _type_check_atomic(v: Any, name: str, type_: Any) -> str | None:
         return None if isinstance(v, type_) else _type_check_err(v, name, type_)
 
-    def _type_check_callable(v: Any, name: str, *_subtypes: Any) -> Optional[str]:
+    def _type_check_callable(v: Any, name: str, *_subtypes: Any) -> str | None:
         # Current implementation only validates that the argument is
         # callable, and doesn't validate the arguments accepted by the
         # callable, if any.
         return None if callable(v) else _type_check_err(v, name, Callable)
 
-    def _type_check_list(v: List[Any], name: str, type_: Any) -> Optional[str]:
-        if not isinstance(v, (list, tuple)):
+    def _type_check_list(v: list[Any], name: str, type_: Any) -> str | None:
+        if not isinstance(v, list | tuple):
             return _type_check_err(v, name, list)
         for i, x in enumerate(v):
             error_msg = _type_check(x, f"{name}[{i}]", type_)
@@ -267,7 +285,7 @@ def _type_check_vtable() -> Dict[str, Callable]:
                 return error_msg
         return None
 
-    def _type_check_dict(dict_obj: Dict[Any, Any], name: str, *types: Any) -> Optional[str]:
+    def _type_check_dict(dict_obj: dict[Any, Any], name: str, *types: Any) -> str | None:
         ktype_, vtype_ = types
         if not isinstance(dict_obj, dict):
             return _type_check_err(dict_obj, name, dict)
@@ -280,26 +298,26 @@ def _type_check_vtable() -> Dict[str, Callable]:
                 return error_msg
         return None
 
-    def _type_check_tuple(v: Any, name: str, *types: Any) -> Optional[str]:
+    def _type_check_tuple(v: Any, name: str, *types: Any) -> str | None:
         if not isinstance(v, tuple):
-            return _type_check_err(v, name, Tuple[types])
+            return _type_check_err(v, name, tuple[types])
         if len(types) != len(v):
-            return _type_check_err(v, name, Tuple[types])
+            return _type_check_err(v, name, tuple[types])
         for i, (x, type_) in enumerate(zip(v, types)):
             error_msg = _type_check(x, f"{name}[{i}]", type_)
             if error_msg is not None:
                 return error_msg
         return None
 
-    def _type_check_optional(v: Any, name: str, type_: Any) -> Optional[str]:
+    def _type_check_optional(v: Any, name: str, type_: Any) -> str | None:
         return None if v is None else _type_check(v, name, type_)
 
-    def _type_check_union(v: Any, name: str, *types: Any) -> Optional[str]:
+    def _type_check_union(v: Any, name: str, *types: Any) -> str | None:
         for type_ in types:
             error_msg = _type_check(v, name, type_)
             if error_msg is None:
                 return None
-        return _type_check_err(v, name, Union[types])
+        return _type_check_err(v, name, Union[types])  # noqa: UP007 (runtime use)
 
     return {
         "none": _type_check_none,
@@ -313,10 +331,10 @@ def _type_check_vtable() -> Dict[str, Callable]:
     }
 
 
-_TYPE_CHECK: Dict[Any, Callable] = _type_check_vtable()
+_TYPE_CHECK: dict[Any, Callable] = _type_check_vtable()
 
 
-def _type_check(v: Any, name: str, type_: Any) -> Optional[str]:
+def _type_check(v: Any, name: str, type_: Any) -> str | None:
     key, subtypes = _dispatcher(type_)
     return _TYPE_CHECK[key](v, name, *subtypes)
 

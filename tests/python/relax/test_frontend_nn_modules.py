@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E501, F401, F841
-from typing import List, Tuple
 
 import numpy as np
 import pytest
@@ -651,7 +650,7 @@ def test_nn_module_tuple_input():
         def __init__(self):
             pass
 
-        def forward(self, x: Tuple[nn.Tensor, nn.Tensor]):
+        def forward(self, x: tuple[nn.Tensor, nn.Tensor]):
             x0 = x[0]
             x1 = x[1]
             y0 = nn.add(x0, x1)
@@ -690,7 +689,7 @@ def test_nn_module_list_input():
         def __init__(self):
             pass
 
-        def forward(self, x: List[nn.Tensor]):
+        def forward(self, x: list[nn.Tensor]):
             x0 = x[0]
             x1 = x[1]
             y0 = nn.add(x0, x1)

@@ -22,8 +22,8 @@
 
 import abc
 import math
+from collections.abc import Callable
 from functools import reduce
-from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm import relax, tir
@@ -39,16 +39,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         import torch  # type: ignore
         from torch import fx
 
-        self.env: Dict[fx.Node, relax.Expr] = {}
-        self.params: Dict[torch.Tensor, relax.Expr] = {}
+        self.env: dict[fx.Node, relax.Expr] = {}
+        self.params: dict[torch.Tensor, relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
-        self.convert_map: Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]] = (
+        self.convert_map: dict[torch.nn.Module | str, Callable[[fx.Node], relax.Var]] = (
             self.create_convert_map()
         )
 
     ########## Utilities ##########
 
-    def update_convert_map(self, custom_convert_map: Dict[str, Callable]):
+    def update_convert_map(self, custom_convert_map: dict[str, Callable]):
         """Update self.convert_map with custom convert map
 
         Parameters
@@ -60,7 +60,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self.convert_map.update(custom_convert_map)
 
     @staticmethod
-    def _convert_data_type(input_type: Union[str, torch.dtype], env: Optional[Dict] = None):
+    def _convert_data_type(input_type: str | torch.dtype, env: dict | None = None):
         """converts the PyTorch scalar type input_type to a TVM dtype."""
         import torch  # type: ignore
 
@@ -121,7 +121,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         raise ValueError(f"Unsupported type: {type(tensor)}")
 
     @staticmethod
-    def _promote_common_dtype(lhs_dtype: Optional[str], rhs_dtype: Optional[str]) -> Optional[str]:
+    def _promote_common_dtype(lhs_dtype: str | None, rhs_dtype: str | None) -> str | None:
         """Return the promoted dtype following PyTorch rules, or None if unsupported."""
         import torch  # type: ignore
 
@@ -185,7 +185,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         else:
             return node
 
-    def _check_unsupported_func_type(self, nodes: List[fx.Node]):
+    def _check_unsupported_func_type(self, nodes: list[fx.Node]):
         missing_func_types = list(
             {
                 node.target.__name__
@@ -210,7 +210,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.0)
         dtype = x.struct_info.dtype
 
-        if isinstance(alpha, (int, float)):
+        if isinstance(alpha, int | float):
             alpha = relax.const(alpha, dtype)
         else:
             if not isinstance(alpha, relax.Var):
@@ -243,7 +243,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         a_max = math.inf if a_max is None else a_max
 
         # Handle the case where a_min is a tensor
-        if not isinstance(a_min, (int, float)):
+        if not isinstance(a_min, int | float):
             from torch import fx
 
             if isinstance(a_min, fx.Node):
@@ -258,7 +258,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             a_min = -math.inf
 
         # Handle the case where a_max is a tensor
-        if not isinstance(a_max, (int, float)):
+        if not isinstance(a_max, int | float):
             from torch import fx
 
             if isinstance(a_max, fx.Node):
@@ -283,7 +283,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         a_min = -math.inf if a_min is None else a_min
 
         # Handle the case where a_min is a tensor
-        if not isinstance(a_min, (int, float)):
+        if not isinstance(a_min, int | float):
             from torch import fx
 
             if isinstance(a_min, fx.Node):
@@ -308,7 +308,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         a_max = math.inf if a_max is None else a_max
 
         # Handle the case where a_max is a tensor
-        if not isinstance(a_max, (int, float)):
+        if not isinstance(a_max, int | float):
             from torch import fx
 
             if isinstance(a_max, fx.Node):
@@ -329,7 +329,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.0)
         dtype = x.struct_info.dtype
 
-        if isinstance(alpha, (int, float)):
+        if isinstance(alpha, int | float):
             alpha = relax.const(-alpha, dtype)
         else:
             if not isinstance(alpha, relax.Var):
@@ -521,7 +521,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         inp_2 = args[1]
 
         # Handle scalar cases
-        if isinstance(inp_2, (int, float)):
+        if isinstance(inp_2, int | float):
             inp_2 = relax.const(inp_2)
 
         # Get rounding_mode from node kwargs
@@ -560,7 +560,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         lhs = args[0]
         rhs = args[1]
 
-        if isinstance(rhs, (int, float)):
+        if isinstance(rhs, int | float):
             rhs = relax.const(rhs)
 
         return self.block_builder.emit(relax.op.subtract(rhs, lhs))
@@ -689,11 +689,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _avg_pool1d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int]] = 1,
-        stride: Optional[Union[int, Tuple[int]]] = None,
-        padding: Optional[int] = 0,
-        ceil_mode: Optional[bool] = False,
-        count_include_pad: Optional[bool] = True,
+        kernel_size: int | tuple[int] = 1,
+        stride: int | tuple[int] | None = None,
+        padding: int | None = 0,
+        ceil_mode: bool | None = False,
+        count_include_pad: bool | None = True,
     ) -> relax.Var:
         # Expand to 3D by adding batch dim if input is 2D
         x_ndim = x.struct_info.ndim
@@ -731,11 +731,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _avg_pool2d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int, int]] = (1, 1),
-        stride: Optional[Union[int, Tuple[int, int]]] = None,
-        padding: Optional[int] = 0,
-        ceil_mode: Optional[bool] = False,
-        count_include_pad: Optional[bool] = True,
+        kernel_size: int | tuple[int, int] = (1, 1),
+        stride: int | tuple[int, int] | None = None,
+        padding: int | None = 0,
+        ceil_mode: bool | None = False,
+        count_include_pad: bool | None = True,
     ) -> relax.Var:
         # Expand to 4D by adding batch dim if input is 3D
         x_ndim = x.struct_info.ndim
@@ -772,11 +772,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _avg_pool3d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int, int, int]] = (1, 1, 1),
-        stride: Optional[Union[int, Tuple[int, int, int]]] = None,
-        padding: Optional[int] = 0,
-        ceil_mode: Optional[bool] = False,
-        count_include_pad: Optional[bool] = True,
+        kernel_size: int | tuple[int, int, int] = (1, 1, 1),
+        stride: int | tuple[int, int, int] | None = None,
+        padding: int | None = 0,
+        ceil_mode: bool | None = False,
+        count_include_pad: bool | None = True,
     ) -> relax.Var:
         # Expand to 5D by adding batch dim if input is 4D
         x_ndim = x.struct_info.ndim
@@ -837,12 +837,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         x: relax.Expr,
         weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
-        output_padding: Optional[Tuple],
+        bias: relax.Expr | None,
+        strides: tuple | None,
+        padding: tuple | None,
+        dilation: tuple | None,
+        groups: tuple | None,
+        output_padding: tuple | None,
     ) -> relax.Var:
         conv1d_transpose = self.block_builder.emit(
             relax.op.nn.conv1d_transpose(
@@ -891,12 +891,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         x: relax.Expr,
         weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
-        output_padding: Optional[Tuple],
+        bias: relax.Expr | None,
+        strides: tuple | None,
+        padding: tuple | None,
+        dilation: tuple | None,
+        groups: tuple | None,
+        output_padding: tuple | None,
     ) -> relax.Var:
         conv2d_transpose = self.block_builder.emit(
             relax.op.nn.conv2d_transpose(
@@ -945,11 +945,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         x: relax.Expr,
         weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
+        bias: relax.Expr | None,
+        strides: tuple | None,
+        padding: tuple | None,
+        dilation: tuple | None,
+        groups: tuple | None,
     ) -> relax.Var:
         conv1d = self.block_builder.emit(
             relax.op.nn.conv1d(
@@ -994,11 +994,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         x: relax.Expr,
         weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
+        bias: relax.Expr | None,
+        strides: tuple | None,
+        padding: tuple | None,
+        dilation: tuple | None,
+        groups: tuple | None,
     ):
         conv2d = self.block_builder.emit(
             relax.op.nn.conv2d(
@@ -1043,11 +1043,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         x: relax.Expr,
         weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
+        bias: relax.Expr | None,
+        strides: tuple | None,
+        padding: tuple | None,
+        dilation: tuple | None,
+        groups: tuple | None,
     ):
         conv3d = self.block_builder.emit(
             relax.op.nn.conv3d(
@@ -1166,7 +1166,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self,
         preds: relax.Expr,
         targets: relax.Expr,
-        weights: Optional[relax.Expr],
+        weights: relax.Expr | None,
         reduction: str,
         ignore_index: int,
     ) -> relax.Expr:
@@ -1185,7 +1185,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         import torch  # type: ignore
 
         args = self.retrieve_args(node)
-        operands = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        operands = args[1] if isinstance(args[1], torch.Size | tuple | list) else args[1:]
         return self.block_builder.emit(relax.op.einsum(operands, args[0]))
 
     def _embedding_impl(
@@ -1209,7 +1209,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         import numpy as np  # type: ignore
         from torch.fx.immutable_collections import immutable_list
 
-        if isinstance(normalized_shape, (immutable_list, tuple)):
+        if isinstance(normalized_shape, immutable_list | tuple):
             normalized_shape = tuple(normalized_shape)
         else:
             try:
@@ -1270,11 +1270,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _max_pool1d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int]] = 1,
-        stride: Optional[Union[int, Tuple[int]]] = None,
-        padding: Optional[int] = 0,
-        dilation: Optional[int] = 1,
-        ceil_mode: Optional[bool] = False,
+        kernel_size: int | tuple[int] = 1,
+        stride: int | tuple[int] | None = None,
+        padding: int | None = 0,
+        dilation: int | None = 1,
+        ceil_mode: bool | None = False,
     ) -> relax.Var:
         # Expand to 3D by adding batch dim if input is 2D
         x_ndim = x.struct_info.ndim
@@ -1314,11 +1314,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _max_pool2d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int, int]] = (1, 1),
-        stride: Optional[Union[int, Tuple[int, int]]] = None,
-        padding: Optional[int] = 0,
-        dilation: Optional[int] = 1,
-        ceil_mode: Optional[bool] = False,
+        kernel_size: int | tuple[int, int] = (1, 1),
+        stride: int | tuple[int, int] | None = None,
+        padding: int | None = 0,
+        dilation: int | None = 1,
+        ceil_mode: bool | None = False,
     ) -> relax.Var:
         # Expand to 4D by adding batch dim if input is 3D
         x_ndim = x.struct_info.ndim
@@ -1358,11 +1358,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _max_pool3d_impl(
         self,
         x: relax.Expr,
-        kernel_size: Union[int, Tuple[int, int, int]] = (1, 1, 1),
-        stride: Optional[Union[int, Tuple[int, int, int]]] = None,
-        padding: Optional[int] = 0,
-        dilation: Optional[int] = 1,
-        ceil_mode: Optional[bool] = False,
+        kernel_size: int | tuple[int, int, int] = (1, 1, 1),
+        stride: int | tuple[int, int, int] | None = None,
+        padding: int | None = 0,
+        dilation: int | None = 1,
+        ceil_mode: bool | None = False,
     ) -> relax.Var:
         # Expand to 5D by adding batch dim if input is 4D
         x_ndim = x.struct_info.ndim
@@ -1639,7 +1639,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         args = self.retrieve_args(node)
         x = args[0]
         dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
-        if isinstance(dim, (list, tuple)) and len(dim) == 0:
+        if isinstance(dim, list | tuple) and len(dim) == 0:
             dim = None
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
         return self.block_builder.emit(relax.op.sum(x, dim, keepdims=keepdim))
@@ -1791,7 +1791,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _flip(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dims = node.args[1] if len(node.args) > 1 else node.kwargs.get("dims", None)
-        if isinstance(dims, (list, tuple)) and len(dims) > 0:
+        if isinstance(dims, list | tuple) and len(dims) > 0:
             dims = dims[0]
         elif not isinstance(dims, int):
             raise TypeError(f"flip expects an integer axis, but got {type(dims)}: {dims}")
@@ -1816,7 +1816,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if not isinstance(accumulate, bool):
             raise TypeError(f"'accumulate' must be a boolean value, got {type(accumulate)}")
 
-        if isinstance(indices, (list, tuple)):
+        if isinstance(indices, list | tuple):
             # In PyTorch index_put, None means "select all elements" for that dimension
             non_none_indices = [(i, idx) for i, idx in enumerate(indices) if idx is not None]
 
@@ -1942,13 +1942,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             max_index_val = 9223372036854775807
 
             def _adjust(val):
-                if isinstance(val, (int, tir.IntImm)):
+                if isinstance(val, int | tir.IntImm):
                     int_val = int(val)
                     if int_val >= max_index_val:
                         return input_shape[axis]
                     if int_val < 0:
                         return input_shape[axis] + int_val
-                    if isinstance(input_shape[axis], (int, tir.IntImm)) and int_val > int(
+                    if isinstance(input_shape[axis], int | tir.IntImm) and int_val > int(
                         input_shape[axis]
                     ):
                         return input_shape[axis]
@@ -1977,7 +1977,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         args = self.retrieve_args(node)
         x = args[0]
-        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        dims = args[1] if isinstance(args[1], torch.Size | tuple | list) else args[1:]
         return self.block_builder.emit(relax.op.permute_dims(x, dims))
 
     def _repeat(self, node: fx.Node) -> relax.Var:
@@ -1985,7 +1985,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         args = self.retrieve_args(node)
         x = args[0]
-        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        dims = args[1] if isinstance(args[1], torch.Size | tuple | list) else args[1:]
         return self.block_builder.emit(relax.op.tile(x, dims))
 
     def _roll(self, node: fx.Node) -> relax.Var:
@@ -2040,17 +2040,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Handle dims=None (flatten -> roll -> reshape)
         if dims is None:
             flattened = self.block_builder.emit(relax.op.reshape(input_tensor, (-1,)))
-            shift_scalar = to_int(shifts[0] if isinstance(shifts, (list, tuple)) else shifts)
+            shift_scalar = to_int(shifts[0] if isinstance(shifts, list | tuple) else shifts)
             rolled = roll_single_dim(flattened, shift_scalar, 0)
             return self.block_builder.emit(relax.op.reshape(rolled, original_shape))
 
         # Normalize shifts and dims
-        if isinstance(shifts, (list, tuple)):
+        if isinstance(shifts, list | tuple):
             shifts = [to_int(s) for s in shifts]
         else:
             shifts = [to_int(shifts)]
 
-        if isinstance(dims, (list, tuple)):
+        if isinstance(dims, list | tuple):
             dims = [to_int(d) for d in dims]
         else:
             dims = [to_int(dims)]
@@ -2072,7 +2072,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         args = self.retrieve_args(node)
         x = args[0]
-        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        dims = args[1] if isinstance(args[1], torch.Size | tuple | list) else args[1:]
 
         # Skip identity reshape
         current_shape = self.shape_of(x)
@@ -2117,7 +2117,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         split_size = node.args[1]
         dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
-        if isinstance(split_size, (list, tuple)):
+        if isinstance(split_size, list | tuple):
             n_section = []
             for s in split_size[:-1]:
                 cum_sum = 0 if not n_section else n_section[-1]
@@ -2135,7 +2135,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         # If dims is a list, filter out axes where dimension is not 1
         # This is needed because PyTorch decomposition may pass all axes
-        if isinstance(dim, (list, tuple)) and len(dim) > 0:
+        if isinstance(dim, list | tuple) and len(dim) > 0:
             shape = self.shape_of(x)
             # Filter to only include axes where the dimension is 1
             valid_dims = []
@@ -2165,7 +2165,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         args = self.retrieve_args(node)
         x = args[0]
-        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        dims = args[1] if isinstance(args[1], torch.Size | tuple | list) else args[1:]
         return self.block_builder.emit(relax.op.tile(x, dims))
 
     def _topk(self, node: fx.Node) -> relax.Var:
@@ -2311,7 +2311,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         import torch
 
         args = self.retrieve_args(node)
-        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
+        size = relax.ShapeExpr(args[0] if isinstance(args[0], list | tuple) else (args[0],))
         dtype = self._convert_data_type(
             node.kwargs.get("dtype", torch.get_default_dtype()), self.env
         )
@@ -2331,7 +2331,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         x_dtype = x.struct_info.dtype
         fill_dtype = None
-        if isinstance(value, (int, float)) and (math.isinf(value) or math.isnan(value)):
+        if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
                 fill_dtype = "float32"
 
@@ -2351,7 +2351,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         x_dtype = x.struct_info.dtype
         fill_dtype = None
-        if isinstance(value, (int, float)) and (math.isinf(value) or math.isnan(value)):
+        if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
                 fill_dtype = "float32"
 
@@ -2396,7 +2396,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         x_dtype = x.struct_info.dtype
         fill_dtype = None
-        if isinstance(value, (int, float)) and (math.isinf(value) or math.isnan(value)):
+        if isinstance(value, int | float) and (math.isinf(value) or math.isnan(value)):
             if not ("float" in x_dtype or "bfloat16" in x_dtype):
                 fill_dtype = "float32"
 
@@ -2431,8 +2431,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _new_ones(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         self_var = args[0]
-        size = args[1] if isinstance(args[1], (list, tuple)) else args[1:]
-        if not isinstance(size, (list, tuple)):
+        size = args[1] if isinstance(args[1], list | tuple) else args[1:]
+        if not isinstance(size, list | tuple):
             size = (size,)
         size = relax.ShapeExpr(size)
         return self.block_builder.emit(
@@ -2448,7 +2448,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         input_tensor = args[0]
         size = (
             args[1]
-            if isinstance(args[1], (list, tuple))
+            if isinstance(args[1], list | tuple)
             else (args[1],)
             if len(args[1:]) == 1
             else args[1:]
@@ -2466,7 +2466,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         import torch
 
         args = self.retrieve_args(node)
-        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
+        size = relax.ShapeExpr(args[0] if isinstance(args[0], list | tuple) else (args[0],))
         dtype = self._convert_data_type(
             node.kwargs.get("dtype", torch.get_default_dtype()), self.env
         )
@@ -2505,7 +2505,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         import torch
 
         x = self.env[node.args[0]]
-        if isinstance(x, (list, tuple, relax.ShapeExpr, relax.Tuple)):
+        if isinstance(x, list | tuple | relax.ShapeExpr | relax.Tuple):
             return x[node.args[1]]
         elif isinstance(x, relax.Var):
             if isinstance(x.struct_info, relax.TupleStructInfo):
@@ -2514,7 +2514,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             assert isinstance(x.struct_info, relax.TensorStructInfo)
             if isinstance(node.args[1], int):
                 return x
-            if not isinstance(node.args[1], (list, tuple)):
+            if not isinstance(node.args[1], list | tuple):
                 indices = [node.args[1]]
             else:
                 indices = node.args[1]
@@ -2529,7 +2529,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             shape = self.shape_of(x)
             non_ellipsis_cnt = 0
             for index in indices:
-                if isinstance(index, (int, slice, torch.fx.Node)):
+                if isinstance(index, int | slice | torch.fx.Node):
                     non_ellipsis_cnt += 1
             for index in indices:
                 if isinstance(index, int):
@@ -2620,5 +2620,5 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def create_convert_map(
         self,
-    ) -> Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]]:
+    ) -> dict[torch.nn.Module | str, Callable[[fx.Node], relax.Var]]:
         """Create convert map"""

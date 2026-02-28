@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "../../schedule/analysis.h"
 #include "../../schedule/transform.h"
@@ -40,7 +41,7 @@ ffi::Optional<s_tir::SBlockRV> TileForIntrin(s_tir::Schedule sch, s_tir::SBlockR
   }
   TVM_FFI_ICHECK(tiled_loop_rv.defined());
   s_tir::SBlockRV outer_block = sch->Blockize(tiled_loop_rv.value());
-  sch->Annotate(outer_block, tir::attr::meta_schedule_auto_tensorize, ffi::String(intrin_name));
+  sch->Annotate(outer_block, s_tir::attr::meta_schedule_auto_tensorize, ffi::String(intrin_name));
   return outer_block;
 }
 

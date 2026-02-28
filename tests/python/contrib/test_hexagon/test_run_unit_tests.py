@@ -151,7 +151,7 @@ def test_run_unit_tests(hexagon_session: Session, gtest_args, unit_test_name):
     """Try running gtest unit tests and capture output and error code"""
     try:
         func = hexagon_session._rpc.get_function("hexagon.run_unit_tests")
-    except:
+    except Exception:
         print(
             "This test requires TVM Runtime to be built with a Hexagon gtest"
             "version using Hexagon API cmake flag"

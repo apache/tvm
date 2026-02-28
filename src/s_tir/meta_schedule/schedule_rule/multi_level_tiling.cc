@@ -20,6 +20,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/meta_schedule/schedule_rule.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <algorithm>
 #include <utility>
@@ -111,7 +112,7 @@ void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context)
 ffi::Array<Schedule> MultiLevelTilingNode::Apply(const Schedule& sch, const SBlockRV& block_rv) {
   if ((filter_fn_ && filter_fn_.value()(sch, sch->GetSRef(block_rv)).cast<bool>()) ||
       NeedsMultiLevelTiling(sch->state(), sch->GetSRef(block_rv))) {
-    sch->Annotate(block_rv, tir::attr::meta_schedule_tiling_structure, structure);
+    sch->Annotate(block_rv, s_tir::attr::meta_schedule_tiling_structure, structure);
 
     ffi::Array<Schedule> results;
     for (auto&& state : ApplySubRules({State(sch, block_rv)})) {
@@ -281,9 +282,9 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
     if (spatial_loop_product > 2 * this->thread_warp_size_) {
       low_inclusive = this->thread_warp_size_;
     }
-    sch->Annotate(block_rv, tir::attr::meta_schedule_thread_extent_low_inclusive,
+    sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_low_inclusive,
                   Integer(low_inclusive));
-    sch->Annotate(block_rv, tir::attr::meta_schedule_thread_extent_high_inclusive,
+    sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_high_inclusive,
                   Integer(high_inclusive));
   }
   return {state};
@@ -351,11 +352,11 @@ std::vector<State> MultiLevelTilingNode::AddAsyncPipeline(State state) const {
   for (int stage : this->stages) {
     State new_state = state->Copy();
     LoopRV r_loop_fused = new_state->sch->Fuse(new_state->tiles[r_indices_[0]]);
-    new_state->sch->Annotate(r_loop_fused, tir::attr::software_pipeline_stage,
+    new_state->sch->Annotate(r_loop_fused, s_tir::attr::software_pipeline_stage,
                              ffi::Array<Integer>{0, 0, stage - 2});
-    new_state->sch->Annotate(r_loop_fused, tir::attr::software_pipeline_order,
+    new_state->sch->Annotate(r_loop_fused, s_tir::attr::software_pipeline_order,
                              ffi::Array<Integer>{0, 1, 2});
-    new_state->sch->Annotate(r_loop_fused, tir::attr::software_pipeline_async_stages,
+    new_state->sch->Annotate(r_loop_fused, s_tir::attr::software_pipeline_async_stages,
                              ffi::Array<Integer>{0});
     ret.push_back(std::move(new_state));
   }
@@ -393,7 +394,7 @@ void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
     s_tir::ExprRV vector_load_len =
         (*sch)->SampleCategorical(support::AsArray<int, Integer>(valid_vector_lens),
                                   ffi::Array<FloatImm>(n, FloatImm(DataType::Float(32), prob)));
-    (*sch)->Annotate(block, tir::attr::meta_schedule_cooperative_fetch, vector_load_len);
+    (*sch)->Annotate(block, s_tir::attr::meta_schedule_cooperative_fetch, vector_load_len);
   }
 }
 

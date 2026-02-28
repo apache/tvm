@@ -143,9 +143,9 @@ def substitute_template(template, values):
     while changed:
         changed = False
         for key, value in values.items():
-            if isinstance(value, (int, IntImm)):
+            if isinstance(value, int | IntImm):
                 value = str(int(value))
-            if isinstance(value, (float, FloatImm)):
+            if isinstance(value, float | FloatImm):
                 value = str(float(value))
             elif isinstance(value, bool):
                 value = str(value).lower()

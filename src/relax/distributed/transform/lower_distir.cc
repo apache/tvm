@@ -256,7 +256,8 @@ class DistIRSharder : public ExprMutator {
 
   Function func_;
   ffi::Array<Var> new_params_;
-  std::unordered_map<TupleGetItem, Var, StructuralHash, StructuralEqual> tuple_getitem_remap_;
+  std::unordered_map<TupleGetItem, Var, ffi::StructuralHash, ffi::StructuralEqual>
+      tuple_getitem_remap_;
 };
 
 namespace transform {

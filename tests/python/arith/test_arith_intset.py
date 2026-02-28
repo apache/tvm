@@ -160,7 +160,7 @@ def check_region_bound(expect_region, var_dom, mode, predicate=None):
     region = []
     expect = []
     for k, v in expect_region.items():
-        if not isinstance(k, (tuple, list)):
+        if not isinstance(k, tuple | list):
             k = (k, k + 1)
         region.append(tvm.ir.Range.from_min_extent(k[0], Analyzer().simplify(k[1] - k[0])))
         expect.append(v)
