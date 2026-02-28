@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
+#include <tvm/runtime/base.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
 #include <string>
@@ -73,9 +74,11 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
     if (d->cfg->show_meta) {
       os << "metadata = tvm.ir.load_json(\"\"\""
          << support::StrEscape(
-                ffi::json::Stringify(ffi::ToJSONGraph(ffi::Map<ffi::String, ffi::Any>(
-                                         d->metadata.begin(), d->metadata.end())),
-                                     2),
+                ffi::json::Stringify(
+                    ffi::ToJSONGraph(
+                        ffi::Map<ffi::String, ffi::Any>(d->metadata.begin(), d->metadata.end()),
+                        ffi::json::Object{{"tvm_version", TVM_VERSION}}),
+                    2),
                 false, false)
          << "\"\"\")\n";
     } else {

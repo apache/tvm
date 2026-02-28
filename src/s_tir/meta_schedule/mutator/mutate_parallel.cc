@@ -189,7 +189,9 @@ class MutateParallelNode : public MutatorNode {
   void InitializeWithTuneContext(const TuneContext& context) final {
     Target target = context->target.value();
     this->max_parallel_extent_ = GetTargetNumCores(target) * this->max_jobs_per_core;
-    this->json_mod_ = ffi::json::Stringify(ffi::ToJSONGraph(context->mod.value()), /*indent=*/2);
+    this->json_mod_ = ffi::json::Stringify(
+        ffi::ToJSONGraph(context->mod.value(), ffi::json::Object{{"tvm_version", TVM_VERSION}}),
+        /*indent=*/2);
   }
   // Inherit from `MutatorNode`
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;

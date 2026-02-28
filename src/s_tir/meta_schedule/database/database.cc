@@ -43,7 +43,8 @@ Workload::Workload(IRModule mod, Workload::THashCode shash) {
 
 ObjectRef WorkloadNode::AsJSON() const {
   // Convert `this->mod` to JSON
-  std::string json_mod = ffi::json::Stringify(ffi::ToJSONGraph(this->mod), /*indent=*/2);
+  std::string json_mod = ffi::json::Stringify(
+      ffi::ToJSONGraph(this->mod, ffi::json::Object{{"tvm_version", TVM_VERSION}}), /*indent=*/2);
   // Dump the JSON string to base64
   std::string b64_mod = Base64Encode(json_mod);
   // Output

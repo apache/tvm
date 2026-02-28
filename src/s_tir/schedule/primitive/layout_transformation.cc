@@ -1605,8 +1605,9 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     attrs_record.push_back(attrs[0]);
     attrs_record.push_back(attrs[1]);
     if (attrs[2] != nullptr) {
-      attrs_record.push_back(
-          ffi::String(ffi::json::Stringify(ffi::ToJSONGraph(attrs[2]), /*indent=*/2)));
+      attrs_record.push_back(ffi::String(ffi::json::Stringify(
+          ffi::ToJSONGraph(attrs[2], ffi::json::Object{{"tvm_version", TVM_VERSION}}),
+          /*indent=*/2)));
     } else {
       attrs_record.push_back(attrs[2]);
     }
@@ -1657,8 +1658,9 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
   static ObjectRef AttrsAsJSON(const ffi::Array<Any>& attrs) {
     ffi::Array<Any> attrs_record;
     attrs_record.reserve(kNumAttrs);
-    attrs_record.push_back(
-        ffi::String(ffi::json::Stringify(ffi::ToJSONGraph(attrs[0]), /*indent=*/2)));
+    attrs_record.push_back(ffi::String(ffi::json::Stringify(
+        ffi::ToJSONGraph(attrs[0], ffi::json::Object{{"tvm_version", TVM_VERSION}}),
+        /*indent=*/2)));
     return attrs_record;
   }
 
