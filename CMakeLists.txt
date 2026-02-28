@@ -98,7 +98,6 @@ tvm_option(USE_RUST_EXT "Build with Rust based compiler extensions, STATIC, DYNA
 tvm_option(SUMMARIZE "Print CMake option summary after configuring" OFF)
 tvm_option(USE_CLML "Build with CLML Codegen support" OFF)
 tvm_option(USE_CLML_GRAPH_EXECUTOR "Build with CLML graph runtime" OFF)
-tvm_option(USE_MSC "Enable Multi-System Compiler" OFF)
 tvm_option(USE_NVSHMEM "Build with NVSHMEM support" OFF)
 
 # Python package options
@@ -449,7 +448,6 @@ include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/CoreML.cmake)
 include(cmake/modules/contrib/TensorRT.cmake)
 include(cmake/modules/contrib/NNAPI.cmake)
-include(cmake/modules/contrib/MSC.cmake)
 include(cmake/modules/contrib/vllm.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)

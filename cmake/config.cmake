@@ -212,9 +212,6 @@ set(USE_SORT ON)
 set(USE_TENSORRT_CODEGEN OFF)
 set(USE_TENSORRT_RUNTIME OFF)
 
-# Whether to use the Multi-System Compiler
-set(USE_MSC OFF)
-
 #Whether to use CLML codegen
 set(USE_CLML OFF)
 # USE_CLML_GRAPH_EXECUTOR - CLML SDK PATH or ON or OFF
