@@ -17,14 +17,11 @@
 # pylint: disable=invalid-name
 """Utility to invoke nvcc compiler in the system"""
 
-from __future__ import absolute_import as _abs
-
 import glob
 import os
 import platform
 import subprocess
 import warnings
-from typing import Tuple
 
 import tvm_ffi
 
@@ -298,7 +295,7 @@ def _compile_cuda_nvrtc(
         raise ValueError(f"target_format must be 'cubin' or 'ptx', got: {target_format}")
 
     # Validate options
-    if options is not None and not isinstance(options, (str, list)):
+    if options is not None and not isinstance(options, str | list):
         raise ValueError("options must be str or list of str")
 
     # Auto-detect architecture
@@ -686,7 +683,7 @@ def get_cuda_version(cuda_path=None):
     raise RuntimeError("Cannot read CUDA version file")
 
 
-def find_nvshmem_paths() -> Tuple[str, str]:
+def find_nvshmem_paths() -> tuple[str, str]:
     """
     Searches for the NVSHMEM include and library directories.
 

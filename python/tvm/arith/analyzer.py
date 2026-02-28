@@ -18,7 +18,6 @@
 """Arithmetic data structure and utility"""
 
 import enum
-from typing import Union
 
 import tvm_ffi
 
@@ -267,7 +266,7 @@ class Analyzer:
         """
         return self._can_prove(expr, strength)
 
-    def bind(self, var: tir.Var, expr: Union[tir.PrimExpr, ir.Range]) -> None:
+    def bind(self, var: tir.Var, expr: tir.PrimExpr | ir.Range) -> None:
         """Bind a variable to the expression.
 
         Parameters
@@ -355,7 +354,7 @@ class Analyzer:
         return Extension(value)
 
     @enabled_extensions.setter
-    def enabled_extensions(self, flags: Union[int, Extension]):
+    def enabled_extensions(self, flags: int | Extension):
         """Enable extensions for the analyzer
 
         Parameters

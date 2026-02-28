@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name, unsupported-binary-operation
 
 import enum
-from typing import Callable
+from collections.abc import Callable
 
 from ... import ffi as _ffi
 from ... import ir as _ir

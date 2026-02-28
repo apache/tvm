@@ -22,7 +22,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any
 
 from tvm import __version__ as tvm_version
 from tvm import tir
@@ -35,7 +35,7 @@ class BaseKernel:  # pylint: disable=too-few-public-methods
 
     def compile_to_device_module(
         self, launch_args, *args, **kwargs
-    ) -> Tuple[str, Module, List[Any]]:
+    ) -> tuple[str, Module, list[Any]]:
         """Compile the kernel to a device module."""
         raise NotImplementedError()
 
@@ -113,10 +113,10 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
 
     def compile_to_device_module(  # pylint: disable=arguments-differ
         self,
-        grid: List[List[Union[int, tir.PrimExpr]]],
-        *args: List[Any],
-        **kwargs: Dict[str, Any],
-    ) -> Tuple[str, Module, List[Any]]:
+        grid: list[list[int | tir.PrimExpr]],
+        *args: list[Any],
+        **kwargs: dict[str, Any],
+    ) -> tuple[str, Module, list[Any]]:
         """Compile the kernel to a device module."""
         from tvm.relax.frontend.nn import (  # pylint: disable=import-outside-toplevel
             SourceModule,
@@ -128,7 +128,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             "['blockIdx.x', 'blockIdx.y', 'blockIdx.z'] and "
             "['threadIdx.x', 'threadIdx.y', 'threadIdx.z']"
         )
-        assert isinstance(grid[0], (list, tuple)) and isinstance(grid[1], (list, tuple))
+        assert isinstance(grid[0], list | tuple) and isinstance(grid[1], list | tuple)
         launch_param_tags = ["blockIdx.x", "blockIdx.y", "blockIdx.z"][: len(grid[0])] + [
             "threadIdx.x",
             "threadIdx.y",
@@ -182,9 +182,9 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
 
 def call_kernel(
     kernel,
-    launch_args: List[Union[int, tir.PrimExpr, List[Union[int, tir.PrimExpr]]]],
-    *args: List[Any],
-    **kwargs: Dict[str, Any],
+    launch_args: list[int | tir.PrimExpr | list[int | tir.PrimExpr]],
+    *args: list[Any],
+    **kwargs: dict[str, Any],
 ):
     """
     Call an external kernel.
@@ -225,7 +225,7 @@ def call_kernel(
     )
 
     # Attach the kernel module to the current IRModule
-    external_mods: List[Module] = module_get_attr("external_mods") or []
+    external_mods: list[Module] = module_get_attr("external_mods") or []
     kernel_exists = any([mod.implements_function(kernel_name) for mod in external_mods])
     if kernel_exists:
         logging.debug("Kernel %s already exists in the IRModule", kernel_name)

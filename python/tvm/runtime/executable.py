@@ -18,7 +18,8 @@
 
 """Executable object for TVM Runtime"""
 
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 import tvm
 from tvm.contrib import utils as _utils
@@ -32,7 +33,7 @@ class Executable:
     def __init__(self, mod: Module):
         """Initialize the Executable object."""
         self.mod: Module = mod
-        self._jitted_mod: Optional[Module] = None
+        self._jitted_mod: Module | None = None
 
     def __getitem__(self, name: str) -> PackedFunc:
         """Get the PackedFunc from the jitted module."""
@@ -45,8 +46,8 @@ class Executable:
     def jit(
         self,
         *,
-        fcompile: Optional[Callable[[str, List[str], Dict[str, Any]], None]] = None,
-        addons: Optional[List[str]] = None,
+        fcompile: Callable[[str, list[str], dict[str, Any]], None] | None = None,
+        addons: list[str] | None = None,
         force_recompile: bool = False,
         **kwargs,
     ) -> Module:
