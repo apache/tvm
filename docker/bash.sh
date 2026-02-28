@@ -170,7 +170,7 @@ COMMAND
 
 Environment Variables:
 
-TVM_DEV_MOUNTS
+TVM_DEV_DOCKER_MOUNTS
 
     Space-separated list of additional mount specifications.
     Each entry is either:
@@ -455,10 +455,10 @@ for MOUNT_DIR in ${MOUNT_DIRS[@]+"${MOUNT_DIRS[@]}"}; do
     DOCKER_MOUNT+=( --volume "${MOUNT_DIR}:${MOUNT_DIR}" )
 done
 
-# Parse TVM_DEV_MOUNTS env var: space-separated mount specs
+# Parse TVM_DEV_DOCKER_MOUNTS env var: space-separated mount specs
 # Each entry is either /path (same path) or /src:/dst
-if [[ -n "${TVM_DEV_MOUNTS:-}" ]]; then
-    for mount_spec in ${TVM_DEV_MOUNTS}; do
+if [[ -n "${TVM_DEV_DOCKER_MOUNTS:-}" ]]; then
+    for mount_spec in ${TVM_DEV_DOCKER_MOUNTS}; do
         if [[ "$mount_spec" == *:* ]]; then
             # src:dst format
             mount_src="${mount_spec%%:*}"
