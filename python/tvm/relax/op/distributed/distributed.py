@@ -20,8 +20,10 @@
 from tvm.ir import PrimExpr
 from tvm.relax.distributed import DTensorStructInfo
 from tvm.relax.distributed.struct_info import DeviceMesh, Placement
+
 from ...expr import Call, Expr, GlobalVar, ShapeExpr
 from ...expr import Tuple as RxTuple
+from ...utils import convert_to_expr
 from . import _ffi_api
 
 
@@ -97,7 +99,7 @@ def call_tir_local_view(
         A call node for the call_tir_local_view operator.
     """
     if isinstance(args, tuple | list):
-        args = RxTuple(list(args))
+        args = RxTuple([convert_to_expr(a) for a in args])
     elif isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 

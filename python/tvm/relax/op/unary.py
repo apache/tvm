@@ -545,10 +545,8 @@ def clip(x: Expr, min: Expr, max: Expr) -> Expr:
     result : relax.Expr
         The computed result.
     """
-    if not isinstance(min, Expr):
-        min = convert_to_expr(min)
-    if not isinstance(max, Expr):
-        max = convert_to_expr(max)
+    min = convert_to_expr(min)
+    max = convert_to_expr(max)
     return _ffi_api.clip(x, min, max)  # type: ignore
 
 

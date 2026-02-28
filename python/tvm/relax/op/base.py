@@ -77,7 +77,7 @@ def _wrap_inline_arg_tuple(args) -> Expr:
 
     """
     if isinstance(args, tuple | list):
-        return tvm.relax.Tuple([convert_to_expr(a) if not isinstance(a, Expr) else a for a in args])
+        return tvm.relax.Tuple([convert_to_expr(a) for a in args])
     elif (
         isinstance(args, Expr)
         and not isinstance(args, tvm.relax.Tuple)
@@ -729,10 +729,7 @@ def call_inplace_packed(
         func = func.global_symbol
 
     op = ExternFunc(func)
-    args = tuple(
-        convert_to_expr(a) if isinstance(a, int | float | str | tuple | list) else a
-        for a in args
-    )
+    args = tuple(convert_to_expr(a) for a in args)
     if sinfo_args is None:
         raise ValueError("R.call_pure_packed is required to have type_args")
     if isinstance(sinfo_args, tuple):  # type: ignore
@@ -783,10 +780,7 @@ def call_pure_packed(
         func = func.global_symbol
 
     op = ExternFunc(func)
-    args = tuple(
-        convert_to_expr(a) if isinstance(a, int | float | str | tuple | list) else a
-        for a in args
-    )
+    args = tuple(convert_to_expr(a) for a in args)
 
     if sinfo_args is None:
         raise ValueError("R.call_pure_packed is required to have type_args")

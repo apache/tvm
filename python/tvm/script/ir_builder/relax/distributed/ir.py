@@ -40,6 +40,7 @@ from tvm.relax.op.distributed import (
 from tvm.relax.op.distributed import (
     redistribute as _redistribute,
 )
+from tvm.relax.utils import convert_to_expr
 from tvm.runtime import _tensor
 
 from ... import IRBuilder
@@ -81,7 +82,7 @@ def call_tir(
         func = ExternFunc(func)
 
     if isinstance(args, tuple | list):
-        args = RxTuple(list(args))
+        args = RxTuple([convert_to_expr(a) for a in args])
     elif isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 

@@ -100,10 +100,10 @@ def strided_slice(
     strided_slice require the input `begin`, `end` and `strides` to have the
     same length as `axes`.
     """
-    axes = convert_to_expr(axes) if not isinstance(axes, Expr) else axes
-    begin = convert_to_expr(begin) if not isinstance(begin, Expr) else begin
-    end = convert_to_expr(end) if not isinstance(end, Expr) else end
-    if strides is not None and not isinstance(strides, Expr):
+    axes = convert_to_expr(axes)
+    begin = convert_to_expr(begin)
+    end = convert_to_expr(end)
+    if strides is not None:
         strides = convert_to_expr(strides)
     return _ffi_api.strided_slice(x, axes, begin, end, strides, assume_inbound)  # type: ignore
 

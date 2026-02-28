@@ -224,8 +224,6 @@ py_print = builtins.print
 py_tuple = tuple  # pylint: disable=used-before-assignment
 py_str = str  # pylint: disable=used-before-assignment
 
-_CONVERTIBLE_TYPES = (int, float, str, tuple, list)
-
 
 ################################ Device ################################
 
@@ -429,9 +427,7 @@ def call_packed(
         The created Relax Call
     """
     op = ExternFunc(func)
-    args = py_tuple(
-        convert_to_expr(a) if isinstance(a, _CONVERTIBLE_TYPES) else a for a in args
-    )
+    args = py_tuple(convert_to_expr(a) for a in args)
     if sinfo_args is None:
         sinfo_args = []
     if isinstance(sinfo_args, py_tuple):  # type: ignore
@@ -488,9 +484,7 @@ def call_py_func(
     call: Call
         The created Relax Call for call_py_func operator.
     """
-    args = py_tuple(
-        convert_to_expr(a) if isinstance(a, _CONVERTIBLE_TYPES) else a for a in args
-    )
+    args = py_tuple(convert_to_expr(a) for a in args)
     if isinstance(out_sinfo, py_tuple):  # type: ignore
         out_sinfo = list(out_sinfo)
     elif not isinstance(out_sinfo, list):

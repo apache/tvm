@@ -49,8 +49,7 @@ def alloc_storage(
     result : Call
         A relax Call, which gets the allocated storage.
     """
-    if not isinstance(size, Expr):
-        size = convert_to_expr(size)
+    size = convert_to_expr(size)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
     if isinstance(storage_scope, str):
@@ -94,8 +93,7 @@ def alloc_tensor(
     """
     if isinstance(offset, int):
         offset = PrimValue(offset)
-    if not isinstance(shape, Expr):
-        shape = convert_to_expr(shape)
+    shape = convert_to_expr(shape)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
     return _ffi_api.alloc_tensor(storage, offset, shape, dtype, runtime_device_ind)  # type: ignore
