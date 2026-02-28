@@ -16,11 +16,10 @@
 """The builtin Relax operators."""
 
 from ...expr import Call, DataTypeImm, Expr, PrimValue, StringImm
-from ...utils import args_converter
+from ...utils import convert_to_expr
 from . import _ffi_api
 
 
-@args_converter.auto
 def alloc_tensor(
     shape: Expr,
     dtype: str | Expr,
@@ -49,6 +48,8 @@ def alloc_tensor(
     result : Call
         A relax Call, which gets the allocated tensor.
     """
+    if not isinstance(shape, Expr):
+        shape = convert_to_expr(shape)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
     if isinstance(runtime_device_index, int):

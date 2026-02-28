@@ -21,8 +21,6 @@
 from tvm.runtime import vm
 from tvm.runtime.vm import VirtualMachine, VMInstrumentReturnKind
 
-from .type_converter import args_converter
-
 # Expr
 from .expr import (
     Expr,

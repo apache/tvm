@@ -16,12 +16,10 @@
 # under the License.
 """Sampling operators."""
 
-from .. import args_converter
 from ..expr import Expr
 from . import _ffi_api
 
 
-@args_converter.auto
 def multinomial_from_uniform(
     prob: Expr,
     uniform_sample: Expr,

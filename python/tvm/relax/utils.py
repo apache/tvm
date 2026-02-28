@@ -39,9 +39,6 @@ from .expr import Expr, Function, PrimValue, ShapeExpr, StringImm, te_tensor
 from .expr import Tuple as rx_Tuple
 from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo
 
-# Re-export `args_converter` here for backwards compatibility
-from .type_converter import args_converter  # pylint: disable=unused-import
-
 
 def metadata_partitioner(rx_txt: str) -> list[str]:
     """Extract Relax program and metadata section.

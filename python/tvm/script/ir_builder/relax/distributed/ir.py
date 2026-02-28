@@ -40,7 +40,6 @@ from tvm.relax.op.distributed import (
 from tvm.relax.op.distributed import (
     redistribute as _redistribute,
 )
-from tvm.relax.utils import args_converter
 from tvm.runtime import _tensor
 
 from ... import IRBuilder
@@ -49,7 +48,6 @@ from ..ir import py_str
 from . import _ffi_api
 
 
-@args_converter.auto
 def call_tir(
     func: str | Expr,
     args: Expr,
@@ -82,7 +80,9 @@ def call_tir(
     if isinstance(func, str):
         func = ExternFunc(func)
 
-    if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
+    if isinstance(args, tuple | list):
+        args = RxTuple(list(args))
+    elif isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 
     if not isinstance(out_sinfo, list):
