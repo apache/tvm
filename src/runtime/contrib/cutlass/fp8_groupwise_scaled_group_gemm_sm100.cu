@@ -22,7 +22,6 @@
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/tensor.h>
 
 #include "fp8_groupwise_scaled_group_gemm_runner_sm100.cuh"
