@@ -44,7 +44,8 @@ class MutateComputeLocationNode : public MutatorNode {
  public:
   // Inherit from `MutatorNode`
   void InitializeWithTuneContext(const TuneContext& context) final {
-    this->json_mod_ = SaveJSON(context->mod.value());
+    this->json_mod_ =
+        ffi::json::Stringify(ffi::ToJSONGraph(context->mod.value()), /*indent=*/2);
   }
   // Inherit from `MutatorNode`
   ffi::Optional<Trace> Apply(const Trace& trace, TRandState* rand_state) final;
@@ -77,7 +78,7 @@ class MutateComputeLocationNode : public MutatorNode {
 std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::FindCandidates(
     const Trace& trace, TRandState* rand_state) {
   s_tir::Schedule sch = s_tir::Schedule::Traced(           //
-      /*mod=*/LoadJSON(this->json_mod_).cast<IRModule>(),  //
+      /*mod=*/ffi::FromJSONGraph(ffi::json::Parse(this->json_mod_)).cast<IRModule>(),  //
       /*rand_state=*/ForkSeed(rand_state),                 //
       /*debug_mode=*/0,                                    //
       /*error_render_level=*/s_tir::ScheduleErrorRenderLevel::kNone);

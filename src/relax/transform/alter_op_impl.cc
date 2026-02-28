@@ -24,9 +24,9 @@
  * true.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
-#include <tvm/ir/serialization.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/expr_functor.h>
@@ -59,7 +59,7 @@ static ffi::Array<PrimExpr> GetShapeFromTensor(const Expr& expr) {
 }
 
 static IndexMap DeepCopyIndexMap(const IndexMap& index_map) {
-  return Downcast<IndexMap>(LoadJSON(SaveJSON(index_map)));
+  return Downcast<IndexMap>(ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)));
 }
 
 /*! \brief Checks if the \p transform is bijective on the shape of \p expr */

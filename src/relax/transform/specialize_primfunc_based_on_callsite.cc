@@ -21,7 +21,6 @@
  * \brief Update PrimFunc buffers based on updated scope (or structure) info.
  */
 
-#include <tvm/ir/serialization.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>

@@ -39,7 +39,7 @@ Range RangeFromExtent(const PrimExpr& extent) {
 
 template <class T>
 T DeepCopy(const T& stmt) {
-  return Downcast<T>(LoadJSON(SaveJSON(stmt)));
+  return Downcast<T>(ffi::FromJSONGraph(ffi::ToJSONGraph(stmt)));
 }
 
 /*!
