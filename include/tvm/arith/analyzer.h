@@ -563,7 +563,7 @@ class ConstraintContext {
   Analyzer* analyzer_;
   /*! \brief The constraint */
   PrimExpr constraint_;
-  /*! \brief function to be called in recovery */
+  /*! \brief functions to be called in recovery */
   std::vector<std::function<void()>> recovery_functions_;
 };
 

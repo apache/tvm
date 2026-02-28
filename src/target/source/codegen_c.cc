@@ -1088,7 +1088,6 @@ void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   } else {
     stream << "assert(" << cond << ");\n";
   }
-  this->PrintStmt(op->body);
 }
 
 void CodeGenC::VisitStmt_(const ForNode* op) {

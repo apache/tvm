@@ -104,7 +104,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // AssertStmt
-AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Stmt body, Span span) {
+AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Span span) {
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(condition.dtype().is_bool())
       << "AssertStmt should have boolean condition, "
@@ -115,17 +115,15 @@ AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Stmt body, Span spa
   ObjectPtr<AssertStmtNode> node = ffi::make_object<AssertStmtNode>();
   node->condition = std::move(condition);
   node->message = std::move(message);
-  node->body = std::move(body);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.AssertStmt",
-                        [](PrimExpr condition, StringImm message, Stmt body, Span span) {
-                          return AssertStmt(condition, message, body, span);
-                        });
+  refl::GlobalDef().def("tir.AssertStmt", [](PrimExpr condition, StringImm message, Span span) {
+    return AssertStmt(condition, message, span);
+  });
 }
 
 // For

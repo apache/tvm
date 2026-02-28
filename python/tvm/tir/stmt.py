@@ -90,26 +90,19 @@ class AssertStmt(Stmt):
     message : PrimExpr
         The error message.
 
-    body : tvm.tir.Stmt
-        The body statement.
-
     span : Optional[Span]
         The location of the stmt in the source code.
     """
 
     condition: PrimExpr
     message: PrimExpr
-    body: Stmt
     span: Optional[Span]
 
-    def __init__(
-        self, condition: PrimExpr, message: PrimExpr, body: Stmt, span: Optional[Span] = None
-    ) -> None:
+    def __init__(self, condition: PrimExpr, message: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.AssertStmt,
             condition,
             message,
-            body,
             span,  # type: ignore
         )
 
