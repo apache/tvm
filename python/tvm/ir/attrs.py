@@ -17,8 +17,8 @@
 """TVM Attribute module, which is mainly used for defining attributes of operators."""
 
 import tvm_ffi
+import tvm_ffi._ffi_api as _tvm_ffi_api
 
-import tvm.runtime._ffi_node_api
 from tvm.runtime import Object
 
 from . import _ffi_api
@@ -149,7 +149,11 @@ def make_node(type_key, **kwargs):
        assert isinstance(x, tvm.tir.IntImm)
        assert x.value == 10
     """
+    if type_key == "ir.DictAttrs":
+        # DictAttrs stores kwargs as a key-value dict, not as named fields.
+        # MakeObjectFromPackedArgs would look for a field named "__dict__".
+        return _tvm_ffi_api.MakeObjectFromPackedArgs("ir.DictAttrs", "__dict__", kwargs)
     args = [type_key]
     for k, v in kwargs.items():
         args += [k, v]
-    return tvm.runtime._ffi_node_api.MakeNode(*args)
+    return _tvm_ffi_api.MakeObjectFromPackedArgs(*args)
