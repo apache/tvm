@@ -17,6 +17,7 @@
 """The entry point of TVM parser for tir."""
 
 import inspect
+from collections import ChainMap
 from collections.abc import Callable
 
 from tvm.ir.base import deprecated
@@ -63,7 +64,13 @@ def prim_func(
             raise TypeError(f"Expect a function, but got: {func}")
         if utils.is_defined_in_class(outer_stack, func):
             return func
-        f = parse(func, utils.inspect_function_capture(func), check_well_formed=check_well_formed)
+        extra_vars = utils.inspect_function_capture(func)
+        # Lazy fallback to caller frame locals for PEP 563 compatibility.
+        # With `from __future__ import annotations`, variables used only
+        # in annotations are not captured in __closure__. ChainMap defers
+        # lookup to caller locals only on cache miss.
+        extra_vars = ChainMap(extra_vars, *[f.frame.f_locals for f in outer_stack[1:]])
+        f = parse(func, extra_vars, check_well_formed=check_well_formed)
         setattr(f, "__name__", func.__name__)
         return f
 

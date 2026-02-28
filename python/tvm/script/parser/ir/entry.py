@@ -18,6 +18,7 @@
 """The entry point of TVM parser for ir module."""
 
 import inspect
+from collections import ChainMap
 from collections.abc import Callable
 
 from tvm import cpu, ir
@@ -46,6 +47,10 @@ def ir_module(mod: type | None = None, check_well_formed: bool = True) -> IRModu
         The parsed ir module.
     """
 
+    # need to capture this var outside the wrapper because the wrapper
+    # adds to the stack
+    outer_stack = inspect.stack()
+
     def decorator_wrapper(mod):
         if not inspect.isclass(mod):
             raise TypeError(f"Expect a class, but got: {mod}")
@@ -53,7 +58,13 @@ def ir_module(mod: type | None = None, check_well_formed: bool = True) -> IRModu
         # Check BasePyModule inheritance
         base_py_module_inherited = any(base.__name__ == "BasePyModule" for base in mod.__bases__)
 
-        m = parse(mod, utils.inspect_class_capture(mod), check_well_formed=check_well_formed)
+        extra_vars = utils.inspect_class_capture(mod)
+        # Lazy fallback to caller frame locals for PEP 563 compatibility.
+        # With `from __future__ import annotations`, variables used only
+        # in annotations are not captured in __closure__. ChainMap defers
+        # lookup to caller locals only on cache miss.
+        extra_vars = ChainMap(extra_vars, *[f.frame.f_locals for f in outer_stack[1:]])
+        m = parse(mod, extra_vars, check_well_formed=check_well_formed)
 
         if base_py_module_inherited:
             # Lazy import: tvm.relax cannot be imported at module level in tvm.script.parser
