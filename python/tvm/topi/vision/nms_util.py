@@ -70,12 +70,12 @@ def binary_search(y, num_boxes, scores, score_threshold, out):
     out = T.buffer_proxy(out)
     with T.frame_scope(
         [
-            T.allocate([1], "int32", scope="local"),
-            T.allocate([1], "int32", scope="local"),
+            T.decl_buffer([1], "int32", scope="local"),
+            T.decl_buffer([1], "int32", scope="local"),
         ]
-    ) as (lo_ptr, hi_ptr):
-        lo = T.buffer_proxy(tvm.tir.decl_buffer([1], "int32", "lo", data=lo_ptr, scope="local"))
-        hi = T.buffer_proxy(tvm.tir.decl_buffer([1], "int32", "hi", data=hi_ptr, scope="local"))
+    ) as (lo_buf, hi_buf):
+        lo = T.buffer_proxy(lo_buf)
+        hi = T.buffer_proxy(hi_buf)
         lo[0] = T.int32(0)
         hi[0] = tvm.tir.Cast("int32", num_boxes)
         with T.While(lo[0] < hi[0]):

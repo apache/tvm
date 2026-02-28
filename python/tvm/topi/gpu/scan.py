@@ -142,25 +142,15 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
                                 ),
                             ),
                             T.attr(by, "thread_extent", nthread_by),
-                            T.allocate([1], "int32", scope="local"),
-                            T.allocate([1], "int32", scope="local"),
-                            T.allocate([1], "int32", scope="local"),
+                            T.decl_buffer([1], "int32", scope="local"),
+                            T.decl_buffer([1], "int32", scope="local"),
+                            T.decl_buffer([1], "int32", scope="local"),
                         ]
-                    ) as (_, _, _, start_ptr, middle_ptr, end_ptr):
+                    ) as (_, _, _, start_buf, middle_buf, end_buf):
                         tid = bx * nthread_tx + tx
-                        start = T.buffer_proxy(
-                            tvm.tir.decl_buffer(
-                                [1], "int32", "start", data=start_ptr, scope="local"
-                            )
-                        )
-                        middle = T.buffer_proxy(
-                            tvm.tir.decl_buffer(
-                                [1], "int32", "middle", data=middle_ptr, scope="local"
-                            )
-                        )
-                        end = T.buffer_proxy(
-                            tvm.tir.decl_buffer([1], "int32", "end", data=end_ptr, scope="local")
-                        )
+                        start = T.buffer_proxy(start_buf)
+                        middle = T.buffer_proxy(middle_buf)
+                        end = T.buffer_proxy(end_buf)
                         start[0] = width * tid
                         with T.If(start[0] < scan_axis_size):
                             with T.Then():
@@ -199,29 +189,17 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
                                 ),
                             ),
                             T.attr(by, "thread_extent", nthread_by),
-                            T.allocate([1], "int32", scope="local"),
-                            T.allocate([1], "int32", scope="local"),
-                            T.allocate([1], "int32", scope="local"),
-                            T.allocate([1], out_dtype, scope="local"),
+                            T.decl_buffer([1], "int32", scope="local"),
+                            T.decl_buffer([1], "int32", scope="local"),
+                            T.decl_buffer([1], "int32", scope="local"),
+                            T.decl_buffer([1], out_dtype, scope="local"),
                         ]
-                    ) as (_, _, _, start_ptr, middle_ptr, end_ptr, tmp_ptr):
+                    ) as (_, _, _, start_buf, middle_buf, end_buf, tmp_buf):
                         tid = bx * nthread_tx + tx
-                        start = T.buffer_proxy(
-                            tvm.tir.decl_buffer(
-                                [1], "int32", "start", data=start_ptr, scope="local"
-                            )
-                        )
-                        middle = T.buffer_proxy(
-                            tvm.tir.decl_buffer(
-                                [1], "int32", "middle", data=middle_ptr, scope="local"
-                            )
-                        )
-                        end = T.buffer_proxy(
-                            tvm.tir.decl_buffer([1], "int32", "end", data=end_ptr, scope="local")
-                        )
-                        tmp = T.buffer_proxy(
-                            tvm.tir.decl_buffer([1], out_dtype, "tmp", data=tmp_ptr, scope="local")
-                        )
+                        start = T.buffer_proxy(start_buf)
+                        middle = T.buffer_proxy(middle_buf)
+                        end = T.buffer_proxy(end_buf)
+                        tmp = T.buffer_proxy(tmp_buf)
                         start[0] = width * tid
                         with T.If(tvm.tir.all(start[0] < scan_axis_size)):
                             with T.Then():

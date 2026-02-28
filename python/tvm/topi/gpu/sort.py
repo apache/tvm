@@ -110,71 +110,36 @@ def _odd_even_sort(
         tid = 2 * tx
         start = bx * block_size
 
-        # Build list of allocations
-        alloc_frames = [
-            T.allocate([block_size], keys_swap.dtype, scope="shared"),  # tmp_keys_swap
-            T.allocate([1], keys_swap.dtype, scope="local"),  # temp_keys
-            T.allocate([1], keys_swap.dtype, scope="local"),  # temp_cond1
-            T.allocate([1], keys_swap.dtype, scope="local"),  # temp_cond2
+        # Build list of buffer declarations (DeclBuffer generates both Allocate + DeclBuffer nodes)
+        decl_frames = [
+            T.decl_buffer([block_size], keys_swap.dtype, scope="shared"),  # tmp_keys_swap
+            T.decl_buffer([1], keys_swap.dtype, scope="local"),  # temp_keys
+            T.decl_buffer([1], keys_swap.dtype, scope="local"),  # temp_cond1
+            T.decl_buffer([1], keys_swap.dtype, scope="local"),  # temp_cond2
         ]
         if values_swap is not None:
-            alloc_frames.append(
-                T.allocate([block_size], values_swap.dtype, scope="shared")
+            decl_frames.append(
+                T.decl_buffer([block_size], values_swap.dtype, scope="shared")
             )  # tmp_values_swap
-            alloc_frames.append(T.allocate([1], values_swap.dtype, scope="local"))  # temp_values
+            decl_frames.append(T.decl_buffer([1], values_swap.dtype, scope="local"))  # temp_values
 
-        with T.frame_scope(alloc_frames) as allocs:
+        with T.frame_scope(decl_frames) as bufs:
             if values_swap is not None:
                 (
-                    tmp_keys_swap_ptr,
-                    temp_keys_ptr,
-                    temp_cond1_ptr,
-                    temp_cond2_ptr,
-                    tmp_values_swap_ptr,
-                    temp_values_ptr,
-                ) = allocs
+                    tmp_keys_swap,
+                    temp_keys,
+                    temp_cond1,
+                    temp_cond2,
+                    tmp_values_swap,
+                    temp_values,
+                ) = bufs
             else:
                 (
-                    tmp_keys_swap_ptr,
-                    temp_keys_ptr,
-                    temp_cond1_ptr,
-                    temp_cond2_ptr,
-                ) = allocs
-                tmp_values_swap_ptr = None
-                temp_values_ptr = None
-
-            # Create buffer views
-            tmp_keys_swap = tvm.tir.decl_buffer(
-                [block_size],
-                keys_swap.dtype,
-                "tmp_keys_swap",
-                data=tmp_keys_swap_ptr,
-                scope="shared",
-            )
-            temp_keys = tvm.tir.decl_buffer(
-                [1], keys_swap.dtype, "temp_keys", data=temp_keys_ptr, scope="local"
-            )
-            temp_cond1 = tvm.tir.decl_buffer(
-                [1], keys_swap.dtype, "temp_cond1", data=temp_cond1_ptr, scope="local"
-            )
-            temp_cond2 = tvm.tir.decl_buffer(
-                [1], keys_swap.dtype, "temp_cond2", data=temp_cond2_ptr, scope="local"
-            )
-            if values_swap is not None:
-                tmp_values_swap = tvm.tir.decl_buffer(
-                    [block_size],
-                    values_swap.dtype,
-                    "tmp_values_swap",
-                    data=tmp_values_swap_ptr,
-                    scope="shared",
-                )
-                temp_values = tvm.tir.decl_buffer(
-                    [1],
-                    values_swap.dtype,
-                    "temp_values",
-                    data=temp_values_ptr,
-                    scope="local",
-                )
+                    tmp_keys_swap,
+                    temp_keys,
+                    temp_cond1,
+                    temp_cond2,
+                ) = bufs
 
             # Copy data to scratch space
             base_idx = by_val * size * axis_mul_after + bz
@@ -386,24 +351,16 @@ def _sort_common(
     ):
         with T.frame_scope(
             [
-                T.allocate([1], target_dtype, scope="local"),  # first
-                T.allocate([1], target_dtype, scope="local"),  # last
-                T.allocate([1], target_dtype, scope="local"),  # i_buf
-                T.allocate([1], target_dtype, scope="local"),  # j_buf
+                T.decl_buffer([1], target_dtype, scope="local"),  # first
+                T.decl_buffer([1], target_dtype, scope="local"),  # last
+                T.decl_buffer([1], target_dtype, scope="local"),  # i_buf
+                T.decl_buffer([1], target_dtype, scope="local"),  # j_buf
             ]
-        ) as (first_ptr, last_ptr, i_ptr, j_ptr):
-            first = T.buffer_proxy(
-                tvm.tir.decl_buffer([1], target_dtype, "first", data=first_ptr, scope="local")
-            )
-            last = T.buffer_proxy(
-                tvm.tir.decl_buffer([1], target_dtype, "last", data=last_ptr, scope="local")
-            )
-            i_buf = T.buffer_proxy(
-                tvm.tir.decl_buffer([1], target_dtype, "i", data=i_ptr, scope="local")
-            )
-            j_buf = T.buffer_proxy(
-                tvm.tir.decl_buffer([1], target_dtype, "j", data=j_ptr, scope="local")
-            )
+        ) as (first_buf, last_buf, i_buf_buf, j_buf_buf):
+            first = T.buffer_proxy(first_buf)
+            last = T.buffer_proxy(last_buf)
+            i_buf = T.buffer_proxy(i_buf_buf)
+            j_buf = T.buffer_proxy(j_buf_buf)
 
             diag = tx * step_count
             with T.If(even):
@@ -469,36 +426,20 @@ def _sort_common(
     ):
         with T.frame_scope(
             [
-                T.allocate([1], target_dtype, scope="local"),  # outer_first
-                T.allocate([1], target_dtype, scope="local"),  # outer_last
-                T.allocate([1], target_dtype, scope="local"),  # first
-                T.allocate([1], target_dtype, scope="local"),  # last
-                T.allocate([1], target_dtype, scope="local"),  # i_buf
-                T.allocate([1], target_dtype, scope="local"),  # j_buf
+                T.decl_buffer([1], target_dtype, scope="local"),  # outer_first
+                T.decl_buffer([1], target_dtype, scope="local"),  # outer_last
+                T.decl_buffer([1], target_dtype, scope="local"),  # first
+                T.decl_buffer([1], target_dtype, scope="local"),  # last
+                T.decl_buffer([1], target_dtype, scope="local"),  # i_buf
+                T.decl_buffer([1], target_dtype, scope="local"),  # j_buf
             ]
-        ) as (outer_first_ptr, outer_last_ptr, first_ptr, last_ptr, i_ptr, j_ptr):
-            outer_first = T.buffer_proxy(
-                tvm.tir.decl_buffer(
-                    [1], target_dtype, "outer_first", data=outer_first_ptr, scope="local"
-                )
-            )
-            outer_last = T.buffer_proxy(
-                tvm.tir.decl_buffer(
-                    [1], target_dtype, "outer_last", data=outer_last_ptr, scope="local"
-                )
-            )
-            first = T.buffer_proxy(
-                tvm.tir.decl_buffer([1], target_dtype, "first", data=first_ptr, scope="local")
-            )
-            last = T.buffer_proxy(
-                tvm.tir.decl_buffer([1], target_dtype, "last", data=last_ptr, scope="local")
-            )
-            i_buf = T.buffer_proxy(
-                tvm.tir.decl_buffer([1], target_dtype, "i", data=i_ptr, scope="local")
-            )
-            j_buf = T.buffer_proxy(
-                tvm.tir.decl_buffer([1], target_dtype, "j", data=j_ptr, scope="local")
-            )
+        ) as (outer_first_buf, outer_last_buf, first_buf, last_buf, i_buf_buf, j_buf_buf):
+            outer_first = T.buffer_proxy(outer_first_buf)
+            outer_last = T.buffer_proxy(outer_last_buf)
+            first = T.buffer_proxy(first_buf)
+            last = T.buffer_proxy(last_buf)
+            i_buf = T.buffer_proxy(i_buf_buf)
+            j_buf = T.buffer_proxy(j_buf_buf)
 
             diag = bx * step_count
             with T.If(even):

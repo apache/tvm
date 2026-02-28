@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name
 """searchsorted operator"""
 
-import tvm
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tir as T
 
@@ -41,12 +40,12 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
     """
     with T.frame_scope(
         [
-            T.allocate([1], out_dtype, scope="local"),
-            T.allocate([1], out_dtype, scope="local"),
+            T.decl_buffer([1], out_dtype, scope="local"),
+            T.decl_buffer([1], out_dtype, scope="local"),
         ]
-    ) as (lo_ptr, hi_ptr):
-        lo = T.buffer_proxy(tvm.tir.decl_buffer([1], out_dtype, "lo", data=lo_ptr, scope="local"))
-        hi = T.buffer_proxy(tvm.tir.decl_buffer([1], out_dtype, "hi", data=hi_ptr, scope="local"))
+    ) as (lo_buf, hi_buf):
+        lo = T.buffer_proxy(lo_buf)
+        hi = T.buffer_proxy(hi_buf)
 
         lo[0] = cast(0, out_dtype)
         hi[0] = cast(search_range, out_dtype)
