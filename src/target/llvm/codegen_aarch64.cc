@@ -55,7 +55,6 @@ void CodeGenAArch64::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
 }
 
 void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
-#if TVM_LLVM_VERSION >= 130
   // Add vscale_range() function attribute when appropriate.
   if (llvm_target_->TargetHasCPUFeature("sve") || llvm_target_->TargetHasCPUFeature("sme")) {
     auto kVScaleValues = arith::GetVScaleValues(Target::Current());
@@ -65,7 +64,6 @@ void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
           llvm::Attribute::getWithVScaleRangeArgs(*llvm_target_->GetContext(), 1, max_val));
     }
   }
-#endif
   CodeGenCPU::SetTargetAttributes(func);
 }
 

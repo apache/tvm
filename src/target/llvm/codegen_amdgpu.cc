@@ -30,19 +30,15 @@
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
-#include <tvm/ffi/reflection/registry.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsAMDGPU.h>
-#endif
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IRReader/IRReader.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/Support/Alignment.h>
-#endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
+#include <tvm/ffi/reflection/registry.h>
 #if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
@@ -126,17 +122,9 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
           return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
         });
-#if TVM_LLVM_VERSION >= 110
         auto alignment = static_cast<unsigned>(alloca->getAlign().value());
-#else
-        unsigned alignment = alloca->getAlignment();
-#endif
         if (alignment < static_cast<unsigned>(info.alignment)) {
-#if TVM_LLVM_VERSION >= 100
           alloca->setAlignment(llvm::Align(info.alignment));
-#else
-          alloca->setAlignment(info.alignment);
-#endif
         }
         buf = alloca;
       } else {
@@ -233,25 +221,11 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       llvm::Value* v0 = MakeValue(op->args[0]);
       llvm::Value* v1 = MakeValue(op->args[1]);
       if (op->args[1]->dtype.is_float()) {
-#if TVM_LLVM_VERSION >= 90
-#if TVM_LLVM_VERSION >= 130
         return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1, llvm::MaybeAlign(),
                                          llvm::AtomicOrdering::Monotonic);
-#else
-        return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
-                                         llvm::AtomicOrdering::Monotonic);
-#endif
-#else
-        TVM_FFI_THROW(InternalError) << "Floating point atomic requires LLVM 9 or newer";
-#endif
       }
-#if TVM_LLVM_VERSION >= 130
       return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1, llvm::MaybeAlign(),
                                        llvm::AtomicOrdering::Monotonic);
-#else
-      return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
-                                       llvm::AtomicOrdering::Monotonic);
-#endif
     }
     return CodeGenLLVM::CreateIntrinsic(op);
   }
@@ -268,11 +242,6 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
   LLVMInstance llvm_instance;
 
   With<LLVMTarget> llvm_target(llvm_instance, target);
-#if TVM_LLVM_VERSION < 90
-  TVM_FFI_THROW(InternalError) << "AMDGPU backend requires at least LLVM 9";
-  // Lower versions will crash when loading the bitcode, see
-  // issue #4087 for a discussion
-#endif
   auto cg = std::make_unique<CodeGenAMDGPU>();
 
   cg->Init("TVMAMDGPUModule", llvm_target.get(), std::nullopt, false, false);
@@ -305,23 +274,11 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
   dest_ll.SetUnbuffered();
   destAsm.SetUnbuffered();
   module->print(dest_ll, nullptr);
-#if TVM_LLVM_VERSION <= 60
-  std::unique_ptr<llvm::Module> mAsm = llvm::CloneModule(module.get());
-  std::unique_ptr<llvm::Module> mObj = llvm::CloneModule(module.get());
-#else
   std::unique_ptr<llvm::Module> mAsm = llvm::CloneModule(*module.get());
   std::unique_ptr<llvm::Module> mObj = llvm::CloneModule(*module.get());
-#endif
   llvm::legacy::PassManager pass;
 
-#if TVM_LLVM_VERSION <= 60
-  TVM_FFI_ICHECK(tm->addPassesToEmitFile(pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
-      << "Cannot emit target CGFT_ObjectFile";
-#elif TVM_LLVM_VERSION <= 90
-  TVM_FFI_ICHECK(
-      tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
-      << "Cannot emit target CGFT_ObjectFile";
-#elif TVM_LLVM_VERSION <= 170
+#if TVM_LLVM_VERSION <= 170
   TVM_FFI_ICHECK(tm->addPassesToEmitFile(pass, destObj, nullptr, llvm::CGFT_ObjectFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 #else
@@ -333,15 +290,7 @@ ffi::Module BuildAMDGPU(IRModule mod, Target target) {
   std::string obj(dataObj.begin(), dataObj.end());
 
   llvm::legacy::PassManager passAsm;
-#if TVM_LLVM_VERSION <= 60
-  TVM_FFI_ICHECK(
-      tm->addPassesToEmitFile(passAsm, destAsm, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
-      << "Cannot emit target CGFT_AssemblyFile";
-#elif TVM_LLVM_VERSION <= 90
-  TVM_FFI_ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
-                                         llvm::TargetMachine::CGFT_AssemblyFile) == 0)
-      << "Cannot emit target CGFT_AssemblyFile";
-#elif TVM_LLVM_VERSION <= 170
+#if TVM_LLVM_VERSION <= 170
   TVM_FFI_ICHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr, llvm::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
 #else

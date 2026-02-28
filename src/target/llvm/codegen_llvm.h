@@ -31,24 +31,15 @@
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/ConstantFolder.h>
 #include <llvm/IR/Constants.h>
-#include <llvm/IR/DerivedTypes.h>
-#if TVM_LLVM_VERSION >= 150
-#include <llvm/IR/FMF.h>
-#else
-#include <llvm/IR/Operator.h>
-#endif
 #include <llvm/IR/DebugInfoMetadata.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/FMF.h>
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
-#include <llvm/Support/Casting.h>
-#if TVM_LLVM_VERSION >= 140
 #include <llvm/MC/TargetRegistry.h>
-#else
-#include <llvm/Support/TargetRegistry.h>
-#endif
-
+#include <llvm/Support/Casting.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
 #include <tvm/target/codegen.h>
@@ -509,13 +500,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \return The retrieved argument.
    */
   llvm::Argument* GetArg(const llvm::Function* function, int i) const {
-#if TVM_LLVM_VERSION >= 100
     return function->getArg(i);
-#elif TVM_LLVM_VERSION >= 50
-    return const_cast<llvm::Argument*>(&function->arg_begin()[i]);
-#else
-    return const_cast<llvm::Argument*>(&*std::next(function->arg_begin(), i));
-#endif
   }
 
   // The IRBuilder.
@@ -627,11 +612,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
 };
 
 inline int CodeGenLLVM::GetVectorNumElements(llvm::Value* vec) {
-#if TVM_LLVM_VERSION >= 120
   return llvm::cast<llvm::FixedVectorType>(vec->getType())->getNumElements();
-#else
-  return llvm::cast<llvm::VectorType>(vec->getType())->getNumElements();
-#endif
 }
 
 template <typename IterType, typename ConvType>
