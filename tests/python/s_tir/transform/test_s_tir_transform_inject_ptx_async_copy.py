@@ -953,7 +953,7 @@ def test_multiplication_nodes_are_inlined():
         @T.prim_func
         def main(A: T.Buffer((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
-            A_flattened = T.Buffer((4096,), "float16", data=A.data)
+            A_flattened = T.decl_buffer((4096,), "float16", data=A.data)
             A_shared = T.decl_buffer([4096], "float16", scope="shared")
 
             T.attr("default", "async_scope", 1)
@@ -970,6 +970,7 @@ def test_multiplication_nodes_are_inlined():
         @T.prim_func
         def main(A: T.Buffer((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
+            A_flattened = T.decl_buffer((4096,), "float16", data=A.data)
             A_shared = T.decl_buffer((4096,), "float16", scope="shared")
             for i in range(16):
                 cse_v1: T.int64 = T.Cast("int64", i)

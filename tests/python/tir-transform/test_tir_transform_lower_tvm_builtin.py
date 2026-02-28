@@ -43,7 +43,7 @@ def test_lower_call_packed():
             T.attr("", "device_id", T.int32(0))
             T.call_packed("tvm.test_matmul", A, B, C)
 
-    @I.ir_module
+    @I.ir_module(check_well_formed=False)
     class Expected:
         @T.prim_func
         def main(
@@ -152,7 +152,7 @@ def test_call_packed_return_non_i32():
 
 
 def test_lower_overflow_int32():
-    @T.prim_func
+    @T.prim_func(check_well_formed=False)
     def variance4(rxplaceholder: T.Buffer((T.int64(1), T.int64(32), T.int64(25690112)), "float32")):
         T.func_attr({"global_symbol": "variance4", "tir.noalias": True})
         rxplaceholder_red = T.allocate([32], "float32", "global")

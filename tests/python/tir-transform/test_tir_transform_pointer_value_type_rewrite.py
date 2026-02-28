@@ -30,26 +30,27 @@ def test_rewrite_to_shuffle_0():
         @T.prim_func
         def main(A: T.Buffer((16,), "float32"), B: T.Buffer((4,), "float32")):
             A_local_data = T.allocate([16], "float32", scope="local")
-            A_local = T.Buffer((16,), "float32", data=A_local_data, scope="local")
+            A_local = T.decl_buffer((16,), "float32", data=A_local_data, scope="local")
             for i in range(4):
                 A_local[i * 4 : i * 4 + 4] = A[i * 4 : i * 4 + 4]
             for i in range(4):
                 B[i] = A_local[i * 4] + A_local[i * 4 + 1] + A_local[i * 4 + 2] + A_local[i * 4 + 3]
 
-    @I.ir_module
+    @I.ir_module(check_well_formed=False)
     class Expected:
         @T.prim_func
         def main(A: T.Buffer((4,), "float32x4"), B: T.Buffer((4,), "float32")):
             A_local_data = T.allocate([4], "float32x4", scope="local")
-            A_local = T.Buffer((4,), "float32x4", data=A_local_data, scope="local")
+            _A_local = T.decl_buffer((16,), "float32", data=A_local_data, scope="local")
+            A_local_1 = T.Buffer((4,), "float32x4", data=A_local_data, scope="local")
             for i in range(4):
-                A_local[T.Div(i * 4, 4)] = A[T.Div(i * 4, 4)]
+                A_local_1[T.Div(i * 4, 4)] = A[T.Div(i * 4, 4)]
             for i in range(4):
                 B[i] = (
-                    T.Shuffle([A_local[T.Div(i * 4, 4)]], [0])
-                    + T.Shuffle([A_local[T.Div(i * 4 + 1, 4)]], [1])
-                    + T.Shuffle([A_local[T.Div(i * 4 + 2, 4)]], [2])
-                    + T.Shuffle([A_local[T.Div(i * 4 + 3, 4)]], [3])
+                    T.Shuffle([A_local_1[T.Div(i * 4, 4)]], [0])
+                    + T.Shuffle([A_local_1[T.Div(i * 4 + 1, 4)]], [1])
+                    + T.Shuffle([A_local_1[T.Div(i * 4 + 2, 4)]], [2])
+                    + T.Shuffle([A_local_1[T.Div(i * 4 + 3, 4)]], [3])
                 )
 
     After = transform(Before)
@@ -64,7 +65,7 @@ def test_rewrite_to_shuffle_1():
         @T.prim_func
         def main(A: T.Buffer((8,), "float32"), B: T.Buffer((1,), "float32")):
             A_local_data = T.allocate([8], "float32", scope="local")
-            A_local = T.Buffer((8,), "float32", data=A_local_data, scope="local")
+            A_local = T.decl_buffer((8,), "float32", data=A_local_data, scope="local")
             A_local[0:4] = A[0:4]
             A_local[4:8] = A[4:8]
             B[0] = (
@@ -78,23 +79,24 @@ def test_rewrite_to_shuffle_1():
                 + A_local[7]
             )
 
-    @I.ir_module
+    @I.ir_module(check_well_formed=False)
     class Expected:
         @T.prim_func
         def main(A: T.Buffer((2,), "float32x4"), B: T.Buffer((1,), "float32")):
             A_local_data = T.allocate([2], "float32x4", "local")
-            A_local = T.Buffer((2,), "float32x4", data=A_local_data, scope="local")
-            A_local[0] = A[0]
-            A_local[1] = A[1]
+            _A_local = T.decl_buffer((8,), data=A_local_data, scope="local")
+            A_local_1 = T.Buffer((2,), "float32x4", data=A_local_data, scope="local")
+            A_local_1[0] = A[0]
+            A_local_1[1] = A[1]
             B[0] = (
-                T.Shuffle([A_local[0]], [0])
-                + T.Shuffle([A_local[0]], [1])
-                + T.Shuffle([A_local[0]], [2])
-                + T.Shuffle([A_local[0]], [3])
-                + T.Shuffle([A_local[1]], [0])
-                + T.Shuffle([A_local[1]], [1])
-                + T.Shuffle([A_local[1]], [2])
-                + T.Shuffle([A_local[1]], [3])
+                T.Shuffle([A_local_1[0]], [0])
+                + T.Shuffle([A_local_1[0]], [1])
+                + T.Shuffle([A_local_1[0]], [2])
+                + T.Shuffle([A_local_1[0]], [3])
+                + T.Shuffle([A_local_1[1]], [0])
+                + T.Shuffle([A_local_1[1]], [1])
+                + T.Shuffle([A_local_1[1]], [2])
+                + T.Shuffle([A_local_1[1]], [3])
             )
 
     After = transform(Before)

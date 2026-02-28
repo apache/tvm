@@ -27,6 +27,8 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include <unordered_set>
+
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
 
@@ -42,13 +44,29 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   static PrimFunc Flatten(PrimFunc func) {
     arith::Analyzer ana;
     auto pass = BufferFlattener(&ana);
-    auto writer = func.CopyOnWrite();
     pass.MarkBufferMapShapes(func);
-    writer->body = pass.VisitStmt(func->body);
+    auto body = pass.VisitStmt(func->body);
+
     // The buffers in func->buffer_map are deliberately left
     // unflattened, as they are used for validation of user-provided
     // arguments.  The flattened buffers used in the updated
     // function body alias the argument buffers.
+    for (size_t i = func->params.size(); i > 0; i--) {
+      auto handle = func->params[i - 1];
+      if (auto opt = func->buffer_map.Get(handle)) {
+        auto old_buf = opt.value();
+        if (pass.buffers_used_.count(old_buf)) {
+          auto new_buf = pass.GetFlattenedBuffer(old_buf);
+          if (!old_buf.same_as(new_buf)) {
+            body = DeclBuffer(new_buf, std::move(body));
+          }
+        }
+      }
+    }
+
+    if (!body.same_as(func->body)) {
+      func.CopyOnWrite()->body = std::move(body);
+    }
     return func;
   }
 
@@ -154,11 +172,14 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    // TODO(rfc-70): Update the DeclBuffer node instead of
-    // stripping it out.  Stripping it out in the current
-    // implementation as not all lowering passes support
-    // DeclBuffer.
-    return VisitStmt(op->body);
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+
+    auto new_buf = GetFlattenedBuffer(node->buffer);
+    if (!node->buffer.same_as(new_buf)) {
+      node.CopyOnWrite()->buffer = new_buf;
+    }
+
+    return std::move(node);
   }
 
   Buffer GetFlattenedBuffer(Buffer buf) {
@@ -228,6 +249,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     TVM_FFI_ICHECK(node->buffer.defined());
+    buffers_used_.insert(node->buffer);
     auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
     Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
 
@@ -265,6 +287,10 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
 
   /*! \brief Map of buffers being remapped. */
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
+
+  /*! \brief Set of buffers accessed during visitation (used to emit DeclBuffer for param buffers).
+   */
+  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffers_used_;
 
   /*! \brief The updated external buffer map. */
   ffi::Map<Var, Buffer> updated_extern_buffer_map_;

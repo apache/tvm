@@ -305,8 +305,8 @@ def test_size_var():
             B = T.match_buffer(var_B, (m,))
             T.attr(T.target("cuda"), "target", 0)
             blockIdx_x = T.launch_thread("blockIdx.x", m)
-            B_1 = T.Buffer((m,), data=B.data)
-            A_1 = T.Buffer((m,), data=A.data)
+            B_1 = T.decl_buffer((m,), data=B.data)
+            A_1 = T.decl_buffer((m,), data=A.data)
             B_1[blockIdx_x] = A_1[blockIdx_x]
 
     after = tvm.tir.transform.SplitHostDevice()(Module)

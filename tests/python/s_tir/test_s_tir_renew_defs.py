@@ -136,7 +136,7 @@ def test_undefined_buffer():
     def access_alloc():
         # Buffer A should be remapped
         A_data = T.allocate([128], "float16", "global")
-        A = T.Buffer(shape=[128], dtype="float16", data=A_data)
+        A = T.decl_buffer(shape=[128], dtype="float16", data=A_data)
         # check if buffer var also get remapped
         T.evaluate(A.data)
         for i in range(128):
@@ -149,7 +149,7 @@ def test_undefined_buffer():
     assert f1.body.buffer_var != f2.body.buffer_var
 
     def _get_buffer_store_buffer(f):
-        return f.body.body[1].body.buffer
+        return f.body.body.body[1].body.buffer
 
     _check_buffer_decl(_get_buffer_store_buffer(f1), _get_buffer_store_buffer(f2))
 

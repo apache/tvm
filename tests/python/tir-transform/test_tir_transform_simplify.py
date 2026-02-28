@@ -24,8 +24,8 @@ from tvm.script import tir as T
 def test_stmt_simplify():
     @T.prim_func(private=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
-        A_ptr = T.Buffer((10,), "float32", data=A)
-        C_ptr = T.Buffer((10,), "float32", data=C)
+        A_ptr = T.decl_buffer((10,), "float32", data=A)
+        C_ptr = T.decl_buffer((10,), "float32", data=C)
         n_val: T.int32 = 10
         for i in T.serial(n_val):
             if i < 12:
@@ -33,6 +33,9 @@ def test_stmt_simplify():
 
     mod = tvm.IRModule.from_expr(func)
     body = tvm.tir.transform.Simplify()(mod)["main"].body
+    # Navigate through DeclBuffer nodes to reach the inner body
+    while isinstance(body, tvm.tir.DeclBuffer):
+        body = body.body
     # After simplification, LetStmt -> For -> BufferStore (if is eliminated since i < 12 is always true for i in 0..10)
     assert isinstance(body.body, tvm.tir.BufferStore)
 
@@ -40,8 +43,8 @@ def test_stmt_simplify():
 def test_thread_extent_simplify():
     @T.prim_func(private=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
-        A_ptr = T.Buffer((10,), "float32", data=A)
-        C_ptr = T.Buffer((10,), "float32", data=C)
+        A_ptr = T.decl_buffer((10,), "float32", data=A)
+        C_ptr = T.decl_buffer((10,), "float32", data=C)
         n_val: T.int32 = 10
         for tx in T.thread_binding(n_val, thread="threadIdx.x"):
             for ty in T.thread_binding(1, thread="threadIdx.y"):
@@ -50,6 +53,9 @@ def test_thread_extent_simplify():
 
     mod = tvm.IRModule.from_expr(func)
     body = tvm.tir.transform.Simplify()(mod)["main"].body
+    # Navigate through DeclBuffer nodes to reach the inner body
+    while isinstance(body, tvm.tir.DeclBuffer):
+        body = body.body
     # After simplification: For(tx) -> For(ty) -> BufferStore
     # The LetStmt and if are eliminated since tx + ty < 12 is always true for tx in 0..10 and ty = 0
     assert isinstance(body, tvm.tir.For)  # tx loop
@@ -60,8 +66,8 @@ def test_thread_extent_simplify():
 def test_if_likely():
     @T.prim_func(private=True)
     def func(A: T.handle("float32"), C: T.handle("float32"), n: T.int32):
-        A_ptr = T.Buffer((32,), "float32", data=A)
-        C_ptr = T.Buffer((1024,), "float32", data=C)
+        A_ptr = T.decl_buffer((32,), "float32", data=A)
+        C_ptr = T.decl_buffer((1024,), "float32", data=C)
         for tx in T.thread_binding(32, thread="threadIdx.x"):
             for ty in T.thread_binding(32, thread="threadIdx.y"):
                 if T.likely(tx * 32 + ty < n):
@@ -70,6 +76,9 @@ def test_if_likely():
 
     mod = tvm.IRModule.from_expr(func)
     body = tvm.tir.transform.Simplify()(mod)["main"].body
+    # Navigate through DeclBuffer nodes to reach the inner body
+    while isinstance(body, tvm.tir.DeclBuffer):
+        body = body.body
     # Structure: For(tx) -> For(ty) -> IfThenElse
     assert isinstance(body.body.body, tvm.tir.IfThenElse)
     assert not isinstance(body.body.body.then_case, tvm.tir.IfThenElse)
