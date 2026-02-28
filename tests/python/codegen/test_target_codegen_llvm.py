@@ -89,7 +89,7 @@ def test_llvm_lookup_intrin():
     class Module:
         @T.prim_func
         def main(A: T.handle("uint8x8")):
-            A_buf = T.Buffer((1,), "uint8x8", data=A)
+            A_buf = T.decl_buffer((1,), "uint8x8", data=A)
             T.evaluate(T.call_llvm_pure_intrin("uint8x8", "llvm.ctpop.v8i8", T.uint32(1), A_buf[0]))
 
     fcode = tvm.compile(Module, None)
@@ -1068,8 +1068,8 @@ def test_debug_symbol_for_float64():
         @T.prim_func
         def main(a: T.handle("float64"), b: T.handle("float64"), n: T.int64):
             T.func_attr({"calling_conv": 2})
-            A = T.Buffer(16, "float64", data=a)
-            B = T.Buffer(16, "float64", data=b)
+            A = T.decl_buffer(16, "float64", data=a)
+            B = T.decl_buffer(16, "float64", data=b)
             for i in range(n):
                 B[i] = A[i]
 
