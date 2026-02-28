@@ -310,7 +310,7 @@ def test_strided():
             C = T.decl_buffer(256, dtype="float32", data=input_C.data)
             for i0 in T.serial(0, 4):
                 B_new_data = T.allocate([68], "float32", scope="global")
-                B_new = T.decl_buffer([68], "float32", scope="global", data=B_new_data)
+                _B_new = T.decl_buffer([68], "float32", scope="global", data=B_new_data)
                 B_new_1 = T.decl_buffer([68], "float32", scope="global", data=B_new_data)
                 for i1 in T.serial(0, 4):
                     for j in T.serial(0, 16):

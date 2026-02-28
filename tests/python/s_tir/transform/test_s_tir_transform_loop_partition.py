@@ -475,7 +475,8 @@ def test_loop_partition_with_unit_loop_in_condition():
             for i1, i2, i3 in T.grid(64, 28, 28):
                 T_concat_1[i1 * 784 + i2 * 28 + i3] = placeholder_3[i1 * 784 + i2 * 28 + i3]
             for i1, i2, i3 in T.grid(32, 28, 28):
-                T_concat_1[i1 * 784 + i2 * 28 + i3 + 50176] = placeholder_1_1[i1 * 784 + i2 * 28 + i3]
+                idx = i1 * 784 + i2 * 28 + i3
+                T_concat_1[idx + 50176] = placeholder_1_1[idx]
             for i1, i2, i3 in T.grid(32, 28, 28):
                 T_concat_1[i2 * 28 + i3] = placeholder_2_1[i1 * 784 + i2 * 28 + i3]
 
