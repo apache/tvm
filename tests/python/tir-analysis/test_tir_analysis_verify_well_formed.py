@@ -487,9 +487,7 @@ def test_error_buffer_used_out_of_decl_scope():
         buffer_map={A.data: A},
     )
 
-    with pytest.raises(
-        ValueError, match="buffer B.*declaration is no longer in-scope"
-    ):
+    with pytest.raises(ValueError, match="buffer B.*declaration is no longer in-scope"):
         tvm.tir.analysis.verify_well_formed(prim_func)
 
 
@@ -523,18 +521,14 @@ def test_error_undeclared_buffer_in_schedulable_tir():
 
     prim_func = tvm.tir.PrimFunc(
         params=[A.data, B_data],
-        body=tvm.tir.For(
-            i, 0, n, tvm.tir.ForKind.SERIAL, block_realize
-        ),
+        body=tvm.tir.For(i, 0, n, tvm.tir.ForKind.SERIAL, block_realize),
         buffer_map={A.data: A},
         # Note: B is NOT in buffer_map, so its declaration scope is only
         # within a DeclBuffer node (which we intentionally omit here).
     )
 
     # B is used in the block but was never declared — should fail.
-    with pytest.raises(
-        ValueError, match="buffer B.*without a prior DeclBuffer"
-    ):
+    with pytest.raises(ValueError, match="buffer B.*without a prior DeclBuffer"):
         tvm.tir.analysis.verify_well_formed(prim_func)
 
 

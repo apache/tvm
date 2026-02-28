@@ -21,13 +21,13 @@
  * \file flatten_buffer.cc
  */
 
-#include <unordered_set>
-
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
+
+#include <unordered_set>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "ir_utils.h"
@@ -288,7 +288,8 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   /*! \brief Map of buffers being remapped. */
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
 
-  /*! \brief Set of buffers accessed during visitation (used to emit DeclBuffer for param buffers). */
+  /*! \brief Set of buffers accessed during visitation (used to emit DeclBuffer for param buffers).
+   */
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> buffers_used_;
 
   /*! \brief The updated external buffer map. */

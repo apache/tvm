@@ -41,7 +41,9 @@ def opt_gemm_lower():
             C_1 = T.match_buffer(C, [16384], elem_offset=0, align=64, offset_factor=1)
             # body
             packedB_data = T.allocate([32768], "float32", "global")
-            packedB = T.decl_buffer(shape=[32768], dtype="float32", scope="global", data=packedB_data)
+            packedB = T.decl_buffer(
+                shape=[32768], dtype="float32", scope="global", data=packedB_data
+            )
             for x in T.parallel(0, 32):
                 for y in T.serial(0, 1024):
                     packedB[T.ramp(((x * 32768) + (y * 32)), 1, 32)] = B_1[y, T.ramp(x * 32, 1, 32)]
