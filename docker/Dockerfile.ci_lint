@@ -45,14 +45,7 @@ ENV VIRTUAL_ENV=${TVM_VENV}
 # Disable .local directory from affecting CI.
 ENV PYTHONNOUSERSITE=1
 
-RUN uv pip install cpplint==1.6.1 pylint==2.17.2 mypy==0.902 black==22.12.0 flake8==3.9.2 blocklint==0.2.3 jinja2==3.0.3
-
-# java deps for rat
-COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
-RUN bash /install/ubuntu_install_java.sh
-
-COPY install/ubuntu_install_rat.sh /install/ubuntu_install_rat.sh
-RUN bash /install/ubuntu_install_rat.sh
+RUN uv pip install jinja2==3.0.3
 
 COPY install/ubuntu_install_clang_format.sh /install/ubuntu_install_clang_format.sh
 RUN bash /install/ubuntu_install_clang_format.sh
@@ -60,6 +53,5 @@ RUN bash /install/ubuntu_install_clang_format.sh
 COPY install/ubuntu_install_nodejs.sh /install/ubuntu_install_nodejs.sh
 RUN bash /install/ubuntu_install_nodejs.sh
 
-# To prevent `black` command line errors caused by ASCII encoding
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
