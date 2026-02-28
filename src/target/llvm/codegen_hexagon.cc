@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#if defined(TVM_LLVM_VERSION) && TVM_LLVM_VERSION >= 70
+#ifdef TVM_LLVM_VERSION
 
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/SmallString.h>
@@ -29,23 +29,19 @@
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
-#include <tvm/ffi/reflection/registry.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsHexagon.h>
-#endif
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Module.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/Support/Alignment.h>
-#endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/analysis.h>
@@ -89,10 +85,8 @@ class CodeGenHexagon final : public CodeGenCPU {
   uint64_t GetTypeSizeInBits(llvm::Type* type) const {
 #if TVM_LLVM_VERSION >= 160
     return data_layout_->getTypeSizeInBits(type).getFixedValue();
-#elif TVM_LLVM_VERSION >= 100
-    return data_layout_->getTypeSizeInBits(type).getFixedSize();
 #else
-    return data_layout_->getTypeSizeInBits(type);
+    return data_layout_->getTypeSizeInBits(type).getFixedSize();
 #endif
   }
 
@@ -171,11 +165,7 @@ llvm::Value* CodeGenHexagon::CreateCallExternQHL(Type ret_type, ffi::String glob
       f = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
                                  MakeStringRef(global_symbol), module_.get());
     }
-#if TVM_LLVM_VERSION >= 90
     auto ext_callee = llvm::FunctionCallee(f);
-#else
-    auto ext_callee = f;
-#endif
     vect_split.push_back(builder_->CreateCall(ext_callee, sub_vect_val));
   }
   return CodeGenCPU::CreateVecConcat(vect_split);
@@ -208,7 +198,6 @@ llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
 }
 
 llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
-#if TVM_LLVM_VERSION >= 150
   if (op->op.same_as(builtin::start_profile_intrinsic()) ||
       op->op.same_as(builtin::end_profile_intrinsic())) {
     llvm::Value* id = MakeValue(op->args[0]);
@@ -230,7 +219,6 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
     llvm::Type* t_int8_p_ = llvmGetPointerTo(t_int8_, 0);
     return builder_->CreateCall(func, {llvm::ConstantExpr::getBitCast(name_var, t_int8_p_), id});
   }
-#endif
   return CodeGenCPU::CreateIntrinsic(op);
 }
 
@@ -303,11 +291,7 @@ llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
 #else
   llvm::Function* intf = llvm::Intrinsic::getDeclaration(module_.get(), IntID);
 #endif
-#if TVM_LLVM_VERSION >= 90
   auto intf_callee = llvm::FunctionCallee(intf);
-#else
-  auto intf_callee = intf;
-#endif
   std::vector<llvm::Value*> conv_args;
   llvm::FunctionType* intf_type = intf->getFunctionType();
   TVM_FFI_ICHECK(args.size() == intf_type->getNumParams());
@@ -400,11 +384,7 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_typ
   int ret_bits = GetTypeSizeInBits(ret_type);
   TVM_FFI_ICHECK_GE(res_bits, ret_bits);
   if (ret_bits < res_bits) {
-#if TVM_LLVM_VERSION >= 110
     llvm::Type* res_byte_type = llvm::VectorType::get(t_int8_, res_bits / 8, /*Scalable*/ false);
-#else
-    llvm::Type* res_byte_type = llvm::VectorType::get(t_int8_, res_bits / 8);
-#endif
     result = CreateVecSlice(builder_->CreateBitCast(result, res_byte_type), 0, ret_bits / 8);
   }
   if (result->getType() != ret_type) {
@@ -525,10 +505,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
       else
         llvm::WriteBitcodeToFile(m, os);
     } else if (cgft == Asm || cgft == Obj) {
-#if TVM_LLVM_VERSION <= 90
-      auto ft = cgft == Asm ? llvm::TargetMachine::CodeGenFileType::CGFT_AssemblyFile
-                            : llvm::TargetMachine::CodeGenFileType::CGFT_ObjectFile;
-#elif TVM_LLVM_VERSION <= 170
+#if TVM_LLVM_VERSION <= 170
       auto ft = cgft == Asm ? llvm::CGFT_AssemblyFile : llvm::CGFT_ObjectFile;
 #else
       auto ft =

@@ -43,13 +43,11 @@
 #include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
-#include <tvm/ffi/reflection/registry.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/Support/Alignment.h>
-#endif
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/module.h>
 #include <tvm/tir/analysis.h>
@@ -177,10 +175,6 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
 llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
                                                     const ffi::Array<Type>& param_types,
                                                     const Type& return_type) {
-#if TVM_LLVM_VERSION < 50
-  return nullptr;
-#else
-
   llvm::SmallVector<llvm::Metadata*, 4> paramTys;
 
   paramTys.push_back(GetDebugType(return_type));
@@ -193,12 +187,8 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
 
   bool local_to_unit = llvm::GlobalVariable::isLocalLinkage(llvm::GlobalValue::InternalLinkage);
 
-#if TVM_LLVM_VERSION >= 80
   auto SPFlags = llvm::DISubprogram::toSPFlags(local_to_unit, /*IsDefinition=*/true,
                                                /*IsOptimized=*/true);
-#else
-  bool SPFlags = /*IsOptimized=*/true;
-#endif
 
   auto* DIFunction = dbg_info_->di_builder_->createFunction(
       /*Scope=*/dbg_info_->file_, /*Name=*/name, /*LinkageName=*/"",
@@ -206,8 +196,6 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
       /*ScopeLine=*/0, /*Flags=*/llvm::DINode::FlagPrototyped, /*SPFlags=*/SPFlags);
 
   return DIFunction;
-
-#endif
 }
 
 llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& func) {
@@ -426,11 +414,7 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, ffi::String global_symb
 llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string name) {
   llvm::GlobalVariable* gv = new llvm::GlobalVariable(
       *module_, p_type, false, llvm::GlobalValue::LinkOnceAnyLinkage, nullptr, name);
-#if TVM_LLVM_VERSION >= 100
   gv->setAlignment(llvm::Align(data_layout_->getTypeAllocSize(p_type)));
-#else
-  gv->setAlignment(data_layout_->getTypeAllocSize(p_type));
-#endif
   gv->setInitializer(llvm::Constant::getNullValue(p_type));
   gv->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
   // comdat is needed for windows select any linking to work
@@ -445,14 +429,8 @@ llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string
 
 llvm::Value* CodeGenCPU::GetContextPtr(llvm::GlobalVariable* gv) {
   TVM_FFI_ICHECK(gv != nullptr);
-#if TVM_LLVM_VERSION >= 110
   llvm::LoadInst* faddr =
       builder_->CreateAlignedLoad(gv->getValueType(), gv, llvm::Align(gv->getAlignment()));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv->getValueType(), gv, gv->getAlignment());
-#else
-  llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv, gv->getAlignment());
-#endif
   faddr->setMetadata("tbaa",
                      md_builder_->createTBAAStructTagNode(md_tbaa_ctx_ptr_, md_tbaa_ctx_ptr_, 0));
   return faddr;
@@ -568,16 +546,11 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     var_map_[var.get()] = v;
     if (var.dtype().is_handle() && !alias_var_set_.count(var.get())) {
       // set non alias.
-#if TVM_LLVM_VERSION >= 50
       fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
       // always not inline compute function to make the code structure clean
-#else
-      fcompute->setDoesNotAlias(idx + 1);
-#endif
       fcompute->addFnAttr(llvm::Attribute::NoInline);
     }
     // Add alignment attribute if needed.
-#if TVM_LLVM_VERSION >= 50
     auto f = alloc_storage_info_.find(var.get());
     if (f != alloc_storage_info_.end()) {
       unsigned align = f->second.alignment;
@@ -586,7 +559,6 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
         fcompute->addParamAttr(idx, attr);
       }
     }
-#endif
   }
 
   function_ = fcompute;
@@ -650,11 +622,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   ffi::Array<Var> vfields = tir::UndefinedVars(body, {});
   uint64_t nbytes;
   TypedPointer cdata = PackClosureData(vfields, &nbytes, "closure_" + name);
-#if TVM_LLVM_VERSION >= 90
   auto launch_callee = llvm::FunctionCallee(ftype_tvm_parallel_launch_, RuntimeTVMParallelLaunch());
-#else
-  auto launch_callee = RuntimeTVMParallelLaunch();
-#endif
   llvm::BasicBlock* par_launch_end = CheckCallSuccess(builder_->CreateCall(
       launch_callee,
       {f, builder_->CreatePointerCast(cdata.addr, t_void_p_), ConstInt32(num_task)}));
@@ -701,11 +669,7 @@ llvm::Value* CodeGenCPU::CreateStaticHandle() {
   llvm::GlobalVariable* gv =
       new llvm::GlobalVariable(*module_, t_void_p_, false, llvm::GlobalValue::PrivateLinkage,
                                nullptr, "__tvm_static_handle");
-#if TVM_LLVM_VERSION >= 100
   gv->setAlignment(llvm::Align(data_layout_->getTypeAllocSize(t_void_p_)));
-#else
-  gv->setAlignment(data_layout_->getTypeAllocSize(t_void_p_));
-#endif
   gv->setInitializer(llvm::Constant::getNullValue(t_void_p_));
   return gv;
 }
@@ -768,11 +732,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
     hptr =
         new llvm::GlobalVariable(*module_, t_tvm_func_handle_, false,
                                  llvm::GlobalValue::InternalLinkage, nullptr, ".tvm_func." + fname);
-#if TVM_LLVM_VERSION >= 100
     hptr->setAlignment(llvm::Align(align));
-#else
-    hptr->setAlignment(align);
-#endif
     hptr->setInitializer(llvm::Constant::getNullValue(t_tvm_func_handle_));
     func_handle_map_[fname] = hptr;
   } else {
@@ -783,13 +743,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
   llvm::BasicBlock* pre_block = builder_->GetInsertBlock();
   auto* init_block = llvm::BasicBlock::Create(*ctx, "handle_init", function_);
   auto* end_block = llvm::BasicBlock::Create(*ctx, "handle_init_end", function_);
-#if TVM_LLVM_VERSION >= 110
   llvm::Value* handle = builder_->CreateAlignedLoad(hptr->getValueType(), hptr, llvm::Align(align));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::Value* handle = builder_->CreateAlignedLoad(hptr->getValueType(), hptr, align);
-#else
-  llvm::Value* handle = builder_->CreateAlignedLoad(hptr, align);
-#endif
   llvm::Value* handle_not_null =
       builder_->CreateICmpNE(handle, llvm::Constant::getNullValue(t_tvm_func_handle_));
   builder_->CreateCondBr(handle_not_null, end_block, init_block, md_very_likely_branch_);
@@ -797,32 +751,15 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
   builder_->SetInsertPoint(init_block);
   llvm::Value* out =
       WithFunctionEntry([&]() { return builder_->CreateAlloca(t_tvm_func_handle_); });
-#if TVM_LLVM_VERSION >= 110
   llvm::LoadInst* ctx_load = builder_->CreateAlignedLoad(gv_mod_ctx_->getValueType(), gv_mod_ctx_,
                                                          llvm::Align(gv_mod_ctx_->getAlignment()));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::LoadInst* ctx_load = builder_->CreateAlignedLoad(gv_mod_ctx_->getValueType(), gv_mod_ctx_,
-                                                         gv_mod_ctx_->getAlignment());
-#else
-  llvm::LoadInst* ctx_load = builder_->CreateAlignedLoad(gv_mod_ctx_, gv_mod_ctx_->getAlignment());
-#endif
   ctx_load->setMetadata(
       "tbaa", md_builder_->createTBAAStructTagNode(md_tbaa_ctx_ptr_, md_tbaa_ctx_ptr_, 0));
-#if TVM_LLVM_VERSION >= 90
   auto env_callee = llvm::FunctionCallee(ftype_tvm_get_func_from_env_, RuntimeTVMGetFuncFromEnv());
-#else
-  auto env_callee = RuntimeTVMGetFuncFromEnv();
-#endif
   llvm::Value* retcode = builder_->CreateCall(env_callee, {ctx_load, GetConstString(fname), out});
   init_block = CheckCallSuccess(retcode);
-#if TVM_LLVM_VERSION >= 110
   llvm::Value* loaded_handle =
       builder_->CreateAlignedLoad(t_tvm_func_handle_, out, llvm::Align(align));
-#elif TVM_LLVM_VERSION >= 80
-  llvm::Value* loaded_handle = builder_->CreateAlignedLoad(t_tvm_func_handle_, out, align);
-#else
-  llvm::Value* loaded_handle = builder_->CreateAlignedLoad(out, align);
-#endif
   // Store the handle
   builder_->CreateStore(loaded_handle, hptr);
   builder_->CreateBr(end_block);
@@ -876,12 +813,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimEx
     call_args.push_back(llvm::ConstantPointerNull::get(t_void_p_));
     call_args.insert(call_args.end(), {packed_args, ConstInt32(nargs), result});
   }
-#if TVM_LLVM_VERSION >= 90
   auto call_callee = llvm::FunctionCallee(callee_ftype, callee_value);
-#else
-  (void)callee_ftype;  // use callee_ftype to avoid unused variable warning when using older LLVM.
-  auto call_callee = callee_value;
-#endif
   llvm::Value* call = builder_->CreateCall(call_callee, call_args);
 
   llvm::BasicBlock* end_block = CheckCallSuccess(call);
@@ -896,26 +828,14 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimEx
         builder_->CreateInBoundsGEP(t_tvm_ffi_any_, result, {ConstInt32(0), ConstInt32(2)});
     llvm::Value* load_ptr =
         builder_->CreatePointerCast(result_value, llvmGetPointerTo(llvm_r_api_type, 0));
-#if TVM_LLVM_VERSION >= 110
     llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, llvm::Align(8));
-#elif TVM_LLVM_VERSION >= 80
-    llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, 8);
-#else
-    llvm::Value* rvalue = builder_->CreateAlignedLoad(load_ptr, 8);
-#endif
 
     pc.ret_value = CreateCast(r_api_type, r_type, rvalue);
     llvm::Value* result_type_index =
         builder_->CreateInBoundsGEP(t_tvm_ffi_any_, result, {ConstInt32(0), ConstInt32(0)});
 
     // Load the return type code.
-#if TVM_LLVM_VERSION >= 110
     pc.ret_type_index = builder_->CreateAlignedLoad(t_int32_, result_type_index, llvm::Align(4));
-#elif TVM_LLVM_VERSION >= 80
-    pc.ret_type_index = builder_->CreateAlignedLoad(t_int32_, result_type_index, 8);
-#else
-    pc.ret_type_index = builder_->CreateAlignedLoad(result_type_index, 8);
-#endif
   }
 
   pc.end_block = end_block;
@@ -1095,12 +1015,8 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
   // fail condition.
   builder_->SetInsertPoint(fail_block);
 
-#if TVM_LLVM_VERSION >= 90
   auto err_callee = llvm::FunctionCallee(ftype_tvm_ffi_error_set_raised_by_c_str_,
                                          RuntimeTVMFFIErrorSetRaisedFromCStr());
-#else
-  auto err_callee = RuntimeTVMFFIErrorSetRaisedFromCStr();
-#endif
   builder_->CreateCall(err_callee, {GetConstString("RuntimeError"), msg});
   builder_->CreateRet(ConstInt32(-1));
   // otherwise set it to be new end.
@@ -1131,12 +1047,8 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
           << "Cannot not place within parallel loop as the workload may differ, "
           << " place it between parallel and parallel_launch_point";
       this->VisitStmt(op->body);
-#if TVM_LLVM_VERSION >= 90
       auto bar_callee =
           llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
-#else
-      auto bar_callee = RuntimeTVMParallelBarrier();
-#endif
       builder_->CreateCall(bar_callee, {MakeValue(parallel_env_.task_id), parallel_env_.penv});
     } else if (op->attr_key == tir::attr::pragma_import_llvm) {
       const StringImmNode* value = op->value.as<StringImmNode>();

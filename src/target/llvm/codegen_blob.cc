@@ -43,9 +43,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Value.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/Support/Alignment.h>
-#endif
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/runtime/module.h>
@@ -95,11 +93,7 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     tvm_ffi_library_bin->setSection(".lrodata");
   }
 
-#if TVM_LLVM_VERSION >= 100
   tvm_ffi_library_bin->setAlignment(llvm::Align(1));
-#else
-  tvm_ffi_library_bin->setAlignment(1);
-#endif
 
   if (triple.isOSWindows()) {
     tvm_ffi_library_bin->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
@@ -116,17 +110,8 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     auto* tvm_ffi_library_bin_reg =
         new llvm::GlobalVariable(*module, int32_ty, false, llvm::GlobalValue::InternalLinkage,
                                  constant_zero, mdev_blob_name + "_reg_");
-    auto tvm_ffi_library_bin_reg_alignment =
-#if TVM_LLVM_VERSION >= 110
-        module->getDataLayout().getABITypeAlign(int32_ty);
-#else
-        module->getDataLayout().getABITypeAlignment(int32_ty);
-#endif
-#if TVM_LLVM_VERSION >= 100
+    auto tvm_ffi_library_bin_reg_alignment = module->getDataLayout().getABITypeAlign(int32_ty);
     tvm_ffi_library_bin_reg->setAlignment(llvm::Align(tvm_ffi_library_bin_reg_alignment));
-#else
-    tvm_ffi_library_bin_reg->setAlignment(tvm_ffi_library_bin_reg_alignment);
-#endif
 
     auto* tvm_ffi_library_bin_string_ty =
         llvm::ArrayType::get(int8_ty, mdev_blob_name.length() + 1);
@@ -135,11 +120,7 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     auto* tvm_ffi_library_bin_string = new llvm::GlobalVariable(
         *module, tvm_ffi_library_bin_string_ty, true, llvm::GlobalValue::PrivateLinkage,
         tvm_ffi_library_bin_string_value, mdev_blob_name + ".str");
-#if TVM_LLVM_VERSION >= 100
     tvm_ffi_library_bin_string->setAlignment(llvm::Align(1));
-#else
-    tvm_ffi_library_bin_string->setAlignment(1);
-#endif
 
     // Global init function
     llvm::Function* init_fn = llvm::Function::Create(

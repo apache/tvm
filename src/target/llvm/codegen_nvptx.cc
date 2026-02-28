@@ -30,22 +30,18 @@
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
-#include <tvm/ffi/reflection/registry.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsNVPTX.h>
-#endif
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IRReader/IRReader.h>
-#if TVM_LLVM_VERSION >= 100
 #include <llvm/Support/Alignment.h>
-#endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Support/SourceMgr.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
+#include <tvm/ffi/reflection/registry.h>
 #if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
@@ -110,17 +106,9 @@ class CodeGenNVPTX : public CodeGenLLVM {
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
           return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
         });
-#if TVM_LLVM_VERSION >= 110
         auto alignment = static_cast<unsigned>(alloca->getAlign().value());
-#else
-        unsigned alignment = alloca->getAlignment();
-#endif
         if (alignment < static_cast<unsigned>(info.alignment)) {
-#if TVM_LLVM_VERSION >= 100
           alloca->setAlignment(llvm::Align(info.alignment));
-#else
-          alloca->setAlignment(info.alignment);
-#endif
         }
         buf = alloca;
       } else {
@@ -293,25 +281,11 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
     llvm::Value* v0 = MakeValue(op->args[0]);
     llvm::Value* v1 = MakeValue(op->args[1]);
     if (op->args[1]->dtype.is_float()) {
-#if TVM_LLVM_VERSION >= 90
-#if TVM_LLVM_VERSION >= 130
       return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1, llvm::MaybeAlign(),
                                        llvm::AtomicOrdering::Monotonic);
-#else
-      return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1,
-                                       llvm::AtomicOrdering::Monotonic);
-#endif
-#else
-      TVM_FFI_THROW(InternalError) << "Floating point atomic requires LLVM 9 or newer";
-#endif
     }
-#if TVM_LLVM_VERSION >= 130
     return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1, llvm::MaybeAlign(),
                                      llvm::AtomicOrdering::Monotonic);
-#else
-    return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::Add, v0, v1,
-                                     llvm::AtomicOrdering::Monotonic);
-#endif
   }
   return CodeGenLLVM::CreateIntrinsic(op);
 }
@@ -359,15 +333,7 @@ ffi::Module BuildNVPTX(IRModule mod, Target target) {
   std::string ll(data_ll.begin(), data_ll.end());
   // emit ptx
   llvm::legacy::PassManager pass;
-#if TVM_LLVM_VERSION <= 60
-  TVM_FFI_ICHECK(tm->addPassesToEmitFile(pass, dest_ptx, llvm::TargetMachine::CGFT_AssemblyFile) ==
-                 0)
-      << "Cannot emit target CGFT_ObjectFile";
-#elif TVM_LLVM_VERSION <= 90
-  TVM_FFI_ICHECK(
-      tm->addPassesToEmitFile(pass, dest_ptx, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
-      << "Cannot emit target CGFT_ObjectFile";
-#elif TVM_LLVM_VERSION <= 170
+#if TVM_LLVM_VERSION <= 170
   TVM_FFI_ICHECK(tm->addPassesToEmitFile(pass, dest_ptx, nullptr, llvm::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
 #else
