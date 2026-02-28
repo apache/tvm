@@ -28,6 +28,13 @@ repos:
         language_version: python3
         pass_filenames: false
         verbose: false
+      - id: check-file-type
+        name: check file types
+        entry: python tests/lint/check_file_type.py
+        language: python
+        language_version: python3
+        pass_filenames: false
+        verbose: false
       - id: check-cmake-options
         name: check CMake options mirroring
         entry: python tests/lint/check_cmake_options.py

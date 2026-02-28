@@ -62,7 +62,6 @@ function run_lint_step() {
 }
 
 if [ $# -eq 0 ]; then
-    # NOTE: matches order in tests/scripts/task_lint.sh
     steps=( "${DEFAULT_STEPS[@]}" )
 else
     steps=( "$@" )

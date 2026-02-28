@@ -350,7 +350,7 @@ def lint(interactive: bool = False, fix: bool = False, docker_image: str | None 
     docker(
         name=gen_name("ci-lint"),
         image="ci_lint" if docker_image is None else docker_image,
-        scripts=["./tests/scripts/task_lint.sh"],
+        scripts=["pre-commit run --all-files"],
         env=env,
         interactive=interactive,
     )
