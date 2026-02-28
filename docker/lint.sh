@@ -48,10 +48,6 @@ function run_lint_step() {
         blocklint|file_type|asf|clang_format|python_format|pylint)
             cmd=( pre-commit run --all-files )
             ;;
-        mypy)
-            echo "mypy: now handled by pre-commit (skipping standalone run)"
-            return 0
-            ;;
         *)
             echo "error: don't know how to run lint step: $1" >&2
             echo "usage: ${SCRIPT_NAME} [-i] <lint_step>" >&2

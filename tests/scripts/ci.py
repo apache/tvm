@@ -590,7 +590,6 @@ generated = [
                 "run unit tests",
                 [
                     "./tests/scripts/task_java_unittest.sh",
-                    "./tests/scripts/task_opencl_cpp_unittest.sh {build_dir}",
                     "./tests/scripts/task_python_unittest_gpuonly.sh",
                     "./tests/scripts/task_python_integration_gpuonly.sh",
                 ],
@@ -635,20 +634,6 @@ generated = [
         options={
             "cpp": CPP_UNITTEST,
             "test": ("run WASM tests", ["./tests/scripts/task_web_wasm.sh"]),
-        },
-    ),
-    generate_command(
-        name="hexagon",
-        help="Run Hexagon build and test(s)",
-        post_build=["./tests/scripts/task_build_hexagon_api.sh --output build-hexagon"],
-        options={
-            "cpp": CPP_UNITTEST,
-            "test": (
-                "run Hexagon API/Python tests",
-                [
-                    "./tests/scripts/task_python_hexagon.sh",
-                ],
-            ),
         },
     ),
     generate_command(
