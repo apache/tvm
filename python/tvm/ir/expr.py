@@ -32,7 +32,7 @@ from .base import Node, Span
 class BaseExpr(Node):
     """Base class of all the expressions."""
 
-    span: Optional[Span]
+    span: Span | None
 
 
 @tvm_ffi.register_object("ir.PrimExpr")
@@ -101,7 +101,7 @@ class GlobalVar(RelaxExpr):
 
             return relax.Call(self, args)
 
-        elif all(isinstance(x, (Number, PrimExpr)) for x in args):
+        elif all(isinstance(x, Number | PrimExpr) for x in args):
             return tvm.tir.call_tir(self, *args)
 
         arg_types = [type(x) for x in args]
@@ -135,17 +135,15 @@ class Range(Node, Scriptable):
 
     min: PrimExpr
     extent: PrimExpr
-    span: Optional[Span]
+    span: Span | None
 
     def __init__(
-        self, begin: PrimExpr, end: Optional[PrimExpr] = None, span: Optional[Span] = None
+        self, begin: PrimExpr, end: PrimExpr | None = None, span: Span | None = None
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
 
     @staticmethod
-    def from_min_extent(
-        min_value: PrimExpr, extent: PrimExpr, span: Optional[Span] = None
-    ) -> "Range":
+    def from_min_extent(min_value: PrimExpr, extent: PrimExpr, span: Span | None = None) -> "Range":
         """Construct a Range by min and extent.
 
         This constructs a range in [min_value, min_value + extent)

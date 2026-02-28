@@ -78,8 +78,8 @@ import platform
 import shutil
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import pytest
@@ -602,13 +602,13 @@ class Feature:
     def __init__(
         self,
         name: str,
-        long_name: Optional[str] = None,
-        cmake_flag: Optional[str] = None,
-        target_kind_enabled: Optional[str] = None,
-        compile_time_check: Optional[Callable[[], Union[bool, str]]] = None,
-        target_kind_hardware: Optional[str] = None,
-        run_time_check: Optional[Callable[[], Union[bool, str]]] = None,
-        parent_features: Optional[Union[str, List[str]]] = None,
+        long_name: str | None = None,
+        cmake_flag: str | None = None,
+        target_kind_enabled: str | None = None,
+        compile_time_check: Callable[[], bool | str] | None = None,
+        target_kind_hardware: str | None = None,
+        run_time_check: Callable[[], bool | str] | None = None,
+        parent_features: str | list[str] | None = None,
     ):
         self.name = name
         self.long_name = long_name or name
@@ -1667,7 +1667,7 @@ def fixture(func=None, *, cache_return_value=False):
     return wraps(func)
 
 
-def get_dtype_range(dtype: str) -> Tuple[int, int]:
+def get_dtype_range(dtype: str) -> tuple[int, int]:
     """
     Produces the min,max for a give data type.
 

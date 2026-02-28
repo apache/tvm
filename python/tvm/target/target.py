@@ -16,8 +16,6 @@
 # under the License.
 """Target data structure."""
 
-from typing import Union
-
 import tvm_ffi
 
 from tvm.ir.container import Map
@@ -133,14 +131,14 @@ class Target(Object):
             When using a dictionary or json string to configure target, the possible values are
             same as target.
         """
-        if isinstance(target, (dict, str)):
+        if isinstance(target, dict | str):
             target = convert(target)
-        if isinstance(host, (dict, str)):
+        if isinstance(host, dict | str):
             host = convert(host)
-        if target is None or not isinstance(target, (Map, String, Target, str)):
+        if target is None or not isinstance(target, Map | String | Target | str):
             raise ValueError(f"target has to be a string or dictionary. instead get {type(target)}")
         if host is not None:
-            if not isinstance(host, (Map, String, Target, str)):
+            if not isinstance(host, Map | String | Target | str):
                 raise ValueError("target host has to be a string or dictionary.")
             self.__init_handle_by_constructor__(_ffi_api.Target, Target(target), Target(host))
         else:
@@ -160,7 +158,7 @@ class Target(Object):
         return _ffi_api.WithHost(self, Target(host))
 
     @staticmethod
-    def from_device(device: Union[str, Device]) -> "Target":
+    def from_device(device: str | Device) -> "Target":
         """Detects Target associated with the given device. If the device does not exist,
         there will be an Error.
 

@@ -18,7 +18,7 @@
 
 import functools
 import inspect
-from typing import Callable, List, Optional, Union
+from collections.abc import Callable
 
 import tvm_ffi
 
@@ -69,11 +69,11 @@ def _wrap_class_function_pass(pass_cls, pass_info):
 
 def prim_func_pass(
     pass_func=None,
-    opt_level: Optional[int] = None,
-    name: Optional[str] = None,
-    required: Optional[List[str]] = None,
+    opt_level: int | None = None,
+    name: str | None = None,
+    required: list[str] | None = None,
     traceable=False,
-) -> Union[Callable, PrimFuncPass]:
+) -> Callable | PrimFuncPass:
     """Decorate a function pass.
 
     This function returns a callback when pass_func
@@ -145,7 +145,7 @@ def prim_func_pass(
         raise ValueError("Please provide opt_level for the function pass.")
 
     required = required if required else []
-    if not isinstance(required, (list, tuple)):
+    if not isinstance(required, list | tuple):
         raise TypeError("Required is expected to be the type of " + "list/tuple.")
 
     def create_function_pass(pass_arg):

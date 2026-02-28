@@ -78,7 +78,7 @@ def test_tir_large_py_int_literals(dtype, literals):
     """
     for l in literals:
         x = tir.const(l, dtype)
-        if isinstance(x, (tir.IntImm, tir.FloatImm)):
+        if isinstance(x, tir.IntImm | tir.FloatImm):
             assert x.value == literals[l]
         else:
             # LargeUIntImm(low32, hi32)
@@ -208,7 +208,7 @@ def check_tir_const_fold(
 
     if x_range is None:
         x_range = (ninfo.min, ninfo.max)
-    if isinstance(x_range, (int, float)):
+    if isinstance(x_range, int | float):
         x = x_range
     elif dtype.startswith("int") or dtype.startswith("uint"):
         x = np.random.randint(x_range[0], x_range[1] + 1, dtype=dtype)
@@ -217,7 +217,7 @@ def check_tir_const_fold(
 
     if y_range is None:
         y_range = (ninfo.min, ninfo.max)
-    if isinstance(y_range, (int, float)):
+    if isinstance(y_range, int | float):
         y = y_range
     elif dtype.startswith("int") or dtype.startswith("uint"):
         y = np.random.randint(y_range[0], y_range[1] + 1, dtype=dtype)
@@ -226,7 +226,7 @@ def check_tir_const_fold(
 
     if skip_overflow:
         py_res = foldf(x, y)
-        if isinstance(py_res, (tir.IntImm, tir.FloatImm)):
+        if isinstance(py_res, tir.IntImm | tir.FloatImm):
             py_res = py_res.value
         if not (ninfo.min <= py_res <= ninfo.max):
             # If the result overflow, certain arithmetics is non-defined

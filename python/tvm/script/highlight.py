@@ -23,12 +23,12 @@ import shutil
 import subprocess
 import sys
 import warnings
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 
 def cprint(
-    printable: Union[Any, str],
-    style: Optional[str] = None,
+    printable: Any | str,
+    style: str | None = None,
     black_format: bool = False,
 ) -> None:
     """Print TVMScript string with Pygments highlight and Black auto-formatting.
@@ -96,7 +96,7 @@ def cprint(
 
 
 @functools.lru_cache
-def _get_formatter(formatter: Optional[str] = None):
+def _get_formatter(formatter: str | None = None):
     def get_ruff_formatter():
         if shutil.which("ruff") is None:
             return None
@@ -161,7 +161,7 @@ def _get_formatter(formatter: Optional[str] = None):
     return get_fallback_formatter()
 
 
-def _format(code_str: str, formatter: Optional[str] = None) -> str:
+def _format(code_str: str, formatter: str | None = None) -> str:
     """Format a code string using Black.
 
     Parameters
@@ -186,8 +186,8 @@ def _format(code_str: str, formatter: Optional[str] = None) -> str:
 
 
 def _get_pygments_style(
-    style: Optional[str], is_in_notebook: bool
-) -> Optional[Union["pygments.style.Style", str]]:
+    style: str | None, is_in_notebook: bool
+) -> Union["pygments.style.Style", str] | None:
     """Select a pygments style to use
 
     Parameters

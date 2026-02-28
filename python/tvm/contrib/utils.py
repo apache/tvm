@@ -131,7 +131,7 @@ class TempDirectory:
         return pathlib.Path(self.temp_dir)
 
     def __truediv__(self, other):
-        if not isinstance(other, (str, pathlib.Path)):
+        if not isinstance(other, str | pathlib.Path):
             raise TypeError(
                 f"TempDirectory / operator: must supply str or pathlib.Path; got {other!r}"
             )

@@ -22,7 +22,7 @@
 import json
 import os
 import struct
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 from tvm_ffi import (
@@ -310,7 +310,7 @@ class Module(_Module):
             options = []
             if "options" in kwargs:
                 opts = kwargs["options"]
-                options = opts if isinstance(opts, (list, tuple)) else [opts]
+                options = opts if isinstance(opts, list | tuple) else [opts]
             opts = options + ["-I" + path for path in find_include_path()]
             kwargs.update({"options": opts})
 
