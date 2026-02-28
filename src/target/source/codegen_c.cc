@@ -1082,9 +1082,13 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
 void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
-  if (const auto* str = op->message.as<StringImmNode>()) {
-    // GLOG style check
-    stream << "TVM_FFI_ICHECK(" << cond << ") << \"" << str->value << "\";\n";
+  if (!op->message_parts.empty()) {
+    // Concatenate all parts into one message string for the ICHECK.
+    std::ostringstream msg;
+    for (const auto& part : op->message_parts) {
+      msg << part->value;
+    }
+    stream << "TVM_FFI_ICHECK(" << cond << ") << \"" << msg.str() << "\";\n";
   } else {
     stream << "assert(" << cond << ");\n";
   }

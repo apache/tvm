@@ -147,25 +147,28 @@ class AttrStmt : public Stmt {
 
 /*!
  * \brief Assert condition, if an error occurs, return the error message.
+ *
+ * The error is described by:
+ * - \p kind: the error kind (e.g. "RuntimeError", "TypeError", "ValueError")
+ * - \p message_parts: an array of string fragments that are concatenated at runtime
+ *   via TVMFFIErrorSetRaisedFromCStrParts. This enables string fragment reuse
+ *   across multiple assertions to reduce binary size.
  */
 class AssertStmtNode : public StmtNode {
  public:
+  /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
+  StringImm kind;
   /*! \brief Condition to be checked. */
   PrimExpr condition;
-  /*! \brief Error message when assertion failed. */
-  PrimExpr message;
-  /*!
-   * \brief Body which this assertion holds true.
-   *  Will be executed after the assertion.
-   */
-  Stmt body;
+  /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
+  ffi::Array<StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AssertStmtNode>()
+        .def_ro("kind", &AssertStmtNode::kind)
         .def_ro("condition", &AssertStmtNode::condition)
-        .def_ro("message", &AssertStmtNode::message)
-        .def_ro("body", &AssertStmtNode::body);
+        .def_ro("message_parts", &AssertStmtNode::message_parts);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AssertStmt", AssertStmtNode, StmtNode);
 };
@@ -176,7 +179,8 @@ class AssertStmtNode : public StmtNode {
  */
 class AssertStmt : public Stmt {
  public:
-  TVM_DLL AssertStmt(PrimExpr condition, PrimExpr message, Span span = Span());
+  TVM_DLL AssertStmt(StringImm kind, PrimExpr condition, ffi::Array<StringImm> message_parts,
+                     Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AssertStmt, Stmt, AssertStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AssertStmtNode);

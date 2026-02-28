@@ -537,9 +537,23 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
 
     node : doc.Assert
         The doc AST assert node.
+
+    The assert message can be either:
+    - A plain string: ``assert cond, "message"``
+    - A tuple of (kind, [parts...]): ``assert cond, ("ValueError", ["part0", "part1"])``
     """
     cond = self.eval_expr(node.test)
     msg = self.eval_expr(node.msg)
+    if isinstance(msg, tuple) and len(msg) == 2:
+        kind, parts = msg
+        if isinstance(kind, tvm.tir.StringImm):
+            kind = kind.value
+        if isinstance(parts, list | tuple):
+            parts_str = [p.value if isinstance(p, tvm.tir.StringImm) else str(p) for p in parts]
+            frame = T.Assert(cond, "".join(parts_str))
+            frame.add_callback(partial(frame.__exit__, None, None, None))
+            frame.__enter__()
+            return
     frame = T.Assert(cond, msg)
     frame.add_callback(partial(frame.__exit__, None, None, None))
     frame.__enter__()

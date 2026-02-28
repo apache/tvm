@@ -196,9 +196,6 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
 
   TResult VisitStmt_(const AssertStmtNode* op) override {
     TResult result = VisitExpr(op->condition);
-    if (op->message.defined()) {
-      result += VisitExpr(op->message);
-    }
     return result;
   }
 

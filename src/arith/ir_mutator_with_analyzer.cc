@@ -155,15 +155,13 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
-  PrimExpr message = this->VisitExpr(op->message);
   constraint_scope_.Current().Emplace(analyzer_, condition);
 
-  if (condition.same_as(op->condition) && message.same_as(op->message)) {
+  if (condition.same_as(op->condition)) {
     return ffi::GetRef<Stmt>(op);
   } else {
     auto n = this->CopyOnWrite(op);
     n->condition = std::move(condition);
-    n->message = std::move(message);
     return Stmt(n);
   }
 }

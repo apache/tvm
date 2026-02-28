@@ -43,7 +43,8 @@ void BinderAddAssert(arith::Analyzer* ana, PrimExpr cond, const std::string& arg
   if (!is_one(scond)) {
     std::ostringstream os;
     os << "Argument " << arg_name << " has an unsatisfied constraint: " << cond;
-    asserts->emplace_back(AssertStmt(scond, tvm::tir::StringImm(os.str())));
+    asserts->emplace_back(
+        AssertStmt(tvm::tir::StringImm("RuntimeError"), scond, {tvm::tir::StringImm(os.str())}));
   }
 }
 
@@ -158,8 +159,8 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   const Stmt nop = Evaluate(0);
 
   init_nest_.emplace_back(AssertStmt(
-      !Call(DataType::Bool(), builtin::isnullptr(), {handle}),
-      tvm::tir::StringImm(arg_name + " is expected to have non-NULL DLTensor* pointer")));
+      tvm::tir::StringImm("RuntimeError"), !Call(DataType::Bool(), builtin::isnullptr(), {handle}),
+      {tvm::tir::StringImm(arg_name + " is expected to have non-NULL DLTensor* pointer")}));
 
   // dimension checks
   PrimExpr v_ndim = TVMArrayGet(tvm_ndim_type, handle, builtin::kArrNDim);
@@ -179,7 +180,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   std::ostringstream ndim_err_msg;
   ndim_err_msg << arg_name << ".ndim is expected to equal " << buffer->shape.size();
   auto msg = tvm::tir::StringImm(ndim_err_msg.str());
-  init_nest_.emplace_back(AssertStmt(a_ndim == v_ndim, msg));
+  init_nest_.emplace_back(AssertStmt(tvm::tir::StringImm("RuntimeError"), a_ndim == v_ndim, {msg}));
   // type checks
   std::ostringstream type_err_msg;
   type_err_msg << arg_name << ".dtype is expected to be " << buffer->dtype;
@@ -192,7 +193,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   if (!(buffer->dtype == DataType::Int(1) || buffer->dtype == DataType::Int(4) ||
         buffer->dtype == DataType::UInt(4))) {
     auto type_msg = tvm::tir::StringImm(type_err_msg.str());
-    asserts_.emplace_back(AssertStmt(cond, type_msg));
+    asserts_.emplace_back(AssertStmt(tvm::tir::StringImm("RuntimeError"), cond, {type_msg}));
   }
 
   // shape field
@@ -236,9 +237,10 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     if (conds.size() != 0) {
       auto stride_msg = tvm::tir::StringImm(stride_err_msg.str());
       Stmt check = AssertStmt(
+          tvm::tir::StringImm("RuntimeError"),
           foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
                 const_true(1), conds),
-          stride_msg);
+          {stride_msg});
       check = IfThenElse(Not(v_strides_is_null), check);
       asserts_.emplace_back(SeqStmt({check, Evaluate(0)}));
     }
@@ -315,8 +317,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
       return product;
     }();
     asserts_.emplace_back(
-        AssertStmt(alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
-                   tvm::tir::StringImm(arg_name + " is expected to have non-NULL data pointer")));
+        AssertStmt(tvm::tir::StringImm("RuntimeError"),
+                   alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
+                   {tvm::tir::StringImm(arg_name + " is expected to have non-NULL data pointer")}));
 
     def_handle_dtype_.Set(vptr, tir::TypeAnnotation(buffer->dtype));
     // mark alignment of external bufs

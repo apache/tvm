@@ -131,14 +131,25 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::AssertStmt>("",
-                                   [](tir::AssertStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
-                                     ExprDoc cond =
-                                         d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
-                                     ExprDoc msg =
-                                         d->AsDoc<ExprDoc>(stmt->message, p->Attr("message"));
-                                     return AssertDoc(cond, msg);
-                                   });
+    .set_dispatch<tir::AssertStmt>(
+        "", [](tir::AssertStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
+          ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
+          if (stmt->message_parts.size() == 1 && stmt->kind->value == "RuntimeError") {
+            // Simple case: single message part with default kind, use standard assert syntax.
+            ExprDoc msg =
+                d->AsDoc<ExprDoc>(stmt->message_parts[0], p->Attr("message_parts")->ArrayItem(0));
+            return AssertDoc(cond, msg);
+          } else {
+            // General case: emit assert cond, (kind, [part0, part1, ...])
+            ffi::Array<ExprDoc> parts;
+            auto parts_path = p->Attr("message_parts");
+            for (size_t i = 0; i < stmt->message_parts.size(); ++i) {
+              parts.push_back(d->AsDoc<ExprDoc>(stmt->message_parts[i], parts_path->ArrayItem(i)));
+            }
+            ExprDoc kind_doc = d->AsDoc<ExprDoc>(stmt->kind, p->Attr("kind"));
+            return AssertDoc(cond, TupleDoc({kind_doc, ListDoc(parts)}));
+          }
+        });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::While>("", [](tir::While stmt, AccessPath p, IRDocsifier d) -> Doc {

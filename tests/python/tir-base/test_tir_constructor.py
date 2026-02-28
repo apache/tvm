@@ -141,8 +141,15 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.AttrStmt)
     assert x.value.value == 1
 
-    x = tvm.tir.AssertStmt(tvm.tir.const(1, "bool"), tvm.runtime.convert("hellow"))
+    x = tvm.tir.AssertStmt(
+        tvm.tir.StringImm("RuntimeError"),
+        tvm.tir.const(1, "bool"),
+        [tvm.tir.StringImm("hellow")],
+    )
     assert isinstance(x, tvm.tir.AssertStmt)
+    assert x.kind.value == "RuntimeError"
+    assert len(x.message_parts) == 1
+    assert x.message_parts[0].value == "hellow"
 
     x = tvm.tir.For(tvm.tir.Var("x", "int32"), 0, 10, tvm.tir.ForKind.SERIAL, nop)
     assert isinstance(x, tvm.tir.For)

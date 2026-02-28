@@ -94,6 +94,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::FunctionType* ftype_tvm_ffi_func_call_{nullptr};
   llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_error_set_raised_by_c_str_{nullptr};
+  llvm::FunctionType* ftype_tvm_ffi_error_set_raised_from_c_str_parts_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_launch_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_barrier_{nullptr};
   llvm::FunctionType* ftype_tvm_register_system_symbol_{nullptr};
@@ -118,6 +119,8 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMFFIFunctionCall();
   llvm::Value* RuntimeTVMGetFuncFromEnv();
   llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStr();
+  llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStrParts();
+  llvm::Function* GetOrCreateSetRaisedFromCStrParts(int max_n);
   llvm::Value* RuntimeTVMParallelLaunch();
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();
@@ -166,11 +169,14 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Function* f_tvm_ffi_func_call_{nullptr};
   llvm::Function* f_tvm_get_func_from_env_{nullptr};
   llvm::Function* f_tvm_ffi_set_raised_by_c_str_{nullptr};
+  llvm::Function* f_tvm_ffi_set_raised_from_c_str_parts_{nullptr};
   llvm::Function* f_tvm_parallel_launch_{nullptr};
   llvm::Function* f_tvm_parallel_barrier_{nullptr};
   llvm::Function* f_tvm_register_system_symbol_{nullptr};
   // Current parallel environment scope.
   ParallelEnv parallel_env_;
+  // cached noinline helper functions for SetRaisedFromCStrParts
+  std::unordered_map<int, llvm::Function*> set_raised_helpers_;
   // global to packed function handle
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
   // List of symbols to be exported to TVM system lib.

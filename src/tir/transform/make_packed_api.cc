@@ -168,12 +168,12 @@ class SubroutineCallRewriter : public StmtExprMutator {
 }  // namespace
 
 inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
-  return AssertStmt(lhs == rhs, tvm::tir::StringImm(msg));
+  return AssertStmt(tvm::tir::StringImm("RuntimeError"), lhs == rhs, {tvm::tir::StringImm(msg)});
 }
 
 inline Stmt MakeAssertNotNull(PrimExpr ptr, std::string msg) {
   Call isnull(DataType::Bool(), builtin::isnullptr(), {ptr});
-  return AssertStmt(!isnull, tvm::tir::StringImm(msg));
+  return AssertStmt(tvm::tir::StringImm("RuntimeError"), !isnull, {tvm::tir::StringImm(msg)});
 }
 
 /* \brief Return the global_symbol of the function, if it should be updated
@@ -296,11 +296,12 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     if (dtype.is_handle()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be pointer";
-      seq_init.emplace_back(AssertStmt(type_index == ffi::TypeIndex::kTVMFFINone ||
+      seq_init.emplace_back(AssertStmt(tvm::tir::StringImm("RuntimeError"),
+                                       type_index == ffi::TypeIndex::kTVMFFINone ||
                                            type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
                                            type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr ||
                                            type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin,
-                                       tvm::tir::StringImm(msg.str())));
+                                       {tvm::tir::StringImm(msg.str())}));
       // if type_index is Tensor, we need to add the offset of the DLTensor header
       // which always equals 16 bytes, this ensures that T.handle always shows up as a DLTensor*
       const int64_t object_cell_offset = sizeof(TVMFFIObject);
@@ -315,25 +316,28 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be boolean";
       seq_init.emplace_back(AssertStmt(
+          tvm::tir::StringImm("RuntimeError"),
           type_index == ffi::TypeIndex::kTVMFFIBool || type_index == ffi::TypeIndex::kTVMFFIInt,
-          tvm::tir::StringImm(msg.str())));
+          {tvm::tir::StringImm(msg.str())}));
       arg_value = Cast(DataType::Bool(), f_load_arg_value(DataType::Int(64), i));
 
     } else if (dtype.is_int() || dtype.is_uint()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be int";
       seq_init.emplace_back(AssertStmt(
+          tvm::tir::StringImm("RuntimeError"),
           type_index == ffi::TypeIndex::kTVMFFIInt || type_index == ffi::TypeIndex::kTVMFFIBool,
-          tvm::tir::StringImm(msg.str())));
+          {tvm::tir::StringImm(msg.str())}));
       arg_value = f_load_arg_value(param.dtype(), i);
     } else {
       TVM_FFI_ICHECK(dtype.is_float());
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be float";
-      seq_init.emplace_back(AssertStmt(type_index == ffi::TypeIndex::kTVMFFIFloat ||
+      seq_init.emplace_back(AssertStmt(tvm::tir::StringImm("RuntimeError"),
+                                       type_index == ffi::TypeIndex::kTVMFFIFloat ||
                                            type_index == ffi::TypeIndex::kTVMFFIInt ||
                                            type_index == ffi::TypeIndex::kTVMFFIBool,
-                                       tvm::tir::StringImm(msg.str())));
+                                       {tvm::tir::StringImm(msg.str())}));
       // use select so we can also handle int conversion to bool
       arg_value = tir::Select(
           type_index == ffi::TypeIndex::kTVMFFIFloat,

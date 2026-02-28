@@ -317,8 +317,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
     body = tir::SeqStmt(
         {tir::AssertStmt(
-             axis < tvm::cast(axis->dtype, ndim),
-             tir::StringImm("Specified axis may not be larger than the tensor's dimensionality")),
+             tir::StringImm("RuntimeError"), axis < tvm::cast(axis->dtype, ndim),
+             {tir::StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
          body});
 
     body = tir::LetStmt(
@@ -328,8 +328,9 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
                    IntImm(DataType::Int(32), tir::builtin::TVMStructFieldKind::kArrNDim)}),
         body);
 
-    body = tir::SeqStmt(
-        {tir::AssertStmt(0 <= axis, tir::StringImm("Specified axis may not be negative")), body});
+    body = tir::SeqStmt({tir::AssertStmt(tir::StringImm("RuntimeError"), 0 <= axis,
+                                         {tir::StringImm("Specified axis may not be negative")}),
+                         body});
 
     DictAttrs attrs({{"tir.is_scheduled", true}, {"tir.is_host", true}});
 

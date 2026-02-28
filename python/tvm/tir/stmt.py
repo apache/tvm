@@ -37,7 +37,7 @@ from tvm.runtime import Object, Scriptable, const
 
 from . import _ffi_api
 from .buffer import Buffer
-from .expr import IterVar, Var
+from .expr import IterVar, StringImm, Var
 
 
 class Stmt(Object, Scriptable):
@@ -84,25 +84,38 @@ class AssertStmt(Stmt):
 
     Parameters
     ----------
+    kind : StringImm
+        The error kind, e.g. "RuntimeError", "TypeError", "ValueError".
+
     condition : PrimExpr
         The assert condition.
 
-    message : PrimExpr
-        The error message.
+    message_parts : list[StringImm]
+        Error message fragments, concatenated at runtime when assertion fails.
 
     span : Span | None
         The location of the stmt in the source code.
     """
 
+    kind: StringImm
     condition: PrimExpr
-    message: PrimExpr
+    message_parts: list
     span: Span | None
 
-    def __init__(self, condition: PrimExpr, message: PrimExpr, span: Span | None = None) -> None:
+    def __init__(
+        self,
+        kind: StringImm,
+        condition: PrimExpr,
+        message_parts: list | None = None,
+        span: Span | None = None,
+    ) -> None:
+        if message_parts is None:
+            message_parts = []
         self.__init_handle_by_constructor__(
             _ffi_api.AssertStmt,
+            kind,
             condition,
-            message,
+            message_parts,
             span,  # type: ignore
         )
 

@@ -448,8 +448,9 @@ ForFrame Grid(ffi::Array<PrimExpr> extents) {
 
 AssertFrame Assert(PrimExpr condition, ffi::String message) {
   ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
+  n->kind = tvm::tir::StringImm("RuntimeError");
   n->condition = condition;
-  n->message = tvm::tir::StringImm(message);
+  n->message_parts = {tvm::tir::StringImm(message)};
   return AssertFrame(n);
 }
 
