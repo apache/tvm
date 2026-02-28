@@ -29,9 +29,8 @@ namespace tir {
 class AssertSkipper : public StmtMutator {
  public:
   Stmt VisitStmt_(const AssertStmtNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<AssertStmtNode>();
-    return op->body;
+    // AssertStmt is a leaf — just remove it.
+    return Evaluate(0);
   }
 };
 

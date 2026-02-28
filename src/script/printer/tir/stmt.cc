@@ -131,20 +131,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::AssertStmt>(
-        "", [](tir::AssertStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d, stmt);
-          ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
-          ExprDoc msg = d->AsDoc<ExprDoc>(stmt->message, p->Attr("message"));
-          With<TIRFrame> f(d, stmt);
-          AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-          if (concise) {
-            ffi::Array<StmtDoc>* stmts = &(*f)->stmts;
-            stmts->insert(stmts->begin(), AssertDoc(cond, msg));
-            return StmtBlockDoc(*stmts);
-          }
-          return ScopeDoc(std::nullopt, TIR(d, "Assert")->Call({cond, msg}), (*f)->stmts);
-        });
+    .set_dispatch<tir::AssertStmt>("",
+                                   [](tir::AssertStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
+                                     ExprDoc cond =
+                                         d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
+                                     ExprDoc msg =
+                                         d->AsDoc<ExprDoc>(stmt->message, p->Attr("message"));
+                                     return AssertDoc(cond, msg);
+                                   });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::While>("", [](tir::While stmt, AccessPath p, IRDocsifier d) -> Doc {
