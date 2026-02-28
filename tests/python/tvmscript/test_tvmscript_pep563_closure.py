@@ -19,6 +19,7 @@
 IMPORTANT: The `from __future__ import annotations` import below is the
 test condition itself, because we need to test compatibility with it.
 """
+
 from __future__ import annotations
 
 import tvm
@@ -127,12 +128,8 @@ def test_ir_module_closure():
     def expected_32(A: T.Buffer((32,), "float32")):
         T.evaluate(0)
 
-    tvm.ir.assert_structural_equal(
-        f(16)["main"], expected_16.with_attr("global_symbol", "main")
-    )
-    tvm.ir.assert_structural_equal(
-        f(32)["main"], expected_32.with_attr("global_symbol", "main")
-    )
+    tvm.ir.assert_structural_equal(f(16)["main"], expected_16.with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(f(32)["main"], expected_32.with_attr("global_symbol", "main"))
 
 
 def test_mixed_closure_usage():
