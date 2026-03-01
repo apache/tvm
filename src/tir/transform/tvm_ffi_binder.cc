@@ -799,10 +799,11 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
                                    StringImm(" bytes")})));
       }
 
-      // mark alignment of external bufs
-      init_nest_.emplace_back(AttrStmt(vptr, tir::attr::storage_alignment,
-                                       IntImm(DataType::Int(32), buffer->data_alignment),
-                                       Evaluate(0)));
+      // mark alignment of external bufs — must be after the alignment assertion
+      // so the compiler does not emit aligned loads before the check fires.
+      asserts_.emplace_back(AttrStmt(vptr, tir::attr::storage_alignment,
+                                     IntImm(DataType::Int(32), buffer->data_alignment),
+                                     Evaluate(0)));
     }
   }
 }
