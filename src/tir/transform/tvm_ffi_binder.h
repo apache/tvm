@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file arg_binder.h
+ * \file tvm_ffi_binder.h
  * \brief Helper utility to match and bind arguments.
  */
-#ifndef TVM_TIR_TRANSFORM_ARG_BINDER_H_
-#define TVM_TIR_TRANSFORM_ARG_BINDER_H_
+#ifndef TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_
+#define TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/access_path.h>
@@ -66,19 +66,23 @@ class ArgBinder {
    */
   explicit ArgBinder(std::unordered_map<const VarNode*, PrimExpr>* def_map) : def_map_(def_map) {}
   /*!
-   * \brief Set function signature info for rich error messages.
+   * \brief Constructor with function signature info for rich error messages.
    *
-   * When set, assertion failures will include the function signature
+   * When provided, assertion failures will include the function signature
    * in the error message to help users identify which function failed.
    * The signature is formatted as:
    *   func_name(param0: Tensor([dim0, dim1], dtype), param1: int32)
    *
+   * Also records a mapping from param_index to param_name so that
+   * AccessPath rendering replaces array indices with human-readable names.
+   *
+   * \param def_map A definition map that contains definition of known variables.
    * \param func_name The function name.
    * \param params The function parameters.
    * \param buffer_map The buffer map from parameters to buffers.
    */
-  void SetFunctionSignature(const std::string& func_name, const ffi::Array<Var>& params,
-                            const ffi::Map<Var, Buffer>& buffer_map);
+  ArgBinder(std::unordered_map<const VarNode*, PrimExpr>* def_map, const std::string& func_name,
+            const ffi::Array<Var>& params, const ffi::Map<Var, Buffer>& buffer_map);
   /*!
    * \brief Try to bind arg to value, generate constraint if necessary.
    * \param arg The argument to be binded.
@@ -119,10 +123,11 @@ class ArgBinder {
    * \param device_id The device id to be binded.
    * \param handle The DLTensor handle.
    * \param arg_name argument name.
-   * \param param_index The index of the parameter in the function signature (-1 if unknown).
+   * \param base_path The AccessPath for this parameter (e.g. Root()->ArrayItem(i)->Attr(name)).
    */
   void BindDLTensor(const Buffer& buffer, const PrimExpr& device_type, const PrimExpr& device_id,
-                    const Var& handle, const std::string& arg_name, int param_index = -1);
+                    const Var& handle, const std::string& arg_name,
+                    ffi::reflection::AccessPath base_path);
 
   /*! \return The defs generated in binding. */
   const std::vector<Var>& defs() const { return defs_; }
@@ -185,26 +190,7 @@ class ArgBinder {
    * \return True if this was the first bind (definition created), false otherwise.
    */
   bool Bind_(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
-             bool with_lets, ffi::Optional<ffi::reflection::AccessPath> path = std::nullopt);
-  /*!
-   * \brief Emit an AssertStmt with rich, multi-line error messages.
-   *
-   * Produces messages in the format:
-   *   <detail> when calling:
-   *     `<func_signature>`,
-   *     expected <expectation>
-   *
-   * When no function signature is available, falls back to a simple
-   * single-part message using \p detail and \p expectation.
-   *
-   * \param kind The error kind (e.g. "ValueError", "TypeError").
-   * \param cond The assertion condition.
-   * \param detail The leading detail string (e.g. "Mismatched b.shape[0] on argument #1").
-   * \param expectation The expectation suffix (e.g. "to match a.shape[0]").
-   * \param asserts The vector to append the assert to.
-   */
-  void AddRichAssert(const std::string& kind, PrimExpr cond, const std::string& detail,
-                     const std::string& expectation, std::vector<Stmt>* asserts);
+             bool with_lets, ffi::reflection::AccessPath path);
 
   /*!
    * \brief Render an AccessPath as a human-readable string.
@@ -234,11 +220,11 @@ class ArgBinder {
   std::string func_name_;
   /*! \brief function signature string for error messages. */
   std::string func_signature_;
-  /*! \brief Map from parameter name to its human-readable name (for AccessPath rendering). */
-  std::unordered_map<std::string, std::string> param_name_map_;
+  /*! \brief Map from param_index to param_name for AccessPath rendering. */
+  std::unordered_map<int, std::string> param_names_;
   /*! \brief Track first-bind AccessPath for each variable, used for cross-reference messages. */
   std::unordered_map<const VarNode*, ffi::reflection::AccessPath> first_bind_path_;
 };
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_TRANSFORM_ARG_BINDER_H_
+#endif  // TVM_TIR_TRANSFORM_TVM_FFI_BINDER_H_

@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file arg_binder.cc
+ * \file tvm_ffi_binder.cc
  * \brief Helper utility to match and bind arguments.
  */
-#include "arg_binder.h"
+#include "tvm_ffi_binder.h"
 
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/builtin.h>
@@ -51,9 +51,12 @@ void BinderAddAssert(arith::Analyzer* ana, PrimExpr cond, const std::string& arg
   }
 }
 
-void ArgBinder::SetFunctionSignature(const std::string& func_name, const ffi::Array<Var>& params,
-                                     const ffi::Map<Var, Buffer>& buffer_map) {
+ArgBinder::ArgBinder(std::unordered_map<const VarNode*, PrimExpr>* def_map,
+                     const std::string& func_name, const ffi::Array<Var>& params,
+                     const ffi::Map<Var, Buffer>& buffer_map)
+    : def_map_(def_map) {
   func_name_ = func_name;
+  // Build function signature string
   std::ostringstream os;
   os << func_name << "(";
   for (size_t i = 0; i < params.size(); ++i) {
@@ -71,8 +74,12 @@ void ArgBinder::SetFunctionSignature(const std::string& func_name, const ffi::Ar
         os << shape_os.str();
       }
       os << "], " << buf->dtype << ")";
+      // Record param_index -> param_name mapping
+      param_names_[static_cast<int>(i)] = buf_name;
     } else {
       os << param->name_hint << ": " << param.dtype();
+      // Record param_index -> param_name mapping
+      param_names_[static_cast<int>(i)] = param->name_hint;
     }
   }
   os << ")";
@@ -83,24 +90,49 @@ std::string ArgBinder::RenderAccessPath(const AccessPath& path) const {
   ffi::Array<AccessStep> steps = path->ToSteps();
   std::ostringstream os;
   bool first_printed = false;
+  // Track whether we've consumed the root ArrayItem(param_index)
+  // so we know the next Attr is the param name (which we skip in favor of
+  // looking up param_names_).
+  bool consumed_root_array_item = false;
   for (size_t i = 0; i < steps.size(); ++i) {
     const AccessStep& step = steps[i];
     if (step->kind == ffi::reflection::AccessKind::kAttr) {
       std::string field_name = step->key.cast<ffi::String>();
       if (!first_printed) {
-        // First attr after potential ArrayItem root: this is the parameter name
-        os << field_name;
+        // If this Attr immediately follows a root ArrayItem, use the param name
+        // from the mapping (which should be the same as field_name for BindDLTensor).
+        if (consumed_root_array_item) {
+          // Use the param name from our mapping (already resolved by root ArrayItem)
+          os << field_name;
+        } else {
+          os << field_name;
+        }
         first_printed = true;
       } else {
         os << "." << field_name;
       }
     } else if (step->kind == ffi::reflection::AccessKind::kArrayItem) {
       int64_t index = step->key.cast<int64_t>();
-      if (first_printed) {
+      if (!first_printed && !consumed_root_array_item) {
+        // This is the root ArrayItem (param_index).
+        // Mark it as consumed; the next Attr step will provide the display name.
+        consumed_root_array_item = true;
+        // Check if there's a following Attr step that will provide the name.
+        // If there's no Attr step after (unusual), fall back to param_names_ lookup.
+        if (i + 1 < steps.size() &&
+            steps[i + 1]->kind == ffi::reflection::AccessKind::kAttr) {
+          // The next Attr will handle the display name; skip this ArrayItem.
+          continue;
+        }
+        // No following Attr: use param_names_ directly
+        auto it = param_names_.find(static_cast<int>(index));
+        if (it != param_names_.end()) {
+          os << it->second;
+          first_printed = true;
+        }
+      } else {
         os << "[" << index << "]";
       }
-      // If this is the root ArrayItem (param_index), skip it in rendering
-      // since we use Attr(param_name) after it
     } else if (step->kind == ffi::reflection::AccessKind::kMapItem) {
       os << "[" << step->key << "]";
     }
@@ -108,31 +140,10 @@ std::string ArgBinder::RenderAccessPath(const AccessPath& path) const {
   return os.str();
 }
 
-void ArgBinder::AddRichAssert(const std::string& kind, PrimExpr cond, const std::string& detail,
-                              const std::string& expectation, std::vector<Stmt>* asserts) {
-  if (func_signature_.empty()) {
-    // Fallback: no signature info, use simple message
-    std::ostringstream os;
-    os << detail << ", expected " << expectation;
-    asserts->emplace_back(
-        AssertStmt(tvm::tir::StringImm(kind), cond, {tvm::tir::StringImm(os.str())}));
-  } else {
-    // Rich error message with signature in the format:
-    //   <detail> when calling:
-    //     `<signature>`,
-    //     expected <expectation>
-    ffi::Array<StringImm> parts;
-    parts.push_back(tvm::tir::StringImm(detail + " when calling:\n  `"));
-    parts.push_back(tvm::tir::StringImm(func_signature_));
-    parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
-    asserts->emplace_back(AssertStmt(tvm::tir::StringImm(kind), cond, parts));
-  }
-}
-
 bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
-                      bool with_lets, ffi::Optional<AccessPath> path) {
+                      bool with_lets, AccessPath path) {
   TVM_FFI_ICHECK_EQ(arg.dtype(), value.dtype());
-  bool has_path = path.has_value() && path.value()->depth > 0;
+  bool has_path = path->depth > 0;
   if (const VarNode* v = arg.as<VarNode>()) {
     auto it = def_map_->find(v);
     if (it == def_map_->end()) {
@@ -140,7 +151,7 @@ bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::str
       defs_.emplace_back(v_arg);
       // Record first bind path for this variable
       if (first_bind_path_.find(v) == first_bind_path_.end() && has_path) {
-        first_bind_path_.emplace(v, path.value());
+        first_bind_path_.emplace(v, path);
       }
       if (with_lets) {
         (*def_map_)[v] = arg;
@@ -164,7 +175,7 @@ bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::str
           // Render the current path description
           std::string current_path_str;
           if (has_path) {
-            current_path_str = RenderAccessPath(path.value());
+            current_path_str = RenderAccessPath(path);
           } else {
             current_path_str = arg_name;
           }
@@ -175,23 +186,30 @@ bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::str
           // Determine param_index from the path root step
           int param_index = -1;
           if (has_path) {
-            ffi::Array<AccessStep> steps = path.value()->ToSteps();
+            ffi::Array<AccessStep> steps = path->ToSteps();
             if (steps.size() >= 1 && steps[0]->kind == ffi::reflection::AccessKind::kArrayItem) {
               param_index = static_cast<int>(steps[0]->key.cast<int64_t>());
             }
           }
-          std::ostringstream detail;
-          detail << "Mismatched " << current_path_str;
+          std::ostringstream detail_os;
+          detail_os << "Mismatched " << current_path_str;
           if (param_index >= 0) {
-            detail << " on argument #" << param_index;
+            detail_os << " on argument #" << param_index;
           }
+          std::string detail_str = detail_os.str();
           std::string expectation;
           if (!first_path_str.empty() && first_path_str != current_path_str) {
             expectation = "to match " + first_path_str;
           } else {
             expectation = "matching value";
           }
-          AddRichAssert("ValueError", scond, detail.str(), expectation, &asserts_);
+          // Build inline rich assert parts
+          ffi::Array<StringImm> parts;
+          parts.push_back(tvm::tir::StringImm(detail_str + " when calling:\n  `"));
+          parts.push_back(tvm::tir::StringImm(func_signature_));
+          parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
+          asserts_.emplace_back(
+              AssertStmt(tvm::tir::StringImm("ValueError"), scond, parts));
         }
       } else {
         BinderAddAssert(&analyzer_, it->second == value, arg_name, &asserts_);
@@ -208,26 +226,34 @@ bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::str
         // Render path if available
         std::string path_str;
         if (has_path) {
-          path_str = RenderAccessPath(path.value());
+          path_str = RenderAccessPath(path);
         } else {
           path_str = arg_name;
         }
         // Determine param_index from path
         int param_index = -1;
         if (has_path) {
-          ffi::Array<AccessStep> steps = path.value()->ToSteps();
+          ffi::Array<AccessStep> steps = path->ToSteps();
           if (steps.size() >= 1 && steps[0]->kind == ffi::reflection::AccessKind::kArrayItem) {
             param_index = static_cast<int>(steps[0]->key.cast<int64_t>());
           }
         }
-        std::ostringstream detail;
-        detail << "Invalid " << path_str;
+        std::ostringstream detail_os;
+        detail_os << "Invalid " << path_str;
         if (param_index >= 0) {
-          detail << " on argument #" << param_index;
+          detail_os << " on argument #" << param_index;
         }
+        std::string detail_str = detail_os.str();
         std::ostringstream expect_os;
         expect_os << arg;
-        AddRichAssert("ValueError", scond, detail.str(), expect_os.str(), &asserts_);
+        std::string expectation = expect_os.str();
+        // Build inline rich assert parts
+        ffi::Array<StringImm> parts;
+        parts.push_back(tvm::tir::StringImm(detail_str + " when calling:\n  `"));
+        parts.push_back(tvm::tir::StringImm(func_signature_));
+        parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
+        asserts_.emplace_back(
+            AssertStmt(tvm::tir::StringImm("ValueError"), scond, parts));
       }
     } else {
       BinderAddAssert(&analyzer_, arg == value, arg_name, &asserts_);
@@ -238,7 +264,7 @@ bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::str
 
 void ArgBinder::Bind(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
                      bool with_let) {
-  Bind_(arg, value, arg_name, with_let);
+  Bind_(arg, value, arg_name, with_let, AccessPath::Root());
 }
 
 void ArgBinder::BindArray(const ffi::Array<PrimExpr>& arg, const ffi::Array<PrimExpr>& value,
@@ -273,7 +299,8 @@ void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::st
     }
 
     this->Bind(arg->data, value->data, arg_name + ".data");
-    if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false)) {
+    if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false,
+              AccessPath::Root())) {
       if (arg->offset_factor > 1) {
         PrimExpr offset = value->elem_offset;
         PrimExpr factor = make_const(offset.dtype(), arg->offset_factor);
@@ -317,7 +344,7 @@ inline PrimExpr TVMArrayGet(DataType t, Var arr, builtin::TVMStructFieldKind kin
 
 void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                              const PrimExpr& device_id, const Var& handle,
-                             const std::string& arg_name, int param_index) {
+                             const std::string& arg_name, AccessPath base_path) {
   const DataType tvm_shape_type = DataType::ShapeIndex();
   const DataType tvm_ndim_type = DataType::Int(32);
   const Stmt nop = Evaluate(0);
@@ -325,13 +352,18 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   // Use the buffer's own name for display purposes (e.g. "a" not "a_handle").
   std::string buf_name = buffer->name;
 
-  // Build AccessPath rooted at this parameter.
-  // We use ArrayItem(param_index) as the root step to track the parameter index,
-  // then Attr(buf_name) for the parameter name. This way the rendered path
-  // for shape element k is: "buf_name.shape[k]", and we can recover param_index
-  // from the root step.
-  AccessPath param_path = AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
-  param_path = param_path->Attr(ffi::String(buf_name));
+  // base_path represents the parameter (e.g. Root()->ArrayItem(i)->Attr(buf_name))
+  // Extend it for sub-fields like shape, strides, etc.
+  AccessPath param_path = base_path;
+
+  // Determine param_index from the base_path root step
+  int param_index = -1;
+  {
+    ffi::Array<AccessStep> steps = base_path->ToSteps();
+    if (steps.size() >= 1 && steps[0]->kind == ffi::reflection::AccessKind::kArrayItem) {
+      param_index = static_cast<int>(steps[0]->key.cast<int64_t>());
+    }
+  }
 
   // Helper functions for shape/stride name formatting
   auto shape_handle_name = [&]() { return arg_name + ".shape"; };
@@ -344,12 +376,31 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   auto shape_element_name = [&](size_t k) { return array_element_name(shape_handle_name(), k); };
   auto stride_element_name = [&](size_t k) { return array_element_name(stride_handle_name(), k); };
 
+  // Helper to build inline rich assert parts
+  auto make_rich_assert = [&](const std::string& kind, PrimExpr cond,
+                              const std::string& detail_str, const std::string& expectation,
+                              std::vector<Stmt>* asserts) {
+    if (func_signature_.empty()) {
+      // Fallback: no signature info, use simple message
+      std::ostringstream os;
+      os << detail_str << ", expected " << expectation;
+      asserts->emplace_back(
+          AssertStmt(tvm::tir::StringImm(kind), cond, {tvm::tir::StringImm(os.str())}));
+    } else {
+      ffi::Array<StringImm> parts;
+      parts.push_back(tvm::tir::StringImm(detail_str + " when calling:\n  `"));
+      parts.push_back(tvm::tir::StringImm(func_signature_));
+      parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
+      asserts->emplace_back(AssertStmt(tvm::tir::StringImm(kind), cond, parts));
+    }
+  };
+
   // null pointer check: TypeError for wrong type (not a tensor)
   {
     std::ostringstream detail;
     detail << "Mismatched type on argument #" << param_index;
-    AddRichAssert("TypeError", !Call(DataType::Bool(), builtin::isnullptr(), {handle}),
-                  detail.str(), "Tensor", &init_nest_);
+    make_rich_assert("TypeError", !Call(DataType::Bool(), builtin::isnullptr(), {handle}),
+                     detail.str(), "Tensor", &init_nest_);
   }
 
   // dimension checks
@@ -360,7 +411,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     detail << "Mismatched " << buf_name << ".ndim on argument #" << param_index;
     std::ostringstream expect;
     expect << buffer->shape.size();
-    AddRichAssert("ValueError", a_ndim == v_ndim, detail.str(), expect.str(), &init_nest_);
+    make_rich_assert("ValueError", a_ndim == v_ndim, detail.str(), expect.str(), &init_nest_);
   }
 
   // type checks
@@ -376,7 +427,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     detail << "Mismatched " << buf_name << ".dtype on argument #" << param_index;
     std::ostringstream expect;
     expect << buffer->dtype;
-    AddRichAssert("TypeError", cond, detail.str(), expect.str(), &asserts_);
+    make_rich_assert("TypeError", cond, detail.str(), expect.str(), &asserts_);
   }
 
   // shape field
@@ -466,17 +517,18 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   }
   // Byte_offset field.
   int data_bytes = GetVectorBytes(buffer->dtype);
+  AccessPath byte_offset_path = param_path->Attr(ffi::String("byte_offset"));
 
   if (const auto* const_offset = buffer->elem_offset.as<IntImmNode>()) {
     Bind_(make_const(DataType::UInt(64), const_offset->value * data_bytes),
           TVMArrayGet(DataType::UInt(64), handle, builtin::kArrByteOffset),
-          arg_name + ".byte_offset", true);
+          arg_name + ".byte_offset", true, byte_offset_path);
   } else {
     if (Bind_(buffer->elem_offset,
               cast(buffer->elem_offset.dtype(),
                    (TVMArrayGet(DataType::UInt(64), handle, builtin::kArrByteOffset) /
                     make_const(DataType::UInt(64), data_bytes))),
-              arg_name + ".elem_offset", true)) {
+              arg_name + ".elem_offset", true, byte_offset_path)) {
       if (buffer->offset_factor > 1) {
         PrimExpr offset = buffer->elem_offset;
         PrimExpr factor = make_const(offset.dtype(), buffer->offset_factor);
@@ -493,7 +545,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
             detail << "Misaligned Tensor data on argument #" << param_index;
             std::ostringstream expect;
             expect << "data alignment=" << (buffer->offset_factor * data_bytes) << " bytes";
-            AddRichAssert("ValueError", acond, detail.str(), expect.str(), &asserts_);
+            make_rich_assert("ValueError", acond, detail.str(), expect.str(), &asserts_);
           }
         } else {
           BinderAddAssert(&analyzer_, truncmod(offset, factor) == zero, arg_name + ".elem_offset",
@@ -503,16 +555,19 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     }
   }
   // device info.
+  AccessPath device_type_path = param_path->Attr(ffi::String("device_type"));
+  AccessPath device_id_path = param_path->Attr(ffi::String("device_id"));
   Bind_(device_type, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceType),
-        arg_name + ".device_type", true);
+        arg_name + ".device_type", true, device_type_path);
   Bind_(device_id, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceId),
-        arg_name + ".device_id", true);
+        arg_name + ".device_id", true, device_id_path);
 
   // Data field.  Because the validation of the data field may depend
   // on a dynamic size defined by the other DLTensor* parameters, this
   // field must be generated last.
+  AccessPath data_path = param_path->Attr(ffi::String("data"));
   if (Bind_(buffer->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrData),
-            arg_name + ".data", true)) {
+            arg_name + ".data", true, data_path)) {
     Var vptr(buffer->data);
 
     // Check if the data pointer is NULL.  This check is skipped for
@@ -528,9 +583,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     {
       std::ostringstream detail;
       detail << buf_name << " data pointer is NULL on argument #" << param_index;
-      AddRichAssert("ValueError",
-                    alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
-                    detail.str(), "non-NULL data pointer", &asserts_);
+      make_rich_assert("ValueError",
+                       alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
+                       detail.str(), "non-NULL data pointer", &asserts_);
     }
 
     def_handle_dtype_.Set(vptr, tir::TypeAnnotation(buffer->dtype));

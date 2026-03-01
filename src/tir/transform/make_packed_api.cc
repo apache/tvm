@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/module.h>
@@ -37,8 +38,8 @@
 #include <utility>
 #include <vector>
 
-#include "arg_binder.h"
 #include "ir_utils.h"
+#include "tvm_ffi_binder.h"
 
 namespace tvm {
 namespace tir {
@@ -273,10 +274,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // seq_check gives sequence of later checks after init
   std::vector<Stmt> seq_init, seq_check, arg_buffer_declarations;
   std::unordered_map<const VarNode*, PrimExpr> vmap;
-  ArgBinder binder(&vmap);
+  ArgBinder binder(&vmap, name_hint, func_ptr->params, func_ptr->buffer_map);
 
-  // Set function signature for rich error messages
-  binder.SetFunctionSignature(name_hint, func_ptr->params, func_ptr->buffer_map);
   // Build function signature string for use in MakeAssertEQ/MakeAssertNotNull.
   // Must match the format produced by ArgBinder::SetFunctionSignature:
   //   func_name(buf_name: Tensor([dim0, dim1], dtype), param: type)
@@ -433,8 +432,13 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   for (const auto& [var, buffer, pidx] : buffer_def) {
+    // Build AccessPath: Root()->ArrayItem(pidx)->Attr(buf_name)
+    ffi::reflection::AccessPath param_path =
+        ffi::reflection::AccessPath::Root()
+            ->Extend(ffi::reflection::AccessStep::ArrayItem(pidx))
+            ->Attr(ffi::String(buffer->name));
     binder.BindDLTensor(buffer, device_type, device_id, var, name_hint + "." + var->name_hint,
-                        pidx);
+                        param_path);
     arg_buffer_declarations.push_back(DeclBuffer(buffer, nop));
   }
   // reset global symbol to attach prefix

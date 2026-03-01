@@ -909,6 +909,24 @@ llvm::Value* CodeGenCPU::RuntimeTVMFFIErrorSetRaisedFromCStrParts() {
       "TVMFFIErrorSetRaisedFromCStrParts", module_.get());
   return f_tvm_ffi_set_raised_from_c_str_parts_;
 }
+/*!
+ * \brief Get or create a noinline LLVM helper function for raising errors from TIR assertions.
+ *
+ * Creates an internal LLVM function `__tvm_set_raised_<max_n>` that:
+ *   1. Stack-allocates a `const char**` array of size `max_n`
+ *   2. Stores each message part argument into the array
+ *   3. Calls `TVMFFIErrorSetRaisedFromCStrParts(kind, parts, n)`
+ *
+ * The function is marked `noinline` to keep error-raising code out of the hot path.
+ * Assert codegen emits a conditional branch to a block that calls this helper,
+ * so the error-handling logic does not bloat the main function body.
+ *
+ * Results are cached in `set_raised_helpers_` keyed by `max_n`, so each distinct
+ * bucket size (6, 12, 18, ...) is created at most once per module.
+ *
+ * \param max_n The maximum number of message part slots (rounded up to a bucket size).
+ * \return The LLVM function for raising errors with up to `max_n` message parts.
+ */
 llvm::Function* CodeGenCPU::GetOrCreateSetRaisedHelper(int max_n) {
   auto it = set_raised_helpers_.find(max_n);
   if (it != set_raised_helpers_.end()) return it->second;
