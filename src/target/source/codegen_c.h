@@ -234,6 +234,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   }
 
  protected:
+  /*! \brief Print a C string literal with proper escaping of special chars. */
+  void PrintEscapedCString(const std::string& str, std::ostream& os);
   // Print reference to struct location
   std::string GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind);
   // Print reference to a buffer as type t in index.

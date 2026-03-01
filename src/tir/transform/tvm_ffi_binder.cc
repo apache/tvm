@@ -318,38 +318,85 @@ void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::st
 }
 
 // ============================================================
-// BindTypeCheck (type index assertion)
+// Per-dtype type-check + value-load methods
 // ============================================================
 
-void ArgBinder::BindTypeCheck(int i, const Var& type_index, DataType dtype) {
-  std::ostringstream detail;
-  detail << "Mismatched type on argument #" << i;
-  auto emit_type_assert = [&](PrimExpr type_cond, const std::string& expected_type) {
-    EmitRichAssert("TypeError", type_cond, detail.str(), expected_type, &init_nest_);
-  };
-
-  if (dtype.is_handle()) {
-    std::string expected_type = buffer_map_.count(params_[i]) ? "Tensor" : "pointer";
-    emit_type_assert(type_index == ffi::TypeIndex::kTVMFFINone ||
-                         type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
-                         type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr ||
-                         type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin,
-                     expected_type);
-  } else if (dtype.is_bool()) {
-    emit_type_assert(
-        type_index == ffi::TypeIndex::kTVMFFIBool || type_index == ffi::TypeIndex::kTVMFFIInt,
-        "boolean");
-  } else if (dtype.is_int() || dtype.is_uint()) {
-    emit_type_assert(
-        type_index == ffi::TypeIndex::kTVMFFIInt || type_index == ffi::TypeIndex::kTVMFFIBool,
-        "int");
-  } else {
-    TVM_FFI_ICHECK(dtype.is_float());
-    emit_type_assert(type_index == ffi::TypeIndex::kTVMFFIFloat ||
-                         type_index == ffi::TypeIndex::kTVMFFIInt ||
-                         type_index == ffi::TypeIndex::kTVMFFIBool,
-                     "float");
+/*! \brief Load the i-th packed argument as the given type. */
+static PrimExpr LoadPackedArgValue(const Var& v_packed_args, int i, DataType arg_type) {
+  ffi::Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
+                                 IntImm(DataType::Int(32), builtin::kTVMFFIAnyUnionValue)};
+  DataType api_type = APIType(arg_type);
+  PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args);
+  if (api_type != arg_type) {
+    res = Cast(arg_type, res);
   }
+  return res;
+}
+
+PrimExpr ArgBinder::BindPackedHandle(int i, const Var& type_index) {
+  // ── Type check: accept handle-like types ───────────────────
+  std::string expected_type = buffer_map_.count(params_[i]) ? "Tensor" : "pointer";
+  {
+    std::ostringstream detail;
+    detail << "Mismatched type on argument #" << i;
+    EmitRichAssert("TypeError",
+                   type_index == ffi::TypeIndex::kTVMFFINone ||
+                       type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
+                       type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr ||
+                       type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin,
+                   detail.str(), expected_type, &init_nest_);
+  }
+
+  // ── Load value and apply tensor offset ─────────────────────
+  const int64_t object_cell_offset = sizeof(TVMFFIObject);
+  static_assert(sizeof(TVMFFIObject) == 24);
+  PrimExpr arg_value = LoadPackedArgValue(v_packed_args_, i, params_[i].dtype());
+  PrimExpr handle_from_tensor = Call(DataType::Handle(), tir::builtin::handle_add_byte_offset(),
+                                     {arg_value, IntImm(DataType::Int(32), object_cell_offset)});
+  return Select(type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value);
+}
+
+PrimExpr ArgBinder::BindPackedBool(int i, const Var& type_index) {
+  // ── Type check: accept bool or int ─────────────────────────
+  {
+    std::ostringstream detail;
+    detail << "Mismatched type on argument #" << i;
+    EmitRichAssert(
+        "TypeError",
+        type_index == ffi::TypeIndex::kTVMFFIBool || type_index == ffi::TypeIndex::kTVMFFIInt,
+        detail.str(), "boolean", &init_nest_);
+  }
+  return Cast(DataType::Bool(), LoadPackedArgValue(v_packed_args_, i, DataType::Int(64)));
+}
+
+PrimExpr ArgBinder::BindPackedInt(int i, const Var& type_index, DataType dtype) {
+  // ── Type check: accept int or bool ─────────────────────────
+  {
+    std::ostringstream detail;
+    detail << "Mismatched type on argument #" << i;
+    EmitRichAssert(
+        "TypeError",
+        type_index == ffi::TypeIndex::kTVMFFIInt || type_index == ffi::TypeIndex::kTVMFFIBool,
+        detail.str(), "int", &init_nest_);
+  }
+  return LoadPackedArgValue(v_packed_args_, i, dtype);
+}
+
+PrimExpr ArgBinder::BindPackedFloat(int i, const Var& type_index, DataType dtype) {
+  // ── Type check: accept float, int, or bool ─────────────────
+  {
+    std::ostringstream detail;
+    detail << "Mismatched type on argument #" << i;
+    EmitRichAssert("TypeError",
+                   type_index == ffi::TypeIndex::kTVMFFIFloat ||
+                       type_index == ffi::TypeIndex::kTVMFFIInt ||
+                       type_index == ffi::TypeIndex::kTVMFFIBool,
+                   detail.str(), "float", &init_nest_);
+  }
+  return tir::Select(
+      type_index == ffi::TypeIndex::kTVMFFIFloat,
+      /* true_value = */ LoadPackedArgValue(v_packed_args_, i, dtype),
+      /* false_value = */ Cast(dtype, LoadPackedArgValue(v_packed_args_, i, DataType::Int(64))));
 }
 
 // ============================================================
@@ -361,7 +408,7 @@ std::pair<PrimExpr, Var> ArgBinder::BindPackedArg(int i) {
   Var param = params_[i];
   DataType dtype = param.dtype();
 
-  // 1. Extract type_index from packed_args
+  // Extract type_index from packed_args
   Var type_index(param->name_hint + ".type_index", DataType::Int(32));
   init_nest_.push_back(LetStmt(type_index,
                                tir::Call(DataType::Int(32), builtin::tvm_struct_get(),
@@ -369,41 +416,17 @@ std::pair<PrimExpr, Var> ArgBinder::BindPackedArg(int i) {
                                           IntImm(DataType::Int(32), builtin::kTVMFFIAnyTypeIndex)}),
                                nop));
 
-  // 2. Type-check via BindTypeCheck
-  BindTypeCheck(i, type_index, dtype);
-
-  // 3. Load arg value based on dtype
-  // Helper: load i-th argument as type t from packed args
-  auto f_load_arg_value = [&](DataType arg_type, int idx) -> PrimExpr {
-    ffi::Array<PrimExpr> call_args{v_packed_args_, IntImm(DataType::Int(32), idx),
-                                   IntImm(DataType::Int(32), builtin::kTVMFFIAnyUnionValue)};
-    DataType api_type = APIType(arg_type);
-    PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args);
-    if (api_type != arg_type) {
-      res = Cast(arg_type, res);
-    }
-    return res;
-  };
-
+  // Type-check and load value via per-dtype dispatch
   PrimExpr arg_value;
   if (dtype.is_handle()) {
-    // For Tensor handles, offset to get the DLTensor* past the object header
-    const int64_t object_cell_offset = sizeof(TVMFFIObject);
-    static_assert(sizeof(TVMFFIObject) == 24);
-    arg_value = f_load_arg_value(param.dtype(), i);
-    PrimExpr handle_from_tensor = Call(DataType::Handle(), tir::builtin::handle_add_byte_offset(),
-                                       {arg_value, IntImm(DataType::Int(32), object_cell_offset)});
-    arg_value = Select(type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value);
+    arg_value = BindPackedHandle(i, type_index);
   } else if (dtype.is_bool()) {
-    arg_value = Cast(DataType::Bool(), f_load_arg_value(DataType::Int(64), i));
+    arg_value = BindPackedBool(i, type_index);
   } else if (dtype.is_int() || dtype.is_uint()) {
-    arg_value = f_load_arg_value(param.dtype(), i);
+    arg_value = BindPackedInt(i, type_index, dtype);
   } else {
     TVM_FFI_ICHECK(dtype.is_float());
-    arg_value = tir::Select(
-        type_index == ffi::TypeIndex::kTVMFFIFloat,
-        /* true_value = */ f_load_arg_value(param.dtype(), i),
-        /* false_value = */ Cast(param.dtype(), f_load_arg_value(DataType::Int(64), i)));
+    arg_value = BindPackedFloat(i, type_index, dtype);
   }
 
   return {arg_value, param};
@@ -438,36 +461,116 @@ void ArgBinder::BindAllParams(const std::vector<std::pair<PrimExpr, Var>>& var_d
 }
 
 // ============================================================
-// BindDLTensor (private)
+// ExtractDLTensorArray (helper for shape/strides extraction)
 // ============================================================
 
-inline PrimExpr TVMArrayGet(DataType t, Var arr, builtin::TVMStructFieldKind kind) {
-  return TVMStructGet(t, arr, 0, kind);
+Buffer ArgBinder::ExtractDLTensorArray(const Var& handle, int field_kind,
+                                       const std::string& field_name, int num_elements,
+                                       const std::string& arg_name) {
+  const DataType tvm_shape_type = DataType::ShapeIndex();
+  const Stmt nop = Evaluate(0);
+
+  std::string buf_name = arg_name + "." + field_name;
+  Buffer buf = decl_buffer({IntImm(DataType::Int(32), num_elements)}, tvm_shape_type, buf_name);
+  def_handle_dtype_.Set(buf->data, field_kind == builtin::kArrShape
+                                       ? make_const(tvm_shape_type, 0)
+                                       : tir::TypeAnnotation(tvm_shape_type));
+  init_nest_.emplace_back(
+      LetStmt(buf->data,
+              TVMStructGet(DataType::Handle(), handle, 0,
+                           static_cast<builtin::TVMStructFieldKind>(field_kind)),
+              nop));
+  init_nest_.emplace_back(DeclBuffer(buf, nop));
+  return buf;
 }
+
+// ============================================================
+// Strides validation subfunctions
+// ============================================================
+
+void ArgBinder::BindCompactStrides(const Buffer& buffer, const Buffer& buf_strides,
+                                   PrimExpr v_strides_is_null, const AccessPath& param_path) {
+  DataType stype = buffer->DefaultIndexType();
+  PrimExpr expect_stride = make_const(stype, 1);
+  ffi::Array<PrimExpr> conds;
+  for (size_t i = buffer->shape.size(); i != 0; --i) {
+    size_t k = i - 1;
+    PrimExpr svalue = cast(stype, BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));
+    conds.push_back(buffer->shape[k] == 1 || expect_stride == svalue);
+    expect_stride = expect_stride * buffer->shape[k];
+  }
+  if (conds.size() != 0) {
+    std::string buf_name = buffer->name;
+    int param_index = GetParamIndex(param_path);
+    std::ostringstream detail;
+    detail << "Mismatched " << buf_name << ".strides on argument #" << param_index;
+    std::string expectation = "to be compact array";
+    ffi::Array<StringImm> parts;
+    parts.push_back(tvm::tir::StringImm(detail.str()));
+    parts.push_back(when_calling_imm_);
+    parts.push_back(sig_imm_);
+    parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
+    Stmt check =
+        AssertStmt(tvm::tir::StringImm("ValueError"),
+                   foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
+                         const_true(1), conds),
+                   parts);
+    check = IfThenElse(Not(v_strides_is_null), check);
+    asserts_.emplace_back(SeqStmt({check, Evaluate(0)}));
+  }
+}
+
+void ArgBinder::BindAutoBroadcastStrides(const Buffer& buffer, const Buffer& buf_strides,
+                                         PrimExpr v_strides_is_null, const AccessPath& param_path) {
+  DataType stype = buffer->DefaultIndexType();
+  PrimExpr stride = make_const(stype, 1);
+  for (size_t i = buffer->shape.size(); i != 0; --i) {
+    size_t k = i - 1;
+    PrimExpr value =
+        cast(buffer->shape[k].dtype(), BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));
+    value = tvm::if_then_else(v_strides_is_null, stride, value);
+    value = tvm::if_then_else(buffer->shape[k] == 1, 0, value);
+    AccessPath strides_k_path = param_path->Attr(ffi::String("strides"))->ArrayItem(k);
+    std::string path_str = RenderAccessPath(strides_k_path);
+    BindScalar(buffer->strides[k], value, path_str, true, strides_k_path);
+    stride = analyzer_.Simplify(stride * buffer->shape[k]);
+  }
+}
+
+void ArgBinder::BindRegularStrides(const Buffer& buffer, const Buffer& buf_strides,
+                                   const Buffer& buf_shape, PrimExpr v_strides_is_null,
+                                   const AccessPath& param_path) {
+  PrimExpr stride_from_shape = 1;
+  for (int k = buffer->strides.size() - 1; k >= 0; k--) {
+    PrimExpr explicit_stride =
+        cast(buffer->shape[k].dtype(), BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));
+    AccessPath strides_k_path = param_path->Attr(ffi::String("strides"))->ArrayItem(k);
+    std::string path_str = RenderAccessPath(strides_k_path);
+    BindScalar(buffer->strides[k],
+               tvm::if_then_else(v_strides_is_null, stride_from_shape, explicit_stride), path_str,
+               true, strides_k_path);
+    stride_from_shape *=
+        cast(buffer->shape[k].dtype(), BufferLoad(buf_shape, {IntImm(DataType::Int(32), k)}));
+  }
+}
+
+// ============================================================
+// BindDLTensor (private)
+// ============================================================
 
 void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                              const PrimExpr& device_id, const Var& handle,
                              const std::string& arg_name, AccessPath base_path) {
-  const DataType tvm_shape_type = DataType::ShapeIndex();
   const DataType tvm_ndim_type = DataType::Int(32);
-  const Stmt nop = Evaluate(0);
 
   std::string buf_name = buffer->name;
   AccessPath param_path = base_path;
   int param_index = GetParamIndex(base_path);
 
-  // Helper functions for shape/stride name formatting
-  auto shape_handle_name = [&]() { return arg_name + ".shape"; };
-  auto stride_handle_name = [&]() { return arg_name + ".strides"; };
-  auto array_element_name = [&](const std::string& arr_name, size_t k) {
-    std::stringstream ss;
-    ss << arr_name << '[' << k << ']';
-    return ss.str();
-  };
-  auto shape_element_name = [&](size_t k) { return array_element_name(shape_handle_name(), k); };
-  auto stride_element_name = [&](size_t k) { return array_element_name(stride_handle_name(), k); };
-
-  // null pointer check: TypeError for wrong type (not a tensor)
+  // ── Section: Null pointer check ──────────────────────────────
+  // Verify the handle is not NULL (caller passed a real tensor).
+  // Error: TypeError: Mismatched type on argument #0 when calling:
+  //          `func(a: Tensor([n0], float32))`, expected Tensor
   {
     std::ostringstream detail;
     detail << "Mismatched type on argument #" << param_index;
@@ -475,8 +578,11 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                    detail.str(), "Tensor", &init_nest_);
   }
 
-  // dimension checks
-  PrimExpr v_ndim = TVMArrayGet(tvm_ndim_type, handle, builtin::kArrNDim);
+  // ── Section: ndim ────────────────────────────────────────────
+  // Verify tensor dimension count matches buffer definition.
+  // Error: ValueError: Mismatched a.ndim on argument #0 when calling:
+  //          `func(a: Tensor([n0], float32))`, expected 1
+  PrimExpr v_ndim = TVMStructGet(tvm_ndim_type, handle, 0, builtin::kArrNDim);
   PrimExpr a_ndim = make_const(tvm_ndim_type, static_cast<int64_t>(buffer->shape.size()));
   {
     std::ostringstream detail;
@@ -486,117 +592,80 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     EmitRichAssert("ValueError", a_ndim == v_ndim, detail.str(), expect.str(), &init_nest_);
   }
 
-  // type checks
-  PrimExpr cond = (TVMArrayGet(DataType::UInt(8), handle, builtin::kArrTypeCode) ==
-                       IntImm(DataType::UInt(8), buffer->dtype.code()) &&
-                   TVMArrayGet(DataType::UInt(8), handle, builtin::kArrTypeBits) ==
-                       IntImm(DataType::UInt(8), buffer->dtype.bits()) &&
-                   TVMArrayGet(DataType::UInt(16), handle, builtin::kArrTypeLanes) ==
-                       IntImm(DataType::UInt(16), buffer->dtype.lanes()));
-  if (!(buffer->dtype == DataType::Int(1) || buffer->dtype == DataType::Int(4) ||
-        buffer->dtype == DataType::UInt(4))) {
-    std::ostringstream detail;
-    detail << "Mismatched " << buf_name << ".dtype on argument #" << param_index;
-    std::ostringstream expect;
-    expect << buffer->dtype;
-    EmitRichAssert("TypeError", cond, detail.str(), expect.str(), &asserts_);
+  // ── Section: dtype ───────────────────────────────────────────
+  // Verify tensor data type (code, bits, lanes) matches.
+  // Error: TypeError: Mismatched a.dtype on argument #0 when calling:
+  //          `func(a: Tensor([n0], float32))`, expected float32
+  {
+    PrimExpr cond = (TVMStructGet(DataType::UInt(8), handle, 0, builtin::kArrTypeCode) ==
+                         IntImm(DataType::UInt(8), buffer->dtype.code()) &&
+                     TVMStructGet(DataType::UInt(8), handle, 0, builtin::kArrTypeBits) ==
+                         IntImm(DataType::UInt(8), buffer->dtype.bits()) &&
+                     TVMStructGet(DataType::UInt(16), handle, 0, builtin::kArrTypeLanes) ==
+                         IntImm(DataType::UInt(16), buffer->dtype.lanes()));
+    if (!(buffer->dtype == DataType::Int(1) || buffer->dtype == DataType::Int(4) ||
+          buffer->dtype == DataType::UInt(4))) {
+      std::ostringstream detail;
+      detail << "Mismatched " << buf_name << ".dtype on argument #" << param_index;
+      std::ostringstream expect;
+      expect << buffer->dtype;
+      EmitRichAssert("TypeError", cond, detail.str(), expect.str(), &asserts_);
+    }
   }
 
-  // shape field
-  Buffer buf_shape = decl_buffer({IntImm(DataType::Int(32), buffer->shape.size())}, tvm_shape_type,
-                                 shape_handle_name());
-  Var v_shape(shape_handle_name(), DataType::Handle());
-  def_handle_dtype_.Set(v_shape, make_const(tvm_shape_type, 0));
-  init_nest_.emplace_back(
-      LetStmt(buf_shape->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrShape), nop));
-  init_nest_.emplace_back(DeclBuffer(buf_shape, nop));
+  // ── Section: shape ───────────────────────────────────────────
+  // Extract shape array and bind each element to buffer->shape[k].
+  // Error: ValueError: Invalid a.shape[0] on argument #0 when calling:
+  //          `func(a: Tensor([128], float32))`, expected 128
+  // Error: ValueError: Mismatched b.shape[0] on argument #1 when calling:
+  //          `func(a: Tensor([n0], float32), b: Tensor([n0], float32))`,
+  //          expected to match a.shape[0]
+  int ndim = static_cast<int>(buffer->shape.size());
+  Buffer buf_shape = ExtractDLTensorArray(handle, builtin::kArrShape, "shape", ndim, arg_name);
   for (size_t k = 0; k < buffer->shape.size(); ++k) {
     if (buffer->dtype == DataType::Int(4) || buffer->dtype == DataType::UInt(4) ||
         buffer->dtype == DataType::Int(1)) {
       break;
     }
     AccessPath shape_k_path = param_path->Attr(ffi::String("shape"))->ArrayItem(k);
+    std::string path_str = RenderAccessPath(shape_k_path);
     BindScalar(
         buffer->shape[k],
         cast(buffer->shape[k].dtype(), BufferLoad(buf_shape, {IntImm(DataType::Int(32), k)})),
-        shape_element_name(k), true, shape_k_path);
+        path_str, true, shape_k_path);
   }
-  // strides field
-  Buffer buf_strides = decl_buffer({IntImm(DataType::Int(32), buffer->strides.size())},
-                                   tvm_shape_type, arg_name + ".strides");
-  def_handle_dtype_.Set(buf_strides->data, tir::TypeAnnotation(tvm_shape_type));
-  init_nest_.emplace_back(LetStmt(
-      buf_strides->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrStrides), nop));
-  init_nest_.emplace_back(DeclBuffer(buf_strides, nop));
+
+  // ── Section: strides ─────────────────────────────────────────
+  // Extract strides array and validate against buffer definition.
+  // Three cases: compact (no explicit strides), auto-broadcast, regular.
+  // Error: ValueError: Mismatched a.strides on argument #0 when calling:
+  //          `func(a: Tensor([4, 8], float32))`, expected to be compact array
+  int strides_size = static_cast<int>(buffer->strides.size());
+  Buffer buf_strides = ExtractDLTensorArray(handle, builtin::kArrStrides, "strides",
+                                            strides_size > 0 ? strides_size : ndim, arg_name);
   PrimExpr v_strides_is_null = Call(DataType::Bool(), builtin::isnullptr(), {buf_strides->data});
   if (buffer->strides.size() == 0) {
-    // Assert the buffer is compact
-    DataType stype = buffer->DefaultIndexType();
-    PrimExpr expect_stride = make_const(stype, 1);
-    ffi::Array<PrimExpr> conds;
-    for (size_t i = buffer->shape.size(); i != 0; --i) {
-      size_t k = i - 1;
-      PrimExpr svalue = cast(stype, BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));
-      conds.push_back(buffer->shape[k] == 1 || expect_stride == svalue);
-      expect_stride = expect_stride * buffer->shape[k];
-    }
-    if (conds.size() != 0) {
-      std::ostringstream detail;
-      detail << "Mismatched " << buf_name << ".strides on argument #" << param_index;
-      std::string expectation = "to be compact array";
-      ffi::Array<StringImm> parts;
-      parts.push_back(tvm::tir::StringImm(detail.str()));
-      parts.push_back(when_calling_imm_);
-      parts.push_back(sig_imm_);
-      parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
-      Stmt check = AssertStmt(
-          tvm::tir::StringImm("ValueError"),
-          foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
-                const_true(1), conds),
-          parts);
-      check = IfThenElse(Not(v_strides_is_null), check);
-      asserts_.emplace_back(SeqStmt({check, Evaluate(0)}));
-    }
+    BindCompactStrides(buffer, buf_strides, v_strides_is_null, param_path);
   } else if (buffer->buffer_type == kAutoBroadcast) {
-    DataType stype = buffer->DefaultIndexType();
-    PrimExpr stride = make_const(stype, 1);
-    for (size_t i = buffer->shape.size(); i != 0; --i) {
-      size_t k = i - 1;
-      PrimExpr value =
-          cast(buffer->shape[k].dtype(), BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));
-      value = tvm::if_then_else(v_strides_is_null, stride, value);
-      value = tvm::if_then_else(buffer->shape[k] == 1, 0, value);
-      AccessPath strides_k_path = param_path->Attr(ffi::String("strides"))->ArrayItem(k);
-      BindScalar(buffer->strides[k], value, stride_element_name(k), true, strides_k_path);
-      stride = analyzer_.Simplify(stride * buffer->shape[k]);
-    }
+    BindAutoBroadcastStrides(buffer, buf_strides, v_strides_is_null, param_path);
   } else {
-    PrimExpr stride_from_shape = 1;
-
-    for (int k = buffer->strides.size() - 1; k >= 0; k--) {
-      PrimExpr explicit_stride =
-          cast(buffer->shape[k].dtype(), BufferLoad(buf_strides, {IntImm(DataType::Int(32), k)}));
-      AccessPath strides_k_path = param_path->Attr(ffi::String("strides"))->ArrayItem(k);
-      BindScalar(buffer->strides[k],
-                 tvm::if_then_else(v_strides_is_null, stride_from_shape, explicit_stride),
-                 stride_element_name(k), true, strides_k_path);
-
-      stride_from_shape *=
-          cast(buffer->shape[k].dtype(), BufferLoad(buf_shape, {IntImm(DataType::Int(32), k)}));
-    }
+    BindRegularStrides(buffer, buf_strides, buf_shape, v_strides_is_null, param_path);
   }
-  // Byte_offset field.
+
+  // ── Section: byte_offset ─────────────────────────────────────
+  // Bind byte offset (or elem_offset) and check alignment if required.
+  // Error: ValueError: Misaligned Tensor data on argument #0 when calling:
+  //          `func(a: Tensor([n0], float32))`, expected data alignment=16 bytes
   int data_bytes = GetVectorBytes(buffer->dtype);
   AccessPath byte_offset_path = param_path->Attr(ffi::String("byte_offset"));
-
   if (const auto* const_offset = buffer->elem_offset.as<IntImmNode>()) {
     BindScalar(make_const(DataType::UInt(64), const_offset->value * data_bytes),
-               TVMArrayGet(DataType::UInt(64), handle, builtin::kArrByteOffset),
+               TVMStructGet(DataType::UInt(64), handle, 0, builtin::kArrByteOffset),
                arg_name + ".byte_offset", true, byte_offset_path);
   } else {
     if (BindScalar(buffer->elem_offset,
                    cast(buffer->elem_offset.dtype(),
-                        (TVMArrayGet(DataType::UInt(64), handle, builtin::kArrByteOffset) /
+                        (TVMStructGet(DataType::UInt(64), handle, 0, builtin::kArrByteOffset) /
                          make_const(DataType::UInt(64), data_bytes))),
                    arg_name + ".elem_offset", true, byte_offset_path)) {
       if (buffer->offset_factor > 1) {
@@ -618,44 +687,53 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
       }
     }
   }
-  // device info.
-  AccessPath device_type_path = param_path->Attr(ffi::String("device_type"));
-  AccessPath device_id_path = param_path->Attr(ffi::String("device_id"));
-  BindScalar(device_type, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceType),
-             arg_name + ".device_type", true, device_type_path);
-  BindScalar(device_id, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceId),
-             arg_name + ".device_id", true, device_id_path);
 
-  // Data field.  Because the validation of the data field may depend
-  // on a dynamic size defined by the other DLTensor* parameters, this
-  // field must be generated last.
-  AccessPath data_path = param_path->Attr(ffi::String("data"));
-  if (BindScalar(buffer->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrData),
-                 arg_name + ".data", true, data_path)) {
-    Var vptr(buffer->data);
+  // ── Section: device ──────────────────────────────────────────
+  // Bind device_type and device_id from DLTensor to expected values.
+  // Error: ValueError: Mismatched a.device_type on argument #0 ...
+  {
+    AccessPath device_type_path = param_path->Attr(ffi::String("device_type"));
+    AccessPath device_id_path = param_path->Attr(ffi::String("device_id"));
+    BindScalar(device_type, TVMStructGet(DataType::Int(32), handle, 0, builtin::kArrDeviceType),
+               arg_name + ".device_type", true, device_type_path);
+    BindScalar(device_id, TVMStructGet(DataType::Int(32), handle, 0, builtin::kArrDeviceId),
+               arg_name + ".device_id", true, device_id_path);
+  }
 
-    // Check if the data pointer is NULL.  This check is skipped for
-    // size-0 arrays, since CUDA provides a NULL pointer for size-zero
-    // allocations.
-    auto alloc_size = [&]() -> PrimExpr {
-      PrimExpr product = IntImm(buffer->DefaultIndexType(), 1);
-      for (const auto& dim : buffer->shape) {
-        product *= dim;
+  // ── Section: data pointer ────────────────────────────────────
+  // Bind data pointer and check for NULL (except size-0 arrays).
+  // Error: ValueError: a data pointer is NULL on argument #0 when calling:
+  //          `func(a: Tensor([n0], float32))`, expected non-NULL data pointer
+  {
+    AccessPath data_path = param_path->Attr(ffi::String("data"));
+    if (BindScalar(buffer->data, TVMStructGet(DataType::Handle(), handle, 0, builtin::kArrData),
+                   arg_name + ".data", true, data_path)) {
+      Var vptr(buffer->data);
+
+      // Check if the data pointer is NULL.  This check is skipped for
+      // size-0 arrays, since CUDA provides a NULL pointer for size-zero
+      // allocations.
+      auto alloc_size = [&]() -> PrimExpr {
+        PrimExpr product = IntImm(buffer->DefaultIndexType(), 1);
+        for (const auto& dim : buffer->shape) {
+          product *= dim;
+        }
+        return product;
+      }();
+      {
+        std::ostringstream detail;
+        detail << buf_name << " data pointer is NULL on argument #" << param_index;
+        EmitRichAssert("ValueError",
+                       alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
+                       detail.str(), "non-NULL data pointer", &asserts_);
       }
-      return product;
-    }();
-    {
-      std::ostringstream detail;
-      detail << buf_name << " data pointer is NULL on argument #" << param_index;
-      EmitRichAssert("ValueError",
-                     alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
-                     detail.str(), "non-NULL data pointer", &asserts_);
-    }
 
-    def_handle_dtype_.Set(vptr, tir::TypeAnnotation(buffer->dtype));
-    // mark alignment of external bufs
-    init_nest_.emplace_back(AttrStmt(vptr, tir::attr::storage_alignment,
-                                     IntImm(DataType::Int(32), buffer->data_alignment), nop));
+      def_handle_dtype_.Set(vptr, tir::TypeAnnotation(buffer->dtype));
+      // mark alignment of external bufs
+      init_nest_.emplace_back(AttrStmt(vptr, tir::attr::storage_alignment,
+                                       IntImm(DataType::Int(32), buffer->data_alignment),
+                                       Evaluate(0)));
+    }
   }
 }
 

@@ -1079,6 +1079,22 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
   this->PrintStmt(op->body);
 }
 
+void CodeGenC::PrintEscapedCString(const std::string& str, std::ostream& os) {
+  os << "\"";
+  for (char c : str) {
+    if (c == '"') {
+      os << "\\\"";
+    } else if (c == '\\') {
+      os << "\\\\";
+    } else if (c == '\n') {
+      os << "\\n";
+    } else {
+      os << c;
+    }
+  }
+  os << "\"";
+}
+
 void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
@@ -1090,26 +1106,13 @@ void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
     stream << "const char* __tvm_assert_parts[" << num_parts << "] = {";
     for (int i = 0; i < num_parts; ++i) {
       if (i > 0) stream << ", ";
-      stream << "\"";
-      std::string part_str = op->message_parts[i]->value;
-      for (size_t j = 0; j < part_str.size(); ++j) {
-        char c = part_str[j];
-        if (c == '"') {
-          stream << "\\\"";
-        } else if (c == '\\') {
-          stream << "\\\\";
-        } else if (c == '\n') {
-          stream << "\\n";
-        } else {
-          stream << c;
-        }
-      }
-      stream << "\"";
+      PrintEscapedCString(op->message_parts[i]->value, stream);
     }
     stream << "};\n";
     PrintIndent();
-    stream << "TVMFFIErrorSetRaisedFromCStrParts(\"" << op->kind->value
-           << "\", __tvm_assert_parts, " << num_parts << ");\n";
+    stream << "TVMFFIErrorSetRaisedFromCStrParts(";
+    PrintEscapedCString(op->kind->value, stream);
+    stream << ", __tvm_assert_parts, " << num_parts << ");\n";
     PrintIndent();
     stream << "return -1;\n";
     this->EndScope(assert_if_scope);

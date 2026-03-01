@@ -96,10 +96,9 @@ class ArgBinder {
    *
    * Handles everything for one packed parameter:
    * 1. Extract type_index from v_packed_args
-   * 2. Type-check via BindTypeCheck (emits TypeError assertions)
-   * 3. Load arg value based on dtype (handle/bool/int/float)
-   * 4. For handles: tensor-offset logic (DLTensor header offset)
-   * 5. Return (arg_value, param) pair for the caller to use
+   * 2. Type-check and load value via per-dtype methods
+   * 3. For handles: tensor-offset logic (DLTensor header offset)
+   * 4. Return (arg_value, param) pair for the caller to use
    *
    * \param i Parameter index in [0, num_args).
    * \return (arg_value, param) pair. The caller uses these for LetStmt bindings.
@@ -153,7 +152,71 @@ class ArgBinder {
   const ffi::Map<Var, PrimExpr>& def_handle_dtype() const { return def_handle_dtype_; }
 
  private:
-  // -- Private binding submethods (all take AccessPath) --
+  // ── Per-dtype type-check + value-load methods ──────────────────
+  //
+  // Each method combines type checking (emitting TypeError on mismatch)
+  // with value loading from the packed args array. BindPackedArg
+  // dispatches to one of these based on the parameter dtype.
+
+  /*!
+   * \brief Type-check and load a handle argument (DLTensor or opaque pointer).
+   *
+   * Example error:
+   *   TypeError: Mismatched type on argument #0 when calling:
+   *     `add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))`,
+   *     expected Tensor
+   *
+   * \param i Parameter index.
+   * \param type_index The variable holding the FFI type index.
+   * \return The loaded argument value.
+   */
+  PrimExpr BindPackedHandle(int i, const Var& type_index);
+
+  /*!
+   * \brief Type-check and load a boolean argument.
+   * Accepts: kTVMFFIBool, kTVMFFIInt (int->bool coercion).
+   *
+   * Example error:
+   *   TypeError: Mismatched type on argument #0 when calling:
+   *     `func(flag: bool)`, expected boolean
+   *
+   * \param i Parameter index.
+   * \param type_index The variable holding the FFI type index.
+   * \return The loaded argument value.
+   */
+  PrimExpr BindPackedBool(int i, const Var& type_index);
+
+  /*!
+   * \brief Type-check and load an integer argument.
+   * Accepts: kTVMFFIInt, kTVMFFIBool (bool->int coercion).
+   *
+   * Example error:
+   *   TypeError: Mismatched type on argument #0 when calling:
+   *     `func(n: int32)`, expected int
+   *
+   * \param i Parameter index.
+   * \param type_index The variable holding the FFI type index.
+   * \param dtype The expected data type for this parameter.
+   * \return The loaded argument value.
+   */
+  PrimExpr BindPackedInt(int i, const Var& type_index, DataType dtype);
+
+  /*!
+   * \brief Type-check and load a float argument.
+   * Accepts: kTVMFFIFloat, kTVMFFIInt, kTVMFFIBool (int/bool->float promotion).
+   *
+   * Example error:
+   *   TypeError: Mismatched type on argument #0 when calling:
+   *     `func(x: float32)`, expected float
+   *
+   * \param i Parameter index.
+   * \param type_index The variable holding the FFI type index.
+   * \param dtype The expected data type for this parameter.
+   * \return The loaded argument value.
+   */
+  PrimExpr BindPackedFloat(int i, const Var& type_index, DataType dtype);
+
+  // ── Private binding submethods (all take AccessPath) ───────────
 
   /*!
    * \brief Internal scalar bind with AccessPath tracking and rich error messages.
@@ -216,19 +279,68 @@ class ArgBinder {
                     const Var& handle, const std::string& arg_name,
                     ffi::reflection::AccessPath base_path);
 
-  /*!
-   * \brief Type-check a packed arg's FFI type code, emit TypeError on mismatch.
-   *
-   * Generates an assertion that the type_index of the i-th packed argument
-   * matches the expected dtype category (handle, bool, int, or float).
-   *
-   * \param i Parameter index in [0, num_args).
-   * \param type_index The variable holding the type index of the packed arg.
-   * \param dtype The expected data type for this parameter.
-   */
-  void BindTypeCheck(int i, const Var& type_index, DataType dtype);
+  // ── DLTensor sub-helpers ───────────────────────────────────────
 
-  // -- Error message helpers --
+  /*!
+   * \brief Extract a DLTensor array field and declare a buffer for element access.
+   *
+   * Creates a buffer declaration for the array, extracts the pointer
+   * from the DLTensor handle, and appends the LetStmt + DeclBuffer to init_nest_.
+   *
+   * \param handle The DLTensor handle variable.
+   * \param field_kind kArrShape or kArrStrides.
+   * \param field_name "shape" or "strides" (used for buffer naming).
+   * \param num_elements Number of elements in the array.
+   * \param arg_name Human-readable base name for the buffer.
+   * \return The declared buffer for element access.
+   */
+  Buffer ExtractDLTensorArray(const Var& handle, int field_kind, const std::string& field_name,
+                              int num_elements, const std::string& arg_name);
+
+  /*!
+   * \brief Assert strides form a compact (C-contiguous) layout.
+   * Skipped if strides pointer is NULL.
+   *
+   * Example error:
+   *   ValueError: Mismatched a.strides on argument #0 when calling:
+   *     `add_one(a: Tensor([4, 8], float32), ...)`,
+   *     expected to be compact array
+   *
+   * \param buffer The expected buffer definition.
+   * \param buf_strides The strides buffer extracted from the DLTensor.
+   * \param v_strides_is_null Expression checking if strides pointer is NULL.
+   * \param param_path AccessPath for the tensor parameter.
+   */
+  void BindCompactStrides(const Buffer& buffer, const Buffer& buf_strides,
+                          PrimExpr v_strides_is_null,
+                          const ffi::reflection::AccessPath& param_path);
+
+  /*!
+   * \brief Bind strides for auto-broadcast buffers: stride=0 for shape==1 dims.
+   *
+   * \param buffer The expected buffer definition.
+   * \param buf_strides The strides buffer extracted from the DLTensor.
+   * \param v_strides_is_null Expression checking if strides pointer is NULL.
+   * \param param_path AccessPath for the tensor parameter.
+   */
+  void BindAutoBroadcastStrides(const Buffer& buffer, const Buffer& buf_strides,
+                                PrimExpr v_strides_is_null,
+                                const ffi::reflection::AccessPath& param_path);
+
+  /*!
+   * \brief Bind strides with C-contiguous fallback when strides pointer is NULL.
+   *
+   * \param buffer The expected buffer definition.
+   * \param buf_strides The strides buffer extracted from the DLTensor.
+   * \param buf_shape The shape buffer (for computing C-contiguous strides).
+   * \param v_strides_is_null Expression checking if strides pointer is NULL.
+   * \param param_path AccessPath for the tensor parameter.
+   */
+  void BindRegularStrides(const Buffer& buffer, const Buffer& buf_strides, const Buffer& buf_shape,
+                          PrimExpr v_strides_is_null,
+                          const ffi::reflection::AccessPath& param_path);
+
+  // ── Error message helpers ──────────────────────────────────────
 
   /*!
    * \brief Build a rich AssertStmt with kind, detail, signature, expectation.
@@ -266,7 +378,7 @@ class ArgBinder {
    */
   int GetParamIndex(const ffi::reflection::AccessPath& path) const;
 
-  // -- Data members --
+  // ── Data members ───────────────────────────────────────────────
   /*! \brief The definition map, can be used to substitute */
   std::unordered_map<const VarNode*, PrimExpr>* def_map_;
   /*! \brief defs generated in the current binder */

@@ -21,6 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tir
+from tvm.script import tir as T
 
 # Phase 0 tests only need LLVM; they test basic AssertStmt codegen infrastructure
 codegen_target = tvm.testing.parameter("llvm")
@@ -112,6 +113,35 @@ def test_assert_ir_structure():
     assert len(stmt.message_parts) == 2
     assert stmt.message_parts[0].value == "msg1"
     assert stmt.message_parts[1].value == "msg2"
+
+
+def test_tvmscript_assert_preserves_kind():
+    """Regression: TVMScript assert with structured format preserves kind.
+
+    Ensures `assert cond, ("ValueError", ["msg"])` creates an AssertStmt
+    with kind="ValueError" rather than defaulting to "RuntimeError".
+    """
+
+    @T.prim_func
+    def func(x: T.int32):
+        T.func_attr(
+            {"global_symbol": "test_kind", "target": tvm.target.Target("llvm", host="llvm")}
+        )
+        assert x > 0, ("ValueError", ["x must be positive"])
+
+    mod = tvm.IRModule.from_expr(func)
+    func_ir = mod["test_kind"]
+
+    asserts = []
+
+    def visitor(stmt):
+        if isinstance(stmt, tvm.tir.AssertStmt):
+            asserts.append(stmt)
+
+    tvm.tir.stmt_functor.post_order_visit(func_ir.body, visitor)
+    assert len(asserts) == 1
+    assert asserts[0].kind.value == "ValueError"
+    assert any("x must be positive" in p.value for p in asserts[0].message_parts)
 
 
 if __name__ == "__main__":
