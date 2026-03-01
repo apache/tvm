@@ -72,11 +72,11 @@ jobs:
 
       - name: Install LLVM dependencies (MacOS)
         if: matrix.os == 'macOS-latest'
-        run: brew install llvm cmake ninja zlib
+        run: brew install llvm cmake zlib
 
       - name: Install dependencies (Windows)
         if: matrix.os == 'windows-latest'
-        run: choco install llvm cmake ninja -y --no-progress
+        run: choco install llvm cmake -y --no-progress
 
       - name: Install LLVM + provide libxml2s.lib (Windows)
         if: matrix.os == 'windows-latest'
@@ -126,13 +126,13 @@ jobs:
       - name: Build and Install TVM (MacOS)
         if: matrix.os == 'macOS-latest'
         run: |
-          export CMAKE_ARGS="-G Ninja; -DUSE_LLVM='$(brew --prefix llvm)/bin/llvm-config --link-static'; -DBUILD_TESTING=OFF"
+          export CMAKE_ARGS="-DUSE_LLVM='$(brew --prefix llvm)/bin/llvm-config --link-static'"
           uv pip install --no-deps . --verbose --config-settings=cmake.args="$CMAKE_ARGS"
 
       - name: Build and Install TVM (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          $env:CMAKE_ARGS = "-DUSE_LLVM=$env:LLVM_CONFIG -DBUILD_TESTING=OFF"
+          $env:CMAKE_ARGS = "-DUSE_LLVM=$env:LLVM_CONFIG"
           uv pip install --no-deps . --verbose --config-settings=cmake.args="$env:CMAKE_ARGS"
 
       - name: Install test dependencies
