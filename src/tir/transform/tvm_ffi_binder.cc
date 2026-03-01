@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm_ffi_binder.cc
- * \brief Helper utility to match and bind arguments.
+ * \brief Helper utility to match and bind packed function arguments.
  */
 #include "tvm_ffi_binder.h"
 
@@ -36,26 +36,18 @@ namespace tir {
 using ffi::reflection::AccessPath;
 using ffi::reflection::AccessStep;
 
-void BinderAddAssert(arith::Analyzer* ana, PrimExpr cond, const std::string& arg_name,
-                     std::vector<Stmt>* asserts) {
-  PrimExpr scond = ana->Simplify(cond);
-  if (is_zero(scond)) {
-    TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << cond << ", "
-                                 << " on argument " << arg_name;
-  }
-  if (!is_one(scond)) {
-    std::ostringstream os;
-    os << "Argument " << arg_name << " has an unsatisfied constraint: " << cond;
-    asserts->emplace_back(
-        AssertStmt(tvm::tir::StringImm("RuntimeError"), scond, {tvm::tir::StringImm(os.str())}));
-  }
-}
+// ============================================================
+// Constructor
+// ============================================================
 
 ArgBinder::ArgBinder(std::unordered_map<const VarNode*, PrimExpr>* def_map,
                      const std::string& func_name, const ffi::Array<Var>& params,
-                     const ffi::Map<Var, Buffer>& buffer_map)
-    : def_map_(def_map) {
-  func_name_ = func_name;
+                     const ffi::Map<Var, Buffer>& buffer_map, const Var& v_packed_args)
+    : def_map_(def_map),
+      func_name_(func_name),
+      params_(params),
+      buffer_map_(buffer_map),
+      v_packed_args_(v_packed_args) {
   // Build function signature string
   std::ostringstream os;
   os << func_name << "(";
@@ -64,7 +56,6 @@ ArgBinder::ArgBinder(std::unordered_map<const VarNode*, PrimExpr>* def_map,
     Var param = params[i];
     if (buffer_map.count(param)) {
       Buffer buf = buffer_map[param];
-      // Use the buffer name (e.g. "a") not the handle name (e.g. "a_handle")
       std::string buf_name = buf->name;
       os << buf_name << ": Tensor([";
       for (size_t j = 0; j < buf->shape.size(); ++j) {
@@ -74,11 +65,9 @@ ArgBinder::ArgBinder(std::unordered_map<const VarNode*, PrimExpr>* def_map,
         os << shape_os.str();
       }
       os << "], " << buf->dtype << ")";
-      // Record param_index -> param_name mapping
       param_names_[static_cast<int>(i)] = buf_name;
     } else {
       os << param->name_hint << ": " << param.dtype();
-      // Record param_index -> param_name mapping
       param_names_[static_cast<int>(i)] = param->name_hint;
     }
   }
@@ -86,27 +75,34 @@ ArgBinder::ArgBinder(std::unordered_map<const VarNode*, PrimExpr>* def_map,
   func_signature_ = os.str();
 }
 
-std::string ArgBinder::RenderAccessPath(const AccessPath& path) const {
+// ============================================================
+// EmitRichAssert_
+// ============================================================
+
+void ArgBinder::EmitRichAssert_(const std::string& kind, PrimExpr cond, const std::string& detail,
+                                const std::string& expectation, std::vector<Stmt>* target) {
+  ffi::Array<StringImm> parts;
+  parts.push_back(tvm::tir::StringImm(detail + " when calling:\n  `"));
+  parts.push_back(tvm::tir::StringImm(func_signature_));
+  parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
+  target->emplace_back(AssertStmt(tvm::tir::StringImm(kind), cond, parts));
+}
+
+// ============================================================
+// RenderAccessPath_
+// ============================================================
+
+std::string ArgBinder::RenderAccessPath_(const AccessPath& path) const {
   ffi::Array<AccessStep> steps = path->ToSteps();
   std::ostringstream os;
   bool first_printed = false;
-  // Track whether we've consumed the root ArrayItem(param_index)
-  // so we know the next Attr is the param name (which we skip in favor of
-  // looking up param_names_).
   bool consumed_root_array_item = false;
   for (size_t i = 0; i < steps.size(); ++i) {
     const AccessStep& step = steps[i];
     if (step->kind == ffi::reflection::AccessKind::kAttr) {
       std::string field_name = step->key.cast<ffi::String>();
       if (!first_printed) {
-        // If this Attr immediately follows a root ArrayItem, use the param name
-        // from the mapping (which should be the same as field_name for BindDLTensor).
-        if (consumed_root_array_item) {
-          // Use the param name from our mapping (already resolved by root ArrayItem)
-          os << field_name;
-        } else {
-          os << field_name;
-        }
+        os << field_name;
         first_printed = true;
       } else {
         os << "." << field_name;
@@ -114,17 +110,10 @@ std::string ArgBinder::RenderAccessPath(const AccessPath& path) const {
     } else if (step->kind == ffi::reflection::AccessKind::kArrayItem) {
       int64_t index = step->key.cast<int64_t>();
       if (!first_printed && !consumed_root_array_item) {
-        // This is the root ArrayItem (param_index).
-        // Mark it as consumed; the next Attr step will provide the display name.
         consumed_root_array_item = true;
-        // Check if there's a following Attr step that will provide the name.
-        // If there's no Attr step after (unusual), fall back to param_names_ lookup.
-        if (i + 1 < steps.size() &&
-            steps[i + 1]->kind == ffi::reflection::AccessKind::kAttr) {
-          // The next Attr will handle the display name; skip this ArrayItem.
+        if (i + 1 < steps.size() && steps[i + 1]->kind == ffi::reflection::AccessKind::kAttr) {
           continue;
         }
-        // No following Attr: use param_names_ directly
         auto it = param_names_.find(static_cast<int>(index));
         if (it != param_names_.end()) {
           os << it->second;
@@ -140,6 +129,22 @@ std::string ArgBinder::RenderAccessPath(const AccessPath& path) const {
   return os.str();
 }
 
+// ============================================================
+// GetParamIndex_
+// ============================================================
+
+int ArgBinder::GetParamIndex_(const AccessPath& path) const {
+  ffi::Array<AccessStep> steps = path->ToSteps();
+  if (steps.size() >= 1 && steps[0]->kind == ffi::reflection::AccessKind::kArrayItem) {
+    return static_cast<int>(steps[0]->key.cast<int64_t>());
+  }
+  return -1;
+}
+
+// ============================================================
+// Bind_ (scalar bind with AccessPath)
+// ============================================================
+
 bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
                       bool with_lets, AccessPath path) {
   TVM_FFI_ICHECK_EQ(arg.dtype(), value.dtype());
@@ -149,7 +154,6 @@ bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::str
     if (it == def_map_->end()) {
       Var v_arg = Downcast<Var>(arg);
       defs_.emplace_back(v_arg);
-      // Record first bind path for this variable
       if (first_bind_path_.find(v) == first_bind_path_.end() && has_path) {
         first_bind_path_.emplace(v, path);
       }
@@ -162,123 +166,77 @@ bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::str
       return true;
     } else {
       // Duplicate bind: create rich assertion with both paths
-      if (!func_signature_.empty()) {
-        PrimExpr scond = analyzer_.Simplify(it->second == value);
-        if (is_zero(scond)) {
-          TVM_FFI_THROW(InternalError)
-              << "Bind have an unmet assertion: " << it->second << " == " << value << ", "
-              << " on argument " << arg_name;
-        }
-        if (!is_one(scond)) {
-          // Find the first bind path for the variable
-          auto path_it = first_bind_path_.find(v);
-          // Render the current path description
-          std::string current_path_str;
-          if (has_path) {
-            current_path_str = RenderAccessPath(path);
-          } else {
-            current_path_str = arg_name;
-          }
-          std::string first_path_str;
-          if (path_it != first_bind_path_.end()) {
-            first_path_str = RenderAccessPath(path_it->second);
-          }
-          // Determine param_index from the path root step
-          int param_index = -1;
-          if (has_path) {
-            ffi::Array<AccessStep> steps = path->ToSteps();
-            if (steps.size() >= 1 && steps[0]->kind == ffi::reflection::AccessKind::kArrayItem) {
-              param_index = static_cast<int>(steps[0]->key.cast<int64_t>());
-            }
-          }
-          std::ostringstream detail_os;
-          detail_os << "Mismatched " << current_path_str;
-          if (param_index >= 0) {
-            detail_os << " on argument #" << param_index;
-          }
-          std::string detail_str = detail_os.str();
-          std::string expectation;
-          if (!first_path_str.empty() && first_path_str != current_path_str) {
-            expectation = "to match " + first_path_str;
-          } else {
-            expectation = "matching value";
-          }
-          // Build inline rich assert parts
-          ffi::Array<StringImm> parts;
-          parts.push_back(tvm::tir::StringImm(detail_str + " when calling:\n  `"));
-          parts.push_back(tvm::tir::StringImm(func_signature_));
-          parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
-          asserts_.emplace_back(
-              AssertStmt(tvm::tir::StringImm("ValueError"), scond, parts));
-        }
-      } else {
-        BinderAddAssert(&analyzer_, it->second == value, arg_name, &asserts_);
-      }
-    }
-  } else {
-    if (!func_signature_.empty()) {
-      PrimExpr scond = analyzer_.Simplify(arg == value);
+      PrimExpr scond = analyzer_.Simplify(it->second == value);
       if (is_zero(scond)) {
-        TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << arg << " == " << value
-                                     << ", on argument " << arg_name;
+        TVM_FFI_THROW(InternalError)
+            << "Bind have an unmet assertion: " << it->second << " == " << value << ", "
+            << " on argument " << arg_name;
       }
       if (!is_one(scond)) {
-        // Render path if available
-        std::string path_str;
-        if (has_path) {
-          path_str = RenderAccessPath(path);
-        } else {
-          path_str = arg_name;
+        auto path_it = first_bind_path_.find(v);
+        std::string current_path_str = has_path ? RenderAccessPath_(path) : arg_name;
+        std::string first_path_str;
+        if (path_it != first_bind_path_.end()) {
+          first_path_str = RenderAccessPath_(path_it->second);
         }
-        // Determine param_index from path
-        int param_index = -1;
-        if (has_path) {
-          ffi::Array<AccessStep> steps = path->ToSteps();
-          if (steps.size() >= 1 && steps[0]->kind == ffi::reflection::AccessKind::kArrayItem) {
-            param_index = static_cast<int>(steps[0]->key.cast<int64_t>());
-          }
-        }
+        int param_index = has_path ? GetParamIndex_(path) : -1;
         std::ostringstream detail_os;
-        detail_os << "Invalid " << path_str;
+        detail_os << "Mismatched " << current_path_str;
         if (param_index >= 0) {
           detail_os << " on argument #" << param_index;
         }
-        std::string detail_str = detail_os.str();
-        std::ostringstream expect_os;
-        expect_os << arg;
-        std::string expectation = expect_os.str();
-        // Build inline rich assert parts
-        ffi::Array<StringImm> parts;
-        parts.push_back(tvm::tir::StringImm(detail_str + " when calling:\n  `"));
-        parts.push_back(tvm::tir::StringImm(func_signature_));
-        parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
-        asserts_.emplace_back(
-            AssertStmt(tvm::tir::StringImm("ValueError"), scond, parts));
+        std::string expectation;
+        if (!first_path_str.empty() && first_path_str != current_path_str) {
+          expectation = "to match " + first_path_str;
+        } else {
+          expectation = "matching value";
+        }
+        EmitRichAssert_("ValueError", scond, detail_os.str(), expectation, &asserts_);
       }
-    } else {
-      BinderAddAssert(&analyzer_, arg == value, arg_name, &asserts_);
+    }
+  } else {
+    PrimExpr scond = analyzer_.Simplify(arg == value);
+    if (is_zero(scond)) {
+      TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << arg << " == " << value
+                                   << ", on argument " << arg_name;
+    }
+    if (!is_one(scond)) {
+      std::string path_str = has_path ? RenderAccessPath_(path) : arg_name;
+      int param_index = has_path ? GetParamIndex_(path) : -1;
+      std::ostringstream detail_os;
+      detail_os << "Invalid " << path_str;
+      if (param_index >= 0) {
+        detail_os << " on argument #" << param_index;
+      }
+      std::ostringstream expect_os;
+      expect_os << arg;
+      EmitRichAssert_("ValueError", scond, detail_os.str(), expect_os.str(), &asserts_);
     }
   }
   return false;
 }
 
-void ArgBinder::Bind(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
-                     bool with_let) {
-  Bind_(arg, value, arg_name, with_let, AccessPath::Root());
-}
+// ============================================================
+// BindArray_ (array bind with AccessPath)
+// ============================================================
 
-void ArgBinder::BindArray(const ffi::Array<PrimExpr>& arg, const ffi::Array<PrimExpr>& value,
-                          const std::string& arg_name) {
+void ArgBinder::BindArray_(const ffi::Array<PrimExpr>& arg, const ffi::Array<PrimExpr>& value,
+                           const std::string& arg_name, AccessPath base_path) {
   TVM_FFI_ICHECK_EQ(arg.size(), value.size()) << "Argument " << arg_name << " array size mismatch";
   for (size_t i = 0; i < arg.size(); ++i) {
     std::ostringstream os;
     os << arg_name << "[" << i << "]";
-    this->Bind(arg[i], value[i], os.str());
+    AccessPath elem_path = base_path->ArrayItem(i);
+    Bind_(arg[i], value[i], os.str(), false, elem_path);
   }
 }
 
-void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::string& arg_name,
-                           bool fuzzy_match) {
+// ============================================================
+// BindBuffer_ (buffer-to-buffer bind with AccessPath)
+// ============================================================
+
+void ArgBinder::BindBuffer_(const Buffer& arg, const Buffer& value, const std::string& arg_name,
+                            AccessPath base_path, bool fuzzy_match) {
   TVM_FFI_ICHECK_EQ(arg.scope(), value.scope())
       << "Argument " << arg_name << " Buffer bind scope mismatch";
   TVM_FFI_ICHECK_EQ(arg->dtype, value->dtype)
@@ -290,26 +248,41 @@ void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::st
   }
 
   if (value->elem_offset.defined()) {
-    // bind pointer and offset.
     if (is_zero(arg->elem_offset)) {
       TVM_FFI_ICHECK(is_zero(value->elem_offset))
           << "Trying to bind a Buffer with offset into one without offset "
           << " required elem_offset=" << arg->elem_offset
           << ", provided elem_offset=" << value->elem_offset;
     }
-
-    this->Bind(arg->data, value->data, arg_name + ".data");
+    AccessPath data_path = base_path->Attr(ffi::String("data"));
+    Bind_(arg->data, value->data, arg_name + ".data", false, data_path);
+    AccessPath offset_path = base_path->Attr(ffi::String("elem_offset"));
     if (Bind_(arg->elem_offset, value->elem_offset, arg_name + ".elem_offset", false,
-              AccessPath::Root())) {
+              offset_path)) {
       if (arg->offset_factor > 1) {
         PrimExpr offset = value->elem_offset;
         PrimExpr factor = make_const(offset.dtype(), arg->offset_factor);
         PrimExpr zero = make_zero(offset.dtype());
-        BinderAddAssert(&analyzer_, truncmod(offset, factor) == zero, arg_name + ".elem_offset",
-                        &asserts_);
+        PrimExpr acond = analyzer_.Simplify(truncmod(offset, factor) == zero);
+        if (is_zero(acond)) {
+          TVM_FFI_THROW(InternalError)
+              << "Bind have an unmet assertion on " << arg_name << ".elem_offset";
+        }
+        if (!is_one(acond)) {
+          int param_index = GetParamIndex_(base_path);
+          std::ostringstream detail;
+          detail << "Misaligned buffer data on argument #" << param_index;
+          int data_bytes = GetVectorBytes(arg->dtype);
+          std::ostringstream expect;
+          expect << "data alignment=" << (arg->offset_factor * data_bytes) << " bytes";
+          EmitRichAssert_("ValueError", acond, detail.str(), expect.str(), &asserts_);
+        }
       }
     }
   }
+
+  AccessPath shape_path = base_path->Attr(ffi::String("shape"));
+  AccessPath strides_path = base_path->Attr(ffi::String("strides"));
 
   if (arg->shape.size() < value->shape.size()) {
     TVM_FFI_ICHECK(fuzzy_match) << "Argument " << arg_name << " size mismatch";
@@ -321,7 +294,8 @@ void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::st
     for (size_t i = 0; i < arg->shape.size(); ++i) {
       std::ostringstream os;
       os << arg_name << ".shape[" << i << "]";
-      this->Bind(arg->shape[i], value->shape[i + diff], os.str());
+      AccessPath shape_k_path = shape_path->ArrayItem(i);
+      Bind_(arg->shape[i], value->shape[i + diff], os.str(), false, shape_k_path);
     }
     if (value->strides.size() != 0) {
       TVM_FFI_ICHECK_EQ(arg->strides.size(), arg->shape.size());
@@ -329,41 +303,154 @@ void ArgBinder::BindBuffer(const Buffer& arg, const Buffer& value, const std::st
       for (size_t i = 0; i < arg->strides.size(); ++i) {
         std::ostringstream os;
         os << arg_name << ".strides[" << i << "]";
-        this->Bind(arg->strides[i], value->strides[i + diff], os.str());
+        AccessPath strides_k_path = strides_path->ArrayItem(i);
+        Bind_(arg->strides[i], value->strides[i + diff], os.str(), false, strides_k_path);
       }
     }
   } else {
-    this->BindArray(arg->shape, value->shape, arg_name + ".shape");
-    this->BindArray(arg->strides, value->strides, arg_name + ".strides");
+    BindArray_(arg->shape, value->shape, arg_name + ".shape", shape_path);
+    BindArray_(arg->strides, value->strides, arg_name + ".strides", strides_path);
   }
 }
+
+// ============================================================
+// BindTypeCheck_ (type index assertion)
+// ============================================================
+
+void ArgBinder::BindTypeCheck_(int i, const Var& type_index, DataType dtype) {
+  std::ostringstream detail;
+  detail << "Mismatched type on argument #" << i;
+  auto emit_type_assert = [&](PrimExpr type_cond, const std::string& expected_type) {
+    EmitRichAssert_("TypeError", type_cond, detail.str(), expected_type, &init_nest_);
+  };
+
+  if (dtype.is_handle()) {
+    std::string expected_type = buffer_map_.count(params_[i]) ? "Tensor" : "pointer";
+    emit_type_assert(type_index == ffi::TypeIndex::kTVMFFINone ||
+                         type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
+                         type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr ||
+                         type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin,
+                     expected_type);
+  } else if (dtype.is_bool()) {
+    emit_type_assert(
+        type_index == ffi::TypeIndex::kTVMFFIBool || type_index == ffi::TypeIndex::kTVMFFIInt,
+        "boolean");
+  } else if (dtype.is_int() || dtype.is_uint()) {
+    emit_type_assert(
+        type_index == ffi::TypeIndex::kTVMFFIInt || type_index == ffi::TypeIndex::kTVMFFIBool,
+        "int");
+  } else {
+    TVM_FFI_ICHECK(dtype.is_float());
+    emit_type_assert(type_index == ffi::TypeIndex::kTVMFFIFloat ||
+                         type_index == ffi::TypeIndex::kTVMFFIInt ||
+                         type_index == ffi::TypeIndex::kTVMFFIBool,
+                     "float");
+  }
+}
+
+// ============================================================
+// BindPackedArg (primary public method)
+// ============================================================
+
+std::pair<PrimExpr, Var> ArgBinder::BindPackedArg(int i) {
+  const Stmt nop = Evaluate(0);
+  Var param = params_[i];
+  DataType dtype = param.dtype();
+
+  // 1. Extract type_index from packed_args
+  Var type_index(param->name_hint + ".type_index", DataType::Int(32));
+  init_nest_.push_back(LetStmt(type_index,
+                               tir::Call(DataType::Int(32), builtin::tvm_struct_get(),
+                                         {v_packed_args_, IntImm(DataType::Int(32), i),
+                                          IntImm(DataType::Int(32), builtin::kTVMFFIAnyTypeIndex)}),
+                               nop));
+
+  // 2. Type-check via BindTypeCheck_
+  BindTypeCheck_(i, type_index, dtype);
+
+  // 3. Load arg value based on dtype
+  // Helper: load i-th argument as type t from packed args
+  auto f_load_arg_value = [&](DataType arg_type, int idx) -> PrimExpr {
+    ffi::Array<PrimExpr> call_args{v_packed_args_, IntImm(DataType::Int(32), idx),
+                                   IntImm(DataType::Int(32), builtin::kTVMFFIAnyUnionValue)};
+    DataType api_type = APIType(arg_type);
+    PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args);
+    if (api_type != arg_type) {
+      res = Cast(arg_type, res);
+    }
+    return res;
+  };
+
+  PrimExpr arg_value;
+  if (dtype.is_handle()) {
+    // For Tensor handles, offset to get the DLTensor* past the object header
+    const int64_t object_cell_offset = sizeof(TVMFFIObject);
+    static_assert(sizeof(TVMFFIObject) == 24);
+    arg_value = f_load_arg_value(param.dtype(), i);
+    PrimExpr handle_from_tensor = Call(DataType::Handle(), tir::builtin::handle_add_byte_offset(),
+                                       {arg_value, IntImm(DataType::Int(32), object_cell_offset)});
+    arg_value = Select(type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value);
+  } else if (dtype.is_bool()) {
+    arg_value = Cast(DataType::Bool(), f_load_arg_value(DataType::Int(64), i));
+  } else if (dtype.is_int() || dtype.is_uint()) {
+    arg_value = f_load_arg_value(param.dtype(), i);
+  } else {
+    TVM_FFI_ICHECK(dtype.is_float());
+    arg_value = tir::Select(
+        type_index == ffi::TypeIndex::kTVMFFIFloat,
+        /* true_value = */ f_load_arg_value(param.dtype(), i),
+        /* false_value = */ Cast(param.dtype(), f_load_arg_value(DataType::Int(64), i)));
+  }
+
+  return {arg_value, param};
+}
+
+// ============================================================
+// BindAllParams
+// ============================================================
+
+void ArgBinder::BindAllParams(const std::vector<std::pair<PrimExpr, Var>>& var_defs,
+                              const PrimExpr& device_type, const PrimExpr& device_id,
+                              std::vector<Stmt>* arg_buffer_declarations) {
+  const Stmt nop = Evaluate(0);
+
+  // Bind scalar params first (so vars are defined before buffer binds reference them)
+  for (const auto& [expr, param] : var_defs) {
+    Bind_(param, expr, func_name_ + "." + param->name_hint, true, AccessPath::Root());
+  }
+
+  // Bind DLTensor buffers
+  for (int i = 0; i < static_cast<int>(params_.size()); ++i) {
+    Var param = params_[i];
+    if (buffer_map_.count(param)) {
+      Buffer buffer = buffer_map_[param];
+      AccessPath param_path =
+          AccessPath::Root()->Extend(AccessStep::ArrayItem(i))->Attr(ffi::String(buffer->name));
+      BindDLTensor_(buffer, device_type, device_id, param, func_name_ + "." + param->name_hint,
+                    param_path);
+      arg_buffer_declarations->push_back(DeclBuffer(buffer, nop));
+    }
+  }
+}
+
+// ============================================================
+// BindDLTensor_ (private)
+// ============================================================
 
 inline PrimExpr TVMArrayGet(DataType t, Var arr, builtin::TVMStructFieldKind kind) {
   return TVMStructGet(t, arr, 0, kind);
 }
 
-void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
-                             const PrimExpr& device_id, const Var& handle,
-                             const std::string& arg_name, AccessPath base_path) {
+void ArgBinder::BindDLTensor_(const Buffer& buffer, const PrimExpr& device_type,
+                              const PrimExpr& device_id, const Var& handle,
+                              const std::string& arg_name, AccessPath base_path) {
   const DataType tvm_shape_type = DataType::ShapeIndex();
   const DataType tvm_ndim_type = DataType::Int(32);
   const Stmt nop = Evaluate(0);
 
-  // Use the buffer's own name for display purposes (e.g. "a" not "a_handle").
   std::string buf_name = buffer->name;
-
-  // base_path represents the parameter (e.g. Root()->ArrayItem(i)->Attr(buf_name))
-  // Extend it for sub-fields like shape, strides, etc.
   AccessPath param_path = base_path;
-
-  // Determine param_index from the base_path root step
-  int param_index = -1;
-  {
-    ffi::Array<AccessStep> steps = base_path->ToSteps();
-    if (steps.size() >= 1 && steps[0]->kind == ffi::reflection::AccessKind::kArrayItem) {
-      param_index = static_cast<int>(steps[0]->key.cast<int64_t>());
-    }
-  }
+  int param_index = GetParamIndex_(base_path);
 
   // Helper functions for shape/stride name formatting
   auto shape_handle_name = [&]() { return arg_name + ".shape"; };
@@ -376,31 +463,12 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   auto shape_element_name = [&](size_t k) { return array_element_name(shape_handle_name(), k); };
   auto stride_element_name = [&](size_t k) { return array_element_name(stride_handle_name(), k); };
 
-  // Helper to build inline rich assert parts
-  auto make_rich_assert = [&](const std::string& kind, PrimExpr cond,
-                              const std::string& detail_str, const std::string& expectation,
-                              std::vector<Stmt>* asserts) {
-    if (func_signature_.empty()) {
-      // Fallback: no signature info, use simple message
-      std::ostringstream os;
-      os << detail_str << ", expected " << expectation;
-      asserts->emplace_back(
-          AssertStmt(tvm::tir::StringImm(kind), cond, {tvm::tir::StringImm(os.str())}));
-    } else {
-      ffi::Array<StringImm> parts;
-      parts.push_back(tvm::tir::StringImm(detail_str + " when calling:\n  `"));
-      parts.push_back(tvm::tir::StringImm(func_signature_));
-      parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
-      asserts->emplace_back(AssertStmt(tvm::tir::StringImm(kind), cond, parts));
-    }
-  };
-
   // null pointer check: TypeError for wrong type (not a tensor)
   {
     std::ostringstream detail;
     detail << "Mismatched type on argument #" << param_index;
-    make_rich_assert("TypeError", !Call(DataType::Bool(), builtin::isnullptr(), {handle}),
-                     detail.str(), "Tensor", &init_nest_);
+    EmitRichAssert_("TypeError", !Call(DataType::Bool(), builtin::isnullptr(), {handle}),
+                    detail.str(), "Tensor", &init_nest_);
   }
 
   // dimension checks
@@ -411,7 +479,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     detail << "Mismatched " << buf_name << ".ndim on argument #" << param_index;
     std::ostringstream expect;
     expect << buffer->shape.size();
-    make_rich_assert("ValueError", a_ndim == v_ndim, detail.str(), expect.str(), &init_nest_);
+    EmitRichAssert_("ValueError", a_ndim == v_ndim, detail.str(), expect.str(), &init_nest_);
   }
 
   // type checks
@@ -427,7 +495,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     detail << "Mismatched " << buf_name << ".dtype on argument #" << param_index;
     std::ostringstream expect;
     expect << buffer->dtype;
-    make_rich_assert("TypeError", cond, detail.str(), expect.str(), &asserts_);
+    EmitRichAssert_("TypeError", cond, detail.str(), expect.str(), &asserts_);
   }
 
   // shape field
@@ -472,13 +540,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
       detail << "Mismatched " << buf_name << ".strides on argument #" << param_index;
       std::string expectation = "to be compact array";
       ffi::Array<StringImm> parts;
-      if (!func_signature_.empty()) {
-        parts.push_back(tvm::tir::StringImm(detail.str() + " when calling:\n  `"));
-        parts.push_back(tvm::tir::StringImm(func_signature_));
-        parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
-      } else {
-        parts.push_back(tvm::tir::StringImm(detail.str() + ", expected " + expectation));
-      }
+      parts.push_back(tvm::tir::StringImm(detail.str() + " when calling:\n  `"));
+      parts.push_back(tvm::tir::StringImm(func_signature_));
+      parts.push_back(tvm::tir::StringImm("`,\n  expected " + expectation));
       Stmt check = AssertStmt(
           tvm::tir::StringImm("ValueError"),
           foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
@@ -533,23 +597,17 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
         PrimExpr offset = buffer->elem_offset;
         PrimExpr factor = make_const(offset.dtype(), buffer->offset_factor);
         PrimExpr zero = make_zero(offset.dtype());
-        // Generate rich alignment assertion
-        if (!func_signature_.empty() && param_index >= 0) {
-          PrimExpr acond = analyzer_.Simplify(truncmod(offset, factor) == zero);
-          if (is_zero(acond)) {
-            TVM_FFI_THROW(InternalError)
-                << "Bind have an unmet assertion on " << arg_name << ".elem_offset";
-          }
-          if (!is_one(acond)) {
-            std::ostringstream detail;
-            detail << "Misaligned Tensor data on argument #" << param_index;
-            std::ostringstream expect;
-            expect << "data alignment=" << (buffer->offset_factor * data_bytes) << " bytes";
-            make_rich_assert("ValueError", acond, detail.str(), expect.str(), &asserts_);
-          }
-        } else {
-          BinderAddAssert(&analyzer_, truncmod(offset, factor) == zero, arg_name + ".elem_offset",
-                          &asserts_);
+        PrimExpr acond = analyzer_.Simplify(truncmod(offset, factor) == zero);
+        if (is_zero(acond)) {
+          TVM_FFI_THROW(InternalError)
+              << "Bind have an unmet assertion on " << arg_name << ".elem_offset";
+        }
+        if (!is_one(acond)) {
+          std::ostringstream detail;
+          detail << "Misaligned Tensor data on argument #" << param_index;
+          std::ostringstream expect;
+          expect << "data alignment=" << (buffer->offset_factor * data_bytes) << " bytes";
+          EmitRichAssert_("ValueError", acond, detail.str(), expect.str(), &asserts_);
         }
       }
     }
@@ -583,9 +641,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
     {
       std::ostringstream detail;
       detail << buf_name << " data pointer is NULL on argument #" << param_index;
-      make_rich_assert("ValueError",
-                       alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
-                       detail.str(), "non-NULL data pointer", &asserts_);
+      EmitRichAssert_("ValueError",
+                      alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
+                      detail.str(), "non-NULL data pointer", &asserts_);
     }
 
     def_handle_dtype_.Set(vptr, tir::TypeAnnotation(buffer->dtype));
