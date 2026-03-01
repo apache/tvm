@@ -536,7 +536,7 @@ ffi::Module BuildHexagon(IRModule mod, Target target) {
     TVM_FFI_ICHECK(!file.has_error()) << file.error().message();
     // If there is an error, execution will never get here, but return
     // {ec, name} anyway to allow caller to handle error conditions.
-    // This way the "ICHECK" above can be removed with minimal effort.
+    // This way the "TVM_FFI_ICHECK" above can be removed with minimal effort.
     return std::make_pair(file.error(), std::string(file_name.c_str()));
   };
 
