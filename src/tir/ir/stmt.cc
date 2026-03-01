@@ -104,7 +104,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // AssertStmt
-AssertStmt::AssertStmt(StringImm kind, PrimExpr condition, ffi::Array<StringImm> message_parts,
+AssertStmt::AssertStmt(PrimExpr condition, StringImm kind, ffi::Array<StringImm> message_parts,
                        Span span) {
   TVM_FFI_ICHECK(kind.defined());
   TVM_FFI_ICHECK(condition.defined());
@@ -123,8 +123,8 @@ AssertStmt::AssertStmt(StringImm kind, PrimExpr condition, ffi::Array<StringImm>
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.AssertStmt",
-                        [](StringImm kind, PrimExpr condition, ffi::Array<StringImm> message_parts,
-                           Span span) { return AssertStmt(kind, condition, message_parts, span); });
+                        [](PrimExpr condition, StringImm kind, ffi::Array<StringImm> message_parts,
+                           Span span) { return AssertStmt(condition, kind, message_parts, span); });
 }
 
 // For

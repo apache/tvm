@@ -206,7 +206,7 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
         } else {
           parts.push_back(StringImm("`,\n  expected matching value"));
         }
-        init_nest_.emplace_back(AssertStmt(StringImm("ValueError"), scond, parts));
+        init_nest_.emplace_back(AssertStmt(scond, StringImm("ValueError"), parts));
       }
     }
   } else {
@@ -231,7 +231,7 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
       parts.push_back(sig_imm_);
       parts.push_back(StringImm("`,\n  expected "));
       parts.push_back(StringImm(expect_os.str()));
-      init_nest_.emplace_back(AssertStmt(StringImm("ValueError"), scond, parts));
+      init_nest_.emplace_back(AssertStmt(scond, StringImm("ValueError"), parts));
     }
   }
   return false;
@@ -501,9 +501,9 @@ void TVMFFIABIBuilder::BindCompactStrides(const Buffer& buffer, const Buffer& bu
   if (conds.size() != 0) {
     int param_index = GetParamIndex(param_path);
     Stmt check = AssertStmt(
-        StringImm("ValueError"),
         foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
               const_true(1), conds),
+        StringImm("ValueError"),
         ffi::Array<StringImm>({StringImm("Mismatched "), StringImm(buffer->name),
                                StringImm(".strides on argument #"),
                                StringImm(std::to_string(param_index)), when_calling_imm_, sig_imm_,

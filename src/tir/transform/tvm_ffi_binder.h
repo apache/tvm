@@ -136,7 +136,7 @@ class TVMFFIABIBuilder {
   void EmitAssert(const PrimExpr& cond, const char* kind, Args&&... args) {
     ffi::Array<StringImm> parts;
     (parts.push_back(ToMsgPart(std::forward<Args>(args))), ...);
-    init_nest_.emplace_back(AssertStmt(StringImm(kind), cond, parts));
+    init_nest_.emplace_back(AssertStmt(cond, StringImm(kind), parts));
   }
 
   // ── Binding submethods ─────────────────────────────────────────

@@ -98,7 +98,7 @@ class BoundChecker : public StmtExprMutator {
       if (!condition.as<StringImmNode>()) {
         Stmt then_case = ffi::GetRef<Stmt>(op);
         Stmt else_case =
-            AssertStmt(StringImm("RuntimeError"), condition, {StringImm(error_message_)});
+            AssertStmt(condition, StringImm("RuntimeError"), {StringImm(error_message_)});
         Stmt body = IfThenElse(condition, then_case, else_case);
         return body;
       }

@@ -179,7 +179,7 @@ class AssertStmtNode : public StmtNode {
  */
 class AssertStmt : public Stmt {
  public:
-  TVM_DLL AssertStmt(StringImm kind, PrimExpr condition, ffi::Array<StringImm> message_parts,
+  TVM_DLL AssertStmt(PrimExpr condition, StringImm kind, ffi::Array<StringImm> message_parts,
                      Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AssertStmt, Stmt, AssertStmtNode);
