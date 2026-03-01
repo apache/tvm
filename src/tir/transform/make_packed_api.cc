@@ -235,8 +235,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                           v_num_packed_args, device_type, device_id);
   binder.DecodeAllParams();
 
-  auto [def_map, init_nest] = binder.Finalize();
-  bool need_set_device = def_map.count(device_id);
+  auto result = binder.Finalize();
+  bool need_set_device = result.var_defs.count(device_id.get());
 
   std::vector<Stmt> seq_check;
 
@@ -270,7 +270,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // Return error code of zero on success
   body = SeqStmt({body, Evaluate(ret(Integer(0)))});
 
-  body = MergeNest({std::move(init_nest), seq_check}, body);
+  body = MergeNest({std::move(result.init_nest), seq_check, std::move(result.asserts),
+                    std::move(result.decl_buffers)},
+                   body);
   func_ptr->body = body;
   func_ptr->params = args;
 

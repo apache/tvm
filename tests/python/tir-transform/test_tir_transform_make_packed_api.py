@@ -428,5 +428,30 @@ def test_float_parameter():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_forward_reference_symbolic_variable():
+    """MakePackedAPI succeeds when a symbolic variable is used before it is defined.
+
+    When buffer A has shape (batch_size+1,) and buffer B has shape (batch_size,),
+    batch_size is referenced (in A's shape check) before it is defined (from B's
+    shape). The three-sequence separation (init_nest, asserts, decl_buffers)
+    ensures all variable definitions precede all assertions.
+    """
+
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(a: T.handle, b: T.handle):
+            T.func_attr({"target": T.target("llvm", host="llvm")})
+            batch_size = T.int64()
+            A = T.match_buffer(a, (batch_size + 1,), "int32")
+            B = T.match_buffer(b, (batch_size,), "int32")
+            for i in range(batch_size):
+                B[i] = A[i] + A[i + 1]
+
+    # Should not raise "variable batch_size has been used before definition"
+    After = tvm.tir.transform.MakePackedAPI()(Before)
+    assert len(After["main"].params) == 4
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -51,6 +51,19 @@ namespace tir {
  * type checking (TypeError), value loading, scalar binding, buffer
  * binding, and rich error message generation with AccessPath.
  *
+ * ## Generated statement ordering
+ *
+ * Statements are separated into three sequences to ensure correct variable
+ * scoping.  Symbolic shape variables (e.g. batch_size) may appear in an
+ * earlier buffer's shape expression (batch_size + 1) before being defined
+ * by a later buffer's shape (batch_size).  Separating definitions from
+ * checks guarantees all variables are in scope when assertions reference them.
+ *
+ * - init_nest: LetStmts, DeclBuffers for shape/strides arrays, AttrStmts —
+ *   all value-loading code that defines variables.
+ * - asserts: AssertStmts — all validation checks.
+ * - decl_buffers: DeclBuffer for buffer_map entries — buffer declarations.
+ *
  * ## Calling Protocol
  *
  * 1. Construct with function metadata (func_name, params, buffer_map, v_packed_args,
@@ -58,8 +71,7 @@ namespace tir {
  * 2. Call DecodeAllParams(device_type, device_id)
  *    - Decodes, type-checks, and binds all packed arguments
  *    - Binds DLTensor buffers (shape, strides, dtype, device checks)
- * 3. Build the function body using init_nest() which contains all generated
- *    statements: variable bindings, assertions, and DeclBuffer statements.
+ * 3. Call Finalize() to get the three statement sequences and definition map.
  *
  * \note Consider a function f(tA(shape=var(n)), tB(shape=3), tC(shape=(n+2)).
  *  Here n is an undefined variable decided by the outside, tB imposes
@@ -73,6 +85,24 @@ namespace tir {
  */
 class TVMFFIABIBuilder {
  public:
+  /*! \brief Variable definition info: bound value and the AccessPath where first defined. */
+  struct VarDefInfo {
+    PrimExpr value;
+    ffi::reflection::AccessPath first_def_path;
+  };
+
+  /*! \brief Result of Finalize(): definition map and three statement sequences. */
+  struct Result {
+    /*! \brief Var -> VarDefInfo map for defined variables. */
+    std::unordered_map<const VarNode*, VarDefInfo> var_defs;
+    /*! \brief Variable definitions (LetStmts, shape/strides DeclBuffers, AttrStmts). */
+    std::vector<Stmt> init_nest;
+    /*! \brief Validation checks (all AssertStmts). */
+    std::vector<Stmt> asserts;
+    /*! \brief Buffer declarations for buffer_map entries. */
+    std::vector<Stmt> decl_buffers;
+  };
+
   /*!
    * \brief Constructor with function signature info for rich error messages.
    *
@@ -100,22 +130,20 @@ class TVMFFIABIBuilder {
    *    and bind scalar params
    * 2. Binds DLTensor buffers to handles (shape, strides, dtype, device checks)
    *
-   * All generated statements are appended to init_nest.
+   * Statements are routed to init_nest_, asserts_, or decl_buffers_.
    */
   void DecodeAllParams();
 
   /*!
    * \brief Finalize and consume the binder, returning generated statements and definitions.
    *
-   * Moves init_nest (all generated statements: variable bindings, assertions,
-   * DeclBuffers) and def_map (Var -> bound value mappings) out of the binder.
+   * Renders any deferred assertions (with display-var substitution for
+   * human-readable error messages), then moves all data out of the binder.
    * The binder should not be used after this call.
    *
-   * \return A pair of (def_map, init_nest).
+   * \return A Result containing def_map, init_nest, asserts, decl_buffers.
    */
-  std::pair<ffi::Map<Var, PrimExpr>, std::vector<Stmt>> Finalize() {
-    return {std::move(def_map_), std::move(init_nest_)};
-  }
+  Result Finalize();
 
  private:
   // ── Assert helpers ────────────────────────────────────────────
@@ -128,6 +156,11 @@ class TVMFFIABIBuilder {
 
   /*!
    * \brief Emit an assertion into init_nest_ with auto-converted message parts.
+   *
+   * These assertions check per-field properties (type index, ndim, dtype, device)
+   * and must execute before subsequent value loads from the same argument.
+   * Only BindScalar value-match and BindCompactStrides assertions are deferred
+   * to asserts_ (they may reference symbolic vars with forward definitions).
    *
    * Each variadic argument is converted to StringImm automatically.
    * Accepts StringImm, const char*, std::string, or ffi::String.
@@ -193,9 +226,13 @@ class TVMFFIABIBuilder {
   /*!
    * \brief Internal scalar bind with AccessPath tracking and rich error messages.
    *
-   * Binds \p arg to \p value. If arg is a Var not yet in def_map_, creates a
-   * new definition; otherwise emits a rich assertion that the existing value
-   * matches the new one.
+   * Binds \p arg to \p value. If arg is a Var not yet in var_defs_, creates a
+   * new definition (LetStmt to init_nest_); otherwise emits a rich assertion
+   * (to asserts_) that the existing value matches the new one.
+   *
+   * When arg is a non-Var expression (e.g. batch_size + 1), the assertion is
+   * deferred to Finalize() so display-var substitution can render the expression
+   * using AccessPath names (e.g. "k.shape[0] + 1" instead of "batch_size + 1").
    *
    * \param arg The argument expression to bind (typically a Var or constant).
    * \param value The value expression to bind to the argument.
@@ -325,14 +362,35 @@ class TVMFFIABIBuilder {
    */
   int GetParamIndex(const ffi::reflection::AccessPath& path) const;
 
-  // ── Data members ───────────────────────────────────────────────
-  /*! \brief The definition map: Var -> its bound value. Uses Var keys to avoid dangling pointers.
+  /*!
+   * \brief Render pending constant-expression assertions with display-var substitution.
+   *
+   * For each pending assertion, substitutes known variable names with their
+   * AccessPath-rendered names (e.g. batch_size → "k.shape[0]") so error messages
+   * show human-readable expressions like "k.shape[0] + 1" instead of "batch_size + 1".
    */
-  ffi::Map<Var, PrimExpr> def_map_;
-  /*! \brief Track first-bind AccessPath for each variable, used for cross-reference messages. */
-  ffi::Map<Var, ffi::reflection::AccessPath> first_bind_path_;
-  /*! \brief All generated statements: bindings, assertions, DeclBuffers. */
+  void RenderPendingAsserts();
+
+  // ── Data members ───────────────────────────────────────────────
+
+  /*! \brief Pending constant-expression assertion: deferred until Finalize() for display-var
+   * substitution. */
+  struct PendingConstAssert {
+    PrimExpr condition;
+    ffi::reflection::AccessPath path;
+    PrimExpr expected_expr;
+  };
+
+  /*! \brief The definition map: VarNode* -> VarDefInfo (value + first_def_path). */
+  std::unordered_map<const VarNode*, VarDefInfo> var_defs_;
+  /*! \brief Variable definitions: LetStmts, shape/strides DeclBuffers, AttrStmts. */
   std::vector<Stmt> init_nest_;
+  /*! \brief Validation checks: all AssertStmts. */
+  std::vector<Stmt> asserts_;
+  /*! \brief Buffer declarations for buffer_map entries. */
+  std::vector<Stmt> decl_buffers_;
+  /*! \brief Deferred constant-expression assertions for display-var substitution. */
+  std::vector<PendingConstAssert> pending_const_asserts_;
   /*! \brief internal analyzer. */
   arith::Analyzer analyzer_;
 

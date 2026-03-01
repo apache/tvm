@@ -375,6 +375,48 @@ def test_type_mismatch_bool_parameter(codegen_target):
         lib(a)
 
 
+# ── Forward-reference symbolic variable ────────────────────
+
+
+def test_forward_reference_symbolic_shape(codegen_target):
+    """Buffers sharing a symbolic var with forward reference compile and run correctly.
+
+    When buffer A has shape (batch_size+1,) and buffer B has shape (batch_size,),
+    batch_size is referenced in A's shape assertion before it is defined from B.
+    The three-sequence separation ensures this works. Also verifies the error
+    message uses rendered access paths (e.g. "B.shape[0] + 1") for shape checks.
+    """
+
+    @T.prim_func
+    def func(a: T.handle, b: T.handle):
+        batch_size = T.int64()
+        A = T.match_buffer(a, (batch_size + 1,), "int32")
+        B = T.match_buffer(b, (batch_size,), "int32")
+        for i in range(batch_size):
+            B[i] = A[i] + A[i + 1]
+
+    lib = tvm.compile(func, target=codegen_target)
+    # Correct inputs: A has shape (5,), B has shape (4,)
+    a = tvm.runtime.tensor(np.array([1, 2, 3, 4, 5], dtype="int32"))
+    b = tvm.runtime.tensor(np.zeros(4, dtype="int32"))
+    lib(a, b)
+    np.testing.assert_array_equal(b.numpy(), [3, 5, 7, 9])
+
+    # Wrong shape: A has shape (10,) but B has shape (4,), so batch_size=4 but A needs 5
+    a_wrong = tvm.runtime.tensor(np.zeros(10, dtype="int32"))
+    b_ok = tvm.runtime.tensor(np.zeros(4, dtype="int32"))
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Invalid A.shape[0] on argument #0 when calling:\n"
+            "  `func(A: Tensor([batch_size + T.int64(1)], int32),"
+            " B: Tensor([batch_size], int32))`,\n"
+            "  expected B.shape[0] + 1"
+        ),
+    ):
+        lib(a_wrong, b_ok)
+
+
 # ── Mixed parameter type errors ────────────────────────────
 
 

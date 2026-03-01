@@ -77,12 +77,12 @@ TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Arra
   func_signature_ = os.str();
   sig_imm_ = StringImm(func_signature_);
 
-  // Emit argument count check
+  // Emit argument count check (early check — must execute before any loads)
   int num_args = static_cast<int>(params.size());
   EmitAssert(v_num_packed_args == num_args, "TypeError",  //
              "Expected ", std::to_string(num_args), " arguments", when_calling_imm_, sig_imm_, "`");
 
-  // Emit null-pointer check for packed args
+  // Emit null-pointer check for packed args (early check)
   if (num_args > 0) {
     EmitAssert(!Call(DataType::Bool(), builtin::isnullptr(), {v_packed_args}),
                "TypeError",  //
@@ -163,33 +163,27 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
   TVM_FFI_ICHECK_EQ(arg.dtype(), value.dtype());
   if (arg.as<VarNode>()) {
     Var v_arg = Downcast<Var>(arg);
-    auto opt = def_map_.Get(v_arg);
-    if (!opt.has_value()) {
-      if (!first_bind_path_.count(v_arg)) {
-        first_bind_path_.Set(v_arg, path);
-      }
+    auto it = var_defs_.find(v_arg.get());
+    if (it == var_defs_.end()) {
+      // First bind: define the variable
       if (with_lets) {
-        def_map_.Set(v_arg, arg);
+        var_defs_.emplace(v_arg.get(), VarDefInfo{arg, path});
         init_nest_.emplace_back(LetStmt(v_arg, value, Evaluate(0)));
       } else {
-        def_map_.Set(v_arg, value);
+        var_defs_.emplace(v_arg.get(), VarDefInfo{value, path});
       }
       return true;
     } else {
       // Duplicate bind: create rich assertion with both paths
-      PrimExpr prev_value = opt.value();
+      PrimExpr prev_value = it->second.value;
       PrimExpr scond = analyzer_.Simplify(prev_value == value);
       if (is_zero(scond)) {
         TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << prev_value
                                      << " == " << value << " at " << RenderAccessPath(path);
       }
       if (!is_one(scond)) {
-        auto path_opt = first_bind_path_.Get(v_arg);
         ffi::String current_path_str = RenderAccessPath(path);
-        ffi::String first_path_str;
-        if (path_opt.has_value()) {
-          first_path_str = RenderAccessPath(path_opt.value());
-        }
+        ffi::String first_path_str = RenderAccessPath(it->second.first_def_path);
         int param_index = GetParamIndex(path);
         ffi::Array<StringImm> parts;
         parts.push_back(StringImm("Mismatched "));
@@ -206,35 +200,103 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
         } else {
           parts.push_back(StringImm("`,\n  expected matching value"));
         }
-        init_nest_.emplace_back(AssertStmt(scond, StringImm("ValueError"), parts));
+        asserts_.emplace_back(AssertStmt(scond, StringImm("ValueError"), parts));
       }
     }
   } else {
+    // Non-Var expression (e.g. batch_size + 1): defer assertion to Finalize()
+    // so display-var substitution can render human-readable names.
     PrimExpr scond = analyzer_.Simplify(arg == value);
     if (is_zero(scond)) {
       TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << arg << " == " << value
                                    << " at " << RenderAccessPath(path);
     }
     if (!is_one(scond)) {
-      ffi::String path_str = RenderAccessPath(path);
-      int param_index = GetParamIndex(path);
-      std::ostringstream expect_os;
-      expect_os << arg;
-      ffi::Array<StringImm> parts;
-      parts.push_back(StringImm("Invalid "));
-      parts.push_back(StringImm(path_str));
-      if (param_index >= 0) {
-        parts.push_back(StringImm(" on argument #"));
-        parts.push_back(StringImm(std::to_string(param_index)));
-      }
-      parts.push_back(when_calling_imm_);
-      parts.push_back(sig_imm_);
-      parts.push_back(StringImm("`,\n  expected "));
-      parts.push_back(StringImm(expect_os.str()));
-      init_nest_.emplace_back(AssertStmt(scond, StringImm("ValueError"), parts));
+      pending_const_asserts_.push_back({scond, path, arg});
     }
   }
   return false;
+}
+
+// ============================================================
+// RenderExprWithPaths (custom expr-to-string without name sanitization)
+// ============================================================
+
+/*!
+ * \brief Render a PrimExpr to string, using var_names map for Var display.
+ *
+ * The default TIR printer sanitizes Var name_hints (e.g. "B.shape[0]" → "B_shape_0_").
+ * This function preserves the original path names for human-readable error messages.
+ */
+static std::string RenderExprWithPaths(
+    const PrimExpr& expr, const std::unordered_map<const VarNode*, std::string>& var_names) {
+  if (const auto* v = expr.as<VarNode>()) {
+    auto it = var_names.find(v);
+    return it != var_names.end() ? it->second : std::string(v->name_hint);
+  } else if (const auto* imm = expr.as<IntImmNode>()) {
+    return std::to_string(imm->value);
+  } else if (const auto* add = expr.as<AddNode>()) {
+    return RenderExprWithPaths(add->a, var_names) + " + " + RenderExprWithPaths(add->b, var_names);
+  } else if (const auto* sub = expr.as<SubNode>()) {
+    return RenderExprWithPaths(sub->a, var_names) + " - " + RenderExprWithPaths(sub->b, var_names);
+  } else if (const auto* mul = expr.as<MulNode>()) {
+    return RenderExprWithPaths(mul->a, var_names) + " * " + RenderExprWithPaths(mul->b, var_names);
+  } else {
+    std::ostringstream os;
+    os << expr;
+    return os.str();
+  }
+}
+
+// ============================================================
+// RenderPendingAsserts
+// ============================================================
+
+void TVMFFIABIBuilder::RenderPendingAsserts() {
+  if (pending_const_asserts_.empty()) return;
+
+  // Build Var -> display name map from var_defs_ AccessPaths
+  std::unordered_map<const VarNode*, std::string> var_names;
+  for (const auto& [var_node, info] : var_defs_) {
+    ffi::String path_str = RenderAccessPath(info.first_def_path);
+    if (!path_str.empty()) {
+      var_names[var_node] = std::string(path_str);
+    }
+  }
+
+  for (auto& pending : pending_const_asserts_) {
+    std::string display_str = RenderExprWithPaths(pending.expected_expr, var_names);
+
+    ffi::String path_str = RenderAccessPath(pending.path);
+    int param_index = GetParamIndex(pending.path);
+    ffi::Array<StringImm> parts;
+    parts.push_back(StringImm("Invalid "));
+    parts.push_back(StringImm(path_str));
+    if (param_index >= 0) {
+      parts.push_back(StringImm(" on argument #"));
+      parts.push_back(StringImm(std::to_string(param_index)));
+    }
+    parts.push_back(when_calling_imm_);
+    parts.push_back(sig_imm_);
+    parts.push_back(StringImm("`,\n  expected "));
+    parts.push_back(StringImm(display_str));
+    asserts_.emplace_back(AssertStmt(pending.condition, StringImm("ValueError"), parts));
+  }
+  pending_const_asserts_.clear();
+}
+
+// ============================================================
+// Finalize
+// ============================================================
+
+TVMFFIABIBuilder::Result TVMFFIABIBuilder::Finalize() {
+  RenderPendingAsserts();
+  Result result;
+  result.var_defs = std::move(var_defs_);
+  result.init_nest = std::move(init_nest_);
+  result.asserts = std::move(asserts_);
+  result.decl_buffers = std::move(decl_buffers_);
+  return result;
 }
 
 // ============================================================
@@ -455,7 +517,7 @@ void TVMFFIABIBuilder::DecodeAllParams() {
           AccessPath::Root()->Extend(AccessStep::ArrayItem(i))->Attr(ffi::String(buffer->name));
       DecodeParamDLTensor(buffer, device_type_, device_id_, param,
                           func_name_ + "." + param->name_hint, param_path);
-      init_nest_.push_back(DeclBuffer(buffer, nop));
+      decl_buffers_.push_back(DeclBuffer(buffer, nop));
     }
   }
 }
@@ -509,7 +571,7 @@ void TVMFFIABIBuilder::BindCompactStrides(const Buffer& buffer, const Buffer& bu
                                StringImm(std::to_string(param_index)), when_calling_imm_, sig_imm_,
                                StringImm("`,\n  expected to be compact array")}));
     check = IfThenElse(Not(v_strides_is_null), check);
-    init_nest_.emplace_back(SeqStmt({check, Evaluate(0)}));
+    asserts_.emplace_back(SeqStmt({check, Evaluate(0)}));
   }
 }
 
@@ -688,10 +750,15 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
         }
         return product;
       }();
-      EmitAssert(alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
-                 "ValueError",  //
-                 buf_name, " data pointer is NULL on argument #", std::to_string(param_index),
-                 when_calling_imm_, sig_imm_, "`,\n  expected non-NULL data pointer");
+      // Data pointer null and alignment checks go to asserts_ because alloc_size
+      // references buffer->shape which may contain forward-referenced symbolic vars.
+      asserts_.emplace_back(AssertStmt(
+          alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
+          StringImm("ValueError"),
+          ffi::Array<StringImm>({StringImm(buf_name),
+                                 StringImm(" data pointer is NULL on argument #"),
+                                 StringImm(std::to_string(param_index)), when_calling_imm_,
+                                 sig_imm_, StringImm("`,\n  expected non-NULL data pointer")})));
 
       // Check data pointer alignment
       if (buffer->data_alignment > 1) {
@@ -700,11 +767,13 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
         PrimExpr align_cond =
             truncmod(ptr_as_int, make_const(DataType::UInt(64), buffer->data_alignment)) ==
             make_const(DataType::UInt(64), 0);
-        EmitAssert(alloc_size == 0 || align_cond, "ValueError",  //
-                   "Misaligned Tensor data on argument #", std::to_string(param_index),
-                   when_calling_imm_, sig_imm_,
-                   "`,\n  expected data alignment=", std::to_string(buffer->data_alignment),
-                   " bytes");
+        asserts_.emplace_back(AssertStmt(
+            alloc_size == 0 || align_cond, StringImm("ValueError"),
+            ffi::Array<StringImm>({StringImm("Misaligned Tensor data on argument #"),
+                                   StringImm(std::to_string(param_index)), when_calling_imm_,
+                                   sig_imm_, StringImm("`,\n  expected data alignment="),
+                                   StringImm(std::to_string(buffer->data_alignment)),
+                                   StringImm(" bytes")})));
       }
 
       // mark alignment of external bufs
