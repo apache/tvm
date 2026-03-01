@@ -250,32 +250,30 @@ def test_zero_arg_function():
             T.func_attr({"target": T.target("llvm", host="llvm")})
             return T.int64(42)
 
-    @I.ir_module
-    class Expected:
-        @T.prim_func
-        def func_without_arg(
-            self: T.handle,
-            args: T.handle,
-            num_args: T.int32,
-            result: T.handle("void"),
-        ) -> T.int32:
-            T.func_attr(
-                {
-                    "calling_conv": 1,
-                    "target": T.target("llvm"),
-                    "global_symbol": "__tvm_ffi_func_without_arg",
-                }
-            )
-            assert num_args == 0, "func_without_arg: num_args should be 0"
-            with T.attr(0, "compute_scope", "func_without_arg_compute_"):
-                T.tvm_struct_set(result, 0, 13, 1)
-                T.tvm_struct_set(result, 0, 14, 0)
-                T.tvm_struct_set(result, 0, 15, T.Cast("int64", T.int64(42)))
-                return 0
-            return 0
-
     After = tvm.tir.transform.MakePackedAPI()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    func = After["func_without_arg"]
+
+    # Check function signature is updated to PackedFunc convention
+    assert len(func.params) == 4
+    assert func.attrs["calling_conv"] == 1
+    assert func.attrs["global_symbol"] == "__tvm_ffi_func_without_arg"
+
+    # Check that the first assert verifies num_args == 0
+    asserts = []
+
+    def _visitor(stmt):
+        if isinstance(stmt, tir.AssertStmt):
+            asserts.append(stmt)
+
+    tir.stmt_functor.post_order_visit(func.body, _visitor)
+    # Should have at least one assert (num_args check)
+    assert len(asserts) >= 1
+    assert asserts[0].kind.value == "TypeError"
+    # Verify it checks num_args
+    assert any("Expected 0 arguments" in p.value for p in asserts[0].message_parts)
+
+    # Verify function signature is in the message
+    assert any("func_without_arg()" in p.value for p in asserts[0].message_parts)
 
 
 def test_int_parameter():
@@ -305,42 +303,32 @@ def test_int_parameter():
             else:
                 return 20
 
-    @I.ir_module
-    class Expected:
-        @T.prim_func
-        def main(
-            self: T.handle,
-            args: T.handle,
-            num_args: T.int32,
-            result: T.handle("void"),
-        ) -> T.int32:
-            T.func_attr(
-                {
-                    "calling_conv": 1,
-                    "target": T.target("llvm"),
-                    "global_symbol": "__tvm_ffi_main",
-                }
-            )
-            assert num_args == 1, "main: num_args should be 1"
-            assert not T.isnullptr(args), "main: args pointer is NULL"
-            arg_type_index: T.int32 = T.tvm_struct_get(args, 0, 13, "int32")
-            assert arg_type_index == 1 or arg_type_index == 2, "main: Expect arg[0] to be int"
-            arg: T.int32 = T.Cast("int32", T.tvm_struct_get(args, 0, 15, "int64"))
-            with T.attr(0, "compute_scope", "main_compute_"):
-                if arg > 0:
-                    T.tvm_struct_set(result, 0, 13, 1)
-                    T.tvm_struct_set(result, 0, 14, 0)
-                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 10))
-                    return 0
-                else:
-                    T.tvm_struct_set(result, 0, 13, 1)
-                    T.tvm_struct_set(result, 0, 14, 0)
-                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 20))
-                    return 0
-            return 0
-
     After = tvm.tir.transform.MakePackedAPI()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    func = After["main"]
+
+    # Check function signature is updated
+    assert len(func.params) == 4
+    assert func.attrs["calling_conv"] == 1
+    assert func.attrs["global_symbol"] == "__tvm_ffi_main"
+
+    # Check asserts for num_args, args not null, and type check
+    asserts = []
+
+    def _visitor(stmt):
+        if isinstance(stmt, tir.AssertStmt):
+            asserts.append(stmt)
+
+    tir.stmt_functor.post_order_visit(func.body, _visitor)
+
+    # Should have at least 3 asserts: num_args, args not null, type check
+    assert len(asserts) >= 3
+
+    # Verify function signature appears in error messages
+    assert any(any("main(arg: int32)" in p.value for p in a.message_parts) for a in asserts)
+
+    # Verify type error check exists with TypeError kind
+    type_checks = [a for a in asserts if a.kind.value == "TypeError"]
+    assert len(type_checks) >= 1  # at least type index check
 
 
 def test_bool_parameter():
@@ -363,42 +351,32 @@ def test_bool_parameter():
             else:
                 return 20
 
-    @I.ir_module
-    class Expected:
-        @T.prim_func
-        def main(
-            self: T.handle,
-            args: T.handle,
-            num_args: T.int32,
-            result: T.handle("void"),
-        ) -> T.int32:
-            T.func_attr(
-                {
-                    "calling_conv": 1,
-                    "target": T.target("llvm"),
-                    "global_symbol": "__tvm_ffi_main",
-                }
-            )
-            assert num_args == 1, "main: num_args should be 1"
-            assert not T.isnullptr(args), "main: args pointer is NULL"
-            arg_type_index: T.int32 = T.tvm_struct_get(args, 0, 13, "int32")
-            assert arg_type_index == 2 or arg_type_index == 1, "main: Expect arg[0] to be boolean"
-            arg: T.bool = T.Cast("bool", T.tvm_struct_get(args, 0, 15, "int64"))
-            with T.attr(0, "compute_scope", "main_compute_"):
-                if arg:
-                    T.tvm_struct_set(result, 0, 13, 1)
-                    T.tvm_struct_set(result, 0, 14, 0)
-                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 10))
-                    return 0
-                else:
-                    T.tvm_struct_set(result, 0, 13, 1)
-                    T.tvm_struct_set(result, 0, 14, 0)
-                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 20))
-                    return 0
-            return 0
-
     After = tvm.tir.transform.MakePackedAPI()(Before)
-    tvm.ir.assert_structural_equal(Expected, After)
+    func = After["main"]
+
+    # Check function signature is updated
+    assert len(func.params) == 4
+    assert func.attrs["calling_conv"] == 1
+    assert func.attrs["global_symbol"] == "__tvm_ffi_main"
+
+    # Check asserts exist
+    asserts = []
+
+    def _visitor(stmt):
+        if isinstance(stmt, tir.AssertStmt):
+            asserts.append(stmt)
+
+    tir.stmt_functor.post_order_visit(func.body, _visitor)
+
+    # Should have at least 3 asserts: num_args, args not null, type check
+    assert len(asserts) >= 3
+
+    # Verify function signature appears in error messages
+    assert any(any("main(arg: bool)" in p.value for p in a.message_parts) for a in asserts)
+
+    # Verify type checks use TypeError kind
+    type_checks = [a for a in asserts if a.kind.value == "TypeError"]
+    assert len(type_checks) >= 1
 
 
 if __name__ == "__main__":

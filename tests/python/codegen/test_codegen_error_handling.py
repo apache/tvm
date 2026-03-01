@@ -16,11 +16,13 @@
 # under the License.
 """Test error handling codegen with AssertStmt kind and message_parts."""
 
+import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
 from tvm import tir
+from tvm.script import tir as T
 
 
 @tvm.testing.requires_llvm
@@ -223,6 +225,151 @@ def test_assert_ir_structure():
     assert len(stmt.message_parts) == 2
     assert stmt.message_parts[0].value == "msg1"
     assert stmt.message_parts[1].value == "msg2"
+
+
+# ============================================================
+# Phase 1: Integration tests for rich error messages
+# ============================================================
+
+
+@tvm.testing.requires_llvm
+def test_wrong_argument_count_error():
+    """Verify wrong argument count produces TypeError with function signature."""
+
+    @T.prim_func
+    def add_one(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
+        for i in range(8):
+            b[i] = a[i] + T.float32(1)
+
+    lib = tvm.compile(add_one, target="llvm")
+
+    with pytest.raises(TypeError, match="Expected 2 arguments"):
+        lib()
+
+    with pytest.raises(TypeError, match="add_one"):
+        lib()
+
+
+@tvm.testing.requires_llvm
+def test_type_mismatch_error():
+    """Verify wrong type produces TypeError with function signature."""
+
+    @T.prim_func
+    def scale(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
+        for i in range(8):
+            b[i] = a[i] * T.float32(2)
+
+    lib = tvm.compile(scale, target="llvm")
+
+    # Passing an integer instead of a tensor should produce a TypeError
+    with pytest.raises(TypeError, match="Mismatched type on argument #0"):
+        lib(42, 0)
+
+
+@tvm.testing.requires_llvm
+def test_ndim_mismatch_error():
+    """Verify ndim mismatch produces ValueError with function signature."""
+
+    @T.prim_func
+    def func_2d(a: T.Buffer((4, 4), "float32"), b: T.Buffer((4, 4), "float32")):
+        for i, j in T.grid(4, 4):
+            b[i, j] = a[i, j]
+
+    lib = tvm.compile(func_2d, target="llvm")
+
+    # Pass a 1D array where 2D is expected
+    a = tvm.runtime.tensor(np.zeros(4, dtype="float32"))
+    b = tvm.runtime.tensor(np.zeros(4, dtype="float32"))
+
+    with pytest.raises(ValueError, match="ndim"):
+        lib(a, b)
+
+    # Verify function signature appears in the error message
+    with pytest.raises(ValueError, match="func_2d"):
+        lib(a, b)
+
+
+@tvm.testing.requires_llvm
+def test_shape_mismatch_error():
+    """Verify shape mismatch produces ValueError with function signature."""
+
+    @T.prim_func
+    def add(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
+        for i in range(8):
+            b[i] = a[i] + T.float32(1)
+
+    lib = tvm.compile(add, target="llvm")
+
+    # Pass wrong shape
+    a = tvm.runtime.tensor(np.zeros(16, dtype="float32"))
+    b = tvm.runtime.tensor(np.zeros(16, dtype="float32"))
+
+    with pytest.raises(ValueError, match="add"):
+        lib(a, b)
+
+
+@tvm.testing.requires_llvm
+def test_dtype_mismatch_error():
+    """Verify dtype mismatch produces TypeError with function signature."""
+
+    @T.prim_func
+    def copy_f32(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
+        for i in range(8):
+            b[i] = a[i]
+
+    lib = tvm.compile(copy_f32, target="llvm")
+
+    # Pass int32 array where float32 is expected
+    a = tvm.runtime.tensor(np.zeros(8, dtype="int32"))
+    b = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
+
+    with pytest.raises(TypeError, match="dtype"):
+        lib(a, b)
+
+    with pytest.raises(TypeError, match="copy_f32"):
+        lib(a, b)
+
+
+@tvm.testing.requires_llvm
+def test_make_packed_api_signature_in_asserts():
+    """Verify MakePackedAPI generates structured error messages with signature."""
+
+    @T.prim_func
+    def add_one(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
+        T.func_attr(
+            {
+                "target": tvm.target.Target("llvm", host="llvm"),
+                "global_symbol": "add_one",
+            }
+        )
+        for i in range(8):
+            b[i] = a[i] + T.float32(1)
+
+    mod = tvm.IRModule.from_expr(add_one)
+    mod = tvm.tir.transform.MakePackedAPI()(mod)
+    func = mod["add_one"]
+
+    # Walk the IR and find AssertStmt nodes
+    asserts = []
+
+    def visitor(stmt):
+        if isinstance(stmt, tvm.tir.AssertStmt):
+            asserts.append(stmt)
+
+    tvm.tir.stmt_functor.post_order_visit(func.body, visitor)
+
+    # Should have asserts
+    assert len(asserts) > 0
+
+    # Verify kind is set correctly (TypeError for type checks, ValueError for shape)
+    kinds = {a.kind.value for a in asserts}
+    assert "TypeError" in kinds
+
+    # Verify signature fragment appears in at least one assert
+    assert any(any("add_one" in part.value for part in a.message_parts) for a in asserts)
+
+    # Verify signature contains buffer info
+    assert any(any("Tensor" in part.value for part in a.message_parts) for a in asserts)
 
 
 if __name__ == "__main__":

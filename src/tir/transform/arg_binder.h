@@ -65,6 +65,18 @@ class ArgBinder {
    */
   explicit ArgBinder(std::unordered_map<const VarNode*, PrimExpr>* def_map) : def_map_(def_map) {}
   /*!
+   * \brief Set function signature info for rich error messages.
+   *
+   * When set, assertion failures will include the function signature
+   * in the error message to help users identify which function failed.
+   *
+   * \param func_name The function name.
+   * \param params The function parameters.
+   * \param buffer_map The buffer map from parameters to buffers.
+   */
+  void SetFunctionSignature(const std::string& func_name, const ffi::Array<Var>& params,
+                            const ffi::Map<Var, Buffer>& buffer_map);
+  /*!
    * \brief Try to bind arg to value, generate constraint if necessary.
    * \param arg The argument to be binded.
    * \param value The target expression value
@@ -98,9 +110,10 @@ class ArgBinder {
    * \param device_id The device id to be binded.
    * \param handle The DLTensor handle.
    * \param arg_name argument name.
+   * \param param_index The index of the parameter in the function signature (-1 if unknown).
    */
   void BindDLTensor(const Buffer& buffer, const PrimExpr& device_type, const PrimExpr& device_id,
-                    const Var& handle, const std::string& arg_name);
+                    const Var& handle, const std::string& arg_name, int param_index = -1);
 
   /*! \return The defs generated in binding. */
   const std::vector<Var>& defs() const { return defs_; }
@@ -151,6 +164,16 @@ class ArgBinder {
   // Internal bind function
   bool Bind_(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
              bool with_lets);
+  /*!
+   * \brief Create an AssertStmt with rich error messages when signature is available.
+   * \param kind The error kind (e.g. "ValueError", "TypeError").
+   * \param cond The assertion condition (already simplified).
+   * \param arg_name The argument name for context.
+   * \param detail_msg A detail message describing the constraint.
+   * \param asserts The vector to append the assert to.
+   */
+  void AddRichAssert(const std::string& kind, PrimExpr cond, const std::string& arg_name,
+                     const std::string& detail_msg, std::vector<Stmt>* asserts);
   /*! \brief The definition map, can be uses to substitute */
   std::unordered_map<const VarNode*, PrimExpr>* def_map_;
   /*! \brief defs generated in the current binder */
@@ -163,6 +186,12 @@ class ArgBinder {
   std::vector<Stmt> asserts_;
   /*! \brief internal analyzer. */
   arith::Analyzer analyzer_;
+  /*! \brief function name for error messages. */
+  std::string func_name_;
+  /*! \brief function signature string for error messages. */
+  std::string func_signature_;
+  /*! \brief Track first-bind access paths for variables (access path -> var node). */
+  std::unordered_map<const VarNode*, std::string> first_bind_path_;
 };
 }  // namespace tir
 }  // namespace tvm

@@ -167,13 +167,40 @@ class SubroutineCallRewriter : public StmtExprMutator {
 
 }  // namespace
 
-inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
-  return AssertStmt(tvm::tir::StringImm("RuntimeError"), lhs == rhs, {tvm::tir::StringImm(msg)});
+/*!
+ * \brief Create an assert that lhs == rhs, with multi-part error message.
+ * \param kind The error kind (e.g. "TypeError", "ValueError", "RuntimeError").
+ * \param lhs Left-hand side of equality check.
+ * \param rhs Right-hand side of equality check.
+ * \param detail The detail message string.
+ * \param func_signature Optional function signature for context.
+ */
+inline Stmt MakeAssertEQ(const std::string& kind, PrimExpr lhs, PrimExpr rhs,
+                         const std::string& detail, const std::string& func_signature = "") {
+  ffi::Array<StringImm> parts;
+  parts.push_back(tvm::tir::StringImm(detail));
+  if (!func_signature.empty()) {
+    parts.push_back(tvm::tir::StringImm(" when calling:\n  `"));
+    parts.push_back(tvm::tir::StringImm(func_signature));
+    parts.push_back(tvm::tir::StringImm("`"));
+  }
+  return AssertStmt(tvm::tir::StringImm(kind), lhs == rhs, parts);
 }
 
-inline Stmt MakeAssertNotNull(PrimExpr ptr, std::string msg) {
+/*!
+ * \brief Create an assert that ptr is not NULL, with multi-part error message.
+ */
+inline Stmt MakeAssertNotNull(const std::string& kind, PrimExpr ptr, const std::string& detail,
+                              const std::string& func_signature = "") {
   Call isnull(DataType::Bool(), builtin::isnullptr(), {ptr});
-  return AssertStmt(tvm::tir::StringImm("RuntimeError"), !isnull, {tvm::tir::StringImm(msg)});
+  ffi::Array<StringImm> parts;
+  parts.push_back(tvm::tir::StringImm(detail));
+  if (!func_signature.empty()) {
+    parts.push_back(tvm::tir::StringImm(" when calling:\n  `"));
+    parts.push_back(tvm::tir::StringImm(func_signature));
+    parts.push_back(tvm::tir::StringImm("`"));
+  }
+  return AssertStmt(tvm::tir::StringImm(kind), !isnull, parts);
 }
 
 /* \brief Return the global_symbol of the function, if it should be updated
@@ -246,6 +273,35 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   std::unordered_map<const VarNode*, PrimExpr> vmap;
   ArgBinder binder(&vmap);
 
+  // Set function signature for rich error messages
+  binder.SetFunctionSignature(name_hint, func_ptr->params, func_ptr->buffer_map);
+  // Build function signature string for use in MakeAssertEQ/MakeAssertNotNull
+  std::string func_signature;
+  {
+    std::ostringstream os;
+    os << name_hint << "(";
+    for (int i = 0; i < num_args; ++i) {
+      if (i > 0) os << ", ";
+      Var param = func_ptr->params[i];
+      os << param->name_hint << ": ";
+      if (func_ptr->buffer_map.count(param)) {
+        Buffer buf = func_ptr->buffer_map[param];
+        os << "Tensor([";
+        for (size_t j = 0; j < buf->shape.size(); ++j) {
+          if (j > 0) os << ", ";
+          std::ostringstream shape_os;
+          shape_os << buf->shape[j];
+          os << shape_os.str();
+        }
+        os << "], " << buf->dtype << ")";
+      } else {
+        os << param.dtype();
+      }
+    }
+    os << ")";
+    func_signature = os.str();
+  }
+
   // ---------------------------
   // local function definitions
   // load i-th argument as type t
@@ -267,20 +323,23 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // `binder.BindDLTensor()`.  The validity of those initialization
   // steps depends on the correct types being present, and must not
   // occur before the type codes are actually checked.
-  seq_init.push_back(MakeAssertEQ(v_num_packed_args, num_args, [&]() -> std::string {
-    std::ostringstream error_message;
-    error_message << name_hint << ": num_args should be " << num_args;
-    return error_message.str();
-  }()));
+  {
+    std::ostringstream detail;
+    detail << "Expected " << num_args << " arguments";
+    seq_init.push_back(
+        MakeAssertEQ("TypeError", v_num_packed_args, num_args, detail.str(), func_signature));
+  }
 
   if (num_args > 0) {
-    seq_init.push_back(MakeAssertNotNull(v_packed_args, name_hint + ": args pointer is NULL"));
+    seq_init.push_back(
+        MakeAssertNotNull("TypeError", v_packed_args, "args pointer is NULL", func_signature));
   }
 
   // Need to delay binding of the buffers, in case some arguments also
   // appear in the buffer.
   std::vector<std::pair<PrimExpr, Var>> var_def;
-  std::vector<std::pair<Var, Buffer>> buffer_def;
+  // (param_var, buffer, param_index) tuples for delayed binding
+  std::vector<std::tuple<Var, Buffer, int>> buffer_def;
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
@@ -293,15 +352,24 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                           IntImm(DataType::Int(32), builtin::kTVMFFIAnyTypeIndex)}),
                                nop));
     DataType dtype = param.dtype();
+    // Helper to build a type assert with rich message
+    auto make_type_assert = [&](PrimExpr type_cond, const std::string& expected_type) {
+      std::ostringstream detail;
+      detail << "Mismatched type on argument #" << i << ", expected " << expected_type;
+      ffi::Array<StringImm> parts;
+      parts.push_back(tvm::tir::StringImm(detail.str()));
+      parts.push_back(tvm::tir::StringImm(" when calling:\n  `"));
+      parts.push_back(tvm::tir::StringImm(func_signature));
+      parts.push_back(tvm::tir::StringImm("`"));
+      seq_init.emplace_back(AssertStmt(tvm::tir::StringImm("TypeError"), type_cond, parts));
+    };
+
     if (dtype.is_handle()) {
-      std::ostringstream msg;
-      msg << name_hint << ": Expect arg[" << i << "] to be pointer";
-      seq_init.emplace_back(AssertStmt(tvm::tir::StringImm("RuntimeError"),
-                                       type_index == ffi::TypeIndex::kTVMFFINone ||
-                                           type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
-                                           type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr ||
-                                           type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin,
-                                       {tvm::tir::StringImm(msg.str())}));
+      make_type_assert(type_index == ffi::TypeIndex::kTVMFFINone ||
+                           type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
+                           type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr ||
+                           type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin,
+                       "pointer");
       // if type_index is Tensor, we need to add the offset of the DLTensor header
       // which always equals 16 bytes, this ensures that T.handle always shows up as a DLTensor*
       const int64_t object_cell_offset = sizeof(TVMFFIObject);
@@ -313,31 +381,22 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       arg_value =
           Select(type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value);
     } else if (dtype.is_bool()) {
-      std::ostringstream msg;
-      msg << name_hint << ": Expect arg[" << i << "] to be boolean";
-      seq_init.emplace_back(AssertStmt(
-          tvm::tir::StringImm("RuntimeError"),
+      make_type_assert(
           type_index == ffi::TypeIndex::kTVMFFIBool || type_index == ffi::TypeIndex::kTVMFFIInt,
-          {tvm::tir::StringImm(msg.str())}));
+          "boolean");
       arg_value = Cast(DataType::Bool(), f_load_arg_value(DataType::Int(64), i));
 
     } else if (dtype.is_int() || dtype.is_uint()) {
-      std::ostringstream msg;
-      msg << name_hint << ": Expect arg[" << i << "] to be int";
-      seq_init.emplace_back(AssertStmt(
-          tvm::tir::StringImm("RuntimeError"),
+      make_type_assert(
           type_index == ffi::TypeIndex::kTVMFFIInt || type_index == ffi::TypeIndex::kTVMFFIBool,
-          {tvm::tir::StringImm(msg.str())}));
+          "int");
       arg_value = f_load_arg_value(param.dtype(), i);
     } else {
       TVM_FFI_ICHECK(dtype.is_float());
-      std::ostringstream msg;
-      msg << name_hint << ": Expect arg[" << i << "] to be float";
-      seq_init.emplace_back(AssertStmt(tvm::tir::StringImm("RuntimeError"),
-                                       type_index == ffi::TypeIndex::kTVMFFIFloat ||
-                                           type_index == ffi::TypeIndex::kTVMFFIInt ||
-                                           type_index == ffi::TypeIndex::kTVMFFIBool,
-                                       {tvm::tir::StringImm(msg.str())}));
+      make_type_assert(type_index == ffi::TypeIndex::kTVMFFIFloat ||
+                           type_index == ffi::TypeIndex::kTVMFFIInt ||
+                           type_index == ffi::TypeIndex::kTVMFFIBool,
+                       "float");
       // use select so we can also handle int conversion to bool
       arg_value = tir::Select(
           type_index == ffi::TypeIndex::kTVMFFIFloat,
@@ -348,7 +407,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     if (func_ptr->buffer_map.count(param)) {
       // buffer binding now depends on type index
       // if the index is Tensor handle, we need to offset to get the DLTensor*
-      buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
+      buffer_def.emplace_back(param, func_ptr->buffer_map[param], i);
     }
   }
 
@@ -366,8 +425,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     binder.Bind(param, expr, name_hint + "." + param->name_hint, true);
   }
 
-  for (const auto& [var, buffer] : buffer_def) {
-    binder.BindDLTensor(buffer, device_type, device_id, var, name_hint + "." + var->name_hint);
+  for (const auto& [var, buffer, pidx] : buffer_def) {
+    binder.BindDLTensor(buffer, device_type, device_id, var, name_hint + "." + var->name_hint,
+                        pidx);
     arg_buffer_declarations.push_back(DeclBuffer(buffer, nop));
   }
   // reset global symbol to attach prefix

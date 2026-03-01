@@ -48,6 +48,52 @@ void BinderAddAssert(arith::Analyzer* ana, PrimExpr cond, const std::string& arg
   }
 }
 
+void ArgBinder::SetFunctionSignature(const std::string& func_name, const ffi::Array<Var>& params,
+                                     const ffi::Map<Var, Buffer>& buffer_map) {
+  func_name_ = func_name;
+  std::ostringstream os;
+  os << func_name << "(";
+  for (size_t i = 0; i < params.size(); ++i) {
+    if (i > 0) os << ", ";
+    Var param = params[i];
+    os << param->name_hint << ": ";
+    if (buffer_map.count(param)) {
+      Buffer buf = buffer_map[param];
+      os << "Tensor([";
+      for (size_t j = 0; j < buf->shape.size(); ++j) {
+        if (j > 0) os << ", ";
+        std::ostringstream shape_os;
+        shape_os << buf->shape[j];
+        os << shape_os.str();
+      }
+      os << "], " << buf->dtype << ")";
+    } else {
+      os << param.dtype();
+    }
+  }
+  os << ")";
+  func_signature_ = os.str();
+}
+
+void ArgBinder::AddRichAssert(const std::string& kind, PrimExpr cond, const std::string& arg_name,
+                              const std::string& detail_msg, std::vector<Stmt>* asserts) {
+  if (func_signature_.empty()) {
+    // Fallback: no signature info, use simple message
+    std::ostringstream os;
+    os << arg_name << ": " << detail_msg;
+    asserts->emplace_back(
+        AssertStmt(tvm::tir::StringImm(kind), cond, {tvm::tir::StringImm(os.str())}));
+  } else {
+    // Rich error message with signature
+    ffi::Array<StringImm> parts;
+    parts.push_back(tvm::tir::StringImm(detail_msg));
+    parts.push_back(tvm::tir::StringImm(" when calling:\n  `"));
+    parts.push_back(tvm::tir::StringImm(func_signature_));
+    parts.push_back(tvm::tir::StringImm("`"));
+    asserts->emplace_back(AssertStmt(tvm::tir::StringImm(kind), cond, parts));
+  }
+}
+
 bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
                       bool with_lets) {
   TVM_FFI_ICHECK_EQ(arg.dtype(), value.dtype());
@@ -56,6 +102,10 @@ bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::str
     if (it == def_map_->end()) {
       Var v_arg = Downcast<Var>(arg);
       defs_.emplace_back(v_arg);
+      // Record first bind path for this variable
+      if (first_bind_path_.find(v) == first_bind_path_.end()) {
+        first_bind_path_[v] = arg_name;
+      }
       if (with_lets) {
         (*def_map_)[v] = arg;
         init_nest_.emplace_back(LetStmt(v_arg, value, Evaluate(0)));
@@ -64,10 +114,48 @@ bool ArgBinder::Bind_(const PrimExpr& arg, const PrimExpr& value, const std::str
       }
       return true;
     } else {
-      BinderAddAssert(&analyzer_, it->second == value, arg_name, &asserts_);
+      // Duplicate bind: create rich assertion with both paths
+      if (!func_signature_.empty()) {
+        PrimExpr scond = analyzer_.Simplify(it->second == value);
+        if (is_zero(scond)) {
+          TVM_FFI_THROW(InternalError)
+              << "Bind have an unmet assertion: " << it->second << " == " << value << ", "
+              << " on argument " << arg_name;
+        }
+        if (!is_one(scond)) {
+          // Find the first bind path for the variable
+          std::string first_path;
+          auto path_it = first_bind_path_.find(v);
+          if (path_it != first_bind_path_.end()) {
+            first_path = path_it->second;
+          }
+          std::ostringstream detail;
+          if (!first_path.empty() && first_path != arg_name) {
+            detail << "Mismatched " << arg_name << ", expected to match " << first_path;
+          } else {
+            detail << "Argument " << arg_name << " has an unsatisfied constraint";
+          }
+          AddRichAssert("ValueError", scond, arg_name, detail.str(), &asserts_);
+        }
+      } else {
+        BinderAddAssert(&analyzer_, it->second == value, arg_name, &asserts_);
+      }
     }
   } else {
-    BinderAddAssert(&analyzer_, arg == value, arg_name, &asserts_);
+    if (!func_signature_.empty()) {
+      PrimExpr scond = analyzer_.Simplify(arg == value);
+      if (is_zero(scond)) {
+        TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << arg << " == " << value
+                                     << ", on argument " << arg_name;
+      }
+      if (!is_one(scond)) {
+        std::ostringstream detail;
+        detail << "Invalid " << arg_name << ", expected " << arg;
+        AddRichAssert("ValueError", scond, arg_name, detail.str(), &asserts_);
+      }
+    } else {
+      BinderAddAssert(&analyzer_, arg == value, arg_name, &asserts_);
+    }
   }
   return false;
 }
@@ -153,14 +241,43 @@ inline PrimExpr TVMArrayGet(DataType t, Var arr, builtin::TVMStructFieldKind kin
 
 void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                              const PrimExpr& device_id, const Var& handle,
-                             const std::string& arg_name) {
+                             const std::string& arg_name, int param_index) {
   const DataType tvm_shape_type = DataType::ShapeIndex();
   const DataType tvm_ndim_type = DataType::Int(32);
   const Stmt nop = Evaluate(0);
 
-  init_nest_.emplace_back(AssertStmt(
-      tvm::tir::StringImm("RuntimeError"), !Call(DataType::Bool(), builtin::isnullptr(), {handle}),
-      {tvm::tir::StringImm(arg_name + " is expected to have non-NULL DLTensor* pointer")}));
+  // Determine the buffer parameter name (strip func_name prefix if present)
+  std::string buf_name;
+  {
+    // arg_name is typically "func_name.param_name"; extract param_name
+    size_t dot_pos = arg_name.find('.');
+    if (dot_pos != std::string::npos) {
+      buf_name = arg_name.substr(dot_pos + 1);
+    } else {
+      buf_name = arg_name;
+    }
+  }
+
+  // null pointer check
+  {
+    std::ostringstream detail;
+    detail << "Mismatched type on argument #" << param_index << ", expected Tensor";
+    if (!func_signature_.empty()) {
+      ffi::Array<StringImm> parts;
+      parts.push_back(tvm::tir::StringImm(detail.str()));
+      parts.push_back(tvm::tir::StringImm(" when calling:\n  `"));
+      parts.push_back(tvm::tir::StringImm(func_signature_));
+      parts.push_back(tvm::tir::StringImm("`"));
+      init_nest_.emplace_back(AssertStmt(tvm::tir::StringImm("TypeError"),
+                                         !Call(DataType::Bool(), builtin::isnullptr(), {handle}),
+                                         parts));
+    } else {
+      init_nest_.emplace_back(AssertStmt(
+          tvm::tir::StringImm("RuntimeError"),
+          !Call(DataType::Bool(), builtin::isnullptr(), {handle}),
+          {tvm::tir::StringImm(arg_name + " is expected to have non-NULL DLTensor* pointer")}));
+    }
+  }
 
   // dimension checks
   PrimExpr v_ndim = TVMArrayGet(tvm_ndim_type, handle, builtin::kArrNDim);
@@ -177,13 +294,14 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   auto stride_element_name = [&](size_t k) { return array_element_name(stride_handle_name(), k); };
 
   PrimExpr a_ndim = make_const(tvm_ndim_type, static_cast<int64_t>(buffer->shape.size()));
-  std::ostringstream ndim_err_msg;
-  ndim_err_msg << arg_name << ".ndim is expected to equal " << buffer->shape.size();
-  auto msg = tvm::tir::StringImm(ndim_err_msg.str());
-  init_nest_.emplace_back(AssertStmt(tvm::tir::StringImm("RuntimeError"), a_ndim == v_ndim, {msg}));
+  {
+    std::ostringstream detail;
+    detail << "Mismatched " << buf_name << ".ndim on argument #" << param_index << ", expected "
+           << buffer->shape.size();
+    AddRichAssert("ValueError", a_ndim == v_ndim, arg_name, detail.str(), &init_nest_);
+  }
+
   // type checks
-  std::ostringstream type_err_msg;
-  type_err_msg << arg_name << ".dtype is expected to be " << buffer->dtype;
   PrimExpr cond = (TVMArrayGet(DataType::UInt(8), handle, builtin::kArrTypeCode) ==
                        IntImm(DataType::UInt(8), buffer->dtype.code()) &&
                    TVMArrayGet(DataType::UInt(8), handle, builtin::kArrTypeBits) ==
@@ -192,8 +310,10 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                        IntImm(DataType::UInt(16), buffer->dtype.lanes()));
   if (!(buffer->dtype == DataType::Int(1) || buffer->dtype == DataType::Int(4) ||
         buffer->dtype == DataType::UInt(4))) {
-    auto type_msg = tvm::tir::StringImm(type_err_msg.str());
-    asserts_.emplace_back(AssertStmt(tvm::tir::StringImm("RuntimeError"), cond, {type_msg}));
+    std::ostringstream detail;
+    detail << "Mismatched " << buf_name << ".dtype on argument #" << param_index << ", expected "
+           << buffer->dtype;
+    AddRichAssert("TypeError", cond, arg_name, detail.str(), &asserts_);
   }
 
   // shape field
@@ -232,15 +352,22 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
       conds.push_back(buffer->shape[k] == 1 || expect_stride == svalue);
       expect_stride = expect_stride * buffer->shape[k];
     }
-    std::ostringstream stride_err_msg;
-    stride_err_msg << stride_handle_name() << ": expected to be compact array";
     if (conds.size() != 0) {
-      auto stride_msg = tvm::tir::StringImm(stride_err_msg.str());
+      std::ostringstream detail;
+      detail << "Mismatched " << buf_name << ".strides on argument #" << param_index
+             << ", expected to be compact array";
+      ffi::Array<StringImm> parts;
+      parts.push_back(tvm::tir::StringImm(detail.str()));
+      if (!func_signature_.empty()) {
+        parts.push_back(tvm::tir::StringImm(" when calling:\n  `"));
+        parts.push_back(tvm::tir::StringImm(func_signature_));
+        parts.push_back(tvm::tir::StringImm("`"));
+      }
       Stmt check = AssertStmt(
-          tvm::tir::StringImm("RuntimeError"),
+          tvm::tir::StringImm("ValueError"),
           foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
                 const_true(1), conds),
-          {stride_msg});
+          parts);
       check = IfThenElse(Not(v_strides_is_null), check);
       asserts_.emplace_back(SeqStmt({check, Evaluate(0)}));
     }
@@ -316,10 +443,13 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
       }
       return product;
     }();
-    asserts_.emplace_back(
-        AssertStmt(tvm::tir::StringImm("RuntimeError"),
-                   alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
-                   {tvm::tir::StringImm(arg_name + " is expected to have non-NULL data pointer")}));
+    {
+      std::ostringstream detail;
+      detail << buf_name << " data pointer is NULL on argument #" << param_index;
+      AddRichAssert("ValueError",
+                    alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
+                    arg_name, detail.str(), &asserts_);
+    }
 
     def_handle_dtype_.Set(vptr, tir::TypeAnnotation(buffer->dtype));
     // mark alignment of external bufs
