@@ -510,9 +510,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         //
         // The former may cause dead lock as there is a divergent
         // branch with a warp sync call inside.
-        bool cast_offset_to_uint = target_->kind->name == "webgpu";
-        PrimExpr other = WarpShuffle(builtin::tvm_warp_shuffle_down(), mask_buffer, val, offset,
-                                     cast_offset_to_uint);
+        PrimExpr other = WarpShuffle(builtin::tvm_warp_shuffle_down(), mask_buffer, val, offset);
         Buffer local_buf = local_bufs[i];
         Stmt s = BufferStore(local_buf, other, zero_indices);
         seq->push_back(s);
@@ -701,8 +699,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
   // Emit warp shuffle  calls.
   PrimExpr WarpShuffle(const Op& op, ffi::Optional<Buffer> mask_buffer, PrimExpr val,
-                       PrimExpr delta_or_lane, bool cast_delta_to_uint = false) {
-    if (cast_delta_to_uint) {
+                       PrimExpr delta_or_lane) {
+    // WebGPU's WGSL requires u32 for subgroupShuffle lane/delta arguments.
+    if (target_->kind->name == "webgpu") {
       delta_or_lane = cast(DataType::UInt(32, delta_or_lane.dtype().lanes()), delta_or_lane);
     }
     ffi::Array<PrimExpr> indices = {0};

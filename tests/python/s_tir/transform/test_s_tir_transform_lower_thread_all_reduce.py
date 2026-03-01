@@ -936,7 +936,7 @@ def test_webgpu_warp_reduce():
                     reduce[0] = reduce[0] + t0[0]
                     t0[0] = T.tvm_warp_shuffle_down(0, reduce[0], T.uint32(1), 32, 32)
                     reduce[0] = reduce[0] + t0[0]
-                    reduce[0] = T.tvm_warp_shuffle(t0[0], reduce[0], 0, 32, 32)
+                    reduce[0] = T.tvm_warp_shuffle(t0[0], reduce[0], T.uint32(0), 32, 32)
                 if threadIdx_x == 0:
                     B[i] = reduce[0]
 
