@@ -333,7 +333,7 @@ void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
     stream << "};\n";
     PrintIndent();
     stream << "TVMFFIErrorSetRaisedFromCStrParts(";
-    PrintEscapedCString(op->kind->value, stream);
+    PrintEscapedCString(op->error_kind->value, stream);
     stream << ", __tvm_assert_parts, " << num_parts << ");\n";
     PrintIndent();
     stream << "return -1;\n";

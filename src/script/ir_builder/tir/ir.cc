@@ -448,7 +448,7 @@ ForFrame Grid(ffi::Array<PrimExpr> extents) {
 
 AssertFrame Assert(PrimExpr condition, ffi::String message, ffi::String kind) {
   ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
-  n->kind = tvm::tir::StringImm(kind);
+  n->error_kind = tvm::tir::StringImm(kind);
   n->condition = condition;
   n->message_parts = {tvm::tir::StringImm(message)};
   return AssertFrame(n);
@@ -456,7 +456,7 @@ AssertFrame Assert(PrimExpr condition, ffi::String message, ffi::String kind) {
 
 AssertFrame AssertWithParts(PrimExpr condition, ffi::Array<ffi::String> parts, ffi::String kind) {
   ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
-  n->kind = tvm::tir::StringImm(kind);
+  n->error_kind = tvm::tir::StringImm(kind);
   n->condition = condition;
   ffi::Array<tvm::tir::StringImm> message_parts;
   for (const auto& p : parts) {

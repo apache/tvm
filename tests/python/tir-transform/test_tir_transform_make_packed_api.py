@@ -190,7 +190,7 @@ def test_zero_arg_function():
 
     asserts = _collect_asserts(func)
     assert len(asserts) >= 1
-    assert asserts[0].kind.value == "TypeError"
+    assert asserts[0].error_kind.value == "TypeError"
     assert "Expected 0 arguments" in _assert_msg(asserts[0])
     assert "func_without_arg()" in _assert_msg(asserts[0])
 
@@ -218,7 +218,7 @@ def test_int_parameter():
     assert any("main(arg: int32)" in _assert_msg(a) for a in asserts)
 
     # Verify type check with "expected int"
-    type_checks = [a for a in asserts if a.kind.value == "TypeError"]
+    type_checks = [a for a in asserts if a.error_kind.value == "TypeError"]
     assert any("expected int" in _assert_msg(tc) for tc in type_checks)
 
 
@@ -243,7 +243,7 @@ def test_bool_parameter():
 
     assert any("main(arg: bool)" in _assert_msg(a) for a in asserts)
 
-    type_checks = [a for a in asserts if a.kind.value == "TypeError"]
+    type_checks = [a for a in asserts if a.error_kind.value == "TypeError"]
     assert any("expected boolean" in _assert_msg(tc) for tc in type_checks)
 
 
@@ -268,7 +268,7 @@ def test_float_parameter():
 
     assert any("main(arg: float32)" in _assert_msg(a) for a in asserts)
 
-    type_checks = [a for a in asserts if a.kind.value == "TypeError"]
+    type_checks = [a for a in asserts if a.error_kind.value == "TypeError"]
     assert any("expected float" in _assert_msg(tc) for tc in type_checks)
 
 

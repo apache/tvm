@@ -140,7 +140,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           for (size_t i = 0; i < stmt->message_parts.size(); ++i) {
             parts.push_back(d->AsDoc<ExprDoc>(stmt->message_parts[i], parts_path->ArrayItem(i)));
           }
-          ExprDoc kind_doc = d->AsDoc<ExprDoc>(stmt->kind, p->Attr("kind"));
+          ExprDoc kind_doc = d->AsDoc<ExprDoc>(stmt->error_kind, p->Attr("error_kind"));
           return AssertDoc(cond, TupleDoc({kind_doc, ListDoc(parts)}));
         });
 

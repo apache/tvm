@@ -1102,7 +1102,7 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
   llvm::Function* helper = GetOrCreateSetRaisedHelper(max_n);
   // Build arguments: kind, n, msg0, msg1, ..., msg_{max_n-1}
   std::vector<llvm::Value*> call_args;
-  call_args.push_back(GetConstString(op->kind->value));
+  call_args.push_back(GetConstString(op->error_kind->value));
   call_args.push_back(ConstInt32(num_parts));
   for (int i = 0; i < max_n; ++i) {
     if (i < num_parts) {

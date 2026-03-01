@@ -133,10 +133,10 @@ class TVMFFIABIBuilder {
    * Accepts StringImm, const char*, std::string, or ffi::String.
    */
   template <typename... Args>
-  void EmitAssert(const PrimExpr& cond, const char* kind, Args&&... args) {
+  void EmitAssert(const PrimExpr& cond, const char* error_kind, Args&&... args) {
     ffi::Array<StringImm> parts;
     (parts.push_back(ToMsgPart(std::forward<Args>(args))), ...);
-    init_nest_.emplace_back(AssertStmt(cond, StringImm(kind), parts));
+    init_nest_.emplace_back(AssertStmt(cond, StringImm(error_kind), parts));
   }
 
   // ── Binding submethods ─────────────────────────────────────────

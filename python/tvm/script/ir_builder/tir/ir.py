@@ -920,7 +920,7 @@ def grid(*extents: PrimExpr) -> frame.ForFrame:
     return _ffi_api.Grid(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def Assert(condition: PrimExpr, message, kind: str = "RuntimeError") -> frame.AssertFrame:  # pylint: disable=invalid-name
+def Assert(condition: PrimExpr, message, error_kind: str = "RuntimeError") -> frame.AssertFrame:  # pylint: disable=invalid-name
     """Create an assertion statement.
 
     Parameters
@@ -933,7 +933,7 @@ def Assert(condition: PrimExpr, message, kind: str = "RuntimeError") -> frame.As
         or a list of string parts (fragments stored separately in the IR
         for binary size reduction through string reuse).
 
-    kind : str
+    error_kind : str
         The error kind (e.g. "RuntimeError", "TypeError", "ValueError").
 
     Returns
@@ -944,8 +944,8 @@ def Assert(condition: PrimExpr, message, kind: str = "RuntimeError") -> frame.As
     if isinstance(condition, bool):
         condition = IntImm("bool", condition)
     if isinstance(message, list | tuple):
-        return _ffi_api.AssertWithParts(condition, message, kind)  # type: ignore[attr-defined] # pylint: disable=no-member
-    return _ffi_api.Assert(condition, message, kind)  # type: ignore[attr-defined] # pylint: disable=no-member
+        return _ffi_api.AssertWithParts(condition, message, error_kind)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Assert(condition, message, error_kind)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def LetStmt(  # pylint: disable=invalid-name

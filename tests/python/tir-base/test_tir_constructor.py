@@ -142,12 +142,12 @@ def test_stmt_constructor():
     assert x.value.value == 1
 
     x = tvm.tir.AssertStmt(
-        tvm.tir.StringImm("RuntimeError"),
         tvm.tir.const(1, "bool"),
+        tvm.tir.StringImm("RuntimeError"),
         [tvm.tir.StringImm("hellow")],
     )
     assert isinstance(x, tvm.tir.AssertStmt)
-    assert x.kind.value == "RuntimeError"
+    assert x.error_kind.value == "RuntimeError"
     assert len(x.message_parts) == 1
     assert x.message_parts[0].value == "hellow"
 
