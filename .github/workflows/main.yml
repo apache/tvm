@@ -137,6 +137,12 @@ jobs:
       - name: Install test dependencies
         run: uv pip install --verbose psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions pytest
 
+      - name: Debug versions
+        run: |
+          uv run python -V
+          uv run python -c "import pytest; print('pytest', pytest.__version__)"
+          uv run python -c "import tvm; print('tvm imported')"
+
       - name: Platform minimal test
         run: uv run pytest -v tests/python/all-platform-minimal-test
 
