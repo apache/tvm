@@ -50,6 +50,18 @@ namespace tir {
  * type index extraction, type checking (TypeError), value loading, buffer
  * binding (if applicable), and rich error message generation with AccessPath.
  *
+ * ## Calling Protocol
+ *
+ * 1. Construct with function metadata (def_map, func_name, params, buffer_map, v_packed_args)
+ * 2. Call BindPackedArg(i) for each parameter i in [0, num_args)
+ *    - Returns (arg_value, param) pairs for LetStmt bindings
+ * 3. Call BindAllParams(var_defs, device_type, device_id, &arg_buffer_declarations)
+ *    - Binds scalar params to loaded values and DLTensor buffers to handles
+ * 4. Build the function body using:
+ *    - init_nest(): variable bindings and pre-initialization assertions
+ *    - asserts(): post-initialization assertions (shape, dtype, alignment checks)
+ *    - arg_buffer_declarations: DeclBuffer statements for buffer arguments
+ *
  * \note Consider a function f(tA(shape=var(n)), tB(shape=3), tC(shape=(n+2)).
  *  Here n is an undefined variable decided by the outside, tB imposes
  *  a constraint such that it can only take tensor with shape 3, tC imposes
@@ -84,12 +96,12 @@ class ArgBinder {
    *
    * Handles everything for one packed parameter:
    * 1. Extract type_index from v_packed_args
-   * 2. Type-check via BindTypeCheck_ (emits TypeError assertions)
+   * 2. Type-check via BindTypeCheck (emits TypeError assertions)
    * 3. Load arg value based on dtype (handle/bool/int/float)
    * 4. For handles: tensor-offset logic (DLTensor header offset)
    * 5. Return (arg_value, param) pair for the caller to use
    *
-   * \param i Parameter index.
+   * \param i Parameter index in [0, num_args).
    * \return (arg_value, param) pair. The caller uses these for LetStmt bindings.
    */
   std::pair<PrimExpr, Var> BindPackedArg(int i);
@@ -121,7 +133,7 @@ class ArgBinder {
    * bound.  For example, binding a variable twice will produce an
    * assert statement that the first value equals the second.
    *
-   * Note: Some assert statements produced by BindDLTensor_ are located
+   * Note: Some assert statements produced by BindDLTensor are located
    * in `init_nest()`, not within `asserts()`. This is deliberate, as
    * some values may require checks prior to initialization.
    */
@@ -145,34 +157,76 @@ class ArgBinder {
 
   /*!
    * \brief Internal scalar bind with AccessPath tracking and rich error messages.
+   *
+   * Binds \p arg to \p value. If arg is a Var not yet in def_map_, creates a
+   * new definition; otherwise emits a rich assertion that the existing value
+   * matches the new one.
+   *
+   * \param arg The argument expression to bind (typically a Var or constant).
+   * \param value The value expression to bind to the argument.
+   * \param arg_name Human-readable name for error messages.
+   * \param with_lets If true, emit LetStmt bindings into init_nest_.
+   * \param path AccessPath for rich error message rendering.
    * \return True if this was the first bind (definition created), false otherwise.
    */
-  bool Bind_(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
-             bool with_lets, ffi::reflection::AccessPath path);
+  bool BindScalar(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
+                  bool with_lets, ffi::reflection::AccessPath path);
 
   /*!
    * \brief Array bind: binds element-wise with AccessPath[k] for each element.
+   *
+   * \param arg The expected array of expressions.
+   * \param value The actual array of expressions to bind against.
+   * \param arg_name Human-readable base name for error messages.
+   * \param base_path Base AccessPath; each element appends ArrayItem(k).
    */
-  void BindArray_(const ffi::Array<PrimExpr>& arg, const ffi::Array<PrimExpr>& value,
-                  const std::string& arg_name, ffi::reflection::AccessPath base_path);
+  void BindArray(const ffi::Array<PrimExpr>& arg, const ffi::Array<PrimExpr>& value,
+                 const std::string& arg_name, ffi::reflection::AccessPath base_path);
 
   /*!
    * \brief Buffer-to-buffer bind with AccessPath.
+   *
+   * Binds data, elem_offset, shape, and strides of \p arg against \p value,
+   * emitting assertions for any mismatches.
+   *
+   * \param arg The expected buffer definition.
+   * \param value The actual buffer to bind against.
+   * \param arg_name Human-readable name for error messages.
+   * \param base_path Base AccessPath for the buffer parameter.
+   * \param fuzzy_match If true, allow value to have more dimensions than arg.
    */
-  void BindBuffer_(const Buffer& arg, const Buffer& value, const std::string& arg_name,
-                   ffi::reflection::AccessPath base_path, bool fuzzy_match);
+  void BindBuffer(const Buffer& arg, const Buffer& value, const std::string& arg_name,
+                  ffi::reflection::AccessPath base_path, bool fuzzy_match);
 
   /*!
    * \brief DLTensor bind: ndim/dtype/shape/strides/data/device assertions.
+   *
+   * Generates all the checks and bindings for a DLTensor packed argument,
+   * including null-pointer check, ndim, dtype, shape elements, strides,
+   * byte offset, alignment, device, and data pointer.
+   *
+   * \param buffer The buffer definition to bind against.
+   * \param device_type The expected device type expression.
+   * \param device_id The expected device id expression.
+   * \param handle The variable holding the DLTensor handle.
+   * \param arg_name Human-readable name for error messages.
+   * \param base_path Base AccessPath for the tensor parameter.
    */
-  void BindDLTensor_(const Buffer& buffer, const PrimExpr& device_type, const PrimExpr& device_id,
-                     const Var& handle, const std::string& arg_name,
-                     ffi::reflection::AccessPath base_path);
+  void BindDLTensor(const Buffer& buffer, const PrimExpr& device_type, const PrimExpr& device_id,
+                    const Var& handle, const std::string& arg_name,
+                    ffi::reflection::AccessPath base_path);
 
   /*!
    * \brief Type-check a packed arg's FFI type code, emit TypeError on mismatch.
+   *
+   * Generates an assertion that the type_index of the i-th packed argument
+   * matches the expected dtype category (handle, bool, int, or float).
+   *
+   * \param i Parameter index in [0, num_args).
+   * \param type_index The variable holding the type index of the packed arg.
+   * \param dtype The expected data type for this parameter.
    */
-  void BindTypeCheck_(int i, const Var& type_index, DataType dtype);
+  void BindTypeCheck(int i, const Var& type_index, DataType dtype);
 
   // -- Error message helpers --
 
@@ -183,20 +237,34 @@ class ArgBinder {
    *   <detail> when calling:
    *     `<func_signature>`,
    *     expected <expectation>
+   *
+   * Uses cached StringImm values for the signature and "when calling:" prefix
+   * to enable string sharing across assertions.
+   *
+   * \param kind The error kind string (e.g. "TypeError", "ValueError").
+   * \param cond The boolean condition; assertion fails when cond is false.
+   * \param detail Human-readable detail string (unique per assertion).
+   * \param expectation Human-readable expectation string (e.g. "Tensor", "128").
+   * \param target Output vector to append the AssertStmt to.
    */
-  void EmitRichAssert_(const std::string& kind, PrimExpr cond, const std::string& detail,
-                       const std::string& expectation, std::vector<Stmt>* target);
+  void EmitRichAssert(const std::string& kind, PrimExpr cond, const std::string& detail,
+                      const std::string& expectation, std::vector<Stmt>* target);
 
   /*!
    * \brief Render an AccessPath as a human-readable string (e.g. "a.shape[0]").
+   *
+   * \param path The AccessPath to render.
+   * \return A human-readable string representation of the path.
    */
-  std::string RenderAccessPath_(const ffi::reflection::AccessPath& path) const;
+  std::string RenderAccessPath(const ffi::reflection::AccessPath& path) const;
 
   /*!
    * \brief Extract param_index from the root ArrayItem step of a path.
+   *
+   * \param path The AccessPath to extract the index from.
    * \return The param index, or -1 if not found.
    */
-  int GetParamIndex_(const ffi::reflection::AccessPath& path) const;
+  int GetParamIndex(const ffi::reflection::AccessPath& path) const;
 
   // -- Data members --
   /*! \brief The definition map, can be used to substitute */
@@ -225,6 +293,12 @@ class ArgBinder {
   Var v_packed_args_;
   /*! \brief Map from param_index to param_name for AccessPath rendering. */
   std::unordered_map<int, std::string> param_names_;
+
+  // Cached StringImm for string sharing across assertions
+  /*! \brief Cached StringImm of func_signature_. */
+  StringImm sig_imm_;
+  /*! \brief Cached StringImm of " when calling:\n  `" (prefix before signature). */
+  StringImm when_calling_imm_;
 
   // AccessPath tracking
   /*! \brief Track first-bind AccessPath for each variable, used for cross-reference messages. */
