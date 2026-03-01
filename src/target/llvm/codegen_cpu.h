@@ -120,7 +120,8 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMGetFuncFromEnv();
   llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStr();
   llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStrParts();
-  llvm::Function* GetOrCreateSetRaisedFromCStrParts(int max_n);
+  // Create a temp function to simplify error raising.
+  llvm::Function* GetOrCreateSetRaisedHelper(int max_n);
   llvm::Value* RuntimeTVMParallelLaunch();
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();

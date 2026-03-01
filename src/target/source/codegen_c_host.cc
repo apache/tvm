@@ -381,7 +381,7 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
 
 ffi::Module BuildCHost(IRModule mod, Target target) {
   bool output_ssa = false;
-  bool emit_asserts = false;
+  bool emit_asserts = true;
   bool emit_fwd_func_decl = true;
 
   std::unordered_set<std::string> devices;

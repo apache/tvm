@@ -16,14 +16,11 @@
 # under the License.
 """Test error handling codegen with AssertStmt kind and message_parts."""
 
-import numpy as np
 import pytest
 
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import ir as I
-from tvm.script import tir as T
 
 
 @tvm.testing.requires_llvm
@@ -175,6 +172,44 @@ def test_assert_many_parts_llvm():
 
     with pytest.raises(RuntimeError, match="part0part1part2part3part4part5part6part7"):
         lib["test_assert_many_parts"](0)
+
+
+def _build_assert_func_c(kind, message_parts):
+    """Helper to build and compile a PrimFunc with an always-failing assert via C codegen."""
+    target = tvm.target.Target("c")
+    x = tir.Var("x", "int32")
+    assert_stmt = tir.AssertStmt(
+        tir.StringImm(kind),
+        tir.const(False, "bool"),
+        [tir.StringImm(p) for p in message_parts],
+    )
+    body = tir.SeqStmt([assert_stmt, tir.Evaluate(0)])
+    func = tir.PrimFunc([x], body).with_attr({"global_symbol": "test_c_codegen"})
+    return tvm.compile(tvm.IRModule.from_expr(func), target=target)
+
+
+def test_assert_value_error_c():
+    """Test that C host codegen raises ValueError with correct message."""
+    lib = _build_assert_func_c("ValueError", ["Shape mismatch: expected 4 got 8"])
+    with pytest.raises(ValueError, match="Shape mismatch"):
+        lib["test_c_codegen"](0)
+
+
+def test_assert_type_error_c():
+    """Test that C host codegen raises TypeError with correct message."""
+    lib = _build_assert_func_c("TypeError", ["Expected Tensor but got int"])
+    with pytest.raises(TypeError, match="Expected Tensor but got int"):
+        lib["test_c_codegen"](0)
+
+
+def test_assert_multi_part_c():
+    """Test that C host codegen correctly concatenates multi-part messages."""
+    lib = _build_assert_func_c(
+        "ValueError",
+        ["Expected shape ", "4", " but got ", "8"],
+    )
+    with pytest.raises(ValueError, match="Expected shape 4 but got 8"):
+        lib["test_c_codegen"](0)
 
 
 def test_assert_ir_structure():

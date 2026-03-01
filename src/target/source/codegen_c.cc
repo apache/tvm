@@ -1082,13 +1082,39 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
 void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
-  if (!op->message_parts.empty()) {
-    // Concatenate all parts into one message string for the ICHECK.
-    std::ostringstream msg;
-    for (const auto& part : op->message_parts) {
-      msg << part->value;
+  int num_parts = static_cast<int>(op->message_parts.size());
+  if (num_parts > 0) {
+    stream << "if (!(" << cond << ")) {\n";
+    int assert_if_scope = this->BeginScope();
+    PrintIndent();
+    stream << "const char* __tvm_assert_parts[" << num_parts << "] = {";
+    for (int i = 0; i < num_parts; ++i) {
+      if (i > 0) stream << ", ";
+      stream << "\"";
+      std::string part_str = op->message_parts[i]->value;
+      for (size_t j = 0; j < part_str.size(); ++j) {
+        char c = part_str[j];
+        if (c == '"') {
+          stream << "\\\"";
+        } else if (c == '\\') {
+          stream << "\\\\";
+        } else if (c == '\n') {
+          stream << "\\n";
+        } else {
+          stream << c;
+        }
+      }
+      stream << "\"";
     }
-    stream << "TVM_FFI_ICHECK(" << cond << ") << \"" << msg.str() << "\";\n";
+    stream << "};\n";
+    PrintIndent();
+    stream << "TVMFFIErrorSetRaisedFromCStrParts(\"" << op->kind->value
+           << "\", __tvm_assert_parts, " << num_parts << ");\n";
+    PrintIndent();
+    stream << "return -1;\n";
+    this->EndScope(assert_if_scope);
+    PrintIndent();
+    stream << "}\n";
   } else {
     stream << "assert(" << cond << ");\n";
   }

@@ -909,7 +909,7 @@ llvm::Value* CodeGenCPU::RuntimeTVMFFIErrorSetRaisedFromCStrParts() {
       "TVMFFIErrorSetRaisedFromCStrParts", module_.get());
   return f_tvm_ffi_set_raised_from_c_str_parts_;
 }
-llvm::Function* CodeGenCPU::GetOrCreateSetRaisedFromCStrParts(int max_n) {
+llvm::Function* CodeGenCPU::GetOrCreateSetRaisedHelper(int max_n) {
   auto it = set_raised_helpers_.find(max_n);
   if (it != set_raised_helpers_.end()) return it->second;
 
@@ -1081,7 +1081,7 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
   int max_n = ((num_parts + 5) / 6) * 6;
   if (max_n == 0) max_n = 6;
 
-  llvm::Function* helper = GetOrCreateSetRaisedFromCStrParts(max_n);
+  llvm::Function* helper = GetOrCreateSetRaisedHelper(max_n);
   // Build arguments: kind, n, msg0, msg1, ..., msg_{max_n-1}
   std::vector<llvm::Value*> call_args;
   call_args.push_back(GetConstString(op->kind->value));
