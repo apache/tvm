@@ -24,6 +24,7 @@ import re
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -48,6 +49,9 @@ def test_wrong_argument_count_error(codegen_target):
             B[i] = A[i] + T.float32(1)
 
     lib = tvm.compile(func, target=codegen_target)
+    a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    b = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    lib(a, b)  # correct input should pass
 
     with pytest.raises(
         TypeError,
@@ -75,6 +79,8 @@ def test_type_mismatch_non_tensor(codegen_target):
 
     lib = tvm.compile(func, target=codegen_target)
     a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    b = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    lib(a, b)  # correct input should pass
 
     with pytest.raises(
         TypeError,
@@ -103,8 +109,10 @@ def test_shape_mismatch_shared_variable(codegen_target):
 
     lib = tvm.compile(func, target=codegen_target)
     a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
-    b_short = tvm.runtime.tensor(np.zeros(126, dtype="float32"))
+    b = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    lib(a, b)  # correct input should pass
 
+    b_short = tvm.runtime.tensor(np.zeros(126, dtype="float32"))
     with pytest.raises(
         ValueError,
         match=re.escape(
@@ -125,9 +133,12 @@ def test_invalid_shape_fixed(codegen_target):
             b[i] = a[i] + T.float32(1)
 
     lib = tvm.compile(func, target=codegen_target)
+    a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    b = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    lib(a, b)  # correct input should pass
+
     a_wrong = tvm.runtime.tensor(np.zeros(256, dtype="float32"))
     b_wrong = tvm.runtime.tensor(np.zeros(256, dtype="float32"))
-
     with pytest.raises(
         ValueError,
         match=re.escape(
@@ -151,9 +162,12 @@ def test_ndim_mismatch_error(codegen_target):
             b[i, j] = a[i, j]
 
     lib = tvm.compile(func, target=codegen_target)
+    a_ok = tvm.runtime.tensor(np.zeros((4, 8), dtype="float32"))
+    b_ok = tvm.runtime.tensor(np.zeros((4, 8), dtype="float32"))
+    lib(a_ok, b_ok)  # correct input should pass
+
     a = tvm.runtime.tensor(np.zeros(4, dtype="float32"))
     b = tvm.runtime.tensor(np.zeros(4, dtype="float32"))
-
     with pytest.raises(
         ValueError,
         match=re.escape(
@@ -177,9 +191,12 @@ def test_dtype_mismatch_error(codegen_target):
             b[i] = a[i]
 
     lib = tvm.compile(func, target=codegen_target)
+    a_ok = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
+    b_ok = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
+    lib(a_ok, b_ok)  # correct input should pass
+
     a = tvm.runtime.tensor(np.zeros(8, dtype="int32"))
     b = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
-
     with pytest.raises(
         TypeError,
         match=re.escape(
@@ -191,23 +208,99 @@ def test_dtype_mismatch_error(codegen_target):
         lib(a, b)
 
 
-# ── Null data pointer errors ────────────────────────────────
+# ── Data alignment errors ──────────────────────────────────
 
 
-def test_null_data_pointer(codegen_target):
-    """Null data pointer in tensor raises TypeError."""
+def test_data_alignment_error(codegen_target):
+    """Misaligned buffer data pointer raises ValueError."""
 
     @T.prim_func
-    def func(a: T.Buffer((16, 16), "int32"), b: T.Buffer((16, 16), "int32")):
-        for i, j in T.grid(16, 16):
-            b[i, j] = a[i, j]
+    def func(a: T.Buffer((128,), "float32"), b: T.Buffer((128,), "float32")):
+        for i in range(128):
+            b[i] = a[i] + T.float32(1)
 
     lib = tvm.compile(func, target=codegen_target)
-    a = tvm.runtime.tensor(np.zeros([16], dtype="int32"))
-    b = tvm.runtime.empty([16, 16], "int32", tvm.cpu())
+    a_ok = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    b_ok = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    lib(a_ok, b_ok)  # correct input should pass
 
-    with pytest.raises(tvm.TVMError):
-        lib(a, b)
+    # Slice off first element of a 129-element array to create misaligned data pointer
+    np_arr = np.zeros(129, dtype="float32")
+    a_misaligned = tvm_ffi.from_dlpack(np_arr[1:])
+    b = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Misaligned Tensor data on argument #0 when calling:\n"
+            "  `func(a: Tensor([128], float32), b: Tensor([128], float32))`,\n"
+            "  expected data alignment=64 bytes"
+        ),
+    ):
+        lib(a_misaligned, b)
+
+
+# ── Compact strides mismatch errors ────────────────────────
+
+
+def test_strides_mismatch_transposed(codegen_target):
+    """Transposed (non-compact) strides raise ValueError."""
+
+    @T.prim_func
+    def func(a: T.Buffer((128, 128), "float32"), b: T.Buffer((128, 128), "float32")):
+        for i, j in T.grid(128, 128):
+            b[i, j] = a[i, j] + T.float32(1)
+
+    lib = tvm.compile(func, target=codegen_target)
+    a_ok = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
+    b_ok = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
+    lib(a_ok, b_ok)  # correct input should pass
+
+    # Use Fortran-order array to get non-compact (non-C-contiguous) strides
+    np_arr = np.asfortranarray(np.zeros((128, 128), dtype="float32"))
+    a_transposed = tvm_ffi.from_dlpack(np_arr)
+    b = tvm.runtime.tensor(np.zeros((128, 128), dtype="float32"))
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Mismatched a.strides on argument #0 when calling:\n"
+            "  `func(a: Tensor([128, 128], float32), b: Tensor([128, 128], float32))`,\n"
+            "  expected to be compact array"
+        ),
+    ):
+        lib(a_transposed, b)
+
+
+# ── Device mismatch errors ─────────────────────────────────
+
+
+@tvm.testing.requires_cuda
+def test_device_mismatch_error():
+    """Passing GPU tensor to CPU function raises ValueError."""
+
+    @T.prim_func
+    def func(a: T.Buffer((128,), "float32"), b: T.Buffer((128,), "float32")):
+        for i in range(128):
+            b[i] = a[i] + T.float32(1)
+
+    lib = tvm.compile(func, target="llvm")
+    a_ok = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    b_ok = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    lib(a_ok, b_ok)  # correct input should pass
+
+    a_gpu = tvm.runtime.tensor(np.zeros(128, dtype="float32"), device=tvm.cuda(0))
+    b = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Mismatched a.device_type on argument #0 when calling:\n"
+            "  `func(a: Tensor([128], float32), b: Tensor([128], float32))`,\n"
+            "  expected cpu"
+        ),
+    ):
+        lib(a_gpu, b)
 
 
 # ── Scalar type mismatch errors ─────────────────────────────
@@ -224,8 +317,9 @@ def test_type_mismatch_int_parameter(codegen_target):
             return 20
 
     lib = tvm.compile(func, target=codegen_target)
-    a = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
+    assert lib(5) == 10  # correct input should pass
 
+    a = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
     with pytest.raises(
         TypeError,
         match=re.escape(
@@ -246,8 +340,9 @@ def test_type_mismatch_float_parameter(codegen_target):
             return 0
 
     lib = tvm.compile(func, target=codegen_target)
-    a = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
+    assert lib(1.0) == 1  # correct input should pass
 
+    a = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
     with pytest.raises(
         TypeError,
         match=re.escape(
@@ -268,8 +363,9 @@ def test_type_mismatch_bool_parameter(codegen_target):
             return 0
 
     lib = tvm.compile(func, target=codegen_target)
-    a = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
+    assert lib(True) == 1  # correct input should pass
 
+    a = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
     with pytest.raises(
         TypeError,
         match=re.escape(
@@ -277,6 +373,50 @@ def test_type_mismatch_bool_parameter(codegen_target):
         ),
     ):
         lib(a)
+
+
+# ── Mixed parameter type errors ────────────────────────────
+
+
+def test_invalid_arguments_mixed_params(codegen_target):
+    """Mixed bool + tensor function: type, dtype, and shape errors."""
+
+    @T.prim_func
+    def func(a0: T.bool, a1: T.Buffer([10], "float32")) -> T.int32:
+        return 0
+
+    lib = tvm.compile(func, target=codegen_target)
+    lib(True, tvm.runtime.tensor(np.zeros(10, dtype="float32")))  # correct input should pass
+
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "Mismatched type on argument #1 when calling:\n"
+            "  `func(a0: bool, a1: Tensor([10], float32))`,\n"
+            "  expected Tensor"
+        ),
+    ):
+        lib(1, 1)
+
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "Mismatched a1.dtype on argument #1 when calling:\n"
+            "  `func(a0: bool, a1: Tensor([10], float32))`,\n"
+            "  expected float32"
+        ),
+    ):
+        lib(1, tvm.runtime.empty([10], "int32"))
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Invalid a1.shape[0] on argument #1 when calling:\n"
+            "  `func(a0: bool, a1: Tensor([10], float32))`,\n"
+            "  expected 10"
+        ),
+    ):
+        lib(False, tvm.runtime.empty([11], "float32"))
 
 
 if __name__ == "__main__":

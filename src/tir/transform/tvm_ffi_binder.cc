@@ -652,11 +652,25 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
 
   // ── Section: device ──────────────────────────────────────────
   {
-    AccessPath device_type_path = param_path->Attr(ffi::String("device_type"));
+    PrimExpr actual_device_type =
+        TVMStructGet(DataType::Int(32), handle, 0, builtin::kArrDeviceType);
+    // Use custom assertion for device_type to show human-readable device name
+    if (const auto* const_dt = device_type_.as<IntImmNode>()) {
+      PrimExpr cond =
+          analyzer_.Simplify(make_const(DataType::Int(32), const_dt->value) == actual_device_type);
+      if (!is_one(cond)) {
+        std::string device_name = runtime::DLDeviceType2Str(static_cast<int>(const_dt->value));
+        EmitAssert(cond, "ValueError",  //
+                   "Mismatched ", buf_name, ".device_type on argument #",
+                   std::to_string(param_index), when_calling_imm_, sig_imm_, "`,\n  expected ",
+                   device_name);
+      }
+    } else {
+      AccessPath device_type_path = param_path->Attr(ffi::String("device_type"));
+      BindScalar(device_type_, actual_device_type, device_type_path, true);
+    }
     AccessPath device_id_path = param_path->Attr(ffi::String("device_id"));
-    BindScalar(device_type, TVMStructGet(DataType::Int(32), handle, 0, builtin::kArrDeviceType),
-               device_type_path, true);
-    BindScalar(device_id, TVMStructGet(DataType::Int(32), handle, 0, builtin::kArrDeviceId),
+    BindScalar(device_id_, TVMStructGet(DataType::Int(32), handle, 0, builtin::kArrDeviceId),
                device_id_path, true);
   }
 
@@ -678,6 +692,20 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
                  "ValueError",  //
                  buf_name, " data pointer is NULL on argument #", std::to_string(param_index),
                  when_calling_imm_, sig_imm_, "`,\n  expected non-NULL data pointer");
+
+      // Check data pointer alignment
+      if (buffer->data_alignment > 1) {
+        PrimExpr ptr_as_int =
+            Call(DataType::UInt(64), builtin::reinterpret(), {cast(DataType::Handle(), vptr)});
+        PrimExpr align_cond =
+            truncmod(ptr_as_int, make_const(DataType::UInt(64), buffer->data_alignment)) ==
+            make_const(DataType::UInt(64), 0);
+        EmitAssert(alloc_size == 0 || align_cond, "ValueError",  //
+                   "Misaligned Tensor data on argument #", std::to_string(param_index),
+                   when_calling_imm_, sig_imm_,
+                   "`,\n  expected data alignment=", std::to_string(buffer->data_alignment),
+                   " bytes");
+      }
 
       // mark alignment of external bufs
       init_nest_.emplace_back(AttrStmt(vptr, tir::attr::storage_alignment,
