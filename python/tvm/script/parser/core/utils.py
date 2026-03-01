@@ -89,7 +89,6 @@ def inspect_class_capture(cls: type) -> dict[str, Any]:
     return result
 
 
-
 def _collect_annotation_names(source_obj: type | Callable) -> set[str]:
     """Parse source AST to find names used in function annotations.
 
@@ -108,7 +107,7 @@ def _collect_annotation_names(source_obj: type | Callable) -> set[str]:
 
     names: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             for arg in node.args.args + node.args.posonlyargs + node.args.kwonlyargs:
                 if arg.annotation:
                     for n in ast.walk(arg.annotation):
