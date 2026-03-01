@@ -178,11 +178,12 @@ class SubroutineCallRewriter : public StmtExprMutator {
 inline Stmt MakeAssertEQ(const std::string& kind, PrimExpr lhs, PrimExpr rhs,
                          const std::string& detail, const std::string& func_signature = "") {
   ffi::Array<StringImm> parts;
-  parts.push_back(tvm::tir::StringImm(detail));
   if (!func_signature.empty()) {
-    parts.push_back(tvm::tir::StringImm(" when calling:\n  `"));
+    parts.push_back(tvm::tir::StringImm(detail + " when calling:\n  `"));
     parts.push_back(tvm::tir::StringImm(func_signature));
     parts.push_back(tvm::tir::StringImm("`"));
+  } else {
+    parts.push_back(tvm::tir::StringImm(detail));
   }
   return AssertStmt(tvm::tir::StringImm(kind), lhs == rhs, parts);
 }
@@ -194,11 +195,12 @@ inline Stmt MakeAssertNotNull(const std::string& kind, PrimExpr ptr, const std::
                               const std::string& func_signature = "") {
   Call isnull(DataType::Bool(), builtin::isnullptr(), {ptr});
   ffi::Array<StringImm> parts;
-  parts.push_back(tvm::tir::StringImm(detail));
   if (!func_signature.empty()) {
-    parts.push_back(tvm::tir::StringImm(" when calling:\n  `"));
+    parts.push_back(tvm::tir::StringImm(detail + " when calling:\n  `"));
     parts.push_back(tvm::tir::StringImm(func_signature));
     parts.push_back(tvm::tir::StringImm("`"));
+  } else {
+    parts.push_back(tvm::tir::StringImm(detail));
   }
   return AssertStmt(tvm::tir::StringImm(kind), !isnull, parts);
 }
@@ -275,7 +277,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
   // Set function signature for rich error messages
   binder.SetFunctionSignature(name_hint, func_ptr->params, func_ptr->buffer_map);
-  // Build function signature string for use in MakeAssertEQ/MakeAssertNotNull
+  // Build function signature string for use in MakeAssertEQ/MakeAssertNotNull.
+  // Must match the format produced by ArgBinder::SetFunctionSignature:
+  //   func_name(buf_name: Tensor([dim0, dim1], dtype), param: type)
   std::string func_signature;
   {
     std::ostringstream os;
@@ -283,10 +287,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     for (int i = 0; i < num_args; ++i) {
       if (i > 0) os << ", ";
       Var param = func_ptr->params[i];
-      os << param->name_hint << ": ";
       if (func_ptr->buffer_map.count(param)) {
         Buffer buf = func_ptr->buffer_map[param];
-        os << "Tensor([";
+        os << buf->name << ": Tensor([";
         for (size_t j = 0; j < buf->shape.size(); ++j) {
           if (j > 0) os << ", ";
           std::ostringstream shape_os;
@@ -295,7 +298,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
         }
         os << "], " << buf->dtype << ")";
       } else {
-        os << param.dtype();
+        os << param->name_hint << ": " << param.dtype();
       }
     }
     os << ")";
@@ -352,24 +355,28 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                           IntImm(DataType::Int(32), builtin::kTVMFFIAnyTypeIndex)}),
                                nop));
     DataType dtype = param.dtype();
-    // Helper to build a type assert with rich message
+    // Helper to build a type assert with rich message in the standard format:
+    //   Mismatched type on argument #N when calling:
+    //     `<signature>`,
+    //     expected <expected_type>
     auto make_type_assert = [&](PrimExpr type_cond, const std::string& expected_type) {
       std::ostringstream detail;
-      detail << "Mismatched type on argument #" << i << ", expected " << expected_type;
+      detail << "Mismatched type on argument #" << i;
       ffi::Array<StringImm> parts;
-      parts.push_back(tvm::tir::StringImm(detail.str()));
-      parts.push_back(tvm::tir::StringImm(" when calling:\n  `"));
+      parts.push_back(tvm::tir::StringImm(detail.str() + " when calling:\n  `"));
       parts.push_back(tvm::tir::StringImm(func_signature));
-      parts.push_back(tvm::tir::StringImm("`"));
+      parts.push_back(tvm::tir::StringImm("`,\n  expected " + expected_type));
       seq_init.emplace_back(AssertStmt(tvm::tir::StringImm("TypeError"), type_cond, parts));
     };
 
     if (dtype.is_handle()) {
+      // Use "Tensor" when this handle represents a buffer, "pointer" otherwise
+      std::string expected_type = func_ptr->buffer_map.count(param) ? "Tensor" : "pointer";
       make_type_assert(type_index == ffi::TypeIndex::kTVMFFINone ||
                            type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
                            type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr ||
                            type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin,
-                       "pointer");
+                       expected_type);
       // if type_index is Tensor, we need to add the offset of the DLTensor header
       // which always equals 16 bytes, this ensures that T.handle always shows up as a DLTensor*
       const int64_t object_cell_offset = sizeof(TVMFFIObject);

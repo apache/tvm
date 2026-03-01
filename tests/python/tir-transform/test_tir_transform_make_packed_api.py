@@ -272,7 +272,7 @@ def test_zero_arg_function():
     # Verify it checks num_args
     assert any("Expected 0 arguments" in p.value for p in asserts[0].message_parts)
 
-    # Verify function signature is in the message
+    # Verify function signature is in the message (wrapped in backticks)
     assert any("func_without_arg()" in p.value for p in asserts[0].message_parts)
 
 

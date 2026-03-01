@@ -25,6 +25,7 @@
 #define TVM_TIR_TRANSFORM_ARG_BINDER_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 
@@ -69,6 +70,8 @@ class ArgBinder {
    *
    * When set, assertion failures will include the function signature
    * in the error message to help users identify which function failed.
+   * The signature is formatted as:
+   *   func_name(param0: Tensor([dim0, dim1], dtype), param1: int32)
    *
    * \param func_name The function name.
    * \param params The function parameters.
@@ -105,6 +108,12 @@ class ArgBinder {
                   bool fuzzy_match);
   /*!
    * \brief Bind symbolic buffer to a DLTensor handle.
+   *
+   * Creates bindings for the buffer's shape, strides, dtype, byte offset,
+   * device, and data pointer from the DLTensor handle. When function signature
+   * is available, generates rich error messages using AccessPath to describe
+   * the location of mismatches (e.g. "a.shape[0]").
+   *
    * \param buffer The argument buffer to be binded.
    * \param device_type The device id to be binded.
    * \param device_id The device id to be binded.
@@ -161,19 +170,54 @@ class ArgBinder {
   const ffi::Map<Var, PrimExpr>& def_handle_dtype() const { return def_handle_dtype_; }
 
  private:
-  // Internal bind function
-  bool Bind_(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
-             bool with_lets);
   /*!
-   * \brief Create an AssertStmt with rich error messages when signature is available.
+   * \brief Internal bind function.
+   *
+   * Binds \p arg to \p value. On first bind for a Var, records the definition.
+   * On duplicate bind, emits an assertion that the previous value equals
+   * the new value, with rich error messages when AccessPaths are available.
+   *
+   * \param arg The argument expression to bind.
+   * \param value The target value expression.
+   * \param arg_name Textual argument name for legacy error messages.
+   * \param with_lets Whether to generate LetStmt bindings.
+   * \param path AccessPath of this bind site (used for rich error tracking).
+   * \return True if this was the first bind (definition created), false otherwise.
+   */
+  bool Bind_(const PrimExpr& arg, const PrimExpr& value, const std::string& arg_name,
+             bool with_lets, ffi::Optional<ffi::reflection::AccessPath> path = std::nullopt);
+  /*!
+   * \brief Emit an AssertStmt with rich, multi-line error messages.
+   *
+   * Produces messages in the format:
+   *   <detail> when calling:
+   *     `<func_signature>`,
+   *     expected <expectation>
+   *
+   * When no function signature is available, falls back to a simple
+   * single-part message using \p detail and \p expectation.
+   *
    * \param kind The error kind (e.g. "ValueError", "TypeError").
-   * \param cond The assertion condition (already simplified).
-   * \param arg_name The argument name for context.
-   * \param detail_msg A detail message describing the constraint.
+   * \param cond The assertion condition.
+   * \param detail The leading detail string (e.g. "Mismatched b.shape[0] on argument #1").
+   * \param expectation The expectation suffix (e.g. "to match a.shape[0]").
    * \param asserts The vector to append the assert to.
    */
-  void AddRichAssert(const std::string& kind, PrimExpr cond, const std::string& arg_name,
-                     const std::string& detail_msg, std::vector<Stmt>* asserts);
+  void AddRichAssert(const std::string& kind, PrimExpr cond, const std::string& detail,
+                     const std::string& expectation, std::vector<Stmt>* asserts);
+
+  /*!
+   * \brief Render an AccessPath as a human-readable string.
+   *
+   * Uses parameter names from the function signature when available.
+   * For example, an AccessPath representing params[0].shape[0] where
+   * param 0 is named "a" will render as "a.shape[0]".
+   *
+   * \param path The AccessPath to render.
+   * \return A human-readable string representation.
+   */
+  std::string RenderAccessPath(const ffi::reflection::AccessPath& path) const;
+
   /*! \brief The definition map, can be uses to substitute */
   std::unordered_map<const VarNode*, PrimExpr>* def_map_;
   /*! \brief defs generated in the current binder */
@@ -190,8 +234,10 @@ class ArgBinder {
   std::string func_name_;
   /*! \brief function signature string for error messages. */
   std::string func_signature_;
-  /*! \brief Track first-bind access paths for variables (access path -> var node). */
-  std::unordered_map<const VarNode*, std::string> first_bind_path_;
+  /*! \brief Map from parameter name to its human-readable name (for AccessPath rendering). */
+  std::unordered_map<std::string, std::string> param_name_map_;
+  /*! \brief Track first-bind AccessPath for each variable, used for cross-reference messages. */
+  std::unordered_map<const VarNode*, ffi::reflection::AccessPath> first_bind_path_;
 };
 }  // namespace tir
 }  // namespace tvm

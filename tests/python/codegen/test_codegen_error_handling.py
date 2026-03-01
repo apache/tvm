@@ -16,6 +16,8 @@
 # under the License.
 """Test error handling codegen with AssertStmt kind and message_parts."""
 
+import re
+
 import numpy as np
 import pytest
 
@@ -23,6 +25,10 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm.script import tir as T
+
+# ============================================================
+# Phase 0: Basic AssertStmt codegen tests
+# ============================================================
 
 
 @tvm.testing.requires_llvm
@@ -228,42 +234,198 @@ def test_assert_ir_structure():
 
 
 # ============================================================
-# Phase 1: Integration tests for rich error messages
+# Phase 1: Rich error message integration tests
+#
+# These test the exact error messages produced by MakePackedAPI
+# + ArgBinder using AccessPath tracking.
 # ============================================================
+
+
+def _make_add_one_shared_shape():
+    """Create add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))
+    where a and b share shape variable n0."""
+    n = tir.Var("n0", "int64")
+    a_buf = tir.decl_buffer([n], "float32", name="a")
+    b_buf = tir.decl_buffer([n], "float32", name="b")
+    a_param = tir.Var("a_handle", "handle")
+    b_param = tir.Var("b_handle", "handle")
+    i = tir.Var("i", "int64")
+
+    body = tir.For(
+        i,
+        0,
+        n,
+        tir.ForKind.SERIAL,
+        tir.BufferStore(
+            b_buf,
+            tir.BufferLoad(a_buf, [i]) + tir.const(1.0, "float32"),
+            [i],
+        ),
+    )
+    func = tir.PrimFunc(
+        [a_param, b_param], body, buffer_map={a_param: a_buf, b_param: b_buf}
+    ).with_attr(
+        {
+            "global_symbol": "add_one",
+            "target": tvm.target.Target("llvm", host="llvm"),
+        }
+    )
+    return func
+
+
+def _make_add_one_aligned():
+    """Create add_one with offset_factor=4 on buffer a (16-byte alignment)."""
+    n = tir.Var("n0", "int64")
+    a_buf = tir.decl_buffer([n], "float32", name="a", data_alignment=64, offset_factor=4)
+    b_buf = tir.decl_buffer([n], "float32", name="b")
+    a_param = tir.Var("a_handle", "handle")
+    b_param = tir.Var("b_handle", "handle")
+    i = tir.Var("i", "int64")
+
+    body = tir.For(
+        i,
+        0,
+        n,
+        tir.ForKind.SERIAL,
+        tir.BufferStore(
+            b_buf,
+            tir.BufferLoad(a_buf, [i]) + tir.const(1.0, "float32"),
+            [i],
+        ),
+    )
+    func = tir.PrimFunc(
+        [a_param, b_param], body, buffer_map={a_param: a_buf, b_param: b_buf}
+    ).with_attr(
+        {
+            "global_symbol": "add_one",
+            "target": tvm.target.Target("llvm", host="llvm"),
+        }
+    )
+    return func
+
+
+@tvm.testing.requires_llvm
+def test_type_mismatch_non_tensor():
+    """Test: passing a non-tensor where a tensor is expected.
+
+    Expected error:
+        TypeError: Mismatched type on argument #1 when calling:
+          `add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))`,
+          expected Tensor
+    """
+    func = _make_add_one_shared_shape()
+    lib = tvm.compile(tvm.IRModule.from_expr(func), target="llvm")
+    a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "Mismatched type on argument #1 when calling:\n"
+            "  `add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))`,\n"
+            "  expected Tensor"
+        ),
+    ):
+        lib["add_one"](a, 1)
+
+
+@tvm.testing.requires_llvm
+def test_shape_mismatch_shared_variable():
+    """Test: b has different shape than a when they share variable n0.
+
+    Expected error:
+        ValueError: Mismatched b.shape[0] on argument #1 when calling:
+          `add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))`,
+          expected to match a.shape[0]
+    """
+    func = _make_add_one_shared_shape()
+    lib = tvm.compile(tvm.IRModule.from_expr(func), target="llvm")
+    a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
+    b_short = tvm.runtime.tensor(np.zeros(126, dtype="float32"))
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Mismatched b.shape[0] on argument #1 when calling:\n"
+            "  `add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))`,\n"
+            "  expected to match a.shape[0]"
+        ),
+    ):
+        lib["add_one"](a, b_short)
+
+
+@tvm.testing.requires_llvm
+def test_invalid_shape_fixed():
+    """Test: passing a shape that doesn't match a fixed buffer dimension.
+
+    Expected error:
+        ValueError: Invalid a.shape[0] on argument #0 when calling:
+          `add(a: Tensor([128], float32), b: Tensor([128], float32))`,
+          expected 128
+    """
+
+    @T.prim_func
+    def add(a: T.Buffer((128,), "float32"), b: T.Buffer((128,), "float32")):
+        for i in range(128):
+            b[i] = a[i] + T.float32(1)
+
+    lib = tvm.compile(add, target="llvm")
+
+    a_wrong = tvm.runtime.tensor(np.zeros(256, dtype="float32"))
+    b_wrong = tvm.runtime.tensor(np.zeros(256, dtype="float32"))
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Invalid a.shape[0] on argument #0 when calling:\n"
+            "  `add(a: Tensor([128], float32), b: Tensor([128], float32))`,\n"
+            "  expected 128"
+        ),
+    ):
+        lib(a_wrong, b_wrong)
+
+
+@tvm.testing.requires_llvm
+def test_misaligned_tensor_data():
+    """Test: misaligned tensor data when buffer requires alignment.
+
+    Expected error:
+        ValueError: Misaligned Tensor data on argument #0 when calling:
+          `add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))`,
+          expected data alignment=16 bytes
+    """
+    func = _make_add_one_aligned()
+    mod = tvm.IRModule.from_expr(func)
+
+    # Verify the assertion exists in the lowered IR
+    lowered = tvm.tir.transform.MakePackedAPI()(mod)
+    lowered_func = lowered["add_one"]
+
+    alignment_asserts = []
+
+    def visitor(stmt):
+        if isinstance(stmt, tvm.tir.AssertStmt):
+            msg = "".join(p.value for p in stmt.message_parts)
+            if "Misaligned" in msg:
+                alignment_asserts.append(msg)
+
+    tvm.tir.stmt_functor.post_order_visit(lowered_func.body, visitor)
+    assert len(alignment_asserts) >= 1
+    assert "Misaligned Tensor data on argument #0" in alignment_asserts[0]
+    assert "expected data alignment=16 bytes" in alignment_asserts[0]
+    assert "add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))" in alignment_asserts[0]
 
 
 @tvm.testing.requires_llvm
 def test_wrong_argument_count_error():
     """Verify wrong argument count produces TypeError with function signature."""
-
-    @T.prim_func
-    def add_one(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
-        for i in range(8):
-            b[i] = a[i] + T.float32(1)
-
-    lib = tvm.compile(add_one, target="llvm")
+    func = _make_add_one_shared_shape()
+    lib = tvm.compile(tvm.IRModule.from_expr(func), target="llvm")
 
     with pytest.raises(TypeError, match="Expected 2 arguments"):
-        lib()
+        lib["add_one"]()
 
-    with pytest.raises(TypeError, match="add_one"):
-        lib()
-
-
-@tvm.testing.requires_llvm
-def test_type_mismatch_error():
-    """Verify wrong type produces TypeError with function signature."""
-
-    @T.prim_func
-    def scale(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
-        for i in range(8):
-            b[i] = a[i] * T.float32(2)
-
-    lib = tvm.compile(scale, target="llvm")
-
-    # Passing an integer instead of a tensor should produce a TypeError
-    with pytest.raises(TypeError, match="Mismatched type on argument #0"):
-        lib(42, 0)
+    with pytest.raises(TypeError, match=re.escape("add_one(")):
+        lib["add_one"]()
 
 
 @tvm.testing.requires_llvm
@@ -281,30 +443,10 @@ def test_ndim_mismatch_error():
     a = tvm.runtime.tensor(np.zeros(4, dtype="float32"))
     b = tvm.runtime.tensor(np.zeros(4, dtype="float32"))
 
-    with pytest.raises(ValueError, match="ndim"):
-        lib(a, b)
-
-    # Verify function signature appears in the error message
-    with pytest.raises(ValueError, match="func_2d"):
-        lib(a, b)
-
-
-@tvm.testing.requires_llvm
-def test_shape_mismatch_error():
-    """Verify shape mismatch produces ValueError with function signature."""
-
-    @T.prim_func
-    def add(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
-        for i in range(8):
-            b[i] = a[i] + T.float32(1)
-
-    lib = tvm.compile(add, target="llvm")
-
-    # Pass wrong shape
-    a = tvm.runtime.tensor(np.zeros(16, dtype="float32"))
-    b = tvm.runtime.tensor(np.zeros(16, dtype="float32"))
-
-    with pytest.raises(ValueError, match="add"):
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Mismatched a.ndim on argument #0"),
+    ):
         lib(a, b)
 
 
@@ -323,10 +465,14 @@ def test_dtype_mismatch_error():
     a = tvm.runtime.tensor(np.zeros(8, dtype="int32"))
     b = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
 
-    with pytest.raises(TypeError, match="dtype"):
-        lib(a, b)
-
-    with pytest.raises(TypeError, match="copy_f32"):
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "Mismatched a.dtype on argument #0 when calling:\n"
+            "  `copy_f32(a: Tensor([8], float32), b: Tensor([8], float32))`,\n"
+            "  expected float32"
+        ),
+    ):
         lib(a, b)
 
 
@@ -368,8 +514,40 @@ def test_make_packed_api_signature_in_asserts():
     # Verify signature fragment appears in at least one assert
     assert any(any("add_one" in part.value for part in a.message_parts) for a in asserts)
 
-    # Verify signature contains buffer info
-    assert any(any("Tensor" in part.value for part in a.message_parts) for a in asserts)
+    # Verify signature contains buffer info with correct buffer names
+    assert any(
+        any("a: Tensor([8], float32)" in part.value for part in a.message_parts) for a in asserts
+    )
+
+
+@tvm.testing.requires_llvm
+def test_error_message_format_consistency():
+    """Verify all rich error messages follow the standard format:
+
+    <verb> <path> on argument #N when calling:
+      `<signature>`,
+      expected <expectation>
+    """
+    func = _make_add_one_shared_shape()
+    mod = tvm.IRModule.from_expr(func)
+    lowered = tvm.tir.transform.MakePackedAPI()(mod)
+    lowered_func = lowered["add_one"]
+
+    asserts = []
+
+    def visitor(stmt):
+        if isinstance(stmt, tvm.tir.AssertStmt):
+            msg = "".join(p.value for p in stmt.message_parts)
+            asserts.append((stmt.kind.value, msg))
+
+    tvm.tir.stmt_functor.post_order_visit(lowered_func.body, visitor)
+
+    # Every assertion that mentions the signature should follow the format
+    sig = "add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))"
+    for kind, msg in asserts:
+        if sig in msg:
+            assert "when calling:" in msg, f"Missing 'when calling:' in: {msg}"
+            assert f"`{sig}`" in msg, f"Missing backtick-wrapped signature in: {msg}"
 
 
 if __name__ == "__main__":
