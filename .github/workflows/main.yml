@@ -126,14 +126,14 @@ jobs:
       - name: Build and Install TVM (MacOS)
         if: matrix.os == 'macOS-latest'
         run: |
-          export CMAKE_ARGS="-G Ninja -DUSE_LLVM='/opt/homebrew/opt/llvm/bin/llvm-config --link-static' -DBUILD_TESTING=OFF"
-          uv pip install --no-deps . --verbose
+          export CMAKE_ARGS="-G Ninja; -DUSE_LLVM='$(brew --prefix llvm)/bin/llvm-config --link-static'; -DBUILD_TESTING=OFF"
+          uv pip install --no-deps . --verbose --config-settings=cmake.args="$CMAKE_ARGS"
 
       - name: Build and Install TVM (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           $env:CMAKE_ARGS = "-DUSE_LLVM=$env:LLVM_CONFIG -DBUILD_TESTING=OFF"
-          uv pip install --no-deps . --verbose
+          uv pip install --no-deps . --verbose --config-settings=cmake.args="$env:CMAKE_ARGS"
 
       - name: Install test dependencies
         run: uv pip install --verbose psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions pytest
