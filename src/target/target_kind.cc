@@ -445,7 +445,8 @@ ffi::Map<ffi::String, ffi::Any> UpdateWebGPUAttrs(ffi::Map<ffi::String, ffi::Any
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
     .add_attr_option<int64_t>("max_num_threads", refl::DefaultValue(256))
     .add_attr_option<bool>("supports_subgroups", refl::DefaultValue(false))
-    // thread_warp_size=1: is_subwarp_reduction and is_multiwarp_reduction returns false, so no subgroup ops are emitted.
+    // thread_warp_size=1: is_subwarp_reduction and is_multiwarp_reduction returns false, so no
+    // subgroup ops are emitted.
     .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(1))
     .set_target_canonicalizer(UpdateWebGPUAttrs)
     .set_default_keys({"webgpu", "gpu"});

@@ -34,25 +34,25 @@ using tir::FLowerIntrinsic;
 
 // warp-level primitives. Follows implementation in intrin_rule_metal.cc
 struct WebGPUWarpIntrinsic {
-    const Op operator()(DataType t, const Op& orig_op) const {
-        if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
-            return Op::Get("tir.webgpu.subgroup_shuffle");
-        } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
-            return Op::Get("tir.webgpu.subgroup_shuffle_up");
-        } else {
-            TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
-            return Op::Get("tir.webgpu.subgroup_shuffle_down");
-        }
+  const Op operator()(DataType t, const Op& orig_op) const {
+    if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
+      return Op::Get("tir.webgpu.subgroup_shuffle");
+    } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
+      return Op::Get("tir.webgpu.subgroup_shuffle_up");
+    } else {
+      TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
+      return Op::Get("tir.webgpu.subgroup_shuffle_down");
     }
+  }
 };
 
 template <typename T>
 static PrimExpr DispatchWebGPUShuffle(const PrimExpr& e) {
-    const CallNode* call = e.as<CallNode>();
-    TVM_FFI_ICHECK(call != nullptr);
-    TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
-    ffi::Array<PrimExpr> webgpu_args{{call->args[1], call->args[2]}};
-    return Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), webgpu_args);
+  const CallNode* call = e.as<CallNode>();
+  TVM_FFI_ICHECK(call != nullptr);
+  TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
+  ffi::Array<PrimExpr> webgpu_args{{call->args[1], call->args[2]}};
+  return Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), webgpu_args);
 }
 
 // See full list of builtin: https://www.w3.org/TR/WGSL/#builtin-functions
@@ -138,13 +138,16 @@ TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", D
 
 // warp-level primitives. Follows implementation in intrin_rule_metal.cc
 TVM_REGISTER_OP("tir.tvm_warp_shuffle")
-    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
+                               DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 
 TVM_REGISTER_OP("tir.tvm_warp_shuffle_up")
-    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
+                               DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 
 TVM_REGISTER_OP("tir.tvm_warp_shuffle_down")
-    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
+    .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic",
+                               DispatchWebGPUShuffle<WebGPUWarpIntrinsic>);
 
 // Register low-level builtin ops.
 TVM_REGISTER_OP("tir.webgpu.subgroup_shuffle")
@@ -167,7 +170,6 @@ TVM_REGISTER_OP("tir.webgpu.subgroup_shuffle_down")
     .add_argument("delta", "Expr", "The source lane id offset to be subtracted.")
     .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleDown")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
 
 }  // namespace intrin
 }  // namespace codegen
