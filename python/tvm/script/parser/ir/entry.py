@@ -46,8 +46,7 @@ def ir_module(mod: type | None = None, check_well_formed: bool = True) -> IRModu
         The parsed ir module.
     """
 
-    # need to capture this var outside the wrapper because the wrapper
-    # adds to the stack
+    # Capture stack outside wrapper (wrapper adds to the stack)
     outer_stack = inspect.stack()
 
     def decorator_wrapper(mod):
@@ -58,7 +57,8 @@ def ir_module(mod: type | None = None, check_well_formed: bool = True) -> IRModu
         base_py_module_inherited = any(base.__name__ == "BasePyModule" for base in mod.__bases__)
 
         extra_vars = utils.inspect_class_capture(mod)
-        extra_vars = utils.with_caller_frame_fallback(extra_vars, outer_stack)
+        # Resolve closure variables hidden by PEP 563 (annotation-only names)
+        utils.resolve_closure_vars(mod, extra_vars, outer_stack)
         m = parse(mod, extra_vars, check_well_formed=check_well_formed)
 
         if base_py_module_inherited:

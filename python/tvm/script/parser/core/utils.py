@@ -101,6 +101,47 @@ def with_caller_frame_fallback(extra_vars: dict[str, Any], outer_stack: list) ->
     return ChainMap(extra_vars, *[f.frame.f_locals for f in outer_stack[1:]])
 
 
+def resolve_closure_vars(cls: type, extra_vars: dict[str, Any], outer_stack: list) -> None:
+    """Resolve closure variables for class methods hidden by PEP 563.
+
+    With ``from __future__ import annotations``, variables used only in
+    annotations are not captured in ``__closure__``.  This function parses
+    the class source AST to find names used in function annotations, then
+    looks them up in enclosing frames.  Only annotation-referenced names
+    are added, avoiding namespace pollution from unrelated caller locals.
+    """
+    import ast
+    import textwrap
+
+    # Collect names used in function annotations from source AST
+    try:
+        source = textwrap.dedent(inspect.getsource(cls))
+        tree = ast.parse(source)
+    except (OSError, TypeError):
+        return
+
+    ann_names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for arg in node.args.args + node.args.posonlyargs + node.args.kwonlyargs:
+                if arg.annotation:
+                    for n in ast.walk(arg.annotation):
+                        if isinstance(n, ast.Name):
+                            ann_names.add(n.id)
+            if node.returns:
+                for n in ast.walk(node.returns):
+                    if isinstance(n, ast.Name):
+                        ann_names.add(n.id)
+
+    # Look up missing annotation names in enclosing frames
+    for name in ann_names:
+        if name not in extra_vars:
+            for frame_info in outer_stack[1:]:
+                if name in frame_info.frame.f_locals:
+                    extra_vars[name] = frame_info.frame.f_locals[name]
+                    break
+
+
 def is_defined_in_class(frames: list[FrameType], obj: Any) -> bool:
     """Check whether a object is defined in a class scope.
 
