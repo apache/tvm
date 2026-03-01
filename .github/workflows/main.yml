@@ -35,70 +35,117 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  MacOS:
+  Platform:
     if: ${{ github.repository == 'apache/tvm' }}
-    runs-on: macOS-latest
+    strategy:
+      matrix:
+        include:
+          - name: MacOS
+            os: macOS-latest
+          - name: Windows
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    env:
+      UV_PYTHON: ${{ matrix.os == 'windows-latest' && '.venv/Scripts/python.exe' || '.venv/bin/python' }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: 'recursive'
-      - name: Set up environment
-        uses: ./.github/actions/setup
-      - name: Install LLVM dependencies
-        shell: bash -l {0}
-        run: |
-          conda install -c conda-forge llvmdev cmake ninja zlib
-      - name: Build TVM wheel
-        shell: bash -l {0}
-        run: |
-          pip install scikit-build-core
-          export CMAKE_ARGS="-DUSE_LLVM=ON -DBUILD_TESTING=OFF"
-          pip wheel --no-deps -w dist . -v
-      - name: Install TVM from wheel
-        shell: bash -l {0}
-        run: |
-          pip install dist/*.whl
-
-      - name: Test
-        shell: bash -l {0}
-        run: >-
-          python -m pytest -v tests/python/all-platform-minimal-test
-      - name: Minimal Metal Compile-Only
-        shell: bash -l {0}
-        run: |
-          python -m pytest -v -s 'tests/python/codegen/test_gpu_codegen_allreduce.py::test_allreduce_sum_compile'
-          python -m pytest -v -s 'tests/python/codegen/test_target_codegen_metal.py::test_func_with_trailing_pod_params'
-      - name: Minimal Metal Compile-and-Run
-        shell: bash -l {0}
-        run: >-
-          python -m pytest -v -s 'tests/python/codegen/test_target_codegen_metal.py'
-          python -m pytest -v -s 'tests/python/codegen/test_target_codegen_gpu_common.py'
-          python -m pytest -v -s 'tests/python/codegen/test_gpu_codegen_allreduce.py::test_allreduce_sum[dims0-metal]'
-
-  Windows:
-    if: ${{ github.repository == 'apache/tvm' }}
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
         with:
-          submodules: 'recursive'
-      - name: Set up environment
-        uses: ./.github/actions/setup
-      - name: Install LLVM dependencies
-        shell: cmd /C call {0}
+          python-version: "3.10"
+          enable-cache: true
+          cache-python: true
+
+      - name: Create venv
+        run: uv venv
+
+      - name: Install python dependencies
+        run: uv pip install --verbose scikit-build-core
+
+      - name: Install LLVM dependencies (MacOS)
+        if: matrix.os == 'macOS-latest'
+        run: brew install llvm cmake ninja zlib
+
+      - name: Install dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install llvm cmake ninja -y --no-progress
+
+      - name: Install LLVM (clang+llvm tarball) and patch diaguids path (Windows)
+        if: matrix.os == 'windows-latest'
+        id: install_llvm_windows
+        shell: pwsh
         run: |
-          conda install -c conda-forge llvmdev cmake ninja zlib libxml2-devel
-      - name: Install TVM
-        shell: cmd /C call {0}
+          $ErrorActionPreference = "Stop"
+
+          $llvmVersion = "20.1.0"
+          $base = "$env:RUNNER_TEMP\llvm"
+          New-Item -ItemType Directory -Force -Path $base | Out-Null
+
+          $archive = "$base\clang+llvm.tar.xz"
+          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/clang%2Bllvm-$llvmVersion-x86_64-pc-windows-msvc.tar.xz"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+
+          tar -xf $archive -C $base
+
+          $llvmRoot = Join-Path $base "clang+llvm-$llvmVersion-x86_64-pc-windows-msvc"
+
+          # --- Patch diaguids.lib absolute path in LLVMExports.cmake ---
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (!(Test-Path $vswhere)) { throw "vswhere not found: $vswhere" }
+
+          $vsPath = & $vswhere -latest -property installationPath
+          if (!$vsPath) { throw "Visual Studio installation path not found." }
+
+          $diaLib = Join-Path $vsPath "DIA SDK\lib\amd64\diaguids.lib"
+          if (!(Test-Path $diaLib)) { throw "diaguids.lib not found: $diaLib" }
+
+          $diaLibPosix = $diaLib.Replace('\','/')
+
+          $llvmExports = Join-Path $llvmRoot "lib\cmake\llvm\LLVMExports.cmake"
+          if (!(Test-Path $llvmExports)) { throw "LLVMExports.cmake not found: $llvmExports" }
+
+          $content = Get-Content $llvmExports -Raw
+          $content = $content -replace 'C:/Program Files.*?/DIA SDK/lib/amd64/diaguids\.lib', $diaLibPosix
+          Set-Content -Path $llvmExports -Value $content -NoNewline
+
+          # export PATH and LLVM_DIR for cmake find_package(LLVM)
+          echo "$llvmRoot\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          $llvmDir = (Join-Path $llvmRoot "lib\cmake\llvm").Replace('\','/')
+          echo "LLVM_DIR=$llvmDir" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "llvm_dir=$llvmDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Build and Install tvm-ffi
+        run: uv pip install --verbose ./3rdparty/tvm-ffi
+
+      - name: Build and Install TVM (MacOS)
+        if: matrix.os == 'macOS-latest'
         run: |
-          pip install scikit-build-core
-          set CMAKE_ARGS=-DUSE_LLVM=ON -DBUILD_TESTING=OFF
-          pip install --no-deps . -v
+          export CMAKE_ARGS="-G Ninja -DUSE_LLVM='/opt/homebrew/opt/llvm/bin/llvm-config' -DBUILD_TESTING=OFF"
+          uv pip install --no-deps . --verbose
+
+      - name: Build and Install TVM (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          $env:CMAKE_ARGS = "-G Ninja -DUSE_LLVM=ON -DBUILD_TESTING=OFF -DLLVM_DIR=${{ steps.install_llvm_windows.outputs.llvm_dir }}"
+          uv pip install --no-deps . --verbose
+
       - name: Install test dependencies
-        shell: cmd /C call {0}
+        run: uv pip install --verbose psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions pytest
+
+      - name: Platform minimal test
+        run: uv run pytest -v tests/python/all-platform-minimal-test
+
+      - name: Minimal Metal Compile-Only
+        if: matrix.os == 'macOS-latest'
         run: |
-          pip install psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions
-      - name: Test
-        shell: cmd /C call {0}
-        run: >-
-          python -m pytest -v tests/python/all-platform-minimal-test
+          uv run pytest -v -s 'tests/python/codegen/test_gpu_codegen_allreduce.py::test_allreduce_sum_compile'
+          uv run pytest -v -s 'tests/python/codegen/test_target_codegen_metal.py::test_func_with_trailing_pod_params'
+
+      - name: Minimal Metal Compile-and-Run
+        if: matrix.os == 'macOS-latest'
+        run: |
+          uv run pytest -v -s 'tests/python/codegen/test_target_codegen_metal.py'
+          uv run pytest -v -s 'tests/python/codegen/test_target_codegen_gpu_common.py'
+          uv run pytest -v -s 'tests/python/codegen/test_gpu_codegen_allreduce.py::test_allreduce_sum[dims0-metal]'
