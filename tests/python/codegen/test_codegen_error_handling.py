@@ -41,7 +41,10 @@ def _make_add_one_shared_shape(tgt):
     i = tir.Var("i", "int64")
 
     body = tir.For(
-        i, 0, n, tir.ForKind.SERIAL,
+        i,
+        0,
+        n,
+        tir.ForKind.SERIAL,
         tir.BufferStore(
             b_buf,
             tir.BufferLoad(a_buf, [i]) + tir.const(1.0, "float32"),
@@ -50,10 +53,12 @@ def _make_add_one_shared_shape(tgt):
     )
     func = tir.PrimFunc(
         [a_param, b_param], body, buffer_map={a_param: a_buf, b_param: b_buf}
-    ).with_attr({
-        "global_symbol": "add_one",
-        "target": tvm.target.Target(tgt, host=tgt),
-    })
+    ).with_attr(
+        {
+            "global_symbol": "add_one",
+            "target": tvm.target.Target(tgt, host=tgt),
+        }
+    )
     return func
 
 
@@ -67,7 +72,10 @@ def _make_add_one_aligned(tgt):
     i = tir.Var("i", "int64")
 
     body = tir.For(
-        i, 0, n, tir.ForKind.SERIAL,
+        i,
+        0,
+        n,
+        tir.ForKind.SERIAL,
         tir.BufferStore(
             b_buf,
             tir.BufferLoad(a_buf, [i]) + tir.const(1.0, "float32"),
@@ -76,10 +84,12 @@ def _make_add_one_aligned(tgt):
     )
     func = tir.PrimFunc(
         [a_param, b_param], body, buffer_map={a_param: a_buf, b_param: b_buf}
-    ).with_attr({
-        "global_symbol": "add_one",
-        "target": tvm.target.Target(tgt, host=tgt),
-    })
+    ).with_attr(
+        {
+            "global_symbol": "add_one",
+            "target": tvm.target.Target(tgt, host=tgt),
+        }
+    )
     return func
 
 
@@ -222,10 +232,12 @@ def test_make_packed_api_signature_in_asserts(codegen_target):
 
     @T.prim_func
     def add_one(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
-        T.func_attr({
-            "target": tvm.target.Target("llvm", host="llvm"),
-            "global_symbol": "add_one",
-        })
+        T.func_attr(
+            {
+                "target": tvm.target.Target("llvm", host="llvm"),
+                "global_symbol": "add_one",
+            }
+        )
         for i in range(8):
             b[i] = a[i] + T.float32(1)
 

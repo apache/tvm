@@ -36,9 +36,7 @@ def _build_assert_func(tgt, kind, message_parts, func_name="test_func"):
         [tir.StringImm(p) for p in message_parts],
     )
     body = tir.SeqStmt([assert_stmt, tir.Evaluate(0)])
-    func = tir.PrimFunc([x], body).with_attr(
-        {"target": target_obj, "global_symbol": func_name}
-    )
+    func = tir.PrimFunc([x], body).with_attr({"target": target_obj, "global_symbol": func_name})
     mod = tvm.IRModule.from_expr(func)
     mod = tvm.tir.transform.MakePackedAPI()(mod)
     return tvm.build(mod, target=target_obj), func_name
@@ -62,9 +60,7 @@ def test_assert_value_error(codegen_target):
 
 def test_assert_type_error(codegen_target):
     """Test that AssertStmt with TypeError kind produces TypeError."""
-    lib, name = _build_assert_func(
-        codegen_target, "TypeError", ["Expected Tensor but got int"]
-    )
+    lib, name = _build_assert_func(codegen_target, "TypeError", ["Expected Tensor but got int"])
     with pytest.raises(TypeError, match="Expected Tensor but got int"):
         lib[name](0)
 
