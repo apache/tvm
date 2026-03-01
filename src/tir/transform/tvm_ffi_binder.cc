@@ -227,21 +227,17 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
  * \brief Render PrimExpr to string with variable names replaced by AccessPath names.
  *
  * Uses ExprFunctor for generic dispatch over all expression types.
- * The default TIR printer sanitizes Var name_hints (e.g. "B.shape[0]" → "B_shape_0_")
+ * The default TIR printer sanitizes Var name_hints (e.g. "B.shape[0]" -> "B_shape_0_")
  * and adds type annotations (e.g. T.int64(1)). This functor preserves original path
  * names and uses plain integer formatting for human-readable error messages.
  */
 class ExprPathRenderer : public ExprFunctor<std::string(const PrimExpr&)> {
  public:
-  explicit ExprPathRenderer(
-      const std::unordered_map<const VarNode*, std::string>& var_names)
-      : var_names_(var_names) {}
+  using FVarName = std::function<std::string(const VarNode*)>;
+  explicit ExprPathRenderer(FVarName f_var_name) : f_var_name_(std::move(f_var_name)) {}
 
  protected:
-  std::string VisitExpr_(const VarNode* op) final {
-    auto it = var_names_.find(op);
-    return it != var_names_.end() ? it->second : std::string(op->name_hint);
-  }
+  std::string VisitExpr_(const VarNode* op) final { return f_var_name_(op); }
   std::string VisitExpr_(const IntImmNode* op) final { return std::to_string(op->value); }
   std::string VisitExpr_(const FloatImmNode* op) final {
     std::ostringstream os;
@@ -254,12 +250,8 @@ class ExprPathRenderer : public ExprFunctor<std::string(const PrimExpr&)> {
   std::string VisitExpr_(const MulNode* op) final { return BinOp(op->a, " * ", op->b); }
   std::string VisitExpr_(const DivNode* op) final { return BinOp(op->a, " / ", op->b); }
   std::string VisitExpr_(const ModNode* op) final { return BinOp(op->a, " % ", op->b); }
-  std::string VisitExpr_(const FloorDivNode* op) final {
-    return FuncOp("floordiv", op->a, op->b);
-  }
-  std::string VisitExpr_(const FloorModNode* op) final {
-    return FuncOp("floormod", op->a, op->b);
-  }
+  std::string VisitExpr_(const FloorDivNode* op) final { return FuncOp("floordiv", op->a, op->b); }
+  std::string VisitExpr_(const FloorModNode* op) final { return FuncOp("floormod", op->a, op->b); }
   std::string VisitExpr_(const MinNode* op) final { return FuncOp("min", op->a, op->b); }
   std::string VisitExpr_(const MaxNode* op) final { return FuncOp("max", op->a, op->b); }
   // Fallback: use operator<< for unhandled expression types.
@@ -276,7 +268,7 @@ class ExprPathRenderer : public ExprFunctor<std::string(const PrimExpr&)> {
   std::string FuncOp(const char* name, const PrimExpr& a, const PrimExpr& b) {
     return std::string(name) + "(" + VisitExpr(a) + ", " + VisitExpr(b) + ")";
   }
-  const std::unordered_map<const VarNode*, std::string>& var_names_;
+  FVarName f_var_name_;
 };
 
 // ============================================================
@@ -286,17 +278,17 @@ class ExprPathRenderer : public ExprFunctor<std::string(const PrimExpr&)> {
 void TVMFFIABIBuilder::RenderPendingAsserts() {
   if (pending_const_asserts_.empty()) return;
 
-  // Build Var -> display name map from var_defs_ AccessPaths
-  std::unordered_map<const VarNode*, std::string> var_names;
-  for (const auto& [var_node, info] : var_defs_) {
-    ffi::String path_str = RenderAccessPath(info.first_def_path);
-    if (!path_str.empty()) {
-      var_names[var_node] = std::string(path_str);
+  ExprPathRenderer renderer([this](const VarNode* v) -> std::string {
+    auto it = var_defs_.find(v);
+    if (it != var_defs_.end()) {
+      ffi::String path = RenderAccessPath(it->second.first_def_path);
+      if (!path.empty()) return std::string(path);
     }
-  }
+    return std::string(v->name_hint);
+  });
 
   for (auto& pending : pending_const_asserts_) {
-    std::string display_str = ExprPathRenderer(var_names).VisitExpr(pending.expected_expr);
+    std::string display_str = renderer.VisitExpr(pending.expected_expr);
 
     ffi::String path_str = RenderAccessPath(pending.path);
     int param_index = GetParamIndex(pending.path);
