@@ -156,18 +156,18 @@ class AttrStmt : public Stmt {
  */
 class AssertStmtNode : public StmtNode {
  public:
-  /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  StringImm error_kind;
   /*! \brief Condition to be checked. */
   PrimExpr condition;
+  /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
+  StringImm error_kind;
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
   ffi::Array<StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AssertStmtNode>()
-        .def_ro("error_kind", &AssertStmtNode::error_kind)
         .def_ro("condition", &AssertStmtNode::condition)
+        .def_ro("error_kind", &AssertStmtNode::error_kind)
         .def_ro("message_parts", &AssertStmtNode::message_parts);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.AssertStmt", AssertStmtNode, StmtNode);

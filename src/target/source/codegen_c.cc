@@ -1081,15 +1081,47 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenC::PrintEscapedCString(const std::string& str, std::ostream& os) {
   os << "\"";
-  for (char c : str) {
-    if (c == '"') {
-      os << "\\\"";
-    } else if (c == '\\') {
-      os << "\\\\";
-    } else if (c == '\n') {
-      os << "\\n";
-    } else {
-      os << c;
+  for (unsigned char c : str) {
+    switch (c) {
+      case '"':
+        os << "\\\"";
+        break;
+      case '\\':
+        os << "\\\\";
+        break;
+      case '\n':
+        os << "\\n";
+        break;
+      case '\t':
+        os << "\\t";
+        break;
+      case '\r':
+        os << "\\r";
+        break;
+      case '\a':
+        os << "\\a";
+        break;
+      case '\b':
+        os << "\\b";
+        break;
+      case '\f':
+        os << "\\f";
+        break;
+      case '\v':
+        os << "\\v";
+        break;
+      case '\0':
+        os << "\\0";
+        break;
+      default:
+        if (c < 0x20 || c >= 0x7f) {
+          // Non-printable: emit as hex escape
+          os << "\\x" << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(c)
+             << std::dec;
+        } else {
+          os << static_cast<char>(c);
+        }
+        break;
     }
   }
   os << "\"";

@@ -943,9 +943,9 @@ def Assert(condition: PrimExpr, message, error_kind: str = "RuntimeError") -> fr
     """
     if isinstance(condition, bool):
         condition = IntImm("bool", condition)
-    if isinstance(message, list | tuple):
-        return _ffi_api.AssertWithParts(condition, message, error_kind)  # type: ignore[attr-defined] # pylint: disable=no-member
-    return _ffi_api.Assert(condition, message, error_kind)  # type: ignore[attr-defined] # pylint: disable=no-member
+    if not isinstance(message, (list, tuple)):
+        message = [message]
+    return _ffi_api.Assert(condition, error_kind, message)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def LetStmt(  # pylint: disable=invalid-name

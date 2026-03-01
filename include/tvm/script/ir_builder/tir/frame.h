@@ -302,18 +302,18 @@ class ForFrame : public TIRFrame {
  */
 class AssertFrameNode : public TIRFrameNode {
  public:
-  /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  tvm::tir::StringImm error_kind;
   /*! \brief The PrimExpr to test. */
   PrimExpr condition;
+  /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
+  tvm::tir::StringImm error_kind;
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
   ffi::Array<tvm::tir::StringImm> message_parts;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AssertFrameNode>()
-        .def_ro("error_kind", &AssertFrameNode::error_kind)
         .def_ro("condition", &AssertFrameNode::condition)
+        .def_ro("error_kind", &AssertFrameNode::error_kind)
         .def_ro("message_parts", &AssertFrameNode::message_parts);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.AssertFrame", AssertFrameNode,

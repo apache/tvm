@@ -446,23 +446,16 @@ ForFrame Grid(ffi::Array<PrimExpr> extents) {
   return ForFrame(n);
 }
 
-AssertFrame Assert(PrimExpr condition, ffi::String message, ffi::String kind) {
+AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
+                    ffi::Array<ffi::String> message_parts) {
   ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
-  n->error_kind = tvm::tir::StringImm(kind);
   n->condition = condition;
-  n->message_parts = {tvm::tir::StringImm(message)};
-  return AssertFrame(n);
-}
-
-AssertFrame AssertWithParts(PrimExpr condition, ffi::Array<ffi::String> parts, ffi::String kind) {
-  ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
-  n->error_kind = tvm::tir::StringImm(kind);
-  n->condition = condition;
-  ffi::Array<tvm::tir::StringImm> message_parts;
-  for (const auto& p : parts) {
-    message_parts.push_back(tvm::tir::StringImm(p));
+  n->error_kind = tvm::tir::StringImm(error_kind);
+  ffi::Array<tvm::tir::StringImm> parts;
+  for (const auto& p : message_parts) {
+    parts.push_back(tvm::tir::StringImm(p));
   }
-  n->message_parts = message_parts;
+  n->message_parts = parts;
   return AssertFrame(n);
 }
 
@@ -741,7 +734,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.ThreadBinding", ThreadBinding)
       .def("script.ir_builder.tir.Grid", Grid)
       .def("script.ir_builder.tir.Assert", Assert)
-      .def("script.ir_builder.tir.AssertWithParts", AssertWithParts)
       .def("script.ir_builder.tir.LetStmt", LetStmt)
       .def("script.ir_builder.tir.LegacyLetStmt", LegacyLetStmt)
       .def("script.ir_builder.tir.Allocate", Allocate)

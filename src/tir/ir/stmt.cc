@@ -106,15 +106,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // AssertStmt
 AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
                        ffi::Array<StringImm> message_parts, Span span) {
-  TVM_FFI_ICHECK(error_kind.defined());
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(condition.dtype().is_predicate_dtype())
       << "AssertStmt should have boolean condition, "
       << "but received " << condition << " with dtype " << condition.dtype();
+  TVM_FFI_ICHECK(error_kind.defined());
 
   ObjectPtr<AssertStmtNode> node = ffi::make_object<AssertStmtNode>();
-  node->error_kind = std::move(error_kind);
   node->condition = std::move(condition);
+  node->error_kind = std::move(error_kind);
   node->message_parts = std::move(message_parts);
   node->span = std::move(span);
   data_ = std::move(node);
