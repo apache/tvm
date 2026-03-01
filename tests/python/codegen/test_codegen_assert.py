@@ -165,5 +165,27 @@ def test_tvmscript_roundtrip_parts():
     assert asserts[0].message_parts[1].value == "positive"
 
 
+def test_tvmscript_single_string_tuple(codegen_target):
+    """Regression: tuple with a single string (not a list) preserves kind.
+
+    ``assert cond, ("ValueError", "a single string")`` must produce ValueError,
+    not fall through to default RuntimeError.
+    """
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("ValueError", "x must be positive")
+
+    # Verify IR preserves kind
+    asserts = _collect_asserts(func)
+    assert len(asserts) == 1
+    assert asserts[0].kind.value == "ValueError"
+
+    # Verify runtime raises correct exception type
+    lib = tvm.compile(func, target=codegen_target)
+    with pytest.raises(ValueError, match="x must be positive"):
+        lib(0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

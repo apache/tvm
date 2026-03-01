@@ -544,17 +544,21 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
     """
     cond = self.eval_expr(node.test)
     msg = self.eval_expr(node.msg)
+
+    kind = "RuntimeError"
+    message = msg
+
     if isinstance(msg, tuple) and len(msg) == 2:
         kind_str, parts = msg
         if isinstance(kind_str, tvm.tir.StringImm):
             kind_str = kind_str.value
-        if isinstance(parts, list | tuple):
-            parts_str = [p.value if isinstance(p, tvm.tir.StringImm) else str(p) for p in parts]
-            frame = T.Assert(cond, parts_str, kind=str(kind_str))
-            frame.add_callback(partial(frame.__exit__, None, None, None))
-            frame.__enter__()
-            return
-    frame = T.Assert(cond, msg)
+        kind = str(kind_str)
+        message = parts
+
+    if isinstance(message, list | tuple):
+        message = [p.value if isinstance(p, tvm.tir.StringImm) else str(p) for p in message]
+
+    frame = T.Assert(cond, message, kind=kind)
     frame.add_callback(partial(frame.__exit__, None, None, None))
     frame.__enter__()
 
