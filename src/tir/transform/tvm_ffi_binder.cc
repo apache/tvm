@@ -516,9 +516,10 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
       break;
     }
     AccessPath shape_k_path = param_path->Attr(ffi::String("shape"))->ArrayItem(k);
-    BindScalar(buffer->shape[k],
-               cast(buffer->shape[k].dtype(), BufferLoad(buf_shape, {IntImm(DataType::Int(32), k)})),
-               shape_element_name(k), true, shape_k_path);
+    BindScalar(
+        buffer->shape[k],
+        cast(buffer->shape[k].dtype(), BufferLoad(buf_shape, {IntImm(DataType::Int(32), k)})),
+        shape_element_name(k), true, shape_k_path);
   }
   // strides field
   Buffer buf_strides = decl_buffer({IntImm(DataType::Int(32), buffer->strides.size())},
