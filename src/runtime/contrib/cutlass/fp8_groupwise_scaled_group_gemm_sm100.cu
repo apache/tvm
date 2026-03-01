@@ -38,32 +38,32 @@ void tvm_fp8_groupwise_scaled_group_gemm_sm100(Tensor a, Tensor b, Tensor scales
   // Workspace is used for storing device-side group gemm arguments and cutlass internal workspace.
   // Recommended size is 4MB.
   cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, a->device.device_id));
-  CHECK_EQ(a->ndim, 2);
-  CHECK_EQ(b->ndim, 3);
-  CHECK_EQ(indptr->ndim, 1);
-  CHECK_EQ(workspace->ndim, 1);
-  CHECK_EQ(out->ndim, 2);
+  TVM_FFI_CHECK_EQ(a->ndim, 2, ValueError);
+  TVM_FFI_CHECK_EQ(b->ndim, 3, ValueError);
+  TVM_FFI_CHECK_EQ(indptr->ndim, 1, ValueError);
+  TVM_FFI_CHECK_EQ(workspace->ndim, 1, ValueError);
+  TVM_FFI_CHECK_EQ(out->ndim, 2, ValueError);
   int num_groups = b->shape[0];
   int n = b->shape[1];
   int k = b->shape[2];
 
-  CHECK_EQ(scales_a->ndim, a->ndim);
-  CHECK_EQ(scales_b->ndim, b->ndim);
+  TVM_FFI_CHECK_EQ(scales_a->ndim, a->ndim, ValueError);
+  TVM_FFI_CHECK_EQ(scales_b->ndim, b->ndim, ValueError);
   // scales_a is row-major of (m, k / block_size)
-  CHECK_EQ((k + block_size_1 - 1) / block_size_1, scales_a->shape[1]);
-  CHECK_EQ(scales_a->shape[0], a->shape[0]);
+  TVM_FFI_CHECK_EQ((k + block_size_1 - 1) / block_size_1, scales_a->shape[1], ValueError);
+  TVM_FFI_CHECK_EQ(scales_a->shape[0], a->shape[0], ValueError);
   // scales_b is col-major of (k / block_size, n / block_size)
-  CHECK_EQ(scales_b->shape[0], num_groups);
-  CHECK_EQ((n + block_size_0 - 1) / block_size_0, scales_b->shape[1]);
-  CHECK_EQ((k + block_size_1 - 1) / block_size_1, scales_b->shape[2]);
+  TVM_FFI_CHECK_EQ(scales_b->shape[0], num_groups, ValueError);
+  TVM_FFI_CHECK_EQ((n + block_size_0 - 1) / block_size_0, scales_b->shape[1], ValueError);
+  TVM_FFI_CHECK_EQ((k + block_size_1 - 1) / block_size_1, scales_b->shape[2], ValueError);
 
   using tvm::runtime::DataType;
-  CHECK_EQ(DataType(a->dtype), DataType::Float8E4M3FN());
-  CHECK_EQ(DataType(b->dtype), DataType::Float8E4M3FN());
-  CHECK_EQ(DataType(scales_a->dtype), DataType::Float(32));
-  CHECK_EQ(DataType(scales_b->dtype), DataType::Float(32));
-  CHECK_EQ(DataType(indptr->dtype), DataType::Int(64));
-  CHECK_EQ(DataType(workspace->dtype), DataType::UInt(8));
+  TVM_FFI_CHECK_EQ(DataType(a->dtype), DataType::Float8E4M3FN(), ValueError);
+  TVM_FFI_CHECK_EQ(DataType(b->dtype), DataType::Float8E4M3FN(), ValueError);
+  TVM_FFI_CHECK_EQ(DataType(scales_a->dtype), DataType::Float(32), ValueError);
+  TVM_FFI_CHECK_EQ(DataType(scales_b->dtype), DataType::Float(32), ValueError);
+  TVM_FFI_CHECK_EQ(DataType(indptr->dtype), DataType::Int(64), ValueError);
+  TVM_FFI_CHECK_EQ(DataType(workspace->dtype), DataType::UInt(8), ValueError);
 
   if (DataType(out->dtype) == DataType::Float(16)) {
     using Dtype = cutlass::half_t;

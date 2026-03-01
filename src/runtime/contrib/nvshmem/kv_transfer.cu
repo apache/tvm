@@ -180,41 +180,48 @@ __global__ void KVTransferPageToPage(T* remote_pages, T* local_pages, int32_t* r
 
 int _KVTransfer(DLTensor* remote_pages, DLTensor* k, DLTensor* v, DLTensor* remote_position_map,
                 DLTensor* remote_tp_group_pe_offset, TVMStreamHandle transfer_stream) {
-  CHECK_EQ(remote_pages->device.device_type, kDLCUDA)
+  TVM_FFI_CHECK_EQ(remote_pages->device.device_type, kDLCUDA, ValueError)
       << "The device of remote_pages matrix must be CUDA.";
-  CHECK_EQ(k->device.device_type, kDLCUDA) << "The device of k matrix must be CUDA.";
-  CHECK_EQ(v->device.device_type, kDLCUDA) << "The device of v matrix must be CUDA.";
-  CHECK_EQ(remote_position_map->device.device_type, kDLCUDA)
+  TVM_FFI_CHECK_EQ(k->device.device_type, kDLCUDA, ValueError)
+      << "The device of k matrix must be CUDA.";
+  TVM_FFI_CHECK_EQ(v->device.device_type, kDLCUDA, ValueError)
+      << "The device of v matrix must be CUDA.";
+  TVM_FFI_CHECK_EQ(remote_position_map->device.device_type, kDLCUDA, ValueError)
       << "The device of remote_position_map matrix must be CUDA.";
   size_t dev_id = remote_pages->device.device_id;
-  CHECK_EQ(k->device.device_id, dev_id)
+  TVM_FFI_CHECK_EQ(k->device.device_id, dev_id, ValueError)
       << "The device id of remote_pages and k matrix doesn't match.";
-  CHECK_EQ(v->device.device_id, dev_id)
+  TVM_FFI_CHECK_EQ(v->device.device_id, dev_id, ValueError)
       << "The device id of remote_pages and v matrix doesn't match.";
-  CHECK_EQ(remote_position_map->device.device_id, dev_id)
+  TVM_FFI_CHECK_EQ(remote_position_map->device.device_id, dev_id, ValueError)
       << "The device id of remote_pages and remote_position_map matrix doesn't match.";
-  CHECK_EQ(remote_tp_group_pe_offset->device.device_id, dev_id)
+  TVM_FFI_CHECK_EQ(remote_tp_group_pe_offset->device.device_id, dev_id, ValueError)
       << "The device id of remote_pages and remote_tp_group_pe_offset matrix doesn't match.";
 
-  CHECK_EQ(remote_pages->ndim, 5);
+  TVM_FFI_CHECK_EQ(remote_pages->ndim, 5, ValueError);
   int remote_num_pages = remote_pages->shape[0];
   int remote_num_kv_head = remote_pages->shape[2];
   int page_size = remote_pages->shape[3];
   int head_dim = remote_pages->shape[4];
 
-  CHECK_GE(k->ndim, 3);
+  TVM_FFI_CHECK_GE(k->ndim, 3, ValueError);
   int kv_len = k->shape[k->ndim - 3];
   int local_num_kv_heads = k->shape[k->ndim - 2];
-  CHECK_EQ(head_dim, k->shape[k->ndim - 1]);
+  TVM_FFI_CHECK_EQ(head_dim, k->shape[k->ndim - 1], ValueError);
 
-  CHECK_GE(v->ndim, 3);
-  CHECK_EQ(kv_len, v->shape[v->ndim - 3]);
-  CHECK_EQ(local_num_kv_heads, v->shape[v->ndim - 2]);
-  CHECK_EQ(head_dim, v->shape[v->ndim - 1]);
+  TVM_FFI_CHECK_GE(v->ndim, 3, ValueError);
+  TVM_FFI_CHECK_EQ(kv_len, v->shape[v->ndim - 3], ValueError);
+  TVM_FFI_CHECK_EQ(local_num_kv_heads, v->shape[v->ndim - 2], ValueError);
+  TVM_FFI_CHECK_EQ(head_dim, v->shape[v->ndim - 1], ValueError);
 
-  CHECK(remote_pages->dtype.lanes == 1 && k->dtype.lanes == 1 && v->dtype.lanes == 1);
-  CHECK(remote_pages->dtype.bits == k->dtype.bits && remote_pages->dtype.code == k->dtype.code);
-  CHECK(remote_pages->dtype.bits == v->dtype.bits && remote_pages->dtype.code == v->dtype.code);
+  TVM_FFI_CHECK(remote_pages->dtype.lanes == 1 && k->dtype.lanes == 1 && v->dtype.lanes == 1,
+                ValueError);
+  TVM_FFI_CHECK(
+      remote_pages->dtype.bits == k->dtype.bits && remote_pages->dtype.code == k->dtype.code,
+      ValueError);
+  TVM_FFI_CHECK(
+      remote_pages->dtype.bits == v->dtype.bits && remote_pages->dtype.code == v->dtype.code,
+      ValueError);
   int local_tp_rank;
   tvm::runtime::DiscoWorker* worker = tvm::runtime::ThreadLocalDiscoWorker::Get()->worker;
   if (worker == nullptr) {
@@ -258,34 +265,36 @@ int _KVTransfer(DLTensor* remote_pages, DLTensor* k, DLTensor* v, DLTensor* remo
 int _KVTransferPageToPage(DLTensor* remote_pages, DLTensor* local_pages,
                           DLTensor* remote_position_map, DLTensor* local_position_map,
                           DLTensor* remote_tp_group_pe_offset, TVMStreamHandle transfer_stream) {
-  CHECK_EQ(remote_pages->device.device_type, kDLCUDA)
+  TVM_FFI_CHECK_EQ(remote_pages->device.device_type, kDLCUDA, ValueError)
       << "The device of remote_pages matrix must be CUDA.";
-  CHECK_EQ(local_pages->device.device_type, kDLCUDA) << "The device of k matrix must be CUDA.";
-  CHECK_EQ(remote_position_map->device.device_type, kDLCUDA)
+  TVM_FFI_CHECK_EQ(local_pages->device.device_type, kDLCUDA, ValueError)
+      << "The device of k matrix must be CUDA.";
+  TVM_FFI_CHECK_EQ(remote_position_map->device.device_type, kDLCUDA, ValueError)
       << "The device of remote_position_map matrix must be CUDA.";
   size_t dev_id = remote_pages->device.device_id;
-  CHECK_EQ(local_pages->device.device_id, dev_id)
+  TVM_FFI_CHECK_EQ(local_pages->device.device_id, dev_id, ValueError)
       << "The device id of remote_pages and k matrix doesn't match.";
-  CHECK_EQ(remote_position_map->device.device_id, dev_id)
+  TVM_FFI_CHECK_EQ(remote_position_map->device.device_id, dev_id, ValueError)
       << "The device id of remote_pages and remote_position_map matrix doesn't match.";
-  CHECK_EQ(remote_tp_group_pe_offset->device.device_id, dev_id)
+  TVM_FFI_CHECK_EQ(remote_tp_group_pe_offset->device.device_id, dev_id, ValueError)
       << "The device id of remote_pages and remote_tp_group_pe_offset matrix doesn't match.";
 
-  CHECK_EQ(remote_pages->ndim, 5);
+  TVM_FFI_CHECK_EQ(remote_pages->ndim, 5, ValueError);
   int remote_num_kv_head = remote_pages->shape[2];
   int page_size = remote_pages->shape[3];
   int head_dim = remote_pages->shape[4];
 
-  CHECK_GE(local_pages->ndim, 5);
+  TVM_FFI_CHECK_GE(local_pages->ndim, 5, ValueError);
   int local_num_kv_heads = local_pages->shape[2];
-  CHECK_EQ(head_dim, local_pages->shape[4]);
+  TVM_FFI_CHECK_EQ(head_dim, local_pages->shape[4], ValueError);
 
-  CHECK_EQ(remote_position_map->ndim, 1);
+  TVM_FFI_CHECK_EQ(remote_position_map->ndim, 1, ValueError);
   int ntokens = remote_position_map->shape[0];
 
-  CHECK(remote_pages->dtype.lanes == 1 && local_pages->dtype.lanes == 1);
-  CHECK(remote_pages->dtype.bits == local_pages->dtype.bits &&
-        remote_pages->dtype.code == local_pages->dtype.code);
+  TVM_FFI_CHECK(remote_pages->dtype.lanes == 1 && local_pages->dtype.lanes == 1, ValueError);
+  TVM_FFI_CHECK(remote_pages->dtype.bits == local_pages->dtype.bits &&
+                    remote_pages->dtype.code == local_pages->dtype.code,
+                ValueError);
 
   int local_tp_rank;
   tvm::runtime::DiscoWorker* worker = tvm::runtime::ThreadLocalDiscoWorker::Get()->worker;

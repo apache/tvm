@@ -44,20 +44,21 @@ void tvm_cutlass_fp8_gemm(Tensor x, Tensor weight, Tensor workspace, Tensor alph
   // Recommened size is 4MB.
   cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, x->device.device_id));
 
-  CHECK_GE(x->ndim, 2);
-  CHECK_EQ(weight->ndim, 2);
-  CHECK_EQ(workspace->ndim, 1);
-  CHECK_GE(out->ndim, 2);
-  CHECK_EQ(alpha->dtype.code, kDLFloat);
-  CHECK_EQ(alpha->dtype.bits, 32);
-  CHECK_EQ(alpha->ndim, 1);
-  CHECK_EQ(alpha->shape[0], 1);
+  TVM_FFI_CHECK_GE(x->ndim, 2, ValueError);
+  TVM_FFI_CHECK_EQ(weight->ndim, 2, ValueError);
+  TVM_FFI_CHECK_EQ(workspace->ndim, 1, ValueError);
+  TVM_FFI_CHECK_GE(out->ndim, 2, ValueError);
+  TVM_FFI_CHECK_EQ(alpha->dtype.code, kDLFloat, ValueError);
+  TVM_FFI_CHECK_EQ(alpha->dtype.bits, 32, ValueError);
+  TVM_FFI_CHECK_EQ(alpha->ndim, 1, ValueError);
+  TVM_FFI_CHECK_EQ(alpha->shape[0], 1, ValueError);
   int64_t m = 1;
   for (int i = 0; i < x->ndim - 1; ++i) {
     m *= x->shape[i];
   }
   int64_t n = weight->shape[0];
-  CHECK_EQ(x->shape[x->ndim - 1], weight->shape[1]) << "Only col-major weight is supported now.";
+  TVM_FFI_CHECK_EQ(x->shape[x->ndim - 1], weight->shape[1], ValueError)
+      << "Only col-major weight is supported now.";
   int64_t k = x->shape[x->ndim - 1];
   const float* beta = nullptr;
   if (m <= 64) {
