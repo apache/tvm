@@ -154,23 +154,6 @@ def test_subroutine_call_to_externally_visible_subroutine():
     )
 
 
-def _collect_asserts(func):
-    """Collect all AssertStmt nodes from a function body."""
-    asserts = []
-
-    def _visitor(stmt):
-        if isinstance(stmt, tir.AssertStmt):
-            asserts.append(stmt)
-
-    tir.stmt_functor.post_order_visit(func.body, _visitor)
-    return asserts
-
-
-def _assert_msg(assert_stmt):
-    """Join message_parts of an AssertStmt into a single string."""
-    return "".join(p.value for p in assert_stmt.message_parts)
-
-
 def test_zero_arg_function():
     """Zero-arg function emits num_args check but no null-pointer check."""
 
@@ -181,18 +164,21 @@ def test_zero_arg_function():
             T.func_attr({"target": T.target("llvm", host="llvm")})
             return T.int64(42)
 
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def func_without_arg(self_handle: T.handle, args: T.handle, num_args: T.int32, result: T.handle("void", "global")) -> T.int32:
+            T.func_attr({"calling_conv": 1, "global_symbol": "__tvm_ffi_func_without_arg", "target": T.target({"keys": ["cpu"], "kind": "llvm", "mtriple": "x86_64-pc-linux-gnu", "tag": ""})})
+            assert num_args == 0, ("TypeError", ["Expected ", "0", " arguments", " when calling:\n  `", "func_without_arg()", "`"])
+            with T.attr(0, "compute_scope", "func_without_arg_compute_"):
+                T.tvm_struct_set(result, 0, 13, 1)
+                T.tvm_struct_set(result, 0, 14, 0)
+                T.tvm_struct_set(result, 0, 15, T.Cast("int64", T.int64(42)))
+                return 0
+            return 0
+
     After = tvm.tir.transform.MakePackedAPI()(Before)
-    func = After["func_without_arg"]
-
-    assert len(func.params) == 4
-    assert func.attrs["calling_conv"] == 1
-    assert func.attrs["global_symbol"] == "__tvm_ffi_func_without_arg"
-
-    asserts = _collect_asserts(func)
-    assert len(asserts) >= 1
-    assert asserts[0].error_kind.value == "TypeError"
-    assert "Expected 0 arguments" in _assert_msg(asserts[0])
-    assert "func_without_arg()" in _assert_msg(asserts[0])
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_int_parameter():
@@ -208,18 +194,31 @@ def test_int_parameter():
             else:
                 return 20
 
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(self_handle: T.handle, args: T.handle, num_args: T.int32, result: T.handle("void", "global")) -> T.int32:
+            T.func_attr({"calling_conv": 1, "global_symbol": "__tvm_ffi_main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "mtriple": "x86_64-pc-linux-gnu", "tag": ""})})
+            assert num_args == 1, ("TypeError", ["Expected ", "1", " arguments", " when calling:\n  `", "main(arg: int32)", "`"])
+            assert not T.isnullptr(args), ("TypeError", ["args pointer is NULL", " when calling:\n  `", "main(arg: int32)", "`"])
+            arg_type_index: T.int32 = T.tvm_struct_get(args, 0, 13, "int32")
+            assert arg_type_index == 1 or arg_type_index == 2, ("TypeError", ["Mismatched type on argument #", "0", " when calling:\n  `", "main(arg: int32)", "`,\n  expected ", "int"])
+            arg: T.int32 = T.Cast("int32", T.tvm_struct_get(args, 0, 15, "int64"))
+            with T.attr(0, "compute_scope", "main_compute_"):
+                if arg > 0:
+                    T.tvm_struct_set(result, 0, 13, 1)
+                    T.tvm_struct_set(result, 0, 14, 0)
+                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 10))
+                    return 0
+                else:
+                    T.tvm_struct_set(result, 0, 13, 1)
+                    T.tvm_struct_set(result, 0, 14, 0)
+                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 20))
+                    return 0
+            return 0
+
     After = tvm.tir.transform.MakePackedAPI()(Before)
-    func = After["main"]
-
-    asserts = _collect_asserts(func)
-    assert len(asserts) >= 3  # num_args, null check, type check
-
-    # Verify function signature in error messages
-    assert any("main(arg: int32)" in _assert_msg(a) for a in asserts)
-
-    # Verify type check with "expected int"
-    type_checks = [a for a in asserts if a.error_kind.value == "TypeError"]
-    assert any("expected int" in _assert_msg(tc) for tc in type_checks)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_bool_parameter():
@@ -235,16 +234,31 @@ def test_bool_parameter():
             else:
                 return 20
 
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(self_handle: T.handle, args: T.handle, num_args: T.int32, result: T.handle("void", "global")) -> T.int32:
+            T.func_attr({"calling_conv": 1, "global_symbol": "__tvm_ffi_main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "mtriple": "x86_64-pc-linux-gnu", "tag": ""})})
+            assert num_args == 1, ("TypeError", ["Expected ", "1", " arguments", " when calling:\n  `", "main(arg: bool)", "`"])
+            assert not T.isnullptr(args), ("TypeError", ["args pointer is NULL", " when calling:\n  `", "main(arg: bool)", "`"])
+            arg_type_index: T.int32 = T.tvm_struct_get(args, 0, 13, "int32")
+            assert arg_type_index == 2 or arg_type_index == 1, ("TypeError", ["Mismatched type on argument #", "0", " when calling:\n  `", "main(arg: bool)", "`,\n  expected ", "boolean"])
+            arg: T.bool = T.Cast("bool", T.tvm_struct_get(args, 0, 15, "int64"))
+            with T.attr(0, "compute_scope", "main_compute_"):
+                if arg:
+                    T.tvm_struct_set(result, 0, 13, 1)
+                    T.tvm_struct_set(result, 0, 14, 0)
+                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 10))
+                    return 0
+                else:
+                    T.tvm_struct_set(result, 0, 13, 1)
+                    T.tvm_struct_set(result, 0, 14, 0)
+                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 20))
+                    return 0
+            return 0
+
     After = tvm.tir.transform.MakePackedAPI()(Before)
-    func = After["main"]
-
-    asserts = _collect_asserts(func)
-    assert len(asserts) >= 3
-
-    assert any("main(arg: bool)" in _assert_msg(a) for a in asserts)
-
-    type_checks = [a for a in asserts if a.error_kind.value == "TypeError"]
-    assert any("expected boolean" in _assert_msg(tc) for tc in type_checks)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_float_parameter():
@@ -260,16 +274,31 @@ def test_float_parameter():
             else:
                 return 20
 
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(self_handle: T.handle, args: T.handle, num_args: T.int32, result: T.handle("void", "global")) -> T.int32:
+            T.func_attr({"calling_conv": 1, "global_symbol": "__tvm_ffi_main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "mtriple": "x86_64-pc-linux-gnu", "tag": ""})})
+            assert num_args == 1, ("TypeError", ["Expected ", "1", " arguments", " when calling:\n  `", "main(arg: float32)", "`"])
+            assert not T.isnullptr(args), ("TypeError", ["args pointer is NULL", " when calling:\n  `", "main(arg: float32)", "`"])
+            arg_type_index: T.int32 = T.tvm_struct_get(args, 0, 13, "int32")
+            assert arg_type_index == 3 or arg_type_index == 1 or arg_type_index == 2, ("TypeError", ["Mismatched type on argument #", "0", " when calling:\n  `", "main(arg: float32)", "`,\n  expected ", "float"])
+            arg: T.float32 = T.Select(arg_type_index == 3, T.Cast("float32", T.tvm_struct_get(args, 0, 15, "float64")), T.Cast("float32", T.tvm_struct_get(args, 0, 15, "int64")))
+            with T.attr(0, "compute_scope", "main_compute_"):
+                if arg > T.float32(0.0):
+                    T.tvm_struct_set(result, 0, 13, 1)
+                    T.tvm_struct_set(result, 0, 14, 0)
+                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 10))
+                    return 0
+                else:
+                    T.tvm_struct_set(result, 0, 13, 1)
+                    T.tvm_struct_set(result, 0, 14, 0)
+                    T.tvm_struct_set(result, 0, 15, T.Cast("int64", 20))
+                    return 0
+            return 0
+
     After = tvm.tir.transform.MakePackedAPI()(Before)
-    func = After["main"]
-
-    asserts = _collect_asserts(func)
-    assert len(asserts) >= 3
-
-    assert any("main(arg: float32)" in _assert_msg(a) for a in asserts)
-
-    type_checks = [a for a in asserts if a.error_kind.value == "TypeError"]
-    assert any("expected float" in _assert_msg(tc) for tc in type_checks)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
