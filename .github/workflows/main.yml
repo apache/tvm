@@ -58,8 +58,13 @@ jobs:
           enable-cache: true
           cache-python: true
 
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Create venv
-        run: uv venv
+        run: |
+          uv venv .venv
 
       - name: Install python dependencies
         run: uv pip install --verbose scikit-build-core
@@ -72,49 +77,47 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: choco install llvm cmake ninja -y --no-progress
 
-      - name: Install LLVM (clang+llvm tarball) and patch diaguids path (Windows)
+      - name: Install LLVM + provide libxml2s.lib (Windows)
         if: matrix.os == 'windows-latest'
-        id: install_llvm_windows
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
+          $ErrorActionPreference = 'Stop'
 
+          # ---- LLVM (official release tarball) ----
           $llvmVersion = "20.1.0"
-          $base = "$env:RUNNER_TEMP\llvm"
-          New-Item -ItemType Directory -Force -Path $base | Out-Null
+          $llvmBase = Join-Path $env:RUNNER_TEMP "llvm"
+          New-Item -ItemType Directory -Force -Path $llvmBase | Out-Null
 
-          $archive = "$base\clang+llvm.tar.xz"
-          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/clang%2Bllvm-$llvmVersion-x86_64-pc-windows-msvc.tar.xz"
-          Invoke-WebRequest -Uri $url -OutFile $archive
+          $llvmArchive = Join-Path $llvmBase "clang+llvm-$llvmVersion-x86_64-pc-windows-msvc.tar.xz"
+          Invoke-WebRequest `
+            -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-$llvmVersion/clang%2Bllvm-$llvmVersion-x86_64-pc-windows-msvc.tar.xz" `
+            -OutFile $llvmArchive
+          tar -xf $llvmArchive -C $llvmBase
 
-          tar -xf $archive -C $base
+          $llvmRoot   = Join-Path $llvmBase "clang+llvm-$llvmVersion-x86_64-pc-windows-msvc"
+          $llvmConfig = Join-Path $llvmRoot "bin\llvm-config.exe"
+          $llvmLibDir = & $llvmConfig --libdir
 
-          $llvmRoot = Join-Path $base "clang+llvm-$llvmVersion-x86_64-pc-windows-msvc"
+          # ---- vcpkg libxml2 -> copy as libxml2s.lib into LLVM libdir ----
+          $vcpkgRoot = Join-Path $env:RUNNER_TEMP "vcpkg"
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git $vcpkgRoot
+          & "$vcpkgRoot\bootstrap-vcpkg.bat" -disableMetrics
+          & "$vcpkgRoot\vcpkg.exe" install libxml2:x64-windows
 
-          # --- Patch diaguids.lib absolute path in LLVMExports.cmake ---
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          if (!(Test-Path $vswhere)) { throw "vswhere not found: $vswhere" }
+          $vcpkgInstalled = Join-Path $vcpkgRoot "installed\x64-windows"
 
-          $vsPath = & $vswhere -latest -property installationPath
-          if (!$vsPath) { throw "Visual Studio installation path not found." }
+          Copy-Item `
+            (Join-Path $vcpkgInstalled "lib\libxml2.lib") `
+            (Join-Path $llvmLibDir "libxml2s.lib") `
+            -Force
 
-          $diaLib = Join-Path $vsPath "DIA SDK\lib\amd64\diaguids.lib"
-          if (!(Test-Path $diaLib)) { throw "diaguids.lib not found: $diaLib" }
+          # 実行時に dll を拾えるように PATH に追加
+          Add-Content $env:GITHUB_PATH "$pwd\.venv\Scripts"
+          Add-Content $env:GITHUB_PATH (Join-Path $vcpkgInstalled "bin")
 
-          $diaLibPosix = $diaLib.Replace('\','/')
-
-          $llvmExports = Join-Path $llvmRoot "lib\cmake\llvm\LLVMExports.cmake"
-          if (!(Test-Path $llvmExports)) { throw "LLVMExports.cmake not found: $llvmExports" }
-
-          $content = Get-Content $llvmExports -Raw
-          $content = $content -replace 'C:/Program Files.*?/DIA SDK/lib/amd64/diaguids\.lib', $diaLibPosix
-          Set-Content -Path $llvmExports -Value $content -NoNewline
-
-          # export PATH and LLVM_DIR for cmake find_package(LLVM)
-          echo "$llvmRoot\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-          $llvmDir = (Join-Path $llvmRoot "lib\cmake\llvm").Replace('\','/')
-          echo "LLVM_DIR=$llvmDir" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "llvm_dir=$llvmDir" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          # 後続 step 用に llvm-config の場所を export（CMake は / 区切りが無難）
+          $llvmConfigFwd = $llvmConfig.Replace('\','/')
+          Add-Content $env:GITHUB_ENV "LLVM_CONFIG=$llvmConfigFwd"
 
       - name: Build and Install tvm-ffi
         run: uv pip install --verbose ./3rdparty/tvm-ffi
@@ -128,7 +131,7 @@ jobs:
       - name: Build and Install TVM (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          $env:CMAKE_ARGS = "-G Ninja -DUSE_LLVM=ON -DBUILD_TESTING=OFF -DLLVM_DIR=${{ steps.install_llvm_windows.outputs.llvm_dir }}"
+          $env:CMAKE_ARGS = "-DUSE_LLVM=$env:LLVM_CONFIG -DBUILD_TESTING=OFF"
           uv pip install --no-deps . --verbose
 
       - name: Install test dependencies
