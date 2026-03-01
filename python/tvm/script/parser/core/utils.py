@@ -120,6 +120,27 @@ def _collect_annotation_names(source_obj: type | Callable) -> set[str]:
     return names
 
 
+def _has_string_annotations(source_obj: type | Callable) -> bool:
+    """Check if *source_obj* has stringified annotations (PEP 563)."""
+    if inspect.isclass(source_obj):
+        return any(
+            isinstance(a, str)
+            for v in source_obj.__dict__.values()
+            if inspect.isfunction(v)
+            for a in v.__annotations__.values()
+        )
+    return any(isinstance(a, str) for a in getattr(source_obj, "__annotations__", {}).values())
+
+
+def _get_enclosing_scope_names(qualname: str) -> set[str]:
+    """Extract lexically enclosing scope names from ``__qualname__``.
+
+    For ``outer.<locals>.inner.<locals>.func`` this returns ``{"outer", "inner"}``.
+    """
+    parts = qualname.split(".")
+    return {p for p in parts[:-1] if p != "<locals>"}
+
+
 def resolve_closure_vars(
     source_obj: type | Callable, extra_vars: dict[str, Any], outer_stack: list
 ) -> None:
@@ -128,18 +149,26 @@ def resolve_closure_vars(
     With ``from __future__ import annotations``, variables used only in
     annotations are not captured in ``__closure__``.  This function parses
     the source AST to find names used in function annotations, then looks
-    them up in enclosing frames.  Only annotation-referenced names are
-    added, avoiding namespace pollution from unrelated caller locals.
+    them up in lexically enclosing scope frames identified via
+    ``__qualname__``.
+
+    Only triggered when annotations are actually strings (PEP 563 active).
+    Only annotation-referenced names are added, and only from enclosing
+    scopes — not from arbitrary caller frames.
 
     Works for both classes (``@I.ir_module``) and functions (``@T.prim_func``).
     """
+    if not _has_string_annotations(source_obj):
+        return
     ann_names = _collect_annotation_names(source_obj)
+    enclosing = _get_enclosing_scope_names(source_obj.__qualname__)
     for name in ann_names:
         if name not in extra_vars:
             for frame_info in outer_stack[1:]:
-                if name in frame_info.frame.f_locals:
-                    extra_vars[name] = frame_info.frame.f_locals[name]
-                    break
+                if frame_info.frame.f_code.co_name in enclosing:
+                    if name in frame_info.frame.f_locals:
+                        extra_vars[name] = frame_info.frame.f_locals[name]
+                        break
 
 
 def is_defined_in_class(frames: list[FrameType], obj: Any) -> bool:
