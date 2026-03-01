@@ -167,9 +167,30 @@ def test_zero_arg_function():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def func_without_arg(self_handle: T.handle, args: T.handle, num_args: T.int32, result: T.handle("void", "global")) -> T.int32:
-            T.func_attr({"calling_conv": 1, "global_symbol": "__tvm_ffi_func_without_arg", "target": T.target({"keys": ["cpu"], "kind": "llvm", "mtriple": "x86_64-pc-linux-gnu", "tag": ""})})
-            assert num_args == 0, ("TypeError", ["Expected ", "0", " arguments", " when calling:\n  `", "func_without_arg()", "`"])
+        def func_without_arg(
+            self_handle: T.handle,
+            args: T.handle,
+            num_args: T.int32,
+            result: T.handle("void", "global"),
+        ) -> T.int32:
+            T.func_attr(
+                {
+                    "calling_conv": 1,
+                    "global_symbol": "__tvm_ffi_func_without_arg",
+                    "target": T.target(
+                        {
+                            "keys": ["cpu"],
+                            "kind": "llvm",
+                            "mtriple": "x86_64-pc-linux-gnu",
+                            "tag": "",
+                        }
+                    ),
+                }
+            )
+            assert num_args == 0, (
+                "TypeError",
+                ["Expected ", "0", " arguments", " when calling:\n  `", "func_without_arg()", "`"],
+            )
             with T.attr(0, "compute_scope", "func_without_arg_compute_"):
                 T.tvm_struct_set(result, 0, 13, 1)
                 T.tvm_struct_set(result, 0, 14, 0)
@@ -197,12 +218,46 @@ def test_int_parameter():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(self_handle: T.handle, args: T.handle, num_args: T.int32, result: T.handle("void", "global")) -> T.int32:
-            T.func_attr({"calling_conv": 1, "global_symbol": "__tvm_ffi_main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "mtriple": "x86_64-pc-linux-gnu", "tag": ""})})
-            assert num_args == 1, ("TypeError", ["Expected ", "1", " arguments", " when calling:\n  `", "main(arg: int32)", "`"])
-            assert not T.isnullptr(args), ("TypeError", ["args pointer is NULL", " when calling:\n  `", "main(arg: int32)", "`"])
+        def main(
+            self_handle: T.handle,
+            args: T.handle,
+            num_args: T.int32,
+            result: T.handle("void", "global"),
+        ) -> T.int32:
+            T.func_attr(
+                {
+                    "calling_conv": 1,
+                    "global_symbol": "__tvm_ffi_main",
+                    "target": T.target(
+                        {
+                            "keys": ["cpu"],
+                            "kind": "llvm",
+                            "mtriple": "x86_64-pc-linux-gnu",
+                            "tag": "",
+                        }
+                    ),
+                }
+            )
+            assert num_args == 1, (
+                "TypeError",
+                ["Expected ", "1", " arguments", " when calling:\n  `", "main(arg: int32)", "`"],
+            )
+            assert not T.isnullptr(args), (
+                "TypeError",
+                ["args pointer is NULL", " when calling:\n  `", "main(arg: int32)", "`"],
+            )
             arg_type_index: T.int32 = T.tvm_struct_get(args, 0, 13, "int32")
-            assert arg_type_index == 1 or arg_type_index == 2, ("TypeError", ["Mismatched type on argument #", "0", " when calling:\n  `", "main(arg: int32)", "`,\n  expected ", "int"])
+            assert arg_type_index == 1 or arg_type_index == 2, (
+                "TypeError",
+                [
+                    "Mismatched type on argument #",
+                    "0",
+                    " when calling:\n  `",
+                    "main(arg: int32)",
+                    "`,\n  expected ",
+                    "int",
+                ],
+            )
             arg: T.int32 = T.Cast("int32", T.tvm_struct_get(args, 0, 15, "int64"))
             with T.attr(0, "compute_scope", "main_compute_"):
                 if arg > 0:
@@ -237,12 +292,46 @@ def test_bool_parameter():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(self_handle: T.handle, args: T.handle, num_args: T.int32, result: T.handle("void", "global")) -> T.int32:
-            T.func_attr({"calling_conv": 1, "global_symbol": "__tvm_ffi_main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "mtriple": "x86_64-pc-linux-gnu", "tag": ""})})
-            assert num_args == 1, ("TypeError", ["Expected ", "1", " arguments", " when calling:\n  `", "main(arg: bool)", "`"])
-            assert not T.isnullptr(args), ("TypeError", ["args pointer is NULL", " when calling:\n  `", "main(arg: bool)", "`"])
+        def main(
+            self_handle: T.handle,
+            args: T.handle,
+            num_args: T.int32,
+            result: T.handle("void", "global"),
+        ) -> T.int32:
+            T.func_attr(
+                {
+                    "calling_conv": 1,
+                    "global_symbol": "__tvm_ffi_main",
+                    "target": T.target(
+                        {
+                            "keys": ["cpu"],
+                            "kind": "llvm",
+                            "mtriple": "x86_64-pc-linux-gnu",
+                            "tag": "",
+                        }
+                    ),
+                }
+            )
+            assert num_args == 1, (
+                "TypeError",
+                ["Expected ", "1", " arguments", " when calling:\n  `", "main(arg: bool)", "`"],
+            )
+            assert not T.isnullptr(args), (
+                "TypeError",
+                ["args pointer is NULL", " when calling:\n  `", "main(arg: bool)", "`"],
+            )
             arg_type_index: T.int32 = T.tvm_struct_get(args, 0, 13, "int32")
-            assert arg_type_index == 2 or arg_type_index == 1, ("TypeError", ["Mismatched type on argument #", "0", " when calling:\n  `", "main(arg: bool)", "`,\n  expected ", "boolean"])
+            assert arg_type_index == 2 or arg_type_index == 1, (
+                "TypeError",
+                [
+                    "Mismatched type on argument #",
+                    "0",
+                    " when calling:\n  `",
+                    "main(arg: bool)",
+                    "`,\n  expected ",
+                    "boolean",
+                ],
+            )
             arg: T.bool = T.Cast("bool", T.tvm_struct_get(args, 0, 15, "int64"))
             with T.attr(0, "compute_scope", "main_compute_"):
                 if arg:
@@ -277,13 +366,51 @@ def test_float_parameter():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(self_handle: T.handle, args: T.handle, num_args: T.int32, result: T.handle("void", "global")) -> T.int32:
-            T.func_attr({"calling_conv": 1, "global_symbol": "__tvm_ffi_main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "mtriple": "x86_64-pc-linux-gnu", "tag": ""})})
-            assert num_args == 1, ("TypeError", ["Expected ", "1", " arguments", " when calling:\n  `", "main(arg: float32)", "`"])
-            assert not T.isnullptr(args), ("TypeError", ["args pointer is NULL", " when calling:\n  `", "main(arg: float32)", "`"])
+        def main(
+            self_handle: T.handle,
+            args: T.handle,
+            num_args: T.int32,
+            result: T.handle("void", "global"),
+        ) -> T.int32:
+            T.func_attr(
+                {
+                    "calling_conv": 1,
+                    "global_symbol": "__tvm_ffi_main",
+                    "target": T.target(
+                        {
+                            "keys": ["cpu"],
+                            "kind": "llvm",
+                            "mtriple": "x86_64-pc-linux-gnu",
+                            "tag": "",
+                        }
+                    ),
+                }
+            )
+            assert num_args == 1, (
+                "TypeError",
+                ["Expected ", "1", " arguments", " when calling:\n  `", "main(arg: float32)", "`"],
+            )
+            assert not T.isnullptr(args), (
+                "TypeError",
+                ["args pointer is NULL", " when calling:\n  `", "main(arg: float32)", "`"],
+            )
             arg_type_index: T.int32 = T.tvm_struct_get(args, 0, 13, "int32")
-            assert arg_type_index == 3 or arg_type_index == 1 or arg_type_index == 2, ("TypeError", ["Mismatched type on argument #", "0", " when calling:\n  `", "main(arg: float32)", "`,\n  expected ", "float"])
-            arg: T.float32 = T.Select(arg_type_index == 3, T.Cast("float32", T.tvm_struct_get(args, 0, 15, "float64")), T.Cast("float32", T.tvm_struct_get(args, 0, 15, "int64")))
+            assert arg_type_index == 3 or arg_type_index == 1 or arg_type_index == 2, (
+                "TypeError",
+                [
+                    "Mismatched type on argument #",
+                    "0",
+                    " when calling:\n  `",
+                    "main(arg: float32)",
+                    "`,\n  expected ",
+                    "float",
+                ],
+            )
+            arg: T.float32 = T.Select(
+                arg_type_index == 3,
+                T.Cast("float32", T.tvm_struct_get(args, 0, 15, "float64")),
+                T.Cast("float32", T.tvm_struct_get(args, 0, 15, "int64")),
+            )
             with T.attr(0, "compute_scope", "main_compute_"):
                 if arg > T.float32(0.0):
                     T.tvm_struct_set(result, 0, 13, 1)

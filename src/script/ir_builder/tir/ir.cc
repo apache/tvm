@@ -447,7 +447,7 @@ ForFrame Grid(ffi::Array<PrimExpr> extents) {
 }
 
 AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
-                    ffi::Array<ffi::String> message_parts) {
+                   ffi::Array<ffi::String> message_parts) {
   ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
   n->condition = condition;
   n->error_kind = tvm::tir::StringImm(error_kind);
