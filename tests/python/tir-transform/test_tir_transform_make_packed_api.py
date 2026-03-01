@@ -14,8 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Tests for tir.transform.MakePackedAPI TIR transform.
 
-import numpy as np
+Tests verify the transform output using TVMScript before/after patterns.
+Runtime error tests are in tests/python/codegen/test_codegen_error_handling.py.
+"""
+
 import pytest
 
 import tvm
@@ -23,31 +27,6 @@ import tvm.testing
 from tvm import tir
 from tvm.script import ir as I
 from tvm.script import tir as T
-
-
-def _find_assignment(stmt, var_name):
-    while not isinstance(stmt, tvm.tir.LetStmt):
-        stmt = stmt.body
-
-    if stmt.var.name != var_name:
-        return _find_assignment(stmt.body, var_name)
-
-    return stmt
-
-
-def _find_next(stmt, type):
-    search_stack = [stmt]
-
-    while search_stack:
-        stmt = search_stack.pop()
-        if isinstance(stmt, type):
-            return stmt
-        elif isinstance(stmt, tvm.tir.SeqStmt):
-            search_stack.extend(reversed(stmt))
-        else:
-            search_stack.append(stmt.body)
-
-    return None
 
 
 def _find_compute_scope(func):
@@ -132,7 +111,7 @@ def test_internal_subroutine_call():
     compute_scope = _find_compute_scope(after["main"])
     subroutine_call_op = compute_scope.body.value.op
     assert isinstance(subroutine_call_op, tvm.ir.GlobalVar), (
-        f"The main function's CallNode should use the subroutine's GLobalVar as the operation, "
+        f"The main function's CallNode should use the subroutine's GlobalVar as the operation, "
         f"but instead has an operation of type {subroutine_call_op}"
     )
 
@@ -175,73 +154,25 @@ def test_subroutine_call_to_externally_visible_subroutine():
     )
 
 
-def test_function_call_with_wrong_argument_count():
-    """Argument counts must be checked before accessing the type codes"""
+def _collect_asserts(func):
+    """Collect all AssertStmt nodes from a function body."""
+    asserts = []
 
-    @T.prim_func
-    def func(
-        A: T.Buffer([16, 16], "int32"),
-        B: T.Buffer([16, 16], "int32"),
-        C: T.Buffer([16, 16], "int32"),
-        D: T.Buffer([16, 16], "int32"),
-    ):
-        pass
+    def _visitor(stmt):
+        if isinstance(stmt, tir.AssertStmt):
+            asserts.append(stmt)
 
-    built = tvm.compile(func, target="llvm")
-
-    with pytest.raises(tvm.TVMError):
-        built()
+    tir.stmt_functor.post_order_visit(func.body, _visitor)
+    return asserts
 
 
-def test_function_call_with_wrong_type_code():
-    """Type codes must be checked before accessing the arguments"""
-
-    @T.prim_func
-    def func(A: T.Buffer([16, 16], "int32")):
-        pass
-
-    built = tvm.compile(func, target="llvm")
-
-    with pytest.raises(tvm.TVMError):
-        built(0)
-
-
-def test_function_call_with_null_data_pointer():
-    """The data pointer must be checked before accessing the array"""
-
-    @T.prim_func
-    def func(A: T.Buffer([16, 16], "int32"), B: T.Buffer([16, 16], "int32")):
-        for i, j in T.grid(16, 16):
-            B[i, j] = A[i, j]
-
-    built = tvm.compile(func, target="llvm")
-
-    A = tvm.runtime.tensor(np.zeros([16], dtype="int32"))
-    B = tvm.runtime.empty([16, 16], "int32", tvm.cpu())
-
-    with pytest.raises(tvm.TVMError):
-        built(A, B)
-
-
-def test_function_call_with_wrong_dimensionality():
-    """The dimensionality must be checked before validating the shape"""
-
-    @T.prim_func
-    def func(A: T.Buffer([16, 16], "int32"), B: T.Buffer([16, 16], "int32")):
-        for i, j in T.grid(16, 16):
-            B[i, j] = A[i, j]
-
-    built = tvm.compile(func, target="llvm")
-
-    A = tvm.runtime.tensor(np.zeros([16], dtype="int32"))
-    B = tvm.runtime.empty([16], "int32", tvm.cpu())
-
-    with pytest.raises(tvm.TVMError):
-        built(A, B)
+def _assert_msg(assert_stmt):
+    """Join message_parts of an AssertStmt into a single string."""
+    return "".join(p.value for p in assert_stmt.message_parts)
 
 
 def test_zero_arg_function():
-    """Only check non-null args when num_args>0"""
+    """Zero-arg function emits num_args check but no null-pointer check."""
 
     @I.ir_module
     class Before:
@@ -253,45 +184,19 @@ def test_zero_arg_function():
     After = tvm.tir.transform.MakePackedAPI()(Before)
     func = After["func_without_arg"]
 
-    # Check function signature is updated to PackedFunc convention
     assert len(func.params) == 4
     assert func.attrs["calling_conv"] == 1
     assert func.attrs["global_symbol"] == "__tvm_ffi_func_without_arg"
 
-    # Check that the first assert verifies num_args == 0
-    asserts = []
-
-    def _visitor(stmt):
-        if isinstance(stmt, tir.AssertStmt):
-            asserts.append(stmt)
-
-    tir.stmt_functor.post_order_visit(func.body, _visitor)
-    # Should have at least one assert (num_args check)
+    asserts = _collect_asserts(func)
     assert len(asserts) >= 1
     assert asserts[0].kind.value == "TypeError"
-    # Verify it checks num_args
-    assert any("Expected 0 arguments" in p.value for p in asserts[0].message_parts)
-
-    # Verify function signature is in the message (wrapped in backticks)
-    assert any("func_without_arg()" in p.value for p in asserts[0].message_parts)
+    assert "Expected 0 arguments" in _assert_msg(asserts[0])
+    assert "func_without_arg()" in _assert_msg(asserts[0])
 
 
 def test_int_parameter():
-    """Boolean may be passed to functions accepting int
-
-    A PackedFunc produced by compiling an IRModule should support the
-    same type conversions as the C++ implementation.  When a function
-    accepts an integer argument, the caller may call it with a boolean
-    value.
-
-    This also provides backwards compatibility for functions that were
-    defined as accepting an integer, but are called with a boolean
-    argument.  Prior to PackedFunc interface supporting boolean
-    arguments directly, the argument would be converted from boolean
-    to integer to be stored in a TVMValue.  After adding support for
-    boolean arguments, this usage should not cause an error.
-
-    """
+    """Int parameter emits type check accepting int or bool."""
 
     @I.ir_module
     class Before:
@@ -306,40 +211,19 @@ def test_int_parameter():
     After = tvm.tir.transform.MakePackedAPI()(Before)
     func = After["main"]
 
-    # Check function signature is updated
-    assert len(func.params) == 4
-    assert func.attrs["calling_conv"] == 1
-    assert func.attrs["global_symbol"] == "__tvm_ffi_main"
+    asserts = _collect_asserts(func)
+    assert len(asserts) >= 3  # num_args, null check, type check
 
-    # Check asserts for num_args, args not null, and type check
-    asserts = []
+    # Verify function signature in error messages
+    assert any("main(arg: int32)" in _assert_msg(a) for a in asserts)
 
-    def _visitor(stmt):
-        if isinstance(stmt, tir.AssertStmt):
-            asserts.append(stmt)
-
-    tir.stmt_functor.post_order_visit(func.body, _visitor)
-
-    # Should have at least 3 asserts: num_args, args not null, type check
-    assert len(asserts) >= 3
-
-    # Verify function signature appears in error messages
-    assert any(any("main(arg: int32)" in p.value for p in a.message_parts) for a in asserts)
-
-    # Verify type error check exists with TypeError kind
+    # Verify type check with "expected int"
     type_checks = [a for a in asserts if a.kind.value == "TypeError"]
-    assert len(type_checks) >= 1  # at least type index check
+    assert any("expected int" in _assert_msg(tc) for tc in type_checks)
 
 
 def test_bool_parameter():
-    """An integer may be passed to a function acccepting Boolean
-
-    A PackedFunc produced by compiling an IRModule should support the
-    same type conversions as the C++ implementation.  When a function
-    accepts a boolean argument, the caller may call it with an integer
-    value.
-
-    """
+    """Bool parameter emits type check accepting bool or int."""
 
     @I.ir_module
     class Before:
@@ -354,29 +238,38 @@ def test_bool_parameter():
     After = tvm.tir.transform.MakePackedAPI()(Before)
     func = After["main"]
 
-    # Check function signature is updated
-    assert len(func.params) == 4
-    assert func.attrs["calling_conv"] == 1
-    assert func.attrs["global_symbol"] == "__tvm_ffi_main"
-
-    # Check asserts exist
-    asserts = []
-
-    def _visitor(stmt):
-        if isinstance(stmt, tir.AssertStmt):
-            asserts.append(stmt)
-
-    tir.stmt_functor.post_order_visit(func.body, _visitor)
-
-    # Should have at least 3 asserts: num_args, args not null, type check
+    asserts = _collect_asserts(func)
     assert len(asserts) >= 3
 
-    # Verify function signature appears in error messages
-    assert any(any("main(arg: bool)" in p.value for p in a.message_parts) for a in asserts)
+    assert any("main(arg: bool)" in _assert_msg(a) for a in asserts)
 
-    # Verify type checks use TypeError kind
     type_checks = [a for a in asserts if a.kind.value == "TypeError"]
-    assert len(type_checks) >= 1
+    assert any("expected boolean" in _assert_msg(tc) for tc in type_checks)
+
+
+def test_float_parameter():
+    """Float parameter emits type check accepting float, int, or bool."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(arg: T.float32) -> T.int32:
+            T.func_attr({"target": T.target("llvm", host="llvm")})
+            if arg > T.float32(0):
+                return 10
+            else:
+                return 20
+
+    After = tvm.tir.transform.MakePackedAPI()(Before)
+    func = After["main"]
+
+    asserts = _collect_asserts(func)
+    assert len(asserts) >= 3
+
+    assert any("main(arg: float32)" in _assert_msg(a) for a in asserts)
+
+    type_checks = [a for a in asserts if a.kind.value == "TypeError"]
+    assert any("expected float" in _assert_msg(tc) for tc in type_checks)
 
 
 if __name__ == "__main__":

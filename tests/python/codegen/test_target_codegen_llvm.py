@@ -1273,13 +1273,13 @@ def test_invalid_arguments():
             return 0
 
     built = tvm.compile(Module)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(TypeError):
         built(1, 1)
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(TypeError):
         built(1, tvm.runtime.empty([10], "int32"))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ValueError):
         built(False, tvm.runtime.empty([11], "float32"))
 
 

@@ -3728,5 +3728,53 @@ def test_address_of_buffer():
     assert "T.address_of(A[0, 0])" in func.script()
 
 
+def test_assert_stmt_roundtrip_runtime_error():
+    """RuntimeError assert roundtrips through print->parse."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("RuntimeError", ["x must be positive"])
+
+    script = func.script(show_meta=True)
+    roundtrip = tvm.script.from_source(script, check_well_formed=False)
+    tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
+
+
+def test_assert_stmt_roundtrip_value_error():
+    """ValueError assert roundtrips through print->parse."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("ValueError", ["Shape mismatch"])
+
+    script = func.script(show_meta=True)
+    roundtrip = tvm.script.from_source(script, check_well_formed=False)
+    tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
+
+
+def test_assert_stmt_roundtrip_type_error():
+    """TypeError assert roundtrips through print->parse."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("TypeError", ["Expected Tensor but got int"])
+
+    script = func.script(show_meta=True)
+    roundtrip = tvm.script.from_source(script, check_well_formed=False)
+    tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
+
+
+def test_assert_stmt_roundtrip_multi_parts():
+    """Multi-part message assert roundtrips with structural equality."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("TypeError", ["Expected ", "Tensor", " but got ", "int"])
+
+    script = func.script(show_meta=True)
+    roundtrip = tvm.script.from_source(script, check_well_formed=False)
+    tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

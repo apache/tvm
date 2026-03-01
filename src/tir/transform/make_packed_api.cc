@@ -168,36 +168,6 @@ class SubroutineCallRewriter : public StmtExprMutator {
 
 }  // namespace
 
-/*!
- * \brief Create an assert that lhs == rhs, with multi-part error message.
- * \param kind The error kind (e.g. "TypeError", "ValueError", "RuntimeError").
- * \param lhs Left-hand side of equality check.
- * \param rhs Right-hand side of equality check.
- * \param detail The detail message string.
- * \param func_signature Function signature for context.
- */
-inline Stmt MakeAssertEQ(const std::string& kind, PrimExpr lhs, PrimExpr rhs,
-                         const std::string& detail, const std::string& func_signature) {
-  ffi::Array<StringImm> parts;
-  parts.push_back(tvm::tir::StringImm(detail + " when calling:\n  `"));
-  parts.push_back(tvm::tir::StringImm(func_signature));
-  parts.push_back(tvm::tir::StringImm("`"));
-  return AssertStmt(tvm::tir::StringImm(kind), lhs == rhs, parts);
-}
-
-/*!
- * \brief Create an assert that ptr is not NULL, with multi-part error message.
- */
-inline Stmt MakeAssertNotNull(const std::string& kind, PrimExpr ptr, const std::string& detail,
-                              const std::string& func_signature) {
-  Call isnull(DataType::Bool(), builtin::isnullptr(), {ptr});
-  ffi::Array<StringImm> parts;
-  parts.push_back(tvm::tir::StringImm(detail + " when calling:\n  `"));
-  parts.push_back(tvm::tir::StringImm(func_signature));
-  parts.push_back(tvm::tir::StringImm("`"));
-  return AssertStmt(tvm::tir::StringImm(kind), !isnull, parts);
-}
-
 /* \brief Return the global_symbol of the function, if it should be updated
  *
  * \param func The function to be inspected
@@ -249,7 +219,6 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
   auto* func_ptr = func.CopyOnWrite();
   const Stmt nop = Evaluate(0);
-  int num_args = static_cast<int>(func_ptr->params.size());
 
   // Data field definitions
   Var v_self_handle("self_handle", DataType::Handle());
@@ -261,36 +230,15 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   Var device_id("dev_id");
   Integer device_type(target_device_type);
 
-  // seq_init gives sequence of initialization
-  // seq_check gives sequence of later checks after init
-  std::vector<Stmt> seq_init, seq_check, arg_buffer_declarations;
-  std::unordered_map<const VarNode*, PrimExpr> vmap;
+  // Create TVMFFIABIBuilder and decode all packed args
+  TVMFFIABIBuilder binder(name_hint, func_ptr->params, func_ptr->buffer_map, v_packed_args,
+                          v_num_packed_args, device_type, device_id);
+  binder.DecodeAllParams();
 
-  // Create ArgBinder with all function metadata
-  ArgBinder binder(&vmap, name_hint, func_ptr->params, func_ptr->buffer_map, v_packed_args);
+  auto [def_map, init_nest] = binder.Finalize();
+  bool need_set_device = def_map.count(device_id);
 
-  // Num args check (uses binder's func_signature)
-  {
-    std::ostringstream detail;
-    detail << "Expected " << num_args << " arguments";
-    seq_init.push_back(MakeAssertEQ("TypeError", v_num_packed_args, num_args, detail.str(),
-                                    binder.func_signature()));
-  }
-
-  if (num_args > 0) {
-    seq_init.push_back(MakeAssertNotNull("TypeError", v_packed_args, "args pointer is NULL",
-                                         binder.func_signature()));
-  }
-
-  // Bind all packed args: type-check, load values
-  std::vector<std::pair<PrimExpr, Var>> var_def;
-  for (int i = 0; i < num_args; ++i) {
-    auto [arg_value, param] = binder.BindPackedArg(i);
-    var_def.emplace_back(arg_value, param);
-  }
-
-  // Bind scalar params and DLTensor buffers
-  binder.BindAllParams(var_def, device_type, device_id, &arg_buffer_declarations);
+  std::vector<Stmt> seq_check;
 
   // signature: (void* handle, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
   ffi::Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
@@ -306,7 +254,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   body = AttrStmt(make_zero(DataType::Int(32)), attr::compute_scope,
                   StringImm(name_hint + "_compute_"), body);
   // Set device context
-  if (vmap.count(device_id.get())) {
+  if (need_set_device) {
     ffi::Any node = ffi::String("default");
     seq_check.push_back(AttrStmt(node, attr::device_id, device_id, nop));
     seq_check.push_back(AttrStmt(node, attr::device_type, device_type, nop));
@@ -322,8 +270,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // Return error code of zero on success
   body = SeqStmt({body, Evaluate(ret(Integer(0)))});
 
-  body = MergeNest(
-      {seq_init, binder.init_nest(), seq_check, binder.asserts(), arg_buffer_declarations}, body);
+  body = MergeNest({std::move(init_nest), seq_check}, body);
   func_ptr->body = body;
   func_ptr->params = args;
 
