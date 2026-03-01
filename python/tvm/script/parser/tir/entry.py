@@ -64,7 +64,7 @@ def prim_func(
         if utils.is_defined_in_class(outer_stack, func):
             return func
         extra_vars = utils.inspect_function_capture(func)
-        extra_vars = utils.with_caller_frame_fallback(extra_vars, outer_stack)
+        utils.resolve_closure_vars(func, extra_vars, outer_stack)
         f = parse(func, extra_vars, check_well_formed=check_well_formed)
         setattr(f, "__name__", func.__name__)
         return f
