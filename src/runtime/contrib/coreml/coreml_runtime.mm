@@ -61,7 +61,7 @@ void CoreMLModel::SetInput(const std::string& key, DLTensor* data_in) {
 
   MLMultiArray* dest = [[MLMultiArray alloc] initWithShape:shape dataType:dataType error:nil];
 
-  ICHECK(ffi::IsContiguous(*data_in));
+  TVM_FFI_ICHECK(ffi::IsContiguous(*data_in));
   memcpy(dest.dataPointer, data_in->data, size);
 
   NSString* nsKey = [NSString stringWithUTF8String:key.c_str()];
@@ -158,7 +158,8 @@ ffi::Optional<ffi::Function> CoreMLRuntime::GetFunction(const ffi::String& name)
 
       // Copy input tensors to corresponding data entries.
       for (auto i = 0; i < args.size() - 1; ++i) {
-        ICHECK(args[i].type_code() == kTVMDLTensorHandle || args[i].type_code() == kTVMTensorHandle)
+        TVM_FFI_ICHECK(args[i].type_code() == kTVMDLTensorHandle ||
+                       args[i].type_code() == kTVMTensorHandle)
             << "Expect Tensor or DLTensor as inputs\n";
         if (args[i].type_code() == kTVMDLTensorHandle || args[i].type_code() == kTVMTensorHandle) {
           model_->SetInput([input_names[i] UTF8String], args[i]);
@@ -247,7 +248,7 @@ ffi::Module CoreMLRuntimeLoadFromBytes(const ffi::Bytes& bytes) {
   NSString* model_path = [tempDir stringByAppendingPathComponent:dirname];
   NSURL* url = [NSURL fileURLWithPath:model_path];
   BOOL res = [dirWrapper writeToURL:url options:0 originalContentsURL:nil error:nil];
-  ICHECK(res) << "Failed to create model directory " << [model_path UTF8String];
+  TVM_FFI_ICHECK(res) << "Failed to create model directory " << [model_path UTF8String];
 
   auto exec = ffi::make_object<CoreMLRuntime>();
   exec->Init(symbol, [model_path UTF8String]);

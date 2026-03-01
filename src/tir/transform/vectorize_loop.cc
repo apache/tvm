@@ -785,7 +785,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     bool cond_need_scalarize = false;
     std::swap(cond_need_scalarize, need_scalarize_);
     // temp clear need_scalarize flag, so VisitStmt
-    // won't trigger an ICHECK eror
+    // won't trigger an TVM_FFI_ICHECK eror
     Stmt then_case = this->VisitStmt(op->then_case);
     ffi::Optional<Stmt> else_case = std::nullopt;
     if (op->else_case) {

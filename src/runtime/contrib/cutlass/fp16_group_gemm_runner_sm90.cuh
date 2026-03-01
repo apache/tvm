@@ -132,7 +132,7 @@ struct CutlassGroupGemmRunner {
                       uint8_t* workspace, int64_t workspace_size, int num_groups, ScaleType alpha,
                       ScaleType beta, cudaStream_t stream) {
     typename Gemm::EpilogueOutputOp::Params epilogue_params = [&]() {
-      ICHECK(alpha.index() == beta.index()) << "alpha and beta must have the same type";
+      TVM_FFI_ICHECK(alpha.index() == beta.index()) << "alpha and beta must have the same type";
       if (std::holds_alternative<ElementAccumulator>(alpha)) {
         return typename Gemm::EpilogueOutputOp::Params{std::get<ElementAccumulator>(alpha),
                                                        std::get<ElementAccumulator>(beta)};

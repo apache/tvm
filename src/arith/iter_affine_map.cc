@@ -376,7 +376,7 @@ class IterMapRewriter : public ExprMutator {
    * It is not an error for IterMapRewriter to receive an expression that
    * cannot be represented as an IterSumExpr.  In these cases,
    * IterMapRewriter returns the unrepresentable portions of the TIR graph
-   * without modification.  As a result, the usual ICHECK or TVM_FFI_THROW(InternalError)
+   * without modification.  As a result, the usual TVM_FFI_ICHECK or TVM_FFI_THROW(InternalError)
    * macros cannot be used.  Instead, ErrorLogger(this) can be used to
    * report an unrepresentable TIR graph, which may be used in error
    * messages at the calling scope.

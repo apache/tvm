@@ -1280,7 +1280,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // PointerValueTypeRewrite in BuildSPIRV.  The rewrite_store_load = false is
     // necessary because the C-based codegens do not yet support vectorized
     // pointer types (e.g. float16x4*).  Once they do, this if statement should
-    // instead be replaced by the below ICHECK_EQ.
+    // instead be replaced by the below TVM_FFI_ICHECK_EQ.
     if (index_lanes * var_info.element_dtype.lanes() != value_dtype.lanes()) {
       TVM_FFI_ICHECK_EQ(index_lanes, value_dtype.lanes());
       lanes_used = 1;

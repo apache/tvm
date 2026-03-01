@@ -277,12 +277,12 @@ order that they were appended to the pass list.
                                       const PassContext& pass_ctx) const {
       Module mod = module;
       for (const Pass& pass : passes) {
-        ICHECK(pass.defined()) << "Found undefined pass for optimization.";
+        TVM_FFI_ICHECK(pass.defined()) << "Found undefined pass for optimization.";
         const PassInfo& pass_info = pass->Info();
         if (!PassEnabled(pass_info))  continue;
         for (const auto& it : pass_info->required) {
           const auto* name = it.as<tvm::ir::StringImm>();
-          ICHECK(name);
+          TVM_FFI_ICHECK(name);
           mod = GetPass(name->value)(mod, pass_ctx);
         }
         mod = pass(mod, pass_ctx);
@@ -307,7 +307,7 @@ pass is registered with an API endpoint as we will show later.
       using tvm::runtime::Registry;
       std::string fpass_name = "relax.transform." + pass_name;
       const std::optional<tvm::ffi::Function> f = tvm::ffi::Function::GetGlobal(fpass_name);
-      ICHECK(f.has_value()) << "Cannot find " << fpass_name
+      TVM_FFI_ICHECK(f.has_value()) << "Cannot find " << fpass_name
                             << "to create the pass " << pass_name;
       return (*f)();
     }

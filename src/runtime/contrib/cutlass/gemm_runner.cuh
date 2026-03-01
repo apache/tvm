@@ -116,7 +116,7 @@ struct CutlassGemmRunner {
                                        //  {epilogue_params, ptr_C, *stride_C, ptr_D, *stride_D},
                                        hw_info};
 
-    ICHECK(alpha.index() == beta.index()) << "alpha and beta must have the same type";
+    TVM_FFI_ICHECK(alpha.index() == beta.index()) << "alpha and beta must have the same type";
     if (std::holds_alternative<ElementAccumulator>(alpha)) {
       arguments.epilogue.thread.alpha = std::get<ElementAccumulator>(alpha);
       arguments.epilogue.thread.beta = std::get<ElementAccumulator>(beta);

@@ -132,7 +132,7 @@ struct CutlassGroupGemmRunner {
     typename Gemm::Arguments arguments;
     decltype(arguments.epilogue.thread) fusion_args;
     [&]() {
-      ICHECK(alpha.index() == beta.index()) << "alpha and beta must have the same type";
+      TVM_FFI_ICHECK(alpha.index() == beta.index()) << "alpha and beta must have the same type";
       if (std::holds_alternative<ElementAccumulator>(alpha)) {
         fusion_args.alpha = std::get<ElementAccumulator>(alpha);
         fusion_args.beta = std::get<ElementAccumulator>(beta);
