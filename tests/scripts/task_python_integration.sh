@@ -34,7 +34,7 @@ fi
 find . -type f -path "*.pyc" | xargs rm -f
 
 # setup tvm-ffi into python folder
-python3 -m pip install  -v --target=python ./3rdparty/tvm-ffi/
+uv pip install -v --target=python ./3rdparty/tvm-ffi/
 
 # Test for OpenCLML
 pytest tests/python/relax/backend/clml/

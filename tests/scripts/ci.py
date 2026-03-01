@@ -285,7 +285,7 @@ def docs(
         ]
 
         extra_setup = [
-            "python3 -m pip install " + " ".join(requirements),
+            "uv pip install " + " ".join(requirements),
         ]
     else:
         check_gpu()
