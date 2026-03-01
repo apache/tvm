@@ -550,7 +550,7 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
             kind_str = kind_str.value
         if isinstance(parts, list | tuple):
             parts_str = [p.value if isinstance(p, tvm.tir.StringImm) else str(p) for p in parts]
-            frame = T.Assert(cond, "\n".join(parts_str), kind=str(kind_str))
+            frame = T.Assert(cond, parts_str, kind=str(kind_str))
             frame.add_callback(partial(frame.__exit__, None, None, None))
             frame.__enter__()
             return

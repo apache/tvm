@@ -293,6 +293,16 @@ ForFrame Grid(ffi::Array<PrimExpr> extents);
 AssertFrame Assert(PrimExpr condition, ffi::String message, ffi::String kind = "RuntimeError");
 
 /*!
+ * \brief The assertion statement with multiple message parts.
+ * \param condition The assertion condition.
+ * \param parts The error message parts (stored as separate fragments in the IR).
+ * \param kind The error kind (e.g. "RuntimeError", "TypeError", "ValueError").
+ * \return The AssertFrame.
+ */
+AssertFrame AssertWithParts(PrimExpr condition, ffi::Array<ffi::String> parts,
+                            ffi::String kind = "RuntimeError");
+
+/*!
  * \brief The let binding.
  * \param value The value to be bound.
  * \param type_annotation  The type annotation of the let binding.

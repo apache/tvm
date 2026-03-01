@@ -14,134 +14,155 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Phase 0: Basic AssertStmt codegen tests for kind and message_parts."""
+"""AssertStmt codegen tests: verify kind and message_parts produce correct exceptions."""
 
 import pytest
 
 import tvm
 import tvm.testing
-from tvm import tir
 from tvm.script import tir as T
 
-# Phase 0 tests only need LLVM; they test basic AssertStmt codegen infrastructure
-codegen_target = tvm.testing.parameter("llvm")
+codegen_target = tvm.testing.parameter("llvm", "c")
 
 
-def _build_assert_func(tgt, kind, message_parts, func_name="test_func"):
-    """Build and compile a PrimFunc with an always-failing assert."""
-    target_obj = tvm.target.Target(tgt)
-    x = tir.Var("x", "int32")
-    assert_stmt = tir.AssertStmt(
-        tir.StringImm(kind),
-        tir.const(False, "bool"),
-        [tir.StringImm(p) for p in message_parts],
-    )
-    body = tir.SeqStmt([assert_stmt, tir.Evaluate(0)])
-    func = tir.PrimFunc([x], body).with_attr({"target": target_obj, "global_symbol": func_name})
-    mod = tvm.IRModule.from_expr(func)
-    mod = tvm.tir.transform.MakePackedAPI()(mod)
-    return tvm.build(mod, target=target_obj), func_name
-
-
-def test_assert_runtime_error(codegen_target):
-    """Test that AssertStmt with RuntimeError kind produces correct error."""
-    lib, name = _build_assert_func(codegen_target, "RuntimeError", ["Expected non-null input"])
-    with pytest.raises(RuntimeError, match="Expected non-null input"):
-        lib[name](0)
-
-
-def test_assert_value_error(codegen_target):
-    """Test that AssertStmt with ValueError kind produces ValueError."""
-    lib, name = _build_assert_func(
-        codegen_target, "ValueError", ["Shape mismatch: expected 4 got 8"]
-    )
-    with pytest.raises(ValueError, match="Shape mismatch"):
-        lib[name](0)
-
-
-def test_assert_type_error(codegen_target):
-    """Test that AssertStmt with TypeError kind produces TypeError."""
-    lib, name = _build_assert_func(codegen_target, "TypeError", ["Expected Tensor but got int"])
-    with pytest.raises(TypeError, match="Expected Tensor but got int"):
-        lib[name](0)
-
-
-def test_assert_multi_part_message(codegen_target):
-    """Test that multi-part messages are correctly concatenated."""
-    lib, name = _build_assert_func(
-        codegen_target, "ValueError", ["Expected shape ", "4", " but got ", "8"]
-    )
-    with pytest.raises(ValueError, match="Expected shape 4 but got 8"):
-        lib[name](0)
-
-
-def test_assert_passing_condition(codegen_target):
-    """Test that a passing assertion does not raise."""
-    target_obj = tvm.target.Target(codegen_target)
-    x = tir.Var("x", "int32")
-    assert_stmt = tir.AssertStmt(
-        tir.StringImm("RuntimeError"),
-        tir.const(True, "bool"),
-        [tir.StringImm("This should not be raised")],
-    )
-    body = tir.SeqStmt([assert_stmt, tir.Evaluate(0)])
-    func = tir.PrimFunc([x], body).with_attr(
-        {"target": target_obj, "global_symbol": "test_passing"}
-    )
-    mod = tvm.IRModule.from_expr(func)
-    mod = tvm.tir.transform.MakePackedAPI()(mod)
-    lib = tvm.build(mod, target=target_obj)
-    lib["test_passing"](0)
-
-
-def test_assert_many_parts(codegen_target):
-    """Test assertion with more than 6 parts (triggers larger helper in LLVM)."""
-    parts = [f"part{i}" for i in range(8)]
-    lib, name = _build_assert_func(codegen_target, "RuntimeError", parts)
-    with pytest.raises(RuntimeError, match="part0part1part2part3part4part5part6part7"):
-        lib[name](0)
-
-
-def test_assert_ir_structure():
-    """Test that AssertStmt IR nodes have correct structure."""
-    kind = tir.StringImm("TypeError")
-    cond = tir.const(True, "bool")
-    parts = [tir.StringImm("msg1"), tir.StringImm("msg2")]
-    stmt = tir.AssertStmt(kind, cond, parts)
-
-    assert stmt.kind.value == "TypeError"
-    assert len(stmt.message_parts) == 2
-    assert stmt.message_parts[0].value == "msg1"
-    assert stmt.message_parts[1].value == "msg2"
-
-
-def test_tvmscript_assert_preserves_kind():
-    """Regression: TVMScript assert with structured format preserves kind.
-
-    Ensures `assert cond, ("ValueError", ["msg"])` creates an AssertStmt
-    with kind="ValueError" rather than defaulting to "RuntimeError".
-    """
-
-    @T.prim_func
-    def func(x: T.int32):
-        T.func_attr(
-            {"global_symbol": "test_kind", "target": tvm.target.Target("llvm", host="llvm")}
-        )
-        assert x > 0, ("ValueError", ["x must be positive"])
-
-    mod = tvm.IRModule.from_expr(func)
-    func_ir = mod["test_kind"]
-
+def _collect_asserts(func):
+    """Collect all AssertStmt nodes from a PrimFunc body."""
     asserts = []
 
     def visitor(stmt):
         if isinstance(stmt, tvm.tir.AssertStmt):
             asserts.append(stmt)
 
-    tvm.tir.stmt_functor.post_order_visit(func_ir.body, visitor)
+    tvm.tir.stmt_functor.post_order_visit(func.body, visitor)
+    return asserts
+
+
+def test_assert_runtime_error(codegen_target):
+    """AssertStmt with RuntimeError kind produces RuntimeError."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("RuntimeError", ["Expected non-null input"])
+
+    lib = tvm.compile(func, target=codegen_target)
+    with pytest.raises(RuntimeError, match="Expected non-null input"):
+        lib(0)
+
+
+def test_assert_value_error(codegen_target):
+    """AssertStmt with ValueError kind produces ValueError."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("ValueError", ["Shape mismatch: expected 4 got 8"])
+
+    lib = tvm.compile(func, target=codegen_target)
+    with pytest.raises(ValueError, match="Shape mismatch"):
+        lib(0)
+
+
+def test_assert_type_error(codegen_target):
+    """AssertStmt with TypeError kind produces TypeError."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("TypeError", ["Expected Tensor but got int"])
+
+    lib = tvm.compile(func, target=codegen_target)
+    with pytest.raises(TypeError, match="Expected Tensor but got int"):
+        lib(0)
+
+
+def test_assert_multi_part_message(codegen_target):
+    """Multi-part messages are correctly concatenated at runtime."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("ValueError", ["Expected shape ", "4", " but got ", "8"])
+
+    lib = tvm.compile(func, target=codegen_target)
+    with pytest.raises(ValueError, match="Expected shape 4 but got 8"):
+        lib(0)
+
+
+def test_assert_passing_condition(codegen_target):
+    """Passing assertion does not raise."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("RuntimeError", ["This should not be raised"])
+
+    lib = tvm.compile(func, target=codegen_target)
+    lib(1)  # should pass without error
+
+
+def test_assert_many_parts(codegen_target):
+    """Assertion with 8 parts concatenated correctly."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("RuntimeError", ["p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7"])
+
+    lib = tvm.compile(func, target=codegen_target)
+    with pytest.raises(RuntimeError, match="p0p1p2p3p4p5p6p7"):
+        lib(0)
+
+
+def test_tvmscript_assert_preserves_kind(codegen_target):
+    """Regression: TVMScript structured assert preserves kind at runtime."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("ValueError", ["x must be positive"])
+
+    lib = tvm.compile(func, target=codegen_target)
+    with pytest.raises(ValueError, match="x must be positive"):
+        lib(0)
+
+
+def test_tvmscript_assert_preserves_parts(codegen_target):
+    """Regression: TVMScript structured assert with separate parts."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("ValueError", ["x must be ", "positive"])
+
+    lib = tvm.compile(func, target=codegen_target)
+    with pytest.raises(ValueError, match="x must be positive"):
+        lib(0)
+
+
+# ── TVMScript parsing roundtrip tests ─────────────────────────
+
+
+def test_tvmscript_roundtrip_kind():
+    """TVMScript structured assert roundtrip preserves kind in IR."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("ValueError", ["x must be positive"])
+
+    asserts = _collect_asserts(func)
     assert len(asserts) == 1
     assert asserts[0].kind.value == "ValueError"
-    assert any("x must be positive" in p.value for p in asserts[0].message_parts)
+
+
+def test_tvmscript_roundtrip_parts():
+    """TVMScript structured assert roundtrip preserves separate parts in IR.
+
+    This is critical for binary size reduction through string fragment reuse.
+    """
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("ValueError", ["x must be ", "positive"])
+
+    asserts = _collect_asserts(func)
+    assert len(asserts) == 1
+    assert asserts[0].kind.value == "ValueError"
+    assert len(asserts[0].message_parts) == 2
+    assert asserts[0].message_parts[0].value == "x must be "
+    assert asserts[0].message_parts[1].value == "positive"
 
 
 if __name__ == "__main__":

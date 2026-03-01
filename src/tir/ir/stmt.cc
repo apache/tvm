@@ -108,7 +108,7 @@ AssertStmt::AssertStmt(StringImm kind, PrimExpr condition, ffi::Array<StringImm>
                        Span span) {
   TVM_FFI_ICHECK(kind.defined());
   TVM_FFI_ICHECK(condition.defined());
-  TVM_FFI_ICHECK(condition.dtype().is_bool())
+  TVM_FFI_ICHECK(condition.dtype().is_predicate_dtype())
       << "AssertStmt should have boolean condition, "
       << "but received " << condition << " with dtype " << condition.dtype();
 

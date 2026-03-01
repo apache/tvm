@@ -454,6 +454,18 @@ AssertFrame Assert(PrimExpr condition, ffi::String message, ffi::String kind) {
   return AssertFrame(n);
 }
 
+AssertFrame AssertWithParts(PrimExpr condition, ffi::Array<ffi::String> parts, ffi::String kind) {
+  ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
+  n->kind = tvm::tir::StringImm(kind);
+  n->condition = condition;
+  ffi::Array<tvm::tir::StringImm> message_parts;
+  for (const auto& p : parts) {
+    message_parts.push_back(tvm::tir::StringImm(p));
+  }
+  n->message_parts = message_parts;
+  return AssertFrame(n);
+}
+
 LetFrame LetStmt(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
   ObjectPtr<LetFrameNode> n = ffi::make_object<LetFrameNode>();
   if (var.defined()) {
@@ -729,6 +741,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.ThreadBinding", ThreadBinding)
       .def("script.ir_builder.tir.Grid", Grid)
       .def("script.ir_builder.tir.Assert", Assert)
+      .def("script.ir_builder.tir.AssertWithParts", AssertWithParts)
       .def("script.ir_builder.tir.LetStmt", LetStmt)
       .def("script.ir_builder.tir.LegacyLetStmt", LegacyLetStmt)
       .def("script.ir_builder.tir.Allocate", Allocate)

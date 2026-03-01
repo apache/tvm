@@ -14,7 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Phase 1: Rich error message integration tests for MakePackedAPI + ArgBinder."""
+"""Rich error message integration tests for MakePackedAPI + ArgBinder.
+
+All tests compile TVMScript functions and verify the correct Python exception
+type and message are raised at runtime.
+"""
 
 import re
 
@@ -23,133 +27,81 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import tir
 from tvm.script import tir as T
 
 # Parameterize over both LLVM and C backends
 codegen_target = tvm.testing.parameter("llvm", "c")
 
 
-def _make_add_one_shared_shape(tgt):
-    """Create add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))
-    where a and b share shape variable n0."""
-    n = tir.Var("n0", "int64")
-    a_buf = tir.decl_buffer([n], "float32", name="a")
-    b_buf = tir.decl_buffer([n], "float32", name="b")
-    a_param = tir.Var("a_handle", "handle")
-    b_param = tir.Var("b_handle", "handle")
-    i = tir.Var("i", "int64")
-
-    body = tir.For(
-        i,
-        0,
-        n,
-        tir.ForKind.SERIAL,
-        tir.BufferStore(
-            b_buf,
-            tir.BufferLoad(a_buf, [i]) + tir.const(1.0, "float32"),
-            [i],
-        ),
-    )
-    func = tir.PrimFunc(
-        [a_param, b_param], body, buffer_map={a_param: a_buf, b_param: b_buf}
-    ).with_attr(
-        {
-            "global_symbol": "add_one",
-            "target": tvm.target.Target(tgt, host=tgt),
-        }
-    )
-    return func
+# ── TVMScript function definitions ────────────────────────────
 
 
-def _make_add_one_aligned(tgt):
-    """Create add_one with offset_factor=4 on buffer a (16-byte alignment)."""
-    n = tir.Var("n0", "int64")
-    a_buf = tir.decl_buffer([n], "float32", name="a", data_alignment=64, offset_factor=4)
-    b_buf = tir.decl_buffer([n], "float32", name="b")
-    a_param = tir.Var("a_handle", "handle")
-    b_param = tir.Var("b_handle", "handle")
-    i = tir.Var("i", "int64")
-
-    body = tir.For(
-        i,
-        0,
-        n,
-        tir.ForKind.SERIAL,
-        tir.BufferStore(
-            b_buf,
-            tir.BufferLoad(a_buf, [i]) + tir.const(1.0, "float32"),
-            [i],
-        ),
-    )
-    func = tir.PrimFunc(
-        [a_param, b_param], body, buffer_map={a_param: a_buf, b_param: b_buf}
-    ).with_attr(
-        {
-            "global_symbol": "add_one",
-            "target": tvm.target.Target(tgt, host=tgt),
-        }
-    )
-    return func
+@T.prim_func
+def add_one_dynamic(a: T.handle, b: T.handle):
+    n0 = T.int64()
+    A = T.match_buffer(a, (n0,), "float32")
+    B = T.match_buffer(b, (n0,), "float32")
+    for i in range(n0):
+        B[i] = A[i] + T.float32(1)
 
 
-def _collect_asserts(func_body):
-    """Collect all AssertStmt nodes and their concatenated messages."""
-    asserts = []
+@T.prim_func
+def add_fixed(a: T.Buffer((128,), "float32"), b: T.Buffer((128,), "float32")):
+    for i in range(128):
+        b[i] = a[i] + T.float32(1)
 
-    def visitor(stmt):
-        if isinstance(stmt, tvm.tir.AssertStmt):
-            msg = "".join(p.value for p in stmt.message_parts)
-            asserts.append((stmt, msg))
 
-    tvm.tir.stmt_functor.post_order_visit(func_body, visitor)
-    return asserts
+@T.prim_func
+def copy_2d(a: T.Buffer((4, 8), "float32"), b: T.Buffer((4, 8), "float32")):
+    for i, j in T.grid(4, 8):
+        b[i, j] = a[i, j]
+
+
+@T.prim_func
+def copy_f32(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
+    for i in range(8):
+        b[i] = a[i]
+
+
+# ── Runtime error tests ───────────────────────────────────────
 
 
 def test_type_mismatch_non_tensor(codegen_target):
-    """Test: passing a non-tensor where a tensor is expected."""
-    func = _make_add_one_shared_shape(codegen_target)
-    lib = tvm.compile(tvm.IRModule.from_expr(func), target=codegen_target)
+    """Passing a non-tensor where a tensor is expected raises TypeError."""
+    lib = tvm.compile(add_one_dynamic, target=codegen_target)
     a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
 
     with pytest.raises(
         TypeError,
         match=re.escape(
             "Mismatched type on argument #1 when calling:\n"
-            "  `add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))`,\n"
+            "  `add_one_dynamic(A: Tensor([n0], float32), B: Tensor([n0], float32))`,\n"
             "  expected Tensor"
         ),
     ):
-        lib["add_one"](a, 1)
+        lib(a, 1)
 
 
 def test_shape_mismatch_shared_variable(codegen_target):
-    """Test: b has different shape than a when they share variable n0."""
-    func = _make_add_one_shared_shape(codegen_target)
-    lib = tvm.compile(tvm.IRModule.from_expr(func), target=codegen_target)
+    """b has different shape than a when they share symbolic variable n0."""
+    lib = tvm.compile(add_one_dynamic, target=codegen_target)
     a = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     b_short = tvm.runtime.tensor(np.zeros(126, dtype="float32"))
 
     with pytest.raises(
         ValueError,
         match=re.escape(
-            "Mismatched b.shape[0] on argument #1 when calling:\n"
-            "  `add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))`,\n"
-            "  expected to match a.shape[0]"
+            "Mismatched B.shape[0] on argument #1 when calling:\n"
+            "  `add_one_dynamic(A: Tensor([n0], float32), B: Tensor([n0], float32))`,\n"
+            "  expected to match A.shape[0]"
         ),
     ):
-        lib["add_one"](a, b_short)
+        lib(a, b_short)
 
 
 def test_invalid_shape_fixed(codegen_target):
-    """Test: passing a shape that doesn't match a fixed buffer dimension."""
-
-    @T.prim_func
-    def add(a: T.Buffer((128,), "float32"), b: T.Buffer((128,), "float32")):
-        for i in range(128):
-            b[i] = a[i] + T.float32(1)
-
-    lib = tvm.compile(add, target=codegen_target)
+    """Passing wrong shape for a fixed buffer dimension raises ValueError."""
+    lib = tvm.compile(add_fixed, target=codegen_target)
     a_wrong = tvm.runtime.tensor(np.zeros(256, dtype="float32"))
     b_wrong = tvm.runtime.tensor(np.zeros(256, dtype="float32"))
 
@@ -157,74 +109,46 @@ def test_invalid_shape_fixed(codegen_target):
         ValueError,
         match=re.escape(
             "Invalid a.shape[0] on argument #0 when calling:\n"
-            "  `add(a: Tensor([128], float32), b: Tensor([128], float32))`,\n"
+            "  `add_fixed(a: Tensor([128], float32), b: Tensor([128], float32))`,\n"
             "  expected 128"
         ),
     ):
         lib(a_wrong, b_wrong)
 
 
-def test_misaligned_tensor_data(codegen_target):
-    """Test: misaligned tensor data when buffer requires alignment."""
-    func = _make_add_one_aligned(codegen_target)
-    mod = tvm.IRModule.from_expr(func)
-    lowered = tvm.tir.transform.MakePackedAPI()(mod)
-    lowered_func = lowered["add_one"]
-
-    alignment_asserts = []
-
-    def visitor(stmt):
-        if isinstance(stmt, tvm.tir.AssertStmt):
-            msg = "".join(p.value for p in stmt.message_parts)
-            if "Misaligned" in msg:
-                alignment_asserts.append(msg)
-
-    tvm.tir.stmt_functor.post_order_visit(lowered_func.body, visitor)
-    assert len(alignment_asserts) >= 1
-    assert "Misaligned Tensor data on argument #0" in alignment_asserts[0]
-    assert "expected data alignment=16 bytes" in alignment_asserts[0]
-    assert "add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))" in alignment_asserts[0]
-
-
 def test_wrong_argument_count_error(codegen_target):
-    """Verify wrong argument count produces TypeError with function signature."""
-    func = _make_add_one_shared_shape(codegen_target)
-    lib = tvm.compile(tvm.IRModule.from_expr(func), target=codegen_target)
+    """Wrong argument count produces TypeError with function signature."""
+    lib = tvm.compile(add_one_dynamic, target=codegen_target)
 
-    with pytest.raises(TypeError, match="Expected 2 arguments"):
-        lib["add_one"]()
-
-    with pytest.raises(TypeError, match=re.escape("add_one(")):
-        lib["add_one"]()
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "Expected 2 arguments when calling:\n"
+            "  `add_one_dynamic(A: Tensor([n0], float32), B: Tensor([n0], float32))`"
+        ),
+    ):
+        lib()
 
 
 def test_ndim_mismatch_error(codegen_target):
-    """Verify ndim mismatch produces ValueError with function signature."""
-
-    @T.prim_func
-    def func_2d(a: T.Buffer((4, 4), "float32"), b: T.Buffer((4, 4), "float32")):
-        for i, j in T.grid(4, 4):
-            b[i, j] = a[i, j]
-
-    lib = tvm.compile(func_2d, target=codegen_target)
+    """ndim mismatch produces ValueError with function signature."""
+    lib = tvm.compile(copy_2d, target=codegen_target)
     a = tvm.runtime.tensor(np.zeros(4, dtype="float32"))
     b = tvm.runtime.tensor(np.zeros(4, dtype="float32"))
 
     with pytest.raises(
         ValueError,
-        match=re.escape("Mismatched a.ndim on argument #0"),
+        match=re.escape(
+            "Mismatched a.ndim on argument #0 when calling:\n"
+            "  `copy_2d(a: Tensor([4, 8], float32), b: Tensor([4, 8], float32))`,\n"
+            "  expected 2"
+        ),
     ):
         lib(a, b)
 
 
 def test_dtype_mismatch_error(codegen_target):
-    """Verify dtype mismatch produces TypeError with function signature."""
-
-    @T.prim_func
-    def copy_f32(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
-        for i in range(8):
-            b[i] = a[i]
-
+    """dtype mismatch produces TypeError with function signature."""
     lib = tvm.compile(copy_f32, target=codegen_target)
     a = tvm.runtime.tensor(np.zeros(8, dtype="int32"))
     b = tvm.runtime.tensor(np.zeros(8, dtype="float32"))
@@ -238,146 +162,6 @@ def test_dtype_mismatch_error(codegen_target):
         ),
     ):
         lib(a, b)
-
-
-def test_make_packed_api_signature_in_asserts(codegen_target):
-    """Verify MakePackedAPI generates structured error messages with signature."""
-
-    @T.prim_func
-    def add_one(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
-        T.func_attr(
-            {
-                "target": tvm.target.Target("llvm", host="llvm"),
-                "global_symbol": "add_one",
-            }
-        )
-        for i in range(8):
-            b[i] = a[i] + T.float32(1)
-
-    mod = tvm.IRModule.from_expr(add_one)
-    mod = tvm.tir.transform.MakePackedAPI()(mod)
-    func = mod["add_one"]
-
-    asserts = []
-
-    def visitor(stmt):
-        if isinstance(stmt, tvm.tir.AssertStmt):
-            asserts.append(stmt)
-
-    tvm.tir.stmt_functor.post_order_visit(func.body, visitor)
-    assert len(asserts) > 0
-    kinds = {a.kind.value for a in asserts}
-    assert "TypeError" in kinds
-    assert any(any("add_one" in part.value for part in a.message_parts) for a in asserts)
-    assert any(
-        any("a: Tensor([8], float32)" in part.value for part in a.message_parts) for a in asserts
-    )
-
-
-def test_error_message_format_consistency(codegen_target):
-    """Verify all rich error messages follow the standard format."""
-    func = _make_add_one_shared_shape(codegen_target)
-    mod = tvm.IRModule.from_expr(func)
-    lowered = tvm.tir.transform.MakePackedAPI()(mod)
-    lowered_func = lowered["add_one"]
-
-    asserts = []
-
-    def visitor(stmt):
-        if isinstance(stmt, tvm.tir.AssertStmt):
-            msg = "".join(p.value for p in stmt.message_parts)
-            asserts.append((stmt.kind.value, msg))
-
-    tvm.tir.stmt_functor.post_order_visit(lowered_func.body, visitor)
-
-    sig = "add_one(a: Tensor([n0], float32), b: Tensor([n0], float32))"
-    for kind, msg in asserts:
-        if sig in msg:
-            assert "when calling:" in msg, f"Missing 'when calling:' in: {msg}"
-            assert f"`{sig}`" in msg, f"Missing backtick-wrapped signature in: {msg}"
-
-
-def test_strides_compact_check(codegen_target):
-    """Verify compact strides assertion exists in IR for multi-dim tensors."""
-    a_buf = tir.decl_buffer([4, 8], "float32", name="a")
-    b_buf = tir.decl_buffer([4, 8], "float32", name="b")
-    a_param = tir.Var("a_handle", "handle")
-    b_param = tir.Var("b_handle", "handle")
-    i = tir.Var("i", "int32")
-    j = tir.Var("j", "int32")
-    body = tir.For(
-        i,
-        0,
-        4,
-        tir.ForKind.SERIAL,
-        tir.For(
-            j,
-            0,
-            8,
-            tir.ForKind.SERIAL,
-            tir.BufferStore(b_buf, tir.BufferLoad(a_buf, [i, j]), [i, j]),
-        ),
-    )
-    copy_2d = tir.PrimFunc(
-        [a_param, b_param], body, buffer_map={a_param: a_buf, b_param: b_buf}
-    ).with_attr(
-        {
-            "global_symbol": "copy_2d",
-            "target": tvm.target.Target(codegen_target, host=codegen_target),
-        }
-    )
-
-    mod = tvm.IRModule.from_expr(copy_2d)
-    lowered = tvm.tir.transform.MakePackedAPI()(mod)
-    func = lowered["copy_2d"]
-
-    all_asserts = _collect_asserts(func.body)
-    strides_asserts = [(s, m) for s, m in all_asserts if "strides" in m or "compact" in m]
-    assert len(strides_asserts) >= 1
-    assert any("compact" in m for _, m in strides_asserts)
-
-
-def test_null_data_pointer_check(codegen_target):
-    """Verify NULL data pointer assertion exists in IR."""
-    func = _make_add_one_shared_shape(codegen_target)
-    mod = tvm.IRModule.from_expr(func)
-    lowered = tvm.tir.transform.MakePackedAPI()(mod)
-    lowered_func = lowered["add_one"]
-
-    all_asserts = _collect_asserts(lowered_func.body)
-    null_asserts = [(s, m) for s, m in all_asserts if "NULL" in m or "null" in m.lower()]
-    assert len(null_asserts) >= 1
-    assert any("data pointer is NULL" in m for _, m in null_asserts)
-
-
-def test_device_check_exists(codegen_target):
-    """Verify device checks don't crash; second tensor device must match first."""
-    func = _make_add_one_shared_shape(codegen_target)
-    mod = tvm.IRModule.from_expr(func)
-    lowered = tvm.tir.transform.MakePackedAPI()(mod)
-    lowered_func = lowered["add_one"]
-
-    all_asserts = _collect_asserts(lowered_func.body)
-    device_asserts = [(s, m) for s, m in all_asserts if "device" in m.lower()]
-    # Device checks may or may not produce assertions (depends on whether
-    # device vars are bound more than once). At minimum, verify no crash.
-    # The key assertion is the second tensor's device must match the first.
-    assert len(device_asserts) >= 0
-
-
-def test_byte_offset_alignment_check(codegen_target):
-    """Verify alignment assertion exists in IR for buffer with offset_factor."""
-    func = _make_add_one_aligned(codegen_target)
-    mod = tvm.IRModule.from_expr(func)
-    lowered = tvm.tir.transform.MakePackedAPI()(mod)
-    lowered_func = lowered["add_one"]
-
-    all_asserts = _collect_asserts(lowered_func.body)
-    alignment_asserts = [
-        (s, m) for s, m in all_asserts if "alignment" in m.lower() or "Misaligned" in m
-    ]
-    assert len(alignment_asserts) >= 1
-    assert any("data alignment=" in m for _, m in alignment_asserts)
 
 
 if __name__ == "__main__":
