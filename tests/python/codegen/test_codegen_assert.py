@@ -187,5 +187,44 @@ def test_tvmscript_single_string_tuple(codegen_target):
         lib(0)
 
 
+# ── Structural-equal roundtrip tests ──────────────────────────
+
+
+def test_structural_equal_roundtrip_plain_string():
+    """Plain string assert roundtrips through print→parse with structural equality."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("RuntimeError", ["x must be positive"])
+
+    script = func.script(show_meta=True)
+    roundtrip = tvm.script.from_source(script, check_well_formed=False)
+    tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
+
+
+def test_structural_equal_roundtrip_value_error():
+    """ValueError assert roundtrips through print→parse with structural equality."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("ValueError", ["Shape mismatch"])
+
+    script = func.script(show_meta=True)
+    roundtrip = tvm.script.from_source(script, check_well_formed=False)
+    tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
+
+
+def test_structural_equal_roundtrip_multi_parts():
+    """Multi-part message assert roundtrips with structural equality."""
+
+    @T.prim_func
+    def func(x: T.int32):
+        assert x > 0, ("TypeError", ["Expected ", "Tensor", " but got ", "int"])
+
+    script = func.script(show_meta=True)
+    roundtrip = tvm.script.from_source(script, check_well_formed=False)
+    tvm.ir.assert_structural_equal(func, roundtrip, map_free_vars=True)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

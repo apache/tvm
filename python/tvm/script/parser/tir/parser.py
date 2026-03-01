@@ -548,11 +548,23 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
     kind = "RuntimeError"
     message = msg
 
-    if isinstance(msg, tuple) and len(msg) == 2:
+    if isinstance(msg, tuple):
+        if len(msg) != 2:
+            self.report_error(
+                node,
+                f"Assert message tuple must have exactly 2 elements (kind, [parts...]), "
+                f"got {len(msg)} elements",
+            )
         kind_str, parts = msg
         if isinstance(kind_str, tvm.tir.StringImm):
             kind_str = kind_str.value
-        kind = str(kind_str)
+        if not isinstance(kind_str, str):
+            self.report_error(
+                node,
+                f"Assert message tuple first element must be a string (error kind like "
+                f'"ValueError"), got {type(kind_str).__name__}',
+            )
+        kind = kind_str
         message = parts
 
     if isinstance(message, list | tuple):
