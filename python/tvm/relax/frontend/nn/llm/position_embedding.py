@@ -587,8 +587,8 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
         )
         # long factors is the first half, short factors is the second half
-        long_factors = T.Buffer((rotary_dim // 2,), "float32", data=ext_factors.data)
-        short_factors = T.Buffer(
+        long_factors = T.decl_buffer((rotary_dim // 2,), "float32", data=ext_factors.data)
+        short_factors = T.decl_buffer(
             (rotary_dim // 2,),
             "float32",
             data=ext_factors.data,
@@ -814,8 +814,8 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
             var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
         )
         # long factors is the first half, short factors is the second half
-        long_factors = T.Buffer((rotary_dim // 2,), "float32", data=ext_factors.data)
-        short_factors = T.Buffer(
+        long_factors = T.decl_buffer((rotary_dim // 2,), "float32", data=ext_factors.data)
+        short_factors = T.decl_buffer(
             (rotary_dim // 2,),
             "float32",
             data=ext_factors.data,
