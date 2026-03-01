@@ -38,6 +38,7 @@ jobs:
   Platform:
     if: ${{ github.repository == 'apache/tvm' }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: MacOS
@@ -125,7 +126,7 @@ jobs:
       - name: Build and Install TVM (MacOS)
         if: matrix.os == 'macOS-latest'
         run: |
-          export CMAKE_ARGS="-G Ninja -DUSE_LLVM='/opt/homebrew/opt/llvm/bin/llvm-config --ignore-libllvm --link-static' -DBUILD_TESTING=OFF"
+          export CMAKE_ARGS="-G Ninja -DUSE_LLVM='/opt/homebrew/opt/llvm/bin/llvm-config --link-static' -DBUILD_TESTING=OFF"
           uv pip install --no-deps . --verbose
 
       - name: Build and Install TVM (Windows)
