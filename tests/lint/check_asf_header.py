@@ -238,6 +238,8 @@ def get_git_files() -> list[str] | None:
         if deleted_result.returncode == 0:
             deleted = {line.strip() for line in deleted_result.stdout.split("\n") if line.strip()}
             all_files -= deleted
+        elif deleted_result.stderr:
+            print(f"Warning: 'git ls-files --deleted' failed: {deleted_result.stderr.strip()}")
         return sorted(all_files)
     except FileNotFoundError:
         print("Error: Git not found. This tool requires git to be installed.")
