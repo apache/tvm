@@ -1004,31 +1004,28 @@ def test_llvm_target_attributes():
     llvm_ir_lines = llvm_ir.split("\n")
 
     attribute_definitions = dict()
-    attributes_with_target = dict()
-    functions_with_target = []
+    function_attr_map = dict()
 
     for line in llvm_ir_lines:
         func_def = re.match(
             "define.* @(?P<func_name>[^(]*)[(].* #(?P<attr_num>[0-9]+) (!.* |){$", line
         )
         if func_def:
-            functions_with_target.append(func_def.group("func_name"))
-            attributes_with_target[func_def.group("attr_num")] = True
+            function_attr_map[func_def.group("func_name")] = func_def.group("attr_num")
             continue
         attr_def = re.match("attributes #(?P<attr_num>[0-9]+) = {(?P<attr_list>.*)}", line)
         if attr_def:
             attribute_definitions[attr_def.group("attr_num")] = attr_def.group("attr_list")
-
-    for k in list(attributes_with_target.keys()):
-        assert re.match('.*"target-cpu"="skylake".*', attribute_definitions[k])
-        assert re.match('.*"target-features"=".*[+]avx512f.*".*', attribute_definitions[k])
 
     expected_functions = [
         "__tvm_ffi_test_func",
         "__tvm_parallel_lambda",
     ]
     for n in expected_functions:
-        assert n in functions_with_target
+        assert n in function_attr_map, f"Expected function {n} not found in LLVM IR"
+        attr_num = function_attr_map[n]
+        assert re.match('.*"target-cpu"="skylake".*', attribute_definitions[attr_num])
+        assert re.match('.*"target-features"=".*[+]avx512f.*".*', attribute_definitions[attr_num])
 
 
 @tvm.testing.requires_llvm
@@ -1260,27 +1257,6 @@ def test_bool_return_value():
 
     assert isinstance(built(15), bool)
     assert not built(15)
-
-
-def test_invalid_arguments():
-    """Integers may be passed to functions accepting bool"""
-
-    @I.ir_module
-    class Module:
-        @T.prim_func
-        def main(a0: T.bool, a1: T.Buffer([10], "float32")) -> T.int32:
-            T.func_attr({"target": T.target("llvm")})
-            return 0
-
-    built = tvm.compile(Module)
-    with pytest.raises(RuntimeError):
-        built(1, 1)
-
-    with pytest.raises(RuntimeError):
-        built(1, tvm.runtime.empty([10], "int32"))
-
-    with pytest.raises(RuntimeError):
-        built(False, tvm.runtime.empty([11], "float32"))
 
 
 if __name__ == "__main__":

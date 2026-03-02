@@ -121,6 +121,12 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   // void TVMFFIErrorSetRaisedFromCStr(const char *kind, const char* msg);
   ftype_tvm_ffi_error_set_raised_by_c_str_ = llvm::FunctionType::get(
       t_void_, {llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(t_char_, 0)}, false);
+  // Defined in include/tvm/ffi/c_api.h:
+  // void TVMFFIErrorSetRaisedFromCStrParts(const char* kind, const char** msg_parts, int32_t n);
+  ftype_tvm_ffi_error_set_raised_from_c_str_parts_ = llvm::FunctionType::get(
+      t_void_,
+      {llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(llvmGetPointerTo(t_char_, 0), 0), t_int_},
+      false);
   // Defined in include/tvm/runtime/c_backend_api.h:
   // int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFunctionHandle* out);
   ftype_tvm_get_func_from_env_ = llvm::FunctionType::get(
@@ -158,6 +164,9 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
     f_tvm_ffi_set_raised_by_c_str_ = llvm::Function::Create(
         ftype_tvm_ffi_error_set_raised_by_c_str_, llvm::Function::ExternalLinkage,
         "TVMFFIErrorSetRaisedFromCStr", module_.get());
+    f_tvm_ffi_set_raised_from_c_str_parts_ = llvm::Function::Create(
+        ftype_tvm_ffi_error_set_raised_from_c_str_parts_, llvm::Function::ExternalLinkage,
+        "TVMFFIErrorSetRaisedFromCStrParts", module_.get());
     f_tvm_get_func_from_env_ =
         llvm::Function::Create(ftype_tvm_get_func_from_env_, llvm::Function::ExternalLinkage,
                                "TVMBackendGetFuncFromEnv", module_.get());
@@ -270,7 +279,7 @@ std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {
 
 CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value* buf,
                                                          llvm::Value* index, int kind) {
-  if (kind < builtin::kArrKindBound_) {
+  if (kind < builtin::kDLTensorKindBound_) {
     if (buf->getType() == t_void_p_) {
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_array_, 0));
     } else {
@@ -278,64 +287,64 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
     }
   }
   switch (kind) {
-    case builtin::kArrAddr: {
+    case builtin::kDLTensorAddr: {
       return TypedPointer(t_tvm_array_, builder_->CreateInBoundsGEP(t_tvm_array_, buf, index));
     }
-    case builtin::kArrData: {
+    case builtin::kDLTensorData: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(0);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(0)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kArrShape: {
+    case builtin::kDLTensorShape: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(4);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(4)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kArrStrides: {
+    case builtin::kDLTensorStrides: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(5);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(5)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kArrNDim: {
+    case builtin::kDLTensorNDim: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(2);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(2)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kArrTypeCode: {
+    case builtin::kDLTensorTypeCode: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(3)->getStructElementType(0);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(3), ConstInt32(0)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kArrTypeBits: {
+    case builtin::kDLTensorTypeBits: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(3)->getStructElementType(1);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(3), ConstInt32(1)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kArrTypeLanes: {
+    case builtin::kDLTensorTypeLanes: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(3)->getStructElementType(2);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(3), ConstInt32(2)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kArrByteOffset: {
+    case builtin::kDLTensorByteOffset: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(6);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(6)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kArrDeviceId: {
+    case builtin::kDLTensorDeviceId: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(1)->getStructElementType(1);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(1), ConstInt32(1)});
       return TypedPointer(member_type, member_addr);
     }
-    case builtin::kArrDeviceType: {
+    case builtin::kDLTensorDeviceType: {
       llvm::Type* member_type = t_tvm_array_->getStructElementType(1)->getStructElementType(0);
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(1), ConstInt32(0)});
@@ -372,6 +381,11 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
       } else {
         LOG(DEBUG) << "DataType " << t << " cannot be stored into a TVMFFIAny's value field";
       }
+    }
+    case builtin::kInt64ArrayElem: {
+      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_int64_, 0));
+      llvm::Value* elem_addr = builder_->CreateInBoundsGEP(t_int64_, buf, index);
+      return TypedPointer(t_int64_, elem_addr);
     }
     default:
       TVM_FFI_THROW(InternalError) << "unknown field code";
@@ -890,6 +904,82 @@ llvm::Value* CodeGenCPU::RuntimeTVMFFIErrorSetRaisedFromCStr() {
   if (f_tvm_ffi_set_raised_by_c_str_ != nullptr) return f_tvm_ffi_set_raised_by_c_str_;
   return GetContextPtr(gv_tvm_ffi_set_last_error_c_str_);
 }
+llvm::Value* CodeGenCPU::RuntimeTVMFFIErrorSetRaisedFromCStrParts() {
+  if (f_tvm_ffi_set_raised_from_c_str_parts_ != nullptr) {
+    return f_tvm_ffi_set_raised_from_c_str_parts_;
+  }
+  // fallback: create external linkage
+  f_tvm_ffi_set_raised_from_c_str_parts_ = llvm::Function::Create(
+      ftype_tvm_ffi_error_set_raised_from_c_str_parts_, llvm::Function::ExternalLinkage,
+      "TVMFFIErrorSetRaisedFromCStrParts", module_.get());
+  return f_tvm_ffi_set_raised_from_c_str_parts_;
+}
+/*!
+ * \brief Get or create a noinline LLVM helper function for raising errors from TIR assertions.
+ *
+ * Creates an internal LLVM function `__tvm_set_raised_<max_n>` that:
+ *   1. Stack-allocates a `const char**` array of size `max_n`
+ *   2. Stores each message part argument into the array
+ *   3. Calls `TVMFFIErrorSetRaisedFromCStrParts(kind, parts, n)`
+ *
+ * The function is marked `noinline` to keep error-raising code out of the hot path.
+ * Assert codegen emits a conditional branch to a block that calls this helper,
+ * so the error-handling logic does not bloat the main function body.
+ *
+ * Results are cached in `set_raised_helpers_` keyed by `max_n`, so each distinct
+ * bucket size (6, 12, 18, ...) is created at most once per module.
+ *
+ * \param max_n The maximum number of message part slots (rounded up to a bucket size).
+ * \return The LLVM function for raising errors with up to `max_n` message parts.
+ */
+llvm::Function* CodeGenCPU::GetOrCreateSetRaisedHelper(int max_n) {
+  auto it = set_raised_helpers_.find(max_n);
+  if (it != set_raised_helpers_.end()) return it->second;
+
+  llvm::LLVMContext* ctx = llvm_target_->GetContext();
+  // Build function type: void(i8* kind, i32 n, i8* msg0, i8* msg1, ..., i8* msg_{max_n-1})
+  std::vector<llvm::Type*> param_types;
+  param_types.push_back(llvmGetPointerTo(t_char_, 0));  // kind
+  param_types.push_back(t_int_);                        // n
+  for (int i = 0; i < max_n; ++i) {
+    param_types.push_back(llvmGetPointerTo(t_char_, 0));  // msg_i
+  }
+  auto* ftype = llvm::FunctionType::get(t_void_, param_types, false);
+  std::string fname = "__tvm_set_raised_" + std::to_string(max_n);
+  auto* func = llvm::Function::Create(ftype, llvm::Function::InternalLinkage, fname, module_.get());
+  func->addFnAttr(llvm::Attribute::NoInline);
+
+  // Create the function body
+  auto* entry = llvm::BasicBlock::Create(*ctx, "entry", func);
+  llvm::IRBuilder<> b(entry);
+
+  // Alloca array of char* on the stack
+  auto* arr_type = llvm::ArrayType::get(llvmGetPointerTo(t_char_, 0), max_n);
+  auto* parts_alloca = b.CreateAlloca(arr_type);
+
+  // Store each msg_i into parts[i]
+  auto arg_it = func->arg_begin();
+  llvm::Value* kind_arg = &*arg_it++;
+  llvm::Value* n_arg = &*arg_it++;
+  for (int i = 0; i < max_n; ++i) {
+    llvm::Value* msg_i = &*arg_it++;
+    llvm::Value* gep = b.CreateInBoundsGEP(arr_type, parts_alloca, {ConstInt32(0), ConstInt32(i)});
+    b.CreateStore(msg_i, gep);
+  }
+
+  // Cast alloca to const char**
+  llvm::Value* parts_ptr =
+      b.CreateInBoundsGEP(arr_type, parts_alloca, {ConstInt32(0), ConstInt32(0)});
+
+  // Call TVMFFIErrorSetRaisedFromCStrParts(kind, parts, n)
+  auto callee = llvm::FunctionCallee(ftype_tvm_ffi_error_set_raised_from_c_str_parts_,
+                                     RuntimeTVMFFIErrorSetRaisedFromCStrParts());
+  b.CreateCall(callee, {kind_arg, parts_ptr, n_arg});
+  b.CreateRetVoid();
+
+  set_raised_helpers_[max_n] = func;
+  return func;
+}
 llvm::Value* CodeGenCPU::RuntimeTVMParallelLaunch() {
   if (f_tvm_parallel_launch_ != nullptr) return f_tvm_parallel_launch_;
   return GetContextPtr(gv_tvm_parallel_launch_);
@@ -940,7 +1030,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     int kind = op->args[2].as<IntImm>().value()->value;
     TypedPointer ref =
         CreateStructRefPtr(op->dtype, MakeValue(op->args[0]), MakeValue(op->args[1]), kind);
-    if (kind == builtin::kArrAddr) {
+    if (kind == builtin::kDLTensorAddr) {
       return builder_->CreatePointerCast(ref.addr, t_void_p_);
     }
 
@@ -957,7 +1047,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     llvm::Value* value = MakeValue(op->args[3]);
     TypedPointer ref = CreateStructRefPtr(op->args[3].dtype(), MakeValue(op->args[0]),
                                           MakeValue(op->args[1]), kind);
-    TVM_FFI_ICHECK(kind != builtin::kArrAddr);
+    TVM_FFI_ICHECK(kind != builtin::kDLTensorAddr);
     if (value->getType()->isPointerTy()) {
       value = builder_->CreatePointerCast(value, ref.type);
     }
@@ -1002,12 +1092,6 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
 void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
   EmitDebugLocation(op);
   llvm::Value* cond = MakeValue(op->condition);
-  std::ostringstream os;
-  os << "Assert fail: " << op->condition;
-  if (op->message.as<StringImmNode>()) {
-    os << ", " << op->message.as<StringImmNode>()->value;
-  }
-  llvm::Value* msg = GetConstString(os.str());
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   auto* fail_block = llvm::BasicBlock::Create(*ctx, "assert_fail", function_);
   auto* end_block = llvm::BasicBlock::Create(*ctx, "assert_end", function_);
@@ -1015,9 +1099,26 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
   // fail condition.
   builder_->SetInsertPoint(fail_block);
 
-  auto err_callee = llvm::FunctionCallee(ftype_tvm_ffi_error_set_raised_by_c_str_,
-                                         RuntimeTVMFFIErrorSetRaisedFromCStr());
-  builder_->CreateCall(err_callee, {GetConstString("RuntimeError"), msg});
+  int num_parts = static_cast<int>(op->message_parts.size());
+  // Round up to the nearest helper bucket: 6, 12, 18, ...
+  int max_n = ((num_parts + 5) / 6) * 6;
+  if (max_n == 0) max_n = 6;
+
+  llvm::Function* helper = GetOrCreateSetRaisedHelper(max_n);
+  // Build arguments: kind, n, msg0, msg1, ..., msg_{max_n-1}
+  std::vector<llvm::Value*> call_args;
+  call_args.push_back(GetConstString(op->error_kind->value));
+  call_args.push_back(ConstInt32(num_parts));
+  for (int i = 0; i < max_n; ++i) {
+    if (i < num_parts) {
+      call_args.push_back(GetConstString(op->message_parts[i]->value));
+    } else {
+      // Pad with null
+      call_args.push_back(llvm::ConstantPointerNull::get(
+          llvm::cast<llvm::PointerType>(llvmGetPointerTo(t_char_, 0))));
+    }
+  }
+  builder_->CreateCall(helper, call_args);
   builder_->CreateRet(ConstInt32(-1));
   // otherwise set it to be new end.
   builder_->SetInsertPoint(end_block);

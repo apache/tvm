@@ -280,12 +280,12 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
 // Print a reference expression to a buffer.
 std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index,
                                    int kind) {
-  if (kind < builtin::kArrKindBound_) {
+  if (kind < builtin::kDLTensorKindBound_) {
     std::ostringstream os;
     os << "(((DLTensor*)";
     this->PrintExpr(buffer, os);
     os << ")";
-    if (kind == builtin::kArrAddr) {
+    if (kind == builtin::kDLTensorAddr) {
       os << " + ";
       this->PrintExpr(index, os);
       os << ")";
@@ -296,34 +296,34 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     os << "].";
     // other case: get fields.
     switch (kind) {
-      case builtin::kArrData:
+      case builtin::kDLTensorData:
         os << "data";
         break;
-      case builtin::kArrShape:
+      case builtin::kDLTensorShape:
         os << "shape";
         break;
-      case builtin::kArrStrides:
+      case builtin::kDLTensorStrides:
         os << "strides";
         break;
-      case builtin::kArrNDim:
+      case builtin::kDLTensorNDim:
         os << "ndim";
         break;
-      case builtin::kArrTypeCode:
+      case builtin::kDLTensorTypeCode:
         os << "dtype.code";
         break;
-      case builtin::kArrTypeBits:
+      case builtin::kDLTensorTypeBits:
         os << "dtype.bits";
         break;
-      case builtin::kArrByteOffset:
+      case builtin::kDLTensorByteOffset:
         os << "byte_offset";
         break;
-      case builtin::kArrTypeLanes:
+      case builtin::kDLTensorTypeLanes:
         os << "dtype.lanes";
         break;
-      case builtin::kArrDeviceId:
+      case builtin::kDLTensorDeviceId:
         os << "device.device_id";
         break;
-      case builtin::kArrDeviceType:
+      case builtin::kDLTensorDeviceType:
         os << "device.device_type";
         break;
       default:
@@ -358,6 +358,14 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
       TVM_FFI_THROW(InternalError) << "Do not know how to handle type" << t;
     }
     os << ")";
+    return os.str();
+  } else if (kind == builtin::kInt64ArrayElem) {
+    std::ostringstream os;
+    os << "(((int64_t*)";
+    this->PrintExpr(buffer, os);
+    os << ")[";
+    this->PrintExpr(index, os);
+    os << "])";
     return os.str();
   } else {
     TVM_FFI_THROW(RuntimeError) << "Unsupported type index: " << kind;
@@ -1079,12 +1087,77 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
   this->PrintStmt(op->body);
 }
 
+void CodeGenC::PrintEscapedCString(const std::string& str, std::ostream& os) {
+  os << "\"";
+  for (unsigned char c : str) {
+    switch (c) {
+      case '"':
+        os << "\\\"";
+        break;
+      case '\\':
+        os << "\\\\";
+        break;
+      case '\n':
+        os << "\\n";
+        break;
+      case '\t':
+        os << "\\t";
+        break;
+      case '\r':
+        os << "\\r";
+        break;
+      case '\a':
+        os << "\\a";
+        break;
+      case '\b':
+        os << "\\b";
+        break;
+      case '\f':
+        os << "\\f";
+        break;
+      case '\v':
+        os << "\\v";
+        break;
+      case '\0':
+        os << "\\0";
+        break;
+      default:
+        if (c < 0x20 || c >= 0x7f) {
+          // Non-printable: emit as hex escape
+          os << "\\x" << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(c)
+             << std::dec;
+        } else {
+          os << static_cast<char>(c);
+        }
+        break;
+    }
+  }
+  os << "\"";
+}
+
 void CodeGenC::VisitStmt_(const AssertStmtNode* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
-  if (const auto* str = op->message.as<StringImmNode>()) {
-    // GLOG style check
-    stream << "TVM_FFI_ICHECK(" << cond << ") << \"" << str->value << "\";\n";
+  int num_parts = static_cast<int>(op->message_parts.size());
+  if (num_parts > 0) {
+    stream << "if (!(" << cond << ")) {\n";
+    int assert_if_scope = this->BeginScope();
+    PrintIndent();
+    stream << "const char* __tvm_assert_parts[" << num_parts << "] = {";
+    for (int i = 0; i < num_parts; ++i) {
+      if (i > 0) stream << ", ";
+      PrintEscapedCString(op->message_parts[i]->value, stream);
+    }
+    stream << "};\n";
+    PrintIndent();
+    stream << "TVMFFIErrorSetRaisedFromCStrParts(";
+    PrintEscapedCString(op->error_kind->value, stream);
+    stream << ", __tvm_assert_parts, " << num_parts << ");\n";
+    PrintIndent();
+    stream << "return -1;\n";
+    this->EndScope(assert_if_scope);
+    PrintIndent();
+    stream << "}\n";
   } else {
     stream << "assert(" << cond << ");\n";
   }
@@ -1179,10 +1252,10 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
                      << " = 0;\n";
       }
 
-      if (kind == builtin::kArrStrides) {
+      if (kind == builtin::kDLTensorStrides) {
         // cast void* to int64_t*
         cast = call->args[3]->dtype.is_handle() ? "(int64_t*)" : "";
-      } else if (kind == builtin::kArrDeviceType) {
+      } else if (kind == builtin::kDLTensorDeviceType) {
         // cast int to enum
         cast = "(DLDeviceType)";
       }

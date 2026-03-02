@@ -537,10 +537,40 @@ def visit_assert(self: Parser, node: doc.Assert) -> None:
 
     node : doc.Assert
         The doc AST assert node.
+
+    The assert message can be either:
+    - A plain string: ``assert cond, "message"``
+    - A tuple of (kind, [parts...]): ``assert cond, ("ValueError", ["part0", "part1"])``
     """
     cond = self.eval_expr(node.test)
     msg = self.eval_expr(node.msg)
-    frame = T.Assert(cond, msg)
+
+    kind = "RuntimeError"
+    message = msg
+
+    if isinstance(msg, tuple):
+        if len(msg) != 2:
+            self.report_error(
+                node,
+                f"Assert message tuple must have exactly 2 elements (kind, [parts...]), "
+                f"got {len(msg)} elements",
+            )
+        kind_str, parts = msg
+        if isinstance(kind_str, tvm.tir.StringImm):
+            kind_str = kind_str.value
+        if not isinstance(kind_str, str):
+            self.report_error(
+                node,
+                f"Assert message tuple first element must be a string (error kind like "
+                f'"ValueError"), got {type(kind_str).__name__}',
+            )
+        kind = kind_str
+        message = parts
+
+    if isinstance(message, list | tuple):
+        message = [p.value if isinstance(p, tvm.tir.StringImm) else str(p) for p in message]
+
+    frame = T.Assert(cond, message, error_kind=kind)
     frame.add_callback(partial(frame.__exit__, None, None, None))
     frame.__enter__()
 

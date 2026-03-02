@@ -252,7 +252,8 @@ void TIRVisitorWithPath::VisitStmt_(const IfThenElseNode* op, AccessPath path) {
 
 void TIRVisitorWithPath::VisitStmt_(const AssertStmtNode* op, AccessPath path) {
   Visit(op->condition, path->Attr("condition"));
-  Visit(op->message, path->Attr("message"));
+  Visit(op->error_kind, path->Attr("error_kind"));
+  Visit(op->message_parts, path->Attr("message_parts"));
 }
 
 void TIRVisitorWithPath::VisitStmt_(const SeqStmtNode* op, AccessPath path) {

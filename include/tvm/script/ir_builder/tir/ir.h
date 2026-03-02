@@ -286,10 +286,12 @@ ForFrame Grid(ffi::Array<PrimExpr> extents);
 /*!
  * \brief The assertion statement.
  * \param condition The assertion condition.
- * \param message The error message when the assertion fails.
+ * \param error_kind The error kind (e.g. "RuntimeError", "TypeError", "ValueError").
+ * \param message_parts The error message parts (stored as separate fragments in the IR).
  * \return The AssertFrame.
  */
-AssertFrame Assert(PrimExpr condition, ffi::String message);
+AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
+                   ffi::Array<ffi::String> message_parts);
 
 /*!
  * \brief The let binding.

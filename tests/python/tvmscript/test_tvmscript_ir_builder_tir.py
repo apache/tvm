@@ -301,7 +301,11 @@ def test_ir_builder_tir_assert():
     # AssertStmt is a leaf. The frame emits the assert and then the body stmts as siblings.
     assert_expected = tir.SeqStmt(
         [
-            tir.AssertStmt(T.int32() == 0, tir.StringImm("a is 0")),
+            tir.AssertStmt(
+                T.int32() == 0,
+                tir.StringImm("RuntimeError"),
+                [tir.StringImm("a is 0")],
+            ),
             tir.Evaluate(0),
         ]
     )
