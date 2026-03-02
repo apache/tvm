@@ -96,6 +96,11 @@ class Var2BufferCollector : public StmtExprVisitor {
     var2buffer_[op->buffer->data].insert(op->buffer);
     StmtExprVisitor::VisitStmt_(op);
   }
+
+  void VisitStmt_(const AllocBufferNode* op) final {
+    var2buffer_[op->buffer->data].insert(op->buffer);
+    StmtExprVisitor::VisitStmt_(op);
+  }
 };
 
 /*!
@@ -316,6 +321,22 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     // Step 1. Visit block body recursively
     StmtExprVisitor::VisitStmt(op->body);
     // Step 2. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
+    SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
+  }
+
+  void VisitStmt_(const AllocBufferNode* op) final {
+    auto it = var2buffer_.find(op->buffer->data);
+
+    if (it == var2buffer_.end() || it->second.size() > 1) {
+      return StmtExprVisitor::VisitStmt_(op);
+    }
+    const Buffer& buffer = *it->second.begin();
+    if (buffer->dtype != op->buffer->dtype) {
+      return StmtExprVisitor::VisitStmt_(op);
+    }
+
+    VisitBufferDef(op->buffer->data);
+    StmtExprVisitor::VisitStmt(op->body);
     SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
   }
 
@@ -607,6 +628,20 @@ class BufferCompactor : public StmtExprMutator {
     TVM_FFI_ICHECK(n->buffer_var.same_as(new_buffer->data));
     n->extents = new_shape;
     return allocate;
+  }
+
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    AllocBuffer alloc_buf = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto it = buffer_info_.find(alloc_buf->buffer->data);
+    if (it == buffer_info_.end()) {
+      return alloc_buf;
+    }
+    const Buffer& new_buffer = it->second.new_buffer;
+    if (op->buffer->dtype != new_buffer->dtype) {
+      return alloc_buf;
+    }
+    alloc_buf.CopyOnWrite()->buffer = new_buffer;
+    return alloc_buf;
   }
 
   Buffer RewriteAllocBuffer(const Buffer& buffer) {

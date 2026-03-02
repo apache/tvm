@@ -51,6 +51,11 @@ class PurityChecker : TIRVisitorWithPath {
     TIRVisitorWithPath::VisitStmt_(op, path);
   }
 
+  void VisitStmt_(const AllocBufferNode* op, AccessPath path) override {
+    internal_allocations_.insert(op->buffer->data);
+    TIRVisitorWithPath::VisitStmt_(op, path);
+  }
+
   void VisitStmt_(const BufferStoreNode* op, AccessPath path) override {
     TIRVisitorWithPath::VisitStmt_(op, path);
 

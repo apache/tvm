@@ -89,6 +89,35 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
     return stmt;
   }
 
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    std::string storage_scope = GetStorageScope(op->buffer->data);
+    if (IsTextureStorage(storage_scope)) {
+      op = stmt.as<AllocBufferNode>();
+      const auto& extents = op->buffer->shape;
+      TVM_FFI_ICHECK(extents.size() >= 3)
+          << "Only 2D Array RGBA texture is currently supported";
+      const int data_bits = op->buffer->dtype.bits(),
+                vec_length = static_cast<int>(extents.back().as<IntImmNode>()->value);
+      const int channel_size = data_bits * vec_length;
+      TVM_FFI_ICHECK(channel_size == 128 || channel_size == 64)
+          << "Invalid Channel Size: " << channel_size << " bits";
+
+      size_t axis = DefaultTextureLayoutSeparator(extents.size(), storage_scope);
+      auto texture = ApplyTexture2DFlattening<PrimExpr>(extents, extents.size(), axis);
+      ffi::Array<PrimExpr> args;
+      args.push_back(StringImm(storage_scope));
+      args.push_back(IntImm(DataType::Int(64), 3));
+      args.push_back(Call(DataType::Handle(), builtin::tvm_stack_make_shape(),
+                          {texture.width, texture.height, texture.depth}));
+      args.push_back(IntImm(DataType::Int(64), channel_size));
+      stmt = LetStmt(
+          op->buffer->data,
+          Call(op->buffer->data.dtype(), builtin::nd_mem_alloc_with_scope(), args), op->body);
+    }
+    return stmt;
+  }
+
  protected:
   std::string GetStorageScope(const Var& buffer_var) {
     auto* ptr = buffer_var->type_annotation.as<PointerTypeNode>();

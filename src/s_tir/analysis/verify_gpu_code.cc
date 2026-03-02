@@ -86,6 +86,38 @@ class GPUCodeVerifier : public StmtExprVisitor {
     }
   }
 
+  void VisitStmt_(const AllocBufferNode* op) final {
+    StmtVisitor::VisitStmt_(op);
+    auto scope = op->buffer.scope();
+    runtime::StorageScope storage_scope = runtime::StorageScope::Create(scope);
+    int64_t const_size = 1;
+    for (const PrimExpr& e : op->buffer->shape) {
+      if (auto* imm = e.as<IntImmNode>()) {
+        const_size *= imm->value;
+      } else {
+        const_size = 0;
+        break;
+      }
+    }
+    if (storage_scope.rank == runtime::StorageRank::kLocal) {
+      local_memory_per_block_ +=
+          static_cast<size_t>(const_size) * op->buffer->dtype.bytes() * op->buffer->dtype.lanes();
+    } else if (storage_scope.rank == runtime::StorageRank::kShared) {
+      shared_memory_per_block_ +=
+          static_cast<size_t>(const_size) * op->buffer->dtype.bytes() * op->buffer->dtype.lanes();
+    }
+    if (op->buffer->dtype.is_vector()) {
+      if (static_cast<size_t>(op->buffer->dtype.lanes() * op->buffer->dtype.bytes()) >
+          max_vector_bytes_) {
+        std::stringstream s;
+        s << "Number of lanes (" << op->buffer->dtype.lanes() << ") times number of bytes ("
+          << op->buffer->dtype.bytes() << ") for dtype " << op->buffer->dtype
+          << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
+        errors_.push_back(s.str());
+      }
+    }
+  }
+
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tir::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       if (nest_level_ == 0) {

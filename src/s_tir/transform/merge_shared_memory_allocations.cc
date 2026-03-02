@@ -70,10 +70,21 @@ class AllocateCollector : public StmtExprVisitor {
     }
     StmtExprVisitor::VisitStmt_(op);
   }
+  void VisitStmt_(const AllocBufferNode* op) final {
+    if (IsDynamicSharedMemory(op->buffer->data)) {
+      dyn_shmem_alloc_buffers_[op->buffer->data.get()] = op;
+    } else if (IsStaticSharedMemory(op->buffer->data)) {
+      static_shmem_alloc_buffers_[op->buffer->data.get()] = op;
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  }
   // The dynamic mapping from the original buffer var to its allocate
   std::unordered_map<const VarNode*, const AllocateNode*> dyn_shmem_allocs_;
   // The static mapping from the original buffer var to its allocate
   std::unordered_map<const VarNode*, const AllocateNode*> static_shmem_allocs_;
+  // AllocBuffer variants
+  std::unordered_map<const VarNode*, const AllocBufferNode*> dyn_shmem_alloc_buffers_;
+  std::unordered_map<const VarNode*, const AllocBufferNode*> static_shmem_alloc_buffers_;
 };
 
 // Find a linear pattern of storage access
@@ -117,6 +128,16 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     const VarNode* buf = op->buffer_var.get();
     alloc_info_[buf].alloc = op;
     alloc_info_[buf].level = level;
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitStmt_(const AllocBufferNode* op) final {
+    size_t level = scope_.size();
+    const VarNode* buf = op->buffer->data.get();
+    // Reuse alloc_info_ by creating a temporary AllocateNode-like entry.
+    // The alloc pointer is not used for AllocBuffer, but we need to record the level.
+    alloc_info_[buf].level = level;
+    alloc_info_[buf].alloc = nullptr;
     StmtExprVisitor::VisitStmt_(op);
   }
 
@@ -327,6 +348,13 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocateNode* op) final {
     if (IsAppropriateSharedMemory(op->buffer_var)) {
+      return StmtExprMutator::VisitStmt(op->body);
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    if (IsAppropriateSharedMemory(op->buffer->data)) {
       return StmtExprMutator::VisitStmt(op->body);
     }
     return StmtExprMutator::VisitStmt_(op);

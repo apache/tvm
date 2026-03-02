@@ -94,6 +94,21 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     return node;
   }
 
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+
+    if (auto it = alloc_remap_.find(node->buffer->data.get()); it != alloc_remap_.end()) {
+      Buffer buf = Downcast<Buffer>(it->second);
+      auto write_ptr = node.CopyOnWrite();
+      write_ptr->buffer = buf;
+
+      if (buf.scope() == "shared") {
+        write_ptr->body = AttrStmt(buf->data, tir::attr::volatile_scope, 1, write_ptr->body);
+      }
+    }
+    return node;
+  }
+
   ffi::Optional<Buffer> GetRemappedBuffer(const Buffer& buf) {
     if (auto it = buf_remap_.find(buf.get()); it != buf_remap_.end()) {
       return it->second;

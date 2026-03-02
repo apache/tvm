@@ -76,6 +76,13 @@ class BoundChecker : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    if (UpdateIsNeeded(op->buffer->data)) {
+      Update(op->buffer->data, op->buffer->shape, op->buffer->dtype);
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (process_store_ && op->op.same_as(builtin::if_then_else())) {
       unsafe_rewritten_ = true;

@@ -201,6 +201,28 @@ class InferFragmenter : public StmtMutator {
     return stmt;
   }
 
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
+    const VarNode* buffer = op->buffer->data.get();
+    if (fragment_getter.fragments.count(buffer)) {
+      FragmentInfo info = fragment_getter.fragments.at(buffer);
+
+      std::string shape =
+          std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
+      PrimExpr shape_expr = StringImm(shape);
+      Stmt shape_attr =
+          AttrStmt(op->buffer->data, tir::attr::fragment_shape, shape_expr, stmt);
+      if (info.layout != "") {
+        Stmt layout_attr = AttrStmt(op->buffer->data, tir::attr::fragment_layout,
+                                    StringImm(info.layout), shape_attr);
+        return layout_attr;
+      } else {
+        return shape_attr;
+      }
+    }
+    return stmt;
+  }
+
  private:
   // Fragment infomation
   const FragmentGetter& fragment_getter;

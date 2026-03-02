@@ -51,6 +51,21 @@ class VtcmAllocator : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    std::string storage_scope = GetStorageScope(op->buffer->data);
+    if (IsVtcmStorage(storage_scope)) {
+      Stmt body = this->VisitStmt(op->body);
+      ffi::Array<PrimExpr> args;
+      args.push_back(StringImm(storage_scope));
+      args.push_back(IntImm(DataType::Int(64), op->buffer->shape.size()));
+      args.push_back(Call(DataType::Handle(), builtin::tvm_stack_make_shape(), op->buffer->shape));
+      return LetStmt(
+          op->buffer->data,
+          Call(op->buffer->data.dtype(), builtin::nd_mem_alloc_with_scope(), args), body);
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
  protected:
   std::string GetStorageScope(const Var& var) {
     auto* ptr = var->type_annotation.as<PointerTypeNode>();
