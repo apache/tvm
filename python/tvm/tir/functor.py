@@ -70,7 +70,6 @@ from .stmt import (
     Evaluate,
     For,
     IfThenElse,
-    Bind,
     LetStmt,
     SBlock,
     SBlockRealize,
@@ -375,14 +374,14 @@ class PyStmtExprVisitor:
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_let_stmt_(self, op: LetStmt) -> None:
-        """Visit LetStmt.
-        Users can customize this function to overwrite VisitStmt_(const LetStmtNode* op)
+        """Visit Bind (LetStmt alias).
+        Users can customize this function to overwrite VisitStmt_(const BindNode* op)
         on the C++ side.
 
         Parameters
         ----------
         op : LetStmt
-            The LetStmt to be visited.
+            The Bind node to be visited.
         """
         print("visit_let_stmt_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
@@ -1198,14 +1197,14 @@ class PyStmtExprMutator:
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_let_stmt_(self, op: LetStmt) -> Stmt:
-        """Visit LetStmt.
-        Users can customize this function to overwrite VisitStmt_(const LetStmtNode* op)
+        """Visit Bind (LetStmt alias).
+        Users can customize this function to overwrite VisitStmt_(const BindNode* op)
         on the C++ side.
 
         Parameters
         ----------
         op : LetStmt
-            The LetStmt to be visited.
+            The Bind node to be visited.
 
         Returns
         -------

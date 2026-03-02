@@ -493,10 +493,10 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
 
   // Extract type_index from packed_args
   Var type_index(param->name_hint + ".type_index", DataType::Int(32));
-  init_nest_.push_back(Bind(type_index,
-                            tir::Call(DataType::Int(32), builtin::tvm_struct_get(),
-                                      {v_packed_args_, IntImm(DataType::Int(32), param_index),
-                                       IntImm(DataType::Int(32), builtin::kTVMFFIAnyTypeIndex)})));
+  init_nest_.push_back(
+      Bind(type_index, tir::Call(DataType::Int(32), builtin::tvm_struct_get(),
+                                 {v_packed_args_, IntImm(DataType::Int(32), param_index),
+                                  IntImm(DataType::Int(32), builtin::kTVMFFIAnyTypeIndex)})));
 
   // Type-check and load value via per-dtype dispatch
   PrimExpr arg_value;

@@ -180,7 +180,6 @@ void TIRVisitorWithPath::VisitStmt_(const BindNode* op, AccessPath path) {
   // Scope tracking for BindNode is handled at the SeqStmt level by callers.
 }
 
-
 void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 

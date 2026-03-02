@@ -540,7 +540,6 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
   return Bind(var, value, bind_stmt->span);
 }
 
-
 #define TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                     \
   PrimExpr IndexDataTypeRewriter::VisitExpr_(const OP* op) {                       \
     bool is_enabled = is_enabled_;                                                 \
