@@ -220,6 +220,22 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
 
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    Stmt result = StmtExprMutator::VisitStmt_(op);
+    if (!pending_nd_frees_.empty()) {
+      const auto* seq = result.as<SeqStmtNode>();
+      if (seq) {
+        ffi::Array<Stmt> new_seq(seq->seq.begin(), seq->seq.end());
+        for (const auto& free_stmt : pending_nd_frees_) {
+          new_seq.push_back(free_stmt);
+        }
+        pending_nd_frees_.clear();
+        return SeqStmt(new_seq);
+      }
+    }
+    return result;
+  }
+
   Stmt VisitStmt_(const BindNode* op) final {
     if (const CallNode* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::nd_mem_alloc_with_scope())) {
@@ -628,6 +644,15 @@ class BuiltinLower : public StmtExprMutator {
     Stmt null_check =
         IfThenElse(Call(DataType::Bool(), builtin::isnullptr(), {let->var}), throw_last_error);
 
+    // Construct free_nd call and push to pending frees.
+    // The enclosing SeqStmt handler will append these after the body.
+    PrimExpr storage_scope = call->args[0];
+    Call free_op = Call(DataType::Int(32), builtin::tvm_call_packed(),
+                        {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
+                         storage_scope, let->var});
+    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
+    pending_nd_frees_.push_back(free_stmt);
+
     return SeqStmt({Bind(let->var, call_packed), null_check});
   }
 
@@ -652,6 +677,8 @@ class BuiltinLower : public StmtExprMutator {
 
   // Record all stack frames.
   std::vector<AllocaScope> alloca_scope_;
+  // Pending free_nd stmts to be appended at the end of the enclosing SeqStmt.
+  std::vector<Stmt> pending_nd_frees_;
 };
 
 namespace transform {
