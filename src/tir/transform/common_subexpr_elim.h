@@ -28,6 +28,7 @@
 #ifndef TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_H_
 #define TVM_TIR_TRANSFORM_COMMON_SUBEXPR_ELIM_H_
 
+#include <tvm/ir/scope_stack.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt.h>
@@ -72,10 +73,86 @@ class CommonSubexpressionEliminator : public StmtExprMutator {
   Stmt VisitStmt_(const BindNode* op) override;
   Stmt VisitStmt_(const SeqStmtNode* op) override;
   Stmt VisitStmt_(const ForNode* op) override;
+  Stmt VisitStmt_(const IfThenElseNode* op) override;
+  Stmt VisitStmt_(const AttrStmtNode* op) override;
+  Stmt VisitStmt_(const AllocateNode* op) override;
+  Stmt VisitStmt_(const DeclBufferNode* op) override;
+  Stmt VisitStmt_(const WhileNode* op) override;
 
  private:
-  Stmt initial_body_;     // Kept for checking if names of new variables already exist
-  Context context_;       // Context associating variables to (maybe) definitions
+  /*! \brief Scope level for the context stack.
+   *
+   * Each scope level records the size of `context_` when the scope was entered.
+   * When the scope exits (via ScopeStack::WithNewScope), the destructor truncates
+   * `context_` back to the saved size, automatically cleaning up any context
+   * entries added within that scope (e.g., from BindNode or loop variables).
+   *
+   * This approach keeps `context_` as a flat vector for efficient searching
+   * while using ScopeStack for automatic scope-based cleanup.
+   */
+  struct ContextScopeLevel {
+    Context* context{nullptr};
+    size_t saved_size{0};
+
+    ContextScopeLevel() = default;
+    ContextScopeLevel(const ContextScopeLevel&) = delete;
+    ContextScopeLevel& operator=(const ContextScopeLevel&) = delete;
+    ContextScopeLevel(ContextScopeLevel&& other) noexcept
+        : context(other.context), saved_size(other.saved_size) {
+      other.context = nullptr;  // prevent other's destructor from truncating
+    }
+    ContextScopeLevel& operator=(ContextScopeLevel&& other) noexcept {
+      if (this != &other) {
+        // Run our cleanup first
+        if (context) context->resize(saved_size);
+        context = other.context;
+        saved_size = other.saved_size;
+        other.context = nullptr;
+      }
+      return *this;
+    }
+
+    ~ContextScopeLevel() {
+      if (context) context->resize(saved_size);
+    }
+  };
+
+  /*! \brief Enter a new context scope, recording the current context size.
+   *
+   * Must be called inside context_scope_.WithNewScope() to initialize the
+   * newly-pushed scope level. On scope exit, the destructor of
+   * ContextScopeLevel will truncate context_ back to this size.
+   */
+  void EnterContextScope() {
+    auto& level = context_scope_.Current();
+    level.context = &context_;
+    level.saved_size = context_.size();
+  }
+
+  Stmt initial_body_;  // Kept for checking if names of new variables already exist
+
+  /*! \brief Flat context vector associating variables to (optional) definitions.
+   *
+   * This is the searchable context: VisitExpr and VisitStmt scan it linearly
+   * to find existing variables whose values match a candidate computation.
+   * Entries are added by BindNode (with a value) and ForNode (loop var, no value).
+   * Cleanup is automatic via context_scope_: when a scope exits, context_ is
+   * truncated to the size it had when the scope was entered.
+   */
+  Context context_;
+
+  /*! \brief Scope stack for automatic context cleanup.
+   *
+   * Body-carrying statements (For, IfThenElse, AttrStmt, Allocate, DeclBuffer,
+   * While) create new scope levels via WithNewScope. BindNode entries persist
+   * across SeqStmt siblings within the same scope and are cleaned up when the
+   * enclosing body-carrying statement's scope exits.
+   *
+   * The initial scope level (created by ScopeStack's constructor) holds the
+   * function parameters added during PerformCSE.
+   */
+  ScopeStack<ContextScopeLevel> context_scope_;
+
   int num_last_try_ = 0;  // Number of the last variable tried
   int nb_var_ = 0;        // Number of variables introduced by the CSE pass
 
