@@ -410,7 +410,7 @@ def test_preserve_trivial_let_binding():
     @T.prim_func
     def explicit(i: T.int32):
         j = T.int32()
-        T.LetStmt(i, var=j)
+        T.Bind(i, var=j)
         T.evaluate(j)
 
     @T.prim_func
@@ -425,7 +425,7 @@ def test_preserve_trivial_let_binding_of_value():
     @T.prim_func
     def explicit(i: T.int32):
         j = T.int32()
-        T.LetStmt(42, var=j)
+        T.Bind(42, var=j)
         T.evaluate(j)
 
     @T.prim_func

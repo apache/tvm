@@ -102,11 +102,6 @@ class Bind : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BindNode);
 };
 
-/*! \brief Deprecated: use BindNode instead. */
-using LetStmtNode = BindNode;
-/*! \brief Deprecated: use Bind instead. */
-using LetStmt = Bind;
-
 /*!
  * \brief Define certain auxiliary attribute for the body to be a symbolic value.
  *  This provide auxiliary information for IR passes that transforms body.

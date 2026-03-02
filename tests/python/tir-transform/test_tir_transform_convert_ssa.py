@@ -23,7 +23,7 @@ from tvm.script import ir as I
 from tvm.script import tir as T
 
 
-def test_reuse_in_sequential_let_stmt():
+def test_reuse_in_sequential_bind():
     """De-dup sequential variable bindings"""
 
     # Manually construct the PrimFunc body, as SSA violations are
@@ -42,9 +42,9 @@ def test_reuse_in_sequential_let_stmt():
 
     @T.prim_func(private=True)
     def expected():
-        with T.LetStmt(T.int32(16)) as var1:
+        with T.Bind(T.int32(16)) as var1:
             T.evaluate(var1)
-        with T.LetStmt(T.int32(32)) as var2:
+        with T.Bind(T.int32(32)) as var2:
             T.evaluate(var2)
 
     mod = tvm.IRModule.from_expr(before)
@@ -52,7 +52,7 @@ def test_reuse_in_sequential_let_stmt():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
-def test_reuse_in_nested_let_stmt():
+def test_reuse_in_nested_bind():
     """De-dup sequential bindings of the same variable.
 
     In the flat Bind model, all Binds are siblings in a SeqStmt. A second
@@ -108,7 +108,7 @@ def test_reused_var_across_module():
 
     @T.prim_func(private=True)
     def func():
-        with T.LetStmt(10) as var:
+        with T.Bind(10) as var:
             T.evaluate(var)
 
     before = tvm.IRModule(

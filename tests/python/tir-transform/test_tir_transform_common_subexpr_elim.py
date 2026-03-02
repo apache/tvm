@@ -352,7 +352,7 @@ def func_distributivity(
 def func_distributivity_expected(
     B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    with T.LetStmt((y + z) * x) as cse_v1:
+    with T.Bind((y + z) * x) as cse_v1:
         B[i1] = cse_v1
         B[i2] = cse_v1
 
@@ -369,7 +369,7 @@ def func_associativity(
 def func_associativity_expected(
     B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    with T.LetStmt(x + y + z) as cse_v1:
+    with T.Bind(x + y + z) as cse_v1:
         B[i1] = cse_v1
         B[i2] = cse_v1
 

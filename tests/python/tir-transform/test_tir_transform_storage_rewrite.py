@@ -410,9 +410,9 @@ def test_let_buffer_rewrite():
 
     If StorageRewrite replaces the backing variable of an array, such
     as when vectorizing the storage type, the variable must be
-    replaced in the LetStmt that defines it.  Currently, StmtMutator
+    replaced in the Bind that defines it.  Currently, StmtMutator
     only visits usage of variables, and does not visit definitions of
-    variables, so the definition in a LetStmt must be explicitly
+    variables, so the definition in a Bind must be explicitly
     handled.
     """
 

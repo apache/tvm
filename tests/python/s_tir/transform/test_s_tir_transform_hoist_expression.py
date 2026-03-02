@@ -238,7 +238,7 @@ def test_hoist_with_let():
 
 
 def test_hoist_disable_let():
-    """As test_hoist_with_let, but forbid hoisting of LetStmt
+    """As test_hoist_with_let, but forbid hoisting of Bind
 
     Because the condition depends on the let binding, it should no
     longer be hoisted.  With Bind lifecycle management, the condition

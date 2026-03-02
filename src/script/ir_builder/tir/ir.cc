@@ -473,13 +473,6 @@ LetFrame Bind(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional
   return LetFrame(n);
 }
 
-LetFrame LegacyLetStmt(Var var, PrimExpr value) {
-  ObjectPtr<LetFrameNode> n = ffi::make_object<LetFrameNode>();
-  n->var = var;
-  n->value = value;
-  return LetFrame(n);
-}
-
 LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   IterVar iter_var{nullptr};
 
@@ -754,8 +747,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.Grid", Grid)
       .def("script.ir_builder.tir.Assert", Assert)
       .def("script.ir_builder.tir.Bind", Bind)
-      .def("script.ir_builder.tir.LetStmt", Bind)  // backward-compat alias
-      .def("script.ir_builder.tir.LegacyLetStmt", LegacyLetStmt)
       .def("script.ir_builder.tir.Allocate", Allocate)
       .def("script.ir_builder.tir.Attr", Attr)
       .def("script.ir_builder.tir.While", While)

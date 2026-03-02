@@ -145,7 +145,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         return value
     else:
         value = tvm.runtime.convert(value)
-        frame = T.LetStmt(value)
+        frame = T.Bind(value)
         var = frame.var
         IRBuilder.name(var_name, var)
         frame.add_callback(partial(frame.__exit__, None, None, None))
@@ -352,7 +352,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     if not isinstance(ann_var, Var):
         self.report_error(node.annotation, "Annotation should be Var")
     self.eval_assign(target=lhs, source=ann_var, bind_value=bind_assign_value)
-    frame = T.LetStmt(rhs, var=ann_var)
+    frame = T.Bind(rhs, var=ann_var)
     frame.add_callback(partial(frame.__exit__, None, None, None))
     frame.__enter__()
 

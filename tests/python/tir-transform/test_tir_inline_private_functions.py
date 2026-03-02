@@ -150,7 +150,7 @@ class TestDeduplicateBlockName(BaseTestCase):
     class Expected:
         @T.prim_func
         def main(A: T.Buffer([80, 16], "float32"), B: T.Buffer([64, 16], "float32")):
-            with T.LetStmt(T.address_of(A[0, 0]), var=T.handle("float32")) as A_data_1:
+            with T.Bind(T.address_of(A[0, 0]), var=T.handle("float32")) as A_data_1:
                 A_1 = T.decl_buffer(16, "float32", data=A_data_1)
                 B_data_1: T.handle("float32") = T.address_of(B[0, 0])
                 B_1 = T.decl_buffer(16, "float32", data=B_data_1)
@@ -158,7 +158,7 @@ class TestDeduplicateBlockName(BaseTestCase):
                     with T.sblock("scalar_mul_1"):
                         B_1[i] = A_1[i] * 2.0
 
-            with T.LetStmt(T.address_of(A[1, 0]), var=T.handle("float32")) as A_data_2:
+            with T.Bind(T.address_of(A[1, 0]), var=T.handle("float32")) as A_data_2:
                 A_2 = T.decl_buffer(16, "float32", data=A_data_2)
                 B_data_2: T.handle("float32") = T.address_of(B[1, 0])
                 B_2 = T.decl_buffer(16, "float32", data=B_data_2)

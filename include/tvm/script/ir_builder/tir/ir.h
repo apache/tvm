@@ -306,14 +306,6 @@ LetFrame Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt
               ffi::Optional<Var> var = std::nullopt);
 
 /*!
- * \brief Deprecated alias for Bind(). Use Bind() instead.
- */
-inline LetFrame LetStmt(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
-                        ffi::Optional<Var> var = std::nullopt) {
-  return Bind(value, type_annotation, var);
-}
-
-/*!
  * \brief The allocate node.
  * \param extents The extents of the allocate.
  * \param dtype The data type of the buffer.

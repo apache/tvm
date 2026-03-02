@@ -49,7 +49,7 @@ class Bind(Stmt):
     """Bind node.
 
     Bind a variable to a value in the enclosing scope.
-    Bind has no body field (unlike the old LetStmt which required a nested body).
+    Bind has no body field.
     The bound variable is visible in all subsequent statements
     within the same enclosing scope (SeqStmt, ForNode.body, etc.).
 
@@ -76,11 +76,6 @@ class Bind(Stmt):
             value,
             span,  # type: ignore
         )
-
-
-# Deprecated alias: use Bind instead.
-# For backward compat: LetStmt(var, value, body) returns SeqStmt(Bind(var, value), body).
-LetStmt = Bind
 
 
 @tvm_ffi.register_object("tir.AssertStmt")

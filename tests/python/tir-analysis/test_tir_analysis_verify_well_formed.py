@@ -92,8 +92,8 @@ def test_error_for_nested_rebind_usage():
     @T.prim_func(check_well_formed=False)
     def func():
         i = T.int32()
-        with T.LetStmt(42, var=i):
-            with T.LetStmt(42, var=i):
+        with T.Bind(42, var=i):
+            with T.Bind(42, var=i):
                 T.evaluate(i)
 
     with pytest.raises(
@@ -113,9 +113,9 @@ def test_error_for_repeated_binding():
     @T.prim_func(check_well_formed=False)
     def func():
         i = T.int32()
-        with T.LetStmt(42, var=i):
+        with T.Bind(42, var=i):
             T.evaluate(i)
-        with T.LetStmt(17, var=i):
+        with T.Bind(17, var=i):
             T.evaluate(i)
 
     with pytest.raises(ValueError, match="multiple nested definitions of variable i"):
@@ -131,12 +131,12 @@ def test_error_for_cross_function_reuse():
     class mod:
         @T.prim_func
         def func1():
-            with T.LetStmt(42, var=i):
+            with T.Bind(42, var=i):
                 T.evaluate(i)
 
         @T.prim_func
         def func2():
-            with T.LetStmt(42, var=i):
+            with T.Bind(42, var=i):
                 T.evaluate(i)
 
     with pytest.raises(ValueError, match="multiple definitions of variable i"):
@@ -295,10 +295,10 @@ def test_error_message_without_previous_definition_location():
     def func():
         x = T.int32()
 
-        with T.LetStmt(42, var=x):
+        with T.Bind(42, var=x):
             T.evaluate(x)
 
-        with T.LetStmt(99, var=x):  # This should trigger the error
+        with T.Bind(99, var=x):  # This should trigger the error
             T.evaluate(x)
 
     with pytest.raises(ValueError) as exc_info:
@@ -322,8 +322,8 @@ def test_error_message_with_previous_definition_location():
     def func():
         x = T.int32()
 
-        with T.LetStmt(42, var=x):
-            with T.LetStmt(99, var=x):  # This should trigger the error
+        with T.Bind(42, var=x):
+            with T.Bind(99, var=x):  # This should trigger the error
                 T.evaluate(x)
 
     with pytest.raises(ValueError) as exc_info:
@@ -351,10 +351,10 @@ def test_sequential_redefinition_with_location():
     def func():
         x = T.int32()
 
-        with T.LetStmt(1, var=x):
+        with T.Bind(1, var=x):
             T.evaluate(x)
 
-        with T.LetStmt(2, var=x):  # This should trigger the error
+        with T.Bind(2, var=x):  # This should trigger the error
             T.evaluate(x)
 
     with pytest.raises(ValueError) as exc_info:

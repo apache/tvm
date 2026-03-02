@@ -100,7 +100,7 @@ def test_sync_shared_dyn():
 
 
 @tvm.testing.requires_cuda
-def test_sync_let_stmt():
+def test_sync_bind():
     @T.prim_func(private=True)
     def func(A: T.Buffer((16 * 512), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 16)
@@ -113,13 +113,13 @@ def test_sync_let_stmt():
             A_shared_1[ax0] = A[blockIdx_x * 512 + ax0]
         in_thread_A_temp_1 = T.decl_buffer((1,), data=in_thread_A_temp, scope="local")
         in_thread_A_temp_1[0] = T.float32(0)
-        with T.LetStmt(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x]) as A_temp:
+        with T.Bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x]) as A_temp:
             in_thread_A_temp_1[0] = A_temp
-        with T.LetStmt(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 128]) as A_temp:
+        with T.Bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 128]) as A_temp:
             in_thread_A_temp_1[0] = A_temp
-        with T.LetStmt(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 256]) as A_temp:
+        with T.Bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 256]) as A_temp:
             in_thread_A_temp_1[0] = A_temp
-        with T.LetStmt(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 384]) as A_temp:
+        with T.Bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 384]) as A_temp:
             in_thread_A_temp_1[0] = A_temp
         cross_thread_A_temp_1 = T.decl_buffer((1,), data=cross_thread_A_temp, scope="local")
         with T.attr(
@@ -148,13 +148,13 @@ def test_sync_let_stmt():
         in_thread_A_temp_1_1 = T.decl_buffer((1,), data=in_thread_A_temp_1, scope="local")
         in_thread_A_temp_1_1[0] = T.float32(0)
         T.tvm_storage_sync("shared")
-        with T.LetStmt(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x]) as A_temp:
+        with T.Bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x]) as A_temp:
             in_thread_A_temp_1_1[0] = A_temp
-        with T.LetStmt(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 128]) as A_temp:
+        with T.Bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 128]) as A_temp:
             in_thread_A_temp_1_1[0] = A_temp
-        with T.LetStmt(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 256]) as A_temp:
+        with T.Bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 256]) as A_temp:
             in_thread_A_temp_1_1[0] = A_temp
-        with T.LetStmt(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 384]) as A_temp:
+        with T.Bind(in_thread_A_temp_1_1[0] + A_shared_1_1[threadIdx_x + 384]) as A_temp:
             in_thread_A_temp_1_1[0] = A_temp
         cross_thread_A_temp_1_1 = T.decl_buffer((1,), data=cross_thread_A_temp_1, scope="local")
         T.attr(
@@ -180,4 +180,4 @@ if __name__ == "__main__":
     test_sync_else_branch()
     test_sync_read_thread_id_independent_location()
     test_sync_shared_dyn()
-    test_sync_let_stmt()
+    test_sync_bind()

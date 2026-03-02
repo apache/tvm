@@ -252,9 +252,9 @@ for i, j, k in T.grid(128, 128, 128):
     )
 
 
-def test_let_stmt():
+def test_bind():
     with IRBuilder() as ib:
-        with T.LetStmt(T.float32(10)) as v:
+        with T.Bind(T.float32(10)) as v:
             ib.name("v", v)
             T.evaluate(0)
     obj = ib.get()

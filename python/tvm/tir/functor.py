@@ -65,12 +65,12 @@ from .stmt import (
     AllocBuffer,
     AssertStmt,
     AttrStmt,
+    Bind,
     BufferStore,
     DeclBuffer,
     Evaluate,
     For,
     IfThenElse,
-    LetStmt,
     SBlock,
     SBlockRealize,
     SeqStmt,
@@ -160,7 +160,7 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
         f_visit_stmt: Callable | None = None,
         f_visit_expr: Callable | None = None,
         # Stmt
-        f_visit_let_stmt: Callable | None = None,
+        f_visit_bind: Callable | None = None,
         f_visit_attr_stmt: Callable | None = None,
         f_visit_if_then_else: Callable | None = None,
         f_visit_for: Callable | None = None,
@@ -214,7 +214,7 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
             f_visit_stmt,
             f_visit_expr,
             # Stmt
-            f_visit_let_stmt,
+            f_visit_bind,
             f_visit_attr_stmt,
             f_visit_if_then_else,
             f_visit_for,
@@ -277,7 +277,7 @@ class PyStmtExprVisitor:
             "visit_stmt",
             "visit_expr",
             # Stmt
-            "visit_let_stmt_",
+            "visit_bind_",
             "visit_attr_stmt_",
             "visit_if_then_else_",
             "visit_for_",
@@ -373,17 +373,17 @@ class PyStmtExprVisitor:
         print("visit_if_then_else_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_let_stmt_(self, op: LetStmt) -> None:
-        """Visit Bind (LetStmt is a backward-compat alias for Bind).
+    def visit_bind_(self, op: Bind) -> None:
+        """Visit Bind.
         Users can customize this function to overwrite VisitStmt_(const BindNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : LetStmt
+        op : Bind
             The Bind node to be visited.
         """
-        print("visit_let_stmt_", op)
+        print("visit_bind_", op)
         _ffi_api.PyStmtExprVisitorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
     def visit_for_(self, op: For) -> None:
@@ -961,7 +961,7 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
         f_visit_stmt: Callable | None = None,
         f_visit_expr: Callable | None = None,
         # Stmt
-        f_visit_let_stmt: Callable | None = None,
+        f_visit_bind: Callable | None = None,
         f_visit_attr_stmt: Callable | None = None,
         f_visit_if_then_else: Callable | None = None,
         f_visit_for: Callable | None = None,
@@ -1015,7 +1015,7 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
             f_visit_stmt,
             f_visit_expr,
             # Stmt
-            f_visit_let_stmt,
+            f_visit_bind,
             f_visit_attr_stmt,
             f_visit_if_then_else,
             f_visit_for,
@@ -1078,7 +1078,7 @@ class PyStmtExprMutator:
             "visit_stmt",
             "visit_expr",
             # Stmt
-            "visit_let_stmt_",
+            "visit_bind_",
             "visit_attr_stmt_",
             "visit_if_then_else_",
             "visit_for_",
@@ -1196,14 +1196,14 @@ class PyStmtExprMutator:
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_let_stmt_(self, op: LetStmt) -> Stmt:
-        """Visit Bind (LetStmt is a backward-compat alias for Bind).
+    def visit_bind_(self, op: Bind) -> Stmt:
+        """Visit Bind.
         Users can customize this function to overwrite VisitStmt_(const BindNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : LetStmt
+        op : Bind
             The Bind node to be visited.
 
         Returns

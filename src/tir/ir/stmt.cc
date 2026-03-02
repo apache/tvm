@@ -76,16 +76,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](Var var, PrimExpr value, Span span) { return Bind(var, value, span); });
 }
 
-// LetStmt is now a deprecated alias for Bind.
-// Keep the Python-facing factory for backward compat: tir.LetStmt(var, value, body)
-// becomes SeqStmt(Bind(var, value), body).
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.LetStmt", [](Var var, PrimExpr value, Stmt body, Span span) {
-    return SeqStmt::Flatten(Bind(var, value, span), body);
-  });
-}
-
 // AttrStmt
 AttrStmt::AttrStmt(ffi::Any node, ffi::String attr_key, PrimExpr value, Stmt body, Span span) {
   auto n = ffi::make_object<AttrStmtNode>();

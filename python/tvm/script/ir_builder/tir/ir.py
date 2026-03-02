@@ -1014,31 +1014,6 @@ def Bind(  # pylint: disable=invalid-name
     return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def LetStmt(  # pylint: disable=invalid-name
-    value: PrimExpr,
-    type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
-    *,
-    var: Var | None = None,  # pylint: disable=redefined-outer-name
-) -> frame.LetFrame:
-    """Deprecated alias for Bind(). Use T.Bind() instead.
-
-    Parameters
-    ----------
-    value : PrimExpr
-        The value to be bound.
-    type_annotation : Optional[Type] = None
-        The type annotation of the binding.
-    var : Optional[Var] = None
-        The variable to bind. If not specified, a new variable will be created.
-
-    Returns
-    -------
-    let_frame : frame.LetFrame
-        The result LetFrame.
-    """
-    return Bind(value, type_annotation, var=var)
-
-
 def Let(  # pylint: disable=invalid-name
     expr: PrimExpr,
     where: dict[Var, PrimExpr],  # pylint: disable=redefined-outer-name
@@ -1079,7 +1054,7 @@ def let(
 
     @deprecated("T.let", "T.Bind")
     def let_stmt(v: Var, value: PrimExpr) -> frame.LetFrame:
-        return _ffi_api.LegacyLetStmt(v, value)  # type: ignore[attr-defined] # pylint: disable=no-member
+        return Bind(value, var=v)
 
     if body is None:
         return let_stmt(v, value)
@@ -2369,7 +2344,6 @@ __all__ = float_types + [
     "CallEffectKind",
     "let",
     "Bind",
-    "LetStmt",
     "Let",
     "IterVar",
     "CommReducer",

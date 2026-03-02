@@ -1826,7 +1826,7 @@ def test_simplify_buffer_store():
 
 
 def test_simplify_trivial_let_buffer_var():
-    """A LetStmt used in a buffer definition should be retained"""
+    """A Bind used in a buffer definition should be retained"""
 
     @T.prim_func(private=True)
     def before(A_ptr: T.handle("float32")):
@@ -1841,7 +1841,7 @@ def test_simplify_trivial_let_buffer_var():
 
 
 def test_simplify_trivial_let_elem_offset():
-    """A LetStmt used in a buffer definition should be retained, buffer fields unchanged"""
+    """A Bind used in a buffer definition should be retained"""
 
     @T.prim_func(private=True)
     def before(A_ptr: T.handle("float32"), A_offset: T.int32):
@@ -1860,7 +1860,7 @@ def test_simplify_trivial_let_elem_offset():
 
 
 def test_simplify_trivial_let_shape():
-    """A LetStmt used in a buffer definition should be retained, buffer fields unchanged"""
+    """A Bind used in a buffer definition should be retained"""
 
     @T.prim_func(private=True)
     def before(A_ptr: T.handle("float32"), A_size: T.int32):
@@ -1879,7 +1879,7 @@ def test_simplify_trivial_let_shape():
 
 
 def test_simplify_trivial_let_stride():
-    """A LetStmt used in a buffer definition should be retained, buffer fields unchanged"""
+    """A Bind used in a buffer definition should be retained"""
 
     @T.prim_func(private=True)
     def before(A_ptr: T.handle("float32"), A_stride: T.int32):

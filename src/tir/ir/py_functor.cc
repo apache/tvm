@@ -340,7 +340,7 @@ class PyStmtExprVisitor : public ObjectRef {
   }
   TVM_DLL static PyStmtExprVisitor MakePyStmtExprVisitor(ffi::Function f_visit_stmt,            //
                                                          ffi::Function f_visit_expr,            //
-                                                         ffi::Function f_visit_let_stmt,        //
+                                                         ffi::Function f_visit_bind,            //
                                                          ffi::Function f_visit_attr_stmt,       //
                                                          ffi::Function f_visit_if_then_else,    //
                                                          ffi::Function f_visit_for,             //
@@ -390,8 +390,7 @@ class PyStmtExprVisitor : public ObjectRef {
     n->f_visit_stmt = std::move(f_visit_stmt);
     n->f_visit_expr = std::move(f_visit_expr);
     // Set statement functions
-    // f_visit_let_stmt is the Python-facing name; internally it maps to f_visit_bind
-    n->f_visit_bind = std::move(f_visit_let_stmt);
+    n->f_visit_bind = std::move(f_visit_bind);
     n->f_visit_attr_stmt = std::move(f_visit_attr_stmt);
     n->f_visit_if_then_else = std::move(f_visit_if_then_else);
     n->f_visit_for = std::move(f_visit_for);
@@ -697,7 +696,7 @@ class PyStmtExprMutator : public ObjectRef {
    */
   TVM_DLL static PyStmtExprMutator MakePyStmtExprMutator(ffi::Function f_visit_stmt,            //
                                                          ffi::Function f_visit_expr,            //
-                                                         ffi::Function f_visit_let_stmt,        //
+                                                         ffi::Function f_visit_bind,            //
                                                          ffi::Function f_visit_attr_stmt,       //
                                                          ffi::Function f_visit_if_then_else,    //
                                                          ffi::Function f_visit_for,             //
@@ -747,8 +746,7 @@ class PyStmtExprMutator : public ObjectRef {
     n->f_visit_stmt = std::move(f_visit_stmt);
     n->f_visit_expr = std::move(f_visit_expr);
     // Statement functions
-    // f_visit_let_stmt is the Python-facing name; internally it maps to f_visit_bind
-    n->f_visit_bind = std::move(f_visit_let_stmt);
+    n->f_visit_bind = std::move(f_visit_bind);
     n->f_visit_attr_stmt = std::move(f_visit_attr_stmt);
     n->f_visit_if_then_else = std::move(f_visit_if_then_else);
     n->f_visit_for = std::move(f_visit_for);

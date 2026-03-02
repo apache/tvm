@@ -2754,11 +2754,11 @@ def intrinsic_pow():
     return func
 
 
-def let_stmt_var():
+def bind_var():
     @T.prim_func
     def func():
-        with T.LetStmt(0) as x:
-            with T.LetStmt(0) as y:
+        with T.Bind(0) as x:
+            with T.Bind(0) as y:
                 T.evaluate(0)
         T.evaluate(0)
 
@@ -3360,7 +3360,7 @@ ir_generator = tvm.testing.parameter(
     *nested_boolean_expressions(),
     multi_env_threads,
     intrinsic_pow,
-    let_stmt_var,
+    bind_var,
     string_stride,
     string_stride_int64,
     merge_shape_var_def,
