@@ -141,7 +141,7 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
 
   Expr arg = call->args[0];
   tir::PrimFunc getter =
-      GetDLTensorField(tir::builtin::TVMStructFieldKind::kArrTypeCode, field_dtype);
+      GetDLTensorField(tir::builtin::TVMStructFieldKind::kDLTensorTypeCode, field_dtype);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_code");
   return Call(gvar_getter, {arg});
@@ -179,7 +179,7 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
 
   Expr arg = call->args[0];
   tir::PrimFunc getter =
-      GetDLTensorField(tir::builtin::TVMStructFieldKind::kArrTypeBits, field_dtype);
+      GetDLTensorField(tir::builtin::TVMStructFieldKind::kDLTensorTypeBits, field_dtype);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_bits");
   return Call(gvar_getter, {arg});
@@ -217,7 +217,7 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
 
   Expr arg = call->args[0];
   tir::PrimFunc getter =
-      GetDLTensorField(tir::builtin::TVMStructFieldKind::kArrTypeLanes, field_dtype);
+      GetDLTensorField(tir::builtin::TVMStructFieldKind::kDLTensorTypeLanes, field_dtype);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_lanes");
   return Call(gvar_getter, {arg});
@@ -254,7 +254,8 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
   auto field_dtype = Downcast<PrimStructInfo>(call->struct_info_)->dtype;
 
   Expr arg = call->args[0];
-  tir::PrimFunc getter = GetDLTensorField(tir::builtin::TVMStructFieldKind::kArrNDim, field_dtype);
+  tir::PrimFunc getter =
+      GetDLTensorField(tir::builtin::TVMStructFieldKind::kDLTensorNDim, field_dtype);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_ndim");
   return Call(gvar_getter, {arg});
@@ -312,7 +313,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
         shape_buffer->data,
         tir::Call(DataType::Handle(), tir::builtin::tvm_struct_get(),
                   {dlpack_handle, IntImm(DataType::Int(32), 0),
-                   IntImm(DataType::Int(32), tir::builtin::TVMStructFieldKind::kArrShape)}),
+                   IntImm(DataType::Int(32), tir::builtin::TVMStructFieldKind::kDLTensorShape)}),
         body);
 
     body = tir::SeqStmt(
@@ -325,7 +326,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
         ndim,
         tir::Call(ndim->dtype, tir::builtin::tvm_struct_get(),
                   {dlpack_handle, IntImm(DataType::Int(32), 0),
-                   IntImm(DataType::Int(32), tir::builtin::TVMStructFieldKind::kArrNDim)}),
+                   IntImm(DataType::Int(32), tir::builtin::TVMStructFieldKind::kDLTensorNDim)}),
         body);
 
     body = tir::SeqStmt({tir::AssertStmt(0 <= axis, tir::StringImm("RuntimeError"),

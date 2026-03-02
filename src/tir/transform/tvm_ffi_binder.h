@@ -284,28 +284,35 @@ class TVMFFIABIBuilder {
   // ── DLTensor sub-helpers ───────────────────────────────────────
 
   /*!
-   * \brief Extract shape or strides array from a DLTensor and declare a buffer for element access.
+   * \brief Get a DLTensor field pointer (shape or strides) and store it in a LetStmt.
    *
    * \param handle The DLTensor handle variable.
-   * \param field_kind kArrShape or kArrStrides.
-   * \param field_name "shape" or "strides" (used for buffer naming).
-   * \param num_elements Number of elements in the array.
-   * \param arg_name Human-readable base name for the buffer.
-   * \return The declared buffer for element access.
+   * \param field_kind kDLTensorShape or kDLTensorStrides.
+   * \param var_name Name for the pointer variable.
+   * \return A Var holding the field pointer.
    */
-  Buffer DLTensorExtractShapeOrStrides(const Var& handle, int field_kind,
-                                       const std::string& field_name, int num_elements,
-                                       const std::string& arg_name);
+  Var DLTensorGetFieldPtr(const Var& handle, int field_kind, const std::string& var_name);
+
+  /*!
+   * \brief Load an element from a shape/strides int64 array pointer.
+   *
+   * Uses tvm_struct_get with kInt64ArrayElem to access ptr[index].
+   *
+   * \param ptr The int64 array pointer variable (from DLTensorGetFieldPtr).
+   * \param index The element index to load.
+   * \return The loaded int64 value expression.
+   */
+  static PrimExpr LoadInt64ArrayElem(const Var& ptr, int index);
 
   /*!
    * \brief Assert strides form a compact (C-contiguous) layout.
    *
    * \param buffer The expected buffer definition.
-   * \param buf_strides The strides buffer extracted from the DLTensor.
+   * \param strides_ptr The strides pointer variable.
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path AccessPath for the tensor parameter.
    */
-  void BindCompactStrides(const Buffer& buffer, const Buffer& buf_strides,
+  void BindCompactStrides(const Buffer& buffer, const Var& strides_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
 
@@ -313,11 +320,11 @@ class TVMFFIABIBuilder {
    * \brief Bind strides for auto-broadcast buffers: stride=0 for shape==1 dims.
    *
    * \param buffer The expected buffer definition.
-   * \param buf_strides The strides buffer extracted from the DLTensor.
+   * \param strides_ptr The strides pointer variable.
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path AccessPath for the tensor parameter.
    */
-  void BindAutoBroadcastStrides(const Buffer& buffer, const Buffer& buf_strides,
+  void BindAutoBroadcastStrides(const Buffer& buffer, const Var& strides_ptr,
                                 const PrimExpr& v_strides_is_null,
                                 const ffi::reflection::AccessPath& param_path);
 
@@ -325,12 +332,12 @@ class TVMFFIABIBuilder {
    * \brief Bind strides with C-contiguous fallback when strides pointer is NULL.
    *
    * \param buffer The expected buffer definition.
-   * \param buf_strides The strides buffer extracted from the DLTensor.
-   * \param buf_shape The shape buffer (for computing C-contiguous strides).
+   * \param strides_ptr The strides pointer variable.
+   * \param shape_ptr The shape pointer variable (for computing C-contiguous strides).
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path AccessPath for the tensor parameter.
    */
-  void BindRegularStrides(const Buffer& buffer, const Buffer& buf_strides, const Buffer& buf_shape,
+  void BindRegularStrides(const Buffer& buffer, const Var& strides_ptr, const Var& shape_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
 

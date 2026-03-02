@@ -280,12 +280,12 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
 // Print a reference expression to a buffer.
 std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index,
                                    int kind) {
-  if (kind < builtin::kArrKindBound_) {
+  if (kind < builtin::kDLTensorKindBound_) {
     std::ostringstream os;
     os << "(((DLTensor*)";
     this->PrintExpr(buffer, os);
     os << ")";
-    if (kind == builtin::kArrAddr) {
+    if (kind == builtin::kDLTensorAddr) {
       os << " + ";
       this->PrintExpr(index, os);
       os << ")";
@@ -296,34 +296,34 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     os << "].";
     // other case: get fields.
     switch (kind) {
-      case builtin::kArrData:
+      case builtin::kDLTensorData:
         os << "data";
         break;
-      case builtin::kArrShape:
+      case builtin::kDLTensorShape:
         os << "shape";
         break;
-      case builtin::kArrStrides:
+      case builtin::kDLTensorStrides:
         os << "strides";
         break;
-      case builtin::kArrNDim:
+      case builtin::kDLTensorNDim:
         os << "ndim";
         break;
-      case builtin::kArrTypeCode:
+      case builtin::kDLTensorTypeCode:
         os << "dtype.code";
         break;
-      case builtin::kArrTypeBits:
+      case builtin::kDLTensorTypeBits:
         os << "dtype.bits";
         break;
-      case builtin::kArrByteOffset:
+      case builtin::kDLTensorByteOffset:
         os << "byte_offset";
         break;
-      case builtin::kArrTypeLanes:
+      case builtin::kDLTensorTypeLanes:
         os << "dtype.lanes";
         break;
-      case builtin::kArrDeviceId:
+      case builtin::kDLTensorDeviceId:
         os << "device.device_id";
         break;
-      case builtin::kArrDeviceType:
+      case builtin::kDLTensorDeviceType:
         os << "device.device_type";
         break;
       default:
@@ -358,6 +358,14 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
       TVM_FFI_THROW(InternalError) << "Do not know how to handle type" << t;
     }
     os << ")";
+    return os.str();
+  } else if (kind == builtin::kInt64ArrayElem) {
+    std::ostringstream os;
+    os << "(((int64_t*)";
+    this->PrintExpr(buffer, os);
+    os << ")[";
+    this->PrintExpr(index, os);
+    os << "])";
     return os.str();
   } else {
     TVM_FFI_THROW(RuntimeError) << "Unsupported type index: " << kind;
@@ -1244,10 +1252,10 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
                      << " = 0;\n";
       }
 
-      if (kind == builtin::kArrStrides) {
+      if (kind == builtin::kDLTensorStrides) {
         // cast void* to int64_t*
         cast = call->args[3]->dtype.is_handle() ? "(int64_t*)" : "";
-      } else if (kind == builtin::kArrDeviceType) {
+      } else if (kind == builtin::kDLTensorDeviceType) {
         // cast int to enum
         cast = "(DLDeviceType)";
       }
