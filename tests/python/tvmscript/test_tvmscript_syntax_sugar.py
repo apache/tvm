@@ -241,7 +241,7 @@ def test_match_buffer_input_requires_shape_arg():
             T.evaluate(0)
 
 
-def test_letstmt_bufferload_without_type_annotation():
+def test_bind_bufferload_without_type_annotation():
     # Variable assignment of PrimExpr types uses the dtype of the
     # PrimExpr to determine the variable's dtype.  Parsing of
     # buf[indices] is done by generating a BufferSlice object, which
@@ -255,7 +255,7 @@ def test_letstmt_bufferload_without_type_annotation():
         T.evaluate(x)
 
 
-def test_letstmt_bind_with_constant():
+def test_bind_with_constant():
     @T.prim_func
     def constant_binds():
         x = T.meta_var(1)
