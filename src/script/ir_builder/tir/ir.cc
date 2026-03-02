@@ -267,10 +267,11 @@ void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
   }
 }
 
-Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::Optional<Var> data,
-                   ffi::Array<PrimExpr> strides, PrimExpr elem_offset, ffi::String storage_scope,
-                   int align, int offset_factor, ffi::String buffer_type_str,
-                   ffi::Optional<ffi::Array<IntImm>> axis_separators) {
+Buffer SBlockAllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::Optional<Var> data,
+                         ffi::Array<PrimExpr> strides, PrimExpr elem_offset,
+                         ffi::String storage_scope, int align, int offset_factor,
+                         ffi::String buffer_type_str,
+                         ffi::Optional<ffi::Array<IntImm>> axis_separators) {
   Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                              offset_factor, buffer_type_str, axis_separators);
   IRBuilder builder = IRBuilder::Current();
@@ -723,7 +724,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.Reads", Reads)
       .def("script.ir_builder.tir.Writes", Writes)
       .def("script.ir_builder.tir.BlockAttrs", BlockAttrs)
-      .def("script.ir_builder.tir.AllocBuffer", AllocBuffer)
+      .def("script.ir_builder.tir.SBlockAllocBuffer", SBlockAllocBuffer)
       .def("script.ir_builder.tir.AxisSpatial", axis::Spatial)
       .def("script.ir_builder.tir.AxisReduce", axis::Reduce)
       .def("script.ir_builder.tir.AxisScan", axis::Scan)

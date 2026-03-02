@@ -348,7 +348,7 @@ def test_flatten_inside_block():
     class Before:
         @T.prim_func
         def main():
-            A = T.alloc_buffer([32, 32])
+            A = T.sblock_alloc_buffer([32, 32])
             for i, j in T.grid(32, 32):
                 with T.sblock("block"):
                     T.reads(A[i, j])
@@ -358,7 +358,7 @@ def test_flatten_inside_block():
     class Expected:
         @T.prim_func
         def main():
-            A = T.alloc_buffer([1024])
+            A = T.sblock_alloc_buffer([1024])
             for i, j in T.grid(32, 32):
                 with T.sblock("block"):
                     T.reads(A[i * 32 + j])
@@ -375,7 +375,7 @@ def test_no_change_to_2d_physical_buffer():
     class Before:
         @T.prim_func
         def main():
-            A = T.alloc_buffer([32, 32], axis_separators=[1])
+            A = T.sblock_alloc_buffer([32, 32], axis_separators=[1])
             for i, j in T.grid(32, 32):
                 T.evaluate(A[i, j])
 
@@ -392,7 +392,7 @@ def test_flatten_alloc_buffer_with_axis_separators():
     class Before:
         @T.prim_func
         def main():
-            A = T.alloc_buffer([2, 3, 5, 7, 11, 13], axis_separators=[3])
+            A = T.sblock_alloc_buffer([2, 3, 5, 7, 11, 13], axis_separators=[3])
             for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
                 T.evaluate(A[i0, i1, i2, i3, i4, i5])
 
@@ -400,7 +400,7 @@ def test_flatten_alloc_buffer_with_axis_separators():
     class Expected:
         @T.prim_func
         def main():
-            A = T.alloc_buffer([30, 1001], axis_separators=[1])
+            A = T.sblock_alloc_buffer([30, 1001], axis_separators=[1])
             for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
                 T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
 

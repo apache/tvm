@@ -32,7 +32,7 @@ def test_texture_scope():
         def main(a: T.handle, b: T.handle) -> None:
             T.func_attr({"tir.noalias": True})
             A = T.match_buffer(a, (128, 128, 4), dtype="float32", scope="global.texture")
-            B = T.alloc_buffer((128, 128, 4), dtype="float32", scope="global.texture")
+            B = T.sblock_alloc_buffer((128, 128, 4), dtype="float32", scope="global.texture")
             C = T.match_buffer(b, (128, 128, 4), dtype="float32", scope="global.texture")
             for block_idx in T.thread_binding(0, 128, thread="blockIdx.x"):
                 for thread_idx in T.thread_binding(0, 128, thread="threadIdx.x"):

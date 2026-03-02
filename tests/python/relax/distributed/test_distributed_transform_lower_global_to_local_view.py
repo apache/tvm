@@ -41,10 +41,10 @@ def test_mlp():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            T_multiply_1 = T.alloc_buffer((T.int64(128), T.int64(128)))
-            compute = T.alloc_buffer((T.int64(128), T.int64(128)))
-            T_multiply_2 = T.alloc_buffer((T.int64(128), T.int64(128)))
-            T_add = T.alloc_buffer((T.int64(128), T.int64(128)))
+            T_multiply_1 = T.sblock_alloc_buffer((T.int64(128), T.int64(128)))
+            compute = T.sblock_alloc_buffer((T.int64(128), T.int64(128)))
+            T_multiply_2 = T.sblock_alloc_buffer((T.int64(128), T.int64(128)))
+            T_add = T.sblock_alloc_buffer((T.int64(128), T.int64(128)))
             for ax0, ax1 in T.grid(T.int64(128), T.int64(128)):
                 with T.sblock("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -130,10 +130,10 @@ def test_mlp():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            T_multiply_1 = T.alloc_buffer((T.int64(128), T.int64(64)))
-            compute = T.alloc_buffer((T.int64(128), T.int64(64)))
-            T_multiply_2 = T.alloc_buffer((T.int64(128), T.int64(64)))
-            T_add = T.alloc_buffer((T.int64(128), T.int64(64)))
+            T_multiply_1 = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            compute = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            T_multiply_2 = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            T_add = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
                 with T.sblock("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -477,7 +477,7 @@ def test_llama_attention():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            Ared_temp = T.alloc_buffer((T.int64(1), 256))
+            Ared_temp = T.sblock_alloc_buffer((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
@@ -540,11 +540,15 @@ def test_llama_attention():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            T_softmax_maxelem = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(256)), "float16")
-            T_softmax_exp = T.alloc_buffer(
+            T_softmax_maxelem = T.sblock_alloc_buffer(
+                (T.int64(1), T.int64(32), T.int64(256)), "float16"
+            )
+            T_softmax_exp = T.sblock_alloc_buffer(
                 (T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"
             )
-            T_softmax_expsum = T.alloc_buffer((T.int64(1), T.int64(32), T.int64(256)), "float16")
+            T_softmax_expsum = T.sblock_alloc_buffer(
+                (T.int64(1), T.int64(32), T.int64(256)), "float16"
+            )
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), T.int64(256), T.int64(256)):
                 with T.sblock("T_softmax_maxelem"):
                     v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
@@ -1107,7 +1111,7 @@ def test_llama_attention():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            Ared_temp = T.alloc_buffer((T.int64(1), 256))
+            Ared_temp = T.sblock_alloc_buffer((T.int64(1), 256))
             for bsz, i, k in T.grid(T.int64(1), 256, T.int64(4096)):
                 with T.sblock("Ared_temp"):
                     v_bsz, v_i, v_k = T.axis.remap("SSR", [bsz, i, k])
@@ -1196,11 +1200,15 @@ def test_llama_attention():
         ):
             T.func_attr({"tir.noalias": True})
             # with T.sblock("root"):
-            T_softmax_maxelem = T.alloc_buffer((T.int64(1), T.int64(16), T.int64(256)), "float16")
-            T_softmax_exp = T.alloc_buffer(
+            T_softmax_maxelem = T.sblock_alloc_buffer(
+                (T.int64(1), T.int64(16), T.int64(256)), "float16"
+            )
+            T_softmax_exp = T.sblock_alloc_buffer(
                 (T.int64(1), T.int64(16), T.int64(256), T.int64(256)), "float16"
             )
-            T_softmax_expsum = T.alloc_buffer((T.int64(1), T.int64(16), T.int64(256)), "float16")
+            T_softmax_expsum = T.sblock_alloc_buffer(
+                (T.int64(1), T.int64(16), T.int64(256)), "float16"
+            )
             for i0, i1, i2, k in T.grid(T.int64(1), T.int64(16), T.int64(256), T.int64(256)):
                 with T.sblock("T_softmax_maxelem"):
                     v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])

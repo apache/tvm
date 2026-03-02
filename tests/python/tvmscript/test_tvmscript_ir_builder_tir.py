@@ -134,7 +134,7 @@ def test_ir_builder_tir_block_complete():
             T.reads(b[0:16, 0:16])
             T.writes(c[d:128, d:128])
             T.sblock_attr({"key": "value"})
-            T.alloc_buffer((128, 128), "float32")
+            T.sblock_alloc_buffer((128, 128), "float32")
             T.match_buffer(e[0:32, 0:32], (32, 32), "float32")
             T.axis.spatial(128, f)
             T.evaluate(0)

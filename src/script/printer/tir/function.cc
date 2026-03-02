@@ -171,7 +171,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           tir::Buffer buffer = root_block->alloc_buffers[i];
           AccessPath buffer_p = root_block_p->Attr("alloc_buffers")->ArrayItem(i);
           IdDoc lhs = DefineBuffer(buffer, *f, d);
-          ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *f, d,
+          ExprDoc rhs = BufferDecl(buffer, "sblock_alloc_buffer", {}, buffer_p, *f, d,
                                    BufferVarDefinition::DataPointer);
           (*f)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
         }

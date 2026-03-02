@@ -50,9 +50,9 @@ def test_cuda_c1d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 16})
-            conv1d_nlc_local = T.alloc_buffer((1, 128, 128), scope="local")
-            PadInput_shared = T.alloc_buffer((1, 258, 64), scope="shared")
-            weight_shared = T.alloc_buffer((3, 64, 128), scope="shared")
+            conv1d_nlc_local = T.sblock_alloc_buffer((1, 128, 128), scope="local")
+            PadInput_shared = T.sblock_alloc_buffer((1, 258, 64), scope="shared")
+            weight_shared = T.sblock_alloc_buffer((3, 64, 128), scope="shared")
             for n_0_l_0_co_0_fused in T.thread_binding(4, thread="blockIdx.x"):
                 for n_1_l_1_co_1_fused in T.thread_binding(16, thread="vthread.x"):
                     for n_2_l_2_co_2_fused in T.thread_binding(4, thread="threadIdx.x"):
@@ -128,9 +128,9 @@ def test_cuda_c2d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 16})
-            conv2d_nhwc_local = T.alloc_buffer((1, 112, 112, 64), scope="local")
-            PadInput_shared = T.alloc_buffer((1, 230, 230, 3), scope="shared")
-            weight_shared = T.alloc_buffer((7, 7, 3, 64), scope="shared")
+            conv2d_nhwc_local = T.sblock_alloc_buffer((1, 112, 112, 64), scope="local")
+            PadInput_shared = T.sblock_alloc_buffer((1, 230, 230, 3), scope="shared")
+            weight_shared = T.sblock_alloc_buffer((7, 7, 3, 64), scope="shared")
             for n_0_h_0_w_0_co_0_fused in T.thread_binding(16, thread="blockIdx.x"):
                 for n_1_h_1_w_1_co_1_fused in T.thread_binding(56, thread="vthread.x"):
                     for n_2_h_2_w_2_co_2_fused in T.thread_binding(14, thread="threadIdx.x"):
@@ -212,9 +212,9 @@ def test_cuda_c3d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 16})
-            conv3d_ndhwc_local = T.alloc_buffer((1, 8, 112, 112, 64), scope="local")
-            PadInput_shared = T.alloc_buffer((1, 22, 230, 230, 3), scope="shared")
-            weight_shared = T.alloc_buffer((7, 7, 7, 3, 64), scope="shared")
+            conv3d_ndhwc_local = T.sblock_alloc_buffer((1, 8, 112, 112, 64), scope="local")
+            PadInput_shared = T.sblock_alloc_buffer((1, 22, 230, 230, 3), scope="shared")
+            weight_shared = T.sblock_alloc_buffer((7, 7, 7, 3, 64), scope="shared")
             for n_0_d_0_h_0_w_0_co_0_fused in T.thread_binding(2, thread="blockIdx.x"):
                 for n_1_d_1_h_1_w_1_co_1_fused in T.thread_binding(8, thread="vthread.x"):
                     for n_2_d_2_h_2_w_2_co_2_fused in T.thread_binding(392, thread="threadIdx.x"):
@@ -302,9 +302,9 @@ def test_cuda_cap():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 64})
-            conv2d_capsule_nhwijc_local = T.alloc_buffer((1, 8, 8, 4, 4, 32), scope="local")
-            PadInput_shared = T.alloc_buffer((1, 18, 18, 4, 4, 32), scope="shared")
-            weight_shared = T.alloc_buffer((3, 3, 4, 4, 32, 32), scope="shared")
+            conv2d_capsule_nhwijc_local = T.sblock_alloc_buffer((1, 8, 8, 4, 4, 32), scope="local")
+            PadInput_shared = T.sblock_alloc_buffer((1, 18, 18, 4, 4, 32), scope="shared")
+            weight_shared = T.sblock_alloc_buffer((3, 3, 4, 4, 32, 32), scope="shared")
             for n_0_h_0_w_0_cap_i_0_cap_j_0_co_0_fused in T.thread_binding(256, thread="blockIdx.x"):
                 for n_1_h_1_w_1_cap_i_1_cap_j_1_co_1_fused in T.thread_binding(1, thread="vthread.x"):
                     for n_2_h_2_w_2_cap_i_2_cap_j_2_co_2_fused in T.thread_binding(4, thread="threadIdx.x"):
@@ -396,9 +396,9 @@ def test_cuda_dep():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 16})
-            depth_conv2d_nhwc_local = T.alloc_buffer((1, 112, 112, 32), scope="local")
-            PadInput_shared = T.alloc_buffer((1, 114, 114, 32), scope="shared")
-            placeholder_shared = T.alloc_buffer((1, 3, 3, 32), scope="shared")
+            depth_conv2d_nhwc_local = T.sblock_alloc_buffer((1, 112, 112, 32), scope="local")
+            PadInput_shared = T.sblock_alloc_buffer((1, 114, 114, 32), scope="shared")
+            placeholder_shared = T.sblock_alloc_buffer((1, 3, 3, 32), scope="shared")
             for n_0_h_0_w_0_c_0_fused in T.thread_binding(1, thread="blockIdx.x"):
                 for n_1_h_1_w_1_c_1_fused in T.thread_binding(8, thread="vthread.x"):
                     for n_2_h_2_w_2_c_2_fused in T.thread_binding(14, thread="threadIdx.x"):
@@ -477,9 +477,9 @@ def test_cuda_dil():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 512})
-            conv2d_nhwc_local = T.alloc_buffer((1, 109, 109, 64), scope="local")
-            PadInput_shared = T.alloc_buffer((1, 230, 230, 3), scope="shared")
-            weight_shared = T.alloc_buffer((7, 7, 3, 64), scope="shared")
+            conv2d_nhwc_local = T.sblock_alloc_buffer((1, 109, 109, 64), scope="local")
+            PadInput_shared = T.sblock_alloc_buffer((1, 230, 230, 3), scope="shared")
+            weight_shared = T.sblock_alloc_buffer((7, 7, 3, 64), scope="shared")
             for n_0_h_0_w_0_co_0_fused in T.thread_binding(218, thread="blockIdx.x"):
                 for n_1_h_1_w_1_co_1_fused in T.thread_binding(109, thread="vthread.x"):
                     for n_2_h_2_w_2_co_2_fused in T.thread_binding(1, thread="threadIdx.x"):
@@ -558,9 +558,9 @@ def test_cuda_gmm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 1024})
-            Z_local = T.alloc_buffer((1, 128, 128), scope="local")
-            X_shared = T.alloc_buffer((1, 128, 128), scope="shared")
-            Y_shared = T.alloc_buffer((1, 128, 128), scope="shared")
+            Z_local = T.sblock_alloc_buffer((1, 128, 128), scope="local")
+            X_shared = T.sblock_alloc_buffer((1, 128, 128), scope="shared")
+            Y_shared = T.sblock_alloc_buffer((1, 128, 128), scope="shared")
             for b_0_i_0_j_0_fused in T.thread_binding(1, thread="blockIdx.x"):
                 for b_1_i_1_j_1_fused in T.thread_binding(32, thread="vthread.x"):
                     for b_2_i_2_j_2_fused in T.thread_binding(2, thread="threadIdx.x"):
@@ -632,9 +632,9 @@ def test_cuda_grp():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 16})
-            conv2d_nhwc_local = T.alloc_buffer((1, 28, 28, 128), scope="local")
-            PadInput_shared = T.alloc_buffer((1, 58, 58, 64), scope="shared")
-            weight_shared = T.alloc_buffer((3, 3, 16, 128), scope="shared")
+            conv2d_nhwc_local = T.sblock_alloc_buffer((1, 28, 28, 128), scope="local")
+            PadInput_shared = T.sblock_alloc_buffer((1, 58, 58, 64), scope="shared")
+            weight_shared = T.sblock_alloc_buffer((3, 3, 16, 128), scope="shared")
             for n_0_h_0_w_0_co_0_fused in T.thread_binding(2, thread="blockIdx.x"):
                 for n_1_h_1_w_1_co_1_fused in T.thread_binding(1, thread="vthread.x"):
                     for n_2_h_2_w_2_co_2_fused in T.thread_binding(112, thread="threadIdx.x"):
@@ -714,9 +714,9 @@ def test_cuda_t2d():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 64})
-            conv2d_transpose_nhwc_local = T.alloc_buffer((1, 8, 8, 256), scope="local")
-            PadInput_shared = T.alloc_buffer((1, 6, 6, 512), scope="shared")
-            weight_shared = T.alloc_buffer((4, 4, 512, 256), scope="shared")
+            conv2d_transpose_nhwc_local = T.sblock_alloc_buffer((1, 8, 8, 256), scope="local")
+            PadInput_shared = T.sblock_alloc_buffer((1, 6, 6, 512), scope="shared")
+            weight_shared = T.sblock_alloc_buffer((4, 4, 512, 256), scope="shared")
             for n_0_h_0_w_0_co_0_fused in T.thread_binding(256, thread="blockIdx.x"):
                 for n_1_h_1_w_1_co_1_fused in T.thread_binding(2, thread="vthread.x"):
                     for n_2_h_2_w_2_co_2_fused in T.thread_binding(1, thread="threadIdx.x"):
@@ -798,7 +798,7 @@ def test_cuda_nrm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 512})
-            C = T.alloc_buffer((1,))
+            C = T.sblock_alloc_buffer((1,))
             for b_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for b_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
                     for i, j in T.grid(256, 256):
@@ -824,7 +824,7 @@ def test_cuda_nrm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 1024})
-            C_shared = T.alloc_buffer((1,), scope="shared")
+            C_shared = T.sblock_alloc_buffer((1,), scope="shared")
             for b_0_fused in T.thread_binding(1, thread="blockIdx.x"):
                 for ax0, ax1_ax2_fused_0 in T.grid(1, 512):
                     for ax1_ax2_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
@@ -871,8 +871,8 @@ def test_cuda_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 0})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_expsum = T.alloc_buffer((256,))
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum = T.sblock_alloc_buffer((256,))
             for i0_fused_0 in T.thread_binding(2, thread="blockIdx.x"):
                 for i0_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
                     for k in range(256):
@@ -911,8 +911,8 @@ def test_cuda_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 16})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_expsum = T.alloc_buffer((256,))
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum = T.sblock_alloc_buffer((256,))
             for i0_fused in T.thread_binding(256, thread="blockIdx.x"):
                 for k_0 in range(64):
                     for k_1 in T.thread_binding(4, thread="threadIdx.x"):
@@ -951,8 +951,8 @@ def test_cuda_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 512})
-            T_softmax_maxelem = T.alloc_buffer((256,))
-            T_softmax_expsum_shared = T.alloc_buffer((256,), scope="shared")
+            T_softmax_maxelem = T.sblock_alloc_buffer((256,))
+            T_softmax_expsum_shared = T.sblock_alloc_buffer((256,), scope="shared")
             for i0_fused_0 in T.thread_binding(8, thread="blockIdx.x"):
                 for i0_fused_1 in T.thread_binding(32, thread="threadIdx.x"):
                     for k in range(256):
@@ -993,8 +993,8 @@ def test_cuda_sfm():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 0})
-            T_softmax_maxelem_shared = T.alloc_buffer((256,), scope="shared")
-            T_softmax_expsum_shared = T.alloc_buffer((256,), scope="shared")
+            T_softmax_maxelem_shared = T.sblock_alloc_buffer((256,), scope="shared")
+            T_softmax_expsum_shared = T.sblock_alloc_buffer((256,), scope="shared")
             for i0_fused in T.thread_binding(256, thread="blockIdx.x"):
                 for ax0, ax1_0 in T.grid(1, 1):
                     for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
@@ -1070,9 +1070,9 @@ def test_cuda_cbr():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 512})
-            Conv2dOutput_local = T.alloc_buffer((1, 112, 112, 64), scope="local")
-            PaddedInput_shared = T.alloc_buffer((1, 230, 230, 3), scope="shared")
-            kernel_shared = T.alloc_buffer((7, 7, 3, 64), scope="shared")
+            Conv2dOutput_local = T.sblock_alloc_buffer((1, 112, 112, 64), scope="local")
+            PaddedInput_shared = T.sblock_alloc_buffer((1, 230, 230, 3), scope="shared")
+            kernel_shared = T.sblock_alloc_buffer((7, 7, 3, 64), scope="shared")
             for nn_0_yy_0_xx_0_ff_0_fused in T.thread_binding(14, thread="blockIdx.x"):
                 for nn_1_yy_1_xx_1_ff_1_fused in T.thread_binding(4, thread="vthread.x"):
                     for nn_2_yy_2_xx_2_ff_2_fused in T.thread_binding(128, thread="threadIdx.x"):
@@ -1153,9 +1153,9 @@ def test_cuda_tbg():
             T.reads()
             T.writes()
             T.sblock_attr({"meta_schedule.unroll_explicit": 1024})
-            C_local = T.alloc_buffer((1, 12, 128, 128), scope="local")
-            query_T_shared = T.alloc_buffer((1, 12, 128, 64), scope="shared")
-            value_T_shared = T.alloc_buffer((1, 12, 64, 128), scope="shared")
+            C_local = T.sblock_alloc_buffer((1, 12, 128, 128), scope="local")
+            query_T_shared = T.sblock_alloc_buffer((1, 12, 128, 64), scope="shared")
+            value_T_shared = T.sblock_alloc_buffer((1, 12, 64, 128), scope="shared")
             for b_0_h_0_i_0_j_0_fused in T.thread_binding(4, thread="blockIdx.x"):
                 for b_1_h_1_i_1_j_1_fused in T.thread_binding(192, thread="vthread.x"):
                     for b_2_h_2_i_2_j_2_fused in T.thread_binding(32, thread="threadIdx.x"):

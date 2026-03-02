@@ -31,7 +31,7 @@ def element_wise_storage_align(a: T.handle, c: T.handle) -> None:
     with T.sblock("root"):
         T.reads([])
         T.writes([])
-        B = T.alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
+        B = T.sblock_alloc_buffer([128, 128], elem_offset=0, align=64, offset_factor=1)
         for i0 in T.serial(0, 128):
             for ax1 in T.serial(0, 128):
                 with T.sblock("B"):
@@ -111,8 +111,8 @@ This test case is added to test T.comm_reducer, T.reinterpret, T.tvm_thread_allr
 def lowered_loop_split(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
-    reduce_temp0 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
-    normal_reduce_temp0 = T.alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
+    normal_reduce_temp0 = T.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     for i in T.serial(0, 128):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
             normal_reduce_temp0[0] = T.float32(0)

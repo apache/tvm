@@ -267,8 +267,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AllocBuffer>(  //
         "", [](tir::AllocBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d, stmt);
-          // Always print AllocBuffer as T.decl_buffer (without data= parameter).
-          // When the parser sees T.decl_buffer without data, DeclBufferFrame
+          // Always print AllocBuffer as T.alloc_buffer (without data= parameter).
+          // When the parser sees T.alloc_buffer without data, DeclBufferFrame
           // creates AllocBuffer on exit, ensuring a clean roundtrip.
           // Annotations are passed as an extra kwarg when present.
           ffi::Array<ExprDoc> extra_args;
@@ -279,7 +279,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             extra_kwargs_values.push_back(
                 d->AsDoc<ExprDoc>(stmt->annotations, p->Attr("annotations")));
           }
-          ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"),
+          ExprDoc rhs = BufferDecl(stmt->buffer, "alloc_buffer", {}, p->Attr("buffer"),
                                    d->frames.back(), d, BufferVarDefinition::DataPointer);
           // Append annotations kwarg if present
           if (!extra_kwargs_keys.empty()) {

@@ -167,11 +167,11 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The allocated buffer.
  */
-Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                   ffi::Optional<Var> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
-                   PrimExpr elem_offset = PrimExpr(), ffi::String storage_scope = "",
-                   int align = -1, int offset_factor = 0, ffi::String buffer_type = "default",
-                   ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt);
+Buffer SBlockAllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+                         ffi::Optional<Var> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
+                         PrimExpr elem_offset = PrimExpr(), ffi::String storage_scope = "",
+                         int align = -1, int offset_factor = 0, ffi::String buffer_type = "default",
+                         ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt);
 namespace axis {
 
 /*!

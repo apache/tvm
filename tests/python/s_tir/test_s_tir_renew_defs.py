@@ -52,7 +52,7 @@ def test_simple():
     # Buffer A should be remapped
     def elementwise(A: T.Buffer((128, 128), "float32")):
         # Buffer B should be remapped
-        B = T.alloc_buffer((128, 128), "float32")
+        B = T.sblock_alloc_buffer((128, 128), "float32")
         # i, j should be remapped
         for i, j in T.grid(128, 128):
             with T.sblock("B"):

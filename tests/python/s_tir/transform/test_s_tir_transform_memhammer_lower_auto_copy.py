@@ -35,7 +35,9 @@ class Transpose:
             T.sblock_attr({"warp_execution": True})
             for ty in T.thread_binding(8, thread="threadIdx.y"):
                 with T.sblock():
-                    A_shared_dyn = T.alloc_buffer([16, 128], dtype="float32", scope="shared.dyn")
+                    A_shared_dyn = T.sblock_alloc_buffer(
+                        [16, 128], dtype="float32", scope="shared.dyn"
+                    )
                     with T.sblock("A_shared"):
                         T.sblock_attr({"auto_copy": True})
                         for ax0, ax1 in T.grid(128, 16):
@@ -58,7 +60,7 @@ class GlobalToShared:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            A_shared_dyn = T.alloc_buffer(
+                            A_shared_dyn = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="shared.dyn"
                             )
                             with T.sblock("A_shared"):
@@ -82,7 +84,7 @@ class SharedToGlobal:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            A_shared_dyn = T.alloc_buffer(
+                            A_shared_dyn = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="shared.dyn"
                             )
                             with T.sblock("A_shared"):
@@ -106,7 +108,7 @@ class GlobalToSharedWithLocalStage:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            A_shared_dyn = T.alloc_buffer(
+                            A_shared_dyn = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="shared.dyn"
                             )
                             with T.sblock("A_shared"):
@@ -130,10 +132,10 @@ class SharedToWmma:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            A_shared_dyn = T.alloc_buffer(
+                            A_shared_dyn = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float16", scope="shared.dyn"
                             )
-                            A_wmma = T.alloc_buffer(
+                            A_wmma = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float16", scope="wmma.matrix_a"
                             )
                             with T.sblock("A_wmma"):
@@ -152,10 +154,10 @@ class WmmaToShared:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            C_accum = T.alloc_buffer(
+                            C_accum = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
-                            C_shared = T.alloc_buffer(
+                            C_shared = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="shared.dyn"
                             )
                             with T.sblock("C_shared"):
@@ -175,7 +177,7 @@ class WmmaToGlobal:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            C_accum = T.alloc_buffer(
+                            C_accum = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
                             with T.sblock("C_global"):
@@ -196,7 +198,7 @@ class WmmaToGlobalWithFusion:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            C_accum = T.alloc_buffer(
+                            C_accum = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
                             with T.sblock("C_global"):
@@ -218,7 +220,7 @@ class MmaToGlobal:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            C_accum = T.alloc_buffer(
+                            C_accum = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="m16n8k8.matrixC"
                             )
                             with T.sblock("C_global"):
@@ -239,7 +241,7 @@ class TransformedGlobalToShared:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            A_shared_dyn = T.alloc_buffer(
+                            A_shared_dyn = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", strides=[128, 1], scope="shared.dyn"
                             )
                             with T.sblock("A_shared"):
@@ -280,7 +282,7 @@ class TransformedSharedToGlobal:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            A_shared_dyn = T.alloc_buffer(
+                            A_shared_dyn = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", strides=[129, 1], scope="shared.dyn"
                             )
                             with T.sblock("A_shared"):
@@ -325,7 +327,7 @@ class TransformedGlobalToSharedWithLocalStage:
                         with T.sblock(""):
                             T.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                             T.writes(B[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                            A_shared_dyn = T.alloc_buffer(
+                            A_shared_dyn = T.sblock_alloc_buffer(
                                 (128, 128), strides=(128, 1), scope="shared.dyn"
                             )
                             with T.sblock("A_shared"):
@@ -334,7 +336,7 @@ class TransformedGlobalToSharedWithLocalStage:
                                 T.sblock_attr(
                                     {"auto_copy": True, "local_stage": True, "vector_bytes": 16}
                                 )
-                                A_shared_dyn_local = T.alloc_buffer((16, 4), scope="local")
+                                A_shared_dyn_local = T.sblock_alloc_buffer((16, 4), scope="local")
                                 for ax0_ax1_fused_1 in T.thread_binding(8, thread="threadIdx.y"):
                                     for ax0_ax1_fused_2 in T.thread_binding(
                                         32, thread="threadIdx.x"
@@ -430,10 +432,10 @@ class TransformedSharedToWmma:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            A_shared_dyn = T.alloc_buffer(
+                            A_shared_dyn = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float16", strides=[136, 1], scope="shared.dyn"
                             )
-                            A_wmma = T.alloc_buffer(
+                            A_wmma = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float16", scope="wmma.matrix_a"
                             )
                             with T.sblock("C_shared"):
@@ -511,10 +513,10 @@ class TransformedWmmaToShared:
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
                         with T.sblock():
-                            C_accum = T.alloc_buffer(
+                            C_accum = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
-                            C_shared = T.alloc_buffer(
+                            C_shared = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", strides=[136, 1], scope="shared.dyn"
                             )
                             with T.sblock("A_wmma"):
@@ -591,12 +593,12 @@ class TransformedWmmaToGlobal:
                         with T.sblock(""):
                             T.reads()
                             T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                            C_accum = T.alloc_buffer((128, 128), scope="wmma.accumulator")
+                            C_accum = T.sblock_alloc_buffer((128, 128), scope="wmma.accumulator")
                             with T.sblock("C_global"):
                                 T.reads(C_accum[0:128, 0:128])
                                 T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                                 T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
-                                C_accum_shared_dyn = T.alloc_buffer(
+                                C_accum_shared_dyn = T.sblock_alloc_buffer(
                                     (8, 8, 16, 16), strides=(2048, 256, 16, 1), scope="shared.dyn"
                                 )
                                 for ax0_0 in range(8):
@@ -791,14 +793,14 @@ class TransformedWmmaToGlobalWithFusion:
                         with T.sblock():
                             T.reads(A[bx * 128 : bx * 128 + 128])
                             T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                            C_accum = T.alloc_buffer(
+                            C_accum = T.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
                             with T.sblock("C_global"):
                                 T.reads(C_accum[0:128, 0:128], A[bx * 128 : bx * 128 + 128])
                                 T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                                 T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
-                                C_accum_shared_dyn = T.alloc_buffer(
+                                C_accum_shared_dyn = T.sblock_alloc_buffer(
                                     (8, 8, 16, 16), strides=(2048, 256, 16, 1), scope="shared.dyn"
                                 )
                                 for ax0_0 in range(8):
@@ -1013,12 +1015,12 @@ class TransformedMmaToGlobal:
                         with T.sblock(""):
                             T.reads()
                             T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                            C_accum = T.alloc_buffer((128, 128), scope="m16n8k8.matrixC")
+                            C_accum = T.sblock_alloc_buffer((128, 128), scope="m16n8k8.matrixC")
                             with T.sblock("C_global"):
                                 T.reads(C_accum[0:128, 0:128])
                                 T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                                 T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
-                                C_accum_shared_dyn = T.alloc_buffer(
+                                C_accum_shared_dyn = T.sblock_alloc_buffer(
                                     (8, 16, 8, 8), strides=(1152, 72, 8, 1), scope="shared.dyn"
                                 )
                                 for ax0_0 in range(16):

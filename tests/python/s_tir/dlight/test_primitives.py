@@ -26,8 +26,8 @@ from tvm.script import tir as T
 def main(p0: T.Buffer((), "int32"), T_stack: T.Buffer((T.int64(3),), "int32")):
     T.func_attr({"tir.noalias": True})
     # with T.sblock("root"):
-    compile_engine_const = T.alloc_buffer((), "int32")
-    compile_engine_const_1 = T.alloc_buffer((), "int32")
+    compile_engine_const = T.sblock_alloc_buffer((), "int32")
+    compile_engine_const_1 = T.sblock_alloc_buffer((), "int32")
     with T.sblock("compile_engine_const"):
         vi = T.axis.spatial(1, T.int64(0))
         T.reads()

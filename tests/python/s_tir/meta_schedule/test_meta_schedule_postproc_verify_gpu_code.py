@@ -223,9 +223,9 @@ class Conv2dCuda3:
 
 @T.prim_func
 def GmmCuda0(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
-    Z_local = T.alloc_buffer([1, 128, 128], dtype="float32", scope="local")
-    X_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
-    Y_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Z_local = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
+    X_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Y_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     for i0_0_i1_0_i2_0_fused in T.thread_binding(16, thread="blockIdx.x"):
         for i0_1_i1_1_i2_1_fused in T.thread_binding(1, thread="vthread.x"):
             for i0_2_i1_2_i2_2_fused in T.thread_binding(128, thread="threadIdx.x"):
@@ -277,9 +277,9 @@ def GmmCuda0(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "
 
 @T.prim_func
 def GmmCuda1(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
-    Z_local = T.alloc_buffer([1, 128, 128], dtype="float32", scope="local")
-    X_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
-    Y_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Z_local = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
+    X_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Y_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     for i0_0_i1_0_i2_0_fused in T.thread_binding(16, thread="blockIdx.x"):
         for i0_1_i1_1_i2_1_fused in T.thread_binding(1, thread="vthread.x"):
             for i0_2_i1_2_i2_2_fused in T.thread_binding(128, thread="threadIdx.x"):
@@ -336,9 +336,9 @@ def GmmCuda1(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "
 
 @T.prim_func
 def GmmCuda2(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
-    Z_local = T.alloc_buffer([1, 128, 128], dtype="float32", scope="local")
-    X_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
-    Y_shared = T.alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Z_local = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
+    X_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Y_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     for i0_0_i1_0_i2_0_fused in T.thread_binding(16, thread="blockIdx.x"):
         for i0_1_i1_1_i2_1_fused in T.thread_binding(1, thread="vthread.x"):
             for i0_2_i1_2_i2_2_fused in T.thread_binding(128, thread="threadIdx.x"):
@@ -409,11 +409,11 @@ def GMMCUDATensorCore(
     s1_2 = T.int32()
     # body
     # with T.sblock("root")
-    Z_wmma_accumulator = T.alloc_buffer([1024, 1024], dtype="float32", scope="wmma.accumulator")
-    X_shared = T.alloc_buffer([1024, 1024], dtype="float16", scope="shared")
-    Y_shared = T.alloc_buffer([1024, 1024], dtype="float16", scope="shared")
-    X_shared_wmma_matrix_a = T.alloc_buffer([1024, 1024], dtype="float16", scope="wmma.matrix_a")
-    Y_shared_wmma_matrix_b = T.alloc_buffer([1024, 1024], dtype="float16", scope="wmma.matrix_b")
+    Z_wmma_accumulator = T.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="wmma.accumulator")
+    X_shared = T.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="shared")
+    Y_shared = T.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="shared")
+    X_shared_wmma_matrix_a = T.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="wmma.matrix_a")
+    Y_shared_wmma_matrix_b = T.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="wmma.matrix_b")
     for ax0_0_ax1_0_0_ax2_0_0_fused in T.thread_binding(64, thread="blockIdx.x"):
         for ax0_1_ax1_0_1_ax2_0_1_fused in T.thread_binding(2, thread="blockIdx.y"):
             for ax0_2_ax1_0_2_ax2_0_2_fused in T.thread_binding(2, thread="threadIdx.y"):

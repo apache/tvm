@@ -87,12 +87,12 @@ def test_matmul_relu(shared_scope):
     def matmul_relu_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # with T.sblock("root"):
-        C_reindex_shared = T.alloc_buffer((4, 8, 2, 1, 16, 16), scope=shared_scope)
-        C_reindex_shared_wmma_accumulator = T.alloc_buffer((4, 8, 2, 1, 16, 16), scope="wmma.accumulator")
-        A_reindex_shared = T.alloc_buffer((128, 128), "float16", scope=shared_scope)
-        B_reindex_shared = T.alloc_buffer((128, 128), "float16", scope=shared_scope)
-        A_reindex_shared_wmma_matrix_a = T.alloc_buffer((128, 128), "float16", scope="wmma.matrix_a")
-        B_reindex_shared_wmma_matrix_b = T.alloc_buffer((128, 128), "float16", scope="wmma.matrix_b")
+        C_reindex_shared = T.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope=shared_scope)
+        C_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope="wmma.accumulator")
+        A_reindex_shared = T.sblock_alloc_buffer((128, 128), "float16", scope=shared_scope)
+        B_reindex_shared = T.sblock_alloc_buffer((128, 128), "float16", scope=shared_scope)
+        A_reindex_shared_wmma_matrix_a = T.sblock_alloc_buffer((128, 128), "float16", scope="wmma.matrix_a")
+        B_reindex_shared_wmma_matrix_b = T.sblock_alloc_buffer((128, 128), "float16", scope="wmma.matrix_b")
         for ax0_0_0_ax1_0_0_fused in T.thread_binding(8, thread="blockIdx.y"):
             for ax0_0_1_ax1_0_1_fused in T.thread_binding(2, thread="blockIdx.x"):
                 for ax0_0_2_ax1_0_2_fused in T.thread_binding(2, thread="threadIdx.y"):
@@ -238,12 +238,12 @@ def test_matmul_relu_with_fallback():
     def matmul_relu_fallback_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # with T.sblock("root"):
-        C_reindex_shared = T.alloc_buffer((4, 2, 2, 4, 16, 16), scope="shared")
-        C_reindex_shared_wmma_accumulator = T.alloc_buffer((4, 2, 2, 4, 16, 16), scope="wmma.accumulator")
-        A_reindex_shared = T.alloc_buffer((128, 128), "float16", scope="shared")
-        B_reindex_shared = T.alloc_buffer((128, 128), "float16", scope="shared")
-        A_reindex_shared_wmma_matrix_a = T.alloc_buffer((128, 128), "float16", scope="wmma.matrix_a")
-        B_reindex_shared_wmma_matrix_b = T.alloc_buffer((128, 128), "float16", scope="wmma.matrix_b")
+        C_reindex_shared = T.sblock_alloc_buffer((4, 2, 2, 4, 16, 16), scope="shared")
+        C_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((4, 2, 2, 4, 16, 16), scope="wmma.accumulator")
+        A_reindex_shared = T.sblock_alloc_buffer((128, 128), "float16", scope="shared")
+        B_reindex_shared = T.sblock_alloc_buffer((128, 128), "float16", scope="shared")
+        A_reindex_shared_wmma_matrix_a = T.sblock_alloc_buffer((128, 128), "float16", scope="wmma.matrix_a")
+        B_reindex_shared_wmma_matrix_b = T.sblock_alloc_buffer((128, 128), "float16", scope="wmma.matrix_b")
         for ax0_0_0_ax1_0_0_fused in T.thread_binding(2, thread="blockIdx.y"):
             for ax0_0_1_ax1_0_1_fused in T.thread_binding(2, thread="blockIdx.x"):
                 for ax0_0_2_ax1_0_2_fused in T.thread_binding(2, thread="threadIdx.y"):
@@ -396,13 +396,13 @@ def test_conv2d(shared_scope):
     def conv2d_0(inputs: T.Buffer((1, 16, 16, 32), "float16"), weight: T.Buffer((3, 3, 32, 32), "float16"), conv2d_nhwc: T.Buffer((1, 16, 16, 32), "float32")):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # with T.sblock("root"):
-        PadInput = T.alloc_buffer((1, 18, 18, 32), "float16")
-        conv2d_nhwc_reindex_shared_dyn = T.alloc_buffer((16, 2, 1, 1, 16, 16), scope=shared_scope)
-        conv2d_nhwc_reindex_shared_dyn_wmma_accumulator = T.alloc_buffer((16, 2, 1, 1, 16, 16), scope="wmma.accumulator")
-        PadInput_reindex_shared_dyn = T.alloc_buffer((256, 288), "float16", scope=shared_scope)
-        weight_reindex_shared_dyn = T.alloc_buffer((288, 32), "float16", scope=shared_scope)
-        PadInput_reindex_shared_dyn_wmma_matrix_a = T.alloc_buffer((256, 288), "float16", scope="wmma.matrix_a")
-        weight_reindex_shared_dyn_wmma_matrix_b = T.alloc_buffer((288, 32), "float16", scope="wmma.matrix_b")
+        PadInput = T.sblock_alloc_buffer((1, 18, 18, 32), "float16")
+        conv2d_nhwc_reindex_shared_dyn = T.sblock_alloc_buffer((16, 2, 1, 1, 16, 16), scope=shared_scope)
+        conv2d_nhwc_reindex_shared_dyn_wmma_accumulator = T.sblock_alloc_buffer((16, 2, 1, 1, 16, 16), scope="wmma.accumulator")
+        PadInput_reindex_shared_dyn = T.sblock_alloc_buffer((256, 288), "float16", scope=shared_scope)
+        weight_reindex_shared_dyn = T.sblock_alloc_buffer((288, 32), "float16", scope=shared_scope)
+        PadInput_reindex_shared_dyn_wmma_matrix_a = T.sblock_alloc_buffer((256, 288), "float16", scope="wmma.matrix_a")
+        weight_reindex_shared_dyn_wmma_matrix_b = T.sblock_alloc_buffer((288, 32), "float16", scope="wmma.matrix_b")
         for i0, i1, i2, i3 in T.grid(1, 18, 18, 32):
             with T.sblock("PadInput"):
                 v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -580,13 +580,13 @@ def test_matmul_relu_pipeline(shared_scope):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # body
         # with T.sblock("root")
-        C = T.alloc_buffer((128, 128))
-        C_reindex_shared = T.alloc_buffer((4, 4, 2, 2, 16, 16), scope=shared_scope)
-        C_reindex_shared_wmma_accumulator = T.alloc_buffer((4, 4, 2, 2, 16, 16), scope="wmma.accumulator")
-        A_reindex_shared = T.alloc_buffer((128, 128), "float16", scope=shared_scope)
-        B_reindex_shared = T.alloc_buffer((128, 128), "float16", scope=shared_scope)
-        A_reindex_shared_wmma_matrix_a = T.alloc_buffer((128, 128), "float16", scope="wmma.matrix_a")
-        B_reindex_shared_wmma_matrix_b = T.alloc_buffer((128, 128), "float16", scope="wmma.matrix_b")
+        C = T.sblock_alloc_buffer((128, 128))
+        C_reindex_shared = T.sblock_alloc_buffer((4, 4, 2, 2, 16, 16), scope=shared_scope)
+        C_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((4, 4, 2, 2, 16, 16), scope="wmma.accumulator")
+        A_reindex_shared = T.sblock_alloc_buffer((128, 128), "float16", scope=shared_scope)
+        B_reindex_shared = T.sblock_alloc_buffer((128, 128), "float16", scope=shared_scope)
+        A_reindex_shared_wmma_matrix_a = T.sblock_alloc_buffer((128, 128), "float16", scope="wmma.matrix_a")
+        B_reindex_shared_wmma_matrix_b = T.sblock_alloc_buffer((128, 128), "float16", scope="wmma.matrix_b")
         for ax0_0_0_ax1_0_0_fused in T.thread_binding(1, thread="blockIdx.y"):
             for ax0_0_1_ax1_0_1_fused in T.thread_binding(16, thread="blockIdx.x"):
                 for ax0_0_2_ax1_0_2_fused in T.thread_binding(1, thread="threadIdx.y"):
@@ -758,12 +758,12 @@ def test_padded_matmul_relu():
     @T.prim_func
     def padded_matmul_relu_0(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 127), "float16"), compute: T.Buffer((127, 127), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        C_reindex_shared = T.alloc_buffer((4, 8, 2, 1, 16, 16), scope="shared")
-        C_reindex_shared_wmma_accumulator = T.alloc_buffer((4, 8, 2, 1, 16, 16), scope="wmma.accumulator")
-        A_reindex_shared = T.alloc_buffer((128, 128), "float16", scope="shared")
-        B_reindex_shared = T.alloc_buffer((128, 128), "float16", scope="shared")
-        A_reindex_shared_wmma_matrix_a = T.alloc_buffer((128, 128), "float16", scope="wmma.matrix_a")
-        B_reindex_shared_wmma_matrix_b = T.alloc_buffer((128, 128), "float16", scope="wmma.matrix_b")
+        C_reindex_shared = T.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope="shared")
+        C_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope="wmma.accumulator")
+        A_reindex_shared = T.sblock_alloc_buffer((128, 128), "float16", scope="shared")
+        B_reindex_shared = T.sblock_alloc_buffer((128, 128), "float16", scope="shared")
+        A_reindex_shared_wmma_matrix_a = T.sblock_alloc_buffer((128, 128), "float16", scope="wmma.matrix_a")
+        B_reindex_shared_wmma_matrix_b = T.sblock_alloc_buffer((128, 128), "float16", scope="wmma.matrix_b")
         for ax0_0_0_ax1_0_0_fused in T.thread_binding(8, thread="blockIdx.y"):
             for ax0_0_1_ax1_0_1_fused in T.thread_binding(2, thread="blockIdx.x"):
                 for ax0_0_2_ax1_0_2_fused in T.thread_binding(2, thread="threadIdx.y"):
@@ -907,12 +907,12 @@ def test_conv_1x1():
     def conv2d_1x1_0(inputs: T.Buffer((1, 16, 16, 64), "float16"), weight: T.Buffer((1, 1, 64, 64), "float16"), conv2d_nhwc: T.Buffer((1, 16, 16, 64), "float32")):
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         # with T.sblock("root"):
-        conv2d_nhwc_reindex_shared = T.alloc_buffer((2, 1, 8, 4, 16, 16), scope="shared")
-        conv2d_nhwc_reindex_shared_wmma_accumulator = T.alloc_buffer((2, 1, 8, 4, 16, 16), scope="wmma.accumulator")
-        PadInput_reindex_shared = T.alloc_buffer((256, 64), "float16", scope="shared")
-        weight_reindex_shared = T.alloc_buffer((1, 1, 64, 64), "float16", scope="shared")
-        PadInput_reindex_shared_wmma_matrix_a = T.alloc_buffer((256, 64), "float16", scope="wmma.matrix_a")
-        weight_reindex_shared_wmma_matrix_b = T.alloc_buffer((1, 1, 64, 64), "float16", scope="wmma.matrix_b")
+        conv2d_nhwc_reindex_shared = T.sblock_alloc_buffer((2, 1, 8, 4, 16, 16), scope="shared")
+        conv2d_nhwc_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((2, 1, 8, 4, 16, 16), scope="wmma.accumulator")
+        PadInput_reindex_shared = T.sblock_alloc_buffer((256, 64), "float16", scope="shared")
+        weight_reindex_shared = T.sblock_alloc_buffer((1, 1, 64, 64), "float16", scope="shared")
+        PadInput_reindex_shared_wmma_matrix_a = T.sblock_alloc_buffer((256, 64), "float16", scope="wmma.matrix_a")
+        weight_reindex_shared_wmma_matrix_b = T.sblock_alloc_buffer((1, 1, 64, 64), "float16", scope="wmma.matrix_b")
         for ax0_ax1_ax2_0_0_ax3_0_0_fused in T.thread_binding(1, thread="blockIdx.y"):
             for ax2_0_1_ax3_0_1_fused in T.thread_binding(1, thread="blockIdx.x"):
                 for ax2_0_2_ax3_0_2_fused in T.thread_binding(2, thread="threadIdx.y"):
@@ -1065,12 +1065,12 @@ def test_padded_conv():
     def padded_conv2d_0(inputs: T.Buffer((1, 224, 224, 3), "float16"), weight: T.Buffer((7, 7, 3, 64), "float16"), conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        conv2d_nhwc_reindex_shared = T.alloc_buffer((56, 2, 14, 2, 16, 16), scope="shared")
-        conv2d_nhwc_reindex_shared_wmma_accumulator = T.alloc_buffer((56, 2, 14, 2, 16, 16), scope="wmma.accumulator")
-        PadInput_reindex_pad_shared = T.alloc_buffer((12544, 160), "float16", scope="shared")
-        weight_reindex_pad_shared = T.alloc_buffer((160, 64), "float16", scope="shared")
-        PadInput_reindex_pad_shared_wmma_matrix_a = T.alloc_buffer((12544, 160), "float16", scope="wmma.matrix_a")
-        weight_reindex_pad_shared_wmma_matrix_b = T.alloc_buffer((160, 64), "float16", scope="wmma.matrix_b")
+        conv2d_nhwc_reindex_shared = T.sblock_alloc_buffer((56, 2, 14, 2, 16, 16), scope="shared")
+        conv2d_nhwc_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((56, 2, 14, 2, 16, 16), scope="wmma.accumulator")
+        PadInput_reindex_pad_shared = T.sblock_alloc_buffer((12544, 160), "float16", scope="shared")
+        weight_reindex_pad_shared = T.sblock_alloc_buffer((160, 64), "float16", scope="shared")
+        PadInput_reindex_pad_shared_wmma_matrix_a = T.sblock_alloc_buffer((12544, 160), "float16", scope="wmma.matrix_a")
+        weight_reindex_pad_shared_wmma_matrix_b = T.sblock_alloc_buffer((160, 64), "float16", scope="wmma.matrix_b")
         for ax0_0_0_ax1_0_0_fused in T.thread_binding(14, thread="blockIdx.y"):
             for ax0_0_1_ax1_0_1_fused in T.thread_binding(1, thread="blockIdx.x"):
                 for ax0_0_2_ax1_0_2_fused in T.thread_binding(8, thread="threadIdx.y"):
@@ -1217,12 +1217,12 @@ def test_padded_matmul_single_padded_input():
     def padded_matmul_single_padded_input_0(A: T.Buffer((1023, 4096), "float16"), B: T.Buffer((4096, 1024), "float16"), C: T.Buffer((1023, 1024), "float32")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        C_reindex_pad_shared = T.alloc_buffer((8, 32, 8, 2, 16, 16), scope="shared")
-        C_reindex_pad_shared_wmma_accumulator = T.alloc_buffer((8, 32, 8, 2, 16, 16), scope="wmma.accumulator")
-        A_reindex_pad_shared = T.alloc_buffer((1024, 4096), "float16", scope="shared")
-        B_reindex_shared = T.alloc_buffer((4096, 1024), "float16", scope="shared")
-        A_reindex_pad_shared_wmma_matrix_a = T.alloc_buffer((1024, 4096), "float16", scope="wmma.matrix_a")
-        B_reindex_shared_wmma_matrix_b = T.alloc_buffer((4096, 1024), "float16", scope="wmma.matrix_b")
+        C_reindex_pad_shared = T.sblock_alloc_buffer((8, 32, 8, 2, 16, 16), scope="shared")
+        C_reindex_pad_shared_wmma_accumulator = T.sblock_alloc_buffer((8, 32, 8, 2, 16, 16), scope="wmma.accumulator")
+        A_reindex_pad_shared = T.sblock_alloc_buffer((1024, 4096), "float16", scope="shared")
+        B_reindex_shared = T.sblock_alloc_buffer((4096, 1024), "float16", scope="shared")
+        A_reindex_pad_shared_wmma_matrix_a = T.sblock_alloc_buffer((1024, 4096), "float16", scope="wmma.matrix_a")
+        B_reindex_shared_wmma_matrix_b = T.sblock_alloc_buffer((4096, 1024), "float16", scope="wmma.matrix_b")
         for ax0_0_0_ax1_0_0_fused in T.thread_binding(1, thread="blockIdx.y"):
             for ax0_0_1_ax1_0_1_fused in T.thread_binding(32, thread="blockIdx.x"):
                 for ax0_0_2_ax1_0_2_fused in T.thread_binding(8, thread="threadIdx.y"):
@@ -1365,12 +1365,12 @@ def test_padded_matmul_no_padded_output():
     def padded_matmul_no_padded_output_0(A: T.Buffer((1024, 4095), "float16"), B: T.Buffer((4095, 1024), "float16"), C: T.Buffer((1024, 1024), "float32")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        C_reindex_shared = T.alloc_buffer((32, 16, 2, 4, 16, 16), scope="shared")
-        C_reindex_shared_wmma_accumulator = T.alloc_buffer((32, 16, 2, 4, 16, 16), scope="wmma.accumulator")
-        A_reindex_pad_shared = T.alloc_buffer((1024, 4096), "float16", scope="shared")
-        B_reindex_pad_shared = T.alloc_buffer((4096, 1024), "float16", scope="shared")
-        A_reindex_pad_shared_wmma_matrix_a = T.alloc_buffer((1024, 4096), "float16", scope="wmma.matrix_a")
-        B_reindex_pad_shared_wmma_matrix_b = T.alloc_buffer((4096, 1024), "float16", scope="wmma.matrix_b")
+        C_reindex_shared = T.sblock_alloc_buffer((32, 16, 2, 4, 16, 16), scope="shared")
+        C_reindex_shared_wmma_accumulator = T.sblock_alloc_buffer((32, 16, 2, 4, 16, 16), scope="wmma.accumulator")
+        A_reindex_pad_shared = T.sblock_alloc_buffer((1024, 4096), "float16", scope="shared")
+        B_reindex_pad_shared = T.sblock_alloc_buffer((4096, 1024), "float16", scope="shared")
+        A_reindex_pad_shared_wmma_matrix_a = T.sblock_alloc_buffer((1024, 4096), "float16", scope="wmma.matrix_a")
+        B_reindex_pad_shared_wmma_matrix_b = T.sblock_alloc_buffer((4096, 1024), "float16", scope="wmma.matrix_b")
         for ax0_0_0_ax1_0_0_fused in T.thread_binding(64, thread="blockIdx.y"):
             for ax0_0_1_ax1_0_1_fused in T.thread_binding(2, thread="blockIdx.x"):
                 for ax0_0_2_ax1_0_2_fused in T.thread_binding(4, thread="threadIdx.y"):

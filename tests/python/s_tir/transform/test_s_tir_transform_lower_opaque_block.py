@@ -38,7 +38,7 @@ def compacted_elementwise_func(a: T.handle, c: T.handle) -> None:
         with T.sblock():
             T.reads(A[i, 0:16])
             T.writes(C[i, 0:16])
-            B = T.alloc_buffer([1, 16], "float32", scope="global")
+            B = T.sblock_alloc_buffer([1, 16], "float32", scope="global")
             for j in range(0, 16):
                 with T.sblock():
                     T.reads(A[i, j])
@@ -73,7 +73,7 @@ def compacted_gpu_func(a: T.handle, c: T.handle) -> None:
                 with T.sblock():
                     T.reads(A[i0 * 4 + i1 * 2 + i2, 0:16])
                     T.writes(C[i0 * 4 + i1 * 2 + i2, 0:16])
-                    B = T.alloc_buffer([1, 16], "float32", scope="local")
+                    B = T.sblock_alloc_buffer([1, 16], "float32", scope="local")
                     for j in range(0, 16):
                         with T.sblock():
                             T.reads(A[i0 * 4 + i1 * 2 + i2, j])
@@ -114,7 +114,7 @@ def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) ->
         with T.sblock():
             T.reads(A[i, m])
             T.writes(C[i, m])
-            B = T.alloc_buffer((m,), "float32", scope="global")
+            B = T.sblock_alloc_buffer((m,), "float32", scope="global")
             for j in range(0, m):
                 with T.sblock():
                     T.reads(A[i, j])
@@ -193,8 +193,8 @@ def compacted_multi_alloc_func(a: T.handle, d: T.handle) -> None:
         with T.sblock():
             T.reads(A[i])
             T.writes(D[i])
-            B = T.alloc_buffer((32,), scope="global")
-            C = T.alloc_buffer((32,), scope="global")
+            B = T.sblock_alloc_buffer((32,), scope="global")
+            C = T.sblock_alloc_buffer((32,), scope="global")
             B[i] = A[i] + 1.0
             C[i] = A[i] + B[i]
             D[i] = C[i] * 2.0
@@ -221,7 +221,7 @@ def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
         with T.sblock():
             T.reads(A[i0 * 4 : i0 * 4 + 4, 0:16])
             T.writes(C[i0 * 4 : i0 * 4 + 4, 0:16])
-            B = T.alloc_buffer([4, 16], "float32", strides=[17, 1], scope="global")
+            B = T.sblock_alloc_buffer([4, 16], "float32", strides=[17, 1], scope="global")
             for i1 in range(0, 4):
                 for j in range(0, 16):
                     with T.sblock():
@@ -257,7 +257,7 @@ def compacted_symbolic_strided_buffer_func(a: T.handle) -> None:
     # with T.sblock("root"):
     for i, j, k in T.grid(((n + 63) // 64 * 4 + 7) // 8, 2, 160):
         with T.sblock(""):
-            A_pad_shared_dyn = T.alloc_buffer(
+            A_pad_shared_dyn = T.sblock_alloc_buffer(
                 (1, padded_size, 64), strides=(72 * padded_size, 72, 1), scope="shared.dyn"
             )
             for ax0, ax1 in T.grid(96, 64):

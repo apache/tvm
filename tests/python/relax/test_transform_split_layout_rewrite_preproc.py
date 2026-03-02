@@ -32,7 +32,7 @@ def test_single_buffer():
             Out: T.Buffer((224, 224), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
-            W_rewrite = T.alloc_buffer((4, 4, 56, 56))
+            W_rewrite = T.sblock_alloc_buffer((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
                 with T.sblock("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -114,8 +114,8 @@ def test_multiple_buffers():
             W2: T.Buffer((224, 224), "float32"),
             Out: T.Buffer((224, 224), "float32"),
         ):
-            W1_rewrite = T.alloc_buffer((4, 4, 56, 56))
-            W2_rewrite = T.alloc_buffer((4, 4, 56, 56))
+            W1_rewrite = T.sblock_alloc_buffer((4, 4, 56, 56))
+            W2_rewrite = T.sblock_alloc_buffer((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
                 with T.sblock("W1_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
@@ -226,7 +226,7 @@ def test_attr_inheritance():
             Out: T.Buffer((224, 224), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1], "tir.noalias": True})
-            W_rewrite = T.alloc_buffer((4, 4, 56, 56))
+            W_rewrite = T.sblock_alloc_buffer((4, 4, 56, 56))
             for i, j in T.grid(224, 224):
                 with T.sblock("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])

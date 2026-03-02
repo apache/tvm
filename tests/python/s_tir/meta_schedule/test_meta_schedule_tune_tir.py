@@ -50,7 +50,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 @T.prim_func
 def two_step(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (1024, 1024), "float32")
-    B = T.alloc_buffer((1024, 1024), "float32")
+    B = T.sblock_alloc_buffer((1024, 1024), "float32")
     C = T.match_buffer(c, (1024, 1024), "float32")
     for i, j in T.grid(1024, 1024):
         with T.sblock("A"):

@@ -33,10 +33,10 @@ def test_gemv_basic():
         lv1614 = T.match_buffer(p_lv1614, (1, 1, 1, n), "float16")
         var_compute_intermediate = T.match_buffer(p_output0, (1, 32, 1, n))
         # with T.sblock("root"):
-        var_NT_matmul_intermediate = T.alloc_buffer((1, 32, 1, n), "float16")
-        var_T_divide_intermediate = T.alloc_buffer((1, 32, 1, n), "float16")
-        var_T_maximum_intermediate = T.alloc_buffer((1, 32, 1, n), "float16")
-        var_T_minimum_intermediate = T.alloc_buffer((1, 32, 1, n), "float16")
+        var_NT_matmul_intermediate = T.sblock_alloc_buffer((1, 32, 1, n), "float16")
+        var_T_divide_intermediate = T.sblock_alloc_buffer((1, 32, 1, n), "float16")
+        var_T_maximum_intermediate = T.sblock_alloc_buffer((1, 32, 1, n), "float16")
+        var_T_minimum_intermediate = T.sblock_alloc_buffer((1, 32, 1, n), "float16")
         for i0, i1, i2, i3, k in T.grid(1, 32, 1, n, 128):
             with T.sblock("NT_matmul"):
                 v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
@@ -78,11 +78,11 @@ def test_gemv_basic():
         lv1614 = T.match_buffer(p_lv1614, (1, 1, 1, n), "float16")
         var_compute_intermediate = T.match_buffer(p_output0, (1, 32, 1, n))
         # with T.sblock("root"):
-        var_NT_matmul_intermediate_local = T.alloc_buffer((1, 32, 1, n), "float16", scope="local")
-        var_NT_matmul_intermediate_rf_local = T.alloc_buffer((128, 1, 32, 1, n), "float16", scope="local")
-        var_NT_matmul_intermediate_rf_local_1 = T.alloc_buffer((64, 1, 32, 1, n), "float16", scope="local")
-        lv1638_local = T.alloc_buffer((1, 32, n, 128), "float16", scope="local")
-        lv1637_shared = T.alloc_buffer((1, 32, 1, 128), "float16", scope="shared")
+        var_NT_matmul_intermediate_local = T.sblock_alloc_buffer((1, 32, 1, n), "float16", scope="local")
+        var_NT_matmul_intermediate_rf_local = T.sblock_alloc_buffer((128, 1, 32, 1, n), "float16", scope="local")
+        var_NT_matmul_intermediate_rf_local_1 = T.sblock_alloc_buffer((64, 1, 32, 1, n), "float16", scope="local")
+        lv1638_local = T.sblock_alloc_buffer((1, 32, n, 128), "float16", scope="local")
+        lv1637_shared = T.sblock_alloc_buffer((1, 32, 1, 128), "float16", scope="shared")
         for ax0_fused_ax1_fused_fused_0 in T.thread_binding(n * 32, thread="blockIdx.x"):
             for ax0_fused_ax1_fused_fused_1 in T.thread_binding(1, thread="threadIdx.y"):
                 for ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 in T.thread_binding(64, thread="threadIdx.x"):
@@ -183,7 +183,7 @@ def test_decode_gemv_256_threads():
     def before(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        p_output0_intermediate = T.alloc_buffer((22016, 4096), "float16")
+        p_output0_intermediate = T.sblock_alloc_buffer((22016, 4096), "float16")
         for i, j in T.grid(22016, 4096):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -203,9 +203,9 @@ def test_decode_gemv_256_threads():
     def expected(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
         T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.sblock("root"):
-        var_NT_matmul_intermediate_rf_local = T.alloc_buffer((16, 1, 1, 22016), "float16", scope="local")
-        var_NT_matmul_intermediate_rf_local_1 = T.alloc_buffer((16, 1, 1, 22016), "float16", scope="local")
-        lv571_local = T.alloc_buffer((22016, 512), "uint32", scope="local")
+        var_NT_matmul_intermediate_rf_local = T.sblock_alloc_buffer((16, 1, 1, 22016), "float16", scope="local")
+        var_NT_matmul_intermediate_rf_local_1 = T.sblock_alloc_buffer((16, 1, 1, 22016), "float16", scope="local")
+        lv571_local = T.sblock_alloc_buffer((22016, 512), "uint32", scope="local")
         for u_fused_ax0_fused_fused_0 in T.thread_binding(5504, thread="blockIdx.x"):
             for u_fused_ax0_fused_fused_1 in T.thread_binding(4, thread="threadIdx.x"):
                 for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
@@ -279,7 +279,7 @@ def test_decode_gemv1():
     def before(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        p_output0_intermediate = T.alloc_buffer((22016, 4096), "float16")
+        p_output0_intermediate = T.sblock_alloc_buffer((22016, 4096), "float16")
         for i, j in T.grid(22016, 4096):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -299,10 +299,10 @@ def test_decode_gemv1():
     def expected(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
         T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.sblock("root"):
-        var_NT_matmul_intermediate_rf_local = T.alloc_buffer((128, 1, 1, 22016), "float16", scope="local")
-        var_NT_matmul_intermediate_rf_local_1 = T.alloc_buffer((32, 1, 1, 22016), "float16", scope="local")
-        lv571_local = T.alloc_buffer((22016, 512), "uint32", scope="local")
-        lv1654_shared = T.alloc_buffer((1, 1, 4096), "float16", scope="shared")
+        var_NT_matmul_intermediate_rf_local = T.sblock_alloc_buffer((128, 1, 1, 22016), "float16", scope="local")
+        var_NT_matmul_intermediate_rf_local_1 = T.sblock_alloc_buffer((32, 1, 1, 22016), "float16", scope="local")
+        lv571_local = T.sblock_alloc_buffer((22016, 512), "uint32", scope="local")
+        lv1654_shared = T.sblock_alloc_buffer((1, 1, 4096), "float16", scope="shared")
         for u_fused_ax0_fused_fused_0 in T.thread_binding(1376, thread="blockIdx.x"):
             for u_fused_ax0_fused_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
                 for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(32, thread="threadIdx.x"):
@@ -387,8 +387,8 @@ def test_decode_gemv2():
     def before(lv771: T.Buffer((32000, 512), "uint32"), lv772: T.Buffer((32000, 128), "float16"), lv3216: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 32000), "float32")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        p_output0_intermediate_1 = T.alloc_buffer((32000, 4096), "float16")
-        var_NT_matmul_intermediate = T.alloc_buffer((1, 1, 32000), "float16")
+        p_output0_intermediate_1 = T.sblock_alloc_buffer((32000, 4096), "float16")
+        var_NT_matmul_intermediate = T.sblock_alloc_buffer((1, 1, 32000), "float16")
         for i, j in T.grid(32000, 4096):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -414,11 +414,11 @@ def test_decode_gemv2():
     def expected(lv771: T.Buffer((32000, 512), "uint32"), lv772: T.Buffer((32000, 128), "float16"), lv3216: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 32000), "float32")):
         T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.sblock("root"):
-        var_NT_matmul_intermediate_local = T.alloc_buffer((1, 1, 32000), "float16", scope="local")
-        var_NT_matmul_intermediate_rf_local = T.alloc_buffer((128, 1, 1, 32000), "float16", scope="local")
-        var_NT_matmul_intermediate_rf_local_1 = T.alloc_buffer((32, 1, 1, 32000), "float16", scope="local")
-        lv771_local = T.alloc_buffer((32000, 512), "uint32", scope="local")
-        lv3216_shared = T.alloc_buffer((1, 1, 4096), "float16", scope="shared")
+        var_NT_matmul_intermediate_local = T.sblock_alloc_buffer((1, 1, 32000), "float16", scope="local")
+        var_NT_matmul_intermediate_rf_local = T.sblock_alloc_buffer((128, 1, 1, 32000), "float16", scope="local")
+        var_NT_matmul_intermediate_rf_local_1 = T.sblock_alloc_buffer((32, 1, 1, 32000), "float16", scope="local")
+        lv771_local = T.sblock_alloc_buffer((32000, 512), "uint32", scope="local")
+        lv3216_shared = T.sblock_alloc_buffer((1, 1, 4096), "float16", scope="shared")
         for u_fused_ax0_fused_fused_0 in T.thread_binding(2000, thread="blockIdx.x"):
             for u_fused_ax0_fused_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
                 for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(32, thread="threadIdx.x"):
@@ -510,8 +510,8 @@ def test_decode_gemv3():
     def before(lv575: T.Buffer((T.int64(4096), T.int64(1376)), "uint32"), lv576: T.Buffer((T.int64(4096), T.int64(344)), "float16"), lv574: T.Buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16"), lv570: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        p_output0_intermediate_1 = T.alloc_buffer((T.int64(4096), T.int64(11008)), "float16")
-        var_NT_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")
+        p_output0_intermediate_1 = T.sblock_alloc_buffer((T.int64(4096), T.int64(11008)), "float16")
+        var_NT_matmul_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")
         for i, j in T.grid(T.int64(4096), T.int64(11008)):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -537,11 +537,11 @@ def test_decode_gemv3():
     def expected(lv575: T.Buffer((T.int64(4096), T.int64(1376)), "uint32"), lv576: T.Buffer((T.int64(4096), T.int64(344)), "float16"), lv574: T.Buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16"), lv570: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
         T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.sblock("root"):
-        var_NT_matmul_intermediate_local = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16", scope="local")
-        var_NT_matmul_intermediate_rf_local = T.alloc_buffer((T.int64(128), T.int64(1), T.int64(1), T.int64(4096)), "float16", scope="local")
-        var_NT_matmul_intermediate_rf_local_1 = T.alloc_buffer((T.int64(32), T.int64(1), T.int64(1), T.int64(4096)), "float16", scope="local")
-        lv575_local = T.alloc_buffer((T.int64(4096), T.int64(1376)), "uint32", scope="local")
-        lv574_shared = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16", scope="shared")
+        var_NT_matmul_intermediate_local = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16", scope="local")
+        var_NT_matmul_intermediate_rf_local = T.sblock_alloc_buffer((T.int64(128), T.int64(1), T.int64(1), T.int64(4096)), "float16", scope="local")
+        var_NT_matmul_intermediate_rf_local_1 = T.sblock_alloc_buffer((T.int64(32), T.int64(1), T.int64(1), T.int64(4096)), "float16", scope="local")
+        lv575_local = T.sblock_alloc_buffer((T.int64(4096), T.int64(1376)), "uint32", scope="local")
+        lv574_shared = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16", scope="shared")
         for u_fused_ax0_fused_fused_0 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
             for u_fused_ax0_fused_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                 for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
@@ -633,8 +633,8 @@ def test_autogptq_decode_gemv():
     def func(lv9: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), lv10: T.Buffer((T.int64(32), T.int64(512)), "uint32"), lv11: T.Buffer((T.int64(32), T.int64(4096)), "float16"), lv12: T.Buffer((T.int64(4096),), "uint32"), lv8: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), lv1613: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        decode_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
-        var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")
+        decode_intermediate = T.sblock_alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
+        var_matmul_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")
         for i, j in T.grid(T.int64(4096), T.int64(4096)):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -677,8 +677,8 @@ def test_outer_reduction_adreno():
     ):
         T.func_attr({"tir.noalias": True})
         # with T.sblock("root"):
-        p_output0_intermediate_1 = T.alloc_buffer((11008, 4096), "float16")
-        var_matmul_intermediate = T.alloc_buffer((1, 1, 4096), "float16")
+        p_output0_intermediate_1 = T.sblock_alloc_buffer((11008, 4096), "float16")
+        var_matmul_intermediate = T.sblock_alloc_buffer((1, 1, 4096), "float16")
         for i, j in T.grid(11008, 4096):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -698,11 +698,11 @@ def test_outer_reduction_adreno():
     def expected(lv575: T.Buffer((1376, 4096), "uint32"), lv576: T.Buffer((344, 4096), "float16"), lv574: T.Buffer((1, 1, 11008), "float16"), lv570: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 4096), "float16")):
         T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.sblock("root"):
-        var_matmul_intermediate_local = T.alloc_buffer((1, 1, 4096), "float16", scope="local")
-        var_matmul_intermediate_rf_local = T.alloc_buffer((32, 1, 1, 4096), "float16", scope="local")
-        var_matmul_intermediate_rf_local_1 = T.alloc_buffer((4, 1, 1, 4096), "float16", scope="local")
-        lv576_local = T.alloc_buffer((344, 4096), "float16", scope="local")
-        lv575_local = T.alloc_buffer((1376, 4096), "uint32", scope="local")
+        var_matmul_intermediate_local = T.sblock_alloc_buffer((1, 1, 4096), "float16", scope="local")
+        var_matmul_intermediate_rf_local = T.sblock_alloc_buffer((32, 1, 1, 4096), "float16", scope="local")
+        var_matmul_intermediate_rf_local_1 = T.sblock_alloc_buffer((4, 1, 1, 4096), "float16", scope="local")
+        lv576_local = T.sblock_alloc_buffer((344, 4096), "float16", scope="local")
+        lv575_local = T.sblock_alloc_buffer((1376, 4096), "uint32", scope="local")
         for u_fused_ax0_fused_fused_0 in T.thread_binding(64, thread="blockIdx.x"):
             for u_fused_ax0_fused_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
                 for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0_init in T.thread_binding(4, thread="threadIdx.y"):
@@ -787,8 +787,8 @@ def test_outer_reduction_adreno_dynamic():
         lv613 = T.match_buffer(p_lv613, (T.int64(128), v), "float16")
         p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(1), v))
         # with T.sblock("root"):
-        p_output0_intermediate_1 = T.alloc_buffer((T.int64(4096), v), "float16")
-        var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), v), "float16")
+        p_output0_intermediate_1 = T.sblock_alloc_buffer((T.int64(4096), v), "float16")
+        var_matmul_intermediate = T.sblock_alloc_buffer((T.int64(1), T.int64(1), v), "float16")
         for i, j in T.grid(T.int64(4096), v):
             with T.sblock("decode"):
                 v_i, v_j = T.axis.remap("SS", [i, j])
@@ -818,12 +818,12 @@ def test_outer_reduction_adreno_dynamic():
         lv613 = T.match_buffer(p_lv613, (T.int64(128), v), "float16")
         p_output0_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(1), v))
         # with T.sblock("root"):
-        var_matmul_intermediate_local = T.alloc_buffer((T.int64(1), T.int64(1), v), "float16", scope="local")
-        var_matmul_intermediate_rf_local = T.alloc_buffer((T.int64(8), T.int64(1), T.int64(1), v), "float16", scope="local")
-        var_matmul_intermediate_rf_local_1 = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(1), v), "float16", scope="local")
-        lv613_local = T.alloc_buffer((T.int64(128), v), "float16", scope="local")
-        lv612_local = T.alloc_buffer((T.int64(512), v), "uint32", scope="local")
-        lv1607_shared = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16", scope="shared")
+        var_matmul_intermediate_local = T.sblock_alloc_buffer((T.int64(1), T.int64(1), v), "float16", scope="local")
+        var_matmul_intermediate_rf_local = T.sblock_alloc_buffer((T.int64(8), T.int64(1), T.int64(1), v), "float16", scope="local")
+        var_matmul_intermediate_rf_local_1 = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(1), v), "float16", scope="local")
+        lv613_local = T.sblock_alloc_buffer((T.int64(128), v), "float16", scope="local")
+        lv612_local = T.sblock_alloc_buffer((T.int64(512), v), "uint32", scope="local")
+        lv1607_shared = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16", scope="shared")
         for u_fused_ax0_fused_fused_0 in T.thread_binding((v + T.int64(255)) // T.int64(256), thread="blockIdx.x"):
             for u_fused_ax0_fused_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                 for ax1_0_fused_ax1_1_fused_2_ax1_0_fused_ax1_1_fused_4_fused_0_init in T.thread_binding(T.int64(1), thread="threadIdx.y"):
@@ -951,9 +951,9 @@ def test_blockized_gemv():
                 vj_o = T.axis.reduce(1, 0)
                 T.reads(x[0, 0:4096], w[indptr[v_expert_id_o], 0:16384, 0:4096], indptr[v_expert_id_o])
                 T.writes(o[v_expert_id_o, 0:16384])
-                o_rf_local = T.alloc_buffer((16, 2, 16384), "float16", scope="local")
-                o_rf_local_1 = T.alloc_buffer((16, 2, 16384), "float16", scope="local")
-                w_local = T.alloc_buffer((1, 16384, 4096), "float16", scope="local")
+                o_rf_local = T.sblock_alloc_buffer((16, 2, 16384), "float16", scope="local")
+                o_rf_local_1 = T.sblock_alloc_buffer((16, 2, 16384), "float16", scope="local")
+                w_local = T.sblock_alloc_buffer((1, 16384, 4096), "float16", scope="local")
                 for u_fused_ax0_fused_fused_0 in T.thread_binding(4096, thread="blockIdx.x"):
                     for u_fused_ax0_fused_fused_1 in T.thread_binding(4, thread="threadIdx.x"):
                         for ax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0 in T.thread_binding(16, thread="threadIdx.y"):
