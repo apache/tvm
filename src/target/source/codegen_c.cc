@@ -1048,25 +1048,6 @@ void CodeGenC::VisitStmt_(const LetStmtNode* op) {
   PrintStmt(op->body);
 }
 
-void CodeGenC::VisitStmt_(const AllocateNode* op) {
-  TVM_FFI_ICHECK(!is_zero(op->condition));
-  std::string vid = AllocVarID(op->buffer_var.get());
-
-  this->PrintIndent();
-  size_t constant_size = op->ConstantAllocationSize();
-  TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
-
-  auto scope = GetPtrStorageScope(op->buffer_var);
-  alloc_storage_scope_[op->buffer_var.get()] = scope;
-  PrintStorageScope(scope, stream);
-
-  PrintType(op->dtype, stream);
-  stream << ' ' << vid << '[' << constant_size << "];\n";
-
-  RegisterHandleType(op->buffer_var.get(), op->dtype);
-  this->PrintStmt(op->body);
-}
-
 void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer->data.get());

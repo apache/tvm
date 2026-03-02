@@ -146,7 +146,7 @@ def test_undefined_buffer():
     f2 = tvm.s_tir.renew_defs(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
-    assert f1.body.buffer_var != f2.body.buffer_var
+    assert f1.body.buffer.data != f2.body.buffer.data
 
     def _get_buffer_store_buffer(f):
         return f.body.body.body[1].body.buffer

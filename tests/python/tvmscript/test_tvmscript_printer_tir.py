@@ -319,7 +319,7 @@ def test_allocate():
     _assert_print(
         obj,
         """
-with T.allocate([128, 128], "float32", "global") as v:
+with T.decl_buffer((128, 128)) as buffer:
     T.evaluate(0)
 """,
     )
@@ -327,7 +327,7 @@ with T.allocate([128, 128], "float32", "global") as v:
 
 def test_allocate_with_decl_buffer_sugar():
     # With the introduction of AllocBuffer, the Allocate+DeclBuffer pattern
-    # is no longer sugar-coated. It prints as explicit T.allocate + T.decl_buffer.
+    # produces AllocBuffer wrapping DeclBuffer.
     with IRBuilder() as ib:
         with T.allocate([128, 128], "float32") as buffer_data:
             with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
@@ -336,8 +336,8 @@ def test_allocate_with_decl_buffer_sugar():
     _assert_print(
         obj,
         """
-with T.allocate([128, 128], "float32", "global") as v:
-    buffer = T.decl_buffer((128, 128), data=v)
+with T.decl_buffer((128, 128)) as buffer:
+    buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
     T.evaluate(0)
 """,
     )
@@ -345,7 +345,7 @@ with T.allocate([128, 128], "float32", "global") as v:
 
 def test_allocate_with_decl_buffer_sugar_multi_usage():
     # With the introduction of AllocBuffer, the Allocate+DeclBuffer pattern
-    # is no longer sugar-coated. It prints as explicit T.allocate + T.decl_buffer.
+    # produces AllocBuffer wrapping DeclBuffer.
     with IRBuilder() as ib:
         with T.allocate([128, 128], "float32") as buffer_data:
             with T.decl_buffer([128, 128], "float32", data=buffer_data) as buffer:
@@ -354,9 +354,9 @@ def test_allocate_with_decl_buffer_sugar_multi_usage():
     _assert_print(
         obj,
         """
-with T.allocate([128, 128], "float32", "global") as v:
-    buffer = T.decl_buffer((128, 128), data=v)
-    T.evaluate(v)
+with T.decl_buffer((128, 128)) as buffer:
+    buffer_1 = T.decl_buffer((128, 128), data=buffer.data)
+    T.evaluate(buffer.data)
 """,
     )
 
@@ -370,9 +370,9 @@ def test_allocate_with_decl_buffer_no_sugar_mismatch():
     _assert_print(
         obj,
         """
-with T.allocate([128, 128], "float32", "global") as v:
-    buffer = T.decl_buffer((256, 256), data=v)
-    T.evaluate(v)
+with T.decl_buffer((128, 128)) as buffer:
+    buffer_1 = T.decl_buffer((256, 256), data=buffer.data)
+    T.evaluate(buffer.data)
 """,
     )
 

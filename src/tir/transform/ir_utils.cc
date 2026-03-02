@@ -69,11 +69,6 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       body = Stmt(n);
     } else if (s.as<AssertStmtNode>()) {
       body = SeqStmt({s, body});
-    } else if (const auto* alloc = s.as<AllocateNode>()) {
-      auto n = ffi::make_object<AllocateNode>(*alloc);
-      TVM_FFI_ICHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
     } else if (const auto* alloc_buf = s.as<AllocBufferNode>()) {
       auto n = ffi::make_object<AllocBufferNode>(*alloc_buf);
       TVM_FFI_ICHECK(is_no_op(n->body));
@@ -363,19 +358,6 @@ class IRConvertSSA final : public StmtExprMutator {
       auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
       n->loop_var = redefine.new_var;
       return For(n);
-    } else {
-      defined_.insert(v.get());
-      return StmtExprMutator::VisitStmt_(op);
-    }
-  }
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    const Var& v = op->buffer_var;
-    if (defined_.count(v.get())) {
-      ScopedRedefine redefine(this, v);
-      Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<AllocateNode>();
-      return Allocate(redefine.new_var, op->dtype, op->extents, op->condition, op->body,
-                      op->annotations);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
@@ -774,22 +756,6 @@ class StorageAlignCollector : public StmtVisitor {
         int buffer_index = storage_align_tuple.get<0>();
         const Buffer& buffer = op->writes[buffer_index]->buffer;
         storage_align_[buffer->data].push_back(storage_align_tuple);
-      }
-    }
-    StmtVisitor::VisitStmt_(op);
-  }
-
-  /*! \brief For lowered tir, the alignment annotations reside in allocate annotations. */
-  void VisitStmt_(const AllocateNode* op) final {
-    auto it = op->annotations.find(s_tir::attr::buffer_dim_align);
-    if (it != op->annotations.end()) {
-      auto storage_align_annotation = Downcast<StorageAlignAnnotation>((*it).second);
-      for (const auto& storage_align_tuple : storage_align_annotation) {
-        int buffer_index = storage_align_tuple.get<0>();
-        // the first buffer idx info is meaningless for allocate
-        // stmt and should set as negative intentionally.
-        TVM_FFI_ICHECK_EQ(buffer_index, -1);
-        storage_align_[op->buffer_var].push_back(storage_align_tuple);
       }
     }
     StmtVisitor::VisitStmt_(op);

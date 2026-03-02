@@ -398,11 +398,6 @@ std::string CodeGenOpenCL::CastTo(std::string value, DataType target) {
   }
 }
 
-void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
-  allocation_size_.insert({op->buffer_var.get(), op->ConstantAllocationSize() * op->dtype.lanes()});
-  CodeGenC::VisitStmt_(op);
-}
-
 void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
   // Compute constant_size from buffer shape
   size_t constant_size = 1;

@@ -86,25 +86,6 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const AllocateNode* allocate) final {
-    bool to_be_lowered = datatype::Registry::Global()->GetTypeRegistered(allocate->dtype.code());
-
-    if (to_be_lowered) {
-      auto new_allocate_type = DataType::UInt(allocate->dtype.bits(), allocate->dtype.lanes());
-      auto new_buffer_var =
-          Var(allocate->buffer_var->name_hint, PointerType(PrimType(new_allocate_type)));
-      var_remap_[allocate->buffer_var] = new_buffer_var;
-
-      Stmt stmt = StmtExprMutator::VisitStmt_(allocate);
-      allocate = stmt.as<AllocateNode>();
-
-      return Allocate(new_buffer_var, new_allocate_type, allocate->extents, allocate->condition,
-                      allocate->body, allocate->annotations);
-    } else {
-      return StmtExprMutator::VisitStmt_(allocate);
-    }
-  }
-
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     bool to_be_lowered = datatype::Registry::Global()->GetTypeRegistered(op->buffer->dtype.code());
 

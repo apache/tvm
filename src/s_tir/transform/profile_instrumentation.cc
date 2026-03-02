@@ -141,9 +141,6 @@ class LoopAnalyzer : public StmtExprVisitor {
     } else if (stmt->IsInstance<AttrStmtNode>()) {
       const AttrStmtNode* n = stmt.as<AttrStmtNode>();
       return TraverseLoop(n->body, parent_depth, has_parallel);
-    } else if (stmt->IsInstance<AllocateNode>()) {
-      const AllocateNode* n = stmt.as<AllocateNode>();
-      return TraverseLoop(n->body, parent_depth, has_parallel);
     } else if (stmt->IsInstance<AllocBufferNode>()) {
       const AllocBufferNode* n = stmt.as<AllocBufferNode>();
       return TraverseLoop(n->body, parent_depth, has_parallel);

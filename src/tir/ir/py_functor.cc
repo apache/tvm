@@ -180,8 +180,6 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   ffi::Function f_visit_for{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const WhileNode* op)` function. */
   ffi::Function f_visit_while{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const AllocateNode* op)` function. */
-  ffi::Function f_visit_allocate{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const AllocBufferNode* op)` function. */
   ffi::Function f_visit_alloc_buffer{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const DeclBufferNode* op)` function. */
@@ -227,7 +225,6 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   PY_STMT_VISITOR_DISPATCH(IfThenElseNode, f_visit_if_then_else);
   PY_STMT_VISITOR_DISPATCH(ForNode, f_visit_for);
   PY_STMT_VISITOR_DISPATCH(WhileNode, f_visit_while);
-  PY_STMT_VISITOR_DISPATCH(AllocateNode, f_visit_allocate);
   PY_STMT_VISITOR_DISPATCH(AllocBufferNode, f_visit_alloc_buffer);
   PY_STMT_VISITOR_DISPATCH(DeclBufferNode, f_visit_decl_buffer);
   PY_STMT_VISITOR_DISPATCH(BufferStoreNode, f_visit_buffer_store);
@@ -319,7 +316,6 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
     PY_STMT_VISITOR_DEFAULT_DISPATCH(IfThenElseNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(ForNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(WhileNode);
-    PY_STMT_VISITOR_DEFAULT_DISPATCH(AllocateNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(AllocBufferNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(DeclBufferNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(BufferStoreNode);
@@ -349,7 +345,6 @@ class PyStmtExprVisitor : public ObjectRef {
                                                          ffi::Function f_visit_if_then_else,    //
                                                          ffi::Function f_visit_for,             //
                                                          ffi::Function f_visit_while,           //
-                                                         ffi::Function f_visit_allocate,        //
                                                          ffi::Function f_visit_alloc_buffer,    //
                                                          ffi::Function f_visit_decl_buffer,     //
                                                          ffi::Function f_visit_buffer_store,    //
@@ -400,7 +395,6 @@ class PyStmtExprVisitor : public ObjectRef {
     n->f_visit_if_then_else = std::move(f_visit_if_then_else);
     n->f_visit_for = std::move(f_visit_for);
     n->f_visit_while = std::move(f_visit_while);
-    n->f_visit_allocate = std::move(f_visit_allocate);
     n->f_visit_alloc_buffer = std::move(f_visit_alloc_buffer);
     n->f_visit_decl_buffer = std::move(f_visit_decl_buffer);
     n->f_visit_buffer_store = std::move(f_visit_buffer_store);
@@ -541,8 +535,6 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   ffi::Function f_visit_for{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const WhileNode* op)` function. */
   ffi::Function f_visit_while{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const AllocateNode* op)` function. */
-  ffi::Function f_visit_allocate{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const AllocBufferNode* op)` function. */
   ffi::Function f_visit_alloc_buffer{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const DeclBufferNode* op)` function. */
@@ -588,7 +580,6 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   PY_STMT_MUTATOR_DISPATCH(IfThenElseNode, f_visit_if_then_else);
   PY_STMT_MUTATOR_DISPATCH(ForNode, f_visit_for);
   PY_STMT_MUTATOR_DISPATCH(WhileNode, f_visit_while);
-  PY_STMT_MUTATOR_DISPATCH(AllocateNode, f_visit_allocate);
   PY_STMT_MUTATOR_DISPATCH(AllocBufferNode, f_visit_alloc_buffer);
   PY_STMT_MUTATOR_DISPATCH(DeclBufferNode, f_visit_decl_buffer);
   PY_STMT_MUTATOR_DISPATCH(BufferStoreNode, f_visit_buffer_store);
@@ -680,7 +671,6 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(IfThenElseNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(ForNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(WhileNode);
-    PY_STMT_MUTATOR_DEFAULT_DISPATCH(AllocateNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(AllocBufferNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(DeclBufferNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(BufferStoreNode);
@@ -711,7 +701,6 @@ class PyStmtExprMutator : public ObjectRef {
                                                          ffi::Function f_visit_if_then_else,    //
                                                          ffi::Function f_visit_for,             //
                                                          ffi::Function f_visit_while,           //
-                                                         ffi::Function f_visit_allocate,        //
                                                          ffi::Function f_visit_alloc_buffer,    //
                                                          ffi::Function f_visit_decl_buffer,     //
                                                          ffi::Function f_visit_buffer_store,    //
@@ -762,7 +751,6 @@ class PyStmtExprMutator : public ObjectRef {
     n->f_visit_if_then_else = std::move(f_visit_if_then_else);
     n->f_visit_for = std::move(f_visit_for);
     n->f_visit_while = std::move(f_visit_while);
-    n->f_visit_allocate = std::move(f_visit_allocate);
     n->f_visit_alloc_buffer = std::move(f_visit_alloc_buffer);
     n->f_visit_decl_buffer = std::move(f_visit_decl_buffer);
     n->f_visit_buffer_store = std::move(f_visit_buffer_store);

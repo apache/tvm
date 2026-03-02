@@ -111,37 +111,6 @@ class DoubleBufferInjector : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    const VarNode* buf = op->buffer_var.as<VarNode>();
-    auto it = dbuffer_info_.find(buf);
-    if (it != dbuffer_info_.end()) {
-      StorageEntry& entry = it->second;
-      entry.scope = GetPtrStorageScope(op->buffer_var);
-
-      TVM_FFI_ICHECK_EQ(op->extents.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
-                                               << "Has FlattenBuffer been run?";
-      entry.stride = op->extents[0];
-      Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<AllocateNode>();
-
-      ffi::Array<PrimExpr> new_extents = {op->extents[0] * make_const(op->extents[0].dtype(), 2)};
-      TVM_FFI_ICHECK(entry.loop != nullptr);
-      auto& alloc_nest = loop_allocs_[entry.loop];
-      alloc_nest.emplace_back(Allocate(op->buffer_var, op->dtype, new_extents, op->condition,
-                                       Evaluate(0), op->annotations));
-      Stmt body = op->body;
-      if (auto ptr = body.as<DeclBufferNode>()) {
-        auto new_buf = GetRemappedBuffer(ptr->buffer, entry.stride);
-        alloc_nest.emplace_back(DeclBuffer(new_buf, Evaluate(0)));
-        body = ptr->body;
-      }
-
-      return body;
-    } else {
-      return StmtExprMutator::VisitStmt_(op);
-    }
-  }
-
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     const VarNode* buf = op->buffer->data.as<VarNode>();
     auto it = dbuffer_info_.find(buf);

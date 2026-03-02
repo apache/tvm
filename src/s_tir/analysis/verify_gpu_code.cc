@@ -63,29 +63,6 @@ class GPUCodeVerifier : public StmtExprVisitor {
     return errors_;
   }
 
-  void VisitStmt_(const AllocateNode* op) final {
-    StmtVisitor::VisitStmt_(op);
-    auto scope = GetPtrStorageScope(op->buffer_var);
-    runtime::StorageScope storage_scope = runtime::StorageScope::Create(scope);
-    // visit an allocation of a buffer in shared memory, record its size
-    if (storage_scope.rank == runtime::StorageRank::kLocal) {
-      size_t size = static_cast<size_t>(op->ConstantAllocationSize());
-      local_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
-    } else if (storage_scope.rank == runtime::StorageRank::kShared) {
-      size_t size = static_cast<size_t>(op->ConstantAllocationSize());
-      shared_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
-    }
-    if (op->dtype.is_vector()) {
-      if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
-        std::stringstream s;
-        s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes ("
-          << op->dtype.bytes() << ") for dtype " << op->dtype
-          << " is greater than the maximum number of vector bytes (" << max_vector_bytes_ << ")";
-        errors_.push_back(s.str());
-      }
-    }
-  }
-
   void VisitStmt_(const AllocBufferNode* op) final {
     StmtVisitor::VisitStmt_(op);
     auto scope = op->buffer.scope();

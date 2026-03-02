@@ -39,51 +39,14 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tir;
 
-template <typename T>
-class AllocationCalculator : public StmtExprVisitor {
- public:
-  AllocationCalculator() = default;
-  tvm::ffi::Map<ffi::String, Integer> operator()(const PrimFunc& func);
-
- private:
-  void VisitStmt_(const T* op) override;
-  std::unordered_map<std::string, int64_t> _max_size;
-  std::unordered_map<std::string, int64_t> _current_size;
-};
-
-template <typename T>
-tvm::ffi::Map<ffi::String, Integer> AllocationCalculator<T>::operator()(const PrimFunc& func) {
-  this->VisitStmt(func->body);
-  tvm::ffi::Map<ffi::String, Integer> res;
-  for (auto [k, v] : _max_size) {
-    res.Set(ffi::String(k), Integer(v));
-  }
-  return res;
-}
-
 std::string GetStorageScope(const Var& var) {
   auto* ptr = var->type_annotation.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
   return ptr->storage_scope;
 }
 
-template <typename T>
-void AllocationCalculator<T>::VisitStmt_(const T* op) {
-  std::string storage_scope = GetStorageScope(op->buffer_var);
-  auto search = _current_size.find(storage_scope);
-  if (search == _current_size.end()) {
-    _current_size[storage_scope] = 0;
-    _max_size[storage_scope] = 0;
-  }
-  auto size = op->ConstantAllocationSize() * op->dtype.bytes() * op->dtype.lanes();
-  _current_size[storage_scope] += size;
-  _max_size[storage_scope] = std::max(_current_size[storage_scope], _max_size[storage_scope]);
-  StmtExprVisitor::VisitStmt(op->body);
-  _current_size[storage_scope] -= size;
-}
-
 /*!
- * \brief Allocation calculator specialized for AllocBufferNode.
+ * \brief Allocation calculator for AllocBufferNode.
  */
 class AllocBufferCalculator : public StmtExprVisitor {
  public:
@@ -123,26 +86,11 @@ class AllocBufferCalculator : public StmtExprVisitor {
   std::unordered_map<std::string, int64_t> _current_size;
 };
 
-tvm::ffi::Map<ffi::String, Integer> MergeAllocationResults(
-    const tvm::ffi::Map<ffi::String, Integer>& a, const tvm::ffi::Map<ffi::String, Integer>& b) {
-  tvm::ffi::Map<ffi::String, Integer> result = a;
-  for (const auto& kv : b) {
-    auto existing = result.Get(kv.first);
-    if (existing.has_value()) {
-      result.Set(kv.first, Integer(existing.value().IntValue() + kv.second.IntValue()));
-    } else {
-      result.Set(kv.first, kv.second);
-    }
-  }
-  return result;
-}
-
 tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > CalculateAllocatedBytes(
     const PrimFunc& func) {
   tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > results;
-  auto allocate_result = AllocationCalculator<AllocateNode>()(func);
   auto alloc_buffer_result = AllocBufferCalculator()(func);
-  results.Set("main", MergeAllocationResults(allocate_result, alloc_buffer_result));
+  results.Set("main", alloc_buffer_result);
   return results;
 }
 
@@ -152,9 +100,8 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, Integer> > CalculateAlloca
   for (const auto& kv : mod->functions) {
     if (auto prim_func = kv.second.as<tir::PrimFunc>()) {
       ffi::String func_name = kv.first->name_hint;
-      auto allocate_result = AllocationCalculator<AllocateNode>()(prim_func.value());
       auto alloc_buffer_result = AllocBufferCalculator()(prim_func.value());
-      results.Set(func_name, MergeAllocationResults(allocate_result, alloc_buffer_result));
+      results.Set(func_name, alloc_buffer_result);
     }
   }
   return results;

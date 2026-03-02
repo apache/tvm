@@ -75,20 +75,6 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
   virtual bool MatchDType(DataType dtype) const = 0;
 
-  void VisitStmt_(const AllocateNode* op) final {
-    // remap all intermediate constant buffer to promote data types (fp16/fp32)
-    if (MatchDType(op->dtype) && op->ConstantAllocationSize() != 0) {
-      DataType dtype = promote_dtype_.with_lanes(op->dtype.lanes());
-      ffi::String storage_scope = "global";
-      if (auto* ptr_type = op->buffer_var->type_annotation.as<PointerTypeNode>()) {
-        storage_scope = ptr_type->storage_scope;
-      }
-      Var buffer_var = Var(op->buffer_var->name_hint, PointerType(PrimType(dtype), storage_scope));
-      (*var_remap_)[op->buffer_var] = buffer_var;
-    }
-    return StmtExprVisitor::VisitStmt_(op);
-  }
-
   void VisitStmt_(const BufferStoreNode* op) final {
     StmtExprVisitor::VisitStmt_(op);
     this->PopulateBufferRemap(op->buffer);
@@ -419,23 +405,6 @@ class ComputeLegalizer : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    Stmt ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<AllocateNode>();
-
-    auto it = var_remap_.find(op->buffer_var);
-    if (it != var_remap_.end()) {
-      Var remapped_var = it->second;
-      auto* ptr = remapped_var->type_annotation.as<PointerTypeNode>();
-      TVM_FFI_ICHECK(ptr);
-      auto* prim_type = ptr->element_type.as<PrimTypeNode>();
-      TVM_FFI_ICHECK(prim_type);
-      return Allocate(remapped_var, prim_type->dtype, op->extents, op->condition, op->body);
-    } else {
-      return ret;
-    }
-  }
-
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AllocBufferNode>();
@@ -551,21 +520,6 @@ class StorageLegalizer : public StmtExprMutator {
       return itr->second;
     } else {
       return var;
-    }
-  }
-
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    if (MatchDType(op->dtype)) {
-      DataType dtype = GetStorageUIntDType(op->dtype);
-      ffi::String storage_scope = "global";
-      if (auto* ptr_type = op->buffer_var->type_annotation.as<PointerTypeNode>()) {
-        storage_scope = ptr_type->storage_scope;
-      }
-      Var buffer_var = Var(op->buffer_var->name_hint, PointerType(PrimType(dtype), storage_scope));
-      var_remap_[op->buffer_var] = buffer_var;
-      return VisitStmt(Allocate(buffer_var, dtype, op->extents, op->condition, op->body));
-    } else {
-      return StmtExprMutator::VisitStmt_(op);
     }
   }
 

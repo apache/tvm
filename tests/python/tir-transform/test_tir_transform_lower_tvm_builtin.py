@@ -199,8 +199,8 @@ def test_lower_device_allocate():
             T.attr(ptr, "storage_alignment", 64)
             if T.isnullptr(ptr):
                 T.Call("int32", "tir.tvm_throw_last_error", [])
-            buf = T.decl_buffer((16,), data=ptr)
-            buf[0] = T.float32(0)
+            with T.decl_buffer((16,), data=ptr) as buf:
+                buf[0] = T.float32(0)
             if T.TVMBackendFreeWorkspace(2, 0, ptr) != 0:
                 T.Call("int32", "tir.tvm_throw_last_error", [])
 

@@ -280,66 +280,6 @@ class BufferStore(Stmt):
         )
 
 
-@tvm_ffi.register_object("tir.Allocate")
-class Allocate(Stmt):
-    """Allocate node.
-
-    Parameters
-    ----------
-    buffer_var : Var
-        The buffer variable.
-
-    dtype : str
-        The data type of the buffer.
-
-    extents : list of Expr
-        The extents of the allocate
-
-    condition : PrimExpr
-        The condition.
-
-    body : Stmt
-        The body statement.
-
-    annotations: Optional[Mapping[str, Object]]
-        Additional annotation hints
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    buffer_var: Var
-    dtype: str
-    extents: list[PrimExpr]
-    condition: PrimExpr
-    body: Stmt
-    annotations: Mapping[str, Object]
-    span: Span | None
-
-    def __init__(
-        self,
-        buffer_var: Var,
-        dtype: str,
-        extents: list[PrimExpr],
-        condition: PrimExpr,
-        body: Stmt,
-        annotations: Mapping[str, Object] | None = None,
-        span: Span | None = None,
-    ) -> None:
-        if annotations is None:
-            annotations = dict()
-        self.__init_handle_by_constructor__(
-            _ffi_api.Allocate,  # type: ignore
-            buffer_var,
-            dtype,
-            extents,
-            condition,
-            body,
-            annotations,
-            span,
-        )
-
-
 @tvm_ffi.register_object("tir.AllocBuffer")
 class AllocBuffer(Stmt):
     """AllocBuffer node.

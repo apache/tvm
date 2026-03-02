@@ -232,13 +232,20 @@ class WarpAccessRewriter : protected StmtExprMutator {
  public:
   explicit WarpAccessRewriter(int warp_size, arith::Analyzer* analyzer)
       : warp_size_(warp_size), analyzer_(analyzer) {}
-  // Rewrite the allocate statement which transforms
+  // Rewrite the AllocBuffer statement which transforms
   // warp memory to local memory.
-  Stmt Rewrite(const AllocateNode* op) {
-    buffer_ = op->buffer_var.get();
-    int alloc_size = op->ConstantAllocationSize();
+  Stmt Rewrite(const AllocBufferNode* op) {
+    buffer_ = op->buffer->data.get();
+    int64_t alloc_size = 1;
+    for (const auto& dim : op->buffer->shape) {
+      if (const IntImmNode* int_size = dim.as<IntImmNode>()) {
+        alloc_size *= int_size->value;
+      } else {
+        alloc_size = 0;
+      }
+    }
     TVM_FFI_ICHECK_GT(alloc_size, 0) << "warp memory only support constant alloc size";
-    alloc_size *= op->dtype.lanes();
+    alloc_size *= op->buffer->dtype.lanes();
     std::tie(warp_index_, width_) = WarpIndexFinder(warp_size_).Find(op->body);
     warp_coeff_ = WarpStoreCoeffFinder(buffer_, warp_index_, analyzer_).Find(op->body);
 
@@ -249,8 +256,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    return Allocate(op->buffer_var, op->dtype, {make_const(DataType::Int(32), alloc_size / width_)},
-                    op->condition, this->VisitStmt(op->body), op->annotations);
+    Buffer new_buf(op->buffer->data, op->buffer->dtype,
+                   {make_const(DataType::Int(32), alloc_size / width_)}, {}, PrimExpr(),
+                   op->buffer->data->name_hint, 0, 0, BufferType::kDefault);
+    return AllocBuffer(new_buf, this->VisitStmt(op->body), op->annotations);
   }
 
  protected:
@@ -431,30 +440,13 @@ class WarpMemoryRewriter : private StmtMutator {
   std::unordered_map<const VarNode*, ffi::String> new_storage_scopes_;
 
  private:
-  Stmt VisitStmt_(const AllocateNode* op) {
-    auto ret = StmtMutator::VisitStmt_(op);
-    op = ret.as<AllocateNode>();
-    if (GetPtrStorageScope(op->buffer_var) == "warp") {
-      new_storage_scopes_[op->buffer_var.get()] = "local";
-      WarpAccessRewriter rewriter(warp_size_, &analyzer_);
-      ret = rewriter.Rewrite(op);
-    }
-    return ret;
-  }
-
   Stmt VisitStmt_(const AllocBufferNode* op) {
     auto ret = StmtMutator::VisitStmt_(op);
     op = ret.as<AllocBufferNode>();
     if (GetPtrStorageScope(op->buffer->data) == "warp") {
       new_storage_scopes_[op->buffer->data.get()] = "local";
-      // AllocBuffer warp rewriting: convert to Allocate for the warp rewriter,
-      // then wrap back in AllocBuffer with updated buffer.
-      // For now, delegate to Allocate-based rewriting by converting first.
-      auto alloc = Allocate(op->buffer->data, op->buffer->dtype, op->buffer->shape,
-                            tvm::IntImm(DataType::Bool(), 1), op->body, op->annotations);
       WarpAccessRewriter rewriter(warp_size_, &analyzer_);
-      Stmt rewritten = rewriter.Rewrite(alloc.get());
-      return rewritten;
+      ret = rewriter.Rewrite(op);
     }
     return ret;
   }

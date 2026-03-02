@@ -41,24 +41,10 @@ class PTXRewriter : public StmtMutator {
       return body;
     }
     EnsureBuffers();
-    body = Allocate(addr_buffer->data, addr_buffer->dtype, addr_buffer->shape, Bool(true), body);
-    body = Allocate(predicate_buffer->data, predicate_buffer->dtype, predicate_buffer->shape,
-                    Bool(true), body);
+    body = AllocBuffer(addr_buffer, body);
+    body = AllocBuffer(predicate_buffer, body);
     has_buffer_2 = true;
     return body;
-  }
-
-  Stmt VisitStmt_(const AllocateNode* allocate) final {
-    Stmt result = StmtMutator::VisitStmt_(allocate);
-    if (needs_buffer && !has_buffer_2) {
-      EnsureBuffers();
-      has_buffer_2 = true;
-      result =
-          Allocate(addr_buffer->data, addr_buffer->dtype, addr_buffer->shape, Bool(true), result);
-      result = Allocate(predicate_buffer->data, predicate_buffer->dtype, predicate_buffer->shape,
-                        Bool(true), result);
-    }
-    return result;
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
@@ -66,10 +52,8 @@ class PTXRewriter : public StmtMutator {
     if (needs_buffer && !has_buffer_2) {
       EnsureBuffers();
       has_buffer_2 = true;
-      result =
-          Allocate(addr_buffer->data, addr_buffer->dtype, addr_buffer->shape, Bool(true), result);
-      result = Allocate(predicate_buffer->data, predicate_buffer->dtype, predicate_buffer->shape,
-                        Bool(true), result);
+      result = AllocBuffer(addr_buffer, result);
+      result = AllocBuffer(predicate_buffer, result);
     }
     return result;
   }

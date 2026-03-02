@@ -152,8 +152,10 @@ void LaunchThreadFrameNode::ExitWithScope() {
 
 void AllocateFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(
-      tvm::tir::Allocate(buffer_var, dtype, extents, condition, AsStmt(stmts), annotations));
+  // Create a Buffer from the allocate frame's parameters
+  tvm::tir::Buffer buf(buffer_var, dtype, extents, {}, PrimExpr(), buffer_var->name_hint, 0, 0,
+                       tvm::tir::BufferType::kDefault);
+  AddToParent(tvm::tir::AllocBuffer(buf, AsStmt(stmts), annotations));
 }
 
 void AttrFrameNode::ExitWithScope() {

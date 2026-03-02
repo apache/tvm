@@ -38,7 +38,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   AttrStmtNode::RegisterReflection();
   AssertStmtNode::RegisterReflection();
   BufferStoreNode::RegisterReflection();
-  AllocateNode::RegisterReflection();
   DeclBufferNode::RegisterReflection();
   AllocBufferNode::RegisterReflection();
   SeqStmtNode::RegisterReflection();
@@ -241,60 +240,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tir.While", [](PrimExpr condition, Stmt body, Span span) {
     return While(condition, body, span);
   });
-}
-
-// Allocate
-Allocate::Allocate(Var buffer_var, DataType dtype, ffi::Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, ffi::Map<ffi::String, Any> annotations, Span span) {
-  TVM_FFI_ICHECK(IsPointerType(buffer_var->type_annotation, dtype) ||
-                 (dtype.is_bool() && IsPointerType(buffer_var->type_annotation, DataType::Int(8))))
-      << "The allocated data type (" << dtype
-      << ") does not match the type annotation of the buffer " << buffer_var << " ("
-      << buffer_var->type_annotation
-      << "). The data type should be an element of the pointer type.";
-
-  for (size_t i = 0; i < extents.size(); ++i) {
-    TVM_FFI_ICHECK(extents[i].defined());
-    TVM_FFI_ICHECK(extents[i].dtype().is_scalar());
-  }
-  TVM_FFI_ICHECK(body.defined());
-  TVM_FFI_ICHECK(condition.defined());
-  TVM_FFI_ICHECK(condition.dtype().is_bool());
-
-  ObjectPtr<AllocateNode> node = ffi::make_object<AllocateNode>();
-  node->buffer_var = std::move(buffer_var);
-  node->dtype = dtype;
-  node->extents = std::move(extents);
-  node->condition = std::move(condition);
-  node->body = std::move(body);
-  node->annotations = std::move(annotations);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
-int64_t AllocateNode::ConstantAllocationSize(const ffi::Array<PrimExpr>& extents) {
-  int64_t result = 1;
-  for (size_t i = 0; i < extents.size(); ++i) {
-    if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
-      result *= int_size->value;
-      if (result > std::numeric_limits<int64_t>::max()) {
-        return 0;
-      }
-    } else {
-      return 0;
-    }
-  }
-  return static_cast<int64_t>(result);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tir.Allocate",
-      [](Var buffer_var, DataType type, ffi::Array<PrimExpr> extents, PrimExpr condition, Stmt body,
-         ffi::Map<ffi::String, Any> annotations, Span span) {
-        return Allocate(buffer_var, type, extents, condition, body, annotations, span);
-      });
 }
 
 // DeclBuffer

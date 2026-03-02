@@ -129,15 +129,6 @@ class VarTouchedAnalysis : public StmtVisitor {
       Record(var, tc);
     }
   }
-  void VisitStmt_(const AllocateNode* op) final {
-    ExprTouched tc(touched_var_, false);
-    for (size_t i = 0; i < op->extents.size(); ++i) {
-      tc(op->extents[i]);
-    }
-    tc.VisitExpr(op->condition);
-    Record(op->buffer_var.get(), tc);
-    this->VisitStmt(op->body);
-  }
   void VisitStmt_(const AllocBufferNode* op) final {
     ExprTouched tc(touched_var_, false);
     for (size_t i = 0; i < op->buffer->shape.size(); ++i) {
@@ -386,51 +377,6 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     return StmtMutator::VisitSeqStmt_(op, false, fmutate);
   }
   // Allocate
-  Stmt VisitStmt_(const AllocateNode* op) final {
-    Allocate node = ffi::GetRef<Allocate>(op);
-
-    PrimExpr condition = this->VisitExpr(op->condition);
-
-    ffi::Array<PrimExpr> extents =
-        op->extents.Map([this](const PrimExpr& extent) { return this->VisitExpr(extent); });
-
-    if (visit_touched_var_ && !vt_loop_injected_) {
-      return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
-    }
-
-    visit_touched_var_ = false;
-
-    // Rewrite the buffer if its shape or any value stored in it
-    // depends on the virtual thread var.  If `allow_share_` is false,
-    // then the buffer is always rewritten, even if separate virtual
-    // threads only read from the buffer.
-    if (touched_var_.count(op->buffer_var.get()) || !allow_share_) {
-      // place v on highest dimension.
-
-      // TODO(Lunderberg): Move pass to apply before
-      // FlattenBuffer.  Would rewrite the Buffer to
-      // add the injected virtual thread as the first index.
-      TVM_FFI_ICHECK_EQ(extents.size(), 1)
-          << "InjectVirtualThread expects rewritten allocations to be flat memory.";
-      PrimExpr stride = extents[0];
-      extents = {stride * num_threads_};
-
-      // Mark the buffer var as touched.  BufferLoad/BufferStore should
-      // access locations at `current_index + stride*vthread_var`.
-      alloc_remap_[op->buffer_var.get()] = stride;
-    }
-
-    // Mutate the body.  Depends on alloc_remap_.
-    auto body = this->VisitStmt(op->body);
-
-    if (extents.same_as(op->extents) && body.same_as(op->body) &&
-        condition.same_as(op->condition)) {
-      return ffi::GetRef<Stmt>(op);
-    } else {
-      return Allocate(op->buffer_var, op->dtype, extents, condition, body);
-    }
-  }
-
   // AllocBuffer
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     AllocBuffer node = ffi::GetRef<AllocBuffer>(op);

@@ -59,14 +59,6 @@ PrimExpr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
   return it->second;
 }
 
-Stmt UpdatePointerStorageScope::VisitStmt_(const AllocateNode* op) {
-  auto node = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
-  if (auto it = new_var_remap_.find(node->buffer_var.get()); it != new_var_remap_.end()) {
-    node.CopyOnWrite()->buffer_var = it->second;
-  }
-  return node;
-}
-
 template <typename Node>
 Node UpdatePointerStorageScope::UpdateBufferAccess(Node node) {
   auto new_buffer = GetUpdatedBuffer(node->buffer);

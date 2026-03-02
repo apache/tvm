@@ -309,38 +309,6 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
   }
 }
 
-void CodeGenMetal::VisitStmt_(const AllocateNode* op) {
-  TVM_FFI_ICHECK(!is_zero(op->condition));
-  std::string vid = AllocVarID(op->buffer_var.get());
-
-  this->PrintIndent();
-  size_t constant_size = op->ConstantAllocationSize();
-  TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
-
-  auto scope = GetPtrStorageScope(op->buffer_var);
-  alloc_storage_scope_[op->buffer_var.get()] = scope;
-  if (scope == "metal.simdgroup") {
-    TVM_FFI_ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Float(32) ||
-                   op->dtype == DataType::BFloat(16))
-        << "Only float16, float32, and bfloat16 are supported, but got " << op->dtype;
-    TVM_FFI_ICHECK(constant_size % 64 == 0)
-        << "Only 8x8 matrix is supported, but got " << constant_size << " bytes\n";
-
-    std::ostringstream dtype_os;
-    PrintType(op->dtype, dtype_os);
-    std::string dtype_str = dtype_os.str();
-    simdgroup_dtype_[op->buffer_var.get()] = dtype_str;
-    stream << "simdgroup_" << dtype_str << "8x8 " << vid << '[' << constant_size / 64 << "];\n";
-  } else {
-    PrintStorageScope(scope, stream);
-    PrintType(op->dtype, stream);
-    stream << ' ' << vid << '[' << constant_size << "];\n";
-  }
-
-  RegisterHandleType(op->buffer_var.get(), op->dtype);
-  this->PrintStmt(op->body);
-}
-
 void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer->data.get());

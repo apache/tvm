@@ -109,7 +109,6 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   void VisitStmt_(const WhileNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const DeclBufferNode* op) override;
-  void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const AllocBufferNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
@@ -132,7 +131,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
     /*! \brief Whether the element type of the buffer is known.
      *
      * This value is determined based on the type_annotation of the
-     * buffer variable (AllocateNode) or of the parameter (shader
+     * buffer variable (AllocBufferNode) or of the parameter (shader
      * arguments).
      */
     bool element_type_known{false};
@@ -140,7 +139,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
     /*! \brief The known element type of the buffer.
      *
      * This value is determined based on the type_annotation of the
-     * buffer variable (AllocateNode) or of the parameter (shader
+     * buffer variable (AllocBufferNode) or of the parameter (shader
      * arguments).
      */
     DataType element_type{DataType()};

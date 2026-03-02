@@ -78,55 +78,6 @@ class CodeGenNVPTX : public CodeGenLLVM {
                    llvm::ValueAsMetadata::get(ConstInt32(1))}));
   }
 
-  void VisitStmt_(const AllocateNode* op) final {
-    TVM_FFI_ICHECK(!is_zero(op->condition));
-    llvm::Value* buf = nullptr;
-    StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
-    // maximum necessary alignment in the NV devices
-    if (info.alignment > 16) {
-      info.alignment = 16;
-    }
-
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer_var));
-    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
-      // Shared memory: address space  == 3
-      buf =
-          AllocateSharedMemory(op->dtype, 0, 3, info.alignment, llvm::GlobalValue::ExternalLinkage);
-    } else {
-      size_t constant_size = op->ConstantAllocationSize();
-      TVM_FFI_ICHECK_GT(constant_size, 0)
-          << "Can only handle constant size stack allocation in GPU";
-
-      if (constant_size % 4 == 0 && info.alignment == 0) {
-        info.alignment = GetTempAllocaAlignment(op->dtype, constant_size);
-      }
-      if (storage_scope.rank == runtime::StorageRank::kLocal) {
-        // const int local_address_space = 5;
-        // TODO(tqchen): for higher version of LLVM, local address space can be set.
-        llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
-          return builder_->CreateAlloca(DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
-        });
-        auto alignment = static_cast<unsigned>(alloca->getAlign().value());
-        if (alignment < static_cast<unsigned>(info.alignment)) {
-          alloca->setAlignment(llvm::Align(info.alignment));
-        }
-        buf = alloca;
-      } else {
-        TVM_FFI_ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
-            << "Can only allocate shared or local memory inside kernel";
-        buf = AllocateSharedMemory(op->dtype, constant_size, 3, info.alignment,
-                                   llvm::GlobalValue::ExternalLinkage);
-      }
-    }
-
-    buf = builder_->CreatePointerCast(
-        buf,
-        llvmGetPointerTo(DTypeToLLVMType(op->dtype), buf->getType()->getPointerAddressSpace()));
-    TVM_FFI_ICHECK(!var_map_.count(op->buffer_var.get()));
-    var_map_[op->buffer_var.get()] = buf;
-    this->VisitStmt(op->body);
-  }
-
   void VisitStmt_(const AllocBufferNode* op) final {
     llvm::Value* buf = nullptr;
     StorageInfo& info = alloc_storage_info_[op->buffer->data.get()];

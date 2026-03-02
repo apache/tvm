@@ -467,12 +467,13 @@ def test_loop_partition_with_unit_loop_in_condition():
         placeholder_1_1 = T.decl_buffer((25088,), "int8", data=placeholder_1.data)
         placeholder_2_1 = T.decl_buffer((25088,), "int8", data=placeholder_2.data)
         T_concat_1 = T.decl_buffer((100352,), "int8", data=T_concat.data)
-        for _ in T.serial(1, annotations={"preserve_unit_loop": True}):
+        for k in T.serial(1, annotations={"preserve_unit_loop": True}):
             for i1, i2, i3 in T.grid(64, 28, 28):
                 T_concat_1[i1 * 784 + i2 * 28 + i3] = placeholder_3[i1 * 784 + i2 * 28 + i3]
             for i1, i2, i3 in T.grid(32, 28, 28):
-                idx = i1 * 784 + i2 * 28 + i3
-                T_concat_1[idx + 50176] = placeholder_1_1[idx]
+                T_concat_1[i1 * 784 + i2 * 28 + i3 + 50176] = placeholder_1_1[
+                    i1 * 784 + i2 * 28 + i3
+                ]
             for i1, i2, i3 in T.grid(32, 28, 28):
                 T_concat_1[i2 * 28 + i3] = placeholder_2_1[i1 * 784 + i2 * 28 + i3]
 

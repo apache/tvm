@@ -197,54 +197,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return StmtBlockDoc((*f)->stmts);
     });
 
-bool IsAllocateDeclBufferPattern(const tir::AllocateNode* allocate) {
-  const tir::Var& buffer_var = allocate->buffer_var;
-  if (const tir::DeclBufferNode* decl_buffer = allocate->body.as<tir::DeclBufferNode>()) {
-    const tir::Buffer& buffer = decl_buffer->buffer;
-    if (buffer_var.same_as(buffer->data) && allocate->dtype == buffer->dtype &&
-        tir::is_one(allocate->condition) && !allocate->annotations.size() &&
-        allocate->extents.size() == buffer->shape.size()) {
-      tir::ExprDeepEqual expr_equal;
-      for (size_t i = 0, n = allocate->extents.size(); i < n; ++i) {
-        if (!expr_equal(allocate->extents[i], buffer->shape[i])) {
-          return false;
-        }
-      }
-      return true;
-    }
-  }
-  return false;
-}
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::Allocate>(  //
-        "", [](tir::Allocate stmt, AccessPath stmt_p, IRDocsifier d) -> Doc {
-          bool concise = AllowConciseScoping(d, stmt_p);
-          ffi::Array<ExprDoc> args;
-          ffi::Array<ffi::String> kwargs_keys;
-          ffi::Array<ExprDoc> kwargs_values;
-          args.push_back(d->AsDoc<ExprDoc>(stmt->extents, stmt_p->Attr("extents")));
-          args.push_back(LiteralDoc::DataType(stmt->dtype, stmt_p->Attr("dtype")));
-          args.push_back(LiteralDoc::Str(tir::GetPtrStorageScope(stmt->buffer_var),
-                                         stmt_p
-                                             ->Attr("buffer_var")  //
-                                             ->Attr("type_annotation")
-                                             ->Attr("storage_scope")));
-          if (!tir::is_one(stmt->condition)) {
-            args.push_back(d->AsDoc<ExprDoc>(stmt->condition, stmt_p->Attr("condition")));
-          }
-          if (!stmt->annotations.empty()) {
-            kwargs_keys.push_back("annotations");
-            kwargs_values.push_back(
-                d->AsDoc<ExprDoc>(stmt->annotations, stmt_p->Attr("annotations")));
-          }
-          ExprDoc lhs = DefineVar(stmt->buffer_var, d->frames.back(), d);
-          With<TIRFrame> f(d, stmt);
-          ExprDoc rhs = TIR(d, "allocate")->Call(args, kwargs_keys, kwargs_values);
-          AsDocBody(stmt->body, stmt_p->Attr("body"), f->get(), d);
-          return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
-        });
-
 void InsertEnvThread(const tir::IterVar& iter_var, const AccessPath& iter_var_p,
                      const IRDocsifier& d) {
   Frame f = FindLowestVarDef(iter_var->var, d).value();
@@ -314,19 +266,37 @@ TVM_SCRIPT_REPR(tir::WhileNode, ReprPrintTIR);
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AllocBuffer>(  //
         "", [](tir::AllocBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
-          // Print AllocBuffer as T.decl_buffer (without data= parameter).
-          // When the parser sees T.decl_buffer without data, DeclBufferFrame
-          // creates AllocBuffer on exit, ensuring a clean roundtrip.
           bool concise = AllowConciseScoping(d, stmt);
-          ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"),
-                                   d->frames.back(), d, BufferVarDefinition::DataPointer);
-          With<TIRFrame> f(d, stmt);
-          ExprDoc lhs = DefineBuffer(stmt->buffer, *f, d);
-          AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-          return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
+          if (stmt->annotations.empty()) {
+            // Print AllocBuffer as T.decl_buffer (without data= parameter).
+            // When the parser sees T.decl_buffer without data, DeclBufferFrame
+            // creates AllocBuffer on exit, ensuring a clean roundtrip.
+            ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"),
+                                     d->frames.back(), d, BufferVarDefinition::DataPointer);
+            With<TIRFrame> f(d, stmt);
+            ExprDoc lhs = DefineBuffer(stmt->buffer, *f, d);
+            AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
+            return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
+          } else {
+            // When annotations are present, print as T.allocate(..., annotations=...)
+            // to ensure annotations survive the roundtrip.
+            const tir::Buffer& buffer = stmt->buffer;
+            ffi::Array<ExprDoc> args;
+            ffi::Array<ffi::String> kwargs_keys;
+            ffi::Array<ExprDoc> kwargs_values;
+            args.push_back(d->AsDoc<ExprDoc>(buffer->shape, p->Attr("buffer")->Attr("shape")));
+            args.push_back(LiteralDoc::DataType(buffer->dtype, std::nullopt));
+            args.push_back(LiteralDoc::Str(tir::GetPtrStorageScope(buffer->data), std::nullopt));
+            kwargs_keys.push_back("annotations");
+            kwargs_values.push_back(d->AsDoc<ExprDoc>(stmt->annotations, p->Attr("annotations")));
+            ExprDoc rhs = TIR(d, "allocate")->Call(args, kwargs_keys, kwargs_values);
+            With<TIRFrame> f(d, stmt);
+            ExprDoc lhs = d->Define(stmt->buffer->data, *f, stmt->buffer->data->name_hint);
+            AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
+            return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
+          }
         });
 
-TVM_SCRIPT_REPR(tir::AllocateNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AllocBufferNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::DeclBufferNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::SeqStmtNode, ReprPrintTIR);
