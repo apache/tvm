@@ -728,9 +728,9 @@ void ConditionalBoundsContext::ExitWithScope() {
 }
 
 std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
-  TVM_FFI_ICHECK(op && op->attr_key == tir::attr::async_wait_queue_scope);
+  TVM_FFI_ICHECK(op && op->attr_key == s_tir::attr::async_wait_queue_scope);
   auto inner = op->body.as<AttrStmtNode>();
-  TVM_FFI_ICHECK(inner && inner->attr_key == tir::attr::async_wait_inflight_count);
+  TVM_FFI_ICHECK(inner && inner->attr_key == s_tir::attr::async_wait_inflight_count);
   return std::make_pair(op->value, inner->value);
 }
 

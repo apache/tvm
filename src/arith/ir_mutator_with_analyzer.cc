@@ -23,6 +23,7 @@
 #include "ir_mutator_with_analyzer.h"
 
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 
@@ -142,7 +143,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
   return constraint_scope_.WithNewScope([&]() -> Stmt {
-    if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
+    if (op->attr_key == tir::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       Range dom = Range::FromMinExtent(make_zero(op->value.dtype()), op->value);

@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -110,7 +111,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_debug_skip_region") {
       return MakeEvaluate(0);
-    } else if (op->attr_key == attr::async_wait_queue_scope) {
+    } else if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
       auto wait_attrs = GetAsyncWaitAttributes(op);
       auto wait_cnt = wait_attrs.second;
       arith::Analyzer ana;

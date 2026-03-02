@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
@@ -120,7 +121,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   }
 
   void VisitStmt_(const AttrStmtNode* op) {
-    if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
+    if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       analyzer_.Bind(iv->var, Range::FromMinExtent(0, op->value));

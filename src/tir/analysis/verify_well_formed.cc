@@ -314,7 +314,6 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
  *   - DeclBuffer statement
  *   - SBlock::alloc_buffers
  *   - SBlock::match_buffers
- *   - AttrStmt with key "buffer_bind_scope"
  *
  * it must not appear in a BufferLoad, BufferStore, or BufferRegion outside that declaration's
  * scope.

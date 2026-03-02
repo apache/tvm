@@ -221,59 +221,6 @@ def test_multiple_buffer_arguments_may_share_allocation():
     tvm.tir.analysis.verify_well_formed(mod)
 
 
-def test_buffer_bind_scope_defines_buffer_obj():
-    """The "buffer_bind_scope" attribute defines a buffer view"""
-
-    @I.ir_module
-    class mod:
-        @T.prim_func
-        def func(A: T.Buffer([256, 256], "float32")):
-            for tile_i, tile_j in T.grid(16, 16):
-                B = T.Buffer([16, 16], "float32")
-                T.attr(
-                    [B, A],
-                    "buffer_bind_scope",
-                    T.tvm_tuple(
-                        tile_i * 16,
-                        16,
-                        tile_j * 16,
-                        16,
-                        dtype="handle",
-                    ),
-                )
-                for i, j in T.grid(16, 16):
-                    B[i, j] = 0.0
-
-    tvm.tir.analysis.verify_well_formed(mod)
-
-
-def test_buffer_bind_scope_defines_symbolic_variables():
-    """The "buffer_bind_scope" attribute may define symbolic variables"""
-
-    @I.ir_module
-    class mod:
-        @T.prim_func
-        def func(A: T.Buffer([256, 256], "int32")):
-            for tile_i, tile_j in T.grid(16, 16):
-                elem_offset = T.int32()
-                B = T.Buffer([16, 16], "int32", elem_offset=elem_offset)
-                T.attr(
-                    [B, A],
-                    "buffer_bind_scope",
-                    T.tvm_tuple(
-                        tile_i * 16,
-                        16,
-                        tile_j * 16,
-                        16,
-                        dtype="handle",
-                    ),
-                )
-                for i, j in T.grid(16, 16):
-                    B[i, j] = elem_offset
-
-    tvm.tir.analysis.verify_well_formed(mod)
-
-
 def test_block_match_buffer_defines_buffer_obj():
     """In a block, T.match_buffer defines a buffer view"""
 
