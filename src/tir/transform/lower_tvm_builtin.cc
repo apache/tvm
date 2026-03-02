@@ -35,25 +35,6 @@
 namespace tvm {
 namespace tir {
 
-/*!
- * \brief If the buffer size is constant, return the total number of elements.
- *        Otherwise return 0.
- */
-static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents) {
-  int64_t result = 1;
-  for (size_t i = 0; i < extents.size(); ++i) {
-    if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
-      result *= int_size->value;
-      if (result > std::numeric_limits<int64_t>::max()) {
-        return 0;
-      }
-    } else {
-      return 0;
-    }
-  }
-  return result;
-}
-
 // Calculate the statistics of packed function.
 // These information are needed during codegen.
 class BuiltinLower : public StmtExprMutator {
@@ -254,8 +235,9 @@ class BuiltinLower : public StmtExprMutator {
         dev_type && dev_type->value == kDLCPU) {
       auto storage_scope = Downcast<PointerType>(op->buffer->data->type_annotation)->storage_scope;
       if (storage_scope == "global") {
-        size_t constant_size = ConstantAllocationSize(op->buffer->shape);
-        if (constant_size > 0 && constant_size * nbytes < runtime::kMaxStackAlloca) {
+        auto constant_size = Downcast<AllocBuffer>(stmt).ConstantAllocationSize();
+        if (constant_size.has_value() && constant_size.value() > 0 &&
+            static_cast<size_t>(constant_size.value()) * nbytes < runtime::kMaxStackAlloca) {
           return stmt;
         }
       }
