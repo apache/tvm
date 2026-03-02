@@ -223,46 +223,10 @@ class BuiltinLower : public StmtExprMutator {
   Stmt VisitStmt_(const BindNode* op) final {
     if (const CallNode* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::nd_mem_alloc_with_scope())) {
-        // Save this Bind for SeqStmt-level handling.
-        // MakeNdMemAllocWithScope needs the body (sibling stmts), so we
-        // defer to VisitStmt_(const SeqStmtNode*).
-        pending_nd_mem_alloc_ = op;
-        return ffi::GetRef<Stmt>(op);
+        return MakeNdMemAllocWithScope(op, call);
       }
     }
     return StmtExprMutator::VisitStmt_(op);
-  }
-
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
-    ffi::Array<Stmt> new_seq;
-    bool changed = false;
-    for (size_t i = 0; i < op->seq.size(); ++i) {
-      pending_nd_mem_alloc_ = nullptr;
-      Stmt visited = this->VisitStmt(op->seq[i]);
-      if (pending_nd_mem_alloc_) {
-        // This Bind was an nd_mem_alloc_with_scope.
-        // Collect remaining stmts as the "body" that needs wrapping.
-        const BindNode* let = pending_nd_mem_alloc_;
-        const CallNode* call = let->value.as<CallNode>();
-        pending_nd_mem_alloc_ = nullptr;
-
-        // Collect remaining sibling stmts as the body
-        ffi::Array<Stmt> body_stmts;
-        for (size_t j = i + 1; j < op->seq.size(); ++j) {
-          body_stmts.push_back(this->VisitStmt(op->seq[j]));
-        }
-        Stmt body = body_stmts.empty() ? Evaluate(0) : SeqStmt::Flatten(body_stmts);
-        Stmt alloc_stmt = MakeNdMemAllocWithScope(let, call, body);
-        new_seq.push_back(this->VisitStmt(alloc_stmt));
-        changed = true;
-        break;  // remaining stmts already consumed
-      } else {
-        new_seq.push_back(visited);
-        if (!visited.same_as(op->seq[i])) changed = true;
-      }
-    }
-    if (!changed) return ffi::GetRef<Stmt>(op);
-    return SeqStmt::Flatten(new_seq);
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) {
@@ -640,26 +604,13 @@ class BuiltinLower : public StmtExprMutator {
     return Call(op->dtype, lowered_packed_op, packed_args);
   }
 
-  Stmt MakeNdMemAllocWithScope(const BindNode* let, const CallNode* call, Stmt inner_body) {
+  Stmt MakeNdMemAllocWithScope(const BindNode* let, const CallNode* call) {
     TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
     TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
 
-    PrimExpr storage_scope = call->args[0];
-    Call free_op = Call(DataType::Int(32), builtin::tvm_call_packed(),
-                        {GetDeviceMethodName("free_nd"), device_type_.value(), device_id_.value(),
-                         storage_scope, let->var});
-    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
-
-    Stmt body = SeqStmt(
-        {IfThenElse(Call(DataType::Bool(), builtin::isnullptr(), {let->var}), throw_last_error),
-         inner_body, free_stmt});
-
     DataType dtype =
         let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
-
-    std::string fdevapi_prefix = "device_api.";
-    fdevapi_prefix += runtime::DLDeviceType2Str(device_type_.as<IntImmNode>()->value);
 
     ffi::Array<PrimExpr> args = {
         GetDeviceMethodName("alloc_nd"),
@@ -674,7 +625,10 @@ class BuiltinLower : public StmtExprMutator {
     }
 
     Call call_packed = Call(let->var.dtype(), builtin::tvm_call_packed(), args);
-    return SeqStmt({Bind(let->var, call_packed), body});
+    Stmt null_check =
+        IfThenElse(Call(DataType::Bool(), builtin::isnullptr(), {let->var}), throw_last_error);
+
+    return SeqStmt({Bind(let->var, call_packed), null_check});
   }
 
  private:
@@ -693,8 +647,6 @@ class BuiltinLower : public StmtExprMutator {
   std::vector<std::vector<Stmt>> prep_seq_stack_;
   ffi::Optional<PrimExpr> device_type_{std::nullopt};
   ffi::Optional<PrimExpr> device_id_{std::nullopt};
-  // Pending nd_mem_alloc Bind node for SeqStmt-level handling
-  const BindNode* pending_nd_mem_alloc_{nullptr};
 
   bool is_precheck_{false};
 
