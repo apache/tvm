@@ -640,11 +640,13 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::Stri
                            ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                            ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
                            int align, int offset_factor, ffi::String buffer_type,
-                           ffi::Optional<ffi::Array<IntImm>> axis_separators) {
+                           ffi::Optional<ffi::Array<IntImm>> axis_separators,
+                           ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
   ObjectPtr<DeclBufferFrameNode> n = ffi::make_object<DeclBufferFrameNode>();
   n->buffer = BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope,
                          align, offset_factor, buffer_type, axis_separators);
   n->allocated = data.defined();
+  n->annotations = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
   return DeclBufferFrame(n);
 }
 

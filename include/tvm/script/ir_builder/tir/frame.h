@@ -696,12 +696,15 @@ class DeclBufferFrameNode : public TIRFrameNode {
   tvm::tir::Buffer buffer;
   /*! \brief The buffer allocated or not. */
   bool allocated;
+  /*! \brief Optional annotations for allocation. */
+  ffi::Map<ffi::String, ffi::Any> annotations;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DeclBufferFrameNode>()
         .def_ro("buffer", &DeclBufferFrameNode::buffer)
-        .def_ro("allocated", &DeclBufferFrameNode::allocated);
+        .def_ro("allocated", &DeclBufferFrameNode::allocated)
+        .def_ro("annotations", &DeclBufferFrameNode::annotations);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.DeclBufferFrame", DeclBufferFrameNode,
                                     TIRFrameNode);

@@ -1154,6 +1154,7 @@ def decl_buffer(
     offset_factor=0,
     buffer_type="",
     axis_separators=None,
+    annotations=None,
 ) -> frame.DeclBufferFrame:
     """Create a buffer declaration node.
 
@@ -1189,6 +1190,9 @@ def decl_buffer(
     axis_separators : List[int]
         The separators between input axes when generating flattened output axes.
 
+    annotations : Optional[Dict[str, Any]]
+        Optional annotations for the allocation.
+
     Returns
     -------
     res : frame.DeclBufferFrame
@@ -1211,6 +1215,7 @@ def decl_buffer(
         offset_factor,
         buffer_type,
         axis_separators,
+        annotations,
     )
 
 

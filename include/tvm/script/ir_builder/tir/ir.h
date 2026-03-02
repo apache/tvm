@@ -368,11 +368,12 @@ ElseFrame Else();
  * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The declared buffer.
  */
-DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
-                           ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                           ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor, ffi::String buffer_type,
-                           ffi::Optional<ffi::Array<IntImm>> axis_separators);
+DeclBufferFrame DeclBuffer(
+    ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name, ffi::Optional<Var> data,
+    ffi::Optional<ffi::Array<PrimExpr>> strides, ffi::Optional<PrimExpr> elem_offset,
+    ffi::String storage_scope, int align, int offset_factor, ffi::String buffer_type,
+    ffi::Optional<ffi::Array<IntImm>> axis_separators,
+    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
 /*!
  * \brief Launch a thread.

@@ -267,34 +267,41 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AllocBuffer>(  //
         "", [](tir::AllocBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d, stmt);
-          if (stmt->annotations.empty()) {
-            // Print AllocBuffer as T.decl_buffer (without data= parameter).
-            // When the parser sees T.decl_buffer without data, DeclBufferFrame
-            // creates AllocBuffer on exit, ensuring a clean roundtrip.
-            ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"),
-                                     d->frames.back(), d, BufferVarDefinition::DataPointer);
-            With<TIRFrame> f(d, stmt);
-            ExprDoc lhs = DefineBuffer(stmt->buffer, *f, d);
-            AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-            return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
-          } else {
-            // When annotations are present, print as T.allocate(..., annotations=...)
-            // to ensure annotations survive the roundtrip.
-            const tir::Buffer& buffer = stmt->buffer;
-            ffi::Array<ExprDoc> args;
-            ffi::Array<ffi::String> kwargs_keys;
-            ffi::Array<ExprDoc> kwargs_values;
-            args.push_back(d->AsDoc<ExprDoc>(buffer->shape, p->Attr("buffer")->Attr("shape")));
-            args.push_back(LiteralDoc::DataType(buffer->dtype, std::nullopt));
-            args.push_back(LiteralDoc::Str(tir::GetPtrStorageScope(buffer->data), std::nullopt));
-            kwargs_keys.push_back("annotations");
-            kwargs_values.push_back(d->AsDoc<ExprDoc>(stmt->annotations, p->Attr("annotations")));
-            ExprDoc rhs = TIR(d, "allocate")->Call(args, kwargs_keys, kwargs_values);
-            With<TIRFrame> f(d, stmt);
-            ExprDoc lhs = d->Define(stmt->buffer->data, *f, stmt->buffer->data->name_hint);
-            AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-            return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
+          // Always print AllocBuffer as T.decl_buffer (without data= parameter).
+          // When the parser sees T.decl_buffer without data, DeclBufferFrame
+          // creates AllocBuffer on exit, ensuring a clean roundtrip.
+          // Annotations are passed as an extra kwarg when present.
+          ffi::Array<ExprDoc> extra_args;
+          ffi::Array<ffi::String> extra_kwargs_keys;
+          ffi::Array<ExprDoc> extra_kwargs_values;
+          if (!stmt->annotations.empty()) {
+            extra_kwargs_keys.push_back("annotations");
+            extra_kwargs_values.push_back(
+                d->AsDoc<ExprDoc>(stmt->annotations, p->Attr("annotations")));
           }
+          ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"),
+                                   d->frames.back(), d, BufferVarDefinition::DataPointer);
+          // Append annotations kwarg if present
+          if (!extra_kwargs_keys.empty()) {
+            // BufferDecl returns a CallDoc; we need to extend it with annotations kwarg.
+            // Build a new call with the extra kwargs.
+            auto call = Downcast<CallDoc>(rhs);
+            ffi::Array<ffi::String> all_keys;
+            ffi::Array<ExprDoc> all_values;
+            for (size_t i = 0; i < call->kwargs_keys.size(); ++i) {
+              all_keys.push_back(call->kwargs_keys[i]);
+              all_values.push_back(call->kwargs_values[i]);
+            }
+            for (size_t i = 0; i < extra_kwargs_keys.size(); ++i) {
+              all_keys.push_back(extra_kwargs_keys[i]);
+              all_values.push_back(extra_kwargs_values[i]);
+            }
+            rhs = CallDoc(call->callee, call->args, all_keys, all_values);
+          }
+          With<TIRFrame> f(d, stmt);
+          ExprDoc lhs = DefineBuffer(stmt->buffer, *f, d);
+          AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
+          return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
         });
 
 TVM_SCRIPT_REPR(tir::AllocBufferNode, ReprPrintTIR);
