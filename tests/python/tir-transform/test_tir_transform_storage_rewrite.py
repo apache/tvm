@@ -444,27 +444,36 @@ def test_rewrite_in_place_use_of_non_flat_buffer():
     class Before:
         @T.prim_func
         def main(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
-            B_data = T.allocate(
-                [16, 16],
-                dtype="float32",
-                scope="global",
-            )
             B = T.decl_buffer(
                 [16, 16],
                 dtype="float32",
                 axis_separators=[1],
-                data=B_data,
-            )
-            C_data = T.allocate(
-                [16, 16],
-                dtype="float32",
-                scope="global",
             )
             C = T.decl_buffer(
                 [16, 16],
                 dtype="float32",
                 axis_separators=[1],
-                data=C_data,
+            )
+
+            for i, j in T.grid(16, 16):
+                B[i, j] = A[i, j]
+
+            for i, j in T.grid(16, 16):
+                C[i, j] = 2.0 * B[i, j]
+
+            for i, j in T.grid(16, 16):
+                D[i, j] = C[i, j]
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
+            B = T.decl_buffer([16, 16], dtype="float32", axis_separators=[1])
+            C = T.decl_buffer(
+                [16, 16],
+                dtype="float32",
+                axis_separators=[1],
+                data=B.data,
             )
 
             for i, j in T.grid(16, 16):
@@ -477,15 +486,7 @@ def test_rewrite_in_place_use_of_non_flat_buffer():
                 D[i, j] = C[i, j]
 
     After = tvm.tir.transform.StorageRewrite()(Before)
-    # Verify that the two allocations are merged into one
-    num_alloc = [0]
-
-    def verify(n):
-        if isinstance(n, tvm.tir.AllocBuffer):
-            num_alloc[0] += 1
-
-    tvm.tir.stmt_functor.post_order_visit(After["main"].body, verify)
-    assert num_alloc[0] == 1
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_no_rewrite_of_shared_non_flat_buffer():
@@ -502,27 +503,15 @@ def test_no_rewrite_of_shared_non_flat_buffer():
 
     @T.prim_func
     def Before(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
-        B_data = T.allocate(
-            [16, 16],
-            dtype="float32",
-            scope="global",
-        )
         B = T.decl_buffer(
             [16, 16],
             dtype="float32",
             axis_separators=[1],
-            data=B_data,
-        )
-        C_data = T.allocate(
-            [20, 20],
-            dtype="float32",
-            scope="global",
         )
         C = T.decl_buffer(
             [20, 20],
             dtype="float32",
             axis_separators=[1],
-            data=C_data,
         )
 
         for i, j in T.grid(16, 16):
@@ -534,16 +523,10 @@ def test_no_rewrite_of_shared_non_flat_buffer():
         for i, j in T.grid(16, 16):
             D[i, j] = C[i, j]
 
+    Expected = Before
+
     After = tvm.tir.transform.StorageRewrite()(tvm.IRModule.from_expr(Before))
-    # Verify that the two allocations are NOT merged (non-flat buffers with different shapes)
-    num_alloc = [0]
-
-    def verify(n):
-        if isinstance(n, tvm.tir.AllocBuffer):
-            num_alloc[0] += 1
-
-    tvm.tir.stmt_functor.post_order_visit(After["Before"].body, verify)
-    assert num_alloc[0] == 2
+    tvm.ir.assert_structural_equal(After["Before"], Expected)
 
 
 def test_rewrite_decl_buffer():
