@@ -874,9 +874,6 @@ void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
     const VarNode* v = op->node.as<VarNode>();
     TVM_FFI_ICHECK(v);
     storage_info_[v].is_volatile = true;
-  } else if (op->attr_key == tir::attr::buffer_bind_scope) {
-    const VarNode* v = op->node.as<VarNode>();
-    TVM_FFI_ICHECK(v);
   } else if (op->attr_key == tir::attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* shape_str = op->value.as<StringImmNode>();

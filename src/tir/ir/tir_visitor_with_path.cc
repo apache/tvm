@@ -184,26 +184,6 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
     // tir::Var they annotate.
     context.push_back(WithDef(iter_var.value(), path->Attr("node")));
 
-  } else if (op->attr_key == attr::buffer_bind_scope) {
-    // The `attr::buffer_bind_scope` attribute defines a view into an
-    // existing buffer, similar to the newer
-    // `BlockNode::match_buffers` field.  It requires the buffer being
-    // viewed to be defined prior to the attribute.  The
-    // `attr::buffer_bind_scope` is the point of definition for the
-    // `tir::Buffer buffer_view`, its `tir::Var` data pointer, and any
-    // symbolic shapes used within `buffer_view that are not already
-    // defined.
-    ffi::Array<ObjectRef> arr = Downcast<ffi::Array<ObjectRef>>(op->node);
-    TVM_FFI_ICHECK_EQ(arr.size(), 2U);
-    Buffer buffer_view = Downcast<Buffer>(arr[0]);
-    Buffer orig_buffer = Downcast<Buffer>(arr[1]);
-    Visit(orig_buffer, path->Attr("node")->ArrayItem(1));
-
-    for (auto& var : WithMatchBufferDefs(buffer_view, path->Attr("node")->ArrayItem(0))) {
-      context.push_back(std::move(var));
-    }
-    context.push_back(WithDef(buffer_view, path->Attr("node")->ArrayItem(0)));
-
   } else if (auto expr = op->node.as<PrimExpr>()) {
     Visit(expr.value(), path->Attr("node"));
   }

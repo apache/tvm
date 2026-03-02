@@ -921,13 +921,6 @@ namespace attr {
 constexpr const char* thread_extent = "thread_extent";
 /*! \brief Mark launching of a virtual thread. */
 constexpr const char* virtual_thread = "virtual_thread";
-/*! \brief Mark region is processed by a co-processor */
-constexpr const char* coproc_scope = "coproc_scope";
-/*!
- * \brief Mark region creates coprocessor micro ops,
- *  can be reused if corresponding variable is independent.
- */
-constexpr const char* coproc_uop_scope = "coproc_uop_scope";
 /*! \brief Mark the scope as volatile access for certain handle. */
 constexpr const char* volatile_scope = "volatile_scope";
 /*!
@@ -947,8 +940,6 @@ constexpr const char* storage_alignment = "storage_alignment";
 constexpr const char* device_id = "device_id";
 /*! \brief The device type. */
 constexpr const char* device_type = "device_type";
-/*! \brief Mark of loop scope */
-constexpr const char* loop_scope = "loop_scope";
 /*! \brief Mark of reduce scope */
 constexpr const char* reduce_scope = "reduce_scope";
 /*! \brief Pragma: auto-unroll, max_step */
@@ -971,35 +962,8 @@ constexpr const char* double_buffer_scope = "double_buffer_scope";
  * \brief Marks region used by double buffer write
  */
 constexpr const char* double_buffer_write = "double_buffer_write";
-/*! \brief Mark of scan update scope */
-constexpr const char* scan_update_scope = "scan_update_scope";
-/*! \brief Mark of scan init scope */
-constexpr const char* scan_init_scope = "scan_init_scope";
 /*! \brief Mark stores/loads with theirs bounds.  */
 constexpr const char* buffer_bound = "buffer_bound";
-/*!
- * \brief Bind the buffer specification to the region of the op
- *  When this scope occurs, the stmt.node is a ffi::Array<NodeRef> = [buffer, tensor]
- *  stmt.value is a tvm_tuple(min0, extent0, min1, extent1, ...).
- *  The scope represents that we need to bind the storage region of tensor to buffer.
- *  This will affect replacement of some variables inside the scope that
- *  corresponds to field of buffer to be the actual expressions of tensor during
- *  storage flattening phase.
- */
-constexpr const char* buffer_bind_scope = "buffer_bind_scope";
-// Pipeline related attributes
-/*! \brief channel read scope */
-constexpr const char* channel_read_scope = "channel_read_scope";
-/*! \brief Advance step of channel after end of scope */
-constexpr const char* channel_read_advance = "channel_read_advance";
-/*! \brief channel write scope */
-constexpr const char* channel_write_scope = "channel_write_scope";
-/*! \brief Advance step of channel after end of scope */
-constexpr const char* channel_write_advance = "channel_write_advance";
-/*! \brief pipeline stage scope, implies always execution */
-constexpr const char* pipeline_stage_scope = "pipeline_stage_scope";
-/*! \brief pipeline execution scope, implies the scope can be pipelined. */
-constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
 
 /*!
  * \brief Mark that it is in the device scope.

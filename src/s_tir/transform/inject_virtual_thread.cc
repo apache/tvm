@@ -290,10 +290,6 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     PrimExpr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
-    } else if (!allow_share_ && !vt_loop_injected_ &&
-               (op->attr_key == tir::attr::coproc_uop_scope ||
-                op->attr_key == tir::attr::coproc_scope)) {
-      return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     } else {
       Stmt body = this->VisitStmt(op->body);
       if (value.same_as(op->value) && body.same_as(op->body)) {
