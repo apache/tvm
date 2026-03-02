@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 
 #include "../utils.h"
@@ -51,7 +52,7 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
 
   void VisitStmt_(const AttrStmtNode* attrStmt) final {
     if (!found_) {
-      if (attrStmt->attr_key == tir::attr::async_commit_queue_scope) {
+      if (attrStmt->attr_key == s_tir::attr::async_commit_queue_scope) {
         auto async_scope = attrStmt->body.as<AttrStmtNode>();
         if (!async_scope) {
           StmtExprVisitor::VisitStmt_(attrStmt);

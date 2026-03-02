@@ -79,8 +79,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (!InThreadEnv() &&
-        (op->attr_key == attr::thread_extent || op->attr_key == attr::pipeline_exec_scope)) {
+    if (!InThreadEnv() && op->attr_key == attr::thread_extent) {
       EnterThreadEnv();
       StmtExprVisitor::VisitStmt_(op);
       ExitThreadEnv();

@@ -110,7 +110,7 @@ void StorageAccessVisitor::VisitStmt_(const LetStmtNode* op) {
 }
 
 void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == tir::attr::double_buffer_write) {
+  if (op->attr_key == s_tir::attr::double_buffer_write) {
     TVM_FFI_ICHECK(double_buffer_write_ == nullptr);
     double_buffer_write_ = op->node.as<VarNode>();
     scope_.push_back(std::vector<StmtEntry>());
@@ -128,11 +128,6 @@ void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
       scope_.back().emplace_back(std::move(s));
     }
     double_buffer_write_ = nullptr;
-  } else if (op->attr_key == tir::attr::coproc_scope) {
-    IterVar iv = Downcast<IterVar>(op->node);
-    env_threads_.push_back(iv);
-    StmtExprVisitor::VisitStmt_(op);
-    env_threads_.pop_back();
   } else if (op->attr_key == tir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     env_threads_.push_back(iv);

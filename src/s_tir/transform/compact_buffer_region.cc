@@ -320,7 +320,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
+    if (op->attr_key == tir::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iter = Downcast<IterVar>(op->node);
       ancestor_iters_.push_back(iter);
       Range dom = iter->dom;

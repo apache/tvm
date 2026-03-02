@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
@@ -86,7 +87,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::thread_extent || op->attr_key == tir::attr::virtual_thread) {
+    if (op->attr_key == tir::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       if (nest_level_ == 0) {
         // enter a new kernel, reset statistics
         Reset_();

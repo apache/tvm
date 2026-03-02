@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -60,7 +61,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("s_tir.InjectDoubleBuffer", InjectDoubleBufferCo
 class DoubleBufferDetector : public StmtExprVisitor {
  public:
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::double_buffer_scope) {
+    if (op->attr_key == s_tir::attr::double_buffer_scope) {
       touched_.insert(op->node.as<VarNode>());
       StmtExprVisitor::VisitStmt_(op);
     } else {
@@ -80,7 +81,7 @@ class DoubleBufferDetector : public StmtExprVisitor {
 class StripDoubleBufferWrite : public StmtMutator {
  public:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::double_buffer_write) {
+    if (op->attr_key == s_tir::attr::double_buffer_write) {
       return VisitStmt(op->body);
     } else {
       return StmtMutator::VisitStmt_(op);
@@ -103,7 +104,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tir::attr::double_buffer_scope) {
+    if (op->attr_key == s_tir::attr::double_buffer_scope) {
       return MakeProducer(op);
     } else {
       return StmtExprMutator::VisitStmt_(op);
@@ -279,7 +280,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     vmap[e.loop->loop_var.get()] = loop_shift;
     vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
     body = Substitute(body, vmap);
-    body = AttrStmt(buffer, tir::attr::double_buffer_write, 1, body);
+    body = AttrStmt(buffer, s_tir::attr::double_buffer_write, 1, body);
     body = IfThenElse(loop_shift < e.loop->extent, body);
     return body;
   }

@@ -41,8 +41,7 @@ class DeviceRegionAnnotater : public StmtMutator {
     if (op->attr_key == tvm::attr::kTarget) {
       // If a target attribute already exists, use it as-is.
       return ffi::GetRef<Stmt>(op);
-    } else if (op->attr_key == attr::thread_extent || op->attr_key == attr::pipeline_exec_scope ||
-               op->attr_key == attr::device_scope) {
+    } else if (op->attr_key == attr::thread_extent || op->attr_key == attr::device_scope) {
       // These attributes are only allowed in device-side code, so
       // they should be annotated with the function's default target.
       Stmt body = ffi::GetRef<Stmt>(op);

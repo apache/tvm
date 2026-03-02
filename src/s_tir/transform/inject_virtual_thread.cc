@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -290,10 +291,6 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     PrimExpr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
-    } else if (!allow_share_ && !vt_loop_injected_ &&
-               (op->attr_key == tir::attr::coproc_uop_scope ||
-                op->attr_key == tir::attr::coproc_scope)) {
-      return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     } else {
       Stmt body = this->VisitStmt(op->body);
       if (value.same_as(op->value) && body.same_as(op->body)) {
@@ -498,7 +495,7 @@ class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AttrStmtNode>();
-    if (op->attr_key == tir::attr::virtual_thread) {
+    if (op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);
       bool allow_share = std::string(iv->thread_tag).substr(0, 7) == "vthread";
       int nthread = static_cast<int>(op->value.as<IntImmNode>()->value);

@@ -28,6 +28,7 @@
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/container/tuple.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/support/with.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -311,7 +312,7 @@ struct FragmentInfo {
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
 
 // Return the queue id and the in-flight count associated with the given
-// attr::async_wait_queue_scope annotation.
+// s_tir::attr::async_wait_queue_scope annotation.
 std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
 
 /*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */

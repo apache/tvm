@@ -25,6 +25,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -217,7 +218,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
       in_thread_env_ = false;
     } else if (op->attr_key == tir::attr::extern_scope) {
       VisitNewScope(op);
-    } else if (op->attr_key == tir::attr::virtual_thread) {
+    } else if (op->attr_key == s_tir::attr::virtual_thread) {
       VisitNewScope(op);
     } else {
       StmtExprVisitor::VisitStmt_(op);
