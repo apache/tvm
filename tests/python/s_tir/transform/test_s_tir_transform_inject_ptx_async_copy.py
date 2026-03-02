@@ -335,7 +335,7 @@ __asm__ __volatile__("cp.async.commit_group;");
 
   {
     unsigned int addr = cast_smem_ptr_to_int(A_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)cse_v1;
+    int pred_guard = (int)(i < 12);
     __asm__ __volatile__(
         "{  .reg .pred p;"
         "  setp.ne.b32 p, %0, 0;"
@@ -358,7 +358,7 @@ __asm__ __volatile__("cp.async.wait_group 5;");
 
   {
     unsigned int addr = cast_smem_ptr_to_int(B_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)cse_v1;
+    int pred_guard = (int)(i < 12);
     __asm__ __volatile__(
         "{  .reg .pred p;"
         "  setp.ne.b32 p, %0, 0;"
