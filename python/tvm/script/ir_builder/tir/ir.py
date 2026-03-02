@@ -988,7 +988,7 @@ def Bind(  # pylint: disable=invalid-name
     type_annotation: Type | None = None,  # pylint: disable=redefined-outer-name
     *,
     var: Var | None = None,  # pylint: disable=redefined-outer-name
-) -> frame.LetFrame:
+) -> frame.BindFrame:
     """Create a Bind (variable binding).
 
     Parameters
@@ -1003,8 +1003,8 @@ def Bind(  # pylint: disable=invalid-name
 
     Returns
     -------
-    let_frame : frame.LetFrame
-        The result LetFrame.
+    bind_frame : frame.BindFrame
+        The result BindFrame.
     """
     if type_annotation is not None:
         if callable(type_annotation):
@@ -1028,7 +1028,7 @@ def let(
     v: Var,
     value: PrimExpr,
     body: PrimExpr = None,
-) -> frame.LetFrame:
+) -> frame.BindFrame:
     """Create a new let binding.
 
     Parameters
@@ -1044,8 +1044,8 @@ def let(
 
     Returns
     -------
-    res : frame.LetFrame
-        The result LetFrame.
+    res : frame.BindFrame
+        The result BindFrame.
     """
 
     @deprecated("T.let", "T.Let")
@@ -1053,7 +1053,7 @@ def let(
         return tir.Let(v, value, body)
 
     @deprecated("T.let", "T.Bind")
-    def let_stmt(v: Var, value: PrimExpr) -> frame.LetFrame:
+    def let_stmt(v: Var, value: PrimExpr) -> frame.BindFrame:
         return Bind(value, var=v)
 
     if body is None:

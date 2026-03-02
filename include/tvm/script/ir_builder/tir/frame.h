@@ -342,11 +342,11 @@ class AssertFrame : public TIRFrame {
 };
 
 /*!
- * \brief A frame represents the let binding expression, which binds a var.
+ * \brief A frame represents the Bind (variable binding) statement.
  *
- * \sa LetFrameNode
+ * \sa BindFrameNode
  */
-class LetFrameNode : public TIRFrameNode {
+class BindFrameNode : public TIRFrameNode {
  public:
   /*! \brief The variable we bind to */
   tvm::tir::Var var;
@@ -355,11 +355,11 @@ class LetFrameNode : public TIRFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LetFrameNode>()
-        .def_ro("var", &LetFrameNode::var)
-        .def_ro("value", &LetFrameNode::value);
+    refl::ObjectDef<BindFrameNode>()
+        .def_ro("var", &BindFrameNode::var)
+        .def_ro("value", &BindFrameNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.LetFrame", LetFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tir.BindFrame", BindFrameNode, TIRFrameNode);
 
  public:
   /*!
@@ -370,17 +370,17 @@ class LetFrameNode : public TIRFrameNode {
 };
 
 /*!
- * \brief Managed reference to LetFrameNode.
+ * \brief Managed reference to BindFrameNode.
  *
- * \sa LetFrameNode
+ * \sa BindFrameNode
  */
-class LetFrame : public TIRFrame {
+class BindFrame : public TIRFrame {
  public:
-  explicit LetFrame(ObjectPtr<LetFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit BindFrame(ObjectPtr<BindFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LetFrame, TIRFrame, LetFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BindFrame, TIRFrame, BindFrameNode);
 };
 
 /*!

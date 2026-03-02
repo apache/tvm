@@ -460,8 +460,8 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
   return AssertFrame(n);
 }
 
-LetFrame Bind(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
-  ObjectPtr<LetFrameNode> n = ffi::make_object<LetFrameNode>();
+BindFrame Bind(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
+  ObjectPtr<BindFrameNode> n = ffi::make_object<BindFrameNode>();
   if (var.defined()) {
     n->var = var.value();
   } else if (type_annotation.defined()) {
@@ -470,7 +470,7 @@ LetFrame Bind(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional
     n->var = Var("v", value.dtype());
   }
   n->value = value;
-  return LetFrame(n);
+  return BindFrame(n);
 }
 
 LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {

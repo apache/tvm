@@ -300,10 +300,10 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
  *                         Usually it is used for fine-grained var typing,
  *                         particularly, PointerType.
  * \param var The variable to be bound. If not specified, a new variable will be created.
- * \return The created LetFrame.
+ * \return The created BindFrame.
  */
-LetFrame Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
-              ffi::Optional<Var> var = std::nullopt);
+BindFrame Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
+               ffi::Optional<Var> var = std::nullopt);
 
 /*!
  * \brief The allocate node.
