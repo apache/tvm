@@ -387,12 +387,15 @@ class IRConvertSSA final : public StmtExprMutator {
       ScopedRedefine redefine(this, v);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocBufferNode>();
-      // Remap the buffer's data var to the new var
-      Buffer new_buf = op->buffer;
-      new_buf.CopyOnWrite()->data = redefine.new_var;
-      auto node = Downcast<AllocBuffer>(stmt);
-      node.CopyOnWrite()->buffer = new_buf;
-      return node;
+      // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
+      // object as the one used by BufferStore/BufferLoad in the body.
+      Buffer new_buf = GetRemappedBuffer(op->buffer);
+      if (!new_buf.same_as(op->buffer)) {
+        auto node = Downcast<AllocBuffer>(stmt);
+        node.CopyOnWrite()->buffer = std::move(new_buf);
+        return node;
+      }
+      return stmt;
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);

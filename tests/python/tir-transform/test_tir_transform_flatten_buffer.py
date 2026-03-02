@@ -46,16 +46,15 @@ def test_elementwise():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(input_A: T.Buffer((16, 16), "float32"), input_C: T.Buffer((16, 16), "float32")):
-            A = T.decl_buffer(256, dtype="float32", data=input_A.data)
-            C = T.decl_buffer(256, dtype="float32", data=input_C.data)
+        def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
+            A_1 = T.decl_buffer(256, dtype="float32", data=A.data)
+            C_1 = T.decl_buffer(256, dtype="float32", data=C.data)
             for i in T.serial(0, 16):
-                B_new_data = T.allocate([16], "float32", scope="global")
-                B_new = T.decl_buffer([16], "float32", scope="global", data=B_new_data)
+                B_new = T.decl_buffer([16], "float32")
                 for j in T.serial(0, 16):
-                    B_new[j] = A[((i * 16) + j)] + 1.0
+                    B_new[j] = A_1[((i * 16) + j)] + 1.0
                 for j in T.serial(0, 16):
-                    C[((i * 16) + j)] = B_new[j] * 2.0
+                    C_1[((i * 16) + j)] = B_new[j] * 2.0
 
     After = _transform()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -124,9 +123,9 @@ def test_gpu():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(input_A: T.Buffer((16, 16), "float32"), input_C: T.Buffer((16, 16), "float32")):
-            A = T.decl_buffer(256, dtype="float32", data=input_A.data)
-            C = T.decl_buffer(256, dtype="float32", data=input_C.data)
+        def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
+            A_1 = T.decl_buffer(256, dtype="float32", data=A.data)
+            C_1 = T.decl_buffer(256, dtype="float32", data=C.data)
 
             i0 = T.env_thread("blockIdx.x")
             i1 = T.env_thread("threadIdx.x")
@@ -135,12 +134,11 @@ def test_gpu():
             T.launch_thread(i0, 4)
             T.launch_thread(i1, 2)
             T.launch_thread(i2, 2)
-            B_data = T.allocate([16], "float32", scope="local")
-            B = T.decl_buffer([16], "float32", scope="local", data=B_data)
+            B = T.decl_buffer([16], "float32", scope="local")
             for j in range(0, 16):
-                B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + 1.0
+                B[j] = A_1[i0 * 64 + i1 * 32 + i2 * 16 + j] + 1.0
             for j in range(0, 16):
-                C[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * 2.0
+                C_1[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * 2.0
 
     After = _transform()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -167,18 +165,17 @@ def test_symbolic():
     class Expected:
         @T.prim_func
         def main(a: T.handle, c: T.handle, n: T.int32, m: T.int32) -> None:
-            input_A = T.match_buffer(a, (n, m), "float32")
-            input_C = T.match_buffer(c, (n, m), "float32")
-            A = T.decl_buffer(n * m, "float32", data=input_A.data)
-            C = T.decl_buffer(n * m, "float32", data=input_C.data)
+            A = T.match_buffer(a, (n, m), "float32")
+            C = T.match_buffer(c, (n, m), "float32")
+            A_1 = T.decl_buffer(n * m, "float32", data=A.data)
+            C_1 = T.decl_buffer(n * m, "float32", data=C.data)
 
             for i in range(0, n):
-                B_data = T.allocate([m], "float32", scope="global")
-                B = T.decl_buffer([m], "float32", scope="global", data=B_data)
+                B = T.decl_buffer([m], "float32")
                 for j in range(0, m):
-                    B[j] = A[i * m + j] + 1.0
+                    B[j] = A_1[i * m + j] + 1.0
                 for j in range(0, m):
-                    C[i * m + j] = B[j] * 2.0
+                    C_1[i * m + j] = B[j] * 2.0
 
     After = _transform()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -270,18 +267,16 @@ def test_multi_alloc():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(input_A: T.Buffer((4, 32), "float32"), input_D: T.Buffer((4, 32), "float32")):
-            A = T.decl_buffer(128, "float32", data=input_A.data)
-            D = T.decl_buffer(128, "float32", data=input_D.data)
+        def main(A: T.Buffer((4, 32), "float32"), D: T.Buffer((4, 32), "float32")):
+            A_1 = T.decl_buffer(128, "float32", data=A.data)
+            D_1 = T.decl_buffer(128, "float32", data=D.data)
 
             for i, j in T.grid(4, 32):
-                B_data = T.allocate([128], "float32", scope="global")
-                B = T.decl_buffer([128], "float32", scope="global", data=B_data)
-                C_data = T.allocate([128], "float32", scope="global")
-                C = T.decl_buffer([128], "float32", scope="global", data=C_data)
-                B[i * 32 + j] = A[i * 32 + j] + 1.0
-                C[i * 32 + j] = A[i * 32 + j] + B[i * 32 + j]
-                D[i * 32 + j] = C[i * 32 + j] * 2.0
+                B = T.decl_buffer([128], "float32")
+                C = T.decl_buffer([128], "float32")
+                B[i * 32 + j] = A_1[i * 32 + j] + 1.0
+                C[i * 32 + j] = A_1[i * 32 + j] + B[i * 32 + j]
+                D_1[i * 32 + j] = C[i * 32 + j] * 2.0
 
     After = _transform()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -305,19 +300,18 @@ def test_strided():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(input_A: T.Buffer((16, 16), "float32"), input_C: T.Buffer((16, 16), "float32")):
-            A = T.decl_buffer(256, dtype="float32", data=input_A.data)
-            C = T.decl_buffer(256, dtype="float32", data=input_C.data)
+        def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
+            A_1 = T.decl_buffer(256, dtype="float32", data=A.data)
+            C_1 = T.decl_buffer(256, dtype="float32", data=C.data)
             for i0 in T.serial(0, 4):
-                B_new_data = T.allocate([68], "float32", scope="global")
-                _B_new = T.decl_buffer([68], "float32", scope="global", data=B_new_data)
-                B_new_1 = T.decl_buffer([68], "float32", scope="global", data=B_new_data)
+                B = T.decl_buffer([68], "float32")
+                B_1 = T.decl_buffer([68], "float32", data=B.data)
                 for i1 in T.serial(0, 4):
                     for j in T.serial(0, 16):
-                        B_new_1[i1 * 17 + j] = A[i0 * 64 + i1 * 16 + j] + 1.0
+                        B_1[i1 * 17 + j] = A_1[i0 * 64 + i1 * 16 + j] + 1.0
                 for i1 in T.serial(0, 4):
                     for j in T.serial(0, 16):
-                        C[i0 * 64 + i1 * 16 + j] = B_new_1[i1 * 17 + j] * 2.0
+                        C_1[i0 * 64 + i1 * 16 + j] = B_1[i1 * 17 + j] * 2.0
 
     After = _transform()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -434,10 +428,7 @@ def test_flatten_decl_buffer_with_axis_separators():
     class Expected:
         @T.prim_func
         def main():
-            A_data = T.allocate([30, 1001], dtype="float32", scope="global")
-            A = T.decl_buffer(
-                [30, 1001], dtype="float32", scope="global", axis_separators=[1], data=A_data
-            )
+            A = T.decl_buffer([30, 1001], axis_separators=[1])
             for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
                 T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
 

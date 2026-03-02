@@ -71,10 +71,18 @@ class AllocateCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
   void VisitStmt_(const AllocBufferNode* op) final {
-    if (IsDynamicSharedMemory(op->buffer->data)) {
-      dyn_shmem_alloc_buffers_[op->buffer->data.get()] = op;
-    } else if (IsStaticSharedMemory(op->buffer->data)) {
-      static_shmem_alloc_buffers_[op->buffer->data.get()] = op;
+    // Synthesize Allocate entries from AllocBuffer so the rest of the merge
+    // logic (which expects AllocateNode*) works unchanged.
+    if (IsDynamicSharedMemory(op->buffer->data) || IsStaticSharedMemory(op->buffer->data)) {
+      ffi::Array<PrimExpr> alloc_shape = GetBufferAllocationShape(op->buffer);
+      Allocate synth(op->buffer->data, op->buffer->dtype, alloc_shape, const_true(), Evaluate(0));
+      synth_allocs_.push_back(synth);
+      const AllocateNode* alloc_ptr = synth_allocs_.back().get();
+      if (IsDynamicSharedMemory(op->buffer->data)) {
+        dyn_shmem_allocs_[op->buffer->data.get()] = alloc_ptr;
+      } else {
+        static_shmem_allocs_[op->buffer->data.get()] = alloc_ptr;
+      }
     }
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -82,9 +90,8 @@ class AllocateCollector : public StmtExprVisitor {
   std::unordered_map<const VarNode*, const AllocateNode*> dyn_shmem_allocs_;
   // The static mapping from the original buffer var to its allocate
   std::unordered_map<const VarNode*, const AllocateNode*> static_shmem_allocs_;
-  // AllocBuffer variants
-  std::unordered_map<const VarNode*, const AllocBufferNode*> dyn_shmem_alloc_buffers_;
-  std::unordered_map<const VarNode*, const AllocBufferNode*> static_shmem_alloc_buffers_;
+  // Keep synthesized Allocate nodes alive
+  std::vector<Allocate> synth_allocs_;
 };
 
 // Find a linear pattern of storage access
@@ -134,10 +141,12 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   void VisitStmt_(const AllocBufferNode* op) final {
     size_t level = scope_.size();
     const VarNode* buf = op->buffer->data.get();
-    // Reuse alloc_info_ by creating a temporary AllocateNode-like entry.
-    // The alloc pointer is not used for AllocBuffer, but we need to record the level.
+    // Synthesize an Allocate entry so the liveness analysis works unchanged.
+    ffi::Array<PrimExpr> alloc_shape = GetBufferAllocationShape(op->buffer);
+    Allocate synth(op->buffer->data, op->buffer->dtype, alloc_shape, const_true(), Evaluate(0));
+    synth_allocs_.push_back(synth);
+    alloc_info_[buf].alloc = synth_allocs_.back().get();
     alloc_info_[buf].level = level;
-    alloc_info_[buf].alloc = nullptr;
     StmtExprVisitor::VisitStmt_(op);
   }
 
@@ -268,6 +277,8 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   bool is_dynamic_{true};
   // Whether already in thread env.
   bool in_thread_env_{false};
+  // Synthesized Allocate nodes for AllocBuffer entries (kept alive here)
+  std::vector<Allocate> synth_allocs_;
   // The scope stack.
   std::vector<StmtEntry> scope_;
 };
