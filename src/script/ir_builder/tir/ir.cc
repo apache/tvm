@@ -637,18 +637,34 @@ void BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
   AddToParent(tvm::tir::BufferStore(buffer, value, indices, predicate));
 }
 
-DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
-                           ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                           ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor, ffi::String buffer_type,
-                           ffi::Optional<ffi::Array<IntImm>> axis_separators,
-                           ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
-  ObjectPtr<DeclBufferFrameNode> n = ffi::make_object<DeclBufferFrameNode>();
-  n->buffer = BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope,
-                         align, offset_factor, buffer_type, axis_separators);
-  n->allocated = data.defined();
+TIRFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
+                    ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                    ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                    int offset_factor, ffi::String buffer_type,
+                    ffi::Optional<ffi::Array<IntImm>> axis_separators) {
+  Buffer buffer = BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope,
+                             align, offset_factor, buffer_type, axis_separators);
+  if (data.defined()) {
+    // Alias an existing buffer: produce DeclBuffer
+    ObjectPtr<DeclBufferFrameNode> n = ffi::make_object<DeclBufferFrameNode>();
+    n->buffer = buffer;
+    return DeclBufferFrame(n);
+  } else {
+    // No backing data pointer: allocate a new buffer via AllocBuffer
+    ObjectPtr<AllocBufferFrameNode> n = ffi::make_object<AllocBufferFrameNode>();
+    n->buffer = buffer;
+    n->annotations = {};
+    return AllocBufferFrame(n);
+  }
+}
+
+AllocBufferFrame AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String storage_scope,
+                             ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
+  ObjectPtr<AllocBufferFrameNode> n = ffi::make_object<AllocBufferFrameNode>();
+  n->buffer = BufferDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt, storage_scope,
+                         0, 0, "", std::nullopt);
   n->annotations = annotations.value_or(ffi::Map<ffi::String, ffi::Any>());
-  return DeclBufferFrame(n);
+  return AllocBufferFrame(n);
 }
 
 void Evaluate(PrimExpr value) { AddToParent(tvm::tir::Evaluate(value)); }
@@ -746,6 +762,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tir.Then", Then)
       .def("script.ir_builder.tir.Else", Else)
       .def("script.ir_builder.tir.DeclBuffer", DeclBuffer)
+      .def("script.ir_builder.tir.AllocBuffer", AllocBuffer)
       .def("script.ir_builder.tir.LaunchThread",
            [](ffi::Variant<tvm::tir::Var, ffi::String> thread_tag_or_var, PrimExpr extent) {
              if (auto var = thread_tag_or_var.as<tvm::tir::Var>()) {

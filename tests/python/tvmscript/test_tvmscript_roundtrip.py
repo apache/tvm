@@ -2851,6 +2851,20 @@ def allocate_and_decl_buffer():
     return func
 
 
+def alloc_buffer_example():
+    @T.prim_func
+    def func(a: T.handle, c: T.handle):
+        A = T.match_buffer(a, (128,), "float32")
+        C = T.match_buffer(c, (128,), "float32")
+        B = T.alloc_buffer((128,), "float32")
+        for i in range(128):
+            B[i] = A[i] * T.float32(2)
+        for i in range(128):
+            C[i] = B[i] + T.float32(1)
+
+    return func
+
+
 def float_infinity():
     @T.prim_func
     def func(
@@ -3639,6 +3653,7 @@ ir_generator = tvm.testing.parameter(
     void_ptr,
     decl_buffer,
     allocate_and_decl_buffer,
+    alloc_buffer_example,
     float_infinity,
     minimal_i32_literal,
     boolean_argument,

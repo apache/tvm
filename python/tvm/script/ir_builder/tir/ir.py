@@ -472,7 +472,7 @@ def alloc_buffer(
     dtype: str = "float32",
     scope: str = "global",
     annotations: dict[str, Any] | None = None,
-) -> frame.DeclBufferFrame:
+) -> frame.AllocBufferFrame:
     """Statement-level buffer allocation (creates an AllocBuffer IR node).
 
     Used as a context manager or with concise scoping in TVMScript::
@@ -497,22 +497,14 @@ def alloc_buffer(
 
     Returns
     -------
-    res : frame.DeclBufferFrame
-        The result DeclBufferFrame.
+    res : frame.AllocBufferFrame
+        The result AllocBufferFrame.
     """
     shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
-    return _ffi_api.DeclBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.AllocBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
-        "",
-        None,
-        [],
-        None,
         scope,
-        0,
-        0,
-        "",
-        None,
         annotations,
     )
 
@@ -1197,9 +1189,11 @@ def decl_buffer(
     offset_factor=0,
     buffer_type="",
     axis_separators=None,
-    annotations=None,
 ) -> frame.DeclBufferFrame:
     """Create a buffer declaration node.
+
+    When ``data`` is provided, creates a DeclBuffer (alias to existing data).
+    When ``data`` is None, creates an AllocBuffer (new allocation).
 
     Parameters
     ----------
@@ -1233,9 +1227,6 @@ def decl_buffer(
     axis_separators : List[int]
         The separators between input axes when generating flattened output axes.
 
-    annotations : Optional[Dict[str, Any]]
-        Optional annotations for the allocation.
-
     Returns
     -------
     res : frame.DeclBufferFrame
@@ -1258,7 +1249,6 @@ def decl_buffer(
         offset_factor,
         buffer_type,
         axis_separators,
-        annotations,
     )
 
 

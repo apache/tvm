@@ -44,6 +44,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
   DeclBufferFrameNode::RegisterReflection();
+  AllocBufferFrameNode::RegisterReflection();
 }
 
 void PrimFuncFrameNode::ExitWithScope() {
@@ -215,11 +216,12 @@ void ElseFrameNode::ExitWithScope() {
 
 void DeclBufferFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  if (allocated) {
-    AddToParent(tvm::tir::DeclBuffer(buffer, AsStmt(stmts)));
-  } else {
-    AddToParent(tvm::tir::AllocBuffer(buffer, AsStmt(stmts), annotations));
-  }
+  AddToParent(tvm::tir::DeclBuffer(buffer, AsStmt(stmts)));
+}
+
+void AllocBufferFrameNode::ExitWithScope() {
+  TIRFrameNode::ExitWithScope();
+  AddToParent(tvm::tir::AllocBuffer(buffer, AsStmt(stmts), annotations));
 }
 
 }  // namespace tir
