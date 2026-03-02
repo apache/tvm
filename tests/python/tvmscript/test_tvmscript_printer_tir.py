@@ -289,7 +289,7 @@ def test_assert_stmt():
     _assert_print(
         obj,
         """
-assert T.bool(True), "assertion"
+assert T.bool(True), ("RuntimeError", ["assertion"])
 T.evaluate(0)
 """,
     )

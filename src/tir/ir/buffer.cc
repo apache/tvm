@@ -515,7 +515,7 @@ Buffer Buffer::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> exten
 
   // Buffer must be constructed with a singular element offset which means there is no
   // support for n-dimensional buffers where n > 1.  Insert sentinel value for
-  // ArgBinder::BindBuffer to state that any usage of element offset is invalid
+  // TVMFFIABIBuilder::BindBuffer to state that any usage of element offset is invalid
   // in this case.  This allows for construction of a Buffer with multiple element offsets
   // but disallows any usage of those element offsets.  See PR #10816 for discussion on
   // supporting multiple element offsets in TIR Buffer.

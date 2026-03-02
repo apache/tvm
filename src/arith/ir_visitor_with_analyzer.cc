@@ -86,7 +86,6 @@ void IRVisitorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
 
 void IRVisitorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
-  this->VisitExpr(op->message);
   constraint_scope_.Current().Emplace(&analyzer_, op->condition);
 }
 

@@ -104,25 +104,27 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // AssertStmt
-AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Span span) {
+AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
+                       ffi::Array<StringImm> message_parts, Span span) {
   TVM_FFI_ICHECK(condition.defined());
-  TVM_FFI_ICHECK(condition.dtype().is_bool())
+  TVM_FFI_ICHECK(condition.dtype().is_predicate_dtype())
       << "AssertStmt should have boolean condition, "
       << "but received " << condition << " with dtype " << condition.dtype();
-  TVM_FFI_CHECK(message.dtype() == DataType::Int(32) || message.as<StringImmNode>(), TypeError)
-      << "AssertStmt message must be an int or string:" << message << "\n";
+  TVM_FFI_ICHECK(error_kind.defined());
 
   ObjectPtr<AssertStmtNode> node = ffi::make_object<AssertStmtNode>();
   node->condition = std::move(condition);
-  node->message = std::move(message);
+  node->error_kind = std::move(error_kind);
+  node->message_parts = std::move(message_parts);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tir.AssertStmt", [](PrimExpr condition, StringImm message, Span span) {
-    return AssertStmt(condition, message, span);
+  refl::GlobalDef().def("tir.AssertStmt", [](PrimExpr condition, StringImm error_kind,
+                                             ffi::Array<StringImm> message_parts, Span span) {
+    return AssertStmt(condition, error_kind, message_parts, span);
   });
 }
 
