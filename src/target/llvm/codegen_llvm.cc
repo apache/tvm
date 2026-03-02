@@ -2012,6 +2012,48 @@ void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
   this->VisitStmt(op->body);
 }
 
+void CodeGenLLVM::VisitStmt_(const AllocBufferNode* op) {
+  EmitDebugLocation(op);
+  TVM_FFI_ICHECK_EQ(op->buffer->shape.size(), 1)
+      << "LLVM codegen only supports flat 1-d buffer allocation, but allocation of "
+      << op->buffer->name << " is " << op->buffer->shape << "-d";
+
+  llvm::Value* buf = nullptr;
+
+  const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+  TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation";
+  int32_t constant_size = static_cast<int32_t>(dim_imm->value);
+  TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
+
+  StorageInfo& info = alloc_storage_info_[op->buffer->data.get()];
+  if (constant_size % 4 == 0 && info.alignment == 0) {
+    info.alignment = GetTempAllocaAlignment(op->buffer->dtype, constant_size);
+  }
+  // maximum necessary alignment in the NV devices
+  if (info.alignment > 16) {
+    info.alignment = 16;
+  }
+  llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
+    return builder_->CreateAlloca(DTypeToLLVMType(op->buffer->dtype), ConstInt32(constant_size));
+  });
+  auto alignment = static_cast<unsigned>(alloca->getAlign().value());
+  if (alignment < static_cast<unsigned>(info.alignment)) {
+    alloca->setAlignment(llvm::Align(info.alignment));
+  }
+  info.alignment = static_cast<unsigned>(alloca->getAlign().value());
+
+  buf = alloca;
+
+  buf =
+      builder_->CreatePointerCast(buf, llvmGetPointerTo(DTypeToLLVMType(op->buffer->dtype),
+                                                        buf->getType()->getPointerAddressSpace()));
+  AddDebugInformation(buf, op->buffer->data);
+
+  TVM_FFI_ICHECK(!var_map_.count(op->buffer->data.get()));
+  var_map_[op->buffer->data.get()] = buf;
+  this->VisitStmt(op->body);
+}
+
 void CodeGenLLVM::VisitStmt_(const AttrStmtNode* op) {
   EmitDebugLocation(op);
   if (op->attr_key == tir::attr::thread_extent) {

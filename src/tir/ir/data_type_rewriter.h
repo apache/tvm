@@ -109,6 +109,7 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   ffi::Array<PrimExpr> VisitIndices(ffi::Array<PrimExpr> indices);
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const DeclBufferNode* op) override;
+  Stmt VisitStmt_(const AllocBufferNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
   Stmt VisitStmt_(const LetStmtNode* op) override;
   PrimExpr VisitExpr_(const EQNode* op) override;

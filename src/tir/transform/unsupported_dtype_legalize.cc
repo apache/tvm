@@ -99,6 +99,21 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     this->PopulateBufferRemap(op->buffer);
   }
 
+  void VisitStmt_(const AllocBufferNode* op) final {
+    // remap all intermediate constant buffer to promote data types (fp16/fp32)
+    if (MatchDType(op->buffer->dtype)) {
+      DataType dtype = promote_dtype_.with_lanes(op->buffer->dtype.lanes());
+      ffi::String storage_scope = "global";
+      if (auto* ptr_type = op->buffer->data->type_annotation.as<PointerTypeNode>()) {
+        storage_scope = ptr_type->storage_scope;
+      }
+      Var buffer_var =
+          Var(op->buffer->data->name_hint, PointerType(PrimType(dtype), storage_scope));
+      (*var_remap_)[op->buffer->data] = buffer_var;
+    }
+    return StmtExprVisitor::VisitStmt_(op);
+  }
+
   void VisitStmt_(const DeclBufferNode* op) final {
     StmtExprVisitor::VisitStmt_(op);
     this->PopulateBufferRemap(op->buffer);
@@ -421,6 +436,20 @@ class ComputeLegalizer : public StmtExprMutator {
     }
   }
 
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    Stmt ret = StmtExprMutator::VisitStmt_(op);
+    op = ret.as<AllocBufferNode>();
+
+    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    if (new_buf.same_as(op->buffer)) {
+      return ret;
+    } else {
+      auto node = Downcast<AllocBuffer>(ret);
+      node.CopyOnWrite()->buffer = new_buf;
+      return node;
+    }
+  }
+
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     PrimExpr ret = StmtExprMutator::VisitExpr_(op);
     op = ret.as<BufferLoadNode>();
@@ -537,6 +566,35 @@ class StorageLegalizer : public StmtExprMutator {
       return VisitStmt(Allocate(buffer_var, dtype, op->extents, op->condition, op->body));
     } else {
       return StmtExprMutator::VisitStmt_(op);
+    }
+  }
+
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    Buffer buf = GetRemappedBuffer(op->buffer);
+    // in a rare case the buffer didn't get remapped
+    // because the original var is not bfloat*
+    // force remap here
+    if (MatchDType(buf->dtype)) {
+      DataType new_dtype = GetStorageUIntDType(buf->dtype);
+      ffi::String storage_scope = "global";
+      if (auto* ptr_type = buf->data->type_annotation.as<PointerTypeNode>()) {
+        storage_scope = ptr_type->storage_scope;
+      }
+      Var new_data = Var(buf->data->name_hint, PointerType(PrimType(new_dtype), storage_scope));
+      var_remap_[buf->data] = new_data;
+      buf = Buffer(new_data, new_dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
+                   buf->data_alignment, buf->offset_factor, buf->buffer_type, buf->axis_separators,
+                   buf->span);
+      buffer_remap_[op->buffer] = buf;
+    }
+    Stmt body = VisitStmt(op->body);
+    if (buf.same_as(op->buffer) && body.same_as(op->body)) {
+      return ffi::GetRef<Stmt>(op);
+    } else {
+      auto node = Downcast<AllocBuffer>(ffi::GetRef<Stmt>(op));
+      node.CopyOnWrite()->buffer = buf;
+      node.CopyOnWrite()->body = body;
+      return node;
     }
   }
 

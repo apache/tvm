@@ -442,6 +442,23 @@ class WarpMemoryRewriter : private StmtMutator {
     return ret;
   }
 
+  Stmt VisitStmt_(const AllocBufferNode* op) {
+    auto ret = StmtMutator::VisitStmt_(op);
+    op = ret.as<AllocBufferNode>();
+    if (GetPtrStorageScope(op->buffer->data) == "warp") {
+      new_storage_scopes_[op->buffer->data.get()] = "local";
+      // AllocBuffer warp rewriting: convert to Allocate for the warp rewriter,
+      // then wrap back in AllocBuffer with updated buffer.
+      // For now, delegate to Allocate-based rewriting by converting first.
+      auto alloc = Allocate(op->buffer->data, op->buffer->dtype, op->buffer->shape,
+                            tvm::IntImm(DataType::Bool(), 1), op->body, op->annotations);
+      WarpAccessRewriter rewriter(warp_size_, &analyzer_);
+      Stmt rewritten = rewriter.Rewrite(alloc.get());
+      return rewritten;
+    }
+    return ret;
+  }
+
   int warp_size_{0};
   arith::Analyzer analyzer_;
   // variable domain

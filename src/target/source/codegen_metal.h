@@ -52,6 +52,7 @@ class CodeGenMetal final : public CodeGenC {
   void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
   // overload visitor
   void VisitStmt_(const AllocateNode* op) final;                     // NOLINT(*)
+  void VisitStmt_(const AllocBufferNode* op) final;                  // NOLINT(*)
   void VisitExpr_(const SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)

@@ -97,6 +97,11 @@ Buffer UpdatePointerStorageScope::GetUpdatedBuffer(Buffer buf) {
   return buf;
 }
 
+Stmt UpdatePointerStorageScope::VisitStmt_(const AllocBufferNode* op) {
+  auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+  return UpdateBufferAccess(node);
+}
+
 Stmt UpdatePointerStorageScope::VisitStmt_(const DeclBufferNode* op) {
   auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
   return UpdateBufferAccess(node);

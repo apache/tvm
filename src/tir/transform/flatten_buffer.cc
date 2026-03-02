@@ -171,6 +171,22 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     return alloc;
   }
 
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+
+    auto new_buf = GetFlattenedBuffer(node->buffer);
+    // TODO(Lunderberg): Move the handling of boolean into a dedicated pass.
+    if (new_buf->dtype == DataType::Bool()) {
+      auto writer = new_buf.CopyOnWrite();
+      writer->dtype = DataType::Int(8);
+    }
+    if (!node->buffer.same_as(new_buf)) {
+      node.CopyOnWrite()->buffer = new_buf;
+    }
+
+    return std::move(node);
+  }
+
   Stmt VisitStmt_(const DeclBufferNode* op) final {
     auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
 

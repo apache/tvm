@@ -105,6 +105,27 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     }
   }
 
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    bool to_be_lowered = datatype::Registry::Global()->GetTypeRegistered(op->buffer->dtype.code());
+
+    if (to_be_lowered) {
+      auto new_allocate_type = DataType::UInt(op->buffer->dtype.bits(), op->buffer->dtype.lanes());
+      auto new_buffer_var =
+          Var(op->buffer->data->name_hint, PointerType(PrimType(new_allocate_type)));
+      var_remap_[op->buffer->data] = new_buffer_var;
+    }
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<AllocBufferNode>();
+
+    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    if (!new_buf.same_as(op->buffer)) {
+      auto node = Downcast<AllocBuffer>(stmt);
+      node.CopyOnWrite()->buffer = new_buf;
+      return node;
+    }
+    return stmt;
+  }
+
   Stmt VisitStmt_(const DeclBufferNode* op) final {
     auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
     return VisitBufferAccess(std::move(node));

@@ -179,6 +179,12 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     return is_no_op(op->body) ? MakeEvaluate(op->extents) : stmt;
   }
 
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    Stmt stmt = StmtMutator::VisitStmt_(op);
+    op = stmt.as<AllocBufferNode>();
+    return is_no_op(op->body) ? MakeEvaluate(op->buffer->shape) : stmt;
+  }
+
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (HasSideEffect(op->value)) {
       return ffi::GetRef<Stmt>(op);

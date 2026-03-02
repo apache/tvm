@@ -261,6 +261,11 @@ class OccurrenceCounter : public tir::StmtExprVisitor {
     tir::StmtExprVisitor::VisitExpr_(op);
   }
 
+  void VisitStmt_(const tir::AllocBufferNode* op) final {
+    VisitBuffer(op->buffer.get());
+    tir::StmtExprVisitor::VisitStmt_(op);
+  }
+
   void VisitStmt_(const tir::DeclBufferNode* op) final {
     VisitBuffer(op->buffer.get());
     tir::StmtExprVisitor::VisitStmt_(op);

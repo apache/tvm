@@ -298,6 +298,15 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const AttrStmtNode* op) {
   return DataTypeLegalizer::VisitStmt_(op);
 }
 
+Stmt IndexDataTypeRewriter::VisitStmt_(const AllocBufferNode* op) {
+  Buffer new_buffer = VisitBuffer(op->buffer);
+  AllocBuffer alloc_buffer = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+  if (!new_buffer.same_as(op->buffer)) {
+    alloc_buffer.CopyOnWrite()->buffer = new_buffer;
+  }
+  return alloc_buffer;
+}
+
 Stmt IndexDataTypeRewriter::VisitStmt_(const DeclBufferNode* op) {
   Buffer new_buffer = VisitBuffer(op->buffer);
   DeclBuffer decl_buffer = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));

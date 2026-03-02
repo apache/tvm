@@ -403,6 +403,18 @@ void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
   CodeGenC::VisitStmt_(op);
 }
 
+void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
+  // Compute constant_size from buffer shape
+  size_t constant_size = 1;
+  for (const auto& dim : op->buffer->shape) {
+    const IntImmNode* dim_imm = dim.as<IntImmNode>();
+    TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
+    constant_size *= dim_imm->value;
+  }
+  allocation_size_.insert({op->buffer->data.get(), constant_size * op->buffer->dtype.lanes()});
+  CodeGenC::VisitStmt_(op);
+}
+
 void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
   if (op->op.same_as(builtin::address_of())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).

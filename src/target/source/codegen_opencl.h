@@ -63,6 +63,7 @@ class CodeGenOpenCL final : public CodeGenC {
 
   // overload visitor
   void VisitStmt_(const AllocateNode* op) final;                     // NOLINT(*)
+  void VisitStmt_(const AllocBufferNode* op) final;                  // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)

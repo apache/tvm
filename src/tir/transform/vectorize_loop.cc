@@ -843,6 +843,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       }
     }
   }
+  // AllocBuffer: just visit the body (vectorization of AllocBuffer not yet implemented)
+  Stmt VisitStmt_(const AllocBufferNode* op) final { return StmtMutator::VisitStmt_(op); }
   // Allocate
   Stmt VisitStmt_(const AllocateNode* op) final {
     // Mutate the condition

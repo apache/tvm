@@ -315,7 +315,24 @@ TVM_SCRIPT_REPR(tir::LetStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AttrStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AssertStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::WhileNode, ReprPrintTIR);
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tir::AllocBuffer>(  //
+        "", [](tir::AllocBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
+          bool concise = AllowConciseScoping(d, stmt);
+          ffi::Array<ExprDoc> extra_args;
+          if (!stmt->annotations.empty()) {
+            extra_args.push_back(d->AsDoc<ExprDoc>(stmt->annotations, p->Attr("annotations")));
+          }
+          ExprDoc rhs = BufferDecl(stmt->buffer, "alloc_buffer", extra_args, p->Attr("buffer"),
+                                   d->frames.back(), d, BufferVarDefinition::DataPointer);
+          With<TIRFrame> f(d, stmt);
+          ExprDoc lhs = DefineBuffer(stmt->buffer, *f, d);
+          AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
+          return DoConciseScoping(lhs, rhs, &(*f)->stmts, concise);
+        });
+
 TVM_SCRIPT_REPR(tir::AllocateNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tir::AllocBufferNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::DeclBufferNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::SeqStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::IfThenElseNode, ReprPrintTIR);

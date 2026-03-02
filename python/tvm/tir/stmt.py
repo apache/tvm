@@ -340,6 +340,41 @@ class Allocate(Stmt):
         )
 
 
+@tvm_ffi.register_object("tir.AllocBuffer")
+class AllocBuffer(Stmt):
+    """AllocBuffer node.
+
+    Allocates a buffer and declares it in scope.
+
+    Parameters
+    ----------
+    buffer: Buffer
+        The buffer being allocated and declared.
+
+    body: Stmt
+        The body statement to be executed.
+
+    annotations: Optional[dict]
+        Additional annotations about the allocation.
+
+    span: Optional[Span]
+        The location of this AllocBuffer in the source code.
+    """
+
+    buffer: Buffer
+    body: Stmt
+    span: Span | None
+
+    def __init__(
+        self,
+        buffer: Buffer,
+        body: Stmt,
+        annotations: dict | None = None,
+        span: Span | None = None,
+    ) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.AllocBuffer, buffer, body, annotations, span)
+
+
 @tvm_ffi.register_object("tir.DeclBuffer")
 class DeclBuffer(Stmt):
     """DeclBuffer node.

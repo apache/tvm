@@ -1430,6 +1430,60 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   this->PrintStmt(op->body);
 }
 
+void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
+  TVM_FFI_ICHECK(op->buffer.defined());
+  std::string vid = AllocVarID(op->buffer->data.get());
+
+  this->PrintIndent();
+  std::string scope = GetPtrStorageScope(op->buffer->data);
+  const VarNode* buffer = op->buffer->data.as<VarNode>();
+  DataType dtype = op->buffer->dtype;
+
+  if (scope.find("wmma.") == 0) {
+    if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
+      TVM_FFI_ICHECK(dtype == DataType::Float(16) || dtype == DataType::Int(8) ||
+                     dtype == DataType::UInt(8) || dtype == DataType::Int(4) ||
+                     dtype == DataType::UInt(4) || dtype == DataType::Int(1) ||
+                     dtype == DataType::BFloat(16))
+          << "Matrix_a and matrix_b only support half or char or unsigned char "
+          << "or uint4 or int4 or int1 type for now";
+    } else {
+      TVM_FFI_ICHECK(dtype == DataType::Float(16) || dtype == DataType::Float(32) ||
+                     dtype == DataType::Int(32))
+          << "Accumulator only support half, float and int type for now";
+    }
+    PrintWmmaScope(scope, dtype, buffer, stream);
+  } else {
+    PrintStorageScope(scope, stream);
+    PrintType(dtype, stream);
+  }
+
+  if (scope == "shared.dyn") {
+    stream << ' ' << vid << "[];\n";
+  } else {
+    // Compute constant_size from buffer shape
+    size_t constant_size = 1;
+    for (const auto& dim : op->buffer->shape) {
+      const IntImmNode* dim_imm = dim.as<IntImmNode>();
+      TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
+      constant_size *= dim_imm->value;
+    }
+    TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
+
+    if (scope.find("wmma.") == 0) {
+      constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
+    }
+    if ((dtype == DataType::Int(4) || dtype == DataType::UInt(4) || dtype == DataType::Int(1)) &&
+        scope == "shared") {
+      constant_size = constant_size / (32 / dtype.bits());
+    }
+    stream << ' ' << vid << '[' << constant_size << "];\n";
+  }
+
+  RegisterHandleType(op->buffer->data.get(), dtype);
+  this->PrintStmt(op->body);
+}
+
 void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
   if (is_const_int(op->value)) return;
   const CallNode* call = op->value.as<CallNode>();

@@ -1067,6 +1067,31 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
   this->PrintStmt(op->body);
 }
 
+void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
+  TVM_FFI_ICHECK(op->buffer.defined());
+  std::string vid = AllocVarID(op->buffer->data.get());
+
+  this->PrintIndent();
+  const auto& shape = op->buffer->shape;
+  size_t constant_size = 1;
+  for (const auto& dim : shape) {
+    const IntImmNode* dim_imm = dim.as<IntImmNode>();
+    TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
+    constant_size *= dim_imm->value;
+  }
+  TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
+
+  auto scope = GetPtrStorageScope(op->buffer->data);
+  alloc_storage_scope_[op->buffer->data.get()] = scope;
+  PrintStorageScope(scope, stream);
+
+  PrintType(op->buffer->dtype, stream);
+  stream << ' ' << vid << '[' << constant_size << "];\n";
+
+  RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
+  this->PrintStmt(op->body);
+}
+
 void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);

@@ -216,9 +216,7 @@ void DeclBufferFrameNode::ExitWithScope() {
   if (allocated) {
     AddToParent(tvm::tir::DeclBuffer(buffer, AsStmt(stmts)));
   } else {
-    AddToParent(tvm::tir::Allocate(buffer->data, buffer->dtype, buffer->shape,
-                                   tvm::IntImm(DataType::Bool(), 1),
-                                   tvm::tir::DeclBuffer(buffer, AsStmt(stmts))));
+    AddToParent(tvm::tir::AllocBuffer(buffer, AsStmt(stmts)));
   }
 }
 

@@ -74,6 +74,11 @@ void VarUseDefAnalyzer::VisitStmt_(const AllocateNode* op) {
   StmtExprVisitor::VisitStmt_(op);
 }
 
+void VarUseDefAnalyzer::VisitStmt_(const AllocBufferNode* op) {
+  this->HandleDef(op->buffer);
+  StmtExprVisitor::VisitStmt_(op);
+}
+
 void VarUseDefAnalyzer::VisitStmt_(const BufferStoreNode* op) {
   HandleUse(op->buffer);
   StmtExprVisitor::VisitStmt_(op);

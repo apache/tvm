@@ -40,6 +40,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   BufferStoreNode::RegisterReflection();
   AllocateNode::RegisterReflection();
   DeclBufferNode::RegisterReflection();
+  AllocBufferNode::RegisterReflection();
   SeqStmtNode::RegisterReflection();
   EvaluateNode::RegisterReflection();
   IfThenElseNode::RegisterReflection();
@@ -310,6 +311,26 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tir.DeclBuffer", [](Buffer buffer, Stmt body, Span span) {
     return DeclBuffer(buffer, body, span);
   });
+}
+
+// AllocBuffer
+AllocBuffer::AllocBuffer(Buffer buffer, Stmt body, ffi::Map<ffi::String, Any> annotations,
+                         Span span) {
+  ObjectPtr<AllocBufferNode> node = ffi::make_object<AllocBufferNode>();
+  node->buffer = std::move(buffer);
+  node->annotations = std::move(annotations);
+  node->body = std::move(body);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "tir.AllocBuffer", [](Buffer buffer, Stmt body,
+                            ffi::Optional<ffi::Map<ffi::String, Any>> annotations, Span span) {
+        return AllocBuffer(buffer, body, annotations.value_or(ffi::Map<ffi::String, Any>()), span);
+      });
 }
 
 // SeqStmt

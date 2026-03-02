@@ -103,6 +103,12 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
+  void VisitStmt_(const AllocBufferNode* op) final {
+    // Track the buffer var so accesses are recognized, but don't
+    // add to alloc_info_ to avoid storage reuse optimization for now.
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
   void VisitStmt_(const BufferStoreNode* op) final {
     scope_.push_back(StmtEntry());
     // visit subexpr
@@ -519,6 +525,16 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocateNode* op) final { return this->VisitStmt(op->body); }
+
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    // AllocBuffer is not subject to storage reuse optimization; pass through.
+    auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+    if (auto it = alloc_map_.find(op->buffer->data.get()); it != alloc_map_.end()) {
+      Buffer buf = RemapBuffer(op->buffer, it->second->alloc_var);
+      node.CopyOnWrite()->buffer = buf;
+    }
+    return node;
+  }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
     if (hoisted_buffer_decls_.count(op->buffer.get()) ||

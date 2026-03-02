@@ -79,6 +79,10 @@ class SSAVerifier final : public StmtExprVisitor {
     MarkDef(op->buffer_var, op->buffer_var);
     StmtExprVisitor::VisitStmt_(op);
   }
+  void VisitStmt_(const AllocBufferNode* op) final {
+    MarkDef(op->buffer->data, op->buffer->data);
+    StmtExprVisitor::VisitStmt_(op);
+  }
 
   void VisitExpr_(const VarNode* node) final {
     auto var = ffi::GetRef<Var>(node);

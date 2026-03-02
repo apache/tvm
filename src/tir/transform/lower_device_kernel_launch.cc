@@ -138,6 +138,24 @@ class DeviceInfoCollector : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
+  void VisitStmt_(const AllocBufferNode* op) final {
+    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
+    if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
+      TVM_FFI_ICHECK(!dyn_shmem_size.defined())
+          << "Only one dynamic shared memory allocation is allowed.";
+      TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
+
+      PrimExpr dyn_size = Integer(1);
+      for (const auto& extent : op->buffer->shape) {
+        dyn_size *= extent;
+      }
+      dyn_size *= op->buffer->dtype.bytes();
+
+      dyn_shmem_size = dyn_size;
+    }
+    StmtVisitor::VisitStmt_(op);
+  }
+
   // The collected results
   KernelInfo info_;
   // recording what thread axis have been visited.

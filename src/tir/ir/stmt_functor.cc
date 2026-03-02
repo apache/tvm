@@ -63,6 +63,8 @@ void StmtVisitor::VisitStmt_(const AllocateNode* op) {
   this->VisitExpr(op->condition);
 }
 
+void StmtVisitor::VisitStmt_(const AllocBufferNode* op) { this->VisitStmt(op->body); }
+
 void StmtVisitor::VisitStmt_(const DeclBufferNode* op) { this->VisitStmt(op->body); }
 
 void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
@@ -292,6 +294,18 @@ Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
     n->extents = std::move(extents);
     n->body = std::move(body);
     n->condition = std::move(condition);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const AllocBufferNode* op) {
+  Stmt body = this->VisitStmt(op->body);
+
+  if (body.same_as(op->body)) {
+    return ffi::GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->body = std::move(body);
     return Stmt(n);
   }
 }
@@ -583,6 +597,11 @@ class IRSubstitute : public StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  Stmt VisitStmt_(const AllocBufferNode* op) final {
+    auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
     return VisitBufferAccess(std::move(node));
   }
 
