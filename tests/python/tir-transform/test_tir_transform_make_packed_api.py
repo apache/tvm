@@ -177,14 +177,7 @@ def test_zero_arg_function():
                 {
                     "calling_conv": 1,
                     "global_symbol": "__tvm_ffi_func_without_arg",
-                    "target": T.target(
-                        {
-                            "keys": ["cpu"],
-                            "kind": "llvm",
-                            "mtriple": "x86_64-pc-linux-gnu",
-                            "tag": "",
-                        }
-                    ),
+                    "target": T.target("llvm"),
                 }
             )
             assert num_args == 0, (
@@ -228,14 +221,7 @@ def test_int_parameter():
                 {
                     "calling_conv": 1,
                     "global_symbol": "__tvm_ffi_main",
-                    "target": T.target(
-                        {
-                            "keys": ["cpu"],
-                            "kind": "llvm",
-                            "mtriple": "x86_64-pc-linux-gnu",
-                            "tag": "",
-                        }
-                    ),
+                    "target": T.target("llvm"),
                 }
             )
             assert num_args == 1, (
@@ -302,14 +288,7 @@ def test_bool_parameter():
                 {
                     "calling_conv": 1,
                     "global_symbol": "__tvm_ffi_main",
-                    "target": T.target(
-                        {
-                            "keys": ["cpu"],
-                            "kind": "llvm",
-                            "mtriple": "x86_64-pc-linux-gnu",
-                            "tag": "",
-                        }
-                    ),
+                    "target": T.target("llvm"),
                 }
             )
             assert num_args == 1, (
@@ -376,14 +355,7 @@ def test_float_parameter():
                 {
                     "calling_conv": 1,
                     "global_symbol": "__tvm_ffi_main",
-                    "target": T.target(
-                        {
-                            "keys": ["cpu"],
-                            "kind": "llvm",
-                            "mtriple": "x86_64-pc-linux-gnu",
-                            "tag": "",
-                        }
-                    ),
+                    "target": T.target("llvm"),
                 }
             )
             assert num_args == 1, (
