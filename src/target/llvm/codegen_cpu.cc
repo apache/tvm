@@ -1127,11 +1127,7 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
 
 void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
   EmitDebugLocation(op);
-  if (op->attr_key == tir::attr::coproc_uop_scope) {
-    const StringImmNode* value = op->value.as<StringImmNode>();
-    TVM_FFI_ICHECK(value != nullptr);
-    this->CreateStaticInit(value->value, op->body);
-  } else if (op->attr_key == tir::attr::compute_scope) {
+  if (op->attr_key == tir::attr::compute_scope) {
     this->CreateComputeScope(op);
   } else if (tir::attr::IsPragmaKey(op->attr_key)) {
     if (op->attr_key == "pragma_parallel_stride_pattern") {

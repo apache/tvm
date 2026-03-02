@@ -24,6 +24,7 @@
 
 #include "data_type_rewriter.h"
 
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 
@@ -94,7 +95,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const SBlockNode* op) {
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
+  if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
     Stmt s = StmtExprMutator::VisitStmt_(op);
     op = s.as<AttrStmtNode>();
     TVM_FFI_ICHECK(op != nullptr) << "Expected type to be AttrStmtNode"
@@ -287,7 +288,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const AllocateNode* op) {
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
+  if (op->attr_key == attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
     bool is_enabled = is_enabled_;
     is_enabled_ = true;
     auto stmt = DataTypeLegalizer::VisitStmt_(op);
