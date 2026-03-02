@@ -347,60 +347,30 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BindNode* op) final {
-    // Note: ScopedRedefine for Bind must persist across SeqStmt siblings.
-    // This is handled by VisitStmt_(const SeqStmtNode*) below.
-    // When visited standalone (not as part of SeqStmt), just do a simple visit.
     const Var& v = op->var;
     if (defined_.count(v.get())) {
+      // In SSA form, each variable is defined once. When we encounter a
+      // redefinition via Bind, create a new variable and add a persistent
+      // remapping via function_scope_var_remap_. The rename persists for
+      // all subsequent siblings in the enclosing SeqStmt (handled by
+      // default sequential visitation). No need for ScopedRedefine since
+      // the mapping should not be popped at scope exit.
       PrimExpr value = this->VisitExpr(op->value);
-      ScopedRedefine redefine(this, v);
-      return Bind(redefine.new_var, value);
+      Var new_var = [&]() {
+        bool is_size_var = v->IsInstance<SizeVarNode>();
+        if (v->type_annotation.defined()) {
+          return is_size_var ? Var(SizeVar(v->name_hint, v->type_annotation))
+                             : Var(v->name_hint, v->type_annotation);
+        } else {
+          return is_size_var ? Var(SizeVar(v->name_hint, v->dtype)) : Var(v->name_hint, v->dtype);
+        }
+      }();
+      function_scope_var_remap_[v.get()] = new_var;
+      return Bind(new_var, value);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
     }
-  }
-
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
-    // Process children sequentially, maintaining ScopedRedefine for Bind nodes
-    // so that remappings persist for subsequent siblings (mimicking old nested
-    // Bind scope behavior).
-    std::vector<ScopedRedefine> seq_redefines;
-    ffi::Array<Stmt> new_seq;
-    bool changed = false;
-
-    for (size_t i = 0; i < op->seq.size(); ++i) {
-      const Stmt& child = op->seq[i];
-      if (auto* bind = child.as<BindNode>()) {
-        const Var& v = bind->var;
-        if (defined_.count(v.get())) {
-          PrimExpr value = this->VisitExpr(bind->value);
-          seq_redefines.emplace_back(this, v);
-          Stmt new_bind = Bind(seq_redefines.back().new_var, value);
-          new_seq.push_back(new_bind);
-          changed = true;
-        } else {
-          defined_.insert(v.get());
-          Stmt visited = StmtExprMutator::VisitStmt_(bind);
-          new_seq.push_back(visited);
-          changed = changed || !visited.same_as(child);
-        }
-      } else {
-        Stmt visited = VisitStmt(child);
-        new_seq.push_back(visited);
-        changed = changed || !visited.same_as(child);
-      }
-    }
-
-    // Pop redefines in reverse order (RAII would do this, but let's be explicit)
-    while (seq_redefines.size()) {
-      seq_redefines.pop_back();
-    }
-
-    if (!changed) {
-      return ffi::GetRef<Stmt>(op);
-    }
-    return SeqStmt(new_seq);
   }
   Stmt VisitStmt_(const ForNode* op) final {
     const Var& v = op->loop_var;
