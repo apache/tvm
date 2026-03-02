@@ -26,6 +26,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -94,13 +95,14 @@ Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body) {
 class IRConvertSSA final : public StmtExprMutator {
  public:
   PrimFunc VisitPrimFunc(PrimFunc func) {
-    std::vector<ScopedRedefine> redefines;
-
-    // Remap parameters, if they were used in another function
+    // Remap parameters, if they were used in another function.
+    // Function-scope remaps use function_scope_var_remap_ (not the scope stack),
+    // because they persist across the entire function body.
     auto params = func->params.Map([&](const tir::Var& var) -> tir::Var {
       if (defined_.count(var.get())) {
-        const ScopedRedefine& redefine = redefines.emplace_back(this, var);
-        return redefine.new_var;
+        Var new_var = MakeNewVar(var);
+        PushVarRemap(var, new_var);
+        return new_var;
       } else {
         defined_.insert(var.get());
         return var;
@@ -122,7 +124,7 @@ class IRConvertSSA final : public StmtExprMutator {
 
           // Buffer_map shape vars use "match" semantics: first occurrence
           // defines the var, subsequent occurrences (in other buffers) are
-          // just consistent uses of the same var — not redefinitions.
+          // just consistent uses of the same var -- not redefinitions.
           if (!defined_.count(var_ptr)) {
             defined_.insert(var_ptr);
           }
@@ -144,7 +146,8 @@ class IRConvertSSA final : public StmtExprMutator {
       for (const auto& [var, buffer] : func->buffer_map) {
         auto new_var = GetRemappedVar(var);
         if (defined_.count(buffer->data.get())) {
-          redefines.emplace_back(this, buffer->data);
+          Var new_data = MakeNewVar(buffer->data);
+          PushVarRemap(buffer->data, new_data);
         } else {
           defined_.insert(buffer->data.get());
         }
@@ -195,10 +198,8 @@ class IRConvertSSA final : public StmtExprMutator {
       func = PrimFunc(params, body, func->ret_type, buffer_map, attrs);
     }
 
-    // Pop the redefines in reverse order of creation
-    while (redefines.size()) {
-      redefines.pop_back();
-    }
+    // Pop function-scope remaps in reverse order
+    PopAllRemapsInCurrentScope();
     function_scope_var_remap_.clear();
     return func;
   }
@@ -218,9 +219,11 @@ class IRConvertSSA final : public StmtExprMutator {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
       PrimExpr value = this->VisitExpr(op->value);
-      ScopedRedefine redefine(this, v);
+      Var new_var = MakeNewVar(v);
+      PushVarRemap(v, new_var);
       PrimExpr body = this->VisitExpr(op->body);
-      return Let(redefine.new_var, value, body);
+      PopVarRemap(v, new_var);
+      return Let(new_var, value, body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitExpr_(op);
@@ -240,48 +243,48 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    DeclBuffer decl = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
-    Buffer new_buffer = GetRemappedBuffer(decl->buffer);
-    if (!new_buffer.same_as(decl->buffer)) {
-      decl.CopyOnWrite()->buffer = std::move(new_buffer);
-    }
-    return decl;
+    return scope_.WithNewScope([&]() -> Stmt {
+      DeclBuffer decl = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+      Buffer new_buffer = GetRemappedBuffer(decl->buffer);
+      if (!new_buffer.same_as(decl->buffer)) {
+        decl.CopyOnWrite()->buffer = std::move(new_buffer);
+      }
+      return decl;
+    });
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     SBlock block = ffi::GetRef<SBlock>(op);
 
-    // The BlockNode is the point of definition for the IterVar
+    // The SBlockNode is the point of definition for the IterVar
     // instances.  These re-defines must be present before visiting
-    // the body of the BlockNode.
-    std::vector<ScopedRedefine> redefines;
-    ffi::Array<IterVar> iter_vars = op->iter_vars.Map([&](IterVar iter_var) {
-      if (defined_.count(iter_var->var.get())) {
-        redefines.emplace_back(this, iter_var->var);
-        iter_var.CopyOnWrite()->var = redefines.back().new_var;
-      } else {
-        defined_.insert(iter_var->var.get());
+    // the body of the SBlockNode.
+    return scope_.WithNewScope([&]() -> Stmt {
+      ffi::Array<IterVar> iter_vars = op->iter_vars.Map([&](IterVar iter_var) {
+        if (defined_.count(iter_var->var.get())) {
+          Var new_var = MakeNewVar(iter_var->var);
+          PushVarRemap(iter_var->var, new_var);
+          iter_var.CopyOnWrite()->var = new_var;
+        } else {
+          defined_.insert(iter_var->var.get());
+        }
+        return iter_var;
+      });
+      ffi::Array<BufferRegion> reads =
+          block->reads.Map([&](const auto& region) { return VisitBufferAccess(region); });
+      ffi::Array<BufferRegion> writes =
+          block->writes.Map([&](const auto& region) { return VisitBufferAccess(region); });
+
+      if (!reads.same_as(block->reads) || !writes.same_as(block->writes) ||
+          !iter_vars.same_as(op->iter_vars)) {
+        auto write_ptr = block.CopyOnWrite();
+        write_ptr->reads = reads;
+        write_ptr->writes = writes;
+        write_ptr->iter_vars = iter_vars;
       }
-      return iter_var;
+
+      return Downcast<SBlock>(StmtExprMutator::VisitStmt_(block.get()));
     });
-    ffi::Array<BufferRegion> reads =
-        block->reads.Map([&](const auto& region) { return VisitBufferAccess(region); });
-    ffi::Array<BufferRegion> writes =
-        block->writes.Map([&](const auto& region) { return VisitBufferAccess(region); });
-
-    if (!reads.same_as(block->reads) || !writes.same_as(block->writes) ||
-        !iter_vars.same_as(op->iter_vars)) {
-      auto write_ptr = block.CopyOnWrite();
-      write_ptr->reads = reads;
-      write_ptr->writes = writes;
-      write_ptr->iter_vars = iter_vars;
-    }
-
-    Stmt output = Downcast<SBlock>(StmtExprMutator::VisitStmt_(block.get()));
-
-    while (redefines.size()) redefines.pop_back();
-
-    return output;
   }
 
   template <typename Node>
@@ -296,7 +299,7 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
   Var GetRemappedVar(Var var) {
-    if (auto it = scope_.find(var.get()); it != scope_.end() && it->second.size()) {
+    if (auto it = var_remap_.find(var.get()); it != var_remap_.end() && it->second.size()) {
       return it->second.back();
     } else if (auto it = function_scope_var_remap_.find(var.get());
                it != function_scope_var_remap_.end()) {
@@ -347,92 +350,77 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BindNode* op) final {
-    // Note: ScopedRedefine for Bind must persist across SeqStmt siblings.
-    // This is handled by VisitStmt_(const SeqStmtNode*) below.
-    // When visited standalone (not as part of SeqStmt), just do a simple visit.
+    // Bind var remaps are tracked in the current scope so they persist
+    // across SeqStmt siblings and are cleaned up when the enclosing
+    // body-carrying statement's scope exits.
     const Var& v = op->var;
     if (defined_.count(v.get())) {
       PrimExpr value = this->VisitExpr(op->value);
-      ScopedRedefine redefine(this, v);
-      return Bind(redefine.new_var, value);
+      Var new_var = MakeNewVar(v);
+      PushVarRemap(v, new_var);
+      return Bind(new_var, value);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
     }
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
-    // Process children sequentially, maintaining ScopedRedefine for Bind nodes
-    // so that remappings persist for subsequent siblings (mimicking old nested
-    // Bind scope behavior).
-    std::vector<ScopedRedefine> seq_redefines;
-    ffi::Array<Stmt> new_seq;
-    bool changed = false;
-
-    for (size_t i = 0; i < op->seq.size(); ++i) {
-      const Stmt& child = op->seq[i];
-      if (auto* bind = child.as<BindNode>()) {
-        const Var& v = bind->var;
-        if (defined_.count(v.get())) {
-          PrimExpr value = this->VisitExpr(bind->value);
-          seq_redefines.emplace_back(this, v);
-          Stmt new_bind = Bind(seq_redefines.back().new_var, value);
-          new_seq.push_back(new_bind);
-          changed = true;
-        } else {
-          defined_.insert(v.get());
-          Stmt visited = StmtExprMutator::VisitStmt_(bind);
-          new_seq.push_back(visited);
-          changed = changed || !visited.same_as(child);
-        }
-      } else {
-        Stmt visited = VisitStmt(child);
-        new_seq.push_back(visited);
-        changed = changed || !visited.same_as(child);
-      }
+  Stmt VisitStmt_(const IfThenElseNode* op) final {
+    // Each branch gets its own scope so Bind remaps in one branch
+    // do not leak into the other.
+    PrimExpr condition = VisitExpr(op->condition);
+    Stmt then_case = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->then_case); });
+    ffi::Optional<Stmt> else_case;
+    if (op->else_case) {
+      else_case = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->else_case.value()); });
     }
-
-    // Pop redefines in reverse order (RAII would do this, but let's be explicit)
-    while (seq_redefines.size()) {
-      seq_redefines.pop_back();
-    }
-
-    if (!changed) {
+    if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
+        else_case.same_as(op->else_case)) {
       return ffi::GetRef<Stmt>(op);
     }
-    return SeqStmt(new_seq);
+    return IfThenElse(condition, then_case, else_case);
   }
+
   Stmt VisitStmt_(const ForNode* op) final {
     const Var& v = op->loop_var;
     if (defined_.count(v.get())) {
-      ScopedRedefine redefine(this, v);
-      Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
-      n->loop_var = redefine.new_var;
-      return For(n);
+      return scope_.WithNewScope([&]() -> Stmt {
+        Var new_var = MakeNewVar(v);
+        PushVarRemap(v, new_var);
+        Stmt stmt = StmtExprMutator::VisitStmt_(op);
+        auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
+        n->loop_var = new_var;
+        return For(n);
+      });
     } else {
       defined_.insert(v.get());
-      return StmtExprMutator::VisitStmt_(op);
+      return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
     }
+  }
+  Stmt VisitStmt_(const WhileNode* op) final {
+    return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
   }
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     const Var& v = op->buffer->data;
     if (defined_.count(v.get())) {
-      ScopedRedefine redefine(this, v);
-      Stmt stmt = StmtExprMutator::VisitStmt_(op);
-      op = stmt.as<AllocBufferNode>();
-      // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
-      // object as the one used by BufferStore/BufferLoad in the body.
-      Buffer new_buf = GetRemappedBuffer(op->buffer);
-      if (!new_buf.same_as(op->buffer)) {
-        auto node = Downcast<AllocBuffer>(stmt);
-        node.CopyOnWrite()->buffer = std::move(new_buf);
-        return node;
-      }
-      return stmt;
+      return scope_.WithNewScope([&]() -> Stmt {
+        Var new_var = MakeNewVar(v);
+        PushVarRemap(v, new_var);
+        Stmt stmt = StmtExprMutator::VisitStmt_(op);
+        op = stmt.as<AllocBufferNode>();
+        // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
+        // object as the one used by BufferStore/BufferLoad in the body.
+        Buffer new_buf = GetRemappedBuffer(op->buffer);
+        if (!new_buf.same_as(op->buffer)) {
+          auto node = Downcast<AllocBuffer>(stmt);
+          node.CopyOnWrite()->buffer = std::move(new_buf);
+          return node;
+        }
+        return stmt;
+      });
     } else {
       defined_.insert(v.get());
-      return StmtExprMutator::VisitStmt_(op);
+      return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
     }
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -490,7 +478,7 @@ class IRConvertSSA final : public StmtExprMutator {
       }
 
       auto value = VisitExpr(op->value);
-      auto body = VisitStmt(op->body);
+      auto body = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->body); });
 
       Stmt output;
       if (new_iter_var.get() == iter_var && body.same_as(op->body) && value.same_as(op->value)) {
@@ -509,75 +497,156 @@ class IRConvertSSA final : public StmtExprMutator {
       return output;
 
     } else if (const VarNode* v = op->node.as<VarNode>()) {
-      Stmt stmt = StmtExprMutator::VisitStmt_(op);
+      Stmt stmt = scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
       op = stmt.as<AttrStmtNode>();
-      if (scope_.count(v) && scope_[v].size() != 0) {
-        return AttrStmt(scope_[v].back(), op->attr_key, op->value, op->body);
+      if (var_remap_.count(v) && var_remap_[v].size() != 0) {
+        return AttrStmt(var_remap_[v].back(), op->attr_key, op->value, op->body);
       } else {
         return stmt;
       }
     } else {
-      return StmtExprMutator::VisitStmt_(op);
+      return scope_.WithNewScope([&]() -> Stmt { return StmtExprMutator::VisitStmt_(op); });
     }
   }
 
  private:
-  struct ScopedRedefine {
-    ScopedRedefine(IRConvertSSA* parent, Var old_var) : parent(parent), old_var(old_var) {
-      bool is_size_var = old_var->IsInstance<SizeVarNode>();
-      if (old_var->type_annotation.defined()) {
-        if (is_size_var) {
-          new_var = SizeVar(old_var->name_hint, old_var->type_annotation);
-        } else {
-          new_var = Var(old_var->name_hint, old_var->type_annotation);
-        }
-      } else {
-        if (is_size_var) {
-          new_var = SizeVar(old_var->name_hint, old_var->dtype);
-        } else {
-          new_var = Var(old_var->name_hint, old_var->dtype);
-        }
-      }
-      parent->scope_[old_var.get()].push_back(new_var);
-    }
-
-    ~ScopedRedefine() {
-      if (parent) {
-        parent->scope_[old_var.get()].pop_back();
-        for (auto& kv : parent->buf_remap_) {
-          std::vector<Buffer>& buffers = kv.second;
-          if (buffers.size() && (buffers.back()->data.get() == new_var.get())) {
-            buffers.pop_back();
-          }
-        }
-      }
-    }
-
-    ScopedRedefine& operator=(const ScopedRedefine&) = delete;
-    ScopedRedefine(const ScopedRedefine&) = delete;
-
-    ScopedRedefine& operator=(ScopedRedefine&& other) {
-      swap(other);
-      return *this;
-    }
-    ScopedRedefine(ScopedRedefine&& other) { swap(other); }
-
-    void swap(ScopedRedefine& other) {
-      std::swap(parent, other.parent);
-      std::swap(old_var, other.old_var);
-      std::swap(new_var, other.new_var);
-    }
-
-    IRConvertSSA* parent{nullptr};
+  /*! \brief Record of a variable remap pushed to the current scope. */
+  struct VarRemap {
     Var old_var;
     Var new_var;
   };
 
-  std::unordered_map<const VarNode*, std::vector<Var>> scope_;
+  /*! \brief Create a new variable with the same name and type as the original. */
+  static Var MakeNewVar(const Var& old_var) {
+    bool is_size_var = old_var->IsInstance<SizeVarNode>();
+    if (old_var->type_annotation.defined()) {
+      if (is_size_var) {
+        return SizeVar(old_var->name_hint, old_var->type_annotation);
+      } else {
+        return Var(old_var->name_hint, old_var->type_annotation);
+      }
+    } else {
+      if (is_size_var) {
+        return SizeVar(old_var->name_hint, old_var->dtype);
+      } else {
+        return Var(old_var->name_hint, old_var->dtype);
+      }
+    }
+  }
+
+  /*! \brief Push a variable remap to the current scope and the var_remap_ stack. */
+  void PushVarRemap(const Var& old_var, const Var& new_var) {
+    var_remap_[old_var.get()].push_back(new_var);
+    auto& level = scope_.Current();
+    level.parent = this;
+    level.push_back({old_var, new_var});
+  }
+
+  /*! \brief Pop a single variable remap (used for expression-level Let scoping). */
+  void PopVarRemap(const Var& old_var, const Var& new_var) {
+    var_remap_[old_var.get()].pop_back();
+    for (auto& kv : buf_remap_) {
+      std::vector<Buffer>& buffers = kv.second;
+      if (buffers.size() && (buffers.back()->data.get() == new_var.get())) {
+        buffers.pop_back();
+      }
+    }
+    // Also remove from the current scope's tracking vector
+    auto& current = scope_.Current();
+    if (current.size() && current.back().new_var.same_as(new_var)) {
+      current.pop_back();
+    }
+  }
+
+  /*! \brief Pop all remaps in the current scope level (used for function-scope cleanup). */
+  void PopAllRemapsInCurrentScope() {
+    auto& current = scope_.Current();
+    while (current.size()) {
+      auto& remap = current.back();
+      var_remap_[remap.old_var.get()].pop_back();
+      for (auto& kv : buf_remap_) {
+        std::vector<Buffer>& buffers = kv.second;
+        if (buffers.size() && (buffers.back()->data.get() == remap.new_var.get())) {
+          buffers.pop_back();
+        }
+      }
+      current.pop_back();
+    }
+  }
+
+  /*! \brief Scope stack: each scope level holds the remaps introduced in that scope.
+   *
+   * When a body-carrying statement (For, SBlock, Allocate) calls
+   * scope_.WithNewScope([&]{...}), a new scope level is pushed.
+   * Bind statements push their remaps to the current scope.
+   * On scope exit, the destructor of std::vector<VarRemap> triggers,
+   * and we undo all remaps in that level.
+   *
+   * Note: ScopeStack<T>::WithNewScope calls T's destructor on exit.
+   * std::vector's destructor destroys elements but does NOT call custom
+   * cleanup.  So we wrap the vector in ScopeLevel which handles cleanup.
+   */
+  struct ScopeLevel {
+    std::vector<VarRemap> remaps;
+    IRConvertSSA* parent{nullptr};
+
+    void push_back(VarRemap remap) { remaps.push_back(std::move(remap)); }
+    size_t size() const { return remaps.size(); }
+    VarRemap& back() { return remaps.back(); }
+    void pop_back() { remaps.pop_back(); }
+
+    ~ScopeLevel() {
+      if (!parent) return;
+      // Pop remaps in reverse order
+      while (remaps.size()) {
+        auto& remap = remaps.back();
+        parent->var_remap_[remap.old_var.get()].pop_back();
+        for (auto& kv : parent->buf_remap_) {
+          std::vector<Buffer>& buffers = kv.second;
+          if (buffers.size() && (buffers.back()->data.get() == remap.new_var.get())) {
+            buffers.pop_back();
+          }
+        }
+        remaps.pop_back();
+      }
+    }
+
+    ScopeLevel() = default;
+    ScopeLevel(const ScopeLevel&) = delete;
+    ScopeLevel& operator=(const ScopeLevel&) = delete;
+    ScopeLevel(ScopeLevel&& other) noexcept
+        : remaps(std::move(other.remaps)), parent(other.parent) {
+      other.parent = nullptr;  // prevent other's destructor from popping
+    }
+    ScopeLevel& operator=(ScopeLevel&& other) noexcept {
+      if (this != &other) {
+        // Run our destructor logic first
+        if (parent) {
+          while (remaps.size()) {
+            auto& remap = remaps.back();
+            parent->var_remap_[remap.old_var.get()].pop_back();
+            for (auto& kv : parent->buf_remap_) {
+              std::vector<Buffer>& buffers = kv.second;
+              if (buffers.size() && (buffers.back()->data.get() == remap.new_var.get())) {
+                buffers.pop_back();
+              }
+            }
+            remaps.pop_back();
+          }
+        }
+        remaps = std::move(other.remaps);
+        parent = other.parent;
+        other.parent = nullptr;
+      }
+      return *this;
+    }
+  };
+
+  std::unordered_map<const VarNode*, std::vector<Var>> var_remap_;
   std::unordered_set<const VarNode*> defined_;
   std::unordered_map<const BufferNode*, std::vector<Buffer>> buf_remap_;
-
   std::unordered_map<const VarNode*, Var> function_scope_var_remap_;
+  ScopeStack<ScopeLevel> scope_;
 };
 
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
