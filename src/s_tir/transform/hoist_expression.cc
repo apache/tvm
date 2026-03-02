@@ -329,9 +329,6 @@ class HoistInfoCollector : public StmtExprVisitor {
 
   void VisitStmt_(const SeqStmtNode* op) final {
     if (active_loops.size()) {
-      // Count non-Bind statements to determine if the loop body has true
-      // sequential operations. Bind nodes are variable definitions and don't
-      // introduce sequential ordering that would prevent hoisting.
       int non_bind_count = 0;
       for (size_t i = 0; i < op->seq.size(); ++i) {
         if (!op->seq[i].as<BindNode>()) {
@@ -342,7 +339,17 @@ class HoistInfoCollector : public StmtExprVisitor {
         active_loops.back().reached_sequential_node = true;
       }
     }
-    Parent::VisitStmt_(op);
+    std::vector<const VarNode*> seq_bind_vars;
+    for (size_t i = 0; i < op->seq.size(); ++i) {
+      if (auto* bind = op->seq[i].as<BindNode>()) {
+        seq_bind_vars.push_back(bind->var.get());
+      }
+      VisitStmt(op->seq[i]);
+    }
+    for (auto* var : seq_bind_vars) {
+      let_var_to_loop_vars.erase(var);
+      let_var_to_let_vars.erase(var);
+    }
   }
 
   void VisitExpr_(const LetNode* op) final {
