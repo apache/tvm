@@ -324,11 +324,37 @@ class HoistInfoCollector : public StmtExprVisitor {
 
   void VisitStmt_(const BindNode* op) final {
     VisitBinding(op->var, op->value, HoistedLetBindings::kLetStmt);
-
     Parent::VisitStmt_(op);
+    // Don't erase here; SeqStmt handler manages the lifecycle.
+  }
 
-    let_var_to_loop_vars.erase(op->var.get());
-    let_var_to_let_vars.erase(op->var.get());
+  void VisitStmt_(const SeqStmtNode* op) final {
+    if (active_loops.size()) {
+      // Only mark as sequential if there are multiple non-Bind statements.
+      // Bind nodes are variable definitions (equivalent to old LetStmt wrappers)
+      // and don't introduce true sequential ordering that would prevent hoisting.
+      int non_bind_count = 0;
+      for (size_t i = 0; i < op->seq.size(); ++i) {
+        if (!op->seq[i].as<BindNode>()) {
+          non_bind_count++;
+        }
+      }
+      if (non_bind_count > 1) {
+        active_loops.back().reached_sequential_node = true;
+      }
+    }
+    std::vector<const VarNode*> seq_bind_vars;
+    for (size_t i = 0; i < op->seq.size(); ++i) {
+      if (auto* bind = op->seq[i].as<BindNode>()) {
+        seq_bind_vars.push_back(bind->var.get());
+      }
+      VisitStmt(op->seq[i]);
+    }
+    // Erase bindings defined in this sequence.
+    for (auto* var : seq_bind_vars) {
+      let_var_to_loop_vars.erase(var);
+      let_var_to_let_vars.erase(var);
+    }
   }
 
   void VisitExpr_(const LetNode* op) final {
@@ -352,13 +378,6 @@ class HoistInfoCollector : public StmtExprVisitor {
       AttemptHoistConditional(cond, HoistedConditionals::kIfElseExpr);
     }
     Parent::VisitExpr_(op);
-  }
-
-  void VisitStmt_(const SeqStmtNode* op) final {
-    if (active_loops.size()) {
-      active_loops.back().reached_sequential_node = true;
-    }
-    Parent::VisitStmt_(op);
   }
 
   // Find the loop above which this expression could be hoisted.  If

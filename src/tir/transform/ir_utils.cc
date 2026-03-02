@@ -347,6 +347,9 @@ class IRConvertSSA final : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BindNode* op) final {
+    // Note: ScopedRedefine for Bind must persist across SeqStmt siblings.
+    // This is handled by VisitStmt_(const SeqStmtNode*) below.
+    // When visited standalone (not as part of SeqStmt), just do a simple visit.
     const Var& v = op->var;
     if (defined_.count(v.get())) {
       PrimExpr value = this->VisitExpr(op->value);
@@ -356,6 +359,48 @@ class IRConvertSSA final : public StmtExprMutator {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);
     }
+  }
+
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    // Process children sequentially, maintaining ScopedRedefine for Bind nodes
+    // so that remappings persist for subsequent siblings (mimicking old nested
+    // LetStmt scope behavior).
+    std::vector<ScopedRedefine> seq_redefines;
+    ffi::Array<Stmt> new_seq;
+    bool changed = false;
+
+    for (size_t i = 0; i < op->seq.size(); ++i) {
+      const Stmt& child = op->seq[i];
+      if (auto* bind = child.as<BindNode>()) {
+        const Var& v = bind->var;
+        if (defined_.count(v.get())) {
+          PrimExpr value = this->VisitExpr(bind->value);
+          seq_redefines.emplace_back(this, v);
+          Stmt new_bind = Bind(seq_redefines.back().new_var, value);
+          new_seq.push_back(new_bind);
+          changed = true;
+        } else {
+          defined_.insert(v.get());
+          Stmt visited = StmtExprMutator::VisitStmt_(bind);
+          new_seq.push_back(visited);
+          changed = changed || !visited.same_as(child);
+        }
+      } else {
+        Stmt visited = VisitStmt(child);
+        new_seq.push_back(visited);
+        changed = changed || !visited.same_as(child);
+      }
+    }
+
+    // Pop redefines in reverse order (RAII would do this, but let's be explicit)
+    while (seq_redefines.size()) {
+      seq_redefines.pop_back();
+    }
+
+    if (!changed) {
+      return ffi::GetRef<Stmt>(op);
+    }
+    return SeqStmt(new_seq);
   }
   Stmt VisitStmt_(const ForNode* op) final {
     const Var& v = op->loop_var;

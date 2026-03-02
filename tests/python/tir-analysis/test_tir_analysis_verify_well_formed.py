@@ -60,14 +60,25 @@ def test_fail_use_out_loop_var():
 
 
 def test_error_for_out_of_scope_usage():
-    """A variable may not be used after its scope ends"""
+    """A variable may not be used after its scope ends.
 
-    @T.prim_func(check_well_formed=False)
-    def func():
-        i = T.int32()
-        with T.LetStmt(42, var=i):
-            T.evaluate(i)
-        T.evaluate(i)
+    With flat Bind semantics, Bind vars are visible to all subsequent
+    siblings in the same SeqStmt. True out-of-scope usage occurs when
+    the Bind is inside a child scope (e.g., ForNode body) and the
+    variable is used outside that scope.
+    """
+    i = tvm.tir.Var("i", "int32")
+    # Bind i inside a For loop body
+    for_stmt = tvm.tir.For(
+        tvm.tir.Var("j", "int32"),
+        0,
+        1,
+        tvm.tir.ForKind.SERIAL,
+        tvm.tir.SeqStmt([tvm.tir.Bind(i, 42), tvm.tir.Evaluate(i)]),
+    )
+    # Use i outside the For loop — this is out of scope
+    body = tvm.tir.SeqStmt([for_stmt, tvm.tir.Evaluate(i)])
+    func = tvm.tir.PrimFunc([], body)
 
     with pytest.raises(
         ValueError, match="Invalid use of undefined variable i at .* no longer in-scope."
@@ -92,7 +103,12 @@ def test_error_for_nested_rebind_usage():
 
 
 def test_error_for_repeated_binding():
-    """A variable may not be re-defined after the scope ends"""
+    """A variable may not be re-defined in the same flat scope.
+
+    With flat Bind semantics, sequential Bind of the same variable in the
+    same SeqStmt is treated as a nested redefinition (since the first Bind's
+    scope extends to all subsequent siblings).
+    """
 
     @T.prim_func(check_well_formed=False)
     def func():
@@ -102,7 +118,7 @@ def test_error_for_repeated_binding():
         with T.LetStmt(17, var=i):
             T.evaluate(i)
 
-    with pytest.raises(ValueError, match="multiple definitions of variable i"):
+    with pytest.raises(ValueError, match="multiple nested definitions of variable i"):
         tvm.tir.analysis.verify_well_formed(func)
 
 
@@ -269,6 +285,10 @@ def test_error_message_without_previous_definition_location():
     This tests the scenario where it == end(), so the error message should contain
     'TIR is ill-formed, due to multiple definitions of variable' but should NOT
     contain 'It was first defined at' since the iterator is invalid.
+
+    With flat Bind semantics, sequential redefinitions in the same SeqStmt
+    are treated as nested definitions, and the first definition location
+    IS known, so the message includes location info.
     """
 
     @T.prim_func(check_well_formed=False)
@@ -287,7 +307,7 @@ def test_error_message_without_previous_definition_location():
     error_msg = str(exc_info.value)
 
     assert "TIR is ill-formed" in error_msg
-    assert "multiple definitions of variable" in error_msg
+    assert "multiple nested definitions of variable" in error_msg
 
 
 def test_error_message_with_previous_definition_location():
@@ -322,7 +342,9 @@ def test_error_message_with_previous_definition_location():
 def test_sequential_redefinition_with_location():
     """Test case 2b: Sequential redefinition that includes location info
 
-    This tests the previously_defined_ path where it != end()
+    This tests the previously_defined_ path where it != end().
+    With flat Bind semantics, sequential redefinitions in the same SeqStmt
+    are treated as nested definitions with location info.
     """
 
     @T.prim_func(check_well_formed=False)
@@ -341,9 +363,9 @@ def test_sequential_redefinition_with_location():
     error_msg = str(exc_info.value)
 
     assert "TIR is ill-formed" in error_msg
-    assert "multiple definitions of variable" in error_msg
+    assert "multiple nested definitions of variable" in error_msg
     assert "It was first defined at" in error_msg
-    assert "later re-defined at" in error_msg
+    assert "was re-defined at" in error_msg
 
 
 def test_buffer_in_buffer_map_is_well_formed():

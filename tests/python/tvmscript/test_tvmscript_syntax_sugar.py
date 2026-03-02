@@ -447,7 +447,7 @@ def test_preserve_parameter_name():
 
 
 def test_preserve_variable_name():
-    """Use variable name when generating tir::LetStmt"""
+    """Use variable name when generating tir::Bind"""
 
     @T.prim_func
     def func():
@@ -455,7 +455,8 @@ def test_preserve_variable_name():
             j = i // 4
             T.evaluate(j)
 
-    var_name = func.body.body.var.name
+    # With flat Bind, the for body is SeqStmt([Bind(j, i//4), Evaluate(j)])
+    var_name = func.body.body.seq[0].var.name
     assert var_name == "j"
 
 

@@ -213,7 +213,17 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitStmt_(const AssertStmtNode* op) final { VisitNewScope(op); }
 
-  void VisitStmt_(const BindNode* op) final { StmtExprVisitor::VisitStmt_(op); }
+  void VisitStmt_(const BindNode* op) final {
+    scope_.push_back(StmtEntry());
+    // visit subexpr (the value may contain BufferLoad)
+    StmtExprVisitor::VisitStmt_(op);
+    StmtEntry e = scope_.back();
+    scope_.pop_back();
+    if (e.touched.size() != 0) {
+      e.stmt = op;
+      linear_seq_.push_back(e);
+    }
+  }
 
   // linearized access sequence.
   std::vector<StmtEntry> linear_seq_;

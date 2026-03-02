@@ -261,8 +261,8 @@ def test_let_stmt():
     _assert_print(
         obj,
         """
-with T.LetStmt(T.float32(10.0)) as v:
-    T.evaluate(0)
+v: T.float32 = T.float32(10.0)
+T.evaluate(0)
 """,
     )
 

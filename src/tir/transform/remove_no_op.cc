@@ -94,14 +94,97 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const BindNode* op) final {
     Stmt stmt = Parent::VisitStmt_(op);
     op = stmt.as<BindNode>();
-    // Bind has no body -- removal of unused Bind is handled at SeqStmt level.
-    // If the value has no side effect, the Bind can potentially be removed.
-    if (!HasSideEffect(op->value) && SideEffect(op->value) <= CallEffectKind::kPure) {
-      // A pure Bind with no uses will be cleaned up by dead code elimination.
-      // Keep it for now; the SeqStmt visitor handles removal.
+    if (in_seq_stmt_) {
+      // Inside a SeqStmt: the SeqStmt handler will decide whether to remove
+      // this Bind based on whether its var is used by subsequent siblings.
       return stmt;
     }
-    return stmt;
+    // Standalone Bind (not inside a SeqStmt): there's nothing after it
+    // to use the variable, so it's always dead.
+    if (HasSideEffect(op->value)) {
+      return Evaluate(op->value);
+    }
+    return Evaluate(0);
+  }
+
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    // Visit each child individually (not using parent handler, which calls
+    // SeqStmt::Flatten and may strip Evaluate(0) before we can analyze).
+    bool prev_in_seq = in_seq_stmt_;
+    in_seq_stmt_ = true;
+    ffi::Array<Stmt> visited_seq;
+    bool any_child_changed = false;
+    for (size_t i = 0; i < op->seq.size(); ++i) {
+      Stmt visited_child = VisitStmt(op->seq[i]);
+      // Flatten any nested SeqStmt children into the sequence.
+      if (auto* inner_seq = visited_child.as<SeqStmtNode>()) {
+        for (size_t j = 0; j < inner_seq->seq.size(); ++j) {
+          visited_seq.push_back(inner_seq->seq[j]);
+        }
+        any_child_changed = true;
+      } else {
+        visited_seq.push_back(visited_child);
+        any_child_changed = any_child_changed || !visited_child.same_as(op->seq[i]);
+      }
+    }
+
+    // Now, remove unused Bind nodes.
+    // Scan from back to front, tracking which variables are used
+    // by subsequent siblings.
+    size_t n = visited_seq.size();
+    std::unordered_set<const VarNode*> suffix_uses;
+    std::vector<bool> removable(n, false);
+    std::vector<bool> has_side_effect_flag(n, false);
+
+    for (int i = static_cast<int>(n) - 1; i >= 0; --i) {
+      const Stmt& child = visited_seq[i];
+      if (auto* bind = child.as<BindNode>()) {
+        if (suffix_uses.count(bind->var.get()) == 0) {
+          // Variable not used in any subsequent sibling.
+          removable[i] = true;
+          has_side_effect_flag[i] = HasSideEffect(bind->value);
+        }
+        // Remove the defined variable from suffix_uses (it's defined here).
+        suffix_uses.erase(bind->var.get());
+        // Add uses from the bind value so earlier Binds defining those vars stay.
+        VarUseDefAnalyzer value_analyzer({});
+        value_analyzer(bind->value);
+        for (auto& kv : value_analyzer.use_count_) {
+          suffix_uses.insert(kv.first);
+        }
+      } else {
+        // Collect all variable uses in this non-Bind statement.
+        VarUseDefAnalyzer analyzer({});
+        analyzer(child);
+        for (auto& kv : analyzer.use_count_) {
+          suffix_uses.insert(kv.first);
+        }
+      }
+    }
+
+    // Build the new sequence, skipping removable Binds.
+    bool any_removed = false;
+    ffi::Array<Stmt> new_seq;
+    for (size_t i = 0; i < n; ++i) {
+      if (removable[i]) {
+        any_removed = true;
+        if (has_side_effect_flag[i]) {
+          auto* bind = visited_seq[i].as<BindNode>();
+          new_seq.push_back(Evaluate(bind->value));
+        }
+        // else: pure Bind with unused var — remove entirely.
+      } else {
+        new_seq.push_back(visited_seq[i]);
+      }
+    }
+
+    in_seq_stmt_ = prev_in_seq;
+
+    if (!any_removed && !any_child_changed) {
+      return ffi::GetRef<Stmt>(op);
+    }
+
+    return SeqStmt::Flatten(new_seq);
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_debug_skip_region") {
@@ -295,6 +378,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   std::unordered_map<const VarNode*, arith::IntSet> var_range_map_;
   std::optional<ControlFlowGraph> touch_pattern_;
   const StmtNode* context_;
+  bool in_seq_stmt_{false};
 };
 
 Stmt RemoveNoOp(Stmt stmt, arith::Analyzer* analyzer, std::optional<ControlFlowGraph> touch_pattern,
