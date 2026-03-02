@@ -190,11 +190,6 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
 }
 
 void BlockReadWriteDetector::VisitStmt_(const BindNode* op) {
-  // Add the binding to let_bindings_ so it can be used for index substitution.
-  // The binding persists for subsequent siblings in the enclosing SeqStmt
-  // (default visitor processes children sequentially). Cleanup is handled by
-  // the enclosing block frame scope -- let_bindings_ is scoped to the
-  // BlockReadWriteDetector instance which processes one block at a time.
   let_bindings_[op->var.get()] = op->value;
   StmtVisitor::VisitStmt_(op);
 }
