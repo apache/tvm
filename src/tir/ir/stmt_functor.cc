@@ -38,11 +38,6 @@ void StmtVisitor::VisitStmt_(const BindNode* op) {
   this->VisitExpr(op->value);
 }
 
-void StmtVisitor::VisitStmt_(const LetStmtNode* op) {
-  this->VisitExpr(op->value);
-  this->VisitStmt(op->body);
-}
-
 void StmtVisitor::VisitStmt_(const AttrStmtNode* op) {
   this->VisitExpr(op->value);
   this->VisitStmt(op->body);
@@ -267,19 +262,6 @@ Stmt StmtMutator::VisitStmt_(const BindNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const AttrStmtNode* op) {
-  PrimExpr value = this->VisitExpr(op->value);
-  Stmt body = this->VisitStmt(op->body);
-  if (value.same_as(op->value) && body.same_as(op->body)) {
-    return ffi::GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->value = std::move(value);
-    n->body = std::move(body);
-    return Stmt(n);
-  }
-}
-
-Stmt StmtMutator::VisitStmt_(const LetStmtNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   Stmt body = this->VisitStmt(op->body);
   if (value.same_as(op->value) && body.same_as(op->body)) {

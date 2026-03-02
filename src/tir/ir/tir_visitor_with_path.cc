@@ -180,11 +180,6 @@ void TIRVisitorWithPath::VisitStmt_(const BindNode* op, AccessPath path) {
   // Scope tracking for BindNode is handled at the SeqStmt level by callers.
 }
 
-void TIRVisitorWithPath::VisitStmt_(const LetStmtNode* op, AccessPath path) {
-  Visit(op->value, path->Attr("value"));
-  auto context = WithDef(op->var, path->Attr("var"));
-  Visit(op->body, path->Attr("body"));
-}
 
 void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
@@ -253,7 +248,18 @@ void TIRVisitorWithPath::VisitStmt_(const AssertStmtNode* op, AccessPath path) {
 }
 
 void TIRVisitorWithPath::VisitStmt_(const SeqStmtNode* op, AccessPath path) {
-  Visit(op->seq, path->Attr("seq"));
+  // Visit children sequentially. When a child is a BindNode, define its
+  // variable for all subsequent siblings (BindNode scope extends to
+  // the rest of the enclosing SeqStmt).
+  auto seq_path = path->Attr("seq");
+  std::vector<DefContext<Var>> bind_defs;
+  for (size_t i = 0; i < op->seq.size(); i++) {
+    auto item_path = seq_path->ArrayItem(i);
+    Visit(op->seq[i], item_path);
+    if (auto bind = op->seq[i].as<BindNode>()) {
+      bind_defs.push_back(WithDef(bind->var, item_path->Attr("var")));
+    }
+  }
 }
 
 void TIRVisitorWithPath::VisitStmt_(const EvaluateNode* op, AccessPath path) {

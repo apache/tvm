@@ -77,10 +77,16 @@ class IRDocsifierFunctor {
     LOG(WARNING) << "ObjectFunctor calls un-registered function on type: "
                  << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
                  << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
+    LOG(WARNING) << "ObjectFunctor calls un-registered function on type: "
+                 << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token << ")"
+                 << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
     TVM_FFI_ICHECK(false) << "ObjectFunctor calls un-registered function on type: "
                           << runtime::Object::TypeIndex2Key(type_index) << " (token: " << token
                           << ")"
                           << ". ObjectType: " << obj->GetTypeKey() << ". Object: " << obj;
+#if defined(__GNUC__) || defined(__clang__)
+    __builtin_unreachable();
+#endif
   }
 
   /*!

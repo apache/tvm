@@ -744,11 +744,14 @@ class BaseBlockCreator {
       let_vars.push_back(var);
       buf_stores.push_back(BufferStore(update_buffers_[i], var, update_indices_[i]));
     }
-    Stmt body = SeqStmt(buf_stores);
-    for (int i = n_buffers_ - 1; i >= 0; --i) {
-      body = LetStmt(let_vars[i], stored_values[i], std::move(body));
+    ffi::Array<Stmt> stmts;
+    for (int i = 0; i < n_buffers_; ++i) {
+      stmts.push_back(tir::Bind(let_vars[i], stored_values[i]));
     }
-    return body;
+    for (const auto& store : buf_stores) {
+      stmts.push_back(store);
+    }
+    return SeqStmt(stmts);
   }
 
   ffi::Optional<Stmt> CreateBlockInit(bool has_reduce_iter) {

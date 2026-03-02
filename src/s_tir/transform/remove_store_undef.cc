@@ -65,7 +65,7 @@ class StoreUndefLocator : public StmtExprVisitor {
     // ValidateAllUndefRemoved.
   }
 
-  void VisitStmt_(const LetStmtNode* op) final {
+  void VisitStmt_(const BindNode* op) final {
     bool stash_undef = false;
     std::swap(has_undef_, stash_undef);
     StmtExprVisitor::VisitExpr(op->value);
@@ -76,8 +76,6 @@ class StoreUndefLocator : public StmtExprVisitor {
           << "must not have other side effects";
       var_bindings_with_undef_.insert(op->var.get());
     }
-
-    StmtExprVisitor::VisitStmt(op->body);
   }
 
   void VisitExpr_(const VarNode* op) final {

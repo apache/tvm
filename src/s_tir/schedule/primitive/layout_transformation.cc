@@ -131,7 +131,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
 
-  void VisitStmt_(const LetStmtNode* op) override {
+  void VisitStmt_(const BindNode* op) override {
     BindVariableDefinition context(this, op->var, op->value);
     StmtExprVisitor::VisitStmt_(op);
   }

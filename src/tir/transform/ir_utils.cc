@@ -46,11 +46,9 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       TVM_FFI_ICHECK(is_no_op(n->body));
       n->body = body;
       body = Stmt(n);
-    } else if (const auto* let = s.as<LetStmtNode>()) {
-      auto n = ffi::make_object<LetStmtNode>(*let);
-      TVM_FFI_ICHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
+    } else if (const auto* bind = s.as<BindNode>()) {
+      // Bind has no body -- prepend it before the accumulated body in a SeqStmt.
+      body = SeqStmt::Flatten(ffi::GetRef<Stmt>(bind), body);
     } else if (const auto* attr = s.as<AttrStmtNode>()) {
       auto n = ffi::make_object<AttrStmtNode>(*attr);
       TVM_FFI_ICHECK(is_no_op(n->body));
@@ -348,13 +346,12 @@ class IRConvertSSA final : public StmtExprMutator {
     return new_buf;
   }
 
-  Stmt VisitStmt_(const LetStmtNode* op) final {
+  Stmt VisitStmt_(const BindNode* op) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
       PrimExpr value = this->VisitExpr(op->value);
       ScopedRedefine redefine(this, v);
-      Stmt body = this->VisitStmt(op->body);
-      return LetStmt(redefine.new_var, value, body);
+      return Bind(redefine.new_var, value);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);

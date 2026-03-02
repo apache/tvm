@@ -69,8 +69,12 @@ class CommonSubexpressionEliminator : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const LetNode* op) override;
 
-  Stmt VisitStmt_(const LetStmtNode* op) override;
+  Stmt VisitStmt_(const BindNode* op) override;
+  Stmt VisitStmt_(const SeqStmtNode* op) override;
   Stmt VisitStmt_(const ForNode* op) override;
+
+  // Helper: process a slice of a SeqStmt starting at `start`
+  Stmt VisitSeqStmtSlice(const ffi::Array<Stmt>& seq, size_t start);
 
  private:
   Stmt initial_body_;     // Kept for checking if names of new variables already exist

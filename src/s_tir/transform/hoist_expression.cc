@@ -322,7 +322,7 @@ class HoistInfoCollector : public StmtExprVisitor {
     let_var_to_let_vars[var.get()] = std::move(let_bindings_used);
   }
 
-  void VisitStmt_(const LetStmtNode* op) final {
+  void VisitStmt_(const BindNode* op) final {
     VisitBinding(op->var, op->value, HoistedLetBindings::kLetStmt);
 
     Parent::VisitStmt_(op);
@@ -482,9 +482,16 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
         }
       }
     }
-    for (auto let_it = info.let_bindings.rbegin(); let_it != info.let_bindings.rend(); let_it++) {
-      if (hoisted_let_bindings.count(let_it->var.get())) {
-        stmt = LetStmt(let_it->var, let_it->value, stmt);
+    {
+      ffi::Array<Stmt> binds;
+      for (auto let_it = info.let_bindings.begin(); let_it != info.let_bindings.end(); let_it++) {
+        if (hoisted_let_bindings.count(let_it->var.get())) {
+          binds.push_back(Bind(let_it->var, let_it->value));
+        }
+      }
+      if (!binds.empty()) {
+        binds.push_back(stmt);
+        stmt = SeqStmt(binds);
       }
     }
 
@@ -511,9 +518,10 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const LetStmtNode* op) final {
+  Stmt VisitStmt_(const BindNode* op) final {
     if (hoisted_let_bindings.count(op->var.get())) {
-      return this->VisitStmt(op->body);
+      // The binding was hoisted; remove it from this location.
+      return Evaluate(0);
     } else {
       return Parent::VisitStmt_(op);
     }

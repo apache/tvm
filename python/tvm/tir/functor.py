@@ -70,6 +70,7 @@ from .stmt import (
     Evaluate,
     For,
     IfThenElse,
+    Bind,
     LetStmt,
     SBlock,
     SBlockRealize,

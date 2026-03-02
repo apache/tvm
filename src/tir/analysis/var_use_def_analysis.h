@@ -59,7 +59,6 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
 
   void VisitStmt_(const BindNode* op) final;
 
-  void VisitStmt_(const LetStmtNode* op) final;
 
   void VisitStmt_(const ForNode* op) final;
 

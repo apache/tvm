@@ -94,24 +94,6 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const BindNode* op) {
   }
 }
 
-Stmt IRMutatorWithAnalyzer::VisitStmt_(const LetStmtNode* op) {
-  PrimExpr value = this->VisitExpr(op->value);
-  if (SideEffect(value) <= CallEffectKind::kPure) {
-    analyzer_->Bind(op->var, value);
-  }
-  // We keep the let-binding here
-  // as sub-class may or maynot choose to replace it.
-  Stmt body = this->VisitStmt(op->body);
-  if (value.same_as(op->value) && body.same_as(op->body)) {
-    return ffi::GetRef<Stmt>(op);
-  } else {
-    auto n = this->CopyOnWrite(op);
-    n->value = std::move(value);
-    n->body = std::move(body);
-    return Stmt(n);
-  }
-}
-
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
   return constraint_scope_.WithNewScope([&]() -> Stmt {
     PrimExpr condition = this->VisitExpr(op->condition);

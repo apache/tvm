@@ -44,9 +44,14 @@ class Stmt(Object, Scriptable):
     """Base class of all the statements."""
 
 
-@tvm_ffi.register_object("tir.LetStmt")
-class LetStmt(Stmt):
-    """LetStmt node.
+@tvm_ffi.register_object("tir.Bind")
+class Bind(Stmt):
+    """Bind node.
+
+    Bind a variable to a value in the enclosing scope.
+    Unlike the deprecated LetStmt, Bind has no body field.
+    The bound variable is visible in all subsequent statements
+    within the same enclosing scope (SeqStmt, ForNode.body, etc.).
 
     Parameters
     ----------
@@ -54,10 +59,7 @@ class LetStmt(Stmt):
         The variable in the binding.
 
     value : PrimExpr
-        The value in to be bound.
-
-    body : Stmt
-        The body statement.
+        The value to be bound.
 
     span : Optional[Span]
         The location of the stmt in the source code.
@@ -65,17 +67,20 @@ class LetStmt(Stmt):
 
     var: Var
     value: PrimExpr
-    body: Stmt
     span: Span | None
 
-    def __init__(self, var: Var, value: PrimExpr, body: Stmt, span: Span | None = None) -> None:
+    def __init__(self, var: Var, value: PrimExpr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.LetStmt,
+            _ffi_api.Bind,
             var,
             value,
-            body,
             span,  # type: ignore
         )
+
+
+# Deprecated: use Bind instead.
+# LetStmt(var, value, body) now returns SeqStmt(Bind(var, value), body).
+LetStmt = Bind
 
 
 @tvm_ffi.register_object("tir.AssertStmt")

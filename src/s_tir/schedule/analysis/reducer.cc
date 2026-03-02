@@ -354,7 +354,7 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
  * \throw ScheduleError If rfactor or cross-thread reduction cannot be applied to the block
  */
 void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock block,
-                             const LetStmtNode* let, int n_buffers,
+                             const ffi::Array<Stmt>& stmts, int n_buffers,
                              ffi::Array<BufferStore>* updates,
                              std::unordered_map<const BufferNode*, int>* buf2index) {
   std::unordered_map<const VarNode*, int> var2index;
@@ -363,37 +363,35 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
   updates->resize(n_buffers);
 
   // Step 1.
-  // - Extract the BufferStore values from the LetStmts.
-  // - Construct the mapping from let variables to the index.
+  // - Extract the Bind values from the sequence.
+  // - Construct the mapping from bind variables to the index.
+  // The first n_buffers stmts should be Bind nodes.
   for (int i = 0; i < n_buffers; ++i) {
-    if (let == nullptr) {
+    if (i >= static_cast<int>(stmts.size())) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
     }
-
-    let_values.push_back(let->value);
-    auto insert_result = var2index.insert(std::make_pair(let->var.get(), i));
+    const auto* bind = stmts[i].as<BindNode>();
+    if (bind == nullptr) {
+      ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
+    }
+    let_values.push_back(bind->value);
+    auto insert_result = var2index.insert(std::make_pair(bind->var.get(), i));
     if (!insert_result.second) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/4);
     }
-    if (i != n_buffers - 1) {
-      let = let->body.as<LetStmtNode>();
-    }
   }
 
-  // There should be no more LetStmt.
-  if (let->body->IsInstance<LetStmtNode>()) {
+  // There should be no more Bind after the first n_buffers.
+  if (n_buffers < static_cast<int>(stmts.size()) && stmts[n_buffers]->IsInstance<BindNode>()) {
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
   }
 
-  // Now `let` is expected to be the innermost LetStmt, whose body should either be a SeqStmt or
-  // a BufferStore
-  const auto* p_seq = let->body.as<SeqStmtNode>();
-  const auto* p_buf_store = let->body.as<BufferStoreNode>();
-  if (p_seq == nullptr && p_buf_store == nullptr) {
-    ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/5);
+  // The remaining stmts after the Bind nodes should be BufferStores.
+  // Collect them into a sequence.
+  ffi::Array<Stmt> seq;
+  for (int i = n_buffers; i < static_cast<int>(stmts.size()); ++i) {
+    seq.push_back(stmts[i]);
   }
-  ffi::Array<Stmt> seq =
-      p_seq != nullptr ? p_seq->seq : ffi::Array<Stmt>{ffi::GetRef<BufferStore>(p_buf_store)};
   if (static_cast<int>(seq.size()) != n_buffers) {
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/6);
   }
@@ -460,9 +458,10 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
   if (const auto* update = block->body.as<BufferStoreNode>()) {
     updates.push_back(ffi::GetRef<BufferStore>(update));
     buf2index[update->buffer.get()] = 0;
+  } else if (const auto* seq = block->body.as<SeqStmtNode>()) {
+    ExtractReductionUpdates(self, block, seq->seq, n_buffers, &updates, &buf2index);
   } else {
-    const auto* let = block->body.as<LetStmtNode>();
-    ExtractReductionUpdates(self, block, let, n_buffers, &updates, &buf2index);
+    ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
   }
   TVM_FFI_ICHECK_EQ(updates.size(), n_buffers);
 

@@ -99,11 +99,10 @@ class ExprTouched final : public StmtExprVisitor {
 // Analyze if the buffers are invariant to value of var
 class VarTouchedAnalysis : public StmtVisitor {
  public:
-  void VisitStmt_(const LetStmtNode* op) final {
+  void VisitStmt_(const BindNode* op) final {
     ExprTouched tc(touched_var_, false);
     tc(op->value);
     Record(op->var.get(), tc);
-    this->VisitStmt(op->body);
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
@@ -299,18 +298,17 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       }
     }
   }
-  // LetStmt
-  Stmt VisitStmt_(const LetStmtNode* op) final {
+  // Bind
+  Stmt VisitStmt_(const BindNode* op) final {
     PrimExpr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }
     visit_touched_var_ = false;
-    Stmt body = this->VisitStmt(op->body);
-    if (value.same_as(op->value) && body.same_as(op->body)) {
+    if (value.same_as(op->value)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      return LetStmt(op->var, value, body);
+      return Bind(op->var, value);
     }
   }
   // For
@@ -362,6 +360,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const WhileNode* op) final {
     // TODO(masahi): What should we do for While nodes?
     TVM_FFI_THROW(InternalError) << "WhileNode in InjectVirtualThread not supported yet";
+    __builtin_unreachable();
   }
 
   // Seq

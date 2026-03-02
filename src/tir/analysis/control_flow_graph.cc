@@ -340,14 +340,6 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
     Parent::VisitStmt_(op);
   }
 
-  void VisitStmt_(const LetStmtNode* op) override {
-    std::optional<BindLetVar> binding;
-    if (UsesLoopVar(op->value)) {
-      binding.emplace(this, op->var, op->value);
-    }
-    Parent::VisitStmt_(op);
-  }
-
   void VisitExpr_(const BufferLoadNode* op) override {
     Parent::VisitExpr_(op);
     BufferLoad load = ffi::GetRef<BufferLoad>(op);

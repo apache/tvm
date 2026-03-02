@@ -645,10 +645,14 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
             fstore({in_warp_local_vars.begin(), in_warp_local_vars.end()}));
         in_let_statement.emplace_back(SyncThread("warp"));
 
-        Stmt body = SeqStmt::Flatten(in_let_statement);
+        ffi::Array<Stmt> bind_stmts;
         for (size_t i = 0; i < size; i++) {
-          body = LetStmt(in_warp_local_vars[i], loads[i], body);
+          bind_stmts.push_back(Bind(in_warp_local_vars[i], loads[i]));
         }
+        for (const auto& s : in_let_statement) {
+          bind_stmts.push_back(s);
+        }
+        Stmt body = SeqStmt::Flatten(bind_stmts);
         in_warp_seq.push_back(body);
       }
 

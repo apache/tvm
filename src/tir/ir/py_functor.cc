@@ -172,13 +172,11 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   ffi::Function f_visit_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const BindNode* op)` function. */
   ffi::Function f_visit_bind{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const LetStmtNode* op)` function. */
+  /*! \brief The packed function to the `VisitStmt_(const AttrStmtNode* op)` function. */
   ffi::Function f_visit_attr_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const IfThenElseNode* op)` function. */
   ffi::Function f_visit_if_then_else{nullptr};  // NOLINT(readability/braces)
   /*! \brief The packed function to the `VisitStmt_(const ForNode* op)` function. */
-  ffi::Function f_visit_let_stmt{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const AttrStmtNode* op)` function. */
   ffi::Function f_visit_for{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const WhileNode* op)` function. */
   ffi::Function f_visit_while{nullptr};
@@ -223,7 +221,6 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
  private:
   // Statement functions
   PY_STMT_VISITOR_DISPATCH(BindNode, f_visit_bind);
-  PY_STMT_VISITOR_DISPATCH(LetStmtNode, f_visit_let_stmt);
   PY_STMT_VISITOR_DISPATCH(AttrStmtNode, f_visit_attr_stmt);
   PY_STMT_VISITOR_DISPATCH(IfThenElseNode, f_visit_if_then_else);
   PY_STMT_VISITOR_DISPATCH(ForNode, f_visit_for);
@@ -315,7 +312,6 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
   static FStmtType InitStmtVTable() {
     FStmtType vtable;
     PY_STMT_VISITOR_DEFAULT_DISPATCH(BindNode);
-    PY_STMT_VISITOR_DEFAULT_DISPATCH(LetStmtNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(AttrStmtNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(IfThenElseNode);
     PY_STMT_VISITOR_DEFAULT_DISPATCH(ForNode);
@@ -394,7 +390,8 @@ class PyStmtExprVisitor : public ObjectRef {
     n->f_visit_stmt = std::move(f_visit_stmt);
     n->f_visit_expr = std::move(f_visit_expr);
     // Set statement functions
-    n->f_visit_let_stmt = std::move(f_visit_let_stmt);
+    // f_visit_let_stmt is the Python-facing name; internally it maps to f_visit_bind
+    n->f_visit_bind = std::move(f_visit_let_stmt);
     n->f_visit_attr_stmt = std::move(f_visit_attr_stmt);
     n->f_visit_if_then_else = std::move(f_visit_if_then_else);
     n->f_visit_for = std::move(f_visit_for);
@@ -531,8 +528,6 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   ffi::Function f_visit_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const BindNode* op)` function. */
   ffi::Function f_visit_bind{nullptr};
-  /*! \brief The packed function to the `VisitStmt_(const LetStmtNode* op)` function. */
-  ffi::Function f_visit_let_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const AttrStmtNode* op)` function. */
   ffi::Function f_visit_attr_stmt{nullptr};
   /*! \brief The packed function to the `VisitStmt_(const IfThenElseNode* op)` function. */
@@ -582,7 +577,6 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
  private:
   // Statement functions
   PY_STMT_MUTATOR_DISPATCH(BindNode, f_visit_bind);
-  PY_STMT_MUTATOR_DISPATCH(LetStmtNode, f_visit_let_stmt);
   PY_STMT_MUTATOR_DISPATCH(AttrStmtNode, f_visit_attr_stmt);
   PY_STMT_MUTATOR_DISPATCH(IfThenElseNode, f_visit_if_then_else);
   PY_STMT_MUTATOR_DISPATCH(ForNode, f_visit_for);
@@ -674,7 +668,6 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   static FStmtType InitStmtVTable() {
     FStmtType vtable;
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(BindNode);
-    PY_STMT_MUTATOR_DEFAULT_DISPATCH(LetStmtNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(AttrStmtNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(IfThenElseNode);
     PY_STMT_MUTATOR_DEFAULT_DISPATCH(ForNode);
@@ -754,7 +747,8 @@ class PyStmtExprMutator : public ObjectRef {
     n->f_visit_stmt = std::move(f_visit_stmt);
     n->f_visit_expr = std::move(f_visit_expr);
     // Statement functions
-    n->f_visit_let_stmt = std::move(f_visit_let_stmt);
+    // f_visit_let_stmt is the Python-facing name; internally it maps to f_visit_bind
+    n->f_visit_bind = std::move(f_visit_let_stmt);
     n->f_visit_attr_stmt = std::move(f_visit_attr_stmt);
     n->f_visit_if_then_else = std::move(f_visit_if_then_else);
     n->f_visit_for = std::move(f_visit_for);

@@ -40,44 +40,27 @@ def test_cse():
     b = tvm.tir.Var("b", "int32")
     dtype = "int32"
     buffer = tvm.tir.decl_buffer((50,), dtype)
-    # Test prog :
-    # let z1=1 in let z2=2 in
-    #   Mem[i1] = z1+z2;
-    #   let x = 1 in let y = 1 in
-    #     let a = (x+y) + (z1+z2) in
-    #       let b = (x+y) + z3 in
-    #         Mem[i2] = a+b;
-    body = tvm.tir.LetStmt(
-        z1,
-        1,
-        tvm.tir.LetStmt(
-            z2,
-            2,
-            tvm.tir.SeqStmt(
-                [
-                    tvm.tir.BufferStore(buffer, z1 + z2, [i1]),
-                    tvm.tir.LetStmt(
-                        x,
-                        1,
-                        tvm.tir.LetStmt(
-                            y,
-                            1,
-                            tvm.tir.LetStmt(
-                                a,
-                                (x + y) + (z1 + z2),
-                                tvm.tir.LetStmt(
-                                    b, (x + y) + z3, tvm.tir.BufferStore(buffer, a + b, [i2])
-                                ),
-                            ),
-                        ),
-                    ),
-                ]
-            ),
-        ),
+    # Test prog (flat Bind style):
+    # z1 = 1; z2 = 2;
+    # Mem[i1] = z1+z2;
+    # x = 1; y = 1;
+    # a = (x+y) + (z1+z2);
+    # b = (x+y) + z3;
+    # Mem[i2] = a+b;
+    body = tvm.tir.SeqStmt(
+        [
+            tvm.tir.Bind(z1, 1),
+            tvm.tir.Bind(z2, 2),
+            tvm.tir.BufferStore(buffer, z1 + z2, [i1]),
+            tvm.tir.Bind(x, 1),
+            tvm.tir.Bind(y, 1),
+            tvm.tir.Bind(a, (x + y) + (z1 + z2)),
+            tvm.tir.Bind(b, (x + y) + z3),
+            tvm.tir.BufferStore(buffer, a + b, [i2]),
+        ]
     )
-    # This test program gives the opportunity to introduce two new variables, at two different
-    # levels and to perform replacements in the value of "a" and "b", using these new variables.
-    # We will check all of that underneath and more, making also sure that nothing else has changed
+    # This test program gives the opportunity to introduce two new variables,
+    # and to perform replacements in the value of "a" and "b", using these new variables.
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, z3], body))
     body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
@@ -86,61 +69,72 @@ def test_cse():
 
     body = body["main"].body  # Gets the body of the main, i.e. the full statement
 
-    assert body.var.name == "z1"
-    assert body.value == 1
+    # The result should be a flat SeqStmt with Bind nodes for z1, z2, cse_v1 (z1+z2),
+    # the store, x, y, cse_v2 (x+y), a (using cse vars), b (using cse vars), store
+    assert isinstance(body, tvm.tir.SeqStmt)
 
-    body = body.body
+    # Walk through the flat sequence and check the CSE-introduced bindings
+    stmts = list(body)
+    idx = 0
 
-    assert body.var.name == "z2"
-    assert body.value == 2
-    # This is the let-in for the first variable generated cse_v1
-    assert isinstance(body.body, tvm.tir.LetStmt)
+    # z1 = 1
+    assert isinstance(stmts[idx], tvm.tir.Bind)
+    assert stmts[idx].var.name == "z1"
+    assert stmts[idx].value == 1
+    idx += 1
 
-    body = body.body
+    # z2 = 2
+    assert isinstance(stmts[idx], tvm.tir.Bind)
+    assert stmts[idx].var.name == "z2"
+    assert stmts[idx].value == 2
+    idx += 1
 
-    # And this is the name and value of this variable
-    cse_v1 = body.var  # Keep the variable accessible for later checking the replacements
-    assert body.var.name == "cse_v1"
-    tvm.ir.assert_structural_equal(body.value, z1 + z2)
-    assert isinstance(body.body, tvm.tir.SeqStmt)
+    # CSE should introduce cse_v1 = z1 + z2 here
+    assert isinstance(stmts[idx], tvm.tir.Bind)
+    cse_v1 = stmts[idx].var
+    assert stmts[idx].var.name == "cse_v1"
+    tvm.ir.assert_structural_equal(stmts[idx].value, z1 + z2)
+    idx += 1
 
-    body = body.body
+    # Mem[i1] = cse_v1 (was z1+z2, now replaced)
+    assert isinstance(stmts[idx], tvm.tir.BufferStore)
+    tvm.ir.assert_structural_equal(stmts[idx].value, cse_v1)
+    idx += 1
 
-    assert isinstance(body[0], tvm.tir.BufferStore)
-    assert isinstance(body[1], tvm.tir.LetStmt)
+    # x = 1
+    assert isinstance(stmts[idx], tvm.tir.Bind)
+    assert stmts[idx].var.name == "x"
+    assert stmts[idx].value == 1
+    idx += 1
 
-    body = body[1]
+    # y = 1
+    assert isinstance(stmts[idx], tvm.tir.Bind)
+    assert stmts[idx].var.name == "y"
+    assert stmts[idx].value == 1
+    idx += 1
 
-    assert body.var.name == "x"
-    assert body.value == 1
+    # CSE should introduce cse_v2 = x + y here
+    assert isinstance(stmts[idx], tvm.tir.Bind)
+    cse_v2 = stmts[idx].var
+    assert stmts[idx].var.name == "cse_v2"
+    tvm.ir.assert_structural_equal(stmts[idx].value, x + y)
+    idx += 1
 
-    body = body.body
+    # a = cse_v2 + cse_v1 (was (x+y) + (z1+z2), now replaced)
+    assert isinstance(stmts[idx], tvm.tir.Bind)
+    assert stmts[idx].var.name == "a"
+    tvm.ir.assert_structural_equal(stmts[idx].value, cse_v2 + cse_v1)
+    idx += 1
 
-    assert body.var.name == "y"
-    assert body.value == 1
-    # This is the let-in for the second variable generated cse_v2
-    assert isinstance(body.body, tvm.tir.LetStmt)
+    # b = cse_v2 + z3 (was (x+y) + z3, now replaced)
+    assert isinstance(stmts[idx], tvm.tir.Bind)
+    assert stmts[idx].var.name == "b"
+    tvm.ir.assert_structural_equal(stmts[idx].value, cse_v2 + z3)
+    idx += 1
 
-    body = body.body
-
-    # And this is the name and value of this variable
-    cse_v2 = body.var  # Keep the variable accessible for later checking the replacements
-    assert body.var.name == "cse_v2"
-    tvm.ir.assert_structural_equal(body.value, x + y)
-
-    body = body.body
-
-    body.var.name == "a"
-    # Check that the replacement has been done correctly!
-    tvm.ir.assert_structural_equal(body.value, cse_v2 + cse_v1)
-
-    body = body.body
-
-    body.var.name == "b"
-    # Check that the replacement has been done correctly!
-    tvm.ir.assert_structural_equal(body.value, cse_v2 + z3)
-
-    assert isinstance(body.body, tvm.tir.BufferStore)
+    # Mem[i2] = a + b
+    assert isinstance(stmts[idx], tvm.tir.BufferStore)
+    idx += 1
 
 
 # -----------------------------------------------------
@@ -160,25 +154,24 @@ def test_cse_ifNode_1():
     z = tvm.tir.Var("z", "int32")
     dtype = "int32"
     buffer = tvm.tir.decl_buffer((50,), dtype)
-    # Test prog :
-    # let b=1 in
-    #   if(b) {
-    #      Mem[i1] = y+z
-    #     Mem[i2] = y+z
-    #   }
-    #   else {
-    #     Mem[i3] = y
-    #   }
-    body = tvm.tir.LetStmt(
-        b,
-        1,
-        tvm.tir.IfThenElse(
-            b,
-            tvm.tir.SeqStmt(
-                [tvm.tir.BufferStore(buffer, y + z, [i1]), tvm.tir.BufferStore(buffer, y + z, [i2])]
+    # Test prog:
+    # b = 1;
+    # if(b) { Mem[i1] = y+z; Mem[i2] = y+z }
+    # else { Mem[i3] = y }
+    body = tvm.tir.SeqStmt(
+        [
+            tvm.tir.Bind(b, 1),
+            tvm.tir.IfThenElse(
+                b,
+                tvm.tir.SeqStmt(
+                    [
+                        tvm.tir.BufferStore(buffer, y + z, [i1]),
+                        tvm.tir.BufferStore(buffer, y + z, [i2]),
+                    ]
+                ),
+                tvm.tir.BufferStore(buffer, y, [i3]),
             ),
-            tvm.tir.BufferStore(buffer, y, [i3]),
-        ),
+        ]
     )
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, y, z], body))
@@ -188,20 +181,23 @@ def test_cse_ifNode_1():
 
     body = body["main"].body  # Gets the body of the main, i.e. the full statement
 
-    assert body.var.name == "b"
-    assert body.value == 1
-    assert isinstance(body.body, tvm.tir.IfThenElse)
+    assert isinstance(body, tvm.tir.SeqStmt)
+    stmts = list(body)
 
-    body = body.body
+    # b = 1
+    assert isinstance(stmts[0], tvm.tir.Bind)
+    assert stmts[0].var.name == "b"
+    assert stmts[0].value == 1
 
-    assert isinstance(body.then_case, tvm.tir.LetStmt)
+    # The If node
+    assert isinstance(stmts[1], tvm.tir.IfThenElse)
+    if_node = stmts[1]
 
-    body = body.then_case
-
-    # The let-in introduced by the CSE should appear now, inside the Then branch of the If node
-    assert body.var.name == "cse_v1"
-    # and it should contain the expression (y+z) that was redundant
-    tvm.ir.assert_structural_equal(body.value, y + z)
+    # The CSE variable should be inside the Then branch
+    then_stmts = list(if_node.then_case)
+    assert isinstance(then_stmts[0], tvm.tir.Bind)
+    assert then_stmts[0].var.name == "cse_v1"
+    tvm.ir.assert_structural_equal(then_stmts[0].value, y + z)
 
 
 # Second test for if nodes : Some duplicated computations appear in both the Then and Else branch.
@@ -216,28 +212,24 @@ def test_cse_ifNode_2():
     z = tvm.tir.Var("z", "int32")
     dtype = "int32"
     buffer = tvm.tir.decl_buffer((50,), dtype)
-    # Test prog :
-    # let b=1 in
-    #   if(b) {
-    #     Mem[i1] = y+z
-    #      Mem[i2] = y
-    #   }
-    #   else {
-    #     Mem[i3] = y+z
-    #   }
-    body = tvm.tir.LetStmt(
-        b,
-        1,
-        tvm.tir.IfThenElse(
-            b,
-            tvm.tir.SeqStmt(
-                [
-                    tvm.tir.BufferStore(buffer, y + z, [i1]),  # (y+z) is present in Then branch
-                    tvm.tir.BufferStore(buffer, y, [i2]),
-                ]
+    # Test prog:
+    # b = 1;
+    # if(b) { Mem[i1] = y+z; Mem[i2] = y }
+    # else { Mem[i3] = y+z }
+    body = tvm.tir.SeqStmt(
+        [
+            tvm.tir.Bind(b, 1),
+            tvm.tir.IfThenElse(
+                b,
+                tvm.tir.SeqStmt(
+                    [
+                        tvm.tir.BufferStore(buffer, y + z, [i1]),
+                        tvm.tir.BufferStore(buffer, y, [i2]),
+                    ]
+                ),
+                tvm.tir.BufferStore(buffer, y + z, [i3]),
             ),
-            tvm.tir.BufferStore(buffer, y + z, [i3]),  # and also present in the Else branch
-        ),
+        ]
     )
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, y, z], body))
@@ -247,12 +239,18 @@ def test_cse_ifNode_2():
 
     body = body["main"].body  # Gets the body of the main, i.e. the full statement
 
-    assert isinstance(body, tvm.tir.LetStmt)
+    assert isinstance(body, tvm.tir.SeqStmt)
+    stmts = list(body)
 
-    # The let-in introduced by the CSE should appear now, at the toplevel (i.e. before the If)
-    assert body.var.name == "cse_v1"
-    # and it should contain the expression (y+z) that was redundant
-    tvm.ir.assert_structural_equal(body.value, y + z)
+    # CSE should introduce cse_v1 = y + z before the If
+    # Find the cse_v1 binding
+    found_cse = False
+    for s in stmts:
+        if isinstance(s, tvm.tir.Bind) and s.var.name == "cse_v1":
+            tvm.ir.assert_structural_equal(s.value, y + z)
+            found_cse = True
+            break
+    assert found_cse
 
 
 # -------------------------------------------------------------------------------------------------
@@ -288,38 +286,29 @@ def test_cse_cascade():
 
     body = body["main"].body  # Gets the body of the main, i.e. the full statement
 
-    assert isinstance(body, tvm.tir.LetStmt)
-
-    # The second let-in (by order introduced) introduced by the CSE should appear first
-    cse_v2 = body.var  # Keep the variable accessible for later checking the replacements
-    assert body.var.name == "cse_v2"
-    # and it should contain the expression (x+y)
-    tvm.ir.assert_structural_equal(body.value, (x + y))
-
-    body = body.body
-
-    assert isinstance(body, tvm.tir.LetStmt)
-
-    # The first let-in (by order introduced) introduced by the CSE should appear now, after the 2nd
-    cse_v1 = body.var  # Keep the variable accessible for later checking the replacements
-    assert body.var.name == "cse_v1"
-    # and it should contain the expression cse_v2+z
-    tvm.ir.assert_structural_equal(body.value, cse_v2 + z)
-
-    body = body.body
-
     assert isinstance(body, tvm.tir.SeqStmt)
-    assert isinstance(body[0], tvm.tir.BufferStore)
-    assert isinstance(body[1], tvm.tir.BufferStore)
-    assert isinstance(body[2], tvm.tir.BufferStore)
+    stmts = list(body)
 
-    store1 = body[0]
-    store2 = body[1]
-    store3 = body[2]
+    # cse_v2 = x + y
+    assert isinstance(stmts[0], tvm.tir.Bind)
+    cse_v2 = stmts[0].var
+    assert stmts[0].var.name == "cse_v2"
+    tvm.ir.assert_structural_equal(stmts[0].value, (x + y))
 
-    tvm.ir.assert_structural_equal(store1.value, cse_v1)
-    tvm.ir.assert_structural_equal(store2.value, cse_v1)
-    tvm.ir.assert_structural_equal(store3.value, cse_v2)
+    # cse_v1 = cse_v2 + z
+    assert isinstance(stmts[1], tvm.tir.Bind)
+    cse_v1 = stmts[1].var
+    assert stmts[1].var.name == "cse_v1"
+    tvm.ir.assert_structural_equal(stmts[1].value, cse_v2 + z)
+
+    # Three stores
+    assert isinstance(stmts[2], tvm.tir.BufferStore)
+    assert isinstance(stmts[3], tvm.tir.BufferStore)
+    assert isinstance(stmts[4], tvm.tir.BufferStore)
+
+    tvm.ir.assert_structural_equal(stmts[2].value, cse_v1)
+    tvm.ir.assert_structural_equal(stmts[3].value, cse_v1)
+    tvm.ir.assert_structural_equal(stmts[4].value, cse_v2)
 
 
 # -----------------------------------------------------------------------------------------
@@ -331,8 +320,8 @@ def test_no_normalization_without_commoning():
     z = tvm.tir.Var("z", "int32")
     a = tvm.tir.Var("a", "int32")
     # Test prog :
-    # let a = x + (y + z) in a
-    body = tvm.tir.LetStmt(a, x + (y + z), tvm.tir.Evaluate(a))
+    # a = x + (y + z); evaluate(a)
+    body = tvm.tir.SeqStmt([tvm.tir.Bind(a, x + (y + z)), tvm.tir.Evaluate(a)])
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([x, y, z], body))
     body = tvm.tir.transform.CommonSubexprElimTIR(identify_equiv_terms=True)(mod)
@@ -341,8 +330,11 @@ def test_no_normalization_without_commoning():
 
     body = body["main"].body  # Gets the body of the main, i.e. the full statement
 
-    assert body.var.name == "a"
-    tvm.ir.assert_structural_equal(body.value, x + (y + z))
+    assert isinstance(body, tvm.tir.SeqStmt)
+    stmts = list(body)
+    assert isinstance(stmts[0], tvm.tir.Bind)
+    assert stmts[0].var.name == "a"
+    tvm.ir.assert_structural_equal(stmts[0].value, x + (y + z))
 
 
 # -------------------------------------------------
@@ -428,8 +420,8 @@ def test_deterministic_cse():
     expression = x
     for add in inc1 + inc2:
         expression = expression + add
-    let_stmt = tvm.tir.LetStmt(result, expression, tvm.tir.Evaluate(result))
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([x], let_stmt))
+    body = tvm.tir.SeqStmt([tvm.tir.Bind(result, expression), tvm.tir.Evaluate(result)])
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([x], body))
 
     initial_hash = None
     for _ in range(REPEATS):

@@ -213,7 +213,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitStmt_(const AssertStmtNode* op) final { VisitNewScope(op); }
 
-  void VisitStmt_(const LetStmtNode* op) final { VisitNewScope(op); }
+  void VisitStmt_(const BindNode* op) final { StmtExprVisitor::VisitStmt_(op); }
 
   // linearized access sequence.
   std::vector<StmtEntry> linear_seq_;
@@ -1205,7 +1205,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const LetStmtNode* op) final {
+  void VisitStmt_(const BindNode* op) final {
     HandleLetNode(op->var);
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -1516,15 +1516,14 @@ class VectorTypeRewriter : public StmtExprMutator {
     return modified;
   }
 
-  Stmt VisitStmt_(const LetStmtNode* op) final {
+  Stmt VisitStmt_(const BindNode* op) final {
     auto it = rewrite_map_.find(op->var.get());
     PrimExpr value = this->VisitExpr(op->value);
-    Stmt body = this->VisitStmt(op->body);
     Var var = (it == rewrite_map_.end()) ? op->var : it->second.new_buffer_var;
-    if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
+    if (var.same_as(op->var) && value.same_as(op->value)) {
       return ffi::GetRef<Stmt>(op);
     }
-    return LetStmt(var, value, body);
+    return Bind(var, value);
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {

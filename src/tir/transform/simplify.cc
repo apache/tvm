@@ -124,7 +124,7 @@ std::unordered_set<const VarNode*> CollectVarsUsedInBufferDefinition(const Stmt&
       }
       usage(buf->elem_offset);
 
-      // Track for use in LetStmtNode mutator
+      // Track for use in BindNode mutator
       for (const auto& var : usage.undefined_) {
         used_in_buffer_def_.insert(var.get());
       }
@@ -220,7 +220,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  bool CanInlineLetStmt(const LetStmtNode* op) {
+  bool CanInlineBind(const BindNode* op) {
     if (is_const_number(op->value)) return true;
     if (op->value.as<VarNode>()) return true;
     // Won't face the deep expression explosion problem as in Let expression.
@@ -229,9 +229,9 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return SideEffect(op->value) <= CallEffectKind::kPure;
   }
 
-  Stmt VisitStmt_(const LetStmtNode* op) override {
+  Stmt VisitStmt_(const BindNode* op) override {
     PrimExpr value = this->VisitExpr(op->value);
-    bool can_inline = CanInlineLetStmt(op);
+    bool can_inline = CanInlineBind(op);
     if (can_inline) {
       // It is usually fine to discard the let binding because the
       // call to simplify will always inline the var.
@@ -251,7 +251,6 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
       // necessary for proving conditional statements.
       non_inlined_bindings_.Set(op->var, value);
     }
-    Stmt body = this->VisitStmt(op->body);
 
     // TODO(Lunderberg): Update the Buffer object as part of
     // DeclBuffer updates, which will first require
@@ -259,13 +258,12 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     bool used_in_buffer_def = used_in_buffer_def_.count(op->var.get());
 
     if (can_inline && !used_in_buffer_def) {
-      return body;
-    } else if (value.same_as(op->value) && body.same_as(op->body)) {
+      return Evaluate(0);
+    } else if (value.same_as(op->value)) {
       return ffi::GetRef<Stmt>(op);
     } else {
       auto n = this->CopyOnWrite(op);
       n->value = std::move(value);
-      n->body = std::move(body);
       return Stmt(n);
     }
   }

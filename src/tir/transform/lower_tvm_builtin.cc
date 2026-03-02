@@ -154,21 +154,29 @@ class BuiltinLower : public StmtExprMutator {
       // used when mutating.
       scope.max_sizes = GetMaxStack(stmt);
 
-      if (scope.max_sizes.shape_stack != -1) {
-        scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), scope.max_sizes.shape_stack)},
-                                        DataType::Int(64), "stack_shape");
-        stmt = DeclBuffer(scope.stack_shape, stmt);
-        stmt = LetStmt(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack),
-                       stmt);
+      // Build a flat list of Bind stmts followed by the body
+      ffi::Array<Stmt> alloca_stmts;
+      if (scope.max_sizes.arg_stack != 0) {
+        alloca_stmts.push_back(
+            Bind(scope.stack_ffi_any, StackAlloca("tvm_ffi_any", scope.max_sizes.arg_stack)));
       }
 
       if (scope.max_sizes.array_stack != 0) {
-        stmt = LetStmt(scope.stack_array, StackAlloca("array", scope.max_sizes.array_stack), stmt);
+        alloca_stmts.push_back(
+            Bind(scope.stack_array, StackAlloca("array", scope.max_sizes.array_stack)));
       }
 
-      if (scope.max_sizes.arg_stack != 0) {
-        stmt = LetStmt(scope.stack_ffi_any, StackAlloca("tvm_ffi_any", scope.max_sizes.arg_stack),
-                       stmt);
+      if (scope.max_sizes.shape_stack != -1) {
+        scope.stack_shape = decl_buffer({IntImm(DataType::Int(64), scope.max_sizes.shape_stack)},
+                                        DataType::Int(64), "stack_shape");
+        alloca_stmts.push_back(
+            Bind(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack)));
+        stmt = DeclBuffer(scope.stack_shape, stmt);
+      }
+
+      if (!alloca_stmts.empty()) {
+        alloca_stmts.push_back(stmt);
+        stmt = SeqStmt(alloca_stmts);
       }
     }
 
@@ -212,13 +220,49 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const LetStmtNode* op) final {
+  Stmt VisitStmt_(const BindNode* op) final {
     if (const CallNode* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::nd_mem_alloc_with_scope())) {
-        return StmtExprMutator::VisitStmt(MakeNdMemAllocWithScope(op, call));
+        // Save this Bind for SeqStmt-level handling.
+        // MakeNdMemAllocWithScope needs the body (sibling stmts), so we
+        // defer to VisitStmt_(const SeqStmtNode*).
+        pending_nd_mem_alloc_ = op;
+        return ffi::GetRef<Stmt>(op);
       }
     }
     return StmtExprMutator::VisitStmt_(op);
+  }
+
+  Stmt VisitStmt_(const SeqStmtNode* op) final {
+    ffi::Array<Stmt> new_seq;
+    bool changed = false;
+    for (size_t i = 0; i < op->seq.size(); ++i) {
+      pending_nd_mem_alloc_ = nullptr;
+      Stmt visited = this->VisitStmt(op->seq[i]);
+      if (pending_nd_mem_alloc_) {
+        // This Bind was an nd_mem_alloc_with_scope.
+        // Collect remaining stmts as the "body" that needs wrapping.
+        const BindNode* let = pending_nd_mem_alloc_;
+        const CallNode* call = let->value.as<CallNode>();
+        pending_nd_mem_alloc_ = nullptr;
+
+        // Collect remaining sibling stmts as the body
+        ffi::Array<Stmt> body_stmts;
+        for (size_t j = i + 1; j < op->seq.size(); ++j) {
+          body_stmts.push_back(this->VisitStmt(op->seq[j]));
+        }
+        Stmt body = body_stmts.empty() ? Evaluate(0) : SeqStmt::Flatten(body_stmts);
+        Stmt alloc_stmt = MakeNdMemAllocWithScope(let, call, body);
+        new_seq.push_back(this->VisitStmt(alloc_stmt));
+        changed = true;
+        break;  // remaining stmts already consumed
+      } else {
+        new_seq.push_back(visited);
+        if (!visited.same_as(op->seq[i])) changed = true;
+      }
+    }
+    if (!changed) return ffi::GetRef<Stmt>(op);
+    return SeqStmt::Flatten(new_seq);
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) {
@@ -264,13 +308,13 @@ class BuiltinLower : public StmtExprMutator {
 
     body = AttrStmt(op->buffer->data, attr::storage_alignment,
                     make_const(DataType::Int(32), runtime::kTempAllocaAlignment), body);
-    body = LetStmt(op->buffer->data,
-                   Call(op->buffer->data.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
-                        {cast(DataType::Int(32), device_type_.value()),
-                         cast(DataType::Int(32), device_id_.value()), total_bytes,
-                         IntImm(DataType::Int(32), op->buffer->dtype.code()),
-                         IntImm(DataType::Int(32), op->buffer->dtype.bits())}),
-                   body);
+    body = SeqStmt({Bind(op->buffer->data,
+                         Call(op->buffer->data.dtype(), Op::Get("tir.TVMBackendAllocWorkspace"),
+                              {cast(DataType::Int(32), device_type_.value()),
+                               cast(DataType::Int(32), device_id_.value()), total_bytes,
+                               IntImm(DataType::Int(32), op->buffer->dtype.code()),
+                               IntImm(DataType::Int(32), op->buffer->dtype.bits())})),
+                    body});
 
     return body;
   }
@@ -496,6 +540,7 @@ class BuiltinLower : public StmtExprMutator {
           return ffi::TypeIndex::kTVMFFIOpaquePtr;
         } else {
           TVM_FFI_THROW(InternalError) << "Unsupported type: " << api_dtype;
+          __builtin_unreachable();
         }
       }();
 
@@ -595,7 +640,7 @@ class BuiltinLower : public StmtExprMutator {
     return Call(op->dtype, lowered_packed_op, packed_args);
   }
 
-  Stmt MakeNdMemAllocWithScope(const LetStmtNode* let, const CallNode* call) {
+  Stmt MakeNdMemAllocWithScope(const BindNode* let, const CallNode* call, Stmt inner_body) {
     TVM_FFI_ICHECK(device_type_) << "Unknown device type in current IR";
     TVM_FFI_ICHECK(device_id_) << "Unknown device id in current IR";
     Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
@@ -608,7 +653,7 @@ class BuiltinLower : public StmtExprMutator {
 
     Stmt body = SeqStmt(
         {IfThenElse(Call(DataType::Bool(), builtin::isnullptr(), {let->var}), throw_last_error),
-         let->body, free_stmt});
+         inner_body, free_stmt});
 
     DataType dtype =
         let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
@@ -629,8 +674,7 @@ class BuiltinLower : public StmtExprMutator {
     }
 
     Call call_packed = Call(let->var.dtype(), builtin::tvm_call_packed(), args);
-    Stmt alloca = LetStmt(let->var, call_packed, body);
-    return alloca;
+    return SeqStmt({Bind(let->var, call_packed), body});
   }
 
  private:
@@ -649,6 +693,8 @@ class BuiltinLower : public StmtExprMutator {
   std::vector<std::vector<Stmt>> prep_seq_stack_;
   ffi::Optional<PrimExpr> device_type_{std::nullopt};
   ffi::Optional<PrimExpr> device_id_{std::nullopt};
+  // Pending nd_mem_alloc Bind node for SeqStmt-level handling
+  const BindNode* pending_nd_mem_alloc_{nullptr};
 
   bool is_precheck_{false};
 

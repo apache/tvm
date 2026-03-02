@@ -478,8 +478,8 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
         // right to dive.
         result = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(result, predicate_selector, new_var,
                                                                 CanContainEligibleComputations);
-        // Build a let-in that introduces the new variable in the current `result`
-        result = LetStmt(new_var, computation_and_nb.first, result);
+        // Build a bind that introduces the new variable before the current `result`
+        result = SeqStmt({Bind(new_var, computation_and_nb.first), result});
         // We don't add the variable to the context because the invariant is that the
         // context is the context in which 'result' makes sense, and we've just updated it.
       } else {
@@ -523,45 +523,140 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
 }
 
 /*!
- * \brief The method which overrides the specific treatment for a LetStmtNode
+ * \brief The method which overrides the specific treatment for a BindNode
  */
-Stmt CommonSubexpressionEliminator::VisitStmt_(const LetStmtNode* op) {
-  // At this point, we have already done the generic treatment of introducing (via let-in) what
-  // was doable at the toplevel of the given let-in.
-
-  // Save the context at the entry of the function
-  Context context_at_entry = context_;
-
+Stmt CommonSubexpressionEliminator::VisitStmt_(const BindNode* op) {
   // Recurse on the `value` field for potentially rewriting it
   PrimExpr value_new = VisitExpr(op->value);
 
-  // Augment the context with the association (`var`, `value`) for preparing the next recursion
-  // on the `body`
+  // Augment the context with the association (`var`, `value`)
+  // so that subsequent sibling statements in the SeqStmt can use it.
   context_.push_back({op->var, MaybeValue(op->value)});
 
-  // Recurse on the `body` (with this extended context)
-  // The recursive call will have potentially done new simplifications, because in this recursive
-  // call `var` will be a part of the context.
-  // (see in VisitStmt() that no introduction were performed when a computation was using an
-  // undefined variable, as that would lead to ill-formed code)
-  Stmt body_new = VisitStmt(op->body);
-
-  // Restaure the context to its content at the entrance to not carry out of scope declarations
-  // as the variable introduced by the let-in is not in scope outside of its body
-  context_ = context_at_entry;
-
-  // Rebuild the let-in with a new `value_new` and `body_new` where new simplifications might
-  // have been done.
-
-  // If the `value` and the `body` of the let-in have been rewritten to the same thing
-  if (value_new.same_as(op->value) && body_new.same_as(op->body)) {
-    // Return a reference to the same node
+  // Rebuild the Bind if value changed
+  if (value_new.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
-    // Otherwise return a let-in built with the new `value_new` and the new `body_new` that
-    // have just been obtained
-    return LetStmt(op->var, value_new, body_new, op->span);
+    return Bind(op->var, value_new, op->span);
   }
+}
+
+/*!
+ * \brief Process a slice of a SeqStmt starting from index `start`.
+ *
+ * This mirrors the old nested LetStmt CSE approach: each Bind is
+ * processed one at a time (VisitExpr on value, augment context),
+ * and then VisitStmt is called on the "body" (all remaining children).
+ * Non-Bind children at the front are processed individually, then
+ * we recurse on the rest.
+ */
+Stmt CommonSubexpressionEliminator::VisitSeqStmtSlice(const ffi::Array<Stmt>& seq, size_t start) {
+  if (start >= seq.size()) {
+    return Evaluate(0);  // shouldn't happen
+  }
+
+  // If seq[start] is a Bind, process it (like the old LetStmt handler):
+  // 1) VisitExpr on the value
+  // 2) Augment context
+  // 3) Call VisitStmt on the "body" (remaining children as SeqStmt)
+  if (auto bind = seq[start].as<BindNode>()) {
+    Context context_at_entry = context_;
+
+    PrimExpr value_new = VisitExpr(bind->value);
+    context_.push_back({bind->var, MaybeValue(bind->value)});
+
+    Stmt bind_new;
+    if (value_new.same_as(bind->value)) {
+      bind_new = ffi::GetRef<Stmt>(bind);
+    } else {
+      bind_new = Bind(bind->var, value_new, bind->span);
+    }
+
+    // Construct the "body" from remaining siblings
+    Stmt body;
+    if (start + 2 == seq.size()) {
+      body = seq[start + 1];
+    } else if (start + 1 < seq.size()) {
+      ffi::Array<Stmt> remaining;
+      for (size_t j = start + 1; j < seq.size(); j++) {
+        remaining.push_back(seq[j]);
+      }
+      body = SeqStmt(remaining);
+    } else {
+      // Bind is the last element, no body
+      context_ = context_at_entry;
+      return bind_new;
+    }
+
+    // Call the full CSE VisitStmt on the body (with augmented context).
+    // This is the key step that allows CSE to find common subexpressions
+    // in subsequent siblings with the Bind variable in scope.
+    Stmt body_new = VisitStmt(body);
+
+    context_ = context_at_entry;
+
+    // Flatten into a flat result
+    ffi::Array<Stmt> result;
+    result.push_back(bind_new);
+    if (auto inner = body_new.as<SeqStmtNode>()) {
+      for (const auto& s : inner->seq) {
+        result.push_back(s);
+      }
+    } else {
+      result.push_back(body_new);
+    }
+    return SeqStmt::Flatten(result);
+  }
+
+  // seq[start] is a non-Bind child.
+  // Process it individually with VisitStmt, then recurse on the rest.
+  Stmt child_new = VisitStmt(seq[start]);
+
+  if (start + 1 >= seq.size()) {
+    // Single remaining child -- return it directly
+    return child_new;
+  }
+
+  ffi::Array<Stmt> result;
+  if (auto inner = child_new.as<SeqStmtNode>()) {
+    for (const auto& s : inner->seq) {
+      result.push_back(s);
+    }
+  } else {
+    result.push_back(child_new);
+  }
+
+  Stmt rest = VisitSeqStmtSlice(seq, start + 1);
+  if (auto inner = rest.as<SeqStmtNode>()) {
+    for (const auto& s : inner->seq) {
+      result.push_back(s);
+    }
+  } else {
+    result.push_back(rest);
+  }
+
+  return SeqStmt::Flatten(result);
+}
+
+/*!
+ * \brief The method which overrides the specific treatment for a SeqStmtNode.
+ *
+ * With flat Bind nodes (no body), the SeqStmt must be processed
+ * sequentially: each Bind node augments the context, and the remaining
+ * non-Bind siblings are wrapped into a "body" for CSE analysis.
+ */
+Stmt CommonSubexpressionEliminator::VisitStmt_(const SeqStmtNode* op) {
+  Context context_at_entry = context_;
+
+  // Use in_seq_stmt_handler_ to track recursive calls.
+  // On first entry: process the whole SeqStmt via VisitSeqStmtSlice.
+  // On recursive entry (from VisitStmt -> StmtExprMutator dispatch):
+  //   also use VisitSeqStmtSlice, but starting fresh (the context
+  //   has already been updated by the outer call).
+  Stmt result = VisitSeqStmtSlice(op->seq, 0);
+
+  context_ = context_at_entry;
+  return result;
 }
 
 /*!

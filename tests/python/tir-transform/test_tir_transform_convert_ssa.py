@@ -32,8 +32,10 @@ def test_reuse_in_sequential_let_stmt():
     var = tir.Var("var", "int32")
     sequential_bindings = tir.SeqStmt(
         [
-            tir.LetStmt(var, 16, tir.Evaluate(var)),
-            tir.LetStmt(var, 32, tir.Evaluate(var)),
+            tir.Bind(var, 16),
+            tir.Evaluate(var),
+            tir.Bind(var, 32),
+            tir.Evaluate(var),
         ]
     )
     before = tir.PrimFunc([], sequential_bindings)
@@ -61,19 +63,21 @@ def test_reuse_in_nested_let_stmt():
     # not valid TIR, and may not be expressible in future versions
     # of TVMSCript.
     var = tir.Var("var", "int32")
-    inner_let = tir.LetStmt(var, 16, tir.Evaluate(var))
-    outer_let = tir.LetStmt(
-        var,
-        32,
-        tir.SeqStmt(
-            [
-                tir.Evaluate(var),
-                inner_let,
-                tir.Evaluate(var),
-            ]
-        ),
+    inner_seq = tir.SeqStmt(
+        [
+            tir.Bind(var, 16),
+            tir.Evaluate(var),
+        ]
     )
-    before = tir.PrimFunc([], outer_let)
+    outer_seq = tir.SeqStmt(
+        [
+            tir.Bind(var, 32),
+            tir.Evaluate(var),
+            inner_seq,
+            tir.Evaluate(var),
+        ]
+    )
+    before = tir.PrimFunc([], outer_seq)
 
     @T.prim_func(private=True)
     def expected():

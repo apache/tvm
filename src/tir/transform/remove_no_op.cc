@@ -91,22 +91,17 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
               const StmtNode* context)
       : Parent(analyzer), touch_pattern_(touch_pattern), context_(context) {}
 
-  Stmt VisitStmt_(const LetStmtNode* op) final {
+  Stmt VisitStmt_(const BindNode* op) final {
     Stmt stmt = Parent::VisitStmt_(op);
-    op = stmt.as<LetStmtNode>();
-    if (is_no_op(op->body)) {
-      return MakeEvaluate(op->value);
-    }
-
-    bool body_uses_bound_variable =
-        !UsesVar(op->body, [&](const VarNode* var) { return var == op->var.get(); });
-    if (body_uses_bound_variable && HasSideEffect(op->value)) {
-      return SeqStmt({MakeEvaluate(op->value), op->body});
-    } else if (body_uses_bound_variable) {
-      return op->body;
-    } else {
+    op = stmt.as<BindNode>();
+    // Bind has no body -- removal of unused Bind is handled at SeqStmt level.
+    // If the value has no side effect, the Bind can potentially be removed.
+    if (!HasSideEffect(op->value) && SideEffect(op->value) <= CallEffectKind::kPure) {
+      // A pure Bind with no uses will be cleaned up by dead code elimination.
+      // Keep it for now; the SeqStmt visitor handles removal.
       return stmt;
     }
+    return stmt;
   }
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_debug_skip_region") {

@@ -888,12 +888,11 @@ void CodeGenSPIRV::VisitStmt_(const AssertStmtNode* op) {
   // AssertStmt is a leaf — no body to visit.
 }
 
-void CodeGenSPIRV::VisitStmt_(const LetStmtNode* op) {
+void CodeGenSPIRV::VisitStmt_(const BindNode* op) {
   TVM_FFI_ICHECK(!var_map_.count(op->var.get()));
   TVM_FFI_ICHECK(!op->var.dtype().is_handle());
   var_map_[op->var.get()] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
-  this->VisitStmt(op->body);
 }
 
 void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {

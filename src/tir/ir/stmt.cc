@@ -35,7 +35,7 @@ namespace tir {
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtNode::RegisterReflection();
   BindNode::RegisterReflection();
-  LetStmtNode::RegisterReflection();
+
   AttrStmtNode::RegisterReflection();
   AssertStmtNode::RegisterReflection();
   BufferStoreNode::RegisterReflection();
@@ -76,31 +76,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](Var var, PrimExpr value, Span span) { return Bind(var, value, span); });
 }
 
-// LetStmt
-LetStmt::LetStmt(Var var, PrimExpr value, Stmt body, Span span) {
-  TVM_FFI_ICHECK(value.defined());
-  TVM_FFI_ICHECK(body.defined());
-  auto vdtype = value.dtype();
-  // It is still valid to bind a pointer type
-  // var to a value that is of type handle.
-  if (var->type_annotation.as<PointerTypeNode>()) {
-    TVM_FFI_ICHECK(vdtype.is_handle());
-  } else {
-    TVM_FFI_ICHECK_EQ(value.dtype(), var.dtype());
-  }
-
-  ObjectPtr<LetStmtNode> node = ffi::make_object<LetStmtNode>();
-  node->var = std::move(var);
-  node->value = std::move(value);
-  node->body = std::move(body);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
+// LetStmt is now a deprecated alias for Bind.
+// Keep the Python-facing factory for backward compat: tir.LetStmt(var, value, body)
+// becomes SeqStmt(Bind(var, value), body).
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tir.LetStmt", [](Var var, PrimExpr value, Stmt body, Span span) {
-    return LetStmt(var, value, body, span);
+    return SeqStmt::Flatten(Bind(var, value, span), body);
   });
 }
 

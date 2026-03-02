@@ -102,41 +102,10 @@ class Bind : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BindNode);
 };
 
-/*!
- * \brief Let binding, bind var to value, then run body.
- * \deprecated Use Bind instead, which has flat scope semantics.
- */
-class LetStmtNode : public StmtNode {
- public:
-  /*! \brief The variable. */
-  Var var;
-  /*! \brief The value to be bound. */
-  PrimExpr value;
-  /*! \brief The body block. */
-  Stmt body;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LetStmtNode>()
-        .def_ro("var", &LetStmtNode::var, refl::AttachFieldFlag::SEqHashDef())
-        .def_ro("value", &LetStmtNode::value)
-        .def_ro("body", &LetStmtNode::body);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tir.LetStmt", LetStmtNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to LetStmtNode.
- * \sa LetStmtNode
- * \deprecated Use Bind instead.
- */
-class LetStmt : public Stmt {
- public:
-  TVM_DLL LetStmt(Var var, PrimExpr value, Stmt body, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LetStmt, Stmt, LetStmtNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(LetStmtNode);
-};
+/*! \brief Deprecated: use BindNode instead. */
+using LetStmtNode = BindNode;
+/*! \brief Deprecated: use Bind instead. */
+using LetStmt = Bind;
 
 /*!
  * \brief Define certain auxiliary attribute for the body to be a symbolic value.
@@ -1015,6 +984,7 @@ inline const char* ForKind2String(ForKind t) {
       return "thread_binding";
   }
   TVM_FFI_THROW(InternalError) << "Unknown ForKind" << t;
+  __builtin_unreachable();
 }
 
 }  // namespace tir

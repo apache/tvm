@@ -293,19 +293,18 @@ class ComputeLegalizer : public StmtExprMutator {
   DEFINE_BIOP_EXPR_LEGALIZE(EQNode, operator==);
   DEFINE_BIOP_EXPR_LEGALIZE(NENode, operator!=);
 
-  Stmt VisitStmt_(const LetStmtNode* op) final {
+  Stmt VisitStmt_(const BindNode* op) final {
     PrimExpr value = PromoteToTarget(op->value);
     Var var = op->var;
     if (value.dtype() != op->value.dtype()) {
       var = op->var.copy_with_dtype(op->value.dtype());
       var_remap_[op->var] = var;
     }
-    Stmt body = VisitStmt(op->body);
 
-    if (value.same_as(op->value) && var.same_as(op->var) && body.same_as(op->body)) {
+    if (value.same_as(op->value) && var.same_as(op->var)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      return LetStmt(var, value, body);
+      return Bind(var, value);
     }
   }
 
@@ -583,15 +582,14 @@ class StorageLegalizer : public StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const LetStmtNode* op) final {
+  Stmt VisitStmt_(const BindNode* op) final {
     PrimExpr value = VisitExpr(op->value);
     Var var = RemapVarDef(op->var);
-    Stmt body = VisitStmt(op->body);
 
-    if (value.same_as(op->value) && var.same_as(op->var) && body.same_as(op->body)) {
+    if (value.same_as(op->value) && var.same_as(op->var)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      return LetStmt(var, value, body);
+      return Bind(var, value);
     }
   }
 

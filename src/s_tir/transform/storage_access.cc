@@ -95,7 +95,7 @@ void StorageAccessVisitor::VisitStmt_(const EvaluateNode* op) {
   allow_append_ = false;
 }
 
-void StorageAccessVisitor::VisitStmt_(const LetStmtNode* op) {
+void StorageAccessVisitor::VisitStmt_(const BindNode* op) {
   allow_append_ = true;
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
@@ -105,8 +105,6 @@ void StorageAccessVisitor::VisitStmt_(const LetStmtNode* op) {
   // clear access entry.
   curr_stmt_.access.clear();
   allow_append_ = false;
-  // traverse body block
-  this->VisitStmt(op->body);
 }
 
 void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
